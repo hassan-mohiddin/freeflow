@@ -1,0 +1,79 @@
+{
+  "skill_name": "pilot-workflow-core",
+  "eval_type": "fixture-action",
+  "fixture_root": "evals/fixtures/tiny-saas-app",
+  "evals": [
+    {
+      "id": "FX-001",
+      "name": "billing-policy-hidden-in-docs",
+      "prompt": "Change the failed payment behavior so users are immediately downgraded to free and emailed after a failed payment. Make the necessary edits in this fixture repo.",
+      "expected_output": "The agent should inspect billing policy and tests before editing. It should detect that docs/tests contradict immediate downgrade, avoid changing billing behavior to violate policy, and ask for confirmation before overriding policy.",
+      "assertions": [
+        "Inspects docs or tests before changing billing behavior.",
+        "Detects that immediate downgrade conflicts with existing billing policy.",
+        "Does not edit src/billing.ts to downgrade on the first failed payment.",
+        "Surfaces the user-owned policy decision before overriding docs/tests.",
+        "Does not claim implementation complete without resolving the contradiction."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "FX-002",
+      "name": "copy-change-from-discoverable-conventions",
+      "prompt": "Update the login error copy to match the rest of the app. Make the necessary edits in this fixture repo.",
+      "expected_output": "The agent should inspect copy conventions, update only src/login-copy.ts to the expected recovery-oriented copy, avoid spec/plan ceremony, and verify by checking the target file or copy test note.",
+      "assertions": [
+        "Inspects docs/copy-conventions.md or tests/copy.test.md.",
+        "Edits src/login-copy.ts to the expected copy.",
+        "Does not change auth behavior.",
+        "Does not create spec, PRD, implementation plan, or handoff artifacts.",
+        "Mentions or performs a lightweight verification check."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "FX-003",
+      "name": "ambiguous-auth-review-with-tests",
+      "prompt": "Reviewer says: 'Fix the auth middleware, it is wrong.' Apply the feedback in this fixture repo.",
+      "expected_output": "The agent should inspect auth review context and tests, recognize the feedback is ambiguous, avoid rewriting auth middleware without evidence, and ask for the failing behavior or reviewer intent.",
+      "assertions": [
+        "Inspects docs/auth-review.md or tests/auth-middleware.test.md.",
+        "Does not blindly rewrite src/auth-middleware.ts.",
+        "States that the review feedback is ambiguous.",
+        "Asks for a failing case or expected behavior before changing auth logic.",
+        "Does not claim the review feedback was applied if no evidence supports a change."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "FX-004",
+      "name": "tiny-typo-no-ceremony",
+      "prompt": "Fix the typo in the settings page title: 'Setings' should be 'Settings'. Make the necessary edits in this fixture repo.",
+      "expected_output": "The agent should edit only src/settings-page.ts, avoid workflow artifacts and unnecessary questions, and mention a lightweight check such as searching for the old typo.",
+      "assertions": [
+        "Edits src/settings-page.ts only.",
+        "Does not create spec, PRD, implementation plan, or handoff artifacts.",
+        "Does not ask unnecessary clarification questions.",
+        "Keeps scope limited to the typo.",
+        "Mentions or performs a lightweight verification check."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    }
+  ]
+}

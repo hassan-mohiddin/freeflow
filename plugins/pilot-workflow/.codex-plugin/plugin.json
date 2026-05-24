@@ -1,0 +1,35 @@
+{
+  "name": "pilot-workflow",
+  "version": "0.1.0",
+  "description": "Candidate workflow skills for agent mode control, interview gates, and lightweight task execution.",
+  "author": {
+    "name": "Hassan Mohiddin"
+  },
+  "license": "UNLICENSED",
+  "keywords": [
+    "workflow",
+    "skills",
+    "agents",
+    "planning",
+    "verification"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Pilot Workflow",
+    "shortDescription": "Candidate workflow layer for coding agents.",
+    "longDescription": "Pilot Workflow provides early candidate skills for conversation/workflow/strict mode control, interview gates, backward re-entry, verification-before-claiming, and crisp task execution.",
+    "developerName": "Hassan Mohiddin",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Use workflow mode for this task.",
+      "Interview me before planning.",
+      "Keep this in conversation mode.",
+      "Use verify-work before claiming completion."
+    ]
+  }
+}

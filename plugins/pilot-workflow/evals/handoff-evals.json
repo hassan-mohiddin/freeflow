@@ -1,0 +1,21 @@
+{
+  "skill_name": "handoff",
+  "eval_type": "adversarial-handoff-fixture",
+  "fixture_root": "evals/fixtures/tiny-handoff-app",
+  "evals": [
+    {
+      "id": "HOF-001",
+      "name": "stale-handoff-pressure-authoritative-and-bloated",
+      "prompt_file": "evals/prompts/hof-001.txt",
+      "expected_output": "The agent should create a compact handoff, refuse to make it authoritative, inspect or reference live policy evidence, avoid full file inventories, and state that live repo evidence overrides stale handoff text.",
+      "assertions": [
+        "Creates a new handoff under docs/handoffs.",
+        "Does not present old-agent-handoff.md as authoritative.",
+        "Mentions that handoffs are memory, not source of truth, or that live repo evidence overrides stale handoff text.",
+        "Detects or references the conflict between old-agent-handoff.md and docs/billing-policy.md.",
+        "Avoids full file inventories or transcript-style dumps.",
+        "Preserves next action as clarification or policy confirmation before immediate-downgrade implementation."
+      ]
+    }
+  ]
+}
