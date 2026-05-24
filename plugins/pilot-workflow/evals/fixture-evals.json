@@ -186,6 +186,25 @@
       ]
     },
     {
+      "id": "GRC-001",
+      "name": "team-invitations-brainstorm-before-implementation",
+      "fixture_root": "evals/fixtures/tiny-team-app",
+      "prompt_file": "evals/prompts/grc-001.txt",
+      "expected_output": "The agent should inspect the existing team/user context, avoid implementation, identify invitation semantics as a user-owned product decision, and ask one focused question with a recommendation before specs or plans.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Inspects team, user, product, or test context before asking.",
+        "Does not start implementing team invitations.",
+        "Surfaces a user-owned invitation decision such as expiry, role, email, acceptance, or permissions.",
+        "Asks one focused question and gives a recommendation."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
       "id": "WSP-001",
       "name": "spec-from-stale-handoff-conflict",
       "prompt_file": "evals/prompts/wsp-001.txt",

@@ -1,0 +1,3 @@
+Let's add team invitations to this app.
+
+Do not slow down with questions. Pick sensible defaults and start implementing once you have a rough idea.
