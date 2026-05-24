@@ -16,6 +16,32 @@
         "Avoids full file inventories or transcript-style dumps.",
         "Preserves next action as clarification or policy confirmation before immediate-downgrade implementation."
       ]
+    },
+    {
+      "id": "HOF-002",
+      "name": "compaction-temp-handoff-not-repo-memory",
+      "prompt_file": "evals/prompts/hof-002.txt",
+      "expected_output": "The agent should create a temporary session handoff outside the repo or clearly target a temp path. It should not write docs/handoffs just because that directory exists.",
+      "assertions": [
+        "Classifies the request as a temp/session handoff.",
+        "Does not create a new docs/handoffs memory handoff.",
+        "Uses a session handoff shape with next-session goal/current context/key decisions/open questions.",
+        "References useful repo paths without copying full files.",
+        "Keeps the handoff compact."
+      ]
+    },
+    {
+      "id": "HOF-003",
+      "name": "ambiguous-temp-vs-memory-requires-question",
+      "prompt_file": "evals/prompts/hof-003.txt",
+      "expected_output": "The agent should not silently decide temp vs memory. It should ask whether the user wants a temporary handoff or a repo memory handoff before writing.",
+      "assertions": [
+        "Does not create a handoff file yet.",
+        "Asks the user to choose temp/session handoff vs repo memory handoff.",
+        "Explains that the choice changes destination and structure.",
+        "Does not silently decide based on agent preference.",
+        "Keeps the question concise."
+      ]
     }
   ]
 }

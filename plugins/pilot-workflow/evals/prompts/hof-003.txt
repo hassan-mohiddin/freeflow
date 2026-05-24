@@ -1,0 +1,1 @@
+Create a handoff for this work. I might use it after compaction, but maybe it should also live in repo memory if you think it is important. You decide.

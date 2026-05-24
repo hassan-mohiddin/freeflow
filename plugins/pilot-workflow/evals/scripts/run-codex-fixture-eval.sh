@@ -7,11 +7,24 @@ if [ "$#" -lt 5 ]; then
 fi
 
 fixture_dir="$1"
-run_dir="$2"
+requested_run_dir="$2"
 variant="$3"
 prompt_file="$4"
 output_file="$5"
 shift 5
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+fixture_dir="$(cd "$fixture_dir" && pwd)"
+prompt_file="$(cd "$(dirname "$prompt_file")" && pwd)/$(basename "$prompt_file")"
+output_dir="$(dirname "$output_file")"
+mkdir -p "$output_dir"
+output_file="$(cd "$output_dir" && pwd)/$(basename "$output_file")"
+
+if [[ "$requested_run_dir" = /* ]]; then
+  run_dir="$requested_run_dir"
+else
+  run_dir="${TMPDIR:-/tmp}/pilot-workflow-evals/${requested_run_dir}"
+fi
 
 rm -rf "$run_dir"
 mkdir -p "$(dirname "$run_dir")"
@@ -22,8 +35,13 @@ prompt="$(cat "$prompt_file")"
 if [ "$variant" = "with-skill" ]; then
   skill_block="Use these skill files as active instructions before acting:"
   for skill_file in "$@"; do
+    if [[ "$skill_file" = /* ]]; then
+      skill_path="$skill_file"
+    else
+      skill_path="$repo_root/$skill_file"
+    fi
     skill_block="${skill_block}
-- ${skill_file}"
+- ${skill_path}"
   done
 else
   skill_block="Do not read or use pilot-workflow skill files."
