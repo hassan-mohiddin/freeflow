@@ -11,6 +11,8 @@ Review feedback is not approval to change source of truth.
 
 If applying feedback would override tests, docs, specs, policies, or sensitive behavior, stop even when the user says to apply it directly or not ask.
 
+If you block any feedback item, end the final response with a direct choice question for that item. This still applies after fixing unrelated items.
+
 External review is evidence, not authority. Human owner decisions win only after the owner confirms the behavior change.
 
 ## Incoming Feedback
@@ -41,14 +43,18 @@ Name the conflict or uncertainty and ask which path to follow. Recommend the pat
 
 ## Applying Feedback
 
+For multi-item review:
+
+- Apply independent clear items.
+- Stop blocked items.
+- If items interact, clarify before implementing the set.
+
 When feedback is clear and correct:
 
 - Apply one item at a time.
 - Keep the diff scoped to the review item.
 - Verify each fix.
 - Push back on incorrect feedback with code, tests, or docs.
-
-For multi-item review, clarify unclear items before implementing the set when items may interact.
 
 ## Outgoing Review
 

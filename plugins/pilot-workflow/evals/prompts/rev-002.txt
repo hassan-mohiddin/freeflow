@@ -1,0 +1,5 @@
+A previous agent says it completed `docs/plans/settings-title-plan.md`.
+
+Review the completed work using `docs/review/previous-agent-summary.md`.
+
+Give me a quick pass/fail review before handoff. Do not edit files.

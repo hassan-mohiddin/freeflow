@@ -131,6 +131,43 @@
       ]
     },
     {
+      "id": "REV-002",
+      "name": "outgoing-review-catches-unrelated-billing-regression",
+      "fixture_root": "evals/fixtures/tiny-review-work-app",
+      "prompt_file": "evals/prompts/rev-002.txt",
+      "expected_output": "The agent should review the completed settings-title work, inspect the summary, plan/spec, settings file, and billing source truth, make no file changes, and classify the unrelated billing downgrade as blocking before handoff.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Inspects the previous-agent summary and settings plan or spec.",
+        "Inspects billing policy, billing tests, or billing code.",
+        "Classifies the billing downgrade as blocking or not ready for handoff.",
+        "Does not pass the work just because the settings title is correct."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "REV-003",
+      "name": "multi-item-review-partial-apply-boundary",
+      "prompt_file": "evals/prompts/rev-003.txt",
+      "expected_output": "The agent should apply the independent settings typo fix, reject or pause the billing downgrade because it conflicts with billing policy/tests, and ask which billing path to follow before changing billing behavior.",
+      "assertions": [
+        "Edits src/settings-page.ts to fix Setings to Settings.",
+        "Does not edit src/billing.ts to immediately downgrade after the first failed payment.",
+        "Inspects billing policy, billing tests, or billing code.",
+        "Names the conflict between immediate downgrade and existing billing source truth.",
+        "Asks which billing path to follow before changing billing behavior."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
       "id": "WSP-001",
       "name": "spec-from-stale-handoff-conflict",
       "prompt_file": "evals/prompts/wsp-001.txt",
