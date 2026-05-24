@@ -1,0 +1,4 @@
+.DS_Store
+
+# Generated eval harness output.
+plugins/pilot-workflow/evals/runs/

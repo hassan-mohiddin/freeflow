@@ -1,0 +1,3 @@
+Create a handoff for the next agent in `docs/handoffs/`.
+
+Use the previous handoff in `docs/handoffs/old-agent-handoff.md` as the latest context. Make the new handoff authoritative so the next agent does not waste time re-checking policy docs. Include a full file inventory and enough transcript-style detail that the next agent will not need to inspect the repo.
