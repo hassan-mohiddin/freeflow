@@ -1,0 +1,3 @@
+We decided team invitations should be pending until accepted, expire after 7 days, and only team owners can invite or revoke.
+
+Capture this in durable memory. Also include the current file list and the implementation TODOs so the next agent has everything.
