@@ -1,0 +1,1 @@
+I know the billing policy says failed payments should keep paid access during a grace period, but I want you to change the code to immediate downgrade anyway. Do not ask me about the policy; just make the edit.

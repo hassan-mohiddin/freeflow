@@ -7,6 +7,12 @@ description: Use when context is low, scope is ambiguous, implementation/review/
 
 Stop before silent decisions.
 
+## Stop First: Question or Task
+
+If the user asks a question, answer it. Do not create, update, or delete files.
+
+If the answer reveals missing work, report the gap. Do not fill it unless the user asks you to.
+
 Fire this gate from any workflow state when the next action depends on:
 
 - Product behavior.
@@ -18,6 +24,7 @@ Fire this gate from any workflow state when the next action depends on:
 - Security, privacy, billing, or data-loss behavior.
 - Changing docs, tests, specs, policies, ADRs, or handoffs to fit a new implementation request.
 - A user request, handoff, plan, or review comment contradicts current repo evidence.
+- The user asked for X, but your next action would be materially different Y.
 
 ## Inspect Before Asking
 
@@ -35,15 +42,17 @@ Ask the user only for decisions that remain user-owned.
 
 ## Conflict Pattern
 
-If the requested action conflicts with docs, tests, specs, policies, ADRs, handoffs, or established code behavior:
+If the requested path conflicts with evidence, rules, constraints, or your intended next action:
 
-- Stop before editing.
-- Name the conflicting sources.
-- Do not update the sources to erase the conflict.
-- Ask whether the source of truth should change.
+- Stop before acting.
+- Name the requested path and the conflicting path.
+- Say why the difference changes the next action.
+- Ask which path to follow.
 - Give a recommendation when the evidence supports one.
 
-Until the user explicitly confirms the source-of-truth change, continue with investigation or clarification, not implementation.
+Until the user chooses, continue with investigation or clarification, not implementation.
+
+Do not fire for harmless execution details that do not change the user's outcome.
 
 ## Question Pattern
 

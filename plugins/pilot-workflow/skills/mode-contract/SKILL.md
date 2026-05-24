@@ -11,6 +11,7 @@ Use exactly three modes.
 
 **Conversation mode**: discussion, explanation, critique, exploration, quick analysis.
 
+- Answer questions; do not act on them.
 - No workflow pressure.
 - No required artifacts.
 - No plan/spec requirement.

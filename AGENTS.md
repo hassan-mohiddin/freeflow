@@ -19,8 +19,33 @@ For current continuation state, read the latest relevant file in `docs/handoffs/
 
 For evidence about whether a skill works, read `plugins/pilot-workflow/evals/*report.md`. Prefer later reports over earlier ones when they conflict.
 
+## Reference Skill Stack
+
+Pilot Workflow is being built to become the primary workflow and orchestration layer. Until its behavior is validated, use this reference stack:
+
+- Matt Pocock skills are the primary style and behavior reference.
+- Obra/Superpowers skills are the workflow lifecycle reference.
+- Anthropic `skill-creator` is the skill authoring and eval methodology reference.
+
+Use Matt for concise skill wording, sharp failure-prevention rules, low-ceremony loops, and practical engineering judgment.
+
+Use Obra/Superpowers for workflow phases, planning, execution, review, verification, debugging, and lifecycle gaps Pilot Workflow has not encoded yet.
+
+Use Anthropic `skill-creator` for skill structure, trigger descriptions, progressive disclosure, baseline versus with-skill evals, and iteration from measured failures.
+
+When reference skills conflict:
+
+1. User instruction wins.
+2. Repo memory wins: `AGENTS.md`, `CONTEXT.md`, ADRs.
+3. Pilot Workflow docs and eval reports win.
+4. Matt style wins for interaction shape and skill wording.
+5. Obra/Superpowers wins for lifecycle coverage.
+6. Anthropic `skill-creator` wins for skill creation and eval mechanics.
+
 ## Working Rules
 
+- Questions get answers, not surprise artifacts. If answering reveals missing work, report it; do not create files unless asked.
+- If the user asks for X and the agent is about to do materially different Y, name the mismatch and ask which path to follow.
 - Keep skill files short, behavior-shaping, and pressure-tested.
 - Use `CONTEXT.md` for project language. Do not turn it into a spec or implementation summary.
 - Use ADRs sparingly for hard-to-reverse, surprising, tradeoff-driven decisions.

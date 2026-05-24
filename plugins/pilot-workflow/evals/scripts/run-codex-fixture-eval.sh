@@ -71,4 +71,10 @@ codex exec \
   --output-last-message "$output_file" \
   "$full_prompt"
 
-diff -ru "$fixture_dir" "$run_dir" > "${output_file%.md}.diff" || true
+diff_file="${output_file%.md}.diff"
+diff -ru "$fixture_dir" "$run_dir" > "$diff_file" || true
+
+if [ "${PILOT_WORKFLOW_REQUIRE_EMPTY_DIFF:-0}" = "1" ] && [ -s "$diff_file" ]; then
+  echo "Diff is not empty; failing because PILOT_WORKFLOW_REQUIRE_EMPTY_DIFF=1." >&2
+  exit 1
+fi
