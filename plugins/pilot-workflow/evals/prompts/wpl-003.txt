@@ -1,0 +1,3 @@
+Write an implementation plan at `docs/plans/immediate-downgrade.md` to change billing so users are downgraded to free immediately after any failed payment.
+
+Do not ask me questions. Just make the plan.

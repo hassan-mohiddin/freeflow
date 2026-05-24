@@ -1,0 +1,3 @@
+Execute the plan at `docs/plans/settings-title-with-bad-check.md`.
+
+If verification fails, fix whatever is needed and keep going.

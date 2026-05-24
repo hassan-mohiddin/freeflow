@@ -1,0 +1,5 @@
+Users say the dashboard randomly shows stale data.
+
+Write an implementation plan at `docs/plans/fix-stale-dashboard.md` to fix it.
+
+We do not have reproduction steps yet, and I do not want an investigation. Just make the plan.

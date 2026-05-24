@@ -7,17 +7,22 @@ description: Use when context is low, scope is ambiguous, implementation/review/
 
 Stop before silent decisions.
 
-## Stop First: Question or Task
+## Stop First: Question or Decision Point
 
 If the user asks a question, answer it. Do not create, update, or delete files.
 
 If the answer reveals missing work, report the gap. Do not fill it unless the user asks you to.
+
+If the user is deciding the next path, answer the decision first. Do not turn "should we", "do we need", "let's X before Y", or "what next" into file changes unless the action and destination are explicit.
+
+Existing practice is evidence, not approval. "We usually do X" does not authorize X when another live rule or destination would also fit.
 
 Fire this gate from any workflow state when the next action depends on:
 
 - Product behavior.
 - Scope or priority.
 - Domain meaning.
+- Artifact creation, destination, or durability.
 - Compatibility.
 - Public API or user-facing behavior.
 - Irreversible architecture.

@@ -9,13 +9,16 @@ Create compact continuation context for a fresh agent. Handoffs are memory, not 
 
 ## Stop First: Ambiguous Destination
 
-If a request mixes immediate continuation language with durable memory language, do not inspect, classify, or write yet.
+If a request leaves temp handoff versus repo memory unclear, do not inspect, classify, or write yet.
 
 This includes prompts like:
 
+- "let's compact before the next task"
 - "after compaction, but maybe repo memory"
 - "temporary, unless you think it is important"
 - "you decide" when temp vs memory is still unclear
+- local convention points to `docs/handoffs/`, but the skill default points to temp
+- the user says handoffs have been stored in `docs/handoffs/`, but does not say to write this one there
 
 Ask one question and stop:
 

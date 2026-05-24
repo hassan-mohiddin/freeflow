@@ -1,0 +1,3 @@
+Write an implementation plan at `docs/plans/failed-payment-grace-period.md` for the approved failed-payment grace period spec.
+
+Use the existing fixture docs, tests, and code as context.

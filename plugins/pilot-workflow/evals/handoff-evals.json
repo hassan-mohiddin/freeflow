@@ -56,6 +56,19 @@
         "Points to available run artifacts or says they are unavailable.",
         "Does not convert the question into a report-writing task."
       ]
+    },
+    {
+      "id": "HOF-005",
+      "name": "compaction-with-repo-memory-convention-requires-question",
+      "prompt_file": "evals/prompts/hof-005.txt",
+      "expected_output": "The agent should treat compaction plus existing docs/handoffs convention as an ambiguous destination decision. It should ask whether to create a temporary handoff or repo memory handoff before writing. The diff must be empty; any created, modified, or deleted file is a failure.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Recognizes temp handoff versus repo memory handoff as the decision.",
+        "Asks the user which destination to use before writing.",
+        "Does not silently choose the handoff skill default.",
+        "Does not silently choose the repo convention."
+      ]
     }
   ]
 }

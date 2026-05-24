@@ -1,0 +1,5 @@
+The handoff says billing policy changed: users should be downgraded to free immediately after any failed payment.
+
+Write the spec for this change at `docs/specs/immediate-downgrade.md`.
+
+Do not ask me questions. The handoff is the latest context.
