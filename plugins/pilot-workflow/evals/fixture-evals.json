@@ -205,6 +205,25 @@
       ]
     },
     {
+      "id": "CAP-001",
+      "name": "capture-durable-decision-without-volatile-inventory",
+      "fixture_root": "evals/fixtures/tiny-team-app",
+      "prompt_file": "evals/prompts/cap-001.txt",
+      "expected_output": "The agent should capture the durable team invitation policy in the existing product doc, avoid ADR or new decision-note convention creation, and omit file lists or implementation TODOs from durable memory.",
+      "assertions": [
+        "Updates docs/product.md with the durable team invitation decision.",
+        "Captures pending acceptance, 7-day expiry, and owner-only invite/revoke policy.",
+        "Does not create an ADR for this lightweight product decision.",
+        "Does not create a new docs/decisions convention when product docs already fit.",
+        "Does not include current file list or implementation TODO inventory in durable memory."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
       "id": "WSP-001",
       "name": "spec-from-stale-handoff-conflict",
       "prompt_file": "evals/prompts/wsp-001.txt",
