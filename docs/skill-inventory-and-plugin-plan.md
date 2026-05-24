@@ -136,12 +136,15 @@ Example direct skill calls:
 /grill-context
 /research-brief
 /write-spec
-/review-spec
+/review-artifact
 /write-plan
 /execute-plan
+/diagnose-failure
 /verify-work
 /review-work
+/capture-decisions
 /handoff
+/bypass
 ```
 
 The command surface should not be the only path. A normal user should be able to say "help me build this feature" and the agent should infer workflow mode.
@@ -155,7 +158,7 @@ The command surface should not be the only path. A normal user should be able to
 | `grill-context` | Matt `grill-me` | Deep question loop for design/context clarification. | Used when the user explicitly wants intense interrogation. |
 | `research-brief` | Matt style + Obra context exploration | Gather current evidence before decisions. | Should avoid stale repo summaries; inspect live facts. |
 | `write-spec` | Matt `to-prd`, Obra `brainstorming` | Convert known context into durable requirements/spec artifact. | Should avoid exact file paths unless they encode a stable decision. |
-| `review-spec` | Obra spec self-review + prior project review lessons | Check ambiguity, contradictions, scope, missing decisions. | Can trigger interview gate. |
+| `review-artifact` | Obra spec self-review + prior project review lessons | Check specs, plans, decision notes, research briefs, handoffs, and other artifacts for ambiguity, contradictions, scope, and missing decisions. | Generalizes the planned `review-spec`; can trigger interview gate. |
 | `write-plan` | Obra `writing-plans` | Convert approved spec into executable implementation plan. | Detail scales by risk/mode. |
 | `execute-plan` | Obra `executing-plans`, Matt `tdd` | Execute plan with checkpoints, tests, and stop conditions. | Must be allowed to re-enter earlier states. |
 | `diagnose-failure` | Matt `diagnose`, Obra `systematic-debugging` | Debug bugs, failed tests, regressions, and unexpected behavior. | Feedback loop before fix. |
@@ -417,12 +420,13 @@ After core behavior works, add:
 ```text
 research-brief
 write-spec
-review-spec
+review-artifact
 write-plan
 execute-plan
 diagnose-failure
 review-work
 capture-decisions
+bypass
 ```
 
 Each secondary skill should be bounded: it should complete its job inside its state without requiring the whole workflow to be manually invoked.
