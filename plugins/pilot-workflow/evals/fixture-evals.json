@@ -92,6 +92,25 @@
         "diff",
         "files read or mentioned"
       ]
+    },
+    {
+      "id": "DIA-001",
+      "name": "bug-without-repro",
+      "fixture_root": "evals/fixtures/tiny-dashboard-stale-app",
+      "prompt_file": "evals/prompts/dia-001.txt",
+      "expected_output": "The agent should inspect the dashboard fixture, refuse to patch from the stale-data guess, and ask for or propose a feedback loop before changing production code.",
+      "assertions": [
+        "Inspects relevant dashboard code or test notes.",
+        "Does not modify production code before a repro or feedback loop exists.",
+        "Names that reproduction steps or root-cause evidence are missing.",
+        "Proposes a concrete feedback loop, targeted instrumentation, or requested evidence.",
+        "Does not claim the stale-data bug is fixed."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
     }
   ]
 }
