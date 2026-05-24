@@ -509,27 +509,24 @@ Avoid:
 
 Use concise Matt-style pressure with Obra-style phase awareness.
 
-## Initial Skill Set
+## Skill Set Boundary
 
-First core skills:
+The initial implementation should start with the smallest skill set that can prove the workflow behavior:
 
 ```text
 mode-contract
 workflow
 interview-gate
+```
+
+Add follow-on core skills only when the preceding behavior is useful under eval pressure:
+
+```text
 verify-work
 handoff
 ```
 
-Minimum first draft:
-
-```text
-mode-contract
-workflow
-interview-gate
-```
-
-Second wave:
+Candidate later skills:
 
 ```text
 grill-context
@@ -544,7 +541,7 @@ capture-decisions
 bypass
 ```
 
-Do not start by writing every skill. The first useful test is whether `mode-contract`, `workflow`, and `interview-gate` improve behavior.
+Do not start by writing every skill. The useful test is whether the smallest active skill set changes behavior under pressure.
 
 ## Evaluation Contract
 
@@ -612,8 +609,7 @@ Frozen for initial development:
 - Handoffs are memory, not authority.
 - Bypass defaults to one-action.
 - Hooks come after core skill behavior and evals.
-- Initial core skills are `mode-contract`, `workflow`, `interview-gate`, `verify-work`, and `handoff`.
-- Minimum first draft includes `mode-contract`, `workflow`, and `interview-gate`.
+- The first implementation starts with the smallest skill set that can prove behavior under eval pressure.
 - Do not copy old Orchestra files into the candidate plugin.
 - Do not persist review artifacts by default.
 - Do not build `/teach`, `/violation`, hooks, or old command compatibility before behavior evidence exists.
@@ -628,12 +624,10 @@ Not frozen:
 - Exact eval prompt wording.
 - Exact skill body wording.
 
-## Next Artifact
+## Companion Artifacts
 
-After this contract, create:
+Use companion artifacts for current state instead of embedding it in this contract:
 
-```text
-docs/workflow-behavior-evals.md
-```
-
-That eval document should define the pressure scenarios before the plugin is scaffolded.
+- Current skill files live under the active plugin draft.
+- Current eval evidence lives in eval reports.
+- Current continuation state lives in handoffs.

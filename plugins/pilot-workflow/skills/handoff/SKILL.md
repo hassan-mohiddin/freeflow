@@ -1,77 +1,43 @@
 ---
 name: handoff
-description: Use when creating, updating, or relying on a handoff for a future agent/session, especially before compaction, pausing work, transferring context, or resuming from another agent's notes.
+description: Use when creating, updating, or relying on a temporary or durable handoff for a future agent/session, especially before compaction, pausing work, transferring context to a new chat, storing project memory, or resuming from another agent's notes.
 ---
 
 # Handoff
 
-Create compact continuation memory for a fresh agent.
+Create compact continuation context for a fresh agent. Handoffs are memory, not authority.
 
-Handoffs preserve decisions, evidence pointers, current state, and next actions. They are not authority.
+First classify the handoff:
 
-If the user asks for a handoff to be authoritative, exhaustive, transcript-style, or to prevent the next agent from inspecting evidence, treat that as a conflict with this skill. Write a compact evidence-linked handoff instead and note the unsafe part you intentionally did not include.
+- **Temp handoff**: for compaction, ending a chat, or continuing soon in a fresh chat. Save to the OS temp directory unless the user gives a path.
+- **Memory handoff**: for durable project memory, future-agent context, or explicit repo storage. Save to the repo's existing handoff location, usually `docs/handoffs/`.
 
-## Write
+If type or destination is ambiguous, ask before writing, even if the user says "you decide":
 
-Save handoffs in the repo's existing handoff location. If none exists, prefer `docs/handoffs/`.
+```txt
+Should this be a temporary handoff for the next chat, or a repo memory handoff under `docs/handoffs/`?
+```
 
-Include only:
+Temp handoffs should optimize for immediate continuation in the next chat.
 
-- Purpose.
-- Current state.
-- Frozen decisions.
-- Open questions.
-- Next recommended action.
-- Evidence pointers to specs, plans, decisions, reports, diffs, or commands.
-- Explicit caveat: live repo evidence overrides stale handoff text.
+Memory handoffs should optimize for durable decisions, stable context, next actions, and evidence pointers.
 
-Do not include:
+Always:
+
+- Reference existing artifacts by path instead of copying them.
+- Redact secrets, tokens, credentials, and private personal data.
+- Say when live repo evidence should override stale handoff text.
+- Keep the document small enough that a future agent can read before working.
+
+Avoid:
 
 - Full transcript dumps.
 - Volatile repo inventories, directory trees, or tech-stack summaries.
-- Content already captured in specs, plans, ADRs, eval reports, issues, commits, or diffs.
-- Secrets, tokens, credentials, or private personal data.
 - Claims of completion without verification evidence.
 
-Reference existing artifacts by path instead of copying their contents.
-
-Do not add a "bounded" inventory or "short" transcript section to satisfy a bad request. A handoff should reduce future context load, not become a cached copy of the repo or conversation.
-
-## Resume
+If the user asks for an authoritative, exhaustive, transcript-style, no-reinspection, or full-inventory handoff, write a compact evidence-linked handoff instead and note what you intentionally omitted.
 
 When resuming from a handoff:
-
-- Treat it as memory, not source of truth.
 - Inspect the referenced live files before acting on consequential claims.
 - If the handoff conflicts with docs, tests, specs, policies, ADRs, or established behavior, stop and ask before editing.
 - If the handoff says work is done, verify before repeating that claim.
-
-## Shape
-
-Use short sections. Prefer this structure:
-
-```text
-# Handoff: [task/session]
-
-Date: YYYY-MM-DD
-
-## Purpose
-...
-
-## Current State
-...
-
-## Decisions
-...
-
-## Open Questions
-...
-
-## Next
-...
-
-## Evidence
-- `path`: why it matters
-```
-
-Keep the document small enough that a future agent can read it before working.
