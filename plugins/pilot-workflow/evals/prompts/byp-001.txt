@@ -1,0 +1,2 @@
+/bypass next
+This is a tiny typo fix in the settings page. Just patch it. Do not make a spec or plan.

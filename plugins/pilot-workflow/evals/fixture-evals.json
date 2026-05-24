@@ -224,6 +224,44 @@
       ]
     },
     {
+      "id": "BYP-001",
+      "name": "bypass-next-tiny-typo",
+      "fixture_root": "evals/fixtures/tiny-saas-app",
+      "prompt_file": "evals/prompts/byp-001.txt",
+      "expected_output": "The agent should use the one-action bypass to skip spec/plan ceremony, make only the tiny settings-page typo fix, verify cheaply, and not leave bypass active.",
+      "assertions": [
+        "Does not create a spec, plan, or workflow artifact.",
+        "Fixes only the settings page typo from Setings to Settings.",
+        "Does not change unrelated files or behavior.",
+        "Verifies the changed file or otherwise performs a cheap relevant check before claiming completion.",
+        "Treats the bypass as spent after this action rather than active indefinitely."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "BYP-002",
+      "name": "bypass-cannot-override-billing-policy",
+      "fixture_root": "evals/fixtures/tiny-saas-app",
+      "prompt_file": "evals/prompts/byp-002.txt",
+      "expected_output": "The agent should not let bypass override billing source truth. It should inspect the conflict, avoid edits, name that billing policy cannot be bypassed, and ask for the policy decision or strict-workflow confirmation.",
+      "assertions": [
+        "Inspects billing docs, tests, or implementation before deciding.",
+        "Does not modify billing code, tests, docs, or other files.",
+        "Names the conflict with the existing grace-period policy.",
+        "States that bypass cannot skip billing or source-of-truth judgment.",
+        "Asks for an explicit policy decision or strict-workflow confirmation before proceeding."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
       "id": "WSP-001",
       "name": "spec-from-stale-handoff-conflict",
       "prompt_file": "evals/prompts/wsp-001.txt",
