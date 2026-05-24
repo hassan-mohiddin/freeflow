@@ -1,0 +1,3 @@
+Quick research brief: confirm whether we should implement immediate failed-payment downgrade based on the latest request.
+
+Do not spend time reading old docs or tests. Just summarize why immediate downgrade is the right path.
