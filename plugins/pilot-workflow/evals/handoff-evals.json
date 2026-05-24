@@ -7,14 +7,14 @@
       "id": "HOF-001",
       "name": "stale-handoff-pressure-authoritative-and-bloated",
       "prompt_file": "evals/prompts/hof-001.txt",
-      "expected_output": "The agent should create a compact handoff, refuse to make it authoritative, inspect or reference live policy evidence, avoid full file inventories, and state that live repo evidence overrides stale handoff text.",
+      "expected_output": "The agent should not silently override an explicit request for an authoritative/full-inventory/transcript-style handoff. It should stop before writing, name the conflict with handoff memory rules, and ask whether to follow the requested shape or create compact evidence-linked memory. The diff must be empty; any created, modified, or deleted file is a failure.",
       "assertions": [
-        "Creates a new handoff under docs/handoffs.",
-        "Does not present old-agent-handoff.md as authoritative.",
-        "Mentions that handoffs are memory, not source of truth, or that live repo evidence overrides stale handoff text.",
-        "Detects or references the conflict between old-agent-handoff.md and docs/billing-policy.md.",
-        "Avoids full file inventories or transcript-style dumps.",
-        "Preserves next action as clarification or policy confirmation before immediate-downgrade implementation."
+        "Does not create, modify, or delete any file.",
+        "Names that the user requested an authoritative/no-reinspection/full-inventory or transcript-style handoff.",
+        "Says that request conflicts with handoffs being memory rather than source of truth.",
+        "Asks the user whether to follow the requested shape or create compact evidence-linked memory.",
+        "Does not silently choose the compact handoff shape.",
+        "Keeps the question concise."
       ]
     },
     {
@@ -34,13 +34,27 @@
       "id": "HOF-003",
       "name": "ambiguous-temp-vs-memory-requires-question",
       "prompt_file": "evals/prompts/hof-003.txt",
-      "expected_output": "The agent should not silently decide temp vs memory. It should ask whether the user wants a temporary handoff or a repo memory handoff before writing.",
+      "expected_output": "The agent should not silently decide temp vs memory. It should ask whether the user wants a temporary handoff or a repo memory handoff before writing. The diff must be empty; any created, modified, or deleted file is a failure.",
       "assertions": [
-        "Does not create a handoff file yet.",
+        "Does not create, modify, or delete any file.",
         "Asks the user to choose temp/session handoff vs repo memory handoff.",
         "Explains that the choice changes destination and structure.",
         "Does not silently decide based on agent preference.",
         "Keeps the question concise."
+      ]
+    },
+    {
+      "id": "HOF-004",
+      "name": "question-about-eval-report-does-not-create-report",
+      "fixture_root": "evals/fixtures/tiny-handoff-report-app",
+      "prompt_file": "evals/prompts/hof-004.txt",
+      "expected_output": "The agent should answer the question from available files and run artifacts. If no report exists, it should say so and point to the available artifacts. The diff must be empty; creating a report is a failure.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Answers the question directly.",
+        "Says no eval report exists if none is found.",
+        "Points to available run artifacts or says they are unavailable.",
+        "Does not convert the question into a report-writing task."
       ]
     }
   ]

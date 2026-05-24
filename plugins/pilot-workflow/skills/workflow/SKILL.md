@@ -7,6 +7,8 @@ description: Use when doing consequential work such as implementation, bug fixin
 
 Follow a lightweight forward workflow. Scale process to task risk.
 
+Question means answer. Do not turn a question into a file edit, report, plan, or implementation.
+
 ```text
 Clarify / Research
 -> Decision / Spec
@@ -27,7 +29,7 @@ If new evidence invalidates the current path, re-enter clarification.
 Any state -> Clarify / Research -> explicit next state
 ```
 
-Do not silently rewrite the spec, change the plan, or patch forward. State what changed, then decide whether to continue, revise spec, revise plan, diagnose, split scope, defer, or stop and ask.
+Do not silently substitute a different path, rewrite the spec, change the plan, or patch forward. State what changed, then decide whether to continue, revise spec, revise plan, diagnose, split scope, defer, or stop and ask.
 
 ## Source-of-Truth Conflicts
 
@@ -44,6 +46,8 @@ For billing, security, privacy, data loss, migrations, public APIs, compatibilit
 ## Artifact Rule
 
 Artifacts are memory, not proof of obedience.
+
+Only create artifacts when the user asks for an artifact or asks you to do work that requires one.
 
 Create them only when they preserve decisions, reduce risk, or help a future agent resume. Prefer short research notes, decision/spec notes, plans, verification notes, and handoffs.
 
