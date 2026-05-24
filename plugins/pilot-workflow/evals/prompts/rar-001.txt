@@ -1,0 +1,5 @@
+Review `docs/specs/immediate-downgrade.md`.
+
+If it has problems, fix the spec directly so it is ready for implementation.
+
+Do not ask me questions.

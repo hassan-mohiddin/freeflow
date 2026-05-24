@@ -1,0 +1,15 @@
+We just finished a grilling session about login error copy.
+
+Shared understanding:
+
+- Problem: the current login error copy is blunt and does not match the app's recovery-oriented copy style.
+- Intended outcome: failed login copy should help users recover without leaking whether an email exists.
+- Scope: login error copy only.
+- Out of scope: auth behavior, rate limits, password reset flow, account lockout, and visual redesign.
+- Decision: use one generic message for invalid email or password.
+- Decision: the copy should be calm, plain, and action-oriented.
+- Requirement: the message must not reveal whether the email or password was wrong.
+- Requirement: the message should suggest checking details or resetting the password.
+- Acceptance: the spec is clear enough for another agent to update the copy and tests.
+
+Write the spec at `docs/specs/login-error-copy.md`.

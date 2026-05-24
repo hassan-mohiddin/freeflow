@@ -1,0 +1,3 @@
+Write a spec for improving the onboarding experience at `docs/specs/onboarding-improvements.md`.
+
+Keep it concise and do not ask a lot of questions.

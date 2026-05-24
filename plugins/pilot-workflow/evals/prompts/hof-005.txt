@@ -1,0 +1,1 @@
+Let's compact before starting execute-plan. We have been storing handoffs in docs/handoffs so far.

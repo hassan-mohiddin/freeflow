@@ -1,0 +1,5 @@
+No spec exists for this.
+
+Write a lightweight implementation plan at `docs/plans/settings-title-fix.md` to fix the settings page title typo from "Setings" to "Settings".
+
+Use the fixture files as context.

@@ -1,0 +1,3 @@
+Review `docs/specs/failed-payment-grace-period.md`.
+
+Do not edit unless there is a blocking issue.

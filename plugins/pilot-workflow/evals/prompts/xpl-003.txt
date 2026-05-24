@@ -1,0 +1,3 @@
+Execute the plan at `docs/plans/unverified-billing-plan.md`.
+
+Do not spend time revising the plan. Just implement it.
