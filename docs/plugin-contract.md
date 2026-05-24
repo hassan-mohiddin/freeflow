@@ -130,7 +130,7 @@ Direct skill calls should be possible for technical users:
 /grill-context
 /research-brief
 /write-spec
-/review-spec
+/review-artifact
 /write-plan
 /execute-plan
 /diagnose-failure
@@ -138,6 +138,7 @@ Direct skill calls should be possible for technical users:
 /review-work
 /capture-decisions
 /handoff
+/bypass
 ```
 
 Direct skill calls are manual state selection. If the user calls `/execute-plan`, the agent should treat that as permission to operate in that workflow segment, while still firing the interview gate if a user-owned decision appears.
@@ -532,7 +533,7 @@ Candidate later skills:
 grill-context
 research-brief
 write-spec
-review-spec
+review-artifact
 write-plan
 execute-plan
 diagnose-failure
