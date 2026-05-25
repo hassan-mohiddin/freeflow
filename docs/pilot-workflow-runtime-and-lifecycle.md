@@ -75,12 +75,12 @@ Version and migration fields can be added when Pilot is close to shipping.
 
 ## Agent Instruction File
 
-Setup should add a tiny activation block to the host agent's repo instruction file.
+Setup should add a compact always-on runtime contract to the host agent's repo instruction file.
 
 Target file rules:
 
 - If only `AGENTS.md` exists, update it.
-- If only `CLAUDE.md` exists, update it.
+- If only `CLAUDE.md` exists, update `CLAUDE.md` and import `.claude/rules/pilot-core.md`.
 - If both exist and the host target is obvious, update the host-relevant file.
 - If both exist and the target is ambiguous, ask.
 - If neither exists, ask which one to create.
@@ -91,7 +91,17 @@ If the user wants both files updated, explain the tradeoff:
 - better activation across agents
 - more drift risk
 
-The activation block should be minimal because users often keep agent instruction files short and already have their own rules.
+Codex setup should put Pilot behavior in `AGENTS.md`, not `.codex/rules/*.rules`. Codex rules are shell approval/security policy, not model memory.
+
+Claude setup should use `CLAUDE.md` plus an explicit import:
+
+```md
+## Pilot Workflow
+
+@.claude/rules/pilot-core.md
+```
+
+The always-on text should stay compact because users often keep agent instruction files short and already have their own rules.
 
 Suggested block:
 
@@ -100,9 +110,13 @@ Suggested block:
 
 Use Pilot Workflow for consequential work. Default mode: `.pilot-workflow/config.json`.
 
-Mode switches apply to the current task/conversation unless explicitly persisted.
+Move forward when context is sufficient. Re-enter clarification when new ambiguity would change the next action.
 
-Ask before user-owned decisions. Verify before completion claims.
+Ask before user-owned decisions: product behavior, scope, public APIs, security, privacy, billing, data loss, compatibility, permissions, or irreversible architecture.
+
+Treat live repo evidence and existing docs/tests as source truth. If the user request conflicts with them, stop and ask before changing behavior.
+
+Verify before completion claims. Capture only stable decisions, glossary terms, ADR-worthy tradeoffs, or useful handoff memory.
 ```
 
 Do not list the whole workflow or every mode in the activation block.
