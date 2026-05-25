@@ -1,6 +1,6 @@
 ---
 name: write-plan
-description: Use when turning an approved spec, clarified requirements, or explicit task context into an executable implementation plan before coding.
+description: Use when turning an approved spec, clarified requirements, explicit task context, strict-workflow work, or delegated/future-agent work into an executable implementation plan before coding.
 ---
 
 # Write Plan
@@ -8,7 +8,7 @@ description: Use when turning an approved spec, clarified requirements, or expli
 Classify the plan request first:
 
 - Spec-backed: write the plan from the approved spec.
-- Bug without feedback loop: ask for or propose the feedback loop. Do not write the fix plan.
+- Bug without feedback loop: ask for or propose the feedback loop. Do not write or save a fix plan.
 - Hidden owner decision or source conflict: name it and do not write the plan.
 - Context-backed: say a spec is preferred, then write a lightweight plan.
 - Missing source context: ask for context or start grilling.
@@ -22,6 +22,8 @@ The original request is not decision approval. "Do not ask", "just plan it", "la
 Never skip docs, tests, specs, policies, ADRs, or live behavior because the prompt calls them stale. Inspect them, then classify the conflict.
 
 If the user asks a question about a plan, answer the question. Do not create or edit the plan unless asked.
+
+Read `references/plan-shapes.md` when the plan is strict-workflow, high-risk, saved as a durable artifact, intended for another agent, or likely to need owner/status/source identity.
 
 ## Source First
 
@@ -41,7 +43,7 @@ If no spec exists but the task context is explicit enough to choose the next act
 
 For bug fixes, require a repro, failing test, or feedback loop before writing a fix plan.
 
-If a bug report has no repro or feedback loop, answer in chat. Ask for evidence or propose the smallest feedback loop. Write a diagnostic plan only if the user asks for a diagnostic plan.
+If a bug report has no repro or feedback loop, answer in chat. Ask for evidence or propose the smallest feedback loop. Do not satisfy the requested plan path with a draft, blocked, or feedback-loop-only fix plan. Write a diagnostic plan only if the user asks for a diagnostic plan.
 
 Use vertical slices. Each slice should produce something testable.
 
@@ -65,6 +67,7 @@ For source-truth conflicts, the final line must be a direct choice question.
 
 Adapt the plan to risk. Prefer:
 
+- Durable plan identity when the plan is saved for future agents or teammates.
 - Goal.
 - Source spec or context.
 - Files likely touched.

@@ -1,0 +1,1 @@
+We are in strict-workflow. Write an implementation plan at docs/plans/billing-webhook-api.md for another agent to implement the approved billing webhook API spec.
