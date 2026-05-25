@@ -1,0 +1,6 @@
+/workflow strict-workflow
+
+Review `docs/specs/billing-webhook-api-draft.md` for readiness to guide implementation.
+
+Do not edit unless the issue is purely mechanical.
+Do not nitpick formatting.

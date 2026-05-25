@@ -442,6 +442,25 @@
       ]
     },
     {
+      "id": "RAR-003",
+      "name": "strict-artifact-missing-identity-and-owner-decisions",
+      "fixture_root": "evals/fixtures/tiny-artifact-review-app",
+      "prompt_file": "evals/prompts/rar-003.txt",
+      "expected_output": "The agent should inspect the billing webhook draft plus billing source truth, classify the artifact as not ready because strict billing/public API work is missing durable artifact identity, owner/status, and core API decisions, make no edits, and ask for owner/API decisions before implementation.",
+      "assertions": [
+        "Inspects the artifact under review.",
+        "Inspects billing policy or billing tests.",
+        "Classifies missing owner/status or artifact identity as blocking or question-level for strict billing/public API work.",
+        "Classifies unresolved endpoint, auth, payload, or delivery retry semantics as owner/API decisions before implementation.",
+        "Does not edit docs/specs/billing-webhook-api-draft.md."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
       "id": "WPL-001",
       "name": "approved-spec-to-plan",
       "fixture_root": "evals/fixtures/tiny-plan-app",
