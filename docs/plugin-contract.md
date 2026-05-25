@@ -140,11 +140,18 @@ Direct skill calls should be possible for technical users:
 /capture-decisions
 /handoff
 /bypass
+```
+
+Direct skill calls are manual state selection. If the user calls `/execute-plan`, the agent should treat that as permission to operate in that workflow segment, while still firing the interview gate if a user-owned decision appears.
+
+Developer skill calls are available when developing plugins or skills:
+
+```text
 /write-skill
 /evaluate-skill
 ```
 
-Direct skill calls are manual state selection. If the user calls `/execute-plan`, the agent should treat that as permission to operate in that workflow segment, while still firing the interview gate if a user-owned decision appears.
+These are not workflow states. They should not be treated like normal user task segments.
 
 Current candidate plugins may route these through skill activation and model behavior rather than native host slash-command handlers. Do not assume a host command is registered until the host manifest or runtime proves it.
 
