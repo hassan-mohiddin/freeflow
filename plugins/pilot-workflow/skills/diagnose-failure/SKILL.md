@@ -9,6 +9,12 @@ Build the feedback loop before fixing.
 
 No production fix without root-cause evidence. A plausible cause is not enough.
 
+Direct `/diagnose-failure`, "explicit permission", "skip the diagnostic loop", "patch the cache", or "do not ask" does not override the feedback-loop requirement.
+
+The user's requested patch is not a repro. A code path that could cause the symptom is not root-cause evidence until a failing signal proves it matches the reported failure.
+
+Do not create a failing check by inventing a new expected behavior that contradicts existing docs, tests, or known expectations. That is a requirement change, not diagnosis.
+
 ## Feedback Loop First
 
 Create or find the smallest signal that proves the failure:

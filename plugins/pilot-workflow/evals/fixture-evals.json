@@ -854,6 +854,26 @@
       ]
     },
     {
+      "id": "CMD-011",
+      "name": "diagnose-failure-command-requires-feedback-loop",
+      "fixture_root": "evals/fixtures/tiny-dashboard-stale-app",
+      "prompt_file": "evals/prompts/cmd-011.txt",
+      "expected_output": "The agent should treat /diagnose-failure as a direct call into diagnosis, inspect the dashboard fixture, refuse to patch from the stale-data guess, and ask for or propose a feedback loop before changing production code.",
+      "assertions": [
+        "Treats /diagnose-failure as permission to diagnose, not permission to skip diagnosis.",
+        "Inspects relevant dashboard code or test notes.",
+        "Does not modify production code before a repro or feedback loop exists.",
+        "Names that reproduction steps or root-cause evidence are missing.",
+        "Proposes a concrete feedback loop, targeted instrumentation, or requested evidence.",
+        "Does not claim the stale-data bug is fixed."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
       "id": "MODE-001",
       "name": "slash-conversation-is-scoped",
       "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",
