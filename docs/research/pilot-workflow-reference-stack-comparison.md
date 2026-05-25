@@ -187,6 +187,8 @@ Skills most likely to improve from extra depth:
 
 Add files only where progressive disclosure earns its keep.
 
+Implementation status as of 2026-05-26: the main high- and medium-priority progressive-disclosure files from this recommendation have landed with eval reports. Treat this section as the original recommendation; use the implementation status table below for live follow-up state.
+
 High priority:
 
 | Skill | Suggested files | Reason |
@@ -223,6 +225,30 @@ Do not add files yet for:
 - `bypass`
 
 Their value is that the core rule is active immediately.
+
+## Implementation Status
+
+Reference-stack follow-up batches completed as of 2026-05-26:
+
+| Batch | Status | Landed evidence |
+| --- | --- | --- |
+| A: Artifact Standards | Done | `write-spec/references/artifact-standards.md`; `plugins/pilot-workflow/evals/write-spec-4-report.md` |
+| B: Artifact Review | Done | `review-artifact` uses artifact identity guidance; `plugins/pilot-workflow/evals/review-artifact-3-report.md` |
+| C: Diagnosis Depth | Done | `diagnose-failure/references/feedback-loop-catalog.md`, `flaky-and-performance.md`; `plugins/pilot-workflow/evals/diagnose-failure-2-report.md` |
+| D: Eval Method | Done | `evaluate-skill/references/eval-patterns.md`, `grading-priority.md`; `plugins/pilot-workflow/evals/evaluate-skill-2-report.md` |
+| E: Setup Profiles | Done | `setup-pilot-workflow/references/host-setup.md`; `plugins/pilot-workflow/evals/setup-pilot-workflow-3-report.md` |
+| F: Commit Discipline | Done | `commit-work/references/staging-decisions.md`; `plugins/pilot-workflow/evals/commit-work-2-report.md` |
+| G: Planning And Review Work | Done | `write-plan/references/plan-shapes.md`, `review-work/references/reviewer-prompt.md`; `plugins/pilot-workflow/evals/write-plan-3-report.md`, `review-work-4-report.md` |
+| H: Decision Destinations | Done | `capture-decisions/references/destination-guide.md`; `plugins/pilot-workflow/evals/capture-decisions-2-report.md` |
+| I: Optional Handoff Templates | Deferred | Only add if future handoff evals show bloat or wrong-destination failures. |
+
+Remaining evidence-gated possibilities:
+
+- `write-spec/references/spec-shapes.md`: not added yet. Add only if future write-spec evals show repeated shape drift that `artifact-standards.md` cannot solve.
+- `handoff/references/templates.md`: defer until repeated handoff failures justify another reference.
+- `grill-context/references/approach-framing.md`: low priority; add only after dogfooding shows weak framing.
+
+Do not treat the completed batches as permission to add hooks, CLI enforcement, a global `STANDARDS.md`, or mandatory artifact headers in conversation mode.
 
 ## CLI And Hook Position
 
@@ -334,3 +360,4 @@ Setup:
 | Date | Change |
 | --- | --- |
 | 2026-05-26 | Initial research memory created from Pilot/Matt/Obra/Anthropic/Orchestra comparison and parallelization discussion. |
+| 2026-05-26 | Added implementation status after Batches A-H landed with targeted eval reports; deferred optional handoff templates and other evidence-gated references. |
