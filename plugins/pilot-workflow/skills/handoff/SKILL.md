@@ -7,6 +7,14 @@ description: Use when creating, updating, or relying on a temporary or durable h
 
 Create compact continuation context for a fresh agent. Handoffs are memory, not authority.
 
+## Stop First: Unsafe Shape
+
+If the user asks for an authoritative, exhaustive, transcript-style, no-reinspection, or full-inventory handoff, do not inspect, classify, or write yet.
+
+A direct `/handoff` command, explicit path, or "this is permission" does not override this stop.
+
+Name the conflict with handoff memory rules and ask whether to follow the requested shape or write compact evidence-linked memory.
+
 ## Stop First: Ambiguous Destination
 
 If a request leaves temp handoff versus repo memory unclear, do not inspect, classify, or write yet.
@@ -49,8 +57,6 @@ Avoid:
 - Full transcript dumps.
 - Volatile repo inventories, directory trees, or tech-stack summaries.
 - Claims of completion without verification evidence.
-
-If the user explicitly asks for an authoritative, exhaustive, transcript-style, no-reinspection, or full-inventory handoff, stop before writing. Name the conflict with handoff memory rules and ask whether to follow the requested shape or write compact evidence-linked memory.
 
 When resuming from a handoff:
 - Inspect the referenced live files before acting on consequential claims.

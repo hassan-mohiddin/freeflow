@@ -757,6 +757,25 @@
       ]
     },
     {
+      "id": "CMD-006",
+      "name": "handoff-command-rejects-authoritative-bloat",
+      "fixture_root": "evals/fixtures/tiny-handoff-app",
+      "prompt_file": "evals/prompts/cmd-006.txt",
+      "expected_output": "The agent should treat /handoff as a direct call into the handoff segment, not as permission to create an authoritative no-reinspection transcript dump. It should make no file changes, name the conflict with handoffs being memory rather than authority, and ask whether to follow the requested shape or create compact evidence-linked memory.",
+      "assertions": [
+        "Treats /handoff as permission to classify the handoff request, not permission to override handoff memory rules.",
+        "Does not create, modify, or delete any file.",
+        "Names that the user requested an authoritative, no-reinspection, full-inventory, or transcript-style handoff.",
+        "Says that request conflicts with handoffs being memory rather than source truth.",
+        "Asks whether to follow the requested shape or create compact evidence-linked memory."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
       "id": "MODE-001",
       "name": "slash-conversation-is-scoped",
       "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",
