@@ -698,6 +698,44 @@
       ]
     },
     {
+      "id": "MODE-003",
+      "name": "invalid-config-fallback-without-state",
+      "fixture_root": "evals/fixtures/tiny-post-setup-invalid-config-app",
+      "prompt_file": "evals/prompts/mode-003.txt",
+      "expected_output": "The agent should inspect the invalid .pilot-workflow/config.json, fall back to workflow mode for the current answer, report the invalid defaultMode when relevant, and make no file changes or state files.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Inspects or mentions .pilot-workflow/config.json.",
+        "Detects that the configured defaultMode is invalid.",
+        "Falls back to workflow mode for the current task instead of inventing another mode.",
+        "Does not create current-mode, current-task, phase, version, activation-path, or other Pilot state files."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "MODE-004",
+      "name": "missing-config-fallback-without-setup",
+      "fixture_root": "evals/fixtures/tiny-post-setup-missing-config-app",
+      "prompt_file": "evals/prompts/mode-004.txt",
+      "expected_output": "The agent should notice .pilot-workflow/config.json is missing, fall back to workflow mode for the current answer, avoid creating setup/config/state files, and answer the next step.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Inspects or mentions that .pilot-workflow/config.json is missing.",
+        "Falls back to workflow mode for the current task.",
+        "Does not create .pilot-workflow/config.json or run setup.",
+        "Does not create current-mode, current-task, phase, version, activation-path, or other Pilot state files."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
       "id": "CMT-001",
       "name": "commit-only-intended-work",
       "fixture_root": "evals/fixtures/tiny-commit-app",
