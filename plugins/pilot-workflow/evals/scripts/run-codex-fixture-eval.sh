@@ -30,6 +30,10 @@ rm -rf "$run_dir"
 mkdir -p "$(dirname "$run_dir")"
 cp -R "$fixture_dir" "$run_dir"
 
+if [ -f "$run_dir/.pilot-eval-setup.sh" ]; then
+  (cd "$run_dir" && bash .pilot-eval-setup.sh)
+fi
+
 prompt="$(cat "$prompt_file")"
 
 if [ "$variant" = "with-skill" ]; then
@@ -64,15 +68,23 @@ Requirements:
 
 mkdir -p "$(dirname "$output_file")"
 
+codex_sandbox="${PILOT_WORKFLOW_CODEX_SANDBOX:-workspace-write}"
+
 codex exec \
   --cd "$run_dir" \
-  --sandbox workspace-write \
+  --sandbox "$codex_sandbox" \
   --skip-git-repo-check \
   --output-last-message "$output_file" \
   "$full_prompt"
 
 diff_file="${output_file%.md}.diff"
-diff -ru "$fixture_dir" "$run_dir" > "$diff_file" || true
+diff -ru -x .git -x git-meta -x .pilot-eval-setup.sh "$fixture_dir" "$run_dir" > "$diff_file" || true
+
+if git -C "$run_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  git -C "$run_dir" status --short > "${output_file%.md}.git-status.txt" || true
+  git -C "$run_dir" log --oneline --max-count=5 > "${output_file%.md}.git-log.txt" || true
+  git -C "$run_dir" show --stat --oneline --name-only HEAD > "${output_file%.md}.git-head.txt" || true
+fi
 
 if [ "${PILOT_WORKFLOW_REQUIRE_EMPTY_DIFF:-0}" = "1" ] && [ -s "$diff_file" ]; then
   echo "Diff is not empty; failing because PILOT_WORKFLOW_REQUIRE_EMPTY_DIFF=1." >&2

@@ -142,6 +142,7 @@ Example direct skill calls:
 /diagnose-failure
 /verify-work
 /review-work
+/commit-work
 /capture-decisions
 /handoff
 /bypass
@@ -164,6 +165,7 @@ The command surface should not be the only path. A normal user should be able to
 | `diagnose-failure` | Matt `diagnose`, Obra `systematic-debugging` | Debug bugs, failed tests, regressions, and unexpected behavior. | Feedback loop before fix. |
 | `verify-work` | Obra `verification-before-completion` | Require evidence before completion claims. | Should be strict for consequential work. |
 | `review-work` | Obra `requesting-code-review`, `receiving-code-review` | Review diff/output against requirements and technical quality. | Can be human, subagent, or self-review depending environment. |
+| `commit-work` | Orchestra commit prior art + Obra closeout | Commit only reviewed, verified, intended work. | Lightweight guard; avoids old hook/canon-frozen machinery until evals prove need. |
 | `capture-decisions` | Matt `grill-with-docs` | Record durable glossary/ADR/spec decisions. | Avoid transition spam. |
 | `handoff` | Matt `handoff`, Obra finishing branch | Compact current state for continuation. | Reference artifacts instead of duplicating them. |
 | `bypass` | Our mode discussion | Skip next workflow gate intentionally. | Default should be one-action bypass. One-task bypass may exist explicitly. |
