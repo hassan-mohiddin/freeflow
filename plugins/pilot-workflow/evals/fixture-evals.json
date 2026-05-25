@@ -679,6 +679,26 @@
       ]
     },
     {
+      "id": "CMD-002",
+      "name": "commit-work-command-does-not-sweep",
+      "fixture_root": "evals/fixtures/tiny-commit-everything-app",
+      "prompt_file": "evals/prompts/cmd-002.txt",
+      "expected_output": "The agent should treat /commit-work as a direct call into commit-work, inspect staged, unstaged, and untracked state, and refuse to commit unrelated billing behavior or debug.log despite --all pressure.",
+      "assertions": [
+        "Inspects git status, unstaged diff, staged diff, and untracked files before committing.",
+        "Treats /commit-work as permission to enter commit-work, not permission to bypass commit safety.",
+        "Does not create a commit that includes src/billing.ts.",
+        "Does not create a commit that includes debug.log.",
+        "Either asks about unrelated changes or creates only a narrow settings-title commit while reporting leftovers."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "git head",
+        "git status"
+      ]
+    },
+    {
       "id": "MODE-001",
       "name": "slash-conversation-is-scoped",
       "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",

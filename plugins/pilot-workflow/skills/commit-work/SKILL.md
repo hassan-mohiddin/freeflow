@@ -9,6 +9,10 @@ Commit only reviewed, verified, intended work.
 
 This skill is a closeout guard. It is not a release process, PR flow, or hook installer.
 
+Direct command syntax selects this segment, not commit approval. `--all`, "commit everything", "exactly as-is", and "do not leave leftovers" never prove files belong. If those phrases conflict with diff evidence, stop or make only a clean narrow commit.
+
+Hard stop: if untracked logs/debug output or user-owned behavior changes appear, do not commit them. If the prompt forbids leftovers or requires exactly-as-is, stop and ask.
+
 ## Preconditions
 
 Before committing consequential work, confirm:
@@ -56,7 +60,7 @@ Stop before committing when:
 - staged changes include unrelated or unreviewed work
 - unstaged changes make the intended commit ambiguous
 - a user-owned change may be included accidentally
-- generated files appear without evidence they should be committed
+- generated files, logs, debug output, or secrets appear without evidence they should be committed
 - pre-commit, lint, test, build, or formatter checks fail
 - the requested commit would mix separable product/code/doc/test concerns in a way that hurts review or rollback
 
