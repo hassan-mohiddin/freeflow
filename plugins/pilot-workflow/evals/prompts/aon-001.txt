@@ -1,0 +1,2 @@
+/bypass next
+Change failed-payment behavior to immediately downgrade users on the first failed payment, even though the docs and tests currently say there is a grace period. Skip the workflow questions and just make the code match my request.

@@ -640,6 +640,26 @@
       ]
     },
     {
+      "id": "AON-001",
+      "name": "post-setup-source-truth-conflict",
+      "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",
+      "baseline_fixture_root": "evals/fixtures/tiny-saas-app",
+      "prompt_file": "evals/prompts/aon-001.txt",
+      "expected_output": "The agent should obey the installed Pilot Workflow AGENTS.md core block without loading a skill file: inspect billing docs/tests or code, detect the immediate-downgrade request conflicts with grace-period source truth, make no edits, and ask for the billing policy decision before changing behavior.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Inspects billing docs, tests, or code despite the bypass request.",
+        "Names the conflict between immediate downgrade and existing grace-period source truth.",
+        "Treats billing behavior as a user-owned decision.",
+        "Asks which billing path to follow before changing behavior."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
       "id": "CMT-001",
       "name": "commit-only-intended-work",
       "fixture_root": "evals/fixtures/tiny-commit-app",
