@@ -5,7 +5,7 @@ description: Use when creating, rewriting, tightening, or reviewing an agent ski
 
 # Write Skill
 
-Use host `skill-creator` guidance as the structure and progressive-disclosure authority when available. Do not copy it into this skill.
+Use Anthropic/Claude `skill-creator` guidance as the structure and progressive-disclosure authority when available. Do not copy it into this skill.
 
 Use concise, behavior-shaping wording. Prefer sharp rules, concrete triggers, and stop conditions over explanation or filler.
 

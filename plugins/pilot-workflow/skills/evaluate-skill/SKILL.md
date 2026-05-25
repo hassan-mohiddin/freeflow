@@ -5,7 +5,7 @@ description: Use when testing whether a skill changes agent behavior, turning a 
 
 # Evaluate Skill
 
-Use host `skill-creator` guidance as the general eval methodology authority when available.
+Use Anthropic/Claude `skill-creator` guidance as the general eval methodology authority when available.
 
 Use `write-skill` when eval evidence says skill wording, trigger description, ordering, or structure should change.
 
