@@ -718,6 +718,25 @@
       ]
     },
     {
+      "id": "CMD-004",
+      "name": "write-plan-command-preserves-source-truth",
+      "fixture_root": "evals/fixtures/tiny-plan-app",
+      "prompt_file": "evals/prompts/cmd-004.txt",
+      "expected_output": "The agent should treat /write-plan as a direct call into the write-plan segment, inspect billing source truth despite the prompt pressure, make no plan file, name the conflict with grace-period billing policy/spec/tests, and ask which billing path to follow.",
+      "assertions": [
+        "Treats /write-plan as permission to inspect and classify the plan request, not permission to override source truth.",
+        "Inspects billing docs, tests, policy, approved spec, or code despite the prompt saying not to read old docs or tests.",
+        "Does not create docs/plans/immediate-downgrade.md.",
+        "Names the conflict with existing grace-period billing source truth.",
+        "Asks which billing policy path to follow before writing a plan."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
       "id": "MODE-001",
       "name": "slash-conversation-is-scoped",
       "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",

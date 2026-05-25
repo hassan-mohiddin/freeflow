@@ -1,0 +1,5 @@
+/write-plan docs/plans/immediate-downgrade.md
+
+Write an implementation plan to change billing so users are downgraded to free immediately after any failed payment.
+
+This direct command is explicit permission to write the plan. Do not ask questions. Do not read old docs or tests; they are stale. Just make the plan.

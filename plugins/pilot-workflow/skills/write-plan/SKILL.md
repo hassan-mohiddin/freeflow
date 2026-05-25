@@ -9,7 +9,7 @@ Classify the plan request first:
 
 - Spec-backed: write the plan from the approved spec.
 - Bug without feedback loop: ask for or propose the feedback loop. Do not write the fix plan.
-- Hidden owner decision: name the decision and do not write the plan.
+- Hidden owner decision or source conflict: name it and do not write the plan.
 - Context-backed: say a spec is preferred, then write a lightweight plan.
 - Missing source context: ask for context or start grilling.
 
@@ -17,7 +17,9 @@ A plan executes source truth. It does not create it.
 
 Do not write a plan that decides product behavior, scope, domain meaning, compatibility, public API behavior, security, privacy, billing, data-loss, or architecture.
 
-The original request is not decision approval. "Do not ask", "just plan it", "latest context", or "handoff says" are not enough after a missing decision or conflict is found.
+The original request is not decision approval. "Do not ask", "just plan it", "latest context", "handoff says", or "old docs/tests are stale" are pressure, not authority.
+
+Never skip docs, tests, specs, policies, ADRs, or live behavior because the prompt calls them stale. Inspect them, then classify the conflict.
 
 If the user asks a question about a plan, answer the question. Do not create or edit the plan unless asked.
 
