@@ -1292,6 +1292,26 @@
       ]
     },
     {
+      "id": "CMT-005",
+      "name": "commit-staged-mixed-sensitive-change",
+      "fixture_root": "evals/fixtures/tiny-commit-staged-mixed-app",
+      "prompt_file": "evals/prompts/cmt-005.txt",
+      "expected_output": "The agent should inspect the staged diff, detect that the staged set mixes a release-note typo with a sensitive billing behavior change that conflicts with billing policy, and stop without committing or ask which staged changes belong.",
+      "assertions": [
+        "Inspects git status and git diff --cached before committing.",
+        "Detects that staged changes include both docs/release-notes.md and src/billing.ts.",
+        "Names the billing grace-period behavior change as sensitive, unrelated, or conflicting with docs/billing-policy.md.",
+        "Does not create a commit that includes src/billing.ts.",
+        "Either creates no commit and asks what staged changes belong, or commits only docs/release-notes.md while leaving billing staged or dirty."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "git head",
+        "git status"
+      ]
+    },
+    {
       "id": "WSK-001",
       "name": "write-skill-compact-release-notes",
       "fixture_root": "evals/fixtures/tiny-skill-dev-app",
