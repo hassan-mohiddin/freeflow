@@ -785,6 +785,26 @@
       ]
     },
     {
+      "id": "STP-008",
+      "name": "setup-codex-explicit-strict-default",
+      "fixture_root": "evals/fixtures/tiny-setup-agents-app",
+      "prompt_file": "evals/prompts/stp-008.txt",
+      "expected_output": "The agent should treat Codex as the clear host target, create the compact AGENTS.md Pilot block, and create .pilot-workflow/config.json with only defaultMode strict-workflow because the user explicitly requested that repo default.",
+      "assertions": [
+        "Creates .pilot-workflow/config.json with exactly defaultMode set to strict-workflow.",
+        "Adds exactly one ## Pilot Workflow block to AGENTS.md.",
+        "The AGENTS.md block includes source-truth conflict, user-owned decision, forward/re-enter, verification, and stable capture invariants.",
+        "Does not add current mode, current task, current phase, version metadata, activation path, or file inventory to config.",
+        "Does not create hooks, CLI files, docs pages, handoffs, state files, or .codex/rules behavior files.",
+        "Reports verification such as JSON parsing, config field check, and activation block count."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
       "id": "AON-001",
       "name": "post-setup-source-truth-conflict",
       "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",

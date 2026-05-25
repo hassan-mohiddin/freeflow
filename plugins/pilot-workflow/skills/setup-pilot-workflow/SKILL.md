@@ -1,9 +1,11 @@
 ---
 name: setup-pilot-workflow
-description: Install Pilot Workflow repo activation and default config. Use when setting up, installing, enabling, initializing, or configuring Pilot Workflow in a repo, especially when creating `.pilot-workflow/config.json` or adding a Pilot Workflow block to AGENTS.md or CLAUDE.md.
+description: Use when setting up, installing, enabling, initializing, or configuring Pilot Workflow in a repo, choosing Codex/Claude/multi-agent activation, creating `.pilot-workflow/config.json`, or changing the repo default mode during setup.
 ---
 
 # Setup Pilot Workflow
+
+Use `references/host-setup.md` when the request mentions Codex, Claude, both hosts, team setup, solo setup, strict defaults, hooks, CLI, or setup profiles.
 
 ## Stop Before Editing
 
@@ -40,12 +42,11 @@ Update an existing `## Pilot Workflow` block in place. Otherwise place the block
 
 ## Config
 
-Create `.pilot-workflow/config.json` with exactly:
-```json
-{
-  "defaultMode": "workflow"
-}
-```
+Create or update `.pilot-workflow/config.json` with exactly one field: `defaultMode`.
+
+Use `workflow` unless the user explicitly asks to persist a valid repo default: `conversation`, `workflow`, or `strict-workflow`.
+
+Do not infer `strict-workflow` from "team", "strict gates", "careful", or high-risk examples. Recommend or ask unless the user explicitly says to make a mode the repo default.
 
 Do not add current mode, task, phase, file inventory, active plans, version metadata, or activation file path.
 Mode switches are task/conversation scoped unless the user explicitly asks to persist a different default mode.
@@ -87,7 +88,7 @@ Setup must not create empty `CONTEXT.md`, docs pages, hooks, state files, handof
 
 Before claiming setup is complete, check:
 - config JSON parses
-- config contains only `defaultMode`
+- config contains only `defaultMode` with the requested explicit default, or `workflow` when no explicit default was requested
 - Codex setup has exactly one `## Pilot Workflow` block in `AGENTS.md`
 - Claude setup has exactly one `CLAUDE.md` import and one `.claude/rules/pilot-core.md` core file
 - `.codex/rules` was not created or changed for Pilot behavior
