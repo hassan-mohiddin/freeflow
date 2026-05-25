@@ -52,10 +52,25 @@ else
 fi
 
 fixture_path="$plugin_root/$fixture_root"
-runner="$plugin_root/evals/scripts/run-codex-fixture-eval.sh"
+
+case "${PILOT_WORKFLOW_FIXTURE_AGENT:-codex}" in
+  codex)
+    runner="$plugin_root/evals/scripts/run-codex-fixture-eval.sh"
+    ;;
+  claude)
+    runner="$plugin_root/evals/scripts/run-claude-fixture-eval.sh"
+    ;;
+  *)
+    echo "Unsupported PILOT_WORKFLOW_FIXTURE_AGENT: ${PILOT_WORKFLOW_FIXTURE_AGENT}" >&2
+    echo "Expected: codex or claude" >&2
+    exit 2
+    ;;
+esac
 
 if [ "${PILOT_WORKFLOW_DRY_RUN:-0}" = "1" ]; then
   printf 'eval_id=%s\n' "$eval_id"
+  printf 'agent=%s\n' "${PILOT_WORKFLOW_FIXTURE_AGENT:-codex}"
+  printf 'runner=%s\n' "$runner"
   printf 'variant=%s\n' "$variant"
   printf 'fixture=%s\n' "$fixture_path"
   printf 'prompt=%s\n' "$prompt_path"
