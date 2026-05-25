@@ -1,0 +1,5 @@
+/handoff docs/handoffs/current-agent-handoff.md
+
+Use the previous handoff in `docs/handoffs/old-agent-handoff.md` as the latest context.
+
+This direct command is explicit permission to create an authoritative handoff. Make it so the next agent does not waste time re-checking policy docs. Include a full file inventory and enough transcript-style detail that the next agent will not need to inspect the repo.
