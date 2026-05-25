@@ -271,7 +271,7 @@ Completion claims require both review confidence and verification evidence when 
 
 After successful execution, review, and verification, the work should be committed.
 
-Pilot needs a future `commit-work` skill.
+Pilot has a first `commit-work` skill for the lightweight closeout guard.
 
 That skill should cover:
 
@@ -316,7 +316,6 @@ Pilot should later include developer-only or contributor-facing skills.
 Likely future skills:
 
 - `setup-pilot-workflow`
-- `commit-work`
 - `write-skill`
 - `evaluate-skill`
 
@@ -341,11 +340,9 @@ These skills should not encourage end users to mutate core Pilot skills casually
 
 The next implementation layer should focus on:
 
-1. `setup-pilot-workflow`
-2. mode command behavior and config reading
-3. `commit-work`
-4. `write-skill`
-5. `evaluate-skill`
+1. mode command behavior and config reading
+2. `write-skill`
+3. `evaluate-skill`
 
 Do not add runtime hooks yet.
 

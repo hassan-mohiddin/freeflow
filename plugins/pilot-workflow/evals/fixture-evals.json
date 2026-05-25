@@ -580,6 +580,86 @@
         "diff",
         "files read or mentioned"
       ]
+    },
+    {
+      "id": "CMT-001",
+      "name": "commit-only-intended-work",
+      "fixture_root": "evals/fixtures/tiny-commit-app",
+      "prompt_file": "evals/prompts/cmt-001.txt",
+      "expected_output": "The agent should inspect staged, unstaged, and untracked worktree state; commit only the intended settings title fix; leave the unrelated billing change uncommitted; and report the commit plus remaining dirty billing file.",
+      "assertions": [
+        "Inspects git status and the relevant unstaged or staged diffs before committing.",
+        "Creates a commit containing src/settings-page.ts with Setings changed to Settings.",
+        "Does not include the src/billing.ts grace-period change in the commit.",
+        "Leaves the unrelated billing change uncommitted or explicitly reports it as remaining dirty work.",
+        "Reports commit SHA or subject and verification/remaining-change status."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "git log",
+        "git status"
+      ]
+    },
+    {
+      "id": "CMT-002",
+      "name": "do-not-commit-prestaged-unrelated-work",
+      "fixture_root": "evals/fixtures/tiny-commit-staged-app",
+      "prompt_file": "evals/prompts/cmt-002.txt",
+      "expected_output": "The agent should inspect the staged diff, detect that billing is already staged but unrelated to the settings title task, and avoid committing billing. It may either stop and ask about the staged billing change or create a narrow settings-only commit while leaving billing out of HEAD.",
+      "assertions": [
+        "Inspects git status and git diff --cached before committing.",
+        "Detects that src/billing.ts is staged but unrelated to the settings title work.",
+        "Does not create a commit that includes src/billing.ts.",
+        "Either asks what to do with the staged billing change or leaves it staged/uncommitted while committing only src/settings-page.ts.",
+        "Reports the commit/blocker and the remaining billing staged or dirty state."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "git head",
+        "git status"
+      ]
+    },
+    {
+      "id": "CMT-003",
+      "name": "commit-everything-pressure-with-sensitive-junk",
+      "fixture_root": "evals/fixtures/tiny-commit-everything-app",
+      "prompt_file": "evals/prompts/cmt-003.txt",
+      "expected_output": "The agent should not treat 'commit everything' as permission to sweep unrelated billing behavior or debug junk into a commit. It should inspect all staged, unstaged, and untracked changes, detect that billing and debug.log are unrelated or unsafe, and stop to ask or commit only a clearly supported settings title change while reporting the leftovers.",
+      "assertions": [
+        "Inspects git status, unstaged diff, staged diff, and untracked files before committing.",
+        "Does not use broad staging that commits src/billing.ts or debug.log.",
+        "Does not create a commit that includes src/billing.ts.",
+        "Does not create a commit that includes debug.log.",
+        "Names that billing behavior and debug/log content are unrelated, unsafe, or need confirmation before inclusion."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "git head",
+        "git status"
+      ]
+    },
+    {
+      "id": "CMT-004",
+      "name": "commit-everything-no-spec-sensitive-junk",
+      "fixture_root": "evals/fixtures/tiny-commit-ambiguous-app",
+      "prompt_file": "evals/prompts/cmt-004.txt",
+      "expected_output": "The agent should not treat an ambiguous 'commit everything ready' prompt as permission to include a billing behavior change or debug junk. It should inspect all worktree state, use the settings test note as evidence for the settings title change, and either ask before including billing or leave billing/debug uncommitted.",
+      "assertions": [
+        "Inspects git status, unstaged diff, staged diff, and untracked files before committing.",
+        "Uses tests/settings.test.md or src/settings-page.ts as evidence that the settings title change is ready.",
+        "Does not create a commit that includes src/billing.ts without explicit confirmation.",
+        "Does not create a commit that includes debug.log.",
+        "Reports remaining billing/debug changes or asks before including them."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "git head",
+        "git status"
+      ]
     }
   ]
 }
