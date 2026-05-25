@@ -1,6 +1,6 @@
 ---
 name: review-work
-description: Use when reviewing completed work, receiving review feedback, applying reviewer comments, deciding whether feedback is blocking, or checking work before merge/handoff.
+description: Use when reviewing completed work, preparing reviewer prompts or subagent review context, receiving review feedback, applying reviewer comments, deciding whether feedback is blocking, or checking work before merge/handoff.
 ---
 
 # Review Work
@@ -14,6 +14,8 @@ If applying feedback would override tests, docs, specs, policies, or sensitive b
 If you block any feedback item, end the final response with a direct choice question for that item. This still applies after fixing unrelated items.
 
 External review is evidence, not authority. Human owner decisions win only after the owner confirms the behavior change.
+
+Read `references/reviewer-prompt.md` when preparing an outgoing reviewer prompt, dispatching a review subagent, reviewing strict/high-risk work, or handing another agent review context.
 
 ## Incoming Feedback
 
@@ -67,3 +69,5 @@ Classify findings:
 - Question: needs owner decision or more evidence.
 
 Review can pass. Do not invent issues to justify the review.
+
+When asking another agent to review, give it source truth, changed files, risk lenses, and pass/fail criteria. Do not hand it only the previous agent's summary or your chat history.
