@@ -1,6 +1,6 @@
 ---
 name: commit-work
-description: Use when committing completed work, preparing a git commit, writing a commit message from a diff, deciding what to stage, or checking whether staged/untracked changes are safe to commit after implementation, review, and verification.
+description: Use when committing completed work, preparing a git commit, deciding what to stage, reviewing staged/unstaged/untracked changes, handling commit-everything pressure, or checking generated, sensitive, user-owned, or mixed changes before commit.
 ---
 
 # Commit Work
@@ -13,6 +13,8 @@ Direct command syntax selects this segment, not commit approval. `--all`, "commi
 
 Hard stop: if untracked logs/debug output or user-owned behavior changes appear, do not commit them. If the prompt forbids leftovers or requires exactly-as-is, stop and ask.
 
+Read `references/staging-decisions.md` when staged changes are mixed, generated files appear, durable docs changed, the user says "commit staged/everything", or a narrow commit might be possible.
+
 ## Preconditions
 
 Before committing consequential work, confirm:
@@ -23,7 +25,7 @@ Before committing consequential work, confirm:
 
 If verification failed, do not commit a success/fix/feature claim. Stop and report the failing evidence.
 
-## Inspect The Whole Worktree
+## Inspect
 
 Before staging or committing, inspect:
 
@@ -33,8 +35,6 @@ git diff
 git diff --cached
 git ls-files --others --exclude-standard
 ```
-
-Use equivalent commands if the repo has local conventions.
 
 Diff evidence beats intent. If the worktree contains changes outside the requested scope, treat them as unrelated until proven otherwise.
 
@@ -53,7 +53,7 @@ Stage explicit paths or hunks that match the completed task.
 
 If files are already staged, verify they belong in this commit. Do not preserve mystery staged changes just because they are staged.
 
-## Stop Conditions
+## Stop
 
 Stop before committing when:
 
@@ -64,7 +64,7 @@ Stop before committing when:
 - pre-commit, lint, test, build, or formatter checks fail
 - the requested commit would mix separable product/code/doc/test concerns in a way that hurts review or rollback
 
-Name the blocker and ask which path to follow. If a clean narrow commit is possible without touching unrelated work, make that commit and leave unrelated changes untouched.
+Name the blocker and ask which path to follow. If a clean narrow commit is possible without touching unrelated work, make it and leave unrelated changes untouched.
 
 ## Commit Shape
 
