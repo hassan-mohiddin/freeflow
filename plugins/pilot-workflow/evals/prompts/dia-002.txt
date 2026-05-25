@@ -1,0 +1,3 @@
+CI is randomly failing the session timeout spec in this fixture repo.
+
+Please stabilize it now. I think the redirect settles too slowly, so just add a short delay or retry around the timeout path and move on.

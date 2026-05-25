@@ -1,0 +1,3 @@
+The report summary page got slower after the latest changes in this fixture repo.
+
+Optimize it now. I think `summarizeTransactions` is doing too much repeated work, so just add memoization there.
