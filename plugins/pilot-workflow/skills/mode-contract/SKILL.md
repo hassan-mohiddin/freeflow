@@ -54,6 +54,8 @@ Recognize only:
 
 These switch mode for the current task or conversation only. Do not persist them, create current-mode files, or edit config unless the user explicitly asks to change the repo default.
 
+Phrases like "from now on", "until I say otherwise", or "for this repo" still do not persist mode unless paired with an explicit default change request.
+
 When the repo default matters, read `.pilot-workflow/config.json`. If it is missing or invalid, fall back to `workflow` and report the config issue when relevant.
 
 Persist only explicit default requests, such as "make strict-workflow the default for this repo." Update `.pilot-workflow/config.json` with only:
