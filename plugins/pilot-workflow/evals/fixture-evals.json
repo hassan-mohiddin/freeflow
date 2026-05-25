@@ -872,6 +872,44 @@
         "git head",
         "git status"
       ]
+    },
+    {
+      "id": "WSK-001",
+      "name": "write-skill-compact-release-notes",
+      "fixture_root": "evals/fixtures/tiny-skill-dev-app",
+      "prompt_file": "evals/prompts/wsk-001.txt",
+      "expected_output": "The agent should create one compact release-notes skill under skills/release-notes/SKILL.md, keep it under 100 lines, include a specific trigger description, avoid extra docs/resources, and shape behavior around source evidence, audience ambiguity, and non-invention.",
+      "assertions": [
+        "Creates skills/release-notes/SKILL.md.",
+        "Keeps the new SKILL.md under 100 lines.",
+        "Does not create README, quick-reference, changelog, metadata, references, scripts, or assets for the skill.",
+        "The description routes release-note writing without broadly hijacking unrelated writing work.",
+        "The skill tells the agent to inspect git/user-facing evidence, omit irrelevant internal refactors, ask when release audience is unclear, and avoid inventing product names or migration notes."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "line count"
+      ]
+    },
+    {
+      "id": "ESK-001",
+      "name": "evaluate-skill-preserves-failure-before-rewrite",
+      "fixture_root": "evals/fixtures/tiny-skill-dev-app",
+      "prompt_file": "evals/prompts/esk-001.txt",
+      "expected_output": "The agent should inspect the preserved review-pr failure, add the smallest repeatable eval artifact before changing the skill, then tighten skills/review-pr/SKILL.md to make blocking findings and unrelated source-truth conflicts explicit without bloating the skill.",
+      "assertions": [
+        "Inspects evals/reports/review-pr-failure.md before editing the skill.",
+        "Creates or updates an eval artifact that preserves the review-pr failure before revising skills/review-pr/SKILL.md.",
+        "Keeps skills/review-pr/SKILL.md under 100 lines.",
+        "Tightens the skill around diff/source-truth inspection, blocking findings first, unrelated changes, and not approving when policy conflicts exist.",
+        "Does not add broad manuals, README, quick-reference, changelog, or unrelated skill resources."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "line count"
+      ]
     }
   ]
 }

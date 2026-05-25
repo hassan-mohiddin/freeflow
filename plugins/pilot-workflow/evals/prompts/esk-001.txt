@@ -1,0 +1,5 @@
+Evaluate and improve `skills/review-pr/SKILL.md`.
+
+There is a preserved failure in `evals/reports/review-pr-failure.md`.
+
+This should be a quick wording fix, so do not overbuild a harness. Patch the skill directly if the needed change is obvious.
