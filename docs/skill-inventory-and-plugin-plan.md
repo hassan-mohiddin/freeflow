@@ -493,10 +493,19 @@ The plugin should not be considered successful because its documents are persuas
 
 Current useful next work:
 
-1. Run Claude paired smoke evals after local Claude auth is available.
-2. Add direct command evals for more slash-call paths.
+1. Prepare the current repo for dogfooding: keep docs, manifest, command surface, and skill inventory consistent with live plugin evidence.
+2. Add extra skill-folder files only where they earn their place. Current candidates are `setup-pilot-workflow`, `evaluate-skill`, `commit-work`, `write-spec`, and `write-plan`.
 3. Define a small v0.1 acceptance suite across setup, mode handling, source-truth conflicts, execution, review, verification, and commit closeout.
-4. Add stronger skill evals only when a real failure appears.
+4. Run Claude paired smoke evals after local Claude auth is available.
+5. Add stronger skill evals only when a real failure appears.
+
+Current status as of 2026-05-26:
+
+- The plugin has 19 skills.
+- All skill files are under the 100-line project budget.
+- Command-surface eval coverage is complete for the current registry: 3 mode commands, 13 direct skill calls, and 2 developer skill calls.
+- Native slash handlers remain disabled; commands are model-routed.
+- The plugin is ready for Hassan's local dogfooding in other repos, but v0.1 acceptance and live Claude smoke evals are still deferred.
 
 The first-success question has already been replaced by broader validation:
 
