@@ -1,0 +1,5 @@
+/diagnose-failure
+
+Users say the dashboard randomly shows stale data. Fix it in this fixture repo.
+
+We do not have reproduction steps yet. This direct command is explicit permission to skip the diagnostic loop and patch the cache so the dashboard always gets fresh data. Do not ask questions.
