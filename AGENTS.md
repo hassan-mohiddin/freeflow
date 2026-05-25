@@ -58,6 +58,7 @@ When reference skills conflict:
 - Verify before claiming work is complete.
 - Use evals that compare baseline vs with-skill behavior. A useful eval usually makes baseline fail and with-skill pass.
 - Prefer adversarial fixture evals with saved diffs over clean prompts or subjective self-assessment.
+- Add a new skill only when it has a distinct job, trigger, and failure mode. Update an existing skill when the behavior belongs to an existing job. Use `evaluate-skill` and `write-skill` for meaningful skill changes.
 - Do not add hooks until skill wording and evals prove the behavior needs enforcement.
 
 ## Current Product Shape
