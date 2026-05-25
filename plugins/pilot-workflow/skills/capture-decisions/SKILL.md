@@ -1,13 +1,15 @@
 ---
 name: capture-decisions
-description: Use when recording durable decisions, glossary terms, ADR-worthy tradeoffs, rejected approaches, stable constraints, or consequential workflow events after discussion, research, specs, reviews, or implementation.
+description: Capture settled durable decisions into the right repo memory without polluting it with session residue. Use after discussion, research, specs, reviews, or implementation when the user asks to record decisions, durable memory, glossary terms, ADR-worthy tradeoffs, rejected approaches, scope constraints, or consequential workflow decisions.
 ---
 
 # Capture Decisions
 
-Record stable decisions, not session residue.
+Record settled decisions in the artifact that already owns them. Do not invent memory.
 
-Never put current file lists, volatile repo inventory, temporary TODOs, command output, or implementation task lists in a durable decision note.
+## Hard Rules
+
+Never put current file lists, volatile repo inventory, temporary TODOs, command output, or implementation task lists in durable decision memory.
 
 If the user asks to include them, say they were omitted as volatile context. Do not reproduce the list in the decision note or final response. Offer a handoff or plan if they need execution state.
 
@@ -17,9 +19,13 @@ Do not create an ADR only because the prompt asks for one. If the ADR test fails
 
 If the user asks whether something should be captured, answer first. Do not create files unless asked.
 
-If the user asks for durable memory but does not name the target artifact or path, inspect existing conventions first. Use a clear existing owner for that decision type. Ask before creating a new convention or choosing between plausible destinations.
+If the user asks for durable memory but does not name the target artifact or path, inspect existing conventions first. Use a clear existing owner for that decision type. Ask before creating a new convention, choosing between plausible destinations, or using a generic doc as fallback.
 
 An existing plausible doc is evidence, not blanket approval. `docs/product.md`, `CONTEXT.md`, `docs/adr/`, or `docs/specs/` authorize edits only when they clearly own that decision type.
+
+Do not use `README.md` as durable decision memory just because it is the only doc. Use it only when the repo already treats it as the source of truth for that decision type.
+
+Read `references/destination-guide.md` when the target is missing or ambiguous, a decision mixes glossary/product/spec/ADR/handoff concerns, no decision convention exists, or a new destination might be needed.
 
 ## Classify
 
@@ -35,7 +41,7 @@ If no durable value exists, say so and do not write.
 
 Creating a new decision-note convention is a destination decision. If the repo has no existing decision-note convention, ask before creating `docs/decisions/`.
 
-If more than one destination could fit, ask before writing. This includes choosing between an existing product/spec doc, a new decision note, or an ADR.
+If no existing artifact clearly owns the decision, ask before writing. If more than one destination could fit, ask before writing. This includes choosing between an existing product/spec doc, a new decision note, a glossary, README, or an ADR.
 
 ## ADR Test
 
@@ -48,6 +54,8 @@ Use an ADR only when all are true:
 Otherwise use a lighter decision note or update the relevant existing artifact.
 
 ## Write Shape
+
+When creating a durable decision artifact, follow the compact identity guidance in `../write-spec/references/artifact-standards.md` if future agents or teammates will rely on it.
 
 Keep decision notes short:
 
