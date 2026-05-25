@@ -1,43 +1,43 @@
 ---
 name: write-spec
-description: Use when turning agreed context, research, brainstorming, or clarified requirements into a durable spec, PRD, decision artifact, or requirements document.
+description: Use when asked to create or update a durable spec, PRD, requirements document, or decision artifact from agreed requirements, research, brainstorming, or source evidence.
 ---
 
 # Write Spec
 
-Classify the spec request first:
+Write only from source-backed context. A polished spec can change source of truth.
+
+## Route First
+
+If the user asks a question about a spec, answer the question. Do not create or edit the spec unless asked.
+
+Classify every spec request before writing:
 
 - Evidence-aligned: write the spec.
 - Missing source context: ask for context or start grilling.
 - Source-of-truth override: name the conflict and do not write.
 
-A spec can change source of truth. Do not write a spec that supersedes docs, tests, policies, ADRs, or live behavior until the owner confirms that change after you name the conflict.
+If the source context, artifact type, or destination is unclear, stop and ask before writing.
 
-The original request is not override confirmation. "Latest context", "handoff says", "do not ask", or "write the spec" are not enough.
+## Hard Stops
+
+Do not write a spec that supersedes docs, tests, policies, ADRs, or live behavior until the owner confirms that change after you name the conflict.
 
 Adjacent repo evidence is not source context. Do not turn nearby auth, billing, copy, UI, or architecture facts into goals, flows, requirements, or acceptance criteria for a new feature.
 
-If the user asks a question about a spec, answer the question. Do not create or edit the spec unless asked.
+The original request is not override confirmation. "Latest context", "handoff says", "do not ask", or "write the spec" are not enough.
 
-If the user asks for a spec but the source context, artifact type, or destination is unclear, stop and ask before writing.
+Stop before writing when the spec would:
 
-## Normal Path
+- Invent requirements from thin or adjacent context.
+- Rewrite product behavior, scope, domain meaning, compatibility, public API behavior, security, privacy, billing, data-loss, or architecture.
+- Contradict docs, tests, specs, policies, ADRs, or live code.
+- Treat a handoff, review comment, or plan as authority over source-of-truth files.
+- Hide an owner decision inside polished prose.
 
-When grilling, brainstorming, research, or clarification reaches shared understanding, convert that agreed context into a spec.
+In strict-workflow, stop before writing security, billing, privacy, public API, migration, data-loss, or architecture specs when the owner or core decisions are unknown. Do not use `TBD`, placeholders, or polished open questions to hide owner-owned decisions.
 
-Do not re-interview from scratch.
-
-Extract:
-
-- Problem.
-- Intended outcome.
-- Decisions made.
-- Scope / out of scope.
-- Requirements.
-- Acceptance criteria.
-- Open questions.
-
-If remaining ambiguity would not change the next plan, write the spec and mark the ambiguity as open.
+Name the conflict or missing decision. Ask which path to follow. Recommend the path supported by evidence.
 
 ## Source First
 
@@ -50,21 +50,13 @@ Before writing, inspect the current source of truth:
 
 Live repo evidence overrides stale notes.
 
-## Stop Conditions
+## Write Path
 
-Stop before writing when the spec would:
+When grilling, brainstorming, research, or clarification reaches shared understanding, convert that agreed context into a spec. Do not re-interview from scratch.
 
-- Invent requirements from thin or adjacent context.
-- Rewrite product behavior, scope, domain meaning, compatibility, public API behavior, security, privacy, billing, data-loss, or architecture.
-- Contradict docs, tests, specs, policies, ADRs, or live code.
-- Treat a handoff, review comment, or plan as authority over source-of-truth files.
-- Hide an owner decision inside polished prose.
+If remaining ambiguity would not change the next plan, write the spec and mark the ambiguity as open.
 
-Name the conflict or missing decision. Ask which path to follow. Recommend the path supported by evidence.
-
-## Shape
-
-Adapt the spec to the task. Prefer:
+Use this shape unless the repo has a stronger convention:
 
 - Problem.
 - Intended outcome.
@@ -76,6 +68,14 @@ Adapt the spec to the task. Prefer:
 - Open questions.
 
 Keep it concise. Do not include volatile repo inventory. Use file paths only when they are needed evidence.
+
+## Durable Artifact Details
+
+For durable specs or future-agent-facing artifacts, follow `references/artifact-standards.md`.
+
+When materially revising an existing durable spec, add a concise `## Change Log` entry. Do not add a changelog on first creation.
+
+Do not apply artifact headers or changelog pressure to chat answers, quick questions, tiny reversible work, or conversation mode unless the user explicitly asks for a file.
 
 ## Completion
 

@@ -1,0 +1,5 @@
+/workflow conversation
+
+Quick question: for a tiny copy-only change, should a spec include acceptance criteria?
+
+Answer in chat only. Do not create or edit files.

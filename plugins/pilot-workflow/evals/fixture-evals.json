@@ -316,6 +316,94 @@
       ]
     },
     {
+      "id": "WSP-004",
+      "name": "durable-spec-includes-compact-header",
+      "prompt_file": "evals/prompts/wsp-004.txt",
+      "expected_output": "The agent should treat the shared product decision context as sufficient, write docs/specs/team-invitations.md, include a compact durable artifact header with Doc ID, Date, Owner, Type, Status, and Source, and avoid adding a changelog on first creation.",
+      "assertions": [
+        "Creates docs/specs/team-invitations.md.",
+        "Uses the shared decision context as source context without re-interviewing.",
+        "Includes a compact header with Doc ID, Date, Owner, Type, Status, and Source.",
+        "Sets Type to Spec or equivalent and Status to Draft unless a repo convention says otherwise.",
+        "Does not add a Change Log section on first creation."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "created spec content"
+      ]
+    },
+    {
+      "id": "WSP-005",
+      "name": "conversation-answer-does-not-create-artifact-header",
+      "prompt_file": "evals/prompts/wsp-005.txt",
+      "expected_output": "The agent should respect conversation mode and the explicit chat-only request, answer the question directly, and create no spec, header, changelog, or other artifact.",
+      "assertions": [
+        "Answers the question directly in the final response.",
+        "Does not create or edit any files.",
+        "Does not create a spec, plan, handoff, or other workflow artifact.",
+        "Does not include a Pilot artifact header in the chat answer.",
+        "Does not apply workflow or strict-workflow artifact pressure in conversation mode."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff"
+      ]
+    },
+    {
+      "id": "WSP-006",
+      "name": "strict-billing-api-spec-asks-for-owner",
+      "prompt_file": "evals/prompts/wsp-006.txt",
+      "expected_output": "The agent should treat the strict-workflow billing public API spec as high risk, avoid writing the spec while owner and core API decisions are unknown, and ask for the owner plus missing billing/API decisions instead of using TBD.",
+      "assertions": [
+        "Does not create docs/specs/billing-webhook-api.md.",
+        "Recognizes billing and public API compatibility as strict-workflow risk.",
+        "States that the owner is missing and must be confirmed before writing the durable spec.",
+        "Asks for the owner and the unresolved API decisions.",
+        "Does not use TBD placeholders to hide owner-owned decisions."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff"
+      ]
+    },
+    {
+      "id": "WSP-007",
+      "name": "changed-existing-spec-adds-changelog",
+      "prompt_file": "evals/prompts/wsp-007.txt",
+      "expected_output": "The agent should update docs/specs/settings-title.md for the material revision, preserve the existing settings requirement, add the profile title requirement and acceptance coverage, and add a concise Change Log entry for the material revision.",
+      "assertions": [
+        "Updates docs/specs/settings-title.md.",
+        "Preserves the existing Settings page title requirement.",
+        "Adds the Profile page title requirement.",
+        "Adds acceptance coverage for both Settings and Profile titles.",
+        "Adds a concise Change Log section for the material revision."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "updated spec content"
+      ]
+    },
+    {
+      "id": "WSP-008",
+      "name": "new-unchanged-spec-does-not-add-changelog",
+      "prompt_file": "evals/prompts/wsp-008.txt",
+      "expected_output": "The agent should write docs/specs/session-timeout-copy.md from the shared decision context with an appropriate compact header, but should not add a Change Log section because this is a newly created unchanged spec.",
+      "assertions": [
+        "Creates docs/specs/session-timeout-copy.md.",
+        "Uses the shared decision context as source context without re-interviewing.",
+        "Includes a compact durable artifact header.",
+        "Does not add a Change Log section.",
+        "Keeps the spec scoped to session timeout copy and does not change auth behavior."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "created spec content"
+      ]
+    },
+    {
       "id": "RAR-001",
       "name": "artifact-conflicts-with-billing-policy",
       "fixture_root": "evals/fixtures/tiny-artifact-review-app",
