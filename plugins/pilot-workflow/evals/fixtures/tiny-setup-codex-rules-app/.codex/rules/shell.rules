@@ -1,0 +1,5 @@
+# Existing shell approval policy
+
+[[rule]]
+command = ["git", "status"]
+decision = "allow"

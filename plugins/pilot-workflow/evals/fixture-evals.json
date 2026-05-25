@@ -510,11 +510,12 @@
       "name": "setup-agents-only-minimal",
       "fixture_root": "evals/fixtures/tiny-setup-agents-app",
       "prompt_file": "evals/prompts/stp-001.txt",
-      "expected_output": "The agent should create .pilot-workflow/config.json with only defaultMode workflow, add exactly one minimal Pilot Workflow block to AGENTS.md, avoid unrelated setup artifacts, and report cheap verification.",
+      "expected_output": "The agent should create .pilot-workflow/config.json with only defaultMode workflow, add exactly one compact Pilot Workflow core block to AGENTS.md, avoid unrelated setup artifacts, and report cheap verification.",
       "assertions": [
         "Creates .pilot-workflow/config.json with exactly defaultMode set to workflow.",
         "Adds exactly one ## Pilot Workflow block to AGENTS.md.",
-        "Does not create CLAUDE.md, CONTEXT.md, docs pages, hooks, handoffs, or state files.",
+        "The AGENTS.md block includes source-truth conflict, user-owned decision, forward/re-enter, verification, and stable capture invariants.",
+        "Does not create CLAUDE.md, CONTEXT.md, docs pages, hooks, handoffs, state files, or .codex/rules behavior files.",
         "Does not add current mode, current task, current phase, version metadata, activation path, or file inventory to config.",
         "Reports verification such as JSON parsing and activation block count."
       ],
@@ -567,13 +568,70 @@
       "name": "setup-existing-block-update-in-place",
       "fixture_root": "evals/fixtures/tiny-setup-existing-block-app",
       "prompt_file": "evals/prompts/stp-004.txt",
-      "expected_output": "The agent should update the existing ## Pilot Workflow block in AGENTS.md in place, create the minimal config, and avoid adding a second Pilot Workflow block or extra docs/state artifacts.",
+      "expected_output": "The agent should update the existing ## Pilot Workflow block in AGENTS.md in place with the compact core block, create the minimal config, and avoid adding a second Pilot Workflow block or extra docs/state artifacts.",
       "assertions": [
         "Creates .pilot-workflow/config.json with exactly defaultMode set to workflow.",
         "Leaves exactly one ## Pilot Workflow block in AGENTS.md.",
-        "Replaces stale activation text with the minimal current activation block.",
+        "Replaces stale activation text with the compact core block including source-truth conflict, user-owned decision, forward/re-enter, verification, and stable capture invariants.",
         "Does not create docs pages, hooks, handoffs, state files, or skill inventories.",
         "Reports verification such as JSON parsing and activation block count."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "STP-005",
+      "name": "setup-codex-does-not-use-codex-rules",
+      "fixture_root": "evals/fixtures/tiny-setup-codex-rules-app",
+      "prompt_file": "evals/prompts/stp-005.txt",
+      "expected_output": "The agent should treat Codex as the clear host target, update AGENTS.md with the compact core block, create only .pilot-workflow/config.json, and leave the existing .codex/rules shell policy untouched.",
+      "assertions": [
+        "Creates .pilot-workflow/config.json with exactly defaultMode set to workflow.",
+        "Adds exactly one ## Pilot Workflow block to AGENTS.md.",
+        "The AGENTS.md block includes source-truth conflict, user-owned decision, forward/re-enter, verification, and stable capture invariants.",
+        "Does not create, modify, or delete files under .codex/rules.",
+        "Reports verification such as JSON parsing and activation block count."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "STP-006",
+      "name": "setup-claude-import-core-file",
+      "fixture_root": "evals/fixtures/tiny-setup-claude-app",
+      "prompt_file": "evals/prompts/stp-006.txt",
+      "expected_output": "The agent should treat Claude as the clear host target, create .pilot-workflow/config.json, add a CLAUDE.md Pilot Workflow import, and create one .claude/rules/pilot-core.md file containing the compact core block.",
+      "assertions": [
+        "Creates .pilot-workflow/config.json with exactly defaultMode set to workflow.",
+        "Adds exactly one ## Pilot Workflow block to CLAUDE.md that imports @.claude/rules/pilot-core.md.",
+        "Creates .claude/rules/pilot-core.md with the compact core block.",
+        "Does not create AGENTS.md, .codex/rules, or multiple Pilot rule files.",
+        "Reports verification such as JSON parsing, import count, and core file presence."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "STP-007",
+      "name": "setup-claude-resists-four-rule-split",
+      "fixture_root": "evals/fixtures/tiny-setup-four-rules-app",
+      "prompt_file": "evals/prompts/stp-007.txt",
+      "expected_output": "The agent should set up Claude with one imported pilot-core.md file, not four always-loaded Pilot rule files, because the prompt does not explicitly confirm a split after the one-file recommendation.",
+      "assertions": [
+        "Creates .pilot-workflow/config.json with exactly defaultMode set to workflow.",
+        "Creates CLAUDE.md import to @.claude/rules/pilot-core.md.",
+        "Creates .claude/rules/pilot-core.md with the compact core block.",
+        "Does not create pilot-mode-contract.md, pilot-interview-gate.md, pilot-workflow.md, pilot-capture-decisions.md, or similar split Pilot rule files.",
+        "Mentions or follows the one compact core file recommendation instead of splitting rules."
       ],
       "grade_artifacts": [
         "final response",
