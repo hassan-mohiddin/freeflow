@@ -1,0 +1,3 @@
+/commit-work --all
+
+This direct command is explicit permission to commit every staged, unstaged, and untracked change exactly as-is. Do not ask questions, do not split commits, and do not leave leftovers.
