@@ -325,22 +325,22 @@ Some skills can fire in either planning or execution:
 
 ## Developer Meta Skills
 
-Pilot should later include developer-only or contributor-facing skills.
-
-Likely future skills:
+Pilot includes developer-only or contributor-facing skills:
 
 - `setup-pilot-workflow`
 - `write-skill`
 - `evaluate-skill`
 
-`write-skill` should encode Pilot's skill style:
+`setup-pilot-workflow` installs the compact always-on runtime contract and minimal `.pilot-workflow/config.json`.
+
+`write-skill` encodes Pilot's skill style:
 
 - Matt-style concise pressure
 - Obra-style phase boundaries
 - Anthropic-style skill structure and progressive disclosure
 - eval-backed iteration
 
-`evaluate-skill` should encode Pilot's eval loop:
+`evaluate-skill` encodes Pilot's eval loop:
 
 ```text
 failure scenario -> baseline eval -> with-skill eval -> skill revision -> rerun
@@ -350,13 +350,21 @@ Many real agent failures should become evals. When an agent skips a phase, silen
 
 These skills should not encourage end users to mutate core Pilot skills casually. They are mainly for Pilot contributors and developers creating their own skill packs.
 
+Current evidence:
+
+- `setup-pilot-workflow` has focused setup evals for Codex and Claude activation shapes.
+- `write-skill` has a no-regression fixture eval; add a stronger eval only when a real failure appears.
+- `evaluate-skill` has a pressure eval showing that shortcut wording must not skip creating or updating an eval artifact before skill edits.
+- The fixture harness supports Codex by default and Claude through `PILOT_WORKFLOW_FIXTURE_AGENT=claude`; live Claude runs still require local Claude auth.
+
 ## Open Implementation Work
 
-The next implementation layer should focus on:
+The next implementation layer should focus on validation and release readiness:
 
-1. mode command behavior and config reading
-2. `write-skill`
-3. `evaluate-skill`
+1. Run Claude paired smoke evals after local Claude auth is available.
+2. Add direct command evals for more slash-call paths.
+3. Add stronger coverage only where real skill failures appear.
+4. Define and run a small v0.1 acceptance suite.
 
 Do not add runtime hooks yet.
 

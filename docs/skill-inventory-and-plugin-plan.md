@@ -311,6 +311,8 @@ Role separation:
 
 ## Development Phases
 
+Status note as of 2026-05-25: these phases are historical planning scaffolding. The current plugin draft has progressed through the target skill pack, fixture eval harness, developer skill calls, and Codex/Claude setup decisions. Use current eval reports under `plugins/pilot-workflow/evals/` for live evidence before choosing new work.
+
 ### Phase 0: Reference Sync
 
 Status: mostly complete.
@@ -489,16 +491,13 @@ The plugin should not be considered successful because its documents are persuas
 
 ## Immediate Next Steps
 
-Recommended next sequence:
+Current useful next work:
 
-1. Review this inventory and adjust the target skill list.
-2. Write `docs/plugin-contract.md`.
-3. Write `docs/workflow-behavior-evals.md`.
-4. Scaffold the plugin directory.
-5. Draft `workflow/SKILL.md`.
-6. Draft `interview-gate/SKILL.md`.
-7. Run the first baseline comparison.
+1. Run Claude paired smoke evals after local Claude auth is available.
+2. Add direct command evals for more slash-call paths.
+3. Define a small v0.1 acceptance suite across setup, mode handling, source-truth conflicts, execution, review, verification, and commit closeout.
+4. Add stronger skill evals only when a real failure appears.
 
-Do not start by writing every skill. The first success condition is narrower:
+The first-success question has already been replaced by broader validation:
 
-> Can `workflow` plus `interview-gate` make the agent avoid silent decisions and recover from backward-flow situations without creating unnecessary ceremony?
+> Can the skill pack change agent behavior under realistic pressure while staying portable across Codex, Claude, and similar coding agents?
