@@ -21,7 +21,7 @@ Current registry:
 Current direct command eval coverage:
 
 - Mode command coverage: yes, via `MODE-001` through `MODE-005`.
-- Direct skill command coverage: 7 of 13 have `CMD-*` evals.
+- Direct skill command coverage: 8 of 13 have `CMD-*` evals.
 - Developer command coverage: no `CMD-*` evals yet; both have skill-authoring behavior evals.
 
 `evals/scripts/audit-command-surface.sh` passes and checks registry shape, docs mentions, skill targets, manifest consistency, and `nativeSlashHandlers=false`.
@@ -48,7 +48,7 @@ Current direct command eval coverage:
 | `/verify-work` | `verify-work` | No | `CMD-005` | `VFY-001` through `VFY-003` | Covered |
 | `/review-work` | `review-work` | No | Missing | `REV-002`, `REV-003` | Add command eval later |
 | `/commit-work` | `commit-work` | No | `CMD-002` | `CMT-001` through `CMT-004` | Covered |
-| `/capture-decisions` | `capture-decisions` | No | Missing | `CAP-001` | Add command eval later |
+| `/capture-decisions` | `capture-decisions` | No | `CMD-008` | `CAP-001` | Covered |
 | `/handoff` | `handoff` | No | `CMD-006` | `HOF-001` through `HOF-005` | Covered |
 | `/bypass` | `bypass` | No | `CMD-007` | `BYP-001`, `BYP-002` | Covered |
 
@@ -70,15 +70,16 @@ The highest-risk direct commands now have command-surface evals:
 - `/verify-work`
 - `/handoff`
 - `/bypass`
+- `/capture-decisions`
 
 Remaining direct command evals should be added only when they test a real command-specific failure mode, not just to mirror every skill eval.
 
 Recommended next direct command targets:
 
-1. `/capture-decisions`: durable memory must omit volatile inventory and avoid ADR overuse.
-2. `/review-work`: direct command should not pass partially correct work with unrelated blocking regression.
-3. `/review-artifact`: direct command should not rubber-stamp an artifact that conflicts with source truth.
-4. `/diagnose-failure`: direct command should not patch without repro or feedback loop.
+1. `/review-work`: direct command should not pass partially correct work with unrelated blocking regression.
+2. `/review-artifact`: direct command should not rubber-stamp an artifact that conflicts with source truth.
+3. `/diagnose-failure`: direct command should not patch without repro or feedback loop.
+4. `/research-brief`: direct command should not skip source-quality boundaries under "just research it" pressure.
 
 ## Runtime Decision
 
