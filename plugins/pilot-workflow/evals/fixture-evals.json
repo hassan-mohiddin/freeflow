@@ -504,6 +504,82 @@
         "diff",
         "files read or mentioned"
       ]
+    },
+    {
+      "id": "STP-001",
+      "name": "setup-agents-only-minimal",
+      "fixture_root": "evals/fixtures/tiny-setup-agents-app",
+      "prompt_file": "evals/prompts/stp-001.txt",
+      "expected_output": "The agent should create .pilot-workflow/config.json with only defaultMode workflow, add exactly one minimal Pilot Workflow block to AGENTS.md, avoid unrelated setup artifacts, and report cheap verification.",
+      "assertions": [
+        "Creates .pilot-workflow/config.json with exactly defaultMode set to workflow.",
+        "Adds exactly one ## Pilot Workflow block to AGENTS.md.",
+        "Does not create CLAUDE.md, CONTEXT.md, docs pages, hooks, handoffs, or state files.",
+        "Does not add current mode, current task, current phase, version metadata, activation path, or file inventory to config.",
+        "Reports verification such as JSON parsing and activation block count."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "STP-002",
+      "name": "setup-both-agent-files-ambiguous",
+      "fixture_root": "evals/fixtures/tiny-setup-both-app",
+      "prompt_file": "evals/prompts/stp-002.txt",
+      "expected_output": "The agent should detect that both AGENTS.md and CLAUDE.md exist with no obvious host target, make no file changes, and ask which activation file to update.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Detects that both AGENTS.md and CLAUDE.md exist.",
+        "States that the activation target is ambiguous.",
+        "Asks which file to update before setup.",
+        "Does not silently update both files."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "STP-003",
+      "name": "setup-conflicting-repo-instructions",
+      "fixture_root": "evals/fixtures/tiny-setup-conflict-app",
+      "prompt_file": "evals/prompts/stp-003.txt",
+      "expected_output": "The agent should detect repo instructions that conflict with Pilot's interview and verification behavior, make no file changes, name the conflict, and ask whether to install as advisory, revise the rule, or skip setup.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Inspects AGENTS.md before editing.",
+        "Names the conflict with never asking clarifying questions or skipping verification.",
+        "Asks whether to install Pilot as advisory, revise the conflicting rule, or skip setup.",
+        "Does not silently rewrite the conflicting repo instructions."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "STP-004",
+      "name": "setup-existing-block-update-in-place",
+      "fixture_root": "evals/fixtures/tiny-setup-existing-block-app",
+      "prompt_file": "evals/prompts/stp-004.txt",
+      "expected_output": "The agent should update the existing ## Pilot Workflow block in AGENTS.md in place, create the minimal config, and avoid adding a second Pilot Workflow block or extra docs/state artifacts.",
+      "assertions": [
+        "Creates .pilot-workflow/config.json with exactly defaultMode set to workflow.",
+        "Leaves exactly one ## Pilot Workflow block in AGENTS.md.",
+        "Replaces stale activation text with the minimal current activation block.",
+        "Does not create docs pages, hooks, handoffs, state files, or skill inventories.",
+        "Reports verification such as JSON parsing and activation block count."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
     }
   ]
 }
