@@ -136,12 +136,15 @@ Direct skill calls should be possible for technical users:
 /diagnose-failure
 /verify-work
 /review-work
+/commit-work
 /capture-decisions
 /handoff
 /bypass
 ```
 
 Direct skill calls are manual state selection. If the user calls `/execute-plan`, the agent should treat that as permission to operate in that workflow segment, while still firing the interview gate if a user-owned decision appears.
+
+Current candidate plugins may route these through skill activation and model behavior rather than native host slash-command handlers. Do not assume a host command is registered until the host manifest or runtime proves it.
 
 ## Situation Routing
 

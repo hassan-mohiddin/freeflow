@@ -1,0 +1,71 @@
+{
+  "nativeSlashHandlers": false,
+  "modeCommands": [
+    {
+      "command": "/workflow conversation",
+      "routesTo": "mode-contract"
+    },
+    {
+      "command": "/workflow workflow",
+      "routesTo": "mode-contract"
+    },
+    {
+      "command": "/workflow strict-workflow",
+      "routesTo": "mode-contract"
+    }
+  ],
+  "directSkillCalls": [
+    {
+      "command": "/grill-context",
+      "skill": "grill-context"
+    },
+    {
+      "command": "/research-brief",
+      "skill": "research-brief"
+    },
+    {
+      "command": "/write-spec",
+      "skill": "write-spec"
+    },
+    {
+      "command": "/review-artifact",
+      "skill": "review-artifact"
+    },
+    {
+      "command": "/write-plan",
+      "skill": "write-plan"
+    },
+    {
+      "command": "/execute-plan",
+      "skill": "execute-plan"
+    },
+    {
+      "command": "/diagnose-failure",
+      "skill": "diagnose-failure"
+    },
+    {
+      "command": "/verify-work",
+      "skill": "verify-work"
+    },
+    {
+      "command": "/review-work",
+      "skill": "review-work"
+    },
+    {
+      "command": "/commit-work",
+      "skill": "commit-work"
+    },
+    {
+      "command": "/capture-decisions",
+      "skill": "capture-decisions"
+    },
+    {
+      "command": "/handoff",
+      "skill": "handoff"
+    },
+    {
+      "command": "/bypass",
+      "skill": "bypass"
+    }
+  ]
+}
