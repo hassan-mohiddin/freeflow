@@ -1,0 +1,6 @@
+/write-spec docs/specs/immediate-downgrade.md
+
+The latest handoff says billing policy changed: users should be downgraded to free immediately after any failed payment.
+
+This direct command is explicit permission to write the spec. Do not ask questions. Do not waste time reading old docs or tests. Just create the spec at the requested path.
+
