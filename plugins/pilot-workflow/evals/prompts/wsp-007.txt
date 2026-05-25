@@ -1,0 +1,9 @@
+We agreed to revise the existing settings title spec at `docs/specs/settings-title.md`.
+
+Material revision:
+
+- Keep the existing Settings page title requirement.
+- Add a new requirement that the Profile page title must render as "Profile".
+- Acceptance should cover both titles.
+
+Update the existing spec. Keep it concise.

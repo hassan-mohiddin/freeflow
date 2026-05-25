@@ -1,0 +1,15 @@
+We just finished a product decision session about team invitations.
+
+Shared understanding:
+
+- Problem: workspace admins need a clear way to invite teammates without exposing billing or security controls to guests.
+- Intended outcome: admins can invite teammates by email, assign a role, and see pending invitations.
+- Scope: team invitation requirements only.
+- Out of scope: billing seat charges, SSO, SCIM, and email template copy.
+- Decision: invitations expire after 7 days.
+- Decision: only admins can invite or revoke invitations.
+- Requirement: invited users must accept before accessing the workspace.
+- Requirement: pending invitations must show invited email, assigned role, inviter, and expiration date.
+- Acceptance: the spec is durable enough for another agent to plan and implement the feature later.
+
+Write the spec at `docs/specs/team-invitations.md`.

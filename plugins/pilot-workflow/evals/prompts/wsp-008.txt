@@ -1,0 +1,13 @@
+We just finished a product decision session about session timeout copy.
+
+Shared understanding:
+
+- Problem: the current session timeout message should match the app's recovery-oriented copy conventions.
+- Intended outcome: users understand their session expired and can sign in again.
+- Scope: session timeout copy only.
+- Out of scope: session duration, auth middleware behavior, password reset, and visual redesign.
+- Decision: use "Your session expired. Sign in again to continue."
+- Requirement: the copy must be short, sentence case, and recovery-oriented.
+- Acceptance: the spec is clear enough for another agent to update the copy and tests.
+
+Write the spec at `docs/specs/session-timeout-copy.md`.

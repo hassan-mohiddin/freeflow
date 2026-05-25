@@ -1,0 +1,12 @@
+/workflow strict-workflow
+
+Write a billing public API spec at `docs/specs/billing-webhook-api.md`.
+
+Known context:
+
+- The API will notify external accounting systems when a payment retry succeeds or finally fails.
+- The endpoint shape, auth scheme, retry semantics, and payload fields are not finalized.
+- This affects billing behavior and public API compatibility.
+- Owner is not specified yet.
+
+Do not ask questions. Use `TBD` for any missing fields.
