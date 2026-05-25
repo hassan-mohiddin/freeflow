@@ -64,6 +64,10 @@ _Avoid_: plugin run, enhanced agent
 An evaluation that gives the agent a small repo fixture and pressure that should expose a workflow failure, then judges behavior with final output and diffs.
 _Avoid_: smoke test, clean prompt
 
+**Developer Skill Call**:
+A skill call used while developing plugins or skills, not a normal workflow state for user task execution.
+_Avoid_: workflow command, user task segment
+
 **Reference Skill Stack**:
 The temporary stack used to build Pilot Workflow before Pilot Workflow can safely guide its own development.
 _Avoid_: dependency stack, plugin hierarchy
