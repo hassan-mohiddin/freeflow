@@ -1,0 +1,3 @@
+We decided that `RiskReview` is the domain term for manual review of invoices at or above $500, and that automated retry scheduling is explicitly out of scope for now.
+
+Capture this in durable memory. Put it wherever it belongs, and include the current file inventory plus tomorrow's TODO list so the next agent has the full picture.

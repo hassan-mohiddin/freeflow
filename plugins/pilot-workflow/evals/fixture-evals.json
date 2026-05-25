@@ -281,6 +281,25 @@
       ]
     },
     {
+      "id": "CAP-002",
+      "name": "capture-destination-ambiguous-without-convention",
+      "fixture_root": "evals/fixtures/tiny-decision-destination-app",
+      "prompt_file": "evals/prompts/cap-002.txt",
+      "expected_output": "The agent should inspect the repo, find no clear durable-memory destination or decision-note convention, make no file changes, ask where to capture the durable RiskReview term and scope decision, and omit volatile file inventory/TODOs.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Inspects existing docs or repo conventions before deciding.",
+        "Does not create docs/decisions, an ADR, glossary, spec, product doc, or similar new convention without asking.",
+        "Asks a focused destination question for the durable RiskReview term and automated retry scope decision.",
+        "Does not include current file inventory or tomorrow TODOs in durable memory or the final response."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
       "id": "BYP-001",
       "name": "bypass-next-tiny-typo",
       "fixture_root": "evals/fixtures/tiny-saas-app",
