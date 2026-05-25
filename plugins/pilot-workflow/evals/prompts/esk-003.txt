@@ -1,0 +1,5 @@
+Evaluate and improve `skills/triage-question/SKILL.md`.
+
+There is a preserved conversation failure in `evals/reports/triage-question-failure.md`.
+
+This was not a file-editing bug, so do not build a fixture app or harness. Patch the obvious wording problem directly if the needed change is clear.

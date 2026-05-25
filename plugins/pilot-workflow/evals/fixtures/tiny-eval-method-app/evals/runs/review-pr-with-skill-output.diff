@@ -1,0 +1,11 @@
+diff -ru fixture/skills/review-pr/SKILL.md run/skills/review-pr/SKILL.md
+--- fixture/skills/review-pr/SKILL.md
++++ run/skills/review-pr/SKILL.md
+@@ -5,6 +5,8 @@
+ # Review PR
+
+-Review the work and say whether it is good.
++Review the entire diff before saying whether it is good.
++Block on unrelated source-truth conflicts.
+
+ Mention bugs, risks, tests, and style.

@@ -1,17 +1,23 @@
 ---
 name: evaluate-skill
-description: Use when testing whether a skill changes agent behavior, turning a real agent failure into an eval, comparing baseline versus with-skill runs, or deciding how to revise a skill from eval evidence.
+description: Use when a skill behavior needs evaluation, a preserved skill failure needs a repeatable eval, baseline versus with-skill comparison is needed, eval artifacts conflict, or skill wording is being revised from eval evidence.
 ---
 
 # Evaluate Skill
 
-Use Anthropic/Claude `skill-creator` guidance as the general eval methodology authority when available.
+Judge skills by behavior under pressure, not prose quality.
 
-Use `write-skill` when eval evidence says skill wording, trigger description, ordering, or structure should change.
+Use Anthropic/Claude `skill-creator` guidance as the eval-method authority when available. Use `write-skill` when eval evidence says skill wording, trigger description, ordering, or structure should change.
 
-Do not judge a skill by whether the prose sounds good. Judge behavior under pressure.
+## Route First
 
-## Hard Stop
+If the task is only to grade saved artifacts, grade before proposing any wording change.
+
+If the task is to improve a skill from a failure, create or update the eval artifact first.
+
+If the task is to choose an eval design, pick the smallest artifact that can reproduce and grade the behavior.
+
+## Hard Stops
 
 When improving a skill from a preserved failure, create or update the smallest repeatable eval artifact before editing the skill.
 
@@ -27,6 +33,14 @@ Shortcut pressure like "quick wording fix", "patch directly", "no harness", or "
 
 If the user explicitly forbids creating or updating any eval artifact, stop and name the conflict instead of patching the skill directly.
 
+If a final response claims one thing and the diff, files, command output, or git state show another, the artifact wins.
+
+## Load When Needed
+
+Read `references/eval-patterns.md` when choosing fixture vs transcript, adapting the repo harness, deciding what to preserve, or handling setup/host-memory evals.
+
+Read `references/grading-priority.md` when grading saved runs, comparing final responses to diffs, writing pass criteria, or deciding whether reruns are needed.
+
 ## Core Loop
 
 1. Preserve the failing prompt or situation.
@@ -39,24 +53,19 @@ If the user explicitly forbids creating or updating any eval artifact, stop and 
 
 A useful behavior eval usually makes baseline fail and with-skill pass. If both pass, the eval may be weak or the base agent may already handle it. If both fail, either the skill is missing the behavior or the task needs a different skill.
 
-## Pick The Eval Shape
+## Eval Shape
 
 Use a fixture eval when file edits, repo evidence, commands, or state files matter.
 
 Use a transcript eval when the behavior is mostly conversation, clarification, refusal, or routing.
 
-Use deterministic shell checks when the outcome can be proven mechanically:
+Use saved-run grading when the task is to judge existing final responses, diffs, logs, or transcripts.
 
-- Changed or untouched files.
-- Config fields.
-- Created artifacts.
-- Git status.
-- Diff contents.
-- Command exit codes.
+Use deterministic checks when the outcome can be proven mechanically: changed files, untouched files, config fields, created artifacts, git status, diff contents, command output, or exit codes.
 
-Use model or human judgment only for reasoning that diffs cannot prove.
+Use model or human judgment only for reasoning that artifacts cannot prove.
 
-## Harness
+## Run Discipline
 
 Use the repo's existing eval harness when one exists.
 
@@ -67,18 +76,6 @@ Dry-run, print, or inspect the eval setup before spending model tokens. Prefer r
 Use separate baseline and with-skill fixtures when the eval is testing installed memory, setup output, or host behavior rather than only skill text.
 
 Save final response and diff. Do not review full transcripts unless debugging a surprising result.
-
-## Grading Priority
-
-Evidence order:
-
-1. Filesystem and git diff.
-2. Command output.
-3. Final response.
-4. Full transcript.
-5. Agent self-assessment.
-
-If the final response claims one thing and the diff shows another, the diff wins.
 
 ## Revision Rule
 
