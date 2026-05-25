@@ -66,6 +66,14 @@
     {
       "command": "/bypass",
       "skill": "bypass"
+    },
+    {
+      "command": "/write-skill",
+      "skill": "write-skill"
+    },
+    {
+      "command": "/evaluate-skill",
+      "skill": "evaluate-skill"
     }
   ]
 }

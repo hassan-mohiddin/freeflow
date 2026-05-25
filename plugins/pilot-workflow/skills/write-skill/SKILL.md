@@ -1,0 +1,82 @@
+---
+name: write-skill
+description: Use when creating, rewriting, tightening, or reviewing an agent skill's instructions, trigger description, structure, examples, or bundled resources.
+---
+
+# Write Skill
+
+Use Anthropic `skill-creator` as the structure and progressive-disclosure authority when available. Do not copy it into this skill.
+
+Use Matt-style wording: concise, behavior-shaping, practical, and free of AI slop.
+
+## Job
+
+Write the smallest skill that changes behavior.
+
+Start with one `SKILL.md`. Add references, scripts, assets, or agent metadata only when they remove real repetition, keep the main skill short, or make deterministic work safer.
+
+Keep Pilot skills under 100 lines unless the extra lines are clearly earning their place.
+
+## Description First
+
+The description controls activation. Make it specific enough to route the skill without making it broad enough to hijack unrelated work.
+
+Use:
+
+- What the skill does.
+- When to use it.
+- Concrete trigger situations.
+
+Avoid:
+
+- Generic helper language.
+- Marketing copy.
+- Long taxonomies.
+- Claims about quality.
+
+## Wording Discipline
+
+Every sentence should either route, constrain, stop, or guide behavior.
+
+Prefer sharp rules over explanations. Prefer one good example over a paragraph.
+
+Small wording changes can alter agent behavior. Change one pressure point at a time when possible.
+
+Use direct verbs:
+
+- Inspect.
+- Stop.
+- Ask.
+- Do not edit.
+- Verify.
+- Report.
+
+Avoid vague verbs:
+
+- Consider.
+- Ensure.
+- Leverage.
+- Try to.
+- Be mindful.
+
+## Placement Discipline
+
+Order rules by behavioral priority, not topic neatness.
+
+Put hard stop conditions before normal workflow details.
+
+Put source-of-truth, user-owned decision, safety, and verification rules above convenience rules.
+
+Do not hide the real constraint in a later caveat.
+
+## Revision Rule
+
+Do not add prose because the skill "could be clearer." Add or move wording because an eval, user failure, or concrete pressure case showed a behavior gap.
+
+When improving a skill after a failure:
+
+1. Name the failed behavior.
+2. Find the sentence that should have prevented it.
+3. Tighten wording or placement.
+4. Keep unrelated sections still.
+5. Re-run the smallest relevant eval.

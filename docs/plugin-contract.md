@@ -140,6 +140,8 @@ Direct skill calls should be possible for technical users:
 /capture-decisions
 /handoff
 /bypass
+/write-skill
+/evaluate-skill
 ```
 
 Direct skill calls are manual state selection. If the user calls `/execute-plan`, the agent should treat that as permission to operate in that workflow segment, while still firing the interview gate if a user-owned decision appears.
