@@ -494,8 +494,8 @@ The plugin should not be considered successful because its documents are persuas
 Current useful next work:
 
 1. Prepare the current repo for dogfooding: keep docs, manifest, command surface, and skill inventory consistent with live plugin evidence.
-2. Add extra skill-folder files only where they earn their place. Current candidates are `setup-pilot-workflow`, `evaluate-skill`, `commit-work`, `write-spec`, and `write-plan`.
-3. Define a small v0.1 acceptance suite across setup, mode handling, source-truth conflicts, execution, review, verification, and commit closeout.
+2. Define a small v0.1 acceptance suite across setup, mode handling, source-truth conflicts, execution, review, verification, and commit closeout.
+3. Use dogfooding failures to choose any next skill-file additions. Do not add more references only because the reference-stack comparison listed them.
 4. Run Claude paired smoke evals after local Claude auth is available.
 5. Add stronger skill evals only when a real failure appears.
 
@@ -503,9 +503,22 @@ Current status as of 2026-05-26:
 
 - The plugin has 19 skills.
 - All skill files are under the 100-line project budget.
+- Reference-stack follow-up Batches A-H have landed with targeted eval reports:
+  - `write-spec/references/artifact-standards.md`
+  - `review-artifact` artifact identity guidance
+  - `diagnose-failure/references/feedback-loop-catalog.md`
+  - `diagnose-failure/references/flaky-and-performance.md`
+  - `evaluate-skill/references/eval-patterns.md`
+  - `evaluate-skill/references/grading-priority.md`
+  - `setup-pilot-workflow/references/host-setup.md`
+  - `commit-work/references/staging-decisions.md`
+  - `write-plan/references/plan-shapes.md`
+  - `review-work/references/reviewer-prompt.md`
+  - `capture-decisions/references/destination-guide.md`
 - Command-surface eval coverage is complete for the current registry: 3 mode commands, 13 direct skill calls, and 2 developer skill calls.
 - Native slash handlers remain disabled; commands are model-routed.
 - The plugin is ready for Hassan's local dogfooding in other repos, but v0.1 acceptance and live Claude smoke evals are still deferred.
+- Remaining optional references are evidence-gated: `write-spec/references/spec-shapes.md`, `handoff/references/templates.md`, and `grill-context/references/approach-framing.md`.
 
 The first-success question has already been replaced by broader validation:
 

@@ -2,6 +2,15 @@
 
 Date: 2026-05-26
 
+## Status Update
+
+This handoff is superseded for implementation state. Batches A-H from the reference-stack comparison have landed with targeted eval reports. See:
+
+- `docs/research/pilot-workflow-reference-stack-comparison.md`
+- `docs/skill-inventory-and-plugin-plan.md`
+
+The remaining optional batch is `handoff/references/templates.md`, and it should still wait for repeated handoff failures.
+
 ## Purpose
 
 Continue Pilot Workflow improvement work from the completed comparison against Matt Pocock skills, Obra/Superpowers, Anthropic `skill-creator`, and the local Orchestra repo.
