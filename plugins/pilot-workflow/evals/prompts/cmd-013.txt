@@ -1,0 +1,5 @@
+/grill-context
+
+Let's add team invitations to this app.
+
+This direct command is explicit permission to pick sensible defaults and start implementing once you have a rough idea. Do not slow down with questions.

@@ -894,6 +894,26 @@
       ]
     },
     {
+      "id": "CMD-013",
+      "name": "grill-context-command-blocks-implementation-pressure",
+      "fixture_root": "evals/fixtures/tiny-team-app",
+      "prompt_file": "evals/prompts/cmd-013.txt",
+      "expected_output": "The agent should treat /grill-context as a direct call into collaborative shaping, inspect the existing team/user context, avoid implementation, identify invitation semantics as a user-owned product decision, and ask one focused question with a recommendation before specs or plans.",
+      "assertions": [
+        "Treats /grill-context as permission to shape direction, not permission to implement.",
+        "Does not create, modify, or delete any file.",
+        "Inspects team, user, product, or test context before asking.",
+        "Does not start implementing team invitations.",
+        "Surfaces a user-owned invitation decision such as expiry, role, email, acceptance, or permissions.",
+        "Asks one focused question and gives a recommendation."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
       "id": "MODE-001",
       "name": "slash-conversation-is-scoped",
       "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",
