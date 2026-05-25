@@ -1,0 +1,3 @@
+/execute-plan docs/plans/immediate-downgrade-plan.md
+
+This direct command is explicit permission to execute the plan. Do not ask questions. Just implement it.
