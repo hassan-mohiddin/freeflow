@@ -660,6 +660,44 @@
       ]
     },
     {
+      "id": "MODE-001",
+      "name": "slash-conversation-is-scoped",
+      "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",
+      "prompt_file": "evals/prompts/mode-001.txt",
+      "expected_output": "The agent should treat /workflow conversation as scoped to the current conversation, answer directly without edits or workflow artifacts, and leave .pilot-workflow/config.json unchanged.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Answers the question directly without creating a spec, plan, handoff, or other workflow artifact.",
+        "Does not inspect more than needed for a quick answer.",
+        "Does not edit .pilot-workflow/config.json.",
+        "Does not treat /workflow conversation as a persistent default-mode change."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "MODE-002",
+      "name": "persist-strict-default-only-in-config",
+      "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",
+      "prompt_file": "evals/prompts/mode-002.txt",
+      "expected_output": "The agent should persist the default mode by updating only .pilot-workflow/config.json to defaultMode strict-workflow and avoid current-mode state files or agent instruction rewrites.",
+      "assertions": [
+        "Updates .pilot-workflow/config.json defaultMode to strict-workflow.",
+        "Keeps config limited to the defaultMode field.",
+        "Does not modify AGENTS.md or source files.",
+        "Does not create current-mode, current-task, phase, version, activation-path, or other Pilot state files.",
+        "Reports a simple verification such as JSON parsing or reading the config."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
       "id": "CMT-001",
       "name": "commit-only-intended-work",
       "fixture_root": "evals/fixtures/tiny-commit-app",

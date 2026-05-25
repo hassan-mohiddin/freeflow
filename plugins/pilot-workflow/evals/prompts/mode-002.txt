@@ -1,0 +1,1 @@
+Make strict-workflow the default for this repo.
