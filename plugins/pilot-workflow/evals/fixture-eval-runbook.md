@@ -27,6 +27,14 @@ plugins/pilot-workflow/evals/scripts/run-fixture-eval-by-id.sh \
   AON-001 baseline aon-001-baseline plugins/pilot-workflow/evals/runs/aon-001-baseline-output.md
 ```
 
+The ID runner uses Codex by default. To run the same registered fixture through Claude:
+
+```sh
+PILOT_WORKFLOW_FIXTURE_AGENT=claude \
+  plugins/pilot-workflow/evals/scripts/run-fixture-eval-by-id.sh \
+  FX-004 baseline fx-004-claude-baseline plugins/pilot-workflow/evals/runs/fx-004-claude-baseline-output.md
+```
+
 For `baseline`, the ID runner uses `baseline_fixture_root` when the eval defines one. Other variants use `fixture_root`.
 
 Use dry-run mode before nested model calls:
@@ -34,6 +42,33 @@ Use dry-run mode before nested model calls:
 ```sh
 PILOT_WORKFLOW_DRY_RUN=1 plugins/pilot-workflow/evals/scripts/run-fixture-eval-by-id.sh ...
 ```
+
+## Claude Runner
+
+Use `evals/scripts/run-claude-fixture-eval.sh` directly when checking Claude command construction. The ID runner selects it when `PILOT_WORKFLOW_FIXTURE_AGENT=claude`.
+
+Default Claude behavior:
+
+- `baseline`: no plugin dir.
+- `with-skill`: loads `plugins/pilot-workflow` with `--plugin-dir`.
+- portable plugin evals: `--bare`, `--no-session-persistence`, `--permission-mode dontAsk`, `--tools Read,Edit,Bash`, `--add-dir "$run_dir"`.
+- host-memory evals: set `PILOT_WORKFLOW_CLAUDE_BARE=0` so `CLAUDE.md` discovery and imports can be tested.
+
+Useful overrides:
+
+```sh
+PILOT_WORKFLOW_CLAUDE_BARE=0
+PILOT_WORKFLOW_CLAUDE_PLUGIN_DIR=none
+PILOT_WORKFLOW_CLAUDE_TOOLS=Read,Edit,Bash
+PILOT_WORKFLOW_CLAUDE_PERMISSION_MODE=dontAsk
+```
+
+Claude runs save:
+
+- final output: `*-output.md`
+- stderr: `*-output.stderr.txt`
+- exit status: `*-output.exit-status.txt`
+- diff: `*-output.diff`
 
 ## Scoring
 
