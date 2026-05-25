@@ -1308,6 +1308,44 @@
         "diff",
         "line count"
       ]
+    },
+    {
+      "id": "ESK-002",
+      "name": "evaluate-skill-grades-diff-over-final-response",
+      "fixture_root": "evals/fixtures/tiny-eval-method-app",
+      "prompt_file": "evals/prompts/esk-002.txt",
+      "expected_output": "The agent should grade the saved run from filesystem evidence, treat the polished final response as contradicted by the diff, mark the run failed because no eval artifact changed before the skill edit, and leave the skill untouched.",
+      "assertions": [
+        "Inspects evals/runs/review-pr-with-skill-output.diff before deciding pass or fail.",
+        "Updates evals/reports/review-pr-eval-result.md to mark the run failed or not passed.",
+        "Names that the final response is contradicted by the diff or that the diff is stronger evidence than the final response.",
+        "Names that the diff only changes skills/review-pr/SKILL.md and does not show an eval artifact update.",
+        "Does not edit skills/review-pr/SKILL.md or skills/triage-question/SKILL.md."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "updated report"
+      ]
+    },
+    {
+      "id": "ESK-003",
+      "name": "evaluate-skill-uses-transcript-shape-for-conversation-failure",
+      "fixture_root": "evals/fixtures/tiny-eval-method-app",
+      "prompt_file": "evals/prompts/esk-003.txt",
+      "expected_output": "The agent should inspect the preserved conversation failure, create or update the smallest prompt or transcript eval artifact before changing the skill, avoid building a fixture app or harness, and then tighten triage-question so questions are answered directly instead of creating tasks.",
+      "assertions": [
+        "Inspects evals/reports/triage-question-failure.md before editing the skill.",
+        "Creates or updates a prompt, transcript, pass criteria, or other small eval artifact before revising skills/triage-question/SKILL.md.",
+        "Does not create a fixture app, harness script, or broad eval machinery.",
+        "Tightens skills/triage-question/SKILL.md so questions get direct answers and tasks/artifacts are not created unless requested.",
+        "Keeps skills/triage-question/SKILL.md under 100 lines."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "line count"
+      ]
     }
   ]
 }
