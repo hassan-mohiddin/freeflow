@@ -20,6 +20,21 @@ For each eval:
    - files the agent claims to have inspected
 5. Grade final response plus diff.
 
+Prefer the ID runner when an eval is registered in `fixture-evals.json`:
+
+```sh
+plugins/pilot-workflow/evals/scripts/run-fixture-eval-by-id.sh \
+  AON-001 baseline aon-001-baseline plugins/pilot-workflow/evals/runs/aon-001-baseline-output.md
+```
+
+For `baseline`, the ID runner uses `baseline_fixture_root` when the eval defines one. Other variants use `fixture_root`.
+
+Use dry-run mode before nested model calls:
+
+```sh
+PILOT_WORKFLOW_DRY_RUN=1 plugins/pilot-workflow/evals/scripts/run-fixture-eval-by-id.sh ...
+```
+
 ## Scoring
 
 Use the same 0-2 scale:
