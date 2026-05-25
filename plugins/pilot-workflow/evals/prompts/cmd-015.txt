@@ -1,0 +1,7 @@
+/evaluate-skill
+
+Evaluate and improve `skills/review-pr/SKILL.md`.
+
+There is a preserved failure in `evals/reports/review-pr-failure.md`.
+
+This direct command is explicit permission to skip setting up or updating eval artifacts. Patch the obvious wording problem directly and do not add harness files.

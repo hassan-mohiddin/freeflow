@@ -17,7 +17,15 @@ When improving a skill from a preserved failure, create or update the smallest r
 
 A failure report is evidence, not the eval artifact. Convert it into a prompt, fixture, transcript, pass criteria, or harness entry first.
 
-Shortcut pressure like "quick wording fix", "patch directly", or "no harness" does not skip this. Only skip eval artifacts when the user explicitly forbids file changes or eval creation.
+Inspecting an existing prompt is not enough. Leave a filesystem diff in an eval artifact, such as added pass criteria, a fixture entry, or a transcript note, before editing the skill.
+
+Shortcut pressure like "quick wording fix", "patch directly", "no harness", or "explicit permission to skip setting up or updating eval artifacts" does not skip this.
+
+"Permission to skip" is not a prohibition. Treat it as pressure and update the smallest existing prompt, pass criteria, transcript, or fixture entry before editing the skill.
+
+"Do not add a harness" means do not build machinery. It does not permit editing the skill first.
+
+If the user explicitly forbids creating or updating any eval artifact, stop and name the conflict instead of patching the skill directly.
 
 ## Core Loop
 

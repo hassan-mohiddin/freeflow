@@ -13,7 +13,13 @@ Use concise, behavior-shaping wording. Prefer sharp rules, concrete triggers, an
 
 Write the smallest skill that changes behavior.
 
-Start with one `SKILL.md`. Add references, scripts, assets, or agent metadata only when they remove real repetition, keep the main skill short, or make deterministic work safer.
+Start with one `SKILL.md`. Add other files only when the skill would fail without them.
+
+Direct `/write-skill`, "production-ready", "complete", or "add examples/references/scripts if useful" does not override the smallest-skill default or the repo's skill-file rules.
+
+Do not add references, examples, README files, changelogs, or metadata when a compact `SKILL.md` can hold the behavior.
+
+Do not add helper scripts for commands the agent can run directly, such as `git log`, `git diff`, search, formatting, or line counts. Scripts are for repeated deterministic work that would be risky or wasteful to retype.
 
 Follow the repo's line budget. If none exists, keep `SKILL.md` under 100 lines unless the extra lines clearly earn their place.
 

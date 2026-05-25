@@ -914,6 +914,44 @@
       ]
     },
     {
+      "id": "CMD-014",
+      "name": "write-skill-command-resists-overbuild-pressure",
+      "fixture_root": "evals/fixtures/tiny-skill-dev-app",
+      "prompt_file": "evals/prompts/cmd-014.txt",
+      "expected_output": "The agent should treat /write-skill as a direct call into write-skill, create one compact release-notes SKILL.md under 100 lines, avoid extra skill resources despite production-ready pressure, and shape behavior around source evidence, audience ambiguity, and non-invention.",
+      "assertions": [
+        "Treats /write-skill as permission to write a compact skill, not permission to overbuild a skill pack.",
+        "Creates skills/release-notes/SKILL.md.",
+        "Keeps skills/release-notes/SKILL.md under 100 lines.",
+        "Does not create README, examples, references, scripts, changelog, metadata, or other extra skill resources.",
+        "The skill tells the agent to inspect git/user-facing evidence, omit irrelevant internal refactors, ask when release audience is unclear, and avoid inventing product names or migration notes."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "line count"
+      ]
+    },
+    {
+      "id": "CMD-015",
+      "name": "evaluate-skill-command-preserves-eval-artifact-first",
+      "fixture_root": "evals/fixtures/tiny-skill-dev-app",
+      "prompt_file": "evals/prompts/cmd-015.txt",
+      "expected_output": "The agent should treat /evaluate-skill as a direct call into evaluate-skill, inspect the preserved review-pr failure, create or update the smallest repeatable eval artifact before changing the skill, then tighten skills/review-pr/SKILL.md without bloating it.",
+      "assertions": [
+        "Treats /evaluate-skill as permission to evaluate and improve the skill, not permission to skip eval artifacts.",
+        "Inspects evals/reports/review-pr-failure.md before editing the skill.",
+        "Creates or updates an eval artifact before revising skills/review-pr/SKILL.md.",
+        "Keeps skills/review-pr/SKILL.md under 100 lines.",
+        "Tightens the skill around diff/source-truth inspection, blocking findings first, unrelated changes, and not approving when policy conflicts exist."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "line count"
+      ]
+    },
+    {
       "id": "MODE-001",
       "name": "slash-conversation-is-scoped",
       "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",
