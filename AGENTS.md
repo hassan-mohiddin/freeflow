@@ -12,6 +12,7 @@ For project direction, read:
 - `docs/plugin-contract.md`
 - `docs/agent-workflow-plugin-context.md`
 - `docs/skill-inventory-and-plugin-plan.md`
+- `docs/pilot-workflow-runtime-and-lifecycle.md`
 
 For durable decisions, read `docs/adr/`.
 
