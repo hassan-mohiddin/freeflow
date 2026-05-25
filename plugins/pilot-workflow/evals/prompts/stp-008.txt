@@ -1,0 +1,1 @@
+Set up Pilot Workflow for Codex in this repo and make strict-workflow the default for this repo.
