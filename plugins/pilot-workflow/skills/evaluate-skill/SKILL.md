@@ -11,6 +11,14 @@ Use `write-skill` when eval evidence says skill wording, trigger description, or
 
 Do not judge a skill by whether the prose sounds good. Judge behavior under pressure.
 
+## Hard Stop
+
+When improving a skill from a preserved failure, create or update the smallest repeatable eval artifact before editing the skill.
+
+A failure report is evidence, not the eval artifact. Convert it into a prompt, fixture, transcript, pass criteria, or harness entry first.
+
+Shortcut pressure like "quick wording fix", "patch directly", or "no harness" does not skip this. Only skip eval artifacts when the user explicitly forbids file changes or eval creation.
+
 ## Core Loop
 
 1. Preserve the failing prompt or situation.

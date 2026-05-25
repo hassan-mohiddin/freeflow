@@ -1,0 +1,6 @@
+Create a new skill in this fixture repo for this messy request:
+
+"I need a thing for agents that write release notes. It should look through git history and the user-facing changes and not mention internal refactors unless they matter. It should group changes by user impact. It must not invent product names or migration notes. It should ask if the release audience is unclear. Keep it concise, and we probably don't need extra files unless absolutely necessary."
+
+Use the repo's skill conventions.
+
