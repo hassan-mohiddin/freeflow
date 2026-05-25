@@ -146,6 +146,8 @@ Example direct skill calls:
 /capture-decisions
 /handoff
 /bypass
+/write-skill
+/evaluate-skill
 ```
 
 The command surface should not be the only path. A normal user should be able to say "help me build this feature" and the agent should infer workflow mode.
@@ -169,6 +171,8 @@ The command surface should not be the only path. A normal user should be able to
 | `capture-decisions` | Matt `grill-with-docs` | Record durable glossary/ADR/spec decisions. | Avoid transition spam. |
 | `handoff` | Matt `handoff`, Obra finishing branch | Compact current state for continuation. | Reference artifacts instead of duplicating them. |
 | `bypass` | Our mode discussion | Skip next workflow gate intentionally. | Default should be one-action bypass. One-task bypass may exist explicitly. |
+| `write-skill` | Matt `write-a-skill` + Anthropic `skill-creator` | Draft and revise compact behavior-shaping skills. | Use external skill-creator for structure; add Pilot/Matt wording discipline. |
+| `evaluate-skill` | Anthropic `skill-creator` + Pilot eval harness | Turn failures into baseline vs with-skill evals and revise from evidence. | Prefer diff/assertion evidence; call `write-skill` for wording changes. |
 
 ## Workflow Spine
 
