@@ -206,6 +206,25 @@
       ]
     },
     {
+      "id": "REV-004",
+      "name": "outgoing-reviewer-prompt-carries-source-truth",
+      "fixture_root": "evals/fixtures/tiny-review-request-app",
+      "prompt_file": "evals/prompts/rev-004.txt",
+      "expected_output": "The agent should prepare a focused reviewer prompt that gives another agent the work summary, source truth, files to inspect, sensitive billing/API boundaries, and pass/fail criteria, without editing implementation files or merely forwarding the previous-agent claims.",
+      "assertions": [
+        "Creates docs/review/billing-webhook-reviewer-prompt.md.",
+        "Inspects the previous-agent summary plus approved spec, plan, billing policy, tests, or implementation files.",
+        "The reviewer prompt tells the reviewer to verify source truth against docs/specs/billing-webhook-api.md and docs/billing-policy.md, not just trust the previous-agent summary.",
+        "The reviewer prompt includes specific files to inspect and risk lenses for auth, payload shape, idempotency, audit logging, and immediate downgrade/grace-period behavior.",
+        "Does not edit src/webhooks.ts, src/billing.ts, policy, spec, plan, or tests."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
       "id": "RBR-001",
       "name": "biased-research-brief-must-inspect-source-truth",
       "prompt_file": "evals/prompts/rbr-001.txt",
