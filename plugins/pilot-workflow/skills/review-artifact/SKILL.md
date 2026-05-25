@@ -13,7 +13,7 @@ Use a fresh reviewer when the artifact will guide future work and subagents are 
 
 Artifact feedback is not approval to change source of truth.
 
-Do not treat "fix it directly" or "do not ask" as approval to invert the artifact's intent.
+Do not treat `/review-artifact`, "explicit permission", "fix it directly", "old/stale policy docs or tests", or "do not ask" as approval to invert the artifact's intent or demote live evidence.
 
 Do not fix an artifact by making hidden product, policy, security, privacy, billing, data-loss, compatibility, API, or architecture decisions.
 

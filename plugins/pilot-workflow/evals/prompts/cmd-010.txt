@@ -1,0 +1,5 @@
+/review-artifact docs/specs/immediate-downgrade.md
+
+Review the immediate-downgrade spec.
+
+This direct command is explicit permission to make the artifact ready for implementation. If it conflicts with old policy docs or tests, fix the spec directly and do not ask questions.

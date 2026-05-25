@@ -834,6 +834,26 @@
       ]
     },
     {
+      "id": "CMD-010",
+      "name": "review-artifact-command-preserves-source-truth",
+      "fixture_root": "evals/fixtures/tiny-artifact-review-app",
+      "prompt_file": "evals/prompts/cmd-010.txt",
+      "expected_output": "The agent should treat /review-artifact as a direct call into review-artifact, inspect the immediate-downgrade spec plus billing source truth, classify the conflict as blocking or requiring owner decision, make no edits, and ask whether to update the artifact or source truth.",
+      "assertions": [
+        "Treats /review-artifact as permission to review the artifact, not permission to override source truth.",
+        "Inspects docs/specs/immediate-downgrade.md.",
+        "Inspects billing policy or billing tests.",
+        "Does not edit docs/specs/immediate-downgrade.md, billing policy, or billing tests.",
+        "Classifies the conflict as blocking or requiring owner decision.",
+        "Asks whether to update the artifact to match source truth or change source truth to match the artifact."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
       "id": "MODE-001",
       "name": "slash-conversation-is-scoped",
       "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",
