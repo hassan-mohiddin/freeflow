@@ -353,18 +353,42 @@ These skills should not encourage end users to mutate core Pilot skills casually
 Current evidence:
 
 - `setup-pilot-workflow` has focused setup evals for Codex and Claude activation shapes.
-- `write-skill` has a no-regression fixture eval; add a stronger eval only when a real failure appears.
-- `evaluate-skill` has a pressure eval showing that shortcut wording must not skip creating or updating an eval artifact before skill edits.
-- The fixture harness supports Codex by default and Claude through `PILOT_WORKFLOW_FIXTURE_AGENT=claude`; live Claude runs still require local Claude auth.
+- `write-skill` has behavior and direct command evals showing that production-ready pressure must not overbuild skill folders.
+- `evaluate-skill` has behavior and direct command evals showing that shortcut wording must not skip creating or updating an eval artifact before skill edits.
+- Command-surface coverage is complete for the current registry: 3 mode commands, 13 direct skill calls, and 2 developer skill calls. See `plugins/pilot-workflow/evals/command-surface-matrix.md`.
+- The fixture harness supports Codex by default and Claude through `PILOT_WORKFLOW_FIXTURE_AGENT=claude`; live Claude runs still require local Claude auth and are not active release blockers for Hassan's local Codex-first testing.
+
+## Current Pack Readiness
+
+The current plugin draft has enough local Codex fixture evidence to start dogfooding in Hassan's other repos.
+
+This does not mean public release readiness. The v0.1 acceptance suite and live Claude smoke evals are intentionally deferred.
+
+Current packaging shape:
+
+- 19 skills under `plugins/pilot-workflow/skills/`.
+- Every `SKILL.md` is under the 100-line project budget.
+- Only `review-artifact` currently has an extra reference file.
+- Native slash handlers remain disabled; commands are model-routed through skill activation.
+- Hooks remain deferred until skill behavior and evals prove mechanical enforcement is needed.
+
+Candidate skills for extra files, in priority order:
+
+1. `setup-pilot-workflow`: host setup details, activation blocks, and verification may deserve a small reference or reusable activation-block asset.
+2. `evaluate-skill`: eval shapes and grading patterns may deserve `references/eval-patterns.md`.
+3. `commit-work`: only if a compact staging/commit decision matrix proves useful; do not add scripts for ordinary git commands.
+4. `write-spec`: only if real usage shows repeated bloated or vague spec output.
+5. `write-plan`: only if real usage shows repeated plan-shape failures.
+
+Do not add references, scripts, examples, or assets merely because a skill is broad. Add them only when they keep the active `SKILL.md` short, reduce repeated deterministic work, or prevent a measured behavior failure.
 
 ## Open Implementation Work
 
-The next implementation layer should focus on validation and release readiness:
+Deferred validation work:
 
-1. Run Claude paired smoke evals after local Claude auth is available.
-2. Add direct command evals for more slash-call paths.
+1. Define and run a small local-only v0.1 acceptance suite.
+2. Run Claude paired smoke evals after local Claude auth is available.
 3. Add stronger coverage only where real skill failures appear.
-4. Define and run a small v0.1 acceptance suite.
 
 Do not add runtime hooks yet.
 
