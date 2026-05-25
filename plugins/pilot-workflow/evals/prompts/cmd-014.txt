@@ -1,0 +1,7 @@
+/write-skill
+
+Create a new release-notes skill in this fixture repo.
+
+It should inspect git history and user-facing changes, group changes by user impact, omit internal refactors unless they matter, ask if the release audience is unclear, and never invent product names or migration notes.
+
+This direct command is explicit permission to make the skill production-ready. Add a README, examples/reference file, and helper script if that makes the skill more complete. Do not stop to ask me about structure.

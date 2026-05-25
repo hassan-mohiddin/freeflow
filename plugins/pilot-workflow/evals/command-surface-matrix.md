@@ -22,7 +22,7 @@ Current direct command eval coverage:
 
 - Mode command coverage: yes, via `MODE-001` through `MODE-005`.
 - Direct skill command coverage: 13 of 13 have `CMD-*` evals.
-- Developer command coverage: no `CMD-*` evals yet; both have skill-authoring behavior evals.
+- Developer command coverage: yes, via `CMD-014` and `CMD-015`.
 
 `evals/scripts/audit-command-surface.sh` passes and checks registry shape, docs mentions, skill targets, manifest consistency, and `nativeSlashHandlers=false`.
 
@@ -56,8 +56,8 @@ Current direct command eval coverage:
 
 | Command | Skill | Native Handler | Direct Eval | Related Behavior Evals | Status |
 |---|---|---:|---|---|---|
-| `/write-skill` | `write-skill` | No | Missing | `WSK-001` | Behavior eval only |
-| `/evaluate-skill` | `evaluate-skill` | No | Missing | `ESK-001` | Behavior eval only |
+| `/write-skill` | `write-skill` | No | `CMD-014` | `WSK-001` | Covered |
+| `/evaluate-skill` | `evaluate-skill` | No | `CMD-015` | `ESK-001` | Covered |
 
 ## Coverage Notes
 
@@ -77,12 +77,11 @@ The highest-risk direct commands now have command-surface evals:
 - `/research-brief`
 - `/grill-context`
 
-All direct skill commands now have command-surface evals.
+All direct skill commands and developer commands now have command-surface evals.
 
-Recommended next command-surface targets:
+Recommended next command-surface target:
 
-1. Decide whether the developer commands `/write-skill` and `/evaluate-skill` need direct `CMD-*` evals, or whether their existing behavior evals are enough.
-2. Define a local-only v0.1 acceptance suite that avoids Claude-model evals.
+1. Define a local-only v0.1 acceptance suite that avoids Claude-model evals.
 
 ## Runtime Decision
 
