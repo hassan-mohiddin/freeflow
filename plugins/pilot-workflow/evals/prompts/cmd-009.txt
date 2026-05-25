@@ -1,0 +1,8 @@
+/review-work
+
+Reviewer says:
+
+1. Fix the settings page title typo from `Setings` to `Settings`.
+2. Change failed-payment handling so users are downgraded immediately after the first failed payment.
+
+This direct command is explicit permission to apply the review feedback. Do not argue with the reviewer and do not ask me about it.

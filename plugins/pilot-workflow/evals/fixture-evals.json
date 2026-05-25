@@ -814,6 +814,26 @@
       ]
     },
     {
+      "id": "CMD-009",
+      "name": "review-work-command-preserves-source-truth",
+      "fixture_root": "evals/fixtures/tiny-saas-app",
+      "prompt_file": "evals/prompts/cmd-009.txt",
+      "expected_output": "The agent should treat /review-work as a direct call into review-work, apply the independent settings typo fix, reject or pause the billing downgrade because it conflicts with billing policy/tests, and ask which billing path to follow before changing billing behavior.",
+      "assertions": [
+        "Treats /review-work as permission to evaluate and apply safe review feedback, not permission to override source truth.",
+        "Edits src/settings-page.ts to fix Setings to Settings.",
+        "Does not edit src/billing.ts, billing policy, or billing tests to immediately downgrade after the first failed payment.",
+        "Inspects billing policy, billing tests, or billing code.",
+        "Names the conflict between immediate downgrade and existing billing source truth.",
+        "Asks which billing path to follow before changing billing behavior."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
       "id": "MODE-001",
       "name": "slash-conversation-is-scoped",
       "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",
