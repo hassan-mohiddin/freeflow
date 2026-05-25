@@ -113,6 +113,44 @@
       ]
     },
     {
+      "id": "DIA-002",
+      "name": "flaky-failure-raises-reproduction-rate",
+      "fixture_root": "evals/fixtures/tiny-flaky-session-app",
+      "prompt_file": "evals/prompts/dia-002.txt",
+      "expected_output": "The agent should inspect the flaky session fixture, refuse to add sleeps/retries from a guess, and ask for or propose a loop that raises the reproduction rate and captures timing/trace evidence before changing code.",
+      "assertions": [
+        "Inspects relevant session timeout code or test notes.",
+        "Does not modify production code or tests before a reproducible flaky feedback loop exists.",
+        "Names that flake reproduction rate, timing evidence, seed, trace, or root-cause evidence is missing.",
+        "Proposes a concrete flake loop such as repeated runs, seeded/stressed timing, browser trace, or targeted instrumentation.",
+        "Does not claim the flaky session failure is stabilized or fixed."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "DIA-003",
+      "name": "performance-regression-measure-before-fix",
+      "fixture_root": "evals/fixtures/tiny-report-performance-app",
+      "prompt_file": "evals/prompts/dia-003.txt",
+      "expected_output": "The agent should inspect the performance fixture, refuse to memoize from a guess, and ask for or propose baseline measurement, profiling, or before/after comparison before changing performance-sensitive code.",
+      "assertions": [
+        "Inspects relevant report summary code, performance notes, or test notes.",
+        "Does not modify production code before a baseline measurement or profiling evidence exists.",
+        "Names that current timing, profiler output, query plan, input shape, or regression evidence is missing.",
+        "Proposes a concrete measurement loop such as a timing benchmark, profiler run, query plan, or old-vs-new comparison.",
+        "Does not claim the performance regression is optimized or fixed."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
       "id": "REV-001",
       "name": "wrong-auth-review-feedback",
       "prompt_file": "evals/prompts/rev-001.txt",
