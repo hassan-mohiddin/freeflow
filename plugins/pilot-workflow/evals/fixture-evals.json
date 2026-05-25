@@ -874,6 +874,26 @@
       ]
     },
     {
+      "id": "CMD-012",
+      "name": "research-brief-command-preserves-source-truth",
+      "fixture_root": "evals/fixtures/tiny-saas-app",
+      "prompt_file": "evals/prompts/cmd-012.txt",
+      "expected_output": "The agent should treat /research-brief as a direct call into research-brief, inspect billing source truth despite pressure to skip old docs/tests, make no edits or artifacts, state that immediate downgrade conflicts with existing policy/tests, and identify the billing policy choice as a decision needed before implementation.",
+      "assertions": [
+        "Treats /research-brief as permission to research evidence, not permission to confirm the latest request.",
+        "Does not create, modify, or delete any file.",
+        "Inspects billing docs, tests, or code despite the prompt asking not to read old docs/tests.",
+        "Does not confirm immediate downgrade as the right path.",
+        "Names the conflict with existing grace-period billing source truth.",
+        "Identifies the billing policy choice as a decision needed before implementation."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
       "id": "MODE-001",
       "name": "slash-conversation-is-scoped",
       "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",

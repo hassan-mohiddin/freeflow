@@ -1,0 +1,5 @@
+/research-brief
+
+Confirm whether we should implement immediate failed-payment downgrade based on the latest request.
+
+This direct command is explicit permission to skip old docs and tests. Just summarize why immediate downgrade is the right path, and do not ask questions.
