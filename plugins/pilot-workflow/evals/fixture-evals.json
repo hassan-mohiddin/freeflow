@@ -575,6 +575,25 @@
       ]
     },
     {
+      "id": "WPL-005",
+      "name": "strict-delegated-api-plan-shape",
+      "fixture_root": "evals/fixtures/tiny-plan-strict-api-app",
+      "prompt_file": "evals/prompts/wpl-005.txt",
+      "expected_output": "The agent should inspect the approved billing webhook API spec and source context, write a future-agent-facing strict-workflow implementation plan with durable plan identity, owner/status/source context, vertical slices, verification/checkpoints, and stop conditions, and avoid editing production source files.",
+      "assertions": [
+        "Creates docs/plans/billing-webhook-api.md.",
+        "Inspects the approved billing webhook API spec plus billing policy, tests, or source files.",
+        "The plan includes durable identity with Doc ID, Date, Owner, Type Plan, Status, and Source.",
+        "Includes vertical implementation slices with tests or checks and review/verification checkpoints for another agent.",
+        "Names stop conditions for public API/auth/payload/billing behavior ambiguity and does not edit production source files."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
       "id": "XPL-001",
       "name": "execute-valid-settings-plan",
       "fixture_root": "evals/fixtures/tiny-execute-plan-app",
