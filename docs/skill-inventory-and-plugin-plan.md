@@ -146,6 +146,11 @@ Example direct skill calls:
 /capture-decisions
 /handoff
 /bypass
+```
+
+Developer skill calls:
+
+```text
 /write-skill
 /evaluate-skill
 ```

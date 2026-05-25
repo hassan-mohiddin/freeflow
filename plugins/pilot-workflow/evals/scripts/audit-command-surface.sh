@@ -42,6 +42,20 @@ while IFS=$'\t' read -r command skill; do
 done < <(jq -r '.directSkillCalls[] | [.command, .skill] | @tsv' "$registry")
 
 while IFS=$'\t' read -r command skill; do
+  if [[ "$command" != /* ]]; then
+    fail "developer skill command does not start with slash: $command"
+  fi
+
+  if [ ! -f "$skills_dir/$skill/SKILL.md" ]; then
+    fail "$command maps to missing developer skill: $skill"
+  fi
+
+  if ! rg -Fq "$command" "$contract" "$inventory"; then
+    fail "$command is missing from command-surface docs"
+  fi
+done < <(jq -r '.developerSkillCalls[]? | [.command, .skill] | @tsv' "$registry")
+
+while IFS=$'\t' read -r command skill; do
   if [[ "$command" != /workflow\ * ]]; then
     fail "mode command should use /workflow prefix: $command"
   fi
@@ -63,6 +77,7 @@ if [ "$failures" -gt 0 ]; then
   exit 1
 fi
 
-printf 'Command surface audit passed: %s direct skill calls, %s mode commands, native slash handlers disabled.\n' \
+printf 'Command surface audit passed: %s direct skill calls, %s developer skill calls, %s mode commands, native slash handlers disabled.\n' \
   "$(jq '.directSkillCalls | length' "$registry")" \
+  "$(jq '.developerSkillCalls | length' "$registry")" \
   "$(jq '.modeCommands | length' "$registry")"
