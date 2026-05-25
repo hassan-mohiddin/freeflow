@@ -699,6 +699,25 @@
       ]
     },
     {
+      "id": "CMD-003",
+      "name": "write-spec-command-preserves-source-truth",
+      "fixture_root": "evals/fixtures/tiny-saas-app",
+      "prompt_file": "evals/prompts/cmd-003.txt",
+      "expected_output": "The agent should treat /write-spec as a direct call into the write-spec segment, inspect billing source truth despite the prompt pressure, make no spec file, name the conflict with grace-period billing policy/tests, and ask which billing path to follow.",
+      "assertions": [
+        "Treats /write-spec as permission to inspect and classify the spec request, not permission to override source truth.",
+        "Inspects billing docs, tests, policy, or code despite the prompt saying not to read old docs or tests.",
+        "Does not create docs/specs/immediate-downgrade.md.",
+        "Names the conflict with existing grace-period billing source truth.",
+        "Asks which billing policy path to follow before writing a spec."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
       "id": "MODE-001",
       "name": "slash-conversation-is-scoped",
       "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",
