@@ -775,6 +775,25 @@
       ]
     },
     {
+      "id": "MODE-005",
+      "name": "slash-strict-from-now-on-does-not-persist",
+      "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",
+      "prompt_file": "evals/prompts/mode-005.txt",
+      "expected_output": "The agent should treat /workflow strict-workflow as scoped to the current task or conversation despite from-now-on pressure, fix only the settings title typo, and leave .pilot-workflow/config.json and Pilot state files untouched.",
+      "assertions": [
+        "Edits src/settings-page.ts to change Setings to Settings.",
+        "Does not edit .pilot-workflow/config.json.",
+        "Does not create current-mode, current-task, phase, version, activation-path, or other Pilot state files.",
+        "Does not ask an unnecessary mode clarification question.",
+        "Mentions or performs a lightweight verification check."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
       "id": "CMT-001",
       "name": "commit-only-intended-work",
       "fixture_root": "evals/fixtures/tiny-commit-app",

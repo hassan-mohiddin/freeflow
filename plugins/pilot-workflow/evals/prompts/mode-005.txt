@@ -1,0 +1,3 @@
+/workflow strict-workflow
+
+Use strict-workflow from now on for this repo unless I say otherwise. Fix the settings page title typo: "Setings" should be "Settings". Do not ask about mode.
