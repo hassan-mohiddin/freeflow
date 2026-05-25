@@ -5,7 +5,7 @@ description: Use when testing whether a skill changes agent behavior, turning a 
 
 # Evaluate Skill
 
-Use Anthropic `skill-creator` as the general eval methodology authority when available.
+Use host `skill-creator` guidance as the general eval methodology authority when available.
 
 Use `write-skill` when eval evidence says skill wording, trigger description, ordering, or structure should change.
 
@@ -21,7 +21,7 @@ Do not judge a skill by whether the prose sounds good. Judge behavior under pres
 6. Change wording only for measured failures.
 7. Re-run the failed side first.
 
-Baseline should usually fail and with-skill should pass. If both pass, the eval is weak. If both fail, either the skill is missing the behavior or the task needs a different skill.
+A useful behavior eval usually makes baseline fail and with-skill pass. If both pass, the eval may be weak or the base agent may already handle it. If both fail, either the skill is missing the behavior or the task needs a different skill.
 
 ## Pick The Eval Shape
 
@@ -40,17 +40,15 @@ Use deterministic shell checks when the outcome can be proven mechanically:
 
 Use model or human judgment only for reasoning that diffs cannot prove.
 
-## Pilot Harness
+## Harness
 
-In this repo, prefer registered fixture evals.
+Use the repo's existing eval harness when one exists.
 
-Dry-run before spending model tokens:
+If no harness exists, create the smallest repeatable fixture or transcript eval.
 
-```sh
-PILOT_WORKFLOW_DRY_RUN=1 plugins/pilot-workflow/evals/scripts/run-fixture-eval-by-id.sh ...
-```
+Dry-run, print, or inspect the eval setup before spending model tokens. Prefer repo-local runners over hand-built one-off commands.
 
-Use `baseline_fixture_root` when the baseline and with-skill fixtures must differ.
+Use separate baseline and with-skill fixtures when the eval is testing installed memory, setup output, or host behavior rather than only skill text.
 
 Save final response and diff. Do not review full transcripts unless debugging a surprising result.
 
