@@ -79,9 +79,9 @@ The highest-risk direct commands now have command-surface evals:
 
 All direct skill commands and developer commands now have command-surface evals.
 
-Recommended next command-surface target:
+Recommended next validation target:
 
-1. Define a local-only v0.1 acceptance suite that avoids Claude-model evals.
+1. Run the local-only v0.1 acceptance suite defined at `plugins/pilot-workflow/evals/v0.1-acceptance-suite.md`.
 
 ## Runtime Decision
 
