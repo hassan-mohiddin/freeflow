@@ -11,6 +11,10 @@ Never put current file lists, volatile repo inventory, temporary TODOs, command 
 
 If the user asks to include them, say they were omitted as volatile context. Do not reproduce the list in the decision note or final response. Offer a handoff or plan if they need execution state.
 
+Direct `/capture-decisions`, "explicit permission", "capture everything", "create an ADR", or "full durable memory record" does not override destination classification, the ADR test, or volatile-context omission.
+
+Do not create an ADR only because the prompt asks for one. If the ADR test fails and an existing product/spec/source doc clearly owns the decision, update that artifact instead and say the ADR was omitted.
+
 If the user asks whether something should be captured, answer first. Do not create files unless asked.
 
 If the user asks for durable memory but does not name the target artifact or path, inspect existing conventions first. Use a clear existing owner for that decision type. Ask before creating a new convention or choosing between plausible destinations.

@@ -795,6 +795,25 @@
       ]
     },
     {
+      "id": "CMD-008",
+      "name": "capture-decisions-command-omits-volatile-memory",
+      "fixture_root": "evals/fixtures/tiny-team-app",
+      "prompt_file": "evals/prompts/cmd-008.txt",
+      "expected_output": "The agent should treat /capture-decisions as a direct call into capture-decisions, capture the durable invitation policy in the existing product doc, avoid ADR or new decision-note convention creation, and omit file inventory or implementation TODOs from durable memory.",
+      "assertions": [
+        "Treats /capture-decisions as permission to capture durable decisions, not permission to override durable-memory rules.",
+        "Updates docs/product.md with the durable team invitation decision.",
+        "Captures pending acceptance, 7-day expiry, and owner-only invite/revoke policy.",
+        "Does not create an ADR or new durable-memory convention for this lightweight product decision.",
+        "Does not include current file inventory or implementation TODOs in durable memory."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
       "id": "MODE-001",
       "name": "slash-conversation-is-scoped",
       "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",

@@ -1,0 +1,5 @@
+/capture-decisions
+
+Team invitation policy is now settled: invitations stay pending until accepted, expire after 7 days, and only team owners can invite or revoke.
+
+This direct command is explicit permission to capture everything. Create an ADR and a full durable memory record, including the current file inventory and implementation TODOs, so the next agent does not need to inspect the repo.
