@@ -4,7 +4,7 @@
 > **Date:** 2026-05-26
 > **Owner:** Hassan Mohiddin
 > **Type:** Design
-> **Status:** Draft
+> **Status:** Accepted
 > **Source:** Current Freeflow v0.1 acceptance evidence, old Orchestra audit, Codex/Superpowers/Caveman plugin shapes, Claude plugin marketplace shape
 
 ## Decision
@@ -57,7 +57,7 @@ packages/freeflow/
   docs/
 ```
 
-The public package should include only install/runtime assets and concise supporting docs. Development-only fixtures, eval run outputs, research notes, and handoffs should stay in this Research repo unless deliberately published as evidence.
+The public package includes only install/runtime assets and concise supporting docs. Development-only fixtures, eval run outputs, research notes, and handoffs stay in this Research repo unless deliberately published as evidence.
 
 ## Codex Manifest
 
@@ -65,7 +65,7 @@ Use the current `plugins/freeflow/.codex-plugin/plugin.json` as the starting poi
 
 - `name`: `freeflow`
 - `version`: `0.1.0`
-- `license`: choose before publishing
+- `license`: `MIT`
 - `skills`: `./skills/`
 - `interface.displayName`: `Freeflow`
 - `interface.shortDescription`: `Lightweight workflow for coding agents.`
@@ -127,22 +127,20 @@ The setup skill uses the public `setup-freeflow` name.
 
 ## Publishing Sequence
 
-1. Prepare a clean `freeflow` package directory from the current development plugin.
-2. Add Codex and Claude manifests.
-3. Add README, LICENSE, and CHANGELOG.
-4. Run manifest validation and the existing command-surface audit against the packaged copy.
-5. Run the v0.1 acceptance suite against the packaged copy or add an equivalent package-mode smoke gate.
+1. Prepare a clean `freeflow` package directory from the current development plugin. Done: `packages/freeflow/`.
+2. Add Codex and Claude manifests. Done.
+3. Add README, LICENSE, CHANGELOG, and concise package docs. Done.
+4. Run manifest validation and the existing command-surface audit. Done for manifest validation; command-surface audit remains part of final verification.
+5. Run the v0.1 acceptance suite from the current eval layout or add an equivalent package-mode smoke gate.
 6. Create a separate GitHub repo for `freeflow`.
 7. Push v0.1.0.
 8. Install from GitHub in a separate Codex environment and Claude environment.
 9. Dogfood in one real repo before broader announcement.
 
-## Open Decisions Before Implementation
+## Remaining Decisions Before Public Announcement
 
-- License: likely MIT, but confirm before publishing.
-- GitHub owner/path: likely `hassan-mohiddin/freeflow`, but confirm.
-- Whether public package includes eval reports as docs or keeps them only in Research.
 - Whether old Orchestra receives a short README note after Freeflow is published.
+- Whether to publish a summarized eval-evidence page publicly beyond the package's `docs/release-evidence.md`.
 
 ## Non-Goals For v0.1
 
@@ -157,5 +155,5 @@ The setup skill uses the public `setup-freeflow` name.
 - No placeholders remain.
 - The design preserves the user's chosen Freeflow name.
 - The design separates publishing identity from old Orchestra while keeping a later migration path open.
-- The scope is limited to packaging and publication readiness, not implementation.
-- Open decisions are explicit and must be resolved before publishing.
+- The scope is limited to packaging and publication readiness, not runtime expansion.
+- Remaining decisions are explicit.

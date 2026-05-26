@@ -8,7 +8,7 @@ The plugin is a portable workflow layer for coding agents. It helps an agent cla
 
 The plugin is not a new agent. It is a set of skills, optional hooks, and conventions that can guide different agents such as Codex, Claude Code, or similar coding environments.
 
-The candidate plugin should not take the `orchestra` name by default. Use a temporary candidate name until behavior evals show that it substantially improves agent behavior. The old Orchestra repo is prior art and failure evidence, not a source tree to copy.
+The plugin is named Freeflow. The old Orchestra repo is prior art and failure evidence, not a source tree to copy.
 
 ## Product Thesis
 
@@ -153,7 +153,7 @@ Developer skill calls are available when developing plugins or skills:
 
 These are not workflow states. They should not be treated like normal user task segments.
 
-Current candidate plugins may route these through skill activation and model behavior rather than native host slash-command handlers. Do not assume a host command is registered until the host manifest or runtime proves it.
+Current Freeflow packages route these through skill activation and model behavior rather than native host slash-command handlers. Do not assume a host command is registered until the host manifest or runtime proves it.
 
 ## Situation Routing
 
@@ -623,14 +623,13 @@ Frozen for initial development:
 - Bypass defaults to one-action.
 - Hooks come after core skill behavior and evals.
 - The first implementation starts with the smallest skill set that can prove behavior under eval pressure.
-- Do not copy old Orchestra files into the candidate plugin.
+- Do not copy old Orchestra files into Freeflow.
 - Do not persist review artifacts by default.
 - Do not build `/teach`, `/violation`, hooks, or old command compatibility before behavior evidence exists.
 
 Not frozen:
 
-- Final plugin name.
-- Candidate plugin path.
+- Future package/repo layout after public release.
 - Exact command aliases.
 - Exact artifact directory names.
 - Exact hook implementation.

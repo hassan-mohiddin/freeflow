@@ -1,11 +1,11 @@
 # Freeflow
 
-Freeflow is a candidate plugin context for improving how coding agents handle consequential work. Its language centers on workflow pressure, user-owned decisions, verification, and portable skill behavior.
+Freeflow is a plugin context for improving how coding agents handle consequential work. Its language centers on workflow pressure, user-owned decisions, verification, and portable skill behavior.
 
 ## Language
 
 **Freeflow**:
-A candidate plugin or skill pack that guides coding agents through consequential work without becoming a new agent.
+A plugin or skill pack that guides coding agents through consequential work without becoming a new agent.
 _Avoid_: Orchestra, agent framework, workflow engine
 
 **Workflow Pressure**:
@@ -87,6 +87,18 @@ _Avoid_: skill authority, final workflow
 **Workflow Paradox**:
 The bootstrapping problem where Freeflow cannot be the main process for building itself until its behavior is validated.
 _Avoid_: circular dependency
+
+**Development Plugin**:
+The Research repo copy at `plugins/freeflow/`, including skills, evals, fixtures, reports, and development metadata.
+_Avoid_: release package, public package
+
+**Release Package**:
+The publishable package at `packages/freeflow/`, containing runtime skills, package metadata, public docs, license, and changelog.
+_Avoid_: development workspace, eval repo
+
+**Package Docs**:
+Public docs under `packages/freeflow/docs/`. These explain workflow, skills, architecture, release evidence, and release ADRs for users or contributors after package extraction.
+_Avoid_: research notes, handoffs
 
 ## Flagged Ambiguities
 

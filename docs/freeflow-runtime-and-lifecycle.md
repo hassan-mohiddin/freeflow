@@ -360,27 +360,20 @@ Current evidence:
 
 ## Current Pack Readiness
 
-The current plugin draft has enough local Codex fixture evidence to start dogfooding in Hassan's other repos.
+The current development plugin has enough local Codex fixture evidence to start dogfooding in Hassan's other repos.
 
-This does not mean public release readiness. The local-only v0.1 acceptance suite passed after measured fixes in `plugins/freeflow/evals/reports/acceptance/v0.1-acceptance-report.md`. Live Claude smoke evals are still deferred.
+The local-only v0.1 acceptance suite passed after measured fixes in `plugins/freeflow/evals/reports/acceptance/v0.1-acceptance-report.md`. A clean publishable package now exists under `packages/freeflow/`. Live Claude smoke evals and GitHub-install smoke tests are still deferred.
 
 Current packaging shape:
 
 - 19 skills under `plugins/freeflow/skills/`.
+- Runtime package copy under `packages/freeflow/skills/`.
 - Every `SKILL.md` is under the 100-line project budget.
 - Extra reference files exist only where targeted evals or complexity justified progressive disclosure.
 - Native slash handlers remain disabled; commands are model-routed through skill activation.
 - Hooks remain deferred until skill behavior and evals prove mechanical enforcement is needed.
 
-Candidate skills for extra files, in priority order:
-
-1. `setup-freeflow`: host setup details, activation blocks, and verification may deserve a small reference or reusable activation-block asset.
-2. `evaluate-skill`: eval shapes and grading patterns may deserve `references/eval-patterns.md`.
-3. `commit-work`: only if a compact staging/commit decision matrix proves useful; do not add scripts for ordinary git commands.
-4. `write-spec`: only if real usage shows repeated bloated or vague spec output.
-5. `write-plan`: only if real usage shows repeated plan-shape failures.
-
-Do not add references, scripts, examples, or assets merely because a skill is broad. Add them only when they keep the active `SKILL.md` short, reduce repeated deterministic work, or prevent a measured behavior failure.
+Reference-file additions from the reference-stack pass have landed. Do not add more references, scripts, examples, or assets merely because a skill is broad. Add them only when they keep the active `SKILL.md` short, reduce repeated deterministic work, or prevent a measured behavior failure.
 
 ## Open Implementation Work
 

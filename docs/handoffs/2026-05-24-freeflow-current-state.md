@@ -2,6 +2,8 @@
 
 Date: 2026-05-24
 
+> Historical handoff. Current release state now lives in `docs/freeflow-current-state.md`.
+
 ## Purpose
 
 This handoff lets a fresh agent continue freeflow development after conversation compaction.
@@ -138,7 +140,7 @@ Current plugin name:
 freeflow
 ```
 
-This is still a candidate name, not final branding.
+At this handoff date, this was still a candidate name rather than final branding.
 
 ## Next Recommended Task
 
