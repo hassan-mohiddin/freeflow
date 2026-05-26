@@ -1,35 +1,41 @@
 {
   "name": "freeflow",
   "version": "0.1.0",
-  "description": "Candidate workflow skills for agent mode control, interview gates, and lightweight task execution.",
+  "description": "Lightweight workflow for coding agents.",
   "author": {
     "name": "Hassan Mohiddin"
   },
-  "license": "UNLICENSED",
+  "homepage": "https://github.com/hassan-mohiddin/freeflow",
+  "repository": "https://github.com/hassan-mohiddin/freeflow",
+  "license": "MIT",
   "keywords": [
     "workflow",
     "skills",
     "agents",
     "planning",
-    "verification"
+    "verification",
+    "codex",
+    "claude"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Freeflow",
-    "shortDescription": "Candidate workflow layer for coding agents.",
-    "longDescription": "Freeflow provides early candidate skills for conversation/workflow/strict mode control, interview gates, backward re-entry, verification-before-claiming, and crisp task execution.",
+    "shortDescription": "Lightweight workflow for coding agents.",
+    "longDescription": "Freeflow guides coding agents through conversation, workflow, and strict-workflow modes with interview gates, source-truth checks, planning, execution, review, verification, commit discipline, handoffs, and durable decision capture.",
     "developerName": "Hassan Mohiddin",
-    "category": "Productivity",
+    "category": "Coding",
     "capabilities": [
       "Interactive",
       "Read",
       "Write"
     ],
     "defaultPrompt": [
-      "Use workflow mode for this task.",
-      "Interview me before planning.",
+      "Use Freeflow workflow mode for this task.",
       "Keep this in conversation mode.",
-      "Use verify-work before claiming completion."
-    ]
+      "Use strict-workflow for this risky change."
+    ],
+    "websiteURL": "https://github.com/hassan-mohiddin/freeflow",
+    "privacyPolicyURL": "https://github.com/hassan-mohiddin/freeflow/blob/main/README.md",
+    "termsOfServiceURL": "https://github.com/hassan-mohiddin/freeflow/blob/main/LICENSE"
   }
 }

@@ -11,9 +11,9 @@
 
 Publish the proven Freeflow v0.1 behavior as a separate public plugin named **Freeflow**.
 
-Do not copy the contents into the old `orchestra` repo for the first public package. Treat old Orchestra as prior art, migration context, and failure evidence. Freeflow should stand alone as the lightweight workflow successor.
+Do not copy the contents into the old `orchestra` repo for the first public plugin. Treat old Orchestra as prior art, migration context, and failure evidence. Freeflow should stand alone as the lightweight workflow successor.
 
-The development surface now uses `freeflow` as well. The public package and dev workspace should not preserve the old candidate name in tracked content.
+The development surface now uses `freeflow` as well. The public repository uses one installable plugin runtime under `plugins/freeflow/`; no generated package copy should be maintained.
 
 ## Product Identity
 
@@ -39,29 +39,32 @@ Freeflow is a small portable workflow layer:
 
 Publishing separately avoids inheriting old Orchestra expectations while preserving the option to later add a migration note in the old repo.
 
-## Package Shape
+## Repository Shape
 
-Create a clean distributable package under `packages/freeflow/`, not a copy of the Research repo:
+Use the public repository as the marketplace root and keep one installable plugin runtime:
 
 ```text
-packages/freeflow/
-  .codex-plugin/
-    plugin.json
-  .claude-plugin/
-    plugin.json
-    marketplace.json
-  skills/
+freeflow/
+  .agents/plugins/marketplace.json
+  .claude-plugin/marketplace.json
   README.md
   LICENSE
   CHANGELOG.md
   docs/
+  plugins/freeflow/
+    .codex-plugin/plugin.json
+    .claude-plugin/plugin.json
+    command-surface.json
+    skills/
+    docs/
+    evals/
 ```
 
-The public package includes only install/runtime assets and concise supporting docs. Development-only fixtures, eval run outputs, research notes, and handoffs stay in this Research repo unless deliberately published as evidence.
+Root `docs/` is the project documentation workspace. `plugins/freeflow/docs/` is the refined user-facing plugin documentation. Generated eval run output stays ignored under `plugins/freeflow/evals/runs/`.
 
 ## Codex Manifest
 
-Use the current `plugins/freeflow/.codex-plugin/plugin.json` as the starting point, with identity updated:
+Use `plugins/freeflow/.codex-plugin/plugin.json` as the Codex manifest:
 
 - `name`: `freeflow`
 - `version`: `0.1.0`
@@ -79,9 +82,9 @@ Keep `nativeSlashHandlers=false` in the internal command-surface evidence unless
 
 Create a Claude plugin manifest modeled on old Orchestra's `.claude-plugin/plugin.json`, but with Freeflow's lighter scope.
 
-The Claude package should expose the same root `skills/` directory. Do not nest runtime components inside `.claude-plugin/` except Claude plugin metadata.
+The Claude manifest lives at `plugins/freeflow/.claude-plugin/plugin.json` and exposes the same `plugins/freeflow/skills/` directory through the plugin runtime.
 
-The optional `.claude-plugin/marketplace.json` should point at this plugin as a single local marketplace entry for manual Claude install and future GitHub publishing.
+The root `.claude-plugin/marketplace.json` points at `./plugins/freeflow` for manual Claude install and future GitHub publishing.
 
 ## README Shape
 
@@ -101,7 +104,7 @@ Avoid long competitive comparisons, broad philosophy essays, or old Orchestra fe
 
 ## Release Boundary
 
-The first public package should ship the current proven v0.1 skill set:
+The first public plugin should ship the current proven v0.1 skill set:
 
 - `workflow`
 - `mode-contract`
@@ -127,20 +130,20 @@ The setup skill uses the public `setup-freeflow` name.
 
 ## Publishing Sequence
 
-1. Prepare a clean `freeflow` package directory from the current development plugin. Done: `packages/freeflow/`.
+1. Prepare the public marketplace repo with one runtime at `plugins/freeflow/`. Done.
 2. Add Codex and Claude manifests. Done.
-3. Add README, LICENSE, CHANGELOG, and concise package docs. Done.
+3. Add README, LICENSE, CHANGELOG, root project docs, and refined plugin docs. Done.
 4. Run manifest validation and the existing command-surface audit. Done for manifest validation; command-surface audit remains part of final verification.
-5. Run the v0.1 acceptance suite from the current eval layout or add an equivalent package-mode smoke gate.
+5. Run the v0.1 acceptance suite from the current eval layout or add an equivalent marketplace-layout smoke gate.
 6. Create a separate GitHub repo for `freeflow`. Done: `https://github.com/hassan-mohiddin/freeflow`.
-7. Push v0.1.0 package contents. Done on `main`.
+7. Push marketplace repo contents. Done previously; repeat after this layout cleanup.
 8. Install from GitHub in a separate Codex environment and Claude environment.
 9. Dogfood in one real repo before broader announcement.
 
 ## Remaining Decisions Before Public Announcement
 
 - Whether old Orchestra receives a short README note after Freeflow is published.
-- Whether to publish a summarized eval-evidence page publicly beyond the package's `docs/release-evidence.md`.
+- Whether to publish a summarized eval-evidence page publicly beyond the plugin docs `plugins/freeflow/docs/release-evidence.md`.
 
 ## Non-Goals For v0.1
 

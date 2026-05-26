@@ -88,17 +88,21 @@ _Avoid_: skill authority, final workflow
 The bootstrapping problem where Freeflow cannot be the main process for building itself until its behavior is validated.
 _Avoid_: circular dependency
 
-**Development Plugin**:
-The Research repo copy at `plugins/freeflow/`, including skills, evals, fixtures, reports, and development metadata.
-_Avoid_: release package, public package
+**Plugin Runtime**:
+The installable Freeflow plugin at `plugins/freeflow/`, including manifests, skills, references, public docs, evals, and command-surface metadata.
+_Avoid_: duplicate package copy, generated mirror
 
-**Release Package**:
-The publishable package at `packages/freeflow/`, containing runtime skills, package metadata, public docs, license, and changelog.
-_Avoid_: development workspace, eval repo
+**Marketplace Repo**:
+The repository root containing marketplace indexes, root README, license, changelog, and repo memory. It points Codex and Claude to `plugins/freeflow/`.
+_Avoid_: plugin runtime, skill source
 
-**Package Docs**:
-Public docs under `packages/freeflow/docs/`. These explain workflow, skills, architecture, release evidence, and release ADRs for users or contributors after package extraction.
-_Avoid_: research notes, handoffs
+**Project Docs**:
+Root `docs/` is the main project documentation workspace for Freeflow planning, current state, research, handoffs, and durable project decisions.
+_Avoid_: public install docs, generated package copy
+
+**Plugin Docs**:
+Refined user-facing docs under `plugins/freeflow/docs/`. These explain workflow, skills, architecture, release evidence, and release ADRs for users or contributors.
+_Avoid_: raw research notes, handoffs
 
 ## Flagged Ambiguities
 

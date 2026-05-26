@@ -362,12 +362,12 @@ Current evidence:
 
 The current development plugin has enough local Codex fixture evidence to start dogfooding in Hassan's other repos.
 
-The local-only v0.1 acceptance suite passed after measured fixes in `plugins/freeflow/evals/reports/acceptance/v0.1-acceptance-report.md`. A clean publishable package now exists under `packages/freeflow/`. Live Claude smoke evals and GitHub-install smoke tests are still deferred.
+The local-only v0.1 acceptance suite passed after measured fixes in `plugins/freeflow/evals/reports/acceptance/v0.1-acceptance-report.md`. The public marketplace repo now points both Codex and Claude at the single runtime under `plugins/freeflow/`. Live Claude smoke evals and GitHub-install smoke tests are still deferred.
 
 Current packaging shape:
 
 - 19 skills under `plugins/freeflow/skills/`.
-- Runtime package copy under `packages/freeflow/skills/`.
+- Single plugin runtime under `plugins/freeflow/`, including skills, manifests, evals, command-surface metadata, and refined plugin docs.
 - Every `SKILL.md` is under the 100-line project budget.
 - Extra reference files exist only where targeted evals or complexity justified progressive disclosure.
 - Native slash handlers remain disabled; commands are model-routed through skill activation.

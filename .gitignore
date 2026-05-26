@@ -1,4 +1,9 @@
-.DS_Store
+*.DS_Store
 
 # Generated eval harness output.
 plugins/freeflow/evals/runs/
+
+# Local scratch and logs.
+.tmp/
+tmp/
+*.log

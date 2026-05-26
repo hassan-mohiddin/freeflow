@@ -1,5 +1,7 @@
 # Freeflow Prepublish Cleanup Implementation Plan
 
+> **Superseded Layout Note:** This plan records the earlier `packages/freeflow/` packaging pass. The current release layout uses the repository root as the marketplace shell and `plugins/freeflow/` as the single plugin runtime; root `docs/` holds project docs and `plugins/freeflow/docs/` holds refined user-facing docs.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Finish the Freeflow prepublish cleanup: create a clean publishable package, reorganize eval evidence, and update durable docs for a Codex/Claude-first public release.
@@ -849,3 +851,5 @@ Expected: clean worktree.
 - Placeholder scan: no placeholder tokens remain. Open product choices are resolved in favor of Freeflow, MIT, `hassan-mohiddin/freeflow`, and package path `packages/freeflow/`.
 - Type/path consistency: plan uses `plugins/freeflow/` after rename and `packages/freeflow/` for the public package.
 - Risk: Task 2 and Task 5 are broad path moves. Keep them in separate commits and run audits immediately after each.
+
+> **Superseded Layout Note:** This plan records the earlier `packages/freeflow/` packaging pass. The current release layout uses the repository root as the marketplace shell and `plugins/freeflow/` as the single plugin runtime; root `docs/` holds project docs and `plugins/freeflow/docs/` holds refined user-facing docs.

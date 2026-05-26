@@ -5,8 +5,7 @@ repo_root="$(git rev-parse --show-toplevel)"
 plugin_root="$repo_root/plugins/freeflow"
 registry="$plugin_root/command-surface.json"
 manifest="$plugin_root/.codex-plugin/plugin.json"
-contract="$repo_root/docs/plugin-contract.md"
-inventory="$repo_root/docs/skill-inventory-and-plugin-plan.md"
+command_docs="$plugin_root/evals/reports/by-command-surface/command-surface-matrix.md"
 skills_dir="$plugin_root/skills"
 
 failures=0
@@ -36,8 +35,8 @@ while IFS=$'\t' read -r command skill; do
     fail "$command maps to missing skill: $skill"
   fi
 
-  if ! rg -Fq "$command" "$contract" "$inventory"; then
-    fail "$command is missing from command-surface docs"
+  if ! rg -Fq "$command" "$command_docs"; then
+    fail "$command is missing from command-surface matrix"
   fi
 done < <(jq -r '.directSkillCalls[] | [.command, .skill] | @tsv' "$registry")
 
@@ -50,8 +49,8 @@ while IFS=$'\t' read -r command skill; do
     fail "$command maps to missing developer skill: $skill"
   fi
 
-  if ! rg -Fq "$command" "$contract" "$inventory"; then
-    fail "$command is missing from command-surface docs"
+  if ! rg -Fq "$command" "$command_docs"; then
+    fail "$command is missing from command-surface matrix"
   fi
 done < <(jq -r '.developerSkillCalls[]? | [.command, .skill] | @tsv' "$registry")
 
@@ -68,8 +67,8 @@ while IFS=$'\t' read -r command skill; do
     fail "$command maps to missing skill: $skill"
   fi
 
-  if ! rg -Fq "$command" "$contract" "$inventory"; then
-    fail "$command is missing from command-surface docs"
+  if ! rg -Fq "$command" "$command_docs"; then
+    fail "$command is missing from command-surface matrix"
   fi
 done < <(jq -r '.modeCommands[] | [.command, .routesTo] | @tsv' "$registry")
 

@@ -5,41 +5,40 @@
 > **Owner:** Hassan Mohiddin
 > **Type:** Current State
 > **Status:** Current
-> **Source:** Live repo, v0.1 acceptance evidence, package scaffold commit.
+> **Source:** Live repo, v0.1 acceptance evidence, marketplace-layout verification.
 
 Freeflow is a portable workflow skill pack for coding agents.
 
 ## Current Status
 
 - Product name: Freeflow.
-- Development plugin: `plugins/freeflow/`.
-- Publishable package: `packages/freeflow/`, including a Codex marketplace index and nested `plugins/freeflow/` runtime copy.
+- Plugin runtime: `plugins/freeflow/`, the single source of truth for manifests, skills, references, evals, command-surface metadata, and refined plugin docs.
+- Marketplace repo root: contains GitHub README, license, changelog, root project docs, Codex marketplace index, and Claude marketplace index.
 - Version target: `0.1.0`.
 - License target: MIT.
 - GitHub target: `hassan-mohiddin/freeflow`.
 - GitHub repo: published at `https://github.com/hassan-mohiddin/freeflow`.
 - First host targets: Codex and Claude Code.
 - v0.1 local acceptance suite: passed after measured fixes.
-- Prepublish verification: passed on 2026-05-26 with fresh saved runs under `plugins/freeflow/evals/runs/freeflow-prepublish/`.
+- Prepublish verification: passed on 2026-05-26. Generated eval runs live under `plugins/freeflow/evals/runs/` and are ignored.
 - Native slash handlers: not shipped in v0.1.
 - Hooks and CLI enforcement: not shipped in v0.1.
-- Old Orchestra: prior art and failure evidence, not the release package.
+- Old Orchestra: prior art and failure evidence, not the release plugin.
 
 ## Release Boundary
 
-The public package includes:
+The public repository includes:
 
-- Codex plugin metadata.
-- Claude plugin metadata and local marketplace metadata.
-- Runtime skills and bundled skill references.
-- Public README, license, changelog, and concise docs.
+- Codex marketplace metadata at `.agents/plugins/marketplace.json`.
+- Claude marketplace metadata at `.claude-plugin/marketplace.json`.
+- Plugin runtime under `plugins/freeflow/`.
+- Runtime skills, bundled references, eval definitions, eval reports, and command-surface metadata.
+- Refined user-facing plugin docs under `plugins/freeflow/docs/`.
+- Root project docs under `docs/` for planning, current state, research, and handoffs.
 
-The public package excludes:
+The public repository excludes:
 
-- Research notes.
-- Handoffs.
-- Eval registries, fixtures, reports, and generated runs.
-- Command-surface development evidence.
+- Generated eval run output under `plugins/freeflow/evals/runs/`.
 - Hooks, CLI enforcement, native slash handlers, and old Orchestra compatibility.
 
 ## Evidence
