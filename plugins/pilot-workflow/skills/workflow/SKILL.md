@@ -21,6 +21,8 @@ Clarify / Research
 
 This is a guide, not ceremony. Small reversible work can skip spec/plan artifacts.
 
+Read `references/workflow-map.md` when the user asks for the full pipeline, public docs need a diagram, or the next workflow entry point is unclear.
+
 ## Backward Edge
 
 If new evidence invalidates the current path, re-enter clarification.

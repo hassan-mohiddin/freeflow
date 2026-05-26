@@ -54,7 +54,7 @@ Expected: no unresolved optional rename decision.
 Run:
 
 ```sh
-git add docs/freeflow-packaging-and-publishing-design.md docs/superpowers/plans/2026-05-26-freeflow-prepublish-cleanup.md
+git add docs/freeflow-packaging-and-publishing-design.md docs/plans/2026-05-26-freeflow-prepublish-cleanup.md
 git commit -m "Plan Freeflow prepublish cleanup"
 ```
 
