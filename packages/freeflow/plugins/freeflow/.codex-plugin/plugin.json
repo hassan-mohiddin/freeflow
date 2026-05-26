@@ -1,0 +1,41 @@
+{
+  "name": "freeflow",
+  "version": "0.1.0",
+  "description": "Lightweight workflow for coding agents.",
+  "author": {
+    "name": "Hassan Mohiddin"
+  },
+  "homepage": "https://github.com/hassan-mohiddin/freeflow",
+  "repository": "https://github.com/hassan-mohiddin/freeflow",
+  "license": "MIT",
+  "keywords": [
+    "workflow",
+    "skills",
+    "agents",
+    "planning",
+    "verification",
+    "codex",
+    "claude"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Freeflow",
+    "shortDescription": "Lightweight workflow for coding agents.",
+    "longDescription": "Freeflow guides coding agents through conversation, workflow, and strict-workflow modes with interview gates, source-truth checks, planning, execution, review, verification, commit discipline, handoffs, and durable decision capture.",
+    "developerName": "Hassan Mohiddin",
+    "category": "Coding",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Use Freeflow workflow mode for this task.",
+      "Keep this in conversation mode.",
+      "Use strict-workflow for this risky change."
+    ],
+    "websiteURL": "https://github.com/hassan-mohiddin/freeflow",
+    "privacyPolicyURL": "https://github.com/hassan-mohiddin/freeflow/blob/main/README.md",
+    "termsOfServiceURL": "https://github.com/hassan-mohiddin/freeflow/blob/main/LICENSE"
+  }
+}
