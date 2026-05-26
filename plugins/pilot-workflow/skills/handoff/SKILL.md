@@ -45,6 +45,8 @@ Temp handoffs should optimize for immediate continuation in the next chat.
 
 Memory handoffs should optimize for durable decisions, stable context, next actions, and evidence pointers.
 
+After destination is clear, read `references/templates.md` when creating a saved handoff or when a compact shape would prevent transcript-style bloat.
+
 Always:
 
 - Reference existing artifacts by path instead of copying them.

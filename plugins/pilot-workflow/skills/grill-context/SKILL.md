@@ -46,6 +46,8 @@ Brainstorming may be short. Grilling may take many turns. Let the uncertainty de
 
 Keep it conversational. Do not turn every brainstorm into an artifact.
 
+Read `references/approach-framing.md` when there are multiple plausible approaches or the decision tree is too fuzzy to ask the next useful question.
+
 ## Repo-Aware Work
 
 In a codebase, inspect relevant code, docs, tests, ADRs, or existing behavior before asking.
