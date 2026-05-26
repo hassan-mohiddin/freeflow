@@ -362,13 +362,13 @@ Current evidence:
 
 The current plugin draft has enough local Codex fixture evidence to start dogfooding in Hassan's other repos.
 
-This does not mean public release readiness. The local-only v0.1 acceptance suite is defined at `plugins/pilot-workflow/evals/v0.1-acceptance-suite.md`, but the suite has not been freshly run as a release gate. Live Claude smoke evals are still deferred.
+This does not mean public release readiness. The local-only v0.1 acceptance suite passed after measured fixes in `plugins/pilot-workflow/evals/v0.1-acceptance-report.md`. Live Claude smoke evals are still deferred.
 
 Current packaging shape:
 
 - 19 skills under `plugins/pilot-workflow/skills/`.
 - Every `SKILL.md` is under the 100-line project budget.
-- Only `review-artifact` currently has an extra reference file.
+- Extra reference files exist only where targeted evals or complexity justified progressive disclosure.
 - Native slash handlers remain disabled; commands are model-routed through skill activation.
 - Hooks remain deferred until skill behavior and evals prove mechanical enforcement is needed.
 
@@ -386,9 +386,8 @@ Do not add references, scripts, examples, or assets merely because a skill is br
 
 Deferred validation work:
 
-1. Run the small local-only v0.1 acceptance suite.
-2. Run Claude paired smoke evals after local Claude auth is available.
-3. Add stronger coverage only where real skill failures appear.
+1. Run Claude paired smoke evals after local Claude auth is available.
+2. Add stronger coverage only where real skill failures appear.
 
 Do not add runtime hooks yet.
 
