@@ -18,11 +18,11 @@ This handoff is memory, not authority. Inspect live files before editing.
 - `docs/research/freeflow-artifact-skills.md`
 - `plugins/freeflow/skills/write-spec/SKILL.md`
 - `plugins/freeflow/skills/review-artifact/SKILL.md`
-- `plugins/freeflow/evals/write-spec-1-report.md`
-- `plugins/freeflow/evals/write-spec-2-report.md`
-- `plugins/freeflow/evals/write-spec-3-report.md`
-- `plugins/freeflow/evals/review-artifact-1-report.md`
-- `plugins/freeflow/evals/review-artifact-2-report.md`
+- `plugins/freeflow/evals/reports/by-skill/write-spec-1-report.md`
+- `plugins/freeflow/evals/reports/by-skill/write-spec-2-report.md`
+- `plugins/freeflow/evals/reports/by-skill/write-spec-3-report.md`
+- `plugins/freeflow/evals/reports/by-skill/review-artifact-1-report.md`
+- `plugins/freeflow/evals/reports/by-skill/review-artifact-2-report.md`
 
 Reference skills for next work:
 
@@ -91,12 +91,12 @@ Expected untracked or modified files include:
 - `plugins/freeflow/evals/prompts/rar-001.txt`
 - `plugins/freeflow/evals/prompts/rar-002.txt`
 - `plugins/freeflow/evals/fixtures/tiny-artifact-review-app/`
-- `plugins/freeflow/evals/write-spec-1-report.md`
-- `plugins/freeflow/evals/write-spec-2-report.md`
-- `plugins/freeflow/evals/write-spec-3-report.md`
-- `plugins/freeflow/evals/review-artifact-1-report.md`
-- `plugins/freeflow/evals/review-artifact-2-report.md`
-- modified `plugins/freeflow/evals/fixture-evals.json`
+- `plugins/freeflow/evals/reports/by-skill/write-spec-1-report.md`
+- `plugins/freeflow/evals/reports/by-skill/write-spec-2-report.md`
+- `plugins/freeflow/evals/reports/by-skill/write-spec-3-report.md`
+- `plugins/freeflow/evals/reports/by-skill/review-artifact-1-report.md`
+- `plugins/freeflow/evals/reports/by-skill/review-artifact-2-report.md`
+- modified `plugins/freeflow/evals/registries/fixture-evals.json`
 
 Do not delete or rewrite these as cleanup.
 

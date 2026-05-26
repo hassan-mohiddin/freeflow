@@ -23,9 +23,9 @@ This handoff is memory, not authority. Inspect live files before editing.
 
 For eval style:
 
-- `plugins/freeflow/evals/iteration-6-report.md`
-- `plugins/freeflow/evals/review-work-1-report.md`
-- `plugins/freeflow/evals/diagnose-failure-1-report.md`
+- `plugins/freeflow/evals/reports/iterations/iteration-6-report.md`
+- `plugins/freeflow/evals/reports/by-skill/review-work-1-report.md`
+- `plugins/freeflow/evals/reports/by-skill/diagnose-failure-1-report.md`
 
 ## Current Decisions
 

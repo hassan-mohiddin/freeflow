@@ -27,8 +27,8 @@ Current evidence:
 
 Use these current evidence files first:
 
-- `plugins/freeflow/evals/command-surface-matrix.md`
-- `plugins/freeflow/evals/command-surface-15-report.md`
+- `plugins/freeflow/evals/reports/by-command-surface/command-surface-matrix.md`
+- `plugins/freeflow/evals/reports/by-command-surface/command-surface-15-report.md`
 - `docs/freeflow-runtime-and-lifecycle.md`
 - `docs/skill-inventory-and-plugin-plan.md`
 
