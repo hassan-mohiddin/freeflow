@@ -273,12 +273,14 @@ Expected: commit succeeds.
 
 ## Task 5: Create Clean Publishable Package
 
+Status: completed. The package lives under `packages/freeflow/` with runtime skills, Codex metadata, Claude metadata, public README, MIT license, and changelog. The package excludes evals, research notes, handoffs, command-surface evidence, hooks, CLI tooling, and native slash handlers.
+
 **Files:**
 - Create: `packages/freeflow/`
 - Copy: current skill set from `plugins/freeflow/skills/`
 - Create: package manifests and public docs
 
-- [ ] **Step 1: Create package directories**
+- [x] **Step 1: Create package directories**
 
 Run:
 
@@ -289,7 +291,7 @@ cp -R plugins/freeflow/skills packages/freeflow/skills
 
 Expected: package contains only skills and package metadata directories.
 
-- [ ] **Step 2: Create Codex manifest**
+- [x] **Step 2: Create Codex manifest**
 
 Create `packages/freeflow/.codex-plugin/plugin.json`:
 
@@ -338,7 +340,7 @@ Create `packages/freeflow/.codex-plugin/plugin.json`:
 }
 ```
 
-- [ ] **Step 3: Create Claude manifest and marketplace**
+- [x] **Step 3: Create Claude manifest and marketplace**
 
 Create `packages/freeflow/.claude-plugin/plugin.json`:
 
@@ -392,7 +394,7 @@ Create `packages/freeflow/.claude-plugin/marketplace.json`:
 }
 ```
 
-- [ ] **Step 4: Create README in Matt style**
+- [x] **Step 4: Create README in Matt style**
 
 Create `packages/freeflow/README.md` with these sections:
 
@@ -515,7 +517,7 @@ See the development report in the Research repo: `plugins/freeflow/evals/reports
 It is the lightweight workflow layer between them.
 ```
 
-- [ ] **Step 5: Create LICENSE and CHANGELOG**
+- [x] **Step 5: Create LICENSE and CHANGELOG**
 
 Create `packages/freeflow/LICENSE` with MIT license text using Hassan Mohiddin as copyright holder.
 
@@ -532,7 +534,7 @@ Create `packages/freeflow/CHANGELOG.md`:
 - Keeps native slash handlers, hooks, and CLI enforcement out of scope.
 ```
 
-- [ ] **Step 6: Validate package JSON**
+- [x] **Step 6: Validate package JSON**
 
 Run:
 
@@ -544,7 +546,7 @@ jq empty packages/freeflow/.claude-plugin/marketplace.json
 
 Expected: all parse.
 
-- [ ] **Step 7: Commit package scaffold**
+- [x] **Step 7: Commit package scaffold**
 
 Run:
 
