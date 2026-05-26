@@ -2,42 +2,65 @@
 
 Lightweight workflow for coding agents.
 
-Most agent workflow plugins solve one side of the problem.
+Agent workflow tools tend to choose one side of the problem: sharp point skills, full lifecycle methodology, or enforcement-heavy runtimes. The missing layer is a small workflow spine that prevents silent product decisions, source-truth rewrites, fake verification, and messy handoffs without turning every change into a process operating system.
 
-Matt Pocock's skills are sharp, practical, and low ceremony. They are excellent at specific engineering moves: TDD, triage, PRDs, issues, and clean handoffs.
+## Workflow
 
-Obra's Superpowers gives agents a strong lifecycle: brainstorm, plan, TDD, execute, review, finish. It is the best reference for disciplined forward motion.
+Freeflow is a workflow layer, not a new agent. It helps the agent choose the right amount of process for the task.
 
-Other workflow systems often add the missing enforcement layer: hooks, CLIs, doc taxonomies, review files, gates, schemas, and command runtimes.
+### Modes
 
-The gap is the middle.
+- `conversation`: answer, explain, critique, or explore without workflow pressure.
+- `workflow`: default for consequential work; use the workflow spine and scale detail to risk.
+- `strict-workflow`: high-risk or hard-to-reverse work with stronger gates.
 
-Agents need enough structure to avoid silent product decisions, source-truth rewrites, fake verification, and messy handoffs. They do not need a process operating system for every change.
+Use strict-workflow for security, privacy, billing, public APIs, migrations, data loss, compatibility, permissions, deployment, or irreversible architecture.
 
-Freeflow is that middle layer.
+### Map
 
-It gives Codex, Claude, and similar coding agents a portable workflow spine:
+```mermaid
+flowchart LR
+  Request{request}
+  Talk[conversation<br/>answer directly]
+  Discover[discover<br/>research / grill]
+  Spec[spec]
+  Plan[plan]
+  Build[build<br/>execute / diagnose]
+  Check[review + verify]
+  Close[commit / handoff]
 
-```text
-conversation -> workflow -> strict-workflow
-research -> grill -> spec -> review -> plan -> execute -> review -> verify -> commit -> handoff/capture
+  Request -->|question| Talk
+  Request -->|work| Discover
+  Discover --> Spec --> Plan --> Build --> Check --> Close
+  Check -. new evidence or failed check .-> Discover
 ```
 
-The important part is the backward edge:
+The map is orienting, not mandatory. Small reversible work can skip unnecessary artifacts and gates.
 
-```text
-new evidence / source conflict / failed verification / owner decision
-  -> clarify, research, revise spec, revise plan, diagnose, split scope, or stop
+### Backward Edge
+
+Loop back when new evidence changes the path:
+
+```mermaid
+flowchart LR
+  Trigger{new evidence<br/>conflict<br/>failed check<br/>owner decision}
+  Decide{changes<br/>next action?}
+  Continue[continue]
+  Reenter[clarify / research<br/>revise spec or plan<br/>diagnose / split / stop]
+
+  Trigger --> Decide
+  Decide -->|no| Continue
+  Decide -->|yes| Reenter
+  Reenter -. resume .-> Decide
 ```
 
-Freeflow is better when you want:
+The agent should not silently choose the backward destination when the choice changes product behavior, scope, compatibility, public APIs, security, privacy, billing, data loss, permissions, or irreversible architecture.
 
-- less ceremony than a full governance framework
-- stronger user-control gates than ordinary skill packs
-- source-truth conflict handling before edits
-- verification before completion claims
-- handoffs and durable memory without file-inventory sludge
-- one workflow layer that works across Codex and Claude
+### Bypass
+
+Bypass skips ceremony, not judgment.
+
+Use `bypass` only to skip an unnecessary gate. It does not skip user-owned decisions, source-truth conflicts, risky checks, or fresh verification before completion claims.
 
 ## Install
 
@@ -66,7 +89,7 @@ Or install directly from GitHub:
 /plugin install hassan-mohiddin/freeflow
 ```
 
-### Other agents
+### Other Agents
 
 Copy the `skills/` directory into the agent's skills/plugin system and make sure the agent can read `SKILL.md` files with bundled `references/`.
 
@@ -98,12 +121,6 @@ Slash-style prompts are model-routed in v0.1:
 
 Freeflow does not ship native slash handlers yet. The commands work as skill-routing language.
 
-## Modes
-
-- `conversation`: answer, explain, or discuss without workflow pressure.
-- `workflow`: default for consequential work; scale process to risk.
-- `strict-workflow`: high-risk or hard-to-reverse work with stronger gates.
-
 ## Docs
 
 - [Docs index](docs/README.md)
@@ -115,23 +132,29 @@ Freeflow does not ship native slash handlers yet. The commands work as skill-rou
 
 ## Evidence
 
-Freeflow v0.1 passed the local acceptance suite after measured fixes:
+Freeflow does not claim to beat Matt Pocock's skills or Obra's Superpowers. Those are references for skill sharpness and lifecycle discipline. Current evals compare baseline agent behavior against Freeflow instructions/skills, then verify command coverage.
 
-- source-truth conflicts stop before edits
-- strict public API specs ask for owner decisions
-- execution stops when verification reveals a bad plan
-- commit flow refuses mixed staged sensitive changes
-- decision capture asks before inventing memory conventions
-- bypass skips ceremony, not judgment
+| Report | Baseline | With Freeflow | What It Shows |
+| --- | ---: | ---: | --- |
+| v0.1 acceptance suite | - | 15/15 pass | Required release behaviors passed after measured fixes. |
+| Always-on source-truth conflict | 2/10 | 10/10 | Freeflow stopped a pressured billing rewrite, made no edits, named the conflict, and asked for the policy decision. |
+| Write spec from stale handoff | 4/10 | 10/10 | Freeflow refused to supersede billing policy from stale handoff text. |
+| Write plan with hidden billing decision | 4/10 | 10/10 | Freeflow created no plan, named the policy conflict, and asked which path to follow. |
+| Cold spec call without context | 2/10 | 10/10 | Freeflow did not invent onboarding behavior from adjacent files. |
+| Command surface audit | - | Pass | 3 mode commands, 13 direct skill calls, and 2 developer skill calls are covered while native slash handlers remain disabled. |
 
-Full eval reports live in the development repository and are not shipped in this runtime package.
+Full eval artifacts stay in the development repository. This runtime package keeps only concise release evidence in [docs/release-evidence.md](docs/release-evidence.md).
 
 ## What Freeflow Is Not
 
-- not a new agent
-- not a CLI framework
-- not a hook system
-- not old Orchestra with a smaller README
-- not a replacement for Matt's skills or Superpowers
+- Not a new agent.
+- Not a CLI framework.
+- Not a hook system.
+- Not old Orchestra with a smaller README.
+- Not a replacement for Matt's skills or Superpowers.
 
-It is the lightweight workflow layer between them.
+Freeflow is the lightweight workflow layer between point skills and full process systems.
+
+## License
+
+MIT License. Copyright (c) 2026 Hassan Mohiddin.
