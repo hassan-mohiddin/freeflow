@@ -69,6 +69,8 @@ Use this shape unless the repo has a stronger convention:
 - Constraints / evidence.
 - Open questions.
 
+Read `references/spec-shapes.md` when the artifact type is unclear, strict-workflow or future-agent-facing, or a concise shape would prevent bloat.
+
 Keep it concise. Do not include volatile repo inventory. Use file paths only when they are needed evidence.
 
 ## Durable Artifact Details

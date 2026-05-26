@@ -4,12 +4,12 @@ Date: 2026-05-26
 
 ## Status Update
 
-This handoff is superseded for implementation state. Batches A-H from the reference-stack comparison have landed with targeted eval reports. See:
+This handoff is superseded for implementation state. Batches A-H from the reference-stack comparison have landed with targeted eval reports, and the formerly optional `spec-shapes`, handoff template, and approach-framing references later landed by explicit product direction. See:
 
 - `docs/research/pilot-workflow-reference-stack-comparison.md`
 - `docs/skill-inventory-and-plugin-plan.md`
 
-The remaining optional batch is `handoff/references/templates.md`, and it should still wait for repeated handoff failures.
+Do not use this handoff as authority for missing-reference status; inspect live skill directories first.
 
 ## Purpose
 

@@ -143,9 +143,9 @@ Mode behavior:
 | `mode-contract` | Pilot-specific and necessary. | No direct Matt/Obra equivalent; Orchestra lacked a clean proportional mode contract. | Keep one-file. Add invalid/missing config examples only if evals show drift. |
 | `setup-pilot-workflow` | Important and under-leveraged. | Matt setup skills are practical; Anthropic helps structure; Orchestra init shows profiles, migration, and verification. | Add `references/host-setup.md`. Consider `scripts/validate-setup.sh` only after repeated setup validation failures. |
 | `interview-gate` | One of Pilot's best skills. Better as a universal stop gate than Orchestra's broad design-doc gate. | Matt `grill-me` and Obra brainstorming are richer for dialogue, but Pilot's gate is sharper. | Keep lean. Do not add examples unless repeated failures recur. |
-| `grill-context` | Good low-ceremony alternative to formal design-doc flow. | Matt/Obra are stronger for deep brainstorming; Orchestra is too formal by default. | Optional `references/approach-framing.md` after dogfooding. |
+| `grill-context` | Good low-ceremony alternative to formal design-doc flow. | Matt/Obra are stronger for deep brainstorming; Orchestra is too formal by default. | `references/approach-framing.md` added as opt-in approach guidance. |
 | `research-brief` | Strong Pilot-specific research posture, especially against biased framing and source-truth conflicts. | Obra context exploration is adjacent; Orchestra investigations became too formal. | Keep one-file unless external/current-source tasks expand. |
-| `write-spec` | Strong behaviorally, but needs the biggest team-readiness upgrade. | Matt `to-prd` gives concise synthesis; Orchestra gives artifact identity/header/status/changelog; Anthropic gives structure/evals. | Add `references/artifact-standards.md` and possibly `references/spec-shapes.md`. |
+| `write-spec` | Strong behaviorally, but needs the biggest team-readiness upgrade. | Matt `to-prd` gives concise synthesis; Orchestra gives artifact identity/header/status/changelog; Anthropic gives structure/evals. | `references/artifact-standards.md` and `references/spec-shapes.md` added. |
 | `review-artifact` | Strong general artifact reviewer. Already has `references/reviewer-prompt.md`. | Orchestra spec-review's lens separation is excellent but too heavy as six-judge YAML default. | Expand reviewer prompt with strict-mode lenses: semantic, owner/status, stale-doc, implementation-risk, adversarial risk. |
 | `write-plan` | Strong at scaling pressure and blocking bug plans without repro; weaker than Obra for cold delegated plans. | Obra `writing-plans` is richer for full delegation; Matt TDD helps vertical slices. | Add `references/plan-shapes.md` for light/normal/strict plans. |
 | `execute-plan` | Strong on plan/source conflict and missing verification gates. | Obra execution has more subagent/checkpoint machinery; Orchestra lifecycle is more formal. | Keep one-file for now. Add checkpoint/subagent patterns only if execution scope grows. |
@@ -154,7 +154,7 @@ Mode behavior:
 | `review-work` | Strong at partial apply and source-truth conflict. | Obra review skills cover request/receive lifecycle; Orchestra adversarial review informs strict mode. | Add `references/reviewer-prompt.md` for outgoing review/subagent context. |
 | `commit-work` | Good closeout guard; should borrow more commit discipline from Orchestra. | Obra finishing branch helps lifecycle; Orchestra commit skill is strongest on staging semantics and durable-doc edits. | Add `references/staging-decisions.md`. Do not add hooks yet. |
 | `capture-decisions` | Strong destination classification and volatile-context exclusion. | Matt `grill-with-docs` is adjacent; Orchestra controlled vocabulary warns against scattered meanings. | Add `references/destination-guide.md`; reference artifact standards where useful. |
-| `handoff` | Stronger than Matt on temp vs memory and authority boundaries. | Orchestra shows handoffs can become durable memory, but they should not become authority. | Optional `references/templates.md` only if handoffs become bloated or wrong-destination. |
+| `handoff` | Stronger than Matt on temp vs memory and authority boundaries. | Orchestra shows handoffs can become durable memory, but they should not become authority. | `references/templates.md` added as opt-in compact shape guidance. |
 | `bypass` | Strong Pilot-specific pressure-release valve. | No direct equivalent; Orchestra had too little escape from strict process. | Keep one-file. Runtime state/hooks should wait for eval pressure. |
 | `write-skill` | Good concise skill-writing governor. | Matt `write-a-skill` is concise; Anthropic is deeper; Orchestra warns against overbuilding. | Consider `references/resource-decision-guide.md`; do not copy Anthropic docs. |
 | `evaluate-skill` | Very important. Pilot's eval-before-wording rule is healthier than Orchestra's hook-first tendency. | Anthropic is strongest on eval method; Orchestra scenario runner is useful for deterministic CLI surfaces. | Add `references/eval-patterns.md`, `references/grading-priority.md`, and maybe later an audit script. |
@@ -211,8 +211,8 @@ Low priority:
 
 | Skill | Suggested files | Reason |
 | --- | --- | --- |
-| `handoff` | `references/templates.md` | Only if agents repeatedly write bloated or wrong-destination handoffs. |
-| `grill-context` | `references/approach-framing.md` | Only after dogfooding shows repeated weak framing. |
+| `handoff` | `references/templates.md` | Opt-in compact handoff shapes after destination is clear. |
+| `grill-context` | `references/approach-framing.md` | Opt-in framing for multi-approach brainstorming and fuzzy decision trees. |
 
 Do not add files yet for:
 
@@ -240,13 +240,13 @@ Reference-stack follow-up batches completed as of 2026-05-26:
 | F: Commit Discipline | Done | `commit-work/references/staging-decisions.md`; `plugins/pilot-workflow/evals/commit-work-2-report.md` |
 | G: Planning And Review Work | Done | `write-plan/references/plan-shapes.md`, `review-work/references/reviewer-prompt.md`; `plugins/pilot-workflow/evals/write-plan-3-report.md`, `review-work-4-report.md` |
 | H: Decision Destinations | Done | `capture-decisions/references/destination-guide.md`; `plugins/pilot-workflow/evals/capture-decisions-2-report.md` |
-| I: Optional Handoff Templates | Deferred | Only add if future handoff evals show bloat or wrong-destination failures. |
+| I: Optional Shape References | Done | `write-spec/references/spec-shapes.md`, `handoff/references/templates.md`, `grill-context/references/approach-framing.md`; added by explicit product direction as opt-in guidance. |
 
-Remaining evidence-gated possibilities:
+Previously evidence-gated references now landed by explicit product direction:
 
-- `write-spec/references/spec-shapes.md`: not added yet. Add only if future write-spec evals show repeated shape drift that `artifact-standards.md` cannot solve.
-- `handoff/references/templates.md`: defer until repeated handoff failures justify another reference.
-- `grill-context/references/approach-framing.md`: low priority; add only after dogfooding shows weak framing.
+- `write-spec/references/spec-shapes.md`: concise spec variants.
+- `handoff/references/templates.md`: temp and memory handoff shapes after destination is clear.
+- `grill-context/references/approach-framing.md`: approach framing for multi-path brainstorming.
 
 Do not treat the completed batches as permission to add hooks, CLI enforcement, a global `STANDARDS.md`, or mandatory artifact headers in conversation mode.
 
@@ -300,14 +300,14 @@ Recommended independent batches:
 | F: Commit Discipline | Add staging decision reference. | `plugins/pilot-workflow/skills/commit-work/`, commit eval prompts/reports. | Independent. | Commit behavior handles staged/unstaged/untracked/generated/user-owned/durable-doc changes. |
 | G: Planning And Review Work | Add plan shapes and outgoing reviewer prompt. | `plugins/pilot-workflow/skills/write-plan/`, `plugins/pilot-workflow/skills/review-work/`, related eval prompts/reports. | Independent if it does not edit `execute-plan`. | Plans scale light/normal/strict; outgoing review context is reusable. |
 | H: Decision Destinations | Add destination guide for durable decisions. | `plugins/pilot-workflow/skills/capture-decisions/`, capture-decision eval prompts/reports. | Can cite Batch A artifact standards, but should not modify them. | Agent chooses glossary/ADR/spec/handoff/decision note correctly. |
-| I: Optional Handoff Templates | Only if handoff failures recur. | `plugins/pilot-workflow/skills/handoff/`, handoff eval prompts/reports. | Low priority. | Handoff examples reduce bloat without turning handoff into authority. |
+| I: Optional Shape References | Add spec shapes, handoff templates, and approach framing. | `plugins/pilot-workflow/skills/write-spec/`, `plugins/pilot-workflow/skills/handoff/`, `plugins/pilot-workflow/skills/grill-context/`. | Added by explicit product direction after initial deferral. | Optional shapes reduce bloat without becoming mandatory workflow pressure. |
 
 Recommended batch order:
 
 1. Batch A first, because artifact standards become shared vocabulary.
 2. Batches C, D, E, F can run in parallel immediately.
 3. Batches B, G, H can run in parallel after Batch A publishes stable artifact-standard wording, or earlier if they only reference the planned path.
-4. Batch I should wait for evidence.
+4. Batch I has landed as opt-in reference guidance by explicit product direction.
 5. Coordinator session updates shared docs, inventory, and any global eval matrix after all batch branches are reviewed.
 
 Conflict prevention rules:
@@ -361,3 +361,4 @@ Setup:
 | --- | --- |
 | 2026-05-26 | Initial research memory created from Pilot/Matt/Obra/Anthropic/Orchestra comparison and parallelization discussion. |
 | 2026-05-26 | Added implementation status after Batches A-H landed with targeted eval reports; deferred optional handoff templates and other evidence-gated references. |
+| 2026-05-26 | Added optional spec-shape, handoff-template, and approach-framing references by explicit product direction. |
