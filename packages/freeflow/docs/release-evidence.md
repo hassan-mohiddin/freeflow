@@ -4,7 +4,7 @@ Freeflow v0.1 is based on local fixture evals and release acceptance runs from t
 
 ## Acceptance Summary
 
-The local v0.1 acceptance suite passed after measured fixes.
+The local v0.1 acceptance suite passed after measured fixes and was rerun during prepublish verification on 2026-05-26.
 
 High-signal behaviors covered:
 
