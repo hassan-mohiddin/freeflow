@@ -763,10 +763,12 @@ Expected: commit succeeds.
 
 ## Task 8: Final Verification
 
+Status: completed. Fresh prepublish fixture runs were saved under `plugins/freeflow/evals/runs/freeflow-prepublish/`.
+
 **Files:**
 - No planned edits unless verification exposes broken paths.
 
-- [ ] **Step 1: Validate JSON**
+- [x] **Step 1: Validate JSON**
 
 Run:
 
@@ -776,7 +778,7 @@ find plugins/freeflow packages/freeflow -name '*.json' -print0 | xargs -0 -n1 jq
 
 Expected: all JSON parses.
 
-- [ ] **Step 2: Run audits**
+- [x] **Step 2: Run audits**
 
 Run:
 
@@ -787,13 +789,13 @@ git diff --check
 
 Expected: both pass.
 
-- [ ] **Step 3: Run v0.1 acceptance suite from renamed path**
+- [x] **Step 3: Run v0.1 acceptance suite from renamed path**
 
 Run the suite in `plugins/freeflow/evals/runs/freeflow-prepublish/` using the moved registry path.
 
 Expected: required fixture evals pass semantically, especially `WSP-006`, `CAP-002`, and `XPL-004`.
 
-- [ ] **Step 4: Check package cleanliness**
+- [x] **Step 4: Check package cleanliness**
 
 Run:
 
@@ -808,9 +810,9 @@ Expected: package contains only publishable assets. For old identity/dev-only sc
 rg -n 'pilot-workflow|setup-pilot-workflow|PILOT_WORKFLOW|\.pilot-workflow|plugins/freeflow/evals|Research repo|command-surface|nativeSlashHandlers' packages/freeflow
 ```
 
-- [ ] **Step 5: Final commit if needed**
+- [x] **Step 5: Final commit if needed**
 
-- [ ] **Step 5: Confirm old identity is gone from tracked content**
+- [x] **Step 5: Confirm old identity is gone from tracked content**
 
 Run:
 
@@ -824,7 +826,7 @@ Expected: this command is obsolete because Freeflow is the current identity. Use
 rg -n 'pilot-workflow|setup-pilot-workflow|PILOT_WORKFLOW|\.pilot-workflow|pilot_workflow' AGENTS.md CONTEXT.md docs plugins/freeflow packages/freeflow .gitignore
 ```
 
-- [ ] **Step 6: Final commit if needed**
+- [x] **Step 6: Final commit if needed**
 
 Run:
 
