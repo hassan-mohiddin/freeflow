@@ -17,6 +17,7 @@ Freeflow is a portable workflow skill pack for coding agents.
 - Version target: `0.1.0`.
 - License target: MIT.
 - GitHub target: `hassan-mohiddin/freeflow`.
+- GitHub repo: published at `https://github.com/hassan-mohiddin/freeflow`.
 - First host targets: Codex and Claude Code.
 - v0.1 local acceptance suite: passed after measured fixes.
 - Prepublish verification: passed on 2026-05-26 with fresh saved runs under `plugins/freeflow/evals/runs/freeflow-prepublish/`.
@@ -53,8 +54,8 @@ Current high-signal evidence:
 
 ## Current Next Work
 
-1. Create or push the standalone `hassan-mohiddin/freeflow` repo.
-2. Install from GitHub in a separate Codex environment and Claude environment.
-3. Dogfood in one real repo before broader announcement.
+1. Install from GitHub in a separate Codex environment and Claude environment.
+2. Dogfood in one real repo before broader announcement.
+3. Decide whether to tag `v0.1.0` and create a GitHub release after install smoke tests pass.
 
 Use this doc for current project status. Use research docs for historical reasoning.

@@ -132,8 +132,8 @@ The setup skill uses the public `setup-freeflow` name.
 3. Add README, LICENSE, CHANGELOG, and concise package docs. Done.
 4. Run manifest validation and the existing command-surface audit. Done for manifest validation; command-surface audit remains part of final verification.
 5. Run the v0.1 acceptance suite from the current eval layout or add an equivalent package-mode smoke gate.
-6. Create a separate GitHub repo for `freeflow`.
-7. Push v0.1.0.
+6. Create a separate GitHub repo for `freeflow`. Done: `https://github.com/hassan-mohiddin/freeflow`.
+7. Push v0.1.0 package contents. Done on `main`.
 8. Install from GitHub in a separate Codex environment and Claude environment.
 9. Dogfood in one real repo before broader announcement.
 
