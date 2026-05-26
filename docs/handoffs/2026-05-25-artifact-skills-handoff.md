@@ -4,7 +4,7 @@ Date: 2026-05-25
 
 ## Purpose
 
-Continue Pilot Workflow development by drafting and evaluating artifact skills:
+Continue Freeflow development by drafting and evaluating artifact skills:
 
 - `write-spec`
 - `write-plan`
@@ -14,18 +14,18 @@ This handoff is memory, not authority. Inspect live files before editing.
 
 ## Read First
 
-- `docs/research/pilot-workflow-artifact-skills.md`
+- `docs/research/freeflow-artifact-skills.md`
 - `docs/plugin-contract.md`
 - `docs/agent-workflow-plugin-context.md`
-- `plugins/pilot-workflow/skills/workflow/SKILL.md`
-- `plugins/pilot-workflow/skills/interview-gate/SKILL.md`
-- `plugins/pilot-workflow/skills/review-work/SKILL.md`
+- `plugins/freeflow/skills/workflow/SKILL.md`
+- `plugins/freeflow/skills/interview-gate/SKILL.md`
+- `plugins/freeflow/skills/review-work/SKILL.md`
 
 For eval style:
 
-- `plugins/pilot-workflow/evals/iteration-6-report.md`
-- `plugins/pilot-workflow/evals/review-work-1-report.md`
-- `plugins/pilot-workflow/evals/diagnose-failure-1-report.md`
+- `plugins/freeflow/evals/iteration-6-report.md`
+- `plugins/freeflow/evals/review-work-1-report.md`
+- `plugins/freeflow/evals/diagnose-failure-1-report.md`
 
 ## Current Decisions
 
@@ -45,8 +45,8 @@ Reference skill files already inspected:
 - Matt `tdd`: behavior-first vertical red/green loops.
 - Matt `to-issues`: tracer-bullet slicing.
 - Matt `diagnose`: repro/feedback loop before bug fixes.
-- Obra `brainstorming`: lifecycle before implementation, but too hard-gated for Pilot defaults.
-- Obra `writing-plans`: executable plans, but too exhaustive/code-heavy as Pilot default.
+- Obra `brainstorming`: lifecycle before implementation, but too hard-gated for Freeflow defaults.
+- Obra `writing-plans`: executable plans, but too exhaustive/code-heavy as Freeflow default.
 - Obra review skills: feedback is evidence, not authority.
 - Orchestra `design-docs`: useful prior art, but too much taxonomy and ceremony.
 - Orchestra `spec-review`: useful review lenses; reject default multi-judge YAML loop.

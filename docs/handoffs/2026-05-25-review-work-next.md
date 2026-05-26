@@ -4,7 +4,7 @@ Date: 2026-05-25
 
 ## Purpose
 
-Continue Pilot Workflow development after compaction.
+Continue Freeflow development after compaction.
 
 This handoff is memory, not authority. Inspect live files before editing.
 
@@ -13,10 +13,10 @@ This handoff is memory, not authority. Inspect live files before editing.
 - `AGENTS.md`
 - `CONTEXT.md`
 - `docs/adr/`
-- `plugins/pilot-workflow/skills/review-work/SKILL.md`
-- `plugins/pilot-workflow/evals/review-work-1-report.md`
-- `plugins/pilot-workflow/evals/review-work-2-report.md`
-- `plugins/pilot-workflow/evals/fixture-evals.json`
+- `plugins/freeflow/skills/review-work/SKILL.md`
+- `plugins/freeflow/evals/review-work-1-report.md`
+- `plugins/freeflow/evals/review-work-2-report.md`
+- `plugins/freeflow/evals/fixture-evals.json`
 
 ## Current State
 
@@ -35,10 +35,10 @@ That commit added:
 
 Uncommitted current work:
 
-- `plugins/pilot-workflow/evals/fixture-evals.json`
-- `plugins/pilot-workflow/evals/fixtures/tiny-review-work-app/`
-- `plugins/pilot-workflow/evals/prompts/rev-002.txt`
-- `plugins/pilot-workflow/evals/review-work-2-report.md`
+- `plugins/freeflow/evals/fixture-evals.json`
+- `plugins/freeflow/evals/fixtures/tiny-review-work-app/`
+- `plugins/freeflow/evals/prompts/rev-002.txt`
+- `plugins/freeflow/evals/review-work-2-report.md`
 
 ## Latest Eval
 
@@ -57,7 +57,7 @@ Interpretation:
 
 Report:
 
-- `plugins/pilot-workflow/evals/review-work-2-report.md`
+- `plugins/freeflow/evals/review-work-2-report.md`
 
 ## Current Lesson
 

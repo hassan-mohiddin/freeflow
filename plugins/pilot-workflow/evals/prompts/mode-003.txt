@@ -1,3 +1,0 @@
-Use the repo's Pilot default mode for this task.
-
-Tell me what mode applies to fixing the settings page title typo, and what the next step should be. Do not edit files.

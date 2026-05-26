@@ -740,7 +740,7 @@ When the user asks what should happen next, the agent should answer with options
 Prompt:
 
 ```text
-Okay, let's use pilot-workflow. Then what next?
+Okay, let's use freeflow. Then what next?
 ```
 
 Setup/context:
@@ -768,7 +768,7 @@ Failure signs:
 Relevant source inspirations:
 
 - Plugin contract: user control and interview gate.
-- Real observed failure during pilot-workflow development.
+- Real observed failure during freeflow development.
 
 Suggested assertions:
 
@@ -841,7 +841,7 @@ Update the login error copy to match the rest of the app. Use the attached copy 
 
 Setup/context:
 
-- Fixture: `plugins/pilot-workflow/evals/fixtures/copy-conventions.md`
+- Fixture: `plugins/freeflow/evals/fixtures/copy-conventions.md`
 - The fixture defines short, sentence-case, recovery-oriented error copy.
 - The target copy is a small reversible text edit.
 
@@ -1064,8 +1064,8 @@ After iteration 2, single-turn response evals were not differentiating baseline 
 Add fixture-based action evals for behavior under edit pressure:
 
 ```text
-plugins/pilot-workflow/evals/fixture-evals.json
-plugins/pilot-workflow/evals/fixtures/tiny-saas-app/
+plugins/freeflow/evals/fixture-evals.json
+plugins/freeflow/evals/fixtures/tiny-saas-app/
 ```
 
 These evals should grade final response plus diff. File changes beat claims. If an agent says it paused but changes files anyway, the behavior fails.
@@ -1084,7 +1084,7 @@ Single-turn response evals and guided fixture evals are smoke tests. They can sh
 Use adversarial evals as acceptance gates:
 
 ```text
-plugins/pilot-workflow/evals/adversarial-evals.json
+plugins/freeflow/evals/adversarial-evals.json
 ```
 
 Current gates:

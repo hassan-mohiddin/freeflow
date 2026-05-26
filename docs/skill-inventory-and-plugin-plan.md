@@ -176,8 +176,8 @@ The command surface should not be the only path. A normal user should be able to
 | `capture-decisions` | Matt `grill-with-docs` | Record durable glossary/ADR/spec decisions. | Avoid transition spam. |
 | `handoff` | Matt `handoff`, Obra finishing branch | Compact current state for continuation. | Reference artifacts instead of duplicating them. |
 | `bypass` | Our mode discussion | Skip next workflow gate intentionally. | Default should be one-action bypass. One-task bypass may exist explicitly. |
-| `write-skill` | Matt `write-a-skill` + Anthropic `skill-creator` | Draft and revise compact behavior-shaping skills. | Use external skill-creator for structure; add Pilot/Matt wording discipline. |
-| `evaluate-skill` | Anthropic `skill-creator` + Pilot eval harness | Turn failures into baseline vs with-skill evals and revise from evidence. | Prefer diff/assertion evidence; call `write-skill` for wording changes. |
+| `write-skill` | Matt `write-a-skill` + Anthropic `skill-creator` | Draft and revise compact behavior-shaping skills. | Use external skill-creator for structure; add Freeflow/Matt wording discipline. |
+| `evaluate-skill` | Anthropic `skill-creator` + Freeflow eval harness | Turn failures into baseline vs with-skill evals and revise from evidence. | Prefer diff/assertion evidence; call `write-skill` for wording changes. |
 
 ## Workflow Spine
 
@@ -311,7 +311,7 @@ Role separation:
 
 ## Development Phases
 
-Status note as of 2026-05-25: these phases are historical planning scaffolding. The current plugin draft has progressed through the target skill pack, fixture eval harness, developer skill calls, and Codex/Claude setup decisions. Use current eval reports under `plugins/pilot-workflow/evals/` for live evidence before choosing new work.
+Status note as of 2026-05-25: these phases are historical planning scaffolding. The current plugin draft has progressed through the target skill pack, fixture eval harness, developer skill calls, and Codex/Claude setup decisions. Use current eval reports under `plugins/freeflow/evals/` for live evidence before choosing new work.
 
 ### Phase 0: Reference Sync
 
@@ -509,7 +509,7 @@ Current status as of 2026-05-26:
   - `diagnose-failure/references/flaky-and-performance.md`
   - `evaluate-skill/references/eval-patterns.md`
   - `evaluate-skill/references/grading-priority.md`
-  - `setup-pilot-workflow/references/host-setup.md`
+  - `setup-freeflow/references/host-setup.md`
   - `commit-work/references/staging-decisions.md`
   - `grill-context/references/approach-framing.md`
   - `handoff/references/templates.md`
@@ -519,7 +519,7 @@ Current status as of 2026-05-26:
   - `capture-decisions/references/destination-guide.md`
 - Command-surface eval coverage is complete for the current registry: 3 mode commands, 13 direct skill calls, and 2 developer skill calls.
 - Native slash handlers remain disabled; commands are model-routed.
-- The local-only v0.1 acceptance suite passed after measured fixes. See `plugins/pilot-workflow/evals/v0.1-acceptance-report.md`.
+- The local-only v0.1 acceptance suite passed after measured fixes. See `plugins/freeflow/evals/v0.1-acceptance-report.md`.
 - The plugin is ready for Hassan's local Codex-first dogfooding in other repos; live Claude smoke evals are still deferred.
 - The previously optional references `write-spec/references/spec-shapes.md`, `handoff/references/templates.md`, and `grill-context/references/approach-framing.md` were added by explicit product direction as opt-in shape guidance, not mandatory workflow pressure.
 

@@ -1,1 +1,0 @@
-Set up Pilot Workflow for Claude in this repo.

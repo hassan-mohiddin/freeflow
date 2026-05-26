@@ -1,10 +1,10 @@
-# Pilot Workflow
+# Freeflow
 
-Pilot Workflow is a candidate plugin context for improving how coding agents handle consequential work. Its language centers on workflow pressure, user-owned decisions, verification, and portable skill behavior.
+Freeflow is a candidate plugin context for improving how coding agents handle consequential work. Its language centers on workflow pressure, user-owned decisions, verification, and portable skill behavior.
 
 ## Language
 
-**Pilot Workflow**:
+**Freeflow**:
 A candidate plugin or skill pack that guides coding agents through consequential work without becoming a new agent.
 _Avoid_: Orchestra, agent framework, workflow engine
 
@@ -53,11 +53,11 @@ A handoff stored as durable project memory because its contents should help futu
 _Avoid_: temp handoff, scratch note
 
 **Baseline Eval**:
-An evaluation run without Pilot Workflow skill instructions.
+An evaluation run without Freeflow skill instructions.
 _Avoid_: control agent, default test
 
 **With-Skill Eval**:
-An evaluation run with Pilot Workflow skill instructions active.
+An evaluation run with Freeflow skill instructions active.
 _Avoid_: plugin run, enhanced agent
 
 **Adversarial Fixture Eval**:
@@ -69,11 +69,11 @@ A skill call used while developing plugins or skills, not a normal workflow stat
 _Avoid_: workflow command, user task segment
 
 **Reference Skill Stack**:
-The temporary stack used to build Pilot Workflow before Pilot Workflow can safely guide its own development.
+The temporary stack used to build Freeflow before Freeflow can safely guide its own development.
 _Avoid_: dependency stack, plugin hierarchy
 
 **Matt Style**:
-The preferred Pilot Workflow interaction and skill-writing style: concise, behavior-shaping, low-ceremony, eval-backed, and focused on the rule most likely to prevent failure.
+The preferred Freeflow interaction and skill-writing style: concise, behavior-shaping, low-ceremony, eval-backed, and focused on the rule most likely to prevent failure.
 _Avoid_: minimalism, short docs
 
 **Obra Workflow Reference**:
@@ -85,7 +85,7 @@ The reference for skill structure, progressive disclosure, trigger wording, base
 _Avoid_: skill authority, final workflow
 
 **Workflow Paradox**:
-The bootstrapping problem where Pilot Workflow cannot be the main process for building itself until its behavior is validated.
+The bootstrapping problem where Freeflow cannot be the main process for building itself until its behavior is validated.
 _Avoid_: circular dependency
 
 ## Flagged Ambiguities

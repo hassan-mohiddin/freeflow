@@ -4,7 +4,7 @@ Date: 2026-05-25
 
 ## Purpose
 
-After compaction, continue Pilot Workflow artifact-skill development with `write-plan`.
+After compaction, continue Freeflow artifact-skill development with `write-plan`.
 
 Do not restart `write-spec` or `review-artifact` unless new evidence appears.
 
@@ -15,14 +15,14 @@ This handoff is memory, not authority. Inspect live files before editing.
 - `AGENTS.md`
 - `CONTEXT.md`
 - `docs/adr/`
-- `docs/research/pilot-workflow-artifact-skills.md`
-- `plugins/pilot-workflow/skills/write-spec/SKILL.md`
-- `plugins/pilot-workflow/skills/review-artifact/SKILL.md`
-- `plugins/pilot-workflow/evals/write-spec-1-report.md`
-- `plugins/pilot-workflow/evals/write-spec-2-report.md`
-- `plugins/pilot-workflow/evals/write-spec-3-report.md`
-- `plugins/pilot-workflow/evals/review-artifact-1-report.md`
-- `plugins/pilot-workflow/evals/review-artifact-2-report.md`
+- `docs/research/freeflow-artifact-skills.md`
+- `plugins/freeflow/skills/write-spec/SKILL.md`
+- `plugins/freeflow/skills/review-artifact/SKILL.md`
+- `plugins/freeflow/evals/write-spec-1-report.md`
+- `plugins/freeflow/evals/write-spec-2-report.md`
+- `plugins/freeflow/evals/write-spec-3-report.md`
+- `plugins/freeflow/evals/review-artifact-1-report.md`
+- `plugins/freeflow/evals/review-artifact-2-report.md`
 
 Reference skills for next work:
 
@@ -74,29 +74,29 @@ Key lesson:
 - Review first. Edit second.
 - "Fix directly" is not approval to invert an artifact's intent.
 - A clean artifact should pass without invented findings.
-- Fresh reviewer prompt exists at `plugins/pilot-workflow/skills/review-artifact/references/reviewer-prompt.md`.
+- Fresh reviewer prompt exists at `plugins/freeflow/skills/review-artifact/references/reviewer-prompt.md`.
 
 ## Dirty / Untracked Work To Preserve
 
 Expected untracked or modified files include:
 
-- `docs/research/pilot-workflow-artifact-skills.md`
+- `docs/research/freeflow-artifact-skills.md`
 - `docs/handoffs/2026-05-25-artifact-skills-handoff.md`
 - `docs/handoffs/2026-05-25-write-plan-next.md`
-- `plugins/pilot-workflow/skills/write-spec/`
-- `plugins/pilot-workflow/skills/review-artifact/`
-- `plugins/pilot-workflow/evals/prompts/wsp-001.txt`
-- `plugins/pilot-workflow/evals/prompts/wsp-002.txt`
-- `plugins/pilot-workflow/evals/prompts/wsp-003.txt`
-- `plugins/pilot-workflow/evals/prompts/rar-001.txt`
-- `plugins/pilot-workflow/evals/prompts/rar-002.txt`
-- `plugins/pilot-workflow/evals/fixtures/tiny-artifact-review-app/`
-- `plugins/pilot-workflow/evals/write-spec-1-report.md`
-- `plugins/pilot-workflow/evals/write-spec-2-report.md`
-- `plugins/pilot-workflow/evals/write-spec-3-report.md`
-- `plugins/pilot-workflow/evals/review-artifact-1-report.md`
-- `plugins/pilot-workflow/evals/review-artifact-2-report.md`
-- modified `plugins/pilot-workflow/evals/fixture-evals.json`
+- `plugins/freeflow/skills/write-spec/`
+- `plugins/freeflow/skills/review-artifact/`
+- `plugins/freeflow/evals/prompts/wsp-001.txt`
+- `plugins/freeflow/evals/prompts/wsp-002.txt`
+- `plugins/freeflow/evals/prompts/wsp-003.txt`
+- `plugins/freeflow/evals/prompts/rar-001.txt`
+- `plugins/freeflow/evals/prompts/rar-002.txt`
+- `plugins/freeflow/evals/fixtures/tiny-artifact-review-app/`
+- `plugins/freeflow/evals/write-spec-1-report.md`
+- `plugins/freeflow/evals/write-spec-2-report.md`
+- `plugins/freeflow/evals/write-spec-3-report.md`
+- `plugins/freeflow/evals/review-artifact-1-report.md`
+- `plugins/freeflow/evals/review-artifact-2-report.md`
+- modified `plugins/freeflow/evals/fixture-evals.json`
 
 Do not delete or rewrite these as cleanup.
 

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Rename Pilot Workflow to Freeflow across the dev workspace, create a clean publishable package, reorganize eval evidence, and update durable docs for a Codex/Claude-first public release.
+**Goal:** Finish the Freeflow prepublish cleanup: create a clean publishable package, reorganize eval evidence, and update durable docs for a Codex/Claude-first public release.
 
 **Architecture:** Keep the Research repo as the development and evidence workspace, but add `packages/freeflow/` as the clean publishable plugin package. Rename current product identity to Freeflow across tracked content, including the dev plugin path and old candidate wording in docs/reports. Reorganize eval metadata and reports without deleting evidence.
 
@@ -12,19 +12,19 @@
 
 ## File Structure
 
-- Modify: `docs/freeflow-packaging-and-publishing-design.md` to reflect approved dev-space rename.
+- Modify: `docs/freeflow-packaging-and-publishing-design.md` to reflect approved dev-space identity.
 - Modify: `AGENTS.md`, `CONTEXT.md`, and current durable docs under `docs/` to use Freeflow as current identity.
-- Move/rename: `plugins/pilot-workflow/` to `plugins/freeflow/`.
-- Move/rename: `plugins/freeflow/skills/setup-pilot-workflow/` to `plugins/freeflow/skills/setup-freeflow/`.
+- Current dev plugin path: `plugins/freeflow/`.
+- Current setup skill path: `plugins/freeflow/skills/setup-freeflow/`.
 - Create: `packages/freeflow/` as the clean publishable package.
 - Create: `packages/freeflow/README.md`, `LICENSE`, `CHANGELOG.md`, `.codex-plugin/plugin.json`, `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`.
 - Create: `packages/freeflow/skills/workflow/references/workflow-map.md` with a simple full-pipeline diagram and backward loops.
 - Create: `spec-shapes`, `handoff templates`, and `approach-framing` references for the three previously recommended skills.
 - Modify: workflow skill to reference `references/workflow-map.md`.
 - Reorganize: `plugins/freeflow/evals/` into clearer registry/report/runbook structure while preserving fixtures and reports.
-- Update: scripts and docs that reference `plugins/pilot-workflow`.
+- Update: scripts and docs that reference `plugins/freeflow`.
 
-## Task 1: Update Design Commit For Approved Rename
+## Task 1: Update Design Commit For Approved Identity
 
 **Files:**
 - Modify: `docs/freeflow-packaging-and-publishing-design.md`
@@ -39,12 +39,12 @@ sed -n '1,220p' docs/freeflow-packaging-and-publishing-design.md
 
 Expected: doc states Freeflow package direction and includes dev rename.
 
-- [ ] **Step 2: Verify no optional `setup-pilot-workflow` decision remains**
+- [ ] **Step 2: Verify no optional setup-skill naming decision remains**
 
 Run:
 
 ```sh
-rg -n 'Whether to preserve `setup-pilot-workflow`|optional|Pilot Workflow' docs/freeflow-packaging-and-publishing-design.md
+rg -n 'Whether to preserve|optional setup|candidate identity' docs/freeflow-packaging-and-publishing-design.md
 ```
 
 Expected: no unresolved optional rename decision.
@@ -62,65 +62,33 @@ Expected: commit succeeds.
 
 ## Task 2: Rename Development Plugin Path And Product Identity
 
+Status: completed. The dev plugin now lives at `plugins/freeflow/`, the setup skill is `setup-freeflow`, `.freeflow/config.json` is the setup config path, and tracked content no longer preserves the previous candidate identity.
+
 **Files:**
-- Move: `plugins/pilot-workflow/` -> `plugins/freeflow/`
-- Move: `plugins/freeflow/skills/setup-pilot-workflow/` -> `plugins/freeflow/skills/setup-freeflow/`
-- Modify: scripts, docs, and manifests that reference `plugins/pilot-workflow`
+- Move: development plugin directory to `plugins/freeflow/`
+- Move: setup skill directory to `plugins/freeflow/skills/setup-freeflow/`
+- Modify: scripts, docs, and manifests that referenced the previous dev path
 - Modify: `.gitignore`
 
-- [ ] **Step 1: Move the plugin directory**
+- [x] **Step 1: Move the plugin directory**
 
-Run:
+Expected: Git records directory renames into `plugins/freeflow/`.
 
-```sh
-git mv plugins/pilot-workflow plugins/freeflow
-git mv plugins/freeflow/skills/setup-pilot-workflow plugins/freeflow/skills/setup-freeflow
-```
+- [x] **Step 2: Update path references**
 
-Expected: Git records a directory rename.
+Edit all current-product references to the Freeflow identity.
 
-- [ ] **Step 2: Update path references**
+Rewrite old research, handoff, and report text too. The requirement is no previous candidate identity in tracked content.
 
-Run:
+- [x] **Step 3: Update gitignore**
 
-```sh
-rg -l 'plugins/pilot-workflow|pilot-workflow|Pilot Workflow|setup-pilot-workflow' AGENTS.md CONTEXT.md docs plugins/freeflow .gitignore | sort
-```
+Expected: `.gitignore` ignores `plugins/freeflow/evals/runs/`.
 
-Edit all current-product references:
+- [x] **Step 4: Validate no previous identity references remain**
 
-- `plugins/pilot-workflow` -> `plugins/freeflow`
-- `pilot-workflow` -> `freeflow`
-- `Pilot Workflow` -> `Freeflow`
-- `setup-pilot-workflow` -> `setup-freeflow`
+Expected: no tracked text keeps the previous candidate identity.
 
-Rewrite old research, handoff, and report text too. The requirement is no old candidate identity in tracked content.
-
-- [ ] **Step 3: Update gitignore**
-
-Replace:
-
-```gitignore
-plugins/pilot-workflow/evals/runs/
-```
-
-With:
-
-```gitignore
-plugins/freeflow/evals/runs/
-```
-
-- [ ] **Step 4: Validate no current-path references remain**
-
-Run:
-
-```sh
-rg -n 'plugins/pilot-workflow|pilot-workflow|Pilot Workflow|setup-pilot-workflow' AGENTS.md CONTEXT.md docs plugins/freeflow .gitignore
-```
-
-Expected: no matches. If any tracked text still uses the old identity, fix it.
-
-- [ ] **Step 5: Run command-surface audit from new path**
+- [x] **Step 5: Run command-surface audit from new path**
 
 Run:
 
@@ -136,7 +104,7 @@ Run:
 
 ```sh
 git add -A
-git commit -m "Rename Pilot Workflow to Freeflow"
+git commit -m "Rename development plugin to Freeflow"
 ```
 
 Expected: commit succeeds.
@@ -703,7 +671,7 @@ sed -n '1,160p' AGENTS.md
 sed -n '1,180p' CONTEXT.md
 ```
 
-Expected: both describe Freeflow, not Pilot Workflow.
+Expected: both describe Freeflow, not Freeflow.
 
 - [ ] **Step 2: Create concise current-state doc**
 
@@ -757,7 +725,7 @@ Do not include volatile task inventory.
 Run:
 
 ```sh
-rg -n 'Pilot Workflow|pilot-workflow|plugins/pilot-workflow|setup-pilot-workflow' AGENTS.md CONTEXT.md docs plugins/freeflow packages/freeflow
+rg -n 'Freeflow|freeflow|plugins/freeflow|setup-freeflow' AGENTS.md CONTEXT.md docs plugins/freeflow packages/freeflow
 ```
 
 Expected: no matches in tracked content.
@@ -811,7 +779,7 @@ Run:
 
 ```sh
 find packages/freeflow -maxdepth 4 -type f | sort
-rg -n 'Pilot Workflow|pilot-workflow|plugins/pilot-workflow|setup-pilot-workflow' packages/freeflow
+rg -n 'Freeflow|freeflow|plugins/freeflow|setup-freeflow' packages/freeflow
 ```
 
 Expected: package contains only publishable assets and no old identity references.
@@ -823,7 +791,7 @@ Expected: package contains only publishable assets and no old identity reference
 Run:
 
 ```sh
-rg -n 'Pilot Workflow|pilot-workflow|plugins/pilot-workflow|setup-pilot-workflow' .
+rg -n 'Freeflow|freeflow|plugins/freeflow|setup-freeflow' .
 ```
 
 Expected: no matches except `.git` internals if searched accidentally. If there are tracked matches, update them.

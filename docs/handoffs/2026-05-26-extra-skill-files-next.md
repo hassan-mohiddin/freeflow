@@ -1,10 +1,10 @@
-# Pilot Workflow Extra Skill Files Handoff
+# Freeflow Extra Skill Files Handoff
 
 Date: 2026-05-26
 
 ## Purpose
 
-Continue Pilot Workflow work by deciding whether selected broad skills need extra files such as references, scripts, assets, or examples.
+Continue Freeflow work by deciding whether selected broad skills need extra files such as references, scripts, assets, or examples.
 
 Do not start with the v0.1 acceptance suite yet. Hassan wants to do that later after a few more implementation/update ideas.
 
@@ -14,8 +14,8 @@ The repo is ready for Hassan's local dogfooding in other repos.
 
 Current evidence:
 
-- Plugin draft lives under `plugins/pilot-workflow/`.
-- There are 19 skills under `plugins/pilot-workflow/skills/`.
+- Plugin draft lives under `plugins/freeflow/`.
+- There are 19 skills under `plugins/freeflow/skills/`.
 - Every `SKILL.md` is under the 100-line project budget.
 - Command-surface coverage is complete for the current registry:
   - 3 mode commands
@@ -27,16 +27,16 @@ Current evidence:
 
 Use these current evidence files first:
 
-- `plugins/pilot-workflow/evals/command-surface-matrix.md`
-- `plugins/pilot-workflow/evals/command-surface-15-report.md`
-- `docs/pilot-workflow-runtime-and-lifecycle.md`
+- `plugins/freeflow/evals/command-surface-matrix.md`
+- `plugins/freeflow/evals/command-surface-15-report.md`
+- `docs/freeflow-runtime-and-lifecycle.md`
 - `docs/skill-inventory-and-plugin-plan.md`
 
 ## Next Focus
 
 Assess extra files for these five skills, in priority order:
 
-1. `setup-pilot-workflow`
+1. `setup-freeflow`
 2. `evaluate-skill`
 3. `commit-work`
 4. `write-spec`
@@ -51,7 +51,7 @@ The goal is not to add files because the skills are broad. Add files only when t
 
 ## Initial Recommendation
 
-Start with `setup-pilot-workflow`.
+Start with `setup-freeflow`.
 
 Reason: it has exact Codex/Claude activation blocks, host-target rules, config shape, and verification rules. It is close to the 100-line budget and has stable reusable content.
 
@@ -68,7 +68,7 @@ Likely useful addition:
 
 - `references/eval-patterns.md` for fixture evals, transcript evals, baseline vs with-skill grading, and local-only Codex evaluation patterns.
 
-Do not copy Anthropic's skill creator docs into Pilot. Keep the dependency/reference explicit.
+Do not copy Anthropic's skill creator docs into Freeflow. Keep the dependency/reference explicit.
 
 Third candidate: `commit-work`.
 
@@ -98,7 +98,7 @@ Stop before editing if the next agent is tempted to:
 - add references to all five skills at once
 - add scripts for commands agents can already run directly
 - move stable rules out of `SKILL.md` when they must be active immediately
-- copy large chunks of Anthropic, Matt, Obra, or Orchestra docs into Pilot
+- copy large chunks of Anthropic, Matt, Obra, or Orchestra docs into Freeflow
 - exceed the 100-line budget for any `SKILL.md`
 
 ## Deferred Work
