@@ -104,6 +104,15 @@ Freeflow does not ship native slash handlers yet. The commands work as skill-rou
 - `workflow`: default for consequential work; scale process to risk.
 - `strict-workflow`: high-risk or hard-to-reverse work with stronger gates.
 
+## Docs
+
+- [Docs index](docs/README.md)
+- [Workflow](docs/workflow.md)
+- [Skills](docs/skills.md)
+- [Architecture](docs/architecture.md)
+- [Release evidence](docs/release-evidence.md)
+- [ADRs](docs/adr/README.md)
+
 ## Evidence
 
 Freeflow v0.1 passed the local acceptance suite after measured fixes:

@@ -9,9 +9,10 @@ Read first:
 
 1. AGENTS.md
 2. CONTEXT.md
-3. docs/adr/
-4. The latest relevant file in docs/handoffs/
-5. The latest relevant eval reports under plugins/freeflow/evals/
+3. docs/freeflow-current-state.md
+4. docs/adr/
+5. The latest relevant file in docs/handoffs/
+6. plugins/freeflow/evals/README.md and the latest relevant eval reports under plugins/freeflow/evals/reports/
 
 Then inspect the live files relevant to the task.
 

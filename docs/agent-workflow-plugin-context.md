@@ -1,5 +1,7 @@
 # Agent Workflow Skill Plugin Context
 
+> Historical product-direction note. Use `docs/freeflow-current-state.md`, `docs/freeflow-packaging-and-publishing-design.md`, and live repo evidence for current release state.
+
 ## Purpose
 
 This document captures the working product direction for a plugin or skill pack that helps coding agents complete work from vague request to reviewed outcome without becoming bureaucratic or producing AI slop.
@@ -337,4 +339,3 @@ Start with:
 - Hooks only for high-risk actions, and only in Workflow or Strict Workflow modes.
 
 The first version should prove that the plugin can preserve depth and discipline without forcing ceremony onto simple conversations.
-

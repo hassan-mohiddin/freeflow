@@ -1,6 +1,6 @@
 # Freeflow Agent Memory
 
-This repo develops `freeflow`, a candidate plugin/skill pack for guiding coding agents through consequential work without ceremony, silent decisions, or AI slop.
+This repo develops `freeflow`, a plugin/skill pack for guiding coding agents through consequential work without ceremony, silent decisions, or AI slop.
 
 The plugin is not a new agent. It is a portable workflow layer for agents such as Codex, Claude, and similar coding environments.
 
@@ -9,12 +9,13 @@ The plugin is not a new agent. It is a portable workflow layer for agents such a
 For project direction, read:
 
 - `CONTEXT.md`
-- `docs/plugin-contract.md`
-- `docs/agent-workflow-plugin-context.md`
-- `docs/skill-inventory-and-plugin-plan.md`
+- `docs/freeflow-current-state.md`
+- `docs/freeflow-packaging-and-publishing-design.md`
 - `docs/freeflow-runtime-and-lifecycle.md`
 
 For durable decisions, read `docs/adr/`.
+
+For historical research, read `docs/plugin-contract.md`, `docs/agent-workflow-plugin-context.md`, `docs/skill-inventory-and-plugin-plan.md`, and `docs/research/` only when their background matters. Live repo evidence and current-state docs override older research and handoffs.
 
 For current continuation state, read the latest relevant file in `docs/handoffs/`.
 
@@ -78,7 +79,9 @@ Re-enter clarification when new ambiguity would change the next action.
 
 ## Implementation Pointers
 
-Plugin draft lives under `plugins/freeflow/`.
+Development plugin lives under `plugins/freeflow/`.
+
+Publishable package lives under `packages/freeflow/`.
 
 For the current skill set, inspect `plugins/freeflow/skills/`.
 

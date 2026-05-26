@@ -2,6 +2,8 @@
 
 Date: 2026-05-26
 
+> Historical handoff. The referenced extra-file pass and v0.1 acceptance suite have since landed. Use `docs/freeflow-current-state.md`, live skill directories, and `plugins/freeflow/evals/README.md` for current state.
+
 ## Purpose
 
 Continue Freeflow work by deciding whether selected broad skills need extra files such as references, scripts, assets, or examples.
@@ -23,7 +25,7 @@ Current evidence:
   - 2 developer skill calls
 - Native slash handlers remain disabled. Commands are model-routed.
 - Live Claude evals are deferred because local Claude auth/model access is unavailable.
-- v0.1 acceptance suite is deferred by user choice.
+- At this handoff date, the v0.1 acceptance suite was still deferred by user choice.
 
 Use these current evidence files first:
 

@@ -26,10 +26,12 @@
 
 ## Task 1: Update Design Commit For Approved Identity
 
+Status: completed.
+
 **Files:**
 - Modify: `docs/freeflow-packaging-and-publishing-design.md`
 
-- [ ] **Step 1: Inspect current design**
+- [x] **Step 1: Inspect current design**
 
 Run:
 
@@ -39,7 +41,7 @@ sed -n '1,220p' docs/freeflow-packaging-and-publishing-design.md
 
 Expected: doc states Freeflow package direction and includes dev rename.
 
-- [ ] **Step 2: Verify no optional setup-skill naming decision remains**
+- [x] **Step 2: Verify no optional setup-skill naming decision remains**
 
 Run:
 
@@ -49,7 +51,7 @@ rg -n 'Whether to preserve|optional setup|candidate identity' docs/freeflow-pack
 
 Expected: no unresolved optional rename decision.
 
-- [ ] **Step 3: Commit design update**
+- [x] **Step 3: Commit design update**
 
 Run:
 
@@ -98,7 +100,7 @@ plugins/freeflow/evals/scripts/audit-command-surface.sh
 
 Expected: audit passes using `plugins/freeflow`.
 
-- [ ] **Step 6: Commit rename**
+- [x] **Step 6: Commit rename**
 
 Run:
 
@@ -111,11 +113,13 @@ Expected: commit succeeds.
 
 ## Task 3: Add Workflow Map Reference
 
+Status: completed.
+
 **Files:**
 - Create: `plugins/freeflow/skills/workflow/references/workflow-map.md`
 - Modify: `plugins/freeflow/skills/workflow/SKILL.md`
 
-- [ ] **Step 1: Create workflow map reference**
+- [x] **Step 1: Create workflow map reference**
 
 Add `plugins/freeflow/skills/workflow/references/workflow-map.md`:
 
@@ -174,7 +178,7 @@ Common starts:
 
 Expected: diagram is text-only and renders in GitHub Markdown.
 
-- [ ] **Step 2: Link from workflow skill**
+- [x] **Step 2: Link from workflow skill**
 
 In `plugins/freeflow/skills/workflow/SKILL.md`, add a concise line:
 
@@ -182,7 +186,7 @@ In `plugins/freeflow/skills/workflow/SKILL.md`, add a concise line:
 Read `references/workflow-map.md` when the user asks for the full pipeline, public docs need a figure, or the next workflow entry point is unclear.
 ```
 
-- [ ] **Step 3: Check skill length**
+- [x] **Step 3: Check skill length**
 
 Run:
 
@@ -192,7 +196,7 @@ wc -l plugins/freeflow/skills/workflow/SKILL.md
 
 Expected: under 100 lines.
 
-- [ ] **Step 4: Commit workflow map**
+- [x] **Step 4: Commit workflow map**
 
 Run:
 
@@ -205,6 +209,8 @@ Expected: commit succeeds.
 
 ## Task 4: Add Three Recommended References
 
+Status: completed.
+
 **Files:**
 - Create: `plugins/freeflow/skills/write-spec/references/spec-shapes.md`
 - Create: `plugins/freeflow/skills/handoff/references/templates.md`
@@ -213,7 +219,7 @@ Expected: commit succeeds.
 - Modify: `plugins/freeflow/skills/handoff/SKILL.md`
 - Modify: `plugins/freeflow/skills/grill-context/SKILL.md`
 
-- [ ] **Step 1: Add spec shapes reference**
+- [x] **Step 1: Add spec shapes reference**
 
 Create `plugins/freeflow/skills/write-spec/references/spec-shapes.md` with concise shapes for:
 
@@ -225,7 +231,7 @@ Create `plugins/freeflow/skills/write-spec/references/spec-shapes.md` with conci
 
 Each shape should be a short section list, not a full template.
 
-- [ ] **Step 2: Add handoff templates reference**
+- [x] **Step 2: Add handoff templates reference**
 
 Create `plugins/freeflow/skills/handoff/references/templates.md` with short handoff shapes for:
 
@@ -236,7 +242,7 @@ Create `plugins/freeflow/skills/handoff/references/templates.md` with short hand
 
 Each template must omit volatile file inventories unless they are necessary for resumption.
 
-- [ ] **Step 3: Add approach framing reference**
+- [x] **Step 3: Add approach framing reference**
 
 Create `plugins/freeflow/skills/grill-context/references/approach-framing.md` with concise framing patterns:
 
@@ -246,11 +252,11 @@ Create `plugins/freeflow/skills/grill-context/references/approach-framing.md` wi
 - source-truth conflict
 - strict-workflow escalation
 
-- [ ] **Step 4: Link references from skill bodies**
+- [x] **Step 4: Link references from skill bodies**
 
 Add one line to each relevant `SKILL.md` telling the agent when to read the reference. Keep all three skill files under 100 lines.
 
-- [ ] **Step 5: Verify lengths**
+- [x] **Step 5: Verify lengths**
 
 Run:
 
@@ -260,7 +266,7 @@ wc -l plugins/freeflow/skills/write-spec/SKILL.md plugins/freeflow/skills/handof
 
 Expected: all under 100 lines.
 
-- [ ] **Step 6: Commit references**
+- [x] **Step 6: Commit references**
 
 Run:
 
@@ -669,12 +675,14 @@ Expected: commit succeeds.
 
 ## Task 7: Consolidate Core Docs And Durable Memory
 
+Status: completed. Current-state docs now separate current release facts from historical research and handoffs. Package public docs now live under `packages/freeflow/docs/`.
+
 **Files:**
 - Modify: `AGENTS.md`
 - Modify: `CONTEXT.md`
 - Modify/create: concise docs under `docs/`
 
-- [ ] **Step 1: Identify current read-first docs**
+- [x] **Step 1: Identify current read-first docs**
 
 Run:
 
@@ -683,9 +691,9 @@ sed -n '1,160p' AGENTS.md
 sed -n '1,180p' CONTEXT.md
 ```
 
-Expected: both describe Freeflow, not Freeflow.
+Expected: both describe Freeflow as the current product and do not call it a candidate.
 
-- [ ] **Step 2: Create concise current-state doc**
+- [x] **Step 2: Create concise current-state doc**
 
 Create `docs/freeflow-current-state.md` with:
 
@@ -708,7 +716,7 @@ Current status:
 Use this doc for current project status. Use research docs for history.
 ```
 
-- [ ] **Step 3: Reduce read-first list**
+- [x] **Step 3: Reduce read-first list**
 
 Update `AGENTS.md` read-first guidance to point at:
 
@@ -720,7 +728,7 @@ Update `AGENTS.md` read-first guidance to point at:
 
 Move older research docs into "History / research, not current authority."
 
-- [ ] **Step 4: Update CONTEXT.md**
+- [x] **Step 4: Update CONTEXT.md**
 
 Make `CONTEXT.md` describe Freeflow's durable language:
 
@@ -732,17 +740,17 @@ Make `CONTEXT.md` describe Freeflow's durable language:
 
 Do not include volatile task inventory.
 
-- [ ] **Step 5: Search old active identity**
+- [x] **Step 5: Search old active identity**
 
 Run:
 
 ```sh
-rg -n 'Freeflow|freeflow|plugins/freeflow|setup-freeflow' AGENTS.md CONTEXT.md docs plugins/freeflow packages/freeflow
+rg -n 'candidate plugin|not final branding|pilot-workflow|setup-pilot-workflow|PILOT_WORKFLOW|\.pilot-workflow|agent-workflow-plugin' AGENTS.md CONTEXT.md docs packages/freeflow plugins/freeflow
 ```
 
-Expected: no matches in tracked content.
+Expected: no current-authority matches. Historical handoffs and research may preserve old context when clearly historical.
 
-- [ ] **Step 6: Commit durable docs**
+- [x] **Step 6: Commit durable docs**
 
 Run:
 
@@ -794,7 +802,11 @@ find packages/freeflow -maxdepth 4 -type f | sort
 rg -n 'Freeflow|freeflow|plugins/freeflow|setup-freeflow' packages/freeflow
 ```
 
-Expected: package contains only publishable assets and no old identity references.
+Expected: package contains only publishable assets. For old identity/dev-only scans, use:
+
+```sh
+rg -n 'pilot-workflow|setup-pilot-workflow|PILOT_WORKFLOW|\.pilot-workflow|plugins/freeflow/evals|Research repo|command-surface|nativeSlashHandlers' packages/freeflow
+```
 
 - [ ] **Step 5: Final commit if needed**
 
@@ -806,7 +818,11 @@ Run:
 rg -n 'Freeflow|freeflow|plugins/freeflow|setup-freeflow' .
 ```
 
-Expected: no matches except `.git` internals if searched accidentally. If there are tracked matches, update them.
+Expected: this command is obsolete because Freeflow is the current identity. Use targeted old-identity scans instead:
+
+```sh
+rg -n 'pilot-workflow|setup-pilot-workflow|PILOT_WORKFLOW|\.pilot-workflow|pilot_workflow' AGENTS.md CONTEXT.md docs plugins/freeflow packages/freeflow .gitignore
+```
 
 - [ ] **Step 6: Final commit if needed**
 
