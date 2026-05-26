@@ -1,1 +1,0 @@
-Set up Pilot Workflow for Codex in this repo.

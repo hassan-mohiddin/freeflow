@@ -5,15 +5,15 @@
 > **Owner:** Hassan Mohiddin
 > **Type:** Design
 > **Status:** Draft
-> **Source:** Current Pilot Workflow v0.1 acceptance evidence, old Orchestra audit, Codex/Superpowers/Caveman plugin shapes, Claude plugin marketplace shape
+> **Source:** Current Freeflow v0.1 acceptance evidence, old Orchestra audit, Codex/Superpowers/Caveman plugin shapes, Claude plugin marketplace shape
 
 ## Decision
 
-Publish the proven Pilot Workflow v0.1 behavior as a separate public plugin named **Freeflow**.
+Publish the proven Freeflow v0.1 behavior as a separate public plugin named **Freeflow**.
 
 Do not copy the contents into the old `orchestra` repo for the first public package. Treat old Orchestra as prior art, migration context, and failure evidence. Freeflow should stand alone as the lightweight workflow successor.
 
-Rename the development surface from `pilot-workflow` to `freeflow` as well. The public package and dev workspace should not preserve the old candidate name in tracked content.
+The development surface now uses `freeflow` as well. The public package and dev workspace should not preserve the old candidate name in tracked content.
 
 ## Product Identity
 
@@ -61,7 +61,7 @@ The public package should include only install/runtime assets and concise suppor
 
 ## Codex Manifest
 
-Use the current `plugins/pilot-workflow/.codex-plugin/plugin.json` as the starting point, with identity updated:
+Use the current `plugins/freeflow/.codex-plugin/plugin.json` as the starting point, with identity updated:
 
 - `name`: `freeflow`
 - `version`: `0.1.0`
@@ -123,21 +123,19 @@ The first public package should ship the current proven v0.1 skill set:
 - `write-skill`
 - `evaluate-skill`
 
-Rename `setup-pilot-workflow` to `setup-freeflow` before public release. The current name leaks the old candidate identity.
+The setup skill uses the public `setup-freeflow` name.
 
 ## Publishing Sequence
 
 1. Prepare a clean `freeflow` package directory from the current development plugin.
-2. Rename development and package identity from Pilot Workflow / `pilot-workflow` to Freeflow / `freeflow`.
-3. Update skill wording, docs, manifests, command-surface evidence, and durable repo memory that mention Pilot Workflow when they refer to current product identity.
-4. Add Codex and Claude manifests.
-5. Add README, LICENSE, and CHANGELOG.
-6. Run manifest validation and the existing command-surface audit against the packaged copy.
-7. Run the v0.1 acceptance suite against the packaged copy or add an equivalent package-mode smoke gate.
-8. Create a separate GitHub repo for `freeflow`.
-9. Push v0.1.0.
-10. Install from GitHub in a separate Codex environment and Claude environment.
-11. Dogfood in one real repo before broader announcement.
+2. Add Codex and Claude manifests.
+3. Add README, LICENSE, and CHANGELOG.
+4. Run manifest validation and the existing command-surface audit against the packaged copy.
+5. Run the v0.1 acceptance suite against the packaged copy or add an equivalent package-mode smoke gate.
+6. Create a separate GitHub repo for `freeflow`.
+7. Push v0.1.0.
+8. Install from GitHub in a separate Codex environment and Claude environment.
+9. Dogfood in one real repo before broader announcement.
 
 ## Open Decisions Before Implementation
 

@@ -11,7 +11,7 @@ Read first:
 2. CONTEXT.md
 3. docs/adr/
 4. The latest relevant file in docs/handoffs/
-5. The latest relevant eval reports under plugins/pilot-workflow/evals/
+5. The latest relevant eval reports under plugins/freeflow/evals/
 
 Then inspect the live files relevant to the task.
 

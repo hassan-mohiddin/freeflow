@@ -4,7 +4,7 @@ Date: 2026-05-25
 
 ## Purpose
 
-After compaction, continue Pilot Workflow development.
+After compaction, continue Freeflow development.
 
 The next session should choose one path before editing:
 
@@ -18,12 +18,12 @@ Do not assume the path silently.
 - `AGENTS.md`
 - `CONTEXT.md`
 - `docs/adr/`
-- `docs/research/pilot-workflow-artifact-skills.md`
-- `plugins/pilot-workflow/skills/write-spec/SKILL.md`
-- `plugins/pilot-workflow/skills/review-artifact/SKILL.md`
-- `plugins/pilot-workflow/skills/write-plan/SKILL.md`
-- `plugins/pilot-workflow/evals/write-plan-1-report.md`
-- `plugins/pilot-workflow/evals/write-plan-2-report.md`
+- `docs/research/freeflow-artifact-skills.md`
+- `plugins/freeflow/skills/write-spec/SKILL.md`
+- `plugins/freeflow/skills/review-artifact/SKILL.md`
+- `plugins/freeflow/skills/write-plan/SKILL.md`
+- `plugins/freeflow/evals/write-plan-1-report.md`
+- `plugins/freeflow/evals/write-plan-2-report.md`
 
 This handoff is memory, not authority. Inspect live files before editing.
 
@@ -52,7 +52,7 @@ Latest `write-plan` eval:
 
 Report:
 
-- `plugins/pilot-workflow/evals/write-plan-2-report.md`
+- `plugins/freeflow/evals/write-plan-2-report.md`
 
 ## New Issue To Preserve
 
@@ -107,14 +107,14 @@ Use this if momentum matters more than immediately patching the decision-gate is
 References:
 
 - Obra/Superpowers `executing-plans`
-- Existing Pilot skills: `write-plan`, `review-artifact`, `verify-work`
+- Existing Freeflow skills: `write-plan`, `review-artifact`, `verify-work`
 - Matt style: concise, failure-focused, no long manuals
 
 Expected first work:
 
 - Read Obra `executing-plans`.
-- Read current Pilot `workflow`, `verify-work`, `review-work`, and `write-plan`.
-- Draft `plugins/pilot-workflow/skills/execute-plan/SKILL.md`.
+- Read current Freeflow `workflow`, `verify-work`, `review-work`, and `write-plan`.
+- Draft `plugins/freeflow/skills/execute-plan/SKILL.md`.
 - Add focused evals for:
   - Execute from valid plan.
   - Stop on plan/source conflict.
@@ -126,8 +126,8 @@ Use this if the latest failure should be encoded before more workflow skills.
 
 Likely target skills:
 
-- `plugins/pilot-workflow/skills/interview-gate/SKILL.md`
-- Possibly `plugins/pilot-workflow/skills/handoff/SKILL.md`
+- `plugins/freeflow/skills/interview-gate/SKILL.md`
+- Possibly `plugins/freeflow/skills/handoff/SKILL.md`
 
 Expected first eval:
 
@@ -141,23 +141,23 @@ Important: keep wording concise. Do not add a long manual.
 
 Expected dirty state includes:
 
-- Modified `plugins/pilot-workflow/evals/fixture-evals.json`
+- Modified `plugins/freeflow/evals/fixture-evals.json`
 - Untracked artifact skill docs/reports/prompts/fixtures:
-  - `docs/research/pilot-workflow-artifact-skills.md`
+  - `docs/research/freeflow-artifact-skills.md`
   - `docs/handoffs/2026-05-25-artifact-skills-handoff.md`
   - `docs/handoffs/2026-05-25-write-plan-next.md`
   - `docs/handoffs/2026-05-25-execute-plan-or-decision-gate.md`
-  - `plugins/pilot-workflow/skills/write-spec/`
-  - `plugins/pilot-workflow/skills/review-artifact/`
-  - `plugins/pilot-workflow/skills/write-plan/`
-  - `plugins/pilot-workflow/evals/fixtures/tiny-artifact-review-app/`
-  - `plugins/pilot-workflow/evals/fixtures/tiny-plan-app/`
-  - `plugins/pilot-workflow/evals/prompts/wsp-*.txt`
-  - `plugins/pilot-workflow/evals/prompts/rar-*.txt`
-  - `plugins/pilot-workflow/evals/prompts/wpl-*.txt`
-  - `plugins/pilot-workflow/evals/write-spec-*-report.md`
-  - `plugins/pilot-workflow/evals/review-artifact-*-report.md`
-  - `plugins/pilot-workflow/evals/write-plan-*-report.md`
+  - `plugins/freeflow/skills/write-spec/`
+  - `plugins/freeflow/skills/review-artifact/`
+  - `plugins/freeflow/skills/write-plan/`
+  - `plugins/freeflow/evals/fixtures/tiny-artifact-review-app/`
+  - `plugins/freeflow/evals/fixtures/tiny-plan-app/`
+  - `plugins/freeflow/evals/prompts/wsp-*.txt`
+  - `plugins/freeflow/evals/prompts/rar-*.txt`
+  - `plugins/freeflow/evals/prompts/wpl-*.txt`
+  - `plugins/freeflow/evals/write-spec-*-report.md`
+  - `plugins/freeflow/evals/review-artifact-*-report.md`
+  - `plugins/freeflow/evals/write-plan-*-report.md`
 
 Do not clean or delete these unless the user asks.
 

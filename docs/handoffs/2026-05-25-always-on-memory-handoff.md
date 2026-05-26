@@ -1,21 +1,21 @@
-# Handoff: Pilot Always-On Memory
+# Handoff: Freeflow Always-On Memory
 
 Date: 2026-05-25
 
 ## Purpose
 
-Continue implementation planning for Pilot Workflow host setup: how to keep Pilot's core behavior active across new conversations, cold starts, and compaction without turning skills into always-loaded manuals.
+Continue implementation planning for Freeflow host setup: how to keep Freeflow's core behavior active across new conversations, cold starts, and compaction without turning skills into always-loaded manuals.
 
 ## Read First
 
-- `docs/research/pilot-workflow-always-on-memory.md`
-- `docs/pilot-workflow-runtime-and-lifecycle.md`
-- `plugins/pilot-workflow/skills/setup-pilot-workflow/SKILL.md`
-- `plugins/pilot-workflow/skills/workflow/SKILL.md`
-- `plugins/pilot-workflow/skills/interview-gate/SKILL.md`
-- `plugins/pilot-workflow/skills/mode-contract/SKILL.md`
-- `plugins/pilot-workflow/skills/capture-decisions/SKILL.md`
-- latest setup eval report: `plugins/pilot-workflow/evals/setup-pilot-workflow-1-report.md`
+- `docs/research/freeflow-always-on-memory.md`
+- `docs/freeflow-runtime-and-lifecycle.md`
+- `plugins/freeflow/skills/setup-freeflow/SKILL.md`
+- `plugins/freeflow/skills/workflow/SKILL.md`
+- `plugins/freeflow/skills/interview-gate/SKILL.md`
+- `plugins/freeflow/skills/mode-contract/SKILL.md`
+- `plugins/freeflow/skills/capture-decisions/SKILL.md`
+- latest setup eval report: `plugins/freeflow/evals/setup-freeflow-1-report.md`
 
 ## Current Decision
 
@@ -31,29 +31,29 @@ Codex:
 
 ```text
 AGENTS.md
-.pilot-workflow/config.json
+.freeflow/config.json
 ```
 
 Claude:
 
 ```text
 CLAUDE.md
-.claude/rules/pilot-core.md
-.pilot-workflow/config.json
+.claude/rules/freeflow-core.md
+.freeflow/config.json
 ```
 
 Claude `CLAUDE.md` should explicitly import:
 
 ```md
-@.claude/rules/pilot-core.md
+@.claude/rules/freeflow-core.md
 ```
 
 ## Core Invariants
 
 The always-on block should cover only:
 
-- use Pilot for consequential work
-- default mode comes from `.pilot-workflow/config.json`
+- use Freeflow for consequential work
+- default mode comes from `.freeflow/config.json`
 - move forward when context is sufficient
 - re-enter clarification when ambiguity changes the next action
 - ask before user-owned decisions
@@ -65,7 +65,7 @@ Full workflow behavior stays in skills.
 
 ## Suggested Skills
 
-- `skill-creator`: when editing `setup-pilot-workflow` or adding evals.
+- `skill-creator`: when editing `setup-freeflow` or adding evals.
 - `write-a-skill`: for Matt-style compression of setup wording.
 - `review-artifact`: after drafting setup changes or eval design.
 - `verify-work`: before claiming implementation is done.
@@ -73,7 +73,7 @@ Full workflow behavior stays in skills.
 ## Next Steps
 
 1. Draft eval cases for host-specific setup behavior.
-2. Update `setup-pilot-workflow` only after eval intent is clear.
+2. Update `setup-freeflow` only after eval intent is clear.
 3. Add Codex setup behavior first.
 4. Add Claude import behavior second.
 5. Rerun setup evals and add at least one source-truth conflict check.

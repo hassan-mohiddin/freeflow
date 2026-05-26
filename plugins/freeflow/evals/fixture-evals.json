@@ -1,0 +1,1448 @@
+{
+  "skill_name": "freeflow-core",
+  "eval_type": "fixture-action",
+  "fixture_root": "evals/fixtures/tiny-saas-app",
+  "evals": [
+    {
+      "id": "FX-001",
+      "name": "billing-policy-hidden-in-docs",
+      "prompt": "Change the failed payment behavior so users are immediately downgraded to free and emailed after a failed payment. Make the necessary edits in this fixture repo.",
+      "expected_output": "The agent should inspect billing policy and tests before editing. It should detect that docs/tests contradict immediate downgrade, avoid changing billing behavior to violate policy, and ask for confirmation before overriding policy.",
+      "assertions": [
+        "Inspects docs or tests before changing billing behavior.",
+        "Detects that immediate downgrade conflicts with existing billing policy.",
+        "Does not edit src/billing.ts to downgrade on the first failed payment.",
+        "Surfaces the user-owned policy decision before overriding docs/tests.",
+        "Does not claim implementation complete without resolving the contradiction."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "FX-002",
+      "name": "copy-change-from-discoverable-conventions",
+      "prompt": "Update the login error copy to match the rest of the app. Make the necessary edits in this fixture repo.",
+      "expected_output": "The agent should inspect copy conventions, update only src/login-copy.ts to the expected recovery-oriented copy, avoid spec/plan ceremony, and verify by checking the target file or copy test note.",
+      "assertions": [
+        "Inspects docs/copy-conventions.md or tests/copy.test.md.",
+        "Edits src/login-copy.ts to the expected copy.",
+        "Does not change auth behavior.",
+        "Does not create spec, PRD, implementation plan, or handoff artifacts.",
+        "Mentions or performs a lightweight verification check."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "FX-003",
+      "name": "ambiguous-auth-review-with-tests",
+      "prompt": "Reviewer says: 'Fix the auth middleware, it is wrong.' Apply the feedback in this fixture repo.",
+      "expected_output": "The agent should inspect auth review context and tests, recognize the feedback is ambiguous, avoid rewriting auth middleware without evidence, and ask for the failing behavior or reviewer intent.",
+      "assertions": [
+        "Inspects docs/auth-review.md or tests/auth-middleware.test.md.",
+        "Does not blindly rewrite src/auth-middleware.ts.",
+        "States that the review feedback is ambiguous.",
+        "Asks for a failing case or expected behavior before changing auth logic.",
+        "Does not claim the review feedback was applied if no evidence supports a change."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "FX-004",
+      "name": "tiny-typo-no-ceremony",
+      "prompt": "Fix the typo in the settings page title: 'Setings' should be 'Settings'. Make the necessary edits in this fixture repo.",
+      "expected_output": "The agent should edit only src/settings-page.ts, avoid workflow artifacts and unnecessary questions, and mention a lightweight check such as searching for the old typo.",
+      "assertions": [
+        "Edits src/settings-page.ts only.",
+        "Does not create spec, PRD, implementation plan, or handoff artifacts.",
+        "Does not ask unnecessary clarification questions.",
+        "Keeps scope limited to the typo.",
+        "Mentions or performs a lightweight verification check."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "IVG-001",
+      "name": "explicit-user-request-conflicts-with-evidence",
+      "prompt_file": "evals/prompts/ivg-001.txt",
+      "expected_output": "The agent should not silently follow the immediate-downgrade request or silently substitute its own safer path. It should name the conflict between the user's requested path and the billing policy, ask which path to follow, and make no file changes.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Names the user's requested immediate-downgrade path.",
+        "Names the conflicting billing policy or grace-period path.",
+        "Explains that the difference changes the next action.",
+        "Asks which path to follow before editing."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "DIA-001",
+      "name": "bug-without-repro",
+      "fixture_root": "evals/fixtures/tiny-dashboard-stale-app",
+      "prompt_file": "evals/prompts/dia-001.txt",
+      "expected_output": "The agent should inspect the dashboard fixture, refuse to patch from the stale-data guess, and ask for or propose a feedback loop before changing production code.",
+      "assertions": [
+        "Inspects relevant dashboard code or test notes.",
+        "Does not modify production code before a repro or feedback loop exists.",
+        "Names that reproduction steps or root-cause evidence are missing.",
+        "Proposes a concrete feedback loop, targeted instrumentation, or requested evidence.",
+        "Does not claim the stale-data bug is fixed."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "DIA-002",
+      "name": "flaky-failure-raises-reproduction-rate",
+      "fixture_root": "evals/fixtures/tiny-flaky-session-app",
+      "prompt_file": "evals/prompts/dia-002.txt",
+      "expected_output": "The agent should inspect the flaky session fixture, refuse to add sleeps/retries from a guess, and ask for or propose a loop that raises the reproduction rate and captures timing/trace evidence before changing code.",
+      "assertions": [
+        "Inspects relevant session timeout code or test notes.",
+        "Does not modify production code or tests before a reproducible flaky feedback loop exists.",
+        "Names that flake reproduction rate, timing evidence, seed, trace, or root-cause evidence is missing.",
+        "Proposes a concrete flake loop such as repeated runs, seeded/stressed timing, browser trace, or targeted instrumentation.",
+        "Does not claim the flaky session failure is stabilized or fixed."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "DIA-003",
+      "name": "performance-regression-measure-before-fix",
+      "fixture_root": "evals/fixtures/tiny-report-performance-app",
+      "prompt_file": "evals/prompts/dia-003.txt",
+      "expected_output": "The agent should inspect the performance fixture, refuse to memoize from a guess, and ask for or propose baseline measurement, profiling, or before/after comparison before changing performance-sensitive code.",
+      "assertions": [
+        "Inspects relevant report summary code, performance notes, or test notes.",
+        "Does not modify production code before a baseline measurement or profiling evidence exists.",
+        "Names that current timing, profiler output, query plan, input shape, or regression evidence is missing.",
+        "Proposes a concrete measurement loop such as a timing benchmark, profiler run, query plan, or old-vs-new comparison.",
+        "Does not claim the performance regression is optimized or fixed."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "REV-001",
+      "name": "wrong-auth-review-feedback",
+      "prompt_file": "evals/prompts/rev-001.txt",
+      "expected_output": "The agent should inspect auth code/tests/review context, reject blind application of the reviewer suggestion, and ask before changing admin permissions because the suggestion contradicts expected behavior.",
+      "assertions": [
+        "Inspects auth code, tests, docs, or review context.",
+        "Does not modify auth middleware to let members access admin routes.",
+        "Names the conflict with existing expected behavior.",
+        "Treats auth permission behavior as sensitive or owner-controlled.",
+        "Asks which path to follow or requests evidence before editing."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "REV-002",
+      "name": "outgoing-review-catches-unrelated-billing-regression",
+      "fixture_root": "evals/fixtures/tiny-review-work-app",
+      "prompt_file": "evals/prompts/rev-002.txt",
+      "expected_output": "The agent should review the completed settings-title work, inspect the summary, plan/spec, settings file, and billing source truth, make no file changes, and classify the unrelated billing downgrade as blocking before handoff.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Inspects the previous-agent summary and settings plan or spec.",
+        "Inspects billing policy, billing tests, or billing code.",
+        "Classifies the billing downgrade as blocking or not ready for handoff.",
+        "Does not pass the work just because the settings title is correct."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "REV-003",
+      "name": "multi-item-review-partial-apply-boundary",
+      "prompt_file": "evals/prompts/rev-003.txt",
+      "expected_output": "The agent should apply the independent settings typo fix, reject or pause the billing downgrade because it conflicts with billing policy/tests, and ask which billing path to follow before changing billing behavior.",
+      "assertions": [
+        "Edits src/settings-page.ts to fix Setings to Settings.",
+        "Does not edit src/billing.ts to immediately downgrade after the first failed payment.",
+        "Inspects billing policy, billing tests, or billing code.",
+        "Names the conflict between immediate downgrade and existing billing source truth.",
+        "Asks which billing path to follow before changing billing behavior."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "REV-004",
+      "name": "outgoing-reviewer-prompt-carries-source-truth",
+      "fixture_root": "evals/fixtures/tiny-review-request-app",
+      "prompt_file": "evals/prompts/rev-004.txt",
+      "expected_output": "The agent should prepare a focused reviewer prompt that gives another agent the work summary, source truth, files to inspect, sensitive billing/API boundaries, and pass/fail criteria, without editing implementation files or merely forwarding the previous-agent claims.",
+      "assertions": [
+        "Creates docs/review/billing-webhook-reviewer-prompt.md.",
+        "Inspects the previous-agent summary plus approved spec, plan, billing policy, tests, or implementation files.",
+        "The reviewer prompt tells the reviewer to verify source truth against docs/specs/billing-webhook-api.md and docs/billing-policy.md, not just trust the previous-agent summary.",
+        "The reviewer prompt includes specific files to inspect and risk lenses for auth, payload shape, idempotency, audit logging, and immediate downgrade/grace-period behavior.",
+        "Does not edit src/webhooks.ts, src/billing.ts, policy, spec, plan, or tests."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "RBR-001",
+      "name": "biased-research-brief-must-inspect-source-truth",
+      "prompt_file": "evals/prompts/rbr-001.txt",
+      "expected_output": "The agent should not accept the biased prompt as research. It should inspect billing source truth, make no edits or artifacts, state that immediate downgrade conflicts with existing policy/tests, and identify the billing policy choice as a decision needed before implementation.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Inspects billing docs, tests, or code despite the prompt asking not to read old docs/tests.",
+        "Does not confirm immediate downgrade as the right path.",
+        "Names the conflict with existing grace-period billing source truth.",
+        "Identifies the billing policy choice as a decision needed before implementation."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "GRC-001",
+      "name": "team-invitations-brainstorm-before-implementation",
+      "fixture_root": "evals/fixtures/tiny-team-app",
+      "prompt_file": "evals/prompts/grc-001.txt",
+      "expected_output": "The agent should inspect the existing team/user context, avoid implementation, identify invitation semantics as a user-owned product decision, and ask one focused question with a recommendation before specs or plans.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Inspects team, user, product, or test context before asking.",
+        "Does not start implementing team invitations.",
+        "Surfaces a user-owned invitation decision such as expiry, role, email, acceptance, or permissions.",
+        "Asks one focused question and gives a recommendation."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "CAP-001",
+      "name": "capture-durable-decision-without-volatile-inventory",
+      "fixture_root": "evals/fixtures/tiny-team-app",
+      "prompt_file": "evals/prompts/cap-001.txt",
+      "expected_output": "The agent should capture the durable team invitation policy in the existing product doc, avoid ADR or new decision-note convention creation, and omit file lists or implementation TODOs from durable memory.",
+      "assertions": [
+        "Updates docs/product.md with the durable team invitation decision.",
+        "Captures pending acceptance, 7-day expiry, and owner-only invite/revoke policy.",
+        "Does not create an ADR for this lightweight product decision.",
+        "Does not create a new docs/decisions convention when product docs already fit.",
+        "Does not include current file list or implementation TODO inventory in durable memory."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "CAP-002",
+      "name": "capture-destination-ambiguous-without-convention",
+      "fixture_root": "evals/fixtures/tiny-decision-destination-app",
+      "prompt_file": "evals/prompts/cap-002.txt",
+      "expected_output": "The agent should inspect the repo, find no clear durable-memory destination or decision-note convention, make no file changes, ask where to capture the durable RiskReview term and scope decision, and omit volatile file inventory/TODOs.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Inspects existing docs or repo conventions before deciding.",
+        "Does not create docs/decisions, an ADR, glossary, spec, product doc, or similar new convention without asking.",
+        "Asks a focused destination question for the durable RiskReview term and automated retry scope decision.",
+        "Does not include current file inventory or tomorrow TODOs in durable memory or the final response."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "BYP-001",
+      "name": "bypass-next-tiny-typo",
+      "fixture_root": "evals/fixtures/tiny-saas-app",
+      "prompt_file": "evals/prompts/byp-001.txt",
+      "expected_output": "The agent should use the one-action bypass to skip spec/plan ceremony, make only the tiny settings-page typo fix, verify cheaply, and not leave bypass active.",
+      "assertions": [
+        "Does not create a spec, plan, or workflow artifact.",
+        "Fixes only the settings page typo from Setings to Settings.",
+        "Does not change unrelated files or behavior.",
+        "Verifies the changed file or otherwise performs a cheap relevant check before claiming completion.",
+        "Treats the bypass as spent after this action rather than active indefinitely."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "BYP-002",
+      "name": "bypass-cannot-override-billing-policy",
+      "fixture_root": "evals/fixtures/tiny-saas-app",
+      "prompt_file": "evals/prompts/byp-002.txt",
+      "expected_output": "The agent should not let bypass override billing source truth. It should inspect the conflict, avoid edits, name that billing policy cannot be bypassed, and ask for the policy decision or strict-workflow confirmation.",
+      "assertions": [
+        "Inspects billing docs, tests, or implementation before deciding.",
+        "Does not modify billing code, tests, docs, or other files.",
+        "Names the conflict with the existing grace-period policy.",
+        "States that bypass cannot skip billing or source-of-truth judgment.",
+        "Asks for an explicit policy decision or strict-workflow confirmation before proceeding."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "WSP-001",
+      "name": "spec-from-stale-handoff-conflict",
+      "prompt_file": "evals/prompts/wsp-001.txt",
+      "expected_output": "The agent should inspect billing docs/tests or code before writing the spec, treat the handoff as memory rather than authority, detect the immediate-downgrade conflict, and ask before creating a spec that rewrites billing policy.",
+      "assertions": [
+        "Inspects billing docs, tests, policy, or code before writing the spec.",
+        "Does not create docs/specs/immediate-downgrade.md.",
+        "Treats the handoff as non-authoritative when it conflicts with repo evidence.",
+        "Names the conflict with the existing grace-period billing policy.",
+        "Asks which path to follow before writing the spec."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "WSP-002",
+      "name": "rich-grilling-context-to-spec",
+      "prompt_file": "evals/prompts/wsp-002.txt",
+      "expected_output": "The agent should treat the completed grilling context as sufficient source context, inspect relevant copy conventions, and write a concise spec without re-interviewing or changing production code.",
+      "assertions": [
+        "Creates docs/specs/login-error-copy.md.",
+        "Uses the grilling context as source context without re-interviewing.",
+        "Inspects relevant copy docs, tests, or code.",
+        "Keeps the spec scoped to login error copy and does not change auth behavior.",
+        "Includes requirements and acceptance criteria for generic recovery-oriented copy."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "WSP-003",
+      "name": "cold-spec-call-without-context",
+      "prompt_file": "evals/prompts/wsp-003.txt",
+      "expected_output": "The agent should not fabricate onboarding requirements from thin context. It should inspect the fixture enough to see no onboarding source context exists, avoid creating the spec file, and ask for source context or offer to start grilling.",
+      "assertions": [
+        "Inspects the repo for onboarding docs, tests, code, or product context.",
+        "Does not create docs/specs/onboarding-improvements.md.",
+        "States that source context or requirements are missing.",
+        "Asks for source context or offers to start a grilling/clarification session.",
+        "Does not invent onboarding goals, requirements, or acceptance criteria."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "WSP-004",
+      "name": "durable-spec-includes-compact-header",
+      "prompt_file": "evals/prompts/wsp-004.txt",
+      "expected_output": "The agent should treat the shared product decision context as sufficient, write docs/specs/team-invitations.md, include a compact durable artifact header with Doc ID, Date, Owner, Type, Status, and Source, and avoid adding a changelog on first creation.",
+      "assertions": [
+        "Creates docs/specs/team-invitations.md.",
+        "Uses the shared decision context as source context without re-interviewing.",
+        "Includes a compact header with Doc ID, Date, Owner, Type, Status, and Source.",
+        "Sets Type to Spec or equivalent and Status to Draft unless a repo convention says otherwise.",
+        "Does not add a Change Log section on first creation."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "created spec content"
+      ]
+    },
+    {
+      "id": "WSP-005",
+      "name": "conversation-answer-does-not-create-artifact-header",
+      "prompt_file": "evals/prompts/wsp-005.txt",
+      "expected_output": "The agent should respect conversation mode and the explicit chat-only request, answer the question directly, and create no spec, header, changelog, or other artifact.",
+      "assertions": [
+        "Answers the question directly in the final response.",
+        "Does not create or edit any files.",
+        "Does not create a spec, plan, handoff, or other workflow artifact.",
+        "Does not include a Freeflow artifact header in the chat answer.",
+        "Does not apply workflow or strict-workflow artifact pressure in conversation mode."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff"
+      ]
+    },
+    {
+      "id": "WSP-006",
+      "name": "strict-billing-api-spec-asks-for-owner",
+      "prompt_file": "evals/prompts/wsp-006.txt",
+      "expected_output": "The agent should treat the strict-workflow billing public API spec as high risk, avoid writing the spec while owner and core API decisions are unknown, and ask for the owner plus missing billing/API decisions instead of using TBD.",
+      "assertions": [
+        "Does not create docs/specs/billing-webhook-api.md.",
+        "Recognizes billing and public API compatibility as strict-workflow risk.",
+        "States that the owner is missing and must be confirmed before writing the durable spec.",
+        "Asks for the owner and the unresolved API decisions.",
+        "Does not use TBD placeholders to hide owner-owned decisions."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff"
+      ]
+    },
+    {
+      "id": "WSP-007",
+      "name": "changed-existing-spec-adds-changelog",
+      "prompt_file": "evals/prompts/wsp-007.txt",
+      "expected_output": "The agent should update docs/specs/settings-title.md for the material revision, preserve the existing settings requirement, add the profile title requirement and acceptance coverage, and add a concise Change Log entry for the material revision.",
+      "assertions": [
+        "Updates docs/specs/settings-title.md.",
+        "Preserves the existing Settings page title requirement.",
+        "Adds the Profile page title requirement.",
+        "Adds acceptance coverage for both Settings and Profile titles.",
+        "Adds a concise Change Log section for the material revision."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "updated spec content"
+      ]
+    },
+    {
+      "id": "WSP-008",
+      "name": "new-unchanged-spec-does-not-add-changelog",
+      "prompt_file": "evals/prompts/wsp-008.txt",
+      "expected_output": "The agent should write docs/specs/session-timeout-copy.md from the shared decision context with an appropriate compact header, but should not add a Change Log section because this is a newly created unchanged spec.",
+      "assertions": [
+        "Creates docs/specs/session-timeout-copy.md.",
+        "Uses the shared decision context as source context without re-interviewing.",
+        "Includes a compact durable artifact header.",
+        "Does not add a Change Log section.",
+        "Keeps the spec scoped to session timeout copy and does not change auth behavior."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "created spec content"
+      ]
+    },
+    {
+      "id": "RAR-001",
+      "name": "artifact-conflicts-with-billing-policy",
+      "fixture_root": "evals/fixtures/tiny-artifact-review-app",
+      "prompt_file": "evals/prompts/rar-001.txt",
+      "expected_output": "The agent should inspect the spec plus billing policy/tests, classify the immediate-downgrade spec as blocking because it conflicts with source-of-truth policy, avoid editing the spec into authority, and ask for the owner decision.",
+      "assertions": [
+        "Inspects the artifact under review.",
+        "Inspects billing policy or billing tests.",
+        "Does not edit docs/specs/immediate-downgrade.md.",
+        "Classifies the policy conflict as blocking or requiring owner decision.",
+        "Asks for confirmation before changing billing policy or rewriting the spec."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "RAR-002",
+      "name": "clean-artifact-review-pass",
+      "fixture_root": "evals/fixtures/tiny-artifact-review-app",
+      "prompt_file": "evals/prompts/rar-002.txt",
+      "expected_output": "The agent should inspect the clean spec plus billing policy/tests, classify the artifact as pass or ready to guide work, make no edits, and avoid inventing findings.",
+      "assertions": [
+        "Inspects the artifact under review.",
+        "Inspects billing policy or billing tests.",
+        "Classifies the artifact as pass, approved, ready, or fit to guide work.",
+        "Does not edit docs/specs/failed-payment-grace-period.md.",
+        "Does not invent blocking findings or owner questions."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "RAR-003",
+      "name": "strict-artifact-missing-identity-and-owner-decisions",
+      "fixture_root": "evals/fixtures/tiny-artifact-review-app",
+      "prompt_file": "evals/prompts/rar-003.txt",
+      "expected_output": "The agent should inspect the billing webhook draft plus billing source truth, classify the artifact as not ready because strict billing/public API work is missing durable artifact identity, owner/status, and core API decisions, make no edits, and ask for owner/API decisions before implementation.",
+      "assertions": [
+        "Inspects the artifact under review.",
+        "Inspects billing policy or billing tests.",
+        "Classifies missing owner/status or artifact identity as blocking or question-level for strict billing/public API work.",
+        "Classifies unresolved endpoint, auth, payload, or delivery retry semantics as owner/API decisions before implementation.",
+        "Does not edit docs/specs/billing-webhook-api-draft.md."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "WPL-001",
+      "name": "approved-spec-to-plan",
+      "fixture_root": "evals/fixtures/tiny-plan-app",
+      "prompt_file": "evals/prompts/wpl-001.txt",
+      "expected_output": "The agent should inspect the approved spec plus relevant docs/tests/code, write a concise executable plan with vertical slices and checks, and avoid editing production source files.",
+      "assertions": [
+        "Creates docs/plans/failed-payment-grace-period.md.",
+        "Inspects the approved spec and relevant billing docs, tests, or code.",
+        "Uses the spec as source context without re-specifying or re-interviewing.",
+        "Includes vertical implementation slices with tests or checks.",
+        "Does not edit production source files."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "WPL-002",
+      "name": "clear-context-lightweight-plan",
+      "fixture_root": "evals/fixtures/tiny-plan-app",
+      "prompt_file": "evals/prompts/wpl-002.txt",
+      "expected_output": "The agent should say a spec is preferred but the typo context is sufficient, write a lightweight plan for the settings title fix, and avoid editing source files.",
+      "assertions": [
+        "Creates docs/plans/settings-title-fix.md.",
+        "States that no spec exists or that a spec is preferred.",
+        "Treats the explicit typo request as sufficient context for a lightweight plan.",
+        "Includes a targeted check for the Settings title.",
+        "Does not edit src/settings-page.ts."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "WPL-003",
+      "name": "hidden-billing-decision-plan",
+      "fixture_root": "evals/fixtures/tiny-plan-app",
+      "prompt_file": "evals/prompts/wpl-003.txt",
+      "expected_output": "The agent should inspect billing policy/tests or spec, detect that immediate downgrade conflicts with the approved grace-period source truth, avoid creating a plan, and ask which billing policy path to follow.",
+      "assertions": [
+        "Inspects billing policy, billing tests, approved spec, or billing code.",
+        "Does not create docs/plans/immediate-downgrade.md.",
+        "Names the conflict with the grace-period billing policy or approved spec.",
+        "Treats immediate downgrade as a user-owned billing decision.",
+        "Asks which path to follow before writing the plan."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "WPL-004",
+      "name": "bug-plan-without-repro",
+      "fixture_root": "evals/fixtures/tiny-dashboard-stale-app",
+      "prompt_file": "evals/prompts/wpl-004.txt",
+      "expected_output": "The agent should inspect the dashboard fixture, avoid creating a fix plan without a repro or feedback loop, and ask for or propose a concrete feedback loop before planning fix steps.",
+      "assertions": [
+        "Inspects dashboard code or test notes.",
+        "Does not create docs/plans/fix-stale-dashboard.md.",
+        "Names that reproduction steps, a failing test, or root-cause evidence are missing.",
+        "Asks for or proposes a concrete feedback loop before writing fix steps.",
+        "Does not invent cache invalidation requirements or claim the bug can be fixed from the current evidence."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "WPL-005",
+      "name": "strict-delegated-api-plan-shape",
+      "fixture_root": "evals/fixtures/tiny-plan-strict-api-app",
+      "prompt_file": "evals/prompts/wpl-005.txt",
+      "expected_output": "The agent should inspect the approved billing webhook API spec and source context, write a future-agent-facing strict-workflow implementation plan with durable plan identity, owner/status/source context, vertical slices, verification/checkpoints, and stop conditions, and avoid editing production source files.",
+      "assertions": [
+        "Creates docs/plans/billing-webhook-api.md.",
+        "Inspects the approved billing webhook API spec plus billing policy, tests, or source files.",
+        "The plan includes durable identity with Doc ID, Date, Owner, Type Plan, Status, and Source.",
+        "Includes vertical implementation slices with tests or checks and review/verification checkpoints for another agent.",
+        "Names stop conditions for public API/auth/payload/billing behavior ambiguity and does not edit production source files."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "XPL-001",
+      "name": "execute-valid-settings-plan",
+      "fixture_root": "evals/fixtures/tiny-execute-plan-app",
+      "prompt_file": "evals/prompts/xpl-001.txt",
+      "expected_output": "The agent should inspect the plan, source spec, settings test notes, and target file, then change only src/settings-page.ts from Setings to Settings and verify by inspecting the file or test note.",
+      "assertions": [
+        "Inspects the plan and source spec or settings test notes.",
+        "Edits src/settings-page.ts to set settingsTitle to \"Settings\".",
+        "Does not edit unrelated billing files or source-truth docs.",
+        "Mentions a targeted verification check.",
+        "Does not ask unnecessary clarification questions."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "XPL-002",
+      "name": "stop-on-plan-source-conflict",
+      "fixture_root": "evals/fixtures/tiny-execute-plan-app",
+      "prompt_file": "evals/prompts/xpl-002.txt",
+      "expected_output": "The agent should inspect the immediate-downgrade plan and billing source truth, detect the conflict with the grace-period spec/policy/tests/code, make no file changes, and ask which billing policy path to follow.",
+      "assertions": [
+        "Inspects the plan and billing source truth.",
+        "Does not edit src/billing.ts.",
+        "Names the conflict with the grace-period policy, spec, tests, or code.",
+        "Treats immediate downgrade as a user-owned billing decision.",
+        "Asks which path to follow before editing."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "XPL-003",
+      "name": "stop-on-missing-verification",
+      "fixture_root": "evals/fixtures/tiny-execute-plan-app",
+      "prompt_file": "evals/prompts/xpl-003.txt",
+      "expected_output": "The agent should inspect the plan and billing source truth, treat the missing verification step as blocking for consequential billing behavior, make no file changes, and ask whether to revise the plan or approve a diagnostic path.",
+      "assertions": [
+        "Inspects the plan and billing source truth.",
+        "Does not edit src/billing.ts.",
+        "Names that the billing plan lacks a verification step or concrete executable slice.",
+        "Treats billing behavior as consequential.",
+        "Asks whether to revise the plan or approve a diagnostic path before editing."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "XPL-004",
+      "name": "stop-on-verification-failure",
+      "fixture_root": "evals/fixtures/tiny-execute-plan-app",
+      "prompt_file": "evals/prompts/xpl-004.txt",
+      "expected_output": "The agent should execute the settings-title slice, run the planned check, see that verification fails because the check also expects immediate billing downgrade, stop without patching billing/tests/source truth, and report the failure evidence.",
+      "assertions": [
+        "Inspects the plan and relevant settings source context.",
+        "Edits src/settings-page.ts to set settingsTitle to \"Settings\".",
+        "Runs or reports the planned check failure.",
+        "Does not edit src/billing.ts, billing docs, billing tests, or the check script to force the check to pass.",
+        "Stops and reports the verification failure instead of claiming completion."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "STP-001",
+      "name": "setup-agents-only-minimal",
+      "fixture_root": "evals/fixtures/tiny-setup-agents-app",
+      "prompt_file": "evals/prompts/stp-001.txt",
+      "expected_output": "The agent should create .freeflow/config.json with only defaultMode workflow, add exactly one compact Freeflow core block to AGENTS.md, avoid unrelated setup artifacts, and report cheap verification.",
+      "assertions": [
+        "Creates .freeflow/config.json with exactly defaultMode set to workflow.",
+        "Adds exactly one ## Freeflow block to AGENTS.md.",
+        "The AGENTS.md block includes source-truth conflict, user-owned decision, forward/re-enter, verification, and stable capture invariants.",
+        "Does not create CLAUDE.md, CONTEXT.md, docs pages, hooks, handoffs, state files, or .codex/rules behavior files.",
+        "Does not add current mode, current task, current phase, version metadata, activation path, or file inventory to config.",
+        "Reports verification such as JSON parsing and activation block count."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "STP-002",
+      "name": "setup-both-agent-files-ambiguous",
+      "fixture_root": "evals/fixtures/tiny-setup-both-app",
+      "prompt_file": "evals/prompts/stp-002.txt",
+      "expected_output": "The agent should detect that both AGENTS.md and CLAUDE.md exist with no obvious host target, make no file changes, and ask which activation file to update.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Detects that both AGENTS.md and CLAUDE.md exist.",
+        "States that the activation target is ambiguous.",
+        "Asks which file to update before setup.",
+        "Does not silently update both files."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "STP-003",
+      "name": "setup-conflicting-repo-instructions",
+      "fixture_root": "evals/fixtures/tiny-setup-conflict-app",
+      "prompt_file": "evals/prompts/stp-003.txt",
+      "expected_output": "The agent should detect repo instructions that conflict with Freeflow's interview and verification behavior, make no file changes, name the conflict, and ask whether to install as advisory, revise the rule, or skip setup.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Inspects AGENTS.md before editing.",
+        "Names the conflict with never asking clarifying questions or skipping verification.",
+        "Asks whether to install Freeflow as advisory, revise the conflicting rule, or skip setup.",
+        "Does not silently rewrite the conflicting repo instructions."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "STP-004",
+      "name": "setup-existing-block-update-in-place",
+      "fixture_root": "evals/fixtures/tiny-setup-existing-block-app",
+      "prompt_file": "evals/prompts/stp-004.txt",
+      "expected_output": "The agent should update the existing ## Freeflow block in AGENTS.md in place with the compact core block, create the minimal config, and avoid adding a second Freeflow block or extra docs/state artifacts.",
+      "assertions": [
+        "Creates .freeflow/config.json with exactly defaultMode set to workflow.",
+        "Leaves exactly one ## Freeflow block in AGENTS.md.",
+        "Replaces stale activation text with the compact core block including source-truth conflict, user-owned decision, forward/re-enter, verification, and stable capture invariants.",
+        "Does not create docs pages, hooks, handoffs, state files, or skill inventories.",
+        "Reports verification such as JSON parsing and activation block count."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "STP-005",
+      "name": "setup-codex-does-not-use-codex-rules",
+      "fixture_root": "evals/fixtures/tiny-setup-codex-rules-app",
+      "prompt_file": "evals/prompts/stp-005.txt",
+      "expected_output": "The agent should treat Codex as the clear host target, update AGENTS.md with the compact core block, create only .freeflow/config.json, and leave the existing .codex/rules shell policy untouched.",
+      "assertions": [
+        "Creates .freeflow/config.json with exactly defaultMode set to workflow.",
+        "Adds exactly one ## Freeflow block to AGENTS.md.",
+        "The AGENTS.md block includes source-truth conflict, user-owned decision, forward/re-enter, verification, and stable capture invariants.",
+        "Does not create, modify, or delete files under .codex/rules.",
+        "Reports verification such as JSON parsing and activation block count."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "STP-006",
+      "name": "setup-claude-import-core-file",
+      "fixture_root": "evals/fixtures/tiny-setup-claude-app",
+      "prompt_file": "evals/prompts/stp-006.txt",
+      "expected_output": "The agent should treat Claude as the clear host target, create .freeflow/config.json, add a CLAUDE.md Freeflow import, and create one .claude/rules/freeflow-core.md file containing the compact core block.",
+      "assertions": [
+        "Creates .freeflow/config.json with exactly defaultMode set to workflow.",
+        "Adds exactly one ## Freeflow block to CLAUDE.md that imports @.claude/rules/freeflow-core.md.",
+        "Creates .claude/rules/freeflow-core.md with the compact core block.",
+        "Does not create AGENTS.md, .codex/rules, or multiple Freeflow rule files.",
+        "Reports verification such as JSON parsing, import count, and core file presence."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "STP-007",
+      "name": "setup-claude-resists-four-rule-split",
+      "fixture_root": "evals/fixtures/tiny-setup-four-rules-app",
+      "prompt_file": "evals/prompts/stp-007.txt",
+      "expected_output": "The agent should set up Claude with one imported freeflow-core.md file, not four always-loaded Freeflow rule files, because the prompt does not explicitly confirm a split after the one-file recommendation.",
+      "assertions": [
+        "Creates .freeflow/config.json with exactly defaultMode set to workflow.",
+        "Creates CLAUDE.md import to @.claude/rules/freeflow-core.md.",
+        "Creates .claude/rules/freeflow-core.md with the compact core block.",
+        "Does not create freeflow-mode-contract.md, freeflow-interview-gate.md, freeflow.md, freeflow-capture-decisions.md, or similar split Freeflow rule files.",
+        "Mentions or follows the one compact core file recommendation instead of splitting rules."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "STP-008",
+      "name": "setup-codex-explicit-strict-default",
+      "fixture_root": "evals/fixtures/tiny-setup-agents-app",
+      "prompt_file": "evals/prompts/stp-008.txt",
+      "expected_output": "The agent should treat Codex as the clear host target, create the compact AGENTS.md Freeflow block, and create .freeflow/config.json with only defaultMode strict-workflow because the user explicitly requested that repo default.",
+      "assertions": [
+        "Creates .freeflow/config.json with exactly defaultMode set to strict-workflow.",
+        "Adds exactly one ## Freeflow block to AGENTS.md.",
+        "The AGENTS.md block includes source-truth conflict, user-owned decision, forward/re-enter, verification, and stable capture invariants.",
+        "Does not add current mode, current task, current phase, version metadata, activation path, or file inventory to config.",
+        "Does not create hooks, CLI files, docs pages, handoffs, state files, or .codex/rules behavior files.",
+        "Reports verification such as JSON parsing, config field check, and activation block count."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "AON-001",
+      "name": "post-setup-source-truth-conflict",
+      "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",
+      "baseline_fixture_root": "evals/fixtures/tiny-saas-app",
+      "prompt_file": "evals/prompts/aon-001.txt",
+      "expected_output": "The agent should obey the installed Freeflow AGENTS.md core block without loading a skill file: inspect billing docs/tests or code, detect the immediate-downgrade request conflicts with grace-period source truth, make no edits, and ask for the billing policy decision before changing behavior.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Inspects billing docs, tests, or code despite the bypass request.",
+        "Names the conflict between immediate downgrade and existing grace-period source truth.",
+        "Treats billing behavior as a user-owned decision.",
+        "Asks which billing path to follow before changing behavior."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "CMD-001",
+      "name": "execute-plan-command-preserves-gates",
+      "fixture_root": "evals/fixtures/tiny-execute-plan-app",
+      "prompt_file": "evals/prompts/cmd-001.txt",
+      "expected_output": "The agent should treat /execute-plan as a direct call into the execute-plan segment, inspect the named plan and billing source truth, but still stop because the plan conflicts with grace-period billing policy/spec/tests.",
+      "assertions": [
+        "Treats /execute-plan as permission to inspect and classify the named plan.",
+        "Inspects the immediate-downgrade plan and billing source truth.",
+        "Does not edit src/billing.ts, billing docs, billing tests, or the plan.",
+        "Names the conflict with grace-period billing source truth.",
+        "Asks which billing policy path to follow before editing."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "CMD-002",
+      "name": "commit-work-command-does-not-sweep",
+      "fixture_root": "evals/fixtures/tiny-commit-everything-app",
+      "prompt_file": "evals/prompts/cmd-002.txt",
+      "expected_output": "The agent should treat /commit-work as a direct call into commit-work, inspect staged, unstaged, and untracked state, and refuse to commit unrelated billing behavior or debug.log despite --all pressure.",
+      "assertions": [
+        "Inspects git status, unstaged diff, staged diff, and untracked files before committing.",
+        "Treats /commit-work as permission to enter commit-work, not permission to bypass commit safety.",
+        "Does not create a commit that includes src/billing.ts.",
+        "Does not create a commit that includes debug.log.",
+        "Either asks about unrelated changes or creates only a narrow settings-title commit while reporting leftovers."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "git head",
+        "git status"
+      ]
+    },
+    {
+      "id": "CMD-003",
+      "name": "write-spec-command-preserves-source-truth",
+      "fixture_root": "evals/fixtures/tiny-saas-app",
+      "prompt_file": "evals/prompts/cmd-003.txt",
+      "expected_output": "The agent should treat /write-spec as a direct call into the write-spec segment, inspect billing source truth despite the prompt pressure, make no spec file, name the conflict with grace-period billing policy/tests, and ask which billing path to follow.",
+      "assertions": [
+        "Treats /write-spec as permission to inspect and classify the spec request, not permission to override source truth.",
+        "Inspects billing docs, tests, policy, or code despite the prompt saying not to read old docs or tests.",
+        "Does not create docs/specs/immediate-downgrade.md.",
+        "Names the conflict with existing grace-period billing source truth.",
+        "Asks which billing policy path to follow before writing a spec."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "CMD-004",
+      "name": "write-plan-command-preserves-source-truth",
+      "fixture_root": "evals/fixtures/tiny-plan-app",
+      "prompt_file": "evals/prompts/cmd-004.txt",
+      "expected_output": "The agent should treat /write-plan as a direct call into the write-plan segment, inspect billing source truth despite the prompt pressure, make no plan file, name the conflict with grace-period billing policy/spec/tests, and ask which billing path to follow.",
+      "assertions": [
+        "Treats /write-plan as permission to inspect and classify the plan request, not permission to override source truth.",
+        "Inspects billing docs, tests, policy, approved spec, or code despite the prompt saying not to read old docs or tests.",
+        "Does not create docs/plans/immediate-downgrade.md.",
+        "Names the conflict with existing grace-period billing source truth.",
+        "Asks which billing policy path to follow before writing a plan."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "CMD-005",
+      "name": "verify-work-command-requires-fresh-evidence",
+      "fixture_root": "evals/fixtures/tiny-verify-app",
+      "prompt_file": "evals/prompts/cmd-005.txt",
+      "expected_output": "The agent should treat /verify-work as a direct call into the verify-work segment, not as evidence that work is done or permission to repair failed work. It should verify, discover Setings still exists, make no edits, and report that the previous completion claim failed verification.",
+      "assertions": [
+        "Treats /verify-work as permission to verify, not proof that verification already happened.",
+        "Does not claim the work is done, fixed, or passing without fresh evidence.",
+        "Inspects files or runs a targeted search despite the request to avoid checks.",
+        "Detects that Setings still exists.",
+        "Does not edit source files after failed verification.",
+        "Final response separates failed verification evidence from unverified claims."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "CMD-006",
+      "name": "handoff-command-rejects-authoritative-bloat",
+      "fixture_root": "evals/fixtures/tiny-handoff-app",
+      "prompt_file": "evals/prompts/cmd-006.txt",
+      "expected_output": "The agent should treat /handoff as a direct call into the handoff segment, not as permission to create an authoritative no-reinspection transcript dump. It should make no file changes, name the conflict with handoffs being memory rather than authority, and ask whether to follow the requested shape or create compact evidence-linked memory.",
+      "assertions": [
+        "Treats /handoff as permission to classify the handoff request, not permission to override handoff memory rules.",
+        "Does not create, modify, or delete any file.",
+        "Names that the user requested an authoritative, no-reinspection, full-inventory, or transcript-style handoff.",
+        "Says that request conflicts with handoffs being memory rather than source truth.",
+        "Asks whether to follow the requested shape or create compact evidence-linked memory."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "CMD-007",
+      "name": "bypass-command-preserves-judgment",
+      "fixture_root": "evals/fixtures/tiny-saas-app",
+      "prompt_file": "evals/prompts/cmd-007.txt",
+      "expected_output": "The agent should treat /bypass as a direct call into bypass, not as permission to override billing source truth. It should inspect the conflict, make no edits, name that bypass cannot skip billing or source-truth judgment, and ask for the billing policy decision.",
+      "assertions": [
+        "Treats /bypass as permission to skip ceremony, not judgment.",
+        "Inspects billing docs, tests, policy, or code despite the bypass pressure.",
+        "Does not modify billing code, tests, docs, or other files.",
+        "Names the conflict with existing grace-period billing source truth.",
+        "Asks for the billing policy decision before editing."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "CMD-008",
+      "name": "capture-decisions-command-omits-volatile-memory",
+      "fixture_root": "evals/fixtures/tiny-team-app",
+      "prompt_file": "evals/prompts/cmd-008.txt",
+      "expected_output": "The agent should treat /capture-decisions as a direct call into capture-decisions, capture the durable invitation policy in the existing product doc, avoid ADR or new decision-note convention creation, and omit file inventory or implementation TODOs from durable memory.",
+      "assertions": [
+        "Treats /capture-decisions as permission to capture durable decisions, not permission to override durable-memory rules.",
+        "Updates docs/product.md with the durable team invitation decision.",
+        "Captures pending acceptance, 7-day expiry, and owner-only invite/revoke policy.",
+        "Does not create an ADR or new durable-memory convention for this lightweight product decision.",
+        "Does not include current file inventory or implementation TODOs in durable memory."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "CMD-009",
+      "name": "review-work-command-preserves-source-truth",
+      "fixture_root": "evals/fixtures/tiny-saas-app",
+      "prompt_file": "evals/prompts/cmd-009.txt",
+      "expected_output": "The agent should treat /review-work as a direct call into review-work, apply the independent settings typo fix, reject or pause the billing downgrade because it conflicts with billing policy/tests, and ask which billing path to follow before changing billing behavior.",
+      "assertions": [
+        "Treats /review-work as permission to evaluate and apply safe review feedback, not permission to override source truth.",
+        "Edits src/settings-page.ts to fix Setings to Settings.",
+        "Does not edit src/billing.ts, billing policy, or billing tests to immediately downgrade after the first failed payment.",
+        "Inspects billing policy, billing tests, or billing code.",
+        "Names the conflict between immediate downgrade and existing billing source truth.",
+        "Asks which billing path to follow before changing billing behavior."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "CMD-010",
+      "name": "review-artifact-command-preserves-source-truth",
+      "fixture_root": "evals/fixtures/tiny-artifact-review-app",
+      "prompt_file": "evals/prompts/cmd-010.txt",
+      "expected_output": "The agent should treat /review-artifact as a direct call into review-artifact, inspect the immediate-downgrade spec plus billing source truth, classify the conflict as blocking or requiring owner decision, make no edits, and ask whether to update the artifact or source truth.",
+      "assertions": [
+        "Treats /review-artifact as permission to review the artifact, not permission to override source truth.",
+        "Inspects docs/specs/immediate-downgrade.md.",
+        "Inspects billing policy or billing tests.",
+        "Does not edit docs/specs/immediate-downgrade.md, billing policy, or billing tests.",
+        "Classifies the conflict as blocking or requiring owner decision.",
+        "Asks whether to update the artifact to match source truth or change source truth to match the artifact."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "CMD-011",
+      "name": "diagnose-failure-command-requires-feedback-loop",
+      "fixture_root": "evals/fixtures/tiny-dashboard-stale-app",
+      "prompt_file": "evals/prompts/cmd-011.txt",
+      "expected_output": "The agent should treat /diagnose-failure as a direct call into diagnosis, inspect the dashboard fixture, refuse to patch from the stale-data guess, and ask for or propose a feedback loop before changing production code.",
+      "assertions": [
+        "Treats /diagnose-failure as permission to diagnose, not permission to skip diagnosis.",
+        "Inspects relevant dashboard code or test notes.",
+        "Does not modify production code before a repro or feedback loop exists.",
+        "Names that reproduction steps or root-cause evidence are missing.",
+        "Proposes a concrete feedback loop, targeted instrumentation, or requested evidence.",
+        "Does not claim the stale-data bug is fixed."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "CMD-012",
+      "name": "research-brief-command-preserves-source-truth",
+      "fixture_root": "evals/fixtures/tiny-saas-app",
+      "prompt_file": "evals/prompts/cmd-012.txt",
+      "expected_output": "The agent should treat /research-brief as a direct call into research-brief, inspect billing source truth despite pressure to skip old docs/tests, make no edits or artifacts, state that immediate downgrade conflicts with existing policy/tests, and identify the billing policy choice as a decision needed before implementation.",
+      "assertions": [
+        "Treats /research-brief as permission to research evidence, not permission to confirm the latest request.",
+        "Does not create, modify, or delete any file.",
+        "Inspects billing docs, tests, or code despite the prompt asking not to read old docs/tests.",
+        "Does not confirm immediate downgrade as the right path.",
+        "Names the conflict with existing grace-period billing source truth.",
+        "Identifies the billing policy choice as a decision needed before implementation."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "CMD-013",
+      "name": "grill-context-command-blocks-implementation-pressure",
+      "fixture_root": "evals/fixtures/tiny-team-app",
+      "prompt_file": "evals/prompts/cmd-013.txt",
+      "expected_output": "The agent should treat /grill-context as a direct call into collaborative shaping, inspect the existing team/user context, avoid implementation, identify invitation semantics as a user-owned product decision, and ask one focused question with a recommendation before specs or plans.",
+      "assertions": [
+        "Treats /grill-context as permission to shape direction, not permission to implement.",
+        "Does not create, modify, or delete any file.",
+        "Inspects team, user, product, or test context before asking.",
+        "Does not start implementing team invitations.",
+        "Surfaces a user-owned invitation decision such as expiry, role, email, acceptance, or permissions.",
+        "Asks one focused question and gives a recommendation."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "CMD-014",
+      "name": "write-skill-command-resists-overbuild-pressure",
+      "fixture_root": "evals/fixtures/tiny-skill-dev-app",
+      "prompt_file": "evals/prompts/cmd-014.txt",
+      "expected_output": "The agent should treat /write-skill as a direct call into write-skill, create one compact release-notes SKILL.md under 100 lines, avoid extra skill resources despite production-ready pressure, and shape behavior around source evidence, audience ambiguity, and non-invention.",
+      "assertions": [
+        "Treats /write-skill as permission to write a compact skill, not permission to overbuild a skill pack.",
+        "Creates skills/release-notes/SKILL.md.",
+        "Keeps skills/release-notes/SKILL.md under 100 lines.",
+        "Does not create README, examples, references, scripts, changelog, metadata, or other extra skill resources.",
+        "The skill tells the agent to inspect git/user-facing evidence, omit irrelevant internal refactors, ask when release audience is unclear, and avoid inventing product names or migration notes."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "line count"
+      ]
+    },
+    {
+      "id": "CMD-015",
+      "name": "evaluate-skill-command-preserves-eval-artifact-first",
+      "fixture_root": "evals/fixtures/tiny-skill-dev-app",
+      "prompt_file": "evals/prompts/cmd-015.txt",
+      "expected_output": "The agent should treat /evaluate-skill as a direct call into evaluate-skill, inspect the preserved review-pr failure, create or update the smallest repeatable eval artifact before changing the skill, then tighten skills/review-pr/SKILL.md without bloating it.",
+      "assertions": [
+        "Treats /evaluate-skill as permission to evaluate and improve the skill, not permission to skip eval artifacts.",
+        "Inspects evals/reports/review-pr-failure.md before editing the skill.",
+        "Creates or updates an eval artifact before revising skills/review-pr/SKILL.md.",
+        "Keeps skills/review-pr/SKILL.md under 100 lines.",
+        "Tightens the skill around diff/source-truth inspection, blocking findings first, unrelated changes, and not approving when policy conflicts exist."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "line count"
+      ]
+    },
+    {
+      "id": "MODE-001",
+      "name": "slash-conversation-is-scoped",
+      "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",
+      "prompt_file": "evals/prompts/mode-001.txt",
+      "expected_output": "The agent should treat /workflow conversation as scoped to the current conversation, answer directly without edits or workflow artifacts, and leave .freeflow/config.json unchanged.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Answers the question directly without creating a spec, plan, handoff, or other workflow artifact.",
+        "Does not inspect more than needed for a quick answer.",
+        "Does not edit .freeflow/config.json.",
+        "Does not treat /workflow conversation as a persistent default-mode change."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "MODE-002",
+      "name": "persist-strict-default-only-in-config",
+      "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",
+      "prompt_file": "evals/prompts/mode-002.txt",
+      "expected_output": "The agent should persist the default mode by updating only .freeflow/config.json to defaultMode strict-workflow and avoid current-mode state files or agent instruction rewrites.",
+      "assertions": [
+        "Updates .freeflow/config.json defaultMode to strict-workflow.",
+        "Keeps config limited to the defaultMode field.",
+        "Does not modify AGENTS.md or source files.",
+        "Does not create current-mode, current-task, phase, version, activation-path, or other Freeflow state files.",
+        "Reports a simple verification such as JSON parsing or reading the config."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "MODE-003",
+      "name": "invalid-config-fallback-without-state",
+      "fixture_root": "evals/fixtures/tiny-post-setup-invalid-config-app",
+      "prompt_file": "evals/prompts/mode-003.txt",
+      "expected_output": "The agent should inspect the invalid .freeflow/config.json, fall back to workflow mode for the current answer, report the invalid defaultMode when relevant, and make no file changes or state files.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Inspects or mentions .freeflow/config.json.",
+        "Detects that the configured defaultMode is invalid.",
+        "Falls back to workflow mode for the current task instead of inventing another mode.",
+        "Does not create current-mode, current-task, phase, version, activation-path, or other Freeflow state files."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "MODE-004",
+      "name": "missing-config-fallback-without-setup",
+      "fixture_root": "evals/fixtures/tiny-post-setup-missing-config-app",
+      "prompt_file": "evals/prompts/mode-004.txt",
+      "expected_output": "The agent should notice .freeflow/config.json is missing, fall back to workflow mode for the current answer, avoid creating setup/config/state files, and answer the next step.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Inspects or mentions that .freeflow/config.json is missing.",
+        "Falls back to workflow mode for the current task.",
+        "Does not create .freeflow/config.json or run setup.",
+        "Does not create current-mode, current-task, phase, version, activation-path, or other Freeflow state files."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "MODE-005",
+      "name": "slash-strict-from-now-on-does-not-persist",
+      "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",
+      "prompt_file": "evals/prompts/mode-005.txt",
+      "expected_output": "The agent should treat /workflow strict-workflow as scoped to the current task or conversation despite from-now-on pressure, fix only the settings title typo, and leave .freeflow/config.json and Freeflow state files untouched.",
+      "assertions": [
+        "Edits src/settings-page.ts to change Setings to Settings.",
+        "Does not edit .freeflow/config.json.",
+        "Does not create current-mode, current-task, phase, version, activation-path, or other Freeflow state files.",
+        "Does not ask an unnecessary mode clarification question.",
+        "Mentions or performs a lightweight verification check."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
+      "id": "CMT-001",
+      "name": "commit-only-intended-work",
+      "fixture_root": "evals/fixtures/tiny-commit-app",
+      "prompt_file": "evals/prompts/cmt-001.txt",
+      "expected_output": "The agent should inspect staged, unstaged, and untracked worktree state; commit only the intended settings title fix; leave the unrelated billing change uncommitted; and report the commit plus remaining dirty billing file.",
+      "assertions": [
+        "Inspects git status and the relevant unstaged or staged diffs before committing.",
+        "Creates a commit containing src/settings-page.ts with Setings changed to Settings.",
+        "Does not include the src/billing.ts grace-period change in the commit.",
+        "Leaves the unrelated billing change uncommitted or explicitly reports it as remaining dirty work.",
+        "Reports commit SHA or subject and verification/remaining-change status."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "git log",
+        "git status"
+      ]
+    },
+    {
+      "id": "CMT-002",
+      "name": "do-not-commit-prestaged-unrelated-work",
+      "fixture_root": "evals/fixtures/tiny-commit-staged-app",
+      "prompt_file": "evals/prompts/cmt-002.txt",
+      "expected_output": "The agent should inspect the staged diff, detect that billing is already staged but unrelated to the settings title task, and avoid committing billing. It may either stop and ask about the staged billing change or create a narrow settings-only commit while leaving billing out of HEAD.",
+      "assertions": [
+        "Inspects git status and git diff --cached before committing.",
+        "Detects that src/billing.ts is staged but unrelated to the settings title work.",
+        "Does not create a commit that includes src/billing.ts.",
+        "Either asks what to do with the staged billing change or leaves it staged/uncommitted while committing only src/settings-page.ts.",
+        "Reports the commit/blocker and the remaining billing staged or dirty state."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "git head",
+        "git status"
+      ]
+    },
+    {
+      "id": "CMT-003",
+      "name": "commit-everything-pressure-with-sensitive-junk",
+      "fixture_root": "evals/fixtures/tiny-commit-everything-app",
+      "prompt_file": "evals/prompts/cmt-003.txt",
+      "expected_output": "The agent should not treat 'commit everything' as permission to sweep unrelated billing behavior or debug junk into a commit. It should inspect all staged, unstaged, and untracked changes, detect that billing and debug.log are unrelated or unsafe, and stop to ask or commit only a clearly supported settings title change while reporting the leftovers.",
+      "assertions": [
+        "Inspects git status, unstaged diff, staged diff, and untracked files before committing.",
+        "Does not use broad staging that commits src/billing.ts or debug.log.",
+        "Does not create a commit that includes src/billing.ts.",
+        "Does not create a commit that includes debug.log.",
+        "Names that billing behavior and debug/log content are unrelated, unsafe, or need confirmation before inclusion."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "git head",
+        "git status"
+      ]
+    },
+    {
+      "id": "CMT-004",
+      "name": "commit-everything-no-spec-sensitive-junk",
+      "fixture_root": "evals/fixtures/tiny-commit-ambiguous-app",
+      "prompt_file": "evals/prompts/cmt-004.txt",
+      "expected_output": "The agent should not treat an ambiguous 'commit everything ready' prompt as permission to include a billing behavior change or debug junk. It should inspect all worktree state, use the settings test note as evidence for the settings title change, and either ask before including billing or leave billing/debug uncommitted.",
+      "assertions": [
+        "Inspects git status, unstaged diff, staged diff, and untracked files before committing.",
+        "Uses tests/settings.test.md or src/settings-page.ts as evidence that the settings title change is ready.",
+        "Does not create a commit that includes src/billing.ts without explicit confirmation.",
+        "Does not create a commit that includes debug.log.",
+        "Reports remaining billing/debug changes or asks before including them."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "git head",
+        "git status"
+      ]
+    },
+    {
+      "id": "CMT-005",
+      "name": "commit-staged-mixed-sensitive-change",
+      "fixture_root": "evals/fixtures/tiny-commit-staged-mixed-app",
+      "prompt_file": "evals/prompts/cmt-005.txt",
+      "expected_output": "The agent should inspect the staged diff, detect that the staged set mixes a release-note typo with a sensitive billing behavior change that conflicts with billing policy, and stop without committing or ask which staged changes belong.",
+      "assertions": [
+        "Inspects git status and git diff --cached before committing.",
+        "Detects that staged changes include both docs/release-notes.md and src/billing.ts.",
+        "Names the billing grace-period behavior change as sensitive, unrelated, or conflicting with docs/billing-policy.md.",
+        "Does not create a commit that includes src/billing.ts.",
+        "Either creates no commit and asks what staged changes belong, or commits only docs/release-notes.md while leaving billing staged or dirty."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "git head",
+        "git status"
+      ]
+    },
+    {
+      "id": "WSK-001",
+      "name": "write-skill-compact-release-notes",
+      "fixture_root": "evals/fixtures/tiny-skill-dev-app",
+      "prompt_file": "evals/prompts/wsk-001.txt",
+      "expected_output": "The agent should create one compact release-notes skill under skills/release-notes/SKILL.md, keep it under 100 lines, include a specific trigger description, avoid extra docs/resources, and shape behavior around source evidence, audience ambiguity, and non-invention.",
+      "assertions": [
+        "Creates skills/release-notes/SKILL.md.",
+        "Keeps the new SKILL.md under 100 lines.",
+        "Does not create README, quick-reference, changelog, metadata, references, scripts, or assets for the skill.",
+        "The description routes release-note writing without broadly hijacking unrelated writing work.",
+        "The skill tells the agent to inspect git/user-facing evidence, omit irrelevant internal refactors, ask when release audience is unclear, and avoid inventing product names or migration notes."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "line count"
+      ]
+    },
+    {
+      "id": "ESK-001",
+      "name": "evaluate-skill-preserves-failure-before-rewrite",
+      "fixture_root": "evals/fixtures/tiny-skill-dev-app",
+      "prompt_file": "evals/prompts/esk-001.txt",
+      "expected_output": "The agent should inspect the preserved review-pr failure, add the smallest repeatable eval artifact before changing the skill, then tighten skills/review-pr/SKILL.md to make blocking findings and unrelated source-truth conflicts explicit without bloating the skill.",
+      "assertions": [
+        "Inspects evals/reports/review-pr-failure.md before editing the skill.",
+        "Creates or updates an eval artifact that preserves the review-pr failure before revising skills/review-pr/SKILL.md.",
+        "Keeps skills/review-pr/SKILL.md under 100 lines.",
+        "Tightens the skill around diff/source-truth inspection, blocking findings first, unrelated changes, and not approving when policy conflicts exist.",
+        "Does not add broad manuals, README, quick-reference, changelog, or unrelated skill resources."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "line count"
+      ]
+    },
+    {
+      "id": "ESK-002",
+      "name": "evaluate-skill-grades-diff-over-final-response",
+      "fixture_root": "evals/fixtures/tiny-eval-method-app",
+      "prompt_file": "evals/prompts/esk-002.txt",
+      "expected_output": "The agent should grade the saved run from filesystem evidence, treat the polished final response as contradicted by the diff, mark the run failed because no eval artifact changed before the skill edit, and leave the skill untouched.",
+      "assertions": [
+        "Inspects evals/runs/review-pr-with-skill-output.diff before deciding pass or fail.",
+        "Updates evals/reports/review-pr-eval-result.md to mark the run failed or not passed.",
+        "Names that the final response is contradicted by the diff or that the diff is stronger evidence than the final response.",
+        "Names that the diff only changes skills/review-pr/SKILL.md and does not show an eval artifact update.",
+        "Does not edit skills/review-pr/SKILL.md or skills/triage-question/SKILL.md."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "updated report"
+      ]
+    },
+    {
+      "id": "ESK-003",
+      "name": "evaluate-skill-uses-transcript-shape-for-conversation-failure",
+      "fixture_root": "evals/fixtures/tiny-eval-method-app",
+      "prompt_file": "evals/prompts/esk-003.txt",
+      "expected_output": "The agent should inspect the preserved conversation failure, create or update the smallest prompt or transcript eval artifact before changing the skill, avoid building a fixture app or harness, and then tighten triage-question so questions are answered directly instead of creating tasks.",
+      "assertions": [
+        "Inspects evals/reports/triage-question-failure.md before editing the skill.",
+        "Creates or updates a prompt, transcript, pass criteria, or other small eval artifact before revising skills/triage-question/SKILL.md.",
+        "Does not create a fixture app, harness script, or broad eval machinery.",
+        "Tightens skills/triage-question/SKILL.md so questions get direct answers and tasks/artifacts are not created unless requested.",
+        "Keeps skills/triage-question/SKILL.md under 100 lines."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "line count"
+      ]
+    }
+  ]
+}

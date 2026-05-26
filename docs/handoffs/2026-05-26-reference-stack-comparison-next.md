@@ -6,18 +6,18 @@ Date: 2026-05-26
 
 This handoff is superseded for implementation state. Batches A-H from the reference-stack comparison have landed with targeted eval reports, and the formerly optional `spec-shapes`, handoff template, and approach-framing references later landed by explicit product direction. See:
 
-- `docs/research/pilot-workflow-reference-stack-comparison.md`
+- `docs/research/freeflow-reference-stack-comparison.md`
 - `docs/skill-inventory-and-plugin-plan.md`
 
 Do not use this handoff as authority for missing-reference status; inspect live skill directories first.
 
 ## Purpose
 
-Continue Pilot Workflow improvement work from the completed comparison against Matt Pocock skills, Obra/Superpowers, Anthropic `skill-creator`, and the local Orchestra repo.
+Continue Freeflow improvement work from the completed comparison against Matt Pocock skills, Obra/Superpowers, Anthropic `skill-creator`, and the local Orchestra repo.
 
 Primary research artifact:
 
-- `docs/research/pilot-workflow-reference-stack-comparison.md`
+- `docs/research/freeflow-reference-stack-comparison.md`
 
 Read that first. It is the durable source for the 19-skill comparison, Orchestra lessons, extra-file recommendations, artifact standard proposal, and parallelization plan.
 
@@ -27,7 +27,7 @@ No implementation changes have been made from this research pass yet.
 
 Known current facts:
 
-- Pilot has 19 skills under `plugins/pilot-workflow/skills/`.
+- Freeflow has 19 skills under `plugins/freeflow/skills/`.
 - `review-artifact` already has `references/reviewer-prompt.md`.
 - The strongest next addition is likely `write-spec/references/artifact-standards.md`.
 - The artifact standard should borrow Orchestra's useful header/changelog ideas without copying Orchestra's full process system.
@@ -42,7 +42,7 @@ Use the reference stacks this way:
 - Anthropic `skill-creator`: progressive disclosure and baseline-vs-with-skill eval method.
 - Orchestra: team artifact identity, owner/status headers, conditional changelog, spec-review lenses, commit discipline, and enforcement cautionary evidence.
 
-Pilot should become more institutionally legible for team/company use, but remain proportional:
+Freeflow should become more institutionally legible for team/company use, but remain proportional:
 
 - conversation mode: no artifact pressure
 - workflow mode: durable artifacts get lightweight identity when useful
@@ -52,7 +52,7 @@ Pilot should become more institutionally legible for team/company use, but remai
 
 Start with Batch A from the research doc:
 
-- Add `plugins/pilot-workflow/skills/write-spec/references/artifact-standards.md`.
+- Add `plugins/freeflow/skills/write-spec/references/artifact-standards.md`.
 - Update `write-spec/SKILL.md` only if necessary to point to that reference.
 - Add or update evals for:
   - durable spec includes compact header
@@ -70,35 +70,35 @@ If Hassan wants to parallelize through fresh conversations, assign batches by pa
 Safe parallel batches:
 
 1. Artifact standards:
-   - Owns `plugins/pilot-workflow/skills/write-spec/`.
+   - Owns `plugins/freeflow/skills/write-spec/`.
    - Should go first or publish stable wording early.
 
 2. Diagnosis depth:
-   - Owns `plugins/pilot-workflow/skills/diagnose-failure/`.
+   - Owns `plugins/freeflow/skills/diagnose-failure/`.
    - Add debugging references and targeted evals.
 
 3. Eval method:
-   - Owns `plugins/pilot-workflow/skills/evaluate-skill/`.
+   - Owns `plugins/freeflow/skills/evaluate-skill/`.
    - Add eval-pattern references and grading guidance.
 
 4. Setup profiles:
-   - Owns `plugins/pilot-workflow/skills/setup-pilot-workflow/`.
+   - Owns `plugins/freeflow/skills/setup-freeflow/`.
    - Add host setup/profile reference. No hooks by default.
 
 5. Commit discipline:
-   - Owns `plugins/pilot-workflow/skills/commit-work/`.
+   - Owns `plugins/freeflow/skills/commit-work/`.
    - Add staging-decision reference. No git hooks yet.
 
 6. Planning/review work:
-   - Owns `plugins/pilot-workflow/skills/write-plan/` and `plugins/pilot-workflow/skills/review-work/`.
+   - Owns `plugins/freeflow/skills/write-plan/` and `plugins/freeflow/skills/review-work/`.
    - Add plan shapes and outgoing reviewer prompt if needed.
 
 7. Decision destinations:
-   - Owns `plugins/pilot-workflow/skills/capture-decisions/`.
+   - Owns `plugins/freeflow/skills/capture-decisions/`.
    - Add destination guide.
 
 8. Artifact review:
-   - Owns `plugins/pilot-workflow/skills/review-artifact/`.
+   - Owns `plugins/freeflow/skills/review-artifact/`.
    - Can expand existing reviewer prompt with strict/team artifact lenses.
 
 Low-priority batch:
@@ -108,7 +108,7 @@ Low-priority batch:
 Coordinator-only files:
 
 - `docs/skill-inventory-and-plugin-plan.md`
-- `plugins/pilot-workflow/command-surface.json`
+- `plugins/freeflow/command-surface.json`
 - shared eval runbooks/matrices
 - ADRs
 
