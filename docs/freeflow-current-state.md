@@ -13,7 +13,7 @@ Freeflow is a portable workflow skill pack for coding agents.
 
 - Product name: Freeflow.
 - Development plugin: `plugins/freeflow/`.
-- Publishable package: `packages/freeflow/`.
+- Publishable package: `packages/freeflow/`, including a Codex marketplace index and nested `plugins/freeflow/` runtime copy.
 - Version target: `0.1.0`.
 - License target: MIT.
 - GitHub target: `hassan-mohiddin/freeflow`.
