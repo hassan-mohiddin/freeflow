@@ -13,6 +13,8 @@ Publish the proven Pilot Workflow v0.1 behavior as a separate public plugin name
 
 Do not copy the contents into the old `orchestra` repo for the first public package. Treat old Orchestra as prior art, migration context, and failure evidence. Freeflow should stand alone as the lightweight workflow successor.
 
+Rename the development surface from `pilot-workflow` to `freeflow` as well. The public package and dev workspace should not preserve the old candidate name in tracked content.
+
 ## Product Identity
 
 - Repository name: `freeflow`
@@ -39,10 +41,10 @@ Publishing separately avoids inheriting old Orchestra expectations while preserv
 
 ## Package Shape
 
-Create a clean distributable package, not a copy of the Research repo:
+Create a clean distributable package under `packages/freeflow/`, not a copy of the Research repo:
 
 ```text
-freeflow/
+packages/freeflow/
   .codex-plugin/
     plugin.json
   .claude-plugin/
@@ -117,17 +119,17 @@ The first public package should ship the current proven v0.1 skill set:
 - `capture-decisions`
 - `handoff`
 - `bypass`
-- `setup-pilot-workflow`
+- `setup-freeflow`
 - `write-skill`
 - `evaluate-skill`
 
-Before copying, decide whether `setup-pilot-workflow` should be renamed or reworded for Freeflow. The current name leaks the old candidate identity.
+Rename `setup-pilot-workflow` to `setup-freeflow` before public release. The current name leaks the old candidate identity.
 
 ## Publishing Sequence
 
-1. Prepare a clean `freeflow` package directory from `plugins/pilot-workflow/`.
-2. Rename plugin identity from Pilot Workflow to Freeflow.
-3. Update skill wording that mentions Pilot Workflow when it refers to the product identity rather than the local repo.
+1. Prepare a clean `freeflow` package directory from the current development plugin.
+2. Rename development and package identity from Pilot Workflow / `pilot-workflow` to Freeflow / `freeflow`.
+3. Update skill wording, docs, manifests, command-surface evidence, and durable repo memory that mention Pilot Workflow when they refer to current product identity.
 4. Add Codex and Claude manifests.
 5. Add README, LICENSE, and CHANGELOG.
 6. Run manifest validation and the existing command-surface audit against the packaged copy.
@@ -141,7 +143,6 @@ Before copying, decide whether `setup-pilot-workflow` should be renamed or rewor
 
 - License: likely MIT, but confirm before publishing.
 - GitHub owner/path: likely `hassan-mohiddin/freeflow`, but confirm.
-- Whether to preserve `setup-pilot-workflow` as a skill name or rename it before public release.
 - Whether public package includes eval reports as docs or keeps them only in Research.
 - Whether old Orchestra receives a short README note after Freeflow is published.
 
