@@ -1,11 +1,13 @@
 ---
 name: capture-decisions
-description: Capture settled durable decisions into the right repo memory without polluting it with session residue. Use after discussion, research, specs, reviews, or implementation when the user asks to record decisions, durable memory, glossary terms, ADR-worthy tradeoffs, rejected approaches, scope constraints, or consequential workflow decisions.
+description: Capture settled durable decisions into existing owning repo memory, or ask where to record them before creating a destination. Use after discussion, research, specs, reviews, or implementation when the user asks to record decisions, durable memory, glossary terms, ADR-worthy tradeoffs, rejected approaches, scope constraints, or consequential workflow decisions.
 ---
 
 # Capture Decisions
 
 Record settled decisions in the artifact that already owns them. Do not invent memory.
+
+A missing `CONTEXT.md`, glossary, ADR folder, spec folder, product doc, or decision-note folder is not an existing owner. Creating one is a destination decision; ask first.
 
 ## Hard Rules
 
@@ -23,15 +25,19 @@ If the user asks for durable memory but does not name the target artifact or pat
 
 An existing plausible doc is evidence, not blanket approval. `docs/product.md`, `CONTEXT.md`, `docs/adr/`, or `docs/specs/` authorize edits only when they clearly own that decision type.
 
-Do not use `README.md` as durable decision memory just because it is the only doc. Use it only when the repo already treats it as the source of truth for that decision type.
+Do not use `README.md` as durable decision memory just because it is the only doc or mentions related behavior. Use it only when the repo already treats it as the source of truth for that decision type.
+
+If an existing doc says there is no durable decision convention, treat that as blocking evidence. Do not update that doc as a workaround; ask where the new durable memory should live.
 
 Read `references/destination-guide.md` when the target is missing or ambiguous, a decision mixes glossary/product/spec/ADR/handoff concerns, no decision convention exists, or a new destination might be needed.
+
+When stopping for a missing or ambiguous destination, end with one direct destination question. Name the recommended target and the decisions it would capture. A recommendation without a question is not enough.
 
 ## Classify
 
 Before writing, decide the destination:
 
-- Glossary term or domain meaning -> `CONTEXT.md` or existing glossary.
+- Glossary term or domain meaning -> existing `CONTEXT.md`, glossary, or domain doc. If none exists, ask.
 - Hard-to-reverse, surprising tradeoff -> ADR.
 - Product, scope, compatibility, or workflow decision -> decision note.
 - Requirements for future build -> spec.

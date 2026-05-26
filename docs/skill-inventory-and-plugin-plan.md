@@ -494,10 +494,9 @@ The plugin should not be considered successful because its documents are persuas
 Current useful next work:
 
 1. Prepare the current repo for dogfooding: keep docs, manifest, command surface, and skill inventory consistent with live plugin evidence.
-2. Run the local-only v0.1 acceptance suite defined at `plugins/pilot-workflow/evals/v0.1-acceptance-suite.md`.
-3. Use dogfooding failures to choose any next skill-file additions. Do not add more references only because the reference-stack comparison listed them.
-4. Run Claude paired smoke evals after local Claude auth is available.
-5. Add stronger skill evals only when a real failure appears.
+2. Use dogfooding failures to choose any next skill-file additions. Do not add more references only because the reference-stack comparison listed them.
+3. Run Claude paired smoke evals after local Claude auth is available.
+4. Add stronger skill evals only when a real failure appears.
 
 Current status as of 2026-05-26:
 
@@ -517,8 +516,8 @@ Current status as of 2026-05-26:
   - `capture-decisions/references/destination-guide.md`
 - Command-surface eval coverage is complete for the current registry: 3 mode commands, 13 direct skill calls, and 2 developer skill calls.
 - Native slash handlers remain disabled; commands are model-routed.
-- The local-only v0.1 acceptance suite is defined at `plugins/pilot-workflow/evals/v0.1-acceptance-suite.md`, but it has not been freshly run as a suite.
-- The plugin is ready for Hassan's local dogfooding in other repos, but v0.1 acceptance run evidence and live Claude smoke evals are still deferred.
+- The local-only v0.1 acceptance suite passed after measured fixes. See `plugins/pilot-workflow/evals/v0.1-acceptance-report.md`.
+- The plugin is ready for Hassan's local Codex-first dogfooding in other repos; live Claude smoke evals are still deferred.
 - Remaining optional references are evidence-gated: `write-spec/references/spec-shapes.md`, `handoff/references/templates.md`, and `grill-context/references/approach-framing.md`.
 
 The first-success question has already been replaced by broader validation:

@@ -1,6 +1,6 @@
 ---
 name: write-spec
-description: Use when asked to create or update a durable spec, PRD, requirements document, or decision artifact from agreed requirements, research, brainstorming, or source evidence.
+description: Use when asked to create or update a durable spec, PRD, requirements document, or decision artifact from agreed requirements, research, brainstorming, or source evidence, especially for strict-workflow risk areas that may need owner confirmation before writing.
 ---
 
 # Write Spec
@@ -36,6 +36,8 @@ Stop before writing when the spec would:
 - Hide an owner decision inside polished prose.
 
 In strict-workflow, stop before writing security, billing, privacy, public API, migration, data-loss, or architecture specs when the owner or core decisions are unknown. Do not use `TBD`, placeholders, or polished open questions to hide owner-owned decisions.
+
+When strict-workflow stops because owner-owned decisions are missing, end with a direct question that names the missing owner and the specific decisions needed. A blocked explanation without that question is incomplete.
 
 Name the conflict or missing decision. Ask which path to follow. Recommend the path supported by evidence.
 

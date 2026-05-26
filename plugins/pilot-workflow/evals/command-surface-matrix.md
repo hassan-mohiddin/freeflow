@@ -81,7 +81,8 @@ All direct skill commands and developer commands now have command-surface evals.
 
 Recommended next validation target:
 
-1. Run the local-only v0.1 acceptance suite defined at `plugins/pilot-workflow/evals/v0.1-acceptance-suite.md`.
+1. Dogfood the plugin in Hassan's local Codex repos.
+2. Run Claude paired smoke evals after local Claude auth is available.
 
 ## Runtime Decision
 
