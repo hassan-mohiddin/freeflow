@@ -13,9 +13,16 @@ For project direction, read:
 - `docs/freeflow-packaging-and-publishing-design.md`
 - `docs/freeflow-runtime-and-lifecycle.md`
 
-For durable decisions, read `docs/adr/`.
+For refined user-facing plugin docs, read:
 
-For historical research, read `docs/plugin-contract.md`, `docs/agent-workflow-plugin-context.md`, `docs/skill-inventory-and-plugin-plan.md`, and `docs/research/` only when their background matters. Live repo evidence and current-state docs override older research and handoffs.
+- `plugins/freeflow/docs/README.md`
+- `plugins/freeflow/docs/workflow.md`
+- `plugins/freeflow/docs/architecture.md`
+- `plugins/freeflow/docs/release-evidence.md`
+
+For durable project decisions, read `docs/adr/`. For refined release ADRs, read `plugins/freeflow/docs/adr/`.
+
+For historical research, read `docs/` only when background matters. Live repo evidence and current plugin docs override older research and handoffs.
 
 For current continuation state, read the latest relevant file in `docs/handoffs/`.
 
@@ -79,9 +86,7 @@ Re-enter clarification when new ambiguity would change the next action.
 
 ## Implementation Pointers
 
-Development plugin lives under `plugins/freeflow/`.
-
-Publishable package lives under `packages/freeflow/`.
+Plugin runtime lives under `plugins/freeflow/`. This is the single source of truth for runtime skills, plugin docs, evals, and command-surface metadata.
 
 For the current skill set, inspect `plugins/freeflow/skills/`.
 

@@ -24,7 +24,7 @@ Interview relentlessly until shared understanding:
 1. Inspect relevant context.
 2. Name the decision tree.
 3. Ask the next question that changes the path.
-4. Give your recommended answer.
+4. Give your recommended answer without treating it as approval.
 5. Wait for the user.
 6. Continue down the next unresolved branch.
 
@@ -74,6 +74,6 @@ Prefer one focused question:
 ```text
 I found ...
 The key decision is ...
-Recommendation: ...
 Question: ...
+Recommendation: ...
 ```
