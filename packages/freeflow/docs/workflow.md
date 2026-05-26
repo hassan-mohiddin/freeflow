@@ -35,9 +35,17 @@ The map is orienting, not mandatory. Small reversible work can skip unnecessary 
 
 Loop back when new evidence changes the path:
 
-```text
-new evidence / source conflict / failed verification / owner decision
-  -> clarify, research, revise spec, revise plan, diagnose, split scope, or stop
+```mermaid
+flowchart LR
+  Trigger{new evidence<br/>conflict<br/>failed check<br/>owner decision}
+  Decide{changes<br/>next action?}
+  Continue[continue]
+  Reenter[clarify / research<br/>revise spec or plan<br/>diagnose / split / stop]
+
+  Trigger --> Decide
+  Decide -->|no| Continue
+  Decide -->|yes| Reenter
+  Reenter -. resume .-> Decide
 ```
 
 The agent should not silently choose the backward destination when the choice changes product behavior, scope, compatibility, public APIs, security, privacy, billing, data loss, permissions, or irreversible architecture.
