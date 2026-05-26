@@ -18,15 +18,19 @@ Host runtimes still control tools, sandboxing, approvals, and permissions. Freef
 
 ```text
 freeflow/
+  .agents/plugins/marketplace.json
   .codex-plugin/plugin.json
   .claude-plugin/plugin.json
   .claude-plugin/marketplace.json
   skills/
   docs/
+  plugins/freeflow/
   README.md
   LICENSE
   CHANGELOG.md
 ```
+
+The root files support direct inspection and non-Codex installs. Codex marketplace installation uses `.agents/plugins/marketplace.json`, which points at `plugins/freeflow/`.
 
 The package contains install/runtime assets only. Development evals, fixtures, research notes, handoffs, and generated run output are kept outside the runtime package.
 

@@ -66,13 +66,16 @@ Use `bypass` only to skip an unnecessary gate. It does not skip user-owned decis
 
 ### Codex
 
-Install from GitHub once the repo is published:
+Register the GitHub repo as a Codex marketplace, refresh it, then install Freeflow:
 
-```text
-/plugins
+```bash
+codex plugin marketplace add https://github.com/hassan-mohiddin/freeflow.git
+codex plugin marketplace upgrade freeflow
+codex plugin add freeflow@freeflow
+codex plugin list | rg freeflow
 ```
 
-Search for `freeflow`, or install from the GitHub plugin source when supported by your Codex environment.
+In the Codex app, add the same GitHub marketplace URL from `/plugins`, then search for `freeflow`.
 
 ### Claude Code
 
