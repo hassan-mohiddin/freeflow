@@ -15,7 +15,7 @@ Continue implementation planning for Freeflow host setup: how to keep Freeflow's
 - `plugins/freeflow/skills/interview-gate/SKILL.md`
 - `plugins/freeflow/skills/mode-contract/SKILL.md`
 - `plugins/freeflow/skills/capture-decisions/SKILL.md`
-- latest setup eval report: `plugins/freeflow/evals/setup-freeflow-1-report.md`
+- latest setup eval report: `plugins/freeflow/evals/reports/by-skill/setup-freeflow-1-report.md`
 
 ## Current Decision
 

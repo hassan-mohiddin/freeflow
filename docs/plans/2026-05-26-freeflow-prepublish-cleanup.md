@@ -502,7 +502,7 @@ Freeflow v0.1 passed the local acceptance suite after measured fixes:
 - decision capture asks before inventing memory conventions
 - bypass skips ceremony, not judgment
 
-See the development report in the Research repo: `plugins/freeflow/evals/v0.1-acceptance-report.md`.
+See the development report in the Research repo: `plugins/freeflow/evals/reports/acceptance/v0.1-acceptance-report.md`.
 
 ## What Freeflow is not
 
@@ -557,20 +557,22 @@ Expected: commit succeeds.
 
 ## Task 6: Reorganize Eval Evidence
 
+Status: completed. Eval evidence now uses registries, report buckets, runbooks, suites, and a directory README. Acceptance, harness, and runtime reports have their own buckets instead of being forced into skill-family reports.
+
 **Files:**
 - Modify: `plugins/freeflow/evals/`
 - Modify: eval runner scripts if paths move
 - Modify: docs that link eval files
 
-- [ ] **Step 1: Create eval subdirectories**
+- [x] **Step 1: Create eval subdirectories**
 
 Run:
 
 ```sh
-mkdir -p plugins/freeflow/evals/registries plugins/freeflow/evals/reports/by-skill plugins/freeflow/evals/reports/by-command-surface plugins/freeflow/evals/reports/iterations plugins/freeflow/evals/runbooks plugins/freeflow/evals/suites
+mkdir -p plugins/freeflow/evals/registries plugins/freeflow/evals/reports/by-skill plugins/freeflow/evals/reports/by-command-surface plugins/freeflow/evals/reports/iterations plugins/freeflow/evals/reports/harness plugins/freeflow/evals/reports/acceptance plugins/freeflow/evals/reports/runtime plugins/freeflow/evals/runbooks plugins/freeflow/evals/suites
 ```
 
-- [ ] **Step 2: Move registries**
+- [x] **Step 2: Move registries**
 
 Run:
 
@@ -582,13 +584,18 @@ git mv plugins/freeflow/evals/verify-work-evals.json plugins/freeflow/evals/regi
 git mv plugins/freeflow/evals/adversarial-evals.json plugins/freeflow/evals/registries/adversarial-evals.json
 ```
 
-- [ ] **Step 3: Move reports, runbooks, suites**
+- [x] **Step 3: Move reports, runbooks, suites**
 
 Run:
 
 ```sh
 git mv plugins/freeflow/evals/iteration-*-report.md plugins/freeflow/evals/reports/iterations/
 git mv plugins/freeflow/evals/command-surface-*-report.md plugins/freeflow/evals/reports/by-command-surface/
+git mv plugins/freeflow/evals/command-surface-matrix.md plugins/freeflow/evals/reports/by-command-surface/
+git mv plugins/freeflow/evals/claude-harness-1-report.md plugins/freeflow/evals/reports/harness/
+git mv plugins/freeflow/evals/eval-harness-1-report.md plugins/freeflow/evals/reports/harness/
+git mv plugins/freeflow/evals/v0.1-acceptance-report.md plugins/freeflow/evals/reports/acceptance/
+git mv plugins/freeflow/evals/always-on-runtime-1-report.md plugins/freeflow/evals/reports/runtime/
 git mv plugins/freeflow/evals/*-report.md plugins/freeflow/evals/reports/by-skill/
 git mv plugins/freeflow/evals/*runbook.md plugins/freeflow/evals/runbooks/
 git mv plugins/freeflow/evals/v0.1-acceptance-suite.md plugins/freeflow/evals/suites/v0.1-acceptance-suite.md
@@ -596,7 +603,7 @@ git mv plugins/freeflow/evals/v0.1-acceptance-suite.md plugins/freeflow/evals/su
 
 If a broad wildcard fails because no files remain in the source directory, continue after confirming all reports have moved.
 
-- [ ] **Step 4: Update scripts for new registry path**
+- [x] **Step 4: Update scripts for new registry path**
 
 In `plugins/freeflow/evals/scripts/run-fixture-eval-by-id.sh`, change default registry from:
 
@@ -612,7 +619,7 @@ $plugin_root/evals/registries/fixture-evals.json
 
 Update any docs/scripts that reference moved registry/report/runbook/suite paths.
 
-- [ ] **Step 5: Add eval README**
+- [x] **Step 5: Add eval README**
 
 Create `plugins/freeflow/evals/README.md`:
 
@@ -624,8 +631,11 @@ Create `plugins/freeflow/evals/README.md`:
 - `prompts/`: prompts referenced by registries.
 - `scripts/`: local runners and audits.
 - `reports/by-skill/`: skill-family eval reports.
-- `reports/by-command-surface/`: slash-style command routing reports.
+- `reports/by-command-surface/`: slash-style command routing reports and matrix.
 - `reports/iterations/`: early broad iteration reports.
+- `reports/harness/`: eval runner and harness reports.
+- `reports/acceptance/`: release acceptance reports.
+- `reports/runtime/`: always-on runtime evidence.
 - `runbooks/`: how to run specific eval families.
 - `suites/`: curated release or acceptance suites.
 - `runs/`: ignored generated output.
@@ -633,7 +643,7 @@ Create `plugins/freeflow/evals/README.md`:
 Use `registries/fixture-evals.json` for current adversarial fixture coverage. Prefer the latest acceptance report over old smoke evals when evidence conflicts.
 ```
 
-- [ ] **Step 6: Verify eval registry and acceptance IDs**
+- [x] **Step 6: Verify eval registry and acceptance IDs**
 
 Run:
 
@@ -644,7 +654,7 @@ plugins/freeflow/evals/scripts/audit-command-surface.sh
 
 Expected: JSON parses and audit passes.
 
-- [ ] **Step 7: Commit eval organization**
+- [x] **Step 7: Commit eval organization**
 
 Run:
 

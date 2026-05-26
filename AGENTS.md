@@ -18,7 +18,7 @@ For durable decisions, read `docs/adr/`.
 
 For current continuation state, read the latest relevant file in `docs/handoffs/`.
 
-For evidence about whether a skill works, read `plugins/freeflow/evals/*report.md`. Prefer later reports over earlier ones when they conflict.
+For evidence about whether a skill works, read `plugins/freeflow/evals/README.md`, then the relevant report under `plugins/freeflow/evals/reports/`. Prefer later reports over earlier ones when they conflict.
 
 ## Reference Skill Stack
 
@@ -82,7 +82,7 @@ Plugin draft lives under `plugins/freeflow/`.
 
 For the current skill set, inspect `plugins/freeflow/skills/`.
 
-For current eval status, read the latest relevant report in `plugins/freeflow/evals/`.
+For current eval status, read `plugins/freeflow/evals/README.md`, then the latest relevant report in `plugins/freeflow/evals/reports/`.
 
 For active continuation context, read the latest relevant file in `docs/handoffs/`.
 

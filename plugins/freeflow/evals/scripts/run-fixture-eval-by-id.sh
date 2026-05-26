@@ -14,7 +14,7 @@ shift 4
 
 repo_root="$(git rev-parse --show-toplevel)"
 plugin_root="$repo_root/plugins/freeflow"
-registry="${FREEFLOW_FIXTURE_EVALS:-$plugin_root/evals/fixture-evals.json}"
+registry="${FREEFLOW_FIXTURE_EVALS:-$plugin_root/evals/registries/fixture-evals.json}"
 
 eval_json="$(jq -cer --arg id "$eval_id" '.evals[] | select(.id == $id)' "$registry")"
 

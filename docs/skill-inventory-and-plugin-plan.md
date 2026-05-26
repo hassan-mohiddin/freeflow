@@ -519,7 +519,7 @@ Current status as of 2026-05-26:
   - `capture-decisions/references/destination-guide.md`
 - Command-surface eval coverage is complete for the current registry: 3 mode commands, 13 direct skill calls, and 2 developer skill calls.
 - Native slash handlers remain disabled; commands are model-routed.
-- The local-only v0.1 acceptance suite passed after measured fixes. See `plugins/freeflow/evals/v0.1-acceptance-report.md`.
+- The local-only v0.1 acceptance suite passed after measured fixes. See `plugins/freeflow/evals/reports/acceptance/v0.1-acceptance-report.md`.
 - The plugin is ready for Hassan's local Codex-first dogfooding in other repos; live Claude smoke evals are still deferred.
 - The previously optional references `write-spec/references/spec-shapes.md`, `handoff/references/templates.md`, and `grill-context/references/approach-framing.md` were added by explicit product direction as opt-in shape guidance, not mandatory workflow pressure.
 

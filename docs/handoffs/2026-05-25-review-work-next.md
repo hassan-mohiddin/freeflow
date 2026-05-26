@@ -14,9 +14,9 @@ This handoff is memory, not authority. Inspect live files before editing.
 - `CONTEXT.md`
 - `docs/adr/`
 - `plugins/freeflow/skills/review-work/SKILL.md`
-- `plugins/freeflow/evals/review-work-1-report.md`
-- `plugins/freeflow/evals/review-work-2-report.md`
-- `plugins/freeflow/evals/fixture-evals.json`
+- `plugins/freeflow/evals/reports/by-skill/review-work-1-report.md`
+- `plugins/freeflow/evals/reports/by-skill/review-work-2-report.md`
+- `plugins/freeflow/evals/registries/fixture-evals.json`
 
 ## Current State
 
@@ -35,10 +35,10 @@ That commit added:
 
 Uncommitted current work:
 
-- `plugins/freeflow/evals/fixture-evals.json`
+- `plugins/freeflow/evals/registries/fixture-evals.json`
 - `plugins/freeflow/evals/fixtures/tiny-review-work-app/`
 - `plugins/freeflow/evals/prompts/rev-002.txt`
-- `plugins/freeflow/evals/review-work-2-report.md`
+- `plugins/freeflow/evals/reports/by-skill/review-work-2-report.md`
 
 ## Latest Eval
 
@@ -57,7 +57,7 @@ Interpretation:
 
 Report:
 
-- `plugins/freeflow/evals/review-work-2-report.md`
+- `plugins/freeflow/evals/reports/by-skill/review-work-2-report.md`
 
 ## Current Lesson
 

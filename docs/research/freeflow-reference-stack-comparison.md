@@ -232,14 +232,14 @@ Reference-stack follow-up batches completed as of 2026-05-26:
 
 | Batch | Status | Landed evidence |
 | --- | --- | --- |
-| A: Artifact Standards | Done | `write-spec/references/artifact-standards.md`; `plugins/freeflow/evals/write-spec-4-report.md` |
-| B: Artifact Review | Done | `review-artifact` uses artifact identity guidance; `plugins/freeflow/evals/review-artifact-3-report.md` |
-| C: Diagnosis Depth | Done | `diagnose-failure/references/feedback-loop-catalog.md`, `flaky-and-performance.md`; `plugins/freeflow/evals/diagnose-failure-2-report.md` |
-| D: Eval Method | Done | `evaluate-skill/references/eval-patterns.md`, `grading-priority.md`; `plugins/freeflow/evals/evaluate-skill-2-report.md` |
-| E: Setup Profiles | Done | `setup-freeflow/references/host-setup.md`; `plugins/freeflow/evals/setup-freeflow-3-report.md` |
-| F: Commit Discipline | Done | `commit-work/references/staging-decisions.md`; `plugins/freeflow/evals/commit-work-2-report.md` |
-| G: Planning And Review Work | Done | `write-plan/references/plan-shapes.md`, `review-work/references/reviewer-prompt.md`; `plugins/freeflow/evals/write-plan-3-report.md`, `review-work-4-report.md` |
-| H: Decision Destinations | Done | `capture-decisions/references/destination-guide.md`; `plugins/freeflow/evals/capture-decisions-2-report.md` |
+| A: Artifact Standards | Done | `write-spec/references/artifact-standards.md`; `plugins/freeflow/evals/reports/by-skill/write-spec-4-report.md` |
+| B: Artifact Review | Done | `review-artifact` uses artifact identity guidance; `plugins/freeflow/evals/reports/by-skill/review-artifact-3-report.md` |
+| C: Diagnosis Depth | Done | `diagnose-failure/references/feedback-loop-catalog.md`, `flaky-and-performance.md`; `plugins/freeflow/evals/reports/by-skill/diagnose-failure-2-report.md` |
+| D: Eval Method | Done | `evaluate-skill/references/eval-patterns.md`, `grading-priority.md`; `plugins/freeflow/evals/reports/by-skill/evaluate-skill-2-report.md` |
+| E: Setup Profiles | Done | `setup-freeflow/references/host-setup.md`; `plugins/freeflow/evals/reports/by-skill/setup-freeflow-3-report.md` |
+| F: Commit Discipline | Done | `commit-work/references/staging-decisions.md`; `plugins/freeflow/evals/reports/by-skill/commit-work-2-report.md` |
+| G: Planning And Review Work | Done | `write-plan/references/plan-shapes.md`, `review-work/references/reviewer-prompt.md`; `plugins/freeflow/evals/reports/by-skill/write-plan-3-report.md`, `review-work-4-report.md` |
+| H: Decision Destinations | Done | `capture-decisions/references/destination-guide.md`; `plugins/freeflow/evals/reports/by-skill/capture-decisions-2-report.md` |
 | I: Optional Shape References | Done | `write-spec/references/spec-shapes.md`, `handoff/references/templates.md`, `grill-context/references/approach-framing.md`; added by explicit product direction as opt-in guidance. |
 
 Previously evidence-gated references now landed by explicit product direction:

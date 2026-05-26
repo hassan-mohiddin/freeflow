@@ -22,8 +22,8 @@ Do not assume the path silently.
 - `plugins/freeflow/skills/write-spec/SKILL.md`
 - `plugins/freeflow/skills/review-artifact/SKILL.md`
 - `plugins/freeflow/skills/write-plan/SKILL.md`
-- `plugins/freeflow/evals/write-plan-1-report.md`
-- `plugins/freeflow/evals/write-plan-2-report.md`
+- `plugins/freeflow/evals/reports/by-skill/write-plan-1-report.md`
+- `plugins/freeflow/evals/reports/by-skill/write-plan-2-report.md`
 
 This handoff is memory, not authority. Inspect live files before editing.
 
@@ -52,7 +52,7 @@ Latest `write-plan` eval:
 
 Report:
 
-- `plugins/freeflow/evals/write-plan-2-report.md`
+- `plugins/freeflow/evals/reports/by-skill/write-plan-2-report.md`
 
 ## New Issue To Preserve
 
@@ -141,7 +141,7 @@ Important: keep wording concise. Do not add a long manual.
 
 Expected dirty state includes:
 
-- Modified `plugins/freeflow/evals/fixture-evals.json`
+- Modified `plugins/freeflow/evals/registries/fixture-evals.json`
 - Untracked artifact skill docs/reports/prompts/fixtures:
   - `docs/research/freeflow-artifact-skills.md`
   - `docs/handoffs/2026-05-25-artifact-skills-handoff.md`
@@ -155,9 +155,9 @@ Expected dirty state includes:
   - `plugins/freeflow/evals/prompts/wsp-*.txt`
   - `plugins/freeflow/evals/prompts/rar-*.txt`
   - `plugins/freeflow/evals/prompts/wpl-*.txt`
-  - `plugins/freeflow/evals/write-spec-*-report.md`
-  - `plugins/freeflow/evals/review-artifact-*-report.md`
-  - `plugins/freeflow/evals/write-plan-*-report.md`
+  - `plugins/freeflow/evals/reports/by-skill/write-spec-*-report.md`
+  - `plugins/freeflow/evals/reports/by-skill/review-artifact-*-report.md`
+  - `plugins/freeflow/evals/reports/by-skill/write-plan-*-report.md`
 
 Do not clean or delete these unless the user asks.
 

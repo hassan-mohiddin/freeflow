@@ -88,7 +88,7 @@ Relevant source inspirations:
 Suggested assertions:
 ```
 
-When converted into machine-readable evals later, this maps cleanly to Anthropic-style `evals/evals.json` entries plus assertions.
+When converted into machine-readable evals later, this maps cleanly to Anthropic-style `evals/registries/legacy-evals.json` entries plus assertions.
 
 ## Eval 1: Vague Feature Request
 
@@ -1044,7 +1044,7 @@ If a failure repeats across two or more evals, revise the skill before adding mo
 Later, convert these scenarios into:
 
 ```text
-evals/evals.json
+evals/registries/legacy-evals.json
 ```
 
 Each eval entry should include:
@@ -1064,7 +1064,7 @@ After iteration 2, single-turn response evals were not differentiating baseline 
 Add fixture-based action evals for behavior under edit pressure:
 
 ```text
-plugins/freeflow/evals/fixture-evals.json
+plugins/freeflow/evals/registries/fixture-evals.json
 plugins/freeflow/evals/fixtures/tiny-saas-app/
 ```
 
@@ -1084,7 +1084,7 @@ Single-turn response evals and guided fixture evals are smoke tests. They can sh
 Use adversarial evals as acceptance gates:
 
 ```text
-plugins/freeflow/evals/adversarial-evals.json
+plugins/freeflow/evals/registries/adversarial-evals.json
 ```
 
 Current gates:
