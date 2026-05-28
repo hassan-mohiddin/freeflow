@@ -23,6 +23,25 @@ This is a guide, not ceremony. Small reversible work can skip spec/plan artifact
 
 Read `references/workflow-map.md` when the user asks for the full pipeline, public docs need a diagram, or the next workflow entry point is unclear.
 
+## Route Closeout
+
+When a consequential workflow phase completes, name the next route.
+
+Use `Next:` in the final response unless this is a direct question answer, mid-task status, or clarification-only turn.
+
+Choose one:
+
+- Forward: the next workflow entry point is clear.
+- Backward: new evidence requires clarification, research, grilling, or interview gate.
+- Branch: 2-3 valid next routes exist.
+- Stop: no required next action remains.
+
+Recommend the route supported by evidence. Do not ask a vague "what next?" question.
+
+After completed grilling or research with stable uncaptured decisions, route to `write-spec` or `capture-decisions` before `write-plan` or execution.
+
+`Next:` is routing, not permission to create the next artifact or continue into a new phase.
+
 ## Backward Edge
 
 If new evidence invalidates the current path, re-enter clarification.
@@ -32,6 +51,8 @@ Any state -> Clarify / Research -> explicit next state
 ```
 
 Do not silently substitute a different path, rewrite the spec, change the plan, or patch forward. State what changed, then decide whether to continue, revise spec, revise plan, diagnose, split scope, defer, or stop and ask.
+
+If a requested, planned, or skill-required method cannot be followed and the fallback would change evidence quality, workflow shape, risk, scope, cost, persistence, or user-visible output, stop before using the fallback. Name both paths and ask which one to follow.
 
 ## Source-of-Truth Conflicts
 

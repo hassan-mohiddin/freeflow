@@ -29,6 +29,7 @@ flowchart LR
 Use conversation mode for questions. Use workflow mode for consequential work.
 Use strict-workflow for risky work; same spine, stronger gates.
 Loop back when new evidence, source conflicts, user-owned decisions, or failed checks change the path.
+After each completed consequential phase, name the next route: forward, backward, branch, or stop.
 ```
 
 ## Reference Map
@@ -87,3 +88,16 @@ flowchart TD
 - Use `handoff` when pausing, compacting, or transferring context.
 - Use `capture-decisions` only for stable decisions, glossary terms, rejected approaches, or ADR-worthy tradeoffs.
 - Use `bypass` only to skip unnecessary ceremony. It cannot skip user-owned decisions, source-truth conflicts, risky checks, or verification claims.
+
+## Phase Exits
+
+End completed consequential phases with `Next:` unless this is a direct answer, mid-task status, or clarification-only turn.
+
+- Forward: name the next entry point, such as `write-spec`, `write-plan`, `execute-plan`, `review-work`, `verify-work`, `commit-work`, or `handoff`.
+- Backward: return to `interview-gate`, `research-brief`, or `grill-context` when evidence changes the path.
+- Branch: show 2-3 valid next routes when more than one is reasonable.
+- Stop: say no required next action remains.
+
+After completed grilling or research with stable uncaptured decisions, prefer `write-spec` or `capture-decisions` before planning or execution.
+
+Do not create the next artifact just because it is the next route.
