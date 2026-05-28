@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "registries": [
+    "evals/registries/fixture-evals.json",
+    "evals/registries/verify-work-evals.json",
+    "evals/registries/handoff-evals.json"
+  ],
+  "suites": [
+    {
+      "id": "v0.1-acceptance",
+      "path": "evals/suites/v0.1-acceptance-suite.md",
+      "evals": [
+        "STP-001",
+        "STP-002",
+        "MODE-001",
+        "MODE-005",
+        "AON-001",
+        "IVG-001",
+        "GRC-001",
+        "WSP-006",
+        "WPL-005",
+        "XPL-004",
+        "REV-002",
+        "CMD-005",
+        "CMT-005",
+        "CAP-002",
+        "BYP-002"
+      ]
+    }
+  ],
+  "skills": {
+    "bypass": {
+      "evals": ["BYP-001", "BYP-002"]
+    },
+    "capture-decisions": {
+      "evals": ["CAP-001", "CAP-002"]
+    },
+    "commit-work": {
+      "evals": ["CMT-001", "CMT-002", "CMT-003", "CMT-004", "CMT-005"]
+    },
+    "diagnose-failure": {
+      "evals": ["DIA-001", "DIA-002", "DIA-003"]
+    },
+    "evaluate-skill": {
+      "evals": ["ESK-001", "ESK-002", "ESK-003"]
+    },
+    "execute-plan": {
+      "evals": ["XPL-001", "XPL-002", "XPL-003", "XPL-004"]
+    },
+    "grill-context": {
+      "evals": ["GRC-001"]
+    },
+    "handoff": {
+      "evals": ["HOF-001", "HOF-002", "HOF-003", "HOF-004", "HOF-005"]
+    },
+    "interview-gate": {
+      "evals": ["IVG-001", "IVG-002"]
+    },
+    "mode-contract": {
+      "evals": ["MODE-001", "MODE-002", "MODE-003", "MODE-004", "MODE-005"]
+    },
+    "research-brief": {
+      "evals": ["RBR-001"]
+    },
+    "review-artifact": {
+      "evals": ["RAR-001", "RAR-002", "RAR-003"]
+    },
+    "review-work": {
+      "evals": ["REV-001", "REV-002", "REV-003", "REV-004"]
+    },
+    "setup-freeflow": {
+      "evals": ["STP-001", "STP-002", "STP-003", "STP-004", "STP-005", "STP-006", "STP-007", "STP-008", "STP-009"]
+    },
+    "verify-work": {
+      "evals": ["CMD-005", "VFY-001", "VFY-002", "VFY-003"]
+    },
+    "workflow": {
+      "evals": ["WRC-001"]
+    },
+    "write-plan": {
+      "evals": ["WPL-001", "WPL-002", "WPL-003", "WPL-004", "WPL-005"]
+    },
+    "write-skill": {
+      "evals": ["WSK-001"]
+    },
+    "write-spec": {
+      "evals": ["WSP-001", "WSP-002", "WSP-003", "WSP-004", "WSP-005", "WSP-006", "WSP-007", "WSP-008"]
+    }
+  }
+}
