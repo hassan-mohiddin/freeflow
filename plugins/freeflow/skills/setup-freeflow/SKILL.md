@@ -5,6 +5,8 @@ description: Use when setting up, installing, enabling, initializing, or configu
 
 # Setup Freeflow
 
+Use `references/activation-contract.md` before rendering activation text, config, or host setup.
+
 Use `references/host-setup.md` when the request mentions Codex, Claude, both hosts, team setup, solo setup, strict defaults, hooks, CLI, or setup profiles.
 
 ## Stop Before Editing
@@ -34,7 +36,7 @@ Existing repo instructions are source truth. If a rule conflicts with Freeflow's
 - If both exist and the user explicitly named the host target, update that host's files.
 - If both exist and the target is ambiguous, ask before editing.
 - If neither exists, ask which one to create.
-- Update both only when the user asks for multi-agent setup. Mention the drift risk.
+- Update both only when the user asks for multi-agent setup. Mention duplicated host activation drift risk.
 
 Do not treat the current agent runtime alone as target approval. A Codex run in a repo that also has `CLAUDE.md` still needs the user to choose unless the request or repo instructions make the target explicit.
 
@@ -42,7 +44,7 @@ Update an existing `## Freeflow` block in place. Otherwise place the block near 
 
 ## Config
 
-Create or update `.freeflow/config.json` with exactly one field: `defaultMode`.
+Create or update `.freeflow/config.json` using the config adapter in `references/activation-contract.md`.
 
 Use `workflow` unless the user explicitly asks to persist a valid repo default: `conversation`, `workflow`, or `strict-workflow`.
 
@@ -53,29 +55,11 @@ Mode switches are task/conversation scoped unless the user explicitly asks to pe
 
 ## Activation
 
-For Codex, use this exact block in `AGENTS.md`:
-```md
-## Freeflow
+Render the canonical blocks from `references/activation-contract.md`.
 
-Use Freeflow for consequential work. Default mode: `.freeflow/config.json`.
+For Codex, put the Codex core block in `AGENTS.md`.
 
-Move forward when context is sufficient. Re-enter clarification when new ambiguity would change the next action.
-
-Ask before user-owned decisions: product behavior, scope, public APIs, security, privacy, billing, data loss, compatibility, permissions, or irreversible architecture.
-
-Treat live repo evidence and existing docs/tests as source truth. If the user request conflicts with them, stop and ask before changing behavior.
-
-Verify before completion claims. Capture only stable decisions, glossary terms, ADR-worthy tradeoffs, or useful handoff memory.
-```
-
-For Claude, put only this import block in `CLAUDE.md`:
-```md
-## Freeflow
-
-@.claude/rules/freeflow-core.md
-```
-
-Put the Codex activation block text in `.claude/rules/freeflow-core.md`.
+For Claude, put only the Claude import block in `CLAUDE.md`, then put the Codex core block text in `.claude/rules/freeflow-core.md`.
 
 Do not list the whole workflow or every mode in always-loaded text. Do not split into multiple always-loaded Freeflow rule files unless the user explicitly confirms that split after the one-file recommendation.
 

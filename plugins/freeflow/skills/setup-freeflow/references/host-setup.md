@@ -1,6 +1,6 @@
 # Host Setup
 
-Use this only when setup asks for a host, profile, default mode, team install, hooks, CLI, or multi-agent shape.
+Use this only when setup asks for a host, profile, default mode, team install, hooks, CLI, or multi-agent shape. Use `activation-contract.md` for canonical activation text, config invariants, and host adapter rules.
 
 ## Hosts
 
@@ -8,7 +8,7 @@ Codex setup writes `AGENTS.md` and `.freeflow/config.json`.
 
 Claude setup writes `CLAUDE.md`, `.claude/rules/freeflow-core.md`, and `.freeflow/config.json`.
 
-Multi-agent setup updates both host surfaces only when the user asks for both or multi-agent setup. Mention that duplicated always-on text can drift, and keep Claude's full block in one imported file.
+Multi-agent setup updates both host surfaces only when the user asks for both or multi-agent setup. Mention that duplicated always-on text can drift, render both hosts from `activation-contract.md`, and keep Claude's full block in one imported file.
 
 Current runtime is not enough to choose a host when both `AGENTS.md` and `CLAUDE.md` exist.
 
