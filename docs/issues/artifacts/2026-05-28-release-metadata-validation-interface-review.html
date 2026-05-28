@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Freeflow Release Metadata Validation Interface Review</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral" });
+    </script>
+    <style>
+      body {
+        background: #f6f7f4;
+      }
+      .panel {
+        border: 1px solid #cfd8cf;
+        background: #fffef8;
+      }
+      .code {
+        white-space: pre-wrap;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      }
+    </style>
+  </head>
+  <body class="text-stone-900">
+    <main class="mx-auto max-w-6xl px-6 py-8">
+      <header class="mb-8">
+        <p class="text-sm font-semibold uppercase tracking-wide text-teal-800">Interface review</p>
+        <h1 class="mt-2 text-4xl font-bold tracking-tight">Release Metadata Validation</h1>
+        <p class="mt-4 max-w-3xl text-lg text-stone-700">
+          Freeflow release truth is split across root marketplace indexes, plugin manifests, command-surface metadata,
+          package-boundary decisions, release evidence, and deferred smoke-test notes. The deepening opportunity is one
+          validation module that finds drift without creating a generated runtime mirror or adding v0.1 enforcement.
+        </p>
+      </header>
+
+      <section class="panel mb-8 rounded-lg p-6">
+        <h2 class="text-2xl font-semibold">Problem Space</h2>
+        <div class="mt-4 grid gap-4 md:grid-cols-3">
+          <div>
+            <h3 class="font-semibold text-stone-800">Constraints</h3>
+            <ul class="mt-2 list-disc pl-5 text-sm leading-6 text-stone-700">
+              <li>`plugins/freeflow/` remains the only runtime source of truth.</li>
+              <li>Root Codex and Claude marketplace indexes must point at that runtime.</li>
+              <li>Codex and Claude manifests must agree on stable identity.</li>
+              <li>`nativeSlashHandlers=false` means no manifest command handlers.</li>
+              <li>Generated eval runs stay ignored and outside release truth.</li>
+              <li>Install smoke checks remain optional/deferred unless release mode asks for them.</li>
+            </ul>
+          </div>
+          <div>
+            <h3 class="font-semibold text-stone-800">Dependencies</h3>
+            <ul class="mt-2 list-disc pl-5 text-sm leading-6 text-stone-700">
+              <li>Metadata: marketplace indexes and plugin manifests.</li>
+              <li>Registry: command-surface JSON and matrix report.</li>
+              <li>Docs: architecture, release evidence, release boundary ADR.</li>
+              <li>Git/package: ignored paths, old-identity scans, duplicate package checks.</li>
+              <li>Host smoke: Codex/GitHub/Claude adapters later.</li>
+            </ul>
+          </div>
+          <div>
+            <h3 class="font-semibold text-stone-800">Sketch</h3>
+            <pre class="code mt-2 rounded bg-stone-950 p-3 text-xs text-stone-100">validateReleaseMetadata()
+  -> discover metadata
+  -> normalize release model
+  -> check identity/locality
+  -> check command surface
+  -> check boundary/docs
+  -> report findings</pre>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel mb-8 rounded-lg p-6">
+        <h2 class="text-2xl font-semibold">Current Shape</h2>
+        <div class="mt-5 grid gap-6 lg:grid-cols-2">
+          <div>
+            <h3 class="mb-3 font-semibold">Before: scattered release truth</h3>
+            <div class="mermaid rounded bg-white p-4">
+              flowchart TD
+                M[Maintainer prepublish check]
+                M --> A[.agents marketplace]
+                M --> B[.claude marketplace]
+                M --> C[Codex manifest]
+                M --> D[Claude manifest]
+                M --> E[command-surface.json]
+                M --> F[audit-command-surface.sh]
+                M --> G[release-evidence.md]
+                M --> H[ADR 0003]
+                M --> I[git/package scans]
+            </div>
+          </div>
+          <div>
+            <h3 class="mb-3 font-semibold">After: release metadata seam</h3>
+            <div class="mermaid rounded bg-white p-4">
+              flowchart TD
+                M[Maintainer prepublish check]
+                M --> V[ReleaseMetadataValidator]
+                V --> R[Normalized release model]
+                V --> A[Host metadata adapters]
+                V --> C[Command-surface adapter]
+                V --> D[Docs evidence adapter]
+                V --> P[Git/package adapter]
+                V --> S[Optional smoke adapters]
+                V --> O[Pass/fail/blocked report]
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid gap-6">
+        <article class="panel rounded-lg p-6">
+          <div class="flex items-start justify-between gap-4">
+            <h2 class="text-2xl font-semibold">Design 1: Minimal Validator</h2>
+            <span class="rounded bg-teal-100 px-3 py-1 text-sm font-semibold text-teal-900">Strong</span>
+          </div>
+          <p class="mt-3 text-stone-700">
+            One entry point validates v0.1 release metadata and returns a focused report. Existing
+            `audit-command-surface.sh` can be wrapped instead of rewritten immediately.
+          </p>
+          <pre class="code mt-4 rounded bg-stone-950 p-4 text-sm text-stone-100">validate({
+  repoRoot: process.cwd(),
+  profile: "v0.1",
+  strict: true
+}) -> ValidationReport</pre>
+          <div class="mt-4 grid gap-4 md:grid-cols-3">
+            <div>
+              <h3 class="font-semibold">Leverage</h3>
+              <p class="mt-1 text-sm leading-6 text-stone-700">High for local prepublish checks with little caller knowledge.</p>
+            </div>
+            <div>
+              <h3 class="font-semibold">Locality</h3>
+              <p class="mt-1 text-sm leading-6 text-stone-700">Concentrates identity, locality, command-surface, and boundary rules.</p>
+            </div>
+            <div>
+              <h3 class="font-semibold">Thin edge</h3>
+              <p class="mt-1 text-sm leading-6 text-stone-700">Does not prove external GitHub/Claude install behavior.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel rounded-lg p-6">
+          <div class="flex items-start justify-between gap-4">
+            <h2 class="text-2xl font-semibold">Design 2: Flexible Profiles</h2>
+            <span class="rounded bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-900">Worth exploring</span>
+          </div>
+          <p class="mt-3 text-stone-700">
+            Profiles model local release, package cleanliness, docs drift, GitHub install smoke, Claude smoke, and
+            native slash readiness. Strong future fit, but broad for the first seam.
+          </p>
+          <pre class="code mt-4 rounded bg-stone-950 p-4 text-sm text-stone-100">validate({
+  repoRoot,
+  pluginId: "freeflow",
+  runtimeRoot: "plugins/freeflow",
+  profiles: ["local-release", "package-cleanliness", "docs-drift"],
+  hosts: ["codex", "claude", "local"]
+})</pre>
+          <div class="mt-4 grid gap-4 md:grid-cols-3">
+            <div>
+              <h3 class="font-semibold">Leverage</h3>
+              <p class="mt-1 text-sm leading-6 text-stone-700">Covers future smoke and native handler checks without changing interface.</p>
+            </div>
+            <div>
+              <h3 class="font-semibold">Locality</h3>
+              <p class="mt-1 text-sm leading-6 text-stone-700">Keeps validation rules modular by profile.</p>
+            </div>
+            <div>
+              <h3 class="font-semibold">Thin edge</h3>
+              <p class="mt-1 text-sm leading-6 text-stone-700">Can become a release framework if every concern becomes a profile.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel rounded-lg p-6">
+          <div class="flex items-start justify-between gap-4">
+            <h2 class="text-2xl font-semibold">Design 3: Common Maintainer Call</h2>
+            <span class="rounded bg-teal-100 px-3 py-1 text-sm font-semibold text-teal-900">Strong</span>
+          </div>
+          <p class="mt-3 text-stone-700">
+            Optimize for the person preparing a release: call one function or script from repo root and get failures,
+            warnings, and evidence.
+          </p>
+          <pre class="code mt-4 rounded bg-stone-950 p-4 text-sm text-stone-100">validateReleaseMetadata() -> {
+  status,
+  version,
+  checks,
+  failures,
+  warnings,
+  evidence
+}</pre>
+          <div class="mt-4 grid gap-4 md:grid-cols-3">
+            <div>
+              <h3 class="font-semibold">Leverage</h3>
+              <p class="mt-1 text-sm leading-6 text-stone-700">Best day-one ergonomics and easiest to put in prepublish docs.</p>
+            </div>
+            <div>
+              <h3 class="font-semibold">Locality</h3>
+              <p class="mt-1 text-sm leading-6 text-stone-700">Default discovery hides all current path details.</p>
+            </div>
+            <div>
+              <h3 class="font-semibold">Thin edge</h3>
+              <p class="mt-1 text-sm leading-6 text-stone-700">Needs escape hatches for future smoke profiles.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel rounded-lg p-6">
+          <div class="flex items-start justify-between gap-4">
+            <h2 class="text-2xl font-semibold">Design 4: Ports and Adapters</h2>
+            <span class="rounded bg-teal-100 px-3 py-1 text-sm font-semibold text-teal-900">Strong</span>
+          </div>
+          <p class="mt-3 text-stone-700">
+            Host formats, docs parsing, package scans, and future install smoke checks are adapters behind one
+            normalized release model.
+          </p>
+          <pre class="code mt-4 rounded bg-stone-950 p-4 text-sm text-stone-100">validate({
+  repoRoot,
+  pluginRoot: "plugins/freeflow",
+  releaseVersion: "0.1.0",
+  mode: "prepublish",
+  adapters: {
+    codexMarketplace,
+    claudeMarketplace,
+    codexManifest,
+    claudeManifest,
+    commandSurface,
+    docs,
+    gitPackage,
+    installSmoke?
+  }
+})</pre>
+          <div class="mt-4 grid gap-4 md:grid-cols-3">
+            <div>
+              <h3 class="font-semibold">Leverage</h3>
+              <p class="mt-1 text-sm leading-6 text-stone-700">Best isolation for Codex, Claude, docs, git, and future host volatility.</p>
+            </div>
+            <div>
+              <h3 class="font-semibold">Locality</h3>
+              <p class="mt-1 text-sm leading-6 text-stone-700">Release rules live in the validator; raw host formats stay behind adapters.</p>
+            </div>
+            <div>
+              <h3 class="font-semibold">Thin edge</h3>
+              <p class="mt-1 text-sm leading-6 text-stone-700">Can feel heavy unless wrapped by a trivial default caller.</p>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="panel mt-8 rounded-lg p-6">
+        <h2 class="text-2xl font-semibold">Comparison</h2>
+        <div class="mt-4 overflow-x-auto">
+          <table class="w-full border-collapse text-left text-sm">
+            <thead>
+              <tr class="border-b border-stone-300">
+                <th class="py-2 pr-4">Design</th>
+                <th class="py-2 pr-4">Depth</th>
+                <th class="py-2 pr-4">Locality</th>
+                <th class="py-2 pr-4">Risk</th>
+              </tr>
+            </thead>
+            <tbody class="align-top">
+              <tr class="border-b border-stone-200">
+                <td class="py-3 pr-4 font-semibold">Minimal Validator</td>
+                <td class="py-3 pr-4">High for v0.1 deterministic checks.</td>
+                <td class="py-3 pr-4">Strong: one release model.</td>
+                <td class="py-3 pr-4">Weak on future smoke profiles.</td>
+              </tr>
+              <tr class="border-b border-stone-200">
+                <td class="py-3 pr-4 font-semibold">Flexible Profiles</td>
+                <td class="py-3 pr-4">Broad, extensible depth.</td>
+                <td class="py-3 pr-4">Strong if profiles stay bounded.</td>
+                <td class="py-3 pr-4">May become too general.</td>
+              </tr>
+              <tr class="border-b border-stone-200">
+                <td class="py-3 pr-4 font-semibold">Common Maintainer Call</td>
+                <td class="py-3 pr-4">High day-one leverage.</td>
+                <td class="py-3 pr-4">Strong for prepublish flow.</td>
+                <td class="py-3 pr-4">Needs adapters hidden below.</td>
+              </tr>
+              <tr>
+                <td class="py-3 pr-4 font-semibold">Ports and Adapters</td>
+                <td class="py-3 pr-4">Strongest implementation seam.</td>
+                <td class="py-3 pr-4">Strongest source isolation.</td>
+                <td class="py-3 pr-4">Heavy without default wrapper.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel mt-8 rounded-lg border-2 border-teal-700 p-6">
+        <h2 class="text-2xl font-semibold">Recommendation</h2>
+        <p class="mt-3 text-stone-700">
+          Use a hybrid: a trivial `validateReleaseMetadata()` default over a ports-and-adapters validator with bounded
+          modes: `local`, `prepublish`, and `release`. Add optional profiles only for checks with different cost or
+          environment needs.
+        </p>
+        <pre class="code mt-4 rounded bg-stone-950 p-4 text-sm text-stone-100">validateReleaseMetadata()
+  -> ReleaseMetadataValidator.validate({
+       pluginRoot: "plugins/freeflow",
+       mode: "prepublish",
+       checks: defaultLocalChecks
+     })
+     -> HostMetadataAdapters(Codex, Claude)
+     -> CommandSurfaceAdapter(existing audit first)
+     -> DocsEvidenceAdapter
+     -> GitPackageScanAdapter
+     -> Optional InstallSmokeAdapter</pre>
+        <div class="mt-4 grid gap-4 md:grid-cols-2">
+          <div>
+            <h3 class="font-semibold">Why this is strongest</h3>
+            <p class="mt-1 text-sm leading-6 text-stone-700">
+              It gives maintainers one command-sized interface while concentrating release metadata rules in one module.
+              Host volatility and optional smoke checks stay behind adapters.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-semibold">Guardrails</h3>
+            <p class="mt-1 text-sm leading-6 text-stone-700">
+              Do not add hooks, native slash handlers, or a generated package copy. Do not mechanically over-parse docs.
+              Treat install smoke as optional until a release mode explicitly requires it.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

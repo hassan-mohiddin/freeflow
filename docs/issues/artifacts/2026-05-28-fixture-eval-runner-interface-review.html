@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fixture eval runner interface review - Freeflow</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      body { background: #fafaf9; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); color: white; }
+      .module-box { border: 1px solid #cbd5e1; border-radius: 0.75rem; background: white; }
+      .small-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: .08em; color: #64748b; }
+      code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+    </style>
+  </head>
+  <body class="text-slate-900">
+    <main class="mx-auto max-w-6xl space-y-10 px-6 py-10">
+      <header class="space-y-4">
+        <p class="text-xs uppercase tracking-wider text-slate-500">Architecture review</p>
+        <h1 class="text-4xl font-semibold tracking-tight">Freeflow fixture eval runner interface designs</h1>
+        <p class="max-w-3xl text-sm text-slate-600">Generated from four explorer subagents after explicit approval. Candidate: deepen the Adversarial Fixture Eval runner module while keeping host commands as adapters.</p>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 text-sm">
+          <b>Problem space:</b> current scripts repeat fixture staging, prompt assembly, host invocation, output capture, diff capture, git metadata, dry-run behavior, and policy checks across Codex and Claude paths.
+        </div>
+      </header>
+
+      <section class="grid gap-4 lg:grid-cols-2">
+        <div class="rounded-2xl border border-slate-200 bg-white p-5">
+          <p class="small-label">Before</p>
+          <pre class="mermaid">
+flowchart TD
+  ById[run-fixture-eval-by-id.sh] --> Codex[run-codex-fixture-eval.sh]
+  ById --> Claude[run-claude-fixture-eval.sh]
+  Codex --> A[copy fixture / prompt / output / diff / git]
+  Claude --> B[copy fixture / prompt / output / diff / git]
+  A -. repeated implementation .-> B
+          </pre>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-5">
+          <p class="small-label">After direction</p>
+          <pre class="mermaid">
+flowchart TD
+  Caller[CLI or suite] --> Runner[deep fixture eval runner module]
+  Runner --> Resolve[registry + variant + prompt]
+  Runner --> Workspace[fixture workspace]
+  Runner --> Artifacts[output + diff + git evidence]
+  Runner --> Seam{{agent seam}}
+  Seam --> Codex[Codex adapter]
+  Seam --> Claude[Claude adapter]
+  classDef deep fill:#0f172a,stroke:#0f172a,color:#fff;
+  class Runner deep
+          </pre>
+        </div>
+      </section>
+
+      <section class="space-y-6">
+        <article class="rounded-2xl border border-slate-200 bg-white p-6">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="text-2xl font-semibold">Design 1: minimal single entry point</h2>
+            <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800">Deepest interface</span>
+          </div>
+          <pre class="mt-4 rounded-xl bg-slate-950 p-4 text-sm text-slate-100">runFixtureEval(request) -> result</pre>
+          <div class="mt-4 grid gap-4 md:grid-cols-3">
+            <div class="module-box p-4"><b>Interface</b><br>evalId, variant, agent, runDir, outputFile, skillFiles, registryFile, dryRun, requireEmptyDiff, hostOptions.</div>
+            <div class="module-box p-4"><b>Implementation hides</b><br>registry lookup, prompt materialization, fixture staging, host command shape, sidecar output naming.</div>
+            <div class="module-box p-4"><b>Trade-off</b><br>High locality. Shell may stay shallow for structured validation.</div>
+          </div>
+        </article>
+
+        <article class="rounded-2xl border border-slate-200 bg-white p-6">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="text-2xl font-semibold">Design 2: flexible typed request plus dependency ports</h2>
+            <span class="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800">Most extensible</span>
+          </div>
+          <pre class="mt-4 rounded-xl bg-slate-950 p-4 text-sm text-slate-100">runFixtureEval(request: FixtureEvalRunRequest, deps: FixtureEvalDeps): FixtureEvalRunResult</pre>
+          <div class="mt-4 grid gap-4 md:grid-cols-3">
+            <div class="module-box p-4"><b>Interface</b><br>Allows prompt overrides, fixture overrides, setup policy, workspace policy, artifact policy, failure policy, agent options.</div>
+            <div class="module-box p-4"><b>Implementation hides</b><br>registry, filesystem, shell, artifact store, and agent adapter details.</div>
+            <div class="module-box p-4"><b>Trade-off</b><br>Flexible but risks a shallow interface if arbitrary variants and overrides become normal.</div>
+          </div>
+        </article>
+
+        <article class="rounded-2xl border border-slate-200 bg-white p-6">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="text-2xl font-semibold">Design 3: common-caller CLI</h2>
+            <span class="rounded-full bg-sky-100 px-3 py-1 text-xs font-medium text-sky-800">Best ergonomics</span>
+          </div>
+          <pre class="mt-4 rounded-xl bg-slate-950 p-4 text-sm text-slate-100">plugins/freeflow/evals/scripts/run-fixture-eval.sh &lt;eval-id&gt; [options]</pre>
+          <div class="mt-4 grid gap-4 md:grid-cols-3">
+            <div class="module-box p-4"><b>Interface</b><br>Defaults: Codex, with-skill, standard registry, manual timestamped run path. Flags preserve baseline, Claude, dry-run, explicit output.</div>
+            <div class="module-box p-4"><b>Implementation hides</b><br>positional arg noise, env var shape, output path construction, skill mapping.</div>
+            <div class="module-box p-4"><b>Trade-off</b><br>Great caller leverage. Needs internal typed module or shell parsing becomes the implementation.</div>
+          </div>
+        </article>
+
+        <article class="rounded-2xl border border-slate-200 bg-white p-6">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="text-2xl font-semibold">Design 4: ports and adapters</h2>
+            <span class="rounded-full bg-indigo-100 px-3 py-1 text-xs font-medium text-indigo-800">Best seam discipline</span>
+          </div>
+          <pre class="mt-4 rounded-xl bg-slate-950 p-4 text-sm text-slate-100">runAdversarialFixtureEval(params): FixtureEvalResult</pre>
+          <div class="mt-4 grid gap-4 md:grid-cols-3">
+            <div class="module-box p-4"><b>Interface</b><br>Strict baseline/with-skill, Codex/Claude, typed env/options. Keeps registry resolution and artifact capture domain-local.</div>
+            <div class="module-box p-4"><b>Adapters</b><br>AgentAdapter for host commands. FixtureWorkspace for local-substitutable workspace, diff, and git capture.</div>
+            <div class="module-box p-4"><b>Trade-off</b><br>Explicit seam adds structure, but it matches real Codex/Claude divergence.</div>
+          </div>
+        </article>
+      </section>
+
+      <section class="rounded-2xl border border-slate-200 bg-white p-6">
+        <h2 class="text-2xl font-semibold">Comparison</h2>
+        <div class="mt-4 overflow-x-auto">
+          <table class="w-full border-collapse text-left text-sm">
+            <thead class="bg-slate-100">
+              <tr>
+                <th class="border border-slate-200 p-3">Design</th>
+                <th class="border border-slate-200 p-3">Depth</th>
+                <th class="border border-slate-200 p-3">Locality</th>
+                <th class="border border-slate-200 p-3">Thin spot</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="border border-slate-200 p-3">Minimal</td><td class="border border-slate-200 p-3">High: one request/result</td><td class="border border-slate-200 p-3">High: runner owns lifecycle</td><td class="border border-slate-200 p-3">May hide too many host options</td></tr>
+              <tr><td class="border border-slate-200 p-3">Flexible</td><td class="border border-slate-200 p-3">Medium: many knobs</td><td class="border border-slate-200 p-3">Medium-high</td><td class="border border-slate-200 p-3">Interface can become policy surface</td></tr>
+              <tr><td class="border border-slate-200 p-3">Common CLI</td><td class="border border-slate-200 p-3">High for daily use</td><td class="border border-slate-200 p-3">High if backed by internal module</td><td class="border border-slate-200 p-3">Shell option parsing creep</td></tr>
+              <tr><td class="border border-slate-200 p-3">Ports/adapters</td><td class="border border-slate-200 p-3">High at host seam</td><td class="border border-slate-200 p-3">High: host divergence isolated</td><td class="border border-slate-200 p-3">More design upfront</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="rounded-2xl border border-slate-300 bg-slate-950 p-6 text-white">
+        <p class="text-xs uppercase tracking-wider text-slate-300">Recommendation</p>
+        <h2 class="mt-2 text-2xl font-semibold">Hybrid: common CLI over a minimal ports-and-adapters module</h2>
+        <p class="mt-3 max-w-3xl text-slate-200">Use Design 3 for caller ergonomics, backed by Design 1's small request/result interface and Design 4's AgentAdapter seam. Reject Design 2's broad override surface for v0.1 because it weakens depth and invites policy creep.</p>
+        <pre class="mt-4 rounded-xl bg-white p-4 text-sm text-slate-950">run-fixture-eval.sh &lt;eval-id&gt; [--baseline] [--agent codex|claude] [--dry-run] [...]
+  -> runAdversarialFixtureEval(params)
+       -> AgentAdapter(codex|claude)</pre>
+      </section>
+    </main>
+  </body>
+</html>
