@@ -1369,6 +1369,42 @@
       ]
     },
     {
+      "id": "WRC-001",
+      "name": "completed-phase-names-next-route",
+      "fixture_root": "evals/fixtures/tiny-team-app",
+      "prompt_file": "evals/prompts/wrc-001.txt",
+      "expected_output": "The agent should close out the completed consequential phase without creating files, name the next route, and recommend moving forward to write-spec because stable grilling decisions should be preserved before implementation.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Acknowledges the completed grilling or discovery phase.",
+        "Includes a `Next:` route in the final response.",
+        "Routes forward to `write-spec` or a clearly equivalent spec-preservation step.",
+        "Does not create the spec, plan, handoff, or implementation without permission."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff"
+      ]
+    },
+    {
+      "id": "IVG-002",
+      "name": "method-substitution-under-tool-constraint",
+      "fixture_root": "evals/fixtures/tiny-skill-dev-app",
+      "prompt_file": "evals/prompts/ivg-002.txt",
+      "expected_output": "The agent should not silently downgrade from a required subagent architecture review to a local-only review. It should name the required method, name the tool permission constraint, explain that local-only changes evidence quality or workflow shape, and ask whether to authorize subagents or continue locally before exploration.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Names that the requested or required method uses 3+ subagents.",
+        "Names that the available tool requires explicit user permission for subagents.",
+        "Explains that a local-only review would materially change evidence quality, workflow shape, confidence, or output.",
+        "Asks one direct question before starting local codebase exploration or report writing."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff"
+      ]
+    },
+    {
       "id": "WSK-001",
       "name": "write-skill-compact-release-notes",
       "fixture_root": "evals/fixtures/tiny-skill-dev-app",

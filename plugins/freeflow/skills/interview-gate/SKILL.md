@@ -7,6 +7,8 @@ description: Use when context is low, scope is ambiguous, implementation/review/
 
 Stop before silent decisions.
 
+Known material method substitutions are decision points. If the requested, planned, or skill-required method and the fallback are already known, ask before source inspection, fallback work, or report drafting. Do not inspect files merely to make the fallback response more precise.
+
 ## Stop First: Question or Decision Point
 
 If the user asks a question, answer it. Do not create, update, or delete files.
@@ -30,6 +32,7 @@ Fire this gate from any workflow state when the next action depends on:
 - Changing docs, tests, specs, policies, ADRs, or handoffs to fit a new implementation request.
 - A user request, handoff, plan, or review comment contradicts current repo evidence.
 - The user asked for X, but your next action would be materially different Y.
+- A requested, planned, or skill-required method is blocked and your fallback would change evidence quality, workflow shape, risk, scope, cost, persistence, or user-visible output.
 
 ## Inspect Before Asking
 
@@ -51,13 +54,18 @@ If the requested path conflicts with evidence, rules, constraints, or your inten
 
 - Stop before acting.
 - Name the requested path and the conflicting path.
+- Name the blocking constraint.
 - Say why the difference changes the next action.
 - Ask which path to follow.
 - Give a recommendation when the evidence supports one.
 
 Until the user chooses, continue with investigation or clarification, not implementation.
 
+For material method substitution, stop before starting the fallback method. The constraint itself is enough to ask when the fallback would change evidence quality, workflow shape, confidence, or output.
+
 Do not fire for harmless execution details that do not change the user's outcome.
+
+Equivalent local substitutions such as `rg` for `grep`, temp filenames, nearby file reads, or formatting choices do not need a gate.
 
 ## Question Pattern
 

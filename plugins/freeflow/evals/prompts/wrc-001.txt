@@ -1,0 +1,10 @@
+Use Freeflow to close out this completed grilling phase.
+
+Context from the completed phase:
+- Team invitations are admin-only.
+- Invitations expire after 7 days.
+- Invitees accept by email link.
+- Invited users join with the member role.
+- No unresolved product questions remain.
+
+Do not create or edit files. Send the final response for this phase.

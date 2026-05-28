@@ -57,4 +57,6 @@ Not verified: ...
 Next: ...
 ```
 
-Omit sections that do not apply. Keep it short.
+For completed consequential work, `Next:` is mandatory. Omit it only for direct question answers, mid-task status, or clarification-only turns.
+
+Keep it short.
