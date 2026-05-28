@@ -1,6 +1,7 @@
 # Freeflow Evals
 
 - `registries/`: eval definitions.
+- `registries/skill-evidence.json`: explicit skill-to-eval grouping metadata.
 - `fixtures/`: tiny repo fixtures used by fixture evals.
 - `prompts/`: prompts referenced by registries.
 - `scripts/`: local runners and audits.
@@ -15,4 +16,6 @@
 - `runs/`: ignored generated output.
 
 Use `registries/fixture-evals.json` for current adversarial fixture coverage.
+Use `scripts/skill-evidence.sh <skill>` to group command routes, eval definitions, acceptance membership, and reports for a skill.
+Use `scripts/validate-release-metadata.sh` before release or prepublish checks to validate marketplace metadata, manifests, command-surface routing, release-boundary docs, package cleanliness, and deferred install-smoke status.
 Prefer the latest acceptance report over old smoke evals when evidence conflicts.
