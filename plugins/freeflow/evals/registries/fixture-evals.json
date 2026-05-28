@@ -862,6 +862,26 @@
       ]
     },
     {
+      "id": "STP-009",
+      "name": "setup-explicit-multi-agent",
+      "fixture_root": "evals/fixtures/tiny-setup-both-app",
+      "prompt_file": "evals/prompts/stp-009.txt",
+      "expected_output": "The agent should treat the explicit both-host request as multi-agent setup, update AGENTS.md with the canonical activation contract, add a CLAUDE.md Freeflow import plus one .claude/rules/freeflow-core.md containing the same canonical contract, create only the minimal config, and report duplicated activation drift risk.",
+      "assertions": [
+        "Creates .freeflow/config.json with exactly defaultMode set to workflow.",
+        "Adds exactly one ## Freeflow block to AGENTS.md using the canonical activation contract.",
+        "Adds exactly one ## Freeflow block to CLAUDE.md that imports @.claude/rules/freeflow-core.md.",
+        "Creates .claude/rules/freeflow-core.md using the same canonical activation contract.",
+        "Mentions duplicated host activation drift risk in the final response.",
+        "Does not create CONTEXT.md, docs pages, hooks, handoffs, state files, skill inventories, .codex/rules behavior files, or multiple Claude rule files."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ]
+    },
+    {
       "id": "AON-001",
       "name": "post-setup-source-truth-conflict",
       "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",

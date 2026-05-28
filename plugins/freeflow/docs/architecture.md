@@ -52,6 +52,8 @@ This keeps the model's first-loaded instructions focused on behavior:
 
 `setup-freeflow` installs a compact always-on contract into the host repo.
 
+The canonical setup contract lives in `skills/setup-freeflow/references/activation-contract.md`; setup docs, fixtures, and eval assertions should reference it or be checked against it.
+
 Codex setup targets `AGENTS.md` and `.freeflow/config.json`.
 
 Claude setup targets `CLAUDE.md`, `.claude/rules/freeflow-core.md`, and `.freeflow/config.json` when Claude is the selected host.

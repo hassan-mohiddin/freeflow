@@ -75,7 +75,7 @@ Version and migration fields can be added when Freeflow is close to shipping.
 
 ## Agent Instruction File
 
-Setup should add a compact always-on runtime contract to the host agent's repo instruction file.
+Setup should add the compact always-on runtime contract from `plugins/freeflow/skills/setup-freeflow/references/activation-contract.md` to the host agent's repo instruction file.
 
 Target file rules:
 
@@ -101,23 +101,7 @@ Claude setup should use `CLAUDE.md` plus an explicit import:
 @.claude/rules/freeflow-core.md
 ```
 
-The always-on text should stay compact because users often keep agent instruction files short and already have their own rules.
-
-Suggested block:
-
-```md
-## Freeflow
-
-Use Freeflow for consequential work. Default mode: `.freeflow/config.json`.
-
-Move forward when context is sufficient. Re-enter clarification when new ambiguity would change the next action.
-
-Ask before user-owned decisions: product behavior, scope, public APIs, security, privacy, billing, data loss, compatibility, permissions, or irreversible architecture.
-
-Treat live repo evidence and existing docs/tests as source truth. If the user request conflicts with them, stop and ask before changing behavior.
-
-Verify before completion claims. Capture only stable decisions, glossary terms, ADR-worthy tradeoffs, or useful handoff memory.
-```
+The always-on text should stay compact because users often keep agent instruction files short and already have their own rules. Do not duplicate the full block in docs; use `activation-contract.md` as the source of truth and run `plugins/freeflow/evals/scripts/check-activation-contract.sh` after changes.
 
 Do not list the whole workflow or every mode in the activation block.
 
