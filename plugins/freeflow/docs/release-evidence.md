@@ -25,9 +25,13 @@ The development registry covers:
 
 Native slash handlers are not shipped in v0.1. Commands are model-routed through natural language and skill activation.
 
+## Release Metadata
+
+Run `plugins/freeflow/evals/scripts/validate-release-metadata.sh` for local prepublish checks across marketplace metadata, host manifests, command-surface routing, release-boundary docs, package cleanliness, and deferred install-smoke status.
+
 ## Known Deferred Work
 
-- Live Claude smoke evals after local Claude auth/model access is available.
+- Live Claude smoke evals after Hassan confirms Claude testing is available again.
 - GitHub-install smoke tests in separate Codex and Claude environments.
 - Hooks or CLI enforcement only after repeated behavior failures justify them.
 - Public marketplace submission only after GitHub install works.
