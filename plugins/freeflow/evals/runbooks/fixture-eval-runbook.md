@@ -20,32 +20,35 @@ For each eval:
    - files the agent claims to have inspected
 5. Grade final response plus diff.
 
-Prefer the ID runner when an eval is registered in `registries/fixture-evals.json`:
+Prefer the unified runner when an eval is registered in `registries/fixture-evals.json`:
 
 ```sh
-plugins/freeflow/evals/scripts/run-fixture-eval-by-id.sh \
-  AON-001 baseline aon-001-baseline plugins/freeflow/evals/runs/aon-001-baseline-output.md
+plugins/freeflow/evals/scripts/run-fixture-eval.sh \
+  AON-001 --baseline \
+  --run-dir aon-001-baseline \
+  --output plugins/freeflow/evals/runs/aon-001-baseline-output.md
 ```
 
-The ID runner uses Codex by default. To run the same registered fixture through Claude:
+The runner uses Codex by default. To run the same registered fixture through Claude:
 
 ```sh
-FREEFLOW_FIXTURE_AGENT=claude \
-  plugins/freeflow/evals/scripts/run-fixture-eval-by-id.sh \
-  FX-004 baseline fx-004-claude-baseline plugins/freeflow/evals/runs/fx-004-claude-baseline-output.md
+plugins/freeflow/evals/scripts/run-fixture-eval.sh \
+  FX-004 --baseline --agent claude \
+  --run-dir fx-004-claude-baseline \
+  --output plugins/freeflow/evals/runs/fx-004-claude-baseline-output.md
 ```
 
-For `baseline`, the ID runner uses `baseline_fixture_root` when the eval defines one. Other variants use `fixture_root`.
+For `baseline`, the runner uses `baseline_fixture_root` when the eval defines one. Other variants use `fixture_root`.
 
 Use dry-run mode before nested model calls:
 
 ```sh
-FREEFLOW_DRY_RUN=1 plugins/freeflow/evals/scripts/run-fixture-eval-by-id.sh ...
+plugins/freeflow/evals/scripts/run-fixture-eval.sh STP-001 --dry-run
 ```
 
 ## Claude Runner
 
-Use `evals/scripts/run-claude-fixture-eval.sh` directly when checking Claude command construction. The ID runner selects it when `FREEFLOW_FIXTURE_AGENT=claude`.
+Use `evals/scripts/run-fixture-eval.sh --agent claude --dry-run` when checking Claude command construction. The legacy `run-claude-fixture-eval.sh` entry point remains a compatibility wrapper.
 
 Default Claude behavior:
 
@@ -69,6 +72,14 @@ Claude runs save:
 - stderr: `*-output.stderr.txt`
 - exit status: `*-output.exit-status.txt`
 - diff: `*-output.diff`
+
+Legacy scripts remain supported:
+
+- `run-fixture-eval-by-id.sh`
+- `run-codex-fixture-eval.sh`
+- `run-claude-fixture-eval.sh`
+
+They delegate to `run-fixture-eval.sh`; new docs should prefer the unified runner.
 
 ## Scoring
 
