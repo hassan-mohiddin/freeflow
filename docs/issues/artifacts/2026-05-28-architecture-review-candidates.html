@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Architecture review - Freeflow</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      body { background: #fafaf9; }
+      .seam-line { border-left: 2px dashed #64748b; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); color: white; }
+      .leak { color: #dc2626; border-color: #dc2626; }
+      .module-box { border: 1px solid #cbd5e1; border-radius: 0.75rem; background: white; }
+      .small-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: .08em; color: #64748b; }
+      .arrow { color: #64748b; }
+    </style>
+  </head>
+  <body class="text-slate-900 font-sans">
+    <main class="max-w-6xl mx-auto px-6 py-10 space-y-10">
+      <header class="space-y-5">
+        <div>
+          <p class="text-xs uppercase tracking-wider text-slate-500">Architecture review</p>
+          <h1 class="text-4xl font-semibold tracking-tight">Freeflow deepening candidates</h1>
+          <p class="mt-2 text-sm text-slate-600">2026-05-28. Local repo exploration only; subagent delegation was not used because the available tool contract requires explicit delegation permission.</p>
+        </div>
+        <div class="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 text-sm md:grid-cols-4">
+          <div><span class="inline-block h-3 w-3 rounded border border-slate-400 bg-white"></span> module</div>
+          <div><span class="inline-block h-4 border-l-2 border-dashed border-slate-500 align-middle"></span> seam</div>
+          <div><span class="text-red-600">red</span> leakage</div>
+          <div><span class="inline-block rounded bg-slate-900 px-2 py-1 text-xs text-white">deep module</span></div>
+        </div>
+      </header>
+
+      <section id="candidates" class="space-y-8">
+        <article id="eval-harness" class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="text-2xl font-semibold">Deepen the fixture eval runner module</h2>
+            <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800">Strong</span>
+            <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">two adapters</span>
+          </div>
+
+          <div class="mt-4 grid gap-6 lg:grid-cols-2">
+            <div>
+              <p class="small-label mb-2">Files</p>
+              <ul class="space-y-1 font-mono text-sm text-slate-700">
+                <li>plugins/freeflow/evals/scripts/run-fixture-eval-by-id.sh</li>
+                <li>plugins/freeflow/evals/scripts/run-codex-fixture-eval.sh</li>
+                <li>plugins/freeflow/evals/scripts/run-claude-fixture-eval.sh</li>
+                <li>plugins/freeflow/evals/runbooks/fixture-eval-runbook.md</li>
+              </ul>
+            </div>
+            <div class="rounded-xl bg-slate-50 p-4 text-sm">
+              <p><b>Problem:</b> Codex and Claude runners repeat fixture copy, prompt assembly, output capture, diff capture, git capture, and failure handling.</p>
+              <p class="mt-2"><b>Solution:</b> One fixture eval runner module owns lifecycle; Codex and Claude become adapters at the host execution seam.</p>
+            </div>
+          </div>
+
+          <div class="mt-6 grid gap-4 lg:grid-cols-2">
+            <div class="rounded-xl border border-slate-200 p-4">
+              <p class="small-label mb-2">Before</p>
+              <pre class="mermaid">
+flowchart TD
+  Registry[fixture-evals.json] --> ById[run-fixture-eval-by-id.sh]
+  ById --> Codex[run-codex-fixture-eval.sh]
+  ById --> Claude[run-claude-fixture-eval.sh]
+  Codex --> Copy1[copy fixture]
+  Codex --> Prompt1[assemble prompt]
+  Codex --> Diff1[capture diff/git]
+  Claude --> Copy2[copy fixture]
+  Claude --> Prompt2[assemble prompt]
+  Claude --> Diff2[capture diff/git]
+  Copy1 -. repeated .-> Copy2
+  Prompt1 -. repeated .-> Prompt2
+  Diff1 -. repeated .-> Diff2
+  classDef leak stroke:#dc2626,stroke-width:2px,color:#dc2626;
+  class Copy1,Copy2,Prompt1,Prompt2,Diff1,Diff2 leak
+              </pre>
+            </div>
+            <div class="rounded-xl border border-slate-200 p-4">
+              <p class="small-label mb-2">After</p>
+              <pre class="mermaid">
+flowchart TD
+  Registry[fixture-evals.json] --> Runner[deep fixture eval runner]
+  Runner --> Stage[stage fixture]
+  Runner --> Prompt[build prompt]
+  Runner --> Capture[capture output + diff + git]
+  Runner --> Seam{{host execution seam}}
+  Seam --> CodexAdapter[Codex adapter]
+  Seam --> ClaudeAdapter[Claude adapter]
+  classDef deep fill:#0f172a,stroke:#0f172a,color:#fff;
+  class Runner deep
+              </pre>
+            </div>
+          </div>
+
+          <ul class="mt-5 grid gap-2 text-sm md:grid-cols-3">
+            <li class="rounded-lg bg-slate-50 p-3">locality: harness bugs concentrate</li>
+            <li class="rounded-lg bg-slate-50 p-3">leverage: one lifecycle interface</li>
+            <li class="rounded-lg bg-slate-50 p-3">tests hit host seam</li>
+          </ul>
+        </article>
+
+        <article id="activation-contract" class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="text-2xl font-semibold">Make the activation contract a module</h2>
+            <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800">Strong</span>
+            <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">text adapter</span>
+          </div>
+
+          <div class="mt-4 grid gap-6 lg:grid-cols-2">
+            <div>
+              <p class="small-label mb-2">Files</p>
+              <ul class="space-y-1 font-mono text-sm text-slate-700">
+                <li>plugins/freeflow/skills/setup-freeflow/SKILL.md</li>
+                <li>docs/freeflow-runtime-and-lifecycle.md</li>
+                <li>docs/research/freeflow-always-on-memory.md</li>
+                <li>plugins/freeflow/evals/fixtures/tiny-post-setup-*/AGENTS.md</li>
+              </ul>
+            </div>
+            <div class="rounded-xl bg-slate-50 p-4 text-sm">
+              <p><b>Problem:</b> The same always-on contract text appears in runtime skill, architecture docs, research docs, and fixtures.</p>
+              <p class="mt-2"><b>Solution:</b> One activation contract module owns canonical text; setup and fixtures consume adapters or checked copies.</p>
+            </div>
+          </div>
+
+          <div class="mt-6 grid gap-4 lg:grid-cols-2">
+            <div class="rounded-xl border border-slate-200 p-4">
+              <p class="small-label mb-3">Before</p>
+              <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-sm">
+                <div class="module-box p-3">setup-freeflow<br><span class="text-xs text-slate-500">full text</span></div>
+                <div class="arrow">-></div>
+                <div class="module-box p-3 leak">AGENTS.md fixture<br><span class="text-xs">copy drift</span></div>
+                <div class="module-box p-3">runtime docs<br><span class="text-xs text-slate-500">full text</span></div>
+                <div class="arrow">-></div>
+                <div class="module-box p-3 leak">research docs<br><span class="text-xs">copy drift</span></div>
+              </div>
+            </div>
+            <div class="rounded-xl border border-slate-200 p-4">
+              <p class="small-label mb-3">After</p>
+              <div class="relative rounded-xl border border-slate-300 p-4">
+                <div class="deep rounded-xl p-4 text-center font-medium">Activation contract module</div>
+                <div class="mt-4 grid gap-3 text-sm md:grid-cols-3">
+                  <div class="module-box p-3">Codex text adapter</div>
+                  <div class="module-box p-3">Claude text adapter</div>
+                  <div class="module-box p-3">fixture check adapter</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <ul class="mt-5 grid gap-2 text-sm md:grid-cols-3">
+            <li class="rounded-lg bg-slate-50 p-3">locality: contract changes once</li>
+            <li class="rounded-lg bg-slate-50 p-3">leverage: setup and evals share</li>
+            <li class="rounded-lg bg-slate-50 p-3">interface: contract text only</li>
+          </ul>
+        </article>
+
+        <article id="skill-evidence" class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="text-2xl font-semibold">Group skill evidence behind each skill</h2>
+            <span class="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800">Worth exploring</span>
+            <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">local-substitutable</span>
+          </div>
+
+          <div class="mt-4 grid gap-6 lg:grid-cols-2">
+            <div>
+              <p class="small-label mb-2">Files</p>
+              <ul class="space-y-1 font-mono text-sm text-slate-700">
+                <li>plugins/freeflow/skills/*/SKILL.md</li>
+                <li>plugins/freeflow/evals/registries/fixture-evals.json</li>
+                <li>plugins/freeflow/evals/prompts/*.txt</li>
+                <li>plugins/freeflow/evals/fixtures/*</li>
+                <li>plugins/freeflow/evals/reports/by-skill/*.md</li>
+              </ul>
+            </div>
+            <div class="rounded-xl bg-slate-50 p-4 text-sm">
+              <p><b>Problem:</b> A skill behavior change crosses one skill file, a 76-entry registry, prompts, fixtures, reports, and suite rows.</p>
+              <p class="mt-2"><b>Solution:</b> Add a small evidence index per skill, or split registry views by skill while keeping one aggregate runner input.</p>
+            </div>
+          </div>
+
+          <div class="mt-6 grid gap-4 lg:grid-cols-2">
+            <div class="rounded-xl border border-slate-200 p-4">
+              <p class="small-label mb-2">Before</p>
+              <div class="space-y-2 text-sm">
+                <div class="module-box p-3">setup-freeflow/SKILL.md</div>
+                <div class="grid grid-cols-3 gap-2">
+                  <div class="module-box p-3 leak">registry slice</div>
+                  <div class="module-box p-3 leak">prompts</div>
+                  <div class="module-box p-3 leak">fixtures</div>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <div class="module-box p-3 leak">reports</div>
+                  <div class="module-box p-3 leak">suite rows</div>
+                </div>
+              </div>
+            </div>
+            <div class="rounded-xl border border-slate-200 p-4">
+              <p class="small-label mb-2">After</p>
+              <div class="space-y-3 text-sm">
+                <div class="deep rounded-xl p-4">setup-freeflow evidence module</div>
+                <div class="grid grid-cols-3 gap-2">
+                  <div class="module-box p-3">eval ids</div>
+                  <div class="module-box p-3">fixtures</div>
+                  <div class="module-box p-3">reports</div>
+                </div>
+                <div class="module-box p-3 text-center">aggregate runner input stays generated or checked</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            ADR note: keep generated eval run output ignored. This candidate changes evidence locality, not runtime enforcement.
+          </div>
+
+          <ul class="mt-5 grid gap-2 text-sm md:grid-cols-3">
+            <li class="rounded-lg bg-slate-50 p-3">locality: skill evidence clusters</li>
+            <li class="rounded-lg bg-slate-50 p-3">leverage: easier eval selection</li>
+            <li class="rounded-lg bg-slate-50 p-3">interface: skill evidence index</li>
+          </ul>
+        </article>
+
+        <article id="release-metadata" class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="text-2xl font-semibold">Deepen release metadata validation</h2>
+            <span class="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800">Worth exploring</span>
+            <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">ports and adapters</span>
+          </div>
+
+          <div class="mt-4 grid gap-6 lg:grid-cols-2">
+            <div>
+              <p class="small-label mb-2">Files</p>
+              <ul class="space-y-1 font-mono text-sm text-slate-700">
+                <li>plugins/freeflow/.codex-plugin/plugin.json</li>
+                <li>plugins/freeflow/.claude-plugin/plugin.json</li>
+                <li>.agents/plugins/marketplace.json</li>
+                <li>.claude-plugin/marketplace.json</li>
+                <li>README.md</li>
+                <li>CHANGELOG.md</li>
+                <li>plugins/freeflow/docs/release-evidence.md</li>
+              </ul>
+            </div>
+            <div class="rounded-xl bg-slate-50 p-4 text-sm">
+              <p><b>Problem:</b> Name, version, path, repository, license, and install wording are copied across host metadata and docs.</p>
+              <p class="mt-2"><b>Solution:</b> One release metadata validation module checks all host adapters and docs mentions without creating a generated runtime mirror.</p>
+            </div>
+          </div>
+
+          <div class="mt-6 grid gap-4 lg:grid-cols-2">
+            <div class="rounded-xl border border-slate-200 p-4">
+              <p class="small-label mb-2">Before</p>
+              <pre class="mermaid">
+flowchart LR
+  Meta[(release facts)]
+  Meta -. copy .-> Codex[Codex manifest]
+  Meta -. copy .-> Claude[Claude manifest]
+  Meta -. copy .-> Agents[Codex marketplace]
+  Meta -. copy .-> ClaudeM[Claude marketplace]
+  Meta -. copy .-> Readme[README]
+  Meta -. copy .-> Change[CHANGELOG]
+  classDef leak stroke:#dc2626,stroke-width:2px,color:#dc2626;
+  class Codex,Claude,Agents,ClaudeM,Readme,Change leak
+              </pre>
+            </div>
+            <div class="rounded-xl border border-slate-200 p-4">
+              <p class="small-label mb-2">After</p>
+              <pre class="mermaid">
+flowchart LR
+  Check[deep release metadata validator]
+  Check --> Codex[Codex adapter]
+  Check --> Claude[Claude adapter]
+  Check --> Market[marketplace adapters]
+  Check --> Docs[docs adapter]
+  Check --> Evidence[release evidence]
+  classDef deep fill:#0f172a,stroke:#0f172a,color:#fff;
+  class Check deep
+              </pre>
+            </div>
+          </div>
+
+          <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            ADR note: respects release ADR 0003. The module validates one plugin runtime; it does not recreate a generated package copy.
+          </div>
+
+          <ul class="mt-5 grid gap-2 text-sm md:grid-cols-3">
+            <li class="rounded-lg bg-slate-50 p-3">locality: release facts checked</li>
+            <li class="rounded-lg bg-slate-50 p-3">leverage: two host adapters</li>
+            <li class="rounded-lg bg-slate-50 p-3">interface: validation report</li>
+          </ul>
+        </article>
+      </section>
+
+      <section id="top-recommendation" class="rounded-2xl border border-slate-300 bg-slate-950 p-6 text-white">
+        <p class="text-xs uppercase tracking-wider text-slate-300">Top recommendation</p>
+        <h2 class="mt-2 text-2xl font-semibold">Deepen the fixture eval runner module</h2>
+        <p class="mt-2 text-slate-200">Start here because Codex and Claude already provide two adapters at a real seam, and one deep runner would increase locality without violating the evals-before-hooks ADR.</p>
+        <a class="mt-4 inline-block rounded-lg bg-white px-4 py-2 text-sm font-medium text-slate-950" href="#eval-harness">Jump to candidate</a>
+      </section>
+    </main>
+  </body>
+</html>

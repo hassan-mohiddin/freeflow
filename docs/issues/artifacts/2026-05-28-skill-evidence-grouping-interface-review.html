@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Freeflow Skill Evidence Grouping Interface Review</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral" });
+    </script>
+    <style>
+      body {
+        background: #f7f5ef;
+      }
+      .panel {
+        border: 1px solid #d9d2c3;
+        background: #fffdf7;
+      }
+      .code {
+        white-space: pre-wrap;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      }
+    </style>
+  </head>
+  <body class="text-stone-900">
+    <main class="mx-auto max-w-6xl px-6 py-8">
+      <header class="mb-8">
+        <p class="text-sm font-semibold uppercase tracking-wide text-emerald-800">Interface review</p>
+        <h1 class="mt-2 text-4xl font-bold tracking-tight">Skill Evidence Grouping</h1>
+        <p class="mt-4 max-w-3xl text-lg text-stone-700">
+          Freeflow evidence is currently split by file kind: eval registries, prompts, fixtures, command surface, suites,
+          reports, and generated runs. The deepening opportunity is a small interface that answers: "what evidence backs
+          this skill?" without making callers know the repo layout.
+        </p>
+      </header>
+
+      <section class="panel mb-8 rounded-lg p-6">
+        <h2 class="text-2xl font-semibold">Problem Space</h2>
+        <div class="mt-4 grid gap-4 md:grid-cols-3">
+          <div>
+            <h3 class="font-semibold text-stone-800">Constraints</h3>
+            <ul class="mt-2 list-disc pl-5 text-sm leading-6 text-stone-700">
+              <li>Registries remain source truth for eval definitions.</li>
+              <li>Command surface JSON remains source truth for command routing.</li>
+              <li>Reports are result evidence, not definition authority.</li>
+              <li>Generated runs stay private and ignored unless explicitly requested.</li>
+              <li>Acceptance evidence must prefer fresh acceptance runs over old smoke reports.</li>
+            </ul>
+          </div>
+          <div>
+            <h3 class="font-semibold text-stone-800">Dependencies</h3>
+            <ul class="mt-2 list-disc pl-5 text-sm leading-6 text-stone-700">
+              <li>Data dependencies: JSON registries and command surface.</li>
+              <li>Document dependencies: Markdown reports, suites, and matrices.</li>
+              <li>Runtime dependencies: existing fixture runners and host adapters.</li>
+              <li>Policy dependency: public package must not leak generated run output.</li>
+            </ul>
+          </div>
+          <div>
+            <h3 class="font-semibold text-stone-800">Sketch</h3>
+            <pre class="code mt-2 rounded bg-stone-950 p-3 text-xs text-stone-100">skill-evidence.sh verify-work
+  -> getSkillEvidence({ skill: "verify-work" })
+     -> registries
+     -> command-surface
+     -> suites
+     -> reports
+     -> run policy</pre>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel mb-8 rounded-lg p-6">
+        <h2 class="text-2xl font-semibold">Current Shape</h2>
+        <div class="mt-5 grid gap-6 lg:grid-cols-2">
+          <div>
+            <h3 class="mb-3 font-semibold">Before: shallow locality</h3>
+            <div class="mermaid rounded bg-white p-4">
+              flowchart TD
+                Caller[Maintainer asks: evidence for verify-work?]
+                Caller --> R1[fixture-evals.json]
+                Caller --> R2[verify-work-evals.json]
+                Caller --> R3[command-surface.json]
+                Caller --> R4[command matrix]
+                Caller --> R5[acceptance suite]
+                Caller --> R6[reports/by-skill]
+                Caller --> R7[runs ignored/private]
+            </div>
+          </div>
+          <div>
+            <h3 class="mb-3 font-semibold">After: deep evidence seam</h3>
+            <div class="mermaid rounded bg-white p-4">
+              flowchart TD
+                Caller[Maintainer asks: evidence for verify-work?]
+                Caller --> Seam[SkillEvidence module]
+                Seam --> A[Registry adapters]
+                Seam --> B[Command adapter]
+                Seam --> C[Suite adapter]
+                Seam --> D[Report adapter]
+                Seam --> E[Run policy adapter]
+                Seam --> Bundle[Evidence bundle + gaps]
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid gap-6">
+        <article class="panel rounded-lg p-6">
+          <div class="flex items-start justify-between gap-4">
+            <h2 class="text-2xl font-semibold">Design 1: Minimal SkillEvidence Module</h2>
+            <span class="rounded bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-900">Strong</span>
+          </div>
+          <p class="mt-3 text-stone-700">
+            Two entry points: get evidence for one skill, or validate evidence grouping. This maximizes leverage for the
+            most common maintainer question while keeping public output separate from internal generated runs.
+          </p>
+          <pre class="code mt-4 rounded bg-stone-950 p-4 text-sm text-stone-100">getSkillEvidence({
+  skill: "review-work",
+  depth?: "shallow" | "deep",
+  audience?: "public" | "internal",
+  includeHistorical?: boolean
+})
+
+validateSkillEvidence({ skill?: string, audience?: "public" | "internal" })</pre>
+          <div class="mt-4 grid gap-4 md:grid-cols-3">
+            <div>
+              <h3 class="font-semibold">Leverage</h3>
+              <p class="mt-1 text-sm leading-6 text-stone-700">Callers get one bundle: skill file, commands, acceptance rows, eval definitions, latest reports, and private run refs.</p>
+            </div>
+            <div>
+              <h3 class="font-semibold">Locality</h3>
+              <p class="mt-1 text-sm leading-6 text-stone-700">The filesystem layout stays put; evidence joins concentrate in one module.</p>
+            </div>
+            <div>
+              <h3 class="font-semibold">Thin edge</h3>
+              <p class="mt-1 text-sm leading-6 text-stone-700">Markdown table parsing remains brittle unless later replaced with explicit metadata.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel rounded-lg p-6">
+          <div class="flex items-start justify-between gap-4">
+            <h2 class="text-2xl font-semibold">Design 2: Common Caller CLI + Skill Index</h2>
+            <span class="rounded bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-900">Strong</span>
+          </div>
+          <p class="mt-3 text-stone-700">
+            A developer-facing command answers the daily workflow: "I changed this skill; show me evidence and commands."
+            A declarative skill evidence index owns only grouping metadata.
+          </p>
+          <pre class="code mt-4 rounded bg-stone-950 p-4 text-sm text-stone-100">plugins/freeflow/evals/scripts/skill-evidence.sh &lt;skill&gt; \
+  [--format summary|json|commands] \
+  [--run-label LABEL] \
+  [--agent codex|claude]
+
+plugins/freeflow/evals/registries/skill-evidence.json</pre>
+          <div class="mt-4 grid gap-4 md:grid-cols-3">
+            <div>
+              <h3 class="font-semibold">Leverage</h3>
+              <p class="mt-1 text-sm leading-6 text-stone-700">Lowest-friction interface for maintainers and eval authors.</p>
+            </div>
+            <div>
+              <h3 class="font-semibold">Locality</h3>
+              <p class="mt-1 text-sm leading-6 text-stone-700">Explicit grouping avoids brittle ID-prefix inference.</p>
+            </div>
+            <div>
+              <h3 class="font-semibold">Thin edge</h3>
+              <p class="mt-1 text-sm leading-6 text-stone-700">An index can drift unless validation makes missing paths and stale links fail loudly.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel rounded-lg p-6">
+          <div class="flex items-start justify-between gap-4">
+            <h2 class="text-2xl font-semibold">Design 3: Flexible EvidenceGroup Query</h2>
+            <span class="rounded bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-900">Worth exploring</span>
+          </div>
+          <p class="mt-3 text-stone-700">
+            A broader query interface supports skill, command, suite, or eval subjects. It is more extensible but risks
+            becoming a search layer unless the source precedence rules stay sharp.
+          </p>
+          <pre class="code mt-4 rounded bg-stone-950 p-4 text-sm text-stone-100">getEvidenceGroup({
+  subject: { kind: "skill", name: "verify-work" },
+  include: ["evalDefinitions", "prompts", "fixtures", "commandSurface", "suites", "reports"],
+  variants: ["baseline", "with-skill"],
+  freshness: "acceptance-over-smoke"
+})</pre>
+          <div class="mt-4 grid gap-4 md:grid-cols-3">
+            <div>
+              <h3 class="font-semibold">Leverage</h3>
+              <p class="mt-1 text-sm leading-6 text-stone-700">One module could power dashboards, reports, dry-runs, and audits.</p>
+            </div>
+            <div>
+              <h3 class="font-semibold">Locality</h3>
+              <p class="mt-1 text-sm leading-6 text-stone-700">Normalizes evidence by subject instead of by filesystem directory.</p>
+            </div>
+            <div>
+              <h3 class="font-semibold">Thin edge</h3>
+              <p class="mt-1 text-sm leading-6 text-stone-700">The interface surface is wider than needed for the first caller.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel rounded-lg p-6">
+          <div class="flex items-start justify-between gap-4">
+            <h2 class="text-2xl font-semibold">Design 4: Ports and Adapters Evidence Graph</h2>
+            <span class="rounded bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-900">Strong</span>
+          </div>
+          <p class="mt-3 text-stone-700">
+            This design makes the source boundaries explicit. It matters because Freeflow already has multiple eval
+            registries: fixture evals, verify-work evals, and handoff evals.
+          </p>
+          <pre class="code mt-4 rounded bg-stone-950 p-4 text-sm text-stone-100">type EvidenceQuery = {
+  skill?: string
+  command?: string
+  evalIds?: string[]
+  suite?: string
+  include?: Array&lt;"registry" | "prompts" | "fixtures" | "reports" | "suites" | "commandSurface"&gt;
+  freshness?: "current" | "latest-report" | "all"
+}</pre>
+          <div class="mt-4 grid gap-4 md:grid-cols-3">
+            <div>
+              <h3 class="font-semibold">Leverage</h3>
+              <p class="mt-1 text-sm leading-6 text-stone-700">Handles multiple registry shapes without making callers know which registry owns which eval family.</p>
+            </div>
+            <div>
+              <h3 class="font-semibold">Locality</h3>
+              <p class="mt-1 text-sm leading-6 text-stone-700">Adapters isolate JSON, Markdown, command, report, and run-policy parsing.</p>
+            </div>
+            <div>
+              <h3 class="font-semibold">Thin edge</h3>
+              <p class="mt-1 text-sm leading-6 text-stone-700">More architecture than a single helper script; should be introduced around concrete callers.</p>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="panel mt-8 rounded-lg p-6">
+        <h2 class="text-2xl font-semibold">Comparison</h2>
+        <div class="mt-4 overflow-x-auto">
+          <table class="w-full border-collapse text-left text-sm">
+            <thead>
+              <tr class="border-b border-stone-300">
+                <th class="py-2 pr-4">Design</th>
+                <th class="py-2 pr-4">Depth</th>
+                <th class="py-2 pr-4">Locality</th>
+                <th class="py-2 pr-4">Risk</th>
+              </tr>
+            </thead>
+            <tbody class="align-top">
+              <tr class="border-b border-stone-200">
+                <td class="py-3 pr-4 font-semibold">Minimal SkillEvidence</td>
+                <td class="py-3 pr-4">High for skill-focused callers.</td>
+                <td class="py-3 pr-4">Strong: one bundle per skill.</td>
+                <td class="py-3 pr-4">May under-serve command and suite queries.</td>
+              </tr>
+              <tr class="border-b border-stone-200">
+                <td class="py-3 pr-4 font-semibold">CLI + Skill Index</td>
+                <td class="py-3 pr-4">High for daily eval work.</td>
+                <td class="py-3 pr-4">Strong if index is validated.</td>
+                <td class="py-3 pr-4">Index drift without validation.</td>
+              </tr>
+              <tr class="border-b border-stone-200">
+                <td class="py-3 pr-4 font-semibold">EvidenceGroup Query</td>
+                <td class="py-3 pr-4">Broad but less focused.</td>
+                <td class="py-3 pr-4">Strong across subject types.</td>
+                <td class="py-3 pr-4">Can become a generic search interface.</td>
+              </tr>
+              <tr>
+                <td class="py-3 pr-4 font-semibold">Ports and Adapters</td>
+                <td class="py-3 pr-4">High behind a small public facade.</td>
+                <td class="py-3 pr-4">Strongest source isolation.</td>
+                <td class="py-3 pr-4">Needs discipline to avoid overbuilding.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel mt-8 rounded-lg border-2 border-emerald-700 p-6">
+        <h2 class="text-2xl font-semibold">Recommendation</h2>
+        <p class="mt-3 text-stone-700">
+          Use a hybrid: a common-caller CLI over a small queryable SkillEvidence module, backed by source-specific
+          adapters. Add a small explicit evidence index only for ownership/grouping metadata that cannot be safely
+          derived from source truth.
+        </p>
+        <pre class="code mt-4 rounded bg-stone-950 p-4 text-sm text-stone-100">plugins/freeflow/evals/scripts/skill-evidence.sh &lt;skill&gt; [--format summary|json|commands]
+  -> getSkillEvidence({
+       subject: { kind: "skill", name: skill },
+       freshness: "acceptance-over-smoke",
+       audience: "public"
+     })
+     -> RegistryAdapter(fixture, verify-work, handoff, future)
+     -> CommandSurfaceAdapter(command-surface.json as authority)
+     -> SuiteAdapter(acceptance gates)
+     -> ReportAdapter(results, newest first)
+     -> RunPolicyAdapter(public/internal)</pre>
+        <div class="mt-4 grid gap-4 md:grid-cols-2">
+          <div>
+            <h3 class="font-semibold">Why this is strongest</h3>
+            <p class="mt-1 text-sm leading-6 text-stone-700">
+              It gives the maintainer a trivial interface while placing the real depth where Freeflow needs it:
+              joining multiple evidence sources without copying stale inventories into docs.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-semibold">Guardrails</h3>
+            <p class="mt-1 text-sm leading-6 text-stone-700">
+              Do not move prompts, fixtures, or reports into per-skill directories yet. Do not treat reports as
+              canonical. Do not leak generated runs into public plugin artifacts. Validate every source link.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
