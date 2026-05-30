@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Architecture review - Freeflow</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      body { letter-spacing: 0; }
+      .seam { border-style: dashed; }
+      .deep-box { background: linear-gradient(135deg, #0f172a, #1f2937); color: white; }
+      .leak { color: #dc2626; border-color: #dc2626; }
+      .viz { min-height: 320px; }
+      .module-label { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+      .thin-band { height: 34px; }
+      .thick-band { min-height: 142px; }
+      .surface { background: repeating-linear-gradient(90deg, #fee2e2 0 8px, #fff 8px 16px); }
+      .implementation { background: repeating-linear-gradient(90deg, #d1fae5 0 8px, #fff 8px 16px); }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans">
+    <main class="max-w-6xl mx-auto px-6 py-12 space-y-12">
+      <header class="space-y-5">
+        <div>
+          <p class="text-xs uppercase tracking-wider text-slate-500">Architecture review</p>
+          <h1 class="text-4xl font-serif font-semibold">Freeflow deepening candidates</h1>
+          <p class="mt-2 text-sm text-slate-600">Generated 2026-05-28. Runtime source inspected under <code class="font-mono">plugins/freeflow/</code>.</p>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-4 text-sm">
+          <div class="rounded-lg border border-slate-200 bg-white p-3"><span class="inline-block h-3 w-8 border border-slate-800 align-middle"></span> solid box = module</div>
+          <div class="rounded-lg border border-slate-200 bg-white p-3"><span class="inline-block h-3 w-8 border border-dashed border-slate-800 align-middle"></span> dashed line = seam</div>
+          <div class="rounded-lg border border-slate-200 bg-white p-3"><span class="text-red-600 font-semibold">red</span> = leakage</div>
+          <div class="rounded-lg border border-slate-200 bg-white p-3"><span class="inline-block h-3 w-8 rounded-sm bg-slate-900 align-middle"></span> dark box = deep module</div>
+        </div>
+      </header>
+
+      <section id="candidates" class="space-y-10">
+        <article id="structured-grading" class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm space-y-6">
+          <div class="flex flex-wrap items-center gap-3">
+            <h2 class="text-2xl font-serif font-semibold">Deepen structured grading</h2>
+            <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">Strong</span>
+            <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">local-substitutable</span>
+          </div>
+          <div class="font-mono text-sm text-slate-700 grid gap-1">
+            <span>plugins/freeflow/evals/registries/fixture-evals.json</span>
+            <span>plugins/freeflow/evals/registries/handoff-evals.json</span>
+            <span>plugins/freeflow/evals/scripts/run-fixture-eval.sh</span>
+            <span>plugins/freeflow/evals/reports/acceptance/v0.1-acceptance-report.md</span>
+          </div>
+          <div class="grid gap-5 lg:grid-cols-2">
+            <div>
+              <h3 class="module-label text-slate-500 mb-2">Before</h3>
+              <div class="viz rounded-lg border border-slate-200 bg-stone-50 p-4">
+                <div class="grid grid-cols-2 gap-3 h-full">
+                  <div class="space-y-3">
+                    <div class="rounded border border-slate-300 bg-white p-3 module-label">registry assertions</div>
+                    <div class="rounded border border-slate-300 bg-white p-3 module-label">runner output</div>
+                    <div class="rounded border border-slate-300 bg-white p-3 module-label">diff sidecar</div>
+                    <div class="rounded border border-slate-300 bg-white p-3 module-label">git sidecars</div>
+                  </div>
+                  <div class="space-y-3">
+                    <div class="rounded border-2 border-red-300 bg-red-50 p-3 module-label">manual report judgment</div>
+                    <div class="rounded border-2 border-red-300 bg-red-50 p-3 module-label">manual pass table</div>
+                    <div class="rounded border-2 border-red-300 bg-red-50 p-3 module-label">manual rerun notes</div>
+                    <div class="rounded border-2 border-red-300 bg-red-50 p-3 module-label">manual gaps</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div>
+              <h3 class="module-label text-slate-500 mb-2">After</h3>
+              <div class="viz rounded-lg border border-slate-200 bg-stone-50 p-4">
+                <div class="h-full grid grid-rows-[auto_1fr_auto] gap-4">
+                  <div class="grid grid-cols-4 gap-2">
+                    <div class="rounded border border-slate-300 bg-white p-2 text-center module-label">output</div>
+                    <div class="rounded border border-slate-300 bg-white p-2 text-center module-label">diff</div>
+                    <div class="rounded border border-slate-300 bg-white p-2 text-center module-label">status</div>
+                    <div class="rounded border border-slate-300 bg-white p-2 text-center module-label">rules</div>
+                  </div>
+                  <div class="deep-box rounded-lg p-6 flex items-center justify-center text-center">
+                    <div>
+                      <div class="module-label text-slate-300">deep module</div>
+                      <div class="text-xl font-semibold">Fixture evidence grader</div>
+                      <div class="text-sm text-slate-300 mt-2">file behavior becomes executable; reasoning stays human-graded</div>
+                    </div>
+                  </div>
+                  <div class="rounded border border-emerald-300 bg-emerald-50 p-3 text-center module-label text-emerald-800">reports consume verdicts</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="grid gap-4 md:grid-cols-3">
+            <p><strong>Problem:</strong> Eval authors write detailed expectations, then humans re-grade output, diffs, and status in reports.</p>
+            <p><strong>Solution:</strong> Move file-behavior grading behind one module while leaving subjective reasoning checks explicit.</p>
+            <div>
+              <strong>Wins</strong>
+              <ul class="mt-1 list-disc pl-5 text-sm text-slate-700">
+                <li>locality: pass rules concentrate</li>
+                <li>leverage: every eval benefits</li>
+                <li>interface shrinks for reports</li>
+                <li>diff evidence outranks claims</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article id="core-gate" class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm space-y-6">
+          <div class="flex flex-wrap items-center gap-3">
+            <h2 class="text-2xl font-serif font-semibold">Deepen the core gate contract</h2>
+            <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">Strong</span>
+            <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">in-process</span>
+          </div>
+          <div class="font-mono text-sm text-slate-700 grid gap-1">
+            <span>plugins/freeflow/skills/workflow/SKILL.md</span>
+            <span>plugins/freeflow/skills/interview-gate/SKILL.md</span>
+            <span>plugins/freeflow/skills/write-spec/SKILL.md</span>
+            <span>plugins/freeflow/skills/write-plan/SKILL.md</span>
+            <span>plugins/freeflow/skills/execute-plan/SKILL.md</span>
+            <span>plugins/freeflow/skills/bypass/SKILL.md</span>
+          </div>
+          <div class="grid gap-5 lg:grid-cols-2">
+            <div>
+              <h3 class="module-label text-slate-500 mb-2">Before</h3>
+              <div class="viz rounded-lg border border-slate-200 bg-stone-50 p-4">
+                <div class="space-y-3">
+                  <div class="thin-band rounded border-l-4 border-red-400 bg-white px-3 py-2 module-label">workflow: source-truth conflict gate</div>
+                  <div class="thin-band rounded border-l-4 border-red-400 bg-white px-3 py-2 module-label">interview-gate: user-owned decision gate</div>
+                  <div class="thin-band rounded border-l-4 border-red-400 bg-white px-3 py-2 module-label">write-spec: owner decision stop</div>
+                  <div class="thin-band rounded border-l-4 border-red-400 bg-white px-3 py-2 module-label">write-plan: handoff is not authority</div>
+                  <div class="thin-band rounded border-l-4 border-red-400 bg-white px-3 py-2 module-label">execute-plan: verifier conflict stop</div>
+                  <div class="thin-band rounded border-l-4 border-red-400 bg-white px-3 py-2 module-label">bypass: cannot skip judgment</div>
+                </div>
+              </div>
+            </div>
+            <div>
+              <h3 class="module-label text-slate-500 mb-2">After</h3>
+              <div class="viz rounded-lg border border-slate-200 bg-stone-50 p-4">
+                <div class="thick-band deep-box rounded-lg p-5">
+                  <div class="module-label text-slate-300">deep module</div>
+                  <div class="text-xl font-semibold">Core gate contract</div>
+                  <div class="grid grid-cols-2 gap-2 mt-4 text-xs text-slate-200">
+                    <span class="rounded bg-white/10 p-2">user-owned decisions</span>
+                    <span class="rounded bg-white/10 p-2">source truth</span>
+                    <span class="rounded bg-white/10 p-2">method substitution</span>
+                    <span class="rounded bg-white/10 p-2">verification stop</span>
+                  </div>
+                </div>
+                <div class="mt-4 grid grid-cols-3 gap-2">
+                  <div class="rounded border border-dashed border-slate-400 bg-white p-2 module-label">write-spec adapter</div>
+                  <div class="rounded border border-dashed border-slate-400 bg-white p-2 module-label">execute adapter</div>
+                  <div class="rounded border border-dashed border-slate-400 bg-white p-2 module-label">bypass adapter</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="grid gap-4 md:grid-cols-3">
+            <p><strong>Problem:</strong> The same stop rules are copied across skills, so the interface of each phase remains shallow.</p>
+            <p><strong>Solution:</strong> Concentrate the shared judgment rules in one contract and let phase skills adapt it locally.</p>
+            <div>
+              <strong>Wins</strong>
+              <ul class="mt-1 list-disc pl-5 text-sm text-slate-700">
+                <li>locality: gate changes once</li>
+                <li>leverage: every phase shares it</li>
+                <li>fewer divergent stop rules</li>
+                <li>better eval targeting</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article id="mode-activation" class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm space-y-6">
+          <div class="flex flex-wrap items-center gap-3">
+            <h2 class="text-2xl font-serif font-semibold">Deepen mode and activation locality</h2>
+            <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">Strong</span>
+            <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">in-process</span>
+          </div>
+          <div class="font-mono text-sm text-slate-700 grid gap-1">
+            <span>plugins/freeflow/skills/mode-contract/SKILL.md</span>
+            <span>plugins/freeflow/skills/setup-freeflow/SKILL.md</span>
+            <span>plugins/freeflow/skills/setup-freeflow/references/activation-contract.md</span>
+            <span>plugins/freeflow/docs/workflow.md</span>
+            <span>plugins/freeflow/command-surface.json</span>
+          </div>
+          <div class="grid gap-5 lg:grid-cols-2">
+            <div>
+              <h3 class="module-label text-slate-500 mb-2">Before</h3>
+              <div class="rounded-lg border border-slate-200 bg-white p-4">
+                <pre class="mermaid">
+flowchart TB
+  ADR[ADR: exactly three modes] --> MC[mode-contract]
+  ADR --> SU[setup-freeflow]
+  ADR --> AC[activation contract]
+  ADR --> DOC[plugin docs]
+  ADR --> CS[command-surface]
+  MC -.leak.-> SU
+  SU -.leak.-> AC
+  DOC -.leak.-> CS
+  classDef leak stroke:#dc2626,stroke-width:2px,color:#dc2626;
+  class MC,SU,AC,DOC,CS leak
+                </pre>
+              </div>
+            </div>
+            <div>
+              <h3 class="module-label text-slate-500 mb-2">After</h3>
+              <div class="viz rounded-lg border border-slate-200 bg-stone-50 p-4">
+                <div class="deep-box rounded-lg p-5 text-center">
+                  <div class="module-label text-slate-300">deep module</div>
+                  <div class="text-xl font-semibold">Mode and activation contract</div>
+                  <div class="mt-3 text-sm text-slate-300">conversation / workflow / strict-workflow</div>
+                </div>
+                <div class="grid grid-cols-2 gap-3 mt-5">
+                  <div class="rounded border border-dashed border-slate-400 bg-white p-3 module-label">setup adapter</div>
+                  <div class="rounded border border-dashed border-slate-400 bg-white p-3 module-label">config adapter</div>
+                  <div class="rounded border border-dashed border-slate-400 bg-white p-3 module-label">docs adapter</div>
+                  <div class="rounded border border-dashed border-slate-400 bg-white p-3 module-label">command adapter</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Preserves ADR 0001. This deepening should not add a fourth mode or a current-mode state file.</div>
+          <div class="grid gap-4 md:grid-cols-3">
+            <p><strong>Problem:</strong> Mode semantics leak across setup, config, docs, activation text, command routing, and eval assertions.</p>
+            <p><strong>Solution:</strong> Make mode and activation behavior one source of truth, with host and docs surfaces as adapters.</p>
+            <div>
+              <strong>Wins</strong>
+              <ul class="mt-1 list-disc pl-5 text-sm text-slate-700">
+                <li>locality: mode drift shrinks</li>
+                <li>leverage: setup gets safer</li>
+                <li>ADR stays enforceable</li>
+                <li>fixtures become checkable</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article id="fixture-runner" class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm space-y-6">
+          <div class="flex flex-wrap items-center gap-3">
+            <h2 class="text-2xl font-serif font-semibold">Deepen the fixture eval runner</h2>
+            <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">Strong</span>
+            <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">ports &amp; adapters</span>
+          </div>
+          <div class="font-mono text-sm text-slate-700 grid gap-1">
+            <span>plugins/freeflow/evals/scripts/run-fixture-eval.sh</span>
+            <span>plugins/freeflow/evals/scripts/run-codex-fixture-eval.sh</span>
+            <span>plugins/freeflow/evals/scripts/run-claude-fixture-eval.sh</span>
+            <span>plugins/freeflow/evals/runbooks/fixture-eval-runbook.md</span>
+          </div>
+          <div class="grid gap-5 lg:grid-cols-2">
+            <div>
+              <h3 class="module-label text-slate-500 mb-2">Before</h3>
+              <div class="viz rounded-lg border border-slate-200 bg-stone-50 p-4">
+                <div class="mx-auto max-w-sm">
+                  <div class="surface rounded-t-lg border border-red-300 p-4 text-center module-label">wide interface: flags, env, variants, host details</div>
+                  <div class="implementation rounded-b-lg border-x border-b border-slate-300 p-5 text-center">
+                    <div class="module-label">418-line shell implementation</div>
+                    <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+                      <span class="rounded bg-white p-2">registry</span>
+                      <span class="rounded bg-white p-2">fixture copy</span>
+                      <span class="rounded bg-white p-2">prompt</span>
+                      <span class="rounded bg-white p-2">Codex</span>
+                      <span class="rounded bg-white p-2">Claude</span>
+                      <span class="rounded bg-white p-2">diffs</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div>
+              <h3 class="module-label text-slate-500 mb-2">After</h3>
+              <div class="viz rounded-lg border border-slate-200 bg-stone-50 p-4">
+                <div class="deep-box rounded-lg p-5 text-center">
+                  <div class="module-label text-slate-300">deep module</div>
+                  <div class="text-xl font-semibold">Fixture eval runner core</div>
+                </div>
+                <div class="grid grid-cols-2 gap-3 mt-5">
+                  <div class="rounded border border-dashed border-slate-400 bg-white p-3 module-label">Codex adapter</div>
+                  <div class="rounded border border-dashed border-slate-400 bg-white p-3 module-label">Claude adapter</div>
+                  <div class="rounded border border-slate-300 bg-white p-3 module-label">resolver</div>
+                  <div class="rounded border border-slate-300 bg-white p-3 module-label">evidence collector</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="grid gap-4 md:grid-cols-3">
+            <p><strong>Problem:</strong> One module owns registry lookup, fixture workspace, prompt assembly, two agent adapters, evidence capture, and dry-run output.</p>
+            <p><strong>Solution:</strong> Keep one caller, but move Codex and Claude behavior behind a real adapter seam and make shared runner behavior internal.</p>
+            <div>
+              <strong>Wins</strong>
+              <ul class="mt-1 list-disc pl-5 text-sm text-slate-700">
+                <li>two adapters justify seam</li>
+                <li>locality: runner bugs narrow</li>
+                <li>dry-run tests get sharper</li>
+                <li>host logic stops leaking</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article id="evidence-graph" class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm space-y-6">
+          <div class="flex flex-wrap items-center gap-3">
+            <h2 class="text-2xl font-serif font-semibold">Deepen the evidence graph</h2>
+            <span class="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">Worth exploring</span>
+            <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">in-process</span>
+          </div>
+          <div class="font-mono text-sm text-slate-700 grid gap-1">
+            <span>plugins/freeflow/command-surface.json</span>
+            <span>plugins/freeflow/evals/registries/skill-evidence.json</span>
+            <span>plugins/freeflow/evals/scripts/skill-evidence.sh</span>
+            <span>plugins/freeflow/evals/scripts/audit-command-surface.sh</span>
+            <span>plugins/freeflow/evals/scripts/validate-release-metadata.sh</span>
+          </div>
+          <div class="grid gap-5 lg:grid-cols-2">
+            <div>
+              <h3 class="module-label text-slate-500 mb-2">Before</h3>
+              <div class="rounded-lg border border-slate-200 bg-white p-4">
+                <pre class="mermaid">
+flowchart LR
+  Skill[skill] --> SE[skill-evidence.json]
+  Skill --> CS[command-surface.json]
+  Skill --> REG[eval registries]
+  Skill --> SUITE[acceptance suite]
+  Skill --> REPORT[reports]
+  SE -.leak.-> ScriptA[skill-evidence.sh]
+  CS -.leak.-> ScriptB[audit-command-surface.sh]
+  REPORT -.leak.-> ScriptC[validate-release-metadata.sh]
+  classDef leak stroke:#dc2626,stroke-width:2px,color:#dc2626;
+  class SE,CS,REG,SUITE,REPORT leak
+                </pre>
+              </div>
+            </div>
+            <div>
+              <h3 class="module-label text-slate-500 mb-2">After</h3>
+              <div class="rounded-lg border border-slate-200 bg-white p-4">
+                <pre class="mermaid">
+flowchart LR
+  Skill[skill] --> Graph[Evidence graph module]
+  Graph --> Commands[commands]
+  Graph --> Evals[evals]
+  Graph --> Suites[suites]
+  Graph --> Reports[reports]
+  Graph --> Gaps[gaps]
+  Reports --> Adapters[reports and audits]
+  classDef deep fill:#0f172a,stroke:#0f172a,color:#fff;
+  class Graph deep
+                </pre>
+              </div>
+            </div>
+          </div>
+          <div class="grid gap-4 md:grid-cols-3">
+            <p><strong>Problem:</strong> Command routes, eval groups, suite membership, reports, and docs checks are separate shallow modules.</p>
+            <p><strong>Solution:</strong> Normalize skill evidence once, then let audits, reports, and release validation read that graph.</p>
+            <div>
+              <strong>Wins</strong>
+              <ul class="mt-1 list-disc pl-5 text-sm text-slate-700">
+                <li>locality: evidence joins shrink</li>
+                <li>leverage: audits reuse graph</li>
+                <li>gaps become explicit</li>
+                <li>reports stop owning truth</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article id="release-validation" class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm space-y-6">
+          <div class="flex flex-wrap items-center gap-3">
+            <h2 class="text-2xl font-serif font-semibold">Deepen release metadata validation</h2>
+            <span class="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">Worth exploring</span>
+            <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">ports &amp; adapters</span>
+          </div>
+          <div class="font-mono text-sm text-slate-700 grid gap-1">
+            <span>.agents/plugins/marketplace.json</span>
+            <span>.claude-plugin/marketplace.json</span>
+            <span>plugins/freeflow/.codex-plugin/plugin.json</span>
+            <span>plugins/freeflow/.claude-plugin/plugin.json</span>
+            <span>plugins/freeflow/evals/scripts/validate-release-metadata.sh</span>
+          </div>
+          <div class="grid gap-5 lg:grid-cols-2">
+            <div>
+              <h3 class="module-label text-slate-500 mb-2">Before</h3>
+              <div class="viz rounded-lg border border-slate-200 bg-stone-50 p-4">
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="rounded border border-red-300 bg-red-50 p-3 module-label">Codex marketplace</div>
+                  <div class="rounded border border-red-300 bg-red-50 p-3 module-label">Claude marketplace</div>
+                  <div class="rounded border border-red-300 bg-red-50 p-3 module-label">Codex manifest</div>
+                  <div class="rounded border border-red-300 bg-red-50 p-3 module-label">Claude manifest</div>
+                  <div class="rounded border border-red-300 bg-red-50 p-3 module-label">release docs</div>
+                  <div class="rounded border border-red-300 bg-red-50 p-3 module-label">command audit</div>
+                  <div class="rounded border border-red-300 bg-red-50 p-3 module-label">git scans</div>
+                  <div class="rounded border border-red-300 bg-red-50 p-3 module-label">smoke status</div>
+                </div>
+              </div>
+            </div>
+            <div>
+              <h3 class="module-label text-slate-500 mb-2">After</h3>
+              <div class="viz rounded-lg border border-slate-200 bg-stone-50 p-4">
+                <div class="deep-box rounded-lg p-5 text-center">
+                  <div class="module-label text-slate-300">deep module</div>
+                  <div class="text-xl font-semibold">Release metadata validator</div>
+                  <div class="text-sm text-slate-300 mt-2">one release report, many adapters</div>
+                </div>
+                <div class="mt-5 grid grid-cols-3 gap-2">
+                  <div class="rounded border border-dashed border-slate-400 bg-white p-2 module-label">host metadata</div>
+                  <div class="rounded border border-dashed border-slate-400 bg-white p-2 module-label">docs evidence</div>
+                  <div class="rounded border border-dashed border-slate-400 bg-white p-2 module-label">git package</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">Preserves ADR 0003. This deepening should not create a generated package copy or add hooks, CLI enforcement, or native slash handlers.</div>
+          <div class="grid gap-4 md:grid-cols-3">
+            <p><strong>Problem:</strong> Release preparation requires remembering too many metadata paths, docs checks, command-surface checks, and deferred smoke states.</p>
+            <p><strong>Solution:</strong> Keep one validation module that reports pass, fail, warning, and deferred states across host adapters.</p>
+            <div>
+              <strong>Wins</strong>
+              <ul class="mt-1 list-disc pl-5 text-sm text-slate-700">
+                <li>locality: release rules gather</li>
+                <li>leverage: prepublish is repeatable</li>
+                <li>deferred checks stay visible</li>
+                <li>package seam stays intact</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section id="top-recommendation" class="rounded-lg border-2 border-slate-900 bg-white p-6 shadow-sm">
+        <p class="text-xs uppercase tracking-wider text-slate-500">Top recommendation</p>
+        <h2 class="mt-1 text-2xl font-serif font-semibold"><a href="#structured-grading" class="underline decoration-slate-300 underline-offset-4">Deepen structured grading</a></h2>
+        <p class="mt-2 text-slate-700">Start here because the fixture runner already captures output, diffs, status, and git evidence; grading is the shallow seam where that evidence still gets reinterpreted manually across every report.</p>
+      </section>
+    </main>
+  </body>
+</html>

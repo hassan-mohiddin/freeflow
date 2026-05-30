@@ -309,6 +309,36 @@ capture_evidence() {
   fi
 }
 
+write_metadata() {
+  local output_stem="${resolved_output%.md}"
+  local skills_json
+  skills_json="$(printf '%s\n' "${effective_skill_paths[@]}" | jq -R -s 'split("\n") | map(select(length > 0))')"
+
+  jq -n \
+    --arg eval_id "$eval_id" \
+    --arg variant "$variant" \
+    --arg agent "$agent" \
+    --arg registry "$registry" \
+    --arg fixture_dir "$fixture_dir" \
+    --arg run_dir "$run_dir" \
+    --arg output "$resolved_output" \
+    --arg diff "${output_stem}.diff" \
+    --arg exit_status "${output_stem}.exit-status.txt" \
+    --argjson skills "$skills_json" \
+    '{
+      eval_id: $eval_id,
+      variant: $variant,
+      agent: $agent,
+      registry: $registry,
+      fixture_dir: $fixture_dir,
+      run_dir: $run_dir,
+      output: $output,
+      diff: $diff,
+      exit_status: $exit_status,
+      skills: $skills
+    }' > "${output_stem}.metadata.json"
+}
+
 print_dry_run() {
   printf 'eval_id=%s\n' "$eval_id"
   printf 'agent=%s\n' "$agent"
@@ -399,6 +429,7 @@ if [ "$dry_run" = "1" ]; then
   exit 0
 fi
 
+write_metadata
 prepare_run_dir
 
 agent_status=0

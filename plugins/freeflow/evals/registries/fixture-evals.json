@@ -73,6 +73,19 @@
         "final response",
         "diff",
         "files read or mentioned"
+      ],
+      "objective_checks": [
+        {
+          "id": "settings-page-only",
+          "type": "changed_files",
+          "require": ["src/settings-page.ts"],
+          "allow": ["src/settings-page.ts"]
+        },
+        {
+          "id": "settings-title-diff",
+          "type": "diff_contains",
+          "all": ["+export const settingsPageTitle = \"Settings\";"]
+        }
       ]
     },
     {
@@ -91,6 +104,13 @@
         "final response",
         "diff",
         "files read or mentioned"
+      ],
+      "objective_checks": [
+        {
+          "id": "no-file-changes",
+          "type": "diff_empty",
+          "expect": true
+        }
       ]
     },
     {
@@ -203,6 +223,19 @@
         "final response",
         "diff",
         "files read or mentioned"
+      ],
+      "objective_checks": [
+        {
+          "id": "settings-without-billing",
+          "type": "changed_files",
+          "require": ["src/settings-page.ts"],
+          "forbid": ["src/billing.ts"]
+        },
+        {
+          "id": "settings-title-diff",
+          "type": "diff_contains",
+          "all": ["+export const settingsPageTitle = \"Settings\";"]
+        }
       ]
     },
     {
@@ -879,6 +912,28 @@
         "final response",
         "diff",
         "files read or mentioned"
+      ],
+      "objective_checks": [
+        {
+          "id": "setup-required-files",
+          "type": "changed_files",
+          "require": [
+            ".freeflow/config.json",
+            "AGENTS.md",
+            "CLAUDE.md",
+            ".claude/rules/freeflow-core.md"
+          ],
+          "forbid": ["CONTEXT.md"],
+          "forbid_prefixes": [
+            ".codex/rules/",
+            "docs/"
+          ]
+        },
+        {
+          "id": "setup-output-drift-risk",
+          "type": "output_contains",
+          "all": ["drift"]
+        }
       ]
     },
     {
@@ -1404,6 +1459,18 @@
       "grade_artifacts": [
         "final response",
         "diff"
+      ],
+      "objective_checks": [
+        {
+          "id": "no-file-changes",
+          "type": "diff_empty",
+          "expect": true
+        },
+        {
+          "id": "next-route-mentioned",
+          "type": "output_contains",
+          "all": ["Next:"]
+        }
       ]
     },
     {
@@ -1422,6 +1489,13 @@
       "grade_artifacts": [
         "final response",
         "diff"
+      ],
+      "objective_checks": [
+        {
+          "id": "no-file-changes",
+          "type": "diff_empty",
+          "expect": true
+        }
       ]
     },
     {

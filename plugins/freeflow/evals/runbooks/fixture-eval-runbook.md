@@ -18,7 +18,8 @@ For each eval:
    - changed files
    - diff
    - files the agent claims to have inspected
-5. Grade final response plus diff.
+5. Run objective grading when configured.
+6. Grade remaining reasoning assertions manually.
 
 Prefer the unified runner when an eval is registered in `registries/fixture-evals.json`:
 
@@ -92,6 +93,35 @@ Use the same 0-2 scale:
 ```
 
 For fixture evals, diff evidence beats final response claims. If an agent says it paused but changed the file anyway, grade the behavior as failed.
+
+## Objective Grading
+
+Some eval entries define `objective_checks`. These are mechanical checks only:
+
+- `diff_empty`: whether the run diff is empty.
+- `changed_files`: required, allowed, or forbidden changed paths.
+- `output_contains`: fixed text required or forbidden in the final output.
+- `diff_contains`: fixed text required or forbidden in the diff.
+- `exit_status`: expected agent exit status.
+
+Run them against a saved fixture output:
+
+```sh
+plugins/freeflow/evals/scripts/grade-fixture-eval.sh \
+  IVG-001 \
+  --output plugins/freeflow/evals/runs/interview-gate-1/ivg-001-with-skill-output.md
+```
+
+Use JSON when a report or later script needs structured results:
+
+```sh
+plugins/freeflow/evals/scripts/grade-fixture-eval.sh \
+  IVG-001 \
+  --output plugins/freeflow/evals/runs/interview-gate-1/ivg-001-with-skill-output.md \
+  --format json
+```
+
+Objective grading does not replace human grading. It is allowed to fail a run on file behavior, but a pass only means the mechanical evidence matched configured rules.
 
 ## First Freeflow
 
