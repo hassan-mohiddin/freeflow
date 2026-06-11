@@ -36,6 +36,9 @@
     ],
     "websiteURL": "https://github.com/hassan-mohiddin/freeflow",
     "privacyPolicyURL": "https://github.com/hassan-mohiddin/freeflow/blob/main/README.md",
-    "termsOfServiceURL": "https://github.com/hassan-mohiddin/freeflow/blob/main/LICENSE"
+    "termsOfServiceURL": "https://github.com/hassan-mohiddin/freeflow/blob/main/LICENSE",
+    "brandColor": "#2563EB",
+    "composerIcon": "./assets/freeflow-plugin-icon-transparent.png",
+    "logo": "./assets/freeflow-plugin-icon-transparent.png"
   }
 }
