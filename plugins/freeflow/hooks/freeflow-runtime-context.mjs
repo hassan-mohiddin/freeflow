@@ -108,6 +108,15 @@ function configStatus(config) {
   return "missing `.freeflow/config.json`; effective default mode falls back to `workflow`";
 }
 
+function modeGuidance(mode) {
+  return [
+    `Current Freeflow default mode: \`${mode}\`.`,
+    "Treat this as the repo default at session start, resume, clear, and compact.",
+    "For mode changes or mode interpretation, use `mode-contract`.",
+    "Do not announce the current mode on every reply. Mention it when the user asks, setup/config is discussed, or the mode changes the next action."
+  ];
+}
+
 function buildSetupStatus(root) {
   const setup = inspectSetup(root);
   const parts = [];
@@ -117,6 +126,7 @@ function buildSetupStatus(root) {
     parts.push(
       `Setup status: configured for ${setup.activeHosts.join(" and ")} with ${modeStatus}.`
     );
+    parts.push(...modeGuidance(setup.config.defaultMode));
   } else if (setup.config.exists || setup.activeHosts.length > 0) {
     const issues = [];
     if (!setup.config.valid) {
@@ -128,13 +138,19 @@ function buildSetupStatus(root) {
     parts.push(`Setup status: partial setup; ${issues.join(" and ")}.`);
     parts.push(`Repo default mode: ${modeStatus}.`);
     parts.push(
-      "Before consequential work in this repo, use `setup-freeflow` or ask which host setup to complete unless the user explicitly bypasses setup."
+      "Required user-facing notice: in the next assistant reply, tell the user Freeflow setup is incomplete and recommend `/setup-freeflow` or completing the missing host/config setup. Do this even if the user's prompt is casual, such as a greeting."
+    );
+    parts.push(
+      "Before consequential work in this repo, complete setup or ask which host setup to complete unless the user explicitly bypasses setup."
     );
   } else {
     parts.push("Setup status: this repo does not appear to be set up for Freeflow yet.");
     parts.push(`Repo default mode: ${modeStatus}.`);
     parts.push(
-      "Before consequential work in this repo, use `setup-freeflow` or ask whether to set up Freeflow for Codex, Claude, or both. Do not start implementation solely because the plugin is installed."
+      "Required user-facing notice: in the next assistant reply, tell the user Freeflow is installed but this repo is not set up yet, and recommend `/setup-freeflow`. Do this even if the user's prompt is casual, such as a greeting."
+    );
+    parts.push(
+      "Before consequential work in this repo, use `/setup-freeflow` or ask whether to set up Freeflow for Codex, Claude, or both. Do not start implementation solely because the plugin is installed."
     );
   }
 

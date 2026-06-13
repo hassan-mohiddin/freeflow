@@ -48,6 +48,7 @@ require_contains "Claude SessionStart output" "$claude_session_output" "addition
 require_contains "Claude SessionStart output" "$claude_session_output" "Freeflow Runtime Context"
 require_contains "Claude SessionStart output" "$claude_session_output" "Setup status: this repo does not appear to be set up for Freeflow yet."
 require_contains "Claude SessionStart output" "$claude_session_output" "Repo default mode: missing \`.freeflow/config.json\`; effective default mode falls back to \`workflow\`."
+require_contains "Claude SessionStart output" "$claude_session_output" "Required user-facing notice: in the next assistant reply, tell the user Freeflow is installed but this repo is not set up yet, and recommend \`/setup-freeflow\`."
 require_contains "Claude SessionStart output" "$claude_session_output" "Loaded Workflow Skill"
 require_contains "Claude SessionStart output" "$claude_session_output" "Loaded Workflow Map"
 require_contains "Claude SessionStart output" "$claude_session_output" "Question means answer. Do not turn a question into a file edit"
@@ -59,6 +60,7 @@ codex_session_output="$(
 
 require_contains "Codex SessionStart output" "$codex_session_output" "Freeflow Runtime Context"
 require_contains "Codex SessionStart output" "$codex_session_output" "effective default mode falls back to \`workflow\`"
+require_contains "Codex SessionStart output" "$codex_session_output" "Do this even if the user's prompt is casual, such as a greeting."
 require_contains "Codex SessionStart output" "$codex_session_output" "Loaded Workflow Skill"
 if [[ "$codex_session_output" == *"hookSpecificOutput"* ]]; then
   fail "Codex SessionStart output should be plain context, not Claude hook JSON."
@@ -89,6 +91,22 @@ configured_output="$(
 )"
 
 require_contains "Configured SessionStart output" "$configured_output" "Setup status: configured for Codex AGENTS.md with defaultMode \`strict-workflow\`."
+require_contains "Configured SessionStart output" "$configured_output" "Current Freeflow default mode: \`strict-workflow\`."
+require_contains "Configured SessionStart output" "$configured_output" "For mode changes or mode interpretation, use \`mode-contract\`."
+
+cat >"$workspace/.freeflow/config.json" <<'JSON'
+{
+  "defaultMode": "conversation"
+}
+JSON
+
+conversation_output="$(
+  printf '{"hook_event_name":"SessionStart","source":"resume","cwd":"%s","model":"gpt-test"}' "$workspace" |
+    PLUGIN_ROOT="$plugin_root" CLAUDE_PLUGIN_ROOT="$plugin_root" node "$hook_script" SessionStart
+)"
+
+require_contains "Conversation SessionStart output" "$conversation_output" "Current Freeflow default mode: \`conversation\`."
+require_contains "Conversation SessionStart output" "$conversation_output" "Treat this as the repo default at session start, resume, clear, and compact."
 
 post_tool_output="$(
   printf '{"hook_event_name":"PostToolUse","tool_name":"Write","cwd":"%s","tool_input":{"file_path":".freeflow/config.json"}}' "$workspace" |
