@@ -92,15 +92,31 @@ Or install directly from GitHub:
 /plugin install hassan-mohiddin/freeflow
 ```
 
-### Set Up Each Repo
+### Required Step 1: Run Setup
 
-After installing the plugin, run `setup-freeflow` in each repo where you want Freeflow active.
+**Run this in every repo after installing Freeflow:**
+
+```text
+/setup-freeflow
+```
 
 Setup creates the repo activation file and `.freeflow/config.json`. It does not create repo-local hooks, docs inventories, state files, handoffs, or `.codex/rules` behavior files.
 
 After successful setup, the setup skill reads the workflow skill and workflow map before its final response so the current session can continue with Freeflow loaded.
 
-The installed plugin also ships context-loading hooks that load workflow context at session start, resume, clear, and compact. Hosts may require plugin hooks to be reviewed or trusted after install. These hooks do not run after every edit, block tools, grant permissions, or enforce workflow policy.
+### Required Step 2: Enable Hooks
+
+**In Codex, open the hooks screen and trust the Freeflow `SessionStart` hook:**
+
+```text
+/hooks
+```
+
+Press `t` to trust/enable the hook when Codex marks it as needing review.
+
+Once enabled, the hook loads Freeflow workflow context at session start, resume, clear, and compact.
+
+These hooks do not run after every edit, block tools, grant permissions, or enforce workflow policy.
 
 ### Other Agents
 
