@@ -92,6 +92,16 @@ Or install directly from GitHub:
 /plugin install hassan-mohiddin/freeflow
 ```
 
+### Set Up Each Repo
+
+After installing the plugin, run `setup-freeflow` in each repo where you want Freeflow active.
+
+Setup creates the repo activation file and `.freeflow/config.json`. It does not create repo-local hooks, docs inventories, state files, handoffs, or `.codex/rules` behavior files.
+
+After successful setup, the setup skill reads the workflow skill and workflow map before its final response so the current session can continue with Freeflow loaded.
+
+The installed plugin also ships context-loading hooks that load workflow context at session start, resume, clear, and compact. Hosts may require plugin hooks to be reviewed or trusted after install. These hooks do not run after every edit, block tools, grant permissions, or enforce workflow policy.
+
 ### Other Agents
 
 Copy the `plugins/freeflow/skills/` directory into the agent's skills/plugin system and make sure the agent can read `SKILL.md` files with bundled `references/`.
@@ -144,6 +154,7 @@ Freeflow does not claim to beat Matt Pocock's skills or Obra's Superpowers. Thos
 | Write spec from stale handoff | 4/10 | 10/10 | Freeflow refused to supersede billing policy from stale handoff text. |
 | Write plan with hidden billing decision | 4/10 | 10/10 | Freeflow created no plan, named the policy conflict, and asked which path to follow. |
 | Cold spec call without context | 2/10 | 10/10 | Freeflow did not invent onboarding behavior from adjacent files. |
+| Workflow context lifecycle | fail | pass | Setup loads workflow context for the same session; session-start hooks load workflow context without `PostToolUse`. |
 | Command surface audit | - | Pass | 3 mode commands, 13 direct skill calls, and 2 developer skill calls are covered while native slash handlers remain disabled. |
 
 Eval sources and reports live with the plugin under `plugins/freeflow/evals/`; generated run output is ignored. Concise release evidence is summarized in [plugins/freeflow/docs/release-evidence.md](plugins/freeflow/docs/release-evidence.md).
@@ -152,9 +163,11 @@ Eval sources and reports live with the plugin under `plugins/freeflow/evals/`; g
 
 - Not a new agent.
 - Not a CLI framework.
-- Not a hook system.
+- Not an enforcement hook system.
 - Not old Orchestra with a smaller README.
 - Not a replacement for Matt's skills or Superpowers.
+
+The shipped hooks are context-loading only. They do not enforce policy, block tools, or replace repo instructions.
 
 Freeflow is the lightweight workflow layer between point skills and full process systems.
 
