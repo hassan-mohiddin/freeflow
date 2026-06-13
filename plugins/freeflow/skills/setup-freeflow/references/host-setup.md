@@ -16,7 +16,7 @@ Current runtime is not enough to choose a host when both `AGENTS.md` and `CLAUDE
 
 Solo setup is the default: one host target, compact activation, `defaultMode: "workflow"`, no extra docs.
 
-Team setup still uses compact activation. Add both hosts only if requested. Do not add team standards, onboarding docs, owners, approvers, hooks, or CLI checks as part of setup unless the user separately asks and the repo has a validated path for them.
+Team setup still uses compact activation. Add both hosts only if requested. Do not add team standards, onboarding docs, owners, approvers, repo-local hooks, or CLI checks as part of setup unless the user separately asks and the repo has a validated path for them.
 
 Strict setup changes `.freeflow/config.json` to `strict-workflow` only when the user explicitly asks to make that the repo default. Otherwise recommend strict-workflow for high-risk work without persisting it.
 
@@ -24,6 +24,10 @@ Valid persisted defaults are exactly `conversation`, `workflow`, and `strict-wor
 
 ## Not Setup
 
-Do not install hooks, CLI commands, lint rules, global standards, docs inventories, or state files during setup.
+Do not install repo-local hooks, CLI commands, lint rules, global standards, docs inventories, or state files during setup.
+
+Freeflow's plugin-bundled context hooks are package runtime. They load workflow context at session start, but setup should not copy hook files into the target repo.
+
+After successful setup verification, setup should read the workflow skill and workflow map before the final response. If session-start workflow context does not load in later sessions, tell the user to review/trust the installed Freeflow plugin hooks or start a fresh/compacted session. Do not create repo-local hook files as a workaround.
 
 If the user asks for enforcement, say Freeflow setup is instruction-only for now and ask whether to handle enforcement as a separate task.

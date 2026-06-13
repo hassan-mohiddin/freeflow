@@ -1,0 +1,18 @@
+{
+  "description": "Load Freeflow workflow context at session start.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT}}/hooks/freeflow-runtime-context.mjs\" SessionStart",
+            "timeout": 5,
+            "statusMessage": "Loading Freeflow workflow"
+          }
+        ]
+      }
+    ]
+  }
+}

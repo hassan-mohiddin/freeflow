@@ -33,7 +33,7 @@ Freeflow is a small portable workflow layer:
 
 - skills first
 - no native slash handlers in v0.1
-- no hooks or CLI enforcement in v0.1
+- plugin-bundled context hooks only; no enforcement hooks or CLI enforcement in v0.1
 - no mandatory global standards
 - no old `/orchestra:*` compatibility surface
 
@@ -55,6 +55,7 @@ freeflow/
     .codex-plugin/plugin.json
     .claude-plugin/plugin.json
     command-surface.json
+    hooks/
     skills/
     docs/
     evals/
@@ -148,7 +149,7 @@ The setup skill uses the public `setup-freeflow` name.
 ## Non-Goals For v0.1
 
 - No native slash-command runtime.
-- No hooks or CLI enforcement.
+- No enforcement hooks or CLI enforcement.
 - No old Orchestra command compatibility.
 - No migration of old Orchestra docs, templates, spec-review machinery, or CLI.
 - No public marketplace submission until GitHub install works for Codex and Claude.

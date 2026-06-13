@@ -11,7 +11,7 @@ Owned paths:
 - `plugins/freeflow/skills/setup-freeflow/`
 - setup prompts and fixture registry entries
 
-No hooks, CLI commands, global standards, or `.codex/rules` behavior files were added.
+No repo-local hooks, CLI commands, global standards, or `.codex/rules` behavior files were added.
 
 ## Skill Changes
 
@@ -32,7 +32,7 @@ The reference keeps profile details out of always-loaded setup text:
 - Codex vs Claude vs multi-agent shape
 - solo/team/strict setup defaults
 - enforcement requests are separate from setup
-- no hooks or CLI during setup
+- no repo-local hooks or CLI during setup
 
 Final main skill length: 97 lines.
 
@@ -46,7 +46,7 @@ Expected behavior:
 
 - update `AGENTS.md` with the compact Freeflow block
 - create `.freeflow/config.json` with only `defaultMode: "strict-workflow"`
-- avoid hooks, docs pages, state files, `.codex/rules` behavior files, and volatile config fields
+- avoid repo-local hooks, docs pages, state files, `.codex/rules` behavior files, and volatile config fields
 
 ## Results
 

@@ -67,8 +67,13 @@ codex_manifest="$plugin_root/.codex-plugin/plugin.json"
 claude_manifest="$plugin_root/.claude-plugin/plugin.json"
 command_surface="$plugin_root/command-surface.json"
 command_audit="$plugin_root/evals/scripts/audit-command-surface.sh"
+runtime_hooks_json="$plugin_root/hooks/hooks.json"
+runtime_hook_script="$plugin_root/hooks/freeflow-runtime-context.mjs"
+runtime_hook_check="$plugin_root/evals/scripts/check-runtime-context-hook.sh"
 command_audit_stdout="$(mktemp "${TMPDIR:-/tmp}/freeflow-command-surface-audit.out.XXXXXX")"
 command_audit_stderr="$(mktemp "${TMPDIR:-/tmp}/freeflow-command-surface-audit.err.XXXXXX")"
+runtime_hook_stdout="$(mktemp "${TMPDIR:-/tmp}/freeflow-runtime-hook.out.XXXXXX")"
+runtime_hook_stderr="$(mktemp "${TMPDIR:-/tmp}/freeflow-runtime-hook.err.XXXXXX")"
 architecture_doc="$plugin_root/docs/architecture.md"
 release_evidence="$plugin_root/docs/release-evidence.md"
 release_boundary_adr="$plugin_root/docs/adr/0003-release-boundary.md"
@@ -79,7 +84,7 @@ findings_file="$(mktemp "${TMPDIR:-/tmp}/freeflow-release-findings.XXXXXX")"
 warnings_file="$(mktemp "${TMPDIR:-/tmp}/freeflow-release-warnings.XXXXXX")"
 deferred_file="$(mktemp "${TMPDIR:-/tmp}/freeflow-release-deferred.XXXXXX")"
 evidence_file="$(mktemp "${TMPDIR:-/tmp}/freeflow-release-evidence.XXXXXX")"
-trap 'rm -f "$checks_file" "$findings_file" "$warnings_file" "$deferred_file" "$evidence_file" "$command_audit_stdout" "$command_audit_stderr"' EXIT
+trap 'rm -f "$checks_file" "$findings_file" "$warnings_file" "$deferred_file" "$evidence_file" "$command_audit_stdout" "$command_audit_stderr" "$runtime_hook_stdout" "$runtime_hook_stderr"' EXIT
 
 status="pass"
 
@@ -155,7 +160,7 @@ contains_fixed() {
 check_json_shape() {
   local check="json-shape"
   local ok=1
-  for file in "$codex_marketplace" "$claude_marketplace" "$codex_manifest" "$claude_manifest" "$command_surface"; do
+  for file in "$codex_marketplace" "$claude_marketplace" "$codex_manifest" "$claude_manifest" "$command_surface" "$runtime_hooks_json"; do
     require_file "$check" "$file" || ok=0
     if [ -f "$file" ]; then
       if ! jq empty "$file" >/dev/null; then
@@ -220,6 +225,23 @@ check_command_surface() {
   fi
 }
 
+check_runtime_context_hooks() {
+  local check="runtime-context-hooks"
+  local ok=1
+
+  require_file "$check" "$runtime_hooks_json" || ok=0
+  require_file "$check" "$runtime_hook_script" || ok=0
+  require_file "$check" "$runtime_hook_check" || ok=0
+
+  if [ "$ok" = "1" ]; then
+    if "$runtime_hook_check" >"$runtime_hook_stdout" 2>"$runtime_hook_stderr"; then
+      record_check "$check" "pass" "Plugin-bundled runtime context hook passed deterministic session-start checks."
+    else
+      record_check "$check" "fail" "Plugin-bundled runtime context hook check failed."
+    fi
+  fi
+}
+
 check_release_boundary() {
   local check="release-boundary"
   local ok=1
@@ -238,8 +260,18 @@ check_release_boundary() {
     ok=0
   }
 
-  contains_fixed "$architecture_doc" "does not ship a CLI, hooks, native slash handlers, or a new agent runtime in v0.1" || {
+  contains_fixed "$architecture_doc" "does not ship a CLI, native slash handlers, enforcement hooks, or a new agent runtime in v0.1" || {
     record_check "$check" "fail" "Architecture doc no longer preserves v0.1 deferred enforcement boundary."
+    ok=0
+  }
+
+  contains_fixed "$architecture_doc" "context-loading hooks" || {
+    record_check "$check" "fail" "Architecture doc no longer documents runtime context hooks."
+    ok=0
+  }
+
+  contains_fixed "$release_evidence" "plugin-bundled context hooks" || {
+    record_check "$check" "fail" "Release evidence no longer documents runtime context hooks."
     ok=0
   }
 
@@ -254,7 +286,7 @@ check_release_boundary() {
   }
 
   if [ "$ok" = "1" ]; then
-    record_check "$check" "pass" "Release docs preserve runtime boundary and deferred-smoke status."
+    record_check "$check" "pass" "Release docs preserve runtime context hooks, deferred enforcement boundary, and deferred-smoke status."
   fi
 }
 
@@ -428,6 +460,7 @@ check_json_shape
 check_marketplace_locality
 check_manifest_consistency
 check_command_surface
+check_runtime_context_hooks
 check_release_boundary
 check_package_cleanliness
 check_docs_drift

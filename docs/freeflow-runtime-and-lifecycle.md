@@ -105,6 +105,8 @@ The always-on text should stay compact because users often keep agent instructio
 
 Do not list the whole workflow or every mode in the activation block.
 
+The full workflow skill and workflow map are loaded by plugin-bundled context hooks, not by setup copying the whole workflow into repo memory.
+
 Placement matters:
 
 - Update an existing `## Freeflow` block in place.
@@ -122,6 +124,28 @@ Setup should not create an empty `CONTEXT.md`.
 If `CONTEXT.md` exists, setup may note that Freeflow skills can use it. Do not fill it with generic Freeflow instructions.
 
 ADRs remain reserved for hard-to-reverse, surprising, tradeoff-driven decisions.
+
+## Runtime Context Hooks
+
+Freeflow may ship plugin-bundled hooks that load existing workflow context. These hooks belong to the installed plugin, not the target repo.
+
+They should:
+
+- load `plugins/freeflow/skills/workflow/SKILL.md`
+- load `plugins/freeflow/skills/workflow/references/workflow-map.md`
+- run on session start for startup, resume, clear, and compact
+- report whether setup appears complete, partial, or missing
+
+They should not:
+
+- run after every edit/write tool call
+- block tools
+- grant permissions
+- enforce mode policy
+- create repo-local hook files
+- replace setup activation in `AGENTS.md` or `CLAUDE.md`
+
+Setup itself should read the workflow skill and workflow map after successful verification, before its final response, so the current session has the workflow loaded without a post-tool hook.
 
 ## Existing Rule Conflicts
 
@@ -351,11 +375,13 @@ The local-only v0.1 acceptance suite passed after measured fixes in `plugins/fre
 Current packaging shape:
 
 - 19 skills under `plugins/freeflow/skills/`.
-- Single plugin runtime under `plugins/freeflow/`, including skills, manifests, evals, command-surface metadata, and refined plugin docs.
+- Single plugin runtime under `plugins/freeflow/`, including skills, context hooks, manifests, evals, command-surface metadata, and refined plugin docs.
 - Every `SKILL.md` is under the 100-line project budget.
 - Extra reference files exist only where targeted evals or complexity justified progressive disclosure.
 - Native slash handlers remain disabled; commands are model-routed through skill activation.
-- Hooks remain deferred until skill behavior and evals prove mechanical enforcement is needed.
+- Context-loading hooks are shipped to load workflow context at session start.
+- Setup reads workflow context after successful setup verification for same-session use.
+- Enforcement hooks remain deferred until skill behavior and evals prove mechanical enforcement is needed.
 
 Reference-file additions from the reference-stack pass have landed. Do not add more references, scripts, examples, or assets merely because a skill is broad. Add them only when they keep the active `SKILL.md` short, reduce repeated deterministic work, or prevent a measured behavior failure.
 
@@ -366,6 +392,6 @@ Deferred validation work:
 1. Run Claude paired smoke evals after local Claude auth is available.
 2. Add stronger coverage only where real skill failures appear.
 
-Do not add runtime hooks yet.
+Do not add enforcement hooks yet.
 
-Hooks should come after skill behavior and evals show where mechanical enforcement is needed.
+Enforcement hooks should come after skill behavior and evals show where mechanical enforcement is needed.

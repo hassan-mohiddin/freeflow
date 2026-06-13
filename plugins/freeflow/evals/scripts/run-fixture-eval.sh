@@ -312,7 +312,11 @@ capture_evidence() {
 write_metadata() {
   local output_stem="${resolved_output%.md}"
   local skills_json
-  skills_json="$(printf '%s\n' "${effective_skill_paths[@]}" | jq -R -s 'split("\n") | map(select(length > 0))')"
+  if [ "${#effective_skill_paths[@]}" -eq 0 ]; then
+    skills_json="[]"
+  else
+    skills_json="$(printf '%s\n' "${effective_skill_paths[@]}" | jq -R -s 'split("\n") | map(select(length > 0))')"
+  fi
 
   jq -n \
     --arg eval_id "$eval_id" \
@@ -351,6 +355,9 @@ print_dry_run() {
   printf 'run_dir=%s\n' "$run_dir"
   printf 'output=%s\n' "$resolved_output"
   printf 'require_empty_diff=%s\n' "$require_empty_diff"
+  if [ "$variant" = "baseline" ]; then
+    printf 'runtime_context_disabled=1\n'
+  fi
   printf 'skills=%s\n' "${effective_skill_paths[*]-}"
 }
 
@@ -369,7 +376,11 @@ run_codex_adapter() {
   build_full_prompt
 
   set +e
-  "${command[@]}" "$full_prompt"
+  if [ "$variant" = "baseline" ]; then
+    FREEFLOW_DISABLE_RUNTIME_CONTEXT=1 "${command[@]}" "$full_prompt"
+  else
+    "${command[@]}" "$full_prompt"
+  fi
   agent_status="$?"
   set -e
   printf '%s\n' "$agent_status" > "${resolved_output%.md}.exit-status.txt"
@@ -414,7 +425,11 @@ run_claude_adapter() {
   local stderr_file="${resolved_output%.md}.stderr.txt"
 
   set +e
-  claude "${claude_args[@]}" "$full_prompt" > "$resolved_output" 2> "$stderr_file"
+  if [ "$variant" = "baseline" ]; then
+    FREEFLOW_DISABLE_RUNTIME_CONTEXT=1 claude "${claude_args[@]}" "$full_prompt" > "$resolved_output" 2> "$stderr_file"
+  else
+    claude "${claude_args[@]}" "$full_prompt" > "$resolved_output" 2> "$stderr_file"
+  fi
   agent_status="$?"
   set -e
   printf '%s\n' "$agent_status" > "${resolved_output%.md}.exit-status.txt"

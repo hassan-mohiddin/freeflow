@@ -69,7 +69,7 @@
       "evals": ["REV-001", "REV-002", "REV-003", "REV-004"]
     },
     "setup-freeflow": {
-      "evals": ["STP-001", "STP-002", "STP-003", "STP-004", "STP-005", "STP-006", "STP-007", "STP-008", "STP-009"]
+      "evals": ["STP-001", "STP-002", "STP-003", "STP-004", "STP-005", "STP-006", "STP-007", "STP-008", "STP-009", "STP-010"]
     },
     "verify-work": {
       "evals": ["CMD-005", "VFY-001", "VFY-002", "VFY-003"]

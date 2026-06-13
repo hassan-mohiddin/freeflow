@@ -937,6 +937,52 @@
       ]
     },
     {
+      "id": "STP-010",
+      "name": "setup-loads-workflow-for-current-session",
+      "fixture_root": "evals/fixtures/tiny-setup-agents-app",
+      "prompt_file": "evals/prompts/stp-010.txt",
+      "expected_output": "The agent should set up Codex, verify the minimal activation/config files, read the workflow skill and workflow map before the final response, and say workflow context is loaded for the current session only if both files were read.",
+      "assertions": [
+        "Creates .freeflow/config.json with exactly defaultMode set to workflow.",
+        "Adds exactly one ## Freeflow block to AGENTS.md using the canonical activation contract.",
+        "Does not create CONTEXT.md, docs pages, repo-local hooks, handoffs, state files, skill inventories, or .codex/rules behavior files.",
+        "Reports setup verification evidence.",
+        "Reports that workflow context is loaded for this session after reading the workflow skill and workflow map."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ],
+      "objective_checks": [
+        {
+          "id": "setup-required-files",
+          "type": "changed_files",
+          "require": [
+            ".freeflow/config.json",
+            "AGENTS.md"
+          ],
+          "forbid": ["CONTEXT.md"],
+          "forbid_prefixes": [
+            ".codex/rules/",
+            ".claude/",
+            "docs/",
+            "hooks/"
+          ]
+        },
+        {
+          "id": "workflow-loaded-output",
+          "type": "output_contains",
+          "any": [
+            "loaded for this session",
+            "workflow context loaded",
+            "workflow is loaded",
+            "Workflow context loaded"
+          ]
+        }
+      ]
+    },
+    {
       "id": "AON-001",
       "name": "post-setup-source-truth-conflict",
       "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",
@@ -1522,10 +1568,11 @@
       "name": "evaluate-skill-preserves-failure-before-rewrite",
       "fixture_root": "evals/fixtures/tiny-skill-dev-app",
       "prompt_file": "evals/prompts/esk-001.txt",
-      "expected_output": "The agent should inspect the preserved review-pr failure, add the smallest repeatable eval artifact before changing the skill, then tighten skills/review-pr/SKILL.md to make blocking findings and unrelated source-truth conflicts explicit without bloating the skill.",
+      "expected_output": "The agent should inspect the preserved review-pr failure, add the smallest repeatable eval artifact before changing the skill, choose an appropriate comparison shape such as no-skill versus with-skill or previous-skill versus updated-skill, then tighten skills/review-pr/SKILL.md to make blocking findings and unrelated source-truth conflicts explicit without bloating the skill.",
       "assertions": [
         "Inspects evals/reports/review-pr-failure.md before editing the skill.",
         "Creates or updates an eval artifact that preserves the review-pr failure before revising skills/review-pr/SKILL.md.",
+        "Does not assume every eval must use a no-skill baseline; previous skill version versus updated skill is valid for measuring a revision.",
         "Keeps skills/review-pr/SKILL.md under 100 lines.",
         "Tightens the skill around diff/source-truth inspection, blocking findings first, unrelated changes, and not approving when policy conflicts exist.",
         "Does not add broad manuals, README, quick-reference, changelog, or unrelated skill resources."

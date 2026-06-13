@@ -14,6 +14,14 @@ Use saved-run grading when the job is to judge existing outputs, diffs, logs, or
 
 Use separate baseline and with-skill fixtures when the tested behavior depends on installed memory, setup output, host config, or pre-existing state.
 
+## Comparison Choices
+
+Use no-skill baseline versus with-skill when proving the skill adds value over the ordinary agent or installed memory-free behavior.
+
+Use previous skill version versus updated skill when testing a wording change, runtime context change, or regression fix for a skill that already exists.
+
+For previous-version comparisons, save the exact old skill source, commit hash, plugin version, or temp copy path used as the control. Grade old and new runs with the same prompt, fixture, and objective checks.
+
 ## Harness Discipline
 
 Use the repo's runner when one exists. Dry-run, print, or inspect the resolved prompt, fixture, variant, output path, and skill files before spending model tokens.

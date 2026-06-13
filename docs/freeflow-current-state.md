@@ -22,7 +22,8 @@ Freeflow is a portable workflow skill pack for coding agents.
 - v0.1 local acceptance suite: passed after measured fixes.
 - Prepublish verification: passed on 2026-05-26. Generated eval runs live under `plugins/freeflow/evals/runs/` and are ignored.
 - Native slash handlers: not shipped in v0.1.
-- Hooks and CLI enforcement: not shipped in v0.1.
+- Context-loading hooks: shipped as plugin runtime.
+- Enforcement hooks and CLI enforcement: not shipped in v0.1.
 - Old Orchestra: prior art and failure evidence, not the release plugin.
 
 ## Release Boundary
@@ -39,7 +40,7 @@ The public repository includes:
 The public repository excludes:
 
 - Generated eval run output under `plugins/freeflow/evals/runs/`.
-- Hooks, CLI enforcement, native slash handlers, and old Orchestra compatibility.
+- Enforcement hooks, CLI enforcement, native slash handlers, and old Orchestra compatibility.
 
 ## Evidence
 
@@ -50,6 +51,7 @@ Current high-signal evidence:
 - `plugins/freeflow/evals/reports/acceptance/v0.1-acceptance-report.md`
 - `plugins/freeflow/evals/reports/by-command-surface/command-surface-matrix.md`
 - `plugins/freeflow/evals/reports/runtime/always-on-runtime-1-report.md`
+- `plugins/freeflow/evals/reports/runtime/workflow-context-hook-1-report.md`
 
 ## Current Next Work
 

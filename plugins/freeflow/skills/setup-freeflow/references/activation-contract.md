@@ -25,7 +25,9 @@ Do not add a code module until setup behavior needs logic that cannot be kept cl
 - Multi-agent setup updates both host surfaces only on explicit request and reports drift risk.
 - Existing repo instructions remain source truth.
 - Setup hard-stops before unresolved host ambiguity or repo-rule conflict.
-- Setup does not create hooks, docs inventories, state files, handoffs, empty `CONTEXT.md`, skill inventories, version metadata, activation path, current task, or current phase.
+- Setup does not create repo-local hooks, docs inventories, state files, handoffs, empty `CONTEXT.md`, skill inventories, version metadata, activation path, current task, or current phase.
+- Plugin-bundled context hooks may load workflow context at session start, but they are package runtime, not setup output.
+- After successful setup verification, setup reads the workflow skill and workflow map before its final response so the current session is immediately usable.
 
 ## Host Adapters
 
@@ -78,6 +80,7 @@ Verify before completion claims. Capture only stable decisions, glossary terms, 
 ## Drift Checks
 
 Run `plugins/freeflow/evals/scripts/check-activation-contract.sh` when changing setup behavior, post-setup fixtures, setup eval assertions, or docs that quote setup behavior.
+Run `plugins/freeflow/evals/scripts/check-runtime-context-hook.sh` when changing plugin-bundled runtime context hooks.
 
 The check keeps these surfaces aligned:
 

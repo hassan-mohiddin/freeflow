@@ -4,7 +4,7 @@ Freeflow is a portable skill pack for coding agents.
 
 ## Runtime Boundary
 
-Freeflow ships Markdown skills and bundled references. It does not ship a CLI, hooks, native slash handlers, or a new agent runtime in v0.1.
+Freeflow ships Markdown skills, bundled references, and lightweight context-loading hooks. It does not ship a CLI, native slash handlers, enforcement hooks, or a new agent runtime in v0.1.
 
 Host runtimes still control tools, sandboxing, approvals, and permissions. Freeflow controls workflow pressure:
 
@@ -28,6 +28,7 @@ freeflow/
     .codex-plugin/plugin.json
     .claude-plugin/plugin.json
     command-surface.json
+    hooks/
     skills/
     docs/
     evals/
@@ -60,8 +61,22 @@ Claude setup targets `CLAUDE.md`, `.claude/rules/freeflow-core.md`, and `.freefl
 
 Setup should not silently update both hosts or overwrite stronger repo-specific rules. Existing repo instructions are source truth.
 
+## Runtime Context Hooks
+
+The installed plugin owns `hooks/hooks.json`. Setup does not copy hook files into target repos.
+
+The hooks load the existing `workflow` skill and workflow map:
+
+- at session start, including startup, resume, clear, and compact
+
+They also report whether the current repo appears set up, partially set up, or missing setup. They do not run after edit/write tools, block tools, grant permissions, enforce mode policy, or replace repo instructions.
+
+Setup handles the same-session case directly: after successful setup verification, it reads the workflow skill and workflow map before its final response and only then says workflow context is loaded.
+
+Host runtimes may require plugin hooks to be reviewed and trusted after install. If the host skips untrusted hooks, setup still writes activation/config files, but future session-start workflow context will not load until hooks are trusted and the session is restarted, resumed, cleared, or compacted.
+
 ## Deferred Enforcement
 
-Hooks and CLI checks are intentionally deferred. They are useful only after skill wording and evals prove a repeated behavior needs mechanical enforcement.
+Enforcement hooks and CLI checks are intentionally deferred. They are useful only after skill wording and evals prove a repeated behavior needs mechanical enforcement.
 
 For v0.1, commands are model-routed language such as `/write-spec` or `/verify-work`; they are not native registered slash handlers.

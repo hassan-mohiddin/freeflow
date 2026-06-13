@@ -1,6 +1,6 @@
 ---
 name: evaluate-skill
-description: Use when a skill behavior needs evaluation, a preserved skill failure needs a repeatable eval, baseline versus with-skill comparison is needed, eval artifacts conflict, or skill wording is being revised from eval evidence.
+description: Use when a skill behavior needs evaluation, a preserved skill failure needs a repeatable eval, baseline versus with-skill or previous-version comparison is needed, eval artifacts conflict, or skill wording is being revised from eval evidence.
 ---
 
 # Evaluate Skill
@@ -45,13 +45,13 @@ Read `references/grading-priority.md` when grading saved runs, comparing final r
 
 1. Preserve the failing prompt or situation.
 2. Build the smallest fixture or transcript that reproduces it.
-3. Run baseline without the skill.
-4. Run with the skill.
+3. Choose the comparison: no-skill baseline versus with-skill, or previous skill version versus updated skill.
+4. Run both sides.
 5. Grade artifacts before explanations.
 6. Change wording only for measured failures.
 7. Re-run the failed side first.
 
-A useful behavior eval usually makes baseline fail and with-skill pass. If both pass, the eval may be weak or the base agent may already handle it. If both fail, either the skill is missing the behavior or the task needs a different skill.
+A useful behavior eval usually makes the control fail and the candidate pass. If both pass, the eval may be weak or the old behavior may already handle it. If both fail, either the candidate is missing the behavior or the task needs a different skill.
 
 ## Eval Shape
 

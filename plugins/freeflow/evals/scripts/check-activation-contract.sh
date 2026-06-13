@@ -69,6 +69,10 @@ for file in "$setup_skill" "$host_setup" "$runtime_doc"; do
   contains_exact "$file" "activation-contract.md" || fail "$file does not reference activation-contract.md"
 done
 
+contains_exact "$setup_skill" "../workflow/SKILL.md" || fail "$setup_skill must load the workflow skill after successful setup verification."
+contains_exact "$setup_skill" "../workflow/references/workflow-map.md" || fail "$setup_skill must load the workflow map after successful setup verification."
+contains_exact "$host_setup" "After successful setup verification" || fail "$host_setup must document same-session workflow loading."
+
 for file in "$setup_skill" "$host_setup" "$runtime_doc"; do
   if contains_exact "$file" "$codex_core"; then
     fail "$file embeds the Codex core block instead of referencing the contract"
@@ -94,8 +98,18 @@ jq -e '
   | any(.assertions[]; test("canonical activation contract"))
 ' "$registry" >/dev/null || fail "STP-009 must assert the canonical activation contract."
 
+jq -e '
+  [.evals[] | select(.id == "STP-010")] | length == 1
+' "$registry" >/dev/null || fail "STP-010 must exist exactly once."
+
+jq -e '
+  .evals[]
+  | select(.id == "STP-010")
+  | any(.assertions[]; test("workflow context is loaded"))
+' "$registry" >/dev/null || fail "STP-010 must assert same-session workflow loading."
+
 if [ "$failures" -gt 0 ]; then
   exit 1
 fi
 
-printf 'Activation contract check passed: canonical blocks, docs references, post-setup fixtures, and STP-009 assertions are aligned.\n'
+printf 'Activation contract check passed: canonical blocks, docs references, post-setup fixtures, and STP-009/STP-010 assertions are aligned.\n'

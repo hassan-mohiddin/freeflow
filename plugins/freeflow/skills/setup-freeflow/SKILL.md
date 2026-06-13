@@ -65,8 +65,9 @@ Do not list the whole workflow or every mode in always-loaded text. Do not split
 
 ## Do Not Create
 
-Setup must not create empty `CONTEXT.md`, docs pages, hooks, state files, handoffs, skill inventories, or `.codex/rules` behavior files.
+Setup must not create empty `CONTEXT.md`, docs pages, repo-local hooks, state files, handoffs, skill inventories, or `.codex/rules` behavior files.
 `CONTEXT.md` is domain language memory, not plugin state.
+Plugin-bundled context hooks are installed with Freeflow, not created by repo setup.
 
 ## Verify
 
@@ -77,5 +78,7 @@ Before claiming setup is complete, check:
 - Claude setup has exactly one `CLAUDE.md` import and one `.claude/rules/freeflow-core.md` core file
 - `.codex/rules` was not created or changed for Freeflow behavior
 - no unrelated files changed
+
+After successful setup verification, read `../workflow/SKILL.md` and `../workflow/references/workflow-map.md` before the final response. Only say workflow context is loaded for this session if both files were read successfully.
 
 If verification cannot run, say what remains unverified.

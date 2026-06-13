@@ -25,15 +25,25 @@ The development registry covers:
 
 Native slash handlers are not shipped in v0.1. Commands are model-routed through natural language and skill activation.
 
+## Runtime Context
+
+Freeflow ships plugin-bundled context hooks that load the existing `workflow` skill and workflow map at session start. These hooks do not run after edit/write tools, enforce behavior, block tools, or create repo-local hook files.
+
+For the same session that runs setup, `setup-freeflow` reads the workflow skill and workflow map after successful setup verification before saying workflow context is loaded.
+
+Host trust prompts for plugin hooks are expected host behavior. Local metadata validation checks hook packaging and deterministic output, not end-to-end host trust UI.
+
 ## Release Metadata
 
 Run `plugins/freeflow/evals/scripts/validate-release-metadata.sh` for local prepublish checks across marketplace metadata, host manifests, command-surface routing, release-boundary docs, package cleanliness, and deferred install-smoke status.
+
+Run `plugins/freeflow/evals/scripts/check-runtime-context-hook.sh` after changing lifecycle context hooks.
 
 ## Known Deferred Work
 
 - Live Claude smoke evals after Hassan confirms Claude testing is available again.
 - GitHub-install smoke tests in separate Codex and Claude environments.
-- Hooks or CLI enforcement only after repeated behavior failures justify them.
+- Enforcement hooks or CLI checks only after repeated behavior failures justify them.
 - Public marketplace submission only after GitHub install works.
 
 Full eval reports are development evidence and are not included in the runtime package.
