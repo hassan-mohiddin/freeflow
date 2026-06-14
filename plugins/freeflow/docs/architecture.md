@@ -77,7 +77,7 @@ Setup handles the same-session case directly: after successful setup verificatio
 
 Host runtimes may require plugin hooks to be reviewed and trusted after install. If the host skips untrusted hooks, setup still writes activation/config files, but future session-start workflow context will not load until hooks are trusted and the session is restarted, resumed, cleared, or compacted.
 
-Pi uses an extension instead of `hooks/hooks.json`. The Pi extension registers direct commands and injects compact runtime context during Pi's `before_agent_start` lifecycle event. It follows the same boundary as the Codex/Claude hooks: context loading only, no enforcement.
+Pi uses an extension instead of `hooks/hooks.json`. The Pi extension registers direct commands, reads `workflow/SKILL.md` and `workflow/references/workflow-map.md`, refreshes that context on `session_start` and `session_compact`, and injects it during Pi's `before_agent_start` lifecycle event. It follows the same boundary as the Codex/Claude hooks: context loading only, no enforcement.
 
 ## Deferred Enforcement
 

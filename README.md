@@ -106,7 +106,7 @@ For local development from this checkout:
 pi install .
 ```
 
-The Pi package exposes Freeflow skills and a small extension that registers direct Freeflow commands and loads the compact runtime context before agent turns.
+The Pi package exposes Freeflow skills and a small extension that registers direct Freeflow commands and loads workflow skill/map context before agent turns.
 
 ### Required Step 1: Run Setup
 
@@ -132,7 +132,7 @@ Press `t` to trust/enable the hook when Codex marks it as needing review.
 
 Once enabled, the hook loads Freeflow workflow context at session start, resume, clear, and compact.
 
-In Pi, Freeflow's package extension provides the context-loading hook through Pi lifecycle events. If you install it project-locally, trust the project when Pi prompts for project-local package resources.
+In Pi, Freeflow's package extension provides the context-loading hook through Pi lifecycle events. It refreshes workflow context on session start and compact, then injects it before agent turns. If you install it project-locally, trust the project when Pi prompts for project-local package resources.
 
 These hooks do not run after every edit, block tools, grant permissions, or enforce workflow policy.
 
