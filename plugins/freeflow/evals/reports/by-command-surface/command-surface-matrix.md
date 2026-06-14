@@ -14,13 +14,13 @@ Commands are model-routed. A command selects a mode or skill segment; it does no
 
 Current registry:
 
-- 3 mode commands
+- 4 mode commands
 - 13 direct skill calls
 - 2 developer skill calls
 
 Current direct command eval coverage:
 
-- Mode command coverage: yes, via `MODE-001` through `MODE-005`.
+- Mode command coverage: yes, via `MODE-001` through `MODE-006`.
 - Direct skill command coverage: 13 of 13 have `CMD-*` evals.
 - Developer command coverage: yes, via `CMD-014` and `CMD-015`.
 
@@ -33,6 +33,7 @@ Current direct command eval coverage:
 | `/workflow conversation` | `mode-contract` | No | `MODE-001` | Covered |
 | `/workflow workflow` | `mode-contract` | No | `MODE-*` mode suite | Covered |
 | `/workflow strict-workflow` | `mode-contract` | No | `MODE-002`, `MODE-005` | Covered |
+| `/workflow reset` | `mode-contract` | No | `MODE-006` | Covered |
 
 ## Direct Skill Commands
 

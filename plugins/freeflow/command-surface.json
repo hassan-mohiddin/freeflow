@@ -12,6 +12,10 @@
     {
       "command": "/workflow strict-workflow",
       "routesTo": "mode-contract"
+    },
+    {
+      "command": "/workflow reset",
+      "routesTo": "mode-contract"
     }
   ],
   "directSkillCalls": [

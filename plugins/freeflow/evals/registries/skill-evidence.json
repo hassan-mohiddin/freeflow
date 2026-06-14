@@ -57,7 +57,7 @@
       "evals": ["IVG-001", "IVG-002"]
     },
     "mode-contract": {
-      "evals": ["MODE-001", "MODE-002", "MODE-003", "MODE-004", "MODE-005"]
+      "evals": ["MODE-001", "MODE-002", "MODE-003", "MODE-004", "MODE-005", "MODE-006"]
     },
     "research-brief": {
       "evals": ["RBR-001", "RBR-002", "RBR-003"]

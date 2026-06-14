@@ -158,6 +158,7 @@ Slash-style prompts are model-routed in v0.1:
 /workflow conversation
 /workflow workflow
 /workflow strict-workflow
+/workflow reset
 /write-spec
 /write-plan
 /execute-plan
@@ -166,7 +167,7 @@ Slash-style prompts are model-routed in v0.1:
 /handoff
 ```
 
-Freeflow does not ship native slash handlers yet. The commands work as skill-routing language.
+For Codex and Claude, these commands work as skill-routing language. In Pi, the package extension registers native command handlers for Freeflow commands. Pi `/workflow` mode changes are session-scoped and update the footer; `.freeflow/config.json` remains the repo default only.
 
 ## Docs
 

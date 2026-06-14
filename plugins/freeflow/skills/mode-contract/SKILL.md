@@ -44,15 +44,23 @@ The user owns mode changes. You may recommend a mode; the user decides.
 
 ## Commands And Defaults
 
+Keep two scopes separate:
+
+- `defaultMode`: persisted repo default in `.freeflow/config.json`.
+- Current mode: task, conversation, or session override. Do not persist it in repo config.
+
 Recognize only:
 
 ```text
 /workflow conversation
 /workflow workflow
 /workflow strict-workflow
+/workflow reset
 ```
 
-These switch mode for the current task or conversation only. Do not persist them, create current-mode files, or edit config unless the user explicitly asks to change the repo default.
+The three mode commands switch mode for the current task, conversation, or host session only. `/workflow reset` clears the current override and returns to `defaultMode`.
+
+Do not persist current mode, create repo state files, or edit config unless the user explicitly asks to change the repo default.
 
 Phrases like "from now on", "until I say otherwise", or "for this repo" still do not persist mode unless paired with an explicit default change request.
 
