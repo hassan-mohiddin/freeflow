@@ -60,7 +60,7 @@
       "evals": ["MODE-001", "MODE-002", "MODE-003", "MODE-004", "MODE-005"]
     },
     "research-brief": {
-      "evals": ["RBR-001"]
+      "evals": ["RBR-001", "RBR-002", "RBR-003"]
     },
     "review-artifact": {
       "evals": ["RAR-001", "RAR-002", "RAR-003"]

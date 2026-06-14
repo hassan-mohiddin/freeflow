@@ -7,6 +7,14 @@ description: Use when gathering evidence before a decision, summarizing repo or 
 
 Gather evidence before deciding.
 
+## Target Gate
+
+Before researching, identify the exact target: artifact, URL, repo, product, paper, package, model, organization, or source.
+
+Use provided context first: links, screenshots, attached files, browser or page context, repo paths, issue numbers, and named artifacts.
+
+If multiple plausible targets would change the research path, stop and ask for the source. Do not choose by search ranking, source richness, name similarity, or an "I assume..." caveat.
+
 Research is not approval to follow the latest request.
 
 If the request is biased, stale, or asks you to skip relevant sources, inspect the evidence anyway.
@@ -44,6 +52,7 @@ Omit sections that do not apply.
 
 Stop and surface the decision when evidence reveals:
 
+- Ambiguous research target or source identity.
 - Source-of-truth conflict.
 - Missing product, scope, domain, compatibility, or public API choice.
 - Security, privacy, billing, data-loss, permissions, or migration behavior.

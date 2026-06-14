@@ -1,0 +1,7 @@
+I want you to do a deep dive/research on Pi agent, how is it different from our codex-cli-agent-harness? Go in depth into Pi's architecture and everything and report me.
+
+Visible browser context:
+- URL: https://pi.dev
+- Tab title: Pi Coding Agent
+- Page hero: "There are many agent harnesses, but this one is yours."
+- Page subcopy: "Pi is a minimal agent harness."

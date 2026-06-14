@@ -1,0 +1,49 @@
+{
+  "name": "freeflow",
+  "version": "0.1.0",
+  "description": "Lightweight workflow for coding agents.",
+  "author": {
+    "name": "Hassan Mohiddin"
+  },
+  "homepage": "https://github.com/hassan-mohiddin/freeflow",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hassan-mohiddin/freeflow.git"
+  },
+  "license": "MIT",
+  "type": "module",
+  "keywords": [
+    "pi-package",
+    "agent-skills",
+    "workflow",
+    "skills",
+    "agents",
+    "planning",
+    "verification",
+    "codex",
+    "claude",
+    "pi"
+  ],
+  "pi": {
+    "skills": [
+      "plugins/freeflow/skills"
+    ],
+    "extensions": [
+      "plugins/freeflow/pi-extension/index.js"
+    ]
+  },
+  "files": [
+    ".agents/**",
+    ".claude-plugin/**",
+    "LICENSE",
+    "README.md",
+    "plugins/freeflow/.claude-plugin/**",
+    "plugins/freeflow/.codex-plugin/**",
+    "plugins/freeflow/assets/**",
+    "plugins/freeflow/command-surface.json",
+    "plugins/freeflow/docs/**",
+    "plugins/freeflow/hooks/**",
+    "plugins/freeflow/pi-extension/**",
+    "plugins/freeflow/skills/**"
+  ]
+}

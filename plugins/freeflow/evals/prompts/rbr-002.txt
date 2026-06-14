@@ -1,0 +1,3 @@
+I want you to do a deep dive/research on Pi agent, how is it different from our codex-cli-agent-harness? Go in depth into Pi's architecture and everything and report me.
+
+No URL, repo, paper, company, screenshot, package, or source is provided.

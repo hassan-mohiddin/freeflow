@@ -18,6 +18,7 @@ Host runtimes still control tools, sandboxing, approvals, and permissions. Freef
 
 ```text
 freeflow/
+  package.json
   .agents/plugins/marketplace.json
   .claude-plugin/marketplace.json
   README.md
@@ -29,12 +30,13 @@ freeflow/
     .claude-plugin/plugin.json
     command-surface.json
     hooks/
+    pi-extension/
     skills/
     docs/
     evals/
 ```
 
-The repository root is the marketplace and GitHub-facing shell. Codex uses `.agents/plugins/marketplace.json`; Claude uses `.claude-plugin/marketplace.json`. Both point at `plugins/freeflow/`.
+The repository root is the marketplace and package-facing shell. Codex uses `.agents/plugins/marketplace.json`; Claude uses `.claude-plugin/marketplace.json`. Both point at `plugins/freeflow/`. Pi uses the root `package.json` `pi` manifest to load `plugins/freeflow/skills/` and `plugins/freeflow/pi-extension/index.js`.
 
 `plugins/freeflow/` is the single runtime source of truth. Skill edits, bundled references, eval metadata, and command-surface metadata live there to avoid generated package drift.
 
@@ -74,6 +76,8 @@ They also report whether the current repo appears set up, partially set up, or m
 Setup handles the same-session case directly: after successful setup verification, it reads the workflow skill and workflow map before its final response and only then says workflow context is loaded.
 
 Host runtimes may require plugin hooks to be reviewed and trusted after install. If the host skips untrusted hooks, setup still writes activation/config files, but future session-start workflow context will not load until hooks are trusted and the session is restarted, resumed, cleared, or compacted.
+
+Pi uses an extension instead of `hooks/hooks.json`. The Pi extension registers direct commands and injects compact runtime context during Pi's `before_agent_start` lifecycle event. It follows the same boundary as the Codex/Claude hooks: context loading only, no enforcement.
 
 ## Deferred Enforcement
 
