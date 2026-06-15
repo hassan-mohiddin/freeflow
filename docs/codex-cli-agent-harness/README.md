@@ -4,8 +4,8 @@
 > **Date:** 2026-06-12
 > **Owner:** Hassan Mohiddin
 > **Type:** Research index
-> **Status:** Active - Pass 0-8 complete; ready for design/spec synthesis
-> **Source:** Pass 0-8 artifacts in this directory, `openai/codex` source snapshots `b65fe3d8976d6fcc44ee6c6cf988654af5fc4d2d` and `0fed4497f50ad5f0b2f7972a1bfd14c5a09a85c5`, external harness sources refreshed for Pass 8, and Freeflow local delegation design discussion.
+> **Status:** Active - Pass 0-8 complete, including Pi addendum; ready for design/spec synthesis
+> **Source:** Pass 0-8 artifacts in this directory, `openai/codex` source snapshots `b65fe3d8976d6fcc44ee6c6cf988654af5fc4d2d` and `0fed4497f50ad5f0b2f7972a1bfd14c5a09a85c5`, external harness sources refreshed for Pass 8, Pi source snapshot `bb959aae017eedc8edaa91d01d0475d483ea9371`, and Freeflow local delegation design discussion.
 
 ## Purpose
 
@@ -38,9 +38,9 @@ commit date: 2026-06-13
 commit title: [codex] Carry exec-server cwd as PathUri (#28032)
 ```
 
-Pass 5 also used MLX-LM source material fetched on 2026-06-12 and spot-checked on 2026-06-14. Pass 8 used primary external sources for OpenHands, Goose, Aider, smolagents, PydanticAI, LangGraph, and Hermes refreshed on 2026-06-13.
+Pass 5 also used MLX-LM source material fetched on 2026-06-12 and spot-checked on 2026-06-14. Pass 8 used primary external sources for OpenHands, Goose, Aider, smolagents, PydanticAI, LangGraph, and Hermes refreshed on 2026-06-13, plus Pi source audited on 2026-06-15.
 
-Refresh upstream sources before implementation work because Codex, MLX-LM, and the comparison harnesses are active projects.
+Refresh upstream sources before implementation work because Codex, MLX-LM, Pi, and the comparison harnesses are active projects.
 
 ## Series Map
 
@@ -118,7 +118,7 @@ If you are reviewing future implementation work:
 | 5 | [Model Providers And Runtime Adapters](2026-06-12-pass-5-model-providers-runtime-adapters.md) | Source-audited 2026-06-14 | Provider abstraction, model metadata, event normalization, local server adapters, MLX-first implications, and model-agnostic runtime shape. |
 | 6 | [Memory And Context](2026-06-12-pass-6-memory-and-context.md) | Draft; diagram-audited | Context assembly, history normalization, compaction, AGENTS.md loading, memory read/write pipeline, memory citations, trace-vs-prompt split, and packet-first local harness shape. |
 | 7 | [Config And Extensibility](2026-06-12-pass-7-config-and-extensibility.md) | Draft; source-audited 2026-06-14 | Config layering, profiles, feature flags, MCP, skills, plugins, apps, hooks, roles, extension points, runtime config refresh, and config-to-turn-loop integration. |
-| 8 | [Agent Harness Comparisons](2026-06-13-pass-8-agent-harness-comparisons.md) | Complete | Comparison map plus OpenHands, Goose, Aider, smolagents, PydanticAI, LangGraph, Hermes, and synthesis for the first Freeflow local harness. |
+| 8 | [Agent Harness Comparisons](2026-06-13-pass-8-agent-harness-comparisons.md) | Complete; Pi addendum 2026-06-15 | Comparison map plus OpenHands, Goose, Aider, smolagents, PydanticAI, LangGraph, Hermes, Pi, and synthesis for the first Freeflow local harness. |
 
 ## Current Study State
 
@@ -148,7 +148,8 @@ These corrections should survive into the design spec:
 - Not every tool is an approval/sandbox tool. Execution-like tools use approval and sandbox retry machinery; other tools still move through router, lifecycle, and hook paths.
 - Hooks and extensions are related but different. Hooks are configured event handlers; extensions are typed contributors.
 - Context should be assembled as structured layers and task packets, not as one giant transcript string.
-- Pass 8 framework comparisons should inform boundaries and tests, not become runtime dependencies by default.
+- Pass 8 framework and harness comparisons should inform boundaries and tests, not become runtime dependencies by default.
+- Pi's project trust model is a resource-loading guard, not a sandbox or local-worker capability policy.
 
 ## Design Direction
 
@@ -177,7 +178,7 @@ Do not move local delegation into shipped plugin docs until smoke tests and adve
 
 ## Next Roadmap
 
-Pass 8 is the last research pass in this series. The next artifact should be the Freeflow local delegation harness spec or a narrow implementation plan for a tiny `local_delegate` smoke harness.
+Pass 8 is the last research pass in this series, with Pi added as a source-audited addendum. The next artifact should be the Freeflow local delegation harness spec or a narrow implementation plan for a tiny `local_delegate` smoke harness.
 
 The first design artifact should freeze:
 

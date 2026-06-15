@@ -4,8 +4,8 @@
 > **Date:** 2026-06-13
 > **Owner:** Hassan Mohiddin
 > **Type:** Research
-> **Status:** Complete - audited 2026-06-14
-> **Source:** Recovered Pass 8A/8B chat context after compaction, temporary handoff, local Pass 0-7 artifacts, Freeflow local delegation design docs, primary external sources refreshed on 2026-06-13, current Codex CLI source spot-check at `0fed4497f50ad5f0b2f7972a1bfd14c5a09a85c5`, and primary external-source spot-checks on 2026-06-14.
+> **Status:** Complete - audited 2026-06-14; Pi addendum added 2026-06-15
+> **Source:** Recovered Pass 8A/8B chat context after compaction, temporary handoff, local Pass 0-7 artifacts, Freeflow local delegation design docs, primary external sources refreshed on 2026-06-13, current Codex CLI source spot-check at `0fed4497f50ad5f0b2f7972a1bfd14c5a09a85c5`, primary external-source spot-checks on 2026-06-14, and Pi source audit on 2026-06-15 at `bb959aae017eedc8edaa91d01d0475d483ea9371`.
 
 ## Purpose
 
@@ -181,6 +181,26 @@ Freshness findings:
 
 The overall synthesis did not change. The strongest correction is the Goose storage correction. The strongest reinforcement is the OpenHands local-model hardware warning: Freeflow should not promise full local autonomous coding on ordinary laptop resources.
 
+## Pass 8H Addendum - 2026-06-15 Pi Source Audit
+
+Pi was added after the initial Pass 8 audit because it became a directly relevant comparison target for a minimal extensible terminal harness.
+
+Current Pi source was checked at:
+
+- repo path: `/private/tmp/pi-pass8h`
+- upstream: `https://github.com/earendil-works/pi.git`
+- commit: `bb959aae017eedc8edaa91d01d0475d483ea9371`
+- commit date/title: `2026-06-15 fix(coding-agent): wrap tree help on narrow terminals`
+- observed package version: `@earendil-works/pi-coding-agent` `0.79.3`
+
+Source-backed additions from this addendum:
+
+- Pi is a minimal TypeScript terminal coding harness with first-class extension, skill, prompt-template, theme, package, JSON, RPC, and SDK surfaces.
+- Pi's low-level loop is a reusable event-streaming agent core, while `AgentSession` is the coding-agent runtime that adds resource loading, tools, sessions, compaction, retries, project trust, and mode bindings.
+- Pi's project trust gates project-local settings/resources/extensions. It is explicitly not a sandbox or capability policy.
+- Pi packages and extensions are powerful enough to implement plan mode and subprocess subagents, but they run with the user's local permissions.
+- Pi is a strong mechanism reference and possible TypeScript dependency candidate, but it should not be treated as the default Freeflow local-delegation runtime without a separate language/runtime decision.
+
 ## Diagram Map
 
 This audit starts replacing structural text sketches with Mermaid. Short code fences that are commands, schemas, file trees, or memorable one-line rules remain plain text. They are examples, not diagrams.
@@ -193,7 +213,7 @@ Key diagrams now present:
 - comparison candidate map
 - harness component lens
 - provider/tool/workspace boundaries
-- OpenHands, Goose, Aider, framework, Hermes, and synthesis design translations
+- OpenHands, Goose, Aider, frameworks, Hermes, Pi, and synthesis design translations
 - policy, trace, task-kind, and implementation-sequence flows
 
 ## Prior Local Context
@@ -244,7 +264,8 @@ The comparison pass is split intentionally:
 4. Pass 8D - Aider Deep Dive
 5. Pass 8E - smolagents / PydanticAI / LangGraph
 6. Pass 8F - Hermes Agent
-7. Pass 8G - Synthesis
+7. Pass 8H - Pi
+8. Pass 8I - Synthesis
 
 Do not collapse this into one shallow feature-list comparison. Each deep dive should explain mechanisms and design tradeoffs.
 
@@ -264,7 +285,8 @@ Which external agent systems are useful references for Freeflow's optional local
 | smolagents | Python agent library | Minimal loop, code agents, local/model-agnostic support, tools, sandboxed code execution options | Combined framework pass in Pass 8E |
 | PydanticAI | Python agent framework | Typed agents, structured outputs, tool approval, model abstraction, evals, observability | Combined framework pass in Pass 8E |
 | LangGraph | Low-level orchestration runtime | Durable stateful workflows, persistence, human-in-the-loop, graph/subgraph mental model | Combined framework pass in Pass 8E |
-| Hermes Agent | Full agent project, exact target: `NousResearch/hermes-agent` | Long-lived memory, skills, gateways, subagents, terminal backends, self-improvement claims | Deep dive in Pass 8F after source-focused disambiguation |
+| Hermes Agent | Full agent project, exact target: `NousResearch/hermes-agent` | Long-lived memory, skills, gateways, subagents, terminal backends, self-improvement claims | Deep dive completed in Pass 8F after source-focused disambiguation |
+| Pi | Minimal terminal coding harness, exact target: `earendil-works/pi` | Small TypeScript agent loop, provider abstraction, extension/packages surface, session tree, TUI/JSON/RPC/SDK modes | Deep dive completed in Pass 8H |
 
 ```mermaid
 flowchart TD
@@ -274,18 +296,21 @@ flowchart TD
   Aider[Aider<br/>repo/diff discipline]
   Frameworks[smolagents / PydanticAI / LangGraph<br/>implementation primitives]
   Hermes[Hermes Agent<br/>full local-agent product surface]
+  Pi[Pi<br/>minimal extensible terminal harness]
 
   Freeflow --> OpenHands
   Freeflow --> Goose
   Freeflow --> Aider
   Freeflow --> Frameworks
   Freeflow --> Hermes
+  Freeflow --> Pi
 
   OpenHands --> Borrow1[borrow: event/tool/workspace boundaries]
   Goose --> Borrow2[borrow: run surface, traces, permissions]
   Aider --> Borrow3[borrow: repo map, patch artifacts, verifier loop]
   Frameworks --> Borrow4[borrow: typed schemas, compact loop, events]
   Hermes --> Borrow5[borrow: child isolation, policy gates, trace vocabulary]
+  Pi --> Borrow6[borrow: small loop, extension hooks, JSONL sessions, multi-mode shell]
 ```
 
 ### Pass 8A Judgment
@@ -299,6 +324,8 @@ OpenHands, Goose, and Aider are the most directly comparable to the Freeflow loc
 smolagents, PydanticAI, and LangGraph are important, but they are more useful as libraries or architectural ingredients than as product-shape references.
 
 Hermes Agent is useful after source disambiguation, but as a mechanism reference rather than a product shape to copy.
+
+Pi is useful as the closest minimal TypeScript harness reference: it is smaller than OpenHands/Hermes, more extensible than Aider, and already exposes TUI, JSON, RPC, and SDK integration modes. Its project-trust and package model also show why Freeflow must keep capability policy separate from extension loading.
 
 ### Harness Component Lens
 
@@ -2574,7 +2601,414 @@ flowchart LR
 
 The local helper can be cheap and useful. It should not become the final authority.
 
-## Pass 8G - Synthesis
+## Pass 8H - Pi Deep Dive
+
+Pi is the closest comparison target to a small extensible terminal coding harness.
+
+The question for this pass is not "should Freeflow become Pi?" It is:
+
+```text
+What should Freeflow borrow from a minimal TypeScript coding harness that already has
+provider adapters, an agent loop, session trees, extension packages, and multi-mode I/O?
+```
+
+### Source Boundary
+
+This section was source-audited against `earendil-works/pi` at commit `bb959aae017eedc8edaa91d01d0475d483ea9371`.
+
+Primary source anchors:
+
+- product statement and modes: [`packages/coding-agent/README.md:20`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/coding-agent/README.md#L20), [`packages/coding-agent/README.md:24`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/coding-agent/README.md#L24)
+- default coding tools: [`packages/coding-agent/README.md:96`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/coding-agent/README.md#L96), [`packages/coding-agent/src/core/sdk.ts:244`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/coding-agent/src/core/sdk.ts#L244)
+- low-level loop: [`packages/agent/src/agent-loop.ts:155`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/agent/src/agent-loop.ts#L155), [`packages/agent/src/agent-loop.ts:275`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/agent/src/agent-loop.ts#L275), [`packages/agent/src/agent-loop.ts:373`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/agent/src/agent-loop.ts#L373)
+- `Agent` wrapper and parallel tool default: [`packages/agent/src/agent.ts:166`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/agent/src/agent.ts#L166), [`packages/agent/src/agent.ts:218`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/agent/src/agent.ts#L218)
+- coding-agent session factory: [`packages/coding-agent/src/core/sdk.ts:166`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/coding-agent/src/core/sdk.ts#L166), [`packages/coding-agent/src/core/sdk.ts:293`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/coding-agent/src/core/sdk.ts#L293), [`packages/coding-agent/src/core/sdk.ts:375`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/coding-agent/src/core/sdk.ts#L375)
+- higher-level harness direction: [`packages/agent/src/harness/agent-harness.ts:174`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/agent/src/harness/agent-harness.ts#L174), [`packages/agent/src/harness/agent-harness.ts:331`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/agent/src/harness/agent-harness.ts#L331), [`packages/agent/src/harness/agent-harness.ts:421`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/agent/src/harness/agent-harness.ts#L421)
+- built-in tools and mutation queue: [`packages/coding-agent/src/core/tools/index.ts:83`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/coding-agent/src/core/tools/index.ts#L83), [`packages/coding-agent/src/core/tools/read.ts:212`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/coding-agent/src/core/tools/read.ts#L212), [`packages/coding-agent/src/core/tools/bash.ts:279`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/coding-agent/src/core/tools/bash.ts#L279), [`packages/coding-agent/src/core/tools/edit.ts:296`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/coding-agent/src/core/tools/edit.ts#L296), [`packages/coding-agent/src/core/tools/file-mutation-queue.ts:32`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/coding-agent/src/core/tools/file-mutation-queue.ts#L32)
+- extension API: [`packages/coding-agent/src/core/extensions/types.ts:1120`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/coding-agent/src/core/extensions/types.ts#L1120), [`packages/coding-agent/src/core/extensions/types.ts:1170`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/coding-agent/src/core/extensions/types.ts#L1170), [`packages/coding-agent/src/core/extensions/types.ts:1329`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/coding-agent/src/core/extensions/types.ts#L1329)
+- sessions and compaction: [`packages/coding-agent/src/core/session-manager.ts:30`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/coding-agent/src/core/session-manager.ts#L30), [`packages/coding-agent/src/core/session-manager.ts:325`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/coding-agent/src/core/session-manager.ts#L325), [`packages/coding-agent/src/core/agent-session.ts:1641`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/coding-agent/src/core/agent-session.ts#L1641), [`packages/coding-agent/src/core/agent-session.ts:1798`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/coding-agent/src/core/agent-session.ts#L1798)
+- project trust and security: [`packages/coding-agent/docs/security.md:7`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/coding-agent/docs/security.md#L7), [`packages/coding-agent/docs/security.md:33`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/coding-agent/docs/security.md#L33), [`packages/coding-agent/src/core/project-trust.ts:45`](https://github.com/earendil-works/pi/blob/bb959aae017eedc8edaa91d01d0475d483ea9371/packages/coding-agent/src/core/project-trust.ts#L45)
+
+### Product Shape
+
+Pi describes itself as "a minimal terminal coding harness" that should be adapted through extensions, skills, prompt templates, themes, and Pi packages rather than forks. It also explicitly says it skips built-in plan mode and subagents, expecting users or packages to add them when wanted.
+
+That shape matters for Freeflow because Pi is not a maximal agent platform like OpenHands or Hermes. It is closer to a compact host runtime with a deliberately broad extension surface.
+
+```mermaid
+flowchart TD
+  Pi[Pi coding agent]
+  Core[pi-agent-core<br/>evented loop + tool execution]
+  AI[pi-ai<br/>providers, models, streams]
+  Coding[pi-coding-agent<br/>CLI, sessions, resources, tools]
+  TUI[pi-tui<br/>terminal UI primitives]
+  Ext[extensions / skills / prompts / themes / packages]
+  Modes[TUI / print / JSON / RPC / SDK]
+
+  Pi --> Core
+  Pi --> AI
+  Pi --> Coding
+  Pi --> TUI
+  Coding --> Ext
+  Coding --> Modes
+```
+
+Observed package boundaries:
+
+| Package | Role | Freeflow relevance |
+| --- | --- | --- |
+| `@earendil-works/pi-ai` | Provider/model metadata, normalized stream/event protocol, API registry | Good model-adapter reference; possible dependency only if Freeflow's harness is TypeScript. |
+| `@earendil-works/pi-agent-core` | Stateful agent loop, tool execution, event stream, harness experiments | Strong loop reference; shows how little code can own model/tool iteration. |
+| `@earendil-works/pi-coding-agent` | `pi` CLI, built-in coding tools, sessions, resource loading, extensions, modes | Strong host-runtime reference; too broad to copy wholesale. |
+| `@earendil-works/pi-tui` | Differential terminal rendering and components | Useful only if Freeflow builds a TUI; not required for local delegation v0. |
+
+### Turn Loop
+
+Pi's low-level loop is small and explicit.
+
+`agentLoop()` and `agentLoopContinue()` return event streams. `runLoop()` owns the nested loop: inject pending steering messages, stream an assistant response, execute tool calls, append tool results, emit `turn_end`, let `prepareNextTurn` refresh state, check stop conditions, and then drain follow-up messages if the agent would otherwise stop.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant Host
+  participant Loop as pi-agent-core runLoop
+  participant Provider as pi-ai streamSimple
+  participant Tools as AgentTool execute
+  participant Session as AgentSession / persistence
+
+  Host->>Loop: prompt or continue
+  Loop->>Loop: drain steering messages
+  Loop->>Provider: stream assistant response
+  Provider-->>Loop: AssistantMessageEvent stream
+  Loop-->>Host: message_start/update/end events
+  alt assistant requested tools
+    Loop->>Tools: validate and preflight tool calls
+    Tools-->>Loop: tool execution events and results
+    Loop-->>Session: toolResult messages
+    Loop->>Provider: next LLM call with tool results
+  else no tools
+    Loop->>Loop: check follow-up queue
+  end
+  Loop-->>Host: agent_end
+```
+
+Important mechanics:
+
+- `streamAssistantResponse()` applies optional `transformContext`, converts `AgentMessage[]` to provider-compatible messages, builds a provider `Context`, and forwards the normalized provider event stream.
+- Tool calls are prepared sequentially but execute in parallel by default; source-order tool result messages are preserved after parallel execution. Any per-tool `executionMode: "sequential"` forces the batch to sequential execution.
+- Tools can return `terminate: true`; the batch stops only when every finalized result asks to terminate.
+- The `Agent` wrapper adds state, subscribers, steering/follow-up queues, API key resolution, provider options, and defaults `toolExecution` to `parallel`.
+
+Freeflow lesson: the first local harness loop can be small if it has a crisp event protocol and treats model requests as proposals routed through tool policy. The loop does not need a full graph runtime to be testable.
+
+### Coding-Agent Session Runtime
+
+`AgentSession` is the heavier coding-agent layer shared by Pi's interactive, print, JSON, RPC, and SDK modes.
+
+`createAgentSession()` wires together auth storage, model registry, settings, session manager, resource loader, default tools, custom tools, extension runner hooks, provider request options, image blocking, and model/thinking-level restoration. The default active tools are exactly `read`, `bash`, `edit`, and `write`; read-only `grep`, `find`, and `ls` exist but are not part of the default active set unless selected.
+
+`AgentSession.prompt()` does more than append a user message:
+
+1. execute extension slash commands immediately when matched
+2. emit extension `input` handlers before expansion
+3. expand skill commands and prompt templates
+4. queue steering/follow-up messages if streaming
+5. validate selected model and auth
+6. run pre-prompt compaction checks
+7. inject extension custom messages from `before_agent_start`
+8. set the turn system prompt
+9. call the underlying `Agent`
+10. post-process retries, compaction, and queued messages after agent runs
+
+This is the correct layering lesson: the loop should stay small, while the session runtime owns resource discovery, command expansion, persistence, and host-mode behavior.
+
+### AgentHarness Direction
+
+Pi also contains a newer `AgentHarness` layer in `@earendil-works/pi-agent-core`. It owns explicit phases, turn snapshots, pending session writes, resource snapshots, compaction, branch summaries, and hooks.
+
+The useful idea is the turn snapshot: model, thinking level, tools, resources, system prompt, stream options, and session id are snapshotted for one provider request. Runtime config changes can affect the next turn without mutating an in-flight request.
+
+Freeflow's local harness should copy this concept even if it does not use Pi's implementation:
+
+```mermaid
+flowchart LR
+  Runtime[latest runtime config]
+  Snapshot[turn snapshot]
+  Provider[in-flight provider request]
+  Save[save point]
+  Next[next turn snapshot]
+
+  Runtime --> Snapshot --> Provider --> Save --> Next
+  Runtime -. changes during turn .-> Next
+  Runtime -. do not mutate .-> Provider
+```
+
+For local delegation, the equivalent is an immutable task/run snapshot: task packet, workspace policy, capability allowlist, model adapter, verifier allowlist, and output schema should be fixed for one child run.
+
+### Tools And Authority
+
+Pi's built-in coding tool surface is intentionally practical:
+
+- `read` reads text and images, truncating text output and supporting offsets.
+- `bash` runs local shell commands in the current working directory, streams output, truncates long output, and persists full output to a temp file when needed.
+- `edit` performs exact replacement with multi-edit support; replacements must be unique and non-overlapping.
+- `write` writes files and creates parents.
+- `grep`, `find`, and `ls` are read-only tools available through tool selection and read-only tool factories.
+- file mutations are serialized per file by `withFileMutationQueue()`.
+
+This tool design is strong for an interactive coding assistant. It is too permissive for Freeflow's first local helper unless wrapped by stricter capability and workspace policy.
+
+The key distinction:
+
+```mermaid
+flowchart LR
+  PiTool[Pi built-in tool]
+  LocalPerm[user process permissions]
+  FFPolicy[Freeflow capability + workspace policy]
+  Helper[local delegation helper]
+
+  PiTool --> LocalPerm
+  Helper --> FFPolicy --> PiTool
+```
+
+If Freeflow ever runs a Pi-based child, it must not expose `bash`, `edit`, or `write` merely because Pi has them. The task packet should decide the active tool subset and the policy gate should still validate every call.
+
+### Providers And Models
+
+`pi-ai` gives Pi a normalized provider layer. The source defines known APIs/providers, model metadata, thinking levels, token/cost metadata, provider stream options, normalized assistant/tool-result messages, and a stream event protocol. `streamSimple()` resolves the API provider and injects environment API keys when appropriate. The API registry supports dynamic provider registration and unregistering.
+
+`ModelRegistry` adds the coding-agent layer: built-in models, `models.json`, provider/model overrides, request headers, OAuth providers, dynamic extension provider registration, and custom `streamSimple` handlers.
+
+This is useful for Freeflow because the local harness should distinguish:
+
+| Layer | Pi mechanism | Freeflow equivalent |
+| --- | --- | --- |
+| provider stream | `pi-ai` stream protocol | `ModelAdapter` event stream |
+| model metadata | `Model` with context/cost/input/reasoning | local model profile and budget metadata |
+| provider config | `models.json` and registry overrides | local runtime config or task-scoped adapter config |
+| custom provider | extension `registerProvider()` | explicit adapter plugin point, later |
+
+Freeflow should copy the separation, not necessarily the provider catalog.
+
+### Resources, Extensions, And Packages
+
+Pi has a broad resource layer:
+
+- context files: global and project `AGENTS.md` / `CLAUDE.md`
+- skills: `SKILL.md` directories with frontmatter, model-visible descriptions, and lazy read-on-use instructions
+- prompt templates: slash-command expansion into prompts
+- themes: TUI styling resources
+- extensions: TypeScript modules that register tools, commands, shortcuts, flags, event handlers, message renderers, UI, providers, and session mutations
+- packages: npm/git/local bundles for extensions, skills, prompts, and themes
+
+The extension API is powerful. It can intercept context, provider requests, agent lifecycle, tool calls/results, user bash, input, session operations, compaction, and UI. It can also send user/custom messages, append custom session entries, set active tools, set model/thinking level, execute commands, and register providers.
+
+This is a major lesson and a major warning.
+
+```mermaid
+flowchart TD
+  Extension[Pi extension]
+  Tools[register tools]
+  Commands[register commands]
+  Hooks[event hooks]
+  UI[custom UI]
+  Providers[register providers]
+  Session[session entries/messages]
+  Power[full local process power]
+
+  Extension --> Tools
+  Extension --> Commands
+  Extension --> Hooks
+  Extension --> UI
+  Extension --> Providers
+  Extension --> Session
+  Extension --> Power
+```
+
+For Freeflow's optional local delegation, broad extension loading is a v0 anti-goal. Local helpers should start with a closed built-in tool registry and explicit task packets. A later plugin point can exist only after policy, trace, and evals are boring.
+
+### Project Trust Is Not A Sandbox
+
+Pi's project trust is a resource-loading gate. `resolveProjectTrusted()` checks explicit overrides, whether trust-requiring project resources exist, extension `project_trust` handlers, saved trust decisions, global defaults, and UI prompts. The security docs are explicit: project trust is not a sandbox and does not restrict what the model can ask tools to do after the session starts.
+
+Pi's security docs also say the process runs with the user's local permissions and real isolation should come from OS/container/VM/micro-VM boundaries.
+
+Freeflow should preserve this distinction:
+
+| Concept | What it can do | What it cannot do |
+| --- | --- | --- |
+| Project trust | Decide whether to load project-local settings/resources/extensions | Enforce tool capability, file path, network, or command policy |
+| Tool allowlist | Decide which tools are visible | Prove individual calls are safe |
+| Capability/workspace policy | Validate each requested action | Sandbox the process by itself |
+| Container/VM/micro-VM | Provide isolation boundary | Replace agent policy and trace requirements |
+
+This strengthens a Pass 8 synthesis rule: do not confuse input-loading trust with local-worker authority.
+
+### Session Tree And Context
+
+Pi stores sessions as JSONL entries under `~/.pi/agent/sessions` by default. Current session version is `3`. Entries form a tree using `id` and `parentId`, not just a flat transcript.
+
+`buildSessionContext()` follows the active leaf back to root, applies model/thinking entries, handles latest compaction, emits compaction summaries before kept messages, includes branch summaries and custom messages, and returns the LLM context.
+
+Session entries include:
+
+- regular messages
+- model and thinking-level changes
+- compaction entries
+- branch summaries
+- custom entries not sent to the LLM
+- custom messages sent to the LLM
+- labels and session info
+
+This gives Pi richer transcript navigation than Freeflow's first local helper needs. The useful ideas are:
+
+- JSONL is easy to inspect and replay.
+- The trace should distinguish model-visible messages from extension/runtime state.
+- Branch/fork metadata belongs in structured entries, not just prose.
+- Compaction should be an explicit entry with source details and kept-message boundary.
+
+For Freeflow v0, plain per-run `trace.jsonl` remains the right storage choice. Pi shows how that can later evolve into branchable sessions without changing the basic event-entry discipline.
+
+### Compaction And Retry
+
+Pi handles context pressure in the session runtime. Manual compaction, threshold auto-compaction, and overflow recovery all emit `compaction_start` / `compaction_end` events. Extensions can intercept `session_before_compact` and provide custom compaction output. Auto-compaction can retry after overflow once, while threshold compaction does not automatically retry the user's task.
+
+Freeflow's local helper may not need transcript compaction in v0 because each child run should be small and task-scoped. But Pi's distinction is worth copying:
+
+- expected context pressure is a lifecycle event, not a random error string
+- compaction output is persisted as structured state
+- overflow recovery must be bounded
+- extensions/custom policy can affect compaction only through typed hooks
+
+### Modes And Integration Surface
+
+Pi's run modes are unusually relevant to Freeflow:
+
+- interactive TUI for humans
+- print mode for one-shot text output
+- JSON event stream mode for process integration
+- RPC mode over strict JSONL stdin/stdout
+- SDK embedding through `createAgentSession()` and `AgentSessionRuntime`
+
+The JSON/RPC/SDK surfaces are more relevant to Freeflow than Pi's TUI. They show how a coding agent can expose the same session runtime through multiple shells without duplicating the core loop.
+
+For Freeflow local delegation, the comparable surface should still be smaller:
+
+```mermaid
+flowchart LR
+  CLI[local_delegate CLI]
+  Json[structured stdout / result.json]
+  Trace[trace.jsonl]
+  SDK[later SDK]
+  TUI[not v0]
+
+  CLI --> Json
+  CLI --> Trace
+  SDK -. later .-> Trace
+  TUI -. avoid for v0 .-> CLI
+```
+
+### Subagents And Plan Mode
+
+Pi's core product intentionally does not ship built-in subagents or plan mode. The examples prove those can be implemented as extensions:
+
+- the subagent example runs separate `pi` subprocesses with isolated context windows, supports single/parallel/chain modes, streams progress, caps model-visible output, and limits parallel mode to eight tasks with four concurrent
+- the plan-mode example toggles read-only exploration, restricts tools, filters bash through an allowlist, tracks plan steps, and restores full access for execution
+
+These examples are a useful proof of extension power, not a Freeflow v0 design to copy directly.
+
+For Freeflow:
+
+- subprocess child agents are a plausible implementation technique
+- child prompts/toolsets should be generated from typed task packets, not ad hoc markdown agent files
+- project-local child definitions should not be trusted by default
+- local helper output must be a schema-valid artifact, not just rendered markdown
+
+### Answers To Pass 8H Questions
+
+Question: Is Pi a useful reference for Freeflow?
+
+Answer: Yes. Pi is the best minimal TypeScript reference in this pass. It shows a compact evented loop, normalized provider stream, practical coding tools, JSONL session tree, broad extension surface, and multi-mode process integration.
+
+Question: Should Freeflow use Pi directly as the local delegation runtime?
+
+Answer: Not by default. That is a future implementation-language and dependency decision.
+
+Pi is already a coding agent product. Depending on `@earendil-works/pi-coding-agent` would bring a broad CLI/session/resource/extension/tool surface that is larger than Freeflow's first local helper. Depending only on `@earendil-works/pi-ai` or `@earendil-works/pi-agent-core` may be attractive if the harness is TypeScript, but that should be compared against the MLX/Python-first direction and the need for a small, policy-gated, schema-first local worker.
+
+Question: Can Pi host Freeflow?
+
+Answer: Yes, as a host environment. Freeflow already targets agents like Codex, Claude, and Pi-style harnesses. Pi's extension and skills model is an excellent host surface for a Freeflow plugin. That does not mean Pi should also become the optional local-delegation companion runtime.
+
+Question: What should Freeflow copy?
+
+Copy mechanisms:
+
+- event stream with `message_start/update/end`, tool execution events, turn events, and final settlement
+- separate provider stream normalization from agent loop logic
+- distinguish runtime messages from provider-visible messages
+- turn/run snapshots that cannot mutate an in-flight provider request
+- file mutation serialization per target file
+- exact edit semantics and diff/patch details
+- JSONL session/trace entries with typed runtime records
+- extension hooks as typed event/result pairs, if Freeflow later adds extension points
+- project trust wording that clearly says "not a sandbox"
+
+Question: What should Freeflow avoid?
+
+Avoid copying product scope:
+
+- no full Pi CLI clone
+- no TUI in the first local helper
+- no broad Pi package ecosystem for local workers
+- no project-local extension execution in v0 local delegation
+- no default `bash`/`edit`/`write` authority for child runs
+- no session tree as the first trace store
+- no plan-mode/subagent behavior through prompts alone
+
+### Pi Concept To Freeflow Concept
+
+| Pi concept | Freeflow local-delegation translation |
+| --- | --- |
+| `AgentMessage[] -> transformContext -> convertToLlm -> Message[]` | `TraceEvent[] / task state -> context builder -> provider messages` |
+| `AgentTool` | `ToolSpec` plus runtime executor |
+| `beforeToolCall` / `tool_call` hook | deterministic `PolicyGate` before execution |
+| `afterToolCall` / `tool_result` hook | observation sanitizer and trace writer |
+| `AgentSessionEvent` | `TraceEvent` channels |
+| `SessionManager` JSONL tree | v0 per-run `trace.jsonl`, later branchable sessions if needed |
+| project trust | resource-loading gate, not worker authority |
+| Pi packages | later extension distribution, not v0 worker plugin model |
+| JSON/RPC modes | process integration precedent for `local_delegate run task.json` |
+| SDK | possible later embedding path after CLI behavior is stable |
+| subagent extension | evidence that subprocess children work, not a v0 contract |
+
+### Pass 8H Recommendation
+
+Use Pi as a primary mechanism reference for a TypeScript-flavored minimal harness.
+
+Do not adopt `pi` itself as the first Freeflow local-delegation runtime unless a later spec explicitly chooses TypeScript and accepts the dependency/surface-area tradeoff.
+
+The main Freeflow conclusion is stronger after Pi:
+
+```mermaid
+flowchart TD
+  Pi[Pi evidence]
+  Small[small loop is enough]
+  Powerful[extension surfaces get powerful fast]
+  Trust[project trust is not policy]
+  Modes[JSON/RPC/SDK make process integration clean]
+  Freeflow[Freeflow local helper]
+
+  Pi --> Small --> Freeflow
+  Pi --> Powerful --> Freeflow
+  Pi --> Trust --> Freeflow
+  Pi --> Modes --> Freeflow
+```
+
+A Freeflow local worker should start smaller than Pi's coding agent, but it should borrow Pi's clean separation between provider stream, agent loop, session/trace, tools, and host integration.
+
+## Pass 8I - Synthesis
 
 ### Synthesis Question
 
@@ -2600,7 +3034,7 @@ flowchart TD
 
 ### Final Judgment
 
-Freeflow should not adopt OpenHands, Goose, Aider, Hermes, smolagents, PydanticAI, or LangGraph as the v0 local delegation runtime.
+Freeflow should not adopt OpenHands, Goose, Aider, Hermes, Pi, smolagents, PydanticAI, or LangGraph as the v0 local delegation runtime.
 
 The converged direction is:
 
@@ -2635,16 +3069,16 @@ All useful references point toward the same core harness spine.
 
 | Concern | Reference evidence | Freeflow synthesis |
 | --- | --- | --- |
-| Runtime boundary | OpenHands package separation, Goose interface/agent/extensions, Hermes product breadth | Keep plugin, companion CLI, harness runtime, and workspace executors separate |
-| Execution surface | Goose `run`, Aider scripting, Hermes CLI/package entry points | Start with `local_delegate doctor`, `local_delegate smoke`, `local_delegate run task.json` |
-| Agent loop | smolagents ReAct loop, Hermes prologue/loop/finalizer, OpenHands action/observation | Hand-roll a small loop with explicit prologue, step dispatch, stop conditions, and finalizer |
-| Tool shape | OpenHands typed tools, Goose MCP-style providers, Hermes registry/toolsets, PydanticAI tool schemas | Define `ToolSpec`, `ToolAction`, `ToolObservation`, and `ToolPolicy` before adding many tools |
-| Workspace boundary | OpenHands workspaces, Goose MCP roots, Aider editable/read-only files | Use one explicit workspace root plus editable/read-only/denied path policy |
-| Safety | Goose permission modes, Hermes approval guards, OpenHands confirmation, smolagents sandbox warnings | Deterministic policy gate first; optional reviewer later; fail closed on risky child actions |
-| Coding discipline | Aider repo map, dirty-worktree protection, diffs, lint/test repair | Start with patch artifacts and dry-run validation, not direct source mutation |
-| Subagents | OpenHands subagent contexts, Goose subagents, Hermes child `AIAgent` instances | Parent-created child runs only, with fresh context, restricted tools, bounded budgets, and no recursive delegation by default |
-| State and traces | Goose session logs, Hermes SQLite/search, LangGraph events/checkpoints | Plain trace files first; SQLite/durable workflows only after one-shot runs prove insufficient |
-| Validation and evals | PydanticAI schemas/evals, Aider verifier loops, Hermes tests | Validate task, tool calls, observations, result artifact, and verifier evidence |
+| Runtime boundary | OpenHands package separation, Goose interface/agent/extensions, Hermes product breadth, Pi package boundaries | Keep plugin, companion CLI, harness runtime, and workspace executors separate |
+| Execution surface | Goose `run`, Aider scripting, Hermes CLI/package entry points, Pi print/JSON/RPC/SDK modes | Start with `local_delegate doctor`, `local_delegate smoke`, `local_delegate run task.json` |
+| Agent loop | smolagents ReAct loop, Hermes prologue/loop/finalizer, OpenHands action/observation, Pi evented loop | Hand-roll a small loop with explicit prologue, step dispatch, stop conditions, and finalizer |
+| Tool shape | OpenHands typed tools, Goose MCP-style providers, Hermes registry/toolsets, PydanticAI tool schemas, Pi tool definitions | Define `ToolSpec`, `ToolAction`, `ToolObservation`, and `ToolPolicy` before adding many tools |
+| Workspace boundary | OpenHands workspaces, Goose MCP roots, Aider editable/read-only files, Pi process-cwd tools | Use one explicit workspace root plus editable/read-only/denied path policy |
+| Safety | Goose permission modes, Hermes approval guards, OpenHands confirmation, smolagents sandbox warnings, Pi security docs | Deterministic policy gate first; optional reviewer later; fail closed on risky child actions |
+| Coding discipline | Aider repo map, dirty-worktree protection, diffs, lint/test repair, Pi exact-edit semantics | Start with patch artifacts and dry-run validation, not direct source mutation |
+| Subagents | OpenHands subagent contexts, Goose subagents, Hermes child `AIAgent` instances, Pi subprocess subagent example | Parent-created child runs only, with fresh context, restricted tools, bounded budgets, and no recursive delegation by default |
+| State and traces | Goose session logs, Hermes SQLite/search, LangGraph events/checkpoints, Pi JSONL session tree | Plain trace files first; SQLite/durable workflows only after one-shot runs prove insufficient |
+| Validation and evals | PydanticAI schemas/evals, Aider verifier loops, Hermes tests, Pi event/session tests | Validate task, tool calls, observations, result artifact, and verifier evidence |
 
 ### What Freeflow Should Copy
 
@@ -2657,6 +3091,7 @@ Copy mechanisms, not products:
 - PydanticAI: schema-first task/result contracts, dependency injection for run resources, validation retry/reflection, fake model adapters, eval discipline, observability hooks.
 - LangGraph: state/event vocabulary, structured interrupts, run IDs, event channels, and subgraph mental model where local workers are bounded child graphs.
 - Hermes: real child-agent isolation, tool registry/policy separation, dangerous-command guard layering, terminal backend boundaries, result/trace vocabulary, and evidence that full local agents quickly become their own product.
+- Pi: compact evented loop, provider stream normalization, turn snapshots, exact edit and file-mutation discipline, JSONL session entries, project-trust wording, and JSON/RPC/SDK integration surfaces.
 
 ### What Freeflow Should Simplify
 
@@ -2707,6 +3142,7 @@ Avoid product sprawl:
 - no Goose desktop/background-agent clone
 - no Aider pair-programming clone
 - no Hermes personal-agent platform
+- no Pi coding-agent/TUI/package ecosystem clone
 - no LangGraph durable runtime as a v0 requirement
 - no arbitrary MCP extension ecosystem in the first build
 - no gateway, cron, messaging, or external platform adapters
@@ -3036,7 +3472,9 @@ LangGraph should wait until Freeflow needs durable, resumable, multi-step local 
 
 smolagents should remain an implementation reference unless its compact loop directly accelerates the prototype.
 
-OpenHands, Goose, Aider, and Hermes should not be runtime dependencies for v0.
+OpenHands, Goose, Aider, Hermes, and full Pi coding-agent should not be runtime dependencies for v0.
+
+If the harness is TypeScript, `@earendil-works/pi-ai` and `@earendil-works/pi-agent-core` are narrower dependency candidates worth evaluating. That should be a future language/dependency decision, not a research default.
 
 ### Required Evals Before Plugin Docs Move
 
@@ -3116,9 +3554,9 @@ Pass 8 does not settle:
 
 Those are future-work decisions, not research blockers.
 
-### Pass 8G Recommendation
+### Pass 8I Recommendation
 
-Treat Pass 8 as complete.
+Treat Pass 8 as complete with the Pi addendum.
 
 This audit stops at research closure. Any future spec, plan, or implementation artifact should be created only after an explicit follow-up request.
 
@@ -3150,7 +3588,7 @@ Do not choose a drop-in framework yet.
 
 Do not move local delegation into shipped plugin docs until smoke tests and adversarial evals prove the behavior.
 
-## Audit Closure - 2026-06-14
+## Audit Closure - 2026-06-14; Pi Addendum Closure - 2026-06-15
 
 This audit closes Pass 8 as a research artifact. It does not create, approve, or imply an implementation plan.
 
@@ -3159,6 +3597,7 @@ Audit coverage completed:
 - Added Mermaid diagrams for dense conceptual flows and replaced structural text sketches where a diagram made the mechanism clearer.
 - Rechecked the current Codex CLI turn loop and multi-agent control-plane source at `0fed4497f50ad5f0b2f7972a1bfd14c5a09a85c5`.
 - Rechecked high-drift external claims against primary docs/repositories on 2026-06-14.
+- Added a Pi source-audited deep dive on 2026-06-15 at `bb959aae017eedc8edaa91d01d0475d483ea9371`.
 - Corrected stale or underspecified claims around OpenHands local execution/hardware expectations, Goose session storage, and Goose Pass 8C status.
 - Preserved the research/runtime boundary: this file is evidence memory, not shipped Freeflow behavior.
 
@@ -3168,16 +3607,19 @@ flowchart TD
   Diagrams[diagram coverage]
   Codex[current Codex source spot-check]
   External[external primary-doc spot-check]
+  Pi[Pi source addendum]
   Corrections[patched corrections]
   Boundary[research/runtime boundary]
-  Closed[Pass 8 audit complete]
+  Closed[Pass 8 audit + addendum complete]
 
   Audit --> Diagrams
   Audit --> Codex
   Audit --> External
+  Audit --> Pi
   Diagrams --> Corrections
   Codex --> Corrections
   External --> Corrections
+  Pi --> Corrections
   Corrections --> Boundary --> Closed
 ```
 
@@ -3185,5 +3627,6 @@ Remaining caveats for future readers:
 
 - External docs are active projects; refresh them before using a specific upstream behavior as implementation evidence.
 - Hermes line-level claims are pinned to commit `1899c8f507c34338d3c66493cffd7d10ba705a8d`; do not treat those line anchors as current unless the repo is re-cloned.
+- Pi line-level claims are pinned to commit `bb959aae017eedc8edaa91d01d0475d483ea9371`; refresh before making Pi a dependency.
 - Codex line-level claims are pinned to commit `0fed4497f50ad5f0b2f7972a1bfd14c5a09a85c5`.
 - The Pass 8 synthesis is stable enough for research closure, but any implementation work should start from a separate spec or plan only if explicitly requested.
