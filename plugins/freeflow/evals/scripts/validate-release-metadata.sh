@@ -260,7 +260,7 @@ check_release_boundary() {
     ok=0
   }
 
-  contains_fixed "$architecture_doc" "does not ship a CLI, native slash handlers, enforcement hooks, or a new agent runtime in v0.1" || {
+  contains_fixed "$architecture_doc" "does not ship a CLI, Codex/Claude native slash handlers, enforcement hooks, or a new agent runtime in v0.1" || {
     record_check "$check" "fail" "Architecture doc no longer preserves v0.1 deferred enforcement boundary."
     ok=0
   }
@@ -275,8 +275,8 @@ check_release_boundary() {
     ok=0
   }
 
-  contains_fixed "$release_evidence" "Native slash handlers are not shipped in v0.1" || {
-    record_check "$check" "fail" "Release evidence no longer states native slash handlers are not shipped."
+  contains_fixed "$release_evidence" "Codex/Claude native slash handlers are not shipped in v0.1" || {
+    record_check "$check" "fail" "Release evidence no longer states Codex/Claude native slash handlers are not shipped."
     ok=0
   }
 
@@ -348,8 +348,8 @@ check_docs_drift() {
     ok=0
   fi
 
-  contains_fixed "$release_evidence" "3 mode commands" || {
-    record_check "$check" "fail" "Release evidence no longer lists 3 mode commands."
+  contains_fixed "$release_evidence" "4 mode commands" || {
+    record_check "$check" "fail" "Release evidence no longer lists 4 mode commands."
     ok=0
   }
 
@@ -369,10 +369,10 @@ check_docs_drift() {
 }
 
 check_install_smoke() {
-  record_deferred "install-smoke" "GitHub/Codex and Claude install smoke checks are not run by local metadata validation."
+  record_deferred "install-smoke" "GitHub/Codex, Claude, and fresh Pi install smoke checks are not run by local metadata validation."
   if [ "$mode" = "release" ] && [ "$status" = "pass" ]; then
     status="blocked"
-    record_line "$warnings_file" "install-smoke: release mode is blocked until GitHub/Codex and Claude install smoke checks run or are explicitly waived."
+    record_line "$warnings_file" "install-smoke: release mode is blocked until GitHub/Codex, Claude, and fresh Pi install smoke checks run or are explicitly waived."
   fi
 }
 

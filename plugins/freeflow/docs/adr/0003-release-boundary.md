@@ -8,7 +8,7 @@ Accepted.
 
 Freeflow v0.1 ships as a marketplace repo with one plugin runtime under `plugins/freeflow/`.
 
-The plugin runtime includes skills, bundled references, context-loading hooks, public docs, eval sources/reports, command-surface metadata, and Codex/Claude metadata.
+The plugin runtime includes skills, bundled references, context-loading runtime, public docs, eval sources/reports, command-surface metadata, Codex/Claude metadata, and Pi package metadata/extension.
 
 The runtime excludes generated eval run output, historical research notes, handoffs, enforcement hooks, CLI tools, and old Orchestra compatibility.
 

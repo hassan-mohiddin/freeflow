@@ -6,11 +6,11 @@ Accepted.
 
 ## Decision
 
-Freeflow v0.1 ships plugin-bundled context hooks that load existing workflow instructions. It still ships without enforcement hooks or CLI enforcement. Behavior must first be proven with baseline-vs-with-skill evals before mechanical enforcement is added.
+Freeflow v0.1 ships plugin-bundled context-loading runtime: Codex/Claude hooks and a Pi extension that load existing workflow and interview-gate context. It still ships without enforcement hooks or CLI enforcement. Behavior must first be proven with baseline-vs-with-skill evals before mechanical enforcement is added.
 
 ## Rationale
 
-Context-loading hooks address a measured lifecycle gap: skill context may not be present at session start. The setup skill handles the same-session setup case by reading runtime context after successful verification. Enforcement hooks can prevent expensive mistakes, but early enforcement machinery can hide weak skill wording and turn the package into brittle workflow infrastructure.
+Context-loading runtime addresses a measured lifecycle gap: workflow and interview-gate context may not be present at session start. The setup skill handles the same-session setup case by reading runtime context after successful verification. Enforcement hooks can prevent expensive mistakes, but early enforcement machinery can hide weak skill wording and turn the package into brittle workflow infrastructure.
 
 ## Consequences
 

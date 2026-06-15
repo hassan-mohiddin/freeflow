@@ -4,7 +4,7 @@ Freeflow is a portable skill pack for coding agents.
 
 ## Runtime Boundary
 
-Freeflow ships Markdown skills, bundled references, and lightweight context-loading hooks. It does not ship a CLI, native slash handlers, enforcement hooks, or a new agent runtime in v0.1.
+Freeflow ships Markdown skills, bundled references, lightweight context-loading hooks, and a Pi extension. It does not ship a CLI, Codex/Claude native slash handlers, enforcement hooks, or a new agent runtime in v0.1.
 
 Host runtimes still control tools, sandboxing, approvals, and permissions. Freeflow controls workflow pressure:
 

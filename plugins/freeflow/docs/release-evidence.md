@@ -19,11 +19,11 @@ High-signal behaviors covered:
 
 The development registry covers:
 
-- 3 mode commands.
+- 4 mode commands.
 - 13 direct workflow skill calls.
 - 2 contributor skill calls.
 
-Native slash handlers are not shipped in v0.1. Commands are model-routed through natural language and skill activation.
+Codex/Claude native slash handlers are not shipped in v0.1. In those hosts, commands are model-routed through natural language and skill activation. Pi registers direct Freeflow commands through its extension.
 
 ## Runtime Context
 
@@ -42,8 +42,8 @@ Run `plugins/freeflow/evals/scripts/check-runtime-context-hook.sh` after changin
 ## Known Deferred Work
 
 - Live Claude smoke evals after Hassan confirms Claude testing is available again.
-- GitHub-install smoke tests in separate Codex and Claude environments.
+- GitHub-install smoke tests in separate Codex, Claude, and fresh Pi environments.
 - Enforcement hooks or CLI checks only after repeated behavior failures justify them.
-- Public marketplace submission only after GitHub install works.
+- Public marketplace submission only after GitHub install works for required hosts.
 
 Full eval reports are development evidence and are not included in the runtime package.

@@ -5,7 +5,7 @@
 > **Owner:** Hassan Mohiddin
 > **Type:** Design
 > **Status:** Accepted
-> **Source:** Current Freeflow v0.1 acceptance evidence, old Orchestra audit, Codex/Superpowers/Caveman plugin shapes, Claude plugin marketplace shape
+> **Source:** Current Freeflow v0.1 acceptance evidence, old Orchestra audit, Codex/Superpowers/Caveman plugin shapes, Claude plugin marketplace shape, Pi package/runtime verification
 
 ## Decision
 
@@ -21,7 +21,7 @@ The development surface now uses `freeflow` as well. The public repository uses 
 - Plugin name: `freeflow`
 - Display name: `Freeflow`
 - Tagline: `Lightweight workflow for coding agents.`
-- Positioning: Freeflow is a portable workflow skill pack for Codex and Claude. It keeps consequential work moving while preserving user control over product behavior, scope, public APIs, security, privacy, billing, data loss, compatibility, and irreversible architecture.
+- Positioning: Freeflow is a portable workflow skill pack for Codex, Claude, and Pi. It keeps consequential work moving while preserving user control over product behavior, scope, public APIs, security, privacy, billing, data loss, compatibility, and irreversible architecture.
 
 Freeflow should not present itself as a full governance system, agent replacement, CLI framework, or hook-enforced process engine.
 
@@ -32,8 +32,8 @@ Old Orchestra is a heavy Claude-first engineering toolkit with typed docs, spec 
 Freeflow is a small portable workflow layer:
 
 - skills first
-- no native slash handlers in v0.1
-- plugin-bundled context hooks only; no enforcement hooks or CLI enforcement in v0.1
+- no Codex/Claude native slash handlers in v0.1
+- plugin-bundled context hooks or Pi extension only; no enforcement hooks or CLI enforcement in v0.1
 - no mandatory global standards
 - no old `/orchestra:*` compatibility surface
 
@@ -45,6 +45,7 @@ Use the public repository as the marketplace root and keep one installable plugi
 
 ```text
 freeflow/
+  package.json
   .agents/plugins/marketplace.json
   .claude-plugin/marketplace.json
   README.md
@@ -56,6 +57,7 @@ freeflow/
     .claude-plugin/plugin.json
     command-surface.json
     hooks/
+    pi-extension/
     skills/
     docs/
     evals/
@@ -77,7 +79,7 @@ Use `plugins/freeflow/.codex-plugin/plugin.json` as the Codex manifest:
 - `interface.category`: `Coding` or `Productivity`; prefer `Coding`.
 - no `commands` or `slashCommands` until native handlers are intentionally added.
 
-Keep `nativeSlashHandlers=false` in the internal command-surface evidence unless native runtime support is added later.
+Keep `nativeSlashHandlers=false` in the internal command-surface evidence for Codex/Claude unless native runtime support is added later. Pi direct commands are documented as Pi-extension behavior.
 
 ## Claude Manifest
 
@@ -87,6 +89,15 @@ The Claude manifest lives at `plugins/freeflow/.claude-plugin/plugin.json` and e
 
 The root `.claude-plugin/marketplace.json` points at `./plugins/freeflow` for manual Claude install and future GitHub publishing.
 
+## Pi Package Manifest
+
+The root `package.json` exposes the repo as a Pi package:
+
+- `pi.skills`: `plugins/freeflow/skills`
+- `pi.extensions`: `plugins/freeflow/pi-extension/index.js`
+
+The Pi extension registers direct Freeflow commands, keeps `/workflow` mode changes session-scoped, loads workflow plus interview-gate context on session start and compact, and injects that context before agent turns. It does not enforce policy, block tools, grant permissions, or create repo-local hooks.
+
 ## README Shape
 
 The public README should be short and install-focused:
@@ -95,11 +106,12 @@ The public README should be short and install-focused:
 2. What it is not.
 3. Install for Codex.
 4. Install for Claude.
-5. Basic usage examples.
-6. Mode summary: `conversation`, `workflow`, `strict-workflow`.
-7. Skill list.
-8. Development evidence: link to v0.1 acceptance report in this repo or copied release notes.
-9. Relationship to Orchestra.
+5. Install for Pi.
+6. Basic usage examples.
+7. Mode summary: `conversation`, `workflow`, `strict-workflow`.
+8. Skill list.
+9. Development evidence: link to v0.1 acceptance report in this repo or copied release notes.
+10. Relationship to Orchestra.
 
 Avoid long competitive comparisons, broad philosophy essays, or old Orchestra feature promises.
 
@@ -132,13 +144,13 @@ The setup skill uses the public `setup-freeflow` name.
 ## Publishing Sequence
 
 1. Prepare the public marketplace repo with one runtime at `plugins/freeflow/`. Done.
-2. Add Codex and Claude manifests. Done.
+2. Add Codex, Claude, and Pi package metadata. Done.
 3. Add README, LICENSE, CHANGELOG, root project docs, and refined plugin docs. Done.
 4. Run manifest validation and the existing command-surface audit. Done for manifest validation; command-surface audit remains part of final verification.
 5. Run the v0.1 acceptance suite from the current eval layout or add an equivalent marketplace-layout smoke gate.
 6. Create a separate GitHub repo for `freeflow`. Done: `https://github.com/hassan-mohiddin/freeflow`.
 7. Push marketplace repo contents. Done previously; repeat after this layout cleanup.
-8. Install from GitHub in a separate Codex environment and Claude environment.
+8. Install from GitHub in separate Codex, Claude, and fresh Pi environments.
 9. Dogfood in one real repo before broader announcement.
 
 ## Remaining Decisions Before Public Announcement
@@ -148,11 +160,11 @@ The setup skill uses the public `setup-freeflow` name.
 
 ## Non-Goals For v0.1
 
-- No native slash-command runtime.
+- No Codex/Claude native slash-command runtime.
 - No enforcement hooks or CLI enforcement.
 - No old Orchestra command compatibility.
 - No migration of old Orchestra docs, templates, spec-review machinery, or CLI.
-- No public marketplace submission until GitHub install works for Codex and Claude.
+- No public marketplace submission until GitHub install works for Codex, Claude, and Pi.
 
 ## Self-Review
 
