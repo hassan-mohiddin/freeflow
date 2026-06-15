@@ -18,12 +18,14 @@ Freeflow is a portable workflow skill pack for coding agents.
 - License target: MIT.
 - GitHub target: `hassan-mohiddin/freeflow`.
 - GitHub repo: published at `https://github.com/hassan-mohiddin/freeflow`.
+- npm package: published as `@hassangameryt/freeflow@0.1.0`.
 - Host targets: Codex, Claude Code, and Pi.
 - v0.1 local acceptance suite: passed after measured fixes.
 - Prepublish verification: passed on 2026-05-26. Generated eval runs live under `plugins/freeflow/evals/runs/` and are ignored.
 - Targeted runtime/interview-gate verification: passed on 2026-06-15 for syntax, runtime-context hooks, activation contract, release metadata, and Pi extension mock lifecycle.
 - Native slash handlers: not shipped for Codex/Claude in v0.1; Pi exposes direct Freeflow commands through its extension.
 - Runtime context loading: shipped through Codex/Claude plugin-bundled hooks and the Pi extension.
+- npm Trusted Publisher: configured for GitHub Actions workflow `.github/workflows/release.yml` with environment `npm`.
 - Enforcement hooks and CLI enforcement: not shipped in v0.1.
 - Old Orchestra: prior art and failure evidence, not the release plugin.
 
@@ -58,8 +60,9 @@ Current high-signal evidence:
 
 ## Current Next Work
 
-1. Install from GitHub in separate Codex, Claude, and fresh Pi environments.
-2. Dogfood in one real repo before broader announcement.
-3. Decide whether to tag `v0.1.0` and create a GitHub release after install smoke tests pass.
+1. Install from npm/GitHub in separate Codex, Claude, and fresh Pi environments.
+2. Confirm Pi package-gallery indexing after npm refresh.
+3. Dogfood in one real repo before broader announcement.
+4. Decide whether to tag `v0.1.0` and create a GitHub release after install smoke tests pass.
 
 Use this doc for current project status. Use research docs for historical reasoning.

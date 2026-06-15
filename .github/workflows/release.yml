@@ -1,0 +1,56 @@
+name: Publish npm package
+
+on:
+  workflow_dispatch:
+    inputs:
+      dist_tag:
+        description: npm dist-tag to publish
+        required: true
+        default: latest
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    environment: npm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Show package version
+        run: |
+          node --version
+          npm --version
+          node -e 'const p = require("./package.json"); console.log(`${p.name}@${p.version}`)'
+
+      - name: Ensure version is not already published
+        run: |
+          set -euo pipefail
+          name="$(node -p 'require("./package.json").name')"
+          version="$(node -p 'require("./package.json").version')"
+
+          if npm view "${name}@${version}" version >/dev/null 2>&1; then
+            echo "::error ::${name}@${version} is already published. Bump package.json before publishing."
+            exit 1
+          fi
+
+      - name: Verify package contents
+        run: npm pack --dry-run
+
+      - name: Publish
+        run: npm publish --access public --tag "$NPM_DIST_TAG"
+        env:
+          NPM_DIST_TAG: ${{ inputs.dist_tag }}
