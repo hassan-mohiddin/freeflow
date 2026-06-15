@@ -1,14 +1,17 @@
 {
-  "name": "freeflow",
+  "name": "@hassangameryt/freeflow",
   "version": "0.1.0",
   "description": "Lightweight workflow for coding agents.",
+  "publishConfig": {
+    "access": "public"
+  },
   "author": {
     "name": "Hassan Mohiddin"
   },
   "homepage": "https://github.com/hassan-mohiddin/freeflow",
   "repository": {
     "type": "git",
-    "url": "https://github.com/hassan-mohiddin/freeflow.git"
+    "url": "git+https://github.com/hassan-mohiddin/freeflow.git"
   },
   "license": "MIT",
   "type": "module",
@@ -30,7 +33,8 @@
     ],
     "extensions": [
       "plugins/freeflow/pi-extension/index.js"
-    ]
+    ],
+    "image": "https://raw.githubusercontent.com/hassan-mohiddin/freeflow/main/plugins/freeflow/assets/freeflow-plugin-icon-transparent.png"
   },
   "files": [
     ".agents/**",

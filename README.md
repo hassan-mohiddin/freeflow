@@ -94,7 +94,13 @@ Or install directly from GitHub:
 
 ### Pi Coding Agent
 
-Install Freeflow as a native Pi package:
+Install Freeflow as a native Pi package from npm:
+
+```bash
+pi install npm:@hassangameryt/freeflow
+```
+
+Or install directly from GitHub:
 
 ```bash
 pi install git:github.com/hassan-mohiddin/freeflow

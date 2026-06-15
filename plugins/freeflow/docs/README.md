@@ -18,7 +18,13 @@ In Codex, open the hooks screen after install:
 
 Press `t` to trust/enable the Freeflow `SessionStart` hook when Codex marks it as needing review. Once enabled, plugin-bundled hooks load workflow and interview-gate context at session start, resume, clear, and compact.
 
-In Pi, install the repo as a Pi package:
+In Pi, install Freeflow as a Pi package from npm:
+
+```bash
+pi install npm:@hassangameryt/freeflow
+```
+
+Or install directly from GitHub:
 
 ```bash
 pi install git:github.com/hassan-mohiddin/freeflow
