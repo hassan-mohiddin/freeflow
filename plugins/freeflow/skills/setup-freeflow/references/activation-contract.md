@@ -26,8 +26,8 @@ Do not add a code module until setup behavior needs logic that cannot be kept cl
 - Existing repo instructions remain source truth.
 - Setup hard-stops before unresolved host ambiguity or repo-rule conflict.
 - Setup does not create repo-local hooks, docs inventories, state files, handoffs, empty `CONTEXT.md`, skill inventories, version metadata, activation path, current task, or current phase.
-- Plugin-bundled context hooks may load workflow context at session start, but they are package runtime, not setup output.
-- After successful setup verification, setup reads the workflow skill and workflow map before its final response so the current session is immediately usable.
+- Plugin-bundled context hooks may load workflow and interview-gate context at session start, but they are package runtime, not setup output.
+- After successful setup verification, setup reads the workflow skill, workflow map, and interview-gate skill before its final response so the current session is immediately usable.
 
 ## Host Adapters
 
@@ -58,6 +58,8 @@ Config adapter:
 Use Freeflow for consequential work. Default mode: `.freeflow/config.json`.
 
 Move forward when context is sufficient. Re-enter clarification when new ambiguity would change the next action.
+
+Treat questions as questions and suggestions as hypotheses. Answer directly; do not infer correction, permission, or agreement.
 
 Ask before user-owned decisions: product behavior, scope, public APIs, security, privacy, billing, data loss, compatibility, permissions, or irreversible architecture.
 

@@ -1,6 +1,6 @@
 ---
 name: interview-gate
-description: Use when context is low, scope is ambiguous, implementation/review/verification reveals unknowns, or the agent may be about to make a user-owned decision.
+description: Use when context is low, scope is ambiguous, implementation/review/verification reveals unknowns, the user asks a question or suggests a path that could be misread as correction/permission, or the agent may be about to make a user-owned decision.
 ---
 
 # Interview Gate
@@ -11,9 +11,15 @@ Known material method substitutions are decision points. If the requested, plann
 
 ## Stop First: Question or Decision Point
 
-If the user asks a question, answer it. Do not create, update, or delete files.
+If the user asks a question, answer it. Do not treat the question as criticism, permission, or a request to change behavior. Do not create, update, or delete files.
 
 If the answer reveals missing work, report the gap. Do not fill it unless the user asks you to.
+
+When the user asks "why did you", "did you", "what happened", or similar, answer what happened and why. Do not infer scolding, apologize, revert, edit, or promise future behavior changes unless the user asks.
+
+When the user suggests "this is better, right", "shouldn't we", or a similar option, treat it as a hypothesis. Evaluate against evidence and say yes, no, or partly. Do not agree just to be agreeable.
+
+If adopting a suggestion would change scope, source truth, workflow, files, or user-visible behavior, ask before acting.
 
 If the user is deciding the next path, answer the decision first. Do not turn "should we", "do we need", "let's X before Y", or "what next" into file changes unless the action and destination are explicit.
 

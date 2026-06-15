@@ -54,7 +54,7 @@
       "evals": ["HOF-001", "HOF-002", "HOF-003", "HOF-004", "HOF-005"]
     },
     "interview-gate": {
-      "evals": ["IVG-001", "IVG-002"]
+      "evals": ["IVG-001", "IVG-002", "IVG-003", "IVG-004"]
     },
     "mode-contract": {
       "evals": ["MODE-001", "MODE-002", "MODE-003", "MODE-004", "MODE-005", "MODE-006"]

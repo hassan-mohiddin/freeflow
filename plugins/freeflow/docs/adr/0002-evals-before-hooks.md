@@ -10,7 +10,7 @@ Freeflow v0.1 ships plugin-bundled context hooks that load existing workflow ins
 
 ## Rationale
 
-Context-loading hooks address a measured lifecycle gap: skill context may not be present at session start. The setup skill handles the same-session setup case by reading workflow context after successful verification. Enforcement hooks can prevent expensive mistakes, but early enforcement machinery can hide weak skill wording and turn the package into brittle workflow infrastructure.
+Context-loading hooks address a measured lifecycle gap: skill context may not be present at session start. The setup skill handles the same-session setup case by reading runtime context after successful verification. Enforcement hooks can prevent expensive mistakes, but early enforcement machinery can hide weak skill wording and turn the package into brittle workflow infrastructure.
 
 ## Consequences
 

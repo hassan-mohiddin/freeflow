@@ -28,28 +28,29 @@ const CONTRIBUTOR_COMMANDS = [
 const MODE_STATE_ENTRY = "freeflow-mode";
 const RESET_MODE_ARGS = new Set(["reset"]);
 
-let workflowContextCache = null;
+let runtimeContextCache = null;
 let currentModeOverride = null;
 
-async function loadWorkflowContext() {
-  const [workflowSkill, workflowMap] = await Promise.all([
+async function loadRuntimeContext() {
+  const [workflowSkill, workflowMap, interviewGateSkill] = await Promise.all([
     readFile(new URL("../skills/workflow/SKILL.md", import.meta.url), "utf8"),
     readFile(new URL("../skills/workflow/references/workflow-map.md", import.meta.url), "utf8"),
+    readFile(new URL("../skills/interview-gate/SKILL.md", import.meta.url), "utf8"),
   ]);
 
-  return { workflowSkill, workflowMap };
+  return { workflowSkill, workflowMap, interviewGateSkill };
 }
 
-async function refreshWorkflowContext() {
-  workflowContextCache = await loadWorkflowContext();
-  return workflowContextCache;
+async function refreshRuntimeContext() {
+  runtimeContextCache = await loadRuntimeContext();
+  return runtimeContextCache;
 }
 
-async function getWorkflowContext() {
-  if (workflowContextCache) {
-    return workflowContextCache;
+async function getRuntimeContext() {
+  if (runtimeContextCache) {
+    return runtimeContextCache;
   }
-  return refreshWorkflowContext();
+  return refreshRuntimeContext();
 }
 
 async function readDefaultMode(cwd) {
@@ -105,11 +106,12 @@ function skillPrompt(skill, args) {
 function hasFreeflowActivation(systemPrompt) {
   return (
     systemPrompt.includes("## Loaded Workflow Skill") &&
-    systemPrompt.includes("## Loaded Workflow Map")
+    systemPrompt.includes("## Loaded Workflow Map") &&
+    systemPrompt.includes("## Loaded Interview Gate Skill")
   );
 }
 
-function runtimeContext(modeState, workflowContext, alreadyActivated) {
+function runtimeContext(modeState, freeflowContext, alreadyActivated) {
   const currentMode = modeState.currentMode ?? "none";
 
   if (alreadyActivated) {
@@ -139,13 +141,19 @@ Do not announce the current mode on every reply. Mention it when the user asks, 
 ## Loaded Workflow Skill
 
 \`\`\`md
-${workflowContext.workflowSkill.trim()}
+${freeflowContext.workflowSkill.trim()}
+\`\`\`
+
+## Loaded Interview Gate Skill
+
+\`\`\`md
+${freeflowContext.interviewGateSkill.trim()}
 \`\`\`
 
 ## Loaded Workflow Map
 
 \`\`\`md
-${workflowContext.workflowMap.trim()}
+${freeflowContext.workflowMap.trim()}
 \`\`\`
 
 This Pi extension loads context and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.`;
@@ -186,26 +194,26 @@ async function handleWorkflowCommand(args, ctx, pi) {
 export default function freeflow(pi) {
   pi.on("session_start", async (_event, ctx) => {
     restoreModeOverride(ctx);
-    const [modeState] = await Promise.all([readModeState(ctx.cwd), refreshWorkflowContext()]);
+    const [modeState] = await Promise.all([readModeState(ctx.cwd), refreshRuntimeContext()]);
     setModeStatus(ctx, modeState);
   });
 
   pi.on("session_compact", async (_event, ctx) => {
-    const [modeState] = await Promise.all([readModeState(ctx.cwd), refreshWorkflowContext()]);
+    const [modeState] = await Promise.all([readModeState(ctx.cwd), refreshRuntimeContext()]);
     setModeStatus(ctx, modeState);
   });
 
   pi.on("before_agent_start", async (event, ctx) => {
-    const [modeState, workflowContext] = await Promise.all([
+    const [modeState, freeflowContext] = await Promise.all([
       readModeState(ctx.cwd),
-      getWorkflowContext(),
+      getRuntimeContext(),
     ]);
     setModeStatus(ctx, modeState);
     return {
       systemPrompt:
         event.systemPrompt +
         "\n\n" +
-        runtimeContext(modeState, workflowContext, hasFreeflowActivation(event.systemPrompt)),
+        runtimeContext(modeState, freeflowContext, hasFreeflowActivation(event.systemPrompt)),
     };
   });
 

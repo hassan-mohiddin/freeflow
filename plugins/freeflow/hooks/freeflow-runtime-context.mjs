@@ -46,17 +46,20 @@ function findWorkspaceRoot(cwd) {
   }
 }
 
-function loadWorkflowContext() {
+function loadRuntimeContext() {
   const workflowSkill = readText(path.join(PLUGIN_ROOT, "skills", "workflow", "SKILL.md"));
   const workflowMap = readText(
     path.join(PLUGIN_ROOT, "skills", "workflow", "references", "workflow-map.md")
   );
+  const interviewGateSkill = readText(
+    path.join(PLUGIN_ROOT, "skills", "interview-gate", "SKILL.md")
+  );
 
-  if (!workflowSkill || !workflowMap) {
-    throw new Error("Freeflow workflow context files are missing.");
+  if (!workflowSkill || !workflowMap || !interviewGateSkill) {
+    throw new Error("Freeflow runtime context files are missing.");
   }
 
-  return { workflowSkill, workflowMap };
+  return { workflowSkill, workflowMap, interviewGateSkill };
 }
 
 function readConfig(root) {
@@ -167,7 +170,7 @@ function shouldInject(eventName) {
 
 function buildContext(input) {
   const root = findWorkspaceRoot(input.cwd || process.cwd());
-  const { workflowSkill, workflowMap } = loadWorkflowContext();
+  const { workflowSkill, workflowMap, interviewGateSkill } = loadRuntimeContext();
 
   return [
     "# Freeflow Runtime Context",
@@ -181,6 +184,11 @@ function buildContext(input) {
     "## Loaded Workflow Skill",
     "```md",
     workflowSkill.trim(),
+    "```",
+    "",
+    "## Loaded Interview Gate Skill",
+    "```md",
+    interviewGateSkill.trim(),
     "```",
     "",
     "## Loaded Workflow Map",

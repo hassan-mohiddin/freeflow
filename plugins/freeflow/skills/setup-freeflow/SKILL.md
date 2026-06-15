@@ -59,9 +59,9 @@ Render the canonical blocks from `references/activation-contract.md`.
 
 For Codex, put the Codex core block in `AGENTS.md`.
 
-For Claude, put only the Claude import block in `CLAUDE.md`, then put the Codex core block text in `.claude/rules/freeflow-core.md`.
+For Claude, put only the Claude import block in `CLAUDE.md`, then put the Codex core block text in `.claude/rules/freeflow-core.md`. Do not create a separate Claude rule file for `interview-gate`; plugin runtime loads it.
 
-Do not list the whole workflow or every mode in always-loaded text. Do not split into multiple always-loaded Freeflow rule files unless the user explicitly confirms that split after the one-file recommendation.
+Do not list the whole workflow, every mode, or full `interview-gate` skill in always-loaded text. Do not split into multiple always-loaded Freeflow rule files unless the user explicitly confirms that split after the one-file recommendation.
 
 ## Do Not Create
 
@@ -79,6 +79,6 @@ Before claiming setup is complete, check:
 - `.codex/rules` was not created or changed for Freeflow behavior
 - no unrelated files changed
 
-After successful setup verification, read `../workflow/SKILL.md` and `../workflow/references/workflow-map.md` before the final response. Only say workflow context is loaded for this session if both files were read successfully.
+After successful setup verification, read `../workflow/SKILL.md`, `../workflow/references/workflow-map.md`, and `../interview-gate/SKILL.md` before the final response. Only say workflow and interview-gate context is loaded for this session if all three files were read successfully.
 
 If verification cannot run, say what remains unverified.

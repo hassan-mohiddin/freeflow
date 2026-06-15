@@ -50,8 +50,10 @@ require_contains "Claude SessionStart output" "$claude_session_output" "Setup st
 require_contains "Claude SessionStart output" "$claude_session_output" "Repo default mode: missing \`.freeflow/config.json\`; effective default mode falls back to \`workflow\`."
 require_contains "Claude SessionStart output" "$claude_session_output" "Required user-facing notice: in the next assistant reply, tell the user Freeflow is installed but this repo is not set up yet, and recommend \`/setup-freeflow\`."
 require_contains "Claude SessionStart output" "$claude_session_output" "Loaded Workflow Skill"
+require_contains "Claude SessionStart output" "$claude_session_output" "Loaded Interview Gate Skill"
 require_contains "Claude SessionStart output" "$claude_session_output" "Loaded Workflow Map"
 require_contains "Claude SessionStart output" "$claude_session_output" "Question means answer. Do not turn a question into a file edit"
+require_contains "Claude SessionStart output" "$claude_session_output" "Stop before silent decisions."
 
 codex_session_output="$(
   printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s","model":"gpt-test"}' "$workspace" |
@@ -62,6 +64,7 @@ require_contains "Codex SessionStart output" "$codex_session_output" "Freeflow R
 require_contains "Codex SessionStart output" "$codex_session_output" "effective default mode falls back to \`workflow\`"
 require_contains "Codex SessionStart output" "$codex_session_output" "Do this even if the user's prompt is casual, such as a greeting."
 require_contains "Codex SessionStart output" "$codex_session_output" "Loaded Workflow Skill"
+require_contains "Codex SessionStart output" "$codex_session_output" "Loaded Interview Gate Skill"
 if [[ "$codex_session_output" == *"hookSpecificOutput"* ]]; then
   fail "Codex SessionStart output should be plain context, not Claude hook JSON."
 fi
@@ -113,10 +116,10 @@ post_tool_output="$(
     PLUGIN_ROOT="$plugin_root" CLAUDE_PLUGIN_ROOT="$plugin_root" node "$hook_script" PostToolUse
 )"
 
-[ -z "$post_tool_output" ] || fail "PostToolUse should not inject workflow context."
+[ -z "$post_tool_output" ] || fail "PostToolUse should not inject runtime context."
 
 if [ "$failures" -gt 0 ]; then
   exit 1
 fi
 
-printf 'Runtime context hook check passed: hook config parses, startup injects workflow, disable env suppresses output, and PostToolUse stays disabled.\n'
+printf 'Runtime context hook check passed: hook config parses, startup injects workflow and interview-gate context, disable env suppresses output, and PostToolUse stays disabled.\n'

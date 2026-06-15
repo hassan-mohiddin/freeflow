@@ -1,0 +1,1 @@
+Directly injecting the skill body into the system prompt is better for realistic skill evals because it saves tokens, right?

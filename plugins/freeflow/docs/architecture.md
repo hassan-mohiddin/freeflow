@@ -67,17 +67,17 @@ Setup should not silently update both hosts or overwrite stronger repo-specific 
 
 The installed plugin owns `hooks/hooks.json`. Setup does not copy hook files into target repos.
 
-The hooks load the existing `workflow` skill and workflow map:
+The hooks load the existing `workflow` skill, workflow map, and `interview-gate` skill:
 
 - at session start, including startup, resume, clear, and compact
 
 They also report whether the current repo appears set up, partially set up, or missing setup. They do not run after edit/write tools, block tools, grant permissions, enforce mode policy, or replace repo instructions.
 
-Setup handles the same-session case directly: after successful setup verification, it reads the workflow skill and workflow map before its final response and only then says workflow context is loaded.
+Setup handles the same-session case directly: after successful setup verification, it reads the workflow skill, workflow map, and interview-gate skill before its final response and only then says workflow and interview-gate context is loaded.
 
-Host runtimes may require plugin hooks to be reviewed and trusted after install. If the host skips untrusted hooks, setup still writes activation/config files, but future session-start workflow context will not load until hooks are trusted and the session is restarted, resumed, cleared, or compacted.
+Host runtimes may require plugin hooks to be reviewed and trusted after install. If the host skips untrusted hooks, setup still writes activation/config files, but future session-start runtime context will not load until hooks are trusted and the session is restarted, resumed, cleared, or compacted.
 
-Pi uses an extension instead of `hooks/hooks.json`. The Pi extension registers direct commands, reads `workflow/SKILL.md` and `workflow/references/workflow-map.md`, refreshes that context on `session_start` and `session_compact`, and injects it during Pi's `before_agent_start` lifecycle event. Pi `/workflow` commands set a session-scoped current-mode override, while `.freeflow/config.json` remains the default-mode source. It follows the same boundary as the Codex/Claude hooks: context loading only, no enforcement.
+Pi uses an extension instead of `hooks/hooks.json`. The Pi extension registers direct commands, reads `workflow/SKILL.md`, `workflow/references/workflow-map.md`, and `interview-gate/SKILL.md`, refreshes that context on `session_start` and `session_compact`, and injects it during Pi's `before_agent_start` lifecycle event. Pi `/workflow` commands set a session-scoped current-mode override, while `.freeflow/config.json` remains the default-mode source. It follows the same boundary as the Codex/Claude hooks: context loading only, no enforcement.
 
 ## Deferred Enforcement
 

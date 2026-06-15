@@ -27,9 +27,9 @@ Native slash handlers are not shipped in v0.1. Commands are model-routed through
 
 ## Runtime Context
 
-Freeflow ships plugin-bundled context hooks that load the existing `workflow` skill and workflow map at session start. These hooks do not run after edit/write tools, enforce behavior, block tools, or create repo-local hook files.
+Freeflow ships plugin-bundled context hooks that load the existing `workflow` skill, workflow map, and `interview-gate` skill at session start. These hooks do not run after edit/write tools, enforce behavior, block tools, or create repo-local hook files.
 
-For the same session that runs setup, `setup-freeflow` reads the workflow skill and workflow map after successful setup verification before saying workflow context is loaded.
+For the same session that runs setup, `setup-freeflow` reads the workflow skill, workflow map, and interview-gate skill after successful setup verification before saying workflow and interview-gate context is loaded.
 
 Host trust prompts for plugin hooks are expected host behavior. Local metadata validation checks hook packaging and deterministic output, not end-to-end host trust UI.
 
