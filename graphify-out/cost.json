@@ -1,0 +1,32 @@
+{
+  "runs": [
+    {
+      "date": "2026-06-15T10:45:13.960304+00:00",
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "files": 79,
+      "partial": "code-only"
+    },
+    {
+      "date": "2026-06-15T11:20:37.421390+00:00",
+      "input_tokens": 240974,
+      "output_tokens": 11640,
+      "files": 473,
+      "backend": "gemini",
+      "estimated_cost_usd": 0.1554,
+      "note": "semantic extraction run; 1/5 chunks failed with transient 503, partial output consumed tokens"
+    },
+    {
+      "date": "2026-06-15T11:20:37.421612+00:00",
+      "input_tokens": 164845,
+      "output_tokens": 8156,
+      "files": 312,
+      "backend": "gemini",
+      "estimated_cost_usd": 0.1069,
+      "note": "semantic extraction rerun completed 3/3 chunks"
+    }
+  ],
+  "total_input_tokens": 405819,
+  "total_output_tokens": 19796,
+  "estimated_total_cost_usd": 0.2623
+}

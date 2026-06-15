@@ -1,7 +1,17 @@
 *.DS_Store
 
+# Local environment secrets.
+.env
+.env.*
+!.env.example
+
 # Generated eval harness output.
 plugins/freeflow/evals/runs/
+
+# Graphify generated working/cache files.
+graphify-out/cache/
+graphify-out/.graphify_*
+graphify-out/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
 
 # Local scratch and logs.
 .tmp/
