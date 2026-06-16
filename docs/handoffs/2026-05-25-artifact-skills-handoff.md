@@ -16,7 +16,7 @@ This handoff is memory, not authority. Inspect live files before editing.
 
 - `docs/research/freeflow-artifact-skills.md`
 - `docs/plugin-contract.md`
-- `docs/agent-workflow-plugin-context.md`
+- `docs/research/agent-workflow-plugin-context.md`
 - `plugins/freeflow/skills/workflow/SKILL.md`
 - `plugins/freeflow/skills/interview-gate/SKILL.md`
 - `plugins/freeflow/skills/review-work/SKILL.md`

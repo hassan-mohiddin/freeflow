@@ -335,7 +335,7 @@ Repo-local:
 ```text
 graphify-out/GRAPH_REPORT.md
 graphify-out/cost.json
-docs/agent-tooling-and-search-stack.md
+docs/guides/agent-tooling-and-search-stack.md
 ```
 
 User/global environment:

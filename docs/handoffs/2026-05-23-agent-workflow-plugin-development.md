@@ -18,15 +18,15 @@ Core thesis:
 
 Read in this order:
 
-1. `docs/agent-workflow-plugin-context.md`
+1. `docs/research/agent-workflow-plugin-context.md`
    - Captures the original product direction and reasoning.
-2. `docs/skill-inventory-and-plugin-plan.md`
+2. `docs/plans/skill-inventory-and-plugin-plan.md`
    - Canon-frozen for development planning as of 2026-05-23.
    - Maps Matt Pocock, Obra/Superpowers, and Anthropic skill-creator patterns into our planned plugin.
 3. `docs/plugin-contract.md`
    - Current implementation contract.
    - Defines modes, command surface, bypass, interview gate, artifacts, state, hooks, portability, and first acceptance criteria.
-4. `docs/workflow-behavior-evals.md`
+4. `docs/research/workflow-behavior-evals.md`
    - Pressure scenarios for testing whether the skills actually improve agent behavior.
 
 ## Reference Plugins

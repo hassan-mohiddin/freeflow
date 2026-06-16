@@ -1514,7 +1514,7 @@ Workspace-write policy adds read-only protection for workspace metadata such as 
 
 ### Local Harness Contract Corrections
 
-The second audit pass checked the local-harness recommendations against the Codex source and the draft `docs/local-delegation-harness-design.md`.
+The second audit pass checked the local-harness recommendations against the Codex source and the draft `docs/designs/local-delegation-harness-design.md`.
 
 Corrections from that pass:
 

@@ -153,8 +153,8 @@ Begin with short mode contracts and compact skill language. Hooks can come later
 This analysis supports the existing Research docs:
 
 - `plugin-contract.md`: conversation/workflow/strict-workflow modes are the right simplification.
-- `workflow-behavior-evals.md`: evals should test behavior under ambiguity, backward re-entry, crisp communication, and memory artifact use.
-- `skill-inventory-and-plugin-plan.md`: old `orchestra` should be treated as source material and failure evidence, not a base implementation.
+- `docs/research/workflow-behavior-evals.md`: evals should test behavior under ambiguity, backward re-entry, crisp communication, and memory artifact use.
+- `docs/plans/skill-inventory-and-plugin-plan.md`: old `orchestra` should be treated as source material and failure evidence, not a base implementation.
 
 ## Open Questions For Hassan
 

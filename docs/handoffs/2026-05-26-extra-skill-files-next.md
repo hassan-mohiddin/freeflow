@@ -32,7 +32,7 @@ Use these current evidence files first:
 - `plugins/freeflow/evals/reports/by-command-surface/command-surface-matrix.md`
 - `plugins/freeflow/evals/reports/by-command-surface/command-surface-15-report.md`
 - `docs/freeflow-runtime-and-lifecycle.md`
-- `docs/skill-inventory-and-plugin-plan.md`
+- `docs/plans/skill-inventory-and-plugin-plan.md`
 
 ## Next Focus
 

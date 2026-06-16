@@ -15,7 +15,7 @@ Use this file as a pointer to current state, not as the only source of truth.
 - Plugin draft: `plugins/freeflow/`
 - Core skills: `plugins/freeflow/skills/`
 - Plugin contract: `docs/plugin-contract.md`
-- Behavior evals: `docs/workflow-behavior-evals.md`
+- Behavior evals: `docs/research/workflow-behavior-evals.md`
 - Eval reports: `plugins/freeflow/evals/reports/`
 - Codex eval harness: `plugins/freeflow/evals/scripts/run-codex-fixture-eval.sh`
 

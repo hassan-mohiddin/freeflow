@@ -21,7 +21,7 @@ This artifact was created after chat compaction. Pass 8A and Pass 8B were first 
 
 - `/private/tmp/freeflow-codex-cli-agent-harness-tmp-handoff-2026-06-13.md`
 - local research artifacts under `docs/research/codex-cli-agent-harness/`
-- `docs/local-delegation-harness-design.md`
+- `docs/designs/local-delegation-harness-design.md`
 - `docs/research/2026-06-10-local-model-delegation-routing.md`
 - fresh primary-source checks for external projects on 2026-06-13
 

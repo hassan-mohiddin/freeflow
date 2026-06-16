@@ -104,7 +104,7 @@ If you are reviewing future implementation work:
 1. Read the source evidence appendix in the relevant pass.
 2. Refresh the upstream source before treating any finding as current.
 3. Treat Freeflow runtime source under `plugins/freeflow/` as the live source of truth.
-4. Treat `docs/local-delegation-harness-design.md` as the current design draft, not shipped runtime behavior.
+4. Treat `docs/designs/local-delegation-harness-design.md` as the current design draft, not shipped runtime behavior.
 
 ## Pass Index
 

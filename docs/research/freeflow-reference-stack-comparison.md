@@ -284,7 +284,7 @@ The safest way to parallelize is to run several fresh conversations or worktrees
 Use a coordinator session for shared decisions:
 
 - keep this research doc as the common source
-- avoid simultaneous edits to `docs/skill-inventory-and-plugin-plan.md`, `plugins/freeflow/command-surface.json`, and shared eval runbooks
+- avoid simultaneous edits to `docs/plans/skill-inventory-and-plugin-plan.md`, `plugins/freeflow/command-surface.json`, and shared eval runbooks
 - merge or reconcile shared-index updates after batch work lands
 - ensure no batch introduces a new hard rule that conflicts with `workflow`, `mode-contract`, or `interview-gate`
 

@@ -373,7 +373,7 @@ Each eval should define:
 Output:
 
 ```text
-docs/workflow-behavior-evals.md
+docs/research/workflow-behavior-evals.md
 ```
 
 ### Phase 3: Plugin Scaffold

@@ -1411,7 +1411,7 @@ Example:
   "answer": "The routing rule is mostly consistent, but the setup flow is underspecified.",
   "evidence": [
     {
-      "path": "docs/local-delegation-harness-design.md",
+      "path": "docs/designs/local-delegation-harness-design.md",
       "note": "Mentions optional local setup but not model capability probing."
     }
   ],

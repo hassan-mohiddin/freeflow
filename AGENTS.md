@@ -20,6 +20,8 @@ Verify before completion claims. Capture only stable decisions, glossary terms, 
 
 ## Read First
 
+For the project docs map, read `docs/README.md`.
+
 For project direction, read:
 
 - `CONTEXT.md`

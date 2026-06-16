@@ -7,7 +7,7 @@ Date: 2026-05-26
 This handoff is superseded for implementation state. Batches A-H from the reference-stack comparison have landed with targeted eval reports, and the formerly optional `spec-shapes`, handoff template, and approach-framing references later landed by explicit product direction. See:
 
 - `docs/research/freeflow-reference-stack-comparison.md`
-- `docs/skill-inventory-and-plugin-plan.md`
+- `docs/plans/skill-inventory-and-plugin-plan.md`
 
 Do not use this handoff as authority for missing-reference status; inspect live skill directories first.
 
@@ -107,7 +107,7 @@ Low-priority batch:
 
 Coordinator-only files:
 
-- `docs/skill-inventory-and-plugin-plan.md`
+- `docs/plans/skill-inventory-and-plugin-plan.md`
 - `plugins/freeflow/command-surface.json`
 - shared eval runbooks/matrices
 - ADRs
