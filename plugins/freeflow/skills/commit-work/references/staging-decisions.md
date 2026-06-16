@@ -1,17 +1,17 @@
 # Staging Decisions
 
-Use this for mixed staged sets, generated files, durable docs, or broad commit pressure.
+Use this for mixed staged sets, generated files, durable docs, or broad commit/push pressure.
 
 ## Evidence First
 
-Read staged, unstaged, and untracked state before deciding:
+Read staged, unstaged, and untracked state before deciding what to commit or push:
 
 - `git status --short`
 - `git diff --cached`
 - `git diff`
 - `git ls-files --others --exclude-standard`
 
-Diff evidence beats "staged means ready", "commit everything", and "include all leftovers".
+Diff evidence beats "staged means ready", "commit everything", "push all changes", and "include all leftovers".
 
 ## Mixed Staged Sets
 

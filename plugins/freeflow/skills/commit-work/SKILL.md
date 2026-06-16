@@ -1,19 +1,19 @@
 ---
 name: commit-work
-description: Use when committing completed work, preparing a git commit, deciding what to stage, reviewing staged/unstaged/untracked changes, handling commit-everything pressure, or checking generated, sensitive, user-owned, or mixed changes before commit.
+description: Use when committing completed work, preparing a git commit, deciding what to stage, reviewing staged/unstaged/untracked changes, handling commit-everything pressure, pushing committed work, or checking generated, sensitive, user-owned, or mixed changes before commit or push.
 ---
 
 # Commit Work
 
-Commit only reviewed, verified, intended work.
+Commit or push only reviewed, verified, intended work.
 
-This skill is a closeout guard. It is not a release process, PR flow, or hook installer.
+This skill is a closeout guard for commits and simple pushes. It is not a release process, PR flow, or hook installer.
 
-Direct command syntax selects this segment, not commit approval. `--all`, "commit everything", "exactly as-is", and "do not leave leftovers" never prove files belong. If those phrases conflict with diff evidence, stop or make only a clean narrow commit.
+Direct command syntax selects this segment, not commit or push approval. `--all`, "commit everything", "push all changes", "exactly as-is", and "do not leave leftovers" never prove files belong. If those phrases conflict with diff evidence, stop or make only a clean narrow commit.
 
-Hard stop: if untracked logs/debug output or user-owned behavior changes appear, do not commit them. If the prompt forbids leftovers or requires exactly-as-is, stop and ask.
+Hard stop: if untracked logs/debug output or user-owned behavior changes appear, do not commit or push them. If the prompt forbids leftovers or requires exactly-as-is, stop and ask.
 
-Read `references/staging-decisions.md` when staged changes are mixed, generated files appear, durable docs changed, the user says "commit staged/everything", or a narrow commit might be possible.
+Read `references/staging-decisions.md` when staged changes are mixed, generated files appear, durable docs changed, the user says "commit staged/everything" or "push all changes", or a narrow commit might be possible.
 
 ## Preconditions
 
@@ -42,12 +42,7 @@ Diff evidence beats intent. If the worktree contains changes outside the request
 
 Never use broad staging when unrelated, unreviewed, generated, or user-owned changes are present.
 
-Avoid:
-
-```bash
-git add .
-git add -A
-```
+Avoid `git add .` and `git add -A`.
 
 Stage explicit paths or hunks that match the completed task.
 
@@ -80,18 +75,24 @@ Add a body only when it helps future readers understand why.
 
 Reference specs, plans, ADRs, issues, or decisions when they materially explain the commit. Do not invent mandatory `Refs:` lines for repos that do not require them.
 
-## After Commit
+## Push Rule
+
+Push only commits you inspected. Before pushing, inspect branch, upstream, remote, and ahead/behind state.
+Do not push to protected/shared branches, set upstream, use `--force`, or rewrite remote history unless explicitly requested and branch evidence supports it. Use `--force-with-lease` only for an intended rewrite of the user's own branch.
+If branch state is stale, diverged, missing upstream, or likely needs PR/CI/release judgment, stop and ask.
+
+## After Commit Or Push
 
 Verify what landed:
 
 ```bash
 git show --stat --oneline --name-only HEAD
-git status --short
+git status --branch --short
 ```
 
 Final response should state:
 
-- commit SHA and subject
+- commit SHA, subject, and push result if pushed
 - what was committed
 - what verification supports it
-- any remaining uncommitted or unverified changes
+- any remaining uncommitted, unpushed, or unverified changes

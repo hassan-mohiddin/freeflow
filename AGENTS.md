@@ -2,7 +2,7 @@
 
 This repo develops `freeflow`, a plugin/skill pack for guiding coding agents through consequential work without ceremony, silent decisions, or AI slop.
 
-The plugin is not a new agent. It is a portable workflow layer for agents such as Codex, Claude, and similar coding environments.
+The plugin is not a new agent. It is a portable workflow layer for agents such as Codex, Claude Code, Pi, and similar coding environments.
 
 ## Freeflow
 
@@ -44,7 +44,7 @@ For evidence about whether a skill works, read `plugins/freeflow/evals/README.md
 
 ## Reference Skill Stack
 
-Freeflow is being built to become the primary workflow and orchestration layer. Until its behavior is validated, use this reference stack:
+Freeflow is the primary workflow layer for this repo. Use this reference stack when Freeflow lacks coverage, evidence is thin, or a behavior gap appears:
 
 - Matt Pocock skills are the primary style and behavior reference.
 - Obra/Superpowers skills are the workflow lifecycle reference.
