@@ -51,11 +51,15 @@ test("router benchmark writer emits markdown and machine-readable JSON", async (
   const report = await runRouterBenchmarks({ iterations: 1, generatedAt: "2026-06-16T00:00:00.000Z" });
   const root = await mkdtemp(join(tmpdir(), "freeflow-router-benchmark-report-"));
   try {
-    const reports = await writeRouterBenchmarkReports(report, join(root, "report.md"));
+    const reports = await writeRouterBenchmarkReports(report, join(root, "report.md"), {
+      jsonReportPath: join(root, "runs/output-router/report.json"),
+    });
     const markdown = await readFile(reports.markdown, "utf8");
+    assert.ok(reports.json);
     const json = JSON.parse(await readFile(reports.json, "utf8"));
 
     assert.match(markdown, /Output Router Benchmark Report/);
+    assert.match(markdown, /generated run data/);
     assert.equal(json.summary.improved.passed, report.fixtures.length);
     assert.equal(json.fixtures.length, report.fixtures.length);
   } finally {

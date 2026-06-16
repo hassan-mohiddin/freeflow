@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, relative, resolve } from "node:path";
+import { basename, dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { performance } from "node:perf_hooks";
 
@@ -234,6 +234,8 @@ export function renderRouterBenchmarkReport(report: RouterBenchmarkReport): stri
     "npm run bench:router",
     "```",
     "",
+    "The CLI writes machine-readable JSON under `plugins/freeflow/evals/runs/output-router/` by default. That JSON is generated run data; this Markdown file is the durable runtime report.",
+    "",
     "## Summary",
     "",
     `- Iterations per mode: ${report.iterations}`,
@@ -313,16 +315,26 @@ export async function writeRouterBenchmarkJsonReport(report: RouterBenchmarkRepo
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
 }
 
+export interface WriteRouterBenchmarkReportsOptions {
+  jsonReportPath?: string | false;
+}
+
 export async function writeRouterBenchmarkReports(
   report: RouterBenchmarkReport,
   markdownReportPath: string,
-): Promise<{ markdown: string; json: string }> {
-  const jsonReportPath = markdownReportPath.endsWith(".md")
-    ? `${markdownReportPath.slice(0, -".md".length)}.json`
-    : `${markdownReportPath}.json`;
+  options: WriteRouterBenchmarkReportsOptions = {},
+): Promise<{ markdown: string; json?: string }> {
   await writeRouterBenchmarkReport(report, markdownReportPath);
-  await writeRouterBenchmarkJsonReport(report, jsonReportPath);
-  return { markdown: markdownReportPath, json: jsonReportPath };
+  if (options.jsonReportPath === false) {
+    return { markdown: markdownReportPath };
+  }
+
+  if (options.jsonReportPath) {
+    await writeRouterBenchmarkJsonReport(report, options.jsonReportPath);
+    return { markdown: markdownReportPath, json: options.jsonReportPath };
+  }
+
+  return { markdown: markdownReportPath };
 }
 
 async function runFixtureMode(
@@ -1221,9 +1233,16 @@ function defaultReportPath(): string {
   return resolve(process.cwd(), "plugins/freeflow/evals/reports/runtime/output-router-benchmark-1-report.md");
 }
 
-function parseCliArgs(argv: readonly string[]): { iterations?: number; reportPath: string } {
+function defaultJsonRunReportPath(markdownReportPath: string): string {
+  const markdownName = basename(markdownReportPath);
+  const jsonName = markdownName.endsWith(".md") ? `${markdownName.slice(0, -".md".length)}.json` : `${markdownName}.json`;
+  return resolve(process.cwd(), "plugins/freeflow/evals/runs/output-router", jsonName);
+}
+
+function parseCliArgs(argv: readonly string[]): { iterations?: number; reportPath: string; jsonReportPath?: string | false } {
   let iterations: number | undefined;
   let reportPath = defaultReportPath();
+  let jsonReportPath: string | false | undefined;
 
   for (const arg of argv) {
     if (arg.startsWith("--iterations=")) {
@@ -1233,24 +1252,32 @@ function parseCliArgs(argv: readonly string[]): { iterations?: number; reportPat
       }
     } else if (arg.startsWith("--report=")) {
       reportPath = resolve(process.cwd(), arg.slice("--report=".length));
+    } else if (arg.startsWith("--json-report=")) {
+      const value = arg.slice("--json-report=".length);
+      jsonReportPath = value === "off" ? false : resolve(process.cwd(), value);
     }
   }
 
-  return iterations === undefined ? { reportPath } : { iterations, reportPath };
+  const parsed = iterations === undefined ? { reportPath } : { iterations, reportPath };
+  return jsonReportPath === undefined ? parsed : { ...parsed, jsonReportPath };
 }
 
 async function runCli() {
-  const { iterations, reportPath } = parseCliArgs(process.argv.slice(2));
+  const { iterations, reportPath, jsonReportPath } = parseCliArgs(process.argv.slice(2));
   const options: RunRouterBenchmarksOptions = {};
   if (iterations !== undefined) {
     options.iterations = iterations;
   }
   const report = await runRouterBenchmarks(options);
-  const reports = await writeRouterBenchmarkReports(report, reportPath);
+  const reports = await writeRouterBenchmarkReports(report, reportPath, {
+    jsonReportPath: jsonReportPath === undefined ? defaultJsonRunReportPath(reportPath) : jsonReportPath,
+  });
   const shortId = createHash("sha256").update(JSON.stringify(report.summary)).digest("hex").slice(0, 8);
   console.log(`Freeflow router benchmark ${shortId}: improved ${report.summary.improved.passed}/${report.summary.fixtures} pass`);
   console.log(`Markdown report: ${reports.markdown}`);
-  console.log(`JSON report: ${reports.json}`);
+  if (reports.json) {
+    console.log(`JSON run data: ${reports.json}`);
+  }
   if (report.summary.improved.failed > 0) {
     process.exitCode = 1;
   }

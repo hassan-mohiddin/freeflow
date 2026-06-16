@@ -92,8 +92,11 @@ export declare function runRouterBenchmarks(options?: RunRouterBenchmarksOptions
 export declare function renderRouterBenchmarkReport(report: RouterBenchmarkReport): string;
 export declare function writeRouterBenchmarkReport(report: RouterBenchmarkReport, reportPath: string): Promise<void>;
 export declare function writeRouterBenchmarkJsonReport(report: RouterBenchmarkReport, reportPath: string): Promise<void>;
-export declare function writeRouterBenchmarkReports(report: RouterBenchmarkReport, markdownReportPath: string): Promise<{
+export interface WriteRouterBenchmarkReportsOptions {
+    jsonReportPath?: string | false;
+}
+export declare function writeRouterBenchmarkReports(report: RouterBenchmarkReport, markdownReportPath: string, options?: WriteRouterBenchmarkReportsOptions): Promise<{
     markdown: string;
-    json: string;
+    json?: string;
 }>;
 export {};
