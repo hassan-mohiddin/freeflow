@@ -53,6 +53,283 @@ function context(cwd) {
   };
 }
 
+async function withSandboxPermissionsFixtureRepo(fn) {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-sandbox-fixture-"));
+  try {
+    const targetDir = join(root, "docs/codex-cli-agent-harness");
+    await mkdir(targetDir, { recursive: true });
+    await writeFile(
+      join(targetDir, "2026-06-12-pass-3-sandboxing-and-permissions.md"),
+      [
+        "# Pass 3",
+        "",
+        "### Sandbox Permissions",
+        "",
+        "`SandboxPermissions` is a per-command request shape.",
+        "",
+        "Plain-language meaning:",
+        "",
+        "```text",
+        "UseDefault:",
+        "  Run with the turn's normal sandbox.",
+        "",
+        "RequireEscalated:",
+        "  Request unsandboxed execution.",
+        "",
+        "WithAdditionalPermissions:",
+        "  Stay sandboxed but widen permissions for this one command.",
+        "```",
+      ].join("\n"),
+      "utf8",
+    );
+
+    await mkdir(join(root, "graphify-out"), { recursive: true });
+    await writeFile(
+      join(root, "graphify-out/graph.html"),
+      [
+        "<html><body>",
+        `${"Sandbox Permissions SandboxPermissions Plain-language meaning ".repeat(5000)}GENERATED_GRAPH_DECOY_SENTINEL`,
+        "</body></html>",
+      ].join("\n"),
+      "utf8",
+    );
+
+    return await fn(root);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+test("regression fixture: Sandbox Permissions broad query ignores generated graph decoy", async () => {
+  await withSandboxPermissionsFixtureRepo(async (root) => {
+    const result = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "Sandbox Permissions SandboxPermissions Plain-language meaning",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.evidence?.length, 1);
+    assert.equal(result.evidence[0].path, "docs/codex-cli-agent-harness/2026-06-12-pass-3-sandboxing-and-permissions.md");
+    assert.match(result.evidence[0].excerpt, /SandboxPermissions/);
+    assert.doesNotMatch(result.evidence[0].excerpt, /GENERATED_GRAPH_DECOY_SENTINEL/);
+    assert.ok(Buffer.byteLength(result.evidence[0].excerpt, "utf8") <= 8_192);
+  });
+});
+
+test("regression fixture: root-scoped query still ignores generated graph decoy", async () => {
+  await withSandboxPermissionsFixtureRepo(async (root) => {
+    const result = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root, path: "." },
+      query: "Sandbox Permissions SandboxPermissions Plain-language meaning",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.evidence?.length, 1);
+    assert.equal(result.evidence[0].path, "docs/codex-cli-agent-harness/2026-06-12-pass-3-sandboxing-and-permissions.md");
+    assert.doesNotMatch(result.evidence[0].excerpt, /GENERATED_GRAPH_DECOY_SENTINEL/);
+  });
+});
+
+test("regression fixture: explicitly requested generated path remains searchable", async () => {
+  await withSandboxPermissionsFixtureRepo(async (root) => {
+    const result = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root, path: "graphify-out/graph.html" },
+      query: "GENERATED_GRAPH_DECOY_SENTINEL",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.evidence?.length, 1);
+    assert.equal(result.evidence[0].path, "graphify-out/graph.html");
+    assert.match(result.evidence[0].excerpt, /Sandbox Permissions/);
+  });
+});
+
+test("regression fixture: huge single-line evidence is bounded", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-huge-line-fixture-"));
+  try {
+    await writeFile(
+      join(root, "huge-line.md"),
+      [
+        "# Huge Line Fixture",
+        `${"UNIQUE_HUGE_LINE_MARKER repeated evidence ".repeat(6000)}TAIL_SENTINEL_SHOULD_BE_OUTSIDE_PREVIEW`,
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "UNIQUE_HUGE_LINE_MARKER",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.evidence?.length, 1);
+    assert.match(result.evidence[0].excerpt, /UNIQUE_HUGE_LINE_MARKER/);
+    assert.doesNotMatch(result.evidence[0].excerpt, /TAIL_SENTINEL_SHOULD_BE_OUTSIDE_PREVIEW/);
+    assert.ok(Buffer.byteLength(result.evidence[0].excerpt, "utf8") <= 8_192);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("regression fixture: lockfiles remain searchable in broad retrieval", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-lockfile-fixture-"));
+  try {
+    await writeFile(
+      join(root, "package-lock.json"),
+      [`{ "name": "fixture", "marker": "LOCKFILE_SEARCH_MARKER" }`, "x".repeat(1024 * 1024 + 1)].join("\n"),
+      "utf8",
+    );
+
+    const result = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "LOCKFILE_SEARCH_MARKER",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.evidence?.length, 1);
+    assert.equal(result.evidence[0].path, "package-lock.json");
+    assert.match(result.evidence[0].excerpt, /LOCKFILE_SEARCH_MARKER/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("regression fixture: exact technical phrase beats repeated loose tokens", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-exact-phrase-fixture-"));
+  try {
+    await writeFile(
+      join(root, "target.md"),
+      ["# Target", "", "`SandboxPermissions` is a per-command request shape."].join("\n"),
+      "utf8",
+    );
+    await writeFile(
+      join(root, "decoy.md"),
+      `SandboxPermissions per-command request shape `.repeat(800),
+      "utf8",
+    );
+
+    const result = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "SandboxPermissions is a per-command request shape",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.evidence?.length, 1);
+    assert.equal(result.evidence[0].path, "target.md");
+    assert.match(result.evidence[0].excerpt, /`SandboxPermissions` is a per-command request shape/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("regression fixture: multiline heading/body phrase beats repeated loose tokens", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-multiline-phrase-fixture-"));
+  try {
+    await writeFile(
+      join(root, "target.md"),
+      [
+        "# Target",
+        "",
+        "### Sandbox Permissions",
+        "",
+        "Plain-language meaning:",
+        "",
+        "UseDefault: run with the normal sandbox.",
+      ].join("\n"),
+      "utf8",
+    );
+    await writeFile(
+      join(root, "decoy.md"),
+      `Sandbox meaning Permissions Plain-language `.repeat(800),
+      "utf8",
+    );
+
+    const result = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "Sandbox Permissions Plain-language meaning",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.evidence?.length, 1);
+    assert.equal(result.evidence[0].path, "target.md");
+    assert.match(result.evidence[0].excerpt, /### Sandbox Permissions/);
+    assert.match(result.evidence[0].excerpt, /Plain-language meaning/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("regression fixture: capped heading boost cannot beat exact phrase", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-heading-boost-fixture-"));
+  try {
+    await writeFile(join(root, "target.md"), "# Target\n\nadaptive compression vault recovery", "utf8");
+    await writeFile(join(root, "heading-decoy.md"), `# ${"adaptive ".repeat(30000)}\n`, "utf8");
+
+    const result = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "adaptive compression vault recovery",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.evidence?.length, 1);
+    assert.equal(result.evidence[0].path, "target.md");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("regression fixture: section chunk coverage beats repeated single-token decoy", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-section-chunk-fixture-"));
+  try {
+    await writeFile(
+      join(root, "target.md"),
+      [
+        "# Target",
+        "",
+        "## Adaptive Compression",
+        "",
+        "Vault recovery remains exact for raw output.",
+        "Parser confidence labels routed diagnostics.",
+      ].join("\n"),
+      "utf8",
+    );
+    await writeFile(join(root, "decoy.md"), `adaptive `.repeat(900), "utf8");
+
+    const result = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "adaptive compression vault recovery parser confidence",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.evidence?.length, 1);
+    assert.equal(result.evidence[0].path, "target.md");
+    assert.match(result.evidence[0].excerpt, /## Adaptive Compression/);
+    assert.match(result.evidence[0].excerpt, /Vault recovery remains exact/);
+    assert.match(result.evidence[0].excerpt, /Parser confidence labels/);
+    assert.match(result.routing.reason, /BM25-style|coverage/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("regression fixture: large docs query returns bounded exact evidence", async () => {
   const raw = await fixtureText("large-router-manual.md");
   const result = await freeflowRetrieve({
@@ -82,7 +359,7 @@ test("regression fixture: preserve full over cap returns exact chunks instead of
   assert.equal(result.toolStatus, "ok");
   assert.equal(result.preserve, "full");
   assert.equal(result.routing.status, "partial");
-  assert.match(result.routing.reason, /exact chunk metadata instead of a summary/);
+  assert.match(result.routing.reason, /bounded edge previews instead of a summary/);
   assert.equal(result.evidence?.length, 2);
   assert.match(result.evidence[0].excerpt, /HEAD_SENTINEL_FULL_FIDELITY/);
   assert.match(result.evidence[1].excerpt, /TAIL_SENTINEL_DO_NOT_INCLUDE_IN_TARGETED_QUERY/);
