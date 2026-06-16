@@ -27,7 +27,7 @@ Codex/Claude native slash handlers are not shipped in v0.1. In those hosts, comm
 
 ## Runtime Context
 
-Freeflow ships plugin-bundled context hooks that load the existing `workflow` skill, workflow map, and `interview-gate` skill at session start. These hooks do not run after edit/write tools, enforce behavior, block tools, or create repo-local hook files.
+Freeflow ships plugin-bundled context hooks that load the existing `workflow` skill, workflow map, and `interview-gate` skill at session start. The Pi extension also loads output-router context, including its safety-policy reference, when the routed tools are available. These hooks do not run after edit/write tools, enforce behavior, block tools, or create repo-local hook files.
 
 For the same session that runs setup, `setup-freeflow` reads the workflow skill, workflow map, and interview-gate skill after successful setup verification before saying workflow and interview-gate context is loaded.
 

@@ -15,6 +15,10 @@
   },
   "license": "MIT",
   "type": "module",
+  "scripts": {
+    "build:router": "tsc -p plugins/freeflow/router/tsconfig.json",
+    "test:router": "npm run build:router && node --test plugins/freeflow/router/tests/*.test.js"
+  },
   "keywords": [
     "pi-package",
     "agent-skills",
@@ -48,6 +52,11 @@
     "plugins/freeflow/docs/**",
     "plugins/freeflow/hooks/**",
     "plugins/freeflow/pi-extension/**",
+    "plugins/freeflow/router/dist/**",
     "plugins/freeflow/skills/**"
-  ]
+  ],
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "typescript": "^5.8.3"
+  }
 }

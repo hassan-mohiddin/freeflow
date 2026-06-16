@@ -1,0 +1,9 @@
+export const PRESERVE_MODES = ["summary", "important", "full"];
+export const RETRIEVAL_ACTIONS = ["query", "locate", "retrieve", "expand", "explain"];
+export const TOOL_STATUSES = ["ok", "error"];
+export const EXECUTION_STATUSES = ["success", "failed", "timed_out", "cancelled"];
+export const ROUTING_STATUSES = ["routed", "passed_through", "partial", "failed"];
+export const ROUTE_KINDS = ["retrieve", "run", "safety-net", "pass-through"];
+export const EVIDENCE_WINDOWS = ["exact", "small", "lines_30", "lines_80", "section", "full"];
+export const OUTPUT_STREAMS = ["stdout", "stderr", "combined", "raw"];
+export const POST_TOOL_ROUTING_MODES = ["off", "safety-net", "strict"];
