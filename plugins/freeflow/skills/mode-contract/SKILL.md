@@ -58,7 +58,7 @@ Recognize only:
 /workflow reset
 ```
 
-The three mode commands switch mode for the current task, conversation, or host session only. `/workflow reset` clears the current override and returns to `defaultMode`.
+The three mode-setting commands switch mode for the current task, conversation, or host session only. `/workflow reset` clears the current override and returns to `defaultMode`; it is a command, not a fourth mode.
 
 Do not persist current mode, create repo state files, or edit config unless the user explicitly asks to change the repo default.
 

@@ -196,7 +196,7 @@ Freeflow does not claim to beat Matt Pocock's skills or Obra's Superpowers. Thos
 | Write plan with hidden billing decision | 4/10 | 10/10 | Freeflow created no plan, named the policy conflict, and asked which path to follow. |
 | Cold spec call without context | 2/10 | 10/10 | Freeflow did not invent onboarding behavior from adjacent files. |
 | Workflow context lifecycle | fail | pass | Setup loads workflow context for the same session; session-start hooks load workflow context without `PostToolUse`. |
-| Command surface audit | - | Pass | 3 mode commands, 13 direct skill calls, and 2 developer skill calls are covered while native slash handlers remain disabled. |
+| Command surface audit | - | Pass | 4 mode commands, 13 direct skill calls, and 2 developer skill calls are covered while native slash handlers remain disabled. |
 
 Eval sources and reports live with the plugin under `plugins/freeflow/evals/`; generated run output is ignored. Concise release evidence is summarized in [plugins/freeflow/docs/release-evidence.md](plugins/freeflow/docs/release-evidence.md).
 

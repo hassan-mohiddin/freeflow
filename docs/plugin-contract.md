@@ -120,9 +120,10 @@ Required mode commands:
 /workflow conversation
 /workflow workflow
 /workflow strict-workflow
+/workflow reset
 ```
 
-Optional aliases may be added later, but the contract should not depend on aliases.
+There are three modes and four mode commands; `/workflow reset` clears the current override and returns to the default mode. Optional aliases may be added later, but the contract should not depend on aliases.
 
 Direct skill calls should be possible for technical users:
 

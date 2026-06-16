@@ -130,7 +130,10 @@ Example mode commands:
 /workflow conversation
 /workflow workflow
 /workflow strict-workflow
+/workflow reset
 ```
+
+There are three modes and four mode commands; `/workflow reset` clears the current override and returns to the default mode.
 
 Example direct skill calls:
 
@@ -519,7 +522,7 @@ Current status as of 2026-05-26:
   - `review-work/references/reviewer-prompt.md`
   - `write-spec/references/spec-shapes.md`
   - `capture-decisions/references/destination-guide.md`
-- Command-surface eval coverage is complete for the current registry: 3 mode commands, 13 direct skill calls, and 2 developer skill calls.
+- Command-surface eval coverage is complete for the current registry: 4 mode commands, 13 direct skill calls, and 2 developer skill calls.
 - Native slash handlers remain disabled; commands are model-routed.
 - The local-only v0.1 acceptance suite passed after measured fixes. See `plugins/freeflow/evals/reports/acceptance/v0.1-acceptance-report.md`.
 - The public marketplace repo points Codex and Claude at `plugins/freeflow/`, which contains runtime skills, manifests, refined plugin docs, evals, command-surface metadata, MIT license context, and changelog context from the repo root.
