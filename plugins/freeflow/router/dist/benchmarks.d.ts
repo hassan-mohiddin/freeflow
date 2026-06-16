@@ -22,6 +22,20 @@ export interface ModeSummary {
     passed: number;
     failed: number;
     skipped: number;
+    pathCorrect: number;
+    spanCorrect: number;
+    excerptComplete: number;
+    generatedFalsePositiveCount: number;
+    totalRawBytes: number;
+    totalRoutedBytes: number;
+    totalRawTokensApprox: number;
+    totalRoutedTokensApprox: number;
+    weightedByteReductionPercent: number;
+    weightedTokenReductionPercent: number;
+    averageByteReductionPercent: number;
+    medianByteReductionPercent: number;
+    averageTokenReductionPercent: number;
+    medianTokenReductionPercent: number;
 }
 export interface RouterBenchmarkFixtureResult {
     id: string;
@@ -39,6 +53,8 @@ export interface RouterBenchmarkModeResult {
     rawTokensApprox: number;
     routedBytes: number;
     routedTokensApprox: number;
+    byteReductionPercent: number;
+    tokenReductionPercent: number;
     latencyMs: {
         p50: number;
         p95: number;
@@ -75,4 +91,9 @@ type BenchmarkMode = "native-baseline-proxy" | "pre-hardening-freeflow-proxy" | 
 export declare function runRouterBenchmarks(options?: RunRouterBenchmarksOptions): Promise<RouterBenchmarkReport>;
 export declare function renderRouterBenchmarkReport(report: RouterBenchmarkReport): string;
 export declare function writeRouterBenchmarkReport(report: RouterBenchmarkReport, reportPath: string): Promise<void>;
+export declare function writeRouterBenchmarkJsonReport(report: RouterBenchmarkReport, reportPath: string): Promise<void>;
+export declare function writeRouterBenchmarkReports(report: RouterBenchmarkReport, markdownReportPath: string): Promise<{
+    markdown: string;
+    json: string;
+}>;
 export {};

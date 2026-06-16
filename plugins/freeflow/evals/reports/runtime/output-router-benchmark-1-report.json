@@ -1,0 +1,848 @@
+{
+  "generatedAt": "2026-06-16T19:14:14.898Z",
+  "iterations": 3,
+  "summary": {
+    "fixtures": 7,
+    "modeResults": 21,
+    "improved": {
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0,
+      "pathCorrect": 7,
+      "spanCorrect": 7,
+      "excerptComplete": 7,
+      "generatedFalsePositiveCount": 0,
+      "totalRawBytes": 511618,
+      "totalRoutedBytes": 7110,
+      "totalRawTokensApprox": 127907,
+      "totalRoutedTokensApprox": 1780,
+      "weightedByteReductionPercent": 98.61,
+      "weightedTokenReductionPercent": 98.61,
+      "averageByteReductionPercent": -223.23,
+      "medianByteReductionPercent": -105.94,
+      "averageTokenReductionPercent": -219.84,
+      "medianTokenReductionPercent": -105.77
+    },
+    "nativeBaseline": {
+      "passed": 3,
+      "failed": 4,
+      "skipped": 0,
+      "pathCorrect": 3,
+      "spanCorrect": 4,
+      "excerptComplete": 4,
+      "generatedFalsePositiveCount": 2,
+      "totalRawBytes": 511618,
+      "totalRoutedBytes": 511031,
+      "totalRawTokensApprox": 127907,
+      "totalRoutedTokensApprox": 127760,
+      "weightedByteReductionPercent": 0.11,
+      "weightedTokenReductionPercent": 0.11,
+      "averageByteReductionPercent": 17.07,
+      "medianByteReductionPercent": 0.05,
+      "averageTokenReductionPercent": 17.05,
+      "medianTokenReductionPercent": 0.05
+    },
+    "freeflowBaseline": {
+      "passed": 2,
+      "failed": 5,
+      "skipped": 0,
+      "pathCorrect": 2,
+      "spanCorrect": 4,
+      "excerptComplete": 3,
+      "generatedFalsePositiveCount": 2,
+      "totalRawBytes": 514819,
+      "totalRoutedBytes": 513608,
+      "totalRawTokensApprox": 128707,
+      "totalRoutedTokensApprox": 128404,
+      "weightedByteReductionPercent": 0.24,
+      "weightedTokenReductionPercent": 0.24,
+      "averageByteReductionPercent": 19.4,
+      "medianByteReductionPercent": 1.96,
+      "averageTokenReductionPercent": 19.38,
+      "medianTokenReductionPercent": 1.98
+    },
+    "generatedFalsePositiveCount": 4,
+    "sandboxFailureFixed": true
+  },
+  "fixtures": [
+    {
+      "id": "exact-copied-text-block",
+      "title": "Exact copied text block",
+      "kind": "repo-query",
+      "expected": {
+        "path": "target.md",
+        "lines": "3-3",
+        "requiredExcerpt": [
+          "output router vault preserves exact failure evidence"
+        ]
+      },
+      "results": [
+        {
+          "mode": "native-baseline-proxy",
+          "toolPathUsed": "native-baseline-proxy: recursive text scan (rg/read proxy)",
+          "skipped": false,
+          "rawBytes": 138,
+          "rawTokensApprox": 35,
+          "routedBytes": 78,
+          "routedTokensApprox": 20,
+          "byteReductionPercent": 43.48,
+          "tokenReductionPercent": 42.86,
+          "latencyMs": {
+            "p50": 0.2655409999999989,
+            "p95": 4.594832999999998
+          },
+          "actualPath": "target.md",
+          "actualLines": "1-3",
+          "correctness": {
+            "passed": true,
+            "pathCorrect": true,
+            "spanCorrect": true,
+            "excerptComplete": true,
+            "generatedFalsePositive": false
+          },
+          "recovery": {
+            "status": "not-applicable",
+            "detail": "Native proxy returns direct text without Freeflow recovery metadata."
+          },
+          "notes": [
+            "score=28.00"
+          ]
+        },
+        {
+          "mode": "pre-hardening-freeflow-proxy",
+          "toolPathUsed": "pre-hardening-freeflow-proxy: legacy line scorer",
+          "skipped": false,
+          "rawBytes": 138,
+          "rawTokensApprox": 35,
+          "routedBytes": 78,
+          "routedTokensApprox": 20,
+          "byteReductionPercent": 43.48,
+          "tokenReductionPercent": 42.86,
+          "latencyMs": {
+            "p50": 0.249958000000003,
+            "p95": 0.2501669999999976
+          },
+          "actualPath": "target.md",
+          "actualLines": "1-3",
+          "correctness": {
+            "passed": true,
+            "pathCorrect": true,
+            "spanCorrect": true,
+            "excerptComplete": true,
+            "generatedFalsePositive": false
+          },
+          "recovery": {
+            "status": "failed",
+            "detail": "Baseline proxy does not expose structured recovery metadata."
+          },
+          "notes": [
+            "score=28.00"
+          ]
+        },
+        {
+          "mode": "improved-freeflow-router",
+          "toolPathUsed": "improved-freeflow-router: freeflow_retrieve query",
+          "skipped": false,
+          "rawBytes": 138,
+          "rawTokensApprox": 35,
+          "routedBytes": 841,
+          "routedTokensApprox": 211,
+          "byteReductionPercent": -509.42,
+          "tokenReductionPercent": -502.86,
+          "latencyMs": {
+            "p50": 0.8356670000000008,
+            "p95": 1.2532500000000013
+          },
+          "actualPath": "target.md",
+          "actualLines": "1-3",
+          "correctness": {
+            "passed": true,
+            "pathCorrect": true,
+            "spanCorrect": true,
+            "excerptComplete": true,
+            "generatedFalsePositive": false
+          },
+          "recovery": {
+            "status": "passed",
+            "detail": "Verified repo retrieve target.md:1-3."
+          },
+          "notes": [
+            "Deterministic repo retrieval selected target.md:1-3 (matched exact normalized query phrase in section chunk).",
+            "recovery=passed: Verified repo retrieve target.md:1-3."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "markdown-heading-nearby-body",
+      "title": "Markdown heading plus nearby body text",
+      "kind": "repo-query",
+      "expected": {
+        "path": "target.md",
+        "lines": "3-6",
+        "requiredExcerpt": [
+          "Adaptive Compression",
+          "Vault recovery",
+          "Parser confidence"
+        ]
+      },
+      "results": [
+        {
+          "mode": "native-baseline-proxy",
+          "toolPathUsed": "native-baseline-proxy: recursive text scan (rg/read proxy)",
+          "skipped": false,
+          "rawBytes": 169,
+          "rawTokensApprox": 43,
+          "routedBytes": 44,
+          "routedTokensApprox": 11,
+          "byteReductionPercent": 73.96,
+          "tokenReductionPercent": 74.42,
+          "latencyMs": {
+            "p50": 0.18333399999999855,
+            "p95": 0.21133299999999977
+          },
+          "actualPath": "decoy.md",
+          "actualLines": "1-1",
+          "correctness": {
+            "passed": false,
+            "pathCorrect": false,
+            "spanCorrect": false,
+            "excerptComplete": false,
+            "generatedFalsePositive": false
+          },
+          "recovery": {
+            "status": "not-applicable",
+            "detail": "Native proxy returns direct text without Freeflow recovery metadata."
+          },
+          "notes": [
+            "score=20.00"
+          ]
+        },
+        {
+          "mode": "pre-hardening-freeflow-proxy",
+          "toolPathUsed": "pre-hardening-freeflow-proxy: legacy line scorer",
+          "skipped": false,
+          "rawBytes": 169,
+          "rawTokensApprox": 43,
+          "routedBytes": 44,
+          "routedTokensApprox": 11,
+          "byteReductionPercent": 73.96,
+          "tokenReductionPercent": 74.42,
+          "latencyMs": {
+            "p50": 0.16129100000000207,
+            "p95": 0.16574999999999918
+          },
+          "actualPath": "decoy.md",
+          "actualLines": "1-1",
+          "correctness": {
+            "passed": false,
+            "pathCorrect": false,
+            "spanCorrect": false,
+            "excerptComplete": false,
+            "generatedFalsePositive": false
+          },
+          "recovery": {
+            "status": "failed",
+            "detail": "Baseline proxy does not expose structured recovery metadata."
+          },
+          "notes": [
+            "score=20.00"
+          ]
+        },
+        {
+          "mode": "improved-freeflow-router",
+          "toolPathUsed": "improved-freeflow-router: freeflow_retrieve query",
+          "skipped": false,
+          "rawBytes": 169,
+          "rawTokensApprox": 43,
+          "routedBytes": 892,
+          "routedTokensApprox": 223,
+          "byteReductionPercent": -427.81,
+          "tokenReductionPercent": -418.6,
+          "latencyMs": {
+            "p50": 0.5671670000000013,
+            "p95": 0.6000419999999984
+          },
+          "actualPath": "target.md",
+          "actualLines": "3-6",
+          "correctness": {
+            "passed": true,
+            "pathCorrect": true,
+            "spanCorrect": true,
+            "excerptComplete": true,
+            "generatedFalsePositive": false
+          },
+          "recovery": {
+            "status": "passed",
+            "detail": "Verified repo retrieve target.md:3-6."
+          },
+          "notes": [
+            "Deterministic repo retrieval selected target.md:3-6 (BM25-style scored section chunk with 6/6 query-token coverage).",
+            "recovery=passed: Verified repo retrieve target.md:3-6."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "generated-artifact-decoy",
+      "title": "Generated-artifact decoy",
+      "kind": "repo-query",
+      "expected": {
+        "path": "docs/codex-cli-agent-harness/2026-06-12-pass-3-sandboxing-and-permissions.md",
+        "lines": "3-7",
+        "requiredExcerpt": [
+          "SandboxPermissions",
+          "Plain-language meaning"
+        ]
+      },
+      "results": [
+        {
+          "mode": "native-baseline-proxy",
+          "toolPathUsed": "native-baseline-proxy: recursive text scan (rg/read proxy)",
+          "skipped": false,
+          "rawBytes": 310220,
+          "rawTokensApprox": 77555,
+          "routedBytes": 310058,
+          "routedTokensApprox": 77515,
+          "byteReductionPercent": 0.05,
+          "tokenReductionPercent": 0.05,
+          "latencyMs": {
+            "p50": 1.4152920000000009,
+            "p95": 1.5239590000000014
+          },
+          "actualPath": "graphify-out/graph.html",
+          "actualLines": "1-3",
+          "correctness": {
+            "passed": false,
+            "pathCorrect": false,
+            "spanCorrect": true,
+            "excerptComplete": true,
+            "generatedFalsePositive": true
+          },
+          "recovery": {
+            "status": "not-applicable",
+            "detail": "Native proxy returns direct text without Freeflow recovery metadata."
+          },
+          "notes": [
+            "score=140000.00"
+          ]
+        },
+        {
+          "mode": "pre-hardening-freeflow-proxy",
+          "toolPathUsed": "pre-hardening-freeflow-proxy: legacy line scorer",
+          "skipped": false,
+          "rawBytes": 310220,
+          "rawTokensApprox": 77555,
+          "routedBytes": 310058,
+          "routedTokensApprox": 77515,
+          "byteReductionPercent": 0.05,
+          "tokenReductionPercent": 0.05,
+          "latencyMs": {
+            "p50": 1.330167000000003,
+            "p95": 1.3311669999999935
+          },
+          "actualPath": "graphify-out/graph.html",
+          "actualLines": "1-3",
+          "correctness": {
+            "passed": false,
+            "pathCorrect": false,
+            "spanCorrect": true,
+            "excerptComplete": true,
+            "generatedFalsePositive": true
+          },
+          "recovery": {
+            "status": "failed",
+            "detail": "Baseline proxy does not expose structured recovery metadata."
+          },
+          "notes": [
+            "score=140000.00"
+          ]
+        },
+        {
+          "mode": "improved-freeflow-router",
+          "toolPathUsed": "improved-freeflow-router: freeflow_retrieve query",
+          "skipped": false,
+          "rawBytes": 310220,
+          "rawTokensApprox": 77555,
+          "routedBytes": 1281,
+          "routedTokensApprox": 321,
+          "byteReductionPercent": 99.59,
+          "tokenReductionPercent": 99.59,
+          "latencyMs": {
+            "p50": 0.8305840000000018,
+            "p95": 0.9191670000000016
+          },
+          "actualPath": "docs/codex-cli-agent-harness/2026-06-12-pass-3-sandboxing-and-permissions.md",
+          "actualLines": "3-7",
+          "correctness": {
+            "passed": true,
+            "pathCorrect": true,
+            "spanCorrect": true,
+            "excerptComplete": true,
+            "generatedFalsePositive": false
+          },
+          "recovery": {
+            "status": "passed",
+            "detail": "Verified repo retrieve docs/codex-cli-agent-harness/2026-06-12-pass-3-sandboxing-and-permissions.md:3-7."
+          },
+          "notes": [
+            "Deterministic repo retrieval selected docs/codex-cli-agent-harness/2026-06-12-pass-3-sandboxing-and-permissions.md:3-7 (BM25-style scored window chunk with 5/5 query-token coverage).",
+            "recovery=passed: Verified repo retrieve docs/codex-cli-agent-harness/2026-06-12-pass-3-sandboxing-and-permissions.md:3-7."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "huge-single-line-decoy",
+      "title": "Huge single-line generated/log decoy",
+      "kind": "repo-query",
+      "expected": {
+        "path": "docs/router.md",
+        "lines": "3-3",
+        "requiredExcerpt": [
+          "HUGE_MARKER belongs in bounded target evidence"
+        ]
+      },
+      "results": [
+        {
+          "mode": "native-baseline-proxy",
+          "toolPathUsed": "native-baseline-proxy: recursive text scan (rg/read proxy)",
+          "skipped": false,
+          "rawBytes": 192091,
+          "rawTokensApprox": 48023,
+          "routedBytes": 192013,
+          "routedTokensApprox": 48004,
+          "byteReductionPercent": 0.04,
+          "tokenReductionPercent": 0.04,
+          "latencyMs": {
+            "p50": 0.43249999999999744,
+            "p95": 0.6511250000000004
+          },
+          "actualPath": "debug.log",
+          "actualLines": "1-1",
+          "correctness": {
+            "passed": false,
+            "pathCorrect": false,
+            "spanCorrect": false,
+            "excerptComplete": false,
+            "generatedFalsePositive": true
+          },
+          "recovery": {
+            "status": "not-applicable",
+            "detail": "Native proxy returns direct text without Freeflow recovery metadata."
+          },
+          "notes": [
+            "score=24000.00"
+          ]
+        },
+        {
+          "mode": "pre-hardening-freeflow-proxy",
+          "toolPathUsed": "pre-hardening-freeflow-proxy: legacy line scorer",
+          "skipped": false,
+          "rawBytes": 192091,
+          "rawTokensApprox": 48023,
+          "routedBytes": 192013,
+          "routedTokensApprox": 48004,
+          "byteReductionPercent": 0.04,
+          "tokenReductionPercent": 0.04,
+          "latencyMs": {
+            "p50": 0.452458,
+            "p95": 0.4702079999999995
+          },
+          "actualPath": "debug.log",
+          "actualLines": "1-1",
+          "correctness": {
+            "passed": false,
+            "pathCorrect": false,
+            "spanCorrect": false,
+            "excerptComplete": false,
+            "generatedFalsePositive": true
+          },
+          "recovery": {
+            "status": "failed",
+            "detail": "Baseline proxy does not expose structured recovery metadata."
+          },
+          "notes": [
+            "score=24000.00"
+          ]
+        },
+        {
+          "mode": "improved-freeflow-router",
+          "toolPathUsed": "improved-freeflow-router: freeflow_retrieve query",
+          "skipped": false,
+          "rawBytes": 192091,
+          "rawTokensApprox": 48023,
+          "routedBytes": 884,
+          "routedTokensApprox": 221,
+          "byteReductionPercent": 99.54,
+          "tokenReductionPercent": 99.54,
+          "latencyMs": {
+            "p50": 0.6141660000000044,
+            "p95": 0.7515420000000006
+          },
+          "actualPath": "docs/router.md",
+          "actualLines": "1-3",
+          "correctness": {
+            "passed": true,
+            "pathCorrect": true,
+            "spanCorrect": true,
+            "excerptComplete": true,
+            "generatedFalsePositive": false
+          },
+          "recovery": {
+            "status": "passed",
+            "detail": "Verified repo retrieve docs/router.md:1-3."
+          },
+          "notes": [
+            "Deterministic repo retrieval selected docs/router.md:1-3 (BM25-style scored section chunk with 4/4 query-token coverage).",
+            "recovery=passed: Verified repo retrieve docs/router.md:1-3."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ambiguous-multi-file-query",
+      "title": "Ambiguous multi-file query",
+      "kind": "repo-query",
+      "expected": {
+        "path": "target.md",
+        "lines": "3-3",
+        "requiredExcerpt": [
+          "Adaptive compression",
+          "vault recovery",
+          "parser confidence"
+        ]
+      },
+      "results": [
+        {
+          "mode": "native-baseline-proxy",
+          "toolPathUsed": "native-baseline-proxy: recursive text scan (rg/read proxy)",
+          "skipped": false,
+          "rawBytes": 8262,
+          "rawTokensApprox": 2066,
+          "routedBytes": 8100,
+          "routedTokensApprox": 2025,
+          "byteReductionPercent": 1.96,
+          "tokenReductionPercent": 1.98,
+          "latencyMs": {
+            "p50": 0.2653749999999988,
+            "p95": 0.271250000000002
+          },
+          "actualPath": "decoy.md",
+          "actualLines": "1-1",
+          "correctness": {
+            "passed": false,
+            "pathCorrect": false,
+            "spanCorrect": false,
+            "excerptComplete": false,
+            "generatedFalsePositive": false
+          },
+          "recovery": {
+            "status": "not-applicable",
+            "detail": "Native proxy returns direct text without Freeflow recovery metadata."
+          },
+          "notes": [
+            "score=3600.00"
+          ]
+        },
+        {
+          "mode": "pre-hardening-freeflow-proxy",
+          "toolPathUsed": "pre-hardening-freeflow-proxy: legacy line scorer",
+          "skipped": false,
+          "rawBytes": 8262,
+          "rawTokensApprox": 2066,
+          "routedBytes": 8100,
+          "routedTokensApprox": 2025,
+          "byteReductionPercent": 1.96,
+          "tokenReductionPercent": 1.98,
+          "latencyMs": {
+            "p50": 0.24425000000000097,
+            "p95": 0.24537500000000279
+          },
+          "actualPath": "decoy.md",
+          "actualLines": "1-1",
+          "correctness": {
+            "passed": false,
+            "pathCorrect": false,
+            "spanCorrect": false,
+            "excerptComplete": false,
+            "generatedFalsePositive": false
+          },
+          "recovery": {
+            "status": "failed",
+            "detail": "Baseline proxy does not expose structured recovery metadata."
+          },
+          "notes": [
+            "score=3600.00"
+          ]
+        },
+        {
+          "mode": "improved-freeflow-router",
+          "toolPathUsed": "improved-freeflow-router: freeflow_retrieve query",
+          "skipped": false,
+          "rawBytes": 8262,
+          "rawTokensApprox": 2066,
+          "routedBytes": 885,
+          "routedTokensApprox": 222,
+          "byteReductionPercent": 89.29,
+          "tokenReductionPercent": 89.25,
+          "latencyMs": {
+            "p50": 0.8171250000000043,
+            "p95": 0.8297499999999971
+          },
+          "actualPath": "target.md",
+          "actualLines": "1-3",
+          "correctness": {
+            "passed": true,
+            "pathCorrect": true,
+            "spanCorrect": true,
+            "excerptComplete": true,
+            "generatedFalsePositive": false
+          },
+          "recovery": {
+            "status": "passed",
+            "detail": "Verified repo retrieve target.md:1-3."
+          },
+          "notes": [
+            "Deterministic repo retrieval selected target.md:1-3 (BM25-style scored section chunk with 6/6 query-token coverage).",
+            "recovery=passed: Verified repo retrieve target.md:1-3."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vaulted-output-query",
+      "title": "Vaulted output query",
+      "kind": "vault-query",
+      "expected": {
+        "pathIncludes": "ffout_91e882b51880dd5b9bbbc3ac:stderr",
+        "lines": "2-2",
+        "requiredExcerpt": [
+          "ASSERTION_FAILED",
+          "payments badge"
+        ]
+      },
+      "results": [
+        {
+          "mode": "native-baseline-proxy",
+          "toolPathUsed": "native-baseline-proxy: direct command output text search",
+          "skipped": false,
+          "rawBytes": 115,
+          "rawTokensApprox": 29,
+          "routedBytes": 115,
+          "routedTokensApprox": 29,
+          "byteReductionPercent": 0,
+          "tokenReductionPercent": 0,
+          "latencyMs": {
+            "p50": 0.004832999999997867,
+            "p95": 0.05329200000000611
+          },
+          "actualPath": "ffout_91e882b51880dd5b9bbbc3ac:stderr",
+          "actualLines": "1-3",
+          "correctness": {
+            "passed": true,
+            "pathCorrect": true,
+            "spanCorrect": true,
+            "excerptComplete": true,
+            "generatedFalsePositive": false
+          },
+          "recovery": {
+            "status": "not-applicable",
+            "detail": "Native direct output has no Freeflow vault recovery contract."
+          },
+          "notes": [
+            "score=12.00"
+          ]
+        },
+        {
+          "mode": "pre-hardening-freeflow-proxy",
+          "toolPathUsed": "pre-hardening-freeflow-proxy: simple vaulted line scanner",
+          "skipped": false,
+          "rawBytes": 115,
+          "rawTokensApprox": 29,
+          "routedBytes": 115,
+          "routedTokensApprox": 29,
+          "byteReductionPercent": 0,
+          "tokenReductionPercent": 0,
+          "latencyMs": {
+            "p50": 0.0037499999999965894,
+            "p95": 0.018749999999997158
+          },
+          "actualPath": "ffout_91e882b51880dd5b9bbbc3ac:stderr",
+          "actualLines": "1-3",
+          "correctness": {
+            "passed": true,
+            "pathCorrect": true,
+            "spanCorrect": true,
+            "excerptComplete": true,
+            "generatedFalsePositive": false
+          },
+          "recovery": {
+            "status": "failed",
+            "detail": "Baseline proxy does not expose structured recovery metadata."
+          },
+          "notes": [
+            "score=12.00"
+          ]
+        },
+        {
+          "mode": "improved-freeflow-router",
+          "toolPathUsed": "improved-freeflow-router: freeflow_retrieve vault query",
+          "skipped": false,
+          "rawBytes": 115,
+          "rawTokensApprox": 29,
+          "routedBytes": 1044,
+          "routedTokensApprox": 261,
+          "byteReductionPercent": -807.83,
+          "tokenReductionPercent": -800,
+          "latencyMs": {
+            "p50": 0.38108299999999673,
+            "p95": 0.5903330000000011
+          },
+          "actualPath": "ffout_91e882b51880dd5b9bbbc3ac:stderr",
+          "actualLines": "1-3",
+          "correctness": {
+            "passed": true,
+            "pathCorrect": true,
+            "spanCorrect": true,
+            "excerptComplete": true,
+            "generatedFalsePositive": false
+          },
+          "recovery": {
+            "status": "passed",
+            "detail": "Verified vault retrieve ffout_91e882b51880dd5b9bbbc3ac:stderr:1-3."
+          },
+          "notes": [
+            "Deterministic lexical retrieval selected vaulted outputId=ffout_91e882b51880dd5b9bbbc3ac stream=stderr lines=1-3.",
+            "recovery=passed: Verified vault retrieve ffout_91e882b51880dd5b9bbbc3ac:stderr:1-3."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "expand-narrow-evidence",
+      "title": "Expansion from narrow evidence to complete block",
+      "kind": "repo-expand",
+      "expected": {
+        "path": "target.md",
+        "lines": "1-24",
+        "requiredExcerpt": [
+          "EXPANSION_START",
+          "EXPANSION_END"
+        ]
+      },
+      "results": [
+        {
+          "mode": "native-baseline-proxy",
+          "toolPathUsed": "native-baseline-proxy: direct whole-file read",
+          "skipped": false,
+          "rawBytes": 623,
+          "rawTokensApprox": 156,
+          "routedBytes": 623,
+          "routedTokensApprox": 156,
+          "byteReductionPercent": 0,
+          "tokenReductionPercent": 0,
+          "latencyMs": {
+            "p50": 0.05212500000000375,
+            "p95": 0.07670800000000355
+          },
+          "actualPath": "target.md",
+          "actualLines": "1-24",
+          "correctness": {
+            "passed": true,
+            "pathCorrect": true,
+            "spanCorrect": true,
+            "excerptComplete": true,
+            "generatedFalsePositive": false
+          },
+          "recovery": {
+            "status": "not-applicable",
+            "detail": "Native read is exact direct output, not routed recovery."
+          },
+          "notes": []
+        },
+        {
+          "mode": "pre-hardening-freeflow-proxy",
+          "toolPathUsed": "pre-hardening-freeflow-proxy: narrow lexical line window without expansion",
+          "skipped": false,
+          "rawBytes": 3824,
+          "rawTokensApprox": 956,
+          "routedBytes": 3200,
+          "routedTokensApprox": 800,
+          "byteReductionPercent": 16.32,
+          "tokenReductionPercent": 16.32,
+          "latencyMs": {
+            "p50": 0.16883299999999934,
+            "p95": 0.18762499999999704
+          },
+          "actualPath": "decoy.md",
+          "actualLines": "1-1",
+          "correctness": {
+            "passed": false,
+            "pathCorrect": false,
+            "spanCorrect": true,
+            "excerptComplete": false,
+            "generatedFalsePositive": false
+          },
+          "recovery": {
+            "status": "failed",
+            "detail": "Baseline proxy does not expose structured expansion recovery."
+          },
+          "notes": [
+            "score=800.00"
+          ]
+        },
+        {
+          "mode": "improved-freeflow-router",
+          "toolPathUsed": "improved-freeflow-router: freeflow_retrieve expand lines_30",
+          "skipped": false,
+          "rawBytes": 623,
+          "rawTokensApprox": 156,
+          "routedBytes": 1283,
+          "routedTokensApprox": 321,
+          "byteReductionPercent": -105.94,
+          "tokenReductionPercent": -105.77,
+          "latencyMs": {
+            "p50": 0.5555420000000026,
+            "p95": 0.7659579999999977
+          },
+          "actualPath": "target.md",
+          "actualLines": "1-24",
+          "correctness": {
+            "passed": true,
+            "pathCorrect": true,
+            "spanCorrect": true,
+            "excerptComplete": true,
+            "generatedFalsePositive": false
+          },
+          "recovery": {
+            "status": "passed",
+            "detail": "Verified repo retrieve target.md:1-24."
+          },
+          "notes": [
+            "Expanded repo evidence ev_abbf2a42502f2e46 to target.md:1-24.",
+            "recovery=passed: Verified repo retrieve target.md:1-24."
+          ]
+        }
+      ]
+    }
+  ],
+  "skippedExternalTools": [
+    {
+      "name": "Graphify",
+      "reason": "Optional external comparator is not required for CI-friendly router benchmarks."
+    },
+    {
+      "name": "Claude Context",
+      "reason": "Optional semantic/hybrid search comparator is skipped unless configured separately."
+    },
+    {
+      "name": "RTK",
+      "reason": "Command-output comparator belongs to the later command benchmark track."
+    },
+    {
+      "name": "Squeez",
+      "reason": "Session-efficiency comparator belongs to the later command/session benchmark track."
+    }
+  ]
+}

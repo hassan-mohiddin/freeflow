@@ -73,6 +73,12 @@ export function renderRouterBenchmarkReport(report) {
         "",
         "Deterministic, CI-friendly tool benchmark for Freeflow Router retrieval behavior. The runner compares a native text-search proxy, a pre-hardening Freeflow-style proxy, and the improved Freeflow Router implementation. Optional external comparators are recorded as skipped rather than failed.",
         "",
+        "Reduction percentages compare routed/context bytes and approximate tokens against the raw source or direct output for that mode. Negative reduction means structured routing overhead is larger than the tiny raw output; native exact-search proxies can still be smaller than the router for simple lookups.",
+        "",
+        "## Baseline Caveat",
+        "",
+        "The pre-hardening Freeflow mode is a deterministic proxy for the old line-scoring behavior, not a checkout of an older runtime. It is useful for stable regression pressure, not historical performance archaeology.",
+        "",
         "## Command",
         "",
         "```sh",
@@ -86,23 +92,29 @@ export function renderRouterBenchmarkReport(report) {
         `- Improved Freeflow Router gated pass: ${report.summary.improved.passed}/${report.summary.fixtures}`,
         `- Native baseline proxy pass: ${report.summary.nativeBaseline.passed}/${report.summary.fixtures}`,
         `- Pre-hardening Freeflow proxy pass: ${report.summary.freeflowBaseline.passed}/${report.summary.fixtures}`,
-        `- Generated false positives observed: ${report.summary.generatedFalsePositiveCount}`,
+        `- Generated false positives observed: ${report.summary.generatedFalsePositiveCount}/${report.summary.modeResults} mode results`,
+        `- Improved generated false positives: ${report.summary.improved.generatedFalsePositiveCount}/${report.summary.fixtures}`,
+        `- Improved weighted byte/token reduction: ${formatPercent(report.summary.improved.weightedByteReductionPercent)} / ${formatPercent(report.summary.improved.weightedTokenReductionPercent)} (${report.summary.improved.totalRawBytes}/${report.summary.improved.totalRawTokensApprox} raw to ${report.summary.improved.totalRoutedBytes}/${report.summary.improved.totalRoutedTokensApprox} routed)`,
+        `- Improved average byte/token reduction: ${formatPercent(report.summary.improved.averageByteReductionPercent)} / ${formatPercent(report.summary.improved.averageTokenReductionPercent)}`,
+        `- Improved median byte/token reduction: ${formatPercent(report.summary.improved.medianByteReductionPercent)} / ${formatPercent(report.summary.improved.medianTokenReductionPercent)}`,
+        `- Improved path/span/excerpt checks: ${report.summary.improved.pathCorrect}/${report.summary.fixtures} path, ${report.summary.improved.spanCorrect}/${report.summary.fixtures} span, ${report.summary.improved.excerptComplete}/${report.summary.fixtures} excerpt`,
         `- Sandbox failure fixed: ${report.summary.sandboxFailureFixed ? "yes" : "no"}`,
         "",
         "## Results",
         "",
-        "| fixture | mode | correctness | path | lines | raw bytes/tokens | routed bytes/tokens | latency p50/p95 ms | recovery | notes |",
-        "| --- | --- | --- | --- | --- | ---: | ---: | ---: | --- | --- |",
+        "| fixture | mode | correctness | checks | path | lines | raw bytes/tokens | routed bytes/tokens | byte/token reduction | latency p50/p95 ms | recovery | notes |",
+        "| --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- |",
     ];
     for (const fixture of report.fixtures) {
         for (const result of fixture.results) {
             const correctness = result.skipped ? "skipped" : result.correctness.passed ? "pass" : "fail";
             const recovery = result.recovery.status;
             const notes = result.notes.length ? result.notes.join("; ") : result.skipReason ?? "";
-            lines.push(`| ${escapeTable(fixture.id)} | ${escapeTable(result.mode)} | ${correctness} | ${escapeTable(result.actualPath ?? "-")} | ${escapeTable(result.actualLines ?? "-")} | ${result.rawBytes}/${result.rawTokensApprox} | ${result.routedBytes}/${result.routedTokensApprox} | ${result.latencyMs.p50.toFixed(2)}/${result.latencyMs.p95.toFixed(2)} | ${escapeTable(recovery)} | ${escapeTable(notes)} |`);
+            const checks = formatCorrectnessChecks(result.correctness);
+            lines.push(`| ${escapeTable(fixture.id)} | ${escapeTable(result.mode)} | ${correctness} | ${escapeTable(checks)} | ${escapeTable(result.actualPath ?? "-")} | ${escapeTable(result.actualLines ?? "-")} | ${result.rawBytes}/${result.rawTokensApprox} | ${result.routedBytes}/${result.routedTokensApprox} | ${formatPercent(result.byteReductionPercent)}/${formatPercent(result.tokenReductionPercent)} | ${result.latencyMs.p50.toFixed(2)}/${result.latencyMs.p95.toFixed(2)} | ${escapeTable(recovery)} | ${escapeTable(notes)} |`);
         }
     }
-    lines.push("", "## Skipped External Comparators", "");
+    lines.push("", "## Not Yet Measured", "", "- recall@3 / alternate candidates: not measured in this first deterministic runner.", "- explanation quality: not measured beyond route reason capture.", "- command-output parser benchmarks: deferred to the command benchmark track.", "", "## Skipped External Comparators", "");
     for (const tool of report.skippedExternalTools) {
         lines.push(`- ${tool.name}: ${tool.reason}`);
     }
@@ -114,6 +126,18 @@ export function renderRouterBenchmarkReport(report) {
 export async function writeRouterBenchmarkReport(report, reportPath) {
     await mkdir(dirname(reportPath), { recursive: true });
     await writeFile(reportPath, renderRouterBenchmarkReport(report), "utf8");
+}
+export async function writeRouterBenchmarkJsonReport(report, reportPath) {
+    await mkdir(dirname(reportPath), { recursive: true });
+    await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+}
+export async function writeRouterBenchmarkReports(report, markdownReportPath) {
+    const jsonReportPath = markdownReportPath.endsWith(".md")
+        ? `${markdownReportPath.slice(0, -".md".length)}.json`
+        : `${markdownReportPath}.json`;
+    await writeRouterBenchmarkReport(report, markdownReportPath);
+    await writeRouterBenchmarkJsonReport(report, jsonReportPath);
+    return { markdown: markdownReportPath, json: jsonReportPath };
 }
 async function runFixtureMode(fixture, mode, iterations) {
     const latencies = [];
@@ -127,15 +151,19 @@ async function runFixtureMode(fixture, mode, iterations) {
         observation = skippedObservation("benchmark runner", "No observation was produced.");
     }
     const correctness = scoreCorrectness(fixture.expected, observation);
+    const rawTokensApprox = approximateTokens(observation.rawBytes);
+    const routedTokensApprox = approximateTokens(observation.routedBytes);
     return {
         mode,
         toolPathUsed: observation.toolPathUsed,
         skipped: observation.skipped ?? false,
         ...(observation.skipReason ? { skipReason: observation.skipReason } : {}),
         rawBytes: observation.rawBytes,
-        rawTokensApprox: approximateTokens(observation.rawBytes),
+        rawTokensApprox,
         routedBytes: observation.routedBytes,
-        routedTokensApprox: approximateTokens(observation.routedBytes),
+        routedTokensApprox,
+        byteReductionPercent: reductionPercent(observation.rawBytes, observation.routedBytes),
+        tokenReductionPercent: reductionPercent(rawTokensApprox, routedTokensApprox),
         latencyMs: {
             p50: percentile(latencies, 0.5),
             p95: percentile(latencies, 0.95),
@@ -167,9 +195,16 @@ function summarizeReport(fixtures) {
     };
 }
 function summarizeMode(fixtures, mode) {
-    return fixtures.reduce((summary, fixture) => {
-        const result = fixture.results.find((candidate) => candidate.mode === mode);
-        if (!result || result.skipped) {
+    const modeResults = fixtures
+        .map((fixture) => fixture.results.find((candidate) => candidate.mode === mode))
+        .filter((result) => Boolean(result));
+    const measuredResults = modeResults.filter((result) => !result.skipped);
+    const totalRawBytes = measuredResults.reduce((sum, result) => sum + result.rawBytes, 0);
+    const totalRoutedBytes = measuredResults.reduce((sum, result) => sum + result.routedBytes, 0);
+    const totalRawTokensApprox = measuredResults.reduce((sum, result) => sum + result.rawTokensApprox, 0);
+    const totalRoutedTokensApprox = measuredResults.reduce((sum, result) => sum + result.routedTokensApprox, 0);
+    return modeResults.reduce((summary, result) => {
+        if (result.skipped) {
             summary.skipped += 1;
         }
         else if (isGatedPass(result, mode)) {
@@ -178,8 +213,38 @@ function summarizeMode(fixtures, mode) {
         else {
             summary.failed += 1;
         }
+        if (result.correctness.pathCorrect) {
+            summary.pathCorrect += 1;
+        }
+        if (result.correctness.spanCorrect) {
+            summary.spanCorrect += 1;
+        }
+        if (result.correctness.excerptComplete) {
+            summary.excerptComplete += 1;
+        }
+        if (result.correctness.generatedFalsePositive) {
+            summary.generatedFalsePositiveCount += 1;
+        }
         return summary;
-    }, { passed: 0, failed: 0, skipped: 0 });
+    }, {
+        passed: 0,
+        failed: 0,
+        skipped: 0,
+        pathCorrect: 0,
+        spanCorrect: 0,
+        excerptComplete: 0,
+        generatedFalsePositiveCount: 0,
+        totalRawBytes,
+        totalRoutedBytes,
+        totalRawTokensApprox,
+        totalRoutedTokensApprox,
+        weightedByteReductionPercent: reductionPercent(totalRawBytes, totalRoutedBytes),
+        weightedTokenReductionPercent: reductionPercent(totalRawTokensApprox, totalRoutedTokensApprox),
+        averageByteReductionPercent: average(measuredResults.map((result) => result.byteReductionPercent)),
+        medianByteReductionPercent: median(measuredResults.map((result) => result.byteReductionPercent)),
+        averageTokenReductionPercent: average(measuredResults.map((result) => result.tokenReductionPercent)),
+        medianTokenReductionPercent: median(measuredResults.map((result) => result.tokenReductionPercent)),
+    });
 }
 function isGatedPass(result, mode) {
     if (!result.correctness.passed) {
@@ -364,7 +429,7 @@ async function createVaultedOutputFixture() {
                 source: { kind: "vault", root: vaultRoot.path, sessionId, outputId: record.outputId, stream: "stderr" },
                 query: "ASSERTION_FAILED payments badge",
                 preserve: "important",
-            }), "improved-freeflow-router: freeflow_retrieve vault query", stderr),
+            }), "improved-freeflow-router: freeflow_retrieve vault query", stderr, (result) => verifyVaultEvidenceRecovery(vaultRoot.path, sessionId, result)),
         },
         cleanup: vaultRoot.cleanup,
     };
@@ -411,7 +476,7 @@ async function createExpansionFixture() {
                 });
                 const evidence = queryResult.evidence?.[0];
                 if (!evidence) {
-                    return improvedRetrieveObservation(queryResult, "improved-freeflow-router: freeflow_retrieve query before expand", body.join("\n"));
+                    return improvedRetrieveObservation(queryResult, "improved-freeflow-router: freeflow_retrieve query before expand", body.join("\n"), (result) => verifyRepoEvidenceRecovery(repo.path, result));
                 }
                 return improvedRetrieveObservation(await freeflowRetrieve({
                     action: "expand",
@@ -419,7 +484,7 @@ async function createExpansionFixture() {
                     evidence,
                     expansion: "lines_30",
                     preserve: "important",
-                }), "improved-freeflow-router: freeflow_retrieve expand lines_30", body.join("\n"));
+                }), "improved-freeflow-router: freeflow_retrieve expand lines_30", body.join("\n"), (result) => verifyRepoEvidenceRecovery(repo.path, result));
             },
         },
         cleanup: repo.cleanup,
@@ -447,7 +512,7 @@ function repoQueryFixture(repo, options) {
                 source: { kind: "repo", root: repo.path },
                 query: options.query,
                 preserve: "important",
-            }), "improved-freeflow-router: freeflow_retrieve query", await readRepoBytes(repo.path)),
+            }), "improved-freeflow-router: freeflow_retrieve query", await readRepoBytes(repo.path), (result) => verifyRepoEvidenceRecovery(repo.path, result)),
         },
         cleanup: repo.cleanup,
     };
@@ -518,13 +583,20 @@ async function directTextSearchObservation(options) {
         notes: [`score=${hit.score.toFixed(2)}`],
     };
 }
-function improvedRetrieveObservation(result, toolPathUsed, rawSource) {
+async function improvedRetrieveObservation(result, toolPathUsed, rawSource, verifyRecovery) {
     const evidence = result.evidence?.[0];
     const excerpt = result.evidence?.map((packet) => packet.excerpt).join("\n") ?? "";
-    const recoveryPassed = Boolean(result.recovery?.how && (result.recovery.outputId || result.recovery.evidenceId || result.evidence?.some((packet) => packet.expandable)));
+    const recoveryGuidancePresent = Boolean(result.recovery?.how && (result.recovery.outputId || result.recovery.evidenceId || result.evidence?.some((packet) => packet.expandable)));
     const notes = [result.routing.reason];
     if (result.evidence && result.evidence.length > 1) {
         notes.push(`evidencePackets=${result.evidence.length}`);
+    }
+    let recovery = recoveryGuidancePresent
+        ? { status: "passed", detail: result.recovery?.how ?? "Routed result exposes recovery guidance." }
+        : { status: "failed", detail: "Routed result did not expose recovery guidance." };
+    if (recoveryGuidancePresent && verifyRecovery) {
+        recovery = await verifyRecovery(result);
+        notes.push(`recovery=${recovery.status}: ${recovery.detail}`);
     }
     return {
         toolPathUsed,
@@ -533,11 +605,66 @@ function improvedRetrieveObservation(result, toolPathUsed, rawSource) {
         ...(evidence?.path ? { actualPath: evidence.path } : {}),
         ...(evidence?.lines ? { actualLines: evidence.lines } : {}),
         excerpt,
-        recovery: recoveryPassed
-            ? { status: "passed", detail: result.recovery?.how ?? "Routed result exposes recovery guidance." }
-            : { status: "failed", detail: "Routed result did not expose recovery guidance." },
+        recovery,
         notes,
     };
+}
+async function verifyRepoEvidenceRecovery(root, result) {
+    const evidence = result.evidence?.[0];
+    if (!evidence?.path || !evidence.lines) {
+        return { status: "failed", detail: "No repo evidence path/lines available for recovery verification." };
+    }
+    const range = parseRange(evidence.lines);
+    if (!range) {
+        return { status: "failed", detail: `Unsupported repo evidence range ${evidence.lines}.` };
+    }
+    const recovered = await freeflowRetrieve({
+        action: "retrieve",
+        source: { kind: "repo", root, path: evidence.path },
+        lineRange: range,
+        preserve: "full",
+    });
+    return verifyRecoveredEvidence(recovered, evidence, `Verified repo retrieve ${evidence.path}:${evidence.lines}.`);
+}
+async function verifyVaultEvidenceRecovery(vaultRoot, sessionId, result) {
+    const evidence = result.evidence?.[0];
+    if (!evidence?.lines || evidence.source.kind !== "vault") {
+        return { status: "failed", detail: "No vault evidence outputId/lines available for recovery verification." };
+    }
+    const range = parseRange(evidence.lines);
+    if (!range) {
+        return { status: "failed", detail: `Unsupported vault evidence range ${evidence.lines}.` };
+    }
+    const recovered = await freeflowRetrieve({
+        action: "retrieve",
+        source: {
+            kind: "vault",
+            root: vaultRoot,
+            sessionId,
+            outputId: evidence.source.outputId,
+            stream: evidence.source.stream ?? "combined",
+        },
+        lineRange: range,
+        preserve: "full",
+    });
+    return verifyRecoveredEvidence(recovered, evidence, `Verified vault retrieve ${evidence.source.outputId}:${evidence.source.stream ?? "combined"}:${evidence.lines}.`);
+}
+function verifyRecoveredEvidence(recovered, originalEvidence, successDetail) {
+    const recoveredExcerpt = recovered.evidence?.map((packet) => packet.excerpt).join("\n") ?? "";
+    const anchor = firstRecoveryAnchor(originalEvidence.excerpt);
+    if (recovered.toolStatus !== "ok" || recovered.evidence?.length !== 1) {
+        return { status: "failed", detail: "Recovery retrieve did not return one ok evidence packet." };
+    }
+    if (anchor && !recoveredExcerpt.includes(anchor)) {
+        return { status: "failed", detail: "Recovery retrieve did not include the original evidence anchor." };
+    }
+    return { status: "passed", detail: successDetail };
+}
+function firstRecoveryAnchor(excerpt) {
+    return splitLines(excerpt)
+        .map((line) => line.trim())
+        .find((line) => line.length > 0)
+        ?.slice(0, 80) ?? "";
 }
 function scoreCorrectness(expected, observation) {
     if (observation.skipped) {
@@ -711,6 +838,35 @@ function percentile(values, quantile) {
     const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * quantile) - 1));
     return sorted[index] ?? 0;
 }
+function average(values) {
+    if (values.length === 0) {
+        return 0;
+    }
+    return roundPercent(values.reduce((sum, value) => sum + value, 0) / values.length);
+}
+function median(values) {
+    return roundPercent(percentile(values, 0.5));
+}
+function reductionPercent(raw, routed) {
+    if (raw <= 0) {
+        return 0;
+    }
+    return roundPercent(((raw - routed) / raw) * 100);
+}
+function roundPercent(value) {
+    return Math.round(value * 100) / 100;
+}
+function formatPercent(value) {
+    return `${value.toFixed(2)}%`;
+}
+function formatCorrectnessChecks(correctness) {
+    return [
+        `path ${correctness.pathCorrect ? "✓" : "✗"}`,
+        `span ${correctness.spanCorrect ? "✓" : "✗"}`,
+        `excerpt ${correctness.excerptComplete ? "✓" : "✗"}`,
+        `gen-fp ${correctness.generatedFalsePositive ? "✗" : "✓"}`,
+    ].join(" ");
+}
 function benchmarkModes() {
     return ["native-baseline-proxy", "pre-hardening-freeflow-proxy", "improved-freeflow-router"];
 }
@@ -757,10 +913,11 @@ async function runCli() {
         options.iterations = iterations;
     }
     const report = await runRouterBenchmarks(options);
-    await writeRouterBenchmarkReport(report, reportPath);
+    const reports = await writeRouterBenchmarkReports(report, reportPath);
     const shortId = createHash("sha256").update(JSON.stringify(report.summary)).digest("hex").slice(0, 8);
     console.log(`Freeflow router benchmark ${shortId}: improved ${report.summary.improved.passed}/${report.summary.fixtures} pass`);
-    console.log(`Report: ${reportPath}`);
+    console.log(`Markdown report: ${reports.markdown}`);
+    console.log(`JSON report: ${reports.json}`);
     if (report.summary.improved.failed > 0) {
         process.exitCode = 1;
     }
