@@ -17,7 +17,8 @@
   "type": "module",
   "scripts": {
     "build:router": "tsc -p plugins/freeflow/router/tsconfig.json",
-    "test:router": "npm run build:router && node --test plugins/freeflow/router/tests/*.test.js"
+    "test:router": "npm run build:router && node --test plugins/freeflow/router/tests/*.test.js",
+    "bench:router": "npm run build:router && node plugins/freeflow/router/dist/benchmarks.js"
   },
   "keywords": [
     "pi-package",
