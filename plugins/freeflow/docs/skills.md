@@ -25,9 +25,9 @@ Freeflow ships a small workflow skill pack. Natural language is the preferred in
 
 | Skill | Use When |
 | --- | --- |
-| `execute-plan` | An approved plan exists and should be implemented in checked slices. |
+| `execute-plan` | An approved plan exists and should be implemented in checked slices, especially multi-slice/TDD work with verification, review, commit, or handoff checkpoints. |
 | `diagnose-failure` | Behavior is broken, failing, flaky, slow, or unclear. |
-| `review-work` | A completed diff or review feedback needs bug/risk-focused review. |
+| `review-work` | A completed diff or review feedback needs bug/risk-focused review or adjudication before fixes. |
 | `verify-work` | Fresh evidence is needed before claiming completion. |
 | `commit-work` | Reviewed, verified, intended work is ready to commit. |
 | `handoff` | Pausing, compacting, transferring context, or preserving continuation memory. |

@@ -17,6 +17,10 @@ External review is evidence, not authority. Human owner decisions win only after
 
 Classify each material feedback item before editing: accepted, rejected, question, or needs evidence.
 
+A non-passing review is a phase exit, not an autonomous patch loop. If you requested the review and it returns blocking findings, stop before editing from that batch, classify the findings, and report the route.
+
+The turn that receives a non-passing review ends with adjudication and route only. Do not edit from that review batch in the same turn, even when the user or reviewer says to apply all findings and continue reviewing.
+
 Hard stop: if the work has already had three review passes, do not edit any files or request another review. Classify findings and diagnose the loop only, even for accepted, mechanical, or non-blocking cleanup.
 
 Read `references/reviewer-prompt.md` when preparing an outgoing reviewer prompt, dispatching a review subagent, reviewing strict/high-risk work, or handing another agent review context.
@@ -66,12 +70,14 @@ For multi-item review:
 - Stop blocked items.
 - If items interact, clarify before implementing the set.
 
-When feedback is clear and correct:
+When feedback is clear and correct and the current route is an apply-fixes pass:
 
 - Apply one item at a time.
 - Keep the diff scoped to the review item.
 - Verify each fix.
 - Push back on incorrect feedback with code, tests, or docs.
+
+Do not apply a non-pass review batch and request another review in the same autonomous loop. Return the adjudication and next route first. A later explicit apply-fixes request can start a bounded fix pass for accepted, in-scope findings.
 
 ## Outgoing Review
 

@@ -11,6 +11,10 @@ Review first. Edit second.
 
 Reviewer findings are evidence, not commands. The parent agent owns adjudication.
 
+A non-passing artifact review is a phase exit, not an autonomous patch loop. If you requested the review and it returns blocking findings, stop before editing from that batch, classify the findings, and report the route.
+
+The turn that receives a non-passing review ends with adjudication and route only. Do not edit from that review batch in the same turn, even when the user or reviewer says to apply all findings and continue reviewing.
+
 Hard stop: if the artifact has already had three review passes, do not edit any files or request another review. Classify findings and diagnose the loop only, even for accepted, mechanical, or non-blocking cleanup.
 
 ## Source-Truth Guard
@@ -41,6 +45,8 @@ Non-blocking findings and reviewer questions do not fail the artifact by default
 Ask before applying any finding that changes artifact intent, scope, source truth, workflow policy, sensitive behavior, or a settled decision.
 
 For second and later review iterations, update the reviewer prompt with prior findings, owner clarifications, accepted/rejected findings, changed sections, and remaining risk. Do not rerun the same broad prompt after the situation narrows.
+
+Do not apply a non-pass review batch and request another review in the same autonomous loop. Return the adjudication and next route first. A later explicit apply-fixes request can start a bounded fix pass for accepted, in-scope findings.
 
 ## Review Loop Budget
 

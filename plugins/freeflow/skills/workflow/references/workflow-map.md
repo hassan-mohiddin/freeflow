@@ -15,7 +15,7 @@ flowchart LR
   Discover[discover<br/>research checkpoint]
   Spec[spec]
   Plan[plan]
-  Build[build<br/>execute / diagnose]
+  Build[build<br/>execute / diagnose / TDD]
   Check[review + verify]
   Close[commit / handoff]
 
@@ -52,7 +52,7 @@ flowchart TD
   Entry --> Discovery[Discovery<br/>research<br/>interview-gate]
   Entry --> Spec[Spec<br/>write-spec<br/>review-artifact]
   Entry --> Plan[Plan<br/>write-plan<br/>review-artifact]
-  Entry --> Build[Build or diagnose<br/>execute-plan<br/>diagnose-failure]
+  Entry --> Build[Build, diagnose, or TDD<br/>execute-plan<br/>diagnose-failure]
   Entry --> Closeout[Closeout<br/>review-work<br/>verify-work<br/>commit-work]
 
   Discovery --> Spec
@@ -81,7 +81,7 @@ flowchart TD
 - Use `write-spec` when requirements are agreed but not durable.
 - Use `review-artifact` when a spec, plan, handoff, or decision note must guide future work.
 - Use `write-plan` when an approved spec or explicit task context exists.
-- Use `execute-plan` when an approved plan exists.
+- Use `execute-plan` when an approved plan exists; method skills like TDD run inside that build phase when requested or appropriate.
 - Use `diagnose-failure` when behavior is broken, failing, flaky, slow, or unclear.
 - Use `review-work` and `verify-work` before claiming consequential work is ready.
 - Use `commit-work` only after the intended diff is reviewed and verification evidence exists.
@@ -93,7 +93,7 @@ flowchart TD
 End completed consequential phases with `Next:` unless this is a direct answer, mid-task status, or clarification-only turn.
 
 - Forward: name the next entry point, such as `write-spec`, `write-plan`, `execute-plan`, `review-work`, `verify-work`, `commit-work`, or `handoff`.
-- Backward: return to `interview-gate` or `research` when evidence changes the path.
+- Backward: return to `interview-gate`, `research`, `diagnose-failure`, or plan/spec revision when evidence, failed checks, or repeated review findings change the path.
 - Branch: show 2-3 valid next routes when more than one is reasonable.
 - Stop: say no required next action remains.
 

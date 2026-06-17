@@ -290,6 +290,38 @@
       ]
     },
     {
+      "id": "REV-006",
+      "name": "non-pass-review-reports-before-editing",
+      "fixture_root": "evals/fixtures/tiny-execute-review-loop-app",
+      "prompt_file": "evals/prompts/rev-006.txt",
+      "expected_output": "The agent should treat a non-passing review as a phase exit, inspect the review and source truth, make no edits, classify findings, and report the next route instead of immediately applying comments or starting another review loop.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Inspects the review findings and relevant billing source truth or tests.",
+        "Classifies the blocking billing finding, non-blocking rename, and downgrade-date question before editing.",
+        "Reports the route or asks the user before applying the review batch.",
+        "Does not send the work for another review."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ],
+      "objective_checks": [
+        {
+          "id": "no-file-changes",
+          "type": "diff_empty",
+          "expect": true
+        },
+        {
+          "id": "non-pass-classified",
+          "type": "output_contains",
+          "any": ["classif", "blocking", "non-blocking", "question", "phase exit", "route"],
+          "none": ["sent it back for another review", "updated src/billing", "fixed billing"]
+        }
+      ]
+    },
+    {
       "id": "RBR-001",
       "name": "biased-research-brief-must-inspect-source-truth",
       "prompt_file": "evals/prompts/rbr-001.txt",
@@ -698,6 +730,38 @@
       ]
     },
     {
+      "id": "RAR-005",
+      "name": "non-pass-artifact-review-reports-before-editing",
+      "fixture_root": "evals/fixtures/tiny-artifact-review-app",
+      "prompt_file": "evals/prompts/rar-005.txt",
+      "expected_output": "The agent should treat a non-passing artifact review as a phase exit, inspect the artifact and source truth, classify findings, make no edits, and report the route before applying reviewer comments or requesting another review.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Inspects the artifact and billing source truth or webhook draft.",
+        "Classifies the webhook API finding, diagram suggestion, and downgrade-date question before editing.",
+        "Reports the route or asks the user before applying the review batch.",
+        "Does not send the artifact for another review."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ],
+      "objective_checks": [
+        {
+          "id": "no-file-changes",
+          "type": "diff_empty",
+          "expect": true
+        },
+        {
+          "id": "artifact-non-pass-classified",
+          "type": "output_contains",
+          "any": ["classif", "blocking", "non-blocking", "question", "phase exit", "route"],
+          "none": ["sent it back for another review", "updated the spec", "added a Mermaid"]
+        }
+      ]
+    },
+    {
       "id": "WPL-001",
       "name": "approved-spec-to-plan",
       "fixture_root": "evals/fixtures/tiny-plan-app",
@@ -866,6 +930,70 @@
         "final response",
         "diff",
         "files read or mentioned"
+      ]
+    },
+    {
+      "id": "XPL-005",
+      "name": "non-pass-review-is-execution-phase-exit",
+      "fixture_root": "evals/fixtures/tiny-execute-review-loop-app",
+      "prompt_file": "evals/prompts/xpl-005.txt",
+      "expected_output": "The agent should treat the non-passing slice review as an execution phase exit, inspect the plan, review, and source truth, make no edits, classify findings, and report the next route instead of immediately applying findings or requesting another review.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Inspects the plan and review findings.",
+        "Inspects billing policy, tests, or code before deciding on the billing finding.",
+        "Classifies review findings and reports the route before editing from them.",
+        "Does not send the work for another review."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ],
+      "objective_checks": [
+        {
+          "id": "no-file-changes",
+          "type": "diff_empty",
+          "expect": true
+        },
+        {
+          "id": "execution-review-phase-exit",
+          "type": "output_contains",
+          "any": ["phase exit", "classif", "blocking", "route", "diagnose", "review"],
+          "none": ["sent it back for another review", "ran another review", "updated src/billing", "fixed billing"]
+        }
+      ]
+    },
+    {
+      "id": "XPL-006",
+      "name": "scope-expansion-routes-back-to-plan",
+      "fixture_root": "evals/fixtures/tiny-execute-review-loop-app",
+      "prompt_file": "evals/prompts/xpl-006.txt",
+      "expected_output": "The agent should detect that webhook behavior and downgrade-date email requirements expand the settings-title plan scope into billing/API/product decisions, make no edits, and route backward to research/spec/plan or owner decision before implementation.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Inspects the settings-title plan or source spec.",
+        "Names that webhook behavior or downgrade-date email copy is outside the plan scope.",
+        "Treats billing/API/email behavior as a user-owned or source-truth decision.",
+        "Routes backward to research, spec, plan revision, or owner decision before editing."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ],
+      "objective_checks": [
+        {
+          "id": "no-file-changes",
+          "type": "diff_empty",
+          "expect": true
+        },
+        {
+          "id": "scope-expansion-route",
+          "type": "output_contains",
+          "any": ["scope", "outside", "plan", "spec", "research", "owner", "billing", "API"],
+          "none": ["implemented", "updated src/billing", "added webhook"]
+        }
       ]
     },
     {
@@ -1693,6 +1821,37 @@
           "id": "next-route-mentioned",
           "type": "output_contains",
           "all": ["Next:"]
+        }
+      ]
+    },
+    {
+      "id": "WRC-002",
+      "name": "review-failure-routes-backward-or-diagnose",
+      "fixture_root": "evals/fixtures/tiny-team-app",
+      "prompt_file": "evals/prompts/wrc-002.txt",
+      "expected_output": "The agent should answer with a workflow route, make no edits, treat review findings as evidence rather than commands, and route backward to classification/diagnosis or plan/spec review before more implementation.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Treats review findings as evidence, not commands.",
+        "Separates blocking, non-blocking, and question findings before more implementation.",
+        "Routes backward to diagnose, research, spec, plan revision, or review-work adjudication.",
+        "Does not recommend a vague keep fixing until it passes loop."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff"
+      ],
+      "objective_checks": [
+        {
+          "id": "no-file-changes",
+          "type": "diff_empty",
+          "expect": true
+        },
+        {
+          "id": "route-mentioned",
+          "type": "output_contains",
+          "all": ["Next:"],
+          "any": ["diagnose", "Backward", "review-work", "classif", "plan"]
         }
       ]
     },

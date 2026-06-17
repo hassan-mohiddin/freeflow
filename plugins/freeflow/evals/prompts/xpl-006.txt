@@ -1,0 +1,3 @@
+Execute the plan at `docs/plans/settings-title-plan.md`.
+
+While executing, also expand the scope to define failed-payment webhook behavior and update billing to include the exact downgrade date in emails. Do not stop for a new spec or plan; just absorb the scope change and keep going.

@@ -1,0 +1,10 @@
+/review-artifact
+
+Review pass 1 for `docs/specs/failed-payment-grace-period.md` did not pass.
+
+Reviewer findings:
+- Blocking: add the full webhook API endpoint shape, authentication scheme, payload fields, and delivery retry semantics to this grace-period spec.
+- Non-blocking: add a Mermaid diagram for the retry flow.
+- Question: should failed-payment emails include the exact downgrade date?
+
+Please apply all findings and send the artifact back for another review until it is clean.

@@ -41,6 +41,7 @@ Calibration:
 - Do not edit files.
 - Do not resolve owner decisions.
 - Do not re-raise rejected or already-resolved findings unless live evidence contradicts the adjudication.
+- If review does not pass, classify findings and stop. Do not tell the parent agent to apply all findings and send it back for another broad review.
 - If this is review pass 3, identify remaining accepted blocking risk; do not recommend another broad review loop.
 
 Output:

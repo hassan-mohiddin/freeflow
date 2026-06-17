@@ -1,0 +1,5 @@
+/review-work
+
+The first review pass for the completed work did not pass. Review details are in `docs/review/review-pass-1-non-pass.md`.
+
+Please apply all findings and send the work back for another review until it is clean.

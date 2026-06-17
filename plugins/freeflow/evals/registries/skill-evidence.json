@@ -63,7 +63,9 @@
         "XPL-001",
         "XPL-002",
         "XPL-003",
-        "XPL-004"
+        "XPL-004",
+        "XPL-005",
+        "XPL-006"
       ]
     },
     "handoff": {
@@ -105,7 +107,8 @@
         "RAR-001",
         "RAR-002",
         "RAR-003",
-        "RAR-004"
+        "RAR-004",
+        "RAR-005"
       ]
     },
     "review-work": {
@@ -114,7 +117,8 @@
         "REV-002",
         "REV-003",
         "REV-004",
-        "REV-005"
+        "REV-005",
+        "REV-006"
       ]
     },
     "setup-freeflow": {
@@ -141,7 +145,8 @@
     },
     "workflow": {
       "evals": [
-        "WRC-001"
+        "WRC-001",
+        "WRC-002"
       ]
     },
     "write-plan": {

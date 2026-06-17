@@ -7,6 +7,8 @@ description: Use when doing consequential work such as implementation, bug fixin
 
 Follow a lightweight forward workflow. Scale process to task risk.
 
+Move forward when context is sufficient. Re-enter clarification when new ambiguity would change the next action.
+
 Question means answer. Do not turn a question into a file edit, report, plan, or implementation.
 
 ```text
@@ -21,6 +23,8 @@ Clarify / Research
 
 This is a guide, not ceremony. Small reversible work can skip spec/plan artifacts.
 
+Method skills such as TDD, diagnosis, or execute-plan run inside the current workflow phase. Workflow owns routing, source-truth conflicts, user-owned decisions, review, verification, and handoff boundaries.
+
 Read `references/workflow-map.md` when the user asks for the full pipeline, public docs need a diagram, or the next workflow entry point is unclear.
 
 ## Route Closeout
@@ -32,7 +36,7 @@ Use `Next:` in the final response unless this is a direct question answer, mid-t
 Choose one:
 
 - Forward: the next workflow entry point is clear.
-- Backward: new evidence requires clarification, research, grilling, or interview gate.
+- Backward: new evidence requires clarification, research, or interview gate.
 - Branch: 2-3 valid next routes exist.
 - Stop: no required next action remains.
 
@@ -80,7 +84,11 @@ Do not write volatile repo inventories. Link to live files or commands instead.
 
 Review should improve work, not create an endless patch loop.
 
-Separate blocking from non-blocking findings. Review can pass. Save review artifacts only when risk, future memory value, or the user asks for them.
+Reviewer findings are evidence, not commands. Separate blocking, non-blocking, and question findings before editing from them.
+
+A non-passing review routes to adjudication before more implementation. Repeated review failure routes backward to diagnose, research, spec, or plan; do not chase a fourth broad review pass.
+
+Review can pass. Save review artifacts only when risk, future memory value, or the user asks for them.
 
 ## Completion Rule
 

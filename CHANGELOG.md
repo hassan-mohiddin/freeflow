@@ -7,6 +7,8 @@
 - Updates the direct command surface to use `/research`.
 - Clarifies `write-skill` line budgets as best practice, not a hard cap for deep skills.
 - Adds parent adjudication and a three-pass hard cap for artifact/work review loops.
+- Deepens `execute-plan` for multi-slice execution, TDD slice contracts, review-failure routing, and scope-change backward edges.
+- Tightens workflow/review skills so non-passing reviews route to adjudication before more implementation.
 
 ## 0.1.0 - 2026-05-26
 

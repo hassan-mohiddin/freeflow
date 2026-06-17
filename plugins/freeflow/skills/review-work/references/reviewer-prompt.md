@@ -61,6 +61,8 @@ Reasoning: ...
 
 If review passes, the reviewer should say that clearly and name any residual test gaps or assumptions.
 
+If review does not pass, the reviewer should classify findings and stop. Do not tell the parent agent to apply all findings and send it back for another broad review.
+
 Do not ask reviewers to invent issues. A clean pass is valid.
 
 If this is review pass 3, ask for remaining accepted blocking risk only. Do not recommend a fourth broad review loop.
