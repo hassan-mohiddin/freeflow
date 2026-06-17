@@ -20,12 +20,8 @@
   ],
   "directSkillCalls": [
     {
-      "command": "/grill-context",
-      "skill": "grill-context"
-    },
-    {
-      "command": "/research-brief",
-      "skill": "research-brief"
+      "command": "/research",
+      "skill": "research"
     },
     {
       "command": "/write-spec",
@@ -58,10 +54,6 @@
     {
       "command": "/commit-work",
       "skill": "commit-work"
-    },
-    {
-      "command": "/capture-decisions",
-      "skill": "capture-decisions"
     },
     {
       "command": "/handoff",

@@ -25,6 +25,7 @@ Freeflow is a portable workflow skill pack for coding agents.
 - Targeted runtime/interview-gate verification: passed on 2026-06-15 for syntax, runtime-context hooks, activation contract, release metadata, and Pi extension mock lifecycle.
 - Native slash handlers: not shipped for Codex/Claude in v0.1; Pi exposes direct Freeflow commands through its extension.
 - Runtime context loading: shipped through Codex/Claude plugin-bundled hooks and the Pi extension.
+- Active discovery skill: `research`; deprecated `research-brief`, `grill-context`, and `capture-decisions` live under root `deprecated/skills/` outside the runtime surface.
 - npm Trusted Publisher: configured for GitHub Actions workflow `.github/workflows/release.yml` with environment `npm`.
 - Enforcement hooks and CLI enforcement: not shipped in v0.1.
 - Old Orchestra: prior art and failure evidence, not the release plugin.
@@ -37,7 +38,7 @@ The public repository includes:
 - Claude marketplace metadata at `.claude-plugin/marketplace.json`.
 - Pi package metadata in root `package.json`.
 - Plugin runtime under `plugins/freeflow/`.
-- Runtime skills, bundled references, eval definitions, eval reports, and command-surface metadata.
+- Active runtime skills, bundled references, eval definitions, eval reports, and command-surface metadata.
 - Refined user-facing plugin docs under `plugins/freeflow/docs/`.
 - Root project docs under `docs/` for planning, current state, research, and handoffs.
 
@@ -52,6 +53,7 @@ Use `plugins/freeflow/evals/README.md` for the eval directory guide.
 
 Current high-signal evidence:
 
+- `plugins/freeflow/evals/reports/by-skill/research-1-report.md`
 - `plugins/freeflow/evals/reports/acceptance/v0.1-acceptance-report.md`
 - `plugins/freeflow/evals/reports/by-command-surface/command-surface-matrix.md`
 - `plugins/freeflow/evals/reports/runtime/always-on-runtime-1-report.md`

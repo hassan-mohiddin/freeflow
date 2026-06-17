@@ -16,75 +16,157 @@
         "MODE-005",
         "AON-001",
         "IVG-001",
-        "GRC-001",
+        "RES-001",
         "WSP-006",
         "WPL-005",
         "XPL-004",
         "REV-002",
         "CMD-005",
         "CMT-005",
-        "CAP-002",
+        "RES-002",
         "BYP-002"
       ]
     }
   ],
   "skills": {
     "bypass": {
-      "evals": ["BYP-001", "BYP-002"]
-    },
-    "capture-decisions": {
-      "evals": ["CAP-001", "CAP-002"]
+      "evals": [
+        "BYP-001",
+        "BYP-002"
+      ]
     },
     "commit-work": {
-      "evals": ["CMT-001", "CMT-002", "CMT-003", "CMT-004", "CMT-005"]
+      "evals": [
+        "CMT-001",
+        "CMT-002",
+        "CMT-003",
+        "CMT-004",
+        "CMT-005"
+      ]
     },
     "diagnose-failure": {
-      "evals": ["DIA-001", "DIA-002", "DIA-003"]
+      "evals": [
+        "DIA-001",
+        "DIA-002",
+        "DIA-003"
+      ]
     },
     "evaluate-skill": {
-      "evals": ["ESK-001", "ESK-002", "ESK-003"]
+      "evals": [
+        "ESK-001",
+        "ESK-002",
+        "ESK-003"
+      ]
     },
     "execute-plan": {
-      "evals": ["XPL-001", "XPL-002", "XPL-003", "XPL-004"]
-    },
-    "grill-context": {
-      "evals": ["GRC-001"]
+      "evals": [
+        "XPL-001",
+        "XPL-002",
+        "XPL-003",
+        "XPL-004"
+      ]
     },
     "handoff": {
-      "evals": ["HOF-001", "HOF-002", "HOF-003", "HOF-004", "HOF-005"]
+      "evals": [
+        "HOF-001",
+        "HOF-002",
+        "HOF-003",
+        "HOF-004",
+        "HOF-005"
+      ]
     },
     "interview-gate": {
-      "evals": ["IVG-001", "IVG-002", "IVG-003", "IVG-004"]
+      "evals": [
+        "IVG-001",
+        "IVG-002",
+        "IVG-003",
+        "IVG-004"
+      ]
     },
     "mode-contract": {
-      "evals": ["MODE-001", "MODE-002", "MODE-003", "MODE-004", "MODE-005", "MODE-006"]
+      "evals": [
+        "MODE-001",
+        "MODE-002",
+        "MODE-003",
+        "MODE-004",
+        "MODE-005",
+        "MODE-006"
+      ]
     },
-    "research-brief": {
-      "evals": ["RBR-001", "RBR-002", "RBR-003"]
+    "research": {
+      "evals": [
+        "RES-001",
+        "RES-002",
+        "CMD-012"
+      ]
     },
     "review-artifact": {
-      "evals": ["RAR-001", "RAR-002", "RAR-003"]
+      "evals": [
+        "RAR-001",
+        "RAR-002",
+        "RAR-003"
+      ]
     },
     "review-work": {
-      "evals": ["REV-001", "REV-002", "REV-003", "REV-004"]
+      "evals": [
+        "REV-001",
+        "REV-002",
+        "REV-003",
+        "REV-004"
+      ]
     },
     "setup-freeflow": {
-      "evals": ["STP-001", "STP-002", "STP-003", "STP-004", "STP-005", "STP-006", "STP-007", "STP-008", "STP-009", "STP-010"]
+      "evals": [
+        "STP-001",
+        "STP-002",
+        "STP-003",
+        "STP-004",
+        "STP-005",
+        "STP-006",
+        "STP-007",
+        "STP-008",
+        "STP-009",
+        "STP-010"
+      ]
     },
     "verify-work": {
-      "evals": ["CMD-005", "VFY-001", "VFY-002", "VFY-003"]
+      "evals": [
+        "CMD-005",
+        "VFY-001",
+        "VFY-002",
+        "VFY-003"
+      ]
     },
     "workflow": {
-      "evals": ["WRC-001"]
+      "evals": [
+        "WRC-001"
+      ]
     },
     "write-plan": {
-      "evals": ["WPL-001", "WPL-002", "WPL-003", "WPL-004", "WPL-005"]
+      "evals": [
+        "WPL-001",
+        "WPL-002",
+        "WPL-003",
+        "WPL-004",
+        "WPL-005"
+      ]
     },
     "write-skill": {
-      "evals": ["WSK-001"]
+      "evals": [
+        "WSK-001"
+      ]
     },
     "write-spec": {
-      "evals": ["WSP-001", "WSP-002", "WSP-003", "WSP-004", "WSP-005", "WSP-006", "WSP-007", "WSP-008"]
+      "evals": [
+        "WSP-001",
+        "WSP-002",
+        "WSP-003",
+        "WSP-004",
+        "WSP-005",
+        "WSP-006",
+        "WSP-007",
+        "WSP-008"
+      ]
     }
   }
 }

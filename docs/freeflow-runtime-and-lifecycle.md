@@ -205,21 +205,18 @@ Planning decides what to build and how to build it.
 It includes:
 
 ```text
-research-brief
-grill-context
+research
 write-spec
 review-artifact
 write-plan
 review-artifact
 ```
 
-Research and grilling form one larger discovery unit.
+Research is the larger discovery unit. It interleaves evidence gathering, brainstorming, targeted questions, and decision checkpointing before spec, plan, build, or durable memory.
 
-Research gathers evidence from the repo, provided sources, and current external sources when needed. It can be quick or deep. It may produce a chat answer or a durable research document.
+Research gathers evidence from the repo, provided sources, and current external sources when needed. It can be quick or deep. It ends in a checkpoint: chat for short-lived work, or the narrowest owning artifact when later work must rely on it.
 
-Grilling turns uncertain ideas into shared understanding. It asks one question at a time, explores branches, challenges assumptions, and resolves ambiguity. It may begin before research, after research, or trigger research in the middle.
-
-Branching is normal. A conversation may fork into research, return with a research doc and handoff, then continue the original grilling thread.
+Branching is normal. A conversation may fork into deeper research, return with a checkpoint and handoff, then continue the original direction-setting thread.
 
 After enough context exists, `write-spec` converts the conversation and evidence into a durable artifact describing what should be built, what decisions were made, what was rejected, and what constraints matter.
 
@@ -322,13 +319,12 @@ Some skills can fire in either planning or execution:
 
 - `interview-gate`: user-owned decisions, ambiguity, source-truth conflicts, path conflicts.
 - `diagnose-failure`: bugs, failing tests, regressions, unexpected behavior.
-- `capture-decisions`: durable decisions, glossary terms, ADR-worthy tradeoffs.
 - `bypass`: skip unnecessary ceremony without skipping judgment.
 - `mode-contract`: infer or discuss Freeflow modes.
 
 `diagnose-failure` can be part of planning when research reveals a bug-like unknown, and part of execution when implementation or verification fails.
 
-`capture-decisions` should record stable decisions, not session residue.
+Research checkpoints record stable decisions only when they must survive beyond chat; session residue belongs in handoffs or plans.
 
 `bypass` defaults to one action and never bypasses user-owned decisions, source-truth conflicts, risky domains, or verification.
 
@@ -364,7 +360,7 @@ Current evidence:
 - `setup-freeflow` has focused setup evals for Codex and Claude activation shapes.
 - `write-skill` has behavior and direct command evals showing that production-ready pressure must not overbuild skill folders.
 - `evaluate-skill` has behavior and direct command evals showing that shortcut wording must not skip creating or updating an eval artifact before skill edits.
-- Command-surface coverage is complete for the current registry: 4 mode commands, 13 direct skill calls, and 2 developer skill calls. See `plugins/freeflow/evals/reports/by-command-surface/command-surface-matrix.md`.
+- Command-surface coverage is complete for the current registry: 4 mode commands, 11 direct skill calls, and 2 developer skill calls. See `plugins/freeflow/evals/reports/by-command-surface/command-surface-matrix.md`.
 - The fixture harness supports Codex by default and Claude through `FREEFLOW_FIXTURE_AGENT=claude`; live Claude runs still require local Claude auth and are not active release blockers for Hassan's local Codex-first testing.
 
 ## Current Pack Readiness
@@ -375,7 +371,7 @@ The local-only v0.1 acceptance suite passed after measured fixes in `plugins/fre
 
 Current packaging shape:
 
-- 19 skills under `plugins/freeflow/skills/`.
+- 18 active skills under `plugins/freeflow/skills/`; deprecated skills live under root `deprecated/skills/` and are not part of the runtime skill surface.
 - Single plugin runtime under `plugins/freeflow/`, including skills, context hooks, manifests, evals, command-surface metadata, and refined plugin docs.
 - Every `SKILL.md` is under the 100-line project budget.
 - Extra reference files exist only where targeted evals or complexity justified progressive disclosure.

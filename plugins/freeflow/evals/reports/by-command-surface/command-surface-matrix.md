@@ -1,6 +1,6 @@
 # Freeflow Command Surface Matrix
 
-Date: 2026-05-26
+Date: 2026-06-17
 
 ## Summary
 
@@ -15,13 +15,13 @@ Commands are model-routed. A command selects a mode or skill segment; it does no
 Current registry:
 
 - 4 mode commands
-- 13 direct skill calls
+- 11 direct skill calls
 - 2 developer skill calls
 
 Current direct command eval coverage:
 
 - Mode command coverage: yes, via `MODE-001` through `MODE-006`.
-- Direct skill command coverage: 13 of 13 have `CMD-*` evals.
+- Direct skill command coverage: 11 of 11 have `CMD-*` evals.
 - Developer command coverage: yes, via `CMD-014` and `CMD-015`.
 
 `evals/scripts/audit-command-surface.sh` passes and checks registry shape, docs mentions, skill targets, manifest consistency, and `nativeSlashHandlers=false`.
@@ -39,8 +39,7 @@ Current direct command eval coverage:
 
 | Command | Skill | Native Handler | Direct Eval | Related Behavior Evals | Status |
 |---|---|---:|---|---|---|
-| `/grill-context` | `grill-context` | No | `CMD-013` | `GRC-001` | Covered |
-| `/research-brief` | `research-brief` | No | `CMD-012` | `RBR-001` | Covered |
+| `/research` | `research` | No | `CMD-012` | `RES-001`, `RES-002` | Covered |
 | `/write-spec` | `write-spec` | No | `CMD-003` | `WSP-001`, `WSP-002`, `WSP-003` | Covered |
 | `/review-artifact` | `review-artifact` | No | `CMD-010` | `RAR-001`, `RAR-002` | Covered |
 | `/write-plan` | `write-plan` | No | `CMD-004` | `WPL-001` through `WPL-004` | Covered |
@@ -49,7 +48,6 @@ Current direct command eval coverage:
 | `/verify-work` | `verify-work` | No | `CMD-005` | `VFY-001` through `VFY-003` | Covered |
 | `/review-work` | `review-work` | No | `CMD-009` | `REV-002`, `REV-003` | Covered |
 | `/commit-work` | `commit-work` | No | `CMD-002` | `CMT-001` through `CMT-004` | Covered |
-| `/capture-decisions` | `capture-decisions` | No | `CMD-008` | `CAP-001` | Covered |
 | `/handoff` | `handoff` | No | `CMD-006` | `HOF-001` through `HOF-005` | Covered |
 | `/bypass` | `bypass` | No | `CMD-007` | `BYP-001`, `BYP-002` | Covered |
 
@@ -71,12 +69,10 @@ The highest-risk direct commands now have command-surface evals:
 - `/verify-work`
 - `/handoff`
 - `/bypass`
-- `/capture-decisions`
 - `/review-work`
 - `/review-artifact`
 - `/diagnose-failure`
-- `/research-brief`
-- `/grill-context`
+- `/research`
 
 All direct skill commands and developer commands now have command-surface evals.
 

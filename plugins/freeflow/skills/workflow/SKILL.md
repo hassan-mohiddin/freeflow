@@ -38,7 +38,7 @@ Choose one:
 
 Recommend the route supported by evidence. Do not ask a vague "what next?" question.
 
-After completed grilling or research with stable uncaptured decisions, route to `write-spec` or `capture-decisions` before `write-plan` or execution.
+After completed research with decisions that must survive beyond chat, route to `write-spec`, an owning decision artifact, or handoff before `write-plan` or execution.
 
 `Next:` is routing, not permission to create the next artifact or continue into a new phase.
 

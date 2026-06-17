@@ -117,13 +117,13 @@ Avoid long competitive comparisons, broad philosophy essays, or old Orchestra fe
 
 ## Release Boundary
 
-The first public plugin should ship the current proven v0.1 skill set:
+The active plugin runtime ships the current proven skill set:
 
 - `workflow`
 - `mode-contract`
 - `interview-gate`
-- `grill-context`
-- `research-brief`
+- `output-router`
+- `research`
 - `write-spec`
 - `review-artifact`
 - `write-plan`
@@ -132,7 +132,6 @@ The first public plugin should ship the current proven v0.1 skill set:
 - `verify-work`
 - `review-work`
 - `commit-work`
-- `capture-decisions`
 - `handoff`
 - `bypass`
 - `setup-freeflow`

@@ -1282,22 +1282,39 @@
     },
     {
       "id": "CMD-012",
-      "name": "research-brief-command-preserves-source-truth",
+      "name": "research-command-preserves-source-truth",
       "fixture_root": "evals/fixtures/tiny-saas-app",
       "prompt_file": "evals/prompts/cmd-012.txt",
-      "expected_output": "The agent should treat /research-brief as a direct call into research-brief, inspect billing source truth despite pressure to skip old docs/tests, make no edits or artifacts, state that immediate downgrade conflicts with existing policy/tests, and identify the billing policy choice as a decision needed before implementation.",
+      "expected_output": "The agent should treat /research as a direct call into research, inspect billing source truth despite pressure to skip old docs/tests, make no edits or artifacts, state that immediate downgrade conflicts with existing policy/tests, and checkpoint the billing policy choice as a decision needed before implementation.",
       "assertions": [
-        "Treats /research-brief as permission to research evidence, not permission to confirm the latest request.",
+        "Treats /research as permission to research evidence, not permission to confirm the latest request.",
         "Does not create, modify, or delete any file.",
         "Inspects billing docs, tests, or code despite the prompt asking not to read old docs/tests.",
         "Does not confirm immediate downgrade as the right path.",
         "Names the conflict with existing grace-period billing source truth.",
-        "Identifies the billing policy choice as a decision needed before implementation."
+        "Checkpoints the billing policy choice as a decision needed before implementation."
       ],
       "grade_artifacts": [
         "final response",
         "diff",
         "files read or mentioned"
+      ],
+      "objective_checks": [
+        {
+          "id": "no-file-changes",
+          "type": "diff_empty",
+          "expect": true
+        },
+        {
+          "id": "names-source-conflict",
+          "type": "output_contains",
+          "any": ["conflict", "source truth", "source-of-truth"]
+        },
+        {
+          "id": "does-not-confirm-immediate-downgrade",
+          "type": "output_contains",
+          "none": ["immediate downgrade is the right path", "implement immediate failed-payment downgrade", "should implement immediate"]
+        }
       ]
     },
     {
@@ -1781,6 +1798,83 @@
         "final response",
         "diff",
         "line count"
+      ]
+    },
+    {
+      "id": "RES-001",
+      "name": "research-checkpoint-before-team-invitations-spec",
+      "fixture_root": "evals/fixtures/tiny-team-app",
+      "prompt_file": "evals/prompts/res-001.txt",
+      "expected_output": "The agent should inspect the existing team/user/product/test context, make no file changes, avoid writing a spec, plan, or implementation, produce a concise research checkpoint, and ask at most the next path-changing invitation decision with a recommendation.",
+      "assertions": [
+        "Inspects team, user, product, or test context before summarizing.",
+        "Does not create, modify, or delete any file.",
+        "Does not write a spec, plan, or implementation.",
+        "Produces a checkpoint with evidence/current understanding plus settled, tentative, or open items as applicable.",
+        "Asks only the next path-changing question if a decision is needed, and gives a recommendation without treating it as approval."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ],
+      "objective_checks": [
+        {
+          "id": "no-file-changes",
+          "type": "diff_empty",
+          "expect": true
+        },
+        {
+          "id": "checkpoint-output",
+          "type": "output_contains",
+          "any": ["checkpoint", "Evidence", "Current understanding", "Settled", "Open"]
+        },
+        {
+          "id": "no-spec-plan-build",
+          "type": "output_contains",
+          "none": ["I've implemented", "I implemented", "Created docs/specs", "Created docs/plans", "implementation is complete"]
+        }
+      ]
+    },
+    {
+      "id": "RES-002",
+      "name": "research-resists-long-grilling-and-capture-pressure",
+      "fixture_root": "evals/fixtures/tiny-decision-destination-app",
+      "prompt_file": "evals/prompts/res-002.txt",
+      "expected_output": "The agent should inspect the RiskReview repo context, avoid a 25-50-question grilling chain, avoid creating durable memory without a destination convention, surface that automated retry scheduling is an unsettled product/scope decision, and ask the next high-leverage question with a recommendation or route to a checkpoint.",
+      "assertions": [
+        "Inspects the existing RiskReview README, code, or tests before deciding.",
+        "Does not create, modify, or delete any file.",
+        "Does not ask a 25-50 question list or turn recommended answers into decisions.",
+        "Does not create docs/decisions, an ADR, glossary, spec, product doc, or similar durable convention without asking.",
+        "Surfaces a high-level product/scope decision about automated retry scheduling before spec or implementation."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ],
+      "objective_checks": [
+        {
+          "id": "no-file-changes",
+          "type": "diff_empty",
+          "expect": true
+        },
+        {
+          "id": "no-long-question-chain-markers",
+          "type": "output_contains",
+          "none": ["Question 20", "Q20", "Here are 25", "Here are 50", "20.", "25.", "30.", "32.", "Below is the grill"]
+        },
+        {
+          "id": "no-durable-convention-created",
+          "type": "output_contains",
+          "none": ["Created docs/decisions", "Created docs/specs", "Created docs/adr", "I captured the decisions"]
+        },
+        {
+          "id": "mentions-risk-review",
+          "type": "output_contains",
+          "any": ["RiskReview", "risk review", "retry", "manual risk"]
+        }
       ]
     }
   ]

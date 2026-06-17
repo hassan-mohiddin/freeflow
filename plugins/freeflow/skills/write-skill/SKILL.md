@@ -21,7 +21,7 @@ Do not add references, examples, README files, changelogs, or metadata when a co
 
 Do not add helper scripts for commands the agent can run directly, such as `git log`, `git diff`, search, formatting, or line counts. Scripts are for repeated deterministic work that would be risky or wasteful to retype.
 
-Follow the repo's line budget. If none exists, keep `SKILL.md` under 100 lines unless the extra lines clearly earn their place.
+Treat the repo's line budget as a best practice, not a hard cap. If none exists, aim to keep `SKILL.md` under 100 lines for normal skills. Let deep skills exceed it when the active rules, examples, or structure clearly earn their place.
 
 ## Description First
 

@@ -16,7 +16,7 @@ Use strict-workflow for security, privacy, billing, public APIs, migrations, dat
 flowchart LR
   Request{request}
   Talk[conversation<br/>answer directly]
-  Discover[discover<br/>research / grill]
+  Discover[discover<br/>research checkpoint]
   Spec[spec]
   Plan[plan]
   Build[build<br/>execute / diagnose]

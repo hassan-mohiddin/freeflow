@@ -130,7 +130,7 @@ command_routes_json() {
 
 reports_json() {
   local name="$1"
-  find "$reports_dir" -maxdepth 1 -type f -name "${name}-*-report.md" -print \
+  find "$reports_dir" -maxdepth 1 -type f -name "${name}-[0-9]*-report.md" -print \
     | sed "s#^$plugin_root/##" \
     | sort \
     | jq -R -s 'split("\n")[:-1]'

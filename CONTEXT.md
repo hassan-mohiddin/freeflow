@@ -28,6 +28,14 @@ _Avoid_: safe mode, locked mode
 A clarification gate that fires when the agent would otherwise make a user-owned decision or proceed with context that could change the next action.
 _Avoid_: questionnaire, permission check
 
+**Research**:
+The discovery loop before spec, plan, build, or durable memory. It interleaves evidence gathering, brainstorming, targeted questions, and decision checkpointing.
+_Avoid_: research brief, grilling phase, capture phase
+
+**Checkpoint**:
+The output of research: current understanding, evidence, settled/tentative/open decisions, recommendation, and next route. It can stay in chat or be saved in the narrowest owning artifact.
+_Avoid_: transcript, automatic spec, decision dump
+
 **User-Owned Decision**:
 A product, scope, domain, compatibility, public API, security, privacy, billing, data-loss, or hard-to-reverse architecture choice that the agent must not silently make.
 _Avoid_: preference, blocker

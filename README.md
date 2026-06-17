@@ -22,7 +22,7 @@ Use strict-workflow for security, privacy, billing, public APIs, migrations, dat
 flowchart LR
   Request{request}
   Talk[conversation<br/>answer directly]
-  Discover[discover<br/>research / grill]
+  Discover[discover<br/>research checkpoint]
   Spec[spec]
   Plan[plan]
   Build[build<br/>execute / diagnose]
@@ -155,7 +155,7 @@ Use Freeflow workflow mode for this task.
 Keep this in conversation mode.
 Use strict-workflow for this billing change.
 Verify before claiming completion.
-Capture the durable decision.
+Create a research checkpoint.
 ```
 
 Slash-style prompts are model-routed in v0.1:
@@ -165,6 +165,7 @@ Slash-style prompts are model-routed in v0.1:
 /workflow workflow
 /workflow strict-workflow
 /workflow reset
+/research
 /write-spec
 /write-plan
 /execute-plan
@@ -196,7 +197,7 @@ Freeflow does not claim to beat Matt Pocock's skills or Obra's Superpowers. Thos
 | Write plan with hidden billing decision | 4/10 | 10/10 | Freeflow created no plan, named the policy conflict, and asked which path to follow. |
 | Cold spec call without context | 2/10 | 10/10 | Freeflow did not invent onboarding behavior from adjacent files. |
 | Workflow context lifecycle | fail | pass | Setup loads workflow context for the same session; session-start hooks load workflow context without `PostToolUse`. |
-| Command surface audit | - | Pass | 4 mode commands, 13 direct skill calls, and 2 developer skill calls are covered while native slash handlers remain disabled. |
+| Command surface audit | - | Pass | 4 mode commands, 11 direct skill calls, and 2 developer skill calls are covered while native slash handlers remain disabled. |
 
 Eval sources and reports live with the plugin under `plugins/freeflow/evals/`; generated run output is ignored. Concise release evidence is summarized in [plugins/freeflow/docs/release-evidence.md](plugins/freeflow/docs/release-evidence.md).
 

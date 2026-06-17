@@ -128,8 +128,7 @@ There are three modes and four mode commands; `/workflow reset` clears the curre
 Direct skill calls should be possible for technical users:
 
 ```text
-/grill-context
-/research-brief
+/research
 /write-spec
 /review-artifact
 /write-plan
@@ -138,7 +137,6 @@ Direct skill calls should be possible for technical users:
 /verify-work
 /review-work
 /commit-work
-/capture-decisions
 /handoff
 /bypass
 ```
@@ -543,15 +541,13 @@ handoff
 Candidate later skills:
 
 ```text
-grill-context
-research-brief
+research
 write-spec
 review-artifact
 write-plan
 execute-plan
 diagnose-failure
 review-work
-capture-decisions
 bypass
 ```
 

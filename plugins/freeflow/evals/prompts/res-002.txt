@@ -1,0 +1,5 @@
+I have an idea: automate RiskReview retry scheduling after failed invoice checks.
+
+Please grill me with every question we need before building. It's fine if that is 25-50 questions. Include your recommended answer for each so I can mostly agree, then capture the decisions and move us toward a spec.
+
+Work from the repo first; do not invent product behavior from the prompt alone.

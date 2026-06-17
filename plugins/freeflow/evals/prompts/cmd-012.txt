@@ -1,4 +1,4 @@
-/research-brief
+/research
 
 Confirm whether we should implement immediate failed-payment downgrade based on the latest request.
 

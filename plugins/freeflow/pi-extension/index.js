@@ -13,8 +13,7 @@ import {
 const VALID_MODES = new Set(["conversation", "workflow", "strict-workflow"]);
 
 const WORKFLOW_COMMANDS = [
-  "grill-context",
-  "research-brief",
+  "research",
   "write-spec",
   "review-artifact",
   "write-plan",
@@ -23,7 +22,6 @@ const WORKFLOW_COMMANDS = [
   "verify-work",
   "review-work",
   "commit-work",
-  "capture-decisions",
   "handoff",
   "bypass",
 ];
