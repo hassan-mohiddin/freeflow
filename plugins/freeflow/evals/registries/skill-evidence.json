@@ -104,7 +104,8 @@
       "evals": [
         "RAR-001",
         "RAR-002",
-        "RAR-003"
+        "RAR-003",
+        "RAR-004"
       ]
     },
     "review-work": {
@@ -112,7 +113,8 @@
         "REV-001",
         "REV-002",
         "REV-003",
-        "REV-004"
+        "REV-004",
+        "REV-005"
       ]
     },
     "setup-freeflow": {

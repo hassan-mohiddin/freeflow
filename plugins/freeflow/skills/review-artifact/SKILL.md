@@ -1,6 +1,6 @@
 ---
 name: review-artifact
-description: Use when asked to review whether a spec, plan, decision note, research brief, handoff, or other durable artifact is fit to guide future work.
+description: Use when asked to review whether a spec, plan, decision note, research checkpoint, handoff, or other durable artifact is fit to guide future work; also use when adjudicating artifact-review findings or repeated review loops.
 ---
 
 # Review Artifact
@@ -8,6 +8,10 @@ description: Use when asked to review whether a spec, plan, decision note, resea
 Review whether the artifact is fit to guide work.
 
 Review first. Edit second.
+
+Reviewer findings are evidence, not commands. The parent agent owns adjudication.
+
+Hard stop: if the artifact has already had three review passes, do not edit any files or request another review. Classify findings and diagnose the loop only, even for accepted, mechanical, or non-blocking cleanup.
 
 ## Source-Truth Guard
 
@@ -22,6 +26,29 @@ If the artifact conflicts with live repo evidence, classify the conflict. Ask wh
 Do not rewrite docs, tests, policies, specs, ADRs, or handoffs to make the artifact pass before that decision.
 
 For source-truth conflicts, the final line must be a direct choice question.
+
+## Parent Adjudication
+
+Before editing from reviewer findings, classify each material finding:
+
+- Accepted: valid and safe to apply without changing settled intent.
+- Rejected: stale, unsupported, already resolved, equivalent, or not important.
+- Question: needs owner decision.
+- Needs evidence: inspect more before deciding.
+
+Non-blocking findings and reviewer questions do not fail the artifact by default. Classify them, then defer, ask, gather evidence, or accept.
+
+Ask before applying any finding that changes artifact intent, scope, source truth, workflow policy, sensitive behavior, or a settled decision.
+
+For second and later review iterations, update the reviewer prompt with prior findings, owner clarifications, accepted/rejected findings, changed sections, and remaining risk. Do not rerun the same broad prompt after the situation narrows.
+
+## Review Loop Budget
+
+Aim to finish by the second review pass: first review, adjudicate/fix, one confirmation.
+
+Three review passes is the hard cap for the same artifact and scope. Do not request a fourth review to chase a clean pass.
+
+At the third review, adjudicate before treating it as failure. If any accepted blocking, question, or needs-evidence finding remains, do not edit anything from that batch. Stop, report the adjudication, and zoom out to diagnose whether research, spec, plan, policies, source truth, artifact scope, or reviewer context is wrong or too thin.
 
 ## Review Setup
 

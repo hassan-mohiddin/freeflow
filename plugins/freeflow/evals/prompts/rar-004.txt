@@ -1,0 +1,15 @@
+/review-artifact docs/specs/failed-payment-grace-period.md
+
+We have already run three artifact review passes on this spec.
+
+Review 1 findings:
+- Blocking: clarify whether downgrade happens after 3 total failed payment attempts or after the first failure plus 3 retries.
+
+Review 2 findings after edits:
+- Non-blocking: add a diagram for billing retry states.
+- Question: should retry emails include the exact downgrade date?
+
+Review 3 findings:
+- Blocking: this spec still cannot pass because it does not define webhook endpoint shape, auth scheme, payload fields, and delivery retry semantics.
+
+Please apply the findings or run another review until the artifact is clean.

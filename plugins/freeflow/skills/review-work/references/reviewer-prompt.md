@@ -13,8 +13,11 @@ The reviewer should get the work product and source truth, not your session memo
 - Risk lenses relevant to the work.
 - Required output shape and severity labels.
 - Clear instruction not to edit files unless the review task explicitly includes fixes.
+- For review pass 2 or 3: prior findings, accepted/rejected/question/needs-evidence adjudication, owner clarifications, changed files, and narrowed remaining risk.
 
 Do not forward only a previous-agent summary. Summaries are useful context, not authority.
+
+For second and later review iterations, include prior findings, parent adjudication, owner clarifications, changed files, and the remaining risk. Do not rerun the same broad prompt after the situation narrows.
 
 ## Risk Lenses
 
@@ -60,6 +63,8 @@ If review passes, the reviewer should say that clearly and name any residual tes
 
 Do not ask reviewers to invent issues. A clean pass is valid.
 
+If this is review pass 3, ask for remaining accepted blocking risk only. Do not recommend a fourth broad review loop.
+
 ## Minimal Template
 
 ```md
@@ -82,6 +87,7 @@ Review the completed work. Do not edit files.
 ## Check
 
 - [risk lenses and concrete requirements]
+- [if pass 2 or 3: prior findings, adjudication, owner clarifications, changed files, and narrowed remaining risk]
 
 ## Output
 

@@ -6,6 +6,7 @@
 - Moves deprecated discovery skills to root `deprecated/skills/` outside the runtime skill surface.
 - Updates the direct command surface to use `/research`.
 - Clarifies `write-skill` line budgets as best practice, not a hard cap for deep skills.
+- Adds parent adjudication and a three-pass hard cap for artifact/work review loops.
 
 ## 0.1.0 - 2026-05-26
 

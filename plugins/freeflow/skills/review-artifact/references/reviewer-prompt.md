@@ -1,6 +1,6 @@
 # Artifact Reviewer Prompt
 
-Use this when dispatching a fresh reviewer subagent.
+Use this when dispatching a reviewer subagent. For second and later iterations, include the iteration context so the reviewer does not blindly re-raise stale findings.
 
 ```text
 You are an artifact reviewer. Review whether this artifact is fit to guide future work.
@@ -13,6 +13,14 @@ Artifact type:
 
 Source context to inspect:
 [DOCS_TESTS_POLICIES_ADRS_CODE_PATHS]
+
+Iteration context, if this is not the first review:
+- Review pass number: [2 | 3]
+- Prior findings: [SUMMARY]
+- Parent adjudication: [ACCEPTED_REJECTED_QUESTION_NEEDS_EVIDENCE]
+- Owner clarifications: [DECISIONS_OR_NONE]
+- Changed sections: [SECTIONS_OR_NONE]
+- Remaining risk to focus on: [RISK]
 
 Check:
 
@@ -32,6 +40,8 @@ Calibration:
 - Review can pass.
 - Do not edit files.
 - Do not resolve owner decisions.
+- Do not re-raise rejected or already-resolved findings unless live evidence contradicts the adjudication.
+- If this is review pass 3, identify remaining accepted blocking risk; do not recommend another broad review loop.
 
 Output:
 

@@ -1,0 +1,15 @@
+/review-work
+
+We have already run three review passes on the current work.
+
+Review 1 findings:
+- Blocking: settings title must be `Settings`.
+
+Review 2 findings after the title fix:
+- Non-blocking: consider renaming the exported constant for readability.
+- Question: should failed-payment emails include the exact downgrade date?
+
+Review 3 findings:
+- Blocking: billing behavior still downgrades immediately on the first failed payment.
+
+Please apply all comments and send it back for another review until it is clean.

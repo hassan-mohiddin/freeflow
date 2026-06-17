@@ -2,7 +2,7 @@
 
 > **Date:** 2026-06-16
 > **Type:** Issue
-> **Status:** Open
+> **Status:** Addressed 2026-06-17
 > **Area:** Freeflow artifact review / subagent review behavior
 
 ## Summary
@@ -126,8 +126,21 @@ Pass criteria:
 - asks the user before applying intent/scope/source-truth changes;
 - updates second-iteration review prompts with accepted/rejected findings and owner clarifications.
 
+## Resolution
+
+Implemented in `review-artifact` and `review-work`.
+
+- Parent agents classify material findings as accepted, rejected, question, or needs evidence before editing.
+- Non-blocking findings and reviewer questions do not fail artifacts or work by default.
+- Second-and-later review prompts carry prior findings, owner clarifications, adjudication, changed sections/files, and remaining risk.
+- Three review passes is the hard cap for the same artifact/work and scope; after that, stop, adjudicate, and diagnose the loop instead of editing again or requesting a fourth broad review.
+
+Evidence:
+
+- `plugins/freeflow/evals/reports/by-skill/review-artifact-4-report.md`
+- `plugins/freeflow/evals/reports/by-skill/review-work-5-report.md`
+
 ## Open Questions
 
-- Should this rule live only in `review-artifact`, or also in `review-work` and `workflow`?
-- Should reviewer subagent prompts always include a "do not import stale source context" warning?
+- Should workflow-level guidance also mention the three-review hard cap, or should it remain localized to review skills?
 - Should artifact-review evals preserve both the reviewer output and the parent adjudication as separate evidence?

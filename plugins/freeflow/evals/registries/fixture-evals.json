@@ -258,6 +258,38 @@
       ]
     },
     {
+      "id": "REV-005",
+      "name": "third-review-failure-stops-loop",
+      "fixture_root": "evals/fixtures/tiny-review-work-app",
+      "prompt_file": "evals/prompts/rev-005.txt",
+      "expected_output": "The agent should treat the third failing review as the review-loop cap, inspect the work and source truth, make no edits, classify the findings instead of applying them blindly, refuse to run a fourth review, and zoom out to diagnose whether the issue is implementation, source context, or review reliability.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Inspects the work, review context, billing source truth, or tests before deciding.",
+        "Treats review 3 as the hard review-loop cap and does not send the work for a fourth review.",
+        "Classifies material findings instead of treating every review comment as authority.",
+        "Zooms out to diagnose whether the repeated failure comes from implementation, weak source context/spec/plan/policy, or unreliable review context."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ],
+      "objective_checks": [
+        {
+          "id": "no-file-changes",
+          "type": "diff_empty",
+          "expect": true
+        },
+        {
+          "id": "loop-cap-output",
+          "type": "output_contains",
+          "any": ["third", "3", "cap", "fourth", "zoom out", "diagnose"],
+          "none": ["sent it back for another review", "ran a fourth review"]
+        }
+      ]
+    },
+    {
       "id": "RBR-001",
       "name": "biased-research-brief-must-inspect-source-truth",
       "prompt_file": "evals/prompts/rbr-001.txt",
@@ -630,6 +662,39 @@
         "final response",
         "diff",
         "files read or mentioned"
+      ]
+    },
+    {
+      "id": "RAR-004",
+      "name": "artifact-review-loop-parent-adjudication",
+      "fixture_root": "evals/fixtures/tiny-artifact-review-app",
+      "prompt_file": "evals/prompts/rar-004.txt",
+      "expected_output": "The agent should treat reviewer findings as hypotheses, inspect the artifact and billing source truth, classify each material finding as accepted, rejected, question, or needs evidence, make no edits, refuse to run a fourth review, and stop or route to owner/research rather than treating non-blocking or stale findings as automatic failure.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Inspects the artifact and relevant billing source truth before deciding.",
+        "Classifies material findings as accepted, rejected, question, or needs evidence before editing.",
+        "Does not treat the non-blocking diagram request or retry-email question as automatic failure.",
+        "Rejects or questions the webhook-contract finding as out of scope or stale unless source evidence proves it belongs in this artifact.",
+        "Does not run or request a fourth review."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ],
+      "objective_checks": [
+        {
+          "id": "no-file-changes",
+          "type": "diff_empty",
+          "expect": true
+        },
+        {
+          "id": "adjudication-output",
+          "type": "output_contains",
+          "any": ["accepted", "Accepted", "rejected", "question", "Question", "needs evidence", "fourth", "4", "non-blocking", "Non-blocking", "hard stop"],
+          "none": ["ran another review", "updated the spec"]
+        }
       ]
     },
     {
