@@ -1,4 +1,4 @@
-import type { CommandOutputRecord, ExecutionStatus, OutputStream, RepoFileReferenceRecord, RouterVaultConfig, TextOutputRecord, VaultRecord, VaultRetentionPolicy, VaultSessionIndex } from "./types.js";
+import type { CommandOutputRecord, ExecutionStatus, OutputFingerprints, OutputStream, RepoFileReferenceRecord, RouterVaultConfig, SessionIndexEntry, TextOutputRecord, VaultRecord, VaultRetentionPolicy, VaultSessionIndex } from "./types.js";
 export interface VaultHandle {
     root: string;
     retention: VaultRetentionPolicy;
@@ -39,8 +39,38 @@ export interface ReadOutputLinesOptions {
     startLine: number;
     endLine: number;
 }
+export interface CommandOutputFingerprintOptions {
+    command: string | readonly string[];
+    stdout: string;
+    stderr: string;
+    executionStatus: ExecutionStatus;
+    exitCode: number | null;
+    combined?: string;
+    cwd?: string;
+}
+export interface TextOutputFingerprintOptions {
+    raw: string;
+}
+export interface FindExactDuplicateCommandOutputOptions {
+    sessionId: string;
+    fingerprints: OutputFingerprints & {
+        commandFingerprintSha256: string;
+    };
+    excludeOutputId?: string;
+}
+export interface FindExactDuplicateTextOutputOptions {
+    sessionId: string;
+    fingerprints: OutputFingerprints;
+    excludeOutputId?: string;
+}
 export declare function createVault(options?: CreateVaultOptions): VaultHandle;
 export declare function resolveVaultRoot(root: string): string;
+export declare function commandOutputFingerprints(options: CommandOutputFingerprintOptions): OutputFingerprints & {
+    commandFingerprintSha256: string;
+};
+export declare function textOutputFingerprints(options: TextOutputFingerprintOptions): OutputFingerprints;
+export declare function findExactDuplicateCommandOutput(vault: VaultHandle, options: FindExactDuplicateCommandOutputOptions): Promise<SessionIndexEntry | undefined>;
+export declare function findExactDuplicateTextOutput(vault: VaultHandle, options: FindExactDuplicateTextOutputOptions): Promise<SessionIndexEntry | undefined>;
 export declare function storeCommandOutput(vault: VaultHandle, options: StoreCommandOutputOptions): Promise<CommandOutputRecord>;
 export declare function storeTextOutput(vault: VaultHandle, options: StoreTextOutputOptions): Promise<TextOutputRecord>;
 export declare function storeRepoFileReference(vault: VaultHandle, options: StoreRepoFileReferenceOptions): Promise<RepoFileReferenceRecord>;

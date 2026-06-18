@@ -185,6 +185,7 @@ test("Pi freeflow_run renders compact and expanded status, evidence, and vault U
           reason: "Command failed; exact failure evidence was returned and raw output was vaulted before routing.",
         },
         summary: "Command failed with exitCode=1.",
+        parser: { name: "test-runner", confidence: 0.92, fidelity: "exact", compressed: true, counts: { testsFailed: 1 } },
         importantLines: [
           {
             stream: "stderr",
@@ -204,6 +205,7 @@ test("Pi freeflow_run renders compact and expanded status, evidence, and vault U
   assert.match(collapsed, /execution: failed/);
   assert.match(collapsed, /routing: routed/);
   assert.match(collapsed, /ffout_test123/);
+  assert.match(collapsed, /parser test-runner 0\.92/);
   assert.match(collapsed, /raw output recoverable from vault/);
   assert.match(collapsed, /ctrl\+o to expand/);
   assert.doesNotMatch(collapsed, /raw json/);
@@ -213,6 +215,9 @@ test("Pi freeflow_run renders compact and expanded status, evidence, and vault U
   );
   assert.match(expanded, /Status/);
   assert.match(expanded, /execution.status: failed/);
+  assert.match(expanded, /Parser/);
+  assert.match(expanded, /confidence: 0\.92/);
+  assert.match(expanded, /counts:.*testsFailed/);
   assert.match(expanded, /Evidence/);
   assert.match(expanded, /AssertionError/);
   assert.match(expanded, /Vault recovery/);
@@ -374,6 +379,63 @@ test("Pi post-tool safety net vaults and labels large native bash output when en
     );
     const payload = JSON.parse(retrieved.content[0].text);
     assert.equal(payload.evidence[0].excerpt, "line 18\nline 19\nline 20");
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi post-tool safety net notes exact duplicate native output", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-safety-net-duplicate-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({
+        defaultMode: "workflow",
+        outputRouter: {
+          postToolRouting: "safety-net",
+          largeOutputLines: 3,
+          largeOutputBytes: 100_000,
+          vaultRoot: join(cwd, "vault"),
+        },
+      }),
+      "utf8",
+    );
+
+    const { handlers } = loadExtension();
+    const toolResult = handlers.get("tool_result");
+    const raw = Array.from({ length: 20 }, (_, index) => `line ${index + 1}`).join("\n");
+    const first = await toolResult(
+      {
+        type: "tool_result",
+        toolName: "bash",
+        toolCallId: "bash-duplicate-1",
+        input: { command: "npm test" },
+        content: [{ type: "text", text: raw }],
+        details: undefined,
+        isError: false,
+      },
+      context(cwd),
+    );
+    const firstOutputId = first.content[0].text.match(/outputId=(ffout_[a-f0-9]+)/)?.[1];
+    assert.ok(firstOutputId);
+
+    const second = await toolResult(
+      {
+        type: "tool_result",
+        toolName: "bash",
+        toolCallId: "bash-duplicate-2",
+        input: { command: "npm test" },
+        content: [{ type: "text", text: raw }],
+        details: undefined,
+        isError: false,
+      },
+      context(cwd),
+    );
+
+    assert.match(second.content[0].text, new RegExp(`Duplicate: exact native output matches previous outputId=${firstOutputId}`));
+    assert.equal(second.details.freeflowOutputRouter.duplicateOfOutputId, firstOutputId);
+    assert.match(second.content[0].text, /current raw output was vaulted as outputId=ffout_/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

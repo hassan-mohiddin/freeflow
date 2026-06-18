@@ -1,4 +1,7 @@
 export * from "./benchmarks.js";
+export * from "./command-benchmarks.js";
+export * from "./experimental-local-index.js";
+export * from "./index-benchmarks.js";
 export * from "./config.js";
 export * from "./retrieve.js";
 export * from "./run.js";

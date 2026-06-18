@@ -1,0 +1,119 @@
+import assert from "node:assert/strict";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+
+import {
+  buildOrLoadExperimentalRepoIndex,
+  defaultExperimentalIndexCacheRoot,
+  queryExperimentalRepoIndex,
+} from "../dist/experimental-local-index.js";
+import {
+  renderIndexBenchmarkReport,
+  runIndexBenchmarks,
+  writeIndexBenchmarkReports,
+} from "../dist/index-benchmarks.js";
+
+async function withTempRepo(fn) {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-index-fixture-"));
+  const cacheRoot = await mkdtemp(join(tmpdir(), "freeflow-router-index-cache-"));
+  try {
+    await fn(root, cacheRoot);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(cacheRoot, { recursive: true, force: true });
+  }
+}
+
+test("experimental local index stays outside repo, skips generated decoys, and refreshes stale files", async () => {
+  await withTempRepo(async (root, cacheRoot) => {
+    await writeFile(
+      join(root, "target.md"),
+      ["# Target", "", "ExactIndexNeedle original source truth."].join("\n"),
+      "utf8",
+    );
+    await mkdir(join(root, "graphify-out"), { recursive: true });
+    await writeFile(join(root, "graphify-out", "graph.html"), "ExactIndexNeedle ".repeat(5000), "utf8");
+    await writeFile(join(root, "package-lock.json"), "ExactIndexNeedle lockfile should stay searchable", "utf8");
+
+    const cold = await buildOrLoadExperimentalRepoIndex({ root, cacheRoot });
+    assert.equal(cold.mode, "cold-built");
+    assert.ok(!cold.cachePath.startsWith(root), "cache path should be outside repo root");
+    assert.ok(defaultExperimentalIndexCacheRoot().includes("freeflow-router"));
+
+    const exact = queryExperimentalRepoIndex(cold.index, "ExactIndexNeedle original source truth", { topK: 1 });
+    assert.equal(exact[0]?.path, "target.md");
+    assert.equal(exact[0]?.lines, "1-3");
+    assert.match(exact[0]?.excerpt ?? "", /ExactIndexNeedle original/);
+
+    const lockfile = queryExperimentalRepoIndex(cold.index, "ExactIndexNeedle lockfile searchable", { topK: 1 });
+    assert.equal(lockfile[0]?.path, "package-lock.json");
+
+    await writeFile(
+      join(root, "target.md"),
+      ["# Target", "", "ExactIndexNeedle refreshed source truth."].join("\n"),
+      "utf8",
+    );
+    const refreshed = await buildOrLoadExperimentalRepoIndex({ root, cacheRoot });
+    assert.equal(refreshed.mode, "stale-refreshed");
+    assert.notEqual(refreshed.index.files["target.md"].hashSha256, cold.index.files["target.md"].hashSha256);
+    const updated = queryExperimentalRepoIndex(refreshed.index, "ExactIndexNeedle refreshed source truth", { topK: 1 });
+    assert.equal(updated[0]?.path, "target.md");
+    assert.match(updated[0]?.excerpt ?? "", /refreshed source truth/);
+
+    const warm = await buildOrLoadExperimentalRepoIndex({ root, cacheRoot });
+    assert.equal(warm.mode, "warm-loaded");
+  });
+});
+
+test("index benchmark reports cold, warm, stale, and scanner comparison without adopting index", async () => {
+  const report = await runIndexBenchmarks({ iterations: 1, generatedAt: "2026-06-16T00:00:00.000Z" });
+
+  assert.equal(report.summary.scannerDefault, true);
+  assert.equal(report.summary.indexAdopted, false);
+  assert.equal(report.summary.index.failed, 0);
+  assert.equal(report.summary.index.passed, report.fixtures.length);
+  assert.equal(report.summary.generatedFalsePositiveCount, 0);
+  assert.ok(report.summary.coldBuildMs.p50 >= 0);
+  assert.ok(report.summary.warmQueryMs.p50 >= 0);
+  assert.ok(report.summary.staleRefreshMs.p50 >= 0);
+
+  const sandbox = report.fixtures.find((fixture) => fixture.id === "index-generated-artifact-decoy");
+  assert.ok(sandbox);
+  const indexResult = sandbox.results.find((result) => result.mode === "index-warm");
+  assert.equal(indexResult.correctness.passed, true);
+  assert.equal(indexResult.actualPath, "docs/codex-cli-agent-harness/2026-06-12-pass-3-sandboxing-and-permissions.md");
+  assert.equal(indexResult.correctness.generatedFalsePositive, false);
+
+  const stale = report.fixtures.find((fixture) => fixture.id === "index-stale-refresh");
+  assert.ok(stale);
+  const staleResult = stale.results.find((result) => result.mode === "index-stale-refresh");
+  assert.equal(staleResult.correctness.passed, true);
+  assert.equal(staleResult.indexMode, "stale-refreshed");
+
+  const rendered = renderIndexBenchmarkReport(report);
+  assert.match(rendered, /Output Router Index Benchmark Report/);
+  assert.match(rendered, /Scanner remains default: yes/);
+  assert.match(rendered, /Index adopted by default: no/);
+});
+
+test("index benchmark writer emits markdown and machine-readable JSON", async () => {
+  const report = await runIndexBenchmarks({ iterations: 1, generatedAt: "2026-06-16T00:00:00.000Z" });
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-index-benchmark-report-"));
+  try {
+    const reports = await writeIndexBenchmarkReports(report, join(root, "report.md"), {
+      jsonReportPath: join(root, "runs/output-router/report.json"),
+    });
+    const markdown = await readFile(reports.markdown, "utf8");
+    assert.ok(reports.json);
+    const json = JSON.parse(await readFile(reports.json, "utf8"));
+
+    assert.match(markdown, /Optional Local Index Experiment/);
+    assert.match(markdown, /machine-readable JSON/);
+    assert.equal(json.summary.index.passed, report.fixtures.length);
+    assert.equal(json.fixtures.length, report.fixtures.length);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
@@ -455,6 +455,300 @@ test("retrieving repo files honors exact line ranges", async () => {
         "It says freeflow_retrieve is for targeted evidence and freeflow_run is for noisy commands.",
       ].join("\n"),
     );
+  });
+});
+
+test("repo retrieval rejects paths outside the repo root", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-safe-root-"));
+  const outside = await mkdtemp(join(tmpdir(), "freeflow-router-outside-"));
+  try {
+    await writeFile(join(root, "inside.md"), "inside", "utf8");
+    await writeFile(join(outside, "secret.md"), "SECRET_OUTSIDE_REPO", "utf8");
+
+    const relativeEscape = await freeflowRetrieve({
+      action: "retrieve",
+      source: { kind: "repo", root, path: "../secret.md" },
+      preserve: "important",
+    });
+    assert.equal(relativeEscape.toolStatus, "error");
+    assert.doesNotMatch(JSON.stringify(relativeEscape), /SECRET_OUTSIDE_REPO/);
+
+    const absoluteEscape = await freeflowRetrieve({
+      action: "retrieve",
+      source: { kind: "repo", root, path: join(outside, "secret.md") },
+      preserve: "important",
+    });
+    assert.equal(absoluteEscape.toolStatus, "error");
+    assert.doesNotMatch(JSON.stringify(absoluteEscape), /SECRET_OUTSIDE_REPO/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test("repo retrieval rejects symlink escapes outside the repo root", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-safe-symlink-root-"));
+  const outside = await mkdtemp(join(tmpdir(), "freeflow-router-safe-symlink-outside-"));
+  try {
+    await writeFile(join(outside, "secret.md"), "SECRET_SYMLINK_OUTSIDE_REPO", "utf8");
+    await symlink(join(outside, "secret.md"), join(root, "secret-link.md"));
+
+    const result = await freeflowRetrieve({
+      action: "retrieve",
+      source: { kind: "repo", root, path: "secret-link.md" },
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "error");
+    assert.doesNotMatch(JSON.stringify(result), /SECRET_SYMLINK_OUTSIDE_REPO/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test("repo traversal skips symlink directory cycles", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-symlink-cycle-"));
+  try {
+    await writeFile(join(root, "inside.md"), "cycle safe output router evidence", "utf8");
+    await symlink(root, join(root, "loop"));
+
+    const result = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "cycle safe output router evidence",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.evidence?.length, 1);
+    assert.equal(result.evidence[0].path, "inside.md");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("repo and vault read failures return structured errors", async () => {
+  await withFixtureRepo(async (root) => {
+    const repoMissing = await freeflowRetrieve({
+      action: "retrieve",
+      source: { kind: "repo", root, path: "missing.md" },
+      preserve: "important",
+    });
+
+    assert.equal(repoMissing.toolStatus, "error");
+    assert.equal(repoMissing.routing.status, "failed");
+  });
+
+  await withTempVault(async (vault) => {
+    const vaultMissing = await freeflowRetrieve({
+      action: "retrieve",
+      source: {
+        kind: "vault",
+        root: vault.root,
+        sessionId: "missing-session",
+        outputId: "ffout_missing",
+        stream: "stdout",
+      },
+      lineRange: { start: 1, end: 1 },
+      preserve: "important",
+    });
+
+    assert.equal(vaultMissing.toolStatus, "error");
+    assert.equal(vaultMissing.routing.status, "failed");
+  });
+});
+
+test("repo query and locate support bounded top-k candidates", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-top-k-"));
+  try {
+    await writeFile(join(root, "first.md"), "# First\nshared output router target alpha", "utf8");
+    await writeFile(join(root, "second.md"), "# Second\nshared output router target beta", "utf8");
+
+    const query = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "shared output router target",
+      topK: 2,
+      preserve: "important",
+    });
+
+    assert.equal(query.toolStatus, "ok");
+    assert.equal(query.evidence?.length, 2);
+    assert.deepEqual(new Set(query.evidence.map((packet) => packet.path)), new Set(["first.md", "second.md"]));
+
+    const locate = await freeflowRetrieve({
+      action: "locate",
+      source: { kind: "repo", root },
+      query: "shared output router target",
+      preserve: "important",
+    });
+
+    assert.equal(locate.toolStatus, "ok");
+    assert.ok((locate.evidence?.length ?? 0) >= 2);
+    assert.ok((locate.evidence?.length ?? 0) <= 5);
+    assert.ok(locate.evidence.every((packet) => packet.excerpt.length <= 8_192));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("repo scanner skips generated directories during broad retrieval", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-generated-dir-"));
+  try {
+    await mkdir(join(root, "sdk/python/src/openai_codex/generated"), { recursive: true });
+    await mkdir(join(root, "codex-rs/protocol/src"), { recursive: true });
+    await writeFile(
+      join(root, "codex-rs/protocol/src/models.rs"),
+      "pub enum SandboxPermissions { UseDefault, RequireEscalated, WithAdditionalPermissions }",
+      "utf8",
+    );
+    await writeFile(
+      join(root, "sdk/python/src/openai_codex/generated/v2_all.py"),
+      `${"SandboxPermissions RequireEscalated WithAdditionalPermissions UseDefault generated client ".repeat(100)}`,
+      "utf8",
+    );
+
+    const result = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "SandboxPermissions WithAdditionalPermissions RequireEscalated UseDefault",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.evidence?.[0].path, "codex-rs/protocol/src/models.rs");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("repo scanner prefers code symbol definitions over repeated usage decoys", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-symbol-definition-"));
+  try {
+    await mkdir(join(root, "codex-rs/protocol/src"), { recursive: true });
+    await mkdir(join(root, "codex-rs/core/src/tools/runtimes/shell"), { recursive: true });
+    await writeFile(
+      join(root, "codex-rs/protocol/src/models.rs"),
+      [
+        "/// Controls the per-command sandbox override requested by a shell-like tool call.",
+        "pub enum SandboxPermissions {",
+        "    /// Run with the turn's configured sandbox policy unchanged.",
+        "    UseDefault,",
+        "    /// Request to run outside the sandbox.",
+        "    RequireEscalated,",
+        "    /// Request to stay in the sandbox while widening permissions for this command only.",
+        "    WithAdditionalPermissions,",
+        "}",
+      ].join("\n"),
+      "utf8",
+    );
+    await writeFile(
+      join(root, "codex-rs/core/src/tools/runtimes/shell/unix_escalation.rs"),
+      `${"SandboxPermissions RequireEscalated WithAdditionalPermissions UseDefault unrelated runtime usage ".repeat(40)}`,
+      "utf8",
+    );
+
+    const result = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "SandboxPermissions WithAdditionalPermissions RequireEscalated UseDefault",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.evidence?.[0].path, "codex-rs/protocol/src/models.rs");
+    assert.match(result.evidence?.[0].excerpt ?? "", /pub enum SandboxPermissions/);
+    assert.match(result.evidence?.[0].excerpt ?? "", /WithAdditionalPermissions/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("repo scanner uses path and source priors to avoid test decoys", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-source-prior-"));
+  try {
+    await mkdir(join(root, "codex-rs/core/src/config"), { recursive: true });
+    await writeFile(
+      join(root, "codex-rs/core/src/config/network_proxy_spec.rs"),
+      [
+        "pub struct NetworkProxySpec {",
+        "    pub host: String,",
+        "}",
+        "impl NetworkProxySpec {",
+        "    pub fn parse() {}",
+        "}",
+      ].join("\n"),
+      "utf8",
+    );
+    await writeFile(
+      join(root, "codex-rs/core/src/config/network_proxy_spec_tests.rs"),
+      `${"NetworkProxySpec config network proxy spec test expectation ".repeat(60)}`,
+      "utf8",
+    );
+
+    const result = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "NetworkProxySpec config network proxy spec",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.evidence?.[0].path, "codex-rs/core/src/config/network_proxy_spec.rs");
+    assert.match(result.evidence?.[0].excerpt ?? "", /NetworkProxySpec/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("repo scanner boosts explicit path intent for thin entrypoint modules", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-path-intent-"));
+  try {
+    await mkdir(join(root, "codex-rs/prompts/src"), { recursive: true });
+    await mkdir(join(root, "codex-rs/core/src"), { recursive: true });
+    await writeFile(
+      join(root, "codex-rs/prompts/src/lib.rs"),
+      [
+        "mod apply_patch;",
+        "",
+        "pub use apply_patch::APPLY_PATCH_TOOL_INSTRUCTIONS;",
+      ].join("\n"),
+      "utf8",
+    );
+    await writeFile(
+      join(root, "codex-rs/core/src/apply_patch.rs"),
+      `${"apply_patch prompt codex patch implementation details ".repeat(80)}`,
+      "utf8",
+    );
+
+    const result = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "apply_patch prompt codex prompts lib",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.evidence?.[0].path, "codex-rs/prompts/src/lib.rs");
+    assert.match(result.evidence?.[0].excerpt ?? "", /APPLY_PATCH_TOOL_INSTRUCTIONS/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("invalid repo topK returns a structured error", async () => {
+  await withFixtureRepo(async (root) => {
+    const result = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "output router skill",
+      topK: 11,
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "error");
+    assert.match(result.routing.reason, /topK/);
   });
 });
 

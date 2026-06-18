@@ -61,6 +61,22 @@ export interface ImportantLine {
     lines: string;
     excerpt: string;
 }
+export interface CommandParserReference {
+    path: string;
+    line?: number;
+    column?: number;
+    code?: string;
+    severity?: "error" | "warning" | "info";
+    message: string;
+}
+export interface CommandParserMetadata {
+    name: string;
+    confidence: number;
+    fidelity: "exact" | "lossy";
+    compressed: boolean;
+    counts?: Record<string, number>;
+    references?: CommandParserReference[];
+}
 export interface RoutedResultBase {
     toolStatus: ToolStatus;
     decisionId: string;
@@ -77,6 +93,7 @@ export interface CommandRoutedResult extends RoutedResultBase {
     execution: CommandExecution;
     summary?: string;
     importantLines?: ImportantLine[];
+    parser?: CommandParserMetadata;
 }
 export type RoutedResult = RetrievalRoutedResult | CommandRoutedResult;
 export interface LineByteCounts {
@@ -89,6 +106,11 @@ export interface CommandOutputPaths {
     stderr: string;
     combined: string;
 }
+export interface OutputFingerprints {
+    exactSha256: string;
+    normalizedSha256: string;
+    commandFingerprintSha256?: string;
+}
 export interface VaultRecordBase {
     outputId: string;
     objectId: string;
@@ -98,6 +120,7 @@ export interface VaultRecordBase {
     };
     decisionIds: string[];
     contentHashSha256: string;
+    fingerprints?: OutputFingerprints;
     retention?: VaultRetentionPolicy;
     expiresAt?: string;
 }
@@ -122,6 +145,9 @@ export interface CommandOutputRecord extends VaultRecordBase {
         stderrSha256?: string;
         combinedSha256?: string;
     };
+    fingerprints: OutputFingerprints & {
+        commandFingerprintSha256: string;
+    };
     cwd?: string;
     durationMs?: number;
 }
@@ -141,6 +167,7 @@ export interface TextOutputRecord extends VaultRecordBase {
     hashes: {
         rawSha256?: string;
     };
+    fingerprints: OutputFingerprints;
 }
 export interface RepoFileReferenceRecord extends VaultRecordBase {
     kind: "repo-file";
@@ -157,6 +184,7 @@ export interface SessionIndexEntry {
     kind: VaultRecord["kind"];
     createdAt: string;
     executionStatus?: ExecutionStatus;
+    fingerprints?: OutputFingerprints;
 }
 export interface VaultSessionIndex {
     version: 1;

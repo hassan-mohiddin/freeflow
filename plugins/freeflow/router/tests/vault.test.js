@@ -74,6 +74,29 @@ test("writes and reads command output records with exact streams", async () => {
   });
 });
 
+test("command records and session index include reuse fingerprints", async () => {
+  await withTempVault(async (vault) => {
+    const record = await storeCommandOutput(vault, {
+      sessionId: "fingerprint-session",
+      command: "npm test",
+      cwd: "/repo",
+      stdout: "PASS one\n",
+      stderr: "",
+      combined: "PASS one\n",
+      executionStatus: "success",
+      exitCode: 0,
+      createdAt: "2026-06-16T00:00:00.000Z",
+    });
+
+    assert.match(record.fingerprints.exactSha256, /^[a-f0-9]{64}$/);
+    assert.match(record.fingerprints.normalizedSha256, /^[a-f0-9]{64}$/);
+    assert.match(record.fingerprints.commandFingerprintSha256, /^[a-f0-9]{64}$/);
+
+    const index = await readSessionIndex(vault, "fingerprint-session");
+    assert.deepEqual(index.records[record.outputId].fingerprints, record.fingerprints);
+  });
+});
+
 test("session index groups command records by execution status", async () => {
   await withTempVault(async (vault) => {
     const success = await storeCommandOutput(vault, {

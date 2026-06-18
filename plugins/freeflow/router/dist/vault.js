@@ -18,10 +18,76 @@ export function resolveVaultRoot(root) {
     }
     return resolve(root);
 }
+export function commandOutputFingerprints(options) {
+    const combined = options.combined ?? combineOutputSections(options.stdout, options.stderr);
+    return {
+        exactSha256: sha256Json({ stdout: options.stdout, stderr: options.stderr, combined }),
+        normalizedSha256: sha256Json({
+            stdout: normalizeOutputText(options.stdout),
+            stderr: normalizeOutputText(options.stderr),
+            combined: normalizeOutputText(combined),
+        }),
+        commandFingerprintSha256: sha256Json({
+            command: options.command,
+            cwd: options.cwd ?? null,
+            executionStatus: options.executionStatus,
+            exitCode: options.exitCode,
+        }),
+    };
+}
+export function textOutputFingerprints(options) {
+    return {
+        exactSha256: sha256Text(options.raw),
+        normalizedSha256: sha256Text(normalizeOutputText(options.raw)),
+    };
+}
+export async function findExactDuplicateCommandOutput(vault, options) {
+    const index = await readSessionIndex(vault, options.sessionId);
+    for (const outputId of index.outputs) {
+        if (outputId === options.excludeOutputId) {
+            continue;
+        }
+        const entry = index.records[outputId];
+        if (!entry || entry.kind !== "command") {
+            continue;
+        }
+        const fingerprints = entry.fingerprints;
+        if (fingerprints?.exactSha256 === options.fingerprints.exactSha256 &&
+            fingerprints.commandFingerprintSha256 === options.fingerprints.commandFingerprintSha256) {
+            return entry;
+        }
+    }
+    return undefined;
+}
+export async function findExactDuplicateTextOutput(vault, options) {
+    const index = await readSessionIndex(vault, options.sessionId);
+    for (const outputId of index.outputs) {
+        if (outputId === options.excludeOutputId) {
+            continue;
+        }
+        const entry = index.records[outputId];
+        if (!entry || entry.kind !== "text") {
+            continue;
+        }
+        if (entry.fingerprints?.exactSha256 === options.fingerprints.exactSha256) {
+            return entry;
+        }
+    }
+    return undefined;
+}
 export async function storeCommandOutput(vault, options) {
     const createdAt = options.createdAt ?? new Date().toISOString();
     const combined = options.combined ?? combineOutputSections(options.stdout, options.stderr);
     const decisionIds = options.decisionIds ?? [];
+    const fingerprints = commandOutputFingerprints({
+        command: options.command,
+        stdout: options.stdout,
+        stderr: options.stderr,
+        combined,
+        executionStatus: options.executionStatus,
+        exitCode: options.exitCode,
+        ...(options.cwd !== undefined ? { cwd: options.cwd } : {}),
+    });
     const payloadHash = sha256Json({
         kind: "command",
         createdAt,
@@ -68,6 +134,7 @@ export async function storeCommandOutput(vault, options) {
             stderrSha256: sha256Text(options.stderr),
             combinedSha256: sha256Text(combined),
         },
+        fingerprints,
         decisionIds,
         contentHashSha256: payloadHash,
         retention: vault.retention,
@@ -93,6 +160,7 @@ export async function storeCommandOutput(vault, options) {
 export async function storeTextOutput(vault, options) {
     const createdAt = options.createdAt ?? new Date().toISOString();
     const decisionIds = options.decisionIds ?? [];
+    const fingerprints = textOutputFingerprints({ raw: options.raw });
     const payloadHash = sha256Json({
         kind: "text",
         createdAt,
@@ -117,6 +185,7 @@ export async function storeTextOutput(vault, options) {
         lineCounts: { raw: countLines(options.raw) },
         byteCounts: { raw: byteLength(options.raw) },
         hashes: { rawSha256: sha256Text(options.raw) },
+        fingerprints,
         decisionIds,
         contentHashSha256: payloadHash,
         retention: vault.retention,
@@ -219,6 +288,9 @@ async function addRecordToSessionIndex(vault, sessionId, record) {
     if (record.kind === "command") {
         entry.executionStatus = record.executionStatus;
     }
+    if (record.fingerprints !== undefined) {
+        entry.fingerprints = record.fingerprints;
+    }
     index.updatedAt = updatedAt;
     index.records[record.outputId] = entry;
     addUnique(index.outputs, record.outputId);
@@ -305,6 +377,9 @@ function byteLength(text) {
 }
 function sha256Text(text) {
     return createHash("sha256").update(text).digest("hex");
+}
+function normalizeOutputText(text) {
+    return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trimEnd();
 }
 function sha256Json(value) {
     return sha256Text(JSON.stringify(value));

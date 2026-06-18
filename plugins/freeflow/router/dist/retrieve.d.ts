@@ -26,6 +26,7 @@ export interface FreeflowRetrieveOptions {
     expansion?: RepoExpansion;
     maxFullBytes?: number;
     lineRange?: RetrieveLineRangeInput;
+    topK?: number;
     decision?: RetrievalRoutedResult;
 }
 export declare function freeflowRetrieve(options: FreeflowRetrieveOptions): Promise<RetrievalRoutedResult>;

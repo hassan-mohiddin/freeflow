@@ -36,9 +36,87 @@ test("routed command result keeps tool, execution, and routing status separate",
     recovery: {
       how: "Use freeflow_retrieve with source.kind=vault and outputId=ffout_123.",
     },
+    parser: {
+      name: "test-runner",
+      confidence: 0.92,
+      fidelity: "exact",
+      compressed: true,
+      counts: { testsFailed: 1 },
+      references: [{ path: "tests/example.test.ts", line: 12, column: 5, severity: "error", message: "failed" }],
+    },
   };
 
   assert.deepEqual(validateRoutedResult(result), { ok: true, value: result });
+});
+
+test("routed command important lines validate stream range and excerpt", () => {
+  const valid = {
+    toolStatus: "ok",
+    decisionId: "ffdec_123",
+    outputId: "ffout_123",
+    preserve: "important",
+    execution: { status: "success", exitCode: 0 },
+    routing: { status: "routed", route: "run", reason: "example" },
+    importantLines: [{ stream: "stdout", lines: "1-2", excerpt: "done\n" }],
+  };
+
+  assert.deepEqual(validateRoutedResult(valid), { ok: true, value: valid });
+
+  const invalid = validateRoutedResult({
+    ...valid,
+    importantLines: [{ stream: "raw", lines: "3-1", excerpt: 42 }],
+  });
+
+  assert.equal(invalid.ok, false);
+  const paths = invalid.issues.map((issue) => issue.path).join("\n");
+  assert.match(paths, /\$\.importantLines\[0\]\.stream/);
+  assert.match(paths, /\$\.importantLines\[0\]\.lines/);
+  assert.match(paths, /\$\.importantLines\[0\]\.excerpt/);
+});
+
+test("routed command parser metadata validates confidence and fidelity", () => {
+  const result = validateRoutedResult({
+    toolStatus: "ok",
+    decisionId: "ffdec_123",
+    outputId: "ffout_123",
+    preserve: "important",
+    execution: { status: "failed", exitCode: 1 },
+    routing: { status: "routed", route: "run", reason: "example" },
+    parser: { name: "test-runner", confidence: 1.5, fidelity: "maybe", compressed: "yes" },
+  });
+
+  assert.equal(result.ok, false);
+  const paths = result.issues.map((issue) => issue.path).join("\n");
+  assert.match(paths, /\$\.parser\.confidence/);
+  assert.match(paths, /\$\.parser\.fidelity/);
+  assert.match(paths, /\$\.parser\.compressed/);
+});
+
+test("routed command parser reference entries validate required fields", () => {
+  const result = validateRoutedResult({
+    toolStatus: "ok",
+    decisionId: "ffdec_123",
+    outputId: "ffout_123",
+    preserve: "important",
+    execution: { status: "failed", exitCode: 1 },
+    routing: { status: "routed", route: "run", reason: "example" },
+    parser: {
+      name: "typescript-lint",
+      confidence: 0.88,
+      fidelity: "exact",
+      compressed: true,
+      references: [null, { path: "", line: 0, column: "bad", severity: "urgent" }],
+    },
+  });
+
+  assert.equal(result.ok, false);
+  const paths = result.issues.map((issue) => issue.path).join("\n");
+  assert.match(paths, /\$\.parser\.references\[0\]/);
+  assert.match(paths, /\$\.parser\.references\[1\]\.path/);
+  assert.match(paths, /\$\.parser\.references\[1\]\.message/);
+  assert.match(paths, /\$\.parser\.references\[1\]\.line/);
+  assert.match(paths, /\$\.parser\.references\[1\]\.column/);
+  assert.match(paths, /\$\.parser\.references\[1\]\.severity/);
 });
 
 test("routed result rejects ambiguous top-level status", () => {

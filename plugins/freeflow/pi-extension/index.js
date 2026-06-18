@@ -4,10 +4,12 @@ import { join } from "node:path";
 
 import {
   createVault,
+  findExactDuplicateTextOutput,
   freeflowRetrieve,
   freeflowRun,
   normalizeRouterConfig,
   storeTextOutput,
+  textOutputFingerprints,
 } from "../router/dist/index.js";
 
 const VALID_MODES = new Set(["conversation", "workflow", "strict-workflow"]);
@@ -270,6 +272,7 @@ const FREEFLOW_RETRIEVE_PARAMETERS = {
     },
     expansion: { ...EXPANSION_SCHEMA, description: "Expansion breadth for expand action." },
     maxFullBytes: { type: "number", description: "Cap for preserve=full before exact chunks are returned." },
+    topK: { type: "number", description: "Number of ranked repo candidates for query/locate. Defaults: query=1, locate=5; max 10." },
     lineRange: {
       type: "object",
       additionalProperties: false,
@@ -590,6 +593,9 @@ function renderFreeflowRunResult(result, { expanded } = {}, theme, context = {})
   if (outputId) {
     statusParts.push(`outputId ${outputId}`);
   }
+  if (routed.parser?.name) {
+    statusParts.push(`parser ${routed.parser.name} ${Number(routed.parser.confidence ?? 0).toFixed(2)}`);
+  }
   if (statusParts.length > 0) {
     lines.push(themeFg(theme, "accent", statusParts.join(" • ")));
   }
@@ -624,6 +630,21 @@ function renderFreeflowRunResult(result, { expanded } = {}, theme, context = {})
     }
     if (routed.routing?.reason) {
       lines.push(`  ${themeFg(theme, "muted", "reason:")} ${truncateText(routed.routing.reason, 180)}`);
+    }
+  }
+
+  if (routed.parser?.name) {
+    lines.push("", themeFg(theme, "toolTitle", "Parser"));
+    lines.push(`  ${themeFg(theme, "muted", "name:")} ${routed.parser.name}`);
+    lines.push(`  ${themeFg(theme, "muted", "confidence:")} ${Number(routed.parser.confidence ?? 0).toFixed(2)}`);
+    lines.push(`  ${themeFg(theme, "muted", "fidelity:")} ${routed.parser.fidelity ?? "exact"}`);
+    lines.push(`  ${themeFg(theme, "muted", "compressed:")} ${String(Boolean(routed.parser.compressed))}`);
+    if (routed.parser.counts && Object.keys(routed.parser.counts).length > 0) {
+      lines.push(`  ${themeFg(theme, "muted", "counts:")} ${truncateText(JSON.stringify(routed.parser.counts), 160)}`);
+    }
+    if (Array.isArray(routed.parser.references) && routed.parser.references.length > 0) {
+      const refs = routed.parser.references.slice(0, 3).map((ref) => `${ref.path}${ref.line ? `:${ref.line}${ref.column ? `:${ref.column}` : ""}` : ""}${ref.code ? ` ${ref.code}` : ""}`);
+      lines.push(`  ${themeFg(theme, "muted", "references:")} ${truncateText(refs.join(", "), 180)}`);
     }
   }
 
@@ -793,17 +814,21 @@ function nativeSafetyDecisionId(event, text) {
   return `ffdec_native_${stableHash(`${event.toolName}:${event.toolCallId}:${text}`).slice(0, 24)}`;
 }
 
-function formatNativeSafetyNetResult({ event, record, stats, reason, mode, text }) {
+function formatNativeSafetyNetResult({ event, record, duplicate, stats, reason, mode, text }) {
   const lines = splitLines(text);
   const shownLines = lines.slice(0, SAFETY_NET_EXCERPT_LINES);
   const shownEnd = shownLines.length;
   const omittedLines = Math.max(0, stats.capturedLines - shownLines.length);
   const inputLabel = nativeInputLabel(event);
+  const duplicateLine = duplicate
+    ? `Duplicate: exact native output matches previous outputId=${duplicate.outputId}; current raw output was vaulted as outputId=${record.outputId}.`
+    : null;
 
   return [
     `Freeflow routed this native ${event.toolName} result (post-tool safety net).`,
     `Reason: ${reason}; outputRouter.postToolRouting=${mode}.`,
     `Captured exact native text in the Freeflow vault: outputId=${record.outputId}, stream=raw, lines=${stats.capturedLines}, bytes=${stats.capturedBytes}.`,
+    ...(duplicateLine ? [duplicateLine] : []),
     `Original native result stats: lines=${stats.lines}, bytes=${stats.bytes}.${inputLabel ? ` Input: ${inputLabel}.` : ""}`,
     `Recovery: use freeflow_retrieve with action=retrieve, source.kind=vault, outputId=${record.outputId}, stream=raw, and a lineRange to recover exact content.`,
     `Showing exact captured lines 1-${shownEnd}${omittedLines > 0 ? ` (${omittedLines} captured lines omitted from context)` : ""}:`,
@@ -856,9 +881,12 @@ async function handleNativeToolSafetyNet(event, ctx) {
 
   try {
     const vault = createVault({ root: routerConfig.vault.root, retention: routerConfig.vault.retention });
+    const sessionId = getRouterSessionId(ctx);
+    const fingerprints = textOutputFingerprints({ raw: text });
+    const duplicate = await findExactDuplicateTextOutput(vault, { sessionId, fingerprints });
     const decisionId = nativeSafetyDecisionId(event, text);
     const record = await storeTextOutput(vault, {
-      sessionId: getRouterSessionId(ctx),
+      sessionId,
       raw: text,
       sourceKind: "native",
       decisionIds: [decisionId],
@@ -866,6 +894,7 @@ async function handleNativeToolSafetyNet(event, ctx) {
     const routedText = formatNativeSafetyNetResult({
       event,
       record,
+      duplicate,
       stats: routeDecision.stats,
       reason: routeDecision.reason,
       mode: routerConfig.postToolRouting,
@@ -881,6 +910,7 @@ async function handleNativeToolSafetyNet(event, ctx) {
           outputId: record.outputId,
           decisionId,
           reason: routeDecision.reason,
+          ...(duplicate ? { duplicateOfOutputId: duplicate.outputId } : {}),
         },
       },
     };

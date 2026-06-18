@@ -1,8 +1,11 @@
 import { createHash } from "node:crypto";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir, readFile, realpath, stat } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 import { createVault, readOutputText, readVaultRecord } from "./vault.js";
 const DEFAULT_CONTEXT_LINES = 2;
+const DEFAULT_QUERY_TOP_K = 1;
+const DEFAULT_LOCATE_TOP_K = 5;
+const MAX_TOP_K = 10;
 const QUERY_EXCERPT_MAX_BYTES = 8_192;
 const LINE_PREVIEW_MAX_BYTES = 2_048;
 const EXPAND_LINES_30_MAX_BYTES = 32 * 1024;
@@ -12,6 +15,7 @@ const EXPAND_LINES_80_MAX_LINES = 240;
 const EXACT_LINE_RANGE_MAX_BYTES = 64_000;
 const EXACT_CHUNK_MAX_BYTES = 32_000;
 const BROAD_SCAN_MAX_FILE_BYTES = 1024 * 1024;
+const CONCURRENT_REPO_FILE_READS = 32;
 const TRUNCATION_SUFFIX = " … [truncated; expand or retrieve exact lines for recovery]";
 const STOPWORDS = new Set([
     "a",
@@ -35,6 +39,7 @@ const STOPWORDS = new Set([
     "this",
     "to",
     "with",
+    "use",
 ]);
 const SKIP_DIRS = new Set([
     ".git",
@@ -52,29 +57,36 @@ const SKIP_DIRS = new Set([
     "tmp",
     "temp",
     "logs",
+    "generated",
 ]);
 export async function freeflowRetrieve(options) {
     const preserve = options.preserve ?? "important";
-    if (options.source.kind === "vault") {
-        return retrieveVault(options, preserve);
+    try {
+        if (options.source.kind === "vault") {
+            return await retrieveVault(options, preserve);
+        }
+        const root = resolve(options.source.root);
+        if (options.action === "query") {
+            return await queryRepo(root, options, preserve);
+        }
+        if (options.action === "locate") {
+            return await locateRepo(root, options, preserve);
+        }
+        if (options.action === "expand") {
+            return await expandRepoEvidence(root, options, preserve);
+        }
+        if (options.action === "retrieve") {
+            return await retrieveRepoPath(root, options, preserve);
+        }
+        if (options.action === "explain") {
+            return explainRepoDecision(options, preserve);
+        }
+        return errorResult(preserve, `Retrieval action ${options.action} is not implemented yet.`);
     }
-    const root = resolve(options.source.root);
-    if (options.action === "query") {
-        return queryRepo(root, options, preserve);
+    catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return errorResult(preserve, `freeflow_retrieve failed while reading ${options.source.kind} source: ${message}`);
     }
-    if (options.action === "locate") {
-        return locateRepo(root, options, preserve);
-    }
-    if (options.action === "expand") {
-        return expandRepoEvidence(root, options, preserve);
-    }
-    if (options.action === "retrieve") {
-        return retrieveRepoPath(root, options, preserve);
-    }
-    if (options.action === "explain") {
-        return explainRepoDecision(options, preserve);
-    }
-    return errorResult(preserve, `Retrieval action ${options.action} is not implemented yet.`);
 }
 async function retrieveVault(options, preserve) {
     if (options.action === "retrieve") {
@@ -338,12 +350,17 @@ async function queryRepo(root, options, preserve) {
     if (!options.query?.trim()) {
         return errorResult(preserve, "Repo query requires a non-empty query string.");
     }
+    const query = options.query.trim();
+    const topK = parseTopK(options.topK, DEFAULT_QUERY_TOP_K);
+    if (typeof topK === "string") {
+        return errorResult(preserve, topK);
+    }
     const files = await readRepoTextFiles(root, options.source.path);
-    const candidate = findBestCandidate(files, options.query);
-    if (!candidate) {
+    const candidates = findTopCandidates(files, query, topK);
+    if (candidates.length === 0) {
         return {
             toolStatus: "ok",
-            decisionId: decisionId("repo-query", options.query, root, "none"),
+            decisionId: decisionId("repo-query", query, root, "none"),
             preserve,
             source: { kind: "repo", path: options.source.path ?? "." },
             routing: {
@@ -357,21 +374,26 @@ async function queryRepo(root, options, preserve) {
             },
         };
     }
-    const evidence = evidenceFromCandidate(candidate, options.query);
+    const evidence = candidates.map((candidate) => evidenceFromCandidate(candidate, query));
+    const first = evidence[0];
+    const firstCandidate = candidates[0];
+    if (!first || !firstCandidate) {
+        return errorResult(preserve, "Repo query produced no usable candidate evidence.");
+    }
     return {
         toolStatus: "ok",
-        decisionId: decisionId("repo-query", options.query, candidate.file.path, evidence.lines ?? ""),
+        decisionId: decisionId("repo-query", query, String(topK), evidence.map((packet) => `${packet.path}:${packet.lines ?? ""}`).join("|")),
         preserve,
-        source: { kind: "repo", path: candidate.file.path },
+        source: { kind: "repo", path: firstCandidate.file.path },
         routing: {
             status: "routed",
             route: "retrieve",
-            reason: `Deterministic repo retrieval selected ${candidate.file.path}:${evidence.lines} (${candidate.reason}).`,
+            reason: `Deterministic repo retrieval selected ${evidence.length} candidate(s); top result ${firstCandidate.file.path}:${first.lines} (${firstCandidate.reason}).`,
         },
-        evidence: [evidence],
+        evidence,
         recovery: {
-            how: `Use freeflow_retrieve action=expand with evidenceId=${evidence.id} for more surrounding context, or action=retrieve with path=${candidate.file.path} for an explicit span.`,
-            evidenceId: evidence.id,
+            how: `Use freeflow_retrieve action=expand with evidenceId=${first.id} for more surrounding context, action=locate for candidate paths, or action=retrieve with path=${firstCandidate.file.path} for an explicit span.`,
+            evidenceId: first.id,
         },
     };
 }
@@ -379,12 +401,17 @@ async function locateRepo(root, options, preserve) {
     if (!options.query?.trim()) {
         return errorResult(preserve, "Repo locate requires a non-empty query string.");
     }
+    const query = options.query.trim();
+    const topK = parseTopK(options.topK, DEFAULT_LOCATE_TOP_K);
+    if (typeof topK === "string") {
+        return errorResult(preserve, topK);
+    }
     const files = await readRepoTextFiles(root, options.source.path);
-    const candidate = findBestCandidate(files, options.query);
-    if (!candidate) {
+    const candidates = findTopCandidates(files, query, topK);
+    if (candidates.length === 0) {
         return {
             toolStatus: "ok",
-            decisionId: decisionId("repo-locate", options.query, root, "none"),
+            decisionId: decisionId("repo-locate", query, root, "none"),
             preserve,
             source: { kind: "repo", path: options.source.path ?? "." },
             routing: {
@@ -398,29 +425,36 @@ async function locateRepo(root, options, preserve) {
             },
         };
     }
-    const line = candidate.lineIndex + 1;
-    const evidence = evidenceFromRange({
-        id: evidenceIdFor(candidate.file.path, `${line}-${line}`, options.query),
-        file: candidate.file,
-        lines: { start: line, end: line },
-        why: `Candidate location from deterministic repo scoring.`,
-        window: "small",
-        expandable: true,
+    const evidence = candidates.map((candidate) => {
+        const line = candidate.lineIndex + 1;
+        return evidenceFromRange({
+            id: evidenceIdFor(candidate.file.path, `${line}-${line}`, query),
+            file: candidate.file,
+            lines: { start: line, end: line },
+            why: `Candidate location from deterministic repo scoring.`,
+            window: "small",
+            expandable: true,
+        });
     });
+    const first = evidence[0];
+    const firstCandidate = candidates[0];
+    if (!first || !firstCandidate) {
+        return errorResult(preserve, "Repo locate produced no usable candidate evidence.");
+    }
     return {
         toolStatus: "ok",
-        decisionId: decisionId("repo-locate", options.query, candidate.file.path, evidence.lines ?? ""),
+        decisionId: decisionId("repo-locate", query, String(topK), evidence.map((packet) => `${packet.path}:${packet.lines ?? ""}`).join("|")),
         preserve,
-        source: { kind: "repo", path: candidate.file.path },
+        source: { kind: "repo", path: firstCandidate.file.path },
         routing: {
             status: "routed",
             route: "retrieve",
-            reason: `Located candidate location ${candidate.file.path}:${evidence.lines} without broad evidence retrieval (${candidate.reason}).`,
+            reason: `Located ${evidence.length} candidate location(s) without broad evidence retrieval; top result ${firstCandidate.file.path}:${first.lines} (${firstCandidate.reason}).`,
         },
-        evidence: [evidence],
+        evidence,
         recovery: {
-            how: `Use freeflow_retrieve action=retrieve with path=${candidate.file.path} for an explicit span, or action=expand with evidenceId=${evidence.id}.`,
-            evidenceId: evidence.id,
+            how: `Use freeflow_retrieve action=retrieve with path=${firstCandidate.file.path} for an explicit span, or action=expand with evidenceId=${first.id}.`,
+            evidenceId: first.id,
         },
     };
 }
@@ -672,32 +706,41 @@ function explainRepoDecision(options, preserve) {
     return result;
 }
 async function readRepoTextFiles(root, requestedPath) {
-    const start = requestedPath ? resolve(root, requestedPath) : root;
-    const startStat = await stat(start);
-    const files = [];
-    await collectTextFiles(root, start, files, shouldAllowGeneratedTraversal(root, requestedPath, startStat.isFile()));
-    return files;
+    const start = await resolveRepoPath(root, requestedPath);
+    const startStat = await stat(start.absolutePath);
+    const fileRefs = [];
+    const visitedDirectories = new Set();
+    await collectTextFileRefs(start.root, start.absolutePath, fileRefs, shouldAllowGeneratedTraversal(requestedPath ? start.relativePath : undefined, startStat.isFile()), visitedDirectories);
+    return readRepoTextFileRefs(fileRefs);
 }
 async function readRepoTextFile(root, path) {
-    const absolutePath = resolve(root, path);
-    const text = await readFile(absolutePath, "utf8");
+    const resolved = await resolveRepoPath(root, path);
+    const text = await readFile(resolved.absolutePath, "utf8");
     return {
-        path: normalizeRelativePath(relative(root, absolutePath)),
-        absolutePath,
+        path: resolved.relativePath,
+        absolutePath: resolved.absolutePath,
         text,
         lines: splitLines(text),
     };
 }
-async function collectTextFiles(root, currentPath, files, allowGenerated) {
-    const currentStat = await stat(currentPath);
-    const path = normalizeRelativePath(relative(root, currentPath));
+async function collectTextFileRefs(root, currentPath, fileRefs, allowGenerated, visitedDirectories) {
+    const currentRealPath = await realpath(currentPath);
+    if (!isPathInsideRoot(root, currentRealPath)) {
+        return;
+    }
+    const currentStat = await stat(currentRealPath);
+    const path = normalizeRelativePath(relative(root, currentRealPath));
     if (currentStat.isDirectory()) {
-        if (!allowGenerated && path !== "" && shouldSkipBroadDirectory(currentPath)) {
+        if (visitedDirectories.has(currentRealPath)) {
             return;
         }
-        const entries = await readdir(currentPath, { withFileTypes: true });
+        visitedDirectories.add(currentRealPath);
+        if (!allowGenerated && path !== "" && shouldSkipBroadDirectory(currentRealPath)) {
+            return;
+        }
+        const entries = await readdir(currentRealPath, { withFileTypes: true });
         for (const entry of entries) {
-            await collectTextFiles(root, resolve(currentPath, entry.name), files, allowGenerated);
+            await collectTextFileRefs(root, resolve(currentRealPath, entry.name), fileRefs, allowGenerated, visitedDirectories);
         }
         return;
     }
@@ -707,28 +750,70 @@ async function collectTextFiles(root, currentPath, files, allowGenerated) {
     if (!allowGenerated && shouldSkipBroadFile(path, currentStat.size)) {
         return;
     }
-    const text = await readFile(currentPath, "utf8");
-    if (text.includes("\0")) {
-        return;
+    fileRefs.push({ path, absolutePath: currentRealPath });
+}
+async function readRepoTextFileRefs(fileRefs) {
+    const files = new Array(fileRefs.length);
+    let nextIndex = 0;
+    async function worker() {
+        while (nextIndex < fileRefs.length) {
+            const currentIndex = nextIndex;
+            nextIndex += 1;
+            const ref = fileRefs[currentIndex];
+            if (!ref) {
+                continue;
+            }
+            const text = await readFile(ref.absolutePath, "utf8");
+            if (text.includes("\0")) {
+                continue;
+            }
+            files[currentIndex] = { path: ref.path, absolutePath: ref.absolutePath, text, lines: splitLines(text) };
+        }
     }
-    files.push({ path, absolutePath: currentPath, text, lines: splitLines(text) });
+    const workerCount = Math.min(CONCURRENT_REPO_FILE_READS, fileRefs.length);
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    return files.filter((file) => Boolean(file));
 }
 function findBestCandidate(files, query) {
+    return findTopCandidates(files, query, 1)[0] ?? null;
+}
+function findTopCandidates(files, query, topK) {
     const tokens = uniqueTokens(tokenize(query));
-    const normalizedQueryPhrase = normalizeTokenSequence(query);
+    const normalizedQueryPhrase = normalizePhraseSequence(query);
     const chunks = files.flatMap((file) => candidateChunksForFile(file));
-    const stats = chunkStats(chunks);
-    let best = null;
-    for (const chunk of chunks) {
+    const matchingChunks = chunks.filter((chunk) => chunkMightMatch(chunk, tokens));
+    const stats = chunkStats(matchingChunks);
+    const scored = [];
+    for (const chunk of matchingChunks) {
         const candidate = scoreCandidateChunk(chunk, tokens, normalizedQueryPhrase, stats);
-        if (!candidate) {
-            continue;
-        }
-        if (!best || candidate.score > best.score) {
-            best = candidate;
+        if (candidate) {
+            scored.push(candidate);
         }
     }
-    return best;
+    scored.sort((a, b) => b.score - a.score);
+    const selected = [];
+    const seen = new Set();
+    for (const candidate of scored) {
+        const key = candidate.file.path;
+        if (seen.has(key)) {
+            continue;
+        }
+        seen.add(key);
+        selected.push(candidate);
+        if (selected.length >= topK) {
+            break;
+        }
+    }
+    return selected;
+}
+function parseTopK(value, defaultValue) {
+    if (value === undefined) {
+        return defaultValue;
+    }
+    if (!Number.isInteger(value) || value < 1 || value > MAX_TOP_K) {
+        return `topK must be an integer from 1 to ${MAX_TOP_K}.`;
+    }
+    return value;
 }
 function findBestLine(lines, query) {
     const tokens = tokenize(query);
@@ -824,10 +909,10 @@ function windowForExpansion(expansion) {
     return expansion;
 }
 function candidateChunksForFile(file) {
-    const chunks = [];
-    chunks.push(...markdownSectionChunks(file));
-    chunks.push(...lineWindowChunks(file));
-    return chunks;
+    const structuralChunks = [];
+    structuralChunks.push(...markdownSectionChunks(file));
+    structuralChunks.push(...codeSymbolChunks(file));
+    return structuralChunks.length ? structuralChunks : lineWindowChunks(file);
 }
 function markdownSectionChunks(file) {
     const headingIndexes = file.lines
@@ -848,6 +933,43 @@ function markdownSectionChunks(file) {
         };
     });
 }
+function codeSymbolChunks(file) {
+    const symbolIndexes = file.lines
+        .map((line, index) => ({ line, index, match: codeSymbolMatch(line) }))
+        .filter((entry) => Boolean(entry.match));
+    if (!symbolIndexes.length) {
+        return [];
+    }
+    return symbolIndexes.map(({ line, index }, symbolOrdinal) => {
+        const nextSymbol = nextSymbolBoundary(file.lines, symbolIndexes, symbolOrdinal);
+        const end = Math.min(file.lines.length, Math.max(index + 1, Math.min(nextSymbol, index + 80)));
+        const range = { start: index + 1, end };
+        return {
+            file,
+            range,
+            text: file.lines.slice(range.start - 1, range.end).join("\n"),
+            heading: line,
+            kind: "symbol",
+        };
+    });
+}
+function nextSymbolBoundary(lines, symbolIndexes, symbolOrdinal) {
+    const current = symbolIndexes[symbolOrdinal];
+    if (!current) {
+        return lines.length;
+    }
+    if (/^\s*impl\b/.test(current.line)) {
+        const nextTopLevel = symbolIndexes.slice(symbolOrdinal + 1).find((entry) => isTopLevelCodeSymbol(entry.line));
+        return nextTopLevel?.index ?? lines.length;
+    }
+    return symbolIndexes[symbolOrdinal + 1]?.index ?? lines.length;
+}
+function isTopLevelCodeSymbol(line) {
+    return /^(?:pub\s+)?(?:async\s+)?(?:fn|struct|enum|trait|impl|mod|class|interface|type|const|def)\s+([A-Za-z_][A-Za-z0-9_]*)\b/.test(line);
+}
+function codeSymbolMatch(line) {
+    return /^\s*(?:pub\s+)?(?:async\s+)?(?:fn|struct|enum|trait|impl|mod|class|interface|type|const|def)\s+([A-Za-z_][A-Za-z0-9_]*)\b/.exec(line);
+}
 function lineWindowChunks(file) {
     return file.lines.map((_, lineIndex) => {
         const start = Math.max(0, lineIndex - DEFAULT_CONTEXT_LINES);
@@ -864,7 +986,7 @@ function chunkStats(chunks) {
     const documentFrequency = new Map();
     let totalLength = 0;
     for (const chunk of chunks) {
-        const tokens = tokenize(chunk.text);
+        const tokens = tokensForChunk(chunk);
         totalLength += Math.max(1, tokens.length);
         for (const token of uniqueTokens(tokens)) {
             documentFrequency.set(token, (documentFrequency.get(token) ?? 0) + 1);
@@ -880,20 +1002,26 @@ function scoreCandidateChunk(chunk, queryTokens, normalizedQueryPhrase, stats) {
     if (!queryTokens.length) {
         return null;
     }
-    const chunkTokens = tokenize(chunk.text);
+    const chunkTokens = tokensForChunk(chunk);
     const tokenCounts = tokenCountMap(chunkTokens);
     const matchingTokens = queryTokens.filter((token) => (tokenCounts.get(token) ?? 0) > 0);
     const pathScore = scoreText(chunk.file.path, queryTokens);
     if (!matchingTokens.length && pathScore <= 0) {
         return null;
     }
-    const exactPhrase = hasExactNormalizedPhrase(chunk.text, normalizedQueryPhrase);
+    const exactPhrase = hasExactNormalizedPhraseInChunk(chunk, normalizedQueryPhrase);
     const chunkLength = Math.max(1, chunkTokens.length);
-    const score = (exactPhrase ? 100_000 : 0) +
+    const score = exactPhraseBoost(exactPhrase, chunk.file.path, queryTokens) +
         bm25Score(queryTokens, tokenCounts, chunkLength, stats) * 10 +
-        coverageRatio(matchingTokens, queryTokens) * 25 +
+        coverageRatio(matchingTokens, queryTokens) * 120 +
+        completeCoverageBoost(matchingTokens, queryTokens) +
         headingCoverageBoost(chunk.heading ?? "", queryTokens) +
         identifierBoost(chunk.text, queryTokens) +
+        (matchingTokens.length >= 4 ? orderedPhraseBoost(chunkTokens, queryTokens) : 0) +
+        (chunk.kind === "symbol" ? codeDefinitionBoost(chunk.text, queryTokens) : 0) +
+        chunkKindBoost(chunk.kind) +
+        pathIntentBoost(chunk.file.path, queryTokens) +
+        sourceTestPrior(chunk.file.path, queryTokens) +
         pathScore -
         Math.log1p(chunkLength) * 10;
     const bestLineIndex = bestLineIndexInChunk(chunk, queryTokens, normalizedQueryPhrase);
@@ -908,6 +1036,12 @@ function scoreCandidateChunk(chunk, queryTokens, normalizedQueryPhrase, stats) {
         score,
         reason,
     };
+}
+function chunkMightMatch(chunk, queryTokens) {
+    const path = chunk.file.path.toLowerCase();
+    const heading = chunk.heading?.toLowerCase() ?? "";
+    const text = chunk.text.toLowerCase();
+    return queryTokens.some((token) => path.includes(token) || heading.includes(token) || text.includes(token));
 }
 function bm25Score(queryTokens, tokenCounts, chunkLength, stats) {
     const k1 = 1.2;
@@ -927,18 +1061,96 @@ function bm25Score(queryTokens, tokenCounts, chunkLength, stats) {
 function coverageRatio(matchingTokens, queryTokens) {
     return queryTokens.length ? matchingTokens.length / queryTokens.length : 0;
 }
+function completeCoverageBoost(matchingTokens, queryTokens) {
+    return queryTokens.length > 0 && matchingTokens.length === queryTokens.length ? 200 : 0;
+}
+function exactPhraseBoost(exactPhrase, path, queryTokens) {
+    if (!exactPhrase) {
+        return 0;
+    }
+    const testPath = isTestPath(path);
+    const testIntent = queryTokens.some((token) => ["test", "tests", "expect", "expected", "should", "emitted"].includes(token));
+    return testPath && !testIntent ? 1_000 : 100_000;
+}
 function headingCoverageBoost(heading, queryTokens) {
     const headingTokens = new Set(tokenize(heading));
     const coveredTokens = queryTokens.filter((token) => headingTokens.has(token)).length;
-    return coveredTokens * 4;
+    return coveredTokens * 8;
 }
 function identifierBoost(text, queryTokens) {
+    if (!text.includes("`")) {
+        return 0;
+    }
     const identifiers = Array.from(text.matchAll(/`([^`]+)`/g), (match) => tokenize(match[1] ?? "")).flat();
     if (!identifiers.length) {
         return 0;
     }
     const identifierSet = new Set(identifiers);
-    return queryTokens.filter((token) => identifierSet.has(token)).length * 6;
+    return queryTokens.filter((token) => identifierSet.has(token)).length * 10;
+}
+function orderedPhraseBoost(chunkTokens, queryTokens) {
+    const normalizedText = ` ${chunkTokens.join(" ")} `;
+    let best = 0;
+    for (let start = 0; start < queryTokens.length; start += 1) {
+        const phrase = [];
+        for (let end = start; end < queryTokens.length; end += 1) {
+            phrase.push(queryTokens[end] ?? "");
+            if (phrase.length <= best) {
+                continue;
+            }
+            if (normalizedText.includes(` ${phrase.join(" ")} `)) {
+                best = phrase.length;
+            }
+        }
+    }
+    return best >= 3 ? best * best * 20 : 0;
+}
+function codeDefinitionBoost(text, queryTokens) {
+    const definitionMatches = Array.from(text.matchAll(/^\s*(?:pub\s+)?(?:async\s+)?(?:fn|struct|enum|trait|impl|mod|class|interface|type|const|def)\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm), (match) => match[1] ?? "");
+    if (!definitionMatches.length) {
+        return 0;
+    }
+    let bestBoost = 0;
+    for (const name of definitionMatches) {
+        const symbolTokens = new Set(tokenize(name));
+        const coverage = queryTokens.filter((token) => symbolTokens.has(token)).length;
+        if (coverage > 0) {
+            bestBoost = Math.max(bestBoost, 120 + coverage * 80);
+        }
+    }
+    return bestBoost;
+}
+function chunkKindBoost(kind) {
+    if (kind === "symbol") {
+        return 500;
+    }
+    if (kind === "section") {
+        return 12;
+    }
+    return 0;
+}
+function pathIntentBoost(path, queryTokens) {
+    const pathTokens = new Set(tokenize(path));
+    const coveredTokens = queryTokens.filter((token) => pathTokens.has(token)).length;
+    return coveredTokens * 28;
+}
+function sourceTestPrior(path, queryTokens) {
+    const testPath = isTestPath(path);
+    const testIntent = queryTokens.some((token) => ["test", "tests", "expect", "expected", "should", "emitted"].includes(token));
+    if (testPath && !testIntent) {
+        return -2_000;
+    }
+    if (testPath && testIntent) {
+        return 35;
+    }
+    if (!testPath && testIntent) {
+        return -8;
+    }
+    return 0;
+}
+function isTestPath(path) {
+    const lower = path.toLowerCase();
+    return /(^|\/)(tests?|fixtures?)(\/|$)/.test(lower) || lower.endsWith("_tests.rs") || lower.endsWith(".test.ts") || lower.endsWith(".test.js");
 }
 function bestLineIndexInChunk(chunk, queryTokens, normalizedQueryPhrase) {
     let bestIndex = chunk.range.start - 1;
@@ -957,7 +1169,7 @@ function bestLineIndexInChunk(chunk, queryTokens, normalizedQueryPhrase) {
 }
 function evidenceRangeForChunk(chunk, bestLineIndex) {
     const chunkLength = chunk.range.end - chunk.range.start + 1;
-    if (chunkLength <= DEFAULT_CONTEXT_LINES * 2 + 4) {
+    if (chunk.kind === "symbol" || chunkLength <= DEFAULT_CONTEXT_LINES * 2 + 4) {
         return chunk.range;
     }
     return {
@@ -966,10 +1178,21 @@ function evidenceRangeForChunk(chunk, bestLineIndex) {
     };
 }
 function hasExactNormalizedPhrase(text, normalizedQueryPhrase) {
-    return normalizedQueryPhrase !== "" && normalizeTokenSequence(text).includes(normalizedQueryPhrase);
+    return normalizedQueryPhrase !== "" && normalizePhraseSequence(text).includes(normalizedQueryPhrase);
 }
-function normalizeTokenSequence(text) {
-    const tokens = tokenize(text);
+function hasExactNormalizedPhraseInChunk(chunk, normalizedQueryPhrase) {
+    return normalizedQueryPhrase !== "" && phraseSequenceForChunk(chunk).includes(normalizedQueryPhrase);
+}
+function tokensForChunk(chunk) {
+    chunk.tokens ??= tokenize(chunk.text);
+    return chunk.tokens;
+}
+function phraseSequenceForChunk(chunk) {
+    chunk.phraseSequence ??= normalizePhraseSequence(chunk.text);
+    return chunk.phraseSequence;
+}
+function normalizePhraseSequence(text) {
+    const tokens = tokenizeForPhrase(text);
     return tokens.length >= 2 ? tokens.join(" ") : "";
 }
 function tokenCountMap(tokens) {
@@ -997,20 +1220,69 @@ function countOccurrences(text, token) {
 }
 function tokenize(query) {
     return query
-        .toLowerCase()
-        .split(/[^a-z0-9_./-]+/)
-        .map((token) => token.trim())
+        .split(/[^A-Za-z0-9_./-]+/)
+        .flatMap((token) => expandedIdentifierTokens(token.trim()))
         .filter((token) => token.length >= 2 && !STOPWORDS.has(token));
 }
-function shouldAllowGeneratedTraversal(root, requestedPath, requestedPathIsFile) {
-    if (!requestedPath) {
+function tokenizeForPhrase(query) {
+    return query
+        .split(/[^A-Za-z0-9_./-]+/)
+        .flatMap((token) => expandedIdentifierTokens(token.trim()))
+        .filter((token) => token.length >= 2);
+}
+function expandedIdentifierTokens(token) {
+    if (!token) {
+        return [];
+    }
+    const lower = token.toLowerCase();
+    if (!needsIdentifierSplit(token)) {
+        return [lower];
+    }
+    const variants = new Set();
+    addTokenVariant(variants, lower);
+    for (const part of splitIdentifierToken(token)) {
+        addTokenVariant(variants, part.toLowerCase());
+    }
+    return Array.from(variants);
+}
+function addTokenVariant(variants, token) {
+    if (token) {
+        variants.add(token);
+    }
+}
+function needsIdentifierSplit(token) {
+    if (/[._/-]/.test(token)) {
+        return true;
+    }
+    for (let index = 1; index < token.length; index += 1) {
+        const previous = token.charCodeAt(index - 1);
+        const current = token.charCodeAt(index);
+        const next = index + 1 < token.length ? token.charCodeAt(index + 1) : 0;
+        const previousIsLowerOrDigit = (previous >= 97 && previous <= 122) || (previous >= 48 && previous <= 57);
+        const previousIsUpper = previous >= 65 && previous <= 90;
+        const currentIsUpper = current >= 65 && current <= 90;
+        const nextIsLower = next >= 97 && next <= 122;
+        if ((previousIsLowerOrDigit && currentIsUpper) || (previousIsUpper && currentIsUpper && nextIsLower)) {
+            return true;
+        }
+    }
+    return false;
+}
+function splitIdentifierToken(token) {
+    const separated = token
+        .replace(/[._/-]+/g, " ")
+        .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+        .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2");
+    return separated.split(/\s+/).filter(Boolean);
+}
+function shouldAllowGeneratedTraversal(requestedRelativePath, requestedPathIsFile) {
+    if (!requestedRelativePath) {
         return false;
     }
-    const normalized = normalizeRelativePath(relative(root, resolve(root, requestedPath)));
-    if (normalized === "" || normalized === ".") {
+    if (requestedRelativePath === "" || requestedRelativePath === ".") {
         return false;
     }
-    return requestedPathIsFile || isGeneratedPathRequest(normalized);
+    return requestedPathIsFile || isGeneratedPathRequest(requestedRelativePath);
 }
 function isGeneratedPathRequest(path) {
     const segments = path.split("/");
@@ -1115,6 +1387,23 @@ function byteLength(text) {
 }
 function splitLines(text) {
     return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+}
+async function resolveRepoPath(root, requestedPath) {
+    const rootRealPath = await realpath(resolve(root));
+    const requestedAbsolutePath = requestedPath ? resolve(rootRealPath, requestedPath) : rootRealPath;
+    const requestedRealPath = await realpath(requestedAbsolutePath);
+    if (!isPathInsideRoot(rootRealPath, requestedRealPath)) {
+        throw new Error(`Repo path escapes root: ${requestedPath ?? "."}`);
+    }
+    return {
+        root: rootRealPath,
+        absolutePath: requestedRealPath,
+        relativePath: normalizeRelativePath(relative(rootRealPath, requestedRealPath)),
+    };
+}
+function isPathInsideRoot(root, absolutePath) {
+    const relativePath = relative(root, absolutePath);
+    return relativePath === "" || (!relativePath.startsWith("..") && !relativePath.startsWith("/") && !/^[A-Za-z]:/.test(relativePath));
 }
 function normalizeRelativePath(path) {
     return path.split(/[\\/]+/).join("/");

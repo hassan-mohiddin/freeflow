@@ -1,0 +1,468 @@
+import { createHash } from "node:crypto";
+import { mkdir, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { dirname, join, relative, resolve } from "node:path";
+import { performance } from "node:perf_hooks";
+const INDEX_VERSION = 1;
+const DEFAULT_CONTEXT_LINES = 2;
+const DEFAULT_TOP_K = 1;
+const MAX_TOP_K = 10;
+const BROAD_SCAN_MAX_FILE_BYTES = 1024 * 1024;
+const QUERY_EXCERPT_MAX_BYTES = 8_192;
+const LINE_PREVIEW_MAX_BYTES = 2_048;
+const TRUNCATION_SUFFIX = " … [truncated; query index stores bounded preview only]";
+const STOPWORDS = new Set([
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "by",
+    "for",
+    "from",
+    "in",
+    "is",
+    "it",
+    "of",
+    "on",
+    "or",
+    "that",
+    "the",
+    "this",
+    "to",
+    "with",
+]);
+const SKIP_DIRS = new Set([
+    ".git",
+    "node_modules",
+    "dist",
+    "build",
+    "out",
+    ".next",
+    ".nuxt",
+    "coverage",
+    "target",
+    "graphify-out",
+    ".cache",
+    ".tmp",
+    "tmp",
+    "temp",
+    "logs",
+    "generated",
+]);
+export function defaultExperimentalIndexCacheRoot() {
+    const xdgCache = process.env.XDG_CACHE_HOME;
+    return resolve(xdgCache && xdgCache.trim() ? xdgCache : join(homedir(), ".cache"), "freeflow-router", "experimental-index");
+}
+export async function experimentalIndexCachePath(options) {
+    const root = await realpath(resolve(options.root));
+    const cacheRoot = resolve(options.cacheRoot ?? defaultExperimentalIndexCacheRoot());
+    return join(cacheRoot, `${hash(root).slice(0, 24)}.json`);
+}
+export async function buildOrLoadExperimentalRepoIndex(options) {
+    const startedAt = performance.now();
+    const root = await realpath(resolve(options.root));
+    const cacheOptions = { root };
+    if (options.cacheRoot !== undefined) {
+        cacheOptions.cacheRoot = options.cacheRoot;
+    }
+    const cachePath = await experimentalIndexCachePath(cacheOptions);
+    const scannedFiles = await scanRepoTextFiles(root);
+    const cachedIndex = await readCachedIndex(cachePath, root);
+    if (cachedIndex && manifestMatches(cachedIndex, scannedFiles)) {
+        return {
+            mode: "warm-loaded",
+            index: cachedIndex,
+            cachePath,
+            buildMs: performance.now() - startedAt,
+        };
+    }
+    const index = buildIndexFromScannedFiles(root, cachePath, scannedFiles);
+    await writeIndex(cachePath, index);
+    return {
+        mode: cachedIndex ? "stale-refreshed" : "cold-built",
+        index,
+        cachePath,
+        buildMs: performance.now() - startedAt,
+        ...(cachedIndex ? { refreshReason: staleReason(cachedIndex, scannedFiles) } : {}),
+    };
+}
+export function queryExperimentalRepoIndex(index, query, options = {}) {
+    const topK = Math.min(MAX_TOP_K, Math.max(1, Math.floor(options.topK ?? DEFAULT_TOP_K)));
+    const queryTokens = uniqueTokens(tokenize(query));
+    if (queryTokens.length === 0) {
+        return [];
+    }
+    const normalizedQueryPhrase = normalizeTokenSequence(query);
+    const stats = {
+        averageLength: index.averageChunkTokens || 1,
+        documentFrequency: new Map(Object.entries(index.tokenDocumentFrequency)),
+        chunkCount: index.chunks.length,
+    };
+    const scored = [];
+    for (const chunk of index.chunks) {
+        const candidate = scoreIndexedChunk(index, chunk, queryTokens, normalizedQueryPhrase, stats);
+        if (candidate) {
+            scored.push(candidate);
+        }
+    }
+    scored.sort((a, b) => b.score - a.score);
+    const selected = [];
+    const seen = new Set();
+    for (const candidate of scored) {
+        if (seen.has(candidate.path)) {
+            continue;
+        }
+        seen.add(candidate.path);
+        selected.push(candidate);
+        if (selected.length >= topK) {
+            break;
+        }
+    }
+    return selected;
+}
+async function readCachedIndex(cachePath, root) {
+    try {
+        const parsed = JSON.parse(await readFile(cachePath, "utf8"));
+        if (parsed.version !== INDEX_VERSION || parsed.root !== root || !parsed.files || !Array.isArray(parsed.chunks)) {
+            return null;
+        }
+        return parsed;
+    }
+    catch {
+        return null;
+    }
+}
+async function writeIndex(cachePath, index) {
+    await mkdir(dirname(cachePath), { recursive: true });
+    await writeFile(cachePath, `${JSON.stringify(index, null, 2)}\n`, "utf8");
+}
+function manifestMatches(index, scannedFiles) {
+    const indexedPaths = Object.keys(index.files).sort();
+    const scannedPaths = scannedFiles.map((file) => file.path).sort();
+    if (indexedPaths.length !== scannedPaths.length) {
+        return false;
+    }
+    for (let indexPath = 0; indexPath < scannedPaths.length; indexPath += 1) {
+        if (indexedPaths[indexPath] !== scannedPaths[indexPath]) {
+            return false;
+        }
+    }
+    return scannedFiles.every((file) => index.files[file.path]?.hashSha256 === file.hashSha256);
+}
+function staleReason(index, scannedFiles) {
+    const indexedPaths = new Set(Object.keys(index.files));
+    const scannedPaths = new Set(scannedFiles.map((file) => file.path));
+    const added = [...scannedPaths].filter((path) => !indexedPaths.has(path));
+    const removed = [...indexedPaths].filter((path) => !scannedPaths.has(path));
+    const changed = scannedFiles
+        .filter((file) => indexedPaths.has(file.path) && index.files[file.path]?.hashSha256 !== file.hashSha256)
+        .map((file) => file.path);
+    const parts = [];
+    if (added.length) {
+        parts.push(`${added.length} added`);
+    }
+    if (removed.length) {
+        parts.push(`${removed.length} removed`);
+    }
+    if (changed.length) {
+        parts.push(`${changed.length} changed`);
+    }
+    return parts.length ? parts.join(", ") : "cache metadata changed";
+}
+function buildIndexFromScannedFiles(root, cachePath, scannedFiles) {
+    const chunks = [];
+    const files = {};
+    for (const file of scannedFiles) {
+        const fileChunks = candidateChunksForFile(file);
+        const chunkIds = [];
+        for (const chunk of fileChunks) {
+            const tokens = tokenize(chunk.text);
+            const indexedChunk = {
+                id: chunks.length,
+                path: file.path,
+                startLine: chunk.range.start,
+                endLine: chunk.range.end,
+                kind: chunk.kind,
+                text: chunk.text,
+                tokens,
+                tokenCounts: Object.fromEntries(tokenCountMap(tokens)),
+            };
+            if (chunk.heading !== undefined) {
+                indexedChunk.heading = chunk.heading;
+            }
+            chunks.push(indexedChunk);
+            chunkIds.push(indexedChunk.id);
+        }
+        files[file.path] = {
+            path: file.path,
+            hashSha256: file.hashSha256,
+            sizeBytes: file.sizeBytes,
+            lineCount: file.lines.length,
+            chunkIds,
+        };
+    }
+    const tokenDocumentFrequency = {};
+    let totalTokens = 0;
+    for (const chunk of chunks) {
+        totalTokens += Math.max(1, chunk.tokens.length);
+        for (const token of uniqueTokens(chunk.tokens)) {
+            tokenDocumentFrequency[token] = (tokenDocumentFrequency[token] ?? 0) + 1;
+        }
+    }
+    return {
+        version: INDEX_VERSION,
+        root,
+        builtAt: new Date().toISOString(),
+        files,
+        chunks,
+        tokenDocumentFrequency,
+        averageChunkTokens: chunks.length ? totalTokens / chunks.length : 1,
+        cachePath,
+    };
+}
+async function scanRepoTextFiles(root) {
+    const files = [];
+    const visitedDirectories = new Set();
+    await collectTextFiles(root, root, files, visitedDirectories);
+    return files.sort((a, b) => a.path.localeCompare(b.path));
+}
+async function collectTextFiles(root, currentPath, files, visitedDirectories) {
+    const currentRealPath = await realpath(currentPath);
+    if (!isPathInsideRoot(root, currentRealPath)) {
+        return;
+    }
+    const currentStat = await stat(currentRealPath);
+    const relativePath = normalizeRelativePath(relative(root, currentRealPath));
+    if (currentStat.isDirectory()) {
+        if (visitedDirectories.has(currentRealPath)) {
+            return;
+        }
+        visitedDirectories.add(currentRealPath);
+        if (relativePath !== "" && shouldSkipBroadDirectory(currentRealPath)) {
+            return;
+        }
+        const entries = await readdir(currentRealPath, { withFileTypes: true });
+        for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+            await collectTextFiles(root, resolve(currentRealPath, entry.name), files, visitedDirectories);
+        }
+        return;
+    }
+    if (!currentStat.isFile()) {
+        return;
+    }
+    if (shouldSkipBroadFile(relativePath, currentStat.size)) {
+        return;
+    }
+    const text = await readFile(currentRealPath, "utf8");
+    if (text.includes("\0")) {
+        return;
+    }
+    files.push({
+        path: relativePath,
+        absolutePath: currentRealPath,
+        text,
+        lines: splitLines(text),
+        hashSha256: hash(text),
+        sizeBytes: byteLength(text),
+    });
+}
+function candidateChunksForFile(file) {
+    const chunks = [...markdownSectionChunks(file), ...lineWindowChunks(file)];
+    return chunks.length ? chunks : lineWindowChunks(file);
+}
+function markdownSectionChunks(file) {
+    const headingIndexes = file.lines
+        .map((line, index) => ({ line, index }))
+        .filter(({ line }) => line.trimStart().startsWith("#"));
+    if (!headingIndexes.length) {
+        return [];
+    }
+    return headingIndexes.map(({ line, index }, headingOrdinal) => {
+        const nextHeading = headingIndexes[headingOrdinal + 1]?.index ?? file.lines.length;
+        const range = { start: index + 1, end: Math.max(index + 1, nextHeading) };
+        return {
+            range,
+            text: file.lines.slice(range.start - 1, range.end).join("\n"),
+            heading: line,
+            kind: "section",
+        };
+    });
+}
+function lineWindowChunks(file) {
+    return file.lines.map((_, lineIndex) => {
+        const start = Math.max(0, lineIndex - DEFAULT_CONTEXT_LINES);
+        const end = Math.min(file.lines.length - 1, lineIndex + DEFAULT_CONTEXT_LINES);
+        return {
+            range: { start: start + 1, end: end + 1 },
+            text: file.lines.slice(start, end + 1).join("\n"),
+            kind: "window",
+        };
+    });
+}
+function scoreIndexedChunk(index, chunk, queryTokens, normalizedQueryPhrase, stats) {
+    const tokenCounts = new Map(Object.entries(chunk.tokenCounts));
+    const matchingTokens = queryTokens.filter((token) => (tokenCounts.get(token) ?? 0) > 0);
+    const pathScore = scoreText(chunk.path, queryTokens);
+    if (!matchingTokens.length && pathScore <= 0) {
+        return null;
+    }
+    const exactPhrase = hasExactNormalizedPhrase(chunk.text, normalizedQueryPhrase);
+    const chunkLength = Math.max(1, chunk.tokens.length);
+    const score = (exactPhrase ? 100_000 : 0) +
+        bm25Score(queryTokens, tokenCounts, chunkLength, stats) * 10 +
+        coverageRatio(matchingTokens, queryTokens) * 25 +
+        headingCoverageBoost(chunk.heading ?? "", queryTokens) +
+        identifierBoost(chunk.text, queryTokens) +
+        pathScore -
+        Math.log1p(chunkLength) * 10;
+    const file = index.files[chunk.path];
+    if (!file) {
+        return null;
+    }
+    const lines = `${chunk.startLine}-${chunk.endLine}`;
+    const excerpt = boundedExcerpt(chunk.text);
+    return {
+        path: chunk.path,
+        lines,
+        excerpt,
+        score,
+        reason: exactPhrase
+            ? `matched exact normalized query phrase in indexed ${chunk.kind} chunk`
+            : `BM25-style indexed ${chunk.kind} chunk with ${matchingTokens.length}/${queryTokens.length} query-token coverage`,
+        chunkKind: chunk.kind,
+        hashSha256: file.hashSha256,
+        contextBytes: byteLength(excerpt),
+    };
+}
+function bm25Score(queryTokens, tokenCounts, chunkLength, stats) {
+    const k1 = 1.2;
+    const b = 0.75;
+    return queryTokens.reduce((score, token) => {
+        const termFrequency = tokenCounts.get(token) ?? 0;
+        if (termFrequency <= 0) {
+            return score;
+        }
+        const documentFrequency = stats.documentFrequency.get(token) ?? 0;
+        const idf = Math.log(1 + (stats.chunkCount - documentFrequency + 0.5) / (documentFrequency + 0.5));
+        const normalizedLength = k1 * (1 - b + b * (chunkLength / Math.max(1, stats.averageLength)));
+        const saturatedFrequency = (termFrequency * (k1 + 1)) / (termFrequency + normalizedLength);
+        return score + idf * saturatedFrequency;
+    }, 0);
+}
+function coverageRatio(matchingTokens, queryTokens) {
+    return queryTokens.length ? matchingTokens.length / queryTokens.length : 0;
+}
+function headingCoverageBoost(heading, queryTokens) {
+    const headingTokens = new Set(tokenize(heading));
+    return queryTokens.filter((token) => headingTokens.has(token)).length * 4;
+}
+function identifierBoost(text, queryTokens) {
+    const identifiers = Array.from(text.matchAll(/`([^`]+)`/g), (match) => tokenize(match[1] ?? "")).flat();
+    if (!identifiers.length) {
+        return 0;
+    }
+    const identifierSet = new Set(identifiers);
+    return queryTokens.filter((token) => identifierSet.has(token)).length * 6;
+}
+function scoreText(text, tokens) {
+    const lower = text.toLowerCase();
+    return tokens.reduce((score, token) => score + countOccurrences(lower, token), 0);
+}
+function countOccurrences(text, token) {
+    let count = 0;
+    let index = text.indexOf(token);
+    while (index !== -1) {
+        count += 1;
+        index = text.indexOf(token, index + token.length);
+    }
+    return count;
+}
+function normalizeTokenSequence(text) {
+    const tokens = tokenize(text);
+    return tokens.length >= 2 ? tokens.join(" ") : "";
+}
+function hasExactNormalizedPhrase(text, normalizedQueryPhrase) {
+    return normalizedQueryPhrase !== "" && normalizeTokenSequence(text).includes(normalizedQueryPhrase);
+}
+function tokenize(query) {
+    return query
+        .toLowerCase()
+        .split(/[^a-z0-9_./-]+/)
+        .map((token) => token.trim())
+        .filter((token) => token.length >= 2 && !STOPWORDS.has(token));
+}
+function tokenCountMap(tokens) {
+    const counts = new Map();
+    for (const token of tokens) {
+        counts.set(token, (counts.get(token) ?? 0) + 1);
+    }
+    return counts;
+}
+function uniqueTokens(tokens) {
+    return Array.from(new Set(tokens));
+}
+function boundedExcerpt(text) {
+    const previewedLines = splitLines(text).map((line) => truncateToUtf8Bytes(line, LINE_PREVIEW_MAX_BYTES));
+    return truncateToUtf8Bytes(previewedLines.join("\n"), QUERY_EXCERPT_MAX_BYTES);
+}
+function shouldSkipBroadDirectory(path) {
+    const name = path.split(/[\\/]+/).at(-1) ?? path;
+    return SKIP_DIRS.has(name);
+}
+function shouldSkipBroadFile(path, size) {
+    const name = path.split("/").at(-1)?.toLowerCase() ?? path.toLowerCase();
+    if (isLockfile(name)) {
+        return false;
+    }
+    if (size > BROAD_SCAN_MAX_FILE_BYTES) {
+        return true;
+    }
+    if (name.endsWith(".min.js") || name.endsWith(".min.css") || name.endsWith(".map")) {
+        return true;
+    }
+    if (name.includes(".bundle.") || name.endsWith(".log")) {
+        return true;
+    }
+    if ((name.endsWith(".html") || name.endsWith(".json")) && size > 64_000) {
+        return true;
+    }
+    return false;
+}
+function isLockfile(name) {
+    return (name === "package-lock.json" ||
+        name === "npm-shrinkwrap.json" ||
+        name === "pnpm-lock.yaml" ||
+        name === "yarn.lock" ||
+        name === "bun.lockb");
+}
+function truncateToUtf8Bytes(text, maxBytes) {
+    if (byteLength(text) <= maxBytes) {
+        return text;
+    }
+    const suffixBytes = byteLength(TRUNCATION_SUFFIX);
+    const contentBytes = Math.max(0, maxBytes - suffixBytes);
+    let truncated = Buffer.from(text, "utf8").subarray(0, contentBytes).toString("utf8");
+    while (byteLength(truncated) > contentBytes) {
+        truncated = truncated.slice(0, -1);
+    }
+    return `${truncated}${TRUNCATION_SUFFIX}`;
+}
+function splitLines(text) {
+    return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+}
+function byteLength(text) {
+    return Buffer.byteLength(text, "utf8");
+}
+function isPathInsideRoot(root, absolutePath) {
+    const relativePath = relative(root, absolutePath);
+    return relativePath === "" || (!relativePath.startsWith("..") && !relativePath.startsWith("/") && !/^[A-Za-z]:/.test(relativePath));
+}
+function normalizeRelativePath(path) {
+    return path.split(/[\\/]+/).filter(Boolean).join("/");
+}
+function hash(value) {
+    return createHash("sha256").update(value).digest("hex");
+}

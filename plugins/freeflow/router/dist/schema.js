@@ -59,6 +59,101 @@ function validateSourceRef(value, path, issues) {
     }
     issues.push({ path: `${path}.kind`, message: "Expected source kind repo, vault, or native." });
 }
+function validateParserMetadata(value, path, issues) {
+    if (value === undefined) {
+        return;
+    }
+    if (!isRecord(value)) {
+        issues.push({ path, message: "Expected parser metadata object." });
+        return;
+    }
+    requireString(value, "name", path, issues);
+    if (typeof value.confidence !== "number" || !Number.isFinite(value.confidence) || value.confidence < 0 || value.confidence > 1) {
+        issues.push({ path: `${path}.confidence`, message: "Expected confidence between 0 and 1." });
+    }
+    if (value.fidelity !== "exact" && value.fidelity !== "lossy") {
+        issues.push({ path: `${path}.fidelity`, message: "Expected parser fidelity exact or lossy." });
+    }
+    requireBoolean(value, "compressed", path, issues);
+    if (value.counts !== undefined) {
+        if (!isRecord(value.counts)) {
+            issues.push({ path: `${path}.counts`, message: "Expected parser counts object." });
+        }
+        else {
+            for (const [key, count] of Object.entries(value.counts)) {
+                if (typeof count !== "number" || !Number.isFinite(count)) {
+                    issues.push({ path: `${path}.counts.${key}`, message: "Expected finite numeric parser count." });
+                }
+            }
+        }
+    }
+    if (value.references !== undefined) {
+        if (!Array.isArray(value.references)) {
+            issues.push({ path: `${path}.references`, message: "Expected parser references array." });
+        }
+        else {
+            value.references.forEach((reference, index) => validateParserReference(reference, `${path}.references[${index}]`, issues));
+        }
+    }
+}
+function validateParserReference(value, path, issues) {
+    if (!isRecord(value)) {
+        issues.push({ path, message: "Expected parser reference object." });
+        return;
+    }
+    requireString(value, "path", path, issues);
+    requireString(value, "message", path, issues);
+    if (value.line !== undefined) {
+        if (typeof value.line !== "number" || !Number.isInteger(value.line) || value.line <= 0) {
+            issues.push({ path: `${path}.line`, message: "Expected a positive integer line." });
+        }
+    }
+    if (value.column !== undefined) {
+        if (typeof value.column !== "number" || !Number.isInteger(value.column) || value.column <= 0) {
+            issues.push({ path: `${path}.column`, message: "Expected a positive integer column." });
+        }
+    }
+    if (value.code !== undefined && typeof value.code !== "string") {
+        issues.push({ path: `${path}.code`, message: "Expected parser reference code string." });
+    }
+    if (value.severity !== undefined && value.severity !== "error" && value.severity !== "warning" && value.severity !== "info") {
+        issues.push({ path: `${path}.severity`, message: "Expected parser reference severity error, warning, or info." });
+    }
+}
+function validateImportantLines(value, path, issues) {
+    if (value === undefined) {
+        return;
+    }
+    if (!Array.isArray(value)) {
+        issues.push({ path, message: "Expected importantLines array." });
+        return;
+    }
+    value.forEach((line, index) => validateImportantLine(line, `${path}[${index}]`, issues));
+}
+function validateImportantLine(value, path, issues) {
+    if (!isRecord(value)) {
+        issues.push({ path, message: "Expected important line object." });
+        return;
+    }
+    if (!isOneOf(value.stream, OUTPUT_STREAMS) || value.stream === "raw") {
+        issues.push({ path: `${path}.stream`, message: "Expected stdout, stderr, or combined stream." });
+    }
+    if (typeof value.lines !== "string" || !validLineRange(value.lines)) {
+        issues.push({ path: `${path}.lines`, message: "Expected line range in start-end form." });
+    }
+    if (typeof value.excerpt !== "string") {
+        issues.push({ path: `${path}.excerpt`, message: "Expected excerpt string." });
+    }
+}
+function validLineRange(value) {
+    const match = /^(\d+)-(\d+)$/.exec(value);
+    if (!match?.[1] || !match[2]) {
+        return false;
+    }
+    const start = Number(match[1]);
+    const end = Number(match[2]);
+    return Number.isInteger(start) && Number.isInteger(end) && start > 0 && end >= start;
+}
 function validateEvidenceArray(value, path, issues) {
     if (value === undefined) {
         return;
@@ -165,6 +260,8 @@ export function validateRoutedResult(value) {
     if (value.outputId !== undefined && typeof value.outputId !== "string") {
         issues.push({ path: "$.outputId", message: "Expected output id string when present." });
     }
+    validateImportantLines(value.importantLines, "$.importantLines", issues);
+    validateParserMetadata(value.parser, "$.parser", issues);
     return issues.length === 0 ? success(value) : failure(issues);
 }
 export function validateRouterConfig(value) {
