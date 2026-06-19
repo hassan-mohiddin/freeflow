@@ -35,5 +35,6 @@ The package exposes `plugins/freeflow/skills/` and `plugins/freeflow/pi-extensio
 - [Workflow](workflow.md): modes, entry points, loops, and the compact workflow map.
 - [Skills](skills.md): shipped skills and what each one is for.
 - [Architecture](architecture.md): package layout, runtime boundary, context hooks, and progressive disclosure model.
+- [Output Router](output-router.md): compact guide to routed retrieval, command output routing, vault recovery, and config.
 - [Release evidence](release-evidence.md): current release evidence and deferred checks.
 - [ADRs](adr/README.md): durable release decisions.

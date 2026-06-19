@@ -2071,6 +2071,32 @@
       ]
     },
     {
+      "id": "OTR-001",
+      "name": "output-router-tool-choice-and-config-boundary",
+      "fixture_root": "evals/fixtures/tiny-saas-app",
+      "prompt_file": "evals/prompts/otr-001.txt",
+      "expected_output": "The agent should answer directly without editing files. It should choose freeflow_retrieve query/locate for finding repo config parsing, freeflow_retrieve retrieve/query with source.kind=vault and outputId for exact vaulted output recovery, freeflow_run for noisy npm test output, and reject workflow mode as a reason to enable native post-tool safety-net routing. It should state that outputRouter config is optional, postToolRouting defaults to off, safety-net is opt-in, strict is reserved, and setup-freeflow owns persisted repo config.",
+      "assertions": [
+        "Does not create, modify, or delete files.",
+        "Uses freeflow_retrieve for targeted repo evidence and vault recovery, including source.kind=vault plus outputId for exact recovery.",
+        "Uses freeflow_run for likely noisy npm test output rather than native bash by default.",
+        "States that workflow mode does not enable outputRouter.postToolRouting.",
+        "States that native safety-net routing remains off unless explicitly configured and that strict is reserved.",
+        "Mentions that setup-freeflow owns optional persisted outputRouter config and minimal setup should not dump defaults."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff"
+      ],
+      "objective_checks": [
+        {
+          "id": "no-file-changes",
+          "type": "diff_empty",
+          "expect": true
+        }
+      ]
+    },
+    {
       "id": "RES-001",
       "name": "research-checkpoint-before-team-invitations-spec",
       "fixture_root": "evals/fixtures/tiny-team-app",

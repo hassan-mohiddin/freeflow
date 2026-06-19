@@ -95,6 +95,11 @@
         "MODE-006"
       ]
     },
+    "output-router": {
+      "evals": [
+        "OTR-001"
+      ]
+    },
     "research": {
       "evals": [
         "RES-001",

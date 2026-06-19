@@ -10,7 +10,11 @@ Route output deliberately. Native tools stay direct unless explicit config enabl
 ## Tool Choice
 
 - Need existing repo or vault information: use `freeflow_retrieve`.
-- Need more from captured output: use `freeflow_retrieve` with `source.kind=vault` and an `outputId`.
+- Need candidate paths first: use `freeflow_retrieve action=locate`.
+- Need a best evidence packet: use `freeflow_retrieve action=query`.
+- Need exact known repo/vault lines: use `freeflow_retrieve action=retrieve` with `source.path` or `source.kind=vault`, plus `lineRange` when exact lines matter.
+- Need more around prior evidence: use `freeflow_retrieve action=expand`.
+- Need to explain a routed result or vault id: use `freeflow_retrieve action=explain`.
 - Need to run a likely-large or noisy command: use `freeflow_run`.
 - Need a whole known file/artifact: use native read.
 - Need direct shell behavior or expected-small exact output: use native bash.
@@ -46,10 +50,20 @@ Use `query` first when the needed lines are unknown. Use `expand` when a previou
 
 ## Config
 
+The router works with built-in defaults. Persist `outputRouter` config only when explicitly requested; `setup-freeflow` owns repo setup/config changes.
+
+Supported repo keys are `postToolRouting`, `largeOutputBytes`, `largeOutputLines`, `vaultRoot`, `vaultRetentionDays`, `generatedPaths`, and `noisyCommandHints`.
+
 `outputRouter.postToolRouting` controls native read/bash safety-net routing:
 
 - `off`: native outputs pass through unchanged.
 - `safety-net`: large/noisy native read/bash output may be vaulted and labeled.
 - `strict`: reserved for stronger future guards; do not invent blocking behavior.
 
-Invalid config must fall back safely with a warning.
+Rules:
+
+- Minimal setup stays only `defaultMode`.
+- Do not dump defaults or create an empty `outputRouter` object.
+- `generatedPaths` affects broad scans only; explicit path retrieval remains available.
+- Freeflow mode changes guidance strength only. It must not enable `postToolRouting`.
+- Invalid config must fall back safely with a warning.
