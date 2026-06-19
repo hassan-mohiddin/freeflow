@@ -33,6 +33,26 @@ For the same session that runs setup, `setup-freeflow` reads the workflow skill,
 
 Host trust prompts for plugin hooks are expected host behavior. Local metadata validation checks hook packaging and deterministic output, not end-to-end host trust UI.
 
+## Output Router Evidence
+
+Output-router behavior is backed by deterministic runtime reports under `plugins/freeflow/evals/reports/runtime/`.
+
+Verified in the development repo:
+
+- Retrieval benchmark: improved router passed 7/7 gated fixtures and fixed the generated-artifact Sandbox Permissions false-positive shape.
+- Command-output benchmark: `freeflow_run` passed 8/8 fixtures, preserved exact facts, and verified raw vault recovery.
+- Optional local index benchmark: scanner remains default, index is not adopted by default, and the no-dependency index remains experimental.
+- Codex Structured Q&A macro benchmark: improved router passed the first Sandbox Permissions Q&A fixture while the native broad-search proxy selected `graphify-out/graph.html`.
+- Large Codex scanner benchmark: scanner remains the retrieval backend; latest recorded report-refresh evidence kept scanner at 6/8 strict fixtures with bounded context.
+- Setup/config eval: `setup-freeflow` supports optional `outputRouter` repo config only when explicitly requested; minimal setup still writes only `defaultMode`.
+
+Adoption decisions:
+
+- Scanner improvements ship as default behavior.
+- Native post-tool safety-net routing remains off unless explicitly configured.
+- The no-dependency local index stays experimental.
+- SQLite/FTS, model-assisted routing, Graphify, and Claude Context remain optional/non-default comparison paths, not product dependencies.
+
 ## Release Metadata
 
 Run `plugins/freeflow/evals/scripts/validate-release-metadata.sh` for local prepublish checks across marketplace metadata, host manifests, command-surface routing, release-boundary docs, package cleanliness, and deferred install-smoke status.
