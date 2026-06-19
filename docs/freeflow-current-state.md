@@ -18,7 +18,7 @@ Freeflow is a portable workflow skill pack for coding agents.
 - License target: MIT.
 - GitHub target: `hassan-mohiddin/freeflow`.
 - GitHub repo: published at `https://github.com/hassan-mohiddin/freeflow`.
-- npm package: prepared as `@hassangameryt/freeflow@0.2.0`; latest known published version was `0.1.0`.
+- npm package: published as `@hassangameryt/freeflow@0.2.0`.
 - Host targets: Codex, Claude Code, and Pi.
 - v0.1 local acceptance suite: passed after measured fixes.
 - Output-router benchmark evidence: passed for deterministic retrieval, command-output routing/recovery, optional local-index experiment, and Codex Structured Q&A macro coverage.
