@@ -13,6 +13,11 @@ const testCaps = {
   exactChunkMaxBytes: 180,
 };
 
+function assertUtf8RoundTrips(text) {
+  assert.equal(Buffer.from(text, "utf8").toString("utf8"), text);
+  assert.doesNotMatch(text, /\uFFFD/);
+}
+
 test("bounded evidence anchors an exact phrase spanning huge lines", () => {
   const lines = [
     "# Target",
@@ -55,6 +60,23 @@ test("bounded evidence builds head and tail chunks for a huge single line", () =
   assert.match(chunks[1].excerpt, /TAIL_MARKER/);
   assert.ok(Buffer.byteLength(chunks[0].excerpt, "utf8") <= testCaps.exactChunkMaxBytes);
   assert.ok(Buffer.byteLength(chunks[1].excerpt, "utf8") <= testCaps.exactChunkMaxBytes);
+});
+
+test("bounded evidence keeps multibyte head and tail chunks well-formed", () => {
+  const lines = [`${"🙂".repeat(120)}TAIL_SENTINEL`];
+
+  const chunks = buildBoundedEdgeChunks({
+    lines,
+    range: { start: 1, end: 1 },
+    caps: testCaps,
+  });
+
+  assert.equal(chunks.length, 2);
+  assert.match(chunks[1].excerpt, /TAIL_SENTINEL/);
+  for (const chunk of chunks) {
+    assertUtf8RoundTrips(chunk.excerpt);
+    assert.ok(Buffer.byteLength(chunk.excerpt, "utf8") <= testCaps.exactChunkMaxBytes);
+  }
 });
 
 test("bounded evidence reports line cap truncation for expanded windows", () => {

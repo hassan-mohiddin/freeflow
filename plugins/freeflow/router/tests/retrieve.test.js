@@ -6,6 +6,11 @@ import test from "node:test";
 
 import { createVault, freeflowRetrieve, storeCommandOutput } from "../dist/index.js";
 
+function assertUtf8RoundTrips(text) {
+  assert.equal(Buffer.from(text, "utf8").toString("utf8"), text);
+  assert.doesNotMatch(text, /\uFFFD/);
+}
+
 async function withTempVault(fn) {
   const root = await mkdtemp(join(tmpdir(), "freeflow-router-vault-retrieve-"));
   try {
@@ -1163,6 +1168,35 @@ test("preserve full over cap with one huge line returns bounded head and tail ch
     assert.ok(Buffer.byteLength(head.excerpt, "utf8") <= 32_000);
     assert.ok(Buffer.byteLength(tail.excerpt, "utf8") <= 32_000);
     assert.doesNotMatch(JSON.stringify(result), /2-1/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("preserve full over cap keeps multibyte previews well-formed", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-full-multibyte-cap-"));
+  try {
+    await writeFile(
+      join(root, "emoji-line.md"),
+      `${"🙂".repeat(10_000)}TAIL_SENTINEL`,
+      "utf8",
+    );
+
+    const result = await freeflowRetrieve({
+      action: "retrieve",
+      source: { kind: "repo", root, path: "emoji-line.md" },
+      preserve: "full",
+      maxFullBytes: 400,
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.routing.status, "partial");
+    assert.equal(result.evidence?.length, 2);
+    for (const packet of result.evidence) {
+      assertUtf8RoundTrips(packet.excerpt);
+      assert.ok(Buffer.byteLength(packet.excerpt, "utf8") <= 32_000);
+    }
+    assert.match(result.evidence[1].excerpt, /TAIL_SENTINEL/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

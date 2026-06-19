@@ -119,11 +119,7 @@ function truncateToUtf8Bytes(text, maxBytes) {
     }
     const suffixBytes = byteLength(TRUNCATION_SUFFIX);
     const contentBytes = Math.max(0, maxBytes - suffixBytes);
-    let truncated = Buffer.from(text, "utf8").subarray(0, contentBytes).toString("utf8");
-    while (byteLength(truncated) > contentBytes) {
-        truncated = truncated.slice(0, -1);
-    }
-    return `${truncated}${TRUNCATION_SUFFIX}`;
+    return `${truncateHeadToUtf8Bytes(text, contentBytes)}${TRUNCATION_SUFFIX}`;
 }
 function truncateToUtf8BytesAroundSpan(text, span, maxBytes) {
     if (byteLength(text) <= maxBytes) {
@@ -154,6 +150,8 @@ function truncateToUtf8BytesAroundSpan(text, span, maxBytes) {
     if (byteLength(text.slice(span.end, end)) > afterBudget) {
         end -= 1;
     }
+    start = moveToCodePointStartBoundary(text, start);
+    end = moveToCodePointEndBoundary(text, end);
     const actualPrefix = start > 0 ? prefix : "";
     const actualSuffix = end < text.length ? suffix : "";
     return `${actualPrefix}${text.slice(start, end)}${actualSuffix}`;
@@ -247,11 +245,65 @@ function truncateTailToUtf8Bytes(text, maxBytes) {
     }
     const prefixBytes = byteLength(TRUNCATION_PREFIX);
     const contentBytes = Math.max(0, maxBytes - prefixBytes);
-    let start = Math.max(0, text.length - contentBytes);
-    while (start < text.length && byteLength(text.slice(start)) > contentBytes) {
-        start += 1;
+    return `${TRUNCATION_PREFIX}${truncateTailToUtf8BytesContent(text, contentBytes)}`;
+}
+function truncateHeadToUtf8Bytes(text, maxBytes) {
+    if (maxBytes <= 0) {
+        return "";
     }
-    return `${TRUNCATION_PREFIX}${text.slice(start)}`;
+    if (byteLength(text) <= maxBytes) {
+        return text;
+    }
+    let low = 0;
+    let high = text.length;
+    while (low < high) {
+        const mid = Math.ceil((low + high) / 2);
+        if (byteLength(text.slice(0, mid)) <= maxBytes) {
+            low = mid;
+        }
+        else {
+            high = mid - 1;
+        }
+    }
+    return text.slice(0, moveToCodePointEndBoundary(text, low));
+}
+function truncateTailToUtf8BytesContent(text, maxBytes) {
+    if (maxBytes <= 0) {
+        return "";
+    }
+    if (byteLength(text) <= maxBytes) {
+        return text;
+    }
+    let low = 0;
+    let high = text.length;
+    while (low < high) {
+        const mid = Math.floor((low + high) / 2);
+        if (byteLength(text.slice(mid)) <= maxBytes) {
+            high = mid;
+        }
+        else {
+            low = mid + 1;
+        }
+    }
+    return text.slice(moveToCodePointStartBoundary(text, low));
+}
+function moveToCodePointStartBoundary(text, index) {
+    if (index > 0 && index < text.length && isLowSurrogate(text.charCodeAt(index))) {
+        return index + 1;
+    }
+    return index;
+}
+function moveToCodePointEndBoundary(text, index) {
+    if (index > 0 && isHighSurrogate(text.charCodeAt(index - 1))) {
+        return index - 1;
+    }
+    return index;
+}
+function isHighSurrogate(code) {
+    return code >= 0xd800 && code <= 0xdbff;
+}
+function isLowSurrogate(code) {
+    return code >= 0xdc00 && code <= 0xdfff;
 }
 function byteLength(text) {
     return Buffer.byteLength(text, "utf8");
