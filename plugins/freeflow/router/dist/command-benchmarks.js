@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, dirname, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { performance } from "node:perf_hooks";
+import { approximateTokens, averagePercent as average, defaultJsonRunReportPath, escapeMarkdownTableCell as escapeTable, formatPercent, latencySummary, medianPercent as median, normalizeIterations, parseBenchmarkCliArgs, reductionPercent, writeBenchmarkReportPair, } from "./benchmark-harness.js";
 import { freeflowRun } from "./run.js";
 import { createVault, readOutputText } from "./vault.js";
 const DEFAULT_ITERATIONS = 3;
@@ -18,7 +19,7 @@ const DEFAULT_SKIPPED_EXTERNAL_TOOLS = [
     },
 ];
 export async function runCommandBenchmarks(options = {}) {
-    const iterations = Math.max(1, Math.floor(options.iterations ?? DEFAULT_ITERATIONS));
+    const iterations = normalizeIterations(options.iterations, DEFAULT_ITERATIONS);
     const vaultRoot = await createTempDir("freeflow-router-command-benchmark-vault-");
     const externalComparators = options.externalComparators ?? [];
     const fixtures = createCommandBenchmarkFixtures(vaultRoot.path, externalComparators);
@@ -121,15 +122,12 @@ export async function writeCommandBenchmarkJsonReport(report, reportPath) {
     await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
 }
 export async function writeCommandBenchmarkReports(report, markdownReportPath, options = {}) {
-    await writeCommandBenchmarkReport(report, markdownReportPath);
-    if (options.jsonReportPath === false) {
-        return { markdown: markdownReportPath };
-    }
-    if (options.jsonReportPath) {
-        await writeCommandBenchmarkJsonReport(report, options.jsonReportPath);
-        return { markdown: markdownReportPath, json: options.jsonReportPath };
-    }
-    return { markdown: markdownReportPath };
+    return writeBenchmarkReportPair({
+        report,
+        markdownReportPath,
+        jsonReportPath: options.jsonReportPath,
+        renderMarkdown: renderCommandBenchmarkReport,
+    });
 }
 async function runCommandFixtureMode(fixture, mode, iterations) {
     const latencies = [];
@@ -159,10 +157,7 @@ async function runCommandFixtureMode(fixture, mode, iterations) {
         routedTokensApprox,
         byteReductionPercent: reductionPercent(observation.rawBytes, observation.routedBytes),
         tokenReductionPercent: reductionPercent(rawTokensApprox, routedTokensApprox),
-        latencyMs: {
-            p50: percentile(latencies, 0.5),
-            p95: percentile(latencies, 0.95),
-        },
+        latencyMs: latencySummary(latencies),
         routedExcerpt: observation.routedExcerpt,
         correctness,
         recovery: observation.recovery,
@@ -621,38 +616,6 @@ function skippedObservation(toolPathUsed, reason) {
 function byteLength(value) {
     return Buffer.byteLength(value, "utf8");
 }
-function approximateTokens(bytes) {
-    return Math.ceil(bytes / 4);
-}
-function percentile(values, quantile) {
-    if (values.length === 0) {
-        return 0;
-    }
-    const sorted = [...values].sort((a, b) => a - b);
-    const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * quantile) - 1));
-    return sorted[index] ?? 0;
-}
-function average(values) {
-    if (values.length === 0) {
-        return 0;
-    }
-    return roundPercent(values.reduce((sum, value) => sum + value, 0) / values.length);
-}
-function median(values) {
-    return roundPercent(percentile(values, 0.5));
-}
-function reductionPercent(raw, routed) {
-    if (raw <= 0) {
-        return 0;
-    }
-    return roundPercent(((raw - routed) / raw) * 100);
-}
-function roundPercent(value) {
-    return Math.round(value * 100) / 100;
-}
-function formatPercent(value) {
-    return `${value.toFixed(2)}%`;
-}
 function formatCommandCorrectnessChecks(correctness) {
     return [
         `status ${correctness.statusCorrect ? "✓" : "✗"}`,
@@ -661,41 +624,11 @@ function formatCommandCorrectnessChecks(correctness) {
         `failed-exact ${correctness.failedFactsExact ? "✓" : "✗"}`,
     ].join(" ");
 }
-function escapeTable(value) {
-    return value.replace(/\|/g, "\\|").replace(/\n/g, " ");
-}
 function defaultReportPath() {
     return resolve(process.cwd(), "plugins/freeflow/evals/reports/runtime/output-router-command-benchmark-1-report.md");
 }
-function defaultJsonRunReportPath(markdownReportPath) {
-    const markdownName = basename(markdownReportPath);
-    const jsonName = markdownName.endsWith(".md") ? `${markdownName.slice(0, -".md".length)}.json` : `${markdownName}.json`;
-    return resolve(process.cwd(), "plugins/freeflow/evals/runs/output-router", jsonName);
-}
-function parseCliArgs(argv) {
-    let iterations;
-    let reportPath = defaultReportPath();
-    let jsonReportPath;
-    for (const arg of argv) {
-        if (arg.startsWith("--iterations=")) {
-            const value = Number(arg.slice("--iterations=".length));
-            if (Number.isFinite(value) && value > 0) {
-                iterations = value;
-            }
-        }
-        else if (arg.startsWith("--report=")) {
-            reportPath = resolve(process.cwd(), arg.slice("--report=".length));
-        }
-        else if (arg.startsWith("--json-report=")) {
-            const value = arg.slice("--json-report=".length);
-            jsonReportPath = value === "off" ? false : resolve(process.cwd(), value);
-        }
-    }
-    const parsed = iterations === undefined ? { reportPath } : { iterations, reportPath };
-    return jsonReportPath === undefined ? parsed : { ...parsed, jsonReportPath };
-}
 async function runCli() {
-    const { iterations, reportPath, jsonReportPath } = parseCliArgs(process.argv.slice(2));
+    const { iterations, reportPath, jsonReportPath } = parseBenchmarkCliArgs(process.argv.slice(2), { reportPath: defaultReportPath() });
     const options = {};
     if (iterations !== undefined) {
         options.iterations = iterations;

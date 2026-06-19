@@ -1,14 +1,15 @@
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, dirname, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { performance } from "node:perf_hooks";
+import { defaultJsonRunReportPath, escapeMarkdownTableCell as escapeTable, formatPercent, latencySummary, normalizeIterations, parseBenchmarkCliArgs, reductionPercent, writeBenchmarkReportPair, } from "./benchmark-harness.js";
 import { freeflowRetrieve } from "./retrieve.js";
 import { buildOrLoadExperimentalRepoIndex, queryExperimentalRepoIndex, } from "./experimental-local-index.js";
 const DEFAULT_ITERATIONS = 3;
 export async function runIndexBenchmarks(options = {}) {
-    const iterations = Math.max(1, Math.floor(options.iterations ?? DEFAULT_ITERATIONS));
+    const iterations = normalizeIterations(options.iterations, DEFAULT_ITERATIONS);
     const fixtures = indexFixtureDefinitions();
     const fixtureResults = [];
     for (const fixture of fixtures) {
@@ -87,15 +88,12 @@ export async function writeIndexBenchmarkJsonReport(report, reportPath) {
     await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
 }
 export async function writeIndexBenchmarkReports(report, markdownReportPath, options = {}) {
-    await writeIndexBenchmarkReport(report, markdownReportPath);
-    if (options.jsonReportPath === false) {
-        return { markdown: markdownReportPath };
-    }
-    if (options.jsonReportPath) {
-        await writeIndexBenchmarkJsonReport(report, options.jsonReportPath);
-        return { markdown: markdownReportPath, json: options.jsonReportPath };
-    }
-    return { markdown: markdownReportPath };
+    return writeBenchmarkReportPair({
+        report,
+        markdownReportPath,
+        jsonReportPath: options.jsonReportPath,
+        renderMarkdown: renderIndexBenchmarkReport,
+    });
 }
 async function runIndexFixtureMode(fixture, mode, iterations) {
     const latencies = [];
@@ -115,10 +113,7 @@ async function runIndexFixtureMode(fixture, mode, iterations) {
         rawBytes: observation.rawBytes,
         contextBytes: observation.contextBytes,
         contextReductionPercent: reductionPercent(observation.rawBytes, observation.contextBytes),
-        latencyMs: {
-            p50: percentile(latencies, 0.5),
-            p95: percentile(latencies, 0.95),
-        },
+        latencyMs: latencySummary(latencies),
         excerpt: observation.excerpt,
         correctness,
         notes: observation.notes ?? [],
@@ -264,7 +259,7 @@ function latencyFor(fixtures, mode, field) {
     const values = fixtures
         .map((fixture) => fixture.results.find((result) => result.mode === mode)?.[field])
         .filter((value) => typeof value === "number");
-    return { p50: percentile(values, 0.5), p95: percentile(values, 0.95) };
+    return latencySummary(values);
 }
 function indexFixtureDefinitions() {
     return [
@@ -424,25 +419,8 @@ function isGeneratedBenchmarkPath(path) {
     const name = segments.at(-1)?.toLowerCase() ?? path.toLowerCase();
     return name.endsWith(".log") || name.endsWith(".map") || name.endsWith(".min.js") || name.endsWith(".min.css") || name.includes(".bundle.");
 }
-function percentile(values, quantile) {
-    if (values.length === 0) {
-        return 0;
-    }
-    const sorted = [...values].sort((a, b) => a - b);
-    const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * quantile) - 1));
-    return sorted[index] ?? 0;
-}
-function reductionPercent(raw, routed) {
-    if (raw <= 0) {
-        return 0;
-    }
-    return Math.round(((raw - routed) / raw) * 10_000) / 100;
-}
 function byteLength(value) {
     return Buffer.byteLength(value, "utf8");
-}
-function formatPercent(value) {
-    return `${value.toFixed(2)}%`;
 }
 function formatCorrectnessChecks(correctness) {
     return [
@@ -452,41 +430,11 @@ function formatCorrectnessChecks(correctness) {
         `gen-fp ${correctness.generatedFalsePositive ? "✗" : "✓"}`,
     ].join(" ");
 }
-function escapeTable(value) {
-    return value.replace(/\|/g, "\\|").replace(/\n/g, " ");
-}
 function defaultReportPath() {
     return resolve(process.cwd(), "plugins/freeflow/evals/reports/runtime/output-router-index-benchmark-1-report.md");
 }
-function defaultJsonRunReportPath(markdownReportPath) {
-    const markdownName = basename(markdownReportPath);
-    const jsonName = markdownName.endsWith(".md") ? `${markdownName.slice(0, -".md".length)}.json` : `${markdownName}.json`;
-    return resolve(process.cwd(), "plugins/freeflow/evals/runs/output-router", jsonName);
-}
-function parseCliArgs(argv) {
-    let iterations;
-    let reportPath = defaultReportPath();
-    let jsonReportPath;
-    for (const arg of argv) {
-        if (arg.startsWith("--iterations=")) {
-            const value = Number(arg.slice("--iterations=".length));
-            if (Number.isFinite(value) && value > 0) {
-                iterations = value;
-            }
-        }
-        else if (arg.startsWith("--report=")) {
-            reportPath = resolve(process.cwd(), arg.slice("--report=".length));
-        }
-        else if (arg.startsWith("--json-report=")) {
-            const value = arg.slice("--json-report=".length);
-            jsonReportPath = value === "off" ? false : resolve(process.cwd(), value);
-        }
-    }
-    const parsed = iterations === undefined ? { reportPath } : { iterations, reportPath };
-    return jsonReportPath === undefined ? parsed : { ...parsed, jsonReportPath };
-}
 async function runCli() {
-    const { iterations, reportPath, jsonReportPath } = parseCliArgs(process.argv.slice(2));
+    const { iterations, reportPath, jsonReportPath } = parseBenchmarkCliArgs(process.argv.slice(2), { reportPath: defaultReportPath() });
     const options = {};
     if (iterations !== undefined) {
         options.iterations = iterations;
