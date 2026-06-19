@@ -1,4 +1,4 @@
-import { type ExperimentalIndexLoadMode } from "./experimental-local-index.js";
+import { type ExperimentalIndexLoadMode } from "./experiments/local-index.js";
 export interface RunIndexBenchmarksOptions {
     iterations?: number;
     generatedAt?: string;

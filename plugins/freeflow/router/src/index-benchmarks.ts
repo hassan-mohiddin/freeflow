@@ -21,7 +21,7 @@ import {
   queryExperimentalRepoIndex,
   type ExperimentalIndexLoadMode,
   type ExperimentalIndexCandidate,
-} from "./experimental-local-index.js";
+} from "./experiments/local-index.js";
 
 export interface RunIndexBenchmarksOptions {
   iterations?: number;

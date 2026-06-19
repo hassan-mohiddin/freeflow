@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { performance } from "node:perf_hooks";
 import { defaultJsonRunReportPath, escapeMarkdownTableCell as escapeTable, formatPercent, latencySummary, normalizeIterations, parseBenchmarkCliArgs, reductionPercent, writeBenchmarkReportPair, } from "./benchmark-harness.js";
 import { freeflowRetrieve } from "./retrieve.js";
-import { buildOrLoadExperimentalRepoIndex, queryExperimentalRepoIndex, } from "./experimental-local-index.js";
+import { buildOrLoadExperimentalRepoIndex, queryExperimentalRepoIndex, } from "./experiments/local-index.js";
 const DEFAULT_ITERATIONS = 3;
 export async function runIndexBenchmarks(options = {}) {
     const iterations = normalizeIterations(options.iterations, DEFAULT_ITERATIONS);
