@@ -2,7 +2,6 @@ import {
   EXECUTION_STATUSES,
   EVIDENCE_WINDOWS,
   OUTPUT_STREAMS,
-  POST_TOOL_ROUTING_MODES,
   PRESERVE_MODES,
   RETRIEVAL_ACTIONS,
   ROUTE_KINDS,
@@ -15,6 +14,12 @@ import {
   type RoutedResult,
   type RouterConfig,
 } from "./types.js";
+import {
+  isValidPostToolRoutingMode,
+  validateNormalizedRouterHints,
+  validatePositiveIntegerThreshold,
+  validateVaultRetentionPolicy,
+} from "./router-contract.js";
 
 export interface ValidationIssue {
   path: string;
@@ -358,17 +363,15 @@ export function validateRouterConfig(value: unknown): ValidationResult<RouterCon
     return failure([{ path: "$", message: "Expected a router config object." }]);
   }
 
-  if (!isOneOf(value.postToolRouting, POST_TOOL_ROUTING_MODES)) {
+  if (!isValidPostToolRoutingMode(value.postToolRouting)) {
     issues.push({ path: "$.postToolRouting", message: "Expected postToolRouting off, safety-net, or strict." });
   }
 
   if (!isRecord(value.thresholds)) {
     issues.push({ path: "$.thresholds", message: "Expected thresholds object." });
   } else {
-    requireInteger(value.thresholds, "largeOutputBytes", "$.thresholds", issues);
-    requireInteger(value.thresholds, "largeOutputLines", "$.thresholds", issues);
-    requireNonNegativeNumber(value.thresholds, "largeOutputBytes", "$.thresholds", issues);
-    requireNonNegativeNumber(value.thresholds, "largeOutputLines", "$.thresholds", issues);
+    issues.push(...validatePositiveIntegerThreshold(value.thresholds.largeOutputBytes, "$.thresholds.largeOutputBytes"));
+    issues.push(...validatePositiveIntegerThreshold(value.thresholds.largeOutputLines, "$.thresholds.largeOutputLines"));
   }
 
   if (!isRecord(value.vault)) {
@@ -376,32 +379,13 @@ export function validateRouterConfig(value: unknown): ValidationResult<RouterCon
   } else {
     requireString(value.vault, "root", "$.vault", issues);
     if (value.vault.retention !== undefined) {
-      validateRetention(value.vault.retention, "$.vault.retention", issues);
+      issues.push(...validateVaultRetentionPolicy(value.vault.retention, "$.vault.retention"));
     }
   }
+
+  issues.push(...validateNormalizedRouterHints(value.hints, "$.hints"));
 
   return issues.length === 0 ? success(value as unknown as RouterConfig) : failure(issues);
-}
-
-function validateRetention(value: unknown, path: string, issues: MutableIssues) {
-  if (!isRecord(value)) {
-    issues.push({ path, message: "Expected retention policy object." });
-    return;
-  }
-
-  if (value.strategy === "manual") {
-    return;
-  }
-
-  if (value.strategy === "ttl") {
-    requireInteger(value, "ttlDays", path, issues);
-    if (typeof value.ttlDays === "number" && value.ttlDays <= 0) {
-      issues.push({ path: `${path}.ttlDays`, message: "Expected ttlDays to be greater than zero." });
-    }
-    return;
-  }
-
-  issues.push({ path: `${path}.strategy`, message: "Expected retention strategy manual or ttl." });
 }
 
 export function validateCommandOutputRecord(value: unknown): ValidationResult<CommandOutputRecord> {

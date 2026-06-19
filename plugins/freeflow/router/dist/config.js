@@ -1,4 +1,4 @@
-import { POST_TOOL_ROUTING_MODES } from "./types.js";
+import { isValidPostToolRoutingMode, validatePositiveIntegerThreshold } from "./router-contract.js";
 export const OUTPUT_ROUTER_SKILL_PATH = "plugins/freeflow/skills/output-router/SKILL.md";
 export const DEFAULT_VAULT_ROOT = "~/.cache/freeflow-router/vault";
 export const DEFAULT_POST_TOOL_ROUTING = "off";
@@ -47,7 +47,7 @@ function applyPostToolRouting(config, warnings, value) {
     if (value === undefined) {
         return;
     }
-    if (typeof value === "string" && POST_TOOL_ROUTING_MODES.includes(value)) {
+    if (isValidPostToolRoutingMode(value)) {
         config.postToolRouting = value;
         return;
     }
@@ -57,7 +57,7 @@ function applyPositiveInteger(thresholds, warnings, value, key) {
     if (value === undefined) {
         return;
     }
-    if (Number.isInteger(value) && typeof value === "number" && value > 0) {
+    if (validatePositiveIntegerThreshold(value, `outputRouter.${key}`).length === 0) {
         thresholds[key] = value;
         return;
     }
@@ -77,7 +77,7 @@ function applyVaultRetention(config, warnings, value) {
     if (value === undefined) {
         return;
     }
-    if (Number.isInteger(value) && typeof value === "number" && value > 0) {
+    if (validatePositiveIntegerThreshold(value, "outputRouter.vaultRetentionDays").length === 0) {
         config.vault.retention = { strategy: "ttl", ttlDays: value };
         return;
     }

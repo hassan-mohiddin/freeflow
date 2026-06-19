@@ -1,5 +1,5 @@
-import { POST_TOOL_ROUTING_MODES } from "./types.js";
-import type { PostToolRoutingMode, RouterConfig, RouterHints, RouterThresholds, VaultRetentionPolicy } from "./types.js";
+import { isValidPostToolRoutingMode, validatePositiveIntegerThreshold } from "./router-contract.js";
+import type { RouterConfig, RouterHints, RouterThresholds, VaultRetentionPolicy } from "./types.js";
 
 export const OUTPUT_ROUTER_SKILL_PATH = "plugins/freeflow/skills/output-router/SKILL.md";
 
@@ -72,8 +72,8 @@ function applyPostToolRouting(config: RouterConfig, warnings: string[], value: u
     return;
   }
 
-  if (typeof value === "string" && (POST_TOOL_ROUTING_MODES as readonly string[]).includes(value)) {
-    config.postToolRouting = value as PostToolRoutingMode;
+  if (isValidPostToolRoutingMode(value)) {
+    config.postToolRouting = value;
     return;
   }
 
@@ -90,8 +90,8 @@ function applyPositiveInteger(
     return;
   }
 
-  if (Number.isInteger(value) && typeof value === "number" && value > 0) {
-    thresholds[key] = value;
+  if (validatePositiveIntegerThreshold(value, `outputRouter.${key}`).length === 0) {
+    thresholds[key] = value as number;
     return;
   }
 
@@ -116,8 +116,8 @@ function applyVaultRetention(config: RouterConfig, warnings: string[], value: un
     return;
   }
 
-  if (Number.isInteger(value) && typeof value === "number" && value > 0) {
-    config.vault.retention = { strategy: "ttl", ttlDays: value };
+  if (validatePositiveIntegerThreshold(value, "outputRouter.vaultRetentionDays").length === 0) {
+    config.vault.retention = { strategy: "ttl", ttlDays: value as number };
     return;
   }
 

@@ -7,6 +7,7 @@ import {
   findExactDuplicateTextOutput,
   freeflowRetrieve,
   freeflowRun,
+  isNativeSafetyNetEnabled,
   normalizeRouterConfig,
   storeTextOutput,
   textOutputFingerprints,
@@ -719,7 +720,7 @@ function nativeOutputStats(text, truncation) {
 }
 
 function isSafetyNetEnabled(routerConfig) {
-  return routerConfig.postToolRouting === "safety-net" || routerConfig.postToolRouting === "strict";
+  return isNativeSafetyNetEnabled(routerConfig.postToolRouting);
 }
 
 function shouldRouteNativeToolResult(event, routerConfig, text) {

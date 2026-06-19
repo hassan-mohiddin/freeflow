@@ -21,6 +21,22 @@ test("default router config uses seven-day TTL and validates", () => {
   assert.deepEqual(validateRouterConfig(config), { ok: true, value: config });
 });
 
+test("router config validation rejects zero thresholds and malformed normalized hints", () => {
+  const config = createDefaultRouterConfig();
+  const result = validateRouterConfig({
+    ...config,
+    thresholds: { largeOutputBytes: 0, largeOutputLines: 0 },
+    hints: { generatedPathGlobs: ["dist/**", 1], noisyCommandPatterns: "test" },
+  });
+
+  assert.equal(result.ok, false);
+  const paths = result.issues.map((issue) => issue.path).join("\n");
+  assert.match(paths, /\$\.thresholds\.largeOutputBytes/);
+  assert.match(paths, /\$\.thresholds\.largeOutputLines/);
+  assert.match(paths, /\$\.hints\.generatedPathGlobs\[1\]/);
+  assert.match(paths, /\$\.hints\.noisyCommandPatterns/);
+});
+
 test("routed command result keeps tool, execution, and routing status separate", () => {
   const result = {
     toolStatus: "ok",

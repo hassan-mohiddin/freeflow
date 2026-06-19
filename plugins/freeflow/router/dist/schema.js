@@ -1,4 +1,5 @@
-import { EXECUTION_STATUSES, EVIDENCE_WINDOWS, OUTPUT_STREAMS, POST_TOOL_ROUTING_MODES, PRESERVE_MODES, RETRIEVAL_ACTIONS, ROUTE_KINDS, ROUTING_STATUSES, TOOL_STATUSES, } from "./types.js";
+import { EXECUTION_STATUSES, EVIDENCE_WINDOWS, OUTPUT_STREAMS, PRESERVE_MODES, RETRIEVAL_ACTIONS, ROUTE_KINDS, ROUTING_STATUSES, TOOL_STATUSES, } from "./types.js";
+import { isValidPostToolRoutingMode, validateNormalizedRouterHints, validatePositiveIntegerThreshold, validateVaultRetentionPolicy, } from "./router-contract.js";
 function isRecord(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -269,17 +270,15 @@ export function validateRouterConfig(value) {
     if (!isRecord(value)) {
         return failure([{ path: "$", message: "Expected a router config object." }]);
     }
-    if (!isOneOf(value.postToolRouting, POST_TOOL_ROUTING_MODES)) {
+    if (!isValidPostToolRoutingMode(value.postToolRouting)) {
         issues.push({ path: "$.postToolRouting", message: "Expected postToolRouting off, safety-net, or strict." });
     }
     if (!isRecord(value.thresholds)) {
         issues.push({ path: "$.thresholds", message: "Expected thresholds object." });
     }
     else {
-        requireInteger(value.thresholds, "largeOutputBytes", "$.thresholds", issues);
-        requireInteger(value.thresholds, "largeOutputLines", "$.thresholds", issues);
-        requireNonNegativeNumber(value.thresholds, "largeOutputBytes", "$.thresholds", issues);
-        requireNonNegativeNumber(value.thresholds, "largeOutputLines", "$.thresholds", issues);
+        issues.push(...validatePositiveIntegerThreshold(value.thresholds.largeOutputBytes, "$.thresholds.largeOutputBytes"));
+        issues.push(...validatePositiveIntegerThreshold(value.thresholds.largeOutputLines, "$.thresholds.largeOutputLines"));
     }
     if (!isRecord(value.vault)) {
         issues.push({ path: "$.vault", message: "Expected vault config object." });
@@ -287,27 +286,11 @@ export function validateRouterConfig(value) {
     else {
         requireString(value.vault, "root", "$.vault", issues);
         if (value.vault.retention !== undefined) {
-            validateRetention(value.vault.retention, "$.vault.retention", issues);
+            issues.push(...validateVaultRetentionPolicy(value.vault.retention, "$.vault.retention"));
         }
     }
+    issues.push(...validateNormalizedRouterHints(value.hints, "$.hints"));
     return issues.length === 0 ? success(value) : failure(issues);
-}
-function validateRetention(value, path, issues) {
-    if (!isRecord(value)) {
-        issues.push({ path, message: "Expected retention policy object." });
-        return;
-    }
-    if (value.strategy === "manual") {
-        return;
-    }
-    if (value.strategy === "ttl") {
-        requireInteger(value, "ttlDays", path, issues);
-        if (typeof value.ttlDays === "number" && value.ttlDays <= 0) {
-            issues.push({ path: `${path}.ttlDays`, message: "Expected ttlDays to be greater than zero." });
-        }
-        return;
-    }
-    issues.push({ path: `${path}.strategy`, message: "Expected retention strategy manual or ttl." });
 }
 export function validateCommandOutputRecord(value) {
     const issues = [];
