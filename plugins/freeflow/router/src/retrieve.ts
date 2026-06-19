@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
+import { buildBoundedEdgeChunks, buildBoundedExcerpt, type BoundedEdgeChunk, type BoundedEvidenceCaps } from "./bounded-evidence.js";
 import { selectEvidenceRangeForChunk } from "./evidence-range-selector.js";
 import { resolveExactLineRange } from "./line-ranges.js";
 import { collectRepoTextFileRefs, resolveRepoPath, type RepoTextFileRef } from "./repo-traversal.js";
@@ -95,8 +96,15 @@ const EXACT_LINE_RANGE_MAX_BYTES = 64_000;
 const EXACT_CHUNK_MAX_BYTES = 32_000;
 const CONCURRENT_REPO_FILE_READS = 32;
 const QUERY_COVERAGE_MAX_LINES = 80;
-const TRUNCATION_SUFFIX = " … [truncated; expand or retrieve exact lines for recovery]";
-const TRUNCATION_PREFIX = "[truncated head; expand or retrieve exact lines for recovery] … ";
+const BOUNDED_EVIDENCE_CAPS: BoundedEvidenceCaps = {
+  queryExcerptMaxBytes: QUERY_EXCERPT_MAX_BYTES,
+  linePreviewMaxBytes: LINE_PREVIEW_MAX_BYTES,
+  expandLines30MaxBytes: EXPAND_LINES_30_MAX_BYTES,
+  expandLines30MaxLines: EXPAND_LINES_30_MAX_LINES,
+  expandLines80MaxBytes: EXPAND_LINES_80_MAX_BYTES,
+  expandLines80MaxLines: EXPAND_LINES_80_MAX_LINES,
+  exactChunkMaxBytes: EXACT_CHUNK_MAX_BYTES,
+};
 const STOPWORDS = new Set([
   "a",
   "an",
@@ -307,16 +315,15 @@ function retrieveVaultLineRangeOverCap(
   requestedRange: LineRange,
   requestedBytes: number,
 ): RetrievalRoutedResult {
-  const ranges = overCapEdgeRanges(lines, requestedRange);
-  const evidence = ranges.map((range, index): EvidencePacket => {
-    const evidenceLines = `${range.start}-${range.end}`;
+  const evidence = buildBoundedEdgeChunks({ lines, range: requestedRange, caps: BOUNDED_EVIDENCE_CAPS }).map((chunk, index): EvidencePacket => {
+    const evidenceLines = chunk.linesLabel;
     return {
       id: evidenceIdFor(`${options.source.outputId}:${stream}`, evidenceLines, `retrieve-over-cap-${index}`),
       source: { kind: "vault", outputId: options.source.outputId, stream },
       path: `${options.source.outputId}:${stream}`,
       lines: evidenceLines,
-      excerpt: boundedExactChunkExcerpt(lines, range, range.edge),
-      why: `Bounded recoverable ${index === 0 ? "head" : "tail"} preview for vaulted ${stream} output line range over cap ${EXACT_LINE_RANGE_MAX_BYTES}.`,
+      excerpt: chunk.excerpt,
+      why: `Bounded recoverable ${chunk.edge} preview for vaulted ${stream} output line range over cap ${EXACT_LINE_RANGE_MAX_BYTES}.`,
       window: "small",
       expandable: true,
     };
@@ -355,15 +362,15 @@ function expandVaultEvidenceOverCap(
   expandedRange: LineRange,
   expandedBytes: number,
 ): RetrievalRoutedResult {
-  const chunks = overCapEdgeRanges(lines, expandedRange).map((range, index): EvidencePacket => {
-    const evidenceLines = `${range.start}-${range.end}`;
+  const chunks = buildBoundedEdgeChunks({ lines, range: expandedRange, caps: BOUNDED_EVIDENCE_CAPS }).map((chunk, index): EvidencePacket => {
+    const evidenceLines = chunk.linesLabel;
     return {
       id: evidenceIdFor(`${options.source.outputId}:${stream}`, evidenceLines, `expand-over-cap-${index}`),
       source: { kind: "vault", outputId: options.source.outputId, stream },
       path: `${options.source.outputId}:${stream}`,
       lines: evidenceLines,
-      excerpt: boundedExactChunkExcerpt(lines, range, range.edge),
-      why: `Bounded recoverable ${index === 0 ? "head" : "tail"} preview for vaulted ${stream} expansion over cap ${EXACT_LINE_RANGE_MAX_BYTES}.`,
+      excerpt: chunk.excerpt,
+      why: `Bounded recoverable ${chunk.edge} preview for vaulted ${stream} expansion over cap ${EXACT_LINE_RANGE_MAX_BYTES}.`,
       window: "small",
       expandable: true,
     };
@@ -415,15 +422,15 @@ async function expandVaultEvidence(
     return expandVaultEvidenceOverCap(options, preserve, stream, evidence, lines, expandedRange, byteLength(expandedExcerpt));
   }
 
-  const capped = capLineRangeForWindow(expandedRange, window);
-  const expandedLines = `${capped.range.start}-${capped.range.end}`;
+  const bounded = buildBoundedExcerpt({ lines, range: expandedRange, window, caps: BOUNDED_EVIDENCE_CAPS });
+  const expandedLines = bounded.linesLabel;
   const expandedEvidence: EvidencePacket = {
     ...evidence,
     source: { kind: "vault", outputId: options.source.outputId, stream },
     path: `${options.source.outputId}:${stream}`,
     lines: expandedLines,
-    excerpt: excerptForLineRange(lines, capped.range, window),
-    why: capped.truncated
+    excerpt: bounded.excerpt,
+    why: bounded.truncatedByLineCap
       ? `Expanded deterministic vault evidence from ${evidence.lines} and bounded it to ${expandedLines} by the ${window} line cap.`
       : `Expanded deterministic vault evidence from ${evidence.lines} to ${expandedLines}.`,
     window,
@@ -723,8 +730,8 @@ function expandRepoEvidenceOverCap(
   preserve: PreserveMode,
   expandedBytes: number,
 ): RetrievalRoutedResult {
-  const chunks = overCapEdgeRanges(file.lines, expandedRange).map((range, index) =>
-    repoEvidenceForBoundedExactChunk(file, range, index),
+  const chunks = buildBoundedEdgeChunks({ lines: file.lines, range: expandedRange, caps: BOUNDED_EVIDENCE_CAPS }).map((chunk, index) =>
+    repoEvidenceForBoundedExactChunk(file, chunk, index),
   );
   const expandedLines = `${expandedRange.start}-${expandedRange.end}`;
 
@@ -800,8 +807,9 @@ function retrieveRepoLineRangeOverCap(
   preserve: PreserveMode,
   requestedBytes: number,
 ): RetrievalRoutedResult {
-  const ranges = overCapEdgeRanges(file.lines, requestedRange);
-  const evidence = ranges.map((range, index) => repoEvidenceForBoundedExactChunk(file, range, index));
+  const evidence = buildBoundedEdgeChunks({ lines: file.lines, range: requestedRange, caps: BOUNDED_EVIDENCE_CAPS }).map((chunk, index) =>
+    repoEvidenceForBoundedExactChunk(file, chunk, index),
+  );
 
   return {
     toolStatus: "ok",
@@ -825,15 +833,15 @@ function retrieveRepoLineRangeOverCap(
   };
 }
 
-function repoEvidenceForBoundedExactChunk(file: RepoTextFile, range: OverCapEdgeRange, index: number): EvidencePacket {
-  const evidenceLines = `${range.start}-${range.end}`;
+function repoEvidenceForBoundedExactChunk(file: RepoTextFile, chunk: BoundedEdgeChunk, index: number): EvidencePacket {
+  const evidenceLines = chunk.linesLabel;
   return {
     id: evidenceIdFor(file.path, evidenceLines, `retrieve-over-cap-${index}`),
     source: { kind: "repo", path: file.path },
     path: file.path,
     lines: evidenceLines,
-    excerpt: boundedExactChunkExcerpt(file.lines, range, range.edge),
-    why: `Bounded recoverable ${index === 0 ? "head" : "tail"} preview for repo line range over cap ${EXACT_LINE_RANGE_MAX_BYTES}.`,
+    excerpt: chunk.excerpt,
+    why: `Bounded recoverable ${chunk.edge} preview for repo line range over cap ${EXACT_LINE_RANGE_MAX_BYTES}.`,
     window: "small",
     expandable: true,
   };
@@ -870,9 +878,11 @@ function retrieveFullFile(file: RepoTextFile, maxFullBytes: number): RetrievalRo
     };
   }
 
-  const evidence = overCapEdgeRanges(file.lines, { start: 1, end: file.lines.length }).map((range, index) =>
-    repoEvidenceForBoundedExactChunk(file, range, index),
-  );
+  const evidence = buildBoundedEdgeChunks({
+    lines: file.lines,
+    range: { start: 1, end: file.lines.length },
+    caps: BOUNDED_EVIDENCE_CAPS,
+  }).map((chunk, index) => repoEvidenceForBoundedExactChunk(file, chunk, index));
 
   return {
     toolStatus: "ok",
@@ -1068,10 +1078,15 @@ interface EvidenceRangeOptions {
 }
 
 function evidenceFromRange(options: EvidenceRangeOptions): EvidencePacket {
-  const capped = capLineRangeForWindow(options.lines, options.window);
-  const lines = `${capped.range.start}-${capped.range.end}`;
-  const excerpt = excerptForLineRange(options.file.lines, capped.range, options.window, options.exactNormalizedPhrase);
-  const why = capped.truncated
+  const bounded = buildBoundedExcerpt({
+    lines: options.file.lines,
+    range: options.lines,
+    window: options.window,
+    caps: BOUNDED_EVIDENCE_CAPS,
+    ...(options.exactNormalizedPhrase !== undefined ? { exactNormalizedPhrase: options.exactNormalizedPhrase } : {}),
+  });
+  const lines = bounded.linesLabel;
+  const why = bounded.truncatedByLineCap
     ? `${options.why} Bounded to ${lines} by the ${options.window} line cap; use retrieve lineRange or a wider expansion for more exact context.`
     : options.why;
   return {
@@ -1079,7 +1094,7 @@ function evidenceFromRange(options: EvidenceRangeOptions): EvidencePacket {
     source: { kind: "repo", path: options.file.path },
     path: options.file.path,
     lines,
-    excerpt,
+    excerpt: bounded.excerpt,
     why,
     window: options.window,
     expandable: options.expandable,
@@ -1089,38 +1104,6 @@ function evidenceFromRange(options: EvidenceRangeOptions): EvidencePacket {
 interface LineRange {
   start: number;
   end: number;
-}
-
-interface OverCapEdgeRange extends LineRange {
-  edge: "head" | "tail";
-}
-
-function overCapEdgeRanges(lines: readonly string[], range: LineRange): OverCapEdgeRange[] {
-  const lineCount = range.end - range.start + 1;
-  const chunkLineCount = Math.min(10, Math.max(1, Math.floor(lineCount / 2)));
-  const headRange = shrinkRangeToMaxBytes(lines, { start: range.start, end: Math.min(range.end, range.start + chunkLineCount - 1) }, "head");
-  const tailRange = shrinkRangeToMaxBytes(lines, { start: Math.max(range.start, range.end - chunkLineCount + 1), end: range.end }, "tail");
-  const head: OverCapEdgeRange = { ...headRange, edge: "head" };
-  const tail: OverCapEdgeRange = { ...tailRange, edge: "tail" };
-
-  if (tail.start <= head.end) {
-    return byteLength(lines.slice(head.start - 1, head.end).join("\n")) > EXACT_CHUNK_MAX_BYTES ? [head, tail] : [head];
-  }
-
-  return [head, tail];
-}
-
-function shrinkRangeToMaxBytes(lines: readonly string[], range: LineRange, edge: "head" | "tail"): LineRange {
-  let current = range;
-  while (current.end > current.start && byteLength(lines.slice(current.start - 1, current.end).join("\n")) > EXACT_CHUNK_MAX_BYTES) {
-    current = edge === "head" ? { start: current.start, end: current.end - 1 } : { start: current.start + 1, end: current.end };
-  }
-  return current;
-}
-
-function boundedExactChunkExcerpt(lines: readonly string[], range: LineRange, edge: "head" | "tail" = "head"): string {
-  const excerpt = lines.slice(range.start - 1, range.end).join("\n");
-  return edge === "tail" ? truncateTailToUtf8Bytes(excerpt, EXACT_CHUNK_MAX_BYTES) : truncateToUtf8Bytes(excerpt, EXACT_CHUNK_MAX_BYTES);
 }
 
 function parseLineRange(lines: string): LineRange | null {
@@ -1630,189 +1613,13 @@ function excerptForLineRange(
   window: EvidenceWindow,
   exactNormalizedPhrase?: string,
 ): string {
-  const selected = lines.slice(range.start - 1, range.end);
-  const maxBytes = maxExcerptBytesForWindow(window);
-  if (maxBytes !== null && exactNormalizedPhrase !== undefined) {
-    const exactExcerpt = excerptAroundNormalizedPhrase(selected.join("\n"), exactNormalizedPhrase, maxBytes);
-    if (exactExcerpt !== null) {
-      return exactExcerpt;
-    }
-  }
-
-  const previewedLines = shouldBoundEvidence(window)
-    ? selected.map((line) => truncateLinePreview(line, LINE_PREVIEW_MAX_BYTES, exactNormalizedPhrase))
-    : selected;
-  const excerpt = previewedLines.join("\n");
-  return maxBytes === null ? excerpt : truncateToUtf8Bytes(excerpt, maxBytes);
-}
-
-function capLineRangeForWindow(range: LineRange, window: EvidenceWindow): { range: LineRange; truncated: boolean } {
-  const maxLines = maxLinesForWindow(window);
-  const lineCount = range.end - range.start + 1;
-  if (maxLines === null || lineCount <= maxLines) {
-    return { range, truncated: false };
-  }
-
-  return {
-    range: { start: range.start, end: range.start + maxLines - 1 },
-    truncated: true,
-  };
-}
-
-function maxLinesForWindow(window: EvidenceWindow): number | null {
-  if (window === "lines_30") {
-    return EXPAND_LINES_30_MAX_LINES;
-  }
-  if (window === "lines_80") {
-    return EXPAND_LINES_80_MAX_LINES;
-  }
-  return null;
-}
-
-function maxExcerptBytesForWindow(window: EvidenceWindow): number | null {
-  if (window === "small" || window === "section") {
-    return QUERY_EXCERPT_MAX_BYTES;
-  }
-  if (window === "lines_30") {
-    return EXPAND_LINES_30_MAX_BYTES;
-  }
-  if (window === "lines_80") {
-    return EXPAND_LINES_80_MAX_BYTES;
-  }
-  return null;
-}
-
-function shouldBoundEvidence(window: EvidenceWindow): boolean {
-  return maxExcerptBytesForWindow(window) !== null;
-}
-
-function excerptAroundNormalizedPhrase(text: string, exactNormalizedPhrase: string, maxBytes: number): string | null {
-  const span = normalizedPhraseRawSpan(text, exactNormalizedPhrase);
-  if (span === null) {
-    return null;
-  }
-  return truncateToUtf8BytesAroundSpan(text, span, maxBytes);
-}
-
-function truncateLinePreview(text: string, maxBytes: number, exactNormalizedPhrase?: string): string {
-  if (exactNormalizedPhrase === undefined || byteLength(text) <= maxBytes) {
-    return truncateToUtf8Bytes(text, maxBytes);
-  }
-
-  const span = normalizedPhraseRawSpan(text, exactNormalizedPhrase);
-  if (span === null) {
-    return truncateToUtf8Bytes(text, maxBytes);
-  }
-
-  return truncateToUtf8BytesAroundSpan(text, span, maxBytes);
-}
-
-function truncateToUtf8Bytes(text: string, maxBytes: number): string {
-  if (byteLength(text) <= maxBytes) {
-    return text;
-  }
-
-  const suffixBytes = byteLength(TRUNCATION_SUFFIX);
-  const contentBytes = Math.max(0, maxBytes - suffixBytes);
-  let truncated = Buffer.from(text, "utf8").subarray(0, contentBytes).toString("utf8");
-  while (byteLength(truncated) > contentBytes) {
-    truncated = truncated.slice(0, -1);
-  }
-  return `${truncated}${TRUNCATION_SUFFIX}`;
-}
-
-function truncateToUtf8BytesAroundSpan(text: string, span: { start: number; end: number }, maxBytes: number): string {
-  if (byteLength(text) <= maxBytes) {
-    return text;
-  }
-
-  const prefix = span.start > 0 ? TRUNCATION_PREFIX : "";
-  const suffix = span.end < text.length ? TRUNCATION_SUFFIX : "";
-  const budget = maxBytes - byteLength(prefix) - byteLength(suffix);
-  const phrase = text.slice(span.start, span.end);
-  const phraseBytes = byteLength(phrase);
-  if (budget <= 0 || phraseBytes >= budget) {
-    return truncateToUtf8Bytes(text.slice(span.start), maxBytes);
-  }
-
-  const contextBudget = budget - phraseBytes;
-  const beforeBudget = Math.floor(contextBudget / 2);
-  const afterBudget = contextBudget - beforeBudget;
-  let start = span.start;
-  while (start > 0 && byteLength(text.slice(start - 1, span.start)) <= beforeBudget) {
-    start -= 1;
-  }
-  if (byteLength(text.slice(start, span.start)) > beforeBudget) {
-    start += 1;
-  }
-
-  let end = span.end;
-  while (end < text.length && byteLength(text.slice(span.end, end + 1)) <= afterBudget) {
-    end += 1;
-  }
-  if (byteLength(text.slice(span.end, end)) > afterBudget) {
-    end -= 1;
-  }
-
-  const actualPrefix = start > 0 ? prefix : "";
-  const actualSuffix = end < text.length ? suffix : "";
-  return `${actualPrefix}${text.slice(start, end)}${actualSuffix}`;
-}
-
-function normalizedPhraseRawSpan(text: string, normalizedPhrase: string): { start: number; end: number } | null {
-  const phraseTokens = normalizedPhrase.split(/\s+/).filter(Boolean);
-  if (phraseTokens.length === 0) {
-    return null;
-  }
-
-  const spans = tokenSpansForPhrase(text);
-  for (let startIndex = 0; startIndex <= spans.length - phraseTokens.length; startIndex += 1) {
-    let matched = true;
-    for (let offset = 0; offset < phraseTokens.length; offset += 1) {
-      if (spans[startIndex + offset]?.token !== phraseTokens[offset]) {
-        matched = false;
-        break;
-      }
-    }
-    if (matched) {
-      const first = spans[startIndex];
-      const last = spans[startIndex + phraseTokens.length - 1];
-      if (first !== undefined && last !== undefined) {
-        return { start: first.start, end: last.end };
-      }
-    }
-  }
-
-  return null;
-}
-
-function tokenSpansForPhrase(text: string): Array<{ token: string; start: number; end: number }> {
-  const spans: Array<{ token: string; start: number; end: number }> = [];
-  for (const match of text.matchAll(/[A-Za-z0-9_./-]+/g)) {
-    const rawToken = match[0];
-    const start = match.index ?? 0;
-    const end = start + rawToken.length;
-    for (const token of expandedIdentifierTokens(rawToken)) {
-      if (token.length >= 2) {
-        spans.push({ token, start, end });
-      }
-    }
-  }
-  return spans;
-}
-
-function truncateTailToUtf8Bytes(text: string, maxBytes: number): string {
-  if (byteLength(text) <= maxBytes) {
-    return text;
-  }
-
-  const prefixBytes = byteLength(TRUNCATION_PREFIX);
-  const contentBytes = Math.max(0, maxBytes - prefixBytes);
-  let start = Math.max(0, text.length - contentBytes);
-  while (start < text.length && byteLength(text.slice(start)) > contentBytes) {
-    start += 1;
-  }
-  return `${TRUNCATION_PREFIX}${text.slice(start)}`;
+  return buildBoundedExcerpt({
+    lines,
+    range,
+    window,
+    caps: BOUNDED_EVIDENCE_CAPS,
+    ...(exactNormalizedPhrase !== undefined ? { exactNormalizedPhrase } : {}),
+  }).excerpt;
 }
 
 function byteLength(text: string): number {
