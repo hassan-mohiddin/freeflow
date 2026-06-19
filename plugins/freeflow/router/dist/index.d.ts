@@ -1,5 +1,6 @@
 export * from "./benchmarks.js";
 export * from "./command-benchmarks.js";
+export * from "./codex-qa-benchmarks.js";
 export * from "./experimental-local-index.js";
 export * from "./index-benchmarks.js";
 export * from "./config.js";

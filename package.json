@@ -20,7 +20,8 @@
     "test:router": "npm run build:router && node --test plugins/freeflow/router/tests/*.test.js",
     "bench:router": "npm run build:router && node plugins/freeflow/router/dist/benchmarks.js",
     "bench:router:commands": "npm run build:router && node plugins/freeflow/router/dist/command-benchmarks.js",
-    "bench:router:index": "npm run build:router && node plugins/freeflow/router/dist/index-benchmarks.js"
+    "bench:router:index": "npm run build:router && node plugins/freeflow/router/dist/index-benchmarks.js",
+    "bench:router:codex-qa": "npm run build:router && node plugins/freeflow/router/dist/codex-qa-benchmarks.js"
   },
   "keywords": [
     "pi-package",
