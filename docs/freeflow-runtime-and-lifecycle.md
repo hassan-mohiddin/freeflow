@@ -362,7 +362,7 @@ Current evidence:
 - `setup-freeflow` has focused setup evals for Codex and Claude activation shapes.
 - `write-skill` has behavior and direct command evals showing that production-ready pressure must not overbuild skill folders.
 - `evaluate-skill` has behavior and direct command evals showing that shortcut wording must not skip creating or updating an eval artifact before skill edits.
-- Command-surface coverage is complete for the current registry: 4 mode commands, 11 direct skill calls, and 2 developer skill calls. See `plugins/freeflow/evals/reports/by-command-surface/command-surface-matrix.md`.
+- Command-surface coverage is complete for the current registry: 4 mode commands, 12 direct skill calls, and 2 developer skill calls. See `plugins/freeflow/evals/reports/by-command-surface/command-surface-matrix.md`.
 - The fixture harness supports Codex by default and Claude through `FREEFLOW_FIXTURE_AGENT=claude`; live Claude runs still require local Claude auth and are not active release blockers for Hassan's local Codex-first testing.
 
 ## Current Pack Readiness

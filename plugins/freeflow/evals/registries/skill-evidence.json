@@ -97,7 +97,9 @@
     },
     "output-router": {
       "evals": [
-        "OTR-001"
+        "OTR-001",
+        "OTR-002",
+        "CMD-016"
       ]
     },
     "research": {

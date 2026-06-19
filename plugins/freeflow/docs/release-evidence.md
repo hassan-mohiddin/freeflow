@@ -20,10 +20,10 @@ High-signal behaviors covered:
 The development registry covers:
 
 - 4 mode commands.
-- 11 direct workflow skill calls.
+- 12 direct skill calls.
 - 2 contributor skill calls.
 
-Codex/Claude native slash handlers are not shipped in this release. In those hosts, commands are model-routed through natural language and skill activation. Pi registers direct Freeflow commands through its extension.
+Codex/Claude native slash handlers are not shipped in this release. In those hosts, commands are model-routed through natural language and skill activation. Pi registers direct Freeflow commands through its extension, including `/output-router`.
 
 ## Runtime Context
 

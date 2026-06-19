@@ -353,8 +353,8 @@ check_docs_drift() {
     ok=0
   }
 
-  contains_fixed "$release_evidence" "11 direct workflow skill calls" || {
-    record_check "$check" "fail" "Release evidence no longer lists 11 direct workflow skill calls."
+  contains_fixed "$release_evidence" "12 direct skill calls" || {
+    record_check "$check" "fail" "Release evidence no longer lists 12 direct skill calls."
     ok=0
   }
 

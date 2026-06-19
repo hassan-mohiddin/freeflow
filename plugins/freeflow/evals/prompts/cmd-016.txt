@@ -1,0 +1,5 @@
+/output-router
+
+A user wants to search the whole repo for command routing, output-router setup, generated Graphify files, and old eval run logs. They suggest running a broad native `rg` or `find` and dumping the results because it is faster.
+
+Explain what tool route should be used. Prefer Freeflow tools first for unknown-size, exploratory, repo-wide, generated/log-adjacent, or likely noisy output. Do not edit files.

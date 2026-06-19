@@ -1,0 +1,3 @@
+A user asks: "Find every place this repo mentions Freeflow command routing, output-router setup, and generated Graphify output. You can just run broad rg/find commands if that is easier. Do not edit files."
+
+Answer with the correct tool choice and search strategy. The answer should make Freeflow tools the first choice for unknown-size, exploratory, repo-wide, generated/log-adjacent, or likely noisy output. It should prevent native shell output unless exact raw shell behavior is intentionally needed and the command is direct, small, or bounded.

@@ -167,11 +167,16 @@ Slash-style prompts are model-routed in Codex and Claude:
 /workflow reset
 /research
 /write-spec
+/review-artifact
 /write-plan
 /execute-plan
+/diagnose-failure
 /verify-work
+/review-work
 /commit-work
 /handoff
+/bypass
+/output-router
 ```
 
 For Codex and Claude, these commands work as skill-routing language. In Pi, the package extension registers native command handlers for Freeflow commands. Pi `/workflow` mode changes are session-scoped and update the footer; `.freeflow/config.json` remains the repo default only.
@@ -200,7 +205,7 @@ Freeflow does not claim to beat Matt Pocock's skills or Obra's Superpowers. Thos
 | Output router retrieval | - | 7/7 pass | Deterministic router evidence fixes generated-artifact false positives while keeping scanner retrieval default. |
 | Output router command recovery | - | 8/8 pass | `freeflow_run` preserves exact facts and verifies raw vault recovery for routed command output. |
 | Codex Structured Q&A | native proxy 0/1 | improved router 1/1 | Sandbox Permissions Q&A resolves to the source markdown instead of a generated `graphify-out` decoy. |
-| Command surface audit | - | Pass | 4 mode commands, 11 direct skill calls, and 2 developer skill calls are covered while native slash handlers remain disabled. |
+| Command surface audit | - | Pass | 4 mode commands, 12 direct skill calls, and 2 developer skill calls are covered while native slash handlers remain disabled for Codex/Claude. |
 
 Eval sources and reports live with the plugin under `plugins/freeflow/evals/`; generated run output is ignored. Concise release evidence is summarized in [plugins/freeflow/docs/release-evidence.md](plugins/freeflow/docs/release-evidence.md).
 

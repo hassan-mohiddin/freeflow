@@ -27,6 +27,7 @@ const WORKFLOW_COMMANDS = [
   "commit-work",
   "handoff",
   "bypass",
+  "output-router",
 ];
 
 const CONTRIBUTOR_COMMANDS = [

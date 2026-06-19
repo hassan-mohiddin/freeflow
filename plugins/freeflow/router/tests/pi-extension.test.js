@@ -59,6 +59,13 @@ function renderText(component, width = 120) {
   return component.render(width).join("\n");
 }
 
+test("Pi registers output-router as a direct command", () => {
+  const { commands } = loadExtension();
+  const names = commands.map((command) => command.name);
+
+  assert.ok(names.includes("output-router"));
+});
+
 test("Pi before_agent_start injects output-router skill context", async () => {
   const { handlers } = loadExtension();
   const beforeAgentStart = handlers.get("before_agent_start");

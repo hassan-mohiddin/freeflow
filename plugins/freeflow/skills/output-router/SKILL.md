@@ -1,24 +1,39 @@
 ---
 name: output-router
-description: Use when choosing between native tools and Freeflow routed tools, retrieving repo/vault evidence, running likely-large or noisy commands, recovering vaulted output, configuring outputRouter, or handling optional native read/bash safety-net routing.
+description: Use when choosing between native tools and Freeflow routed tools, retrieving repo/vault evidence, handling unknown-size or broad output, running likely-large/noisy commands, recovering vaulted output, configuring outputRouter, or handling optional native read/bash safety-net routing.
 ---
 
 # Output Router
 
-Route output deliberately. Native tools stay direct unless explicit config enables the safety net.
+Route output deliberately. Freeflow tools are the safe first choice for unknown-size, exploratory, repo-wide, generated/log-adjacent, or likely noisy output.
+
+Native tools stay direct unless explicit config enables the safety net. Use native output only when it is intentionally direct, small, exact, or bounded.
 
 ## Tool Choice
 
+- Unsure how much output a read/search/command will produce: use Freeflow first.
 - Need existing repo or vault information: use `freeflow_retrieve`.
 - Need candidate paths first: use `freeflow_retrieve action=locate`.
 - Need a best evidence packet: use `freeflow_retrieve action=query`.
 - Need exact known repo/vault lines: use `freeflow_retrieve action=retrieve` with `source.path` or `source.kind=vault`, plus `lineRange` when exact lines matter.
 - Need more around prior evidence: use `freeflow_retrieve action=expand`.
 - Need to explain a routed result or vault id: use `freeflow_retrieve action=explain`.
-- Need to run a likely-large or noisy command: use `freeflow_run`.
-- Need a whole known file/artifact: use native read.
-- Need direct shell behavior or expected-small exact output: use native bash.
+- Need to run a likely-large, broad, exploratory, or noisy command: use `freeflow_run`.
+- Need a whole known file/artifact and direct file contents are intended: use native read.
+- Need direct shell behavior with expected-small exact output: use native bash.
 - Need to edit files: use native edit/write.
+
+## Broad Native Output Guard
+
+Do not run broad native shell commands just to see what comes back. Unknown output size means Freeflow first.
+
+Likely-large native commands include repo-wide `rg`, `grep -R`, `find`, package scans, generated-artifact scans, session/eval log scans, broad `git diff/log`, test suites, builds, and lint/typecheck output.
+
+For these, choose one:
+
+- Use `freeflow_retrieve action=query` or `locate` for repo evidence discovery.
+- Use `freeflow_run` when the broad shell command is intentional and routed evidence is enough.
+- Use native bash only when the command is intentionally bounded/excluded and exact small raw output is needed, for example a targeted file/path search, `head`/`sed` cap, or explicit generated/log exclusions.
 
 ## Hard Rules
 
