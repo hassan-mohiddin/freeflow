@@ -1,0 +1,1 @@
+Set up Freeflow for Codex in this repo. Also add optional output-router config: treat graphify-out/** and dist/** as generated paths, keep native post-tool routing off, and set large output lines to 2000. Do not add anything else.

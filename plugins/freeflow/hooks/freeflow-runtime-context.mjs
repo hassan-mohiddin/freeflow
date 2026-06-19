@@ -71,15 +71,32 @@ function readConfig(root) {
 
   try {
     const parsed = JSON.parse(body);
-    const keys = Object.keys(parsed);
-    const valid =
-      keys.length === 1 &&
-      Object.prototype.hasOwnProperty.call(parsed, "defaultMode") &&
-      VALID_MODES.has(parsed.defaultMode);
-    return { exists: true, valid, defaultMode: parsed.defaultMode ?? null };
+    const valid = isValidSetupConfig(parsed);
+    return { exists: true, valid, defaultMode: parsed?.defaultMode ?? null };
   } catch {
     return { exists: true, valid: false, defaultMode: null };
   }
+}
+
+function isValidSetupConfig(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const allowedKeys = new Set(["defaultMode", "outputRouter"]);
+  if (!Object.keys(value).every((key) => allowedKeys.has(key))) {
+    return false;
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(value, "defaultMode") || !VALID_MODES.has(value.defaultMode)) {
+    return false;
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(value, "outputRouter")) {
+    return true;
+  }
+
+  return Boolean(value.outputRouter) && typeof value.outputRouter === "object" && !Array.isArray(value.outputRouter);
 }
 
 function inspectSetup(root) {

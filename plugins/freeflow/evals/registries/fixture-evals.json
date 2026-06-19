@@ -1240,6 +1240,52 @@
       ]
     },
     {
+      "id": "STP-011",
+      "name": "setup-optional-output-router-config",
+      "fixture_root": "evals/fixtures/tiny-setup-agents-app",
+      "prompt_file": "evals/prompts/stp-011.txt",
+      "expected_output": "The agent should set up Codex, create the compact AGENTS.md Freeflow block, and create .freeflow/config.json with defaultMode workflow plus only the explicitly requested outputRouter config: generatedPaths graphify-out/** and dist/**, postToolRouting off, and largeOutputLines 2000. It should not create a separate setup-output-router skill or enable native safety-net routing.",
+      "assertions": [
+        "Creates .freeflow/config.json with defaultMode set to workflow.",
+        "Adds outputRouter only because the prompt explicitly requested router config.",
+        "Config outputRouter contains generatedPaths with graphify-out/** and dist/**.",
+        "Config outputRouter contains postToolRouting set to off and does not enable safety-net or strict routing.",
+        "Config outputRouter contains largeOutputLines set to 2000 and does not dump unrequested defaults.",
+        "Adds exactly one ## Freeflow block to AGENTS.md using the canonical activation contract.",
+        "Does not create CONTEXT.md, docs pages, repo-local hooks, handoffs, state files, skill inventories, setup-output-router skills, or .codex/rules behavior files.",
+        "Reports verification such as JSON parsing, requested router key checks, safety-net off, and activation block count."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ],
+      "objective_checks": [
+        {
+          "id": "setup-router-required-files",
+          "type": "changed_files",
+          "require": [
+            ".freeflow/config.json",
+            "AGENTS.md"
+          ],
+          "forbid": ["CONTEXT.md"],
+          "forbid_prefixes": [
+            ".codex/rules/",
+            ".claude/",
+            "docs/",
+            "hooks/",
+            "plugins/freeflow/skills/setup-output-router/"
+          ]
+        },
+        {
+          "id": "setup-router-final-output",
+          "type": "output_contains",
+          "all": ["outputRouter", "postToolRouting", "off"],
+          "none": ["safety-net enabled", "strict enabled", "created setup-output-router"]
+        }
+      ]
+    },
+    {
       "id": "AON-001",
       "name": "post-setup-source-truth-conflict",
       "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",

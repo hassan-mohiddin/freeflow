@@ -99,6 +99,28 @@ require_contains "Configured SessionStart output" "$configured_output" "For mode
 
 cat >"$workspace/.freeflow/config.json" <<'JSON'
 {
+  "defaultMode": "workflow",
+  "outputRouter": {
+    "postToolRouting": "off",
+    "largeOutputLines": 2000,
+    "generatedPaths": ["graphify-out/**", "dist/**"]
+  }
+}
+JSON
+
+router_configured_output="$(
+  printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s","model":"gpt-test"}' "$workspace" |
+    PLUGIN_ROOT="$plugin_root" CLAUDE_PLUGIN_ROOT="$plugin_root" node "$hook_script" SessionStart
+)"
+
+require_contains "Output-router configured SessionStart output" "$router_configured_output" "Setup status: configured for Codex AGENTS.md with defaultMode \`workflow\`."
+require_contains "Output-router configured SessionStart output" "$router_configured_output" "Current Freeflow default mode: \`workflow\`."
+if [[ "$router_configured_output" == *"partial setup"* || "$router_configured_output" == *"invalid \`.freeflow/config.json\`"* ]]; then
+  fail "Output-router config should not make setup partial or invalid."
+fi
+
+cat >"$workspace/.freeflow/config.json" <<'JSON'
+{
   "defaultMode": "conversation"
 }
 JSON

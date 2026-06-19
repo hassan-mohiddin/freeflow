@@ -59,7 +59,9 @@ with:
 }
 ```
 
-No other config fields should be added yet.
+Minimal setup should not add any other config fields.
+
+Optional `outputRouter` config may be added only when the user explicitly asks for router config such as generated-path hints, output thresholds, vault settings, or native safety-net routing. Missing `outputRouter` means built-in defaults, not a warning. Native safety-net routing remains off unless explicitly requested.
 
 Do not store:
 
@@ -336,7 +338,7 @@ Freeflow includes developer-only or contributor-facing skills:
 - `write-skill`
 - `evaluate-skill`
 
-`setup-freeflow` installs the compact always-on runtime contract and minimal `.freeflow/config.json`.
+`setup-freeflow` installs the compact always-on runtime contract and minimal `.freeflow/config.json`; it can also add optional `outputRouter` config when explicitly requested.
 
 `write-skill` encodes Freeflow's skill style:
 

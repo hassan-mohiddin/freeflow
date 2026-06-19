@@ -9,6 +9,8 @@ Use `references/activation-contract.md` before rendering activation text, config
 
 Use `references/host-setup.md` when the request mentions Codex, Claude, both hosts, team setup, solo setup, strict defaults, hooks, CLI, or setup profiles.
 
+Use `references/output-router-setup.md` when setup explicitly asks for output-router repo config, generated-path hints, native safety-net routing, vault settings, or output thresholds.
+
 ## Stop Before Editing
 
 Do not create config, add activation blocks, imports, or rule files until setup has a clear host target and no unresolved repo-rule conflict.
@@ -46,11 +48,17 @@ Update an existing `## Freeflow` block in place. Otherwise place the block near 
 
 Create or update `.freeflow/config.json` using the config adapter in `references/activation-contract.md`.
 
-Use `workflow` unless the user explicitly asks to persist a valid repo default: `conversation`, `workflow`, or `strict-workflow`.
+Minimal setup writes only `defaultMode`. Use `workflow` unless the user explicitly asks to persist a valid repo default: `conversation`, `workflow`, or `strict-workflow`.
+
+Optional `outputRouter` config belongs here only when explicitly requested. Read `references/output-router-setup.md` first. Do not add an empty `outputRouter`, dump router defaults, or ask every setup user about router config.
+
+If the user asks for router setup but gives no config knobs, say the router works with built-in defaults and ask which optional config they want persisted. Recommend no repo config unless they need a repo-specific hint or native safety-net behavior.
+
+Never enable native safety-net routing by default. `postToolRouting: "safety-net"` requires an explicit request; `strict` is reserved and needs a separate confirmation before writing.
 
 Do not infer `strict-workflow` from "team", "strict gates", "careful", or high-risk examples. Recommend or ask unless the user explicitly says to make a mode the repo default.
 
-Do not add current mode, task, phase, file inventory, active plans, version metadata, or activation file path.
+Do not add current mode, task, phase, file inventory, active plans, version metadata, activation file path, or unrequested router keys.
 Mode switches are task/conversation scoped unless the user explicitly asks to persist a different default mode.
 
 ## Activation
@@ -65,7 +73,7 @@ Do not list the whole workflow, every mode, or full `interview-gate` skill in al
 
 ## Do Not Create
 
-Setup must not create empty `CONTEXT.md`, docs pages, repo-local hooks, state files, handoffs, skill inventories, or `.codex/rules` behavior files.
+Setup must not create empty `CONTEXT.md`, docs pages, repo-local hooks, state files, handoffs, skill inventories, `setup-output-router` skills, or `.codex/rules` behavior files.
 `CONTEXT.md` is domain language memory, not plugin state.
 Plugin-bundled context hooks are installed with Freeflow, not created by repo setup.
 
@@ -73,7 +81,9 @@ Plugin-bundled context hooks are installed with Freeflow, not created by repo se
 
 Before claiming setup is complete, check:
 - config JSON parses
-- config contains only `defaultMode` with the requested explicit default, or `workflow` when no explicit default was requested
+- minimal config contains only `defaultMode` with the requested explicit default, or `workflow` when no explicit default was requested
+- optional `outputRouter` config appears only when explicitly requested and contains only requested valid keys
+- native safety-net routing is off unless explicitly requested
 - Codex setup has exactly one `## Freeflow` block in `AGENTS.md`
 - Claude setup has exactly one `CLAUDE.md` import and one `.claude/rules/freeflow-core.md` core file
 - `.codex/rules` was not created or changed for Freeflow behavior
