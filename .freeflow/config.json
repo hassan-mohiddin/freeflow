@@ -1,3 +1,6 @@
 {
-  "defaultMode": "workflow"
+  "defaultMode": "workflow",
+  "outputRouter": {
+    "generatedPaths": ["graphify-out/**"]
+  }
 }
