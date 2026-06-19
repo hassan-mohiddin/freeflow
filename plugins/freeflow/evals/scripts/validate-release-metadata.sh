@@ -9,7 +9,7 @@ Usage:
                                [--format text|json]
 
 Default:
-  validate-release-metadata.sh --mode prepublish --release-version 0.1.0 --format text
+  validate-release-metadata.sh --mode prepublish --release-version 0.2.0 --format text
 EOF
 }
 
@@ -24,7 +24,7 @@ repo_root="$(git -C "$script_dir" rev-parse --show-toplevel)"
 plugin_root="$repo_root/plugins/freeflow"
 
 mode="prepublish"
-release_version="0.1.0"
+release_version="0.2.0"
 format="text"
 
 while [ "$#" -gt 0 ]; do
@@ -260,8 +260,8 @@ check_release_boundary() {
     ok=0
   }
 
-  contains_fixed "$architecture_doc" "does not ship a CLI, Codex/Claude native slash handlers, enforcement hooks, or a new agent runtime in v0.1" || {
-    record_check "$check" "fail" "Architecture doc no longer preserves v0.1 deferred enforcement boundary."
+  contains_fixed "$architecture_doc" "does not ship a CLI, Codex/Claude native slash handlers, enforcement hooks, or a new agent runtime in this release" || {
+    record_check "$check" "fail" "Architecture doc no longer preserves the deferred enforcement boundary."
     ok=0
   }
 
@@ -275,7 +275,7 @@ check_release_boundary() {
     ok=0
   }
 
-  contains_fixed "$release_evidence" "Codex/Claude native slash handlers are not shipped in v0.1" || {
+  contains_fixed "$release_evidence" "Codex/Claude native slash handlers are not shipped in this release" || {
     record_check "$check" "fail" "Release evidence no longer states Codex/Claude native slash handlers are not shipped."
     ok=0
   }

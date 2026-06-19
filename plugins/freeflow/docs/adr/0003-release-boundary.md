@@ -6,7 +6,7 @@ Accepted.
 
 ## Decision
 
-Freeflow v0.1 ships as a marketplace repo with one plugin runtime under `plugins/freeflow/`.
+Freeflow ships as a marketplace repo with one plugin runtime under `plugins/freeflow/`.
 
 The plugin runtime includes skills, bundled references, context-loading runtime, public docs, eval sources/reports, command-surface metadata, Codex/Claude metadata, and Pi package metadata/extension.
 

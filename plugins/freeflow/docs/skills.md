@@ -1,6 +1,6 @@
 # Skills
 
-Freeflow ships a small workflow skill pack. Natural language is the preferred interface. In Codex/Claude, slash-style phrases work as model-routed skill hints in v0.1; in Pi, the extension registers direct Freeflow commands.
+Freeflow ships a small workflow skill pack. Natural language is the preferred interface. In Codex/Claude, slash-style phrases work as model-routed skill hints; in Pi, the extension registers direct Freeflow commands.
 
 ## Core
 

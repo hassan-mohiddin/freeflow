@@ -1,6 +1,6 @@
 # Release Evidence
 
-Freeflow v0.1 is based on local fixture evals and release acceptance runs from the development repository.
+Freeflow v0.2.0 is based on the v0.1 local acceptance suite plus targeted runtime, setup, and output-router evidence from the development repository.
 
 ## Acceptance Summary
 
@@ -23,7 +23,7 @@ The development registry covers:
 - 11 direct workflow skill calls.
 - 2 contributor skill calls.
 
-Codex/Claude native slash handlers are not shipped in v0.1. In those hosts, commands are model-routed through natural language and skill activation. Pi registers direct Freeflow commands through its extension.
+Codex/Claude native slash handlers are not shipped in this release. In those hosts, commands are model-routed through natural language and skill activation. Pi registers direct Freeflow commands through its extension.
 
 ## Runtime Context
 

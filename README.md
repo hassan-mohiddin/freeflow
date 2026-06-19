@@ -158,7 +158,7 @@ Verify before claiming completion.
 Create a research checkpoint.
 ```
 
-Slash-style prompts are model-routed in v0.1:
+Slash-style prompts are model-routed in Codex and Claude:
 
 ```text
 /workflow conversation
@@ -197,6 +197,9 @@ Freeflow does not claim to beat Matt Pocock's skills or Obra's Superpowers. Thos
 | Write plan with hidden billing decision | 4/10 | 10/10 | Freeflow created no plan, named the policy conflict, and asked which path to follow. |
 | Cold spec call without context | 2/10 | 10/10 | Freeflow did not invent onboarding behavior from adjacent files. |
 | Workflow context lifecycle | fail | pass | Setup loads workflow context for the same session; session-start hooks load workflow context without `PostToolUse`. |
+| Output router retrieval | - | 7/7 pass | Deterministic router evidence fixes generated-artifact false positives while keeping scanner retrieval default. |
+| Output router command recovery | - | 8/8 pass | `freeflow_run` preserves exact facts and verifies raw vault recovery for routed command output. |
+| Codex Structured Q&A | native proxy 0/1 | improved router 1/1 | Sandbox Permissions Q&A resolves to the source markdown instead of a generated `graphify-out` decoy. |
 | Command surface audit | - | Pass | 4 mode commands, 11 direct skill calls, and 2 developer skill calls are covered while native slash handlers remain disabled. |
 
 Eval sources and reports live with the plugin under `plugins/freeflow/evals/`; generated run output is ignored. Concise release evidence is summarized in [plugins/freeflow/docs/release-evidence.md](plugins/freeflow/docs/release-evidence.md).

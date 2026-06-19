@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Nothing yet.
+
+## 0.2.0 - 2026-06-19
+
+- Adds Freeflow output-router tooling for routed repo/vault evidence, noisy command routing, and exact raw-output recovery.
+- Adds deterministic retrieval, command-output, optional local-index, and Codex Structured Q&A router benchmarks.
+- Keeps scanner retrieval as the default backend; the no-dependency local index remains experimental.
+- Keeps native post-tool safety-net routing off unless explicitly configured.
+- Adds opt-in `outputRouter` setup/config guidance while preserving minimal setup as only `defaultMode`.
 - Replaces `research-brief`, `grill-context`, and `capture-decisions` with the deeper `research` discovery skill.
 - Moves deprecated discovery skills to root `deprecated/skills/` outside the runtime skill surface.
 - Updates the direct command surface to use `/research`.

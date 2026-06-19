@@ -6,7 +6,7 @@ Accepted.
 
 ## Decision
 
-Freeflow v0.1 ships plugin-bundled context-loading runtime: Codex/Claude hooks and a Pi extension that load existing workflow and interview-gate context. It still ships without enforcement hooks or CLI enforcement. Behavior must first be proven with baseline-vs-with-skill evals before mechanical enforcement is added.
+Freeflow ships plugin-bundled context-loading runtime: Codex/Claude hooks and a Pi extension that load existing workflow and interview-gate context. It still ships without enforcement hooks or CLI enforcement. Behavior must first be proven with baseline-vs-with-skill evals before mechanical enforcement is added.
 
 ## Rationale
 
