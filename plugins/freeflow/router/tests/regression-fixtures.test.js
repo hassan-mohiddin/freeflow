@@ -179,6 +179,111 @@ test("regression fixture: huge single-line evidence is bounded", async () => {
   }
 });
 
+test("regression fixture: broad query skips media file decoys but explicit paths remain searchable", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-media-skip-fixture-"));
+  try {
+    await mkdir(join(root, "assets"), { recursive: true });
+    await writeFile(
+      join(root, "target.md"),
+      "MEDIA_SKIP_MARKER source truth router evidence",
+      "utf8",
+    );
+    await writeFile(
+      join(root, "assets", "diagram.png"),
+      `${"MEDIA_SKIP_MARKER source truth router evidence ".repeat(1000)}pngdecoyonlysentinel`,
+      "utf8",
+    );
+
+    const broad = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "MEDIA_SKIP_MARKER source truth router evidence",
+      preserve: "important",
+    });
+
+    assert.equal(broad.toolStatus, "ok");
+    assert.equal(broad.evidence?.length, 1);
+    assert.equal(broad.evidence[0].path, "target.md");
+    assert.doesNotMatch(broad.evidence[0].excerpt, /pngdecoyonlysentinel/);
+
+    const broadMediaOnly = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "pngdecoyonlysentinel",
+      preserve: "important",
+    });
+
+    assert.equal(broadMediaOnly.toolStatus, "ok");
+    assert.equal(broadMediaOnly.evidence?.length, 0);
+
+    const explicit = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root, path: "assets/diagram.png" },
+      query: "pngdecoyonlysentinel",
+      preserve: "important",
+    });
+
+    assert.equal(explicit.toolStatus, "ok");
+    assert.equal(explicit.evidence?.length, 1);
+    assert.equal(explicit.evidence[0].path, "assets/diagram.png");
+    assert.match(explicit.evidence[0].excerpt, /MEDIA_SKIP_MARKER/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("regression fixture: configured generated path hints skip broad decoys but keep explicit access", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-generated-hint-fixture-"));
+  try {
+    await mkdir(join(root, "custom-generated", "nested", "deeper"), { recursive: true });
+    await writeFile(join(root, "target.md"), "GENERATED_HINT_MARKER source truth", "utf8");
+    await writeFile(
+      join(root, "custom-generated", "nested", "deeper", "decoy.md"),
+      `${"GENERATED_HINT_MARKER source truth ".repeat(1000)}generatedhintsentinel`,
+      "utf8",
+    );
+
+    const broad = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "GENERATED_HINT_MARKER source truth",
+      preserve: "important",
+      generatedPathGlobs: ["custom-generated/**/*.md"],
+    });
+
+    assert.equal(broad.toolStatus, "ok");
+    assert.equal(broad.evidence?.length, 1);
+    assert.equal(broad.evidence[0].path, "target.md");
+    assert.doesNotMatch(broad.evidence[0].excerpt, /generatedhintsentinel/);
+
+    const explicitFile = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root, path: "custom-generated/nested/deeper/decoy.md" },
+      query: "generatedhintsentinel",
+      preserve: "important",
+      generatedPathGlobs: ["custom-generated/**/*.md"],
+    });
+
+    assert.equal(explicitFile.toolStatus, "ok");
+    assert.equal(explicitFile.evidence?.length, 1);
+    assert.equal(explicitFile.evidence[0].path, "custom-generated/nested/deeper/decoy.md");
+
+    const explicitDirectory = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root, path: "custom-generated" },
+      query: "generatedhintsentinel",
+      preserve: "important",
+      generatedPathGlobs: ["custom-generated/**/*.md"],
+    });
+
+    assert.equal(explicitDirectory.toolStatus, "ok");
+    assert.equal(explicitDirectory.evidence?.length, 1);
+    assert.equal(explicitDirectory.evidence[0].path, "custom-generated/nested/deeper/decoy.md");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("regression fixture: lockfiles remain searchable in broad retrieval", async () => {
   const root = await mkdtemp(join(tmpdir(), "freeflow-router-lockfile-fixture-"));
   try {
@@ -325,6 +430,332 @@ test("regression fixture: section chunk coverage beats repeated single-token dec
     assert.match(result.evidence[0].excerpt, /Vault recovery remains exact/);
     assert.match(result.evidence[0].excerpt, /Parser confidence labels/);
     assert.match(result.routing.reason, /BM25-style|coverage/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("regression fixture: source symbol beats test chunk with one extra generic test token", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-source-vs-test-fixture-"));
+  try {
+    await mkdir(join(root, "src/config"), { recursive: true });
+    await mkdir(join(root, "src/session"), { recursive: true });
+    await writeFile(
+      join(root, "src/config/network_proxy_spec.rs"),
+      [
+        "pub struct NetworkProxySpec {",
+        "    base_config: NetworkProxyConfig,",
+        "    requirements: Option<NetworkConstraints>,",
+        "    config: NetworkProxyConfig,",
+        "    constraints: NetworkProxyConstraints,",
+        "}",
+      ].join("\n"),
+      "utf8",
+    );
+    await writeFile(
+      join(root, "src/session/tests.rs"),
+      [
+        "async fn network_proxy_spec_tests_refresh_config() {",
+        "    let spec = NetworkProxySpec::from_config(network_proxy_config());",
+        "    assert!(spec.tests_cover_network_proxy_config());",
+        "}",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "NetworkProxySpec config network proxy spec tests",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.evidence?.length, 1);
+    assert.equal(result.evidence[0].path, "src/config/network_proxy_spec.rs");
+    assert.match(result.evidence[0].excerpt, /pub struct NetworkProxySpec/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("regression fixture: implementation module beats thin re-export with complete query coverage", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-implementation-vs-reexport-fixture-"));
+  try {
+    await mkdir(join(root, "codex-client/src"), { recursive: true });
+    await writeFile(
+      join(root, "codex-client/src/default_client.rs"),
+      [
+        "pub struct CodexHttpClient {",
+        "    inner: reqwest::Client,",
+        "}",
+        "",
+        "impl CodexHttpClient {",
+        "    pub fn get<U>(&self, url: U) -> CodexRequestBuilder {",
+        "        self.request(Method::GET, url)",
+        "    }",
+        "}",
+        "",
+        "pub struct CodexRequestBuilder {",
+        "    builder: reqwest::RequestBuilder,",
+        "}",
+      ].join("\n"),
+      "utf8",
+    );
+    await writeFile(
+      join(root, "codex-client/src/lib.rs"),
+      [
+        "mod default_client;",
+        "// default client surface",
+        "pub use crate::default_client::CodexHttpClient;",
+        "pub use crate::default_client::CodexRequestBuilder;",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "CodexHttpClient CodexRequestBuilder default client",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.evidence?.length, 1);
+    assert.equal(result.evidence[0].path, "codex-client/src/default_client.rs");
+    assert.match(result.evidence[0].excerpt, /CodexHttpClient/);
+    assert.match(result.evidence[0].excerpt, /CodexRequestBuilder/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("regression fixture: exact phrase match evidence includes the exact phrase line", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-exact-phrase-range-fixture-"));
+  try {
+    const lines = ["# Target", `${"alpha ".repeat(400)}gamma beta separated high frequency line`, "alpha appears early"];
+    for (let index = 0; index < 17; index += 1) {
+      lines.push(`filler ${index}`);
+    }
+    lines.push("beta appears early enough to trigger coverage range");
+    for (let index = 0; index < 80; index += 1) {
+      lines.push(`more filler ${index}`);
+    }
+    lines.push("alpha beta exact phrase lives here");
+    await writeFile(join(root, "target.md"), lines.join("\n"), "utf8");
+
+    const result = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "alpha beta",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.evidence?.length, 1);
+    assert.equal(result.evidence[0].path, "target.md");
+    assert.match(result.evidence[0].why, /exact normalized query phrase/);
+    assert.match(result.evidence[0].excerpt, /alpha beta exact phrase lives here/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("regression fixture: long symbol exact phrase evidence includes the exact phrase line", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-long-symbol-exact-phrase-fixture-"));
+  try {
+    const lines = ["pub fn anchored_symbol() {"];
+    for (let index = 0; index < 76; index += 1) {
+      lines.push(`    let filler_${index} = "${"alpha filler ".repeat(12)}";`);
+    }
+    lines.push("    let marker = \"omega beta exact phrase lives here\";");
+    lines.push("}");
+    await writeFile(join(root, "src.rs"), lines.join("\n"), "utf8");
+
+    const result = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "omega beta exact phrase",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.evidence?.length, 1);
+    assert.equal(result.evidence[0].path, "src.rs");
+    assert.match(result.evidence[0].why, /exact normalized query phrase/);
+    assert.match(result.evidence[0].excerpt, /omega beta exact phrase lives here/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("regression fixture: short section exact phrase evidence includes a late exact phrase", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-short-section-exact-phrase-fixture-"));
+  try {
+    await writeFile(
+      join(root, "target.md"),
+      [
+        "# Target",
+        `${"alpha filler ".repeat(400)}`,
+        `${"alpha filler ".repeat(400)}`,
+        `${"alpha filler ".repeat(400)}`,
+        `${"alpha filler ".repeat(400)}`,
+        `${"alpha filler ".repeat(400)}`,
+        `${"alpha filler ".repeat(400)}`,
+        "omega beta exact phrase lives here",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "omega beta exact phrase",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.evidence?.length, 1);
+    assert.equal(result.evidence[0].path, "target.md");
+    assert.match(result.evidence[0].why, /exact normalized query phrase/);
+    assert.match(result.evidence[0].excerpt, /omega beta exact phrase lives here/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("regression fixture: multiline huge exact phrase evidence includes the phrase span", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-multiline-huge-exact-phrase-fixture-"));
+  try {
+    await writeFile(
+      join(root, "target.md"),
+      [
+        "# Target",
+        `${"filler ".repeat(500)}alpha`,
+        `beta ${"filler ".repeat(500)}`,
+        "tail",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "alpha beta",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.evidence?.length, 1);
+    assert.equal(result.evidence[0].path, "target.md");
+    assert.match(result.evidence[0].why, /exact normalized query phrase/);
+    assert.match(result.evidence[0].excerpt, /alpha\s+beta/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("regression fixture: huge symbol line exact phrase evidence includes the exact phrase text", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-huge-symbol-line-exact-phrase-fixture-"));
+  try {
+    await writeFile(
+      join(root, "src.rs"),
+      [
+        "pub fn huge_line_symbol() {",
+        `    let marker = "${"alpha filler ".repeat(500)}omega beta exact phrase lives here";`,
+        "}",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "omega beta exact phrase",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.evidence?.length, 1);
+    assert.equal(result.evidence[0].path, "src.rs");
+    assert.match(result.evidence[0].why, /exact normalized query phrase/);
+    assert.match(result.evidence[0].excerpt, /omega beta exact phrase lives here/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("regression fixture: markdown frontmatter is searchable before the first heading", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-frontmatter-fixture-"));
+  try {
+    await writeFile(
+      join(root, "skill.md"),
+      [
+        "---",
+        "name: unique-frontmatter-marker",
+        "description: source truth before heading",
+        "---",
+        "",
+        "# Skill Heading",
+        "Body text after heading.",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "unique-frontmatter-marker",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.evidence?.length, 1);
+    assert.equal(result.evidence[0].path, "skill.md");
+    assert.match(result.evidence[0].excerpt, /unique-frontmatter-marker/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("regression fixture: section evidence covers spread-out query terms", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-spread-section-fixture-"));
+  try {
+    await writeFile(
+      join(root, "target.md"),
+      [
+        "# Target",
+        "",
+        "## Sandbox Permissions",
+        "",
+        ...Array.from({ length: 12 }, (_, index) => `background line ${index + 1}`),
+        "Plain-language meaning:",
+        "",
+        ...Array.from({ length: 12 }, (_, index) => `more background line ${index + 1}`),
+        "UseDefault runs with the normal sandbox.",
+      ].join("\n"),
+      "utf8",
+    );
+    await writeFile(
+      join(root, "decoy.md"),
+      `${"Sandbox Permissions Plain-language meaning ".repeat(120)}`,
+      "utf8",
+    );
+
+    const result = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "Sandbox Permissions Plain-language meaning UseDefault",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.evidence?.length, 1);
+    assert.equal(result.evidence[0].path, "target.md");
+    assert.match(result.evidence[0].excerpt, /## Sandbox Permissions/);
+    assert.match(result.evidence[0].excerpt, /Plain-language meaning/);
+    assert.match(result.evidence[0].excerpt, /UseDefault runs with the normal sandbox/);
+    assert.doesNotMatch(result.evidence[0].excerpt, /Sandbox Permissions Plain-language meaning Sandbox Permissions/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -1,6 +1,7 @@
 export interface ExperimentalLocalIndexOptions {
     root: string;
     cacheRoot?: string;
+    generatedPathGlobs?: readonly string[];
 }
 export interface ExperimentalIndexLoadResult {
     mode: ExperimentalIndexLoadMode;

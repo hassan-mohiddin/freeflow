@@ -275,6 +275,63 @@ test("Pi freeflow_run uses outputRouter thresholds and vault root from repo conf
   }
 });
 
+test("Pi freeflow_retrieve applies configured generated path hints", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-generated-path-hints-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await mkdir(join(cwd, "custom-generated"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({
+        defaultMode: "workflow",
+        outputRouter: { generatedPaths: ["custom-generated/**"] },
+      }),
+      "utf8",
+    );
+    await writeFile(join(cwd, "target.md"), "PI_GENERATED_HINT_MARKER source truth", "utf8");
+    await writeFile(
+      join(cwd, "custom-generated", "decoy.md"),
+      `${"PI_GENERATED_HINT_MARKER source truth ".repeat(1000)}pihintsentinel`,
+      "utf8",
+    );
+
+    const { tools } = loadExtension();
+    const retrieveTool = tools.find((tool) => tool.name === "freeflow_retrieve");
+    assert.ok(retrieveTool);
+
+    const broad = await retrieveTool.execute(
+      "retrieve-generated-hints",
+      {
+        action: "query",
+        source: { kind: "repo" },
+        query: "PI_GENERATED_HINT_MARKER source truth",
+      },
+      undefined,
+      undefined,
+      context(cwd),
+    );
+    const broadPayload = JSON.parse(broad.content[0].text);
+    assert.equal(broadPayload.evidence[0].path, "target.md");
+    assert.doesNotMatch(broadPayload.evidence[0].excerpt, /pihintsentinel/);
+
+    const explicit = await retrieveTool.execute(
+      "retrieve-generated-explicit",
+      {
+        action: "query",
+        source: { kind: "repo", path: "custom-generated/decoy.md" },
+        query: "pihintsentinel",
+      },
+      undefined,
+      undefined,
+      context(cwd),
+    );
+    const explicitPayload = JSON.parse(explicit.content[0].text);
+    assert.equal(explicitPayload.evidence[0].path, "custom-generated/decoy.md");
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 test("Pi reports invalid outputRouter config warnings", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-invalid-config-"));
   try {

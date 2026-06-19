@@ -133,21 +133,19 @@ export async function writeCommandBenchmarkReports(report, markdownReportPath, o
 }
 async function runCommandFixtureMode(fixture, mode, iterations) {
     const latencies = [];
-    let observation = null;
+    const observations = [];
     const run = fixture.modes[mode];
     if (!run) {
-        observation = skippedObservation(`optional comparator ${mode}`, `No command benchmark mode registered for ${mode}.`);
+        observations.push(skippedObservation(`optional comparator ${mode}`, `No command benchmark mode registered for ${mode}.`));
     }
     else {
         for (let index = 0; index < iterations; index += 1) {
             const startedAt = performance.now();
-            observation = await run();
+            observations.push(await run());
             latencies.push(performance.now() - startedAt);
         }
     }
-    if (!observation) {
-        observation = skippedObservation("command benchmark runner", "No observation was produced.");
-    }
+    const observation = selectCommandBenchmarkObservation(fixture, observations);
     const correctness = scoreCommandCorrectness(fixture.expected, observation);
     const rawTokensApprox = approximateTokens(observation.rawBytes);
     const routedTokensApprox = approximateTokens(observation.routedBytes);
@@ -186,6 +184,16 @@ async function runCommandFixtureMode(fixture, mode, iterations) {
         result.parser = observation.parser;
     }
     return result;
+}
+function selectCommandBenchmarkObservation(fixture, observations) {
+    const firstObservation = observations[0];
+    if (firstObservation === undefined) {
+        return skippedObservation("command benchmark runner", "No observation was produced.");
+    }
+    if (fixture.kind === "repeated-output") {
+        return observations[observations.length - 1] ?? firstObservation;
+    }
+    return observations.find((observation) => observation.parser?.name !== "duplicate-output") ?? firstObservation;
 }
 function summarizeCommandReport(fixtures) {
     const improved = summarizeCommandMode(fixtures, "improved-freeflow-run");

@@ -931,6 +931,7 @@ async function normalizeRetrieveParams(params, ctx) {
   if (source.kind === "repo") {
     return {
       ...params,
+      generatedPathGlobs: routerConfigResult.config.hints?.generatedPathGlobs,
       source: {
         kind: "repo",
         root: ctx.cwd,

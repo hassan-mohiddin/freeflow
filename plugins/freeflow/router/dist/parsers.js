@@ -171,7 +171,11 @@ function selectGenericImportantLines(input) {
         }
     }
     if (input.executionStatus !== "success") {
-        const stderrLines = firstNonEmptyImportantLine(input.stderr, "stderr");
+        const failureLines = firstFailureBlock(input.stderr, "stderr") ?? firstFailureBlock(input.combined, "combined");
+        if (failureLines) {
+            return failureLines;
+        }
+        const stderrLines = firstAndLastNonEmptyImportantLines(input.stderr, "stderr");
         if (stderrLines) {
             return stderrLines;
         }
@@ -180,7 +184,8 @@ function selectGenericImportantLines(input) {
 }
 function firstFailureBlock(text, stream) {
     const entries = lineEntries(text);
-    const firstFailureIndex = entries.findIndex((entry) => /^\s*(FAIL|FAILED|FAILURES)(?:\s|$)/.test(entry.line) || /\b(AssertionError|expected|Expected|Received|stack|Traceback|Error:)\b/.test(entry.line));
+    const firstFailureIndex = entries.findIndex((entry) => /^\s*(FAIL|FAILED|FAILURES)(?:\s|$)/i.test(entry.line) ||
+        /(?:\bAssertionError\b|assertion failed|\bexpected\b|\bExpected\b|\bReceived\b|\bstack\b|\bTraceback\b|\bError:|\bfatal(?:\b|_)|\bpanic\b|\bexception\b)/i.test(entry.line));
     if (firstFailureIndex === -1) {
         return null;
     }
@@ -202,6 +207,20 @@ function verificationSummaryEvidence(text) {
 }
 function firstNonEmptyImportantLine(text, stream) {
     const evidence = assembleImportantLines({ stream, entries: nonEmptyLineEntries(text).slice(0, MAX_IMPORTANT_LINES), sourceText: text });
+    return evidence.importantLines.length > 0 ? evidence : null;
+}
+function firstAndLastNonEmptyImportantLines(text, stream) {
+    const entries = nonEmptyLineEntries(text);
+    if (entries.length === 0) {
+        return null;
+    }
+    if (entries.length <= MAX_IMPORTANT_LINES) {
+        return firstNonEmptyImportantLine(text, stream);
+    }
+    const headCount = Math.floor(MAX_IMPORTANT_LINES / 2);
+    const tailCount = MAX_IMPORTANT_LINES - headCount;
+    const selected = [...entries.slice(0, headCount), ...entries.slice(-tailCount)];
+    const evidence = assembleImportantLines({ stream, entries: selected, sourceText: text });
     return evidence.importantLines.length > 0 ? evidence : null;
 }
 function selectEvidenceLines(evidenceBlocks, maxImportantLines) {

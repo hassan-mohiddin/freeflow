@@ -60,6 +60,29 @@ test("command benchmark harness measures freeflow_run fixtures and recovery", as
   assert.match(rendered, /Squeez/);
 });
 
+test("command benchmark default iterations do not let duplicates mask parser evidence", async () => {
+  const report = await runCommandBenchmarks({ generatedAt: "2026-06-16T00:00:00.000Z" });
+
+  const failed = report.fixtures.find((fixture) => fixture.id === "failed-stack-trace");
+  assert.ok(failed);
+  const failedImproved = failed.results.find((result) => result.mode === "improved-freeflow-run");
+  assert.equal(failedImproved.parser?.name, "generic");
+  assert.match(failedImproved.routedExcerpt, /Error: ROUTER_BENCH_FAILED/);
+  assert.match(failedImproved.routedExcerpt, /at main/);
+
+  const testSummary = report.fixtures.find((fixture) => fixture.id === "test-summary");
+  assert.ok(testSummary);
+  const testImproved = testSummary.results.find((result) => result.mode === "improved-freeflow-run");
+  assert.equal(testImproved.parser?.name, "test-runner");
+  assert.equal(testImproved.correctness.exactFactsPreserved, true);
+
+  const repeated = report.fixtures.find((fixture) => fixture.id === "repeated-command-output");
+  assert.ok(repeated);
+  const repeatedImproved = repeated.results.find((result) => result.mode === "improved-freeflow-run");
+  assert.equal(repeatedImproved.parser?.name, "duplicate-output");
+  assert.equal(repeatedImproved.recovery.status, "passed");
+});
+
 test("command benchmark writer emits markdown and machine-readable JSON", async () => {
   const report = await runCommandBenchmarks({ iterations: 1, generatedAt: "2026-06-16T00:00:00.000Z" });
   const root = await mkdtemp(join(tmpdir(), "freeflow-router-command-benchmark-report-"));

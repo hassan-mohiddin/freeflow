@@ -352,22 +352,20 @@ async function runCommandFixtureMode(
   iterations: number,
 ): Promise<CommandBenchmarkModeResult> {
   const latencies: number[] = [];
-  let observation: CommandBenchmarkObservation | null = null;
+  const observations: CommandBenchmarkObservation[] = [];
   const run = fixture.modes[mode];
 
   if (!run) {
-    observation = skippedObservation(`optional comparator ${mode}`, `No command benchmark mode registered for ${mode}.`);
+    observations.push(skippedObservation(`optional comparator ${mode}`, `No command benchmark mode registered for ${mode}.`));
   } else {
     for (let index = 0; index < iterations; index += 1) {
       const startedAt = performance.now();
-      observation = await run();
+      observations.push(await run());
       latencies.push(performance.now() - startedAt);
     }
   }
 
-  if (!observation) {
-    observation = skippedObservation("command benchmark runner", "No observation was produced.");
-  }
+  const observation = selectCommandBenchmarkObservation(fixture, observations);
 
   const correctness = scoreCommandCorrectness(fixture.expected, observation);
   const rawTokensApprox = approximateTokens(observation.rawBytes);
@@ -407,6 +405,22 @@ async function runCommandFixtureMode(
     result.parser = observation.parser;
   }
   return result;
+}
+
+function selectCommandBenchmarkObservation(
+  fixture: CommandBenchmarkFixture,
+  observations: readonly CommandBenchmarkObservation[],
+): CommandBenchmarkObservation {
+  const firstObservation = observations[0];
+  if (firstObservation === undefined) {
+    return skippedObservation("command benchmark runner", "No observation was produced.");
+  }
+
+  if (fixture.kind === "repeated-output") {
+    return observations[observations.length - 1] ?? firstObservation;
+  }
+
+  return observations.find((observation) => observation.parser?.name !== "duplicate-output") ?? firstObservation;
 }
 
 function summarizeCommandReport(fixtures: CommandBenchmarkFixtureResult[]): CommandBenchmarkSummary {

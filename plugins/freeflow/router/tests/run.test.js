@@ -116,6 +116,47 @@ test("repeated command output returns a compact duplicate note with recovery ids
   });
 });
 
+test("preserve full duplicate output returns exact output instead of a duplicate note", async () => {
+  await withTempVault(async (vault) => {
+    const stdout = "exact duplicate body\n";
+    const runner = {
+      async run() {
+        return {
+          stdout,
+          stderr: "",
+          executionStatus: "success",
+          exitCode: 0,
+        };
+      },
+    };
+
+    await freeflowRun(
+      {
+        command: "printf duplicate",
+        sessionId: "duplicate-full-session",
+        vaultRoot: vault.root,
+        preserve: "full",
+      },
+      runner,
+    );
+    const second = await freeflowRun(
+      {
+        command: "printf duplicate",
+        sessionId: "duplicate-full-session",
+        vaultRoot: vault.root,
+        preserve: "full",
+      },
+      runner,
+    );
+
+    assert.equal(second.toolStatus, "ok");
+    assert.equal(second.routing.status, "routed");
+    assert.equal(second.parser?.name, "generic");
+    assert.equal(second.importantLines?.[0].excerpt, stdout);
+    assert.doesNotMatch(second.summary ?? "", /duplicate/i);
+  });
+});
+
 test("small successful parsed output remains near-raw", async () => {
   await withTempVault(async (vault) => {
     const stdout = ["PASS tests/router.test.ts", "Tests: 1 passed, 1 total"].join("\n");
@@ -843,6 +884,45 @@ test("git output parser preserves exact status and diffstat lines", async () => 
     assert.match(result.importantLines?.[0].excerpt ?? "", /plugins\/freeflow\/router\/src\/schema\.ts/);
     assert.match(result.importantLines?.[0].excerpt ?? "", /3 files changed/);
     assert.equal(await readOutputText(vault, "git-session", result.outputId, "stdout"), stdout);
+  });
+});
+
+test("generic failed command returns late diagnostic evidence", async () => {
+  await withTempVault(async (vault) => {
+    const stderr = [
+      ...Array.from({ length: 20 }, (_, index) => `setup line ${index + 1}`),
+      "FATAL_ROOT_CAUSE unique failure diagnostic",
+    ].join("\n");
+    const runner = {
+      async run() {
+        return {
+          stdout: "",
+          stderr,
+          executionStatus: "failed",
+          exitCode: 1,
+          durationMs: 20,
+        };
+      },
+    };
+
+    const result = await freeflowRun(
+      {
+        command: "custom-tool --not-a-known-parser",
+        sessionId: "generic-late-failure-session",
+        vaultRoot: vault.root,
+        preserve: "important",
+      },
+      runner,
+    );
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.execution.status, "failed");
+    assert.equal(result.parser?.name, "generic");
+    assert.equal(result.importantLines?.[0].stream, "stderr");
+    const evidenceText = result.importantLines?.map((line) => line.excerpt).join("\n") ?? "";
+    assert.match(evidenceText, /FATAL_ROOT_CAUSE unique failure diagnostic/);
+    assert.doesNotMatch(evidenceText, /setup line 1\nsetup line 2\nsetup line 3\nsetup line 4\nsetup line 5\nsetup line 6\nsetup line 7\nsetup line 8/);
+    assert.equal(await readOutputText(vault, "generic-late-failure-session", result.outputId, "stderr"), stderr);
   });
 });
 

@@ -79,29 +79,31 @@ Measured scanner-hardening result on the same Codex repo/query set:
 | scanner before hardening | 5,663 ms | 8,929 ms | 3/8 | 1,230 | baseline live scan |
 | scanner after hardening | 8,776 ms | 12,668 ms | 5/8 | 2,178 | more accurate but slower and larger context |
 | scanner after speed pass | 5,112 ms | 8,269 ms | 5/8 | 2,307 | accuracy kept; latency below baseline scanner p50/p95 |
+| scanner after review-fix pass | 5,473 ms | 8,611 ms | 6/8 | 2,082 | restored regressed source-definition queries and kept MCP test-query improvement |
+| scanner after deep-module cleanup rerun | 4,305 ms | 6,773 ms | 6/8 | 2,082 | final verification after `RepoTraversalPolicy`, exact line ranges, `EvidenceRangeSelector`, vault locking, command benchmark observation changes, and the post-review exact-phrase fixes |
 
-Interpretation: scanner hardening produced a real accuracy gain (**+2/8 strict fixtures**) but initially regressed latency/context. The speed pass recovered the latency regression and kept the accuracy gain, although context remains larger because symbol chunks return fuller evidence.
+Interpretation: scanner hardening produced a real accuracy gain (**+2/8 strict fixtures**) but initially regressed latency/context. The speed pass recovered the latency regression and kept the accuracy gain, although context remained larger because symbol chunks return fuller evidence. The later review-fix pass improved strict accuracy to **6/8** by constraining symbol complete-coverage boosts, preserving exact-phrase evidence ranges, adding Markdown preamble chunks, and tightening generated/media-path filtering while keeping scanner latency near the speed-pass result.
 
 ## Before/After Summary
 
 Against scanner default:
 
-- Scanner hardening plus speed pass improved accuracy from **3/8** to **5/8** and improved query p50 from **5,663 ms** to **5,112 ms**.
-- Accuracy improved from **3/8** strict expected-path matches to **5/8** for no-dep V3, SQLite FTS rerank, and scanner hardening/speed pass.
+- Scanner hardening plus the review-fix pass improved accuracy from **3/8** to **6/8**; the latest deep-module cleanup rerun kept **6/8** and kept query p50 below the original scanner baseline (**5,663 ms → 4,305 ms**).
+- Accuracy improved from **3/8** strict expected-path matches to **5/8** for no-dep V3, SQLite FTS rerank, and scanner hardening/speed pass, then to **6/8** for the default scanner after review fixes.
 - SQLite FTS rerank query p50 improved from **5,663 ms** to **137 ms**: about **41× faster query-only**.
 - SQLite FTS rerank query p95 improved from **8,929 ms** to **287 ms**: about **31× faster query-only**.
-- Scanner total for eight baseline queries was about **47.6 s**; initial scanner-hardening total was about **78.1 s**; after the speed pass it was about **45.5 s**.
+- Scanner total for eight baseline queries was about **47.6 s**; initial scanner-hardening total was about **78.1 s**; after the speed pass it was about **45.5 s**; after review fixes it was about **53.5 s** in the observed run; the latest deep-module cleanup rerun was about **39.1 s** for the scanner rows.
 - SQLite FTS rerank total was about **3.3 s including build**: about **14× faster end-to-end for this query batch** versus baseline scanner.
 - SQLite FTS rerank context was slightly smaller than baseline scanner: **1,230 avg bytes → 1,128 avg bytes** (~8% lower). Scanner hardening increased context to **2,178-2,307 avg bytes** because symbol chunks return fuller evidence.
 - No-dep V3 warm queries were faster than baseline scanner, but cold build/cache costs made it unattractive on this repo.
 
 ## Misses Remaining
 
-The best strict result was still only **5/8**. The repeated misses indicate ranking/query-intent problems, not just speed problems:
+The best strict result is now **6/8**. The repeated misses indicate ranking/query-intent problems, not just speed problems:
 
 - Some broad queries legitimately have multiple plausible targets.
 - Test/source intent is hard to infer from query text alone.
-- Path-intent queries like `apply_patch prompt codex prompts lib` remain sensitive: some scanner variants selected the thin re-export file, but the final green scanner selected the deeper implementation handler.
+- Path-intent queries like `apply_patch prompt codex prompts lib` remain sensitive: current scanner evidence includes the expected excerpt, but strict path grading still fails because it selects the deeper implementation handler instead of the expected prompt source.
 - FTS candidate generation and deterministic reranking need a more principled query classifier before automatic routing is safe.
 
 ## Interpretation
@@ -133,3 +135,14 @@ Temporary files from this ad hoc run:
 - `/tmp/freeflow-codex-large-benchmark/results-symbols-only.json`
 - `/tmp/freeflow-codex-large-benchmark/scanner-sqlite-final-green-output.json`
 - `/tmp/freeflow-codex-large-benchmark/scanner-sqlite-speed-pass-output.json`
+- Post-review-fix rerun command: `node /tmp/freeflow-codex-large-benchmark/bench-scanner-sqlite.mjs` on 2026-06-18/19 session; observed scanner summary `pass=6/8`, `p50=5,473 ms`, `p95=8,611 ms`, `avgContextBytes=2,082`.
+- Deep-module cleanup final verification command: `node /tmp/freeflow-codex-large-benchmark/bench-scanner-sqlite.mjs`; observed scanner summary `pass=6/8`, `p50=4,305 ms`, `p95=6,773 ms`, `avgContextBytes=2,082`.
+- Deep-module cleanup final verification scanner rows:
+  - `sandbox-permissions-enum`: pass, `codex-rs/protocol/src/models.rs`, lines `47-66`, 1,759 context bytes.
+  - `mcp-tool-call-event`: pass, `codex-rs/analytics/src/analytics_client_tests.rs`, lines `4207-4211`, 1,409 context bytes.
+  - `approval-mode-cli-arg`: pass, `codex-rs/utils/cli/src/approval_mode_cli_arg.rs`, lines `9-28`, 1,845 context bytes.
+  - `turn-diff-tracker`: fail strict path, selected `codex-rs/core/src/tools/handlers/unified_exec_tests.rs`, lines `3-35`, excerpt complete, 2,350 context bytes.
+  - `model-provider-info`: pass, `codex-rs/ollama/src/lib.rs`, lines `63-79`, 1,467 context bytes.
+  - `network-proxy-spec`: pass, `codex-rs/core/src/config/network_proxy_spec.rs`, lines `24-31`, 1,296 context bytes.
+  - `codex-http-client`: pass, `codex-rs/codex-client/src/default_client.rs`, lines `21-50`, 1,794 context bytes.
+  - `apply-patch-prompt`: fail strict path, selected `codex-rs/core/src/tools/handlers/apply_patch.rs`, lines `330-409`, excerpt complete, 4,737 context bytes.

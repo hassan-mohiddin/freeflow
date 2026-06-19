@@ -269,10 +269,15 @@ test("expanding vaulted output evidence to full over cap returns bounded chunks"
 
     assert.equal(expanded.toolStatus, "ok");
     assert.equal(expanded.routing.status, "partial");
-    assert.equal(expanded.evidence?.length, 1);
-    assert.match(expanded.evidence[0].excerpt, /VAULT_EXPAND_FULL_MARKER/);
-    assert.doesNotMatch(expanded.evidence[0].excerpt, /VAULT_EXPAND_FULL_TAIL_SENTINEL_SHOULD_NOT_APPEAR/);
-    assert.ok(Buffer.byteLength(expanded.evidence[0].excerpt, "utf8") <= 32_000);
+    assert.equal(expanded.evidence?.length, 2);
+    const [head, tail] = expanded.evidence;
+    assert.equal(head.lines, "1-1");
+    assert.equal(tail.lines, "1-1");
+    assert.match(head.excerpt, /VAULT_EXPAND_FULL_MARKER/);
+    assert.doesNotMatch(head.excerpt, /VAULT_EXPAND_FULL_TAIL_SENTINEL_SHOULD_NOT_APPEAR/);
+    assert.match(tail.excerpt, /VAULT_EXPAND_FULL_TAIL_SENTINEL_SHOULD_NOT_APPEAR/);
+    assert.ok(Buffer.byteLength(head.excerpt, "utf8") <= 32_000);
+    assert.ok(Buffer.byteLength(tail.excerpt, "utf8") <= 32_000);
   });
 });
 
@@ -393,6 +398,108 @@ test("retrieving vaulted command output returns exact requested lines", async ()
   });
 });
 
+test("retrieving vaulted command output rejects line ranges that start beyond output", async () => {
+  await withTempVault(async (vault) => {
+    const record = await storeCommandOutput(vault, {
+      sessionId: "vault-lines-oob-session",
+      command: "npm test",
+      stdout: "one\ntwo\nthree",
+      stderr: "",
+      executionStatus: "success",
+      exitCode: 0,
+      createdAt: "2026-06-16T00:00:00.000Z",
+    });
+
+    const result = await freeflowRetrieve({
+      action: "retrieve",
+      source: {
+        kind: "vault",
+        root: vault.root,
+        sessionId: "vault-lines-oob-session",
+        outputId: record.outputId,
+        stream: "stdout",
+      },
+      lineRange: { start: 10, end: 12 },
+      preserve: "full",
+    });
+
+    assert.equal(result.toolStatus, "error");
+    assert.equal(result.evidence?.length ?? 0, 0);
+    assert.match(result.routing.reason, /outside available vaulted output lines/i);
+  });
+});
+
+test("retrieving vaulted command output rejects line ranges that end beyond output", async () => {
+  await withTempVault(async (vault) => {
+    const record = await storeCommandOutput(vault, {
+      sessionId: "vault-lines-end-oob-session",
+      command: "npm test",
+      stdout: "one\ntwo\nthree",
+      stderr: "",
+      executionStatus: "success",
+      exitCode: 0,
+      createdAt: "2026-06-16T00:00:00.000Z",
+    });
+
+    const result = await freeflowRetrieve({
+      action: "retrieve",
+      source: {
+        kind: "vault",
+        root: vault.root,
+        sessionId: "vault-lines-end-oob-session",
+        outputId: record.outputId,
+        stream: "stdout",
+      },
+      lineRange: { start: 2, end: 12 },
+      preserve: "full",
+    });
+
+    assert.equal(result.toolStatus, "error");
+    assert.equal(result.evidence?.length ?? 0, 0);
+    assert.match(result.routing.reason, /outside available vaulted output lines/i);
+  });
+});
+
+test("retrieving huge one-line vaulted output returns head and tail previews", async () => {
+  await withTempVault(async (vault) => {
+    const stdout = `${"VAULT_ONE_LINE_HEAD_MARKER repeated evidence ".repeat(6000)}VAULT_ONE_LINE_TAIL_MARKER`;
+    const record = await storeCommandOutput(vault, {
+      sessionId: "vault-one-line-over-cap-session",
+      command: "python huge-line.py",
+      stdout,
+      stderr: "",
+      executionStatus: "success",
+      exitCode: 0,
+      createdAt: "2026-06-16T00:00:00.000Z",
+    });
+
+    const result = await freeflowRetrieve({
+      action: "retrieve",
+      source: {
+        kind: "vault",
+        root: vault.root,
+        sessionId: "vault-one-line-over-cap-session",
+        outputId: record.outputId,
+        stream: "stdout",
+      },
+      lineRange: { start: 1, end: 1 },
+      preserve: "full",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.routing.status, "partial");
+    assert.equal(result.evidence?.length, 2);
+    const [head, tail] = result.evidence;
+    assert.equal(head.lines, "1-1");
+    assert.equal(tail.lines, "1-1");
+    assert.match(head.excerpt, /VAULT_ONE_LINE_HEAD_MARKER/);
+    assert.doesNotMatch(head.excerpt, /VAULT_ONE_LINE_TAIL_MARKER/);
+    assert.match(tail.excerpt, /VAULT_ONE_LINE_TAIL_MARKER/);
+    assert.ok(Buffer.byteLength(head.excerpt, "utf8") <= 32_000);
+    assert.ok(Buffer.byteLength(tail.excerpt, "utf8") <= 32_000);
+  });
+});
+
 test("retrieving vaulted command output over cap returns bounded previews", async () => {
   await withTempVault(async (vault) => {
     const combined = Array.from({ length: 5000 }, (_, index) => `vault over cap line ${index + 1}`).join("\n");
@@ -455,6 +562,36 @@ test("retrieving repo files honors exact line ranges", async () => {
         "It says freeflow_retrieve is for targeted evidence and freeflow_run is for noisy commands.",
       ].join("\n"),
     );
+  });
+});
+
+test("retrieving repo files rejects line ranges that start beyond file", async () => {
+  await withFixtureRepo(async (root) => {
+    const result = await freeflowRetrieve({
+      action: "retrieve",
+      source: { kind: "repo", root, path: "router-notes.md" },
+      lineRange: { start: 999, end: 1000 },
+      preserve: "full",
+    });
+
+    assert.equal(result.toolStatus, "error");
+    assert.equal(result.evidence?.length ?? 0, 0);
+    assert.match(result.routing.reason, /outside available repo lines/i);
+  });
+});
+
+test("retrieving repo files rejects line ranges that end beyond file", async () => {
+  await withFixtureRepo(async (root) => {
+    const result = await freeflowRetrieve({
+      action: "retrieve",
+      source: { kind: "repo", root, path: "router-notes.md" },
+      lineRange: { start: 2, end: 999 },
+      preserve: "full",
+    });
+
+    assert.equal(result.toolStatus, "error");
+    assert.equal(result.evidence?.length ?? 0, 0);
+    assert.match(result.routing.reason, /outside available repo lines/i);
   });
 });
 
@@ -523,6 +660,27 @@ test("repo traversal skips symlink directory cycles", async () => {
     assert.equal(result.toolStatus, "ok");
     assert.equal(result.evidence?.length, 1);
     assert.equal(result.evidence[0].path, "inside.md");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("repo traversal skips broken symlinks during broad retrieval", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-broken-symlink-"));
+  try {
+    await writeFile(join(root, "target.md"), "BROKEN_SYMLINK_SAFE_MARKER source truth", "utf8");
+    await symlink(join(root, "missing.md"), join(root, "broken-link.md"));
+
+    const result = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "repo", root },
+      query: "BROKEN_SYMLINK_SAFE_MARKER source truth",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.evidence?.length, 1);
+    assert.equal(result.evidence[0].path, "target.md");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -904,8 +1062,8 @@ test("expanding repo evidence to full over cap returns bounded chunks", async ()
     assert.equal(expanded.routing.status, "partial");
     assert.equal(expanded.evidence?.length, 2);
     const expandedText = expanded.evidence.map((packet) => packet.excerpt).join("\n");
-    assert.match(expandedText, /EXPAND_FULL_HUGE_MARKER/);
-    assert.doesNotMatch(expandedText, /EXPAND_FULL_TAIL_SENTINEL_SHOULD_NOT_APPEAR/);
+    assert.match(expandedText, /# Huge Full Expand/);
+    assert.match(expandedText, /EXPAND_FULL_TAIL_SENTINEL_SHOULD_NOT_APPEAR/);
     assert.ok(expanded.evidence.every((packet) => Buffer.byteLength(packet.excerpt, "utf8") <= 32_000));
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -933,8 +1091,7 @@ test("preserve full over cap keeps a huge final tail line recoverable", async ()
     assert.equal(result.evidence?.length, 2);
     const tail = result.evidence.at(-1);
     assert.equal(tail.lines, "100-100");
-    assert.match(tail.excerpt, /FULL_HUGE_FINAL_LINE_MARKER/);
-    assert.doesNotMatch(tail.excerpt, /FULL_FINAL_TAIL_SENTINEL_SHOULD_NOT_APPEAR/);
+    assert.match(tail.excerpt, /FULL_FINAL_TAIL_SENTINEL_SHOULD_NOT_APPEAR/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -978,7 +1135,7 @@ test("expanding repo evidence with many short lines labels the bounded line wind
   }
 });
 
-test("preserve full over cap with one huge line returns bounded valid chunks", async () => {
+test("preserve full over cap with one huge line returns bounded head and tail chunks", async () => {
   const root = await mkdtemp(join(tmpdir(), "freeflow-router-full-one-line-cap-"));
   try {
     await writeFile(
@@ -996,11 +1153,15 @@ test("preserve full over cap with one huge line returns bounded valid chunks", a
 
     assert.equal(result.toolStatus, "ok");
     assert.equal(result.routing.status, "partial");
-    assert.equal(result.evidence?.length, 1);
-    assert.equal(result.evidence[0].lines, "1-1");
-    assert.match(result.evidence[0].excerpt, /FULL_HUGE_LINE_MARKER/);
-    assert.doesNotMatch(result.evidence[0].excerpt, /FULL_TAIL_SENTINEL_SHOULD_NOT_APPEAR/);
-    assert.ok(Buffer.byteLength(result.evidence[0].excerpt, "utf8") <= 32_000);
+    assert.equal(result.evidence?.length, 2);
+    const [head, tail] = result.evidence;
+    assert.equal(head.lines, "1-1");
+    assert.equal(tail.lines, "1-1");
+    assert.match(head.excerpt, /FULL_HUGE_LINE_MARKER/);
+    assert.doesNotMatch(head.excerpt, /FULL_TAIL_SENTINEL_SHOULD_NOT_APPEAR/);
+    assert.match(tail.excerpt, /FULL_TAIL_SENTINEL_SHOULD_NOT_APPEAR/);
+    assert.ok(Buffer.byteLength(head.excerpt, "utf8") <= 32_000);
+    assert.ok(Buffer.byteLength(tail.excerpt, "utf8") <= 32_000);
     assert.doesNotMatch(JSON.stringify(result), /2-1/);
   } finally {
     await rm(root, { recursive: true, force: true });

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
@@ -88,6 +88,10 @@ export interface FindExactDuplicateTextOutputOptions {
   fingerprints: OutputFingerprints;
   excludeOutputId?: string;
 }
+
+const sessionIndexWriteLocks = new Map<string, Promise<void>>();
+const SESSION_INDEX_LOCK_RETRY_MS = 5;
+const SESSION_INDEX_LOCK_TIMEOUT_MS = 5_000;
 
 export function createVault(options: CreateVaultOptions = {}): VaultHandle {
   return {
@@ -423,31 +427,84 @@ export async function readSessionIndex(vault: VaultHandle, sessionId: string): P
 }
 
 async function addRecordToSessionIndex(vault: VaultHandle, sessionId: string, record: VaultRecord) {
-  const index = await readSessionIndex(vault, sessionId);
-  const updatedAt = new Date().toISOString();
-  const entry: SessionIndexEntry = {
-    outputId: record.outputId,
-    objectId: record.objectId,
-    kind: record.kind,
-    createdAt: record.createdAt,
-  };
+  await withSessionIndexWriteLock(vault, sessionId, async () => {
+    const index = await readSessionIndex(vault, sessionId);
+    const updatedAt = new Date().toISOString();
+    const entry: SessionIndexEntry = {
+      outputId: record.outputId,
+      objectId: record.objectId,
+      kind: record.kind,
+      createdAt: record.createdAt,
+    };
 
-  if (record.kind === "command") {
-    entry.executionStatus = record.executionStatus;
+    if (record.kind === "command") {
+      entry.executionStatus = record.executionStatus;
+    }
+    if (record.fingerprints !== undefined) {
+      entry.fingerprints = record.fingerprints;
+    }
+
+    index.updatedAt = updatedAt;
+    index.records[record.outputId] = entry;
+    addUnique(index.outputs, record.outputId);
+
+    if (record.kind === "command") {
+      addToExecutionGroup(index, record.executionStatus, record.outputId);
+    }
+
+    await writeJsonAtomic(sessionIndexPath(vault, sessionId), index);
+  });
+}
+
+async function withSessionIndexWriteLock<T>(vault: VaultHandle, sessionId: string, operation: () => Promise<T>): Promise<T> {
+  const key = `${vault.root}:${safeSegment(sessionId)}`;
+  const previous = sessionIndexWriteLocks.get(key) ?? Promise.resolve();
+  let releaseCurrent!: () => void;
+  const current = new Promise<void>((resolve) => {
+    releaseCurrent = resolve;
+  });
+  const chained = previous.catch(() => undefined).then(() => current);
+  sessionIndexWriteLocks.set(key, chained);
+
+  await previous.catch(() => undefined);
+  try {
+    return await withSessionIndexFileLock(vault, sessionId, operation);
+  } finally {
+    releaseCurrent();
+    if (sessionIndexWriteLocks.get(key) === chained) {
+      sessionIndexWriteLocks.delete(key);
+    }
   }
-  if (record.fingerprints !== undefined) {
-    entry.fingerprints = record.fingerprints;
+}
+
+async function withSessionIndexFileLock<T>(vault: VaultHandle, sessionId: string, operation: () => Promise<T>): Promise<T> {
+  const path = sessionIndexLockPath(vault, sessionId);
+  await mkdir(dirname(path), { recursive: true });
+  const startedAt = Date.now();
+  let handle: Awaited<ReturnType<typeof open>> | undefined;
+
+  while (handle === undefined) {
+    try {
+      handle = await open(path, "wx");
+      await handle.writeFile(`${process.pid}\n${new Date().toISOString()}\n`, "utf8");
+    } catch (error) {
+      const code = typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+      if (code !== "EEXIST") {
+        throw error;
+      }
+      if (Date.now() - startedAt > SESSION_INDEX_LOCK_TIMEOUT_MS) {
+        throw new Error(`Timed out waiting for vault session index lock for ${safeSegment(sessionId)}.`);
+      }
+      await sleep(SESSION_INDEX_LOCK_RETRY_MS);
+    }
   }
 
-  index.updatedAt = updatedAt;
-  index.records[record.outputId] = entry;
-  addUnique(index.outputs, record.outputId);
-
-  if (record.kind === "command") {
-    addToExecutionGroup(index, record.executionStatus, record.outputId);
+  try {
+    return await operation();
+  } finally {
+    await handle.close().catch(() => undefined);
+    await unlink(path).catch(() => undefined);
   }
-
-  await writeJson(sessionIndexPath(vault, sessionId), index);
 }
 
 function addToExecutionGroup(index: VaultSessionIndex, status: ExecutionStatus, outputId: string) {
@@ -497,6 +554,10 @@ function streamPath(record: VaultRecord, stream: OutputStream): string {
 
 function sessionIndexPath(vault: VaultHandle, sessionId: string): string {
   return join(vault.root, "sessions", safeSegment(sessionId), "index.json");
+}
+
+function sessionIndexLockPath(vault: VaultHandle, sessionId: string): string {
+  return `${sessionIndexPath(vault, sessionId)}.lock`;
 }
 
 function objectDirectory(vault: VaultHandle, objectId: string): string {
@@ -575,6 +636,22 @@ function safeSegment(value: string): string {
 async function writeJson(path: string, value: unknown) {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+async function writeJsonAtomic(path: string, value: unknown) {
+  await mkdir(dirname(path), { recursive: true });
+  const tempPath = join(dirname(path), `.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
+  try {
+    await writeFile(tempPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+    await rename(tempPath, path);
+  } catch (error) {
+    await unlink(tempPath).catch(() => undefined);
+    throw error;
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function readJson(path: string): Promise<unknown> {

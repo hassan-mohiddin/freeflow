@@ -28,5 +28,6 @@ export interface FreeflowRetrieveOptions {
     lineRange?: RetrieveLineRangeInput;
     topK?: number;
     decision?: RetrievalRoutedResult;
+    generatedPathGlobs?: readonly string[];
 }
 export declare function freeflowRetrieve(options: FreeflowRetrieveOptions): Promise<RetrievalRoutedResult>;

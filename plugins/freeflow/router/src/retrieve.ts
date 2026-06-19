@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
-import { readdir, readFile, realpath, stat } from "node:fs/promises";
-import { relative, resolve } from "node:path";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 
+import { selectEvidenceRangeForChunk } from "./evidence-range-selector.js";
+import { resolveExactLineRange } from "./line-ranges.js";
+import { collectRepoTextFileRefs, resolveRepoPath, type RepoTextFileRef } from "./repo-traversal.js";
 import { createVault, readOutputText, readVaultRecord } from "./vault.js";
 import type {
   EvidencePacket,
@@ -46,6 +49,7 @@ export interface FreeflowRetrieveOptions {
   lineRange?: RetrieveLineRangeInput;
   topK?: number;
   decision?: RetrievalRoutedResult;
+  generatedPathGlobs?: readonly string[];
 }
 
 type RepoRetrieveOptions = FreeflowRetrieveOptions & { source: RepoRetrieveSourceInput };
@@ -58,17 +62,13 @@ interface RepoTextFile {
   lines: string[];
 }
 
-interface RepoTextFileRef {
-  path: string;
-  absolutePath: string;
-}
-
 interface CandidateSpan {
   file: RepoTextFile;
   lineIndex: number;
   score: number;
   reason: string;
   range?: LineRange;
+  exactNormalizedPhrase?: string;
 }
 
 interface CandidateChunk {
@@ -93,9 +93,10 @@ const EXPAND_LINES_80_MAX_BYTES = 64 * 1024;
 const EXPAND_LINES_80_MAX_LINES = 240;
 const EXACT_LINE_RANGE_MAX_BYTES = 64_000;
 const EXACT_CHUNK_MAX_BYTES = 32_000;
-const BROAD_SCAN_MAX_FILE_BYTES = 1024 * 1024;
 const CONCURRENT_REPO_FILE_READS = 32;
+const QUERY_COVERAGE_MAX_LINES = 80;
 const TRUNCATION_SUFFIX = " … [truncated; expand or retrieve exact lines for recovery]";
+const TRUNCATION_PREFIX = "[truncated head; expand or retrieve exact lines for recovery] … ";
 const STOPWORDS = new Set([
   "a",
   "an",
@@ -120,25 +121,6 @@ const STOPWORDS = new Set([
   "with",
   "use",
 ]);
-const SKIP_DIRS = new Set([
-  ".git",
-  "node_modules",
-  "dist",
-  "build",
-  "out",
-  ".next",
-  ".nuxt",
-  "coverage",
-  "target",
-  "graphify-out",
-  ".cache",
-  ".tmp",
-  "tmp",
-  "temp",
-  "logs",
-  "generated",
-]);
-
 export async function freeflowRetrieve(options: FreeflowRetrieveOptions): Promise<RetrievalRoutedResult> {
   const preserve = options.preserve ?? "important";
 
@@ -264,15 +246,23 @@ async function retrieveVaultLines(
 ): Promise<RetrievalRoutedResult> {
   const stream = options.source.stream ?? "combined";
   const lineRange = options.lineRange;
-  if (!lineRange || !isValidLineRange(lineRange)) {
+  if (!lineRange) {
     return errorResult(preserve, "Vault retrieve requires a valid 1-based lineRange.");
   }
 
   const vault = createVault({ root: options.source.root });
   const text = await readOutputText(vault, options.source.sessionId, options.source.outputId, stream);
   const lines = splitLines(text);
-  const end = Math.min(lineRange.end, lines.length);
-  const start = Math.min(lineRange.start, end);
+  const resolvedRange = resolveExactLineRange({
+    requested: lineRange,
+    lineCount: lines.length,
+    availableLabel: "available vaulted output lines",
+    invalidReason: "Vault retrieve requires a valid 1-based lineRange.",
+  });
+  if (!resolvedRange.ok) {
+    return errorResult(preserve, resolvedRange.reason);
+  }
+  const { start, end } = resolvedRange.range;
   const evidenceLines = `${start}-${end}`;
   const excerpt = lines.slice(start - 1, end).join("\n");
   if (byteLength(excerpt) > EXACT_LINE_RANGE_MAX_BYTES) {
@@ -325,7 +315,7 @@ function retrieveVaultLineRangeOverCap(
       source: { kind: "vault", outputId: options.source.outputId, stream },
       path: `${options.source.outputId}:${stream}`,
       lines: evidenceLines,
-      excerpt: boundedExactChunkExcerpt(lines, range),
+      excerpt: boundedExactChunkExcerpt(lines, range, range.edge),
       why: `Bounded recoverable ${index === 0 ? "head" : "tail"} preview for vaulted ${stream} output line range over cap ${EXACT_LINE_RANGE_MAX_BYTES}.`,
       window: "small",
       expandable: true,
@@ -372,7 +362,7 @@ function expandVaultEvidenceOverCap(
       source: { kind: "vault", outputId: options.source.outputId, stream },
       path: `${options.source.outputId}:${stream}`,
       lines: evidenceLines,
-      excerpt: boundedExactChunkExcerpt(lines, range),
+      excerpt: boundedExactChunkExcerpt(lines, range, range.edge),
       why: `Bounded recoverable ${index === 0 ? "head" : "tail"} preview for vaulted ${stream} expansion over cap ${EXACT_LINE_RANGE_MAX_BYTES}.`,
       window: "small",
       expandable: true,
@@ -508,7 +498,7 @@ async function queryRepo(
     return errorResult(preserve, topK);
   }
 
-  const files = await readRepoTextFiles(root, options.source.path);
+  const files = await readRepoTextFiles(root, options.source.path, options.generatedPathGlobs);
   const candidates = findTopCandidates(files, query, topK);
 
   if (candidates.length === 0) {
@@ -569,7 +559,7 @@ async function locateRepo(
     return errorResult(preserve, topK);
   }
 
-  const files = await readRepoTextFiles(root, options.source.path);
+  const files = await readRepoTextFiles(root, options.source.path, options.generatedPathGlobs);
   const candidates = findTopCandidates(files, query, topK);
   if (candidates.length === 0) {
     return {
@@ -761,12 +751,16 @@ function retrieveRepoLineRange(
   lineRange: RetrieveLineRangeInput,
   preserve: PreserveMode,
 ): RetrievalRoutedResult {
-  if (!isValidLineRange(lineRange)) {
-    return errorResult(preserve, "Repo retrieve requires a valid 1-based lineRange.");
+  const resolvedRange = resolveExactLineRange({
+    requested: lineRange,
+    lineCount: file.lines.length,
+    availableLabel: "available repo lines",
+    invalidReason: "Repo retrieve requires a valid 1-based lineRange.",
+  });
+  if (!resolvedRange.ok) {
+    return errorResult(preserve, resolvedRange.reason);
   }
-
-  const end = Math.min(lineRange.end, file.lines.length);
-  const start = Math.min(lineRange.start, end);
+  const { start, end } = resolvedRange.range;
   const evidenceLines = `${start}-${end}`;
   const excerpt = file.lines.slice(start - 1, end).join("\n");
   if (byteLength(excerpt) > EXACT_LINE_RANGE_MAX_BYTES) {
@@ -831,14 +825,14 @@ function retrieveRepoLineRangeOverCap(
   };
 }
 
-function repoEvidenceForBoundedExactChunk(file: RepoTextFile, range: LineRange, index: number): EvidencePacket {
+function repoEvidenceForBoundedExactChunk(file: RepoTextFile, range: OverCapEdgeRange, index: number): EvidencePacket {
   const evidenceLines = `${range.start}-${range.end}`;
   return {
     id: evidenceIdFor(file.path, evidenceLines, `retrieve-over-cap-${index}`),
     source: { kind: "repo", path: file.path },
     path: file.path,
     lines: evidenceLines,
-    excerpt: boundedExactChunkExcerpt(file.lines, range),
+    excerpt: boundedExactChunkExcerpt(file.lines, range, range.edge),
     why: `Bounded recoverable ${index === 0 ? "head" : "tail"} preview for repo line range over cap ${EXACT_LINE_RANGE_MAX_BYTES}.`,
     window: "small",
     expandable: true,
@@ -936,18 +930,12 @@ function explainRepoDecision(
   return result;
 }
 
-async function readRepoTextFiles(root: string, requestedPath?: string): Promise<RepoTextFile[]> {
-  const start = await resolveRepoPath(root, requestedPath);
-  const startStat = await stat(start.absolutePath);
-  const fileRefs: RepoTextFileRef[] = [];
-  const visitedDirectories = new Set<string>();
-  await collectTextFileRefs(
-    start.root,
-    start.absolutePath,
-    fileRefs,
-    shouldAllowGeneratedTraversal(requestedPath ? start.relativePath : undefined, startStat.isFile()),
-    visitedDirectories,
-  );
+async function readRepoTextFiles(root: string, requestedPath?: string, generatedPathGlobs: readonly string[] = []): Promise<RepoTextFile[]> {
+  const options: { root: string; requestedPath?: string; generatedPathGlobs: readonly string[] } = { root, generatedPathGlobs };
+  if (requestedPath !== undefined) {
+    options.requestedPath = requestedPath;
+  }
+  const fileRefs = await collectRepoTextFileRefs(options);
   return readRepoTextFileRefs(fileRefs);
 }
 
@@ -960,49 +948,6 @@ async function readRepoTextFile(root: string, path: string): Promise<RepoTextFil
     text,
     lines: splitLines(text),
   };
-}
-
-async function collectTextFileRefs(
-  root: string,
-  currentPath: string,
-  fileRefs: RepoTextFileRef[],
-  allowGenerated: boolean,
-  visitedDirectories: Set<string>,
-) {
-  const currentRealPath = await realpath(currentPath);
-  if (!isPathInsideRoot(root, currentRealPath)) {
-    return;
-  }
-
-  const currentStat = await stat(currentRealPath);
-  const path = normalizeRelativePath(relative(root, currentRealPath));
-
-  if (currentStat.isDirectory()) {
-    if (visitedDirectories.has(currentRealPath)) {
-      return;
-    }
-    visitedDirectories.add(currentRealPath);
-
-    if (!allowGenerated && path !== "" && shouldSkipBroadDirectory(currentRealPath)) {
-      return;
-    }
-
-    const entries = await readdir(currentRealPath, { withFileTypes: true });
-    for (const entry of entries) {
-      await collectTextFileRefs(root, resolve(currentRealPath, entry.name), fileRefs, allowGenerated, visitedDirectories);
-    }
-    return;
-  }
-
-  if (!currentStat.isFile()) {
-    return;
-  }
-
-  if (!allowGenerated && shouldSkipBroadFile(path, currentStat.size)) {
-    return;
-  }
-
-  fileRefs.push({ path, absolutePath: currentRealPath });
 }
 
 async function readRepoTextFileRefs(fileRefs: readonly RepoTextFileRef[]): Promise<RepoTextFile[]> {
@@ -1108,6 +1053,7 @@ function evidenceFromCandidate(candidate: CandidateSpan, query: string): Evidenc
     why: `${candidate.reason} near ${candidate.file.path}:${candidate.lineIndex + 1}.`,
     window: "small",
     expandable: true,
+    ...(candidate.exactNormalizedPhrase !== undefined ? { exactNormalizedPhrase: candidate.exactNormalizedPhrase } : {}),
   });
 }
 
@@ -1118,12 +1064,13 @@ interface EvidenceRangeOptions {
   why: string;
   window: EvidenceWindow;
   expandable: boolean;
+  exactNormalizedPhrase?: string;
 }
 
 function evidenceFromRange(options: EvidenceRangeOptions): EvidencePacket {
   const capped = capLineRangeForWindow(options.lines, options.window);
   const lines = `${capped.range.start}-${capped.range.end}`;
-  const excerpt = excerptForLineRange(options.file.lines, capped.range, options.window);
+  const excerpt = excerptForLineRange(options.file.lines, capped.range, options.window, options.exactNormalizedPhrase);
   const why = capped.truncated
     ? `${options.why} Bounded to ${lines} by the ${options.window} line cap; use retrieve lineRange or a wider expansion for more exact context.`
     : options.why;
@@ -1144,14 +1091,20 @@ interface LineRange {
   end: number;
 }
 
-function overCapEdgeRanges(lines: readonly string[], range: LineRange): LineRange[] {
+interface OverCapEdgeRange extends LineRange {
+  edge: "head" | "tail";
+}
+
+function overCapEdgeRanges(lines: readonly string[], range: LineRange): OverCapEdgeRange[] {
   const lineCount = range.end - range.start + 1;
   const chunkLineCount = Math.min(10, Math.max(1, Math.floor(lineCount / 2)));
-  const head = shrinkRangeToMaxBytes(lines, { start: range.start, end: Math.min(range.end, range.start + chunkLineCount - 1) }, "head");
-  const tail = shrinkRangeToMaxBytes(lines, { start: Math.max(range.start, range.end - chunkLineCount + 1), end: range.end }, "tail");
+  const headRange = shrinkRangeToMaxBytes(lines, { start: range.start, end: Math.min(range.end, range.start + chunkLineCount - 1) }, "head");
+  const tailRange = shrinkRangeToMaxBytes(lines, { start: Math.max(range.start, range.end - chunkLineCount + 1), end: range.end }, "tail");
+  const head: OverCapEdgeRange = { ...headRange, edge: "head" };
+  const tail: OverCapEdgeRange = { ...tailRange, edge: "tail" };
 
   if (tail.start <= head.end) {
-    return [head];
+    return byteLength(lines.slice(head.start - 1, head.end).join("\n")) > EXACT_CHUNK_MAX_BYTES ? [head, tail] : [head];
   }
 
   return [head, tail];
@@ -1165,13 +1118,9 @@ function shrinkRangeToMaxBytes(lines: readonly string[], range: LineRange, edge:
   return current;
 }
 
-function boundedExactChunkExcerpt(lines: readonly string[], range: LineRange): string {
+function boundedExactChunkExcerpt(lines: readonly string[], range: LineRange, edge: "head" | "tail" = "head"): string {
   const excerpt = lines.slice(range.start - 1, range.end).join("\n");
-  return truncateToUtf8Bytes(excerpt, EXACT_CHUNK_MAX_BYTES);
-}
-
-function isValidLineRange(range: RetrieveLineRangeInput): boolean {
-  return Number.isInteger(range.start) && Number.isInteger(range.end) && range.start >= 1 && range.end >= range.start;
+  return edge === "tail" ? truncateTailToUtf8Bytes(excerpt, EXACT_CHUNK_MAX_BYTES) : truncateToUtf8Bytes(excerpt, EXACT_CHUNK_MAX_BYTES);
 }
 
 function parseLineRange(lines: string): LineRange | null {
@@ -1211,9 +1160,26 @@ interface ChunkStats {
 
 function candidateChunksForFile(file: RepoTextFile): CandidateChunk[] {
   const structuralChunks: CandidateChunk[] = [];
+  structuralChunks.push(...markdownPreambleChunk(file));
   structuralChunks.push(...markdownSectionChunks(file));
   structuralChunks.push(...codeSymbolChunks(file));
   return structuralChunks.length ? structuralChunks : lineWindowChunks(file);
+}
+
+function markdownPreambleChunk(file: RepoTextFile): CandidateChunk[] {
+  const firstHeadingIndex = file.lines.findIndex((line) => line.trimStart().startsWith("#"));
+  if (firstHeadingIndex <= 0) {
+    return [];
+  }
+
+  const range = { start: 1, end: firstHeadingIndex };
+  return [{
+    file,
+    range,
+    text: file.lines.slice(range.start - 1, range.end).join("\n"),
+    heading: "",
+    kind: "section" as const,
+  }];
 }
 
 function markdownSectionChunks(file: RepoTextFile): CandidateChunk[] {
@@ -1343,7 +1309,8 @@ function scoreCandidateChunk(
     exactPhraseBoost(exactPhrase, chunk.file.path, queryTokens) +
     bm25Score(queryTokens, tokenCounts, chunkLength, stats) * 10 +
     coverageRatio(matchingTokens, queryTokens) * 120 +
-    completeCoverageBoost(matchingTokens, queryTokens) +
+    completeCoverageBoost(matchingTokens, queryTokens, chunk.kind) -
+    missingCoveragePenalty(matchingTokens, queryTokens, chunk.kind) +
     headingCoverageBoost(chunk.heading ?? "", queryTokens) +
     identifierBoost(chunk.text, queryTokens) +
     (matchingTokens.length >= 4 ? orderedPhraseBoost(chunkTokens, queryTokens) : 0) +
@@ -1353,18 +1320,27 @@ function scoreCandidateChunk(
     sourceTestPrior(chunk.file.path, queryTokens) +
     pathScore -
     Math.log1p(chunkLength) * 10;
-  const bestLineIndex = bestLineIndexInChunk(chunk, queryTokens, normalizedQueryPhrase);
-  const range = evidenceRangeForChunk(chunk, bestLineIndex);
-  const reason = exactPhrase
+  const selection = selectEvidenceRangeForChunk({
+    lines: chunk.file.lines,
+    chunkRange: chunk.range,
+    chunkKind: chunk.kind,
+    queryTokens,
+    normalizedQueryPhrase,
+    chunkHasExactPhrase: exactPhrase,
+    defaultContextLines: DEFAULT_CONTEXT_LINES,
+    queryCoverageMaxLines: QUERY_COVERAGE_MAX_LINES,
+  });
+  const reason = selection.matchKind === "exact-phrase"
     ? `matched exact normalized query phrase in ${chunk.kind} chunk`
     : `BM25-style scored ${chunk.kind} chunk with ${matchingTokens.length}/${queryTokens.length} query-token coverage`;
 
   return {
     file: chunk.file,
-    lineIndex: bestLineIndex,
-    range,
+    lineIndex: selection.anchorLine - 1,
+    range: selection.range,
     score,
     reason,
+    ...(selection.matchKind === "exact-phrase" ? { exactNormalizedPhrase: normalizedQueryPhrase } : {}),
   };
 }
 
@@ -1401,8 +1377,32 @@ function coverageRatio(matchingTokens: readonly string[], queryTokens: readonly 
   return queryTokens.length ? matchingTokens.length / queryTokens.length : 0;
 }
 
-function completeCoverageBoost(matchingTokens: readonly string[], queryTokens: readonly string[]): number {
-  return queryTokens.length > 0 && matchingTokens.length === queryTokens.length ? 200 : 0;
+function completeCoverageBoost(
+  matchingTokens: readonly string[],
+  queryTokens: readonly string[],
+  chunkKind: CandidateChunk["kind"],
+): number {
+  if (queryTokens.length === 0 || matchingTokens.length !== queryTokens.length) {
+    return 0;
+  }
+
+  if (chunkKind === "symbol") {
+    return 240;
+  }
+
+  return queryTokens.length >= 4 ? 1_200 : 240;
+}
+
+function missingCoveragePenalty(
+  matchingTokens: readonly string[],
+  queryTokens: readonly string[],
+  chunkKind: CandidateChunk["kind"],
+): number {
+  if (chunkKind === "symbol" || queryTokens.length < 4 || matchingTokens.length >= queryTokens.length) {
+    return 0;
+  }
+
+  return (queryTokens.length - matchingTokens.length) * 90;
 }
 
 function exactPhraseBoost(exactPhrase: boolean, path: string, queryTokens: readonly string[]): number {
@@ -1465,8 +1465,11 @@ function codeDefinitionBoost(text: string, queryTokens: readonly string[]): numb
   for (const name of definitionMatches) {
     const symbolTokens = new Set(tokenize(name));
     const coverage = queryTokens.filter((token) => symbolTokens.has(token)).length;
+    const exactCompoundCoverage = queryTokens.filter(
+      (token) => token.length >= 8 && symbolTokens.has(token) && !/[._/-]/.test(token),
+    ).length;
     if (coverage > 0) {
-      bestBoost = Math.max(bestBoost, 120 + coverage * 80);
+      bestBoost = Math.max(bestBoost, 120 + coverage * 80 + exactCompoundCoverage * 520);
     }
   }
   return bestBoost;
@@ -1506,45 +1509,6 @@ function sourceTestPrior(path: string, queryTokens: readonly string[]): number {
 function isTestPath(path: string): boolean {
   const lower = path.toLowerCase();
   return /(^|\/)(tests?|fixtures?)(\/|$)/.test(lower) || lower.endsWith("_tests.rs") || lower.endsWith(".test.ts") || lower.endsWith(".test.js");
-}
-
-function bestLineIndexInChunk(
-  chunk: CandidateChunk,
-  queryTokens: readonly string[],
-  normalizedQueryPhrase: string,
-): number {
-  let bestIndex = chunk.range.start - 1;
-  let bestScore = 0;
-
-  for (let lineIndex = chunk.range.start - 1; lineIndex < chunk.range.end; lineIndex += 1) {
-    const line = chunk.file.lines[lineIndex] ?? "";
-    const score =
-      (hasExactNormalizedPhrase(line, normalizedQueryPhrase) ? 1_000 : 0) +
-      scoreText(line, queryTokens) * 4 +
-      (line.trimStart().startsWith("#") ? 2 : 0);
-    if (score > bestScore) {
-      bestIndex = lineIndex;
-      bestScore = score;
-    }
-  }
-
-  return bestIndex;
-}
-
-function evidenceRangeForChunk(chunk: CandidateChunk, bestLineIndex: number): LineRange {
-  const chunkLength = chunk.range.end - chunk.range.start + 1;
-  if (chunk.kind === "symbol" || chunkLength <= DEFAULT_CONTEXT_LINES * 2 + 4) {
-    return chunk.range;
-  }
-
-  return {
-    start: Math.max(chunk.range.start, bestLineIndex + 1 - DEFAULT_CONTEXT_LINES),
-    end: Math.min(chunk.range.end, bestLineIndex + 1 + DEFAULT_CONTEXT_LINES),
-  };
-}
-
-function hasExactNormalizedPhrase(text: string, normalizedQueryPhrase: string): boolean {
-  return normalizedQueryPhrase !== "" && normalizePhraseSequence(text).includes(normalizedQueryPhrase);
 }
 
 function hasExactNormalizedPhraseInChunk(chunk: CandidateChunk, normalizedQueryPhrase: string): boolean {
@@ -1660,80 +1624,24 @@ function splitIdentifierToken(token: string): string[] {
   return separated.split(/\s+/).filter(Boolean);
 }
 
-function shouldAllowGeneratedTraversal(requestedRelativePath: string | undefined, requestedPathIsFile: boolean): boolean {
-  if (!requestedRelativePath) {
-    return false;
-  }
-
-  if (requestedRelativePath === "" || requestedRelativePath === ".") {
-    return false;
-  }
-
-  return requestedPathIsFile || isGeneratedPathRequest(requestedRelativePath);
-}
-
-function isGeneratedPathRequest(path: string): boolean {
-  const segments = path.split("/");
-  if (segments.some((segment) => SKIP_DIRS.has(segment))) {
-    return true;
-  }
-
-  const name = segments.at(-1)?.toLowerCase() ?? path.toLowerCase();
-  return (
-    name.endsWith(".min.js") ||
-    name.endsWith(".min.css") ||
-    name.endsWith(".map") ||
-    name.includes(".bundle.") ||
-    name.endsWith(".log")
-  );
-}
-
-function shouldSkipBroadDirectory(path: string): boolean {
-  const name = path.split(/[\\/]+/).at(-1) ?? path;
-  return SKIP_DIRS.has(name);
-}
-
-function shouldSkipBroadFile(path: string, size: number): boolean {
-  const name = path.split("/").at(-1)?.toLowerCase() ?? path.toLowerCase();
-  if (isLockfile(name)) {
-    return false;
-  }
-
-  if (size > BROAD_SCAN_MAX_FILE_BYTES) {
-    return true;
-  }
-
-  if (name.endsWith(".min.js") || name.endsWith(".min.css") || name.endsWith(".map")) {
-    return true;
-  }
-
-  if (name.includes(".bundle.") || name.endsWith(".log")) {
-    return true;
-  }
-
-  if ((name.endsWith(".html") || name.endsWith(".json")) && size > 64_000) {
-    return true;
-  }
-
-  return false;
-}
-
-function isLockfile(name: string): boolean {
-  return (
-    name === "package-lock.json" ||
-    name === "npm-shrinkwrap.json" ||
-    name === "pnpm-lock.yaml" ||
-    name === "yarn.lock" ||
-    name === "bun.lockb"
-  );
-}
-
-function excerptForLineRange(lines: readonly string[], range: LineRange, window: EvidenceWindow): string {
+function excerptForLineRange(
+  lines: readonly string[],
+  range: LineRange,
+  window: EvidenceWindow,
+  exactNormalizedPhrase?: string,
+): string {
   const selected = lines.slice(range.start - 1, range.end);
-  const previewedLines = shouldBoundEvidence(window)
-    ? selected.map((line) => truncateToUtf8Bytes(line, LINE_PREVIEW_MAX_BYTES))
-    : selected;
   const maxBytes = maxExcerptBytesForWindow(window);
+  if (maxBytes !== null && exactNormalizedPhrase !== undefined) {
+    const exactExcerpt = excerptAroundNormalizedPhrase(selected.join("\n"), exactNormalizedPhrase, maxBytes);
+    if (exactExcerpt !== null) {
+      return exactExcerpt;
+    }
+  }
+
+  const previewedLines = shouldBoundEvidence(window)
+    ? selected.map((line) => truncateLinePreview(line, LINE_PREVIEW_MAX_BYTES, exactNormalizedPhrase))
+    : selected;
   const excerpt = previewedLines.join("\n");
   return maxBytes === null ? excerpt : truncateToUtf8Bytes(excerpt, maxBytes);
 }
@@ -1778,6 +1686,27 @@ function shouldBoundEvidence(window: EvidenceWindow): boolean {
   return maxExcerptBytesForWindow(window) !== null;
 }
 
+function excerptAroundNormalizedPhrase(text: string, exactNormalizedPhrase: string, maxBytes: number): string | null {
+  const span = normalizedPhraseRawSpan(text, exactNormalizedPhrase);
+  if (span === null) {
+    return null;
+  }
+  return truncateToUtf8BytesAroundSpan(text, span, maxBytes);
+}
+
+function truncateLinePreview(text: string, maxBytes: number, exactNormalizedPhrase?: string): string {
+  if (exactNormalizedPhrase === undefined || byteLength(text) <= maxBytes) {
+    return truncateToUtf8Bytes(text, maxBytes);
+  }
+
+  const span = normalizedPhraseRawSpan(text, exactNormalizedPhrase);
+  if (span === null) {
+    return truncateToUtf8Bytes(text, maxBytes);
+  }
+
+  return truncateToUtf8BytesAroundSpan(text, span, maxBytes);
+}
+
 function truncateToUtf8Bytes(text: string, maxBytes: number): string {
   if (byteLength(text) <= maxBytes) {
     return text;
@@ -1792,37 +1721,106 @@ function truncateToUtf8Bytes(text: string, maxBytes: number): string {
   return `${truncated}${TRUNCATION_SUFFIX}`;
 }
 
+function truncateToUtf8BytesAroundSpan(text: string, span: { start: number; end: number }, maxBytes: number): string {
+  if (byteLength(text) <= maxBytes) {
+    return text;
+  }
+
+  const prefix = span.start > 0 ? TRUNCATION_PREFIX : "";
+  const suffix = span.end < text.length ? TRUNCATION_SUFFIX : "";
+  const budget = maxBytes - byteLength(prefix) - byteLength(suffix);
+  const phrase = text.slice(span.start, span.end);
+  const phraseBytes = byteLength(phrase);
+  if (budget <= 0 || phraseBytes >= budget) {
+    return truncateToUtf8Bytes(text.slice(span.start), maxBytes);
+  }
+
+  const contextBudget = budget - phraseBytes;
+  const beforeBudget = Math.floor(contextBudget / 2);
+  const afterBudget = contextBudget - beforeBudget;
+  let start = span.start;
+  while (start > 0 && byteLength(text.slice(start - 1, span.start)) <= beforeBudget) {
+    start -= 1;
+  }
+  if (byteLength(text.slice(start, span.start)) > beforeBudget) {
+    start += 1;
+  }
+
+  let end = span.end;
+  while (end < text.length && byteLength(text.slice(span.end, end + 1)) <= afterBudget) {
+    end += 1;
+  }
+  if (byteLength(text.slice(span.end, end)) > afterBudget) {
+    end -= 1;
+  }
+
+  const actualPrefix = start > 0 ? prefix : "";
+  const actualSuffix = end < text.length ? suffix : "";
+  return `${actualPrefix}${text.slice(start, end)}${actualSuffix}`;
+}
+
+function normalizedPhraseRawSpan(text: string, normalizedPhrase: string): { start: number; end: number } | null {
+  const phraseTokens = normalizedPhrase.split(/\s+/).filter(Boolean);
+  if (phraseTokens.length === 0) {
+    return null;
+  }
+
+  const spans = tokenSpansForPhrase(text);
+  for (let startIndex = 0; startIndex <= spans.length - phraseTokens.length; startIndex += 1) {
+    let matched = true;
+    for (let offset = 0; offset < phraseTokens.length; offset += 1) {
+      if (spans[startIndex + offset]?.token !== phraseTokens[offset]) {
+        matched = false;
+        break;
+      }
+    }
+    if (matched) {
+      const first = spans[startIndex];
+      const last = spans[startIndex + phraseTokens.length - 1];
+      if (first !== undefined && last !== undefined) {
+        return { start: first.start, end: last.end };
+      }
+    }
+  }
+
+  return null;
+}
+
+function tokenSpansForPhrase(text: string): Array<{ token: string; start: number; end: number }> {
+  const spans: Array<{ token: string; start: number; end: number }> = [];
+  for (const match of text.matchAll(/[A-Za-z0-9_./-]+/g)) {
+    const rawToken = match[0];
+    const start = match.index ?? 0;
+    const end = start + rawToken.length;
+    for (const token of expandedIdentifierTokens(rawToken)) {
+      if (token.length >= 2) {
+        spans.push({ token, start, end });
+      }
+    }
+  }
+  return spans;
+}
+
+function truncateTailToUtf8Bytes(text: string, maxBytes: number): string {
+  if (byteLength(text) <= maxBytes) {
+    return text;
+  }
+
+  const prefixBytes = byteLength(TRUNCATION_PREFIX);
+  const contentBytes = Math.max(0, maxBytes - prefixBytes);
+  let start = Math.max(0, text.length - contentBytes);
+  while (start < text.length && byteLength(text.slice(start)) > contentBytes) {
+    start += 1;
+  }
+  return `${TRUNCATION_PREFIX}${text.slice(start)}`;
+}
+
 function byteLength(text: string): number {
   return Buffer.byteLength(text, "utf8");
 }
 
 function splitLines(text: string): string[] {
   return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
-}
-
-async function resolveRepoPath(root: string, requestedPath?: string): Promise<{ root: string; absolutePath: string; relativePath: string }> {
-  const rootRealPath = await realpath(resolve(root));
-  const requestedAbsolutePath = requestedPath ? resolve(rootRealPath, requestedPath) : rootRealPath;
-  const requestedRealPath = await realpath(requestedAbsolutePath);
-
-  if (!isPathInsideRoot(rootRealPath, requestedRealPath)) {
-    throw new Error(`Repo path escapes root: ${requestedPath ?? "."}`);
-  }
-
-  return {
-    root: rootRealPath,
-    absolutePath: requestedRealPath,
-    relativePath: normalizeRelativePath(relative(rootRealPath, requestedRealPath)),
-  };
-}
-
-function isPathInsideRoot(root: string, absolutePath: string): boolean {
-  const relativePath = relative(root, absolutePath);
-  return relativePath === "" || (!relativePath.startsWith("..") && !relativePath.startsWith("/") && !/^[A-Za-z]:/.test(relativePath));
-}
-
-function normalizeRelativePath(path: string): string {
-  return path.split(/[\\/]+/).join("/");
 }
 
 function decisionId(...parts: string[]): string {

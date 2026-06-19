@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
@@ -127,6 +128,71 @@ test("session index groups command records by execution status", async () => {
   });
 });
 
+test("session index keeps concurrent command output records", async () => {
+  await withTempVault(async (vault) => {
+    const records = await Promise.all(
+      Array.from({ length: 10 }, (_, index) =>
+        storeCommandOutput(vault, {
+          sessionId: "concurrent-session",
+          command: `cmd-${index}`,
+          stdout: `out-${index}\n`,
+          stderr: "",
+          executionStatus: "success",
+          exitCode: 0,
+          createdAt: `2026-06-16T00:00:${String(index).padStart(2, "0")}.000Z`,
+        }),
+      ),
+    );
+
+    const index = await readSessionIndex(vault, "concurrent-session");
+    assert.equal(index.outputs.length, records.length);
+    assert.equal(Object.keys(index.records).length, records.length);
+    for (const record of records) {
+      assert.ok(index.outputs.includes(record.outputId));
+      assert.equal(index.records[record.outputId].executionStatus, "success");
+    }
+  });
+});
+
+test("session index keeps cross-process command output records", async () => {
+  await withTempVault(async (vault) => {
+    const releasePath = join(vault.root, "cross-process-release");
+    const distIndexUrl = new URL("../dist/index.js", import.meta.url).href;
+    const childCode = `
+      import { access } from "node:fs/promises";
+      import { createVault, storeCommandOutput } from ${JSON.stringify(distIndexUrl)};
+      const [root, releasePath, index] = process.argv.slice(1);
+      while (true) {
+        try {
+          await access(releasePath);
+          break;
+        } catch {
+          await new Promise((resolve) => setTimeout(resolve, 5));
+        }
+      }
+      const vault = createVault({ root });
+      await storeCommandOutput(vault, {
+        sessionId: "cross-process-session",
+        command: ` + "`cmd-${index}`" + `,
+        stdout: ` + "`out-${index}\\n`" + `,
+        stderr: "",
+        executionStatus: "success",
+        exitCode: 0,
+        createdAt: ` + "`2026-06-16T00:01:${String(index).padStart(2, \"0\")}.000Z`" + `,
+      });
+    `;
+
+    const childCount = 12;
+    const children = Array.from({ length: childCount }, (_, index) => runNodeModuleSnippet(childCode, [vault.root, releasePath, String(index)]));
+    await writeFile(releasePath, "go", "utf8");
+    await Promise.all(children);
+
+    const index = await readSessionIndex(vault, "cross-process-session");
+    assert.equal(index.outputs.length, childCount);
+    assert.equal(Object.keys(index.records).length, childCount);
+  });
+});
+
 test("text output records store exact raw text", async () => {
   await withTempVault(async (vault) => {
     const record = await storeTextOutput(vault, {
@@ -147,6 +213,32 @@ test("text output records store exact raw text", async () => {
     }), "beta");
   });
 });
+
+async function runNodeModuleSnippet(code, args) {
+  await new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, ["--input-type=module", "-e", code, ...args], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(`child exited ${code}\nstdout:\n${stdout}\nstderr:\n${stderr}`));
+    });
+  });
+}
 
 test("repo file references write metadata only by default", async () => {
   await withTempVault(async (vault) => {

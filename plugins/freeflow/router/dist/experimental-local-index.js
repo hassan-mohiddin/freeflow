@@ -52,6 +52,49 @@ const SKIP_DIRS = new Set([
     "logs",
     "generated",
 ]);
+const BROAD_SKIP_FILE_EXTENSIONS = new Set([
+    ".7z",
+    ".avi",
+    ".bin",
+    ".bmp",
+    ".br",
+    ".class",
+    ".db",
+    ".dll",
+    ".dylib",
+    ".eot",
+    ".exe",
+    ".gif",
+    ".gz",
+    ".heic",
+    ".icns",
+    ".ico",
+    ".jar",
+    ".jpeg",
+    ".jpg",
+    ".mov",
+    ".mp3",
+    ".mp4",
+    ".otf",
+    ".parquet",
+    ".pdf",
+    ".png",
+    ".pyc",
+    ".rar",
+    ".so",
+    ".sqlite",
+    ".sqlite3",
+    ".tar",
+    ".tgz",
+    ".ttf",
+    ".wasm",
+    ".webm",
+    ".webp",
+    ".woff",
+    ".woff2",
+    ".zip",
+    ".zst",
+]);
 export function defaultExperimentalIndexCacheRoot() {
     const xdgCache = process.env.XDG_CACHE_HOME;
     return resolve(xdgCache && xdgCache.trim() ? xdgCache : join(homedir(), ".cache"), "freeflow-router", "experimental-index");
@@ -59,7 +102,7 @@ export function defaultExperimentalIndexCacheRoot() {
 export async function experimentalIndexCachePath(options) {
     const root = await realpath(resolve(options.root));
     const cacheRoot = resolve(options.cacheRoot ?? defaultExperimentalIndexCacheRoot());
-    return join(cacheRoot, `${hash(root).slice(0, 24)}.json`);
+    return join(cacheRoot, `${hash(JSON.stringify({ root, generatedPathGlobs: options.generatedPathGlobs ?? [] })).slice(0, 24)}.json`);
 }
 export async function buildOrLoadExperimentalRepoIndex(options) {
     const startedAt = performance.now();
@@ -68,8 +111,11 @@ export async function buildOrLoadExperimentalRepoIndex(options) {
     if (options.cacheRoot !== undefined) {
         cacheOptions.cacheRoot = options.cacheRoot;
     }
+    if (options.generatedPathGlobs !== undefined) {
+        cacheOptions.generatedPathGlobs = options.generatedPathGlobs;
+    }
     const cachePath = await experimentalIndexCachePath(cacheOptions);
-    const scannedFiles = await scanRepoTextFiles(root);
+    const scannedFiles = await scanRepoTextFiles(root, options.generatedPathGlobs ?? []);
     const cachedIndex = await readCachedIndex(cachePath, root);
     if (cachedIndex && manifestMatches(cachedIndex, scannedFiles)) {
         return {
@@ -90,7 +136,10 @@ export async function buildOrLoadExperimentalRepoIndex(options) {
     };
 }
 export function queryExperimentalRepoIndex(index, query, options = {}) {
-    const topK = Math.min(MAX_TOP_K, Math.max(1, Math.floor(options.topK ?? DEFAULT_TOP_K)));
+    const requestedTopK = options.topK ?? DEFAULT_TOP_K;
+    const topK = Number.isFinite(requestedTopK)
+        ? Math.min(MAX_TOP_K, Math.max(1, Math.floor(requestedTopK)))
+        : DEFAULT_TOP_K;
     const queryTokens = uniqueTokens(tokenize(query));
     if (queryTokens.length === 0) {
         return [];
@@ -223,37 +272,49 @@ function buildIndexFromScannedFiles(root, cachePath, scannedFiles) {
         cachePath,
     };
 }
-async function scanRepoTextFiles(root) {
+async function scanRepoTextFiles(root, generatedPathGlobs = []) {
     const files = [];
     const visitedDirectories = new Set();
-    await collectTextFiles(root, root, files, visitedDirectories);
+    await collectTextFiles(root, root, files, visitedDirectories, generatedPathGlobs);
     return files.sort((a, b) => a.path.localeCompare(b.path));
 }
-async function collectTextFiles(root, currentPath, files, visitedDirectories) {
-    const currentRealPath = await realpath(currentPath);
+async function collectTextFiles(root, currentPath, files, visitedDirectories, generatedPathGlobs = []) {
+    let currentRealPath;
+    try {
+        currentRealPath = await realpath(currentPath);
+    }
+    catch {
+        return;
+    }
     if (!isPathInsideRoot(root, currentRealPath)) {
         return;
     }
-    const currentStat = await stat(currentRealPath);
+    let currentStat;
+    try {
+        currentStat = await stat(currentRealPath);
+    }
+    catch {
+        return;
+    }
     const relativePath = normalizeRelativePath(relative(root, currentRealPath));
     if (currentStat.isDirectory()) {
         if (visitedDirectories.has(currentRealPath)) {
             return;
         }
         visitedDirectories.add(currentRealPath);
-        if (relativePath !== "" && shouldSkipBroadDirectory(currentRealPath)) {
+        if (relativePath !== "" && (shouldSkipBroadDirectory(currentRealPath) || matchesGeneratedPathHint(relativePath, generatedPathGlobs))) {
             return;
         }
         const entries = await readdir(currentRealPath, { withFileTypes: true });
         for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-            await collectTextFiles(root, resolve(currentRealPath, entry.name), files, visitedDirectories);
+            await collectTextFiles(root, resolve(currentRealPath, entry.name), files, visitedDirectories, generatedPathGlobs);
         }
         return;
     }
     if (!currentStat.isFile()) {
         return;
     }
-    if (shouldSkipBroadFile(relativePath, currentStat.size)) {
+    if (shouldSkipBroadFile(relativePath, currentStat.size) || matchesGeneratedPathHint(relativePath, generatedPathGlobs)) {
         return;
     }
     const text = await readFile(currentRealPath, "utf8");
@@ -412,10 +473,35 @@ function shouldSkipBroadDirectory(path) {
     const name = path.split(/[\\/]+/).at(-1) ?? path;
     return SKIP_DIRS.has(name);
 }
+function matchesGeneratedPathHint(path, hints) {
+    if (hints.length === 0) {
+        return false;
+    }
+    const normalizedPath = normalizeRelativePath(path);
+    return hints.some((hint) => matchesSimpleGlob(normalizedPath, hint));
+}
+function matchesSimpleGlob(path, pattern) {
+    if (!pattern) {
+        return false;
+    }
+    const normalizedPattern = normalizeRelativePath(pattern);
+    if (normalizedPattern.endsWith("/**")) {
+        const prefix = normalizedPattern.slice(0, -3);
+        return path === prefix || path.startsWith(`${prefix}/`);
+    }
+    const escaped = normalizedPattern
+        .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+        .replace(/\*\*/g, ".*")
+        .replace(/\*/g, "[^/]*");
+    return new RegExp(`^${escaped}$`).test(path);
+}
 function shouldSkipBroadFile(path, size) {
     const name = path.split("/").at(-1)?.toLowerCase() ?? path.toLowerCase();
     if (isLockfile(name)) {
         return false;
+    }
+    if (hasBroadSkippedFileExtension(name)) {
+        return true;
     }
     if (size > BROAD_SCAN_MAX_FILE_BYTES) {
         return true;
@@ -428,6 +514,14 @@ function shouldSkipBroadFile(path, size) {
     }
     if ((name.endsWith(".html") || name.endsWith(".json")) && size > 64_000) {
         return true;
+    }
+    return false;
+}
+function hasBroadSkippedFileExtension(name) {
+    for (const extension of BROAD_SKIP_FILE_EXTENSIONS) {
+        if (name.endsWith(extension)) {
+            return true;
+        }
     }
     return false;
 }

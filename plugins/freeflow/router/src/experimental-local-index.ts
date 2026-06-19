@@ -7,6 +7,7 @@ import { performance } from "node:perf_hooks";
 export interface ExperimentalLocalIndexOptions {
   root: string;
   cacheRoot?: string;
+  generatedPathGlobs?: readonly string[];
 }
 
 export interface ExperimentalIndexLoadResult {
@@ -134,6 +135,49 @@ const SKIP_DIRS = new Set([
   "logs",
   "generated",
 ]);
+const BROAD_SKIP_FILE_EXTENSIONS = new Set([
+  ".7z",
+  ".avi",
+  ".bin",
+  ".bmp",
+  ".br",
+  ".class",
+  ".db",
+  ".dll",
+  ".dylib",
+  ".eot",
+  ".exe",
+  ".gif",
+  ".gz",
+  ".heic",
+  ".icns",
+  ".ico",
+  ".jar",
+  ".jpeg",
+  ".jpg",
+  ".mov",
+  ".mp3",
+  ".mp4",
+  ".otf",
+  ".parquet",
+  ".pdf",
+  ".png",
+  ".pyc",
+  ".rar",
+  ".so",
+  ".sqlite",
+  ".sqlite3",
+  ".tar",
+  ".tgz",
+  ".ttf",
+  ".wasm",
+  ".webm",
+  ".webp",
+  ".woff",
+  ".woff2",
+  ".zip",
+  ".zst",
+]);
 
 export function defaultExperimentalIndexCacheRoot(): string {
   const xdgCache = process.env.XDG_CACHE_HOME;
@@ -143,7 +187,7 @@ export function defaultExperimentalIndexCacheRoot(): string {
 export async function experimentalIndexCachePath(options: ExperimentalLocalIndexOptions): Promise<string> {
   const root = await realpath(resolve(options.root));
   const cacheRoot = resolve(options.cacheRoot ?? defaultExperimentalIndexCacheRoot());
-  return join(cacheRoot, `${hash(root).slice(0, 24)}.json`);
+  return join(cacheRoot, `${hash(JSON.stringify({ root, generatedPathGlobs: options.generatedPathGlobs ?? [] })).slice(0, 24)}.json`);
 }
 
 export async function buildOrLoadExperimentalRepoIndex(
@@ -155,8 +199,11 @@ export async function buildOrLoadExperimentalRepoIndex(
   if (options.cacheRoot !== undefined) {
     cacheOptions.cacheRoot = options.cacheRoot;
   }
+  if (options.generatedPathGlobs !== undefined) {
+    cacheOptions.generatedPathGlobs = options.generatedPathGlobs;
+  }
   const cachePath = await experimentalIndexCachePath(cacheOptions);
-  const scannedFiles = await scanRepoTextFiles(root);
+  const scannedFiles = await scanRepoTextFiles(root, options.generatedPathGlobs ?? []);
   const cachedIndex = await readCachedIndex(cachePath, root);
 
   if (cachedIndex && manifestMatches(cachedIndex, scannedFiles)) {
@@ -184,7 +231,10 @@ export function queryExperimentalRepoIndex(
   query: string,
   options: ExperimentalIndexQueryOptions = {},
 ): ExperimentalIndexCandidate[] {
-  const topK = Math.min(MAX_TOP_K, Math.max(1, Math.floor(options.topK ?? DEFAULT_TOP_K)));
+  const requestedTopK = options.topK ?? DEFAULT_TOP_K;
+  const topK = Number.isFinite(requestedTopK)
+    ? Math.min(MAX_TOP_K, Math.max(1, Math.floor(requestedTopK)))
+    : DEFAULT_TOP_K;
   const queryTokens = uniqueTokens(tokenize(query));
   if (queryTokens.length === 0) {
     return [];
@@ -332,10 +382,10 @@ function buildIndexFromScannedFiles(root: string, cachePath: string, scannedFile
   };
 }
 
-async function scanRepoTextFiles(root: string): Promise<ScannedTextFile[]> {
+async function scanRepoTextFiles(root: string, generatedPathGlobs: readonly string[] = []): Promise<ScannedTextFile[]> {
   const files: ScannedTextFile[] = [];
   const visitedDirectories = new Set<string>();
-  await collectTextFiles(root, root, files, visitedDirectories);
+  await collectTextFiles(root, root, files, visitedDirectories, generatedPathGlobs);
   return files.sort((a, b) => a.path.localeCompare(b.path));
 }
 
@@ -344,13 +394,24 @@ async function collectTextFiles(
   currentPath: string,
   files: ScannedTextFile[],
   visitedDirectories: Set<string>,
+  generatedPathGlobs: readonly string[] = [],
 ): Promise<void> {
-  const currentRealPath = await realpath(currentPath);
+  let currentRealPath: string;
+  try {
+    currentRealPath = await realpath(currentPath);
+  } catch {
+    return;
+  }
   if (!isPathInsideRoot(root, currentRealPath)) {
     return;
   }
 
-  const currentStat = await stat(currentRealPath);
+  let currentStat: Awaited<ReturnType<typeof stat>>;
+  try {
+    currentStat = await stat(currentRealPath);
+  } catch {
+    return;
+  }
   const relativePath = normalizeRelativePath(relative(root, currentRealPath));
 
   if (currentStat.isDirectory()) {
@@ -358,13 +419,13 @@ async function collectTextFiles(
       return;
     }
     visitedDirectories.add(currentRealPath);
-    if (relativePath !== "" && shouldSkipBroadDirectory(currentRealPath)) {
+    if (relativePath !== "" && (shouldSkipBroadDirectory(currentRealPath) || matchesGeneratedPathHint(relativePath, generatedPathGlobs))) {
       return;
     }
 
     const entries = await readdir(currentRealPath, { withFileTypes: true });
     for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-      await collectTextFiles(root, resolve(currentRealPath, entry.name), files, visitedDirectories);
+      await collectTextFiles(root, resolve(currentRealPath, entry.name), files, visitedDirectories, generatedPathGlobs);
     }
     return;
   }
@@ -373,7 +434,7 @@ async function collectTextFiles(
     return;
   }
 
-  if (shouldSkipBroadFile(relativePath, currentStat.size)) {
+  if (shouldSkipBroadFile(relativePath, currentStat.size) || matchesGeneratedPathHint(relativePath, generatedPathGlobs)) {
     return;
   }
 
@@ -576,10 +637,40 @@ function shouldSkipBroadDirectory(path: string): boolean {
   return SKIP_DIRS.has(name);
 }
 
+function matchesGeneratedPathHint(path: string, hints: readonly string[]): boolean {
+  if (hints.length === 0) {
+    return false;
+  }
+
+  const normalizedPath = normalizeRelativePath(path);
+  return hints.some((hint) => matchesSimpleGlob(normalizedPath, hint));
+}
+
+function matchesSimpleGlob(path: string, pattern: string): boolean {
+  if (!pattern) {
+    return false;
+  }
+
+  const normalizedPattern = normalizeRelativePath(pattern);
+  if (normalizedPattern.endsWith("/**")) {
+    const prefix = normalizedPattern.slice(0, -3);
+    return path === prefix || path.startsWith(`${prefix}/`);
+  }
+
+  const escaped = normalizedPattern
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*\*/g, ".*")
+    .replace(/\*/g, "[^/]*");
+  return new RegExp(`^${escaped}$`).test(path);
+}
+
 function shouldSkipBroadFile(path: string, size: number): boolean {
   const name = path.split("/").at(-1)?.toLowerCase() ?? path.toLowerCase();
   if (isLockfile(name)) {
     return false;
+  }
+  if (hasBroadSkippedFileExtension(name)) {
+    return true;
   }
   if (size > BROAD_SCAN_MAX_FILE_BYTES) {
     return true;
@@ -592,6 +683,15 @@ function shouldSkipBroadFile(path: string, size: number): boolean {
   }
   if ((name.endsWith(".html") || name.endsWith(".json")) && size > 64_000) {
     return true;
+  }
+  return false;
+}
+
+function hasBroadSkippedFileExtension(name: string): boolean {
+  for (const extension of BROAD_SKIP_FILE_EXTENSIONS) {
+    if (name.endsWith(extension)) {
+      return true;
+    }
   }
   return false;
 }
