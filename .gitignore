@@ -4,7 +4,6 @@ node_modules/
 # Local environment secrets.
 .env
 .env.*
-!.env.example
 
 # Generated eval harness output.
 plugins/freeflow/evals/runs/
@@ -16,3 +15,6 @@ graphify-out/
 .tmp/
 tmp/
 *.log
+
+# Local Serena MCP/project state.
+.serena/

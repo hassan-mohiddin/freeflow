@@ -6,9 +6,12 @@ import { dirname, join, resolve } from "node:path";
 import { DEFAULT_VAULT_RETENTION, DEFAULT_VAULT_ROOT } from "./config.js";
 import type {
   CommandOutputRecord,
+  EvidenceLineage,
+  EvidencePersistence,
   ExecutionStatus,
   OutputFingerprints,
   OutputStream,
+  ProducerDescriptor,
   RepoFileReferenceRecord,
   RouterVaultConfig,
   SessionIndexEntry,
@@ -37,6 +40,9 @@ export interface StoreCommandOutputOptions {
   durationMs?: number;
   decisionIds?: string[];
   createdAt?: string;
+  producer?: ProducerDescriptor;
+  persistence?: EvidencePersistence;
+  lineage?: EvidenceLineage;
 }
 
 export interface StoreTextOutputOptions {
@@ -45,6 +51,9 @@ export interface StoreTextOutputOptions {
   sourceKind: TextOutputRecord["sourceKind"];
   decisionIds?: string[];
   createdAt?: string;
+  producer?: ProducerDescriptor;
+  persistence?: EvidencePersistence;
+  lineage?: EvidenceLineage;
 }
 
 export interface StoreRepoFileReferenceOptions {
@@ -53,6 +62,9 @@ export interface StoreRepoFileReferenceOptions {
   hashSha256?: string;
   decisionIds?: string[];
   createdAt?: string;
+  producer?: ProducerDescriptor;
+  persistence?: EvidencePersistence;
+  lineage?: EvidenceLineage;
 }
 
 export interface ReadOutputLinesOptions {
@@ -218,6 +230,7 @@ export async function storeCommandOutput(
   });
   const objectId = objectIdFromHash(payloadHash);
   const outputId = outputIdFromHash(payloadHash);
+  const recordId = recordIdFromHash(payloadHash);
   const objectDir = objectDirectory(vault, objectId);
   const paths = {
     meta: join(objectDir, "meta.json"),
@@ -229,6 +242,7 @@ export async function storeCommandOutput(
   const record: CommandOutputRecord = {
     kind: "command",
     outputId,
+    recordId,
     objectId,
     command: options.command,
     createdAt,
@@ -252,9 +266,15 @@ export async function storeCommandOutput(
     },
     fingerprints,
     decisionIds,
+    producer: options.producer ?? { kind: "command" },
+    persistence: options.persistence ?? exactVaultPersistence(outputId),
     contentHashSha256: payloadHash,
     retention: vault.retention,
   };
+
+  if (options.lineage !== undefined) {
+    record.lineage = options.lineage;
+  }
 
   const commandExpiresAt = expiresAt(createdAt, vault.retention);
   if (commandExpiresAt !== undefined) {
@@ -294,6 +314,7 @@ export async function storeTextOutput(
   });
   const objectId = objectIdFromHash(payloadHash);
   const outputId = outputIdFromHash(payloadHash);
+  const recordId = recordIdFromHash(payloadHash);
   const objectDir = objectDirectory(vault, objectId);
   const paths = {
     meta: join(objectDir, "meta.json"),
@@ -302,6 +323,7 @@ export async function storeTextOutput(
   const record: TextOutputRecord = {
     kind: "text",
     outputId,
+    recordId,
     objectId,
     sourceKind: options.sourceKind,
     createdAt,
@@ -311,9 +333,15 @@ export async function storeTextOutput(
     hashes: { rawSha256: sha256Text(options.raw) },
     fingerprints,
     decisionIds,
+    producer: options.producer ?? producerForTextSourceKind(options.sourceKind),
+    persistence: options.persistence ?? exactVaultPersistence(outputId),
     contentHashSha256: payloadHash,
     retention: vault.retention,
   };
+
+  if (options.lineage !== undefined) {
+    record.lineage = options.lineage;
+  }
 
   const textExpiresAt = expiresAt(createdAt, vault.retention);
   if (textExpiresAt !== undefined) {
@@ -343,6 +371,7 @@ export async function storeRepoFileReference(
   });
   const objectId = objectIdFromHash(payloadHash);
   const outputId = outputIdFromHash(payloadHash);
+  const recordId = recordIdFromHash(payloadHash);
   const objectDir = objectDirectory(vault, objectId);
   const paths = {
     meta: join(objectDir, "meta.json"),
@@ -350,14 +379,21 @@ export async function storeRepoFileReference(
   const record: RepoFileReferenceRecord = {
     kind: "repo-file",
     outputId,
+    recordId,
     objectId,
     path: options.path,
     paths,
     decisionIds,
     createdAt,
+    producer: options.producer ?? { kind: "repo" },
+    persistence: options.persistence ?? metadataOnlyPersistence(),
     contentHashSha256: payloadHash,
     retention: vault.retention,
   };
+
+  if (options.lineage !== undefined) {
+    record.lineage = options.lineage;
+  }
 
   const repoExpiresAt = expiresAt(createdAt, vault.retention);
   if (repoExpiresAt !== undefined) {
@@ -432,10 +468,17 @@ async function addRecordToSessionIndex(vault: VaultHandle, sessionId: string, re
     const updatedAt = new Date().toISOString();
     const entry: SessionIndexEntry = {
       outputId: record.outputId,
+      recordId: record.recordId,
       objectId: record.objectId,
       kind: record.kind,
       createdAt: record.createdAt,
+      producer: record.producer,
+      persistence: record.persistence,
     };
+
+    if (record.lineage !== undefined) {
+      entry.lineage = record.lineage;
+    }
 
     if (record.kind === "command") {
       entry.executionStatus = record.executionStatus;
@@ -570,6 +613,39 @@ function objectIdFromHash(hash: string): string {
 
 function outputIdFromHash(hash: string): string {
   return `ffout_${hash.slice(0, 24)}`;
+}
+
+function recordIdFromHash(hash: string): string {
+  return `ffrec_${hash.slice(0, 24)}`;
+}
+
+function exactVaultPersistence(outputId: string): EvidencePersistence {
+  return {
+    status: "vaulted",
+    recoverability: "exact",
+    recoveryOutputId: outputId,
+    outputId,
+  };
+}
+
+function metadataOnlyPersistence(): EvidencePersistence {
+  return {
+    status: "metadata_only",
+    recoverability: "metadata_only",
+  };
+}
+
+function producerForTextSourceKind(sourceKind: TextOutputRecord["sourceKind"]): ProducerDescriptor {
+  if (sourceKind === "native") {
+    return { kind: "native" };
+  }
+  if (sourceKind === "mcp") {
+    return { kind: "mcp" };
+  }
+  if (sourceKind === "fetch") {
+    return { kind: "fetch" };
+  }
+  return { kind: "other" };
 }
 
 function combineOutputSections(stdout: string, stderr: string): string {

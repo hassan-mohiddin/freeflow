@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
 
-import freeflowExtension from "../../pi-extension/index.js";
+import freeflowExtension from "../../pi-extension/dist/index.js";
 import { createVault, freeflowRetrieve, freeflowRun, readOutputText } from "../dist/index.js";
 
 const repoRoot = resolve(new URL("../../../../", import.meta.url).pathname);

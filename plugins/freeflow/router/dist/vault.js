@@ -106,6 +106,7 @@ export async function storeCommandOutput(vault, options) {
     });
     const objectId = objectIdFromHash(payloadHash);
     const outputId = outputIdFromHash(payloadHash);
+    const recordId = recordIdFromHash(payloadHash);
     const objectDir = objectDirectory(vault, objectId);
     const paths = {
         meta: join(objectDir, "meta.json"),
@@ -116,6 +117,7 @@ export async function storeCommandOutput(vault, options) {
     const record = {
         kind: "command",
         outputId,
+        recordId,
         objectId,
         command: options.command,
         createdAt,
@@ -139,9 +141,14 @@ export async function storeCommandOutput(vault, options) {
         },
         fingerprints,
         decisionIds,
+        producer: options.producer ?? { kind: "command" },
+        persistence: options.persistence ?? exactVaultPersistence(outputId),
         contentHashSha256: payloadHash,
         retention: vault.retention,
     };
+    if (options.lineage !== undefined) {
+        record.lineage = options.lineage;
+    }
     const commandExpiresAt = expiresAt(createdAt, vault.retention);
     if (commandExpiresAt !== undefined) {
         record.expiresAt = commandExpiresAt;
@@ -173,6 +180,7 @@ export async function storeTextOutput(vault, options) {
     });
     const objectId = objectIdFromHash(payloadHash);
     const outputId = outputIdFromHash(payloadHash);
+    const recordId = recordIdFromHash(payloadHash);
     const objectDir = objectDirectory(vault, objectId);
     const paths = {
         meta: join(objectDir, "meta.json"),
@@ -181,6 +189,7 @@ export async function storeTextOutput(vault, options) {
     const record = {
         kind: "text",
         outputId,
+        recordId,
         objectId,
         sourceKind: options.sourceKind,
         createdAt,
@@ -190,9 +199,14 @@ export async function storeTextOutput(vault, options) {
         hashes: { rawSha256: sha256Text(options.raw) },
         fingerprints,
         decisionIds,
+        producer: options.producer ?? producerForTextSourceKind(options.sourceKind),
+        persistence: options.persistence ?? exactVaultPersistence(outputId),
         contentHashSha256: payloadHash,
         retention: vault.retention,
     };
+    if (options.lineage !== undefined) {
+        record.lineage = options.lineage;
+    }
     const textExpiresAt = expiresAt(createdAt, vault.retention);
     if (textExpiresAt !== undefined) {
         record.expiresAt = textExpiresAt;
@@ -215,6 +229,7 @@ export async function storeRepoFileReference(vault, options) {
     });
     const objectId = objectIdFromHash(payloadHash);
     const outputId = outputIdFromHash(payloadHash);
+    const recordId = recordIdFromHash(payloadHash);
     const objectDir = objectDirectory(vault, objectId);
     const paths = {
         meta: join(objectDir, "meta.json"),
@@ -222,14 +237,20 @@ export async function storeRepoFileReference(vault, options) {
     const record = {
         kind: "repo-file",
         outputId,
+        recordId,
         objectId,
         path: options.path,
         paths,
         decisionIds,
         createdAt,
+        producer: options.producer ?? { kind: "repo" },
+        persistence: options.persistence ?? metadataOnlyPersistence(),
         contentHashSha256: payloadHash,
         retention: vault.retention,
     };
+    if (options.lineage !== undefined) {
+        record.lineage = options.lineage;
+    }
     const repoExpiresAt = expiresAt(createdAt, vault.retention);
     if (repoExpiresAt !== undefined) {
         record.expiresAt = repoExpiresAt;
@@ -285,10 +306,16 @@ async function addRecordToSessionIndex(vault, sessionId, record) {
         const updatedAt = new Date().toISOString();
         const entry = {
             outputId: record.outputId,
+            recordId: record.recordId,
             objectId: record.objectId,
             kind: record.kind,
             createdAt: record.createdAt,
+            producer: record.producer,
+            persistence: record.persistence,
         };
+        if (record.lineage !== undefined) {
+            entry.lineage = record.lineage;
+        }
         if (record.kind === "command") {
             entry.executionStatus = record.executionStatus;
         }
@@ -410,6 +437,35 @@ function objectIdFromHash(hash) {
 }
 function outputIdFromHash(hash) {
     return `ffout_${hash.slice(0, 24)}`;
+}
+function recordIdFromHash(hash) {
+    return `ffrec_${hash.slice(0, 24)}`;
+}
+function exactVaultPersistence(outputId) {
+    return {
+        status: "vaulted",
+        recoverability: "exact",
+        recoveryOutputId: outputId,
+        outputId,
+    };
+}
+function metadataOnlyPersistence() {
+    return {
+        status: "metadata_only",
+        recoverability: "metadata_only",
+    };
+}
+function producerForTextSourceKind(sourceKind) {
+    if (sourceKind === "native") {
+        return { kind: "native" };
+    }
+    if (sourceKind === "mcp") {
+        return { kind: "mcp" };
+    }
+    if (sourceKind === "fetch") {
+        return { kind: "fetch" };
+    }
+    return { kind: "other" };
 }
 function combineOutputSections(stdout, stderr) {
     if (stdout.length === 0) {

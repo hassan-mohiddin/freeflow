@@ -36,7 +36,7 @@ freeflow/
     evals/
 ```
 
-The repository root is the marketplace and package-facing shell. Codex uses `.agents/plugins/marketplace.json`; Claude uses `.claude-plugin/marketplace.json`. Both point at `plugins/freeflow/`. Pi uses the root `package.json` `pi` manifest to load `plugins/freeflow/skills/` and `plugins/freeflow/pi-extension/index.js`.
+The repository root is the marketplace and package-facing shell. Codex uses `.agents/plugins/marketplace.json`; Claude uses `.claude-plugin/marketplace.json`. Both point at `plugins/freeflow/`. Pi uses the root `package.json` `pi` manifest to load `plugins/freeflow/skills/` and the built extension at `plugins/freeflow/pi-extension/dist/index.js`; TypeScript source lives under `plugins/freeflow/pi-extension/src/`.
 
 `plugins/freeflow/` is the single runtime source of truth. Skill edits, bundled references, eval metadata, and command-surface metadata live there to avoid generated package drift.
 
@@ -77,7 +77,7 @@ Setup handles the same-session case directly: after successful setup verificatio
 
 Host runtimes may require plugin hooks to be reviewed and trusted after install. If the host skips untrusted hooks, setup still writes activation/config files, but future session-start runtime context will not load until hooks are trusted and the session is restarted, resumed, cleared, or compacted.
 
-Pi uses an extension instead of `hooks/hooks.json`. The Pi extension registers direct commands, reads `workflow/SKILL.md`, `workflow/references/workflow-map.md`, `interview-gate/SKILL.md`, `output-router/SKILL.md`, and `output-router/references/safety-policy.md`, refreshes that context on `session_start` and `session_compact`, and injects it during Pi's `before_agent_start` lifecycle event. The same extension registers `freeflow_retrieve` and `freeflow_run` and gives them compact/expanded TUI renderers so collapsed tool rows stay readable while `ctrl+o` shows structured evidence and recovery details. Pi `/workflow` commands set a session-scoped current-mode override, while `.freeflow/config.json` remains the default-mode source. It follows the same boundary as the Codex/Claude hooks: context loading only, no enforcement.
+Pi uses an extension instead of `hooks/hooks.json`. The built Pi extension registers direct commands, reads `workflow/SKILL.md`, `workflow/references/workflow-map.md`, `interview-gate/SKILL.md`, `output-router/SKILL.md`, and `output-router/references/safety-policy.md`, refreshes that context on `session_start` and `session_compact`, and injects it during Pi's `before_agent_start` lifecycle event. The same extension registers `freeflow_retrieve`, `freeflow_run`, and `freeflow_capture` and gives them compact/expanded TUI renderers so collapsed tool rows stay readable while `ctrl+o` shows structured evidence and recovery details. Pi `/workflow` commands set a session-scoped current-mode override, while `.freeflow/config.json` remains the default-mode source. It follows the same boundary as the Codex/Claude hooks: context loading only, no enforcement.
 
 ## Deferred Enforcement
 

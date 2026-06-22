@@ -1,4 +1,4 @@
-import type { CommandOutputRecord, ExecutionStatus, OutputFingerprints, OutputStream, RepoFileReferenceRecord, RouterVaultConfig, SessionIndexEntry, TextOutputRecord, VaultRecord, VaultRetentionPolicy, VaultSessionIndex } from "./types.js";
+import type { CommandOutputRecord, EvidenceLineage, EvidencePersistence, ExecutionStatus, OutputFingerprints, OutputStream, ProducerDescriptor, RepoFileReferenceRecord, RouterVaultConfig, SessionIndexEntry, TextOutputRecord, VaultRecord, VaultRetentionPolicy, VaultSessionIndex } from "./types.js";
 export interface VaultHandle {
     root: string;
     retention: VaultRetentionPolicy;
@@ -17,6 +17,9 @@ export interface StoreCommandOutputOptions {
     durationMs?: number;
     decisionIds?: string[];
     createdAt?: string;
+    producer?: ProducerDescriptor;
+    persistence?: EvidencePersistence;
+    lineage?: EvidenceLineage;
 }
 export interface StoreTextOutputOptions {
     sessionId: string;
@@ -24,6 +27,9 @@ export interface StoreTextOutputOptions {
     sourceKind: TextOutputRecord["sourceKind"];
     decisionIds?: string[];
     createdAt?: string;
+    producer?: ProducerDescriptor;
+    persistence?: EvidencePersistence;
+    lineage?: EvidenceLineage;
 }
 export interface StoreRepoFileReferenceOptions {
     sessionId: string;
@@ -31,6 +37,9 @@ export interface StoreRepoFileReferenceOptions {
     hashSha256?: string;
     decisionIds?: string[];
     createdAt?: string;
+    producer?: ProducerDescriptor;
+    persistence?: EvidencePersistence;
+    lineage?: EvidenceLineage;
 }
 export interface ReadOutputLinesOptions {
     sessionId: string;

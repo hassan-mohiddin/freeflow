@@ -42,8 +42,11 @@ test("routed command result keeps tool, execution, and routing status separate",
     toolStatus: "ok",
     decisionId: "ffdec_123",
     outputId: "ffout_123",
+    recordId: "ffrec_123",
     preserve: "important",
     execution: { status: "failed", exitCode: 1 },
+    producer: { kind: "command" },
+    persistence: { status: "vaulted", recoverability: "exact", recoveryOutputId: "ffout_123", outputId: "ffout_123" },
     routing: {
       status: "routed",
       route: "run",
@@ -88,6 +91,26 @@ test("routed command important lines validate stream range and excerpt", () => {
   assert.match(paths, /\$\.importantLines\[0\]\.stream/);
   assert.match(paths, /\$\.importantLines\[0\]\.lines/);
   assert.match(paths, /\$\.importantLines\[0\]\.excerpt/);
+});
+
+test("routed result validates producer and recoverability metadata", () => {
+  const result = validateRoutedResult({
+    toolStatus: "ok",
+    decisionId: "ffdec_123",
+    outputId: "ffout_123",
+    recordId: 123,
+    preserve: "important",
+    execution: { status: "success", exitCode: 0 },
+    producer: { kind: "mutable" },
+    persistence: { status: "vaulted", recoverability: "exact" },
+    routing: { status: "routed", route: "run", reason: "example" },
+  });
+
+  assert.equal(result.ok, false);
+  const paths = result.issues.map((issue) => issue.path).join("\n");
+  assert.match(paths, /\$\.recordId/);
+  assert.match(paths, /\$\.producer\.kind/);
+  assert.match(paths, /\$\.persistence\.recoveryOutputId/);
 });
 
 test("routed command parser metadata validates confidence and fidelity", () => {
@@ -151,6 +174,7 @@ test("command output record uses executionStatus instead of status", () => {
   const record = {
     kind: "command",
     outputId: "ffout_123",
+    recordId: "ffrec_123",
     objectId: "sha256_123",
     command: "npm test",
     createdAt: "2026-06-16T00:00:00.000Z",
@@ -166,6 +190,8 @@ test("command output record uses executionStatus instead of status", () => {
     byteCounts: { stdout: 10, stderr: 20, combined: 30 },
     hashes: {},
     decisionIds: ["ffdec_123"],
+    producer: { kind: "command" },
+    persistence: { status: "vaulted", recoverability: "exact", recoveryOutputId: "ffout_123", outputId: "ffout_123" },
     contentHashSha256: "123",
   };
 

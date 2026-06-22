@@ -1,4 +1,4 @@
-import { EXECUTION_STATUSES, EVIDENCE_WINDOWS, OUTPUT_STREAMS, PRESERVE_MODES, RETRIEVAL_ACTIONS, ROUTE_KINDS, ROUTING_STATUSES, TOOL_STATUSES, } from "./types.js";
+import { EXECUTION_STATUSES, EVIDENCE_WINDOWS, FAILURE_EXECUTION_STATUSES, OUTPUT_STREAMS, PERSISTENCE_STATUSES, PRESERVE_MODES, PRODUCER_KINDS, RECOVERABILITY_MODES, RETRIEVAL_ACTIONS, ROUTE_KINDS, ROUTER_FAILURE_KINDS, ROUTING_STATUSES, TOOL_STATUSES, } from "./types.js";
 import { isValidPostToolRoutingMode, validateNormalizedRouterHints, validatePositiveIntegerThreshold, validateVaultRetentionPolicy, } from "./router-contract.js";
 function isRecord(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -59,6 +59,103 @@ function validateSourceRef(value, path, issues) {
         return;
     }
     issues.push({ path: `${path}.kind`, message: "Expected source kind repo, vault, or native." });
+}
+function validateProducerDescriptor(value, path, issues, required = false) {
+    if (value === undefined) {
+        if (required) {
+            issues.push({ path, message: "Expected producer descriptor object." });
+        }
+        return;
+    }
+    if (!isRecord(value)) {
+        issues.push({ path, message: "Expected producer descriptor object." });
+        return;
+    }
+    if (!isOneOf(value.kind, PRODUCER_KINDS)) {
+        issues.push({ path: `${path}.kind`, message: "Expected a known producer kind." });
+    }
+    for (const key of ["adapter", "name", "server", "tool"]) {
+        if (value[key] !== undefined && typeof value[key] !== "string") {
+            issues.push({ path: `${path}.${key}`, message: "Expected a string when present." });
+        }
+    }
+}
+function validateEvidencePersistence(value, path, issues, required = false) {
+    if (value === undefined) {
+        if (required) {
+            issues.push({ path, message: "Expected persistence object." });
+        }
+        return;
+    }
+    if (!isRecord(value)) {
+        issues.push({ path, message: "Expected persistence object." });
+        return;
+    }
+    if (!isOneOf(value.status, PERSISTENCE_STATUSES)) {
+        issues.push({ path: `${path}.status`, message: "Expected a known persistence status." });
+    }
+    if (!isOneOf(value.recoverability, RECOVERABILITY_MODES)) {
+        issues.push({ path: `${path}.recoverability`, message: "Expected a known recoverability mode." });
+    }
+    if (value.recoveryOutputId !== undefined && typeof value.recoveryOutputId !== "string") {
+        issues.push({ path: `${path}.recoveryOutputId`, message: "Expected recovery output id string when present." });
+    }
+    if (value.outputId !== undefined && typeof value.outputId !== "string") {
+        issues.push({ path: `${path}.outputId`, message: "Expected output id string when present." });
+    }
+    if (value.recoverability === "exact" && typeof value.recoveryOutputId !== "string") {
+        issues.push({ path: `${path}.recoveryOutputId`, message: "Expected recoveryOutputId for exact recoverability." });
+    }
+}
+function validateEvidenceLineage(value, path, issues) {
+    if (value === undefined) {
+        return;
+    }
+    if (!isRecord(value)) {
+        issues.push({ path, message: "Expected lineage object." });
+        return;
+    }
+    for (const key of ["sourceRecordIds", "sourceOutputIds"]) {
+        if (value[key] !== undefined) {
+            if (!Array.isArray(value[key]) || !value[key].every((item) => typeof item === "string")) {
+                issues.push({ path: `${path}.${key}`, message: "Expected a string array when present." });
+            }
+        }
+    }
+    for (const key of ["operation", "operationHash"]) {
+        if (value[key] !== undefined && typeof value[key] !== "string") {
+            issues.push({ path: `${path}.${key}`, message: "Expected a string when present." });
+        }
+    }
+}
+function validateFailure(value, path, issues) {
+    if (value === undefined) {
+        return;
+    }
+    if (!isRecord(value)) {
+        issues.push({ path, message: "Expected failure object." });
+        return;
+    }
+    if (!isOneOf(value.kind, ROUTER_FAILURE_KINDS)) {
+        issues.push({ path: `${path}.kind`, message: "Expected a known router failure kind." });
+    }
+    requireString(value, "message", path, issues);
+}
+function validateFailureExecution(value, path, issues) {
+    if (value === undefined) {
+        return;
+    }
+    if (!isRecord(value)) {
+        issues.push({ path, message: "Expected failure execution object." });
+        return;
+    }
+    if (!isOneOf(value.status, FAILURE_EXECUTION_STATUSES)) {
+        issues.push({ path: `${path}.status`, message: "Expected a known failure execution status." });
+    }
+    if (!isOneOf(value.failureKind, ROUTER_FAILURE_KINDS)) {
+        issues.push({ path: `${path}.failureKind`, message: "Expected a known router failure kind." });
+    }
+    requireString(value, "message", path, issues);
 }
 function validateParserMetadata(value, path, issues) {
     if (value === undefined) {
@@ -261,6 +358,15 @@ export function validateRoutedResult(value) {
     if (value.outputId !== undefined && typeof value.outputId !== "string") {
         issues.push({ path: "$.outputId", message: "Expected output id string when present." });
     }
+    if (value.recordId !== undefined && typeof value.recordId !== "string") {
+        issues.push({ path: "$.recordId", message: "Expected record id string when present." });
+    }
+    validateProducerDescriptor(value.producer, "$.producer", issues);
+    validateEvidencePersistence(value.persistence, "$.persistence", issues);
+    validateEvidenceLineage(value.lineage, "$.lineage", issues);
+    validateFailure(value.failure, "$.failure", issues);
+    validateFailureExecution(value.producerExecution, "$.producerExecution", issues);
+    validateFailureExecution(value.deriveExecution, "$.deriveExecution", issues);
     validateImportantLines(value.importantLines, "$.importantLines", issues);
     validateParserMetadata(value.parser, "$.parser", issues);
     return issues.length === 0 ? success(value) : failure(issues);
@@ -307,6 +413,7 @@ export function validateCommandOutputRecord(value) {
         issues.push({ path: "$.kind", message: "Expected kind command." });
     }
     requireString(value, "outputId", "$", issues);
+    requireString(value, "recordId", "$", issues);
     requireString(value, "objectId", "$", issues);
     requireString(value, "createdAt", "$", issues);
     requireString(value, "contentHashSha256", "$", issues);
@@ -350,5 +457,8 @@ export function validateCommandOutputRecord(value) {
     if (!Array.isArray(value.decisionIds) || !value.decisionIds.every((item) => typeof item === "string")) {
         issues.push({ path: "$.decisionIds", message: "Expected decision id string array." });
     }
+    validateProducerDescriptor(value.producer, "$.producer", issues, true);
+    validateEvidencePersistence(value.persistence, "$.persistence", issues, true);
+    validateEvidenceLineage(value.lineage, "$.lineage", issues);
     return issues.length === 0 ? success(value) : failure(issues);
 }

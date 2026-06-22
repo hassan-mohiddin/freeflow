@@ -8,8 +8,18 @@ export declare const EXECUTION_STATUSES: readonly ["success", "failed", "timed_o
 export type ExecutionStatus = (typeof EXECUTION_STATUSES)[number];
 export declare const ROUTING_STATUSES: readonly ["routed", "passed_through", "partial", "failed"];
 export type RoutingStatus = (typeof ROUTING_STATUSES)[number];
-export declare const ROUTE_KINDS: readonly ["retrieve", "run", "safety-net", "pass-through"];
+export declare const ROUTE_KINDS: readonly ["retrieve", "run", "capture", "derive", "safety-net", "pass-through"];
 export type RouteKind = (typeof ROUTE_KINDS)[number];
+export declare const PRODUCER_KINDS: readonly ["command", "native", "repo", "web", "fetch", "code_search", "mcp", "provider", "derive", "other"];
+export type ProducerKind = (typeof PRODUCER_KINDS)[number];
+export declare const PERSISTENCE_STATUSES: readonly ["vaulted", "redacted", "metadata_only", "not_persisted"];
+export type PersistenceStatus = (typeof PERSISTENCE_STATUSES)[number];
+export declare const RECOVERABILITY_MODES: readonly ["exact", "redacted", "metadata_only", "none"];
+export type RecoverabilityMode = (typeof RECOVERABILITY_MODES)[number];
+export declare const ROUTER_FAILURE_KINDS: readonly ["adapter_unavailable", "unsupported_producer", "mutating_producer_rejected", "producer_execution_failure", "partial_capture", "storage_failure", "redaction_failure", "derive_source_unavailable", "derive_validation_failure", "derive_execution_failure"];
+export type RouterFailureKind = (typeof ROUTER_FAILURE_KINDS)[number];
+export declare const FAILURE_EXECUTION_STATUSES: readonly ["unavailable", "unsupported", "rejected", "failed", "partial"];
+export type FailureExecutionStatus = (typeof FAILURE_EXECUTION_STATUSES)[number];
 export declare const EVIDENCE_WINDOWS: readonly ["exact", "small", "lines_30", "lines_80", "section", "full"];
 export type EvidenceWindow = (typeof EVIDENCE_WINDOWS)[number];
 export declare const OUTPUT_STREAMS: readonly ["stdout", "stderr", "combined", "raw"];
@@ -31,6 +41,44 @@ export interface NativeToolSourceRef {
     outputId: string;
 }
 export type SourceRef = RepoSourceRef | VaultSourceRef | NativeToolSourceRef;
+export interface ProducerDescriptor {
+    kind: ProducerKind;
+    adapter?: string;
+    name?: string;
+    server?: string;
+    tool?: string;
+}
+export interface EvidencePersistence {
+    status: PersistenceStatus;
+    recoverability: RecoverabilityMode;
+    recoveryOutputId?: string;
+    outputId?: string;
+}
+export interface EvidenceLineage {
+    sourceRecordIds?: string[];
+    sourceOutputIds?: string[];
+    operation?: string;
+    operationHash?: string;
+}
+export interface RouterFailure {
+    kind: RouterFailureKind;
+    message: string;
+}
+export interface ProducerExecutionFailure {
+    status: FailureExecutionStatus;
+    failureKind: RouterFailureKind;
+    message: string;
+}
+export interface DeriveExecutionFailure {
+    status: FailureExecutionStatus;
+    failureKind: RouterFailureKind;
+    message: string;
+}
+export interface EvidenceRecordIdentity {
+    recordId: string;
+    recoveryOutputId?: string;
+    outputId?: string;
+}
 export interface EvidencePacket {
     id: string;
     source: SourceRef;
@@ -82,6 +130,13 @@ export interface RoutedResultBase {
     decisionId: string;
     preserve: PreserveMode;
     routing: RoutingDecision;
+    recordId?: string;
+    producer?: ProducerDescriptor;
+    persistence?: EvidencePersistence;
+    lineage?: EvidenceLineage;
+    failure?: RouterFailure;
+    producerExecution?: ProducerExecutionFailure;
+    deriveExecution?: DeriveExecutionFailure;
     recovery?: RecoveryHint;
     evidence?: EvidencePacket[];
 }
@@ -95,7 +150,14 @@ export interface CommandRoutedResult extends RoutedResultBase {
     importantLines?: ImportantLine[];
     parser?: CommandParserMetadata;
 }
-export type RoutedResult = RetrievalRoutedResult | CommandRoutedResult;
+export interface CaptureRoutedResult extends RoutedResultBase {
+    outputId: string;
+    summary?: string;
+}
+export interface FailureRoutedResult extends RoutedResultBase {
+    outputId?: string;
+}
+export type RoutedResult = RetrievalRoutedResult | CommandRoutedResult | CaptureRoutedResult | FailureRoutedResult;
 export interface LineByteCounts {
     lines: number;
     bytes: number;
@@ -113,12 +175,16 @@ export interface OutputFingerprints {
 }
 export interface VaultRecordBase {
     outputId: string;
+    recordId: string;
     objectId: string;
     createdAt: string;
     paths: {
         meta: string;
     };
     decisionIds: string[];
+    producer: ProducerDescriptor;
+    persistence: EvidencePersistence;
+    lineage?: EvidenceLineage;
     contentHashSha256: string;
     fingerprints?: OutputFingerprints;
     retention?: VaultRetentionPolicy;
@@ -180,9 +246,13 @@ export interface RepoFileReferenceRecord extends VaultRecordBase {
 export type VaultRecord = CommandOutputRecord | TextOutputRecord | RepoFileReferenceRecord;
 export interface SessionIndexEntry {
     outputId: string;
+    recordId?: string;
     objectId: string;
     kind: VaultRecord["kind"];
     createdAt: string;
+    producer?: ProducerDescriptor;
+    persistence?: EvidencePersistence;
+    lineage?: EvidenceLineage;
     executionStatus?: ExecutionStatus;
     fingerprints?: OutputFingerprints;
 }

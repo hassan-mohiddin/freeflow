@@ -13,8 +13,34 @@ export type ExecutionStatus = (typeof EXECUTION_STATUSES)[number];
 export const ROUTING_STATUSES = ["routed", "passed_through", "partial", "failed"] as const;
 export type RoutingStatus = (typeof ROUTING_STATUSES)[number];
 
-export const ROUTE_KINDS = ["retrieve", "run", "safety-net", "pass-through"] as const;
+export const ROUTE_KINDS = ["retrieve", "run", "capture", "derive", "safety-net", "pass-through"] as const;
 export type RouteKind = (typeof ROUTE_KINDS)[number];
+
+export const PRODUCER_KINDS = ["command", "native", "repo", "web", "fetch", "code_search", "mcp", "provider", "derive", "other"] as const;
+export type ProducerKind = (typeof PRODUCER_KINDS)[number];
+
+export const PERSISTENCE_STATUSES = ["vaulted", "redacted", "metadata_only", "not_persisted"] as const;
+export type PersistenceStatus = (typeof PERSISTENCE_STATUSES)[number];
+
+export const RECOVERABILITY_MODES = ["exact", "redacted", "metadata_only", "none"] as const;
+export type RecoverabilityMode = (typeof RECOVERABILITY_MODES)[number];
+
+export const ROUTER_FAILURE_KINDS = [
+  "adapter_unavailable",
+  "unsupported_producer",
+  "mutating_producer_rejected",
+  "producer_execution_failure",
+  "partial_capture",
+  "storage_failure",
+  "redaction_failure",
+  "derive_source_unavailable",
+  "derive_validation_failure",
+  "derive_execution_failure",
+] as const;
+export type RouterFailureKind = (typeof ROUTER_FAILURE_KINDS)[number];
+
+export const FAILURE_EXECUTION_STATUSES = ["unavailable", "unsupported", "rejected", "failed", "partial"] as const;
+export type FailureExecutionStatus = (typeof FAILURE_EXECUTION_STATUSES)[number];
 
 export const EVIDENCE_WINDOWS = ["exact", "small", "lines_30", "lines_80", "section", "full"] as const;
 export type EvidenceWindow = (typeof EVIDENCE_WINDOWS)[number];
@@ -43,6 +69,51 @@ export interface NativeToolSourceRef {
 }
 
 export type SourceRef = RepoSourceRef | VaultSourceRef | NativeToolSourceRef;
+
+export interface ProducerDescriptor {
+  kind: ProducerKind;
+  adapter?: string;
+  name?: string;
+  server?: string;
+  tool?: string;
+}
+
+export interface EvidencePersistence {
+  status: PersistenceStatus;
+  recoverability: RecoverabilityMode;
+  recoveryOutputId?: string;
+  outputId?: string;
+}
+
+export interface EvidenceLineage {
+  sourceRecordIds?: string[];
+  sourceOutputIds?: string[];
+  operation?: string;
+  operationHash?: string;
+}
+
+export interface RouterFailure {
+  kind: RouterFailureKind;
+  message: string;
+}
+
+export interface ProducerExecutionFailure {
+  status: FailureExecutionStatus;
+  failureKind: RouterFailureKind;
+  message: string;
+}
+
+export interface DeriveExecutionFailure {
+  status: FailureExecutionStatus;
+  failureKind: RouterFailureKind;
+  message: string;
+}
+
+export interface EvidenceRecordIdentity {
+  recordId: string;
+  recoveryOutputId?: string;
+  outputId?: string;
+}
 
 export interface EvidencePacket {
   id: string;
@@ -102,6 +173,13 @@ export interface RoutedResultBase {
   decisionId: string;
   preserve: PreserveMode;
   routing: RoutingDecision;
+  recordId?: string;
+  producer?: ProducerDescriptor;
+  persistence?: EvidencePersistence;
+  lineage?: EvidenceLineage;
+  failure?: RouterFailure;
+  producerExecution?: ProducerExecutionFailure;
+  deriveExecution?: DeriveExecutionFailure;
   recovery?: RecoveryHint;
   evidence?: EvidencePacket[];
 }
@@ -118,7 +196,16 @@ export interface CommandRoutedResult extends RoutedResultBase {
   parser?: CommandParserMetadata;
 }
 
-export type RoutedResult = RetrievalRoutedResult | CommandRoutedResult;
+export interface CaptureRoutedResult extends RoutedResultBase {
+  outputId: string;
+  summary?: string;
+}
+
+export interface FailureRoutedResult extends RoutedResultBase {
+  outputId?: string;
+}
+
+export type RoutedResult = RetrievalRoutedResult | CommandRoutedResult | CaptureRoutedResult | FailureRoutedResult;
 
 export interface LineByteCounts {
   lines: number;
@@ -140,12 +227,16 @@ export interface OutputFingerprints {
 
 export interface VaultRecordBase {
   outputId: string;
+  recordId: string;
   objectId: string;
   createdAt: string;
   paths: {
     meta: string;
   };
   decisionIds: string[];
+  producer: ProducerDescriptor;
+  persistence: EvidencePersistence;
+  lineage?: EvidenceLineage;
   contentHashSha256: string;
   fingerprints?: OutputFingerprints;
   retention?: VaultRetentionPolicy;
@@ -210,9 +301,13 @@ export type VaultRecord = CommandOutputRecord | TextOutputRecord | RepoFileRefer
 
 export interface SessionIndexEntry {
   outputId: string;
+  recordId?: string;
   objectId: string;
   kind: VaultRecord["kind"];
   createdAt: string;
+  producer?: ProducerDescriptor;
+  persistence?: EvidencePersistence;
+  lineage?: EvidenceLineage;
   executionStatus?: ExecutionStatus;
   fingerprints?: OutputFingerprints;
 }

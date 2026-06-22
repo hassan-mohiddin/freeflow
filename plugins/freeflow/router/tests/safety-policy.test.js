@@ -30,8 +30,8 @@ test("output-router skill safety policy documents exactness-sensitive routing ca
 
 test("routing implementation references the safety policy where exactness rules are enforced", async () => {
   const runSource = await readRepoFile("plugins/freeflow/router/src/run.ts");
-  const piExtension = await readRepoFile("plugins/freeflow/pi-extension/index.js");
+  const piSafetyNetSource = await readRepoFile("plugins/freeflow/pi-extension/src/native-safety-net.ts");
 
   assert.match(runSource, /skills\/output-router\/references\/safety-policy/);
-  assert.match(piExtension, /skills\/output-router\/references\/safety-policy/);
+  assert.match(piSafetyNetSource, /skills\/output-router\/references\/safety-policy/);
 });

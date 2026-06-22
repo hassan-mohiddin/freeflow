@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
 
-import { createVault, freeflowRetrieve, storeCommandOutput } from "../dist/index.js";
+import { createVault, freeflowRetrieve, storeCommandOutput, storeRepoFileReference, storeTextOutput } from "../dist/index.js";
 
 function assertUtf8RoundTrips(text) {
   assert.equal(Buffer.from(text, "utf8").toString("utf8"), text);
@@ -358,10 +358,128 @@ test("explaining vaulted output returns stored command decision context", async 
 
     assert.equal(result.toolStatus, "ok");
     assert.equal(result.routing.status, "routed");
+    assert.equal(result.recordId, record.recordId);
+    assert.equal(result.producer?.kind, "command");
+    assert.equal(result.persistence?.recoverability, "exact");
     assert.match(result.routing.reason, new RegExp(record.outputId));
     assert.match(result.routing.reason, /executionStatus=failed/);
+    assert.match(result.routing.reason, /recoverability=exact/);
     assert.ok(result.recovery?.how.includes("stream"));
     assert.equal(result.recovery?.outputId, record.outputId);
+  });
+});
+
+test("vault text records default to raw stream retrieval", async () => {
+  await withTempVault(async (vault) => {
+    const record = await storeTextOutput(vault, {
+      sessionId: "vault-text-session",
+      sourceKind: "native",
+      raw: "alpha\nbeta\ngamma",
+      createdAt: "2026-06-16T00:00:00.000Z",
+    });
+
+    const result = await freeflowRetrieve({
+      action: "retrieve",
+      source: {
+        kind: "vault",
+        root: vault.root,
+        sessionId: "vault-text-session",
+        outputId: record.outputId,
+      },
+      lineRange: { start: 2, end: 2 },
+      preserve: "full",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.source?.kind, "vault");
+    assert.equal(result.source?.stream, "raw");
+    assert.equal(result.producer?.kind, "native");
+    assert.equal(result.persistence?.recoverability, "exact");
+    assert.equal(result.evidence?.[0].excerpt, "beta");
+  });
+});
+
+test("metadata-only vault records explain recovery without promising raw content", async () => {
+  await withTempVault(async (vault) => {
+    const record = await storeRepoFileReference(vault, {
+      sessionId: "vault-metadata-session",
+      path: "docs/specs/freeflow-output-router-design.md",
+      hashSha256: "abc123",
+      createdAt: "2026-06-16T00:00:00.000Z",
+    });
+
+    const explained = await freeflowRetrieve({
+      action: "explain",
+      source: {
+        kind: "vault",
+        root: vault.root,
+        sessionId: "vault-metadata-session",
+        outputId: record.outputId,
+      },
+      preserve: "important",
+    });
+
+    assert.equal(explained.toolStatus, "ok");
+    assert.equal(explained.recordId, record.recordId);
+    assert.equal(explained.producer?.kind, "repo");
+    assert.deepEqual(explained.persistence, { status: "metadata_only", recoverability: "metadata_only" });
+    assert.match(explained.routing.reason, /recoverability=metadata_only/);
+    assert.match(explained.routing.reason, /no raw content recovery is promised/i);
+    assert.match(explained.recovery?.how ?? "", /no raw content stream/i);
+    assert.equal(explained.recovery?.outputId, undefined);
+
+    const retrieved = await freeflowRetrieve({
+      action: "retrieve",
+      source: {
+        kind: "vault",
+        root: vault.root,
+        sessionId: "vault-metadata-session",
+        outputId: record.outputId,
+      },
+      lineRange: { start: 1, end: 1 },
+      preserve: "full",
+    });
+
+    assert.equal(retrieved.toolStatus, "error");
+    assert.match(retrieved.routing.reason, /metadata only|no raw stream/i);
+  });
+});
+
+test("legacy command vault records without universal metadata still retrieve", async () => {
+  await withTempVault(async (vault) => {
+    const record = await storeCommandOutput(vault, {
+      sessionId: "vault-legacy-session",
+      command: "npm test",
+      stdout: "one\ntwo\nthree",
+      stderr: "",
+      executionStatus: "success",
+      exitCode: 0,
+      createdAt: "2026-06-16T00:00:00.000Z",
+    });
+    const legacyMeta = JSON.parse(await readFile(record.paths.meta, "utf8"));
+    delete legacyMeta.recordId;
+    delete legacyMeta.producer;
+    delete legacyMeta.persistence;
+    delete legacyMeta.lineage;
+    await writeFile(record.paths.meta, `${JSON.stringify(legacyMeta, null, 2)}\n`, "utf8");
+
+    const result = await freeflowRetrieve({
+      action: "retrieve",
+      source: {
+        kind: "vault",
+        root: vault.root,
+        sessionId: "vault-legacy-session",
+        outputId: record.outputId,
+      },
+      lineRange: { start: 2, end: 2 },
+      preserve: "full",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.recordId, undefined);
+    assert.equal(result.producer?.kind, "command");
+    assert.equal(result.persistence?.recoverability, "exact");
+    assert.equal(result.evidence?.[0].excerpt, "two");
   });
 });
 

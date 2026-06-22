@@ -10,6 +10,7 @@ import { DEFAULT_ROUTER_THRESHOLDS } from "./config.js";
 import { assembleTextEvidence, byteLength, countLines, type BoundedEvidence } from "./evidence.js";
 import { parseCommandOutput, type ParsedCommandOutput } from "./parsers.js";
 import type {
+  CommandOutputRecord,
   CommandParserMetadata,
   CommandRoutedResult,
   ExecutionStatus,
@@ -81,6 +82,8 @@ export async function freeflowRun(
       preserve,
       outputId: "",
       execution: { status: "failed", exitCode: null },
+      producer: { kind: "command" },
+      persistence: { status: "not_persisted", recoverability: "none" },
       routing: {
         status: "failed",
         route: "run",
@@ -171,8 +174,12 @@ export async function freeflowRun(
       toolStatus: "ok",
       decisionId: routing.decisionId,
       outputId: record.outputId,
+      recordId: record.recordId,
       preserve,
       execution,
+      producer: record.producer,
+      persistence: record.persistence,
+      ...(record.lineage !== undefined ? { lineage: record.lineage } : {}),
       routing: {
         status: routing.routingStatus,
         route: "run",
@@ -188,6 +195,7 @@ export async function freeflowRun(
     return commandRoutingFailureResult({
       command: options.command,
       outputId: record?.outputId ?? "",
+      record,
       preserve,
       execution,
       stdout: runResult.stdout,
@@ -266,6 +274,7 @@ function commandRecoveryHint(outputId: string, duplicate?: SessionIndexEntry) {
 function commandRoutingFailureResult(options: {
   command: string | readonly string[];
   outputId: string;
+  record: CommandOutputRecord | undefined;
   preserve: PreserveMode;
   execution: CommandRoutedResult["execution"];
   stdout: string;
@@ -304,8 +313,12 @@ function commandRoutingFailureResult(options: {
     toolStatus: "error",
     decisionId: decisionId("run-route-error", commandText(options.command), options.errorMessage),
     outputId: options.outputId,
+    ...(options.record !== undefined ? { recordId: options.record.recordId } : {}),
     preserve: options.preserve,
     execution: options.execution,
+    producer: options.record?.producer ?? { kind: "command" },
+    persistence: options.record?.persistence ?? { status: "not_persisted", recoverability: "none" },
+    ...(options.record?.lineage !== undefined ? { lineage: options.record.lineage } : {}),
     routing: {
       status: "failed",
       route: "run",

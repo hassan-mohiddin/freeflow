@@ -30,7 +30,7 @@ Or install directly from GitHub:
 pi install git:github.com/hassan-mohiddin/freeflow
 ```
 
-The package exposes `plugins/freeflow/skills/` and `plugins/freeflow/pi-extension/index.js`. The Pi extension registers direct Freeflow commands, keeps `/workflow` mode changes scoped to the Pi session, refreshes workflow, interview-gate, and output-router context on session start and compact, and injects that context before agent turns. Output-router context includes its safety-policy reference. The extension does not enforce policy, block tools, grant permissions, or create repo-local hooks.
+The package exposes `plugins/freeflow/skills/` and the built Pi extension at `plugins/freeflow/pi-extension/dist/index.js`. Pi extension source lives in `plugins/freeflow/pi-extension/src/`. The Pi extension registers direct Freeflow commands, keeps `/workflow` mode changes scoped to the Pi session, refreshes workflow, interview-gate, and output-router context on session start and compact, and injects that context before agent turns. Output-router context includes its safety-policy reference. The extension does not enforce policy, block tools, grant permissions, or create repo-local hooks.
 
 - [Workflow](workflow.md): modes, entry points, loops, and the compact workflow map.
 - [Skills](skills.md): shipped skills and what each one is for.

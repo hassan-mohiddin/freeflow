@@ -49,6 +49,14 @@ test("freeflowRun uses an adapter runner and stores small successful output", as
     assert.equal(result.execution.status, "success");
     assert.equal(result.execution.exitCode, 0);
     assert.ok(result.outputId.startsWith("ffout_"));
+    assert.ok(result.recordId.startsWith("ffrec_"));
+    assert.equal(result.producer?.kind, "command");
+    assert.deepEqual(result.persistence, {
+      status: "vaulted",
+      recoverability: "exact",
+      recoveryOutputId: result.outputId,
+      outputId: result.outputId,
+    });
     assert.equal(result.routing.status, "routed");
     assert.match(result.summary, /success/);
     assert.equal(result.parser?.name, "generic");
@@ -458,6 +466,8 @@ test("post-execution routing failures return bounded in-memory evidence", async 
     assert.equal(result.execution.status, "success");
     assert.equal(result.routing.status, "failed");
     assert.equal(result.outputId, "");
+    assert.equal(result.producer?.kind, "command");
+    assert.deepEqual(result.persistence, { status: "not_persisted", recoverability: "none" });
     assert.match(result.importantLines?.[0].excerpt ?? "", /ROUTING_FAILURE_MARKER/);
     assert.ok(Buffer.byteLength(result.importantLines?.[0].excerpt ?? "", "utf8") <= 8_192);
     assert.match(result.recovery?.how ?? "", /could not be vaulted/);

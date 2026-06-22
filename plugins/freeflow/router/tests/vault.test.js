@@ -49,6 +49,14 @@ test("writes and reads command output records with exact streams", async () => {
     });
 
     assert.equal(record.kind, "command");
+    assert.match(record.recordId, /^ffrec_/);
+    assert.equal(record.producer.kind, "command");
+    assert.deepEqual(record.persistence, {
+      status: "vaulted",
+      recoverability: "exact",
+      recoveryOutputId: record.outputId,
+      outputId: record.outputId,
+    });
     assert.equal(record.executionStatus, "failed");
     assert.equal(record.lineCounts.stderr, 2);
     assert.equal(record.byteCounts.stdout, Buffer.byteLength("pass one\npass two", "utf8"));
@@ -94,6 +102,9 @@ test("command records and session index include reuse fingerprints", async () =>
     assert.match(record.fingerprints.commandFingerprintSha256, /^[a-f0-9]{64}$/);
 
     const index = await readSessionIndex(vault, "fingerprint-session");
+    assert.equal(index.records[record.outputId].recordId, record.recordId);
+    assert.deepEqual(index.records[record.outputId].producer, record.producer);
+    assert.deepEqual(index.records[record.outputId].persistence, record.persistence);
     assert.deepEqual(index.records[record.outputId].fingerprints, record.fingerprints);
   });
 });
@@ -204,6 +215,10 @@ test("text output records store exact raw text", async () => {
     });
 
     assert.equal(record.kind, "text");
+    assert.match(record.recordId, /^ffrec_/);
+    assert.equal(record.producer.kind, "native");
+    assert.equal(record.persistence.recoverability, "exact");
+    assert.equal(record.persistence.recoveryOutputId, record.outputId);
     assert.equal(await readOutputLines(vault, {
       sessionId: "session-text",
       outputId: record.outputId,
@@ -251,6 +266,9 @@ test("repo file references write metadata only by default", async () => {
     });
 
     assert.equal(record.kind, "repo-file");
+    assert.match(record.recordId, /^ffrec_/);
+    assert.equal(record.producer.kind, "repo");
+    assert.deepEqual(record.persistence, { status: "metadata_only", recoverability: "metadata_only" });
     assert.equal(record.path, "docs/specs/freeflow-output-router-design.md");
     const objectFiles = await readdir(join(vault.root, "objects", record.objectId));
     assert.deepEqual(objectFiles, ["meta.json"]);

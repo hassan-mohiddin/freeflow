@@ -17,7 +17,9 @@
   "type": "module",
   "scripts": {
     "build:router": "tsc -p plugins/freeflow/router/tsconfig.json",
-    "test:router": "npm run build:router && node --test plugins/freeflow/router/tests/*.test.js",
+    "build:pi-extension": "tsc -p plugins/freeflow/pi-extension/tsconfig.json",
+    "build": "npm run build:router && npm run build:pi-extension",
+    "test:router": "npm run build && node --test plugins/freeflow/router/tests/*.test.js",
     "bench:router": "npm run build:router && node plugins/freeflow/router/dist/benchmarks.js",
     "bench:router:commands": "npm run build:router && node plugins/freeflow/router/dist/command-benchmarks.js",
     "bench:router:index": "npm run build:router && node plugins/freeflow/router/dist/index-benchmarks.js",
@@ -40,7 +42,7 @@
       "plugins/freeflow/skills"
     ],
     "extensions": [
-      "plugins/freeflow/pi-extension/index.js"
+      "plugins/freeflow/pi-extension/dist/index.js"
     ],
     "image": "https://raw.githubusercontent.com/hassan-mohiddin/freeflow/main/plugins/freeflow/assets/freeflow-plugin-icon-transparent.png"
   },

@@ -74,8 +74,9 @@ async function retrieveVault(options, preserve) {
     if (!options.query?.trim()) {
         return errorResult(preserve, "Vault query requires a non-empty query string.");
     }
-    const stream = options.source.stream ?? "combined";
     const vault = createVault({ root: options.source.root });
+    const record = await readVaultRecord(vault, options.source.sessionId, options.source.outputId);
+    const stream = resolveVaultStream(record, options.source.stream);
     const text = await readOutputText(vault, options.source.sessionId, options.source.outputId, stream);
     const lines = splitLines(text);
     const candidateLine = findBestLineForQuery(lines, options.query);
@@ -85,6 +86,7 @@ async function retrieveVault(options, preserve) {
             decisionId: decisionId("vault-query", options.source.outputId, stream, options.query, "none"),
             preserve,
             source: { kind: "vault", outputId: options.source.outputId, stream },
+            ...vaultRecordResultFields(record),
             routing: {
                 status: "routed",
                 route: "retrieve",
@@ -115,6 +117,7 @@ async function retrieveVault(options, preserve) {
         decisionId: decisionId("vault-query", options.source.outputId, stream, options.query, evidenceLines),
         preserve,
         source: { kind: "vault", outputId: options.source.outputId, stream },
+        ...vaultRecordResultFields(record),
         routing: {
             status: "routed",
             route: "retrieve",
@@ -129,12 +132,13 @@ async function retrieveVault(options, preserve) {
     };
 }
 async function retrieveVaultLines(options, preserve) {
-    const stream = options.source.stream ?? "combined";
     const lineRange = options.lineRange;
     if (!lineRange) {
         return errorResult(preserve, "Vault retrieve requires a valid 1-based lineRange.");
     }
     const vault = createVault({ root: options.source.root });
+    const record = await readVaultRecord(vault, options.source.sessionId, options.source.outputId);
+    const stream = resolveVaultStream(record, options.source.stream);
     const text = await readOutputText(vault, options.source.sessionId, options.source.outputId, stream);
     const lines = splitLines(text);
     const resolvedRange = resolveExactLineRange({
@@ -150,7 +154,7 @@ async function retrieveVaultLines(options, preserve) {
     const evidenceLines = `${start}-${end}`;
     const excerpt = lines.slice(start - 1, end).join("\n");
     if (byteLength(excerpt) > EXACT_LINE_RANGE_MAX_BYTES) {
-        return retrieveVaultLineRangeOverCap(options, preserve, stream, lines, { start, end }, byteLength(excerpt));
+        return retrieveVaultLineRangeOverCap(options, preserve, stream, record, lines, { start, end }, byteLength(excerpt));
     }
     const evidence = {
         id: evidenceIdFor(`${options.source.outputId}:${stream}`, evidenceLines, "retrieve"),
@@ -167,6 +171,7 @@ async function retrieveVaultLines(options, preserve) {
         decisionId: decisionId("vault-retrieve", options.source.outputId, stream, evidenceLines),
         preserve,
         source: { kind: "vault", outputId: options.source.outputId, stream },
+        ...vaultRecordResultFields(record),
         routing: {
             status: "routed",
             route: "retrieve",
@@ -180,7 +185,7 @@ async function retrieveVaultLines(options, preserve) {
         },
     };
 }
-function retrieveVaultLineRangeOverCap(options, preserve, stream, lines, requestedRange, requestedBytes) {
+function retrieveVaultLineRangeOverCap(options, preserve, stream, record, lines, requestedRange, requestedBytes) {
     const evidence = buildBoundedEdgeChunks({ lines, range: requestedRange, caps: BOUNDED_EVIDENCE_CAPS }).map((chunk, index) => {
         const evidenceLines = chunk.linesLabel;
         return {
@@ -199,6 +204,7 @@ function retrieveVaultLineRangeOverCap(options, preserve, stream, lines, request
         decisionId: decisionId("vault-retrieve-lines-over-cap", options.source.outputId, stream, `${requestedRange.start}-${requestedRange.end}`, String(requestedBytes)),
         preserve,
         source: { kind: "vault", outputId: options.source.outputId, stream },
+        ...vaultRecordResultFields(record),
         routing: {
             status: "partial",
             route: "retrieve",
@@ -211,7 +217,7 @@ function retrieveVaultLineRangeOverCap(options, preserve, stream, lines, request
         },
     };
 }
-function expandVaultEvidenceOverCap(options, preserve, stream, evidence, lines, expandedRange, expandedBytes) {
+function expandVaultEvidenceOverCap(options, preserve, stream, record, evidence, lines, expandedRange, expandedBytes) {
     const chunks = buildBoundedEdgeChunks({ lines, range: expandedRange, caps: BOUNDED_EVIDENCE_CAPS }).map((chunk, index) => {
         const evidenceLines = chunk.linesLabel;
         return {
@@ -231,6 +237,7 @@ function expandVaultEvidenceOverCap(options, preserve, stream, evidence, lines, 
         decisionId: decisionId("vault-expand-over-cap", evidence.id, expandedLines, String(expandedBytes)),
         preserve,
         source: { kind: "vault", outputId: options.source.outputId, stream },
+        ...vaultRecordResultFields(record),
         routing: {
             status: "partial",
             route: "retrieve",
@@ -249,20 +256,21 @@ async function expandVaultEvidence(options, preserve) {
     if (!evidence?.lines || evidence.source.kind !== "vault") {
         return errorResult(preserve, "Vault expansion requires a previous vault evidence packet with lines.");
     }
-    const stream = options.source.stream ?? evidence.source.stream ?? "combined";
     const originalRange = parseLineRange(evidence.lines);
     if (!originalRange) {
         return errorResult(preserve, `Cannot expand unsupported vault evidence line range ${evidence.lines}.`);
     }
     const expansion = options.expansion ?? "lines_30";
     const vault = createVault({ root: options.source.root });
+    const record = await readVaultRecord(vault, options.source.sessionId, options.source.outputId);
+    const stream = resolveVaultStream(record, options.source.stream ?? evidence.source.stream);
     const text = await readOutputText(vault, options.source.sessionId, options.source.outputId, stream);
     const lines = splitLines(text);
     const expandedRange = expandLineRange(originalRange, lines.length, expansion);
     const window = windowForExpansion(expansion);
     const expandedExcerpt = lines.slice(expandedRange.start - 1, expandedRange.end).join("\n");
     if (expansion === "full" && byteLength(expandedExcerpt) > EXACT_LINE_RANGE_MAX_BYTES) {
-        return expandVaultEvidenceOverCap(options, preserve, stream, evidence, lines, expandedRange, byteLength(expandedExcerpt));
+        return expandVaultEvidenceOverCap(options, preserve, stream, record, evidence, lines, expandedRange, byteLength(expandedExcerpt));
     }
     const bounded = buildBoundedExcerpt({ lines, range: expandedRange, window, caps: BOUNDED_EVIDENCE_CAPS });
     const expandedLines = bounded.linesLabel;
@@ -283,6 +291,7 @@ async function expandVaultEvidence(options, preserve) {
         decisionId: decisionId("vault-expand", evidence.id, expandedLines),
         preserve,
         source: { kind: "vault", outputId: options.source.outputId, stream },
+        ...vaultRecordResultFields(record),
         routing: {
             status: "routed",
             route: "retrieve",
@@ -299,9 +308,10 @@ async function expandVaultEvidence(options, preserve) {
 async function explainVaultOutput(options, preserve) {
     const vault = createVault({ root: options.source.root });
     const record = await readVaultRecord(vault, options.source.sessionId, options.source.outputId);
-    const details = record.kind === "command"
-        ? `kind=command executionStatus=${record.executionStatus} exitCode=${record.exitCode} decisions=${record.decisionIds.join(",")}`
-        : `kind=${record.kind} decisions=${record.decisionIds.join(",")}`;
+    const producer = producerForVaultRecord(record);
+    const persistence = persistenceForVaultRecord(record);
+    const details = vaultRecordDetails(record);
+    const recovery = vaultRecordRecovery(record, options.source.stream);
     const source = { kind: "vault", outputId: options.source.outputId };
     if (options.source.stream !== undefined) {
         Object.assign(source, { stream: options.source.stream });
@@ -311,15 +321,126 @@ async function explainVaultOutput(options, preserve) {
         decisionId: decisionId("vault-explain", options.source.outputId, record.contentHashSha256),
         preserve,
         source,
+        ...vaultRecordResultFields(record),
         routing: {
             status: "routed",
             route: "retrieve",
-            reason: `Vault outputId=${options.source.outputId} ${details}. Raw output is recoverable from the vault record without rerunning the original command.`,
+            reason: `Vault outputId=${options.source.outputId} ${details}; producer=${producer.kind}; persistence.status=${persistence.status}; recoverability=${persistence.recoverability}. ${recovery.reason}`,
         },
         evidence: [],
-        recovery: {
-            how: `Use freeflow_retrieve action=retrieve with outputId=${options.source.outputId}, stream=stdout|stderr|combined, and an exact lineRange to recover raw command output.`,
-            outputId: options.source.outputId,
+        recovery: recovery.hint,
+    };
+}
+function resolveVaultStream(record, requested) {
+    if (requested !== undefined) {
+        return requested;
+    }
+    if (record.kind === "command") {
+        return "combined";
+    }
+    if (record.kind === "text") {
+        return "raw";
+    }
+    throw new Error("Repo file reference records store metadata only and have no raw stream.");
+}
+function vaultRecordResultFields(record) {
+    const fields = {
+        producer: producerForVaultRecord(record),
+        persistence: persistenceForVaultRecord(record),
+    };
+    const recordId = record.recordId;
+    if (typeof recordId === "string") {
+        fields.recordId = recordId;
+    }
+    if (record.lineage !== undefined) {
+        fields.lineage = record.lineage;
+    }
+    return fields;
+}
+function producerForVaultRecord(record) {
+    const producer = record.producer;
+    if (producer?.kind) {
+        return producer;
+    }
+    if (record.kind === "command") {
+        return { kind: "command" };
+    }
+    if (record.kind === "text") {
+        if (record.sourceKind === "native") {
+            return { kind: "native" };
+        }
+        if (record.sourceKind === "mcp") {
+            return { kind: "mcp" };
+        }
+        if (record.sourceKind === "fetch") {
+            return { kind: "fetch" };
+        }
+        return { kind: "other" };
+    }
+    return { kind: "repo" };
+}
+function persistenceForVaultRecord(record) {
+    const persistence = record.persistence;
+    if (persistence?.status && persistence.recoverability) {
+        return persistence;
+    }
+    if (record.kind === "repo-file") {
+        return { status: "metadata_only", recoverability: "metadata_only" };
+    }
+    return {
+        status: "vaulted",
+        recoverability: "exact",
+        recoveryOutputId: record.outputId,
+        outputId: record.outputId,
+    };
+}
+function vaultRecordDetails(record) {
+    const decisions = Array.isArray(record.decisionIds) ? record.decisionIds.join(",") : "";
+    const recordId = record.recordId;
+    const recordIdText = typeof recordId === "string" ? ` recordId=${recordId}` : "";
+    if (record.kind === "command") {
+        return `kind=command${recordIdText} executionStatus=${record.executionStatus} exitCode=${record.exitCode} decisions=${decisions}`;
+    }
+    if (record.kind === "text") {
+        return `kind=text${recordIdText} sourceKind=${record.sourceKind} decisions=${decisions}`;
+    }
+    return `kind=repo-file${recordIdText} path=${record.path} decisions=${decisions}`;
+}
+function vaultRecordRecovery(record, requestedStream) {
+    const persistence = persistenceForVaultRecord(record);
+    const recoveryOutputId = persistence.recoveryOutputId ?? persistence.outputId ?? record.outputId;
+    if (persistence.recoverability === "exact") {
+        const stream = requestedStream ?? resolveVaultStream(record);
+        const streamText = record.kind === "command" && requestedStream === undefined ? "stdout|stderr|combined" : stream;
+        return {
+            reason: `Exact content is recoverable from the vault with recoveryOutputId=${recoveryOutputId}.`,
+            hint: {
+                how: `Use freeflow_retrieve action=retrieve with outputId=${recoveryOutputId}, stream=${streamText}, and an exact lineRange to recover exact vaulted content.`,
+                outputId: recoveryOutputId,
+            },
+        };
+    }
+    if (persistence.recoverability === "redacted") {
+        return {
+            reason: `Only redacted content is recoverable from the vault; exact raw content is intentionally unavailable.`,
+            hint: {
+                how: `Use freeflow_retrieve action=retrieve with outputId=${recoveryOutputId} to recover redacted persisted content. Exact raw recovery is unavailable.`,
+                outputId: recoveryOutputId,
+            },
+        };
+    }
+    if (persistence.recoverability === "metadata_only") {
+        return {
+            reason: "Only metadata was persisted; no raw content recovery is promised.",
+            hint: {
+                how: "Only vault metadata is available for this record. There is no raw content stream to recover.",
+            },
+        };
+    }
+    return {
+        reason: "No content was persisted; recovery is unavailable.",
+        hint: {
+            how: "No persisted content is available for this record.",
         },
     };
 }

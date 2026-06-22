@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
 
-import freeflowExtension from "../../pi-extension/index.js";
+import freeflowExtension from "../../pi-extension/dist/index.js";
 
 function loadExtension() {
   const handlers = new Map();

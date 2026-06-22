@@ -33,6 +33,8 @@ export async function freeflowRun(options, runner) {
             preserve,
             outputId: "",
             execution: { status: "failed", exitCode: null },
+            producer: { kind: "command" },
+            persistence: { status: "not_persisted", recoverability: "none" },
             routing: {
                 status: "failed",
                 route: "run",
@@ -118,8 +120,12 @@ export async function freeflowRun(options, runner) {
             toolStatus: "ok",
             decisionId: routing.decisionId,
             outputId: record.outputId,
+            recordId: record.recordId,
             preserve,
             execution,
+            producer: record.producer,
+            persistence: record.persistence,
+            ...(record.lineage !== undefined ? { lineage: record.lineage } : {}),
             routing: {
                 status: routing.routingStatus,
                 route: "run",
@@ -136,6 +142,7 @@ export async function freeflowRun(options, runner) {
         return commandRoutingFailureResult({
             command: options.command,
             outputId: record?.outputId ?? "",
+            record,
             preserve,
             execution,
             stdout: runResult.stdout,
@@ -208,8 +215,12 @@ function commandRoutingFailureResult(options) {
         toolStatus: "error",
         decisionId: decisionId("run-route-error", commandText(options.command), options.errorMessage),
         outputId: options.outputId,
+        ...(options.record !== undefined ? { recordId: options.record.recordId } : {}),
         preserve: options.preserve,
         execution: options.execution,
+        producer: options.record?.producer ?? { kind: "command" },
+        persistence: options.record?.persistence ?? { status: "not_persisted", recoverability: "none" },
+        ...(options.record?.lineage !== undefined ? { lineage: options.record.lineage } : {}),
         routing: {
             status: "failed",
             route: "run",
