@@ -17,7 +17,12 @@ export interface CountMatchesDeriveOperation {
     pattern: string;
     flags?: string;
 }
-export type DeriveOperation = RegexFilterDeriveOperation | CountMatchesDeriveOperation;
+export interface JsonExtractDeriveOperation {
+    kind: "jsonExtract";
+    pointer?: string;
+    path?: string;
+}
+export type DeriveOperation = RegexFilterDeriveOperation | CountMatchesDeriveOperation | JsonExtractDeriveOperation;
 export interface DeriveInput {
     source: DeriveSourceInput;
     operation: DeriveOperation;

@@ -61,6 +61,34 @@ test("validateDeriveInput accepts vault regex filter and count operations", () =
   assert.match(paths, /\$\.preserve/);
 });
 
+test("validateDeriveInput accepts JSON extract pointer and path operations", () => {
+  const pointer = validateDeriveInput({
+    source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
+    operation: { kind: "jsonExtract", pointer: "/suite/failures/0/message" },
+  });
+
+  assert.equal(pointer.ok, true);
+  assert.deepEqual(pointer.value.operation, { kind: "jsonExtract", pointer: "/suite/failures/0/message" });
+
+  const path = validateDeriveInput({
+    source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
+    operation: { kind: "jsonExtract", path: "$.suite.stats.failed" },
+  });
+
+  assert.equal(path.ok, true);
+
+  const invalid = validateDeriveInput({
+    source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
+    operation: { kind: "jsonExtract", pointer: "suite", path: "suite.stats" },
+  });
+
+  assert.equal(invalid.ok, false);
+  const paths = invalid.issues.map((issue) => issue.path).join("\n");
+  assert.match(paths, /\$\.operation/);
+  assert.match(paths, /\$\.operation\.pointer/);
+  assert.match(paths, /\$\.operation\.path/);
+});
+
 test("freeflowDerive regexFilter routes vaulted derived output with source lineage", async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {
@@ -181,6 +209,118 @@ test("freeflowDerive routes huge derived output with bounded evidence and exact 
     const raw = await readOutputText(vault, "derive-large-session", result.outputId, "raw");
     assert.match(raw, /FAIL derived output line 40/);
     assert.doesNotMatch(result.evidence[0].excerpt, /FAIL derived output line 40/);
+  });
+});
+
+test("freeflowDerive jsonExtract supports JSON pointer and path selectors", async () => {
+  await withTempVault(async (vault) => {
+    const source = await storeCommandOutput(vault, {
+      sessionId: "derive-json-session",
+      command: "node report.js",
+      stdout: JSON.stringify({
+        suite: {
+          failures: [{ message: "expected true to equal false", file: "tests/example.test.js" }],
+          stats: { failed: 1, passed: 12 },
+        },
+      }),
+      stderr: "",
+      executionStatus: "failed",
+      exitCode: 1,
+      createdAt: "2026-06-22T00:03:00.000Z",
+    });
+
+    const pointer = await freeflowDerive({
+      sessionId: "derive-json-session",
+      vaultRoot: vault.root,
+      source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
+      operation: { kind: "jsonExtract", pointer: "/suite/failures/0/message" },
+    });
+
+    assert.equal(pointer.toolStatus, "ok");
+    assert.equal(pointer.producer.name, "jsonExtract");
+    assert.equal(pointer.lineage.operation, "jsonExtract");
+    assert.deepEqual(pointer.lineage.sourceOutputIds, [source.outputId]);
+    assert.equal(pointer.persistence.recoverability, "exact");
+    assert.deepEqual(validateRoutedResult(pointer), { ok: true, value: pointer });
+    const pointerRaw = await readOutputText(vault, "derive-json-session", pointer.outputId, "raw");
+    assert.match(pointerRaw, /# freeflow_derive jsonExtract/);
+    assert.match(pointerRaw, /selectorKind: pointer/);
+    assert.match(pointerRaw, /selector: \/suite\/failures\/0\/message/);
+    assert.match(pointerRaw, /valueType: string/);
+    assert.match(pointerRaw, /"expected true to equal false"/);
+
+    const path = await freeflowDerive({
+      sessionId: "derive-json-session",
+      vaultRoot: vault.root,
+      source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
+      operation: { kind: "jsonExtract", path: "$.suite.stats.failed" },
+    });
+
+    assert.equal(path.toolStatus, "ok");
+    assert.equal(path.summary, "Derived jsonExtract from vaulted stdout output using path $.suite.stats.failed.");
+    const pathRaw = await readOutputText(vault, "derive-json-session", path.outputId, "raw");
+    assert.match(pathRaw, /selectorKind: path/);
+    assert.match(pathRaw, /valueType: number/);
+    assert.match(pathRaw, /\n1\n/);
+  });
+});
+
+test("freeflowDerive returns structured failures for invalid JSON and unresolved JSON selectors", async () => {
+  await withTempVault(async (vault) => {
+    const badJson = await storeCommandOutput(vault, {
+      sessionId: "derive-json-failure-session",
+      command: "node report.js",
+      stdout: "{ not-json",
+      stderr: "",
+      executionStatus: "failed",
+      exitCode: 1,
+      createdAt: "2026-06-22T00:04:00.000Z",
+    });
+
+    const parseFailure = await freeflowDerive({
+      sessionId: "derive-json-failure-session",
+      vaultRoot: vault.root,
+      source: { kind: "vault", outputId: badJson.outputId, stream: "stdout" },
+      operation: { kind: "jsonExtract", pointer: "/suite" },
+    });
+
+    assert.equal(parseFailure.failure.kind, "derive_execution_failure");
+    assert.equal(parseFailure.deriveExecution.status, "failed");
+    assert.match(parseFailure.failure.message, /Invalid JSON source/);
+    assert.deepEqual(parseFailure.lineage.sourceOutputIds, [badJson.outputId]);
+
+    const goodJson = await storeCommandOutput(vault, {
+      sessionId: "derive-json-failure-session",
+      command: "node report.js",
+      stdout: JSON.stringify({ suite: { stats: { passed: 1 } } }),
+      stderr: "",
+      executionStatus: "success",
+      exitCode: 0,
+      createdAt: "2026-06-22T00:05:00.000Z",
+    });
+
+    const pathFailure = await freeflowDerive({
+      sessionId: "derive-json-failure-session",
+      vaultRoot: vault.root,
+      source: { kind: "vault", outputId: goodJson.outputId, stream: "stdout" },
+      operation: { kind: "jsonExtract", path: "$.suite.stats.failed" },
+    });
+
+    assert.equal(pathFailure.failure.kind, "derive_execution_failure");
+    assert.equal(pathFailure.deriveExecution.status, "failed");
+    assert.match(pathFailure.failure.message, /did not resolve/);
+    assert.deepEqual(pathFailure.lineage.sourceOutputIds, [goodJson.outputId]);
+
+    const invalidPath = await freeflowDerive({
+      sessionId: "derive-json-failure-session",
+      vaultRoot: vault.root,
+      source: { kind: "vault", outputId: goodJson.outputId, stream: "stdout" },
+      operation: { kind: "jsonExtract", path: "suite.stats" },
+    });
+
+    assert.equal(invalidPath.failure.kind, "derive_validation_failure");
+    assert.equal(invalidPath.deriveExecution.status, "rejected");
+    assert.match(invalidPath.failure.message, /Invalid JSON path/);
   });
 });
 

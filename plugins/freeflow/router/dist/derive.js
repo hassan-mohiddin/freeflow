@@ -4,7 +4,7 @@ import { assembleTextEvidence, byteLength, countLines, splitLines } from "./evid
 import { deriveSourceUnavailableFailure, deriveValidationFailure, deriveExecutionFailure, storageFailure, } from "./failure-contracts.js";
 import { createVault, readOutputText, readVaultRecord, storeTextOutput } from "./vault.js";
 const PRESERVE_MODES = new Set(["summary", "important", "full"]);
-const OPERATION_KINDS = new Set(["regexFilter", "countMatches"]);
+const OPERATION_KINDS = new Set(["regexFilter", "countMatches", "jsonExtract"]);
 const REGEX_FLAGS = new Set(["g", "i", "m", "s", "u"]);
 const DEFAULT_CONTEXT_LINES = 0;
 const DEFAULT_MAX_MATCHES = 50;
@@ -44,13 +44,13 @@ export async function freeflowDerive(options) {
         });
     }
     const operation = inputValidation.value.operation;
-    const compiled = compileRegexOperation(operation);
-    if (!compiled.ok) {
+    const prepared = prepareDeriveOperation(operation);
+    if (!prepared.ok) {
         return deriveValidationFailureWithOptionalLineage({
-            message: compiled.message,
+            message: prepared.message,
             preserve,
             lineage: lineageFromInput(inputValidation.value),
-            decisionSeed: "regex-validation",
+            decisionSeed: "operation-validation",
         });
     }
     const source = inputValidation.value.source;
@@ -104,7 +104,7 @@ export async function freeflowDerive(options) {
             text: sourceText,
             sourceLabel: `${source.outputId}:${stream}`,
             operation,
-            compiled: compiled.value,
+            prepared: prepared.value,
         });
     }
     catch (error) {
@@ -191,7 +191,11 @@ function validateDeriveOperation(value, path, issues) {
         return;
     }
     if (typeof value.kind !== "string" || !OPERATION_KINDS.has(value.kind)) {
-        issues.push({ path: `${path}.kind`, message: "Expected derive operation kind regexFilter or countMatches." });
+        issues.push({ path: `${path}.kind`, message: "Expected derive operation kind regexFilter, countMatches, or jsonExtract." });
+        return;
+    }
+    if (value.kind === "jsonExtract") {
+        validateJsonExtractOperation(value, path, issues);
         return;
     }
     if (typeof value.pattern !== "string" || value.pattern.length === 0) {
@@ -211,6 +215,40 @@ function validateDeriveOperation(value, path, issues) {
             if (value[key] !== undefined) {
                 issues.push({ path: `${path}.${key}`, message: `Operation ${value.kind} does not accept ${key}.` });
             }
+        }
+    }
+}
+function validateJsonExtractOperation(value, path, issues) {
+    const hasPointer = value.pointer !== undefined;
+    const hasPath = value.path !== undefined;
+    if (hasPointer === hasPath) {
+        issues.push({ path, message: "Expected exactly one JSON selector: pointer or path." });
+    }
+    if (value.pointer !== undefined) {
+        if (typeof value.pointer !== "string") {
+            issues.push({ path: `${path}.pointer`, message: "Expected JSON pointer string." });
+        }
+        else {
+            const pointer = parseJsonPointer(value.pointer);
+            if (!pointer.ok) {
+                issues.push({ path: `${path}.pointer`, message: `Invalid JSON pointer: ${pointer.message}` });
+            }
+        }
+    }
+    if (value.path !== undefined) {
+        if (typeof value.path !== "string") {
+            issues.push({ path: `${path}.path`, message: "Expected JSON path string." });
+        }
+        else {
+            const parsedPath = parseJsonPath(value.path);
+            if (!parsedPath.ok) {
+                issues.push({ path: `${path}.path`, message: `Invalid JSON path: ${parsedPath.message}` });
+            }
+        }
+    }
+    for (const key of ["pattern", "flags", "contextLines", "maxMatches"]) {
+        if (value[key] !== undefined) {
+            issues.push({ path: `${path}.${key}`, message: `Operation jsonExtract does not accept ${key}.` });
         }
     }
 }
@@ -240,6 +278,20 @@ function validateIntegerRange(value, path, min, max, issues) {
         issues.push({ path, message: `Expected integer from ${min} to ${max}.` });
     }
 }
+function prepareDeriveOperation(operation) {
+    if (operation.kind === "jsonExtract") {
+        const preparedJson = prepareJsonExtractOperation(operation);
+        if (!preparedJson.ok) {
+            return preparedJson;
+        }
+        return { ok: true, value: { kind: "json", value: preparedJson.value } };
+    }
+    const compiledRegex = compileRegexOperation(operation);
+    if (!compiledRegex.ok) {
+        return compiledRegex;
+    }
+    return { ok: true, value: { kind: "regex", value: compiledRegex.value } };
+}
 function compileRegexOperation(operation) {
     const flags = normalizeRegexFlags(operation.flags);
     let regex;
@@ -267,20 +319,65 @@ function compileRegexOperation(operation) {
         },
     };
 }
+function prepareJsonExtractOperation(operation) {
+    if (operation.pointer !== undefined) {
+        const pointer = parseJsonPointer(operation.pointer);
+        if (!pointer.ok) {
+            return { ok: false, message: `Invalid JSON pointer: ${pointer.message}` };
+        }
+        return {
+            ok: true,
+            value: {
+                selectorKind: "pointer",
+                selector: operation.pointer,
+                segments: pointer.segments,
+            },
+        };
+    }
+    if (operation.path !== undefined) {
+        const path = parseJsonPath(operation.path);
+        if (!path.ok) {
+            return { ok: false, message: `Invalid JSON path: ${path.message}` };
+        }
+        return {
+            ok: true,
+            value: {
+                selectorKind: "path",
+                selector: operation.path,
+                segments: path.segments,
+            },
+        };
+    }
+    return { ok: false, message: "jsonExtract requires exactly one JSON selector: pointer or path." };
+}
 function deriveText(options) {
+    if (options.operation.kind === "jsonExtract") {
+        if (options.prepared.kind !== "json") {
+            throw new Error("jsonExtract operation was not prepared with a JSON selector.");
+        }
+        return deriveJsonExtract({
+            text: options.text,
+            sourceLabel: options.sourceLabel,
+            operation: options.operation,
+            prepared: options.prepared.value,
+        });
+    }
+    if (options.prepared.kind !== "regex") {
+        throw new Error(`${options.operation.kind} operation was not prepared with a regex.`);
+    }
     if (options.operation.kind === "regexFilter") {
         return deriveRegexFilter({
             text: options.text,
             sourceLabel: options.sourceLabel,
             operation: options.operation,
-            compiled: options.compiled,
+            compiled: options.prepared.value,
         });
     }
     return deriveCountMatches({
         text: options.text,
         sourceLabel: options.sourceLabel,
         operation: options.operation,
-        compiled: options.compiled,
+        compiled: options.prepared.value,
     });
 }
 function deriveRegexFilter(options) {
@@ -329,6 +426,40 @@ function deriveCountMatches(options) {
         text,
         summary: `Derived countMatches from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${stats.matches} match(es) across ${stats.matchedLines} line(s).`,
         stats,
+    };
+}
+function deriveJsonExtract(options) {
+    let parsed;
+    try {
+        parsed = JSON.parse(options.text);
+    }
+    catch (error) {
+        throw new Error(`Invalid JSON source for jsonExtract: ${errorMessage(error)}`);
+    }
+    const resolved = resolveJsonSelector(parsed, options.prepared.segments);
+    if (!resolved.ok) {
+        throw new Error(`JSON selector ${options.prepared.selector} did not resolve: ${resolved.message}`);
+    }
+    const valueType = jsonValueType(resolved.value);
+    const valueText = `${JSON.stringify(resolved.value, null, 2)}\n`;
+    const text = [
+        "# freeflow_derive jsonExtract",
+        `source: ${options.sourceLabel}`,
+        `selectorKind: ${options.prepared.selectorKind}`,
+        `selector: ${options.prepared.selector}`,
+        `valueType: ${valueType}`,
+        "",
+        valueText,
+    ].join("\n");
+    return {
+        text,
+        summary: `Derived jsonExtract from vaulted ${sourceStreamLabel(options.sourceLabel)} output using ${options.prepared.selectorKind} ${options.prepared.selector}.`,
+        stats: {
+            matches: 1,
+            matchedLines: 1,
+            matchedLineNumbers: [],
+            truncated: false,
+        },
     };
 }
 function collectMatches(lines, regex, maxMatches) {
@@ -418,6 +549,157 @@ function routeDerivedText(options) {
         evidence,
     };
 }
+function parseJsonPointer(pointer) {
+    if (pointer === "") {
+        return { ok: true, segments: [] };
+    }
+    if (!pointer.startsWith("/")) {
+        return { ok: false, message: "JSON pointer must be empty or start with /." };
+    }
+    const segments = [];
+    for (const rawSegment of pointer.slice(1).split("/")) {
+        if (/~(?![01])/.test(rawSegment)) {
+            return { ok: false, message: "JSON pointer contains an invalid escape; use ~0 for ~ and ~1 for /." };
+        }
+        segments.push({ kind: "property", key: rawSegment.replace(/~1/g, "/").replace(/~0/g, "~") });
+    }
+    return { ok: true, segments };
+}
+function parseJsonPath(path) {
+    if (path.length === 0 || path[0] !== "$") {
+        return { ok: false, message: "JSON path must start with $." };
+    }
+    const segments = [];
+    let index = 1;
+    while (index < path.length) {
+        const char = path[index];
+        if (char === ".") {
+            const parsed = parseJsonPathProperty(path, index + 1);
+            if (!parsed.ok) {
+                return parsed;
+            }
+            segments.push({ kind: "property", key: parsed.key });
+            index = parsed.nextIndex;
+            continue;
+        }
+        if (char === "[") {
+            const parsed = parseJsonPathBracket(path, index + 1);
+            if (!parsed.ok) {
+                return parsed;
+            }
+            segments.push(parsed.segment);
+            index = parsed.nextIndex;
+            continue;
+        }
+        return { ok: false, message: `Unexpected token ${char} at offset ${index}.` };
+    }
+    return { ok: true, segments };
+}
+function parseJsonPathProperty(path, startIndex) {
+    const match = /^[A-Za-z_$][A-Za-z0-9_$-]*/.exec(path.slice(startIndex));
+    if (!match?.[0]) {
+        return { ok: false, message: `Expected property name after . at offset ${startIndex - 1}.` };
+    }
+    return { ok: true, key: match[0], nextIndex: startIndex + match[0].length };
+}
+function parseJsonPathBracket(path, startIndex) {
+    const first = path[startIndex];
+    if (first === '"') {
+        return parseJsonPathQuotedProperty(path, startIndex);
+    }
+    if (first === "'") {
+        return { ok: false, message: `Use double-quoted bracket properties at offset ${startIndex}.` };
+    }
+    const closeIndex = path.indexOf("]", startIndex);
+    if (closeIndex === -1) {
+        return { ok: false, message: `Expected ] for bracket selector at offset ${startIndex - 1}.` };
+    }
+    const indexText = path.slice(startIndex, closeIndex);
+    if (!/^(0|[1-9][0-9]*)$/.test(indexText)) {
+        return { ok: false, message: `Expected non-negative array index in bracket selector at offset ${startIndex - 1}.` };
+    }
+    return { ok: true, segment: { kind: "index", index: Number(indexText) }, nextIndex: closeIndex + 1 };
+}
+function parseJsonPathQuotedProperty(path, quoteIndex) {
+    let escaped = false;
+    for (let index = quoteIndex + 1; index < path.length; index += 1) {
+        const char = path[index];
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+        if (char === "\\") {
+            escaped = true;
+            continue;
+        }
+        if (char === '"') {
+            if (path[index + 1] !== "]") {
+                return { ok: false, message: `Expected ] after quoted property at offset ${index}.` };
+            }
+            const literal = path.slice(quoteIndex, index + 1);
+            try {
+                const key = JSON.parse(literal);
+                if (typeof key !== "string") {
+                    return { ok: false, message: "Expected quoted JSON path property to decode to a string." };
+                }
+                return { ok: true, segment: { kind: "property", key }, nextIndex: index + 2 };
+            }
+            catch (error) {
+                return { ok: false, message: `Invalid quoted property string: ${errorMessage(error)}` };
+            }
+        }
+    }
+    return { ok: false, message: `Unterminated quoted property at offset ${quoteIndex}.` };
+}
+function resolveJsonSelector(value, segments) {
+    let current = value;
+    for (const segment of segments) {
+        if (segment.kind === "index") {
+            if (!Array.isArray(current)) {
+                return { ok: false, message: `array index ${segment.index} cannot be applied to ${jsonValueType(current)}.` };
+            }
+            if (segment.index >= current.length) {
+                return { ok: false, message: `array index ${segment.index} is outside length ${current.length}.` };
+            }
+            current = current[segment.index];
+            continue;
+        }
+        if (Array.isArray(current)) {
+            if (!isArrayIndexSegment(segment.key)) {
+                return { ok: false, message: `array source requires numeric pointer segment, got ${segment.key}.` };
+            }
+            const arrayIndex = Number(segment.key);
+            if (arrayIndex >= current.length) {
+                return { ok: false, message: `array index ${arrayIndex} is outside length ${current.length}.` };
+            }
+            current = current[arrayIndex];
+            continue;
+        }
+        if (!isJsonObject(current)) {
+            return { ok: false, message: `property ${segment.key} cannot be applied to ${jsonValueType(current)}.` };
+        }
+        if (!Object.prototype.hasOwnProperty.call(current, segment.key)) {
+            return { ok: false, message: `property ${segment.key} is not present.` };
+        }
+        current = current[segment.key];
+    }
+    return { ok: true, value: current };
+}
+function isJsonObject(value) {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function isArrayIndexSegment(value) {
+    return /^(0|[1-9][0-9]*)$/.test(value);
+}
+function jsonValueType(value) {
+    if (value === null) {
+        return "null";
+    }
+    if (Array.isArray(value)) {
+        return "array";
+    }
+    return typeof value;
+}
 function resolveSourceStream(record, requested) {
     if (record.kind === "command") {
         const stream = requested ?? "combined";
@@ -466,10 +748,17 @@ function operationSummary(operation) {
             maxMatches: operation.maxMatches ?? DEFAULT_MAX_MATCHES,
         };
     }
+    if (operation.kind === "countMatches") {
+        return {
+            kind: operation.kind,
+            pattern: operation.pattern,
+            ...(operation.flags !== undefined ? { flags: normalizeRegexFlags(operation.flags) } : {}),
+        };
+    }
     return {
         kind: operation.kind,
-        pattern: operation.pattern,
-        ...(operation.flags !== undefined ? { flags: normalizeRegexFlags(operation.flags) } : {}),
+        ...(operation.pointer !== undefined ? { pointer: operation.pointer } : {}),
+        ...(operation.path !== undefined ? { path: operation.path } : {}),
     };
 }
 function operationHash(operation) {
