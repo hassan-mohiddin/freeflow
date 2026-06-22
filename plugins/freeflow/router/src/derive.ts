@@ -76,6 +76,25 @@ export interface TopNDeriveOperation {
   order?: "asc" | "desc";
 }
 
+export interface ExtractUrlsDeriveOperation {
+  kind: "extractUrls";
+  dedupe?: boolean;
+  maxMatches?: number;
+}
+
+export interface ExtractCitationsDeriveOperation {
+  kind: "extractCitations";
+  maxMatches?: number;
+}
+
+export interface LineStatsDeriveOperation {
+  kind: "lineStats";
+}
+
+export interface SizeStatsDeriveOperation {
+  kind: "sizeStats";
+}
+
 type RegexDeriveOperation = RegexFilterDeriveOperation | CountMatchesDeriveOperation | GroupByRegexDeriveOperation | TopNDeriveOperation;
 type RegexPatternDeriveOperation = RegexFilterDeriveOperation | CountMatchesDeriveOperation | GroupByRegexDeriveOperation | (TopNDeriveOperation & { pattern: string });
 export type DeriveOperation =
@@ -84,7 +103,11 @@ export type DeriveOperation =
   | JsonExtractDeriveOperation
   | GroupByRegexDeriveOperation
   | DedupeDeriveOperation
-  | TopNDeriveOperation;
+  | TopNDeriveOperation
+  | ExtractUrlsDeriveOperation
+  | ExtractCitationsDeriveOperation
+  | LineStatsDeriveOperation
+  | SizeStatsDeriveOperation;
 
 export interface DeriveInput {
   source: DeriveSourceInput;
@@ -143,7 +166,18 @@ interface DerivedOutput {
 }
 
 const PRESERVE_MODES = new Set(["summary", "important", "full"]);
-const OPERATION_KINDS = new Set(["regexFilter", "countMatches", "jsonExtract", "groupByRegex", "dedupe", "topN"]);
+const OPERATION_KINDS = new Set([
+  "regexFilter",
+  "countMatches",
+  "jsonExtract",
+  "groupByRegex",
+  "dedupe",
+  "topN",
+  "extractUrls",
+  "extractCitations",
+  "lineStats",
+  "sizeStats",
+]);
 const REGEX_FLAGS = new Set(["g", "i", "m", "s", "u"]);
 const DEFAULT_CONTEXT_LINES = 0;
 const DEFAULT_MAX_MATCHES = 50;
@@ -156,6 +190,9 @@ const MAX_GROUPS = 1_000;
 const MAX_LINES_PER_GROUP = 1_000;
 const MAX_DEDUPE_LINES = 10_000;
 const MAX_TOP_N_LIMIT = 1_000;
+const DEFAULT_MAX_EXTRACT_MATCHES = 1_000;
+const MAX_EXTRACT_MATCHES = 10_000;
+const URL_PATTERN = /https?:\/\/[^\s<>"'\])}]+/gi;
 
 export function validateDeriveInput(value: unknown): DeriveValidationResult {
   const issues: DeriveValidationIssue[] = [];
@@ -373,6 +410,16 @@ function validateDeriveOperation(value: unknown, path: string, issues: DeriveVal
     return;
   }
 
+  if (value.kind === "extractUrls" || value.kind === "extractCitations") {
+    validateExtractOperation(value, path, issues);
+    return;
+  }
+
+  if (value.kind === "lineStats" || value.kind === "sizeStats") {
+    validateStatsOperation(value, path, issues);
+    return;
+  }
+
   if (typeof value.pattern !== "string" || value.pattern.length === 0) {
     issues.push({ path: `${path}.pattern`, message: "Expected a non-empty regex pattern string." });
   }
@@ -495,6 +542,32 @@ function validateTopNOperation(value: Record<string, unknown>, path: string, iss
   }
 }
 
+function validateExtractOperation(value: Record<string, unknown>, path: string, issues: DeriveValidationIssue[]) {
+  if (value.maxMatches !== undefined) {
+    validateIntegerRange(value.maxMatches, `${path}.maxMatches`, 1, MAX_EXTRACT_MATCHES, issues);
+  }
+  if (value.kind === "extractUrls" && value.dedupe !== undefined && typeof value.dedupe !== "boolean") {
+    issues.push({ path: `${path}.dedupe`, message: "Expected boolean when present." });
+  }
+  if (value.kind === "extractCitations" && value.dedupe !== undefined) {
+    issues.push({ path: `${path}.dedupe`, message: "Operation extractCitations does not accept dedupe." });
+  }
+
+  for (const key of ["pattern", "flags", "contextLines", "group", "maxGroups", "maxLinesPerGroup", "limit", "sort", "order", "trim", "caseSensitive", "maxLines"] as const) {
+    if (value[key] !== undefined) {
+      issues.push({ path: `${path}.${key}`, message: `Operation ${value.kind} does not accept ${key}.` });
+    }
+  }
+}
+
+function validateStatsOperation(value: Record<string, unknown>, path: string, issues: DeriveValidationIssue[]) {
+  for (const key of ["pattern", "flags", "contextLines", "maxMatches", "group", "maxGroups", "maxLinesPerGroup", "limit", "sort", "order", "trim", "caseSensitive", "maxLines", "dedupe"] as const) {
+    if (value[key] !== undefined) {
+      issues.push({ path: `${path}.${key}`, message: `Operation ${value.kind} does not accept ${key}.` });
+    }
+  }
+}
+
 function validateGroupSelector(value: unknown, path: string, issues: DeriveValidationIssue[]) {
   if (value === undefined) {
     return;
@@ -557,7 +630,14 @@ function prepareDeriveOperation(
     return { ok: true, value: { kind: "json", value: preparedJson.value } };
   }
 
-  if (operation.kind === "dedupe" || (operation.kind === "topN" && operation.pattern === undefined)) {
+  if (
+    operation.kind === "dedupe" ||
+    operation.kind === "extractUrls" ||
+    operation.kind === "extractCitations" ||
+    operation.kind === "lineStats" ||
+    operation.kind === "sizeStats" ||
+    (operation.kind === "topN" && operation.pattern === undefined)
+  ) {
     return { ok: true, value: { kind: "none" } };
   }
 
@@ -675,6 +755,22 @@ function deriveText(options: {
       topNOptions.compiled = options.prepared.value;
     }
     return deriveTopN(topNOptions);
+  }
+
+  if (options.operation.kind === "extractUrls") {
+    return deriveExtractUrls({ text: options.text, sourceLabel: options.sourceLabel, operation: options.operation });
+  }
+
+  if (options.operation.kind === "extractCitations") {
+    return deriveExtractCitations({ text: options.text, sourceLabel: options.sourceLabel, operation: options.operation });
+  }
+
+  if (options.operation.kind === "lineStats") {
+    return deriveLineStats({ text: options.text, sourceLabel: options.sourceLabel });
+  }
+
+  if (options.operation.kind === "sizeStats") {
+    return deriveSizeStats({ text: options.text, sourceLabel: options.sourceLabel });
   }
 
   if (options.prepared.kind !== "regex") {
@@ -974,6 +1070,193 @@ function deriveTopN(options: {
   };
 }
 
+function deriveExtractUrls(options: {
+  text: string;
+  sourceLabel: string;
+  operation: ExtractUrlsDeriveOperation;
+}): DerivedOutput {
+  const maxMatches = options.operation.maxMatches ?? DEFAULT_MAX_EXTRACT_MATCHES;
+  const dedupe = options.operation.dedupe ?? false;
+  const lines = splitLines(options.text);
+  const seen = new Set<string>();
+  const entries: { lineNumber: number; url: string }[] = [];
+  let matches = 0;
+  let truncated = false;
+
+  lineLoop: for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] ?? "";
+    URL_PATTERN.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = URL_PATTERN.exec(line)) !== null) {
+      const rawUrl = match[0];
+      const url = trimUrl(rawUrl);
+      if (url.length === 0) {
+        continue;
+      }
+      matches += 1;
+      if (!dedupe || !seen.has(url)) {
+        seen.add(url);
+        entries.push({ lineNumber: index + 1, url });
+      }
+      if (matches >= maxMatches) {
+        truncated = index < lines.length - 1 || URL_PATTERN.lastIndex < line.length;
+        break lineLoop;
+      }
+    }
+  }
+
+  const parts = [
+    "# freeflow_derive extractUrls",
+    `source: ${options.sourceLabel}`,
+    `dedupe: ${dedupe}`,
+    `maxMatches: ${maxMatches}`,
+    `matches: ${matches}`,
+    `returnedUrls: ${entries.length}`,
+    `truncated: ${truncated}`,
+    "",
+  ];
+
+  for (const entry of entries) {
+    parts.push(`${entry.lineNumber}| ${entry.url}`);
+  }
+
+  return {
+    text: `${parts.join("\n")}\n`,
+    summary: `Derived extractUrls from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${entries.length} URL(s) returned from ${matches} match(es).`,
+    stats: {
+      matches: entries.length,
+      matchedLines: new Set(entries.map((entry) => entry.lineNumber)).size,
+      matchedLineNumbers: entries.map((entry) => entry.lineNumber),
+      truncated,
+    },
+  };
+}
+
+function deriveExtractCitations(options: {
+  text: string;
+  sourceLabel: string;
+  operation: ExtractCitationsDeriveOperation;
+}): DerivedOutput {
+  const maxMatches = options.operation.maxMatches ?? DEFAULT_MAX_EXTRACT_MATCHES;
+  const lines = splitLines(options.text);
+  const entries: { lineNumber: number; type: string; label: string; target?: string }[] = [];
+  let truncated = false;
+
+  lineLoop: for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] ?? "";
+    const lineEntries = citationEntriesForLine(line, index + 1);
+    for (let entryIndex = 0; entryIndex < lineEntries.length; entryIndex += 1) {
+      const entry = lineEntries[entryIndex];
+      if (entry === undefined) {
+        continue;
+      }
+      entries.push(entry);
+      if (entries.length >= maxMatches) {
+        truncated = entryIndex < lineEntries.length - 1 || index < lines.length - 1;
+        break lineLoop;
+      }
+    }
+  }
+
+  const parts = [
+    "# freeflow_derive extractCitations",
+    `source: ${options.sourceLabel}`,
+    `maxMatches: ${maxMatches}`,
+    `citations: ${entries.length}`,
+    `truncated: ${truncated}`,
+    "",
+  ];
+
+  for (const entry of entries) {
+    parts.push(
+      entry.target === undefined
+        ? `${entry.lineNumber}| ${entry.type} | ${entry.label}`
+        : `${entry.lineNumber}| ${entry.type} | ${entry.label} | ${entry.target}`,
+    );
+  }
+
+  return {
+    text: `${parts.join("\n")}\n`,
+    summary: `Derived extractCitations from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${entries.length} citation(s) returned.`,
+    stats: {
+      matches: entries.length,
+      matchedLines: new Set(entries.map((entry) => entry.lineNumber)).size,
+      matchedLineNumbers: entries.map((entry) => entry.lineNumber),
+      truncated,
+    },
+  };
+}
+
+function deriveLineStats(options: { text: string; sourceLabel: string }): DerivedOutput {
+  const lines = splitLines(options.text);
+  let blankLines = 0;
+  let maxLineBytes = 0;
+  let maxLineNumber = 0;
+
+  lines.forEach((line, index) => {
+    if (line.trim().length === 0) {
+      blankLines += 1;
+    }
+    const lineBytes = byteLength(line);
+    if (lineBytes > maxLineBytes) {
+      maxLineBytes = lineBytes;
+      maxLineNumber = index + 1;
+    }
+  });
+
+  const nonEmptyLines = lines.length - blankLines;
+  const text = [
+    "# freeflow_derive lineStats",
+    `source: ${options.sourceLabel}`,
+    `lines: ${lines.length}`,
+    `nonEmptyLines: ${nonEmptyLines}`,
+    `blankLines: ${blankLines}`,
+    `maxLineBytes: ${maxLineBytes}`,
+    `maxLineNumber: ${maxLineNumber}`,
+    "",
+  ].join("\n");
+
+  return {
+    text,
+    summary: `Derived lineStats from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${lines.length} line(s), ${nonEmptyLines} non-empty, ${blankLines} blank.`,
+    stats: {
+      matches: lines.length,
+      matchedLines: lines.length,
+      matchedLineNumbers: [],
+      truncated: false,
+    },
+  };
+}
+
+function deriveSizeStats(options: { text: string; sourceLabel: string }): DerivedOutput {
+  const bytes = byteLength(options.text);
+  const utf16CodeUnits = options.text.length;
+  const codePoints = Array.from(options.text).length;
+  const lines = countLines(options.text);
+  const hash = hashText(options.text);
+  const text = [
+    "# freeflow_derive sizeStats",
+    `source: ${options.sourceLabel}`,
+    `bytes: ${bytes}`,
+    `utf16CodeUnits: ${utf16CodeUnits}`,
+    `codePoints: ${codePoints}`,
+    `lines: ${lines}`,
+    `sha256: ${hash}`,
+    "",
+  ].join("\n");
+
+  return {
+    text,
+    summary: `Derived sizeStats from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${bytes} byte(s), ${utf16CodeUnits} code unit(s), ${lines} line(s).`,
+    stats: {
+      matches: bytes,
+      matchedLines: lines,
+      matchedLineNumbers: [],
+      truncated: false,
+    },
+  };
+}
+
 function deriveJsonExtract(options: {
   text: string;
   sourceLabel: string;
@@ -1118,6 +1401,48 @@ function routeDerivedText(options: {
         : `Derived output from operation ${options.operationKind} over source ${sourceLabel} (${outputBytes} bytes, ${outputLines} lines) was vaulted and returned within routing caps.`,
     evidence,
   };
+}
+
+function citationEntriesForLine(
+  line: string,
+  lineNumber: number,
+): { lineNumber: number; type: string; label: string; target?: string }[] {
+  const entries: { lineNumber: number; type: string; label: string; target?: string }[] = [];
+
+  const inlineLinkPattern = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/gi;
+  let inlineMatch: RegExpExecArray | null;
+  while ((inlineMatch = inlineLinkPattern.exec(line)) !== null) {
+    const label = inlineMatch[1];
+    const target = inlineMatch[2];
+    if (label !== undefined && target !== undefined) {
+      entries.push({ lineNumber, type: "markdown-link", label, target: trimUrl(target) });
+    }
+  }
+
+  const citeKeyPattern = /\[@([A-Za-z0-9_.:#-]+)\]/g;
+  let citeKeyMatch: RegExpExecArray | null;
+  while ((citeKeyMatch = citeKeyPattern.exec(line)) !== null) {
+    const label = citeKeyMatch[1];
+    if (label !== undefined) {
+      entries.push({ lineNumber, type: "citekey", label });
+    }
+  }
+
+  const footnote = /^\s*\[\^([^\]\n]+)\]:\s*(.+?)\s*$/.exec(line);
+  if (footnote?.[1] !== undefined && footnote[2] !== undefined) {
+    entries.push({ lineNumber, type: "footnote", label: footnote[1], target: footnote[2] });
+  }
+
+  const reference = /^\s*\[([^\]^][^\]\n]*)\]:\s*(.+?)\s*$/.exec(line);
+  if (reference?.[1] !== undefined && reference[2] !== undefined) {
+    entries.push({ lineNumber, type: "reference", label: reference[1], target: reference[2] });
+  }
+
+  return entries;
+}
+
+function trimUrl(url: string): string {
+  return url.replace(/[.,;:!?]+$/g, "");
 }
 
 function matchGroupValue(match: RegExpExecArray, group: number | string, lineNumber: number): string {
@@ -1439,6 +1764,25 @@ function operationSummary(operation: DeriveOperation): Record<string, unknown> {
     };
   }
 
+  if (operation.kind === "extractUrls") {
+    return {
+      kind: operation.kind,
+      dedupe: operation.dedupe ?? false,
+      maxMatches: operation.maxMatches ?? DEFAULT_MAX_EXTRACT_MATCHES,
+    };
+  }
+
+  if (operation.kind === "extractCitations") {
+    return {
+      kind: operation.kind,
+      maxMatches: operation.maxMatches ?? DEFAULT_MAX_EXTRACT_MATCHES,
+    };
+  }
+
+  if (operation.kind === "lineStats" || operation.kind === "sizeStats") {
+    return { kind: operation.kind };
+  }
+
   return {
     kind: operation.kind,
     ...(operation.pointer !== undefined ? { pointer: operation.pointer } : {}),
@@ -1522,6 +1866,10 @@ function decisionId(...parts: string[]): string {
 }
 
 function hash(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function hashText(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 

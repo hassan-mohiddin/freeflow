@@ -124,6 +124,43 @@ test("validateDeriveInput accepts group, dedupe, and topN operations", () => {
   assert.match(paths, /\$\.operation\.limit/);
 });
 
+test("validateDeriveInput accepts URL, citation, and stats operations", () => {
+  const urls = validateDeriveInput({
+    source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
+    operation: { kind: "extractUrls", dedupe: true, maxMatches: 25 },
+  });
+
+  assert.equal(urls.ok, true);
+
+  const citations = validateDeriveInput({
+    source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
+    operation: { kind: "extractCitations", maxMatches: 10 },
+  });
+
+  assert.equal(citations.ok, true);
+
+  assert.equal(validateDeriveInput({
+    source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
+    operation: { kind: "lineStats" },
+  }).ok, true);
+
+  assert.equal(validateDeriveInput({
+    source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
+    operation: { kind: "sizeStats" },
+  }).ok, true);
+
+  const invalid = validateDeriveInput({
+    source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
+    operation: { kind: "extractUrls", dedupe: "yes", maxMatches: 0, pattern: "https" },
+  });
+
+  assert.equal(invalid.ok, false);
+  const paths = invalid.issues.map((issue) => issue.path).join("\n");
+  assert.match(paths, /\$\.operation\.dedupe/);
+  assert.match(paths, /\$\.operation\.maxMatches/);
+  assert.match(paths, /\$\.operation\.pattern/);
+});
+
 test("freeflowDerive regexFilter routes vaulted derived output with source lineage", async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {
@@ -346,6 +383,128 @@ test("freeflowDerive topN sorts regex-matched lines by captured score", async ()
     assert.doesNotMatch(raw, /1\| score=12/);
     assert.doesNotMatch(raw, /4\| score=50/);
     assert.ok(raw.indexOf("2| score=200") < raw.indexOf("3| score=200"));
+  });
+});
+
+test("freeflowDerive extractUrls returns bounded URL evidence", async () => {
+  await withTempVault(async (vault) => {
+    const source = await storeCommandOutput(vault, {
+      sessionId: "derive-urls-session",
+      command: "node links.js",
+      stdout: [
+        "Docs: https://example.com/docs and https://example.com/api.",
+        "Duplicate docs https://example.com/docs",
+        "Issue: http://tracker.local/ABC-123?view=full",
+      ].join("\n"),
+      stderr: "",
+      executionStatus: "success",
+      exitCode: 0,
+      createdAt: "2026-06-22T00:09:00.000Z",
+    });
+
+    const result = await freeflowDerive({
+      sessionId: "derive-urls-session",
+      vaultRoot: vault.root,
+      source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
+      operation: { kind: "extractUrls", dedupe: true, maxMatches: 10 },
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.producer.name, "extractUrls");
+    assert.equal(result.summary, "Derived extractUrls from vaulted stdout output: 3 URL(s) returned from 4 match(es).");
+    assert.deepEqual(result.lineage.sourceOutputIds, [source.outputId]);
+    const raw = await readOutputText(vault, "derive-urls-session", result.outputId, "raw");
+    assert.match(raw, /# freeflow_derive extractUrls/);
+    assert.match(raw, /matches: 4/);
+    assert.match(raw, /returnedUrls: 3/);
+    assert.match(raw, /1\| https:\/\/example\.com\/docs/);
+    assert.match(raw, /1\| https:\/\/example\.com\/api/);
+    assert.match(raw, /3\| http:\/\/tracker\.local\/ABC-123\?view=full/);
+    assert.equal((raw.match(/https:\/\/example\.com\/docs/g) ?? []).length, 1);
+  });
+});
+
+test("freeflowDerive extractCitations returns markdown citation targets", async () => {
+  await withTempVault(async (vault) => {
+    const source = await storeCommandOutput(vault, {
+      sessionId: "derive-citations-session",
+      command: "node citations.js",
+      stdout: [
+        "See [Freeflow docs](https://example.com/freeflow) and [@smith2024].",
+        "[^note]: https://example.com/note evidence",
+        "[release]: https://example.com/release-notes",
+      ].join("\n"),
+      stderr: "",
+      executionStatus: "success",
+      exitCode: 0,
+      createdAt: "2026-06-22T00:10:00.000Z",
+    });
+
+    const result = await freeflowDerive({
+      sessionId: "derive-citations-session",
+      vaultRoot: vault.root,
+      source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
+      operation: { kind: "extractCitations", maxMatches: 10 },
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.summary, "Derived extractCitations from vaulted stdout output: 4 citation(s) returned.");
+    assert.deepEqual(result.lineage.sourceOutputIds, [source.outputId]);
+    const raw = await readOutputText(vault, "derive-citations-session", result.outputId, "raw");
+    assert.match(raw, /# freeflow_derive extractCitations/);
+    assert.match(raw, /1\| markdown-link \| Freeflow docs \| https:\/\/example\.com\/freeflow/);
+    assert.match(raw, /1\| citekey \| smith2024/);
+    assert.match(raw, /2\| footnote \| note \| https:\/\/example\.com\/note evidence/);
+    assert.match(raw, /3\| reference \| release \| https:\/\/example\.com\/release-notes/);
+  });
+});
+
+test("freeflowDerive lineStats and sizeStats summarize vaulted text", async () => {
+  await withTempVault(async (vault) => {
+    const sourceText = ["alpha", "", "γamma"].join("\n");
+    const source = await storeCommandOutput(vault, {
+      sessionId: "derive-stats-session",
+      command: "printf stats",
+      stdout: sourceText,
+      stderr: "",
+      executionStatus: "success",
+      exitCode: 0,
+      createdAt: "2026-06-22T00:11:00.000Z",
+    });
+
+    const lineStats = await freeflowDerive({
+      sessionId: "derive-stats-session",
+      vaultRoot: vault.root,
+      source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
+      operation: { kind: "lineStats" },
+    });
+
+    assert.equal(lineStats.toolStatus, "ok");
+    assert.equal(lineStats.summary, "Derived lineStats from vaulted stdout output: 3 line(s), 2 non-empty, 1 blank.");
+    const lineRaw = await readOutputText(vault, "derive-stats-session", lineStats.outputId, "raw");
+    assert.match(lineRaw, /# freeflow_derive lineStats/);
+    assert.match(lineRaw, /lines: 3/);
+    assert.match(lineRaw, /nonEmptyLines: 2/);
+    assert.match(lineRaw, /blankLines: 1/);
+    assert.match(lineRaw, /maxLineBytes: 6/);
+    assert.match(lineRaw, /maxLineNumber: 3/);
+
+    const sizeStats = await freeflowDerive({
+      sessionId: "derive-stats-session",
+      vaultRoot: vault.root,
+      source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
+      operation: { kind: "sizeStats" },
+    });
+
+    assert.equal(sizeStats.toolStatus, "ok");
+    assert.equal(sizeStats.summary, "Derived sizeStats from vaulted stdout output: 13 byte(s), 12 code unit(s), 3 line(s).");
+    assert.deepEqual(sizeStats.lineage.sourceOutputIds, [source.outputId]);
+    const sizeRaw = await readOutputText(vault, "derive-stats-session", sizeStats.outputId, "raw");
+    assert.match(sizeRaw, /# freeflow_derive sizeStats/);
+    assert.match(sizeRaw, /bytes: 13/);
+    assert.match(sizeRaw, /utf16CodeUnits: 12/);
+    assert.match(sizeRaw, /codePoints: 12/);
+    assert.match(sizeRaw, /sha256: [0-9a-f]{64}/);
   });
 });
 

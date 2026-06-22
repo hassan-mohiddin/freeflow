@@ -45,7 +45,22 @@ export interface TopNDeriveOperation {
     sort?: "text" | "numeric";
     order?: "asc" | "desc";
 }
-export type DeriveOperation = RegexFilterDeriveOperation | CountMatchesDeriveOperation | JsonExtractDeriveOperation | GroupByRegexDeriveOperation | DedupeDeriveOperation | TopNDeriveOperation;
+export interface ExtractUrlsDeriveOperation {
+    kind: "extractUrls";
+    dedupe?: boolean;
+    maxMatches?: number;
+}
+export interface ExtractCitationsDeriveOperation {
+    kind: "extractCitations";
+    maxMatches?: number;
+}
+export interface LineStatsDeriveOperation {
+    kind: "lineStats";
+}
+export interface SizeStatsDeriveOperation {
+    kind: "sizeStats";
+}
+export type DeriveOperation = RegexFilterDeriveOperation | CountMatchesDeriveOperation | JsonExtractDeriveOperation | GroupByRegexDeriveOperation | DedupeDeriveOperation | TopNDeriveOperation | ExtractUrlsDeriveOperation | ExtractCitationsDeriveOperation | LineStatsDeriveOperation | SizeStatsDeriveOperation;
 export interface DeriveInput {
     source: DeriveSourceInput;
     operation: DeriveOperation;

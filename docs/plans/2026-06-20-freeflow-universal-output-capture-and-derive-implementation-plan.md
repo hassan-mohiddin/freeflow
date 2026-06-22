@@ -31,6 +31,7 @@ Progress:
 - 2026-06-22: Slice 5A added core deterministic `freeflow_derive` support for vault sources, `regexFilter` with context, `countMatches`, source lineage, exact derived-output recovery, bounded routing, and structured derive failures. Public Pi registration remains deferred to Slice 5E.
 - 2026-06-22: Slice 5B added deterministic `jsonExtract` over vault sources with JSON Pointer and a bounded JSON path subset, plus invalid JSON, unresolved selector, and invalid path failure coverage.
 - 2026-06-22: Slice 5C added deterministic `groupByRegex`, `dedupe`, and `topN` operations over vault sources, with bounded operation settings, persisted derived outputs, lineage, and shared routing/recovery.
+- 2026-06-22: Slice 5D added deterministic `extractUrls`, `extractCitations`, `lineStats`, and `sizeStats` operations over vault sources, with bounded extraction, persisted derived outputs, lineage, and shared routing/recovery.
 
 ## Source Authority
 
