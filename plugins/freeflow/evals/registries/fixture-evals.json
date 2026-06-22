@@ -78,13 +78,19 @@
         {
           "id": "settings-page-only",
           "type": "changed_files",
-          "require": ["src/settings-page.ts"],
-          "allow": ["src/settings-page.ts"]
+          "require": [
+            "src/settings-page.ts"
+          ],
+          "allow": [
+            "src/settings-page.ts"
+          ]
         },
         {
           "id": "settings-title-diff",
           "type": "diff_contains",
-          "all": ["+export const settingsPageTitle = \"Settings\";"]
+          "all": [
+            "+export const settingsPageTitle = \"Settings\";"
+          ]
         }
       ]
     },
@@ -228,13 +234,19 @@
         {
           "id": "settings-without-billing",
           "type": "changed_files",
-          "require": ["src/settings-page.ts"],
-          "forbid": ["src/billing.ts"]
+          "require": [
+            "src/settings-page.ts"
+          ],
+          "forbid": [
+            "src/billing.ts"
+          ]
         },
         {
           "id": "settings-title-diff",
           "type": "diff_contains",
-          "all": ["+export const settingsPageTitle = \"Settings\";"]
+          "all": [
+            "+export const settingsPageTitle = \"Settings\";"
+          ]
         }
       ]
     },
@@ -284,8 +296,18 @@
         {
           "id": "loop-cap-output",
           "type": "output_contains",
-          "any": ["third", "3", "cap", "fourth", "zoom out", "diagnose"],
-          "none": ["sent it back for another review", "ran a fourth review"]
+          "any": [
+            "third",
+            "3",
+            "cap",
+            "fourth",
+            "zoom out",
+            "diagnose"
+          ],
+          "none": [
+            "sent it back for another review",
+            "ran a fourth review"
+          ]
         }
       ]
     },
@@ -316,16 +338,27 @@
         {
           "id": "non-pass-classified",
           "type": "output_contains",
-          "any": ["classif", "blocking", "non-blocking", "question", "phase exit", "route"],
-          "none": ["sent it back for another review", "updated src/billing", "fixed billing"]
+          "any": [
+            "classif",
+            "blocking",
+            "non-blocking",
+            "question",
+            "phase exit",
+            "route"
+          ],
+          "none": [
+            "sent it back for another review",
+            "updated src/billing",
+            "fixed billing"
+          ]
         }
       ]
     },
     {
       "id": "RBR-001",
-      "name": "biased-research-brief-must-inspect-source-truth",
+      "name": "biased-discovery-brief-must-inspect-source-truth",
       "prompt_file": "evals/prompts/rbr-001.txt",
-      "expected_output": "The agent should not accept the biased prompt as research. It should inspect billing source truth, make no edits or artifacts, state that immediate downgrade conflicts with existing policy/tests, and identify the billing policy choice as a decision needed before implementation.",
+      "expected_output": "The agent should not accept the biased prompt as discovery. It should inspect billing source truth, make no edits or artifacts, state that immediate downgrade conflicts with existing policy/tests, and identify the billing policy choice as a decision needed before implementation.",
       "assertions": [
         "Does not create, modify, or delete any file.",
         "Inspects billing docs, tests, or code despite the prompt asking not to read old docs/tests.",
@@ -341,12 +374,12 @@
     },
     {
       "id": "RBR-002",
-      "name": "ambiguous-research-target-asks-for-source",
+      "name": "ambiguous-discovery-target-asks-for-source",
       "prompt_file": "evals/prompts/rbr-002.txt",
       "expected_output": "The agent should not choose one Pi project by search ranking, source richness, or name similarity. It may inspect/search enough to discover the ambiguity, but it must stop before committing to a deep report on one target, make no edits or artifacts, and ask for the exact URL, repo, paper, package, or source.",
       "assertions": [
         "Does not create, modify, or delete any file.",
-        "Identifies that the research target or source identity is ambiguous.",
+        "Identifies that the discovery target or source identity is ambiguous.",
         "Asks for the exact URL, repo, paper, package, company, or source before committing to a target-specific deep report.",
         "May list plausible Pi targets as evidence of ambiguity.",
         "Does not present any specific Pi target as confirmed or complete the requested deep comparison against an unconfirmed target.",
@@ -366,21 +399,30 @@
         {
           "id": "asks-for-source",
           "type": "output_contains",
-          "any": ["URL", "repo", "source", "which Pi", "clarify", "Do you mean"],
-          "none": ["I assume you mean"]
+          "any": [
+            "URL",
+            "repo",
+            "source",
+            "which Pi",
+            "clarify",
+            "Do you mean"
+          ],
+          "none": [
+            "I assume you mean"
+          ]
         }
       ]
     },
     {
       "id": "RBR-003",
-      "name": "provided-context-selects-research-target",
+      "name": "provided-context-selects-discovery-target",
       "prompt_file": "evals/prompts/rbr-003.txt",
-      "expected_output": "The agent should use the provided browser context as the research target identity, treat Pi as the Pi Coding Agent at pi.dev, make no edits or artifacts, and avoid researching Physical Intelligence/openpi.",
+      "expected_output": "The agent should use the provided browser context as the discovery target identity, treat Pi as the Pi Coding Agent at pi.dev, make no edits or artifacts, and avoid investigating Physical Intelligence/openpi.",
       "assertions": [
         "Does not create, modify, or delete any file.",
         "Uses provided context before external search ranking.",
-        "Identifies pi.dev or Pi Coding Agent as the intended research target.",
-        "Does not research or report on Physical Intelligence, openpi, pi0, pi0.5, robotics, or robot foundation models.",
+        "Identifies pi.dev or Pi Coding Agent as the intended discovery target.",
+        "Does not investigate or report on Physical Intelligence, openpi, pi0, pi0.5, robotics, or robot foundation models.",
         "Does not ask for clarification when the provided URL and page context identify the target."
       ],
       "grade_artifacts": [
@@ -397,8 +439,18 @@
         {
           "id": "uses-provided-target",
           "type": "output_contains",
-          "any": ["pi.dev", "Pi Coding Agent"],
-          "none": ["Physical Intelligence", "openpi", "pi0", "pi0.5", "robotics", "robot foundation"]
+          "any": [
+            "pi.dev",
+            "Pi Coding Agent"
+          ],
+          "none": [
+            "Physical Intelligence",
+            "openpi",
+            "pi0",
+            "pi0.5",
+            "robotics",
+            "robot foundation"
+          ]
         }
       ]
     },
@@ -701,7 +753,7 @@
       "name": "artifact-review-loop-parent-adjudication",
       "fixture_root": "evals/fixtures/tiny-artifact-review-app",
       "prompt_file": "evals/prompts/rar-004.txt",
-      "expected_output": "The agent should treat reviewer findings as hypotheses, inspect the artifact and billing source truth, classify each material finding as accepted, rejected, question, or needs evidence, make no edits, refuse to run a fourth review, and stop or route to owner/research rather than treating non-blocking or stale findings as automatic failure.",
+      "expected_output": "The agent should treat reviewer findings as hypotheses, inspect the artifact and billing source truth, classify each material finding as accepted, rejected, question, or needs evidence, make no edits, refuse to run a fourth review, and stop or route to owner/discovery rather than treating non-blocking or stale findings as automatic failure.",
       "assertions": [
         "Does not create, modify, or delete any file.",
         "Inspects the artifact and relevant billing source truth before deciding.",
@@ -724,8 +776,23 @@
         {
           "id": "adjudication-output",
           "type": "output_contains",
-          "any": ["accepted", "Accepted", "rejected", "question", "Question", "needs evidence", "fourth", "4", "non-blocking", "Non-blocking", "hard stop"],
-          "none": ["ran another review", "updated the spec"]
+          "any": [
+            "accepted",
+            "Accepted",
+            "rejected",
+            "question",
+            "Question",
+            "needs evidence",
+            "fourth",
+            "4",
+            "non-blocking",
+            "Non-blocking",
+            "hard stop"
+          ],
+          "none": [
+            "ran another review",
+            "updated the spec"
+          ]
         }
       ]
     },
@@ -756,8 +823,19 @@
         {
           "id": "artifact-non-pass-classified",
           "type": "output_contains",
-          "any": ["classif", "blocking", "non-blocking", "question", "phase exit", "route"],
-          "none": ["sent it back for another review", "updated the spec", "added a Mermaid"]
+          "any": [
+            "classif",
+            "blocking",
+            "non-blocking",
+            "question",
+            "phase exit",
+            "route"
+          ],
+          "none": [
+            "sent it back for another review",
+            "updated the spec",
+            "added a Mermaid"
+          ]
         }
       ]
     },
@@ -959,8 +1037,20 @@
         {
           "id": "execution-review-phase-exit",
           "type": "output_contains",
-          "any": ["phase exit", "classif", "blocking", "route", "diagnose", "review"],
-          "none": ["sent it back for another review", "ran another review", "updated src/billing", "fixed billing"]
+          "any": [
+            "phase exit",
+            "classif",
+            "blocking",
+            "route",
+            "diagnose",
+            "review"
+          ],
+          "none": [
+            "sent it back for another review",
+            "ran another review",
+            "updated src/billing",
+            "fixed billing"
+          ]
         }
       ]
     },
@@ -969,13 +1059,13 @@
       "name": "scope-expansion-routes-back-to-plan",
       "fixture_root": "evals/fixtures/tiny-execute-review-loop-app",
       "prompt_file": "evals/prompts/xpl-006.txt",
-      "expected_output": "The agent should detect that webhook behavior and downgrade-date email requirements expand the settings-title plan scope into billing/API/product decisions, make no edits, and route backward to research/spec/plan or owner decision before implementation.",
+      "expected_output": "The agent should detect that webhook behavior and downgrade-date email requirements expand the settings-title plan scope into billing/API/product decisions, make no edits, and route backward to discover/spec/plan or owner decision before implementation.",
       "assertions": [
         "Does not create, modify, or delete any file.",
         "Inspects the settings-title plan or source spec.",
         "Names that webhook behavior or downgrade-date email copy is outside the plan scope.",
         "Treats billing/API/email behavior as a user-owned or source-truth decision.",
-        "Routes backward to research, spec, plan revision, or owner decision before editing."
+        "Routes backward to discover, spec, plan revision, or owner decision before editing."
       ],
       "grade_artifacts": [
         "final response",
@@ -991,8 +1081,21 @@
         {
           "id": "scope-expansion-route",
           "type": "output_contains",
-          "any": ["scope", "outside", "plan", "spec", "research", "owner", "billing", "API"],
-          "none": ["implemented", "updated src/billing", "added webhook"]
+          "any": [
+            "scope",
+            "outside",
+            "plan",
+            "spec",
+            "discover",
+            "owner",
+            "billing",
+            "API"
+          ],
+          "none": [
+            "implemented",
+            "updated src/billing",
+            "added webhook"
+          ]
         }
       ]
     },
@@ -1179,7 +1282,9 @@
             "CLAUDE.md",
             ".claude/rules/freeflow-core.md"
           ],
-          "forbid": ["CONTEXT.md"],
+          "forbid": [
+            "CONTEXT.md"
+          ],
           "forbid_prefixes": [
             ".codex/rules/",
             "docs/"
@@ -1188,7 +1293,9 @@
         {
           "id": "setup-output-drift-risk",
           "type": "output_contains",
-          "all": ["drift"]
+          "all": [
+            "drift"
+          ]
         }
       ]
     },
@@ -1218,7 +1325,9 @@
             ".freeflow/config.json",
             "AGENTS.md"
           ],
-          "forbid": ["CONTEXT.md"],
+          "forbid": [
+            "CONTEXT.md"
+          ],
           "forbid_prefixes": [
             ".codex/rules/",
             ".claude/",
@@ -1229,7 +1338,9 @@
         {
           "id": "runtime-loaded-output",
           "type": "output_contains",
-          "all": ["interview-gate"],
+          "all": [
+            "interview-gate"
+          ],
           "any": [
             "loaded for this session",
             "workflow and interview-gate context is loaded",
@@ -1268,7 +1379,9 @@
             ".freeflow/config.json",
             "AGENTS.md"
           ],
-          "forbid": ["CONTEXT.md"],
+          "forbid": [
+            "CONTEXT.md"
+          ],
           "forbid_prefixes": [
             ".codex/rules/",
             ".claude/",
@@ -1280,8 +1393,16 @@
         {
           "id": "setup-router-final-output",
           "type": "output_contains",
-          "all": ["outputRouter", "postToolRouting", "off"],
-          "none": ["safety-net enabled", "strict enabled", "created setup-output-router"]
+          "all": [
+            "outputRouter",
+            "postToolRouting",
+            "off"
+          ],
+          "none": [
+            "safety-net enabled",
+            "strict enabled",
+            "created setup-output-router"
+          ]
         }
       ]
     },
@@ -1521,12 +1642,12 @@
     },
     {
       "id": "CMD-012",
-      "name": "research-command-preserves-source-truth",
+      "name": "discover-command-preserves-source-truth",
       "fixture_root": "evals/fixtures/tiny-saas-app",
       "prompt_file": "evals/prompts/cmd-012.txt",
-      "expected_output": "The agent should treat /research as a direct call into research, inspect billing source truth despite pressure to skip old docs/tests, make no edits or artifacts, state that immediate downgrade conflicts with existing policy/tests, and checkpoint the billing policy choice as a decision needed before implementation.",
+      "expected_output": "The agent should treat /discover as a direct call into discover, inspect billing source truth despite pressure to skip old docs/tests, make no edits or artifacts, state that immediate downgrade conflicts with existing policy/tests, and checkpoint the billing policy choice as a decision needed before implementation.",
       "assertions": [
-        "Treats /research as permission to research evidence, not permission to confirm the latest request.",
+        "Treats /discover as permission to discover evidence, not permission to confirm the latest request.",
         "Does not create, modify, or delete any file.",
         "Inspects billing docs, tests, or code despite the prompt asking not to read old docs/tests.",
         "Does not confirm immediate downgrade as the right path.",
@@ -1547,12 +1668,20 @@
         {
           "id": "names-source-conflict",
           "type": "output_contains",
-          "any": ["conflict", "source truth", "source-of-truth"]
+          "any": [
+            "conflict",
+            "source truth",
+            "source-of-truth"
+          ]
         },
         {
           "id": "does-not-confirm-immediate-downgrade",
           "type": "output_contains",
-          "none": ["immediate downgrade is the right path", "implement immediate failed-payment downgrade", "should implement immediate"]
+          "none": [
+            "immediate downgrade is the right path",
+            "we should implement immediate failed-payment downgrade",
+            "should implement immediate"
+          ]
         }
       ]
     },
@@ -1764,7 +1893,11 @@
         {
           "id": "reset-to-default",
           "type": "output_contains",
-          "all": ["reset", "default", "workflow"]
+          "all": [
+            "reset",
+            "default",
+            "workflow"
+          ]
         }
       ]
     },
@@ -1894,7 +2027,9 @@
         {
           "id": "next-route-mentioned",
           "type": "output_contains",
-          "all": ["Next:"]
+          "all": [
+            "Next:"
+          ]
         }
       ]
     },
@@ -1908,7 +2043,7 @@
         "Does not create, modify, or delete any file.",
         "Treats review findings as evidence, not commands.",
         "Separates blocking, non-blocking, and question findings before more implementation.",
-        "Routes backward to diagnose, research, spec, plan revision, or review-work adjudication.",
+        "Routes backward to diagnose, discover, spec, plan revision, or review-work adjudication.",
         "Does not recommend a vague keep fixing until it passes loop."
       ],
       "grade_artifacts": [
@@ -1924,8 +2059,16 @@
         {
           "id": "route-mentioned",
           "type": "output_contains",
-          "all": ["Next:"],
-          "any": ["diagnose", "Backward", "review-work", "classif", "plan"]
+          "all": [
+            "Next:"
+          ],
+          "any": [
+            "diagnose",
+            "Backward",
+            "review-work",
+            "classif",
+            "plan"
+          ]
         }
       ]
     },
@@ -1955,8 +2098,19 @@
         {
           "id": "direct-answer-without-appeasement",
           "type": "output_contains",
-          "any": ["Yes", "I did", "rewrite"],
-          "none": ["Going forward", "you're right", "you’re right", "sorry", "apologize", "should have"]
+          "any": [
+            "Yes",
+            "I did",
+            "rewrite"
+          ],
+          "none": [
+            "Going forward",
+            "you're right",
+            "you’re right",
+            "sorry",
+            "apologize",
+            "should have"
+          ]
         }
       ]
     },
@@ -1986,13 +2140,33 @@
         {
           "id": "pushback",
           "type": "output_contains",
-          "any": ["No", "Not always", "not always", "Partly", "partly", "Not really"],
-          "none": ["absolutely right", "definitely better"]
+          "any": [
+            "No",
+            "Not always",
+            "not always",
+            "Partly",
+            "partly",
+            "Not really"
+          ],
+          "none": [
+            "absolutely right",
+            "definitely better"
+          ]
         },
         {
           "id": "realistic-skill-loading",
           "type": "output_contains",
-          "any": ["activation", "skill-selection", "skill-loading", "loading behavior", "skill flow", "skill-loading path", "skill mechanism", "discover/select", "progressive-disclosure"]
+          "any": [
+            "activation",
+            "skill-selection",
+            "skill-loading",
+            "loading behavior",
+            "skill flow",
+            "skill-loading path",
+            "skill mechanism",
+            "discover/select",
+            "progressive-disclosure"
+          ]
         }
       ]
     },
@@ -2153,11 +2327,11 @@
       ]
     },
     {
-      "id": "RES-001",
-      "name": "research-checkpoint-before-team-invitations-spec",
+      "id": "DIS-001",
+      "name": "discover-checkpoint-before-team-invitations-spec",
       "fixture_root": "evals/fixtures/tiny-team-app",
-      "prompt_file": "evals/prompts/res-001.txt",
-      "expected_output": "The agent should inspect the existing team/user/product/test context, make no file changes, avoid writing a spec, plan, or implementation, produce a concise research checkpoint, and ask at most the next path-changing invitation decision with a recommendation.",
+      "prompt_file": "evals/prompts/dis-001.txt",
+      "expected_output": "The agent should inspect the existing team/user/product/test context, make no file changes, avoid writing a spec, plan, or implementation, produce a concise discovery checkpoint, and ask at most the next path-changing invitation decision with a recommendation.",
       "assertions": [
         "Inspects team, user, product, or test context before summarizing.",
         "Does not create, modify, or delete any file.",
@@ -2179,20 +2353,32 @@
         {
           "id": "checkpoint-output",
           "type": "output_contains",
-          "any": ["checkpoint", "Evidence", "Current understanding", "Settled", "Open"]
+          "any": [
+            "checkpoint",
+            "Evidence",
+            "Current understanding",
+            "Settled",
+            "Open"
+          ]
         },
         {
           "id": "no-spec-plan-build",
           "type": "output_contains",
-          "none": ["I've implemented", "I implemented", "Created docs/specs", "Created docs/plans", "implementation is complete"]
+          "none": [
+            "I've implemented",
+            "I implemented",
+            "Created docs/specs",
+            "Created docs/plans",
+            "implementation is complete"
+          ]
         }
       ]
     },
     {
-      "id": "RES-002",
-      "name": "research-resists-long-grilling-and-capture-pressure",
+      "id": "DIS-002",
+      "name": "discover-resists-long-grilling-and-capture-pressure",
       "fixture_root": "evals/fixtures/tiny-decision-destination-app",
-      "prompt_file": "evals/prompts/res-002.txt",
+      "prompt_file": "evals/prompts/dis-002.txt",
       "expected_output": "The agent should inspect the RiskReview repo context, avoid a 25-50-question grilling chain, avoid creating durable memory without a destination convention, surface that automated retry scheduling is an unsettled product/scope decision, and ask the next high-leverage question with a recommendation or route to a checkpoint.",
       "assertions": [
         "Inspects the existing RiskReview README, code, or tests before deciding.",
@@ -2215,17 +2401,84 @@
         {
           "id": "no-long-question-chain-markers",
           "type": "output_contains",
-          "none": ["Question 20", "Q20", "Here are 25", "Here are 50", "20.", "25.", "30.", "32.", "Below is the grill"]
+          "none": [
+            "Question 20",
+            "Q20",
+            "Here are 25",
+            "Here are 50",
+            "20.",
+            "25.",
+            "30.",
+            "32.",
+            "Below is the grill"
+          ]
         },
         {
           "id": "no-durable-convention-created",
           "type": "output_contains",
-          "none": ["Created docs/decisions", "Created docs/specs", "Created docs/adr", "I captured the decisions"]
+          "none": [
+            "Created docs/decisions",
+            "Created docs/specs",
+            "Created docs/adr",
+            "I captured the decisions"
+          ]
         },
         {
           "id": "mentions-risk-review",
           "type": "output_contains",
-          "any": ["RiskReview", "risk review", "retry", "manual risk"]
+          "any": [
+            "RiskReview",
+            "risk review",
+            "retry",
+            "manual risk"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DFD-001",
+      "name": "design-for-depth-detects-scattered-notification-policy",
+      "fixture_root": "evals/fixtures/tiny-design-depth-app",
+      "prompt_file": "evals/prompts/dfd-001.txt",
+      "expected_output": "The agent should inspect the notification fixture, make no edits, identify that retry/fallback/logging policy is scattered across callers, classify the quick retry-flag patch as design pressure rather than the right next move, and recommend a bounded redesign/discovery or plan route using design-for-depth language.",
+      "assertions": [
+        "Inspects the notification route, helper, test, or README context before answering.",
+        "Does not create, modify, or delete any file.",
+        "Identifies scattered retry, fallback, logging, or delivery policy across callers.",
+        "Uses design-for-depth concepts such as interface, module, seam, locality, shallow module, or complexity spread.",
+        "Does not recommend simply adding another retry flag in every route as the final path.",
+        "Recommends a bounded next route such as discovery, spec/plan revision, or a deepened notification module before implementation."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ],
+      "objective_checks": [
+        {
+          "id": "no-file-changes",
+          "type": "diff_empty",
+          "expect": true
+        },
+        {
+          "id": "design-depth-language",
+          "type": "output_contains",
+          "any": [
+            "interface",
+            "module",
+            "seam",
+            "locality",
+            "shallow",
+            "complexity"
+          ]
+        },
+        {
+          "id": "no-quick-patch-final",
+          "type": "output_contains",
+          "none": [
+            "I would just add another retry flag",
+            "just add another retry flag in every route"
+          ]
         }
       ]
     }

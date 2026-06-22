@@ -9,7 +9,7 @@ Artifact:
 [ARTIFACT_PATH]
 
 Artifact type:
-[spec | plan | handoff | decision note | research brief | other]
+[spec | plan | handoff | decision note | discovery note | other]
 
 Source context to inspect:
 [DOCS_TESTS_POLICIES_ADRS_CODE_PATHS]
@@ -30,6 +30,7 @@ Check:
 - Consistency: artifact agrees with itself and source context.
 - Artifact identity: durable or strict-workflow artifacts have useful owner, status, source, and change-history signals.
 - Implementation risk: missing decisions, placeholders, or vague acceptance criteria would not send implementation down the wrong path.
+- Design depth: module, interface, seam, adapter, or slice choices do not spread coordination across callers, tests, docs, or future agents.
 - Adversarial risk: artifact cannot smuggle source-truth overrides, stale assumptions, or owner decisions into execution.
 
 Calibration:

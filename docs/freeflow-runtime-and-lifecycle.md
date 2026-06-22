@@ -35,7 +35,7 @@ Freeflow modes answer:
 
 > How much workflow discipline should the agent apply?
 
-For Freeflow tasks, the user should normally run the host agent in an edit-capable normal mode, not the host's native plan mode. Native plan modes are useful for safe read-only exploration, but Freeflow provides the planning lifecycle: research, grilling, specs, reviews, plans, execution, verification, and handoff.
+For Freeflow tasks, the user should normally run the host agent in an edit-capable normal mode, not the host's native plan mode. Native plan modes are useful for safe read-only exploration, but Freeflow provides the planning lifecycle: discovery, specs, reviews, plans, execution, verification, and handoff.
 
 Freeflow should not depend on host plan mode. It should work in Codex, Claude Code, and similar tools as a portable workflow layer.
 
@@ -207,18 +207,18 @@ Planning decides what to build and how to build it.
 It includes:
 
 ```text
-research
+discover
 write-spec
 review-artifact
 write-plan
 review-artifact
 ```
 
-Research is the larger discovery unit. It interleaves evidence gathering, brainstorming, targeted questions, and decision checkpointing before spec, plan, build, or durable memory.
+Discovery is the larger context-shaping unit. It interleaves evidence gathering, codebase exploration, external-source checking, brainstorming, targeted questions, and decision checkpointing before spec, plan, build, or durable memory. `/discover` is the direct route.
 
-Research gathers evidence from the repo, provided sources, and current external sources when needed. It can be quick or deep. It ends in a checkpoint: chat for short-lived work, or the narrowest owning artifact when later work must rely on it.
+Discovery gathers evidence from the repo, provided sources, and current external sources when needed. It can be quick or deep. It ends in a checkpoint: chat for short-lived work, or the narrowest owning artifact when later work must rely on it.
 
-Branching is normal. A conversation may fork into deeper research, return with a checkpoint and handoff, then continue the original direction-setting thread.
+Branching is normal. A conversation may fork into deeper discovery, return with a checkpoint and handoff, then continue the original direction-setting thread.
 
 After enough context exists, `write-spec` converts the conversation and evidence into a durable artifact describing what should be built, what decisions were made, what was rejected, and what constraints matter.
 
@@ -226,7 +226,7 @@ After enough context exists, `write-spec` converts the conversation and evidence
 
 `write-plan` converts the approved spec into an implementation plan. The plan explains how the work will be built: slices, files, tests, verification, and checkpoints.
 
-Plans deserve review because they combine research, grilling, and specs into concrete execution. A bad plan can carry earlier cracks into implementation.
+Plans deserve review because they combine discovery, decisions, and specs into concrete execution. A bad plan can carry earlier cracks into implementation.
 
 If review finds a real issue, the agent should not blindly fix and re-review in a loop. It should classify the issue, inspect evidence, use `review-work` or a fresh reviewer when useful, and fire the interview gate when the correction requires a user-owned decision.
 
@@ -324,9 +324,9 @@ Some skills can fire in either planning or execution:
 - `bypass`: skip unnecessary ceremony without skipping judgment.
 - `mode-contract`: infer or discuss Freeflow modes.
 
-`diagnose-failure` can be part of planning when research reveals a bug-like unknown, and part of execution when implementation or verification fails.
+`diagnose-failure` can be part of planning when discovery reveals a bug-like unknown, and part of execution when implementation or verification fails.
 
-Research checkpoints record stable decisions only when they must survive beyond chat; session residue belongs in handoffs or plans.
+Discovery checkpoints record stable decisions only when they must survive beyond chat; session residue belongs in handoffs or plans.
 
 `bypass` defaults to one action and never bypasses user-owned decisions, source-truth conflicts, risky domains, or verification.
 
@@ -362,7 +362,7 @@ Current evidence:
 - `setup-freeflow` has focused setup evals for Codex and Claude activation shapes.
 - `write-skill` has behavior and direct command evals showing that production-ready pressure must not overbuild skill folders.
 - `evaluate-skill` has behavior and direct command evals showing that shortcut wording must not skip creating or updating an eval artifact before skill edits.
-- Command-surface coverage is complete for the current registry: 4 mode commands, 12 direct skill calls, and 2 developer skill calls. See `plugins/freeflow/evals/reports/by-command-surface/command-surface-matrix.md`.
+- Command-surface coverage is being updated for the discover migration. The current registry has 4 mode commands, 12 direct skill calls, and 3 developer skill calls. See `plugins/freeflow/evals/reports/by-command-surface/command-surface-matrix.md`.
 - The fixture harness supports Codex by default and Claude through `FREEFLOW_FIXTURE_AGENT=claude`; live Claude runs still require local Claude auth and are not active release blockers for Hassan's local Codex-first testing.
 
 ## Current Pack Readiness

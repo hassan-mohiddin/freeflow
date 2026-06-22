@@ -16,7 +16,7 @@ Use strict-workflow for security, privacy, billing, public APIs, migrations, dat
 flowchart LR
   Request{request}
   Talk[conversation<br/>answer directly]
-  Discover[discover<br/>research checkpoint]
+  Discover[discover<br/>checkpoint]
   Spec[spec]
   Plan[plan]
   Build[build<br/>execute / diagnose]
@@ -29,7 +29,7 @@ flowchart LR
   Check -. new evidence or failed check .-> Discover
 ```
 
-The map is orienting, not mandatory. Small reversible work can skip unnecessary artifacts and gates.
+The map is orienting, not mandatory. Small reversible work can skip unnecessary artifacts and gates. Use `/discover` for the discovery loop.
 
 ## Backward Edge
 
@@ -40,7 +40,7 @@ flowchart LR
   Trigger{new evidence<br/>conflict<br/>failed check<br/>owner decision}
   Decide{changes<br/>next action?}
   Continue[continue]
-  Reenter[clarify / research<br/>revise spec or plan<br/>diagnose / split / stop]
+  Reenter[clarify / discover<br/>revise spec or plan<br/>diagnose / split / stop]
 
   Trigger --> Decide
   Decide -->|no| Continue

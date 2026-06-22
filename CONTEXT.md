@@ -28,12 +28,12 @@ _Avoid_: safe mode, locked mode
 A clarification gate that fires when the agent would otherwise make a user-owned decision or proceed with context that could change the next action.
 _Avoid_: questionnaire, permission check
 
-**Research**:
-The discovery loop before spec, plan, build, or durable memory. It interleaves evidence gathering, brainstorming, targeted questions, and decision checkpointing.
-_Avoid_: research brief, grilling phase, capture phase
+**Discovery**:
+The discovery loop before spec, plan, build, or durable memory. It interleaves evidence gathering, codebase exploration, external-source checking, brainstorming, targeted questions, and decision checkpointing. `/discover` is the user-facing route.
+_Avoid_: report-only brief, grilling phase, capture phase, questionnaire
 
 **Checkpoint**:
-The output of research: current understanding, evidence, settled/tentative/open decisions, recommendation, and next route. It can stay in chat or be saved in the narrowest owning artifact.
+The output of discovery: current understanding, evidence, settled/tentative/open decisions, recommendation, and next route. It can stay in chat or be saved in the narrowest owning artifact.
 _Avoid_: transcript, automatic spec, decision dump
 
 **User-Owned Decision**:
@@ -105,12 +105,12 @@ The repository root containing marketplace indexes, root README, license, change
 _Avoid_: plugin runtime, skill source
 
 **Project Docs**:
-Root `docs/` is the main project documentation workspace for Freeflow planning, current state, research, handoffs, and durable project decisions.
+Root `docs/` is the main project documentation workspace for Freeflow planning, current state, discovery notes, handoffs, and durable project decisions.
 _Avoid_: public install docs, generated package copy
 
 **Plugin Docs**:
 Refined user-facing docs under `plugins/freeflow/docs/`. These explain workflow, skills, architecture, release evidence, and release ADRs for users or contributors.
-_Avoid_: raw research notes, handoffs
+_Avoid_: raw discovery notes, handoffs
 
 ## Flagged Ambiguities
 

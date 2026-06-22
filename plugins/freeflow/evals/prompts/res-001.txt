@@ -1,5 +1,0 @@
-We're shaping team invitations for this app.
-
-Use this as research/brainstorming before any spec, plan, or implementation. Inspect the repo, explain what you find, and give me a checkpoint I can use for the next step.
-
-Do not just ask me a long list of questions. If one decision would change the path, ask that one with your recommendation.

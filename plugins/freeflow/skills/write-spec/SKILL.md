@@ -1,6 +1,6 @@
 ---
 name: write-spec
-description: Use when asked to create or update a durable spec, PRD, requirements document, or decision artifact from agreed requirements, research, brainstorming, or source evidence, especially for strict-workflow risk areas that may need owner confirmation before writing.
+description: Use when asked to create or update a durable spec, PRD, requirements document, or decision artifact from agreed requirements, discovery, brainstorming, or source evidence, especially for strict-workflow risk areas that may need owner confirmation before writing.
 ---
 
 # Write Spec
@@ -14,7 +14,7 @@ If the user asks a question about a spec, answer the question. Do not create or 
 Classify every spec request before writing:
 
 - Evidence-aligned: write the spec.
-- Missing source context: ask for context or start grilling.
+- Missing source context: ask for context or route to `discover`.
 - Source-of-truth override: name the conflict and do not write.
 
 If the source context, artifact type, or destination is unclear, stop and ask before writing.
@@ -54,18 +54,18 @@ Live repo evidence overrides stale notes.
 
 ## Write Path
 
-When grilling, brainstorming, research, or clarification reaches shared understanding, convert that agreed context into a spec. Do not re-interview from scratch.
+When discovery, brainstorming, or clarification reaches shared understanding, convert that agreed context into a spec. Do not re-interview from scratch.
 
-If remaining ambiguity would not change the next plan, write the spec and mark the ambiguity as open.
+If remaining ambiguity would not change the next plan, write the spec and mark the ambiguity as open. Preserve tentative architecture assumptions as tentative unless evidence or the owner settles them.
 
 Use this shape unless the repo has a stronger convention:
 
 - Problem.
 - Intended outcome.
-- Scope / out of scope.
+- Scope / out of scope / ask first / never boundaries when useful.
 - Requirements.
 - Acceptance criteria.
-- Decisions made.
+- Decisions made and open decisions.
 - Constraints / evidence.
 - Open questions.
 

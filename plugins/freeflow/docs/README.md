@@ -1,6 +1,6 @@
 # Freeflow Docs
 
-These docs describe the public plugin behavior. Historical research stays in root `docs/`; eval sources and reports live under `plugins/freeflow/evals/`.
+These docs describe the public plugin behavior. Historical background notes stay in root `docs/`; eval sources and reports live under `plugins/freeflow/evals/`.
 
 After installing Freeflow, run setup in each repo where you want it active:
 

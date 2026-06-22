@@ -1,6 +1,6 @@
 ---
 name: review-artifact
-description: Use when asked to review whether a spec, plan, decision note, research checkpoint, handoff, or other durable artifact is fit to guide future work; also use when adjudicating artifact-review findings or repeated review loops.
+description: Use when asked to review whether a spec, plan, decision note, discovery checkpoint, handoff, or other durable artifact is fit to guide future work; also use when adjudicating artifact-review findings or repeated review loops.
 ---
 
 # Review Artifact
@@ -54,11 +54,13 @@ Aim to finish by the second review pass: first review, adjudicate/fix, one confi
 
 Three review passes is the hard cap for the same artifact and scope. Do not request a fourth review to chase a clean pass.
 
-At the third review, adjudicate before treating it as failure. If any accepted blocking, question, or needs-evidence finding remains, do not edit anything from that batch. Stop, report the adjudication, and zoom out to diagnose whether research, spec, plan, policies, source truth, artifact scope, or reviewer context is wrong or too thin.
+At the third review, adjudicate before treating it as failure. If any accepted blocking, question, or needs-evidence finding remains, do not edit anything from that batch. Stop, report the adjudication, and zoom out to diagnose whether discovery, spec, plan, policies, source truth, artifact scope, or reviewer context is wrong or too thin.
 
 ## Review Setup
 
 Use a fresh reviewer when the artifact will guide future work and subagents are available. Use [references/reviewer-prompt.md](references/reviewer-prompt.md).
+
+Use `../design-for-depth/SKILL.md` when the artifact encodes module, interface, seam, adapter, architecture, or slice-boundary decisions.
 
 For durable specs or future-agent-facing artifacts, use `../write-spec/references/artifact-standards.md` as the artifact identity standard when relevant.
 
@@ -80,6 +82,7 @@ Live repo evidence overrides stale artifacts.
 - Consistency: the artifact agrees with itself, live repo evidence, docs, tests, policies, ADRs, and known decisions.
 - Identity: durable or strict-workflow artifacts have enough owner, status, source, and change history for future readers.
 - Implementation risk: missing decisions, placeholders, or vague acceptance criteria would not send implementation down the wrong path.
+- Design depth: module, interface, seam, adapter, or slice choices hide useful complexity instead of spreading coordination.
 - Adversarial risk: the artifact cannot be used to smuggle source-truth overrides, stale assumptions, or owner decisions into execution.
 
 Treat missing artifact identity as blocking only when it affects future-agent handoff, team ownership, strict-workflow risk, or implementation readiness. Do not nitpick headers on lightweight artifacts or chat answers.

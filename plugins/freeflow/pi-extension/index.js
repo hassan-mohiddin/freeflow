@@ -16,18 +16,18 @@ import {
 const VALID_MODES = new Set(["conversation", "workflow", "strict-workflow"]);
 
 const WORKFLOW_COMMANDS = [
-  "research",
-  "write-spec",
-  "review-artifact",
-  "write-plan",
-  "execute-plan",
-  "diagnose-failure",
-  "verify-work",
-  "review-work",
-  "commit-work",
-  "handoff",
-  "bypass",
-  "output-router",
+  { command: "discover", skill: "discover" },
+  { command: "write-spec", skill: "write-spec" },
+  { command: "review-artifact", skill: "review-artifact" },
+  { command: "write-plan", skill: "write-plan" },
+  { command: "execute-plan", skill: "execute-plan" },
+  { command: "diagnose-failure", skill: "diagnose-failure" },
+  { command: "verify-work", skill: "verify-work" },
+  { command: "review-work", skill: "review-work" },
+  { command: "commit-work", skill: "commit-work" },
+  { command: "handoff", skill: "handoff" },
+  { command: "bypass", skill: "bypass" },
+  { command: "output-router", skill: "output-router" },
 ];
 
 const CONTRIBUTOR_COMMANDS = [
@@ -1144,9 +1144,9 @@ export default function freeflow(pi) {
     return handleNativeToolSafetyNet(event, ctx);
   });
 
-  for (const skill of WORKFLOW_COMMANDS) {
-    pi.registerCommand(skill, {
-      description: `Run Freeflow ${skill}`,
+  for (const { command, skill } of WORKFLOW_COMMANDS) {
+    pi.registerCommand(command, {
+      description: command === skill ? `Run Freeflow ${skill}` : `Run Freeflow ${skill} via ${command}`,
       handler: async (args) => {
         await pi.sendUserMessage(skillPrompt(skill, args));
       },

@@ -18,7 +18,7 @@ Orient
 Any failed check, non-pass review, source conflict, or scope expansion
 -> Classify evidence
 -> Report route
--> Fix | Diagnose | Research | Spec | Plan | Stop
+-> Fix | Diagnose | Discover | Spec | Plan | Stop
 ```
 
 ## Contract Map
@@ -47,7 +47,7 @@ flowchart TD
   Contract --> Decision{Can execute safely?}
 
   Decision -->|yes| Build[Build slice<br/>TDD vertical loop if applicable]
-  Decision -->|missing plan/check/decision| Back[Backward route<br/>research / spec / plan / owner]
+  Decision -->|missing plan/check/decision| Back[Backward route<br/>discover / spec / plan / owner]
 
   Build --> Verify[Verify planned check]
   Verify -->|pass| ReviewGate{Review needed now?}

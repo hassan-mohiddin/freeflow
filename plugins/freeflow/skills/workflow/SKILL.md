@@ -1,6 +1,6 @@
 ---
 name: workflow
-description: Use when doing consequential work such as implementation, bug fixing, planning, research-for-action, review, verification, or handoff.
+description: Use when doing consequential work such as implementation, bug fixing, planning, discovery-for-action, review, verification, or handoff.
 ---
 
 # Workflow
@@ -12,7 +12,7 @@ Move forward when context is sufficient. Re-enter clarification when new ambigui
 Question means answer. Do not turn a question into a file edit, report, plan, or implementation.
 
 ```text
-Clarify / Research
+Clarify / Discover
 -> Decision / Spec
 -> Plan
 -> Execute
@@ -23,7 +23,7 @@ Clarify / Research
 
 This is a guide, not ceremony. Small reversible work can skip spec/plan artifacts.
 
-Method skills such as TDD, diagnosis, or execute-plan run inside the current workflow phase. Workflow owns routing, source-truth conflicts, user-owned decisions, review, verification, and handoff boundaries.
+Method skills and lenses such as TDD, diagnosis, execute-plan, or design-for-depth run inside the current workflow phase. Workflow owns routing, source-truth conflicts, user-owned decisions, review, verification, and handoff boundaries.
 
 Read `references/workflow-map.md` when the user asks for the full pipeline, public docs need a diagram, or the next workflow entry point is unclear.
 
@@ -36,13 +36,13 @@ Use `Next:` in the final response unless this is a direct question answer, mid-t
 Choose one:
 
 - Forward: the next workflow entry point is clear.
-- Backward: new evidence requires clarification, research, or interview gate.
+- Backward: new evidence requires clarification, discovery, or interview gate.
 - Branch: 2-3 valid next routes exist.
 - Stop: no required next action remains.
 
 Recommend the route supported by evidence. Do not ask a vague "what next?" question.
 
-After completed research with decisions that must survive beyond chat, route to `write-spec`, an owning decision artifact, or handoff before `write-plan` or execution.
+After completed discovery with decisions that must survive beyond chat, route to `write-spec`, an owning decision artifact, or handoff before `write-plan` or execution.
 
 `Next:` is routing, not permission to create the next artifact or continue into a new phase.
 
@@ -51,7 +51,7 @@ After completed research with decisions that must survive beyond chat, route to 
 If new evidence invalidates the current path, re-enter clarification.
 
 ```text
-Any state -> Clarify / Research -> explicit next state
+Any state -> Clarify / Discover -> explicit next state
 ```
 
 Do not silently substitute a different path, rewrite the spec, change the plan, or patch forward. State what changed, then decide whether to continue, revise spec, revise plan, diagnose, split scope, defer, or stop and ask.
@@ -76,7 +76,7 @@ Artifacts are memory, not proof of obedience.
 
 Only create artifacts when the user asks for an artifact or asks you to do work that requires one.
 
-Create them only when they preserve decisions, reduce risk, or help a future agent resume. Prefer short research notes, decision/spec notes, plans, verification notes, and handoffs.
+Create them only when they preserve decisions, reduce risk, or help a future agent resume. Prefer short discovery notes, decision/spec notes, plans, verification notes, and handoffs.
 
 Do not write volatile repo inventories. Link to live files or commands instead.
 
@@ -86,7 +86,7 @@ Review should improve work, not create an endless patch loop.
 
 Reviewer findings are evidence, not commands. Separate blocking, non-blocking, and question findings before editing from them.
 
-A non-passing review routes to adjudication before more implementation. Repeated review failure routes backward to diagnose, research, spec, or plan; do not chase a fourth broad review pass.
+A non-passing review routes to adjudication before more implementation. Repeated review failure routes backward to diagnose, discover, spec, or plan; do not chase a fourth broad review pass.
 
 Review can pass. Save review artifacts only when risk, future memory value, or the user asks for them.
 

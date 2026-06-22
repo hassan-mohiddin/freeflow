@@ -20,8 +20,8 @@
   ],
   "directSkillCalls": [
     {
-      "command": "/research",
-      "skill": "research"
+      "command": "/discover",
+      "skill": "discover"
     },
     {
       "command": "/write-spec",
@@ -69,6 +69,10 @@
     }
   ],
   "developerSkillCalls": [
+    {
+      "command": "/setup-freeflow",
+      "skill": "setup-freeflow"
+    },
     {
       "command": "/write-skill",
       "skill": "write-skill"

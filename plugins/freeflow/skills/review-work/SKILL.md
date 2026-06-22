@@ -31,7 +31,7 @@ Aim to finish by the second review pass: first review, adjudicate/fix, one confi
 
 Three review passes is the hard cap for the same work and scope. Do not request a fourth review to chase a clean pass.
 
-At the third review, adjudicate before treating it as failure. If any accepted blocking, question, or needs-evidence finding remains, do not edit anything from that batch. Stop, report the adjudication, and zoom out to diagnose whether research, spec, plan, policies, source truth, implementation, or reviewer context is wrong or too thin.
+At the third review, adjudicate before treating it as failure. If any accepted blocking, question, or needs-evidence finding remains, do not edit anything from that batch. Stop, report the adjudication, and zoom out to diagnose whether discovery, spec, plan, policies, source truth, module/interface design, implementation, or reviewer context is wrong or too thin.
 
 Non-blocking findings and reviewer questions do not fail the work by default. Classify them, then defer, ask, gather evidence, or accept.
 
@@ -45,6 +45,7 @@ Before editing:
 - Separate blocking issues from suggestions.
 - Check whether the feedback matches this codebase.
 - Check whether a finding is stale, already resolved, equivalent, or based on missing context.
+- Check whether repeated findings are design pressure: shallow module, bad seam, edge-case churn, or broad refactor from a narrow comment.
 
 Do not blindly apply vague, broad, or sensitive feedback.
 
@@ -78,6 +79,8 @@ When feedback is clear and correct and the current route is an apply-fixes pass:
 - Push back on incorrect feedback with code, tests, or docs.
 
 Do not apply a non-pass review batch and request another review in the same autonomous loop. Return the adjudication and next route first. A later explicit apply-fixes request can start a bounded fix pass for accepted, in-scope findings.
+
+If accepted findings expose shallow modules, bad seams, or complexity spread, use `../design-for-depth/SKILL.md` and route backward before broad refactoring.
 
 ## Outgoing Review
 

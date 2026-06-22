@@ -34,7 +34,7 @@ Use exactly three modes.
 ## Inference
 
 - If the user is talking or asking a conceptual question, use conversation mode.
-- If the user asks to implement, fix, research for action, review, or plan, use workflow mode.
+- If the user asks to implement, fix, discover context for action, review, or plan, use workflow mode.
 - If the task is high-risk, recommend strict-workflow mode and ask for confirmation.
 - If implementation would require overriding existing docs, tests, specs, policies, or established behavior, recommend strict-workflow mode and ask before editing.
 

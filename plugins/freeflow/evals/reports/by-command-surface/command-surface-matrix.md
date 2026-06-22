@@ -1,6 +1,6 @@
 # Freeflow Command Surface Matrix
 
-Date: 2026-06-17
+Date: 2026-06-22
 
 ## Summary
 
@@ -16,15 +16,15 @@ Current registry:
 
 - 4 mode commands
 - 12 direct skill calls
-- 2 developer skill calls
+- 3 developer skill calls
 
 Current direct command eval coverage:
 
 - Mode command coverage: yes, via `MODE-001` through `MODE-006`.
-- Direct skill command coverage: 12 of 12 have `CMD-*` evals.
-- Developer command coverage: yes, via `CMD-014` and `CMD-015`.
+- Direct skill command coverage: 12 of 12 have `CMD-*` eval definitions; `/discover` uses `CMD-012`.
+- Developer command coverage: yes, via setup evals plus `CMD-014` and `CMD-015`.
 
-`evals/scripts/audit-command-surface.sh` passes and checks registry shape, docs mentions, skill targets, manifest consistency, and `nativeSlashHandlers=false`.
+`evals/scripts/audit-command-surface.sh` passes and checks registry shape, docs mentions, skill targets, Pi command registration, manifest consistency, and `nativeSlashHandlers=false`.
 
 ## Mode Commands
 
@@ -39,7 +39,7 @@ Current direct command eval coverage:
 
 | Command | Skill | Codex/Claude Native Handler | Direct Eval | Related Behavior Evals | Status |
 |---|---|---:|---|---|---|
-| `/research` | `research` | No | `CMD-012` | `RES-001`, `RES-002` | Covered |
+| `/discover` | `discover` | No | `CMD-012` | `DIS-001`, `DIS-002`, `DFD-001` | Covered |
 | `/write-spec` | `write-spec` | No | `CMD-003` | `WSP-001`, `WSP-002`, `WSP-003` | Covered |
 | `/review-artifact` | `review-artifact` | No | `CMD-010` | `RAR-001`, `RAR-002` | Covered |
 | `/write-plan` | `write-plan` | No | `CMD-004` | `WPL-001` through `WPL-004` | Covered |
@@ -56,6 +56,7 @@ Current direct command eval coverage:
 
 | Command | Skill | Codex/Claude Native Handler | Direct Eval | Related Behavior Evals | Status |
 |---|---|---:|---|---|---|
+| `/setup-freeflow` | `setup-freeflow` | No | `STP-*` setup suite | `STP-001` through `STP-011` | Covered |
 | `/write-skill` | `write-skill` | No | `CMD-014` | `WSK-001` | Covered |
 | `/evaluate-skill` | `evaluate-skill` | No | `CMD-015` | `ESK-001` | Covered |
 
@@ -73,10 +74,10 @@ The highest-risk direct commands now have command-surface evals:
 - `/review-work`
 - `/review-artifact`
 - `/diagnose-failure`
-- `/research`
+- `/discover`
 - `/output-router`
 
-All direct skill commands and developer commands now have command-surface evals.
+All direct skill commands and developer commands have command-surface or setup eval definitions for the current registry. `/discover` is the discovery command; `CMD-012` was rerun in the workflow-depth eval pass.
 
 Recommended next validation target:
 

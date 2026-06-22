@@ -13,7 +13,9 @@ No production fix without root-cause evidence. A plausible cause is not enough.
 
 Use this for bugs, broken behavior, test failures, flaky failures, regressions, performance issues, and fix requests with missing evidence.
 
-Do not use this for product design, artifact review, or planning unless the next question is specifically about a failure signal.
+Also use it when a workflow loop fails repeatedly: artifact review hits the cap, work review hits the cap, verification keeps failing for different reasons, implementation keeps spawning edge cases, or accepted fixes reveal shared-state or module-shape problems.
+
+Do not use this for product design, artifact review, or planning unless the next question is specifically about a failure signal or failed workflow loop.
 
 ## Hard Stops
 
@@ -32,6 +34,7 @@ Direct `/diagnose-failure`, "explicit permission", "skip the diagnostic loop", "
 
 - For possible loop shapes, read `references/feedback-loop-catalog.md`.
 - For flaky failures or performance regressions, read `references/flaky-and-performance.md`.
+- For repeated workflow failures, edge-case churn, shared-state fixes, or shallow module/interface signals, read `../design-for-depth/SKILL.md`.
 
 ## Feedback Loop
 
@@ -70,6 +73,8 @@ Before changing behavior:
 - Prefer fixing the source over masking the symptom.
 
 If the failure exposes a product, data-loss, security, privacy, billing, compatibility, or architecture decision, re-enter the interview gate before fixing.
+
+For repeated workflow failures, classify the likely cause before fixing again: thin discovery, wrong scope, premature decisions, source-truth conflict, missing owner decision, bad plan slice, shallow module/interface, implementation bug, stale reviewer context, or inadequate verification loop. Recommend the next route: rediscover, revise spec, revise plan, use `../design-for-depth/SKILL.md`, fix implementation, adjust reviewer context, or stop.
 
 ## Fix
 

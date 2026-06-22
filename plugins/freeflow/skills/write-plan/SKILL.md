@@ -11,7 +11,7 @@ Classify the plan request first:
 - Bug without feedback loop: ask for or propose the feedback loop. Do not write or save a fix plan.
 - Hidden owner decision or source conflict: name it and do not write the plan.
 - Context-backed: say a spec is preferred, then write a lightweight plan.
-- Missing source context: ask for context or start grilling.
+- Missing source context: ask for context or route to `discover`.
 
 A plan executes source truth. It does not create it.
 
@@ -47,6 +47,8 @@ If a bug report has no repro or feedback loop, answer in chat. Ask for evidence 
 
 Use vertical slices. Each slice should produce something testable.
 
+When slice boundaries, seams, interfaces, or locality are unclear, use `../design-for-depth/SKILL.md` before writing executable steps. Do not hide unresolved design choices inside implementation detail.
+
 ## Stop Conditions
 
 Stop before writing when the plan would:
@@ -71,6 +73,7 @@ Adapt the plan to risk. Prefer:
 - Goal.
 - Source spec or context.
 - Files likely touched.
+- Dependency or slice order when it affects execution.
 - Vertical slices.
 - Tests or checks per slice.
 - Commands where known.

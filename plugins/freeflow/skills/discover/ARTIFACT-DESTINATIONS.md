@@ -1,6 +1,6 @@
 # Artifact Destinations
 
-Use this when a research checkpoint or decision must survive beyond chat.
+Use this when a discovery checkpoint or decision must survive beyond chat.
 
 ## Destination Test
 
@@ -16,12 +16,12 @@ If the owner is unclear, ask before writing.
 
 ## Common Destinations
 
-| Research output | Prefer | Avoid |
+| Discovery output | Prefer | Avoid |
 | --- | --- | --- |
 | Domain term or meaning | Existing `CONTEXT.md`, glossary, or domain doc | README fallback; creating domain memory without asking |
 | Feature behavior, scope, acceptance | Existing or requested spec | ADR unless the ADR test passes |
-| Future implementation path | Plan | Hidden plan inside a research note |
-| Evidence summary before requirements settle | Existing research/design notes, or ask | Creating `docs/research/` by default |
+| Future implementation path | Plan | Hidden plan inside a discovery note |
+| Evidence summary before requirements settle | Existing discovery, research, or design notes; otherwise ask | Creating `docs/research/` by default |
 | Immediate continuation state | Handoff | Durable decision memory |
 | Hard-to-reverse surprising tradeoff from alternatives | ADR | Product note that hides rationale |
 | Rejected approach | ADR if tradeoff-heavy; otherwise spec/decision note | Changelog or README by default |

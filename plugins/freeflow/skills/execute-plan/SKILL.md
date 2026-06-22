@@ -13,7 +13,7 @@ Move one verified slice at a time. Preserve rollback, reviewability, and user co
 
 Read `references/execution-map.md` when the plan has multiple slices, TDD/benchmark work, review checkpoints, per-slice commits, context-window pressure, or any failed check/review/source-scope conflict.
 
-Keep research language alive. Read `../research/LANGUAGE.md` when a slice changes modules, interfaces, seams, adapters, architecture, or when review findings become a stream of edge-case patches. Ask whether the slice is deepening the module or spreading complexity across callers, tests, docs, or review comments.
+Use `../design-for-depth/SKILL.md` when a slice changes modules, interfaces, seams, adapters, architecture, or when review findings become a stream of edge-case patches. Ask whether the slice is deepening the module or spreading complexity across callers, tests, docs, or review comments.
 
 ## Classify First
 
@@ -22,7 +22,7 @@ Keep research language alive. Read `../research/LANGUAGE.md` when a slice change
 - Hidden owner decision: stop and ask.
 - Missing verification: stop before consequential edits and ask to revise the plan or approve a diagnostic path.
 - Missing plan: ask for a plan or route to `write-plan`.
-- Scope expansion: stop before absorbing it; route back to research, spec, or plan.
+- Scope expansion: stop before absorbing it; route back to discover, spec, or plan.
 - Review failure during execution: classify findings and report the route before editing from them.
 
 ## Before Editing
@@ -76,6 +76,7 @@ For each slice:
 - Run the planned check or the smallest equivalent check.
 - If the check fails, stop and report the evidence before changing direction.
 - If new evidence invalidates the plan, stop before patching forward.
+- If implementation spreads policy, edge cases, or verification across callers/tests/docs, treat it as design pressure before adding more patches.
 
 When TDD is requested by the user, plan, or repo practice, use TDD inside the slice:
 
@@ -112,11 +113,11 @@ Do not immediately apply findings and request another review in the same loop. D
 
 If all accepted findings are small, in-scope, and supported by source truth, recommend a bounded fix pass as the next route. Do not perform that fix pass until the user or parent explicitly chooses it after seeing the adjudication. If findings change scope, behavior, source truth, public API, security, privacy, billing, data loss, compatibility, or architecture, route backward before editing.
 
-Three review passes is the hard cap for the same slice/work scope. At pass 3, stop, classify, and diagnose. Do not request a fourth broad review. Use a `diagnose-failure`-style loop to decide whether the issue is shallow research, weak spec, wrong plan slice, ambiguous policy, source-truth conflict, shallow module/interface, implementation bug, or stale reviewer context.
+Three review passes is the hard cap for the same slice/work scope. At pass 3, stop, classify, and diagnose. Do not request a fourth broad review. Use a `diagnose-failure`-style loop to decide whether the issue is shallow discovery, weak spec, wrong plan slice, ambiguous policy, source-truth conflict, shallow module/interface, implementation bug, or stale reviewer context.
 
 ## Backward Edge
 
-If implementation reveals that the plan is wrong, incomplete, or too narrow, re-enter research/spec/plan before continuing.
+If implementation reveals that the plan is wrong, incomplete, or too narrow, re-enter discover/spec/plan before continuing.
 
 Do not absorb material scope expansion into execution. New behavior, API shape, security/privacy/billing/data-loss decisions, compatibility changes, or irreversible architecture usually need a revised spec or plan.
 

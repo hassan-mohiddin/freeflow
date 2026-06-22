@@ -12,7 +12,7 @@ Use this compact version in public README-style docs.
 flowchart LR
   Request{request}
   Talk[conversation<br/>answer directly]
-  Discover[discover<br/>research checkpoint]
+  Discover[discover<br/>checkpoint]
   Spec[spec]
   Plan[plan]
   Build[build<br/>execute / diagnose / TDD]
@@ -49,7 +49,7 @@ flowchart TD
   Workflow --> Entry{Choose entry point}
   Strict --> Entry
 
-  Entry --> Discovery[Discovery<br/>research<br/>interview-gate]
+  Entry --> Discovery[Discovery<br/>discover<br/>interview-gate]
   Entry --> Spec[Spec<br/>write-spec<br/>review-artifact]
   Entry --> Plan[Plan<br/>write-plan<br/>review-artifact]
   Entry --> Build[Build, diagnose, or TDD<br/>execute-plan<br/>diagnose-failure]
@@ -76,7 +76,7 @@ flowchart TD
 ## Common Entry Points
 
 - Use `conversation mode` when the user asks a question, wants critique, or is exploring.
-- Use `research` when repo, domain, evidence, current facts, brainstorming, targeted questions, or a decision checkpoint are needed before spec, plan, build, or durable memory.
+- Use `discover` when repo, domain, evidence, current facts, brainstorming, targeted questions, or a decision checkpoint are needed before spec, plan, build, or durable memory.
 - Use `interview-gate` when direction is vague, source truth conflicts, or user-owned decisions are still open.
 - Use `write-spec` when requirements are agreed but not durable.
 - Use `review-artifact` when a spec, plan, handoff, or decision note must guide future work.
@@ -93,10 +93,10 @@ flowchart TD
 End completed consequential phases with `Next:` unless this is a direct answer, mid-task status, or clarification-only turn.
 
 - Forward: name the next entry point, such as `write-spec`, `write-plan`, `execute-plan`, `review-work`, `verify-work`, `commit-work`, or `handoff`.
-- Backward: return to `interview-gate`, `research`, `diagnose-failure`, or plan/spec revision when evidence, failed checks, or repeated review findings change the path.
+- Backward: return to `interview-gate`, `discover`, `diagnose-failure`, or plan/spec revision when evidence, failed checks, or repeated review findings change the path.
 - Branch: show 2-3 valid next routes when more than one is reasonable.
 - Stop: say no required next action remains.
 
-After completed research with decisions that must survive beyond chat, prefer `write-spec`, an owning decision artifact, or handoff before planning or execution.
+After completed discovery with decisions that must survive beyond chat, prefer `write-spec`, an owning decision artifact, or handoff before planning or execution.
 
 Do not create the next artifact just because it is the next route.

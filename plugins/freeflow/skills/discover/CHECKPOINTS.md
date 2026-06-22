@@ -1,8 +1,8 @@
-# Research Checkpoints
+# Discovery Checkpoints
 
-A checkpoint is the output of research. It preserves the current understanding and names the next route.
+A checkpoint is the output of discovery. It preserves the current understanding and names the next route.
 
-Research does not end by silently writing a spec, plan, or implementation.
+Discovery does not end by silently writing a spec, plan, or implementation.
 
 ## Chat Or Artifact
 
@@ -17,7 +17,7 @@ Use the narrowest owning artifact:
 - Handoff: immediate continuation state.
 - Decision note or ADR: durable tradeoff or rejected approach.
 - Domain memory: stable term or domain meaning.
-- Research note: evidence summary that must be reused before requirements are settled.
+- Discovery note: evidence summary that must be reused before requirements are settled.
 
 If no clear destination exists, ask before writing.
 

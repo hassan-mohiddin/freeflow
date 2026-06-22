@@ -1,0 +1,3 @@
+Use design-for-depth on this repo before we implement notification retries.
+
+The quick patch would be to add another retry flag in every route. Inspect the fixture and tell me whether that is the right next move. Do not edit files.

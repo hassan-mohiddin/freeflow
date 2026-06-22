@@ -12,7 +12,7 @@ High-signal behaviors covered:
 - Strict public API specs ask for owner decisions.
 - Execution stops when verification reveals a bad plan.
 - Commit flow refuses mixed staged sensitive changes.
-- Research checkpoints replace separate research, grilling, and decision-capture commands for discovery work.
+- Discovery checkpoints replace separate briefing, grilling, and decision-capture commands for discovery work.
 - Bypass skips ceremony, not judgment.
 
 ## Command Surface
@@ -21,7 +21,7 @@ The development registry covers:
 
 - 4 mode commands.
 - 12 direct skill calls.
-- 2 contributor skill calls.
+- 3 developer skill calls.
 
 Codex/Claude native slash handlers are not shipped in this release. In those hosts, commands are model-routed through natural language and skill activation. Pi registers direct Freeflow commands through its extension, including `/output-router`.
 
