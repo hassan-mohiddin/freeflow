@@ -89,6 +89,41 @@ test("validateDeriveInput accepts JSON extract pointer and path operations", () 
   assert.match(paths, /\$\.operation\.path/);
 });
 
+test("validateDeriveInput accepts group, dedupe, and topN operations", () => {
+  const group = validateDeriveInput({
+    source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
+    operation: { kind: "groupByRegex", pattern: "^([^:]+):", group: 1, maxGroups: 10, maxLinesPerGroup: 3 },
+  });
+
+  assert.equal(group.ok, true);
+
+  const dedupe = validateDeriveInput({
+    source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
+    operation: { kind: "dedupe", trim: true, caseSensitive: false, maxLines: 50 },
+  });
+
+  assert.equal(dedupe.ok, true);
+
+  const topN = validateDeriveInput({
+    source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
+    operation: { kind: "topN", pattern: "duration=(\\d+)", group: 1, sort: "numeric", order: "desc", limit: 2 },
+  });
+
+  assert.equal(topN.ok, true);
+
+  const invalid = validateDeriveInput({
+    source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
+    operation: { kind: "topN", group: 0, sort: "date", order: "sideways", limit: 0 },
+  });
+
+  assert.equal(invalid.ok, false);
+  const paths = invalid.issues.map((issue) => issue.path).join("\n");
+  assert.match(paths, /\$\.operation\.group/);
+  assert.match(paths, /\$\.operation\.sort/);
+  assert.match(paths, /\$\.operation\.order/);
+  assert.match(paths, /\$\.operation\.limit/);
+});
+
 test("freeflowDerive regexFilter routes vaulted derived output with source lineage", async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {
@@ -209,6 +244,108 @@ test("freeflowDerive routes huge derived output with bounded evidence and exact 
     const raw = await readOutputText(vault, "derive-large-session", result.outputId, "raw");
     assert.match(raw, /FAIL derived output line 40/);
     assert.doesNotMatch(result.evidence[0].excerpt, /FAIL derived output line 40/);
+  });
+});
+
+test("freeflowDerive groupByRegex groups matching lines by capture", async () => {
+  await withTempVault(async (vault) => {
+    const source = await storeCommandOutput(vault, {
+      sessionId: "derive-group-session",
+      command: "node report.js",
+      stdout: ["api: FAIL first", "ui: FAIL second", "api: FAIL third", "db: PASS fourth"].join("\n"),
+      stderr: "",
+      executionStatus: "failed",
+      exitCode: 1,
+      createdAt: "2026-06-22T00:06:00.000Z",
+    });
+
+    const result = await freeflowDerive({
+      sessionId: "derive-group-session",
+      vaultRoot: vault.root,
+      source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
+      operation: { kind: "groupByRegex", pattern: "^([^:]+):", group: 1, maxGroups: 10, maxLinesPerGroup: 5 },
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.producer.name, "groupByRegex");
+    assert.equal(result.summary, "Derived groupByRegex from vaulted stdout output: 3 group(s), 4 matched line(s)." );
+    assert.deepEqual(result.lineage.sourceOutputIds, [source.outputId]);
+    const raw = await readOutputText(vault, "derive-group-session", result.outputId, "raw");
+    assert.match(raw, /# freeflow_derive groupByRegex/);
+    assert.match(raw, /groups: 3/);
+    assert.match(raw, /matchedLines: 4/);
+    assert.match(raw, /## group: api\ncount: 2/);
+    assert.match(raw, /1\| api: FAIL first/);
+    assert.match(raw, /3\| api: FAIL third/);
+    assert.match(raw, /## group: ui\ncount: 1/);
+  });
+});
+
+test("freeflowDerive dedupe returns first-seen unique lines", async () => {
+  await withTempVault(async (vault) => {
+    const source = await storeCommandOutput(vault, {
+      sessionId: "derive-dedupe-session",
+      command: "node report.js",
+      stdout: ["alpha", "beta", "alpha", " Beta ", "beta", "gamma"].join("\n"),
+      stderr: "",
+      executionStatus: "success",
+      exitCode: 0,
+      createdAt: "2026-06-22T00:07:00.000Z",
+    });
+
+    const result = await freeflowDerive({
+      sessionId: "derive-dedupe-session",
+      vaultRoot: vault.root,
+      source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
+      operation: { kind: "dedupe", trim: true, caseSensitive: false },
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.summary, "Derived dedupe from vaulted stdout output: 3 unique line(s), 3 duplicate line(s) removed.");
+    assert.deepEqual(result.lineage.sourceOutputIds, [source.outputId]);
+    const raw = await readOutputText(vault, "derive-dedupe-session", result.outputId, "raw");
+    assert.match(raw, /# freeflow_derive dedupe/);
+    assert.match(raw, /inputLines: 6/);
+    assert.match(raw, /uniqueLines: 3/);
+    assert.match(raw, /duplicatesRemoved: 3/);
+    assert.match(raw, /1\| alpha/);
+    assert.match(raw, /2\| beta/);
+    assert.match(raw, /6\| gamma/);
+    assert.doesNotMatch(raw, /4\|/);
+  });
+});
+
+test("freeflowDerive topN sorts regex-matched lines by captured score", async () => {
+  await withTempVault(async (vault) => {
+    const source = await storeCommandOutput(vault, {
+      sessionId: "derive-top-session",
+      command: "node perf.js",
+      stdout: ["duration=12 fast", "duration=200 slow-a", "duration=200 slow-b", "duration=50 medium"].join("\n"),
+      stderr: "",
+      executionStatus: "success",
+      exitCode: 0,
+      createdAt: "2026-06-22T00:08:00.000Z",
+    });
+
+    const result = await freeflowDerive({
+      sessionId: "derive-top-session",
+      vaultRoot: vault.root,
+      source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
+      operation: { kind: "topN", pattern: "duration=(\\d+)", group: 1, sort: "numeric", order: "desc", limit: 2 },
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.summary, "Derived topN from vaulted stdout output: returned 2 of 4 matched line(s).");
+    assert.deepEqual(result.lineage.sourceOutputIds, [source.outputId]);
+    const raw = await readOutputText(vault, "derive-top-session", result.outputId, "raw");
+    assert.match(raw, /# freeflow_derive topN/);
+    assert.match(raw, /matchedLines: 4/);
+    assert.match(raw, /returnedLines: 2/);
+    assert.match(raw, /2\| score=200 \| duration=200 slow-a/);
+    assert.match(raw, /3\| score=200 \| duration=200 slow-b/);
+    assert.doesNotMatch(raw, /1\| score=12/);
+    assert.doesNotMatch(raw, /4\| score=50/);
+    assert.ok(raw.indexOf("2| score=200") < raw.indexOf("3| score=200"));
   });
 });
 

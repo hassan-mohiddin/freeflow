@@ -22,7 +22,30 @@ export interface JsonExtractDeriveOperation {
     pointer?: string;
     path?: string;
 }
-export type DeriveOperation = RegexFilterDeriveOperation | CountMatchesDeriveOperation | JsonExtractDeriveOperation;
+export interface GroupByRegexDeriveOperation {
+    kind: "groupByRegex";
+    pattern: string;
+    flags?: string;
+    group?: number | string;
+    maxGroups?: number;
+    maxLinesPerGroup?: number;
+}
+export interface DedupeDeriveOperation {
+    kind: "dedupe";
+    trim?: boolean;
+    caseSensitive?: boolean;
+    maxLines?: number;
+}
+export interface TopNDeriveOperation {
+    kind: "topN";
+    limit: number;
+    pattern?: string;
+    flags?: string;
+    group?: number | string;
+    sort?: "text" | "numeric";
+    order?: "asc" | "desc";
+}
+export type DeriveOperation = RegexFilterDeriveOperation | CountMatchesDeriveOperation | JsonExtractDeriveOperation | GroupByRegexDeriveOperation | DedupeDeriveOperation | TopNDeriveOperation;
 export interface DeriveInput {
     source: DeriveSourceInput;
     operation: DeriveOperation;

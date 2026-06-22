@@ -4,12 +4,19 @@ import { assembleTextEvidence, byteLength, countLines, splitLines } from "./evid
 import { deriveSourceUnavailableFailure, deriveValidationFailure, deriveExecutionFailure, storageFailure, } from "./failure-contracts.js";
 import { createVault, readOutputText, readVaultRecord, storeTextOutput } from "./vault.js";
 const PRESERVE_MODES = new Set(["summary", "important", "full"]);
-const OPERATION_KINDS = new Set(["regexFilter", "countMatches", "jsonExtract"]);
+const OPERATION_KINDS = new Set(["regexFilter", "countMatches", "jsonExtract", "groupByRegex", "dedupe", "topN"]);
 const REGEX_FLAGS = new Set(["g", "i", "m", "s", "u"]);
 const DEFAULT_CONTEXT_LINES = 0;
 const DEFAULT_MAX_MATCHES = 50;
 const MAX_CONTEXT_LINES = 20;
 const MAX_MATCHES = 1_000;
+const DEFAULT_MAX_GROUPS = 100;
+const DEFAULT_MAX_LINES_PER_GROUP = 20;
+const DEFAULT_MAX_DEDUPE_LINES = 1_000;
+const MAX_GROUPS = 1_000;
+const MAX_LINES_PER_GROUP = 1_000;
+const MAX_DEDUPE_LINES = 10_000;
+const MAX_TOP_N_LIMIT = 1_000;
 export function validateDeriveInput(value) {
     const issues = [];
     if (!isRecord(value)) {
@@ -191,11 +198,19 @@ function validateDeriveOperation(value, path, issues) {
         return;
     }
     if (typeof value.kind !== "string" || !OPERATION_KINDS.has(value.kind)) {
-        issues.push({ path: `${path}.kind`, message: "Expected derive operation kind regexFilter, countMatches, or jsonExtract." });
+        issues.push({ path: `${path}.kind`, message: "Expected a supported derive operation kind." });
         return;
     }
     if (value.kind === "jsonExtract") {
         validateJsonExtractOperation(value, path, issues);
+        return;
+    }
+    if (value.kind === "dedupe") {
+        validateDedupeOperation(value, path, issues);
+        return;
+    }
+    if (value.kind === "topN") {
+        validateTopNOperation(value, path, issues);
         return;
     }
     if (typeof value.pattern !== "string" || value.pattern.length === 0) {
@@ -209,12 +224,21 @@ function validateDeriveOperation(value, path, issues) {
         if (value.maxMatches !== undefined) {
             validateIntegerRange(value.maxMatches, `${path}.maxMatches`, 1, MAX_MATCHES, issues);
         }
+        return;
     }
-    else {
-        for (const key of ["contextLines", "maxMatches"]) {
-            if (value[key] !== undefined) {
-                issues.push({ path: `${path}.${key}`, message: `Operation ${value.kind} does not accept ${key}.` });
-            }
+    if (value.kind === "groupByRegex") {
+        validateGroupSelector(value.group, `${path}.group`, issues);
+        if (value.maxGroups !== undefined) {
+            validateIntegerRange(value.maxGroups, `${path}.maxGroups`, 1, MAX_GROUPS, issues);
+        }
+        if (value.maxLinesPerGroup !== undefined) {
+            validateIntegerRange(value.maxLinesPerGroup, `${path}.maxLinesPerGroup`, 1, MAX_LINES_PER_GROUP, issues);
+        }
+        return;
+    }
+    for (const key of ["contextLines", "maxMatches", "group", "maxGroups", "maxLinesPerGroup"]) {
+        if (value[key] !== undefined) {
+            issues.push({ path: `${path}.${key}`, message: `Operation ${value.kind} does not accept ${key}.` });
         }
     }
 }
@@ -252,6 +276,67 @@ function validateJsonExtractOperation(value, path, issues) {
         }
     }
 }
+function validateDedupeOperation(value, path, issues) {
+    if (value.trim !== undefined && typeof value.trim !== "boolean") {
+        issues.push({ path: `${path}.trim`, message: "Expected boolean when present." });
+    }
+    if (value.caseSensitive !== undefined && typeof value.caseSensitive !== "boolean") {
+        issues.push({ path: `${path}.caseSensitive`, message: "Expected boolean when present." });
+    }
+    if (value.maxLines !== undefined) {
+        validateIntegerRange(value.maxLines, `${path}.maxLines`, 1, MAX_DEDUPE_LINES, issues);
+    }
+    for (const key of ["pattern", "flags", "contextLines", "maxMatches", "group", "maxGroups", "maxLinesPerGroup", "limit", "sort", "order"]) {
+        if (value[key] !== undefined) {
+            issues.push({ path: `${path}.${key}`, message: `Operation dedupe does not accept ${key}.` });
+        }
+    }
+}
+function validateTopNOperation(value, path, issues) {
+    validateIntegerRange(value.limit, `${path}.limit`, 1, MAX_TOP_N_LIMIT, issues);
+    const hasPattern = value.pattern !== undefined;
+    if (hasPattern) {
+        if (typeof value.pattern !== "string" || value.pattern.length === 0) {
+            issues.push({ path: `${path}.pattern`, message: "Expected a non-empty regex pattern string." });
+        }
+        validateRegexFlags(value.flags, `${path}.flags`, issues);
+        validateGroupSelector(value.group, `${path}.group`, issues);
+    }
+    else {
+        if (value.flags !== undefined) {
+            issues.push({ path: `${path}.flags`, message: "topN flags require a pattern." });
+        }
+        if (value.group !== undefined) {
+            issues.push({ path: `${path}.group`, message: "topN group requires a pattern." });
+        }
+    }
+    if (value.sort !== undefined && value.sort !== "text" && value.sort !== "numeric") {
+        issues.push({ path: `${path}.sort`, message: "Expected sort text or numeric." });
+    }
+    if (value.order !== undefined && value.order !== "asc" && value.order !== "desc") {
+        issues.push({ path: `${path}.order`, message: "Expected order asc or desc." });
+    }
+    for (const key of ["contextLines", "maxMatches", "maxGroups", "maxLinesPerGroup", "trim", "caseSensitive", "maxLines"]) {
+        if (value[key] !== undefined) {
+            issues.push({ path: `${path}.${key}`, message: `Operation topN does not accept ${key}.` });
+        }
+    }
+}
+function validateGroupSelector(value, path, issues) {
+    if (value === undefined) {
+        return;
+    }
+    if (typeof value === "number") {
+        if (!Number.isInteger(value) || value < 0) {
+            issues.push({ path, message: "Expected a non-negative integer group index." });
+        }
+        return;
+    }
+    if (typeof value === "string" && value.length > 0) {
+        return;
+    }
+    issues.push({ path, message: "Expected a non-empty string group name or non-negative integer group index." });
+}
 function validateRegexFlags(value, path, issues) {
     if (value === undefined) {
         return;
@@ -285,6 +370,9 @@ function prepareDeriveOperation(operation) {
             return preparedJson;
         }
         return { ok: true, value: { kind: "json", value: preparedJson.value } };
+    }
+    if (operation.kind === "dedupe" || (operation.kind === "topN" && operation.pattern === undefined)) {
+        return { ok: true, value: { kind: "none" } };
     }
     const compiledRegex = compileRegexOperation(operation);
     if (!compiledRegex.ok) {
@@ -362,11 +450,37 @@ function deriveText(options) {
             prepared: options.prepared.value,
         });
     }
+    if (options.operation.kind === "dedupe") {
+        return deriveDedupe({
+            text: options.text,
+            sourceLabel: options.sourceLabel,
+            operation: options.operation,
+        });
+    }
+    if (options.operation.kind === "topN") {
+        const topNOptions = {
+            text: options.text,
+            sourceLabel: options.sourceLabel,
+            operation: options.operation,
+        };
+        if (options.prepared.kind === "regex") {
+            topNOptions.compiled = options.prepared.value;
+        }
+        return deriveTopN(topNOptions);
+    }
     if (options.prepared.kind !== "regex") {
         throw new Error(`${options.operation.kind} operation was not prepared with a regex.`);
     }
     if (options.operation.kind === "regexFilter") {
         return deriveRegexFilter({
+            text: options.text,
+            sourceLabel: options.sourceLabel,
+            operation: options.operation,
+            compiled: options.prepared.value,
+        });
+    }
+    if (options.operation.kind === "groupByRegex") {
+        return deriveGroupByRegex({
             text: options.text,
             sourceLabel: options.sourceLabel,
             operation: options.operation,
@@ -426,6 +540,180 @@ function deriveCountMatches(options) {
         text,
         summary: `Derived countMatches from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${stats.matches} match(es) across ${stats.matchedLines} line(s).`,
         stats,
+    };
+}
+function deriveGroupByRegex(options) {
+    const lines = splitLines(options.text);
+    const groupSelector = options.operation.group ?? 1;
+    const maxGroups = options.operation.maxGroups ?? DEFAULT_MAX_GROUPS;
+    const maxLinesPerGroup = options.operation.maxLinesPerGroup ?? DEFAULT_MAX_LINES_PER_GROUP;
+    const groups = new Map();
+    const allGroupKeys = new Set();
+    let matchedLines = 0;
+    let truncated = false;
+    for (let index = 0; index < lines.length; index += 1) {
+        const line = lines[index] ?? "";
+        options.compiled.regex.lastIndex = 0;
+        const match = options.compiled.regex.exec(line);
+        if (!match) {
+            continue;
+        }
+        if (match[0].length === 0) {
+            throw new Error("Regex patterns that produce zero-width matches are not supported.");
+        }
+        matchedLines += 1;
+        const groupKey = matchGroupValue(match, groupSelector, index + 1);
+        allGroupKeys.add(groupKey);
+        let group = groups.get(groupKey);
+        if (!group) {
+            if (groups.size >= maxGroups) {
+                truncated = true;
+                continue;
+            }
+            group = { count: 0, entries: [] };
+            groups.set(groupKey, group);
+        }
+        group.count += 1;
+        if (group.entries.length < maxLinesPerGroup) {
+            group.entries.push({ lineNumber: index + 1, line });
+        }
+        else {
+            truncated = true;
+        }
+    }
+    const parts = [
+        "# freeflow_derive groupByRegex",
+        `source: ${options.sourceLabel}`,
+        `pattern: ${formatPattern(options.compiled)}`,
+        `group: ${String(groupSelector)}`,
+        `maxGroups: ${maxGroups}`,
+        `maxLinesPerGroup: ${maxLinesPerGroup}`,
+        `groups: ${allGroupKeys.size}`,
+        `returnedGroups: ${groups.size}`,
+        `matchedLines: ${matchedLines}`,
+        `truncated: ${truncated}`,
+    ];
+    for (const [groupKey, group] of groups.entries()) {
+        parts.push("", `## group: ${groupKey}`, `count: ${group.count}`);
+        for (const entry of group.entries) {
+            parts.push(`${entry.lineNumber}| ${entry.line}`);
+        }
+    }
+    return {
+        text: `${parts.join("\n")}\n`,
+        summary: `Derived groupByRegex from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${allGroupKeys.size} group(s), ${matchedLines} matched line(s).`,
+        stats: {
+            matches: matchedLines,
+            matchedLines,
+            matchedLineNumbers: [],
+            truncated,
+        },
+    };
+}
+function deriveDedupe(options) {
+    const lines = splitLines(options.text);
+    const trim = options.operation.trim ?? false;
+    const caseSensitive = options.operation.caseSensitive ?? true;
+    const maxLines = options.operation.maxLines ?? DEFAULT_MAX_DEDUPE_LINES;
+    const seen = new Set();
+    const uniqueEntries = [];
+    let duplicatesRemoved = 0;
+    let truncated = false;
+    for (let index = 0; index < lines.length; index += 1) {
+        const line = lines[index] ?? "";
+        const displayLine = trim ? line.trim() : line;
+        const key = caseSensitive ? displayLine : displayLine.toLowerCase();
+        if (seen.has(key)) {
+            duplicatesRemoved += 1;
+            continue;
+        }
+        seen.add(key);
+        if (uniqueEntries.length < maxLines) {
+            uniqueEntries.push({ lineNumber: index + 1, line: displayLine });
+        }
+        else {
+            truncated = true;
+        }
+    }
+    const parts = [
+        "# freeflow_derive dedupe",
+        `source: ${options.sourceLabel}`,
+        `trim: ${trim}`,
+        `caseSensitive: ${caseSensitive}`,
+        `maxLines: ${maxLines}`,
+        `inputLines: ${lines.length}`,
+        `uniqueLines: ${seen.size}`,
+        `returnedLines: ${uniqueEntries.length}`,
+        `duplicatesRemoved: ${duplicatesRemoved}`,
+        `truncated: ${truncated}`,
+        "",
+    ];
+    for (const entry of uniqueEntries) {
+        parts.push(`${entry.lineNumber}| ${entry.line}`);
+    }
+    return {
+        text: `${parts.join("\n")}\n`,
+        summary: `Derived dedupe from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${seen.size} unique line(s), ${duplicatesRemoved} duplicate line(s) removed.`,
+        stats: {
+            matches: seen.size,
+            matchedLines: seen.size,
+            matchedLineNumbers: uniqueEntries.map((entry) => entry.lineNumber),
+            truncated,
+        },
+    };
+}
+function deriveTopN(options) {
+    const lines = splitLines(options.text);
+    const sort = options.operation.sort ?? "text";
+    const order = options.operation.order ?? "asc";
+    const groupSelector = options.operation.group ?? 0;
+    const scored = [];
+    for (let index = 0; index < lines.length; index += 1) {
+        const line = lines[index] ?? "";
+        let scoreText = line;
+        if (options.compiled !== undefined) {
+            options.compiled.regex.lastIndex = 0;
+            const match = options.compiled.regex.exec(line);
+            if (!match) {
+                continue;
+            }
+            if (match[0].length === 0) {
+                throw new Error("Regex patterns that produce zero-width matches are not supported.");
+            }
+            scoreText = matchGroupValue(match, groupSelector, index + 1);
+        }
+        const score = sort === "numeric" ? Number(scoreText) : scoreText;
+        if (sort === "numeric" && (typeof score !== "number" || !Number.isFinite(score))) {
+            throw new Error(`topN numeric score on source line ${index + 1} is not finite: ${scoreText}`);
+        }
+        scored.push({ lineNumber: index + 1, line, score });
+    }
+    const sorted = [...scored].sort((left, right) => compareTopNEntries(left, right, sort, order));
+    const selected = sorted.slice(0, options.operation.limit);
+    const parts = [
+        "# freeflow_derive topN",
+        `source: ${options.sourceLabel}`,
+        ...(options.compiled !== undefined ? [`pattern: ${formatPattern(options.compiled)}`, `group: ${String(groupSelector)}`] : []),
+        `sort: ${sort}`,
+        `order: ${order}`,
+        `limit: ${options.operation.limit}`,
+        `matchedLines: ${scored.length}`,
+        `returnedLines: ${selected.length}`,
+        `truncated: ${selected.length < scored.length}`,
+        "",
+    ];
+    for (const entry of selected) {
+        parts.push(`${entry.lineNumber}| score=${String(entry.score)} | ${entry.line}`);
+    }
+    return {
+        text: `${parts.join("\n")}\n`,
+        summary: `Derived topN from vaulted ${sourceStreamLabel(options.sourceLabel)} output: returned ${selected.length} of ${scored.length} matched line(s).`,
+        stats: {
+            matches: selected.length,
+            matchedLines: scored.length,
+            matchedLineNumbers: selected.map((entry) => entry.lineNumber),
+            truncated: selected.length < scored.length,
+        },
     };
 }
 function deriveJsonExtract(options) {
@@ -548,6 +836,35 @@ function routeDerivedText(options) {
             : `Derived output from operation ${options.operationKind} over source ${sourceLabel} (${outputBytes} bytes, ${outputLines} lines) was vaulted and returned within routing caps.`,
         evidence,
     };
+}
+function matchGroupValue(match, group, lineNumber) {
+    if (typeof group === "number") {
+        const value = match[group];
+        if (value === undefined) {
+            throw new Error(`Regex group ${group} did not resolve on source line ${lineNumber}.`);
+        }
+        return value;
+    }
+    const value = match.groups?.[group];
+    if (value === undefined) {
+        throw new Error(`Regex group ${group} did not resolve on source line ${lineNumber}.`);
+    }
+    return value;
+}
+function compareTopNEntries(left, right, sort, order) {
+    let comparison;
+    if (sort === "numeric") {
+        comparison = left.score - right.score;
+    }
+    else {
+        const leftText = String(left.score);
+        const rightText = String(right.score);
+        comparison = leftText < rightText ? -1 : leftText > rightText ? 1 : 0;
+    }
+    if (comparison !== 0) {
+        return order === "desc" ? -comparison : comparison;
+    }
+    return left.lineNumber - right.lineNumber;
 }
 function parseJsonPointer(pointer) {
     if (pointer === "") {
@@ -753,6 +1070,35 @@ function operationSummary(operation) {
             kind: operation.kind,
             pattern: operation.pattern,
             ...(operation.flags !== undefined ? { flags: normalizeRegexFlags(operation.flags) } : {}),
+        };
+    }
+    if (operation.kind === "groupByRegex") {
+        return {
+            kind: operation.kind,
+            pattern: operation.pattern,
+            ...(operation.flags !== undefined ? { flags: normalizeRegexFlags(operation.flags) } : {}),
+            group: operation.group ?? 1,
+            maxGroups: operation.maxGroups ?? DEFAULT_MAX_GROUPS,
+            maxLinesPerGroup: operation.maxLinesPerGroup ?? DEFAULT_MAX_LINES_PER_GROUP,
+        };
+    }
+    if (operation.kind === "dedupe") {
+        return {
+            kind: operation.kind,
+            trim: operation.trim ?? false,
+            caseSensitive: operation.caseSensitive ?? true,
+            maxLines: operation.maxLines ?? DEFAULT_MAX_DEDUPE_LINES,
+        };
+    }
+    if (operation.kind === "topN") {
+        return {
+            kind: operation.kind,
+            limit: operation.limit,
+            ...(operation.pattern !== undefined ? { pattern: operation.pattern } : {}),
+            ...(operation.flags !== undefined ? { flags: normalizeRegexFlags(operation.flags) } : {}),
+            ...(operation.group !== undefined ? { group: operation.group } : {}),
+            sort: operation.sort ?? "text",
+            order: operation.order ?? "asc",
         };
     }
     return {

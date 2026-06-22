@@ -13,6 +13,7 @@
 - 2026-06-22: Slice 4 validated the first production-safe adapter in Pi by installing/configuring Serena through `pi-mcp-adapter`, adding an explicit MCP stdio bridge for allowlisted Serena read-only symbol/reference/diagnostic tools, and registering public `freeflow_capture` while preserving mutating-provider rejection.
 - 2026-06-22: Slice 5A added core deterministic `freeflow_derive` for vault-source regex filtering and match counting with lineage, bounded routing, exact derived-output recovery, and structured derive failures. Pi registration remains deferred to Slice 5E.
 - 2026-06-22: Slice 5B added deterministic `jsonExtract` for vault-source JSON Pointer and limited JSON path extraction, with invalid JSON/path failure handling. Pi registration remains deferred to Slice 5E.
+- 2026-06-22: Slice 5C added deterministic `groupByRegex`, `dedupe`, and `topN` derive operations for vault sources. Pi registration remains deferred to Slice 5E.
 
 ## Purpose
 

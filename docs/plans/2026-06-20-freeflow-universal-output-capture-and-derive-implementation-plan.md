@@ -30,6 +30,7 @@ Progress:
 - 2026-06-22: Before Slice 5A, the Pi extension was converted to TypeScript source modules. Modules now separate runtime context, schemas, renderers, native safety-net routing, MCP capture bridge, and router tool registration. The root Pi manifest now loads `plugins/freeflow/pi-extension/dist/index.js` directly; the old `plugins/freeflow/pi-extension/index.js` wrapper was removed because there are no external users to preserve. The migration uses `tsc` without `@ts-nocheck`, while keeping `strict` off for incremental typing. Verification after the split: `npm run test:router` passed with 183 tests, `node --check plugins/freeflow/pi-extension/dist/index.js` passed, and `git diff --check && git diff --cached --check` passed.
 - 2026-06-22: Slice 5A added core deterministic `freeflow_derive` support for vault sources, `regexFilter` with context, `countMatches`, source lineage, exact derived-output recovery, bounded routing, and structured derive failures. Public Pi registration remains deferred to Slice 5E.
 - 2026-06-22: Slice 5B added deterministic `jsonExtract` over vault sources with JSON Pointer and a bounded JSON path subset, plus invalid JSON, unresolved selector, and invalid path failure coverage.
+- 2026-06-22: Slice 5C added deterministic `groupByRegex`, `dedupe`, and `topN` operations over vault sources, with bounded operation settings, persisted derived outputs, lineage, and shared routing/recovery.
 
 ## Source Authority
 
