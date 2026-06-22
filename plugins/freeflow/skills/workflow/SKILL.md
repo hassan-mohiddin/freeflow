@@ -29,22 +29,24 @@ Read `references/workflow-map.md` when the user asks for the full pipeline, publ
 
 ## Route Closeout
 
-When a consequential workflow phase completes, name the next route.
+Use `Next:` to name a helpful next route for the user. It is general routing, not only a workflow-phase label.
 
-Use `Next:` in the final response unless this is a direct question answer, mid-task status, or clarification-only turn.
+Do not add `Next:` to every reply. Questions get answers first; add `Next:` only when the answer leaves a concrete next action, choice, stop condition, or route worth naming.
+
+For completed consequential work or workflow phases, include `Next:` unless this is a direct question answer, mid-task status, clarification-only turn, or the final line must be a direct owner-decision question.
 
 Choose one:
 
-- Forward: the next workflow entry point is clear.
+- Forward: the next action or workflow entry point is clear.
 - Backward: new evidence requires clarification, discovery, or interview gate.
-- Branch: 2-3 valid next routes exist.
-- Stop: no required next action remains.
+- Branch: 2-3 valid next routes or actions exist.
+- Stop: no useful next action remains.
 
 Recommend the route supported by evidence. Do not ask a vague "what next?" question.
 
 After completed discovery with decisions that must survive beyond chat, route to `write-spec`, an owning decision artifact, or handoff before `write-plan` or execution.
 
-`Next:` is routing, not permission to create the next artifact or continue into a new phase.
+`Next:` is routing, not permission to create the next artifact, continue into a new phase, or take the next action.
 
 ## Backward Edge
 

@@ -57,6 +57,8 @@ Not verified: ...
 Next: ...
 ```
 
-For completed consequential work, `Next:` is mandatory. Omit it only for direct question answers, mid-task status, or clarification-only turns.
+For completed consequential work, include `Next:` because completion leaves a route decision. Omit it only for direct question answers, mid-task status, clarification-only turns, or direct owner-decision questions.
+
+For pure questions, include `Next:` only when a concrete next route helps.
 
 Keep it short.

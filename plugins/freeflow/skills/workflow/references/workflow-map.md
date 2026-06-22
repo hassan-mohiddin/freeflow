@@ -29,7 +29,7 @@ flowchart LR
 Use conversation mode for questions. Use workflow mode for consequential work.
 Use strict-workflow for risky work; same spine, stronger gates.
 Loop back when new evidence, source conflicts, user-owned decisions, or failed checks change the path.
-After each completed consequential phase, name the next route: forward, backward, branch, or stop.
+Use `Next:` when a response leaves a useful next route. Completed consequential phases should close with forward, backward, branch, or stop unless the reply is only an answer, status update, clarification, or direct owner-decision question.
 ```
 
 ## Reference Map
@@ -88,15 +88,17 @@ flowchart TD
 - Use `handoff` when pausing, compacting, or transferring context.
 - Use `bypass` only to skip unnecessary ceremony. It cannot skip user-owned decisions, source-truth conflicts, risky checks, or verification claims.
 
-## Phase Exits
+## Route Closeout
 
-End completed consequential phases with `Next:` unless this is a direct answer, mid-task status, or clarification-only turn.
+Use `Next:` when naming the next route helps the user, not only when a workflow phase changes. Do not force it onto every reply.
 
-- Forward: name the next entry point, such as `write-spec`, `write-plan`, `execute-plan`, `review-work`, `verify-work`, `commit-work`, or `handoff`.
+Completed consequential work and phase exits should include `Next:` unless the reply is only a direct answer, mid-task status, clarification-only turn, or direct owner-decision question.
+
+- Forward: name the next action or entry point, such as `write-spec`, `write-plan`, `execute-plan`, `review-work`, `verify-work`, `commit-work`, or `handoff`.
 - Backward: return to `interview-gate`, `discover`, `diagnose-failure`, or plan/spec revision when evidence, failed checks, or repeated review findings change the path.
-- Branch: show 2-3 valid next routes when more than one is reasonable.
-- Stop: say no required next action remains.
+- Branch: show 2-3 valid next routes or actions when more than one is reasonable.
+- Stop: say no useful next action remains.
 
 After completed discovery with decisions that must survive beyond chat, prefer `write-spec`, an owning decision artifact, or handoff before planning or execution.
 
-Do not create the next artifact just because it is the next route.
+Do not create the next artifact or take the next action just because it is the next route.
