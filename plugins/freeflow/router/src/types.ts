@@ -201,11 +201,18 @@ export interface CaptureRoutedResult extends RoutedResultBase {
   summary?: string;
 }
 
+export interface DeriveRoutedResult extends RoutedResultBase {
+  outputId: string;
+  source: SourceRef;
+  operation: Record<string, unknown>;
+  summary?: string;
+}
+
 export interface FailureRoutedResult extends RoutedResultBase {
   outputId?: string;
 }
 
-export type RoutedResult = RetrievalRoutedResult | CommandRoutedResult | CaptureRoutedResult | FailureRoutedResult;
+export type RoutedResult = RetrievalRoutedResult | CommandRoutedResult | CaptureRoutedResult | DeriveRoutedResult | FailureRoutedResult;
 
 export interface LineByteCounts {
   lines: number;
@@ -271,7 +278,7 @@ export interface CommandOutputRecord extends VaultRecordBase {
 
 export interface TextOutputRecord extends VaultRecordBase {
   kind: "text";
-  sourceKind: "native" | "mcp" | "fetch" | "other";
+  sourceKind: "native" | "mcp" | "fetch" | "derive" | "other";
   paths: {
     meta: string;
     raw: string;

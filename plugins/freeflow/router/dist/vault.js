@@ -465,6 +465,9 @@ function producerForTextSourceKind(sourceKind) {
     if (sourceKind === "fetch") {
         return { kind: "fetch" };
     }
+    if (sourceKind === "derive") {
+        return { kind: "derive" };
+    }
     return { kind: "other" };
 }
 function combineOutputSections(stdout, stderr) {

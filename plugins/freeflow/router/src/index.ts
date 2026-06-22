@@ -6,6 +6,7 @@ export * from "./index-benchmarks.js";
 export * from "./capture.js";
 export * from "./config.js";
 export * from "./failure-contracts.js";
+export * from "./derive.js";
 export * from "./retrieve.js";
 export * from "./run.js";
 export * from "./router-contract.js";

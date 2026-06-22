@@ -11,12 +11,13 @@
 
 - 2026-06-22: Approved Slice 0 decisions for evidence identity/recovery, top-level capture/provider config, and MCP/Serena-first read-only adapter validation.
 - 2026-06-22: Slice 4 validated the first production-safe adapter in Pi by installing/configuring Serena through `pi-mcp-adapter`, adding an explicit MCP stdio bridge for allowlisted Serena read-only symbol/reference/diagnostic tools, and registering public `freeflow_capture` while preserving mutating-provider rejection.
+- 2026-06-22: Slice 5A added core deterministic `freeflow_derive` for vault-source regex filtering and match counting with lineage, bounded routing, exact derived-output recovery, and structured derive failures. Pi registration remains deferred to Slice 5E.
 
 ## Purpose
 
 Define the next shape of Freeflow Router after command-output routing: a transparent, adapter-based evidence system that can capture service/protocol producer outputs, recover them according to policy, and derive bounded evidence from existing captured sources.
 
-This spec extends `docs/specs/freeflow-output-router-design.md`. It does not claim the current runtime already implements these tools.
+This spec extends `docs/specs/freeflow-output-router-design.md`. It tracks the intended tool family and slice status; later slices remain design until implemented and verified.
 
 ## Problem
 
