@@ -16,6 +16,7 @@
 - 2026-06-22: Slice 5C added deterministic `groupByRegex`, `dedupe`, and `topN` derive operations for vault sources. Pi registration remains deferred to Slice 5E.
 - 2026-06-22: Slice 5D added deterministic `extractUrls`, `extractCitations`, `lineStats`, and `sizeStats` derive operations for vault sources. Pi registration remains deferred to Slice 5E.
 - 2026-06-22: Slice 5E registered public Pi `freeflow_derive` with schema, execution, rendering, and guidance after deterministic core operations were verified.
+- 2026-06-23: Slice 6 added built-in provider manifests and compact Pi runtime provider summaries without injecting raw provider docs.
 
 ## Purpose
 

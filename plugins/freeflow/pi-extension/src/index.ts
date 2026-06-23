@@ -7,8 +7,10 @@ import {
   handleWorkflowCommand,
   hasFreeflowActivation,
   hasOutputRouterActivation,
+  hasProviderActivation,
   readModeState,
   readOutputRouterConfig,
+  readProviderContext,
   refreshRuntimeContext,
   restoreModeOverride,
   runtimeContext,
@@ -42,10 +44,11 @@ export default function freeflow(pi) {
   });
 
   pi.on("before_agent_start", async (event, ctx) => {
-    const [modeState, freeflowContext, routerConfigResult] = await Promise.all([
+    const [modeState, freeflowContext, routerConfigResult, providerContext] = await Promise.all([
       readModeState(ctx.cwd),
       getRuntimeContext(),
       readOutputRouterConfig(ctx.cwd),
+      readProviderContext(ctx.cwd),
     ]);
     setModeStatus(ctx, modeState);
     notifyRouterConfigWarnings(ctx, routerConfigResult);
@@ -57,8 +60,10 @@ export default function freeflow(pi) {
           modeState,
           freeflowContext,
           routerConfigResult,
+          providerContext,
           hasFreeflowActivation(event.systemPrompt),
-          hasOutputRouterActivation(event.systemPrompt)
+          hasOutputRouterActivation(event.systemPrompt),
+          hasProviderActivation(event.systemPrompt)
         ),
     };
   });

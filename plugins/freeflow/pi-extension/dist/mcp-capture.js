@@ -118,6 +118,9 @@ function getMcpConfigPaths(cwd) {
         resolve(cwd, ".pi", "mcp.json"),
     ];
 }
+export async function isMcpServerConfigured(serverName, cwd) {
+    return Boolean(await loadMcpServerConfig(serverName, cwd));
+}
 async function loadMcpServerConfig(serverName, cwd) {
     let found = null;
     for (const configPath of getMcpConfigPaths(cwd)) {

@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { normalizeRouterConfig } from "../../router/dist/index.js";
+import { providerRuntimeContext } from "./provider-manifests.js";
 export const VALID_MODES = new Set(["conversation", "workflow", "strict-workflow"]);
 export const WORKFLOW_COMMANDS = [
     { command: "discover", skill: "discover" },
@@ -46,7 +47,7 @@ export async function getRuntimeContext() {
     }
     return refreshRuntimeContext();
 }
-async function readFreeflowConfig(cwd) {
+export async function readFreeflowConfig(cwd) {
     try {
         const raw = await readFile(join(cwd, ".freeflow/config.json"), "utf8");
         const parsed = JSON.parse(raw);
@@ -63,6 +64,10 @@ async function readDefaultMode(cwd) {
 export async function readOutputRouterConfig(cwd) {
     const parsed = await readFreeflowConfig(cwd);
     return normalizeRouterConfig(parsed.outputRouter);
+}
+export async function readProviderContext(cwd) {
+    const parsed = await readFreeflowConfig(cwd);
+    return providerRuntimeContext(cwd, parsed);
 }
 export function notifyRouterConfigWarnings(ctx, routerConfigResult) {
     if (!routerConfigResult.warnings.length) {
@@ -117,6 +122,9 @@ export function hasOutputRouterActivation(systemPrompt) {
     return (systemPrompt.includes("## Loaded Output Router Skill") &&
         systemPrompt.includes("## Loaded Output Router Safety Policy"));
 }
+export function hasProviderActivation(systemPrompt) {
+    return systemPrompt.includes("## Freeflow Producer Providers");
+}
 function outputRouterModeGuidance(mode) {
     if (mode === "conversation") {
         return "conversation mode: keep routed-tool guidance soft; answer questions directly.";
@@ -144,8 +152,9 @@ ${freeflowContext.outputRouterSkill.trim()}
 ${freeflowContext.outputRouterSafetyPolicy.trim()}
 \`\`\``;
 }
-export function runtimeContext(modeState, freeflowContext, routerConfigResult, alreadyActivated, routerAlreadyActivated) {
+export function runtimeContext(modeState, freeflowContext, routerConfigResult, providerContext, alreadyActivated, routerAlreadyActivated, providerAlreadyActivated) {
     const currentMode = modeState.currentMode ?? "none";
+    const providerText = providerAlreadyActivated || !providerContext ? "" : `\n\n${providerContext}`;
     if (alreadyActivated) {
         return `## Freeflow Runtime Context
 
@@ -153,7 +162,7 @@ Repo default mode from \`.freeflow/config.json\`: ${modeState.defaultMode}.
 Current session mode override: ${currentMode}.
 Effective Freeflow mode: ${modeState.effectiveMode}.
 
-Use the installed Freeflow skills when they match the task. This Pi extension loads context and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.${routerAlreadyActivated ? "" : `\n\n${outputRouterContext(modeState, freeflowContext, routerConfigResult)}`}`;
+Use the installed Freeflow skills when they match the task. This Pi extension loads context and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.${providerText}${routerAlreadyActivated ? "" : `\n\n${outputRouterContext(modeState, freeflowContext, routerConfigResult)}`}`;
     }
     return `# Freeflow Runtime Context
 
@@ -168,6 +177,7 @@ Effective Freeflow mode: \`${modeState.effectiveMode}\`.
 Treat the effective mode as the current mode for this agent turn.
 For mode changes or mode interpretation, use \`mode-contract\`.
 Do not announce the current mode on every reply. Mention it when the user asks, setup/config is discussed, or the mode changes the next action.
+${providerText}
 
 ${routerAlreadyActivated ? "" : `${outputRouterContext(modeState, freeflowContext, routerConfigResult)}\n\n`}## Loaded Workflow Skill
 

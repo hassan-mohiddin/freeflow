@@ -33,6 +33,7 @@ Progress:
 - 2026-06-22: Slice 5C added deterministic `groupByRegex`, `dedupe`, and `topN` operations over vault sources, with bounded operation settings, persisted derived outputs, lineage, and shared routing/recovery.
 - 2026-06-22: Slice 5D added deterministic `extractUrls`, `extractCitations`, `lineStats`, and `sizeStats` operations over vault sources, with bounded extraction, persisted derived outputs, lineage, and shared routing/recovery.
 - 2026-06-22: Slice 5E registered public Pi `freeflow_derive` with deterministic operation schema, execution against vaulted sources, compact/expanded TUI rendering, and output-router docs/skill guidance.
+- 2026-06-23: Slice 6 added built-in provider manifests and compact Pi runtime summaries for available/configured providers, including Serena availability and custom/unverified manifest labeling.
 
 ## Source Authority
 
