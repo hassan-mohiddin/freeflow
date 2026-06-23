@@ -4,6 +4,18 @@ import { renderFreeflowCaptureCall, renderFreeflowCaptureResult, renderFreeflowD
 import { readOutputRouterConfig, notifyRouterConfigWarnings } from "./runtime-context.js";
 import { FREEFLOW_CAPTURE_PARAMETERS, FREEFLOW_DERIVE_PARAMETERS, FREEFLOW_RETRIEVE_PARAMETERS, FREEFLOW_RUN_PARAMETERS } from "./schemas.js";
 import { getRouterSessionId, routedToolText } from "./utils.js";
+function normalizeDeriveOperation(operation) {
+    if (!operation || typeof operation !== "object" || Array.isArray(operation)) {
+        return operation;
+    }
+    if (typeof operation.group !== "string" || !/^(0|[1-9][0-9]*)$/.test(operation.group)) {
+        return operation;
+    }
+    return {
+        ...operation,
+        group: Number(operation.group),
+    };
+}
 async function normalizeDeriveParams(params, ctx) {
     const source = params.source;
     if (!source || source.kind !== "vault") {
@@ -14,6 +26,7 @@ async function normalizeDeriveParams(params, ctx) {
     }
     return {
         ...params,
+        operation: normalizeDeriveOperation(params.operation),
         source: {
             kind: "vault",
             outputId: source.outputId,

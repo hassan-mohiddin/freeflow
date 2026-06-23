@@ -157,6 +157,23 @@ function assertSchemaRejects(schema, value) {
   assert.equal(schemaMatches(schema, value), false, `schema unexpectedly accepted ${JSON.stringify(value)}`);
 }
 
+function collectSchemaKeys(schema, keys, path = "$", found = []) {
+  if (!schema || typeof schema !== "object") {
+    return found;
+  }
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(schema, key)) {
+      found.push(`${path}.${key}`);
+    }
+  }
+  for (const [key, value] of Object.entries(schema)) {
+    if (value && typeof value === "object") {
+      collectSchemaKeys(value, keys, `${path}.${key}`, found);
+    }
+  }
+  return found;
+}
+
 test("Pi extension registers public freeflow_derive with deterministic operation schema", () => {
   const { tools } = registerMockPi();
   const derive = tools.get("freeflow_derive");
@@ -166,8 +183,9 @@ test("Pi extension registers public freeflow_derive with deterministic operation
   assert.deepEqual(derive.parameters.properties.source.properties.kind.enum, ["vault"]);
   assert.match(derive.description, /deterministic/i);
   assert.match(derive.promptGuidelines.join("\n"), /existing vaulted evidence/i);
+  assert.deepEqual(collectSchemaKeys(derive.parameters, ["oneOf", "anyOf", "allOf", "not", "const"]), []);
 
-  const operationKinds = derive.parameters.properties.operation.oneOf.map((schema) => schema.properties.kind.const);
+  const operationKinds = derive.parameters.properties.operation.properties.kind.enum;
   assert.deepEqual(operationKinds, [
     "regexFilter",
     "countMatches",
@@ -182,7 +200,7 @@ test("Pi extension registers public freeflow_derive with deterministic operation
   ]);
 });
 
-test("Pi extension freeflow_derive schema rejects unsupported operation shapes before router execution", () => {
+test("Pi extension freeflow_derive schema stays Pi-compatible while rejecting invalid primitive shapes", () => {
   const { tools } = registerMockPi();
   const derive = tools.get("freeflow_derive");
   const schema = derive.parameters;
@@ -197,12 +215,10 @@ test("Pi extension freeflow_derive schema rejects unsupported operation shapes b
   assertSchemaAccepts(schema, { source, operation: { kind: "topN", limit: 10 } });
   assertSchemaAccepts(schema, {
     source,
-    operation: { kind: "topN", limit: 10, pattern: "duration=(\\d+)", flags: "im", group: 1, sort: "numeric" },
+    operation: { kind: "topN", limit: 10, pattern: "duration=(\\d+)", flags: "im", group: "1", sort: "numeric" },
   });
 
   assertSchemaRejects(schema, { source: { kind: "vault", outputId: "" }, operation: { kind: "lineStats" } });
-  assertSchemaRejects(schema, { source, operation: { kind: "jsonExtract" } });
-  assertSchemaRejects(schema, { source, operation: { kind: "jsonExtract", pointer: "/a", path: "$.a" } });
   assertSchemaRejects(schema, { source, operation: { kind: "jsonExtract", pointer: "not/a/pointer" } });
   assertSchemaRejects(schema, { source, operation: { kind: "jsonExtract", pointer: "/bad~2escape" } });
   assertSchemaRejects(schema, { source, operation: { kind: "jsonExtract", pointer: "/dangling~" } });
@@ -211,7 +227,7 @@ test("Pi extension freeflow_derive schema rejects unsupported operation shapes b
   assertSchemaRejects(schema, { source, operation: { kind: "jsonExtract", path: "$[01]" } });
   assertSchemaRejects(schema, { source, operation: { kind: "jsonExtract", path: "$[\"unterminated]" } });
   assertSchemaRejects(schema, { source, operation: { kind: "jsonExtract", path: "$[\"bad\\xescape\"]" } });
-  assertSchemaRejects(schema, { source, operation: { kind: "topN", limit: 10, flags: "i" } });
+  assertSchemaRejects(schema, { source, operation: { kind: "notReal" } });
   assertSchemaRejects(schema, { source, operation: { kind: "topN", limit: 10, group: 1 } });
   assertSchemaRejects(schema, { source, operation: { kind: "regexFilter", pattern: "FAIL", flags: "ii" } });
   assertSchemaRejects(schema, { source, operation: { kind: "regexFilter", pattern: "FAIL", flags: "y" } });
@@ -221,8 +237,67 @@ test("Pi extension freeflow_derive schema rejects unsupported operation shapes b
   assertSchemaRejects(schema, { source, operation: { kind: "groupByRegex", pattern: "kind=(\\w+)", maxLinesPerGroup: 1001 } });
   assertSchemaRejects(schema, { source, operation: { kind: "dedupe", maxLines: 10001 } });
   assertSchemaRejects(schema, { source, operation: { kind: "topN", limit: 1001 } });
-  assertSchemaRejects(schema, { source, operation: { kind: "extractUrls", maxMatches: 10001 } });
-  assertSchemaRejects(schema, { source, operation: { kind: "extractCitations", maxMatches: 10001 } });
+  assertSchemaRejects(schema, { source, operation: { kind: "extractUrls", maxMatches: 1001 } });
+  assertSchemaRejects(schema, { source, operation: { kind: "extractCitations", maxMatches: 1001 } });
+});
+
+test("Pi extension public freeflow_derive returns structured failures for operation-specific validation", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-derive-invalid-"));
+  const sessionId = "pi-extension-derive-invalid-test";
+  try {
+    const vaultRoot = join(cwd, "vault");
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({ defaultMode: "workflow", outputRouter: { vaultRoot } }),
+      "utf8",
+    );
+
+    const vault = createVault({ root: vaultRoot });
+    const source = await storeCommandOutput(vault, {
+      sessionId,
+      command: "printf json",
+      stdout: "{\"suite\":{\"failed\":1}}",
+      stderr: "",
+      executionStatus: "success",
+      exitCode: 0,
+      createdAt: "2026-06-22T00:13:00.000Z",
+    });
+
+    const { tools } = registerMockPi();
+    const derive = tools.get("freeflow_derive");
+    const missingSelector = await derive.execute(
+      "derive-invalid-json",
+      {
+        source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
+        operation: { kind: "jsonExtract" },
+      },
+      undefined,
+      undefined,
+      mockCtx(cwd, sessionId),
+    );
+
+    assert.equal(missingSelector.details.result.failure.kind, "derive_validation_failure");
+    assert.equal(missingSelector.details.result.deriveExecution.status, "rejected");
+    assert.match(missingSelector.details.result.failure.message, /exactly one JSON selector/);
+
+    const topNGroupWithoutPattern = await derive.execute(
+      "derive-invalid-topn",
+      {
+        source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
+        operation: { kind: "topN", limit: 10, group: "1" },
+      },
+      undefined,
+      undefined,
+      mockCtx(cwd, sessionId),
+    );
+
+    assert.equal(topNGroupWithoutPattern.details.result.failure.kind, "derive_validation_failure");
+    assert.equal(topNGroupWithoutPattern.details.result.deriveExecution.status, "rejected");
+    assert.match(topNGroupWithoutPattern.details.result.failure.message, /topN group requires a pattern/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
 });
 
 test("Pi extension public freeflow_derive executes against vaulted output", async () => {

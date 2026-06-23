@@ -7,15 +7,12 @@ const RETRIEVE_ACTION_SCHEMA = {
 const EXPANSION_SCHEMA = { type: "string", enum: ["lines_30", "lines_80", "full"] };
 const STREAM_SCHEMA = { type: "string", enum: ["stdout", "stderr", "combined", "raw"] };
 const NON_EMPTY_STRING_SCHEMA = { type: "string", minLength: 1 };
-const NON_NEGATIVE_INTEGER_SCHEMA = { type: "integer", minimum: 0 };
-const POSITIVE_INTEGER_SCHEMA = { type: "integer", minimum: 1 };
 const MAX_CONTEXT_LINES_SCHEMA = { type: "integer", minimum: 0, maximum: 20 };
 const MAX_REGEX_MATCHES_SCHEMA = { type: "integer", minimum: 1, maximum: 1000 };
 const MAX_GROUPS_SCHEMA = { type: "integer", minimum: 1, maximum: 1000 };
 const MAX_LINES_PER_GROUP_SCHEMA = { type: "integer", minimum: 1, maximum: 1000 };
 const MAX_DEDUPE_LINES_SCHEMA = { type: "integer", minimum: 1, maximum: 10000 };
 const MAX_TOP_N_LIMIT_SCHEMA = { type: "integer", minimum: 1, maximum: 1000 };
-const MAX_EXTRACT_MATCHES_SCHEMA = { type: "integer", minimum: 1, maximum: 10000 };
 const REGEX_FLAGS_SCHEMA = {
     type: "string",
     pattern: "^(?!.*([gimsu]).*\\1)[gimsu]*$",
@@ -91,132 +88,55 @@ const DERIVE_SOURCE_SCHEMA = {
     required: ["kind", "outputId"],
     description: "Existing vaulted source evidence. Slice 5 supports vault sources only.",
 };
-const REGEX_OPERATION_PROPERTIES = {
-    pattern: { ...NON_EMPTY_STRING_SCHEMA, description: "JavaScript regular expression pattern. No arbitrary code is executed." },
-    flags: REGEX_FLAGS_SCHEMA,
-};
+const DERIVE_OPERATION_KINDS = [
+    "regexFilter",
+    "countMatches",
+    "jsonExtract",
+    "groupByRegex",
+    "dedupe",
+    "topN",
+    "extractUrls",
+    "extractCitations",
+    "lineStats",
+    "sizeStats",
+];
 export const FREEFLOW_DERIVE_PARAMETERS = {
     type: "object",
     additionalProperties: false,
     properties: {
         source: DERIVE_SOURCE_SCHEMA,
         operation: {
-            oneOf: [
-                {
-                    type: "object",
-                    additionalProperties: false,
-                    properties: {
-                        kind: { const: "regexFilter" },
-                        ...REGEX_OPERATION_PROPERTIES,
-                        contextLines: { ...MAX_CONTEXT_LINES_SCHEMA, description: "Context lines around each matching line." },
-                        maxMatches: { ...MAX_REGEX_MATCHES_SCHEMA, description: "Maximum regex matches to process." },
-                    },
-                    required: ["kind", "pattern"],
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                kind: { type: "string", enum: DERIVE_OPERATION_KINDS, description: "Deterministic derive operation kind." },
+                pattern: { ...NON_EMPTY_STRING_SCHEMA, description: "Regex pattern for regexFilter, countMatches, groupByRegex, or regex-backed topN. No arbitrary code is executed." },
+                flags: REGEX_FLAGS_SCHEMA,
+                pointer: {
+                    ...STRING_SCHEMA,
+                    pattern: JSON_POINTER_PATTERN,
+                    description: "JSON Pointer for jsonExtract, such as /suite/failures/0/message. Empty string selects the full JSON document.",
                 },
-                {
-                    type: "object",
-                    additionalProperties: false,
-                    properties: {
-                        kind: { const: "countMatches" },
-                        ...REGEX_OPERATION_PROPERTIES,
-                    },
-                    required: ["kind", "pattern"],
+                path: {
+                    ...NON_EMPTY_STRING_SCHEMA,
+                    pattern: JSON_PATH_PATTERN,
+                    description: "JSON path for jsonExtract, such as $.suite.stats.failed, $[0], or $[\"quoted.key\"].",
                 },
-                {
-                    type: "object",
-                    additionalProperties: false,
-                    properties: {
-                        kind: { const: "jsonExtract" },
-                        pointer: {
-                            ...STRING_SCHEMA,
-                            pattern: JSON_POINTER_PATTERN,
-                            description: "JSON Pointer such as /suite/failures/0/message. Empty string selects the full JSON document.",
-                        },
-                        path: {
-                            ...NON_EMPTY_STRING_SCHEMA,
-                            pattern: JSON_PATH_PATTERN,
-                            description: "Bounded JSON path subset such as $.suite.stats.failed, $[0], or $[\"quoted.key\"].",
-                        },
-                    },
-                    required: ["kind"],
-                    oneOf: [
-                        { required: ["pointer"], not: { required: ["path"] } },
-                        { required: ["path"], not: { required: ["pointer"] } },
-                    ],
-                },
-                {
-                    type: "object",
-                    additionalProperties: false,
-                    properties: {
-                        kind: { const: "groupByRegex" },
-                        ...REGEX_OPERATION_PROPERTIES,
-                        group: { anyOf: [NON_NEGATIVE_INTEGER_SCHEMA, NON_EMPTY_STRING_SCHEMA], description: "Capture group index or name. Default: 1." },
-                        maxGroups: { ...MAX_GROUPS_SCHEMA, description: "Maximum groups returned." },
-                        maxLinesPerGroup: { ...MAX_LINES_PER_GROUP_SCHEMA, description: "Maximum sample lines per group." },
-                    },
-                    required: ["kind", "pattern"],
-                },
-                {
-                    type: "object",
-                    additionalProperties: false,
-                    properties: {
-                        kind: { const: "dedupe" },
-                        trim: { type: "boolean", description: "Trim lines before comparing and returning." },
-                        caseSensitive: { type: "boolean", description: "Whether line comparison is case-sensitive. Default: true." },
-                        maxLines: { ...MAX_DEDUPE_LINES_SCHEMA, description: "Maximum unique lines returned." },
-                    },
-                    required: ["kind"],
-                },
-                {
-                    type: "object",
-                    additionalProperties: false,
-                    properties: {
-                        kind: { const: "topN" },
-                        limit: { ...MAX_TOP_N_LIMIT_SCHEMA, description: "Maximum lines returned." },
-                        ...REGEX_OPERATION_PROPERTIES,
-                        group: { anyOf: [NON_NEGATIVE_INTEGER_SCHEMA, NON_EMPTY_STRING_SCHEMA], description: "Capture group index or name used as score when pattern is present." },
-                        sort: { type: "string", enum: ["text", "numeric"], description: "Sort mode. Default: text." },
-                        order: { type: "string", enum: ["asc", "desc"], description: "Sort order. Equal scores preserve source order." },
-                    },
-                    required: ["kind", "limit"],
-                    allOf: [
-                        { anyOf: [{ not: { required: ["flags"] } }, { required: ["pattern"] }] },
-                        { anyOf: [{ not: { required: ["group"] } }, { required: ["pattern"] }] },
-                    ],
-                },
-                {
-                    type: "object",
-                    additionalProperties: false,
-                    properties: {
-                        kind: { const: "extractUrls" },
-                        dedupe: { type: "boolean", description: "Return each URL once." },
-                        maxMatches: { ...MAX_EXTRACT_MATCHES_SCHEMA, description: "Maximum URL matches to process." },
-                    },
-                    required: ["kind"],
-                },
-                {
-                    type: "object",
-                    additionalProperties: false,
-                    properties: {
-                        kind: { const: "extractCitations" },
-                        maxMatches: { ...MAX_EXTRACT_MATCHES_SCHEMA, description: "Maximum citations returned." },
-                    },
-                    required: ["kind"],
-                },
-                {
-                    type: "object",
-                    additionalProperties: false,
-                    properties: { kind: { const: "lineStats" } },
-                    required: ["kind"],
-                },
-                {
-                    type: "object",
-                    additionalProperties: false,
-                    properties: { kind: { const: "sizeStats" } },
-                    required: ["kind"],
-                },
-            ],
-            description: "Deterministic operation to apply to existing evidence.",
+                contextLines: { ...MAX_CONTEXT_LINES_SCHEMA, description: "Context lines around each regexFilter matching line." },
+                maxMatches: { ...MAX_REGEX_MATCHES_SCHEMA, description: "Maximum matches for regexFilter, extractUrls, or extractCitations through Pi." },
+                group: { ...NON_EMPTY_STRING_SCHEMA, description: "Capture group index or name for groupByRegex or topN. Numeric strings are treated as group indexes." },
+                maxGroups: { ...MAX_GROUPS_SCHEMA, description: "Maximum groupByRegex groups returned." },
+                maxLinesPerGroup: { ...MAX_LINES_PER_GROUP_SCHEMA, description: "Maximum sample lines per groupByRegex group." },
+                trim: { type: "boolean", description: "Trim lines before dedupe comparison and return." },
+                caseSensitive: { type: "boolean", description: "Whether dedupe comparison is case-sensitive. Default: true." },
+                maxLines: { ...MAX_DEDUPE_LINES_SCHEMA, description: "Maximum unique dedupe lines returned." },
+                limit: { ...MAX_TOP_N_LIMIT_SCHEMA, description: "Maximum topN lines returned." },
+                sort: { type: "string", enum: ["text", "numeric"], description: "topN sort mode. Default: text." },
+                order: { type: "string", enum: ["asc", "desc"], description: "topN sort order. Equal scores preserve source order." },
+                dedupe: { type: "boolean", description: "Return each URL once for extractUrls." },
+            },
+            required: ["kind"],
+            description: "Deterministic operation to apply to existing evidence. Operation-specific constraints are validated by Freeflow before execution.",
         },
         preserve: { ...PRESERVE_SCHEMA, description: "Fidelity mode. Default: important." },
     },
