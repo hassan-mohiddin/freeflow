@@ -1,6 +1,6 @@
 ---
 name: output-router
-description: Use when choosing between native tools and Freeflow routed tools, retrieving repo/vault evidence, handling unknown-size or broad output, running likely-large/noisy commands, recovering vaulted output, configuring outputRouter, or handling optional native read/bash safety-net routing.
+description: Use when choosing between native tools and Freeflow routed tools, retrieving repo/vault evidence, capturing read-only provider evidence, deriving bounded evidence, handling unknown-size or broad output, running likely-large/noisy commands, recovering vaulted output, configuring outputRouter, or handling optional native read/bash safety-net routing.
 ---
 
 # Output Router
@@ -19,6 +19,8 @@ Native tools stay direct unless explicit config enables the safety net. Use nati
 - Need more around prior evidence: use `freeflow_retrieve action=expand`.
 - Need to explain a routed result or vault id: use `freeflow_retrieve action=explain`.
 - Need to run a likely-large, broad, exploratory, or noisy command: use `freeflow_run`.
+- Need supported read-only service/protocol output with routing and recovery: use `freeflow_capture`.
+- Need deterministic filtering, extraction, counts, grouping, dedupe, topN, URL/citation extraction, or stats from vaulted evidence: use `freeflow_derive`.
 - Need a whole known file/artifact and direct file contents are intended: use native read.
 - Need direct shell behavior with expected-small exact output: use native bash.
 - Need to edit files: use native edit/write.
@@ -33,6 +35,7 @@ For these, choose one:
 
 - Use `freeflow_retrieve action=query` or `locate` for repo evidence discovery.
 - Use `freeflow_run` when the broad shell command is intentional and routed evidence is enough.
+- Use `freeflow_derive` when the broad output is already vaulted and a deterministic subset/stat is enough.
 - Use native bash only when the command is intentionally bounded/excluded and exact small raw output is needed, for example a targeted file/path search, `head`/`sed` cap, or explicit generated/log exclusions.
 
 ## Hard Rules

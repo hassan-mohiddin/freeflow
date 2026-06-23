@@ -1,16 +1,36 @@
-import { freeflowCapture, freeflowRetrieve, freeflowRun } from "../../router/dist/index.js";
+import { freeflowCapture, freeflowDerive, freeflowRetrieve, freeflowRun } from "../../router/dist/index.js";
 import { createPiCaptureAdapters, normalizeCaptureParams } from "./mcp-capture.js";
 import {
   renderFreeflowCaptureCall,
   renderFreeflowCaptureResult,
+  renderFreeflowDeriveCall,
+  renderFreeflowDeriveResult,
   renderFreeflowRetrieveCall,
   renderFreeflowRetrieveResult,
   renderFreeflowRunCall,
   renderFreeflowRunResult,
 } from "./renderers.js";
 import { readOutputRouterConfig, notifyRouterConfigWarnings } from "./runtime-context.js";
-import { FREEFLOW_CAPTURE_PARAMETERS, FREEFLOW_RETRIEVE_PARAMETERS, FREEFLOW_RUN_PARAMETERS } from "./schemas.js";
+import { FREEFLOW_CAPTURE_PARAMETERS, FREEFLOW_DERIVE_PARAMETERS, FREEFLOW_RETRIEVE_PARAMETERS, FREEFLOW_RUN_PARAMETERS } from "./schemas.js";
 import { getRouterSessionId, routedToolText } from "./utils.js";
+
+async function normalizeDeriveParams(params, ctx) {
+  const source = params.source;
+  if (!source || source.kind !== "vault") {
+    throw new Error("freeflow_derive currently supports source.kind=vault only.");
+  }
+  if (!source.outputId) {
+    throw new Error("freeflow_derive source.kind=vault requires source.outputId.");
+  }
+  return {
+    ...params,
+    source: {
+      kind: "vault",
+      outputId: source.outputId,
+      ...(source.stream ? { stream: source.stream } : {}),
+    },
+  };
+}
 
 async function normalizeRetrieveParams(params, ctx) {
   const routerConfigResult = await readOutputRouterConfig(ctx.cwd);
@@ -146,6 +166,42 @@ export function registerRouterTools(pi) {
     },
     renderResult(result, options, theme, context) {
       return renderFreeflowRunResult(result, options, theme, context);
+    },
+  });
+
+  pi.registerTool({
+    name: "freeflow_derive",
+    label: "Freeflow Derive",
+    description:
+      "Derive deterministic, bounded evidence from existing Freeflow-vaulted output. Supports regex filtering/counting, JSON extraction, grouping, dedupe, topN, URL/citation extraction, and line/size stats.",
+    promptSnippet: "Transform existing vaulted evidence into bounded derived evidence with lineage and recovery.",
+    promptGuidelines: [
+      "Use freeflow_derive when existing vaulted evidence needs deterministic filtering, extraction, counting, grouping, dedupe, topN, URL/citation extraction, or line/size stats.",
+      "Use freeflow_retrieve first when you need to locate or recover the source evidence before deriving from it.",
+      "freeflow_derive does not execute arbitrary code and currently derives only from existing vaulted evidence.",
+    ],
+    parameters: FREEFLOW_DERIVE_PARAMETERS,
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const routerConfigResult = await readOutputRouterConfig(ctx.cwd);
+      notifyRouterConfigWarnings(ctx, routerConfigResult);
+      const normalized = await normalizeDeriveParams(params, ctx);
+      const result = await freeflowDerive({
+        ...normalized,
+        sessionId: getRouterSessionId(ctx),
+        vaultRoot: routerConfigResult.config.vault.root,
+        vaultRetention: routerConfigResult.config.vault.retention,
+        thresholds: routerConfigResult.config.thresholds,
+      });
+      return {
+        content: [{ type: "text", text: routedToolText(result) }],
+        details: { result },
+      };
+    },
+    renderCall(args, theme) {
+      return renderFreeflowDeriveCall(args, theme);
+    },
+    renderResult(result, options, theme) {
+      return renderFreeflowDeriveResult(result, options, theme);
     },
   });
 

@@ -6,6 +6,23 @@ const RETRIEVE_ACTION_SCHEMA = {
 };
 const EXPANSION_SCHEMA = { type: "string", enum: ["lines_30", "lines_80", "full"] };
 const STREAM_SCHEMA = { type: "string", enum: ["stdout", "stderr", "combined", "raw"] };
+const NON_EMPTY_STRING_SCHEMA = { type: "string", minLength: 1 };
+const NON_NEGATIVE_INTEGER_SCHEMA = { type: "integer", minimum: 0 };
+const POSITIVE_INTEGER_SCHEMA = { type: "integer", minimum: 1 };
+const MAX_CONTEXT_LINES_SCHEMA = { type: "integer", minimum: 0, maximum: 20 };
+const MAX_REGEX_MATCHES_SCHEMA = { type: "integer", minimum: 1, maximum: 1000 };
+const MAX_GROUPS_SCHEMA = { type: "integer", minimum: 1, maximum: 1000 };
+const MAX_LINES_PER_GROUP_SCHEMA = { type: "integer", minimum: 1, maximum: 1000 };
+const MAX_DEDUPE_LINES_SCHEMA = { type: "integer", minimum: 1, maximum: 10000 };
+const MAX_TOP_N_LIMIT_SCHEMA = { type: "integer", minimum: 1, maximum: 1000 };
+const MAX_EXTRACT_MATCHES_SCHEMA = { type: "integer", minimum: 1, maximum: 10000 };
+const REGEX_FLAGS_SCHEMA = {
+  type: "string",
+  pattern: "^(?!.*([gimsu]).*\\1)[gimsu]*$",
+  description: "Regex flags: g, i, m, s, or u, without duplicates. g is added internally for extraction.",
+};
+const JSON_POINTER_PATTERN = String.raw`^(?:|/(?:[^~/]|~[01])*(?:/(?:[^~/]|~[01])*)*)$`;
+const JSON_PATH_PATTERN = String.raw`^\$(?:\.[A-Za-z_$][A-Za-z0-9_$-]*|\[(?:0|[1-9][0-9]*)\]|\["(?:[^"\\\u0000-\u001F]|\\(?:["\\/bfnrt]|u[0-9A-Fa-f]{4}))*"\])*$`;
 
 export const FREEFLOW_RETRIEVE_PARAMETERS = {
   type: "object",
@@ -64,6 +81,151 @@ export const FREEFLOW_RUN_PARAMETERS = {
     goal: { ...STRING_SCHEMA, description: "Goal such as verification, test, build, or search." },
   },
   required: ["command"],
+};
+
+const DERIVE_SOURCE_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    kind: { type: "string", enum: ["vault"] },
+    outputId: { ...NON_EMPTY_STRING_SCHEMA, description: "Vault output id to derive from." },
+    stream: { ...STREAM_SCHEMA, description: "Vault stream to read. Defaults by source record kind." },
+  },
+  required: ["kind", "outputId"],
+  description: "Existing vaulted source evidence. Slice 5 supports vault sources only.",
+};
+
+const REGEX_OPERATION_PROPERTIES = {
+  pattern: { ...NON_EMPTY_STRING_SCHEMA, description: "JavaScript regular expression pattern. No arbitrary code is executed." },
+  flags: REGEX_FLAGS_SCHEMA,
+};
+
+export const FREEFLOW_DERIVE_PARAMETERS = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    source: DERIVE_SOURCE_SCHEMA,
+    operation: {
+      oneOf: [
+        {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            kind: { const: "regexFilter" },
+            ...REGEX_OPERATION_PROPERTIES,
+            contextLines: { ...MAX_CONTEXT_LINES_SCHEMA, description: "Context lines around each matching line." },
+            maxMatches: { ...MAX_REGEX_MATCHES_SCHEMA, description: "Maximum regex matches to process." },
+          },
+          required: ["kind", "pattern"],
+        },
+        {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            kind: { const: "countMatches" },
+            ...REGEX_OPERATION_PROPERTIES,
+          },
+          required: ["kind", "pattern"],
+        },
+        {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            kind: { const: "jsonExtract" },
+            pointer: {
+              ...STRING_SCHEMA,
+              pattern: JSON_POINTER_PATTERN,
+              description: "JSON Pointer such as /suite/failures/0/message. Empty string selects the full JSON document.",
+            },
+            path: {
+              ...NON_EMPTY_STRING_SCHEMA,
+              pattern: JSON_PATH_PATTERN,
+              description: "Bounded JSON path subset such as $.suite.stats.failed, $[0], or $[\"quoted.key\"].",
+            },
+          },
+          required: ["kind"],
+          oneOf: [
+            { required: ["pointer"], not: { required: ["path"] } },
+            { required: ["path"], not: { required: ["pointer"] } },
+          ],
+        },
+        {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            kind: { const: "groupByRegex" },
+            ...REGEX_OPERATION_PROPERTIES,
+            group: { anyOf: [NON_NEGATIVE_INTEGER_SCHEMA, NON_EMPTY_STRING_SCHEMA], description: "Capture group index or name. Default: 1." },
+            maxGroups: { ...MAX_GROUPS_SCHEMA, description: "Maximum groups returned." },
+            maxLinesPerGroup: { ...MAX_LINES_PER_GROUP_SCHEMA, description: "Maximum sample lines per group." },
+          },
+          required: ["kind", "pattern"],
+        },
+        {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            kind: { const: "dedupe" },
+            trim: { type: "boolean", description: "Trim lines before comparing and returning." },
+            caseSensitive: { type: "boolean", description: "Whether line comparison is case-sensitive. Default: true." },
+            maxLines: { ...MAX_DEDUPE_LINES_SCHEMA, description: "Maximum unique lines returned." },
+          },
+          required: ["kind"],
+        },
+        {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            kind: { const: "topN" },
+            limit: { ...MAX_TOP_N_LIMIT_SCHEMA, description: "Maximum lines returned." },
+            ...REGEX_OPERATION_PROPERTIES,
+            group: { anyOf: [NON_NEGATIVE_INTEGER_SCHEMA, NON_EMPTY_STRING_SCHEMA], description: "Capture group index or name used as score when pattern is present." },
+            sort: { type: "string", enum: ["text", "numeric"], description: "Sort mode. Default: text." },
+            order: { type: "string", enum: ["asc", "desc"], description: "Sort order. Equal scores preserve source order." },
+          },
+          required: ["kind", "limit"],
+          allOf: [
+            { anyOf: [{ not: { required: ["flags"] } }, { required: ["pattern"] }] },
+            { anyOf: [{ not: { required: ["group"] } }, { required: ["pattern"] }] },
+          ],
+        },
+        {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            kind: { const: "extractUrls" },
+            dedupe: { type: "boolean", description: "Return each URL once." },
+            maxMatches: { ...MAX_EXTRACT_MATCHES_SCHEMA, description: "Maximum URL matches to process." },
+          },
+          required: ["kind"],
+        },
+        {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            kind: { const: "extractCitations" },
+            maxMatches: { ...MAX_EXTRACT_MATCHES_SCHEMA, description: "Maximum citations returned." },
+          },
+          required: ["kind"],
+        },
+        {
+          type: "object",
+          additionalProperties: false,
+          properties: { kind: { const: "lineStats" } },
+          required: ["kind"],
+        },
+        {
+          type: "object",
+          additionalProperties: false,
+          properties: { kind: { const: "sizeStats" } },
+          required: ["kind"],
+        },
+      ],
+      description: "Deterministic operation to apply to existing evidence.",
+    },
+    preserve: { ...PRESERVE_SCHEMA, description: "Fidelity mode. Default: important." },
+  },
+  required: ["source", "operation"],
 };
 
 export const FREEFLOW_CAPTURE_PARAMETERS = {

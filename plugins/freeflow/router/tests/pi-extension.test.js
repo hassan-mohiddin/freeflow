@@ -77,6 +77,8 @@ test("Pi before_agent_start injects output-router skill context", async () => {
   assert.match(result.systemPrompt, /name: output-router/);
   assert.match(result.systemPrompt, /freeflow_retrieve/);
   assert.match(result.systemPrompt, /freeflow_run/);
+  assert.match(result.systemPrompt, /freeflow_capture/);
+  assert.match(result.systemPrompt, /freeflow_derive/);
   assert.match(result.systemPrompt, /Native tools stay direct/);
   assert.match(result.systemPrompt, /## Loaded Output Router Safety Policy/);
   assert.match(result.systemPrompt, /Do not silently summarize or compress exactness-sensitive output/);
@@ -105,6 +107,7 @@ test("Pi output-router skill mentions native safety net only when config enables
     assert.match(result.systemPrompt, /## Loaded Output Router Skill/);
     assert.match(result.systemPrompt, /## Loaded Output Router Safety Policy/);
     assert.match(result.systemPrompt, /freeflow_retrieve/);
+    assert.match(result.systemPrompt, /freeflow_derive/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -600,6 +603,7 @@ test("Pi already-activated context still includes output-router skill and safety
   assert.match(result.systemPrompt, /## Loaded Output Router Safety Policy/);
   assert.match(result.systemPrompt, /freeflow_retrieve/);
   assert.match(result.systemPrompt, /freeflow_run/);
+  assert.match(result.systemPrompt, /freeflow_derive/);
 });
 
 test("Pi reinjects output-router context when safety policy is missing", async () => {

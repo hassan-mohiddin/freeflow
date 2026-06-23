@@ -14,10 +14,12 @@ smallest sufficient evidence in context
 + no surprise native tool semantics
 ```
 
-The router ships two explicit tools:
+The router ships explicit tools:
 
 - `freeflow_retrieve`: retrieve targeted repo/vault evidence.
 - `freeflow_run`: run likely-large/noisy commands, vault raw output, and return compact evidence.
+- `freeflow_capture`: capture supported read-only service/protocol output with routing and recovery.
+- `freeflow_derive`: deterministically transform vaulted evidence into bounded derived evidence.
 
 Native tools still matter:
 
@@ -34,17 +36,25 @@ flowchart LR
   Run[freeflow_run]
   Repo[repo files]
   Vault[Freeflow vault]
+  Capture[freeflow_capture]
+  Derive[freeflow_derive]
   Native[native read/bash]
   Evidence[bounded evidence]
   Raw[exact recovery]
 
   Agent -->|existing info| Retrieve
   Agent -->|noisy command| Run
+  Agent -->|read-only provider| Capture
+  Agent -->|derive from vault| Derive
   Agent -->|direct/raw known output| Native
   Retrieve --> Repo --> Evidence
   Retrieve --> Vault --> Evidence
   Run --> Vault
+  Capture --> Vault
+  Derive --> Vault
   Run --> Evidence
+  Capture --> Evidence
+  Derive --> Evidence
   Vault --> Raw
 ```
 
@@ -58,6 +68,8 @@ flowchart LR
 | Widen previous evidence | `freeflow_retrieve action=expand` |
 | Explain a previous routed decision/output | `freeflow_retrieve action=explain` |
 | Run noisy/large command output | `freeflow_run` |
+| Capture supported read-only provider output | `freeflow_capture` |
+| Derive deterministic subsets/stats from vaulted output | `freeflow_derive` |
 | Read a known whole file | native `read` |
 | Run small exact command | native `bash` |
 
@@ -127,6 +139,26 @@ Command parsers currently cover:
 - build/toolchain errors,
 - generic fallback,
 - duplicate output detection.
+
+## `freeflow_capture`
+
+`freeflow_capture` calls supported read-only service/protocol producers, stores captured text when recoverable, and returns bounded evidence. Current Pi support is Serena read-only MCP symbol/reference/diagnostic tools.
+
+Mutating provider tools remain direct provider calls after explicit user intent; `freeflow_capture` rejects them.
+
+## `freeflow_derive`
+
+`freeflow_derive` transforms existing vaulted output without executing arbitrary code.
+
+Current deterministic operations include:
+
+- regex filtering and match counts,
+- JSON Pointer/path extraction,
+- grouping, dedupe, and topN extraction,
+- URL/citation extraction,
+- line and size stats.
+
+Derived output is vaulted separately and points back to source output ids through lineage.
 
 ## Vault Recovery
 
