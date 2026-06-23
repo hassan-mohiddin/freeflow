@@ -19,6 +19,7 @@
 - 2026-06-23: Slice 6 added built-in provider manifests and compact Pi runtime provider summaries without injecting raw provider docs.
 - 2026-06-23: Slice 7 added high-level output-router/capture/provider config validation and setup guidance while keeping minimal setup default-only and direct host-tool capture off.
 - 2026-06-23: Slice 8 added public Pi `freeflow_status` diagnostics for effective config, vault writability, provider availability, custom manifest validity, and non-destructive migration recommendations.
+- 2026-06-23: Slice 9 added targeted capture/derive/provider eval evidence and refreshed public docs/skill guidance without claiming universal host-tool capture.
 
 ## Purpose
 

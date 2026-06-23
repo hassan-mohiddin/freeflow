@@ -2,7 +2,7 @@
 > **Date:** 2026-06-20
 > **Owner:** Hassan Mohiddin
 > **Type:** Plan
-> **Status:** Draft — Slices 1-8 implemented and verified; Ready for Slice 9 docs/evals/review
+> **Status:** Draft — Slices 1-9 implemented and verified; Ready for Slice 10 script derive design
 > **Source:** `docs/specs/freeflow-universal-output-capture-and-derive-design.md` reviewed Pass on 2026-06-20; Slice 0 decisions owner-approved on 2026-06-22; Slices 1-3 verified on 2026-06-22; Slice 4 capability inspection on 2026-06-22
 
 # Freeflow Universal Output Capture And Derive Implementation Plan
@@ -36,6 +36,7 @@ Progress:
 - 2026-06-23: Slice 6 added built-in provider manifests and compact Pi runtime summaries for available/configured providers, including Serena availability and custom/unverified manifest labeling.
 - 2026-06-23: Slice 7 added high-level config parsing for `outputRouter`, `capture`, and `providers`, Pi warnings for invalid capture/provider config, setup guidance for the evidence-routing branch, and explicit defaults that keep direct host-tool capture off.
 - 2026-06-23: Slice 8 added public Pi `freeflow_status` diagnostics for effective config, vault writability, provider availability, custom manifest validity, recoverability defaults, warnings, and non-destructive migration recommendations.
+- 2026-06-23: Slice 9 added targeted eval/report evidence for read-only provider capture, web-shaped capture recovery, deterministic derive from long logs, and provider-summary tool-choice accuracy; output-router docs and skill guidance were refreshed to include `freeflow_status` and current capture/derive boundaries.
 
 ## Source Authority
 

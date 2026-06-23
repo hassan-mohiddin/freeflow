@@ -19,6 +19,7 @@ Use `registries/fixture-evals.json` for current adversarial fixture coverage.
 Use `scripts/grade-fixture-eval.sh <eval-id> --output <run-output.md>` after fixture runs that define `objective_checks`; it grades mechanical evidence such as changed files, empty diffs, exit status, and fixed output/diff text.
 Baseline fixture runs set `FREEFLOW_DISABLE_RUNTIME_CONTEXT=1` before launching nested agents so installed lifecycle hooks do not inject Freeflow workflow and interview-gate context into the baseline.
 Use `scripts/skill-evidence.sh <skill>` to group command routes, eval definitions, acceptance membership, and reports for a skill.
+Use `scripts/run-output-router-capture-derive-eval.js` after capture/derive/provider-routing changes; it writes `reports/runtime/output-router-capture-derive-provider-eval-1-report.md`.
 Use `scripts/validate-release-metadata.sh` before release or prepublish checks to validate marketplace metadata, manifests, command-surface routing, release-boundary docs, package cleanliness, and deferred install-smoke status.
 Use `scripts/check-runtime-context-hook.sh` after changing plugin-bundled runtime context hooks.
 Prefer the latest acceptance report over old smoke evals when evidence conflicts.

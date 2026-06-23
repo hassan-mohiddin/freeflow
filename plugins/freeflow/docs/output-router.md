@@ -269,6 +269,7 @@ Current release evidence:
 
 - Retrieval benchmark: improved router passed 7/7 fixtures.
 - Command benchmark: `freeflow_run` passed 8/8 fixtures with exact recovery.
+- Capture/derive/provider eval: targeted Slice 9 eval passed 14/14 objective gates for read-only provider capture, web-shaped capture recovery, long-log derive, and provider-summary category scoping.
 - Optional index benchmark: scanner remains default; index not adopted.
 - Codex Structured Q&A benchmark: improved router passed the Sandbox Permissions fixture where native broad search selected `graphify-out/graph.html`.
 - Setup eval: optional `outputRouter`/`capture`/`providers` config is opt-in through the evidence-routing branch; minimal setup remains only `defaultMode`.
