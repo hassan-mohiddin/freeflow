@@ -17,6 +17,7 @@
 - 2026-06-22: Slice 5D added deterministic `extractUrls`, `extractCitations`, `lineStats`, and `sizeStats` derive operations for vault sources. Pi registration remains deferred to Slice 5E.
 - 2026-06-22: Slice 5E registered public Pi `freeflow_derive` with schema, execution, rendering, and guidance after deterministic core operations were verified.
 - 2026-06-23: Slice 6 added built-in provider manifests and compact Pi runtime provider summaries without injecting raw provider docs.
+- 2026-06-23: Slice 7 added high-level output-router/capture/provider config validation and setup guidance while keeping minimal setup default-only and direct host-tool capture off.
 
 ## Purpose
 
@@ -489,7 +490,7 @@ Approved high-level shape:
 
 Runtime owns evolving defaults behind profiles. Explicit low-level values are written only when the user chooses them. `capture` and `providers` stay top-level so setup, doctor/status, and future adapters can describe producer policy without overloading `outputRouter`.
 
-This is the target config shape for later setup/config slices. Until those slices update the parser and setup docs, the current runtime continues to accept the existing `outputRouter` keys only.
+This config shape is now accepted by the Slice 7 parser for high-level setup decisions. Runtime behavior still only implements supported policies; direct host-tool capture remains off beyond existing explicit native safety-net routing.
 
 A future doctor/migrate command should show effective config and recommend cleanup for stale explicit defaults.
 

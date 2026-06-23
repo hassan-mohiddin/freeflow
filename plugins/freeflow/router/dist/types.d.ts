@@ -26,6 +26,16 @@ export declare const OUTPUT_STREAMS: readonly ["stdout", "stderr", "combined", "
 export type OutputStream = (typeof OUTPUT_STREAMS)[number];
 export declare const POST_TOOL_ROUTING_MODES: readonly ["off", "safety-net", "strict"];
 export type PostToolRoutingMode = (typeof POST_TOOL_ROUTING_MODES)[number];
+export declare const OUTPUT_ROUTER_PROFILES: readonly ["standard"];
+export type OutputRouterProfile = (typeof OUTPUT_ROUTER_PROFILES)[number];
+export declare const CAPTURE_FREEFLOW_MEDIATED_MODES: readonly ["raw"];
+export type CaptureFreeflowMediatedMode = (typeof CAPTURE_FREEFLOW_MEDIATED_MODES)[number];
+export declare const DIRECT_HOST_TOOL_CAPTURE_MODES: readonly ["off"];
+export type DirectHostToolCaptureMode = (typeof DIRECT_HOST_TOOL_CAPTURE_MODES)[number];
+export declare const PROVIDER_MODES: readonly ["discovery", "read-only"];
+export type ProviderMode = (typeof PROVIDER_MODES)[number];
+export declare const PROVIDER_CATEGORIES: readonly ["symbols", "references", "diagnostics", "graph", "architecture", "search"];
+export type ProviderCategory = (typeof PROVIDER_CATEGORIES)[number];
 export interface RepoSourceRef {
     kind: "repo";
     path: string;
@@ -303,8 +313,27 @@ export interface RouterHints {
     noisyCommandPatterns?: string[];
 }
 export interface RouterConfig {
+    enabled: boolean;
+    profile: OutputRouterProfile;
     postToolRouting: PostToolRoutingMode;
     thresholds: RouterThresholds;
     vault: RouterVaultConfig;
     hints?: RouterHints;
+}
+export interface CaptureConfig {
+    freeflowMediated: CaptureFreeflowMediatedMode;
+    directHostTools: DirectHostToolCaptureMode;
+}
+export interface ProviderEnablement {
+    id: string;
+    mode: ProviderMode;
+    categories?: ProviderCategory[];
+}
+export interface ProvidersConfig {
+    enabled: ProviderEnablement[];
+}
+export interface FreeflowConfig {
+    outputRouter: RouterConfig;
+    capture: CaptureConfig;
+    providers: ProvidersConfig;
 }

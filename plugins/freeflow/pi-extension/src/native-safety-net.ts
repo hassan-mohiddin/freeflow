@@ -47,7 +47,7 @@ function nativeOutputStats(text, truncation) {
 }
 
 function isSafetyNetEnabled(routerConfig) {
-  return isNativeSafetyNetEnabled(routerConfig.postToolRouting);
+  return routerConfig.enabled !== false && isNativeSafetyNetEnabled(routerConfig.postToolRouting);
 }
 
 function shouldRouteNativeToolResult(event, routerConfig, text) {

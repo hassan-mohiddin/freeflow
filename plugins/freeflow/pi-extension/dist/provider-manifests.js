@@ -1,3 +1,4 @@
+import { normalizeProvidersConfig } from "../../router/dist/index.js";
 import { isMcpServerConfigured } from "./mcp-capture.js";
 const MAX_CAPABILITIES = 6;
 const MAX_PAIRING_RULES = 4;
@@ -11,22 +12,25 @@ export const BUILT_IN_PROVIDER_MANIFESTS = [
         capabilities: [
             {
                 id: "code.symbol.find",
+                category: "symbols",
                 useWhen: "Need read-only code-symbol discovery beyond text search.",
                 risk: "read",
             },
             {
                 id: "code.references.find",
+                category: "references",
                 useWhen: "Need real references, not text matches.",
                 risk: "read",
             },
             {
                 id: "code.diagnostics.read",
+                category: "diagnostics",
                 useWhen: "Need read-only diagnostics from the language backend.",
                 risk: "read",
             },
         ],
         pairingRules: [
-            "Use Serena through freeflow_capture for read-only symbol, reference, and diagnostic evidence.",
+            "Use Serena through freeflow_capture for the configured read-only evidence categories.",
             "Call Serena mutating refactor tools directly only after explicit user intent; then use Freeflow retrieve/run/review/verify for evidence and closeout.",
         ],
     },
@@ -37,11 +41,13 @@ export const BUILT_IN_PROVIDER_MANIFESTS = [
         capabilities: [
             {
                 id: "code.graph.search",
+                category: "graph",
                 useWhen: "Need read-only graph/search evidence from a configured codebase memory provider.",
                 risk: "read",
             },
             {
                 id: "code.architecture.read",
+                category: "architecture",
                 useWhen: "Need read-only architecture or relationship memory from a configured provider.",
                 risk: "read",
             },
@@ -101,19 +107,20 @@ export function validateProviderManifest(value, source = "custom") {
 export async function providerRuntimeContext(cwd, freeflowConfig = {}) {
     const config = isRecord(freeflowConfig) ? freeflowConfig : {};
     const providersConfig = config.providers;
-    const enabledIds = configuredProviderIds(providersConfig);
+    const normalizedProviders = normalizeProvidersConfig(providersConfig).config;
+    const enabledProviders = configuredProviderMap(normalizedProviders);
     const customManifests = configuredCustomManifests(providersConfig);
     const builtIns = new Map(BUILT_IN_PROVIDER_MANIFESTS.map((manifest) => [manifest.id, manifest]));
     const available = [];
     const unavailable = [];
     const invalidCustom = [];
     if (await isMcpServerConfigured("serena", cwd)) {
-        available.push({ manifest: builtIns.get("serena"), label: "built-in" });
+        available.push({ manifest: builtIns.get("serena"), label: "built-in", enablement: enabledProviders.get("serena") });
     }
-    else if (enabledIds.has("serena")) {
+    else if (enabledProviders.has("serena")) {
         unavailable.push({ manifest: builtIns.get("serena"), reason: "MCP server serena is not configured for Pi." });
     }
-    if (enabledIds.has("codebase-memory")) {
+    if (enabledProviders.has("codebase-memory")) {
         unavailable.push({ manifest: builtIns.get("codebase-memory"), reason: "No Pi read-only capture adapter is registered yet." });
     }
     for (const [index, rawManifest] of customManifests.entries()) {
@@ -122,10 +129,10 @@ export async function providerRuntimeContext(cwd, freeflowConfig = {}) {
             invalidCustom.push({ index, issues: validated.issues });
             continue;
         }
-        if (!enabledIds.has(validated.value.id)) {
+        if (!enabledProviders.has(validated.value.id)) {
             continue;
         }
-        available.push({ manifest: validated.value, label: "custom/unverified" });
+        available.push({ manifest: validated.value, label: "custom/unverified", enablement: enabledProviders.get(validated.value.id) });
     }
     return renderProviderRuntimeContext({ available, unavailable, invalidCustom });
 }
@@ -137,7 +144,7 @@ function renderProviderRuntimeContext({ available, unavailable, invalidCustom })
     if (available.length > 0) {
         lines.push("", "Available:");
         for (const entry of available) {
-            lines.push(...renderProviderEntry(entry.manifest, entry.label));
+            lines.push(...renderProviderEntry(entry.manifest, entry.label, entry.enablement));
         }
     }
     if (unavailable.length > 0) {
@@ -151,31 +158,35 @@ function renderProviderRuntimeContext({ available, unavailable, invalidCustom })
     }
     return lines.join("\n");
 }
-function renderProviderEntry(manifest, label) {
+function renderProviderEntry(manifest, label, enablement) {
     const labelText = label === "custom/unverified" ? " (custom/unverified)" : "";
     const displayName = truncate(manifest.displayName);
-    const capabilityText = manifest.capabilities
-        .slice(0, MAX_CAPABILITIES)
-        .map((capability) => capability.useWhen)
-        .join(" ");
+    const capabilities = filterCapabilitiesByEnablement(manifest.capabilities, enablement)
+        .slice(0, MAX_CAPABILITIES);
+    const capabilityText = capabilities.length > 0
+        ? capabilities.map((capability) => capability.useWhen).join(" ")
+        : "No built-in capability summary matches the configured provider categories.";
     const lines = [`- ${displayName}${labelText}: ${truncate(capabilityText)}`];
     for (const rule of manifest.pairingRules.slice(0, 2)) {
         lines.push(`  Pairing: ${truncate(rule)}`);
     }
     return lines;
 }
-function configuredProviderIds(providersConfig) {
-    const enabled = new Set();
+function filterCapabilitiesByEnablement(capabilities, enablement) {
+    if (!enablement || !Array.isArray(enablement.categories) || enablement.categories.length === 0) {
+        return capabilities;
+    }
+    const categories = new Set(enablement.categories);
+    return capabilities.filter((capability) => categories.has(capability.category));
+}
+function configuredProviderMap(providersConfig) {
+    const enabled = new Map();
     if (!isRecord(providersConfig) || !Array.isArray(providersConfig.enabled)) {
         return enabled;
     }
     for (const entry of providersConfig.enabled) {
-        if (typeof entry === "string" && entry.trim().length > 0) {
-            enabled.add(entry.trim());
-            continue;
-        }
         if (isRecord(entry) && typeof entry.id === "string" && entry.id.trim().length > 0) {
-            enabled.add(entry.id.trim());
+            enabled.set(entry.id.trim(), entry);
         }
     }
     return enabled;

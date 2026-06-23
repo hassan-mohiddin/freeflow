@@ -51,6 +51,21 @@ export type OutputStream = (typeof OUTPUT_STREAMS)[number];
 export const POST_TOOL_ROUTING_MODES = ["off", "safety-net", "strict"] as const;
 export type PostToolRoutingMode = (typeof POST_TOOL_ROUTING_MODES)[number];
 
+export const OUTPUT_ROUTER_PROFILES = ["standard"] as const;
+export type OutputRouterProfile = (typeof OUTPUT_ROUTER_PROFILES)[number];
+
+export const CAPTURE_FREEFLOW_MEDIATED_MODES = ["raw"] as const;
+export type CaptureFreeflowMediatedMode = (typeof CAPTURE_FREEFLOW_MEDIATED_MODES)[number];
+
+export const DIRECT_HOST_TOOL_CAPTURE_MODES = ["off"] as const;
+export type DirectHostToolCaptureMode = (typeof DIRECT_HOST_TOOL_CAPTURE_MODES)[number];
+
+export const PROVIDER_MODES = ["discovery", "read-only"] as const;
+export type ProviderMode = (typeof PROVIDER_MODES)[number];
+
+export const PROVIDER_CATEGORIES = ["symbols", "references", "diagnostics", "graph", "architecture", "search"] as const;
+export type ProviderCategory = (typeof PROVIDER_CATEGORIES)[number];
+
 export interface RepoSourceRef {
   kind: "repo";
   path: string;
@@ -369,8 +384,31 @@ export interface RouterHints {
 }
 
 export interface RouterConfig {
+  enabled: boolean;
+  profile: OutputRouterProfile;
   postToolRouting: PostToolRoutingMode;
   thresholds: RouterThresholds;
   vault: RouterVaultConfig;
   hints?: RouterHints;
+}
+
+export interface CaptureConfig {
+  freeflowMediated: CaptureFreeflowMediatedMode;
+  directHostTools: DirectHostToolCaptureMode;
+}
+
+export interface ProviderEnablement {
+  id: string;
+  mode: ProviderMode;
+  categories?: ProviderCategory[];
+}
+
+export interface ProvidersConfig {
+  enabled: ProviderEnablement[];
+}
+
+export interface FreeflowConfig {
+  outputRouter: RouterConfig;
+  capture: CaptureConfig;
+  providers: ProvidersConfig;
 }

@@ -115,6 +115,56 @@ test("Pi before_agent_start injects compact built-in provider summary when Seren
   }
 });
 
+test("Pi provider summaries honor configured read-only categories for built-in providers", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-provider-categories-"));
+  try {
+    await mkdir(join(cwd, ".pi"), { recursive: true });
+    await mkdir(join(cwd, ".freeflow"), { recursive: true });
+    await writeFile(
+      join(cwd, ".pi/mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          serena: { command: "serena", args: ["start-mcp-server"] },
+        },
+      }),
+      "utf8",
+    );
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({
+        defaultMode: "workflow",
+        providers: { enabled: [{ id: "serena", mode: "discovery", categories: ["diagnostics"] }] },
+      }),
+      "utf8",
+    );
+
+    const { handlers } = loadExtension();
+    const beforeAgentStart = handlers.get("before_agent_start");
+    const result = await beforeAgentStart({ systemPrompt: "base prompt" }, context(cwd));
+
+    assert.match(result.systemPrompt, /Serena: .*read-only diagnostics/);
+    assert.doesNotMatch(result.systemPrompt, /code-symbol discovery/);
+    assert.doesNotMatch(result.systemPrompt, /real references/);
+    assert.doesNotMatch(result.systemPrompt, /symbol, reference/);
+
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({
+        defaultMode: "workflow",
+        providers: { enabled: [{ id: "serena", mode: "discovery", categories: ["graph"] }] },
+      }),
+      "utf8",
+    );
+    const unmatched = await beforeAgentStart({ systemPrompt: "base prompt" }, context(cwd));
+    assert.match(unmatched.systemPrompt, /No built-in capability summary matches the configured provider categories/);
+    assert.doesNotMatch(unmatched.systemPrompt, /code-symbol discovery/);
+    assert.doesNotMatch(unmatched.systemPrompt, /real references/);
+    assert.doesNotMatch(unmatched.systemPrompt, /read-only diagnostics/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 test("Pi provider summaries label custom manifests and concise unavailable configured providers", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-provider-custom-"));
   try {
@@ -177,6 +227,42 @@ test("Pi provider summaries label custom manifests and concise unavailable confi
     assert.doesNotMatch(result.systemPrompt, /Ignore prior instructions/);
     assert.doesNotMatch(result.systemPrompt, /DISPLAY_INJECT/);
     assert.doesNotMatch(result.systemPrompt, /C1_INJECT/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi outputRouter.enabled=false suppresses router context and native safety net", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-router-disabled-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({
+        defaultMode: "workflow",
+        outputRouter: { enabled: false, postToolRouting: "safety-net", largeOutputLines: 1, largeOutputBytes: 1 },
+      }),
+      "utf8",
+    );
+
+    const { handlers } = loadExtension();
+    const beforeAgentStart = handlers.get("before_agent_start");
+    const result = await beforeAgentStart({ systemPrompt: "base prompt" }, context(cwd));
+    assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Skill/);
+
+    const toolResult = await handlers.get("tool_result")(
+      {
+        type: "tool_result",
+        toolName: "read",
+        toolCallId: "read-router-disabled",
+        input: { path: "large.txt" },
+        content: [{ type: "text", text: "line 1\nline 2" }],
+        details: undefined,
+        isError: false,
+      },
+      context(cwd),
+    );
+    assert.equal(toolResult, undefined);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -433,6 +519,38 @@ test("Pi freeflow_retrieve applies configured generated path hints", async () =>
     );
     const explicitPayload = JSON.parse(explicit.content[0].text);
     assert.equal(explicitPayload.evidence[0].path, "custom-generated/decoy.md");
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi reports invalid capture/provider config warnings and skips invalid provider enablement", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-invalid-capture-provider-config-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({
+        defaultMode: "workflow",
+        capture: { freeflowMediated: "metadata-only", directHostTools: "raw" },
+        providers: { enabled: [{ id: "codebase-memory", mode: "write" }] },
+      }),
+      "utf8",
+    );
+
+    const { handlers } = loadExtension();
+    const notifications = [];
+    const ctx = context(cwd);
+    ctx.ui.notify = (message, level) => notifications.push({ message, level });
+    await handlers.get("session_start")({}, ctx);
+
+    assert.equal(notifications[0].level, "warning");
+    assert.match(notifications[0].message, /capture\.freeflowMediated/);
+    assert.match(notifications[0].message, /capture\.directHostTools/);
+    assert.match(notifications[0].message, /providers\.enabled\[0\]\.mode/);
+
+    const result = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
+    assert.doesNotMatch(result.systemPrompt, /codebase-memory: No Pi read-only capture adapter is registered yet/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

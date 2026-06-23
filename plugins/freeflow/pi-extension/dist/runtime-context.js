@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { normalizeRouterConfig } from "../../router/dist/index.js";
+import { normalizeFreeflowConfig } from "../../router/dist/index.js";
 import { providerRuntimeContext } from "./provider-manifests.js";
 export const VALID_MODES = new Set(["conversation", "workflow", "strict-workflow"]);
 export const WORKFLOW_COMMANDS = [
@@ -63,7 +63,8 @@ async function readDefaultMode(cwd) {
 }
 export async function readOutputRouterConfig(cwd) {
     const parsed = await readFreeflowConfig(cwd);
-    return normalizeRouterConfig(parsed.outputRouter);
+    const normalized = normalizeFreeflowConfig(parsed);
+    return { config: normalized.config.outputRouter, warnings: normalized.warnings };
 }
 export async function readProviderContext(cwd) {
     const parsed = await readFreeflowConfig(cwd);
@@ -78,7 +79,7 @@ export function notifyRouterConfigWarnings(ctx, routerConfigResult) {
         return;
     }
     lastRouterConfigWarningKey = key;
-    ctx.ui.notify(`Freeflow outputRouter config warning: ${routerConfigResult.warnings.join(" ")}`, "warning");
+    ctx.ui.notify(`Freeflow config warning: ${routerConfigResult.warnings.join(" ")}`, "warning");
 }
 export function restoreModeOverride(ctx) {
     currentModeOverride = null;
@@ -155,6 +156,7 @@ ${freeflowContext.outputRouterSafetyPolicy.trim()}
 export function runtimeContext(modeState, freeflowContext, routerConfigResult, providerContext, alreadyActivated, routerAlreadyActivated, providerAlreadyActivated) {
     const currentMode = modeState.currentMode ?? "none";
     const providerText = providerAlreadyActivated || !providerContext ? "" : `\n\n${providerContext}`;
+    const routerText = routerAlreadyActivated || !routerConfigResult.config.enabled ? "" : `\n\n${outputRouterContext(modeState, freeflowContext, routerConfigResult)}`;
     if (alreadyActivated) {
         return `## Freeflow Runtime Context
 
@@ -162,7 +164,7 @@ Repo default mode from \`.freeflow/config.json\`: ${modeState.defaultMode}.
 Current session mode override: ${currentMode}.
 Effective Freeflow mode: ${modeState.effectiveMode}.
 
-Use the installed Freeflow skills when they match the task. This Pi extension loads context and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.${providerText}${routerAlreadyActivated ? "" : `\n\n${outputRouterContext(modeState, freeflowContext, routerConfigResult)}`}`;
+Use the installed Freeflow skills when they match the task. This Pi extension loads context and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.${providerText}${routerText}`;
     }
     return `# Freeflow Runtime Context
 
@@ -179,7 +181,7 @@ For mode changes or mode interpretation, use \`mode-contract\`.
 Do not announce the current mode on every reply. Mention it when the user asks, setup/config is discussed, or the mode changes the next action.
 ${providerText}
 
-${routerAlreadyActivated ? "" : `${outputRouterContext(modeState, freeflowContext, routerConfigResult)}\n\n`}## Loaded Workflow Skill
+${routerText ? `${routerText.trimStart()}\n\n` : ""}## Loaded Workflow Skill
 
 \`\`\`md
 ${freeflowContext.workflowSkill.trim()}

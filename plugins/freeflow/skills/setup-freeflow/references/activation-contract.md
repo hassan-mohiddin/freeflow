@@ -10,7 +10,7 @@ Use this Markdown reference as the v0.1 contract module:
 getActivationContract(defaultMode) -> ActivationContract
 planActivation(contract, repoState, request) -> ActivationPlan | ActivationStop
 renderActivation(contract, target) -> rendered text or checks
-planOptionalOutputRouterConfig(request) -> OutputRouterConfigPlan | ActivationStop
+planOptionalEvidenceRoutingConfig(request) -> EvidenceRoutingConfigPlan | ActivationStop
 ```
 
 Do not add a code module until setup behavior needs logic that cannot be kept clear in the skill and this reference.
@@ -19,7 +19,7 @@ Do not add a code module until setup behavior needs logic that cannot be kept cl
 
 - Activation text contains always-on invariants only, not the full workflow spine.
 - Minimal config has exactly one field: `defaultMode`.
-- Optional `outputRouter` config is allowed only when explicitly requested.
+- Optional `outputRouter`, `capture`, and `providers` config is allowed only after the evidence-routing decision point or an explicit request.
 - Valid defaults are exactly `conversation`, `workflow`, and `strict-workflow`.
 - Default mode is `workflow` unless the user explicitly persists another valid mode.
 - Codex activation writes `AGENTS.md`, not `.codex/rules`.
@@ -50,9 +50,9 @@ Config adapter:
 - Create or update `.freeflow/config.json`.
 - For minimal setup, write exactly `{ "defaultMode": "<mode>" }`.
 - Use `workflow` unless the user explicitly asks to persist `conversation` or `strict-workflow`.
-- Add `outputRouter` only when explicitly requested, using `output-router-setup.md`.
-- Missing `outputRouter` means built-in defaults, not a setup warning.
-- Never enable native safety-net routing by default.
+- Add `outputRouter`, `capture`, or `providers` only after the evidence-routing decision point or an explicit request, using `output-router-setup.md`.
+- Missing `outputRouter`, `capture`, and `providers` means built-in defaults, not a setup warning.
+- Never enable native safety-net routing or direct host-tool capture by default.
 
 ## Codex Core Block
 

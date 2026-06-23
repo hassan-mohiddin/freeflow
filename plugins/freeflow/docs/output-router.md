@@ -188,12 +188,14 @@ Default vault root:
 
 The router works with built-in defaults. Minimal `/setup-freeflow` writes only `defaultMode`.
 
-Optional repo config lives in `.freeflow/config.json` only when explicitly requested:
+Optional repo config lives in `.freeflow/config.json` only after the setup evidence-routing decision point or an explicit request:
 
 ```json
 {
   "defaultMode": "workflow",
   "outputRouter": {
+    "enabled": true,
+    "profile": "standard",
     "postToolRouting": "off",
     "largeOutputBytes": 64000,
     "largeOutputLines": 1000,
@@ -201,6 +203,15 @@ Optional repo config lives in `.freeflow/config.json` only when explicitly reque
     "vaultRetentionDays": 7,
     "generatedPaths": ["graphify-out/**"],
     "noisyCommandHints": ["npm test"]
+  },
+  "capture": {
+    "freeflowMediated": "raw",
+    "directHostTools": "off"
+  },
+  "providers": {
+    "enabled": [
+      { "id": "serena", "mode": "discovery", "categories": ["symbols", "references", "diagnostics"] }
+    ]
   }
 }
 ```
@@ -210,6 +221,7 @@ Rules:
 - `postToolRouting` defaults to `off`.
 - `safety-net` is opt-in.
 - `strict` is reserved.
+- Direct host-tool capture remains `off` unless explicitly requested and supported by a later design.
 - Do not dump defaults into config.
 - Write only requested keys.
 
@@ -239,6 +251,6 @@ Current release evidence:
 - Command benchmark: `freeflow_run` passed 8/8 fixtures with exact recovery.
 - Optional index benchmark: scanner remains default; index not adopted.
 - Codex Structured Q&A benchmark: improved router passed the Sandbox Permissions fixture where native broad search selected `graphify-out/graph.html`.
-- Setup eval: optional `outputRouter` config is opt-in; minimal setup remains only `defaultMode`.
+- Setup eval: optional `outputRouter`/`capture`/`providers` config is opt-in through the evidence-routing branch; minimal setup remains only `defaultMode`.
 
 See `release-evidence.md` and runtime reports under `plugins/freeflow/evals/reports/runtime/`.

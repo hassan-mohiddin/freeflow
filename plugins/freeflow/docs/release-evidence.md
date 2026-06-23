@@ -44,7 +44,7 @@ Verified in the development repo:
 - Optional local index benchmark: scanner remains default, index is not adopted by default, and the no-dependency index remains experimental.
 - Codex Structured Q&A macro benchmark: improved router passed the first Sandbox Permissions Q&A fixture while the native broad-search proxy selected `graphify-out/graph.html`.
 - Large Codex scanner benchmark: scanner remains the retrieval backend; latest recorded report-refresh evidence kept scanner at 6/8 strict fixtures with bounded context.
-- Setup/config eval: `setup-freeflow` supports optional `outputRouter` repo config only when explicitly requested; minimal setup still writes only `defaultMode`.
+- Setup/config eval: `setup-freeflow` supports optional evidence-routing repo config (`outputRouter`, `capture`, `providers`) only after an explicit setup branch/request; minimal setup still writes only `defaultMode`.
 
 Adoption decisions:
 

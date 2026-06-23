@@ -68,9 +68,9 @@ Use `query` first when the needed lines are unknown. Use `expand` when a previou
 
 ## Config
 
-The router works with built-in defaults. Persist `outputRouter` config only when explicitly requested; `setup-freeflow` owns repo setup/config changes.
+The router works with built-in defaults. Persist `outputRouter`, `capture`, or `providers` config only after the setup evidence-routing decision point or an explicit request; `setup-freeflow` owns repo setup/config changes.
 
-Supported repo keys are `postToolRouting`, `largeOutputBytes`, `largeOutputLines`, `vaultRoot`, `vaultRetentionDays`, `generatedPaths`, and `noisyCommandHints`.
+Supported `outputRouter` keys are `enabled`, `profile`, `postToolRouting`, `largeOutputBytes`, `largeOutputLines`, `vaultRoot`, `vaultRetentionDays`, `generatedPaths`, and `noisyCommandHints`. Supported high-level capture/provider keys are `capture.freeflowMediated`, `capture.directHostTools`, and `providers.enabled`.
 
 `outputRouter.postToolRouting` controls native read/bash safety-net routing:
 
@@ -81,7 +81,8 @@ Supported repo keys are `postToolRouting`, `largeOutputBytes`, `largeOutputLines
 Rules:
 
 - Minimal setup stays only `defaultMode`.
-- Do not dump defaults or create an empty `outputRouter` object.
+- Do not dump defaults or create empty `outputRouter`, `capture`, or `providers` objects.
 - `generatedPaths` affects broad scans only; explicit path retrieval remains available.
-- Freeflow mode changes guidance strength only. It must not enable `postToolRouting`.
+- Freeflow mode changes guidance strength only. It must not enable `postToolRouting` or direct host-tool capture.
+- `capture.directHostTools` currently remains `off`; broad direct host-tool capture needs separate design/confirmation before other policies are written.
 - Invalid config must fall back safely with a warning.

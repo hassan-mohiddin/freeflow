@@ -61,7 +61,7 @@ with:
 
 Minimal setup should not add any other config fields.
 
-Optional `outputRouter` config may be added only when the user explicitly asks for router config such as generated-path hints, output thresholds, vault settings, or native safety-net routing. Missing `outputRouter` means built-in defaults, not a warning. Native safety-net routing remains off unless explicitly requested.
+Optional evidence-routing config (`outputRouter`, `capture`, `providers`) may be added only after the setup evidence-routing decision point or an explicit request for router/capture/provider config such as provider enablement, generated-path hints, output thresholds, vault settings, or native safety-net routing. Missing optional sections means built-in defaults, not a warning. Native safety-net routing and direct host-tool capture remain off unless explicitly requested and supported.
 
 Do not store:
 

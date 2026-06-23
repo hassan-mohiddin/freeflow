@@ -9,7 +9,7 @@ Use `references/activation-contract.md` before rendering activation text, config
 
 Use `references/host-setup.md` when the request mentions Codex, Claude, both hosts, team setup, solo setup, strict defaults, hooks, CLI, or setup profiles.
 
-Use `references/output-router-setup.md` when setup explicitly asks for output-router repo config, generated-path hints, native safety-net routing, vault settings, or output thresholds.
+Use `references/output-router-setup.md` when setup reaches the optional evidence-routing decision point or asks for output-router/capture/provider repo config, generated-path hints, native safety-net routing, vault settings, or output thresholds.
 
 ## Stop Before Editing
 
@@ -50,11 +50,13 @@ Create or update `.freeflow/config.json` using the config adapter in `references
 
 Minimal setup writes only `defaultMode`. Use `workflow` unless the user explicitly asks to persist a valid repo default: `conversation`, `workflow`, or `strict-workflow`.
 
-Optional `outputRouter` config belongs here only when explicitly requested. Read `references/output-router-setup.md` first. Do not add an empty `outputRouter`, dump router defaults, or ask every setup user about router config.
+Ask one optional evidence-routing decision point: whether to persist Output Router/capture/provider support beyond the minimal default. If declined, keep the minimal setup path.
 
-If the user asks for router setup but gives no config knobs, say the router works with built-in defaults and ask which optional config they want persisted. Recommend no repo config unless they need a repo-specific hint or native safety-net behavior.
+If accepted, read `references/output-router-setup.md` and ask only path-changing follow-ups: router profile or intentional overrides, direct host-tool capture policy, providers to enable, and read-only provider categories. Write high-level decisions and explicit overrides only. Do not add empty `outputRouter`, `capture`, or `providers` objects, and do not dump effective defaults.
 
-Never enable native safety-net routing by default. `postToolRouting: "safety-net"` requires an explicit request; `strict` is reserved and needs a separate confirmation before writing.
+If the user asks for router setup but gives no config knobs, say the router works with built-in defaults and ask which optional config they want persisted. Recommend no repo config unless they need provider enablement, repo-specific hints, or safety-net behavior.
+
+Never enable native safety-net routing or direct host-tool capture by default. `outputRouter.postToolRouting: "safety-net"` requires an explicit request; `strict` is reserved and needs a separate confirmation before writing. `capture.directHostTools` stays `off` unless a later explicit design supports a requested policy.
 
 Do not infer `strict-workflow` from "team", "strict gates", "careful", or high-risk examples. Recommend or ask unless the user explicitly says to make a mode the repo default.
 
@@ -82,8 +84,8 @@ Plugin-bundled context hooks are installed with Freeflow, not created by repo se
 Before claiming setup is complete, check:
 - config JSON parses
 - minimal config contains only `defaultMode` with the requested explicit default, or `workflow` when no explicit default was requested
-- optional `outputRouter` config appears only when explicitly requested and contains only requested valid keys
-- native safety-net routing is off unless explicitly requested
+- optional `outputRouter`, `capture`, and `providers` config appears only after the evidence-routing decision point or explicit request, and contains only requested valid keys
+- native safety-net routing and direct host-tool capture are off unless explicitly requested and supported
 - Codex setup has exactly one `## Freeflow` block in `AGENTS.md`
 - Claude setup has exactly one `CLAUDE.md` import and one `.claude/rules/freeflow-core.md` core file
 - `.codex/rules` was not created or changed for Freeflow behavior

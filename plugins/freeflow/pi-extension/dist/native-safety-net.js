@@ -29,7 +29,7 @@ function nativeOutputStats(text, truncation) {
     };
 }
 function isSafetyNetEnabled(routerConfig) {
-    return isNativeSafetyNetEnabled(routerConfig.postToolRouting);
+    return routerConfig.enabled !== false && isNativeSafetyNetEnabled(routerConfig.postToolRouting);
 }
 function shouldRouteNativeToolResult(event, routerConfig, text) {
     if (!SAFETY_NET_NATIVE_TOOLS.has(event.toolName) || !isSafetyNetEnabled(routerConfig)) {

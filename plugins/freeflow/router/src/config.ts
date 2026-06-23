@@ -1,11 +1,32 @@
 import { isValidPostToolRoutingMode, validatePositiveIntegerThreshold } from "./router-contract.js";
-import type { RouterConfig, RouterHints, RouterThresholds, VaultRetentionPolicy } from "./types.js";
+import {
+  CAPTURE_FREEFLOW_MEDIATED_MODES,
+  DIRECT_HOST_TOOL_CAPTURE_MODES,
+  OUTPUT_ROUTER_PROFILES,
+  PROVIDER_CATEGORIES,
+  PROVIDER_MODES,
+} from "./types.js";
+import type {
+  CaptureConfig,
+  FreeflowConfig,
+  ProviderCategory,
+  ProviderEnablement,
+  ProvidersConfig,
+  RouterConfig,
+  RouterHints,
+  RouterThresholds,
+  VaultRetentionPolicy,
+} from "./types.js";
 
 export const OUTPUT_ROUTER_SKILL_PATH = "plugins/freeflow/skills/output-router/SKILL.md";
 
 export const DEFAULT_VAULT_ROOT = "~/.cache/freeflow-router/vault";
 
 export const DEFAULT_POST_TOOL_ROUTING = "off";
+
+export const DEFAULT_OUTPUT_ROUTER_ENABLED = true;
+
+export const DEFAULT_OUTPUT_ROUTER_PROFILE = "standard";
 
 export const DEFAULT_VAULT_RETENTION = {
   strategy: "ttl",
@@ -17,6 +38,15 @@ export const DEFAULT_ROUTER_THRESHOLDS = {
   largeOutputLines: 1_000,
 } as const satisfies RouterThresholds;
 
+export const DEFAULT_CAPTURE_CONFIG = {
+  freeflowMediated: "raw",
+  directHostTools: "off",
+} as const satisfies CaptureConfig;
+
+export const DEFAULT_PROVIDERS_CONFIG = {
+  enabled: [],
+} as const satisfies ProvidersConfig;
+
 export interface CreateDefaultRouterConfigOptions {
   vaultRetention?: VaultRetentionPolicy;
   vaultRoot?: string;
@@ -24,6 +54,8 @@ export interface CreateDefaultRouterConfigOptions {
 
 export function createDefaultRouterConfig(options: CreateDefaultRouterConfigOptions = {}): RouterConfig {
   return {
+    enabled: DEFAULT_OUTPUT_ROUTER_ENABLED,
+    profile: DEFAULT_OUTPUT_ROUTER_PROFILE,
     postToolRouting: DEFAULT_POST_TOOL_ROUTING,
     thresholds: { ...DEFAULT_ROUTER_THRESHOLDS },
     vault: {
@@ -35,6 +67,21 @@ export function createDefaultRouterConfig(options: CreateDefaultRouterConfigOpti
 
 export interface NormalizeRouterConfigResult {
   config: RouterConfig;
+  warnings: string[];
+}
+
+export interface NormalizeCaptureConfigResult {
+  config: CaptureConfig;
+  warnings: string[];
+}
+
+export interface NormalizeProvidersConfigResult {
+  config: ProvidersConfig;
+  warnings: string[];
+}
+
+export interface NormalizeFreeflowConfigResult {
+  config: FreeflowConfig;
   warnings: string[];
 }
 
@@ -53,6 +100,8 @@ export function normalizeRouterConfig(input: unknown): NormalizeRouterConfigResu
     };
   }
 
+  applyRouterEnabled(config, warnings, input.enabled);
+  applyRouterProfile(config, warnings, input.profile);
   applyPostToolRouting(config, warnings, input.postToolRouting);
   applyPositiveInteger(config.thresholds, warnings, input.largeOutputBytes, "largeOutputBytes");
   applyPositiveInteger(config.thresholds, warnings, input.largeOutputLines, "largeOutputLines");
@@ -63,8 +112,139 @@ export function normalizeRouterConfig(input: unknown): NormalizeRouterConfigResu
   return { config, warnings };
 }
 
+export function normalizeCaptureConfig(input: unknown): NormalizeCaptureConfigResult {
+  const config: CaptureConfig = { ...DEFAULT_CAPTURE_CONFIG };
+  const warnings: string[] = [];
+
+  if (input === undefined || input === null) {
+    return { config, warnings };
+  }
+
+  if (!isRecord(input)) {
+    return {
+      config,
+      warnings: ["capture config must be an object; using built-in capture defaults."],
+    };
+  }
+
+  applyStringEnum(
+    config,
+    warnings,
+    input.freeflowMediated,
+    "freeflowMediated",
+    "capture.freeflowMediated",
+    CAPTURE_FREEFLOW_MEDIATED_MODES,
+    DEFAULT_CAPTURE_CONFIG.freeflowMediated,
+  );
+  applyStringEnum(
+    config,
+    warnings,
+    input.directHostTools,
+    "directHostTools",
+    "capture.directHostTools",
+    DIRECT_HOST_TOOL_CAPTURE_MODES,
+    DEFAULT_CAPTURE_CONFIG.directHostTools,
+  );
+
+  return { config, warnings };
+}
+
+export function normalizeProvidersConfig(input: unknown): NormalizeProvidersConfigResult {
+  const config: ProvidersConfig = { enabled: [] };
+  const warnings: string[] = [];
+
+  if (input === undefined || input === null) {
+    return { config, warnings };
+  }
+
+  if (!isRecord(input)) {
+    return {
+      config,
+      warnings: ["providers config must be an object; using built-in provider defaults."],
+    };
+  }
+
+  if (input.enabled === undefined) {
+    return { config, warnings };
+  }
+
+  if (!Array.isArray(input.enabled)) {
+    warnings.push("Invalid providers.enabled; expected an array of provider ids or provider enablement objects.");
+    return { config, warnings };
+  }
+
+  input.enabled.forEach((entry, index) => {
+    const parsed = parseProviderEnablement(entry, index, warnings);
+    if (parsed) {
+      config.enabled.push(parsed);
+    }
+  });
+
+  return { config, warnings };
+}
+
+export function normalizeFreeflowConfig(input: unknown): NormalizeFreeflowConfigResult {
+  const warnings: string[] = [];
+
+  if (input !== undefined && input !== null && !isRecord(input)) {
+    const router = normalizeRouterConfig(undefined);
+    const capture = normalizeCaptureConfig(undefined);
+    const providers = normalizeProvidersConfig(undefined);
+    return {
+      config: {
+        outputRouter: router.config,
+        capture: capture.config,
+        providers: providers.config,
+      },
+      warnings: ["Freeflow config must be an object; using built-in defaults."],
+    };
+  }
+
+  const source = isRecord(input) ? input : {};
+  const router = normalizeRouterConfig(source.outputRouter);
+  const capture = normalizeCaptureConfig(source.capture);
+  const providers = normalizeProvidersConfig(source.providers);
+
+  warnings.push(...router.warnings, ...capture.warnings, ...providers.warnings);
+
+  return {
+    config: {
+      outputRouter: router.config,
+      capture: capture.config,
+      providers: providers.config,
+    },
+    warnings,
+  };
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function applyRouterEnabled(config: RouterConfig, warnings: string[], value: unknown) {
+  if (value === undefined) {
+    return;
+  }
+
+  if (typeof value === "boolean") {
+    config.enabled = value;
+    return;
+  }
+
+  warnings.push(`Invalid outputRouter.enabled=${JSON.stringify(value)}; using ${DEFAULT_OUTPUT_ROUTER_ENABLED}.`);
+}
+
+function applyRouterProfile(config: RouterConfig, warnings: string[], value: unknown) {
+  if (value === undefined) {
+    return;
+  }
+
+  if (isStringIn(value, OUTPUT_ROUTER_PROFILES)) {
+    config.profile = value;
+    return;
+  }
+
+  warnings.push(`Invalid outputRouter.profile=${JSON.stringify(value)}; using ${DEFAULT_OUTPUT_ROUTER_PROFILE}.`);
 }
 
 function applyPostToolRouting(config: RouterConfig, warnings: string[], value: unknown) {
@@ -151,6 +331,101 @@ function applyHints(
   if (hints.generatedPathGlobs || hints.noisyCommandPatterns) {
     config.hints = hints;
   }
+}
+
+function applyStringEnum<TConfig extends object, TValue extends string>(
+  config: TConfig,
+  warnings: string[],
+  value: unknown,
+  key: keyof TConfig,
+  path: string,
+  allowed: readonly TValue[],
+  fallback: TValue,
+) {
+  if (value === undefined) {
+    return;
+  }
+
+  if (isStringIn(value, allowed)) {
+    (config as Record<string, unknown>)[String(key)] = value;
+    return;
+  }
+
+  warnings.push(`Invalid ${path}=${JSON.stringify(value)}; using ${fallback}.`);
+}
+
+function parseProviderEnablement(entry: unknown, index: number, warnings: string[]): ProviderEnablement | undefined {
+  const path = `providers.enabled[${index}]`;
+
+  if (typeof entry === "string") {
+    const id = parseConfigString(entry, path, warnings);
+    return id ? { id, mode: "discovery" } : undefined;
+  }
+
+  if (!isRecord(entry)) {
+    warnings.push(`Invalid ${path}; expected a provider id string or provider enablement object.`);
+    return undefined;
+  }
+
+  const id = parseConfigString(entry.id, `${path}.id`, warnings);
+  if (!id) {
+    return undefined;
+  }
+
+  let mode: ProviderEnablement["mode"] = "discovery";
+  if (entry.mode !== undefined) {
+    if (!isStringIn(entry.mode, PROVIDER_MODES)) {
+      warnings.push(`Invalid ${path}.mode=${JSON.stringify(entry.mode)}; expected discovery or read-only.`);
+      return undefined;
+    }
+    mode = entry.mode;
+  }
+
+  const categories = parseProviderCategories(entry.categories, `${path}.categories`, warnings);
+  if (entry.categories !== undefined && categories === undefined) {
+    return undefined;
+  }
+
+  return categories ? { id, mode, categories } : { id, mode };
+}
+
+function parseProviderCategories(
+  value: unknown,
+  path: string,
+  warnings: string[],
+): ProviderCategory[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!Array.isArray(value) || value.length === 0) {
+    warnings.push(`Invalid ${path}; expected a non-empty array of read-only provider categories.`);
+    return undefined;
+  }
+
+  const categories: ProviderCategory[] = [];
+  for (const category of value) {
+    if (!isStringIn(category, PROVIDER_CATEGORIES)) {
+      warnings.push(`Invalid ${path}; unsupported provider category ${JSON.stringify(category)}.`);
+      return undefined;
+    }
+    categories.push(category);
+  }
+
+  return categories;
+}
+
+function parseConfigString(value: unknown, path: string, warnings: string[]): string | undefined {
+  if (typeof value !== "string" || value.trim().length === 0 || /[\u0000-\u001F\u007F-\u009F\u2028\u2029]/.test(value)) {
+    warnings.push(`Invalid ${path}; expected a non-empty single-line string.`);
+    return undefined;
+  }
+
+  return value.trim();
+}
+
+function isStringIn<TValue extends string>(value: unknown, allowed: readonly TValue[]): value is TValue {
+  return typeof value === "string" && (allowed as readonly string[]).includes(value);
 }
 
 function parseStringArray(value: unknown, key: string, warnings: string[]): string[] | undefined {
