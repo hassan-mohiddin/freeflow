@@ -20,6 +20,7 @@
 - 2026-06-23: Slice 7 added high-level output-router/capture/provider config validation and setup guidance while keeping minimal setup default-only and direct host-tool capture off.
 - 2026-06-23: Slice 8 added public Pi `freeflow_status` diagnostics for effective config, vault writability, provider availability, custom manifest validity, and non-destructive migration recommendations.
 - 2026-06-23: Slice 9 added targeted capture/derive/provider eval evidence and refreshed public docs/skill guidance without claiming universal host-tool capture.
+- 2026-06-23: Slice 10 added a design-only script derive sandbox/security contract in `docs/designs/freeflow-script-derive-sandbox-design.md`; no script derive implementation was added.
 
 ## Purpose
 
@@ -554,6 +555,8 @@ All derived outputs are captured as new evidence records and routed before enter
 ## Script Derive Phase
 
 Script derive is intentionally separate from deterministic derive.
+
+The Slice 10 design-only artifact is `docs/designs/freeflow-script-derive-sandbox-design.md`.
 
 Before script derive implementation, define:
 
