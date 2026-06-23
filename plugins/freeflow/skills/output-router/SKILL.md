@@ -21,6 +21,7 @@ Native tools stay direct unless explicit config enables the safety net. Use nati
 - Need to run a likely-large, broad, exploratory, or noisy command: use `freeflow_run`.
 - Need supported read-only service/protocol output with routing and recovery: use `freeflow_capture`.
 - Need deterministic filtering, extraction, counts, grouping, dedupe, topN, URL/citation extraction, or stats from vaulted evidence: use `freeflow_derive`.
+- Need effective Freeflow router/capture/provider config, vault writability, provider availability, or migration recommendations: use `freeflow_status`.
 - Need a whole known file/artifact and direct file contents are intended: use native read.
 - Need direct shell behavior with expected-small exact output: use native bash.
 - Need to edit files: use native edit/write.
@@ -68,7 +69,7 @@ Use `query` first when the needed lines are unknown. Use `expand` when a previou
 
 ## Config
 
-The router works with built-in defaults. Persist `outputRouter`, `capture`, or `providers` config only after the setup evidence-routing decision point or an explicit request; `setup-freeflow` owns repo setup/config changes.
+The router works with built-in defaults. Use `freeflow_status` to inspect effective defaults and non-destructive migration recommendations. Persist `outputRouter`, `capture`, or `providers` config only after the setup evidence-routing decision point or an explicit request; `setup-freeflow` owns repo setup/config changes.
 
 Supported `outputRouter` keys are `enabled`, `profile`, `postToolRouting`, `largeOutputBytes`, `largeOutputLines`, `vaultRoot`, `vaultRetentionDays`, `generatedPaths`, and `noisyCommandHints`. Supported high-level capture/provider keys are `capture.freeflowMediated`, `capture.directHostTools`, and `providers.enabled`.
 

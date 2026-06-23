@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
@@ -84,6 +84,149 @@ test("Pi before_agent_start injects output-router skill context", async () => {
   assert.match(result.systemPrompt, /Do not silently summarize or compress exactness-sensitive output/);
   assert.doesNotMatch(result.systemPrompt, /large native read\/bash outputs may be vaulted/);
   assert.doesNotMatch(result.systemPrompt, /Output-router config note/);
+});
+
+test("Pi freeflow_status reports effective defaults without writing config", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-status-minimal-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    const configPath = join(cwd, ".freeflow/config.json");
+    const configText = JSON.stringify({ defaultMode: "workflow" }, null, 2);
+    await writeFile(configPath, configText, "utf8");
+
+    const { tools } = loadExtension();
+    const statusTool = tools.find((tool) => tool.name === "freeflow_status");
+    assert.ok(statusTool);
+
+    const result = await statusTool.execute("status-minimal", { action: "doctor" }, undefined, undefined, context(cwd));
+    const report = JSON.parse(result.content[0].text);
+
+    assert.equal(report.toolStatus, "ok");
+    assert.equal(report.action, "doctor");
+    assert.equal(report.mode.defaultMode, "workflow");
+    assert.equal(report.effectiveConfig.outputRouter.enabled, true);
+    assert.equal(report.effectiveConfig.outputRouter.profile, "standard");
+    assert.equal(report.effectiveConfig.outputRouter.postToolRouting, "off");
+    assert.equal(report.effectiveConfig.capture.directHostTools, "off");
+    assert.deepEqual(report.effectiveConfig.providers.enabled, []);
+    assert.deepEqual(report.configWarnings, []);
+    assert.match(report.vault.root, /freeflow-router\/vault$/);
+    assert.ok(["writable", "missing_ancestor_writable", "missing_ancestor_unavailable", "not_directory", "not_writable", "unknown"].includes(report.vault.writability.status));
+    assert.equal(await readFile(configPath, "utf8"), configText);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi freeflow_status reports vault writability without creating directories", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-status-vault-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    const nestedVault = join(cwd, "missing", "nested", "vault");
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({ defaultMode: "workflow", outputRouter: { vaultRoot: nestedVault } }),
+      "utf8",
+    );
+
+    const { tools } = loadExtension();
+    const statusTool = tools.find((tool) => tool.name === "freeflow_status");
+    const missingResult = await statusTool.execute("status-vault-missing", { action: "doctor" }, undefined, undefined, context(cwd));
+    const missingReport = JSON.parse(missingResult.content[0].text);
+
+    assert.equal(missingReport.vault.writability.status, "missing_ancestor_writable");
+    await assert.rejects(readFile(nestedVault, "utf8"));
+
+    const fileVault = join(cwd, "vault-file");
+    await writeFile(fileVault, "not a directory", "utf8");
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({ defaultMode: "workflow", outputRouter: { vaultRoot: fileVault } }),
+      "utf8",
+    );
+    const fileResult = await statusTool.execute("status-vault-file", { action: "doctor" }, undefined, undefined, context(cwd));
+    const fileReport = JSON.parse(fileResult.content[0].text);
+    assert.equal(fileReport.vault.writability.status, "not_directory");
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi freeflow_status reports invalid config warnings and safe fallbacks", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-status-invalid-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({
+        defaultMode: "workflow",
+        outputRouter: { enabled: "yes", profile: "future" },
+        capture: { freeflowMediated: "metadata-only", directHostTools: "raw" },
+        providers: { enabled: [{ id: "serena", mode: "write" }] },
+      }),
+      "utf8",
+    );
+
+    const { tools } = loadExtension();
+    const statusTool = tools.find((tool) => tool.name === "freeflow_status");
+    const result = await statusTool.execute("status-invalid", { action: "doctor" }, undefined, undefined, context(cwd));
+    const report = JSON.parse(result.content[0].text);
+
+    assert.equal(report.effectiveConfig.outputRouter.enabled, true);
+    assert.equal(report.effectiveConfig.outputRouter.profile, "standard");
+    assert.equal(report.effectiveConfig.capture.freeflowMediated, "raw");
+    assert.equal(report.effectiveConfig.capture.directHostTools, "off");
+    assert.deepEqual(report.effectiveConfig.providers.enabled, []);
+    assert.ok(report.configWarnings.some((warning) => warning.includes("outputRouter.enabled")));
+    assert.ok(report.configWarnings.some((warning) => warning.includes("outputRouter.profile")));
+    assert.ok(report.configWarnings.some((warning) => warning.includes("capture.freeflowMediated")));
+    assert.ok(report.configWarnings.some((warning) => warning.includes("capture.directHostTools")));
+    assert.ok(report.configWarnings.some((warning) => warning.includes("providers.enabled[0].mode")));
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi freeflow_status migration recommendations are non-destructive", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-status-migration-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    const configPath = join(cwd, ".freeflow/config.json");
+    const configText = JSON.stringify(
+      {
+        defaultMode: "workflow",
+        outputRouter: {
+          enabled: true,
+          profile: "standard",
+          postToolRouting: "off",
+          largeOutputBytes: 64000,
+          largeOutputLines: 1000,
+          vaultRoot: "~/.cache/freeflow-router/vault",
+          vaultRetentionDays: 7,
+        },
+        capture: { freeflowMediated: "raw", directHostTools: "off" },
+        providers: { enabled: [] },
+      },
+      null,
+      2,
+    );
+    await writeFile(configPath, configText, "utf8");
+
+    const { tools } = loadExtension();
+    const statusTool = tools.find((tool) => tool.name === "freeflow_status");
+    const result = await statusTool.execute("status-migration", { action: "migration" }, undefined, undefined, context(cwd));
+    const report = JSON.parse(result.content[0].text);
+
+    assert.equal(report.action, "migration");
+    assert.equal(report.migration.applied, false);
+    assert.equal(report.migration.requiresConfirmation, true);
+    assert.ok(report.migration.recommendations.some((recommendation) => recommendation.path === "outputRouter.postToolRouting"));
+    assert.ok(report.migration.recommendations.some((recommendation) => recommendation.path === "capture.directHostTools"));
+    assert.ok(report.migration.recommendations.some((recommendation) => recommendation.path === "providers"));
+    assert.equal(await readFile(configPath, "utf8"), configText);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
 });
 
 test("Pi before_agent_start injects compact built-in provider summary when Serena MCP is configured", async () => {

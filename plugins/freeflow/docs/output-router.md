@@ -20,6 +20,7 @@ The router ships explicit tools:
 - `freeflow_run`: run likely-large/noisy commands, vault raw output, and return compact evidence.
 - `freeflow_capture`: capture supported read-only service/protocol output with routing and recovery.
 - `freeflow_derive`: deterministically transform vaulted evidence into bounded derived evidence.
+- `freeflow_status`: inspect effective config, vault writability, provider availability, and non-destructive migration recommendations.
 
 Native tools still matter:
 
@@ -38,6 +39,7 @@ flowchart LR
   Vault[Freeflow vault]
   Capture[freeflow_capture]
   Derive[freeflow_derive]
+  Status[freeflow_status]
   Native[native read/bash]
   Evidence[bounded evidence]
   Raw[exact recovery]
@@ -46,6 +48,7 @@ flowchart LR
   Agent -->|noisy command| Run
   Agent -->|read-only provider| Capture
   Agent -->|derive from vault| Derive
+  Agent -->|inspect config/status| Status
   Agent -->|direct/raw known output| Native
   Retrieve --> Repo --> Evidence
   Retrieve --> Vault --> Evidence
@@ -70,6 +73,7 @@ flowchart LR
 | Run noisy/large command output | `freeflow_run` |
 | Capture supported read-only provider output | `freeflow_capture` |
 | Derive deterministic subsets/stats from vaulted output | `freeflow_derive` |
+| Inspect effective config, providers, vault, or migration recommendations | `freeflow_status` |
 | Read a known whole file | native `read` |
 | Run small exact command | native `bash` |
 
@@ -159,6 +163,22 @@ Current deterministic operations include:
 - line and size stats.
 
 Derived output is vaulted separately and points back to source output ids through lineage.
+
+## `freeflow_status`
+
+`freeflow_status` reports effective Freeflow behavior without rewriting config.
+
+It shows:
+
+- router enabled/profile and thresholds,
+- vault path and writability,
+- capture policy and recoverability defaults,
+- enabled providers and availability,
+- custom manifest validity,
+- config warnings and safe fallbacks,
+- non-destructive migration recommendations for stale explicit defaults or unknown keys.
+
+Migration recommendations are informational only. They require explicit confirmation before any future rewrite of `.freeflow/config.json`.
 
 ## Vault Recovery
 

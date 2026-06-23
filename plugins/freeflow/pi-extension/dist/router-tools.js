@@ -1,8 +1,9 @@
 import { freeflowCapture, freeflowDerive, freeflowRetrieve, freeflowRun } from "../../router/dist/index.js";
+import { buildFreeflowStatusReport } from "./status.js";
 import { createPiCaptureAdapters, normalizeCaptureParams } from "./mcp-capture.js";
-import { renderFreeflowCaptureCall, renderFreeflowCaptureResult, renderFreeflowDeriveCall, renderFreeflowDeriveResult, renderFreeflowRetrieveCall, renderFreeflowRetrieveResult, renderFreeflowRunCall, renderFreeflowRunResult, } from "./renderers.js";
+import { renderFreeflowCaptureCall, renderFreeflowCaptureResult, renderFreeflowDeriveCall, renderFreeflowDeriveResult, renderFreeflowRetrieveCall, renderFreeflowRetrieveResult, renderFreeflowRunCall, renderFreeflowRunResult, renderFreeflowStatusCall, renderFreeflowStatusResult, } from "./renderers.js";
 import { readOutputRouterConfig, notifyRouterConfigWarnings } from "./runtime-context.js";
-import { FREEFLOW_CAPTURE_PARAMETERS, FREEFLOW_DERIVE_PARAMETERS, FREEFLOW_RETRIEVE_PARAMETERS, FREEFLOW_RUN_PARAMETERS } from "./schemas.js";
+import { FREEFLOW_CAPTURE_PARAMETERS, FREEFLOW_DERIVE_PARAMETERS, FREEFLOW_RETRIEVE_PARAMETERS, FREEFLOW_RUN_PARAMETERS, FREEFLOW_STATUS_PARAMETERS } from "./schemas.js";
 import { getRouterSessionId, routedToolText } from "./utils.js";
 function normalizeDeriveOperation(operation) {
     if (!operation || typeof operation !== "object" || Array.isArray(operation)) {
@@ -91,6 +92,30 @@ function createPiCommandRunner(pi, signal) {
     };
 }
 export function registerRouterTools(pi) {
+    pi.registerTool({
+        name: "freeflow_status",
+        label: "Freeflow Status",
+        description: "Inspect effective Freeflow router/capture/provider behavior, vault writability, warnings, and non-destructive migration recommendations.",
+        promptSnippet: "Inspect Freeflow effective config, provider availability, vault status, and migration recommendations.",
+        promptGuidelines: [
+            "Use freeflow_status when setup/config/status/doctor evidence is needed.",
+            "Status and migration recommendations are read-only; do not rewrite .freeflow/config.json without explicit confirmation.",
+        ],
+        parameters: FREEFLOW_STATUS_PARAMETERS,
+        async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+            const result = await buildFreeflowStatusReport(params, ctx);
+            return {
+                content: [{ type: "text", text: routedToolText(result) }],
+                details: { result },
+            };
+        },
+        renderCall(args, theme) {
+            return renderFreeflowStatusCall(args, theme);
+        },
+        renderResult(result, options, theme) {
+            return renderFreeflowStatusResult(result, options, theme);
+        },
+    });
     pi.registerTool({
         name: "freeflow_retrieve",
         label: "Freeflow Retrieve",

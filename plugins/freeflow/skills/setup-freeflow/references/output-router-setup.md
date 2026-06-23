@@ -59,7 +59,7 @@ Rules:
 
 ## Verify
 
-After writing optional evidence-routing config:
+After writing optional evidence-routing config, use `freeflow_status` or equivalent direct inspection to verify effective behavior:
 
 - JSON parses.
 - `defaultMode` is valid.
@@ -68,4 +68,5 @@ After writing optional evidence-routing config:
 - Invalid router/capture/provider values are not written.
 - Native safety-net routing is not enabled unless explicitly requested.
 - Direct host-tool capture remains `off` unless explicitly requested and supported.
+- `freeflow_status` shows effective defaults and migration recommendations without rewriting config.
 - No repo-local hooks, skill files, setup-output-router skill, docs inventories, or repo-local storage directories were created.

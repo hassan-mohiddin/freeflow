@@ -95,6 +95,71 @@ export function renderFreeflowDeriveCall(args, theme) {
     const preserve = args?.preserve ? ` ${themeFg(theme, "dim", `(preserve=${args.preserve})`)}` : "";
     return textComponent(`${title} ${operation} ${source}${preserve}`);
 }
+export function renderFreeflowStatusCall(args, theme) {
+    const title = themeFg(theme, "toolTitle", themeBold(theme, "freeflow_status"));
+    const action = themeFg(theme, "accent", args?.action ?? "status");
+    return textComponent(`${title} ${action}`);
+}
+export function renderFreeflowStatusResult(result, { expanded } = {}, theme) {
+    const report = routerResultFromToolResult(result);
+    if (!report) {
+        return textComponent(fallbackResultText(result));
+    }
+    const warnings = Array.isArray(report.configWarnings) ? report.configWarnings : [];
+    const recommendations = Array.isArray(report.migration?.recommendations) ? report.migration.recommendations : [];
+    const providerAvailability = Array.isArray(report.providers?.availability) ? report.providers.availability : [];
+    const router = report.effectiveConfig?.outputRouter ?? {};
+    const capture = report.effectiveConfig?.capture ?? {};
+    const icon = statusIcon(report.toolStatus);
+    const lines = [
+        `${themeFg(theme, "success", icon)} ${themeFg(theme, "toolTitle", "freeflow_status")} ${themeFg(theme, "muted", report.action ?? "status")} • router ${formatStatus(theme, router.enabled === false ? "off" : "ok")} ${themeFg(theme, "dim", router.profile ?? "standard")}`,
+        `${themeFg(theme, "muted", "vault:")} ${themeFg(theme, "accent", shortenMiddle(report.vault?.root ?? "unknown", 80))} ${themeFg(theme, "dim", report.vault?.writability?.status ?? "unknown")}`,
+        `${themeFg(theme, "muted", "capture:")} mediated=${capture.freeflowMediated ?? "raw"} direct-host=${capture.directHostTools ?? "off"} • providers=${providerAvailability.length} • warnings=${warnings.length} • migrations=${recommendations.length}`,
+    ];
+    if (!expanded) {
+        lines.push(themeFg(theme, "dim", "ctrl+o to expand effective config, providers, warnings, and migration recommendations"));
+        return textComponent(lines.join("\n"));
+    }
+    lines.push("", themeFg(theme, "toolTitle", "Mode"));
+    lines.push(`  ${themeFg(theme, "muted", "effective:")} ${report.mode?.effectiveMode ?? "workflow"}`);
+    lines.push(`  ${themeFg(theme, "muted", "default:")} ${report.mode?.defaultMode ?? "workflow"}`);
+    lines.push("", themeFg(theme, "toolTitle", "Router"));
+    lines.push(`  ${themeFg(theme, "muted", "enabled:")} ${String(router.enabled !== false)}`);
+    lines.push(`  ${themeFg(theme, "muted", "profile:")} ${router.profile ?? "standard"}`);
+    lines.push(`  ${themeFg(theme, "muted", "postToolRouting:")} ${router.postToolRouting ?? "off"}`);
+    if (router.thresholds) {
+        lines.push(`  ${themeFg(theme, "muted", "thresholds:")} ${JSON.stringify(router.thresholds)}`);
+    }
+    lines.push("", themeFg(theme, "toolTitle", "Capture"));
+    lines.push(`  ${themeFg(theme, "muted", "freeflowMediated:")} ${capture.freeflowMediated ?? "raw"}`);
+    lines.push(`  ${themeFg(theme, "muted", "directHostTools:")} ${capture.directHostTools ?? "off"}`);
+    if (report.capture?.recoverabilityDefault) {
+        lines.push(`  ${truncateText(report.capture.recoverabilityDefault, 180)}`);
+    }
+    lines.push("", themeFg(theme, "toolTitle", "Providers"));
+    if (providerAvailability.length === 0) {
+        lines.push(`  ${themeFg(theme, "dim", "No providers enabled in config.")}`);
+    }
+    else {
+        for (const provider of providerAvailability) {
+            lines.push(`  ${themeFg(theme, "accent", provider.id)} ${formatStatus(theme, provider.status)} ${themeFg(theme, "dim", truncateText(provider.reason, 140))}`);
+        }
+    }
+    const custom = report.providers?.customManifests;
+    if (custom) {
+        lines.push(`  ${themeFg(theme, "muted", "custom manifests:")} valid=${custom.validCount ?? 0} invalid=${custom.invalidCount ?? 0} total=${custom.total ?? 0}`);
+    }
+    if (warnings.length > 0) {
+        lines.push("", themeFg(theme, "toolTitle", "Warnings"));
+        warnings.slice(0, 8).forEach((warning) => lines.push(`  ${themeFg(theme, "warning", truncateText(warning, 180))}`));
+    }
+    if (recommendations.length > 0) {
+        lines.push("", themeFg(theme, "toolTitle", "Migration recommendations"));
+        recommendations.slice(0, 8).forEach((item) => lines.push(`  ${themeFg(theme, "accent", item.path)} ${themeFg(theme, "muted", item.action)} — ${truncateText(item.message, 160)}`));
+        lines.push(`  ${themeFg(theme, "dim", "No config was rewritten; confirmation is required before applying recommendations.")}`);
+    }
+    return textComponent(lines.join("\n"));
+}
 export function renderFreeflowRetrieveResult(result, { expanded } = {}, theme) {
     const routed = routerResultFromToolResult(result);
     if (!routed) {

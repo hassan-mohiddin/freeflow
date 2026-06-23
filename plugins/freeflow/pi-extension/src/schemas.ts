@@ -21,6 +21,18 @@ const REGEX_FLAGS_SCHEMA = {
 const JSON_POINTER_PATTERN = String.raw`^(?:|/(?:[^~/]|~[01])*(?:/(?:[^~/]|~[01])*)*)$`;
 const JSON_PATH_PATTERN = String.raw`^\$(?:\.[A-Za-z_$][A-Za-z0-9_$-]*|\[(?:0|[1-9][0-9]*)\]|\["(?:[^"\\\u0000-\u001F]|\\(?:["\\/bfnrt]|u[0-9A-Fa-f]{4}))*"\])*$`;
 
+export const FREEFLOW_STATUS_PARAMETERS = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    action: {
+      type: "string",
+      enum: ["status", "doctor", "migration"],
+      description: "Status view to render. migration is non-destructive and reports recommendations only.",
+    },
+  },
+};
+
 export const FREEFLOW_RETRIEVE_PARAMETERS = {
   type: "object",
   additionalProperties: false,
