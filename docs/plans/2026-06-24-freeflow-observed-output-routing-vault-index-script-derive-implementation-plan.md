@@ -2,7 +2,7 @@
 > **Date:** 2026-06-24
 > **Owner:** Hassan Mohiddin
 > **Type:** Plan
-> **Status:** In progress — Slices 0-16 implemented; sandbox adapter spike proved JavaScript and jq candidates, but Slice 17 remains blocked pending owner dependency/security approval
+> **Status:** In progress — Slices 0-16 implemented; Slice 17 partially implemented for explicit QuickJS JavaScript execution; Python and jq execution remain unavailable
 > **Source:** `docs/specs/freeflow-observed-output-routing-vault-index-and-script-derive-design.md`
 
 # Freeflow Observed Output Routing, Vault Index, And Script Derive Implementation Plan
@@ -822,7 +822,7 @@ Slice 16 decision after implementation:
 
 ## Slice 17: Script Derive Execution Engine
 
-Status: blocked pending owner dependency/security approval. Proof spikes passed for JavaScript (`quickjs-wasi`) and jq (`jq-wasm`), Python remains unavailable, and script execution must not be implemented until the owner approves optional adapter package additions and the security/artifact review accepts the selected adapter boundaries.
+Status: partial JavaScript implementation in progress. QuickJS JavaScript execution is implemented only for explicitly registered/provided adapter roots and remains disabled by default. Python remains unavailable. jq remains proof-backed but not product-enabled pending separate security review of the Worker-boundary large-output caveat.
 
 Purpose: execute sandboxed scripts over vault sources and route output.
 
@@ -854,6 +854,16 @@ Stop if:
 
 - script stderr/stdout can bypass router caps,
 - script execution can read outside mounted inputs.
+
+Slice 17 partial progress:
+
+- Added dependency-free QuickJS adapter support. No `package.json` dependency was added.
+- Pi discovers QuickJS only through the explicit `FREEFLOW_QUICKJS_WASI_ROOT` package-root environment variable.
+- `freeflow_derive operation.kind="script"` still returns disabled by default unless `scriptDerive.enabled=true` is configured.
+- With a registered/provided QuickJS adapter, JavaScript scripts can read copied vault-source input through `readText(alias)` and write bounded stdout/stderr through `writeText`, `console.log`, and `console.error`.
+- Raw script code is still represented by `codeSha256` only.
+- Python execution remains unavailable. jq execution remains unimplemented in product code.
+- Evidence: `plugins/freeflow/evals/reports/runtime/quickjs-script-derive-execution-1-report.md`.
 
 ## Slice 18: Final Docs, Evals, Benchmarks, And Cleanup
 

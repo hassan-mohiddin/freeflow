@@ -1,7 +1,7 @@
 import { constants as fsConstants } from "node:fs";
 import { access, readFile, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { DEFAULT_CAPTURE_CONFIG, DEFAULT_OBSERVED_ROUTING_CONFIG, DEFAULT_OUTPUT_ROUTER_ENABLED, DEFAULT_OUTPUT_ROUTER_PROFILE, DEFAULT_POST_TOOL_ROUTING, DEFAULT_PROVIDERS_CONFIG, DEFAULT_ROUTER_THRESHOLDS, DEFAULT_SCRIPT_DERIVE_CONFIG, OBSERVED_ROUTING_PERSISTENCE_MODES, RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES, DEFAULT_VAULT_RETENTION, DEFAULT_VAULT_ROOT, createLocalVaultIndex, createVault, normalizeFreeflowConfig, probeScriptSandboxAdapters, } from "../../router/dist/index.js";
+import { DEFAULT_CAPTURE_CONFIG, DEFAULT_OBSERVED_ROUTING_CONFIG, DEFAULT_OUTPUT_ROUTER_ENABLED, DEFAULT_OUTPUT_ROUTER_PROFILE, DEFAULT_POST_TOOL_ROUTING, DEFAULT_PROVIDERS_CONFIG, DEFAULT_ROUTER_THRESHOLDS, DEFAULT_SCRIPT_DERIVE_CONFIG, OBSERVED_ROUTING_PERSISTENCE_MODES, RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES, DEFAULT_VAULT_RETENTION, DEFAULT_VAULT_ROOT, createLocalVaultIndex, createVault, discoverQuickJsWasiSandboxAdaptersFromEnv, normalizeFreeflowConfig, probeScriptSandboxAdapters, } from "../../router/dist/index.js";
 import { isMcpServerConfigured } from "./mcp-config.js";
 import { BUILT_IN_PROVIDER_MANIFESTS, validateProviderManifest } from "./provider-manifests.js";
 import { VALID_MODES, readModeState } from "./runtime-context.js";
@@ -40,11 +40,12 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
     if (isRecord(configFile.parsed) && configFile.parsed.defaultMode !== undefined && !VALID_MODES.has(configFile.parsed.defaultMode)) {
         configWarnings.push(`Invalid defaultMode=${JSON.stringify(configFile.parsed.defaultMode)}; using workflow.`);
     }
+    const scriptSandboxAdapters = await discoverQuickJsWasiSandboxAdaptersFromEnv();
     const [vaultWritability, vaultIndex, providers, scriptSandbox] = await Promise.all([
         inspectVaultWritability(vault.root),
         inspectVaultIndex(vault),
         inspectProviders(ctx.cwd, configFile.parsed, normalized.config.providers),
-        probeScriptSandboxAdapters({ config: normalized.config.scriptDerive }),
+        probeScriptSandboxAdapters({ config: normalized.config.scriptDerive, adapters: scriptSandboxAdapters }),
     ]);
     const migration = migrationReport(configFile.parsed);
     return {
@@ -101,7 +102,7 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
         recoverabilityDefaults: {
             freeflowRun: "exact stdout/stderr/combined recovery through outputId when persisted",
             observedRouting: "exact raw recovery for enabled observed producers when exact persistence is configured; metadata-only stores no raw stream",
-            freeflowDerive: "deterministic derive stores exact derived-output recovery with source lineage when persisted; script derive is disabled by default and unavailable without a sandbox adapter",
+            freeflowDerive: "deterministic derive stores exact derived-output recovery with source lineage when persisted; script derive is disabled by default and requires an approved sandbox adapter",
             directHostTools: "off by default; optional native read/bash safety-net only when outputRouter.postToolRouting is safety-net",
         },
         configWarnings,
@@ -278,11 +279,12 @@ function scriptDeriveStatus(config, sandboxReport) {
         network: config.network,
         limits: config.limits,
         rawScriptPersistence: config.rawScriptPersistence,
-        executionStatus: config.enabled && sandboxReport.adapterAvailable ? "adapter_available_execution_deferred" : config.enabled ? "adapter_unavailable" : "disabled",
+        executionStatus: config.enabled && sandboxReport.adapterAvailable ? "available" : config.enabled ? "adapter_unavailable" : "disabled",
         notes: [
             "Script derive is disabled by default and setup must not enable it implicitly.",
             "No unsandboxed fallback is allowed; script code is not executed without an approved sandbox adapter.",
             "Raw script text is not persisted by default.",
+            `QuickJS adapter discovery is explicit via ${"FREEFLOW_QUICKJS_WASI_ROOT"}; no runtime artifacts are downloaded by Freeflow.`,
             ...sandboxReport.notes,
         ],
     };

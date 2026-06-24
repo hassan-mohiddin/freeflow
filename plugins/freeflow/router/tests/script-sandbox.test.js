@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   DEFAULT_SCRIPT_DERIVE_CONFIG,
+  discoverQuickJsWasiSandboxAdaptersFromEnv,
   SCRIPT_DERIVE_LANGUAGES,
   SCRIPT_SANDBOX_PROOF_FIXTURES,
   SCRIPT_SANDBOX_REQUIRED_PROOFS,
@@ -167,6 +168,16 @@ test("script sandbox probe can select a registered adapter only after all proofs
   assert.equal(selected.ok, true);
   assert.equal(selected.adapter.id, "proven-test-sandbox");
   assert.equal(selected.status.status, "available");
+});
+
+test("QuickJS discovery reports unavailable for invalid explicit package roots", async () => {
+  const adapters = await discoverQuickJsWasiSandboxAdaptersFromEnv({ FREEFLOW_QUICKJS_WASI_ROOT: "/tmp/freeflow-missing-quickjs-wasi-root" });
+  assert.equal(adapters.length, 1);
+
+  const report = await probeScriptSandboxAdapters({ config: config({ enabled: true, languages: ["javascript"] }), adapters });
+  assert.equal(report.adapterAvailable, false);
+  assert.equal(report.unavailableLanguages[0].adapterId, "quickjs-wasi");
+  assert.match(report.unavailableLanguages[0].reason, /could not load/);
 });
 
 test("script sandbox selection respects scriptDerive.languages before probing adapters", async () => {

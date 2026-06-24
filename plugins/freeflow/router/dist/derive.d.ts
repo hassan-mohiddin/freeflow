@@ -1,4 +1,5 @@
 import type { DeriveRoutedResult, FailureRoutedResult, OutputStream, PreserveMode, RouterThresholds, ScriptDeriveConfig, ScriptDeriveLanguage, VaultRetentionPolicy } from "./types.js";
+import type { ScriptSandboxAdapter } from "./script-sandbox.js";
 export interface DeriveVaultSourceInput {
     kind: "vault";
     outputId: string;
@@ -94,6 +95,7 @@ export type FreeflowDeriveOptions = DeriveInput & {
     vaultRetention?: VaultRetentionPolicy;
     thresholds?: Partial<RouterThresholds>;
     scriptDerive?: ScriptDeriveConfig;
+    scriptSandboxAdapters?: readonly ScriptSandboxAdapter[];
 };
 export interface DeriveValidationIssue {
     path: string;

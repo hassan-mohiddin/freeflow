@@ -1,4 +1,4 @@
-import { freeflowDerive, freeflowRetrieve, freeflowRun } from "../../router/dist/index.js";
+import { discoverQuickJsWasiSandboxAdaptersFromEnv, freeflowDerive, freeflowRetrieve, freeflowRun } from "../../router/dist/index.js";
 import { buildFreeflowStatusReport } from "./status.js";
 import { renderFreeflowDeriveCall, renderFreeflowDeriveResult, renderFreeflowRetrieveCall, renderFreeflowRetrieveResult, renderFreeflowRunCall, renderFreeflowRunResult, renderFreeflowStatusCall, renderFreeflowStatusResult, } from "./renderers.js";
 import { readOutputRouterConfig, notifyRouterConfigWarnings } from "./runtime-context.js";
@@ -227,6 +227,7 @@ export function registerRouterTools(pi) {
             const routerConfigResult = await readOutputRouterConfig(ctx.cwd);
             notifyRouterConfigWarnings(ctx, routerConfigResult);
             const normalized = await normalizeDeriveParams(params, ctx);
+            const scriptSandboxAdapters = await discoverQuickJsWasiSandboxAdaptersFromEnv();
             const result = await freeflowDerive({
                 ...normalized,
                 sessionId: getRouterSessionId(ctx),
@@ -234,6 +235,7 @@ export function registerRouterTools(pi) {
                 vaultRetention: routerConfigResult.config.vault.retention,
                 thresholds: routerConfigResult.config.thresholds,
                 scriptDerive: routerConfigResult.freeflowConfig.scriptDerive,
+                scriptSandboxAdapters,
             });
             return {
                 content: [{ type: "text", text: routedToolText(result) }],

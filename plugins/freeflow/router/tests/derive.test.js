@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
@@ -8,6 +8,7 @@ import {
   createVault,
   freeflowDerive,
   readOutputText,
+  SCRIPT_SANDBOX_REQUIRED_PROOFS,
   storeCommandOutput,
   validateDeriveInput,
   validateRoutedResult,
@@ -248,6 +249,201 @@ test("freeflowDerive script operation resolves sources but returns adapter unava
     assert.deepEqual(result.lineage.sourceRecordIds, [source.recordId]);
     assert.equal(result.lineage.operation, "script:python");
     assert.doesNotMatch(JSON.stringify(result), /RAW_SCRIPT_SENTINEL/);
+  });
+});
+
+test("freeflowDerive script operation executes through a registered proof-backed adapter", async () => {
+  await withTempVault(async (vault) => {
+    const source = await storeCommandOutput(vault, {
+      sessionId: "script-execute-session",
+      command: "printf log",
+      stdout: "SCRIPT_SOURCE_TARGET",
+      stderr: "",
+      executionStatus: "success",
+      exitCode: 0,
+      createdAt: "2026-06-24T00:00:00.000Z",
+    });
+    const adapter = {
+      id: "fake-js-executor",
+      version: "test",
+      languages: ["javascript"],
+      async probe() {
+        return {
+          status: "available",
+          reason: "fake adapter passed every required proof",
+          passedProofs: [...SCRIPT_SANDBOX_REQUIRED_PROOFS],
+          failedProofs: [],
+          runtime: { name: "fake-js", version: "test" },
+        };
+      },
+      async execute(request) {
+        assert.equal(request.language, "javascript");
+        assert.equal(request.network, "off");
+        assert.equal(request.sources.length, 1);
+        assert.equal(request.sources[0].alias, "log");
+        const sourceText = await readFile(request.sources[0].path, "utf8");
+        return {
+          status: "success",
+          stdout: `DERIVED:${sourceText}`,
+          stderr: "",
+          outputFiles: [],
+          exitCode: 0,
+          durationMs: 1,
+        };
+      },
+    };
+
+    const result = await freeflowDerive({
+      sessionId: "script-execute-session",
+      vaultRoot: vault.root,
+      scriptDerive: {
+        enabled: true,
+        sandbox: "auto",
+        languages: ["javascript"],
+        network: "off",
+        limits: { timeoutMs: 1000, maxInputBytes: 1024, maxOutputBytes: 4096 },
+        rawScriptPersistence: "disabled",
+      },
+      scriptSandboxAdapters: [adapter],
+      sources: [{ kind: "vault", outputId: source.outputId, stream: "stdout", alias: "log" }],
+      operation: { kind: "script", language: "javascript", code: "writeText(readText('log')); // RAW_SCRIPT_SENTINEL" },
+      limits: { maxInputBytes: 1024, maxOutputBytes: 4096 },
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.outputId.startsWith("ffout_"), true);
+    assert.equal(result.operation.kind, "script");
+    assert.equal(result.operation.language, "javascript");
+    assert.match(result.operation.codeSha256, /^sha256_[0-9a-f]{64}$/);
+    assert.doesNotMatch(JSON.stringify(result), /RAW_SCRIPT_SENTINEL/);
+    assert.deepEqual(result.lineage.sourceOutputIds, [source.outputId]);
+    assert.deepEqual(result.lineage.sourceRecordIds, [source.recordId]);
+    const derived = await readOutputText(vault, "script-execute-session", result.outputId, "raw");
+    assert.equal(derived, "DERIVED:SCRIPT_SOURCE_TARGET");
+    validateRoutedResult(result);
+  });
+});
+
+test("freeflowDerive script operation returns structured failure for adapter execution failures", async () => {
+  await withTempVault(async (vault) => {
+    const source = await storeCommandOutput(vault, {
+      sessionId: "script-failure-session",
+      command: "printf log",
+      stdout: "SCRIPT_SOURCE_TARGET",
+      stderr: "",
+      executionStatus: "success",
+      exitCode: 0,
+      createdAt: "2026-06-24T00:00:00.000Z",
+    });
+    const adapter = {
+      id: "fake-js-timeout",
+      version: "test",
+      languages: ["javascript"],
+      async probe() {
+        return {
+          status: "available",
+          reason: "fake adapter passed every required proof",
+          passedProofs: [...SCRIPT_SANDBOX_REQUIRED_PROOFS],
+          failedProofs: [],
+        };
+      },
+      async execute() {
+        return {
+          status: "timed_out",
+          stdout: "partial output",
+          stderr: "",
+          outputFiles: [],
+          exitCode: null,
+          durationMs: 1000,
+          reason: "test timeout",
+        };
+      },
+    };
+
+    const result = await freeflowDerive({
+      sessionId: "script-failure-session",
+      vaultRoot: vault.root,
+      scriptDerive: {
+        enabled: true,
+        sandbox: "auto",
+        languages: ["javascript"],
+        network: "off",
+        limits: { timeoutMs: 1000, maxInputBytes: 1024, maxOutputBytes: 4096 },
+        rawScriptPersistence: "disabled",
+      },
+      scriptSandboxAdapters: [adapter],
+      sources: [{ kind: "vault", outputId: source.outputId, stream: "stdout", alias: "log" }],
+      operation: { kind: "script", language: "javascript", code: "while (true) {}" },
+    });
+
+    assert.equal(result.failure.kind, "derive_execution_failure");
+    assert.equal(result.deriveExecution.status, "failed");
+    assert.equal(result.persistence.recoverability, "none");
+    assert.equal(result.outputId, undefined);
+    assert.match(result.failure.message, /timed_out/);
+    validateRoutedResult(result);
+  });
+});
+
+test("freeflowDerive script operation does not persist output-limit failures as exact results", async () => {
+  await withTempVault(async (vault) => {
+    const source = await storeCommandOutput(vault, {
+      sessionId: "script-output-cap-session",
+      command: "printf log",
+      stdout: "SCRIPT_SOURCE_TARGET",
+      stderr: "",
+      executionStatus: "success",
+      exitCode: 0,
+      createdAt: "2026-06-24T00:00:00.000Z",
+    });
+    const adapter = {
+      id: "fake-js-output-cap",
+      version: "test",
+      languages: ["javascript"],
+      async probe() {
+        return {
+          status: "available",
+          reason: "fake adapter passed every required proof",
+          passedProofs: [...SCRIPT_SANDBOX_REQUIRED_PROOFS],
+          failedProofs: [],
+        };
+      },
+      async execute() {
+        return {
+          status: "failed",
+          stdout: "xxxxxxxxxx",
+          stderr: "",
+          outputFiles: [],
+          exitCode: null,
+          durationMs: 1,
+          reason: "QuickJS execution exceeded maxOutputBytes.",
+        };
+      },
+    };
+
+    const result = await freeflowDerive({
+      sessionId: "script-output-cap-session",
+      vaultRoot: vault.root,
+      scriptDerive: {
+        enabled: true,
+        sandbox: "auto",
+        languages: ["javascript"],
+        network: "off",
+        limits: { timeoutMs: 1000, maxInputBytes: 1024, maxOutputBytes: 10 },
+        rawScriptPersistence: "disabled",
+      },
+      scriptSandboxAdapters: [adapter],
+      sources: [{ kind: "vault", outputId: source.outputId, stream: "stdout", alias: "log" }],
+      operation: { kind: "script", language: "javascript", code: "writeText('x'.repeat(100))" },
+      limits: { maxOutputBytes: 10 },
+    });
+
+    assert.equal(result.failure.kind, "derive_execution_failure");
+    assert.equal(result.deriveExecution.status, "failed");
+    assert.equal(result.persistence.recoverability, "none");
+    assert.equal(result.outputId, undefined);
+    assert.match(result.failure.message, /exceeded maxOutputBytes/);
+    validateRoutedResult(result);
   });
 });
 

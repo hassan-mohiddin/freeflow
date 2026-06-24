@@ -1,4 +1,7 @@
 import { createHash } from "node:crypto";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { DEFAULT_ROUTER_THRESHOLDS, DEFAULT_SCRIPT_DERIVE_CONFIG, MAX_SCRIPT_DERIVE_LIMITS, SCRIPT_DERIVE_LANGUAGES } from "./config.js";
 import { assembleTextEvidence, byteLength, countLines, splitLines } from "./evidence.js";
@@ -26,6 +29,7 @@ import type {
   VaultRecord,
   VaultRetentionPolicy,
 } from "./types.js";
+import type { ScriptSandboxAdapter, ScriptSandboxExecutionResult, ScriptSandboxSourceMount } from "./script-sandbox.js";
 
 export interface DeriveVaultSourceInput {
   kind: "vault";
@@ -154,6 +158,7 @@ export type FreeflowDeriveOptions = DeriveInput & {
   vaultRetention?: VaultRetentionPolicy;
   thresholds?: Partial<RouterThresholds>;
   scriptDerive?: ScriptDeriveConfig;
+  scriptSandboxAdapters?: readonly ScriptSandboxAdapter[];
 };
 
 export interface DeriveValidationIssue {
@@ -436,16 +441,16 @@ async function handleScriptDerive(options: {
   input: ScriptDeriveInput;
   options: FreeflowDeriveOptions;
   preserve: PreserveMode;
-}): Promise<FailureRoutedResult> {
+}): Promise<DeriveRoutedResult | FailureRoutedResult> {
   const config = effectiveScriptDeriveConfig(options.options.scriptDerive);
   const limits = effectiveScriptLimits(config, options.input.limits);
-  const lineage = lineageForScriptInput(options.input, limits);
+  const initialLineage = lineageForScriptInput(options.input, limits);
 
   if (!config.enabled) {
     return scriptDeriveDisabledFailure({
       message: "Script derive is disabled by default. Enable scriptDerive.enabled only after a sandbox adapter has passed capability probes and review. No script code was executed.",
       preserve: options.preserve,
-      lineage,
+      lineage: initialLineage,
       decisionSeed: "script-derive-disabled",
     });
   }
@@ -470,7 +475,7 @@ async function handleScriptDerive(options: {
     return resolved.failure;
   }
 
-  const adapterSelection = await selectScriptSandboxAdapter(options.input.operation.language, config);
+  const adapterSelection = await selectScriptSandboxAdapter(options.input.operation.language, config, options.options.scriptSandboxAdapters ?? []);
   if (!adapterSelection.ok) {
     return deriveAdapterUnavailableFailure({
       message: `${adapterSelection.status.reason} No script code was executed.`,
@@ -480,12 +485,161 @@ async function handleScriptDerive(options: {
     });
   }
 
-  return deriveAdapterUnavailableFailure({
-    message: `Script derive adapter ${adapterSelection.adapter.id} is selected for language ${options.input.operation.language}, but script execution is implemented in a later slice. No script code was executed.`,
-    preserve: options.preserve,
-    lineage: lineageForResolvedScriptSources(resolved.sources, options.input, limits),
-    decisionSeed: "script-derive-execution-deferred",
+  const execution = await executeScriptWithAdapter({
+    adapter: adapterSelection.adapter,
+    input: options.input,
+    resolvedSources: resolved.sources,
+    limits,
+    config,
   });
+  const lineage = lineageForResolvedScriptSources(resolved.sources, options.input, limits);
+  if (!execution.ok) {
+    return deriveExecutionFailure({
+      message: execution.message,
+      preserve: options.preserve,
+      lineage,
+      decisionSeed: "script-derive-execution",
+    });
+  }
+
+  const producer = { kind: "derive" as const, name: `script:${options.input.operation.language}` };
+  const vaultOptionsForStore: { root?: string; retention?: VaultRetentionPolicy } = {};
+  if (options.options.vaultRoot !== undefined) {
+    vaultOptionsForStore.root = options.options.vaultRoot;
+  }
+  if (options.options.vaultRetention !== undefined) {
+    vaultOptionsForStore.retention = options.options.vaultRetention;
+  }
+  const storeVault = createVault(vaultOptionsForStore);
+  let record;
+  try {
+    record = await storeTextOutput(storeVault, {
+      sessionId: options.options.sessionId,
+      raw: execution.result.stdout,
+      sourceKind: "derive",
+      producer,
+      lineage,
+      decisionIds: [decisionId("script-derive-store", options.input.operation.language, lineage.operationHash ?? "")],
+    });
+  } catch (error) {
+    return storageFailure({
+      operation: "derive",
+      message: `Script-derived output could not be persisted: ${errorMessage(error)}`,
+      preserve: options.preserve,
+      producer,
+      lineage,
+    });
+  }
+
+  const thresholds = { ...DEFAULT_ROUTER_THRESHOLDS, ...options.options.thresholds };
+  const primarySource = primaryScriptSourceRef(resolved.sources, options.input.sources);
+  const routed = routeDerivedText({
+    outputId: record.outputId,
+    text: execution.result.stdout,
+    preserve: options.preserve,
+    thresholds,
+    source: primarySource,
+    operationKind: "script",
+  });
+
+  return {
+    toolStatus: "ok",
+    decisionId: decisionId("script-derive", record.outputId, options.input.operation.language, routed.routingStatus),
+    outputId: record.outputId,
+    recordId: record.recordId,
+    preserve: options.preserve,
+    source: primarySource,
+    operation: operationSummary(options.input.operation),
+    producer: record.producer,
+    persistence: record.persistence,
+    lineage,
+    routing: {
+      status: routed.routingStatus,
+      route: "derive",
+      reason: routed.reason,
+    },
+    summary: `Script derive ${options.input.operation.language} completed with ${byteLength(execution.result.stdout)} stdout bytes and ${byteLength(execution.result.stderr)} stderr bytes.`,
+    evidence: routed.evidence,
+    recovery: {
+      how: `Use freeflow_retrieve with source.kind=vault and outputId=${record.outputId}, stream=raw, and an exact lineRange to recover exact script-derived content. Source evidence remains linked in lineage.sourceOutputIds.`,
+      outputId: record.outputId,
+    },
+  };
+}
+
+function primaryScriptSourceRef(resolvedSources: readonly ResolvedScriptSource[], inputSources: readonly ScriptDeriveSourceInput[]): Extract<SourceRef, { kind: "vault" }> {
+  const resolved = resolvedSources[0];
+  if (resolved) {
+    return { kind: "vault", outputId: resolved.outputId, stream: resolved.stream };
+  }
+  const input = inputSources[0];
+  if (input?.stream !== undefined) {
+    return { kind: "vault", outputId: input.outputId, stream: input.stream };
+  }
+  return { kind: "vault", outputId: input?.outputId ?? "unknown" };
+}
+
+async function executeScriptWithAdapter(options: {
+  adapter: ScriptSandboxAdapter;
+  input: ScriptDeriveInput;
+  resolvedSources: readonly ResolvedScriptSource[];
+  limits: Required<ScriptDeriveLimitsInput>;
+  config: ScriptDeriveConfig;
+}): Promise<{ ok: true; result: ScriptSandboxExecutionResult } | { ok: false; message: string }> {
+  const tempRoot = await mkdtemp(join(tmpdir(), "freeflow-script-derive-"));
+  const inputDir = join(tempRoot, "input");
+  const workDir = join(tempRoot, "work");
+  const outputDir = join(tempRoot, "output");
+  try {
+    await mkdir(inputDir, { recursive: true });
+    await mkdir(workDir, { recursive: true });
+    await mkdir(outputDir, { recursive: true });
+    const mounts: ScriptSandboxSourceMount[] = [];
+    for (const source of options.resolvedSources) {
+      const path = join(inputDir, `${source.alias}.txt`);
+      await writeFile(path, source.text, "utf8");
+      mounts.push({ alias: source.alias, path, bytes: source.bytes, sha256: source.textSha256 });
+    }
+    await writeFile(join(inputDir, "manifest.json"), JSON.stringify({
+      schemaVersion: 1,
+      sources: options.resolvedSources.map((source) => ({
+        alias: source.alias,
+        outputId: source.outputId,
+        stream: source.stream,
+        bytes: source.bytes,
+        sha256: source.textSha256,
+      })),
+    }, null, 2), "utf8");
+
+    let result: ScriptSandboxExecutionResult;
+    try {
+      result = await options.adapter.execute({
+        language: options.input.operation.language,
+        code: options.input.operation.code,
+        inputDir,
+        workDir,
+        outputDir,
+        sources: mounts,
+        limits: options.limits,
+        network: options.config.network,
+      });
+    } catch (error) {
+      return { ok: false, message: `Script derive adapter ${options.adapter.id} threw before returning a result: ${errorMessage(error)}` };
+    }
+
+    const stdoutBytes = byteLength(result.stdout ?? "");
+    const stderrBytes = byteLength(result.stderr ?? "");
+    if (stdoutBytes + stderrBytes > options.limits.maxOutputBytes) {
+      return { ok: false, message: `Script derive output bytes ${stdoutBytes + stderrBytes} exceed maxOutputBytes ${options.limits.maxOutputBytes}.` };
+    }
+    if (result.status !== "success") {
+      const detail = result.reason ? ` ${result.reason}` : "";
+      return { ok: false, message: `Script derive ${options.input.operation.language} ${result.status}.${detail} stdoutBytes=${stdoutBytes} stderrBytes=${stderrBytes}.` };
+    }
+    return { ok: true, result };
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
 }
 
 async function resolveScriptSources(options: {
@@ -568,6 +722,7 @@ async function resolveScriptSources(options: {
       bytes,
       contentHashSha256: record.contentHashSha256,
       textSha256: hashText(text),
+      text,
     });
   }
 
@@ -582,6 +737,7 @@ interface ResolvedScriptSource {
   bytes: number;
   contentHashSha256: string;
   textSha256: string;
+  text: string;
 }
 
 function validateDeriveSource(value: unknown, path: string, issues: DeriveValidationIssue[]) {
