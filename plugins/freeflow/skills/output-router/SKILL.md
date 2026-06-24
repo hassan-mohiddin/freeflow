@@ -21,7 +21,7 @@ Native tools stay direct unless explicit config enables the safety net. Use nati
 - Need to run a likely-large, broad, exploratory, or noisy command: use `freeflow_run`.
 - Need enabled Pi MCP/web/fetch/code-search output: call the host tool directly; observed routing runs after the tool result when configured.
 - Need deterministic filtering, extraction, counts, grouping, dedupe, topN, URL/citation extraction, or stats from vaulted evidence: use `freeflow_derive`.
-- Need script derive: `freeflow_derive operation.kind=script` is a disabled-by-default sandboxed branch. JavaScript can execute only with explicit scriptDerive opt-in and an available proof-backed QuickJS adapter; Python and jq execution remain unavailable unless later product adapters pass proof/review. Do not use script derive as unsandboxed code execution.
+- Need script derive: `freeflow_derive operation.kind=script` is a disabled-by-default sandboxed branch. JavaScript and jq can execute only with explicit scriptDerive opt-in and available proof-backed adapters; Python remains unavailable until a later product adapter passes proof/review. Do not use script derive as unsandboxed code execution.
 - Need effective Freeflow router/capture/provider config, vault writability, provider availability, or migration recommendations: use `freeflow_status`.
 - Need a whole known file/artifact and direct file contents are intended: use native read.
 - Need direct shell behavior with expected-small exact output: use native bash.
@@ -87,7 +87,7 @@ Rules:
 - `generatedPaths` affects broad scans only; explicit path retrieval remains available.
 - Freeflow mode changes guidance strength only. It must not enable `postToolRouting` or direct host-tool capture.
 - `observedRouting` is explicit opt-in per producer/server. The user must choose persistence for each enabled entry.
-- `scriptDerive.enabled` defaults to false. Setup must not enable it implicitly, and no script code may execute without an approved sandbox adapter. Pi JavaScript discovery is explicit via `FREEFLOW_QUICKJS_WASI_ROOT`; Freeflow must not install or download script runtimes during execution.
+- `scriptDerive.enabled` defaults to false. Setup must not enable it implicitly, and no script code may execute without an approved sandbox adapter. Pi JavaScript discovery is explicit via `FREEFLOW_QUICKJS_WASI_ROOT`; Pi jq discovery is explicit via `FREEFLOW_JQ_WASM_ROOT`; Freeflow must not install or download script runtimes during execution.
 - Do not offer or write `redacted`; it is future-only and currently falls back to `metadata-only` if hand-edited.
 - `capture.directHostTools` currently remains `off`; broad direct host-tool capture needs separate design/confirmation before other policies are written.
 - Invalid config must fall back safely with a warning.

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   DEFAULT_SCRIPT_DERIVE_CONFIG,
+  discoverJqWasmSandboxAdaptersFromEnv,
   discoverQuickJsWasiSandboxAdaptersFromEnv,
   SCRIPT_DERIVE_LANGUAGES,
   SCRIPT_SANDBOX_PROOF_FIXTURES,
@@ -177,6 +178,16 @@ test("QuickJS discovery reports unavailable for invalid explicit package roots",
   const report = await probeScriptSandboxAdapters({ config: config({ enabled: true, languages: ["javascript"] }), adapters });
   assert.equal(report.adapterAvailable, false);
   assert.equal(report.unavailableLanguages[0].adapterId, "quickjs-wasi");
+  assert.match(report.unavailableLanguages[0].reason, /could not load/);
+});
+
+test("jq-wasm discovery reports unavailable for invalid explicit package roots", async () => {
+  const adapters = await discoverJqWasmSandboxAdaptersFromEnv({ FREEFLOW_JQ_WASM_ROOT: "/tmp/freeflow-missing-jq-wasm-root" });
+  assert.equal(adapters.length, 1);
+
+  const report = await probeScriptSandboxAdapters({ config: config({ enabled: true, languages: ["jq"] }), adapters });
+  assert.equal(report.adapterAvailable, false);
+  assert.equal(report.unavailableLanguages[0].adapterId, "jq-wasm");
   assert.match(report.unavailableLanguages[0].reason, /could not load/);
 });
 

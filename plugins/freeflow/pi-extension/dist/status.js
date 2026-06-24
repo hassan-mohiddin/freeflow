@@ -1,7 +1,7 @@
 import { constants as fsConstants } from "node:fs";
 import { access, readFile, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { DEFAULT_CAPTURE_CONFIG, DEFAULT_OBSERVED_ROUTING_CONFIG, DEFAULT_OUTPUT_ROUTER_ENABLED, DEFAULT_OUTPUT_ROUTER_PROFILE, DEFAULT_POST_TOOL_ROUTING, DEFAULT_PROVIDERS_CONFIG, DEFAULT_ROUTER_THRESHOLDS, DEFAULT_SCRIPT_DERIVE_CONFIG, OBSERVED_ROUTING_PERSISTENCE_MODES, RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES, DEFAULT_VAULT_RETENTION, DEFAULT_VAULT_ROOT, createLocalVaultIndex, createVault, discoverQuickJsWasiSandboxAdaptersFromEnv, normalizeFreeflowConfig, probeScriptSandboxAdapters, } from "../../router/dist/index.js";
+import { DEFAULT_CAPTURE_CONFIG, DEFAULT_OBSERVED_ROUTING_CONFIG, DEFAULT_OUTPUT_ROUTER_ENABLED, DEFAULT_OUTPUT_ROUTER_PROFILE, DEFAULT_POST_TOOL_ROUTING, DEFAULT_PROVIDERS_CONFIG, DEFAULT_ROUTER_THRESHOLDS, DEFAULT_SCRIPT_DERIVE_CONFIG, OBSERVED_ROUTING_PERSISTENCE_MODES, RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES, DEFAULT_VAULT_RETENTION, DEFAULT_VAULT_ROOT, createLocalVaultIndex, createVault, discoverJqWasmSandboxAdaptersFromEnv, discoverQuickJsWasiSandboxAdaptersFromEnv, normalizeFreeflowConfig, probeScriptSandboxAdapters, } from "../../router/dist/index.js";
 import { isMcpServerConfigured } from "./mcp-config.js";
 import { BUILT_IN_PROVIDER_MANIFESTS, validateProviderManifest } from "./provider-manifests.js";
 import { VALID_MODES, readModeState } from "./runtime-context.js";
@@ -40,7 +40,10 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
     if (isRecord(configFile.parsed) && configFile.parsed.defaultMode !== undefined && !VALID_MODES.has(configFile.parsed.defaultMode)) {
         configWarnings.push(`Invalid defaultMode=${JSON.stringify(configFile.parsed.defaultMode)}; using workflow.`);
     }
-    const scriptSandboxAdapters = await discoverQuickJsWasiSandboxAdaptersFromEnv();
+    const scriptSandboxAdapters = [
+        ...(await discoverQuickJsWasiSandboxAdaptersFromEnv()),
+        ...(await discoverJqWasmSandboxAdaptersFromEnv()),
+    ];
     const [vaultWritability, vaultIndex, providers, scriptSandbox] = await Promise.all([
         inspectVaultWritability(vault.root),
         inspectVaultIndex(vault),
@@ -284,7 +287,7 @@ function scriptDeriveStatus(config, sandboxReport) {
             "Script derive is disabled by default and setup must not enable it implicitly.",
             "No unsandboxed fallback is allowed; script code is not executed without an approved sandbox adapter.",
             "Raw script text is not persisted by default.",
-            `QuickJS adapter discovery is explicit via ${"FREEFLOW_QUICKJS_WASI_ROOT"}; no runtime artifacts are downloaded by Freeflow.`,
+            `Script adapter discovery is explicit via ${"FREEFLOW_QUICKJS_WASI_ROOT"} and ${"FREEFLOW_JQ_WASM_ROOT"}; no runtime artifacts are downloaded by Freeflow.`,
             ...sandboxReport.notes,
         ],
     };

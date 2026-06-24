@@ -324,6 +324,79 @@ test("freeflowDerive script operation executes through a registered proof-backed
   });
 });
 
+test("freeflowDerive script operation executes jq through a registered proof-backed adapter", async () => {
+  await withTempVault(async (vault) => {
+    const source = await storeCommandOutput(vault, {
+      sessionId: "script-jq-execute-session",
+      command: "printf log",
+      stdout: "SCRIPT_SOURCE_TARGET",
+      stderr: "",
+      executionStatus: "success",
+      exitCode: 0,
+      createdAt: "2026-06-24T00:00:00.000Z",
+    });
+    const adapter = {
+      id: "fake-jq-executor",
+      version: "test",
+      languages: ["jq"],
+      async probe() {
+        return {
+          status: "available",
+          reason: "fake jq adapter passed every required proof",
+          passedProofs: [...SCRIPT_SANDBOX_REQUIRED_PROOFS],
+          failedProofs: [],
+          runtime: { name: "fake-jq", version: "test" },
+        };
+      },
+      async execute(request) {
+        assert.equal(request.language, "jq");
+        assert.equal(request.network, "off");
+        assert.equal(request.sources.length, 1);
+        assert.equal(request.sources[0].alias, "log");
+        assert.match(request.code, /RAW_JQ_SCRIPT_SENTINEL/);
+        const sourceText = await readFile(request.sources[0].path, "utf8");
+        return {
+          status: "success",
+          stdout: `JQ:${sourceText}`,
+          stderr: "",
+          outputFiles: [],
+          exitCode: 0,
+          durationMs: 1,
+        };
+      },
+    };
+
+    const result = await freeflowDerive({
+      sessionId: "script-jq-execute-session",
+      vaultRoot: vault.root,
+      scriptDerive: {
+        enabled: true,
+        sandbox: "auto",
+        languages: ["jq"],
+        network: "off",
+        limits: { timeoutMs: 1000, maxInputBytes: 1024, maxOutputBytes: 4096 },
+        rawScriptPersistence: "disabled",
+      },
+      scriptSandboxAdapters: [adapter],
+      sources: [{ kind: "vault", outputId: source.outputId, stream: "stdout", alias: "log" }],
+      operation: { kind: "script", language: "jq", code: '.log # RAW_JQ_SCRIPT_SENTINEL' },
+      limits: { maxInputBytes: 1024, maxOutputBytes: 4096 },
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.outputId.startsWith("ffout_"), true);
+    assert.equal(result.operation.kind, "script");
+    assert.equal(result.operation.language, "jq");
+    assert.match(result.operation.codeSha256, /^sha256_[0-9a-f]{64}$/);
+    assert.doesNotMatch(JSON.stringify(result), /RAW_JQ_SCRIPT_SENTINEL/);
+    assert.deepEqual(result.lineage.sourceOutputIds, [source.outputId]);
+    assert.deepEqual(result.lineage.sourceRecordIds, [source.recordId]);
+    const derived = await readOutputText(vault, "script-jq-execute-session", result.outputId, "raw");
+    assert.equal(derived, "JQ:SCRIPT_SOURCE_TARGET");
+    validateRoutedResult(result);
+  });
+});
+
 test("freeflowDerive script operation returns structured failure for adapter execution failures", async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {

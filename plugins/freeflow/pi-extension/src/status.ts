@@ -17,6 +17,7 @@ import {
   DEFAULT_VAULT_ROOT,
   createLocalVaultIndex,
   createVault,
+  discoverJqWasmSandboxAdaptersFromEnv,
   discoverQuickJsWasiSandboxAdaptersFromEnv,
   normalizeFreeflowConfig,
   probeScriptSandboxAdapters,
@@ -63,7 +64,10 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
     configWarnings.push(`Invalid defaultMode=${JSON.stringify(configFile.parsed.defaultMode)}; using workflow.`);
   }
 
-  const scriptSandboxAdapters = await discoverQuickJsWasiSandboxAdaptersFromEnv();
+  const scriptSandboxAdapters = [
+    ...(await discoverQuickJsWasiSandboxAdaptersFromEnv()),
+    ...(await discoverJqWasmSandboxAdaptersFromEnv()),
+  ];
   const [vaultWritability, vaultIndex, providers, scriptSandbox] = await Promise.all([
     inspectVaultWritability(vault.root),
     inspectVaultIndex(vault),
@@ -318,7 +322,7 @@ function scriptDeriveStatus(config, sandboxReport) {
       "Script derive is disabled by default and setup must not enable it implicitly.",
       "No unsandboxed fallback is allowed; script code is not executed without an approved sandbox adapter.",
       "Raw script text is not persisted by default.",
-      `QuickJS adapter discovery is explicit via ${"FREEFLOW_QUICKJS_WASI_ROOT"}; no runtime artifacts are downloaded by Freeflow.`,
+      `Script adapter discovery is explicit via ${"FREEFLOW_QUICKJS_WASI_ROOT"} and ${"FREEFLOW_JQ_WASM_ROOT"}; no runtime artifacts are downloaded by Freeflow.`,
       ...sandboxReport.notes,
     ],
   };

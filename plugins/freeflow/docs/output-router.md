@@ -173,10 +173,10 @@ Mutating provider tools remain direct provider calls after explicit user intent.
 Current product execution support is partial and Pi-first:
 
 - JavaScript can run through a proof-backed QuickJS adapter only when script derive is explicitly enabled and Pi can discover a local `quickjs-wasi` package root.
+- jq can run through a proof-backed `jq-wasm` adapter only when script derive is explicitly enabled and Pi can discover a local `jq-wasm` package root.
 - Python remains unavailable.
-- jq remains proof-backed by spike evidence but is not product-enabled yet.
 
-`freeflow_status` reports the script-sandbox contract version, configured languages, required adversarial proofs, rejected unsafe mechanisms such as Node `vm`/plain subprocesses, candidate-unproven OS sandbox adapters, and whether a QuickJS adapter is available. A language remains unavailable until a registered adapter passes every required proof.
+`freeflow_status` reports the script-sandbox contract version, configured languages, required adversarial proofs, rejected unsafe mechanisms such as Node `vm`/plain subprocesses, candidate-unproven OS sandbox adapters, and whether QuickJS/jq-wasm adapters are available. A language remains unavailable until a registered adapter passes every required proof.
 
 Current deterministic operations include:
 
@@ -188,9 +188,12 @@ Current deterministic operations include:
 
 Derived output is vaulted separately and points back to source output ids through lineage. Script operation hashing records code hashes, not raw code.
 
-### Optional QuickJS JavaScript adapter
+### Optional script adapters
 
-Freeflow does not install or download script runtimes during execution. The Pi extension discovers QuickJS only when `FREEFLOW_QUICKJS_WASI_ROOT` points at an existing `quickjs-wasi` package root, for example a separately installed `quickjs-wasi@3.0.1` directory containing `package.json`, `dist/index.js`, and `quickjs.wasm`.
+Freeflow does not install or download script runtimes during execution. Pi discovers optional adapters only from explicit package-root environment variables:
+
+- `FREEFLOW_QUICKJS_WASI_ROOT` points at an existing `quickjs-wasi` package root, for example a separately installed `quickjs-wasi@3.0.1` directory containing `package.json`, `dist/index.js`, and `quickjs.wasm`.
+- `FREEFLOW_JQ_WASM_ROOT` points at an existing `jq-wasm` package root, for example a separately installed `jq-wasm@1.2.0-jq-1.8.2` directory containing `package.json` and `dist/index.js`.
 
 Discovery alone does not enable execution. `.freeflow/config.json` must explicitly opt in, for example:
 
@@ -199,14 +202,16 @@ Discovery alone does not enable execution. `.freeflow/config.json` must explicit
   "defaultMode": "workflow",
   "scriptDerive": {
     "enabled": true,
-    "languages": ["javascript"]
+    "languages": ["javascript", "jq"]
   }
 }
 ```
 
 Supported `scriptDerive` keys are `enabled`, `sandbox`, `languages`, `network`, `limits`, and `rawScriptPersistence`. Defaults keep `sandbox: "auto"`, `network: "off"`, `rawScriptPersistence: "disabled"`, and conservative input/output/time limits. Per-call script limits may only tighten configured limits.
 
-QuickJS guest JavaScript receives only `readText(alias)`, `writeText(text)`, `console.log`, and `console.error`. Vault sources are copied into temporary input files and exposed by alias; repo, home, vault, process, require, fetch, package loading, and host filesystem APIs are not exposed. Invalid or missing `FREEFLOW_QUICKJS_WASI_ROOT` fails closed as adapter unavailable.
+QuickJS guest JavaScript receives only `readText(alias)`, `writeText(text)`, `console.log`, and `console.error`. jq receives a JSON object keyed by source alias, so a source with alias `log` is available as `.log`. Vault sources are copied into temporary input files before adapter execution; repo, home, vault, process, require, fetch, package loading, and host filesystem APIs are not exposed to guest code. Invalid or missing adapter roots fail closed as adapter unavailable.
+
+The jq adapter runs `jq-wasm` inside a Node Worker with Worker termination for timeouts and bounded stdout/stderr before results cross the Worker-to-host boundary. Residual caveat: `jq-wasm` can still generate large in-Worker strings before truncation; product execution treats output-limit overflow as a structured failure with no exact recovery.
 
 ## `freeflow_status`
 

@@ -13,6 +13,7 @@ export * from "./observed-routing.js";
 export * from "./reducers.js";
 export * from "./run.js";
 export * from "./quickjs-wasi-adapter.js";
+export * from "./jq-wasm-adapter.js";
 export * from "./router-contract.js";
 export * from "./schema.js";
 export * from "./script-sandbox.js";

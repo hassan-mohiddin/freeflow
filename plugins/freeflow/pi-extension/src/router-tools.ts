@@ -1,4 +1,4 @@
-import { discoverQuickJsWasiSandboxAdaptersFromEnv, freeflowDerive, freeflowRetrieve, freeflowRun } from "../../router/dist/index.js";
+import { discoverJqWasmSandboxAdaptersFromEnv, discoverQuickJsWasiSandboxAdaptersFromEnv, freeflowDerive, freeflowRetrieve, freeflowRun } from "../../router/dist/index.js";
 import { buildFreeflowStatusReport } from "./status.js";
 import {
   renderFreeflowDeriveCall,
@@ -242,12 +242,12 @@ export function registerRouterTools(pi) {
     name: "freeflow_derive",
     label: "Freeflow Derive",
     description:
-      "Derive deterministic, bounded evidence from existing Freeflow-vaulted output. Supports regex filtering/counting, JSON extraction, grouping, dedupe, topN, URL/citation extraction, line/size stats, and a disabled-by-default future script operation.",
+      "Derive deterministic, bounded evidence from existing Freeflow-vaulted output. Supports regex filtering/counting, JSON extraction, grouping, dedupe, topN, URL/citation extraction, line/size stats, and a disabled-by-default sandboxed script operation.",
     promptSnippet: "Transform existing vaulted evidence into bounded derived evidence with lineage and recovery.",
     promptGuidelines: [
       "Use freeflow_derive when existing vaulted evidence needs deterministic filtering, extraction, counting, grouping, dedupe, topN, URL/citation extraction, or line/size stats.",
       "Use freeflow_retrieve first when you need to locate or recover the source evidence before deriving from it.",
-      "Script derive uses operation.kind=script, is disabled by default, and must return structured unavailable/disabled unless an approved sandbox is configured.",
+      "Script derive uses operation.kind=script, is disabled by default, and must return structured unavailable/disabled unless an approved sandbox adapter is configured.",
       "Do not use script derive as an unsandboxed code execution path.",
     ],
     parameters: FREEFLOW_DERIVE_PARAMETERS,
@@ -255,7 +255,10 @@ export function registerRouterTools(pi) {
       const routerConfigResult = await readOutputRouterConfig(ctx.cwd);
       notifyRouterConfigWarnings(ctx, routerConfigResult);
       const normalized = await normalizeDeriveParams(params, ctx);
-      const scriptSandboxAdapters = await discoverQuickJsWasiSandboxAdaptersFromEnv();
+      const scriptSandboxAdapters = [
+        ...(await discoverQuickJsWasiSandboxAdaptersFromEnv()),
+        ...(await discoverJqWasmSandboxAdaptersFromEnv()),
+      ];
       const result = await freeflowDerive({
         ...normalized,
         sessionId: getRouterSessionId(ctx),

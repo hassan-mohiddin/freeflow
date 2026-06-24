@@ -817,12 +817,12 @@ Slice 16 decision after implementation:
 - `freeflow_status` now reports proof-backed script sandbox availability, required proofs, rejected/candidate mechanisms, configured languages, and unavailable language reasons.
 - Adapter probing is order-independent: every matching adapter is probed until one passes all required proofs; if none passes, the language remains unavailable with failure evidence.
 - At the Slice 16 checkpoint, no real sandbox adapter was registered, no script code executed, and no unsandboxed fallback existed. Local checks found Docker daemon unavailable; macOS `sandbox-exec` could launch with an allow-all profile but no restrictive adapter/proof suite had been approved.
-- Focused sandbox adapter spike proved JavaScript (`quickjs-wasi`) and jq (`jq-wasm`) candidates against the contract, while Python remained unavailable. The owner approved the QuickJS-first route; jq product execution remains gated by separate security review of the Worker-boundary large-output caveat.
+- Focused sandbox adapter spike proved JavaScript (`quickjs-wasi`) and jq (`jq-wasm`) candidates against the contract, while Python remained unavailable. The owner approved the QuickJS-first route and then jq product execution with the Worker-boundary large-output caveat documented and reviewed.
 - Evidence: targeted sandbox/derive/Pi tests passed, full `npm run test:router` passed 269/269 tests, `git diff --check && git diff --cached --check` passed, and focused confirmation review passed with no findings after the adapter-order fix.
 
 ## Slice 17: Script Derive Execution Engine
 
-Status: partial JavaScript implementation complete. QuickJS JavaScript execution is implemented only for explicitly registered/provided adapter roots and remains disabled by default. Python remains unavailable. jq remains proof-backed but not product-enabled pending separate security review of the Worker-boundary large-output caveat.
+Status: partial JavaScript and jq implementation complete. QuickJS JavaScript and jq-wasm execution are implemented only for explicitly registered/provided adapter roots and remain disabled by default. Python remains unavailable.
 
 Purpose: execute sandboxed scripts over vault sources and route output.
 
@@ -862,8 +862,12 @@ Slice 17 partial progress:
 - `freeflow_derive operation.kind="script"` still returns disabled by default unless `scriptDerive.enabled=true` is configured.
 - With a registered/provided QuickJS adapter, JavaScript scripts can read copied vault-source input through `readText(alias)` and write bounded stdout/stderr through `writeText`, `console.log`, and `console.error`.
 - Raw script code is still represented by `codeSha256` only.
-- Python execution remains unavailable. jq execution remains unimplemented in product code.
-- Evidence: `plugins/freeflow/evals/reports/runtime/quickjs-script-derive-execution-1-report.md`.
+- Python execution remains unavailable.
+- Added dependency-free jq-wasm adapter support. No `package.json` dependency was added.
+- Pi discovers jq only through the explicit `FREEFLOW_JQ_WASM_ROOT` package-root environment variable.
+- With a registered/provided jq-wasm adapter, jq scripts receive a JSON object keyed by copied vault-source alias and write bounded stdout/stderr through `jq.raw`.
+- jq timeouts use Worker termination. Output-limit failures return structured `derive_execution_failure` without exact recovery. Residual caveat: `jq-wasm` can still generate large strings inside the Worker before wrapper truncation.
+- Evidence: `plugins/freeflow/evals/reports/runtime/quickjs-script-derive-execution-1-report.md` and `plugins/freeflow/evals/reports/runtime/jq-script-derive-execution-1-report.md`.
 
 ## Slice 18: Final Docs, Evals, Benchmarks, And Cleanup
 
