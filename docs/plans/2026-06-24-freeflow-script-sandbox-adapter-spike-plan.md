@@ -2,7 +2,7 @@
 > **Date:** 2026-06-24
 > **Owner:** Hassan Mohiddin
 > **Type:** Plan
-> **Status:** In progress — Slice 0 preliminary report and Slice 1 proof fixture harness implemented; script execution remains blocked
+> **Status:** In progress — Slice 0 package inventory and Slice 1 proof fixture harness implemented; script execution remains blocked
 > **Source:** `docs/designs/freeflow-script-derive-sandbox-design.md`, `docs/plans/2026-06-24-freeflow-observed-output-routing-vault-index-script-derive-implementation-plan.md`, current `plugins/freeflow/router/src/script-sandbox.ts`, and owner direction to eventually cover JavaScript, Python, and jq.
 
 # Freeflow Script Sandbox Adapter Spike Plan
@@ -43,6 +43,10 @@ Owner direction for this spike: do not choose a product direction that only cove
   - CPython/MicroPython/Pyodide/Eryx-style WASM for Python,
   - jq WASM packages for jq-compatible queries.
 - Node's built-in `node:wasi` documentation warns not to rely on it alone for comprehensive filesystem security, so a proof-backed runtime/package choice is still required.
+- Package inventory found plausible primary candidates but no approved dependencies yet:
+  - JavaScript: `quickjs-wasi` (~3 MB), `@sebastianwessel/quickjs` (~718 KB plus deps), and low-level QuickJS artifacts,
+  - Python: `@bsull/eryx` (~49 MB unpacked), strong controls but large footprint, maturity risk, and a Node.js 24+ / JSPI compatibility gate,
+  - jq: `jq-wasm` (~1.2 MB), needs timeout/output proof.
 
 ## Non-Goals
 
@@ -116,7 +120,7 @@ Before adding dependencies, stop and choose one packaging policy:
 2. **Bundled pinned adapters:** Freeflow ships selected WASM runtimes/artifacts. Better default UX, larger package and stronger maintenance burden.
 3. **External executable adapters:** Freeflow depends on installed executables such as Docker/Podman/Wasmtime. Better separation, worse setup portability.
 
-Recommendation: optional pinned adapters first. Do not implement this recommendation without explicit approval if it changes package dependencies or distribution size.
+Decision: use optional pinned adapters first. Freeflow core should not add heavyweight runtime dependencies or silently download runtime artifacts. Adapter packages/artifacts are explicit opt-ins, and `freeflow_status` reports unavailable until an adapter is installed and passes proofs.
 
 ## Slices
 
@@ -148,6 +152,12 @@ Checks:
 Stop if:
 
 - no candidate can plausibly cover all three languages without weakening the contract.
+
+Slice 0 progress:
+
+- Added concrete npm/package inventory to `docs/research/freeflow-script-sandbox-adapter-spike-report.md` without installing dependencies.
+- Current best candidate set is `quickjs-wasi` for JavaScript, `@bsull/eryx` for Python pending footprint/maturity approval, and `jq-wasm` for jq pending timeout/output proof.
+- Dependency packaging policy is decided as optional pinned adapters; actual runtime package additions remain unapproved until a specific adapter proof slice needs them.
 
 ### Slice 1: Proof Harness Interface, No Runtime Dependencies
 

@@ -41,6 +41,29 @@ It must also preserve these source-truth rules:
 | macOS `sandbox-exec` restrictive profile | Simple restrictive `cat` probe aborted. | Not a default path; research only if a reliable profile and proof suite exists. |
 | Node `vm` escape probe | Script reached host `process` via constructor escape. | Rejected. |
 
+## Package Inventory
+
+No repo dependencies were installed. Metadata came from `npm view <package> --json` and fetched project docs; leading candidates were also installed in a temporary directory with lifecycle scripts disabled for footprint/API inspection.
+
+| Package | Target | Version | License | Unpacked size | Dependency notes | Relevant controls / caveats |
+| --- | --- | ---: | --- | ---: | --- | --- |
+| `@sebastianwessel/quickjs` | JavaScript / TypeScript | 3.1.0 | MIT | ~718 KB | Depends on `memfs`, `quickjs-emscripten-core`, `rate-limiter-flexible`; peer `typescript`. | Runtime options expose `executionTimeout`, `maxStackSize`, `memoryLimit`, virtual FS, `allowFs`, `allowFetch`, `env`, and host console hooks. Freeflow would need `allowFetch: false`, no env, no host FS, and bounded console/output handling. |
+| `@jitl/quickjs-ng-wasmfile-release-sync` | JavaScript runtime artifact | 0.32.0 | MIT | ~676 KB | QuickJS WASM artifact package. | Useful low-level artifact for a custom wrapper; still needs Freeflow-owned host API, output caps, and timeout/memory proof. |
+| `quickjs-emscripten` | JavaScript runtime | 0.32.0 | MIT | ~2.4 MB | Pulls several wasmfile variants plus core. | Mature QuickJS WASM binding; more variants/size than a single pinned artifact. Needs custom host API and proof fixtures. |
+| `quickjs-wasi` | JavaScript runtime | 3.0.1 | MIT | ~3.0 MB | Ships `quickjs.wasm`; caller supplies bytes/module. | Docs say it performs no implicit filesystem or network I/O; exposes memory limit and interrupt handler for timeout. WASI overrides must be audited. Good JS candidate. Temp install size: 2,976 KB; `quickjs.wasm`: 1,552 KB. |
+| `@bsull/eryx` | Python | 0.5.0 | MIT OR Apache-2.0 | ~48.9 MB | Depends on `@bytecodealliance/preview2-shim`; ships CPython/WASM runtime. | Docs claim no filesystem/network by default, resource limits, cancellation, VFS, host-controlled networking. Strong Python candidate but large footprint and newer package. Temp install size: 47,876 KB; largest WASM core: 26,620 KB; stdlib tarball: 3,012 KB. |
+| `jq-wasm` | jq | 1.2.0-jq-1.8.2 | MIT | ~1.2 MB | No native dependency shown in metadata. | Runs jq in WASM and returns stdout/stderr/exitCode. Need proof for timeout/cancellation and output caps; default Node build reads `jq.wasm` from package, inline build embeds artifact. Temp install size: 1,180 KB. |
+| `jq-web` | jq | 0.6.2 | ISC | ~3.3 MB | Older Emscripten jq package. | Browser-oriented; less attractive than `jq-wasm` unless proof shows better controls. |
+| `@wasm-sandbox/runtime` | generic WASM runtime | 1.3.0 | MIT | ~20 KB wrapper | Optional platform-native packages for OS/arch. | Potential generic runtime layer; needs deeper API review and optional binary package-size inventory before use. |
+
+Temp install command used a temporary directory with `npm install --ignore-scripts --no-audit --no-fund`; no repo dependencies were added. Combined temp `node_modules` for `quickjs-wasi`, `@bsull/eryx`, and `jq-wasm` was 52,588 KB.
+
+API notes from installed package files:
+
+- `quickjs-wasi` exposes `memoryLimit`, `interruptHandler`, optional WASI overrides, and caller-supplied WASM bytes/module. It looks suitable for a Freeflow-owned JS wrapper that exposes only `readText`/`writeText`-style helpers.
+- `@bsull/eryx` JavaScript API exposes `Sandbox.execute(code)`, stdout/stderr/result capture, callbacks, and a virtual file tree. README requires Node.js 24+ with `--experimental-wasm-jspi`; this is a compatibility gate before adoption.
+- `jq-wasm` exposes `raw(json, query, flags)` returning stdout/stderr/exitCode. It needs a wrapper-level timeout/cancellation proof because the README does not advertise resource controls.
+
 ## Candidate Matrix
 
 ### Multi-language WASM/WASI family
@@ -52,6 +75,15 @@ It must also preserve these source-truth rules:
 | jq | `jq-web`, `jq-wasm`, other jq-to-WASM builds | Avoids shell/jq subprocess; can run as pure WASM/JS package. | Timeout/output control may be weak; package maturity; input model must avoid host fs; may need wrapper-level caps. | Primary jq direction if timeout/output proofs pass. |
 
 Overall: this is the best fit for the owner requirement that Freeflow eventually cover JavaScript, Python, and jq without requiring a daemon or OS-specific sandbox.
+
+Open risks:
+
+- package maturity and maintenance,
+- artifact size and publish footprint, especially Python at roughly 49 MB unpacked for `@bsull/eryx`,
+- memory/time/fuel support varies by runtime,
+- Python WASM support may require larger artifacts or newer Node features,
+- jq WASM packages may not expose resource controls directly,
+- Node's built-in `node:wasi` explicitly warns that it is not itself a comprehensive filesystem security model.
 
 ### Container family
 
@@ -86,6 +118,12 @@ Overall: this is the best fit for the owner requirement that Freeflow eventually
 
 Use a **multi-language WASM/WASI adapter family** as the primary direction.
 
+Within that family, the current best candidate set to investigate is:
+
+- JavaScript: `quickjs-wasi` first, with `@sebastianwessel/quickjs` or low-level `quickjs-emscripten` as alternatives.
+- Python: `@bsull/eryx`, pending owner approval for package footprint and maturity risk.
+- jq: `jq-wasm`, pending proof for timeout/output caps.
+
 Do not implement script execution yet. First prove adapters in this order:
 
 1. JavaScript QuickJS/WASM probe, because it is the smallest likely adapter.
@@ -94,15 +132,21 @@ Do not implement script execution yet. First prove adapters in this order:
 
 Keep the product target as JavaScript + Python + jq. A JavaScript adapter may land first only as a partial availability state, not as a JavaScript-only product direction.
 
-## Required Owner Decision Before Dependencies
+## Dependency Packaging Decision
 
-Choose the packaging policy before installing runtime packages:
+Decision: use optional pinned adapter packages/artifacts first.
 
-1. Optional pinned adapter packages/artifacts.
-2. Bundled pinned adapter packages/artifacts.
-3. External executable/runtime requirements.
+Rejected for now:
 
-Recommendation: optional pinned adapters first, because it preserves the lightweight core package and keeps unavailable languages explicit in status.
+- Bundled pinned adapters, because Python/WASM artifacts may materially increase package size.
+- External executable/runtime requirements as the default, because Docker/Podman/Wasmtime-style dependencies reduce portability and were not locally available/proven.
+
+Implications:
+
+- Freeflow core should not add heavyweight runtime dependencies.
+- Adapter packages/artifacts are explicit opt-ins.
+- Runtime artifacts must not be downloaded during script execution.
+- `freeflow_status` should report unavailable until an optional adapter is installed and passes proofs.
 
 ## Implemented During This Spike
 
@@ -115,13 +159,12 @@ Recommendation: optional pinned adapters first, because it preserves the lightwe
 
 For each candidate package/runtime:
 
-- license,
-- transitive dependency footprint,
-- artifact size,
-- Node version requirements,
-- no runtime-download guarantee,
-- timeout/memory controls,
-- filesystem/network control model,
+- full transitive dependency footprint including optional native/WASM artifacts,
+- exact package size impact after install,
+- Node version requirements in this repo's supported environments,
+- no runtime-download guarantee under package/bundler conditions,
+- timeout/memory controls under adversarial fixtures,
+- filesystem/network control model under adversarial fixtures,
 - API for virtual inputs and bounded output,
 - whether proof fixtures can run deterministically in CI.
 
