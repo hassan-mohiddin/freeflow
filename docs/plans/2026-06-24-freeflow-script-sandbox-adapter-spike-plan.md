@@ -2,7 +2,7 @@
 > **Date:** 2026-06-24
 > **Owner:** Hassan Mohiddin
 > **Type:** Plan
-> **Status:** In progress — Slices 0-2 proof evidence captured for JavaScript; script execution remains blocked
+> **Status:** In progress — Slices 0-3 evidence captured; JavaScript proof passed, Python Eryx candidate blocked before proofs; script execution remains blocked
 > **Source:** `docs/designs/freeflow-script-derive-sandbox-design.md`, `docs/plans/2026-06-24-freeflow-observed-output-routing-vault-index-script-derive-implementation-plan.md`, current `plugins/freeflow/router/src/script-sandbox.ts`, and owner direction to eventually cover JavaScript, Python, and jq.
 
 # Freeflow Script Sandbox Adapter Spike Plan
@@ -251,6 +251,14 @@ Stop if:
 
 - Python runtime exposes ambient host capabilities,
 - package/runtime footprint is too large without owner approval.
+
+Slice 3 progress:
+
+- Tested `@bsull/eryx@0.5.0` from temp-only installs; no repo dependency was added.
+- Existing temp install with `@bytecodealliance/preview2-shim@0.17.9` failed before Python execution with `SyntaxError: The requested module '@bytecodealliance/preview2-shim/filesystem' does not provide an export named '_setFileData'`.
+- A separate temp-only install explicitly pinning `@bytecodealliance/preview2-shim@0.17.0` failed the same way under `Node.js v25.8.1` with `--experimental-wasm-jspi`.
+- Report written to `plugins/freeflow/evals/reports/runtime/eryx-python-proof-spike-1-report.md`.
+- Python script derive remains unavailable; the Eryx candidate is blocked on package/transitive compatibility before sandbox proofs can run.
 
 ### Slice 4: jq WASM Adapter Probe Spike
 
