@@ -1,4 +1,5 @@
 import { handleNativeToolSafetyNet } from "./native-safety-net.js";
+import { handleObservedToolRouting } from "./observed-tool-routing.js";
 import { registerRouterTools } from "./router-tools.js";
 import {
   CONTRIBUTOR_COMMANDS,
@@ -69,6 +70,10 @@ export default function freeflow(pi) {
   });
 
   pi.on("tool_result", async (event, ctx) => {
+    const observed = await handleObservedToolRouting(event, ctx);
+    if (observed) {
+      return observed;
+    }
     return handleNativeToolSafetyNet(event, ctx);
   });
 

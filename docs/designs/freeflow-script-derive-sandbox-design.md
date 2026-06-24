@@ -5,7 +5,7 @@
 > **Owner:** Hassan Mohiddin
 > **Type:** Architecture Design
 > **Status:** Draft
-> **Source:** `docs/specs/freeflow-universal-output-capture-and-derive-design.md`, `docs/plans/2026-06-20-freeflow-universal-output-capture-and-derive-implementation-plan.md`, current router source under `plugins/freeflow/router/src/`, and output-router safety policy.
+> **Source:** `docs/specs/freeflow-observed-output-routing-vault-index-and-script-derive-design.md`, `docs/plans/2026-06-24-freeflow-observed-output-routing-vault-index-script-derive-implementation-plan.md`, current router source under `plugins/freeflow/router/src/`, and output-router safety policy.
 
 ## Purpose
 
@@ -26,21 +26,26 @@ Some future analysis may need custom logic over already-captured evidence. That 
 - scripts may consume unbounded CPU, memory, disk, or context,
 - script output may bypass router caps or lose lineage.
 
-Script derive must therefore be explicit, sandboxed, disabled by default, and separate from deterministic derive.
+Script derive must therefore be explicit, sandboxed, disabled by default, and isolated from deterministic derive execution paths even though it shares the public `freeflow_derive` tool.
 
 ## Design Decision
 
-Recommended public surface: add a future **separate tool** named `freeflow_script_derive` rather than adding `operation.kind="script"` to deterministic `freeflow_derive`.
+Public surface: keep one public `freeflow_derive` tool and add a clearly labeled future operation, `operation.kind="script"`.
+
+There must be no separate public `freeflow_script_derive` tool. Deterministic derive operations and script derive share validation, status, routing, persistence, and lineage conventions, but dispatch to separate backend engines.
 
 Rationale:
 
-- `freeflow_derive` currently means deterministic, no arbitrary code.
-- Keeping script execution out of that interface preserves a small, trustworthy tool-choice boundary.
-- A separate tool can require stronger prompt guidance, config checks, status reporting, and security review without making every deterministic derive call carry script-execution policy.
+- The current source-truth spec chooses one public derive tool so agents do not learn two overlapping derive surfaces.
+- `operation.kind="script"` makes arbitrary-code risk explicit at the call site.
+- Deterministic operations can remain lightweight because script derive is disabled by default and rejected before sandbox execution unless explicitly enabled and supported.
+- One tool keeps source resolution, lineage, output routing, and recovery behavior consistent.
 
-Rejected default: hiding script execution inside `freeflow_retrieve` or automatic retrieval. Existing evidence retrieval must stay read/query/recover-only.
+Rejected defaults:
 
-Open owner decision before implementation: whether to accept the separate-tool public API, or deliberately revise the `freeflow_derive` contract to include a clearly labeled sandboxed-script operation.
+- Adding `freeflow_script_derive` as a separate public tool.
+- Hiding script execution inside `freeflow_retrieve` or automatic retrieval. Existing evidence retrieval must stay read/query/recover-only.
+- Falling back to unsandboxed host execution when a sandbox adapter is unavailable.
 
 ## Scope
 
@@ -119,16 +124,17 @@ The adapter must be capability-probed. No adapter means structured `adapter_unav
 
 ## Proposed Input Shape
 
-Draft shape for a future tool:
+Draft shape for the future `freeflow_derive` script operation:
 
 ```json
 {
-  "source": [
-    { "outputId": "ffout_source", "stream": "combined", "alias": "test_log" }
+  "sources": [
+    { "kind": "vault", "outputId": "ffout_source", "stream": "combined", "alias": "test_log" }
   ],
-  "script": {
+  "operation": {
+    "kind": "script",
     "language": "javascript",
-    "text": "const log = readText('test_log'); writeText(log.split('\\n').filter(l => l.includes('ERROR')).join('\\n'));"
+    "code": "const log = readText('test_log'); writeText(log.split('\\n').filter(l => l.includes('ERROR')).join('\\n'));"
   },
   "limits": {
     "timeoutMs": 5000,
@@ -139,29 +145,36 @@ Draft shape for a future tool:
 }
 ```
 
+Compatibility rule: existing deterministic derive calls keep using the current single `source` plus deterministic `operation.kind` shape. `sources[]` is for script derive.
+
 Validation rules:
 
-- `source` is one or more existing vault records; repo sources are not accepted in v1.
+- `sources[]` is one or more existing vault records; repo sources are not accepted in the first implementation.
 - `alias` is required for every input and must match `^[A-Za-z][A-Za-z0-9_-]{0,63}$`.
 - `stream` must be an existing stream for that source record.
-- total mounted input bytes must be below `maxInputBytes`.
-- `script.text` must be bounded before execution.
-- `language` must be allowlisted by an available sandbox adapter.
-- user-supplied `limits` may only tighten defaults unless explicit config permits larger bounds.
+- total mounted input bytes must be below `limits.maxInputBytes`.
+- `operation.code` must be bounded before execution and must not be persisted raw by default.
+- `operation.language` must be allowlisted by an available sandbox adapter.
+- user-supplied limits may only tighten defaults unless explicit config permits larger bounds.
+- disabled script derive returns structured disabled/unavailable output before source recovery or sandbox execution.
 
 ## Allowed Languages
 
-V1 allowlist: `javascript` only, and only through a sandbox adapter that proves:
+Target language set for completion:
 
-- no Node built-ins,
-- no `process`, `env`, `require`, dynamic import, child process, filesystem, or network APIs,
-- no access to host globals beyond a tiny derive API,
+- JavaScript,
+- Python,
+- jq or an equivalent structured-data query language.
+
+Each language remains unavailable until its sandbox adapter proves:
+
+- no runtime APIs that expose ambient env, host filesystem, child processes, package loading, or network,
+- no access to host globals beyond a tiny derive API or equivalent constrained input/output contract,
 - deterministic text/JSON input helpers over mounted vault sources,
-- output helpers that write only to captured stdout/output files.
+- output helpers that write only to captured stdout/output files,
+- capability probes and adversarial isolation tests pass.
 
-Node `vm` alone is not sufficient. A Node subprocess without OS isolation is not sufficient.
-
-Future languages such as Python, WASM, jq, or Lua require a design revision and separate adapter review.
+Node `vm` alone is not sufficient. A Node/Python subprocess without OS isolation is not sufficient. Shell is not allowed unless a future sandbox can prove the same isolation contract, and adding any other language requires adapter tests and review.
 
 ## Input Mounting Model
 
@@ -259,7 +272,7 @@ The core captures raw script result before routing. The result then flows throug
 
 Every successful result exposes:
 
-- producer kind `script_derive` so script-derived records remain distinct from deterministic `derive` records,
+- producer kind `derive` plus operation metadata `kind=script` so script-derived records remain distinguishable without adding a second public tool surface,
 - source output ids and record ids,
 - sandbox adapter name/version,
 - language/runtime,
@@ -277,7 +290,7 @@ Script derive failures should use the same status separation as capture/derive:
 - `deriveExecution.status`: `unavailable`, `rejected`, `failed`, `timed_out`, or `partial`,
 - `routing.status`: whether any bounded evidence was produced,
 - `persistence.status`: whether output/metadata was persisted,
-- `recoverability`: exact, redacted, metadata-only, or none.
+- `recoverability`: exact, metadata-only, or none. `redacted` remains reserved/unsupported future work and must not be exposed as working script-derive recovery.
 
 Required failure cases:
 
@@ -324,7 +337,7 @@ Default storage:
 - script text is not stored raw by default,
 - sandbox stderr is bounded and treated as diagnostic output, not a public log.
 
-If the script output may contain secrets, the user should choose metadata-only/no-persistence policies in a future explicit design. Until those modes are implemented for script derive, do not expose them as working config.
+If the script output may contain secrets, the user should choose metadata-only/no-persistence policies in a future explicit design. Until those modes are implemented and tested for script derive, do not expose them as working config.
 
 ## Config And Status
 
@@ -337,7 +350,7 @@ Future config should be separate from deterministic derive, for example:
   "scriptDerive": {
     "enabled": false,
     "sandbox": "auto",
-    "languages": ["javascript"],
+    "languages": ["javascript", "python", "jq"],
     "network": "off"
   }
 }
@@ -356,6 +369,7 @@ Setup must not enable script derive by default. `freeflow_status` should report:
 
 Minimum tests/evals:
 
+- schema validation preserves deterministic `source` compatibility and accepts script `sources[]` only for `operation.kind="script"`,
 - schema validation accepts only vault sources and allowlisted language,
 - no fallback when sandbox adapter is unavailable,
 - script cannot read env variables, repo files, home files, or vault files directly,
@@ -369,7 +383,8 @@ Minimum tests/evals:
 - lineage contains source ids and operation hash,
 - raw script text is not persisted by default,
 - `freeflow_retrieve` has no script execution path,
-- deterministic `freeflow_derive` operations continue to work without script policy.
+- deterministic `freeflow_derive` operations continue to work without script policy,
+- no public `freeflow_script_derive` tool is registered.
 
 Useful adversarial eval fixtures:
 
@@ -383,16 +398,18 @@ Useful adversarial eval fixtures:
 
 Do not implement script derive until all are true:
 
-1. Owner approves public API shape (`freeflow_script_derive` vs extending `freeflow_derive`).
-2. A sandbox adapter exists for at least one host and proves no-network/read-only-input/write-bounded-output behavior.
-3. Security/artifact review passes for this design or its approved successor.
-4. Tests cover the verification requirements above.
-5. Public docs state script derive is sandboxed, disabled by default, and not deterministic derive.
+1. Public API remains the current source-truth shape: one `freeflow_derive` tool with `operation.kind="script"`; no separate `freeflow_script_derive` registration.
+2. A sandbox adapter exists for at least one target language and proves no-network/read-only-input/write-bounded-output behavior.
+3. Script derive stays disabled by default and setup does not enable it implicitly.
+4. Security/artifact review passes for this design or its approved successor.
+5. Tests cover the verification requirements above.
+6. Public docs state script derive is sandboxed, disabled by default, and separate from deterministic derive execution.
+7. If no suitable sandbox exists, execution returns structured unavailable output with no unsandboxed fallback.
 
 ## Open Decisions
 
-- Should the public surface be a separate `freeflow_script_derive` tool, as recommended here, or a clearly separate operation inside `freeflow_derive`?
-- Which sandbox adapter is acceptable for the first host/runtime?
+- Which sandbox adapter is acceptable for each target language/runtime?
+- What jq-compatible runtime or equivalent structured-data query adapter should satisfy the jq target?
 - Should any raw script text ever be persisted for reproducibility, and under what explicit opt-in?
 - Should script derive ever support repo-file inputs directly, or must repo content always be captured into vault first?
-- Should metadata-only/no-persistence output modes ship before script derive, or can v1 require exact output persistence under caps?
+- Should metadata-only/no-persistence output modes ship before script derive, or can the first implementation require exact output persistence under caps?

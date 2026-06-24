@@ -63,6 +63,22 @@ export function redactionFailure(options) {
         persistence: options.persistence ?? noPersistence(),
     });
 }
+export function scriptDeriveDisabledFailure(options) {
+    return createFailureResult({
+        ...options,
+        kind: "script_derive_disabled",
+        operation: "derive",
+        executionStatus: "unavailable",
+    });
+}
+export function deriveAdapterUnavailableFailure(options) {
+    return createFailureResult({
+        ...options,
+        kind: "adapter_unavailable",
+        operation: "derive",
+        executionStatus: "unavailable",
+    });
+}
 export function deriveSourceUnavailableFailure(options) {
     return createFailureResult({
         ...options,
@@ -178,7 +194,7 @@ function recoveryHintForPersistence(persistence) {
     };
 }
 function defaultExecutionStatus(kind) {
-    if (kind === "adapter_unavailable" || kind === "derive_source_unavailable") {
+    if (kind === "adapter_unavailable" || kind === "derive_source_unavailable" || kind === "script_derive_disabled") {
         return "unavailable";
     }
     if (kind === "unsupported_producer") {

@@ -2,19 +2,27 @@ import { isValidPostToolRoutingMode, validatePositiveIntegerThreshold } from "./
 import {
   CAPTURE_FREEFLOW_MEDIATED_MODES,
   DIRECT_HOST_TOOL_CAPTURE_MODES,
+  OBSERVED_ROUTING_FAILURE_MODES,
+  OBSERVED_ROUTING_PERSISTENCE_MODES,
   OUTPUT_ROUTER_PROFILES,
   PROVIDER_CATEGORIES,
   PROVIDER_MODES,
+  RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES,
 } from "./types.js";
 import type {
   CaptureConfig,
   FreeflowConfig,
+  ObservedRoutingConfig,
+  ObservedRoutingPersistenceMode,
+  ObservedRoutingProducerConfig,
   ProviderCategory,
   ProviderEnablement,
   ProvidersConfig,
   RouterConfig,
   RouterHints,
   RouterThresholds,
+  ScriptDeriveConfig,
+  ScriptDeriveLanguage,
   VaultRetentionPolicy,
 } from "./types.js";
 
@@ -47,6 +55,41 @@ export const DEFAULT_PROVIDERS_CONFIG = {
   enabled: [],
 } as const satisfies ProvidersConfig;
 
+export const DEFAULT_OBSERVED_ROUTING_PERSISTENCE = "none" as const satisfies ObservedRoutingPersistenceMode;
+export const SAFE_OBSERVED_ROUTING_PERSISTENCE_FALLBACK = "metadata-only" as const satisfies ObservedRoutingPersistenceMode;
+
+export const DEFAULT_OBSERVED_ROUTING_CONFIG = {
+  enabled: false,
+  onRoutingFailure: "fail-open",
+  mcp: { servers: {} },
+  web: { enabled: false, persistence: DEFAULT_OBSERVED_ROUTING_PERSISTENCE },
+  fetch: { enabled: false, persistence: DEFAULT_OBSERVED_ROUTING_PERSISTENCE },
+  codeSearch: { enabled: false, persistence: DEFAULT_OBSERVED_ROUTING_PERSISTENCE },
+} as const satisfies ObservedRoutingConfig;
+
+export const SCRIPT_DERIVE_LANGUAGES = ["javascript", "python", "jq"] as const satisfies readonly ScriptDeriveLanguage[];
+
+export const DEFAULT_SCRIPT_DERIVE_LIMITS = {
+  timeoutMs: 5_000,
+  maxInputBytes: 1_048_576,
+  maxOutputBytes: 65_536,
+} as const;
+
+export const MAX_SCRIPT_DERIVE_LIMITS = {
+  timeoutMs: 30_000,
+  maxInputBytes: 10_485_760,
+  maxOutputBytes: 1_048_576,
+} as const;
+
+export const DEFAULT_SCRIPT_DERIVE_CONFIG = {
+  enabled: false,
+  sandbox: "auto",
+  languages: [...SCRIPT_DERIVE_LANGUAGES],
+  network: "off",
+  limits: { ...DEFAULT_SCRIPT_DERIVE_LIMITS },
+  rawScriptPersistence: "disabled",
+} satisfies ScriptDeriveConfig;
+
 export interface CreateDefaultRouterConfigOptions {
   vaultRetention?: VaultRetentionPolicy;
   vaultRoot?: string;
@@ -77,6 +120,16 @@ export interface NormalizeCaptureConfigResult {
 
 export interface NormalizeProvidersConfigResult {
   config: ProvidersConfig;
+  warnings: string[];
+}
+
+export interface NormalizeObservedRoutingConfigResult {
+  config: ObservedRoutingConfig;
+  warnings: string[];
+}
+
+export interface NormalizeScriptDeriveConfigResult {
+  config: ScriptDeriveConfig;
   warnings: string[];
 }
 
@@ -183,6 +236,75 @@ export function normalizeProvidersConfig(input: unknown): NormalizeProvidersConf
   return { config, warnings };
 }
 
+export function normalizeObservedRoutingConfig(input: unknown): NormalizeObservedRoutingConfigResult {
+  const config = createDefaultObservedRoutingConfig();
+  const warnings: string[] = [];
+
+  if (input === undefined || input === null) {
+    return { config, warnings };
+  }
+
+  if (!isRecord(input)) {
+    return {
+      config,
+      warnings: ["observedRouting config must be an object; observed routing is off by default."],
+    };
+  }
+
+  applyObservedRoutingEnabled(config, warnings, input.enabled);
+  applyStringEnum(
+    config,
+    warnings,
+    input.onRoutingFailure,
+    "onRoutingFailure",
+    "observedRouting.onRoutingFailure",
+    OBSERVED_ROUTING_FAILURE_MODES,
+    DEFAULT_OBSERVED_ROUTING_CONFIG.onRoutingFailure,
+  );
+  applyObservedMcpConfig(config, warnings, input.mcp);
+  config.web = parseObservedProducerConfig(input.web, "observedRouting.web", warnings);
+  config.fetch = parseObservedProducerConfig(input.fetch, "observedRouting.fetch", warnings);
+  config.codeSearch = parseObservedProducerConfig(input.codeSearch, "observedRouting.codeSearch", warnings);
+
+  return { config, warnings };
+}
+
+export function normalizeScriptDeriveConfig(input: unknown): NormalizeScriptDeriveConfigResult {
+  const config: ScriptDeriveConfig = {
+    ...DEFAULT_SCRIPT_DERIVE_CONFIG,
+    languages: [...DEFAULT_SCRIPT_DERIVE_CONFIG.languages],
+    limits: { ...DEFAULT_SCRIPT_DERIVE_CONFIG.limits },
+  };
+  const warnings: string[] = [];
+
+  if (input === undefined || input === null) {
+    return { config, warnings };
+  }
+
+  if (!isRecord(input)) {
+    return {
+      config,
+      warnings: ["scriptDerive config must be an object; script derive is disabled by default."],
+    };
+  }
+
+  if (input.enabled !== undefined) {
+    if (typeof input.enabled === "boolean") {
+      config.enabled = input.enabled;
+    } else {
+      warnings.push(`Invalid scriptDerive.enabled=${JSON.stringify(input.enabled)}; using false.`);
+    }
+  }
+
+  applyStringEnum(config, warnings, input.sandbox, "sandbox", "scriptDerive.sandbox", ["auto"] as const, DEFAULT_SCRIPT_DERIVE_CONFIG.sandbox);
+  applyStringEnum(config, warnings, input.network, "network", "scriptDerive.network", ["off"] as const, DEFAULT_SCRIPT_DERIVE_CONFIG.network);
+  applyStringEnum(config, warnings, input.rawScriptPersistence, "rawScriptPersistence", "scriptDerive.rawScriptPersistence", ["disabled"] as const, DEFAULT_SCRIPT_DERIVE_CONFIG.rawScriptPersistence);
+  applyScriptDeriveLanguages(config, warnings, input.languages);
+  applyScriptDeriveLimits(config, warnings, input.limits);
+
+  return { config, warnings };
+}
+
 export function normalizeFreeflowConfig(input: unknown): NormalizeFreeflowConfigResult {
   const warnings: string[] = [];
 
@@ -190,11 +312,15 @@ export function normalizeFreeflowConfig(input: unknown): NormalizeFreeflowConfig
     const router = normalizeRouterConfig(undefined);
     const capture = normalizeCaptureConfig(undefined);
     const providers = normalizeProvidersConfig(undefined);
+    const observedRouting = normalizeObservedRoutingConfig(undefined);
+    const scriptDerive = normalizeScriptDeriveConfig(undefined);
     return {
       config: {
         outputRouter: router.config,
         capture: capture.config,
         providers: providers.config,
+        observedRouting: observedRouting.config,
+        scriptDerive: scriptDerive.config,
       },
       warnings: ["Freeflow config must be an object; using built-in defaults."],
     };
@@ -204,14 +330,18 @@ export function normalizeFreeflowConfig(input: unknown): NormalizeFreeflowConfig
   const router = normalizeRouterConfig(source.outputRouter);
   const capture = normalizeCaptureConfig(source.capture);
   const providers = normalizeProvidersConfig(source.providers);
+  const observedRouting = normalizeObservedRoutingConfig(source.observedRouting);
+  const scriptDerive = normalizeScriptDeriveConfig(source.scriptDerive);
 
-  warnings.push(...router.warnings, ...capture.warnings, ...providers.warnings);
+  warnings.push(...router.warnings, ...capture.warnings, ...providers.warnings, ...observedRouting.warnings, ...scriptDerive.warnings);
 
   return {
     config: {
       outputRouter: router.config,
       capture: capture.config,
       providers: providers.config,
+      observedRouting: observedRouting.config,
+      scriptDerive: scriptDerive.config,
     },
     warnings,
   };
@@ -333,6 +463,57 @@ function applyHints(
   }
 }
 
+function applyScriptDeriveLanguages(config: ScriptDeriveConfig, warnings: string[], value: unknown) {
+  if (value === undefined) {
+    return;
+  }
+  if (!Array.isArray(value)) {
+    warnings.push("Invalid scriptDerive.languages; expected an array of supported language ids.");
+    return;
+  }
+
+  const languages: ScriptDeriveLanguage[] = [];
+  for (const item of value) {
+    if (isStringIn(item, SCRIPT_DERIVE_LANGUAGES)) {
+      if (!languages.includes(item)) {
+        languages.push(item);
+      }
+    } else {
+      warnings.push(`Invalid scriptDerive.languages entry=${JSON.stringify(item)}; supported languages are ${SCRIPT_DERIVE_LANGUAGES.join(", ")}.`);
+    }
+  }
+
+  if (languages.length > 0) {
+    config.languages = languages;
+  }
+}
+
+function applyScriptDeriveLimits(config: ScriptDeriveConfig, warnings: string[], value: unknown) {
+  if (value === undefined) {
+    return;
+  }
+  if (!isRecord(value)) {
+    warnings.push("Invalid scriptDerive.limits; expected an object with positive integer limits.");
+    return;
+  }
+
+  applyScriptLimit(config, warnings, value.timeoutMs, "timeoutMs");
+  applyScriptLimit(config, warnings, value.maxInputBytes, "maxInputBytes");
+  applyScriptLimit(config, warnings, value.maxOutputBytes, "maxOutputBytes");
+}
+
+function applyScriptLimit(config: ScriptDeriveConfig, warnings: string[], value: unknown, key: keyof ScriptDeriveConfig["limits"]) {
+  if (value === undefined) {
+    return;
+  }
+  const max = MAX_SCRIPT_DERIVE_LIMITS[key];
+  if (Number.isInteger(value) && Number(value) > 0 && Number(value) <= max) {
+    config.limits[key] = Number(value);
+    return;
+  }
+  warnings.push(`Invalid scriptDerive.limits.${key}=${JSON.stringify(value)}; using ${DEFAULT_SCRIPT_DERIVE_LIMITS[key]}.`);
+}
+
 function applyStringEnum<TConfig extends object, TValue extends string>(
   config: TConfig,
   warnings: string[],
@@ -352,6 +533,120 @@ function applyStringEnum<TConfig extends object, TValue extends string>(
   }
 
   warnings.push(`Invalid ${path}=${JSON.stringify(value)}; using ${fallback}.`);
+}
+
+function createDefaultObservedRoutingConfig(): ObservedRoutingConfig {
+  return {
+    enabled: DEFAULT_OBSERVED_ROUTING_CONFIG.enabled,
+    onRoutingFailure: DEFAULT_OBSERVED_ROUTING_CONFIG.onRoutingFailure,
+    mcp: { servers: {} },
+    web: { ...DEFAULT_OBSERVED_ROUTING_CONFIG.web },
+    fetch: { ...DEFAULT_OBSERVED_ROUTING_CONFIG.fetch },
+    codeSearch: { ...DEFAULT_OBSERVED_ROUTING_CONFIG.codeSearch },
+  };
+}
+
+function applyObservedRoutingEnabled(config: ObservedRoutingConfig, warnings: string[], value: unknown) {
+  if (value === undefined) {
+    return;
+  }
+
+  if (typeof value === "boolean") {
+    config.enabled = value;
+    return;
+  }
+
+  warnings.push(`Invalid observedRouting.enabled=${JSON.stringify(value)}; using ${DEFAULT_OBSERVED_ROUTING_CONFIG.enabled}.`);
+}
+
+function applyObservedMcpConfig(config: ObservedRoutingConfig, warnings: string[], value: unknown) {
+  if (value === undefined) {
+    return;
+  }
+
+  if (!isRecord(value)) {
+    warnings.push("Invalid observedRouting.mcp; expected an object with explicit servers. MCP observed routing remains disabled.");
+    return;
+  }
+
+  if (value.servers === undefined) {
+    return;
+  }
+
+  if (!isRecord(value.servers)) {
+    warnings.push("Invalid observedRouting.mcp.servers; expected an object keyed by MCP server id.");
+    return;
+  }
+
+  for (const [serverId, serverConfig] of Object.entries(value.servers)) {
+    const normalizedServerId = parseConfigString(serverId, "observedRouting.mcp.servers server id", warnings);
+    if (!normalizedServerId) {
+      continue;
+    }
+    config.mcp.servers[normalizedServerId] = parseObservedProducerConfig(
+      serverConfig,
+      `observedRouting.mcp.servers.${normalizedServerId}`,
+      warnings,
+    );
+  }
+}
+
+function parseObservedProducerConfig(value: unknown, path: string, warnings: string[]): ObservedRoutingProducerConfig {
+  const fallback: ObservedRoutingProducerConfig = { enabled: false, persistence: DEFAULT_OBSERVED_ROUTING_PERSISTENCE };
+
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+
+  if (!isRecord(value)) {
+    warnings.push(`Invalid ${path}; expected an object with enabled and persistence. Observed routing remains disabled for this producer.`);
+    return fallback;
+  }
+
+  const enabled = parseObservedProducerEnabled(value.enabled, path, warnings);
+  const persistence = parseObservedPersistence(value.persistence, `${path}.persistence`, enabled, warnings);
+  return { enabled, persistence };
+}
+
+function parseObservedProducerEnabled(value: unknown, path: string, warnings: string[]): boolean {
+  if (value === undefined) {
+    return false;
+  }
+
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  warnings.push(`Invalid ${path}.enabled=${JSON.stringify(value)}; using false.`);
+  return false;
+}
+
+function parseObservedPersistence(
+  value: unknown,
+  path: string,
+  enabled: boolean,
+  warnings: string[],
+): ObservedRoutingPersistenceMode {
+  if (value === undefined) {
+    if (enabled) {
+      warnings.push(`Missing ${path}; setup must choose persistence explicitly. Using ${SAFE_OBSERVED_ROUTING_PERSISTENCE_FALLBACK}.`);
+      return SAFE_OBSERVED_ROUTING_PERSISTENCE_FALLBACK;
+    }
+    return DEFAULT_OBSERVED_ROUTING_PERSISTENCE;
+  }
+
+  if (isStringIn(value, OBSERVED_ROUTING_PERSISTENCE_MODES)) {
+    return value;
+  }
+
+  if (isStringIn(value, RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES)) {
+    warnings.push(`Unsupported ${path}=${JSON.stringify(value)}; redacted persistence is reserved for future work. Using ${SAFE_OBSERVED_ROUTING_PERSISTENCE_FALLBACK}.`);
+    return SAFE_OBSERVED_ROUTING_PERSISTENCE_FALLBACK;
+  }
+
+  const fallback = enabled ? SAFE_OBSERVED_ROUTING_PERSISTENCE_FALLBACK : DEFAULT_OBSERVED_ROUTING_PERSISTENCE;
+  warnings.push(`Invalid ${path}=${JSON.stringify(value)}; expected exact, metadata-only, or none. Using ${fallback}.`);
+  return fallback;
 }
 
 function parseProviderEnablement(entry: unknown, index: number, warnings: string[]): ProviderEnablement | undefined {

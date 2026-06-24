@@ -1,4 +1,4 @@
-import type { CommandOutputRecord, EvidenceLineage, EvidencePersistence, ExecutionStatus, OutputFingerprints, OutputStream, ProducerDescriptor, RepoFileReferenceRecord, RouterVaultConfig, SessionIndexEntry, TextOutputRecord, VaultRecord, VaultRetentionPolicy, VaultSessionIndex } from "./types.js";
+import type { CommandOutputRecord, EvidenceLineage, EvidencePersistence, ExecutionStatus, MetadataOutputRecord, OutputFingerprints, OutputStream, ProducerDescriptor, RepoFileReferenceRecord, RouterVaultConfig, SessionIndexEntry, TextOutputRecord, VaultRecord, VaultRetentionPolicy, VaultSessionIndex } from "./types.js";
 export interface VaultHandle {
     root: string;
     retention: VaultRetentionPolicy;
@@ -35,6 +35,19 @@ export interface StoreRepoFileReferenceOptions {
     sessionId: string;
     path: string;
     hashSha256?: string;
+    decisionIds?: string[];
+    createdAt?: string;
+    producer?: ProducerDescriptor;
+    persistence?: EvidencePersistence;
+    lineage?: EvidenceLineage;
+}
+export interface StoreMetadataOutputOptions {
+    sessionId: string;
+    sourceKind: MetadataOutputRecord["sourceKind"];
+    rawLineCount: number;
+    rawByteCount: number;
+    rawSha256?: string;
+    metadata?: Record<string, unknown>;
     decisionIds?: string[];
     createdAt?: string;
     producer?: ProducerDescriptor;
@@ -82,6 +95,7 @@ export declare function findExactDuplicateCommandOutput(vault: VaultHandle, opti
 export declare function findExactDuplicateTextOutput(vault: VaultHandle, options: FindExactDuplicateTextOutputOptions): Promise<SessionIndexEntry | undefined>;
 export declare function storeCommandOutput(vault: VaultHandle, options: StoreCommandOutputOptions): Promise<CommandOutputRecord>;
 export declare function storeTextOutput(vault: VaultHandle, options: StoreTextOutputOptions): Promise<TextOutputRecord>;
+export declare function storeMetadataOutput(vault: VaultHandle, options: StoreMetadataOutputOptions): Promise<MetadataOutputRecord>;
 export declare function storeRepoFileReference(vault: VaultHandle, options: StoreRepoFileReferenceOptions): Promise<RepoFileReferenceRecord>;
 export declare function readVaultRecord(vault: VaultHandle, sessionId: string, outputId: string): Promise<VaultRecord>;
 export declare function readOutputText(vault: VaultHandle, sessionId: string, outputId: string, stream: OutputStream): Promise<string>;

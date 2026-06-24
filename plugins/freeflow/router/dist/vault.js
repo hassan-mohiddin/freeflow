@@ -3,6 +3,7 @@ import { mkdir, open, readFile, rename, unlink, writeFile } from "node:fs/promis
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { DEFAULT_VAULT_RETENTION, DEFAULT_VAULT_ROOT } from "./config.js";
+import { createLocalVaultIndex, recordVaultIndexFailure } from "./vault-index.js";
 const sessionIndexWriteLocks = new Map();
 const SESSION_INDEX_LOCK_RETRY_MS = 5;
 const SESSION_INDEX_LOCK_TIMEOUT_MS = 5_000;
@@ -79,6 +80,7 @@ export async function findExactDuplicateTextOutput(vault, options) {
     return undefined;
 }
 export async function storeCommandOutput(vault, options) {
+    assertStorablePersistence(options.persistence);
     const createdAt = options.createdAt ?? new Date().toISOString();
     const combined = options.combined ?? combineOutputSections(options.stdout, options.stderr);
     const decisionIds = options.decisionIds ?? [];
@@ -165,9 +167,11 @@ export async function storeCommandOutput(vault, options) {
     await writeFile(paths.combined, combined, "utf8");
     await writeJson(paths.meta, record);
     await addRecordToSessionIndex(vault, options.sessionId, record);
+    await indexVaultRecordAfterAppend(vault, options.sessionId, record, combined, "combined");
     return record;
 }
 export async function storeTextOutput(vault, options) {
+    assertStorablePersistence(options.persistence);
     const createdAt = options.createdAt ?? new Date().toISOString();
     const decisionIds = options.decisionIds ?? [];
     const fingerprints = textOutputFingerprints({ raw: options.raw });
@@ -215,9 +219,65 @@ export async function storeTextOutput(vault, options) {
     await writeFile(paths.raw, options.raw, "utf8");
     await writeJson(paths.meta, record);
     await addRecordToSessionIndex(vault, options.sessionId, record);
+    await indexVaultRecordAfterAppend(vault, options.sessionId, record, options.raw, "raw");
+    return record;
+}
+export async function storeMetadataOutput(vault, options) {
+    assertStorablePersistence(options.persistence);
+    const createdAt = options.createdAt ?? new Date().toISOString();
+    const decisionIds = options.decisionIds ?? [];
+    const payloadHash = sha256Json({
+        kind: "metadata",
+        createdAt,
+        sourceKind: options.sourceKind,
+        rawLineCount: options.rawLineCount,
+        rawByteCount: options.rawByteCount,
+        rawSha256: options.rawSha256,
+        metadata: options.metadata,
+        decisionIds,
+    });
+    const objectId = objectIdFromHash(payloadHash);
+    const outputId = outputIdFromHash(payloadHash);
+    const recordId = recordIdFromHash(payloadHash);
+    const objectDir = objectDirectory(vault, objectId);
+    const paths = {
+        meta: join(objectDir, "meta.json"),
+    };
+    const record = {
+        kind: "metadata",
+        outputId,
+        recordId,
+        objectId,
+        sourceKind: options.sourceKind,
+        createdAt,
+        paths,
+        lineCounts: { raw: options.rawLineCount },
+        byteCounts: { raw: options.rawByteCount },
+        hashes: options.rawSha256 !== undefined ? { rawSha256: options.rawSha256 } : {},
+        decisionIds,
+        producer: options.producer ?? producerForTextSourceKind(options.sourceKind),
+        persistence: options.persistence ?? metadataOnlyPersistence(outputId),
+        contentHashSha256: payloadHash,
+        retention: vault.retention,
+    };
+    if (options.metadata !== undefined) {
+        record.metadata = options.metadata;
+    }
+    if (options.lineage !== undefined) {
+        record.lineage = options.lineage;
+    }
+    const metadataExpiresAt = expiresAt(createdAt, vault.retention);
+    if (metadataExpiresAt !== undefined) {
+        record.expiresAt = metadataExpiresAt;
+    }
+    await mkdir(objectDir, { recursive: true });
+    await writeJson(paths.meta, record);
+    await addRecordToSessionIndex(vault, options.sessionId, record);
+    await indexVaultRecordAfterAppend(vault, options.sessionId, record, undefined);
     return record;
 }
 export async function storeRepoFileReference(vault, options) {
+    assertStorablePersistence(options.persistence);
     const createdAt = options.createdAt ?? new Date().toISOString();
     const decisionIds = options.decisionIds ?? [];
     const payloadHash = sha256Json({
@@ -261,6 +321,7 @@ export async function storeRepoFileReference(vault, options) {
     await mkdir(objectDir, { recursive: true });
     await writeJson(paths.meta, record);
     await addRecordToSessionIndex(vault, options.sessionId, record);
+    await indexVaultRecordAfterAppend(vault, options.sessionId, record, undefined);
     return record;
 }
 export async function readVaultRecord(vault, sessionId, outputId) {
@@ -298,6 +359,24 @@ export async function readSessionIndex(vault, sessionId) {
         }
         const now = new Date().toISOString();
         return emptySessionIndex(sessionId, now);
+    }
+}
+function assertStorablePersistence(persistence) {
+    if (persistence?.recoverability === "none") {
+        throw new Error("Cannot store output with persistence recoverability none; skip vault storage instead.");
+    }
+}
+async function indexVaultRecordAfterAppend(vault, sessionId, record, text, stream) {
+    try {
+        const index = createLocalVaultIndex(vault);
+        const metadata = {
+            sessionId,
+            ...(stream !== undefined ? { stream } : {}),
+        };
+        await index.indexRecord(record, text, metadata);
+    }
+    catch (error) {
+        await recordVaultIndexFailure(vault, error).catch(() => undefined);
     }
 }
 async function addRecordToSessionIndex(vault, sessionId, record) {
@@ -421,6 +500,9 @@ function streamPath(record, stream) {
         }
         return record.paths.raw;
     }
+    if (record.kind === "metadata") {
+        throw new Error("Metadata only records store no raw stream.");
+    }
     throw new Error("Repo file reference records store metadata only and have no raw stream.");
 }
 function sessionIndexPath(vault, sessionId) {
@@ -449,10 +531,11 @@ function exactVaultPersistence(outputId) {
         outputId,
     };
 }
-function metadataOnlyPersistence() {
+function metadataOnlyPersistence(outputId) {
     return {
         status: "metadata_only",
         recoverability: "metadata_only",
+        ...(outputId !== undefined ? { outputId } : {}),
     };
 }
 function producerForTextSourceKind(sourceKind) {
@@ -462,8 +545,14 @@ function producerForTextSourceKind(sourceKind) {
     if (sourceKind === "mcp") {
         return { kind: "mcp" };
     }
+    if (sourceKind === "web") {
+        return { kind: "web" };
+    }
     if (sourceKind === "fetch") {
         return { kind: "fetch" };
+    }
+    if (sourceKind === "code_search") {
+        return { kind: "code_search" };
     }
     if (sourceKind === "derive") {
         return { kind: "derive" };

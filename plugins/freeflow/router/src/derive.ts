@@ -1,11 +1,14 @@
 import { createHash } from "node:crypto";
 
-import { DEFAULT_ROUTER_THRESHOLDS } from "./config.js";
+import { DEFAULT_ROUTER_THRESHOLDS, DEFAULT_SCRIPT_DERIVE_CONFIG, MAX_SCRIPT_DERIVE_LIMITS, SCRIPT_DERIVE_LANGUAGES } from "./config.js";
 import { assembleTextEvidence, byteLength, countLines, splitLines } from "./evidence.js";
+import { selectScriptSandboxAdapter } from "./script-sandbox.js";
 import {
+  deriveAdapterUnavailableFailure,
   deriveSourceUnavailableFailure,
   deriveValidationFailure,
   deriveExecutionFailure,
+  scriptDeriveDisabledFailure,
   storageFailure,
 } from "./failure-contracts.js";
 import { createVault, readOutputText, readVaultRecord, storeTextOutput } from "./vault.js";
@@ -17,6 +20,8 @@ import type {
   OutputStream,
   PreserveMode,
   RouterThresholds,
+  ScriptDeriveConfig,
+  ScriptDeriveLanguage,
   SourceRef,
   VaultRecord,
   VaultRetentionPolicy,
@@ -29,6 +34,16 @@ export interface DeriveVaultSourceInput {
 }
 
 export type DeriveSourceInput = DeriveVaultSourceInput;
+
+export interface ScriptDeriveSourceInput extends DeriveVaultSourceInput {
+  alias: string;
+}
+
+export interface ScriptDeriveLimitsInput {
+  timeoutMs?: number;
+  maxInputBytes?: number;
+  maxOutputBytes?: number;
+}
 
 export interface RegexFilterDeriveOperation {
   kind: "regexFilter";
@@ -95,9 +110,16 @@ export interface SizeStatsDeriveOperation {
   kind: "sizeStats";
 }
 
+export interface ScriptDeriveOperation {
+  kind: "script";
+  language: ScriptDeriveLanguage;
+  code: string;
+  label?: string;
+}
+
 type RegexDeriveOperation = RegexFilterDeriveOperation | CountMatchesDeriveOperation | GroupByRegexDeriveOperation | TopNDeriveOperation;
 type RegexPatternDeriveOperation = RegexFilterDeriveOperation | CountMatchesDeriveOperation | GroupByRegexDeriveOperation | (TopNDeriveOperation & { pattern: string });
-export type DeriveOperation =
+export type DeterministicDeriveOperation =
   | RegexFilterDeriveOperation
   | CountMatchesDeriveOperation
   | JsonExtractDeriveOperation
@@ -109,18 +131,30 @@ export type DeriveOperation =
   | LineStatsDeriveOperation
   | SizeStatsDeriveOperation;
 
-export interface DeriveInput {
+export type DeriveOperation = DeterministicDeriveOperation | ScriptDeriveOperation;
+
+export interface DeterministicDeriveInput {
   source: DeriveSourceInput;
-  operation: DeriveOperation;
+  operation: DeterministicDeriveOperation;
   preserve?: PreserveMode;
 }
 
-export interface FreeflowDeriveOptions extends DeriveInput {
+export interface ScriptDeriveInput {
+  sources: ScriptDeriveSourceInput[];
+  operation: ScriptDeriveOperation;
+  limits?: ScriptDeriveLimitsInput;
+  preserve?: PreserveMode;
+}
+
+export type DeriveInput = DeterministicDeriveInput | ScriptDeriveInput;
+
+export type FreeflowDeriveOptions = DeriveInput & {
   sessionId: string;
   vaultRoot?: string;
   vaultRetention?: VaultRetentionPolicy;
   thresholds?: Partial<RouterThresholds>;
-}
+  scriptDerive?: ScriptDeriveConfig;
+};
 
 export interface DeriveValidationIssue {
   path: string;
@@ -177,6 +211,7 @@ const OPERATION_KINDS = new Set([
   "extractCitations",
   "lineStats",
   "sizeStats",
+  "script",
 ]);
 const REGEX_FLAGS = new Set(["g", "i", "m", "s", "u"]);
 const DEFAULT_CONTEXT_LINES = 0;
@@ -193,6 +228,8 @@ const MAX_TOP_N_LIMIT = 1_000;
 const DEFAULT_MAX_EXTRACT_MATCHES = 1_000;
 const MAX_EXTRACT_MATCHES = 10_000;
 const URL_PATTERN = /https?:\/\/[^\s<>"'\])}]+/gi;
+const SCRIPT_ALIAS_PATTERN = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
+const MAX_SCRIPT_CODE_BYTES = 256 * 1024;
 
 export function validateDeriveInput(value: unknown): DeriveValidationResult {
   const issues: DeriveValidationIssue[] = [];
@@ -201,8 +238,15 @@ export function validateDeriveInput(value: unknown): DeriveValidationResult {
     return { ok: false, issues: [{ path: "$", message: "Expected derive input object." }] };
   }
 
-  validateDeriveSource(value.source, "$.source", issues);
+  const operationKind = isRecord(value.operation) ? value.operation.kind : undefined;
   validateDeriveOperation(value.operation, "$.operation", issues);
+
+  if (operationKind === "script") {
+    validateScriptDeriveSources(value.sources, "$.sources", issues);
+    validateScriptDeriveLimits(value.limits, "$.limits", issues);
+  } else {
+    validateDeriveSource(value.source, "$.source", issues);
+  }
 
   if (value.preserve !== undefined && (typeof value.preserve !== "string" || !PRESERVE_MODES.has(value.preserve))) {
     issues.push({ path: "$.preserve", message: "Expected preserve mode summary, important, or full." });
@@ -212,9 +256,23 @@ export function validateDeriveInput(value: unknown): DeriveValidationResult {
     return { ok: false, issues };
   }
 
-  const input: DeriveInput = {
+  if (operationKind === "script") {
+    const input: ScriptDeriveInput = {
+      sources: value.sources as ScriptDeriveSourceInput[],
+      operation: value.operation as ScriptDeriveOperation,
+    };
+    if (value.limits !== undefined) {
+      input.limits = value.limits as ScriptDeriveLimitsInput;
+    }
+    if (value.preserve !== undefined) {
+      input.preserve = value.preserve as PreserveMode;
+    }
+    return { ok: true, value: input };
+  }
+
+  const input: DeterministicDeriveInput = {
     source: value.source as DeriveSourceInput,
-    operation: value.operation as DeriveOperation,
+    operation: value.operation as DeterministicDeriveOperation,
   };
   if (value.preserve !== undefined) {
     input.preserve = value.preserve as PreserveMode;
@@ -234,18 +292,27 @@ export async function freeflowDerive(options: FreeflowDeriveOptions): Promise<De
     });
   }
 
-  const operation = inputValidation.value.operation;
+  if (isScriptDeriveInput(inputValidation.value)) {
+    return handleScriptDerive({
+      input: inputValidation.value,
+      options,
+      preserve,
+    });
+  }
+
+  const deterministicInput = inputValidation.value;
+  const operation = deterministicInput.operation;
   const prepared = prepareDeriveOperation(operation);
   if (!prepared.ok) {
     return deriveValidationFailureWithOptionalLineage({
       message: prepared.message,
       preserve,
-      lineage: lineageFromInput(inputValidation.value),
+      lineage: lineageFromInput(deterministicInput),
       decisionSeed: "operation-validation",
     });
   }
 
-  const source = inputValidation.value.source;
+  const source = deterministicInput.source;
   const vaultOptions: { root?: string; retention?: VaultRetentionPolicy } = {};
   if (options.vaultRoot !== undefined) {
     vaultOptions.root = options.vaultRoot;
@@ -365,6 +432,158 @@ export async function freeflowDerive(options: FreeflowDeriveOptions): Promise<De
   };
 }
 
+async function handleScriptDerive(options: {
+  input: ScriptDeriveInput;
+  options: FreeflowDeriveOptions;
+  preserve: PreserveMode;
+}): Promise<FailureRoutedResult> {
+  const config = effectiveScriptDeriveConfig(options.options.scriptDerive);
+  const limits = effectiveScriptLimits(config, options.input.limits);
+  const lineage = lineageForScriptInput(options.input, limits);
+
+  if (!config.enabled) {
+    return scriptDeriveDisabledFailure({
+      message: "Script derive is disabled by default. Enable scriptDerive.enabled only after a sandbox adapter has passed capability probes and review. No script code was executed.",
+      preserve: options.preserve,
+      lineage,
+      decisionSeed: "script-derive-disabled",
+    });
+  }
+
+  const vaultOptions: { root?: string; retention?: VaultRetentionPolicy } = {};
+  if (options.options.vaultRoot !== undefined) {
+    vaultOptions.root = options.options.vaultRoot;
+  }
+  if (options.options.vaultRetention !== undefined) {
+    vaultOptions.retention = options.options.vaultRetention;
+  }
+  const vault = createVault(vaultOptions);
+  const resolved = await resolveScriptSources({
+    vault,
+    sessionId: options.options.sessionId,
+    sources: options.input.sources,
+    maxInputBytes: limits.maxInputBytes,
+    operation: options.input.operation,
+    preserve: options.preserve,
+  });
+  if (!resolved.ok) {
+    return resolved.failure;
+  }
+
+  const adapterSelection = await selectScriptSandboxAdapter(options.input.operation.language, config);
+  if (!adapterSelection.ok) {
+    return deriveAdapterUnavailableFailure({
+      message: `${adapterSelection.status.reason} No script code was executed.`,
+      preserve: options.preserve,
+      lineage: lineageForResolvedScriptSources(resolved.sources, options.input, limits),
+      decisionSeed: "script-derive-adapter-unavailable",
+    });
+  }
+
+  return deriveAdapterUnavailableFailure({
+    message: `Script derive adapter ${adapterSelection.adapter.id} is selected for language ${options.input.operation.language}, but script execution is implemented in a later slice. No script code was executed.`,
+    preserve: options.preserve,
+    lineage: lineageForResolvedScriptSources(resolved.sources, options.input, limits),
+    decisionSeed: "script-derive-execution-deferred",
+  });
+}
+
+async function resolveScriptSources(options: {
+  vault: ReturnType<typeof createVault>;
+  sessionId: string;
+  sources: readonly ScriptDeriveSourceInput[];
+  maxInputBytes: number;
+  operation: ScriptDeriveOperation;
+  preserve: PreserveMode;
+}): Promise<
+  | { ok: true; sources: ResolvedScriptSource[] }
+  | { ok: false; failure: FailureRoutedResult }
+> {
+  const resolved: ResolvedScriptSource[] = [];
+  let totalBytes = 0;
+
+  for (const source of options.sources) {
+    let record: VaultRecord;
+    try {
+      record = await readVaultRecord(options.vault, options.sessionId, source.outputId);
+    } catch (error) {
+      return {
+        ok: false,
+        failure: deriveSourceUnavailableFailure({
+          message: `Script derive source alias=${source.alias} outputId=${source.outputId} could not be found or read: ${errorMessage(error)}`,
+          preserve: options.preserve,
+          lineage: lineageForScriptInput({ sources: [...options.sources], operation: options.operation }, { maxInputBytes: options.maxInputBytes }),
+          decisionSeed: "script-source-record",
+        }),
+      };
+    }
+
+    const streamResult = resolveSourceStream(record, source.stream);
+    if (!streamResult.ok) {
+      return {
+        ok: false,
+        failure: deriveValidationFailure({
+          message: `Script derive source alias=${source.alias} outputId=${source.outputId} stream is invalid: ${streamResult.message}`,
+          preserve: options.preserve,
+          lineage: lineageForSource(record, options.operation),
+          decisionSeed: "script-source-stream",
+        }),
+      };
+    }
+
+    let text: string;
+    try {
+      text = await readOutputText(options.vault, options.sessionId, source.outputId, streamResult.stream);
+    } catch (error) {
+      return {
+        ok: false,
+        failure: deriveSourceUnavailableFailure({
+          message: `Script derive source alias=${source.alias} outputId=${source.outputId} stream=${streamResult.stream} could not be read: ${errorMessage(error)}`,
+          preserve: options.preserve,
+          lineage: lineageForSource(record, options.operation),
+          decisionSeed: "script-source-text",
+        }),
+      };
+    }
+
+    const bytes = byteLength(text);
+    totalBytes += bytes;
+    if (totalBytes > options.maxInputBytes) {
+      return {
+        ok: false,
+        failure: deriveValidationFailure({
+          message: `Script derive input bytes ${totalBytes} exceed maxInputBytes ${options.maxInputBytes}.`,
+          preserve: options.preserve,
+          lineage: lineageForSource(record, options.operation),
+          decisionSeed: "script-source-size",
+        }),
+      };
+    }
+
+    resolved.push({
+      alias: source.alias,
+      outputId: source.outputId,
+      recordId: record.recordId,
+      stream: streamResult.stream,
+      bytes,
+      contentHashSha256: record.contentHashSha256,
+      textSha256: hashText(text),
+    });
+  }
+
+  return { ok: true, sources: resolved };
+}
+
+interface ResolvedScriptSource {
+  alias: string;
+  outputId: string;
+  recordId: string;
+  stream: OutputStream;
+  bytes: number;
+  contentHashSha256: string;
+  textSha256: string;
+}
+
 function validateDeriveSource(value: unknown, path: string, issues: DeriveValidationIssue[]) {
   if (!isRecord(value)) {
     issues.push({ path, message: "Expected derive source object." });
@@ -392,6 +611,11 @@ function validateDeriveOperation(value: unknown, path: string, issues: DeriveVal
 
   if (typeof value.kind !== "string" || !OPERATION_KINDS.has(value.kind)) {
     issues.push({ path: `${path}.kind`, message: "Expected a supported derive operation kind." });
+    return;
+  }
+
+  if (value.kind === "script") {
+    validateScriptOperation(value, path, issues);
     return;
   }
 
@@ -452,6 +676,64 @@ function validateDeriveOperation(value: unknown, path: string, issues: DeriveVal
       issues.push({ path: `${path}.${key}`, message: `Operation ${value.kind} does not accept ${key}.` });
     }
   }
+}
+
+function validateScriptOperation(value: Record<string, unknown>, path: string, issues: DeriveValidationIssue[]) {
+  if (!isStringIn(value.language, SCRIPT_DERIVE_LANGUAGES)) {
+    issues.push({ path: `${path}.language`, message: `Expected script language ${SCRIPT_DERIVE_LANGUAGES.join(", ")}.` });
+  }
+  if (typeof value.code !== "string" || value.code.length === 0) {
+    issues.push({ path: `${path}.code`, message: "Expected non-empty script code string." });
+  } else if (byteLength(value.code) > MAX_SCRIPT_CODE_BYTES) {
+    issues.push({ path: `${path}.code`, message: `Script code must be at most ${MAX_SCRIPT_CODE_BYTES} bytes.` });
+  }
+  if (value.label !== undefined && (typeof value.label !== "string" || value.label.length === 0)) {
+    issues.push({ path: `${path}.label`, message: "Expected non-empty script label string when present." });
+  }
+}
+
+function validateScriptDeriveSources(value: unknown, path: string, issues: DeriveValidationIssue[]) {
+  if (!Array.isArray(value) || value.length === 0) {
+    issues.push({ path, message: "Expected one or more script derive vault sources." });
+    return;
+  }
+
+  const aliases = new Set<string>();
+  value.forEach((source, index) => {
+    const sourcePath = `${path}[${index}]`;
+    validateDeriveSource(source, sourcePath, issues);
+    if (!isRecord(source)) {
+      return;
+    }
+    if (typeof source.alias !== "string" || !SCRIPT_ALIAS_PATTERN.test(source.alias)) {
+      issues.push({ path: `${sourcePath}.alias`, message: "Expected alias matching ^[A-Za-z][A-Za-z0-9_-]{0,63}$." });
+      return;
+    }
+    if (aliases.has(source.alias)) {
+      issues.push({ path: `${sourcePath}.alias`, message: `Duplicate script source alias ${source.alias}.` });
+    }
+    aliases.add(source.alias);
+  });
+}
+
+function validateScriptDeriveLimits(value: unknown, path: string, issues: DeriveValidationIssue[]) {
+  if (value === undefined) {
+    return;
+  }
+  if (!isRecord(value)) {
+    issues.push({ path, message: "Expected script derive limits object." });
+    return;
+  }
+  validateOptionalIntegerRange(value.timeoutMs, `${path}.timeoutMs`, 1, MAX_SCRIPT_DERIVE_LIMITS.timeoutMs, issues);
+  validateOptionalIntegerRange(value.maxInputBytes, `${path}.maxInputBytes`, 1, MAX_SCRIPT_DERIVE_LIMITS.maxInputBytes, issues);
+  validateOptionalIntegerRange(value.maxOutputBytes, `${path}.maxOutputBytes`, 1, MAX_SCRIPT_DERIVE_LIMITS.maxOutputBytes, issues);
+}
+
+function validateOptionalIntegerRange(value: unknown, path: string, min: number, max: number, issues: DeriveValidationIssue[]) {
+  if (value === undefined) {
+    return;
+  }
+  validateIntegerRange(value, path, min, max, issues);
 }
 
 function validateJsonExtractOperation(value: Record<string, unknown>, path: string, issues: DeriveValidationIssue[]) {
@@ -620,7 +902,7 @@ function validateIntegerRange(
 }
 
 function prepareDeriveOperation(
-  operation: DeriveOperation,
+  operation: DeterministicDeriveOperation,
 ): { ok: true; value: PreparedDeriveOperation } | { ok: false; message: string } {
   if (operation.kind === "jsonExtract") {
     const preparedJson = prepareJsonExtractOperation(operation);
@@ -717,7 +999,7 @@ function prepareJsonExtractOperation(
 function deriveText(options: {
   text: string;
   sourceLabel: string;
-  operation: DeriveOperation;
+  operation: DeterministicDeriveOperation;
   prepared: PreparedDeriveOperation;
 }): DerivedOutput {
   if (options.operation.kind === "jsonExtract") {
@@ -1666,6 +1948,37 @@ function jsonValueType(value: unknown): string {
   return typeof value;
 }
 
+function effectiveScriptDeriveConfig(config: ScriptDeriveConfig | undefined): ScriptDeriveConfig {
+  if (config === undefined) {
+    return {
+      ...DEFAULT_SCRIPT_DERIVE_CONFIG,
+      languages: [...DEFAULT_SCRIPT_DERIVE_CONFIG.languages],
+      limits: { ...DEFAULT_SCRIPT_DERIVE_CONFIG.limits },
+    };
+  }
+  return {
+    ...config,
+    languages: [...config.languages],
+    limits: { ...config.limits },
+  };
+}
+
+function effectiveScriptLimits(config: ScriptDeriveConfig, input: ScriptDeriveLimitsInput | undefined): Required<ScriptDeriveLimitsInput> {
+  return {
+    timeoutMs: boundedScriptLimit(input?.timeoutMs, config.limits.timeoutMs, MAX_SCRIPT_DERIVE_LIMITS.timeoutMs),
+    maxInputBytes: boundedScriptLimit(input?.maxInputBytes, config.limits.maxInputBytes, MAX_SCRIPT_DERIVE_LIMITS.maxInputBytes),
+    maxOutputBytes: boundedScriptLimit(input?.maxOutputBytes, config.limits.maxOutputBytes, MAX_SCRIPT_DERIVE_LIMITS.maxOutputBytes),
+  };
+}
+
+function boundedScriptLimit(value: number | undefined, configured: number, max: number): number {
+  const configuredLimit = Math.min(configured, max);
+  if (!Number.isInteger(value) || Number(value) <= 0) {
+    return configuredLimit;
+  }
+  return Math.min(Number(value), configuredLimit);
+}
+
 function resolveSourceStream(
   record: VaultRecord,
   requested: OutputStream | undefined,
@@ -1693,13 +2006,43 @@ function lineageForSource(record: VaultRecord, operation: DeriveOperation): Evid
   return {
     sourceRecordIds: [record.recordId],
     sourceOutputIds: [record.outputId],
-    operation: operation.kind,
+    operation: operation.kind === "script" ? `script:${operation.language}` : operation.kind,
     operationHash: operationHash(operation),
   };
 }
 
+function lineageForScriptInput(input: Pick<ScriptDeriveInput, "sources" | "operation" | "limits">, limits?: Partial<ScriptDeriveLimitsInput>): EvidenceLineage {
+  return {
+    sourceOutputIds: input.sources.map((source) => source.outputId),
+    operation: `script:${input.operation.language}`,
+    operationHash: operationHashForScript(input.operation, input.sources, limits ?? input.limits),
+  };
+}
+
+function lineageForResolvedScriptSources(sources: readonly ResolvedScriptSource[], input: ScriptDeriveInput, limits: Required<ScriptDeriveLimitsInput>): EvidenceLineage {
+  return {
+    sourceRecordIds: sources.map((source) => source.recordId),
+    sourceOutputIds: sources.map((source) => source.outputId),
+    operation: `script:${input.operation.language}`,
+    operationHash: operationHashForScript(input.operation, input.sources, limits, sources),
+  };
+}
+
 function lineageFromInput(input: unknown): EvidenceLineage | undefined {
-  if (!isRecord(input) || !isRecord(input.source)) {
+  if (!isRecord(input) || !isRecord(input.operation)) {
+    return undefined;
+  }
+
+  if (input.operation.kind === "script" && Array.isArray(input.sources)) {
+    const sources = input.sources.filter(isRecord) as Record<string, unknown>[];
+    const outputIds = sources.map((source) => source.outputId).filter((outputId): outputId is string => typeof outputId === "string");
+    return {
+      ...(outputIds.length > 0 ? { sourceOutputIds: outputIds } : {}),
+      operation: typeof input.operation.language === "string" ? `script:${input.operation.language}` : "script",
+    };
+  }
+
+  if (!isRecord(input.source)) {
     return undefined;
   }
 
@@ -1707,13 +2050,17 @@ function lineageFromInput(input: unknown): EvidenceLineage | undefined {
   if (typeof input.source.outputId === "string") {
     lineage.sourceOutputIds = [input.source.outputId];
   }
-  if (isRecord(input.operation) && typeof input.operation.kind === "string") {
+  if (typeof input.operation.kind === "string") {
     lineage.operation = input.operation.kind;
   }
   return Object.keys(lineage).length > 0 ? lineage : undefined;
 }
 
 function operationSummary(operation: DeriveOperation): Record<string, unknown> {
+  if (operation.kind === "script") {
+    return scriptOperationSummary(operation);
+  }
+
   if (operation.kind === "regexFilter") {
     return {
       kind: operation.kind,
@@ -1794,6 +2141,38 @@ function operationHash(operation: DeriveOperation): string {
   return `sha256_${hash(JSON.stringify(operationSummary(operation)))}`;
 }
 
+function operationHashForScript(
+  operation: ScriptDeriveOperation,
+  sources: readonly ScriptDeriveSourceInput[],
+  limits: Partial<ScriptDeriveLimitsInput> | undefined,
+  resolvedSources: readonly ResolvedScriptSource[] = [],
+): string {
+  return `sha256_${hash(JSON.stringify({
+    schemaVersion: 1,
+    operation: scriptOperationSummary(operation),
+    sources: sources.map((source) => ({ alias: source.alias, outputId: source.outputId, stream: source.stream })),
+    resolvedSources: resolvedSources.map((source) => ({
+      alias: source.alias,
+      outputId: source.outputId,
+      recordId: source.recordId,
+      stream: source.stream,
+      bytes: source.bytes,
+      contentHashSha256: source.contentHashSha256,
+      textSha256: source.textSha256,
+    })),
+    limits,
+  }))}`;
+}
+
+function scriptOperationSummary(operation: ScriptDeriveOperation): Record<string, unknown> {
+  return {
+    kind: "script",
+    language: operation.language,
+    codeSha256: `sha256_${hash(operation.code)}`,
+    ...(operation.label !== undefined ? { label: operation.label } : {}),
+  };
+}
+
 function normalizeRegexFlags(flags: string | undefined): string {
   return [...new Set((flags ?? "").replace(/g/g, "").split(""))].sort().join("");
 }
@@ -1849,8 +2228,16 @@ function validationMessage(issues: readonly DeriveValidationIssue[]): string {
   return `Invalid derive input: ${issues.map((issue) => `${issue.path} ${issue.message}`).join("; ")}`;
 }
 
+function isScriptDeriveInput(input: DeriveInput): input is ScriptDeriveInput {
+  return input.operation.kind === "script";
+}
+
 function isOutputStream(value: unknown): value is OutputStream {
   return value === "stdout" || value === "stderr" || value === "combined" || value === "raw";
+}
+
+function isStringIn<TValue extends string>(value: unknown, allowed: readonly TValue[]): value is TValue {
+  return typeof value === "string" && (allowed as readonly string[]).includes(value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

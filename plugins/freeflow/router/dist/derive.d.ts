@@ -1,10 +1,18 @@
-import type { DeriveRoutedResult, FailureRoutedResult, OutputStream, PreserveMode, RouterThresholds, VaultRetentionPolicy } from "./types.js";
+import type { DeriveRoutedResult, FailureRoutedResult, OutputStream, PreserveMode, RouterThresholds, ScriptDeriveConfig, ScriptDeriveLanguage, VaultRetentionPolicy } from "./types.js";
 export interface DeriveVaultSourceInput {
     kind: "vault";
     outputId: string;
     stream?: OutputStream;
 }
 export type DeriveSourceInput = DeriveVaultSourceInput;
+export interface ScriptDeriveSourceInput extends DeriveVaultSourceInput {
+    alias: string;
+}
+export interface ScriptDeriveLimitsInput {
+    timeoutMs?: number;
+    maxInputBytes?: number;
+    maxOutputBytes?: number;
+}
 export interface RegexFilterDeriveOperation {
     kind: "regexFilter";
     pattern: string;
@@ -60,18 +68,33 @@ export interface LineStatsDeriveOperation {
 export interface SizeStatsDeriveOperation {
     kind: "sizeStats";
 }
-export type DeriveOperation = RegexFilterDeriveOperation | CountMatchesDeriveOperation | JsonExtractDeriveOperation | GroupByRegexDeriveOperation | DedupeDeriveOperation | TopNDeriveOperation | ExtractUrlsDeriveOperation | ExtractCitationsDeriveOperation | LineStatsDeriveOperation | SizeStatsDeriveOperation;
-export interface DeriveInput {
+export interface ScriptDeriveOperation {
+    kind: "script";
+    language: ScriptDeriveLanguage;
+    code: string;
+    label?: string;
+}
+export type DeterministicDeriveOperation = RegexFilterDeriveOperation | CountMatchesDeriveOperation | JsonExtractDeriveOperation | GroupByRegexDeriveOperation | DedupeDeriveOperation | TopNDeriveOperation | ExtractUrlsDeriveOperation | ExtractCitationsDeriveOperation | LineStatsDeriveOperation | SizeStatsDeriveOperation;
+export type DeriveOperation = DeterministicDeriveOperation | ScriptDeriveOperation;
+export interface DeterministicDeriveInput {
     source: DeriveSourceInput;
-    operation: DeriveOperation;
+    operation: DeterministicDeriveOperation;
     preserve?: PreserveMode;
 }
-export interface FreeflowDeriveOptions extends DeriveInput {
+export interface ScriptDeriveInput {
+    sources: ScriptDeriveSourceInput[];
+    operation: ScriptDeriveOperation;
+    limits?: ScriptDeriveLimitsInput;
+    preserve?: PreserveMode;
+}
+export type DeriveInput = DeterministicDeriveInput | ScriptDeriveInput;
+export type FreeflowDeriveOptions = DeriveInput & {
     sessionId: string;
     vaultRoot?: string;
     vaultRetention?: VaultRetentionPolicy;
     thresholds?: Partial<RouterThresholds>;
-}
+    scriptDerive?: ScriptDeriveConfig;
+};
 export interface DeriveValidationIssue {
     path: string;
     message: string;

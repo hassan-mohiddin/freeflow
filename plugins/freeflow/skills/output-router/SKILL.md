@@ -14,13 +14,14 @@ Native tools stay direct unless explicit config enables the safety net. Use nati
 - Unsure how much output a read/search/command will produce: use Freeflow first.
 - Need existing repo or vault information: use `freeflow_retrieve`.
 - Need candidate paths first: use `freeflow_retrieve action=locate`.
-- Need a best evidence packet: use `freeflow_retrieve action=query`.
-- Need exact known repo/vault lines: use `freeflow_retrieve action=retrieve` with `source.path` or `source.kind=vault`, plus `lineRange` when exact lines matter.
+- Need a best evidence packet: use `freeflow_retrieve action=query`; for vault-wide search use `source.kind=vault` without `outputId`.
+- Need exact known repo/vault lines: use `freeflow_retrieve action=retrieve` with `source.path` or `source.kind=vault` plus `outputId` and `lineRange` when exact lines matter.
 - Need more around prior evidence: use `freeflow_retrieve action=expand`.
 - Need to explain a routed result or vault id: use `freeflow_retrieve action=explain`.
 - Need to run a likely-large, broad, exploratory, or noisy command: use `freeflow_run`.
-- Need supported read-only service/protocol output with routing and recovery: use `freeflow_capture`.
+- Need enabled Pi MCP/web/fetch/code-search output: call the host tool directly; observed routing runs after the tool result when configured.
 - Need deterministic filtering, extraction, counts, grouping, dedupe, topN, URL/citation extraction, or stats from vaulted evidence: use `freeflow_derive`.
+- Need script derive: `freeflow_derive operation.kind=script` exists as a disabled-by-default sandboxed branch; do not use it as unsandboxed code execution.
 - Need effective Freeflow router/capture/provider config, vault writability, provider availability, or migration recommendations: use `freeflow_status`.
 - Need a whole known file/artifact and direct file contents are intended: use native read.
 - Need direct shell behavior with expected-small exact output: use native bash.
@@ -34,7 +35,7 @@ Likely-large native commands include repo-wide `rg`, `grep -R`, `find`, package 
 
 For these, choose one:
 
-- Use `freeflow_retrieve action=query` or `locate` for repo evidence discovery.
+- Use `freeflow_retrieve action=query` or `locate` for repo evidence discovery, or for vault-wide indexed evidence when `source.kind=vault` omits `outputId`.
 - Use `freeflow_run` when the broad shell command is intentional and routed evidence is enough.
 - Use `freeflow_derive` when the broad output is already vaulted and a deterministic subset/stat is enough.
 - Use native bash only when the command is intentionally bounded/excluded and exact small raw output is needed, for example a targeted file/path search, `head`/`sed` cap, or explicit generated/log exclusions.
@@ -69,9 +70,9 @@ Use `query` first when the needed lines are unknown. Use `expand` when a previou
 
 ## Config
 
-The router works with built-in defaults. Use `freeflow_status` to inspect effective defaults and non-destructive migration recommendations. Persist `outputRouter`, `capture`, or `providers` config only after the setup evidence-routing decision point or an explicit request; `setup-freeflow` owns repo setup/config changes.
+The router works with built-in defaults. Use `freeflow_status` to inspect effective defaults and non-destructive migration recommendations. Persist `outputRouter`, `observedRouting`, or `providers` config only after the setup evidence-routing decision point or an explicit request; `setup-freeflow` owns repo setup/config changes.
 
-Supported `outputRouter` keys are `enabled`, `profile`, `postToolRouting`, `largeOutputBytes`, `largeOutputLines`, `vaultRoot`, `vaultRetentionDays`, `generatedPaths`, and `noisyCommandHints`. Supported high-level capture/provider keys are `capture.freeflowMediated`, `capture.directHostTools`, and `providers.enabled`.
+Supported `outputRouter` keys are `enabled`, `profile`, `postToolRouting`, `largeOutputBytes`, `largeOutputLines`, `vaultRoot`, `vaultRetentionDays`, `generatedPaths`, and `noisyCommandHints`. Supported `observedRouting` keys are `enabled`, `onRoutingFailure`, `mcp.servers`, `web`, `fetch`, and `codeSearch`, with persistence modes `exact`, `metadata-only`, and `none`. Supported `scriptDerive` keys are `enabled`, `sandbox`, `languages`, `network`, `limits`, and `rawScriptPersistence`; defaults keep it disabled with no unsandboxed fallback. Supported high-level provider keys include `providers.enabled`.
 
 `outputRouter.postToolRouting` controls native read/bash safety-net routing:
 
@@ -82,8 +83,11 @@ Supported `outputRouter` keys are `enabled`, `profile`, `postToolRouting`, `larg
 Rules:
 
 - Minimal setup stays only `defaultMode`.
-- Do not dump defaults or create empty `outputRouter`, `capture`, or `providers` objects.
+- Do not dump defaults or create empty `outputRouter`, `observedRouting`, `capture`, or `providers` objects; Pi setup should not write legacy `capture` config.
 - `generatedPaths` affects broad scans only; explicit path retrieval remains available.
 - Freeflow mode changes guidance strength only. It must not enable `postToolRouting` or direct host-tool capture.
+- `observedRouting` is explicit opt-in per producer/server. The user must choose persistence for each enabled entry.
+- `scriptDerive.enabled` defaults to false. Setup must not enable it implicitly, and no script code may execute without an approved sandbox adapter.
+- Do not offer or write `redacted`; it is future-only and currently falls back to `metadata-only` if hand-edited.
 - `capture.directHostTools` currently remains `off`; broad direct host-tool capture needs separate design/confirmation before other policies are written.
 - Invalid config must fall back safely with a warning.

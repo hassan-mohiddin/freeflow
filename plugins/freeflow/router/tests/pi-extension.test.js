@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import test from "node:test";
 
 import freeflowExtension from "../../pi-extension/dist/index.js";
+import { createVault, storeTextOutput } from "../dist/index.js";
 
 function loadExtension() {
   const handlers = new Map();
@@ -59,11 +60,17 @@ function renderText(component, width = 120) {
   return component.render(width).join("\n");
 }
 
-test("Pi registers output-router as a direct command", () => {
-  const { commands } = loadExtension();
-  const names = commands.map((command) => command.name);
+test("Pi registers output-router as a direct command and no public capture tool", () => {
+  const { commands, tools } = loadExtension();
+  const commandNames = commands.map((command) => command.name);
+  const toolNames = tools.map((tool) => tool.name);
 
-  assert.ok(names.includes("output-router"));
+  assert.ok(commandNames.includes("output-router"));
+  assert.ok(toolNames.includes("freeflow_status"));
+  assert.ok(toolNames.includes("freeflow_retrieve"));
+  assert.ok(toolNames.includes("freeflow_run"));
+  assert.ok(toolNames.includes("freeflow_derive"));
+  assert.ok(!toolNames.includes("freeflow_capture"));
 });
 
 test("Pi before_agent_start injects output-router skill context", async () => {
@@ -77,7 +84,7 @@ test("Pi before_agent_start injects output-router skill context", async () => {
   assert.match(result.systemPrompt, /name: output-router/);
   assert.match(result.systemPrompt, /freeflow_retrieve/);
   assert.match(result.systemPrompt, /freeflow_run/);
-  assert.match(result.systemPrompt, /freeflow_capture/);
+  assert.doesNotMatch(result.systemPrompt, /freeflow_capture/);
   assert.match(result.systemPrompt, /freeflow_derive/);
   assert.match(result.systemPrompt, /Native tools stay direct/);
   assert.match(result.systemPrompt, /## Loaded Output Router Safety Policy/);
@@ -109,6 +116,29 @@ test("Pi freeflow_status reports effective defaults without writing config", asy
     assert.equal(report.effectiveConfig.outputRouter.postToolRouting, "off");
     assert.equal(report.effectiveConfig.capture.directHostTools, "off");
     assert.deepEqual(report.effectiveConfig.providers.enabled, []);
+    assert.equal(report.effectiveConfig.observedRouting.enabled, false);
+    assert.deepEqual(report.effectiveConfig.observedRouting.mcp.servers, {});
+    assert.equal(report.effectiveConfig.scriptDerive.enabled, false);
+    assert.equal(report.scriptDerive.enabled, false);
+    assert.equal(report.scriptDerive.adapterStatus, "unavailable");
+    assert.equal(report.scriptDerive.adapterContractVersion, 1);
+    assert.deepEqual(report.scriptDerive.configuredLanguages, ["javascript", "python", "jq"]);
+    assert.deepEqual(report.scriptDerive.availableLanguages, []);
+    assert.equal(report.scriptDerive.unavailableLanguages.length, 3);
+    assert.ok(report.scriptDerive.requiredProofs.includes("network_access_denied"));
+    assert.ok(report.scriptDerive.candidateMechanisms.some((candidate) => candidate.id === "node-vm" && candidate.status === "rejected"));
+    assert.ok(report.scriptDerive.candidateMechanisms.some((candidate) => candidate.id === "os-sandbox-adapter" && candidate.status === "candidate_unproven"));
+    assert.equal(report.scriptDerive.network, "off");
+    assert.equal(report.scriptDerive.rawScriptPersistence, "disabled");
+    assert.equal(report.observedRouting.host.name, "pi");
+    assert.equal(report.observedRouting.host.outputReplacement, "available");
+    assert.equal(report.vaultIndex.engine, "local-json-sidecar");
+    assert.equal(typeof report.vaultIndex.available, "boolean");
+    assert.equal(report.vaultIndex.degraded, false);
+    assert.equal(report.vaultIndex.stale, false);
+    assert.equal(report.vaultIndex.rebuildRecommended, false);
+    assert.equal(report.vaultIndex.entryCount, 0);
+    assert.equal(report.observedRouting.unsupportedPersistenceModes.includes("redacted"), true);
     assert.deepEqual(report.configWarnings, []);
     assert.match(report.vault.root, /freeflow-router\/vault$/);
     assert.ok(["writable", "missing_ancestor_writable", "missing_ancestor_unavailable", "not_directory", "not_writable", "unknown"].includes(report.vault.writability.status));
@@ -152,6 +182,62 @@ test("Pi freeflow_status reports vault writability without creating directories"
   }
 });
 
+test("Pi freeflow_status reports configured observed routing", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-status-observed-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({
+        defaultMode: "workflow",
+        observedRouting: {
+          enabled: true,
+          onRoutingFailure: "fail-open",
+          mcp: {
+            servers: {
+              github: { enabled: true, persistence: "exact" },
+              gmail: { enabled: true, persistence: "metadata-only" },
+            },
+          },
+          web: { enabled: true, persistence: "exact" },
+          fetch: { enabled: false },
+          codeSearch: { enabled: true, persistence: "none" },
+        },
+        scriptDerive: {
+          enabled: true,
+          languages: ["python"],
+          limits: { timeoutMs: 1000, maxInputBytes: 2048, maxOutputBytes: 4096 },
+        },
+      }),
+      "utf8",
+    );
+
+    const { tools } = loadExtension();
+    const statusTool = tools.find((tool) => tool.name === "freeflow_status");
+    const result = await statusTool.execute("status-observed", { action: "doctor" }, undefined, undefined, context(cwd));
+    const report = JSON.parse(result.content[0].text);
+
+    assert.equal(report.effectiveConfig.observedRouting.enabled, true);
+    assert.equal(report.effectiveConfig.observedRouting.onRoutingFailure, "fail-open");
+    assert.deepEqual(report.effectiveConfig.observedRouting.mcp.servers.github, { enabled: true, persistence: "exact" });
+    assert.deepEqual(report.effectiveConfig.observedRouting.mcp.servers.gmail, { enabled: true, persistence: "metadata-only" });
+    assert.deepEqual(report.effectiveConfig.observedRouting.web, { enabled: true, persistence: "exact" });
+    assert.deepEqual(report.effectiveConfig.observedRouting.fetch, { enabled: false, persistence: "none" });
+    assert.deepEqual(report.effectiveConfig.observedRouting.codeSearch, { enabled: true, persistence: "none" });
+    assert.equal(report.observedRouting.enabled, true);
+    assert.equal(report.observedRouting.mcp.configuredServerCount, 2);
+    assert.equal(report.effectiveConfig.scriptDerive.enabled, true);
+    assert.deepEqual(report.effectiveConfig.scriptDerive.languages, ["python"]);
+    assert.equal(report.scriptDerive.enabled, true);
+    assert.equal(report.scriptDerive.executionStatus, "adapter_unavailable");
+    assert.equal(report.scriptDerive.adapterAvailable, false);
+    assert.deepEqual(report.observedRouting.persistenceModes, ["exact", "metadata-only", "none"]);
+    assert.deepEqual(report.configWarnings, []);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 test("Pi freeflow_status reports invalid config warnings and safe fallbacks", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-status-invalid-"));
   try {
@@ -163,6 +249,12 @@ test("Pi freeflow_status reports invalid config warnings and safe fallbacks", as
         outputRouter: { enabled: "yes", profile: "future" },
         capture: { freeflowMediated: "metadata-only", directHostTools: "raw" },
         providers: { enabled: [{ id: "serena", mode: "write" }] },
+        scriptDerive: { enabled: "yes", sandbox: "none", languages: ["ruby"], network: "on" },
+        observedRouting: {
+          enabled: "yes",
+          mcp: { servers: { github: { enabled: true, persistence: "redacted" } } },
+          web: { enabled: true },
+        },
       }),
       "utf8",
     );
@@ -177,11 +269,23 @@ test("Pi freeflow_status reports invalid config warnings and safe fallbacks", as
     assert.equal(report.effectiveConfig.capture.freeflowMediated, "raw");
     assert.equal(report.effectiveConfig.capture.directHostTools, "off");
     assert.deepEqual(report.effectiveConfig.providers.enabled, []);
+    assert.equal(report.effectiveConfig.observedRouting.enabled, false);
+    assert.equal(report.effectiveConfig.scriptDerive.enabled, false);
+    assert.deepEqual(report.effectiveConfig.scriptDerive.languages, ["javascript", "python", "jq"]);
+    assert.equal(report.effectiveConfig.observedRouting.mcp.servers.github.persistence, "metadata-only");
+    assert.equal(report.effectiveConfig.observedRouting.web.persistence, "metadata-only");
     assert.ok(report.configWarnings.some((warning) => warning.includes("outputRouter.enabled")));
     assert.ok(report.configWarnings.some((warning) => warning.includes("outputRouter.profile")));
     assert.ok(report.configWarnings.some((warning) => warning.includes("capture.freeflowMediated")));
     assert.ok(report.configWarnings.some((warning) => warning.includes("capture.directHostTools")));
     assert.ok(report.configWarnings.some((warning) => warning.includes("providers.enabled[0].mode")));
+    assert.ok(report.configWarnings.some((warning) => warning.includes("scriptDerive.enabled")));
+    assert.ok(report.configWarnings.some((warning) => warning.includes("scriptDerive.sandbox")));
+    assert.ok(report.configWarnings.some((warning) => warning.includes("scriptDerive.languages")));
+    assert.ok(report.configWarnings.some((warning) => warning.includes("scriptDerive.network")));
+    assert.ok(report.configWarnings.some((warning) => warning.includes("observedRouting.enabled")));
+    assert.ok(report.configWarnings.some((warning) => warning.includes("observedRouting.mcp.servers.github.persistence") && warning.includes("redacted")));
+    assert.ok(report.configWarnings.some((warning) => warning.includes("observedRouting.web.persistence")));
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -250,7 +354,8 @@ test("Pi before_agent_start injects compact built-in provider summary when Seren
     assert.match(result.systemPrompt, /## Freeflow Producer Providers/);
     assert.match(result.systemPrompt, /Available:/);
     assert.match(result.systemPrompt, /Serena: .*code-symbol discovery/);
-    assert.match(result.systemPrompt, /Use Serena through freeflow_capture/);
+    assert.match(result.systemPrompt, /Use direct Serena MCP calls/);
+    assert.match(result.systemPrompt, /observed routing is configured for the Serena server/);
     assert.match(result.systemPrompt, /Call Serena mutating refactor tools directly only after explicit user intent/);
     assert.doesNotMatch(result.systemPrompt, /get_symbols_overview/);
   } finally {
@@ -363,7 +468,7 @@ test("Pi provider summaries label custom manifests and concise unavailable confi
 
     assert.match(result.systemPrompt, /Custom Search \(custom\/unverified\): Need custom read-only repository search evidence/);
     assert.match(result.systemPrompt, /Unavailable but configured:/);
-    assert.match(result.systemPrompt, /codebase-memory: No Pi read-only capture adapter is registered yet/);
+    assert.match(result.systemPrompt, /codebase-memory: No Pi observed-routing capability check is registered for this provider yet/);
     assert.match(result.systemPrompt, /Ignored custom manifests: 3 invalid manifest\(s\)/);
     assert.doesNotMatch(result.systemPrompt, /SECRET_RAW_DOC/);
     assert.doesNotMatch(result.systemPrompt, /INJECTED_MARKDOWN/);
@@ -667,6 +772,53 @@ test("Pi freeflow_retrieve applies configured generated path hints", async () =>
   }
 });
 
+test("Pi freeflow_retrieve supports vault-wide query without outputId", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-vault-wide-query-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    const vaultRoot = join(cwd, "vault");
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({ defaultMode: "workflow", outputRouter: { vaultRoot } }),
+      "utf8",
+    );
+
+    const sessionId = "pi-vault-wide-query-session";
+    const stored = await storeTextOutput(createVault({ root: vaultRoot }), {
+      sessionId,
+      sourceKind: "mcp",
+      raw: "PI_VAULT_WIDE_TARGET through registered Pi tool",
+      producer: { kind: "mcp", server: "github", tool: "search_issues" },
+      createdAt: "2026-06-16T00:00:00.000Z",
+    });
+
+    const { tools } = loadExtension();
+    const retrieveTool = tools.find((tool) => tool.name === "freeflow_retrieve");
+    assert.ok(retrieveTool);
+    const ctx = context(cwd);
+    ctx.sessionManager.getSessionId = () => sessionId;
+
+    const result = await retrieveTool.execute(
+      "retrieve-vault-wide-query",
+      {
+        action: "query",
+        source: { kind: "vault" },
+        query: "PI_VAULT_WIDE_TARGET",
+        filters: { producerKind: "mcp", server: "github" },
+      },
+      undefined,
+      undefined,
+      ctx,
+    );
+    const payload = JSON.parse(result.content[0].text);
+    assert.equal(payload.toolStatus, "ok");
+    assert.equal(payload.evidence[0].source.outputId, stored.outputId);
+    assert.equal(payload.evidence[0].source.stream, "raw");
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 test("Pi reports invalid capture/provider config warnings and skips invalid provider enablement", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-invalid-capture-provider-config-"));
   try {
@@ -693,7 +845,7 @@ test("Pi reports invalid capture/provider config warnings and skips invalid prov
     assert.match(notifications[0].message, /providers\.enabled\[0\]\.mode/);
 
     const result = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
-    assert.doesNotMatch(result.systemPrompt, /codebase-memory: No Pi read-only capture adapter is registered yet/);
+    assert.doesNotMatch(result.systemPrompt, /codebase-memory: No Pi observed-routing capability check is registered for this provider yet/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -720,6 +872,141 @@ test("Pi reports invalid outputRouter config warnings", async () => {
 
     assert.equal(notifications[0].level, "warning");
     assert.match(notifications[0].message, /postToolRouting/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi observed routing vaults and labels configured MCP output before native safety net", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-observed-mcp-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({
+        defaultMode: "workflow",
+        outputRouter: { vaultRoot: join(cwd, "vault") },
+        observedRouting: {
+          enabled: true,
+          mcp: { servers: { github: { enabled: true, persistence: "exact" } } },
+        },
+      }),
+      "utf8",
+    );
+
+    const { handlers } = loadExtension();
+    const toolResult = handlers.get("tool_result");
+    const result = await toolResult(
+      {
+        type: "tool_result",
+        toolName: "mcp",
+        toolCallId: "mcp-1",
+        input: { server: "github", tool: "search_issues" },
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              items: [
+                { id: 1, title: "Alpha", html_url: "https://github.com/acme/repo/issues/1", body: "x".repeat(500) },
+                { id: 2, title: "Beta", html_url: "https://github.com/acme/repo/issues/2", body: "y".repeat(500) },
+                { id: 3, title: "Gamma", html_url: "https://github.com/acme/repo/issues/3", body: "z".repeat(500) },
+                { id: 4, title: "Delta", html_url: "https://github.com/acme/repo/issues/4", body: "w".repeat(500) },
+              ],
+            }),
+          },
+        ],
+        details: undefined,
+        isError: false,
+      },
+      context(cwd),
+    );
+
+    assert.ok(result);
+    assert.match(result.content[0].text, /Freeflow routed this observed mcp result/);
+    assert.match(result.content[0].text, /outputId=ffout_/);
+    assert.match(result.content[0].text, /Alpha/);
+    assert.match(result.content[0].text, /https:\/\/github\.com\/acme\/repo\/issues\/1/);
+    assert.doesNotMatch(result.content[0].text, /xxxxxxxxxxxxxxxx/);
+    assert.equal(result.details.freeflowObservedRouting.route, "observed");
+    assert.equal(result.details.freeflowObservedRouting.producer.server, "github");
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi observed routing leaves disabled MCP producer result unchanged", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-observed-disabled-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({
+        defaultMode: "workflow",
+        observedRouting: {
+          enabled: true,
+          mcp: { servers: { github: { enabled: false } } },
+        },
+      }),
+      "utf8",
+    );
+
+    const { handlers } = loadExtension();
+    const result = await handlers.get("tool_result")(
+      {
+        type: "tool_result",
+        toolName: "mcp",
+        toolCallId: "mcp-disabled",
+        input: { server: "github", tool: "search_issues" },
+        content: [{ type: "text", text: "unchanged" }],
+        details: undefined,
+        isError: false,
+      },
+      context(cwd),
+    );
+
+    assert.equal(result, undefined);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi observed routing fails open without losing MCP output", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-observed-fail-open-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    const fileVault = join(cwd, "vault-file");
+    await writeFile(fileVault, "not a directory", "utf8");
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({
+        defaultMode: "workflow",
+        outputRouter: { vaultRoot: fileVault },
+        observedRouting: {
+          enabled: true,
+          mcp: { servers: { github: { enabled: true, persistence: "exact" } } },
+        },
+      }),
+      "utf8",
+    );
+
+    const { handlers } = loadExtension();
+    const result = await handlers.get("tool_result")(
+      {
+        type: "tool_result",
+        toolName: "mcp",
+        toolCallId: "mcp-fail-open",
+        input: { server: "github", tool: "search_issues" },
+        content: [{ type: "text", text: "original mcp output survives" }],
+        details: undefined,
+        isError: false,
+      },
+      context(cwd),
+    );
+
+    assert.ok(result);
+    assert.match(result.content[0].text, /Freeflow observed-routing warning/);
+    assert.match(result.content[0].text, /original mcp output survives/);
+    assert.equal(result.details.freeflowObservedRouting.routingStatus, "failed");
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

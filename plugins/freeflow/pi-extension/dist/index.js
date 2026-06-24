@@ -1,4 +1,5 @@
 import { handleNativeToolSafetyNet } from "./native-safety-net.js";
+import { handleObservedToolRouting } from "./observed-tool-routing.js";
 import { registerRouterTools } from "./router-tools.js";
 import { CONTRIBUTOR_COMMANDS, WORKFLOW_COMMANDS, getRuntimeContext, handleWorkflowCommand, hasFreeflowActivation, hasOutputRouterActivation, hasProviderActivation, readModeState, readOutputRouterConfig, readProviderContext, refreshRuntimeContext, restoreModeOverride, runtimeContext, setModeStatus, skillPrompt, notifyRouterConfigWarnings, } from "./runtime-context.js";
 export default function freeflow(pi) {
@@ -38,6 +39,10 @@ export default function freeflow(pi) {
         };
     });
     pi.on("tool_result", async (event, ctx) => {
+        const observed = await handleObservedToolRouting(event, ctx);
+        if (observed) {
+            return observed;
+        }
         return handleNativeToolSafetyNet(event, ctx);
     });
     for (const { command, skill } of WORKFLOW_COMMANDS) {

@@ -14,13 +14,13 @@ smallest sufficient evidence in context
 + no surprise native tool semantics
 ```
 
-The router ships explicit tools:
+The router ships explicit tools and Pi observed routing:
 
 - `freeflow_retrieve`: retrieve targeted repo/vault evidence.
 - `freeflow_run`: run likely-large/noisy commands, vault raw output, and return compact evidence.
-- `freeflow_capture`: capture supported read-only service/protocol output with routing and recovery.
-- `freeflow_derive`: deterministically transform vaulted evidence into bounded derived evidence.
-- `freeflow_status`: inspect effective config, vault writability, provider availability, and non-destructive migration recommendations.
+- Pi observed routing: route enabled MCP/web/fetch/code-search outputs after direct host tool calls.
+- `freeflow_derive`: deterministically transform vaulted evidence into bounded derived evidence; a future `operation.kind="script"` branch is present but disabled by default.
+- `freeflow_status`: inspect effective config, vault writability/index state, provider availability, and non-destructive migration recommendations.
 
 Native tools still matter:
 
@@ -37,7 +37,7 @@ flowchart LR
   Run[freeflow_run]
   Repo[repo files]
   Vault[Freeflow vault]
-  Capture[freeflow_capture]
+  Observed[Pi observed routing]
   Derive[freeflow_derive]
   Status[freeflow_status]
   Native[native read/bash]
@@ -46,17 +46,17 @@ flowchart LR
 
   Agent -->|existing info| Retrieve
   Agent -->|noisy command| Run
-  Agent -->|read-only provider| Capture
+  Agent -->|direct MCP/web/fetch/code-search| Observed
   Agent -->|derive from vault| Derive
   Agent -->|inspect config/status| Status
   Agent -->|direct/raw known output| Native
   Retrieve --> Repo --> Evidence
   Retrieve --> Vault --> Evidence
   Run --> Vault
-  Capture --> Vault
+  Observed --> Vault
   Derive --> Vault
   Run --> Evidence
-  Capture --> Evidence
+  Observed --> Evidence
   Derive --> Evidence
   Vault --> Raw
 ```
@@ -71,9 +71,10 @@ flowchart LR
 | Widen previous evidence | `freeflow_retrieve action=expand` |
 | Explain a previous routed decision/output | `freeflow_retrieve action=explain` |
 | Run noisy/large command output | `freeflow_run` |
-| Capture supported read-only provider output | `freeflow_capture` |
+| Use enabled Pi MCP/web/fetch/code-search output | Call the host tool directly; observed routing runs after the tool result |
 | Derive deterministic subsets/stats from vaulted output | `freeflow_derive` |
-| Inspect effective config, providers, vault, or migration recommendations | `freeflow_status` |
+| Inspect script-derive disabled/unavailable state | `freeflow_status` |
+| Inspect effective config, providers, vault/index state, or migration recommendations | `freeflow_status` |
 | Read a known whole file | native `read` |
 | Run small exact command | native `bash` |
 
@@ -82,12 +83,12 @@ flowchart LR
 Sources:
 
 - `repo`: local repo files.
-- `vault`: previous routed command/native output.
+- `vault`: previous routed command/native/observed/derived output, either by known `outputId` or vault-wide index query.
 
 Actions:
 
-- `query`: returns best evidence packets; default `topK=1`.
-- `locate`: returns candidate locations; default `topK=5`.
+- `query`: returns best evidence packets; default `topK=1`. For vault sources, omit `outputId` to search the current session's vault index.
+- `locate`: returns candidate locations; default `topK=5`. For vault sources, omit `outputId` to locate indexed vault outputs without raw retrieval.
 - `retrieve`: returns explicit path/line range evidence.
 - `expand`: expands a previous evidence packet to `lines_30`, `lines_80`, or `full`.
 - `explain`: explains a route decision or vault output.
@@ -103,6 +104,17 @@ Example:
 }
 ```
 
+Vault-wide indexed query:
+
+```json
+{
+  "action": "query",
+  "source": { "kind": "vault" },
+  "query": "rate limit deployment failed github issue",
+  "filters": { "producerKind": "mcp", "server": "github" }
+}
+```
+
 Evidence packets include:
 
 - source/path,
@@ -112,6 +124,8 @@ Evidence packets include:
 - expansion/recovery guidance.
 
 Repo retrieval uses deterministic scanner ranking by default. Broad scans skip generated/dependency/cache paths such as `graphify-out/**`, but explicit path retrieval remains available.
+
+Vault-wide retrieval uses the vault index sidecar. Exact records return source output ids, streams, and line ranges for recovery; metadata-only records can be found by metadata but do not expose raw recovery. Use `filters` for producer/server/tool/hostToolName/stream/record-kind/recoverability narrowing. Use `source.outputId` with `retrieve`, `expand`, or `explain` when the exact vaulted output is known.
 
 ## `freeflow_run`
 
@@ -144,15 +158,19 @@ Command parsers currently cover:
 - generic fallback,
 - duplicate output detection.
 
-## `freeflow_capture`
+## Pi Observed Routing
 
-`freeflow_capture` calls supported read-only service/protocol producers, stores captured text when recoverable, and returns bounded evidence. Current Pi support is Serena read-only MCP symbol/reference/diagnostic tools.
+Pi observed routing handles configured MCP, web, fetch, and code-search outputs after direct host tool execution. Public Pi `freeflow_capture` has been removed; use the host MCP/web/fetch/code-search tool directly and configure `observedRouting` when routed recovery is needed.
 
-Mutating provider tools remain direct provider calls after explicit user intent; `freeflow_capture` rejects them.
+Mutating provider tools remain direct provider calls after explicit user intent. Freeflow treats read/write classification as routing metadata, not as a host permission gate.
 
 ## `freeflow_derive`
 
-`freeflow_derive` transforms existing vaulted output without executing arbitrary code.
+`freeflow_derive` transforms existing vaulted output. Current deterministic operations do not execute arbitrary code.
+
+`operation.kind="script"` is a future sandboxed branch under the same tool. It is disabled by default, has no unsandboxed fallback, does not persist raw script text by default, and returns structured disabled/unavailable output until an approved sandbox adapter exists.
+
+`freeflow_status` reports the script-sandbox contract version, configured languages, required adversarial proofs, rejected unsafe mechanisms such as Node `vm`/plain subprocesses, and candidate-unproven OS sandbox adapters. A language remains unavailable until a registered adapter passes every required proof.
 
 Current deterministic operations include:
 
@@ -162,7 +180,7 @@ Current deterministic operations include:
 - URL/citation extraction,
 - line and size stats.
 
-Derived output is vaulted separately and points back to source output ids through lineage.
+Derived output is vaulted separately and points back to source output ids through lineage. Script operation hashing records code hashes, not raw code.
 
 ## `freeflow_status`
 
@@ -174,6 +192,7 @@ It shows:
 - vault path and writability,
 - capture policy and recoverability defaults,
 - enabled providers and availability,
+- script-derive enabled/off state, adapter availability, configured languages, required sandbox proofs, rejected/candidate mechanisms, no-network policy, limits, and raw-script persistence state,
 - custom manifest validity,
 - config warnings and safe fallbacks,
 - non-destructive migration recommendations for stale explicit defaults or unknown keys.
@@ -224,9 +243,18 @@ Optional repo config lives in `.freeflow/config.json` only after the setup evide
     "generatedPaths": ["graphify-out/**"],
     "noisyCommandHints": ["npm test"]
   },
-  "capture": {
-    "freeflowMediated": "raw",
-    "directHostTools": "off"
+  "observedRouting": {
+    "enabled": true,
+    "onRoutingFailure": "fail-open",
+    "mcp": {
+      "servers": {
+        "github": { "enabled": true, "persistence": "exact" },
+        "gmail": { "enabled": true, "persistence": "metadata-only" }
+      }
+    },
+    "web": { "enabled": true, "persistence": "exact" },
+    "fetch": { "enabled": true, "persistence": "exact" },
+    "codeSearch": { "enabled": true, "persistence": "exact" }
   },
   "providers": {
     "enabled": [
@@ -241,9 +269,18 @@ Rules:
 - `postToolRouting` defaults to `off`.
 - `safety-net` is opt-in.
 - `strict` is reserved.
+- Observed routing is opt-in per producer/server. Setup writes explicit entries only after the user chooses them.
+- Observed-routing persistence modes are `exact`, `metadata-only`, and `none`. `redacted` is future-only and not a setup option.
 - Direct host-tool capture remains `off` unless explicitly requested and supported by a later design.
+- Pi setup should not write legacy `capture` config.
 - Do not dump defaults into config.
 - Write only requested keys.
+
+## Observed Routing
+
+Pi can route enabled MCP, web, fetch, and code-search outputs after the direct host tool call. The agent still calls the host tool directly; Freeflow only routes/reduces/stores the completed output.
+
+Observed routing is off by default. Setup must choose each enabled producer/server and its persistence mode up front.
 
 ## Native Safety Net
 
@@ -270,8 +307,10 @@ Current release evidence:
 - Retrieval benchmark: improved router passed 7/7 fixtures.
 - Command benchmark: `freeflow_run` passed 8/8 fixtures with exact recovery.
 - Capture/derive/provider eval: targeted Slice 9 eval passed 14/14 objective gates for read-only provider capture, web-shaped capture recovery, long-log derive, and provider-summary category scoping.
-- Optional index benchmark: scanner remains default; index not adopted.
+- Pi observed-routing eval: targeted eval passed 28/28 objective gates for MCP, web, fetch, code-search, metadata-only persistence, and Pi capability status.
+- Vault-index storage spike: selected deterministic local JSON sidecar behind the vault-index interface; SQLite/FTS remains deferred because native/runtime dependency adoption needs owner approval.
+- Optional repo-source index benchmark: scanner remains default; repo-source index not adopted.
 - Codex Structured Q&A benchmark: improved router passed the Sandbox Permissions fixture where native broad search selected `graphify-out/graph.html`.
-- Setup eval: optional `outputRouter`/`capture`/`providers` config is opt-in through the evidence-routing branch; minimal setup remains only `defaultMode`.
+- Setup eval: optional `outputRouter`/`observedRouting`/`providers` config is opt-in through the evidence-routing branch; minimal setup remains only `defaultMode`.
 
 See `release-evidence.md` and runtime reports under `plugins/freeflow/evals/reports/runtime/`.

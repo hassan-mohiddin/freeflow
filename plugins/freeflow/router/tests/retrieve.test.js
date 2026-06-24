@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
 
-import { createVault, freeflowRetrieve, storeCommandOutput, storeRepoFileReference, storeTextOutput } from "../dist/index.js";
+import { createVault, freeflowRetrieve, storeCommandOutput, storeMetadataOutput, storeRepoFileReference, storeTextOutput } from "../dist/index.js";
 
 function assertUtf8RoundTrips(text) {
   assert.equal(Buffer.from(text, "utf8").toString("utf8"), text);
@@ -93,6 +93,111 @@ test("querying vaulted command output returns exact matching failure evidence", 
     assert.match(evidence.excerpt, /second stack line/);
     assert.ok(!evidence.excerpt.includes("214 passing"));
     assert.ok(result.recovery?.how.includes("outputId"));
+  });
+});
+
+test("vault-wide query finds indexed chunks across output ids with exact recovery pointers", async () => {
+  await withTempVault(async (vault) => {
+    const command = await storeCommandOutput(vault, {
+      sessionId: "vault-wide-query-session",
+      command: "npm test",
+      stdout: ["setup", "VAULT_WIDE_TARGET command output", "done"].join("\n"),
+      stderr: "",
+      executionStatus: "success",
+      exitCode: 0,
+      createdAt: "2026-06-16T00:00:00.000Z",
+    });
+    await storeTextOutput(vault, {
+      sessionId: "vault-wide-query-session",
+      sourceKind: "mcp",
+      raw: "other indexed output",
+      createdAt: "2026-06-16T00:00:01.000Z",
+      producer: { kind: "mcp", server: "github", tool: "search_issues" },
+    });
+
+    const result = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "vault", root: vault.root, sessionId: "vault-wide-query-session" },
+      query: "VAULT_WIDE_TARGET",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.routing.status, "routed");
+    assert.match(result.routing.reason, /Vault-wide query/);
+    assert.equal(result.source?.kind, "vault");
+    assert.equal(result.source?.outputId, command.outputId);
+    assert.equal(result.evidence?.length, 1);
+    const evidence = result.evidence[0];
+    assert.equal(evidence.source.outputId, command.outputId);
+    assert.equal(evidence.source.stream, "combined");
+    assert.match(evidence.excerpt, /VAULT_WIDE_TARGET command output/);
+    assert.equal(evidence.expandable, true);
+    assert.ok(result.recovery?.how.includes(`outputId=${command.outputId}`));
+
+    const [start, end] = evidence.lines.split("-").map(Number);
+    const recovered = await freeflowRetrieve({
+      action: "retrieve",
+      source: { kind: "vault", root: vault.root, sessionId: "vault-wide-query-session", outputId: command.outputId, stream: "combined" },
+      lineRange: { start, end },
+      preserve: "full",
+    });
+    assert.match(recovered.evidence?.[0]?.excerpt ?? "", /VAULT_WIDE_TARGET command output/);
+  });
+});
+
+test("vault-wide locate supports producer filters and metadata-only results stay non-expandable", async () => {
+  await withTempVault(async (vault) => {
+    const github = await storeTextOutput(vault, {
+      sessionId: "vault-wide-locate-session",
+      sourceKind: "mcp",
+      raw: "SHARED_FILTER_TARGET from github issue search",
+      producer: { kind: "mcp", server: "github", tool: "search_issues" },
+      createdAt: "2026-06-16T00:00:00.000Z",
+    });
+    await storeTextOutput(vault, {
+      sessionId: "vault-wide-locate-session",
+      sourceKind: "mcp",
+      raw: "SHARED_FILTER_TARGET from gmail search",
+      producer: { kind: "mcp", server: "gmail", tool: "search" },
+      createdAt: "2026-06-16T00:00:01.000Z",
+    });
+    const metadata = await storeMetadataOutput(vault, {
+      sessionId: "vault-wide-locate-session",
+      sourceKind: "mcp",
+      rawLineCount: 3,
+      rawByteCount: 120,
+      rawSha256: "d".repeat(64),
+      metadata: { marker: "METADATA_ONLY_INDEX_TARGET", account: "private" },
+      producer: { kind: "mcp", server: "gmail", tool: "search" },
+      createdAt: "2026-06-16T00:00:02.000Z",
+    });
+
+    const githubLocate = await freeflowRetrieve({
+      action: "locate",
+      source: { kind: "vault", root: vault.root, sessionId: "vault-wide-locate-session" },
+      query: "SHARED_FILTER_TARGET",
+      filters: { producerKind: "mcp", server: "github" },
+      topK: 5,
+      preserve: "important",
+    });
+    assert.equal(githubLocate.evidence?.length, 1);
+    assert.equal(githubLocate.evidence[0].source.outputId, github.outputId);
+    assert.match(githubLocate.routing.reason, /Located 1 indexed vault candidate/);
+
+    const metadataQuery = await freeflowRetrieve({
+      action: "query",
+      source: { kind: "vault", root: vault.root, sessionId: "vault-wide-locate-session" },
+      query: "METADATA_ONLY_INDEX_TARGET",
+      filters: { server: "gmail", recoverability: "metadata_only" },
+      preserve: "important",
+    });
+    assert.equal(metadataQuery.evidence?.length, 1);
+    assert.equal(metadataQuery.evidence[0].source.outputId, metadata.outputId);
+    assert.equal(metadataQuery.evidence[0].source.stream, undefined);
+    assert.equal(metadataQuery.evidence[0].lines, undefined);
+    assert.equal(metadataQuery.evidence[0].expandable, false);
+    assert.match(metadataQuery.evidence[0].why, /metadata-only/);
   });
 });
 

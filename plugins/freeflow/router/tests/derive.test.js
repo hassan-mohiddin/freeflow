@@ -161,6 +161,149 @@ test("validateDeriveInput accepts URL, citation, and stats operations", () => {
   assert.match(paths, /\$\.operation\.pattern/);
 });
 
+test("validateDeriveInput accepts script operation shape and rejects unsafe script inputs", () => {
+  const valid = validateDeriveInput({
+    sources: [{ kind: "vault", outputId: "ffout_source", stream: "combined", alias: "test_log" }],
+    operation: { kind: "script", language: "python", code: "write_json({'ok': True})", label: "count failures" },
+    limits: { timeoutMs: 1000, maxInputBytes: 2048, maxOutputBytes: 4096 },
+    preserve: "important",
+  });
+
+  assert.equal(valid.ok, true);
+  assert.equal(valid.value.operation.kind, "script");
+  assert.deepEqual(valid.value.sources, [{ kind: "vault", outputId: "ffout_source", stream: "combined", alias: "test_log" }]);
+
+  const invalid = validateDeriveInput({
+    sources: [
+      { kind: "vault", outputId: "", alias: "1bad" },
+      { kind: "vault", outputId: "ffout_source", alias: "1bad" },
+    ],
+    operation: { kind: "script", language: "ruby", code: "", pattern: "not allowed" },
+    limits: { timeoutMs: 0, maxInputBytes: 99_999_999, maxOutputBytes: "huge" },
+  });
+
+  assert.equal(invalid.ok, false);
+  const issues = invalid.issues.map((issue) => `${issue.path} ${issue.message}`).join("\n");
+  assert.match(issues, /\$\.sources\[0\]\.outputId/);
+  assert.match(issues, /\$\.sources\[0\]\.alias/);
+  assert.match(issues, /\$\.operation\.language/);
+  assert.match(issues, /\$\.operation\.code/);
+  assert.match(issues, /\$\.limits\.timeoutMs/);
+  assert.match(issues, /\$\.limits\.maxInputBytes/);
+  assert.match(issues, /\$\.limits\.maxOutputBytes/);
+});
+
+test("freeflowDerive script operation is disabled by default and does not persist raw code", async () => {
+  await withTempVault(async (vault) => {
+    const result = await freeflowDerive({
+      sessionId: "script-disabled-session",
+      vaultRoot: vault.root,
+      sources: [{ kind: "vault", outputId: "ffout_missing", alias: "missing" }],
+      operation: { kind: "script", language: "python", code: "print('RAW_SCRIPT_SENTINEL')" },
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.failure.kind, "script_derive_disabled");
+    assert.equal(result.deriveExecution.status, "unavailable");
+    assert.equal(result.persistence.recoverability, "none");
+    assert.equal(result.outputId, undefined);
+    assert.equal(result.lineage.operation, "script:python");
+    assert.match(result.lineage.operationHash, /^sha256_[0-9a-f]{64}$/);
+    assert.doesNotMatch(JSON.stringify(result), /RAW_SCRIPT_SENTINEL/);
+  });
+});
+
+test("freeflowDerive script operation resolves sources but returns adapter unavailable without executing code", async () => {
+  await withTempVault(async (vault) => {
+    const source = await storeCommandOutput(vault, {
+      sessionId: "script-adapter-session",
+      command: "printf log",
+      stdout: "SCRIPT_SOURCE_TARGET",
+      stderr: "",
+      executionStatus: "success",
+      exitCode: 0,
+      createdAt: "2026-06-24T00:00:00.000Z",
+    });
+
+    const result = await freeflowDerive({
+      sessionId: "script-adapter-session",
+      vaultRoot: vault.root,
+      scriptDerive: {
+        enabled: true,
+        sandbox: "auto",
+        languages: ["python"],
+        network: "off",
+        limits: { timeoutMs: 1000, maxInputBytes: 1024, maxOutputBytes: 4096 },
+        rawScriptPersistence: "disabled",
+      },
+      sources: [{ kind: "vault", outputId: source.outputId, stream: "stdout", alias: "log" }],
+      operation: { kind: "script", language: "python", code: "print('RAW_SCRIPT_SENTINEL')" },
+      limits: { maxInputBytes: 1024 },
+    });
+
+    assert.equal(result.failure.kind, "adapter_unavailable");
+    assert.equal(result.deriveExecution.status, "unavailable");
+    assert.deepEqual(result.lineage.sourceOutputIds, [source.outputId]);
+    assert.deepEqual(result.lineage.sourceRecordIds, [source.recordId]);
+    assert.equal(result.lineage.operation, "script:python");
+    assert.doesNotMatch(JSON.stringify(result), /RAW_SCRIPT_SENTINEL/);
+  });
+});
+
+test("freeflowDerive script source resolver fails clearly for missing sources and input caps", async () => {
+  await withTempVault(async (vault) => {
+    const config = {
+      enabled: true,
+      sandbox: "auto",
+      languages: ["python"],
+      network: "off",
+      limits: { timeoutMs: 1000, maxInputBytes: 5, maxOutputBytes: 4096 },
+      rawScriptPersistence: "disabled",
+    };
+
+    const missing = await freeflowDerive({
+      sessionId: "script-source-session",
+      vaultRoot: vault.root,
+      scriptDerive: config,
+      sources: [{ kind: "vault", outputId: "ffout_missing", alias: "missing" }],
+      operation: { kind: "script", language: "python", code: "write_text('ok')" },
+    });
+    assert.equal(missing.failure.kind, "derive_source_unavailable");
+    assert.match(missing.failure.message, /ffout_missing/);
+
+    const source = await storeCommandOutput(vault, {
+      sessionId: "script-source-session",
+      command: "printf log",
+      stdout: "too large for cap",
+      stderr: "",
+      executionStatus: "success",
+      exitCode: 0,
+      createdAt: "2026-06-24T00:01:00.000Z",
+    });
+    const overCap = await freeflowDerive({
+      sessionId: "script-source-session",
+      vaultRoot: vault.root,
+      scriptDerive: config,
+      sources: [{ kind: "vault", outputId: source.outputId, stream: "stdout", alias: "log" }],
+      operation: { kind: "script", language: "python", code: "write_text('ok')" },
+    });
+    assert.equal(overCap.failure.kind, "derive_validation_failure");
+    assert.match(overCap.failure.message, /exceed maxInputBytes/);
+
+    const loosenedByCall = await freeflowDerive({
+      sessionId: "script-source-session",
+      vaultRoot: vault.root,
+      scriptDerive: config,
+      sources: [{ kind: "vault", outputId: source.outputId, stream: "stdout", alias: "log" }],
+      operation: { kind: "script", language: "python", code: "write_text('ok')" },
+      limits: { maxInputBytes: 1024 },
+    });
+    assert.equal(loosenedByCall.failure.kind, "derive_validation_failure");
+    assert.match(loosenedByCall.failure.message, /exceed maxInputBytes/);
+  });
+});
+
 test("freeflowDerive regexFilter routes vaulted derived output with source lineage", async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {

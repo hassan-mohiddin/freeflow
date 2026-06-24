@@ -16,7 +16,7 @@ Current runtime is not enough to choose a host when both `AGENTS.md` and `CLAUDE
 
 Solo setup is the default: one host target, compact activation, `defaultMode: "workflow"`, no extra docs.
 
-Evidence-routing setup is an opt-in config branch inside normal setup, not a separate host profile. Use `output-router-setup.md`; keep minimal setup config unchanged unless the user accepts the evidence-routing decision point or explicitly asks for output-router/capture/provider config.
+Evidence-routing setup is an opt-in config branch inside normal setup, not a separate host profile. Use `output-router-setup.md`; keep minimal setup config unchanged unless the user accepts the evidence-routing decision point or explicitly asks for output-router/observed-routing/provider config.
 
 Team setup still uses compact activation. Add both hosts only if requested. Do not add team standards, onboarding docs, owners, approvers, repo-local hooks, or CLI checks as part of setup unless the user separately asks and the repo has a validated path for them.
 

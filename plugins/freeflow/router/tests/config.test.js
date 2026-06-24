@@ -3,8 +3,10 @@ import test from "node:test";
 
 import {
   DEFAULT_CAPTURE_CONFIG,
+  DEFAULT_OBSERVED_ROUTING_CONFIG,
   DEFAULT_PROVIDERS_CONFIG,
   DEFAULT_ROUTER_THRESHOLDS,
+  DEFAULT_SCRIPT_DERIVE_CONFIG,
   DEFAULT_VAULT_RETENTION,
   DEFAULT_VAULT_ROOT,
   normalizeFreeflowConfig,
@@ -19,6 +21,8 @@ test("normalizeFreeflowConfig keeps minimal setup config valid without dumping o
   assert.equal(result.config.outputRouter.profile, "standard");
   assert.deepEqual(result.config.capture, DEFAULT_CAPTURE_CONFIG);
   assert.deepEqual(result.config.providers, DEFAULT_PROVIDERS_CONFIG);
+  assert.deepEqual(result.config.observedRouting, DEFAULT_OBSERVED_ROUTING_CONFIG);
+  assert.deepEqual(result.config.scriptDerive, DEFAULT_SCRIPT_DERIVE_CONFIG);
 });
 
 test("normalizeFreeflowConfig accepts high-level capture and provider decisions", () => {
@@ -32,6 +36,28 @@ test("normalizeFreeflowConfig accepts high-level capture and provider decisions"
         "custom-search",
       ],
     },
+    scriptDerive: {
+      enabled: true,
+      sandbox: "auto",
+      languages: ["python", "javascript", "python"],
+      network: "off",
+      limits: { timeoutMs: 1000, maxInputBytes: 2048, maxOutputBytes: 4096 },
+      rawScriptPersistence: "disabled",
+    },
+    observedRouting: {
+      enabled: true,
+      onRoutingFailure: "fail-open",
+      mcp: {
+        servers: {
+          github: { enabled: true, persistence: "exact" },
+          gmail: { enabled: true, persistence: "metadata-only" },
+          vercel: { enabled: false },
+        },
+      },
+      web: { enabled: true, persistence: "exact" },
+      fetch: { enabled: true, persistence: "none" },
+      codeSearch: { enabled: false },
+    },
   });
 
   assert.deepEqual(result.warnings, []);
@@ -43,6 +69,28 @@ test("normalizeFreeflowConfig accepts high-level capture and provider decisions"
     { id: "serena", mode: "discovery", categories: ["symbols", "references", "diagnostics"] },
     { id: "custom-search", mode: "discovery" },
   ]);
+  assert.deepEqual(result.config.scriptDerive, {
+    enabled: true,
+    sandbox: "auto",
+    languages: ["python", "javascript"],
+    network: "off",
+    limits: { timeoutMs: 1000, maxInputBytes: 2048, maxOutputBytes: 4096 },
+    rawScriptPersistence: "disabled",
+  });
+  assert.deepEqual(result.config.observedRouting, {
+    enabled: true,
+    onRoutingFailure: "fail-open",
+    mcp: {
+      servers: {
+        github: { enabled: true, persistence: "exact" },
+        gmail: { enabled: true, persistence: "metadata-only" },
+        vercel: { enabled: false, persistence: "none" },
+      },
+    },
+    web: { enabled: true, persistence: "exact" },
+    fetch: { enabled: true, persistence: "none" },
+    codeSearch: { enabled: false, persistence: "none" },
+  });
 });
 
 test("normalizeFreeflowConfig rejects invalid capture and provider values", () => {
@@ -56,12 +104,41 @@ test("normalizeFreeflowConfig rejects invalid capture and provider values", () =
         "",
       ],
     },
+    scriptDerive: {
+      enabled: "yes",
+      sandbox: "none",
+      languages: ["ruby", 1],
+      network: "on",
+      limits: { timeoutMs: 0, maxInputBytes: 99_999_999, maxOutputBytes: "huge" },
+      rawScriptPersistence: "exact",
+    },
+    observedRouting: {
+      enabled: "yes",
+      onRoutingFailure: "fail-closed",
+      mcp: {
+        servers: {
+          github: { enabled: true, persistence: "redacted" },
+          "": { enabled: true, persistence: "exact" },
+          gmail: { enabled: true, persistence: "secret" },
+        },
+      },
+      web: { enabled: true },
+      fetch: "yes",
+      codeSearch: { enabled: true, persistence: "redacted" },
+    },
   });
 
   assert.equal(result.config.outputRouter.enabled, true);
   assert.equal(result.config.outputRouter.profile, "standard");
   assert.deepEqual(result.config.capture, DEFAULT_CAPTURE_CONFIG);
   assert.deepEqual(result.config.providers.enabled, []);
+  assert.equal(result.config.observedRouting.enabled, false);
+  assert.deepEqual(result.config.scriptDerive, DEFAULT_SCRIPT_DERIVE_CONFIG);
+  assert.equal(result.config.observedRouting.mcp.servers.github.persistence, "metadata-only");
+  assert.equal(result.config.observedRouting.mcp.servers.gmail.persistence, "metadata-only");
+  assert.equal(result.config.observedRouting.web.persistence, "metadata-only");
+  assert.equal(result.config.observedRouting.fetch.enabled, false);
+  assert.equal(result.config.observedRouting.codeSearch.persistence, "metadata-only");
   assert.ok(result.warnings.some((warning) => warning.includes("outputRouter.enabled")));
   assert.ok(result.warnings.some((warning) => warning.includes("outputRouter.profile")));
   assert.ok(result.warnings.some((warning) => warning.includes("capture.freeflowMediated")));
@@ -69,6 +146,22 @@ test("normalizeFreeflowConfig rejects invalid capture and provider values", () =
   assert.ok(result.warnings.some((warning) => warning.includes("providers.enabled[0].mode")));
   assert.ok(result.warnings.some((warning) => warning.includes("providers.enabled[1].categories")));
   assert.ok(result.warnings.some((warning) => warning.includes("providers.enabled[2]")));
+  assert.ok(result.warnings.some((warning) => warning.includes("scriptDerive.enabled")));
+  assert.ok(result.warnings.some((warning) => warning.includes("scriptDerive.sandbox")));
+  assert.ok(result.warnings.some((warning) => warning.includes("scriptDerive.languages")));
+  assert.ok(result.warnings.some((warning) => warning.includes("scriptDerive.network")));
+  assert.ok(result.warnings.some((warning) => warning.includes("scriptDerive.limits.timeoutMs")));
+  assert.ok(result.warnings.some((warning) => warning.includes("scriptDerive.limits.maxInputBytes")));
+  assert.ok(result.warnings.some((warning) => warning.includes("scriptDerive.limits.maxOutputBytes")));
+  assert.ok(result.warnings.some((warning) => warning.includes("scriptDerive.rawScriptPersistence")));
+  assert.ok(result.warnings.some((warning) => warning.includes("observedRouting.enabled")));
+  assert.ok(result.warnings.some((warning) => warning.includes("observedRouting.onRoutingFailure")));
+  assert.ok(result.warnings.some((warning) => warning.includes("observedRouting.mcp.servers.github.persistence") && warning.includes("redacted")));
+  assert.ok(result.warnings.some((warning) => warning.includes("observedRouting.mcp.servers") && warning.includes("server id")));
+  assert.ok(result.warnings.some((warning) => warning.includes("observedRouting.mcp.servers.gmail.persistence")));
+  assert.ok(result.warnings.some((warning) => warning.includes("observedRouting.web.persistence")));
+  assert.ok(result.warnings.some((warning) => warning.includes("observedRouting.fetch")));
+  assert.ok(result.warnings.some((warning) => warning.includes("observedRouting.codeSearch.persistence") && warning.includes("redacted")));
 });
 
 test("normalizeRouterConfig uses defaults when outputRouter is missing", () => {

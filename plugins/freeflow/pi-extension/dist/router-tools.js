@@ -1,9 +1,8 @@
-import { freeflowCapture, freeflowDerive, freeflowRetrieve, freeflowRun } from "../../router/dist/index.js";
+import { freeflowDerive, freeflowRetrieve, freeflowRun } from "../../router/dist/index.js";
 import { buildFreeflowStatusReport } from "./status.js";
-import { createPiCaptureAdapters, normalizeCaptureParams } from "./mcp-capture.js";
-import { renderFreeflowCaptureCall, renderFreeflowCaptureResult, renderFreeflowDeriveCall, renderFreeflowDeriveResult, renderFreeflowRetrieveCall, renderFreeflowRetrieveResult, renderFreeflowRunCall, renderFreeflowRunResult, renderFreeflowStatusCall, renderFreeflowStatusResult, } from "./renderers.js";
+import { renderFreeflowDeriveCall, renderFreeflowDeriveResult, renderFreeflowRetrieveCall, renderFreeflowRetrieveResult, renderFreeflowRunCall, renderFreeflowRunResult, renderFreeflowStatusCall, renderFreeflowStatusResult, } from "./renderers.js";
 import { readOutputRouterConfig, notifyRouterConfigWarnings } from "./runtime-context.js";
-import { FREEFLOW_CAPTURE_PARAMETERS, FREEFLOW_DERIVE_PARAMETERS, FREEFLOW_RETRIEVE_PARAMETERS, FREEFLOW_RUN_PARAMETERS, FREEFLOW_STATUS_PARAMETERS } from "./schemas.js";
+import { FREEFLOW_DERIVE_PARAMETERS, FREEFLOW_RETRIEVE_PARAMETERS, FREEFLOW_RUN_PARAMETERS, FREEFLOW_STATUS_PARAMETERS } from "./schemas.js";
 import { getRouterSessionId, routedToolText } from "./utils.js";
 function normalizeDeriveOperation(operation) {
     if (!operation || typeof operation !== "object" || Array.isArray(operation)) {
@@ -18,6 +17,28 @@ function normalizeDeriveOperation(operation) {
     };
 }
 async function normalizeDeriveParams(params, ctx) {
+    const operation = normalizeDeriveOperation(params.operation);
+    if (operation?.kind === "script") {
+        if (!Array.isArray(params.sources)) {
+            throw new Error("freeflow_derive operation.kind=script requires sources[].");
+        }
+        return {
+            ...params,
+            operation,
+            sources: params.sources.map((source, index) => {
+                if (!source || source.kind !== "vault") {
+                    throw new Error(`freeflow_derive script source ${index} requires kind=vault.`);
+                }
+                return {
+                    kind: "vault",
+                    outputId: source.outputId,
+                    alias: source.alias,
+                    ...(source.stream ? { stream: source.stream } : {}),
+                };
+            }),
+            ...(params.limits ? { limits: params.limits } : {}),
+        };
+    }
     const source = params.source;
     if (!source || source.kind !== "vault") {
         throw new Error("freeflow_derive currently supports source.kind=vault only.");
@@ -27,7 +48,7 @@ async function normalizeDeriveParams(params, ctx) {
     }
     return {
         ...params,
-        operation: normalizeDeriveOperation(params.operation),
+        operation,
         source: {
             kind: "vault",
             outputId: source.outputId,
@@ -51,8 +72,8 @@ async function normalizeRetrieveParams(params, ctx) {
         };
     }
     if (source.kind === "vault") {
-        if (!source.outputId) {
-            throw new Error("freeflow_retrieve source.kind=vault requires source.outputId.");
+        if (!source.outputId && params.action !== "query" && params.action !== "locate") {
+            throw new Error("freeflow_retrieve source.kind=vault requires source.outputId for retrieve, expand, and explain.");
         }
         return {
             ...params,
@@ -60,8 +81,14 @@ async function normalizeRetrieveParams(params, ctx) {
                 kind: "vault",
                 root: routerConfigResult.config.vault.root,
                 sessionId: getRouterSessionId(ctx),
-                outputId: source.outputId,
+                ...(source.outputId ? { outputId: source.outputId } : {}),
                 ...(source.stream ? { stream: source.stream } : {}),
+                ...(source.producerKind ? { producerKind: source.producerKind } : {}),
+                ...(source.server ? { server: source.server } : {}),
+                ...(source.tool ? { tool: source.tool } : {}),
+                ...(source.hostToolName ? { hostToolName: source.hostToolName } : {}),
+                ...(source.recordKind ? { recordKind: source.recordKind } : {}),
+                ...(source.recoverability ? { recoverability: source.recoverability } : {}),
             },
         };
     }
@@ -187,12 +214,13 @@ export function registerRouterTools(pi) {
     pi.registerTool({
         name: "freeflow_derive",
         label: "Freeflow Derive",
-        description: "Derive deterministic, bounded evidence from existing Freeflow-vaulted output. Supports regex filtering/counting, JSON extraction, grouping, dedupe, topN, URL/citation extraction, and line/size stats.",
+        description: "Derive deterministic, bounded evidence from existing Freeflow-vaulted output. Supports regex filtering/counting, JSON extraction, grouping, dedupe, topN, URL/citation extraction, line/size stats, and a disabled-by-default future script operation.",
         promptSnippet: "Transform existing vaulted evidence into bounded derived evidence with lineage and recovery.",
         promptGuidelines: [
             "Use freeflow_derive when existing vaulted evidence needs deterministic filtering, extraction, counting, grouping, dedupe, topN, URL/citation extraction, or line/size stats.",
             "Use freeflow_retrieve first when you need to locate or recover the source evidence before deriving from it.",
-            "freeflow_derive does not execute arbitrary code and currently derives only from existing vaulted evidence.",
+            "Script derive uses operation.kind=script, is disabled by default, and must return structured unavailable/disabled unless an approved sandbox is configured.",
+            "Do not use script derive as an unsandboxed code execution path.",
         ],
         parameters: FREEFLOW_DERIVE_PARAMETERS,
         async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
@@ -205,6 +233,7 @@ export function registerRouterTools(pi) {
                 vaultRoot: routerConfigResult.config.vault.root,
                 vaultRetention: routerConfigResult.config.vault.retention,
                 thresholds: routerConfigResult.config.thresholds,
+                scriptDerive: routerConfigResult.freeflowConfig.scriptDerive,
             });
             return {
                 content: [{ type: "text", text: routedToolText(result) }],
@@ -216,42 +245,6 @@ export function registerRouterTools(pi) {
         },
         renderResult(result, options, theme) {
             return renderFreeflowDeriveResult(result, options, theme);
-        },
-    });
-    pi.registerTool({
-        name: "freeflow_capture",
-        label: "Freeflow Capture",
-        description: "Capture output from a supported read-only service/protocol producer, vault exact raw text when allowed, and return routed evidence. Currently supports Serena read-only MCP symbol/reference/diagnostic tools.",
-        promptSnippet: "Capture read-only MCP/Serena producer output with Freeflow routing and recovery.",
-        promptGuidelines: [
-            "Use freeflow_capture for supported read-only Serena MCP symbol, reference, and diagnostic evidence when recoverable routing is useful.",
-            "Do not use freeflow_capture for mutating provider tools; call those directly only after explicit user intent, then review and verify the resulting state.",
-            "Use direct mcp calls when direct provider behavior is intended or when the Serena tool is not in Freeflow's read-only capture allowlist.",
-        ],
-        parameters: FREEFLOW_CAPTURE_PARAMETERS,
-        async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-            const routerConfigResult = await readOutputRouterConfig(ctx.cwd);
-            notifyRouterConfigWarnings(ctx, routerConfigResult);
-            const normalized = normalizeCaptureParams(params);
-            const result = await freeflowCapture({
-                ...normalized,
-                sessionId: getRouterSessionId(ctx),
-                adapters: createPiCaptureAdapters(ctx, signal),
-                vaultRoot: routerConfigResult.config.vault.root,
-                vaultRetention: routerConfigResult.config.vault.retention,
-                thresholds: routerConfigResult.config.thresholds,
-                signal,
-            });
-            return {
-                content: [{ type: "text", text: routedToolText(result) }],
-                details: { result },
-            };
-        },
-        renderCall(args, theme) {
-            return renderFreeflowCaptureCall(args, theme);
-        },
-        renderResult(result, options, theme) {
-            return renderFreeflowCaptureResult(result, options, theme);
         },
     });
 }

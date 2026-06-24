@@ -10,6 +10,7 @@ import {
 } from "./evidence-search.js";
 import { resolveExactLineRange } from "./line-ranges.js";
 import { collectRepoTextFileRefs, resolveRepoPath, type RepoTextFileRef } from "./repo-traversal.js";
+import { createLocalVaultIndex, type VaultIndexMatch, type VaultIndexQueryFilters } from "./vault-index.js";
 import { createVault, readOutputText, readVaultRecord } from "./vault.js";
 import type {
   EvidencePacket,
@@ -33,8 +34,14 @@ export interface VaultRetrieveSourceInput {
   kind: "vault";
   root: string;
   sessionId: string;
-  outputId: string;
+  outputId?: string;
   stream?: OutputStream;
+  producerKind?: ProducerDescriptor["kind"];
+  server?: string;
+  tool?: string;
+  hostToolName?: string;
+  recordKind?: VaultRecord["kind"];
+  recoverability?: EvidencePersistence["recoverability"];
 }
 
 export type RetrieveSourceInput = RepoRetrieveSourceInput | VaultRetrieveSourceInput;
@@ -58,10 +65,12 @@ export interface FreeflowRetrieveOptions {
   topK?: number;
   decision?: RetrievalRoutedResult;
   generatedPathGlobs?: readonly string[];
+  filters?: VaultIndexQueryFilters;
 }
 
 type RepoRetrieveOptions = FreeflowRetrieveOptions & { source: RepoRetrieveSourceInput };
 type VaultRetrieveOptions = FreeflowRetrieveOptions & { source: VaultRetrieveSourceInput };
+type VaultOutputRetrieveOptions = VaultRetrieveOptions & { source: VaultRetrieveSourceInput & { outputId: string } };
 
 interface RepoTextFile {
   path: string;
@@ -135,22 +144,47 @@ async function retrieveVault(
   preserve: PreserveMode,
 ): Promise<RetrievalRoutedResult> {
   if (options.action === "retrieve") {
+    if (!hasVaultOutputId(options)) {
+      return errorResult(preserve, "Vault retrieve requires source.outputId.");
+    }
     return retrieveVaultLines(options, preserve);
   }
 
   if (options.action === "expand") {
+    if (!hasVaultOutputId(options)) {
+      return errorResult(preserve, "Vault expansion requires source.outputId for exact raw recovery.");
+    }
     return expandVaultEvidence(options, preserve);
   }
 
   if (options.action === "explain") {
+    if (!hasVaultOutputId(options)) {
+      return errorResult(preserve, "Vault explain requires source.outputId.");
+    }
     return explainVaultOutput(options, preserve);
   }
 
-  if (options.action !== "query") {
+  if (options.action !== "query" && options.action !== "locate") {
     return errorResult(preserve, `Vault retrieval action ${options.action} is not implemented yet.`);
   }
 
   if (!options.query?.trim()) {
+    return errorResult(preserve, `Vault ${options.action} requires a non-empty query string.`);
+  }
+
+  if (hasVaultOutputId(options) && options.action === "query") {
+    return querySingleVaultOutput(options, preserve);
+  }
+
+  return queryVaultIndex(options, preserve, options.action);
+}
+
+async function querySingleVaultOutput(
+  options: VaultOutputRetrieveOptions,
+  preserve: PreserveMode,
+): Promise<RetrievalRoutedResult> {
+  const query = options.query?.trim();
+  if (!query) {
     return errorResult(preserve, "Vault query requires a non-empty query string.");
   }
 
@@ -159,12 +193,12 @@ async function retrieveVault(
   const stream = resolveVaultStream(record, options.source.stream);
   const text = await readOutputText(vault, options.source.sessionId, options.source.outputId, stream);
   const lines = splitLines(text);
-  const candidateLine = findBestLineForQuery(lines, options.query);
+  const candidateLine = findBestLineForQuery(lines, query);
 
   if (candidateLine === null) {
     return {
       toolStatus: "ok",
-      decisionId: decisionId("vault-query", options.source.outputId, stream, options.query, "none"),
+      decisionId: decisionId("vault-query", options.source.outputId, stream, query, "none"),
       preserve,
       source: { kind: "vault", outputId: options.source.outputId, stream },
       ...vaultRecordResultFields(record),
@@ -185,7 +219,7 @@ async function retrieveVault(
   const end = Math.min(lines.length - 1, candidateLine + DEFAULT_CONTEXT_LINES);
   const evidenceLines = `${start + 1}-${end + 1}`;
   const evidence: EvidencePacket = {
-    id: evidenceIdFor(`${options.source.outputId}:${stream}`, evidenceLines, options.query),
+    id: evidenceIdFor(`${options.source.outputId}:${stream}`, evidenceLines, query),
     source: { kind: "vault", outputId: options.source.outputId, stream },
     path: `${options.source.outputId}:${stream}`,
     lines: evidenceLines,
@@ -197,7 +231,7 @@ async function retrieveVault(
 
   return {
     toolStatus: "ok",
-    decisionId: decisionId("vault-query", options.source.outputId, stream, options.query, evidenceLines),
+    decisionId: decisionId("vault-query", options.source.outputId, stream, query, evidenceLines),
     preserve,
     source: { kind: "vault", outputId: options.source.outputId, stream },
     ...vaultRecordResultFields(record),
@@ -215,8 +249,123 @@ async function retrieveVault(
   };
 }
 
-async function retrieveVaultLines(
+async function queryVaultIndex(
   options: VaultRetrieveOptions,
+  preserve: PreserveMode,
+  action: "query" | "locate",
+): Promise<RetrievalRoutedResult> {
+  const query = options.query?.trim();
+  if (!query) {
+    return errorResult(preserve, `Vault ${action} requires a non-empty query string.`);
+  }
+
+  const topK = parseTopK(options.topK, action === "query" ? DEFAULT_QUERY_TOP_K : DEFAULT_LOCATE_TOP_K);
+  if (typeof topK === "string") {
+    return errorResult(preserve, topK);
+  }
+
+  const vault = createVault({ root: options.source.root });
+  const indexResult = await createLocalVaultIndex(vault).queryVault(query, vaultIndexFiltersFromSource(options.source, options.filters), {
+    topK,
+    maxExcerptBytes: action === "locate" ? LINE_PREVIEW_MAX_BYTES : QUERY_EXCERPT_MAX_BYTES,
+  });
+
+  if (indexResult.matches.length === 0) {
+    return {
+      toolStatus: "ok",
+      decisionId: decisionId(`vault-${action}-index`, query, String(topK), "none"),
+      preserve,
+      routing: {
+        status: "routed",
+        route: "retrieve",
+        reason: `Vault-wide ${action} found no matching indexed evidence for the current filters.`,
+      },
+      evidence: [],
+      recovery: {
+        how: "Refine the query, adjust vault filters, or use source.outputId with action=retrieve/explain when the exact output is known.",
+      },
+    };
+  }
+
+  const evidence = indexResult.matches.map((match) => evidenceFromVaultIndexMatch(match, query, action));
+  const first = indexResult.matches[0];
+  const firstEvidence = evidence[0];
+  if (!first || !firstEvidence) {
+    return errorResult(preserve, `Vault ${action} produced no usable indexed evidence.`);
+  }
+
+  return {
+    toolStatus: "ok",
+    decisionId: decisionId(`vault-${action}-index`, query, String(topK), evidence.map((packet) => `${packet.path}:${packet.lines ?? ""}`).join("|")),
+    preserve,
+    source: sourceRefForVaultIndexMatch(first),
+    routing: {
+      status: "routed",
+      route: "retrieve",
+      reason: action === "locate"
+        ? `Located ${evidence.length} indexed vault candidate(s) without raw output retrieval; top result ${first.outputId}${first.stream ? `:${first.stream}` : ""}${firstEvidence.lines ? `:${firstEvidence.lines}` : ""}.`
+        : `Vault-wide query selected ${evidence.length} indexed candidate(s); top result ${first.outputId}${first.stream ? `:${first.stream}` : ""}${firstEvidence.lines ? `:${firstEvidence.lines}` : ""}.`,
+    },
+    evidence,
+    recovery: {
+      how: first.metadataOnly
+        ? `Top match ${first.outputId} is metadata-only; use freeflow_retrieve action=explain with outputId=${first.outputId} for recoverability details.`
+        : `Use freeflow_retrieve action=expand with source.outputId=${first.outputId} and evidenceId=${firstEvidence.id}, or action=retrieve with outputId=${first.outputId}${first.stream ? ` and stream=${first.stream}` : ""}.`,
+      outputId: first.outputId,
+      evidenceId: firstEvidence.id,
+    },
+  };
+}
+
+function evidenceFromVaultIndexMatch(match: VaultIndexMatch, query: string, action: "query" | "locate"): EvidencePacket {
+  const source = sourceRefForVaultIndexMatch(match);
+  const lines = match.lineStart !== undefined && match.lineEnd !== undefined ? `${match.lineStart}-${match.lineEnd}` : undefined;
+  const path = `${match.outputId}${match.stream ? `:${match.stream}` : ":metadata"}`;
+  const why = match.metadataOnly
+    ? `Indexed metadata-only ${action} match for query terms; raw content is not recoverable from this entry.`
+    : `Indexed vault ${action} match for query terms with score ${match.score}.`;
+
+  return {
+    id: evidenceIdFor(path, lines ?? match.chunkId, query),
+    source,
+    path,
+    ...(lines !== undefined ? { lines } : {}),
+    excerpt: match.excerpt,
+    why,
+    window: "small",
+    expandable: !match.metadataOnly && lines !== undefined && match.stream !== undefined,
+  };
+}
+
+function sourceRefForVaultIndexMatch(match: VaultIndexMatch): { kind: "vault"; outputId: string; stream?: OutputStream } {
+  return {
+    kind: "vault",
+    outputId: match.outputId,
+    ...(match.stream !== undefined ? { stream: match.stream } : {}),
+  };
+}
+
+function vaultIndexFiltersFromSource(source: VaultRetrieveSourceInput, filters: VaultIndexQueryFilters | undefined): VaultIndexQueryFilters {
+  return {
+    ...filters,
+    sessionId: filters?.sessionId ?? source.sessionId,
+    ...(source.outputId !== undefined ? { outputId: source.outputId } : {}),
+    ...(source.producerKind !== undefined ? { producerKind: source.producerKind } : {}),
+    ...(source.server !== undefined ? { server: source.server } : {}),
+    ...(source.tool !== undefined ? { tool: source.tool } : {}),
+    ...(source.hostToolName !== undefined ? { hostToolName: source.hostToolName } : {}),
+    ...(source.stream !== undefined ? { stream: source.stream } : {}),
+    ...(source.recordKind !== undefined ? { recordKind: source.recordKind } : {}),
+    ...(source.recoverability !== undefined ? { recoverability: source.recoverability } : {}),
+  };
+}
+
+function hasVaultOutputId(options: VaultRetrieveOptions): options is VaultOutputRetrieveOptions {
+  return typeof options.source.outputId === "string" && options.source.outputId.length > 0;
+}
+
+async function retrieveVaultLines(
+  options: VaultOutputRetrieveOptions,
   preserve: PreserveMode,
 ): Promise<RetrievalRoutedResult> {
   const lineRange = options.lineRange;
@@ -277,7 +426,7 @@ async function retrieveVaultLines(
 }
 
 function retrieveVaultLineRangeOverCap(
-  options: VaultRetrieveOptions,
+  options: VaultOutputRetrieveOptions,
   preserve: PreserveMode,
   stream: OutputStream,
   record: VaultRecord,
@@ -325,7 +474,7 @@ function retrieveVaultLineRangeOverCap(
 }
 
 function expandVaultEvidenceOverCap(
-  options: VaultRetrieveOptions,
+  options: VaultOutputRetrieveOptions,
   preserve: PreserveMode,
   stream: OutputStream,
   record: VaultRecord,
@@ -370,7 +519,7 @@ function expandVaultEvidenceOverCap(
 }
 
 async function expandVaultEvidence(
-  options: VaultRetrieveOptions,
+  options: VaultOutputRetrieveOptions,
   preserve: PreserveMode,
 ): Promise<RetrievalRoutedResult> {
   const evidence = options.evidence;
@@ -432,7 +581,7 @@ async function expandVaultEvidence(
 }
 
 async function explainVaultOutput(
-  options: VaultRetrieveOptions,
+  options: VaultOutputRetrieveOptions,
   preserve: PreserveMode,
 ): Promise<RetrievalRoutedResult> {
   const vault = createVault({ root: options.source.root });
@@ -473,6 +622,9 @@ function resolveVaultStream(record: VaultRecord, requested?: OutputStream): Outp
   if (record.kind === "text") {
     return "raw";
   }
+  if (record.kind === "metadata") {
+    throw new Error("Metadata only records store no raw stream.");
+  }
   throw new Error("Repo file reference records store metadata only and have no raw stream.");
 }
 
@@ -499,15 +651,21 @@ function producerForVaultRecord(record: VaultRecord): ProducerDescriptor {
   if (record.kind === "command") {
     return { kind: "command" };
   }
-  if (record.kind === "text") {
+  if (record.kind === "text" || record.kind === "metadata") {
     if (record.sourceKind === "native") {
       return { kind: "native" };
     }
     if (record.sourceKind === "mcp") {
       return { kind: "mcp" };
     }
+    if (record.sourceKind === "web") {
+      return { kind: "web" };
+    }
     if (record.sourceKind === "fetch") {
       return { kind: "fetch" };
+    }
+    if (record.sourceKind === "code_search") {
+      return { kind: "code_search" };
     }
     return { kind: "other" };
   }
@@ -519,8 +677,8 @@ function persistenceForVaultRecord(record: VaultRecord): EvidencePersistence {
   if (persistence?.status && persistence.recoverability) {
     return persistence;
   }
-  if (record.kind === "repo-file") {
-    return { status: "metadata_only", recoverability: "metadata_only" };
+  if (record.kind === "repo-file" || record.kind === "metadata") {
+    return { status: "metadata_only", recoverability: "metadata_only", outputId: record.outputId };
   }
   return {
     status: "vaulted",
@@ -539,6 +697,9 @@ function vaultRecordDetails(record: VaultRecord): string {
   }
   if (record.kind === "text") {
     return `kind=text${recordIdText} sourceKind=${record.sourceKind} decisions=${decisions}`;
+  }
+  if (record.kind === "metadata") {
+    return `kind=metadata${recordIdText} sourceKind=${record.sourceKind} rawLines=${record.lineCounts.raw} rawBytes=${record.byteCounts.raw} decisions=${decisions}`;
   }
   return `kind=repo-file${recordIdText} path=${record.path} decisions=${decisions}`;
 }

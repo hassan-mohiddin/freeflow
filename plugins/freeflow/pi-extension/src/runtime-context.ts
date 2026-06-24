@@ -76,7 +76,7 @@ async function readDefaultMode(cwd) {
 export async function readOutputRouterConfig(cwd) {
   const parsed = await readFreeflowConfig(cwd);
   const normalized = normalizeFreeflowConfig(parsed);
-  return { config: normalized.config.outputRouter, warnings: normalized.warnings };
+  return { config: normalized.config.outputRouter, freeflowConfig: normalized.config, warnings: normalized.warnings };
 }
 
 export async function readProviderContext(cwd) {

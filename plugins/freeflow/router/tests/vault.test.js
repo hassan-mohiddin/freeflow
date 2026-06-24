@@ -7,12 +7,14 @@ import test from "node:test";
 
 import {
   DEFAULT_VAULT_RETENTION,
+  createLocalVaultIndex,
   createVault,
   readOutputLines,
   readOutputText,
   readSessionIndex,
   readVaultRecord,
   storeCommandOutput,
+  storeMetadataOutput,
   storeRepoFileReference,
   storeTextOutput,
 } from "../dist/index.js";
@@ -198,9 +200,109 @@ test("session index keeps cross-process command output records", async () => {
     await writeFile(releasePath, "go", "utf8");
     await Promise.all(children);
 
-    const index = await readSessionIndex(vault, "cross-process-session");
-    assert.equal(index.outputs.length, childCount);
-    assert.equal(Object.keys(index.records).length, childCount);
+    const sessionIndex = await readSessionIndex(vault, "cross-process-session");
+    assert.equal(sessionIndex.outputs.length, childCount);
+    assert.equal(Object.keys(sessionIndex.records).length, childCount);
+
+    const vaultIndex = createLocalVaultIndex(vault);
+    const indexStatus = await vaultIndex.status();
+    assert.equal(indexStatus.outputCount, childCount);
+    const indexedMatches = await vaultIndex.queryVault("out-", { sessionId: "cross-process-session" }, { topK: childCount });
+    assert.equal(new Set(indexedMatches.matches.map((match) => match.outputId)).size, childCount);
+  });
+});
+
+test("vault appends are indexed automatically without changing raw recovery", async () => {
+  await withTempVault(async (vault) => {
+    const command = await storeCommandOutput(vault, {
+      sessionId: "auto-index-session",
+      command: "npm test",
+      stdout: "AUTO_INDEX_COMMAND_TARGET exact stdout",
+      stderr: "",
+      executionStatus: "success",
+      exitCode: 0,
+      createdAt: "2026-06-16T00:00:00.000Z",
+    });
+    const text = await storeTextOutput(vault, {
+      sessionId: "auto-index-session",
+      sourceKind: "mcp",
+      raw: "AUTO_INDEX_TEXT_TARGET observed raw",
+      createdAt: "2026-06-16T00:00:01.000Z",
+    });
+
+    const index = createLocalVaultIndex(vault);
+    const commandQuery = await index.queryVault("AUTO_INDEX_COMMAND_TARGET", { sessionId: "auto-index-session" });
+    assert.equal(commandQuery.matches[0]?.outputId, command.outputId);
+    assert.equal(commandQuery.matches[0]?.stream, "combined");
+
+    const textQuery = await index.queryVault("AUTO_INDEX_TEXT_TARGET", { sessionId: "auto-index-session" });
+    assert.equal(textQuery.matches[0]?.outputId, text.outputId);
+    assert.equal(textQuery.matches[0]?.stream, "raw");
+    assert.equal(await readOutputText(vault, "auto-index-session", command.outputId, "stdout"), "AUTO_INDEX_COMMAND_TARGET exact stdout");
+  });
+});
+
+test("automatic vault indexing keeps metadata-only raw content out of the index", async () => {
+  await withTempVault(async (vault) => {
+    const metadata = await storeMetadataOutput(vault, {
+      sessionId: "auto-index-sensitive-session",
+      sourceKind: "mcp",
+      rawLineCount: 2,
+      rawByteCount: 100,
+      rawSha256: "c".repeat(64),
+      metadata: { producer: { kind: "mcp", server: "gmail", tool: "search" }, marker: "AUTO_INDEX_METADATA_TARGET" },
+      producer: { kind: "mcp", server: "gmail", tool: "search" },
+      createdAt: "2026-06-16T00:00:00.000Z",
+    });
+
+    const index = createLocalVaultIndex(vault);
+    const metadataQuery = await index.queryVault("AUTO_INDEX_METADATA_TARGET", { sessionId: "auto-index-sensitive-session" });
+    assert.equal(metadataQuery.matches[0]?.outputId, metadata.outputId);
+    assert.equal(metadataQuery.matches[0]?.metadataOnly, true);
+    assert.equal(metadataQuery.matches[0]?.stream, undefined);
+    assert.equal((await index.queryVault("CUSTOMER_RAW_SECRET", { sessionId: "auto-index-sensitive-session" })).matches.length, 0);
+  });
+});
+
+test("index failures do not break vault persistence", async () => {
+  await withTempVault(async (vault) => {
+    await writeFile(join(vault.root, "index"), "not a directory", "utf8");
+
+    const record = await storeCommandOutput(vault, {
+      sessionId: "index-failure-session",
+      command: "npm test",
+      stdout: "still persisted",
+      stderr: "",
+      executionStatus: "success",
+      exitCode: 0,
+      createdAt: "2026-06-16T00:00:00.000Z",
+    });
+
+    assert.equal(await readOutputText(vault, "index-failure-session", record.outputId, "stdout"), "still persisted");
+    const status = await createLocalVaultIndex(vault).status();
+    assert.equal(status.available, false);
+    assert.equal(status.degraded, true);
+    assert.equal(status.stale, true);
+    assert.equal(status.rebuildRecommended, true);
+    assert.match(status.lastError, /ENOTDIR|not a directory/i);
+  });
+});
+
+test("store helpers reject no-persist records instead of storing raw content with misleading persistence", async () => {
+  await withTempVault(async (vault) => {
+    await assert.rejects(() => storeCommandOutput(vault, {
+      sessionId: "no-persist-session",
+      command: "echo secret",
+      stdout: "raw secret",
+      stderr: "",
+      executionStatus: "success",
+      exitCode: 0,
+      persistence: { status: "not_persisted", recoverability: "none" },
+    }), /Cannot store output with persistence recoverability none/);
+
+    const sessionIndex = await readSessionIndex(vault, "no-persist-session");
+    assert.equal(sessionIndex.outputs.length, 0);
+    assert.equal((await createLocalVaultIndex(vault).status()).outputCount, 0);
   });
 });
 
@@ -270,6 +372,9 @@ test("repo file references write metadata only by default", async () => {
     assert.equal(record.producer.kind, "repo");
     assert.deepEqual(record.persistence, { status: "metadata_only", recoverability: "metadata_only" });
     assert.equal(record.path, "docs/specs/freeflow-output-router-design.md");
+    const pathQuery = await createLocalVaultIndex(vault).queryVault("freeflow-output-router-design", { sessionId: "session-repo" });
+    assert.equal(pathQuery.matches[0]?.outputId, record.outputId);
+    assert.equal(pathQuery.matches[0]?.metadataOnly, true);
     const objectFiles = await readdir(join(vault.root, "objects", record.objectId));
     assert.deepEqual(objectFiles, ["meta.json"]);
   });

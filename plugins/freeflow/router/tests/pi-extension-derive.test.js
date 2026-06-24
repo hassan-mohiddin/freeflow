@@ -92,7 +92,9 @@ function schemaErrors(schema, value, path = "$") {
     const validType =
       schema.type === "object"
         ? value !== null && typeof value === "object" && !Array.isArray(value)
-        : schema.type === "integer"
+        : schema.type === "array"
+          ? Array.isArray(value)
+          : schema.type === "integer"
           ? Number.isInteger(value)
           : schema.type === "number"
             ? typeof value === "number"
@@ -123,6 +125,17 @@ function schemaErrors(schema, value, path = "$") {
     }
     if (schema.maximum !== undefined && value > schema.maximum) {
       errors.push(`${path} should be <= ${schema.maximum}`);
+    }
+  }
+
+  if (Array.isArray(value)) {
+    if (schema.minItems !== undefined && value.length < schema.minItems) {
+      errors.push(`${path} should have at least ${schema.minItems} item(s)`);
+    }
+    if (schema.items) {
+      value.forEach((item, index) => {
+        errors.push(...schemaErrors(schema.items, item, `${path}[${index}]`));
+      });
     }
   }
 
@@ -179,7 +192,8 @@ test("Pi extension registers public freeflow_derive with deterministic operation
   const derive = tools.get("freeflow_derive");
 
   assert.ok(derive, "freeflow_derive should be registered");
-  assert.deepEqual(derive.parameters.required, ["source", "operation"]);
+  assert.equal(tools.has("freeflow_script_derive"), false);
+  assert.deepEqual(derive.parameters.required, ["operation"]);
   assert.deepEqual(derive.parameters.properties.source.properties.kind.enum, ["vault"]);
   assert.match(derive.description, /deterministic/i);
   assert.match(derive.promptGuidelines.join("\n"), /existing vaulted evidence/i);
@@ -197,6 +211,7 @@ test("Pi extension registers public freeflow_derive with deterministic operation
     "extractCitations",
     "lineStats",
     "sizeStats",
+    "script",
   ]);
 });
 
@@ -216,6 +231,11 @@ test("Pi extension freeflow_derive schema stays Pi-compatible while rejecting in
   assertSchemaAccepts(schema, {
     source,
     operation: { kind: "topN", limit: 10, pattern: "duration=(\\d+)", flags: "im", group: "1", sort: "numeric" },
+  });
+  assertSchemaAccepts(schema, {
+    sources: [{ kind: "vault", outputId: "ffout_source", stream: "combined", alias: "test_log" }],
+    operation: { kind: "script", language: "python", code: "write_text('ok')" },
+    limits: { timeoutMs: 1000, maxInputBytes: 2048, maxOutputBytes: 4096 },
   });
 
   assertSchemaRejects(schema, { source: { kind: "vault", outputId: "" }, operation: { kind: "lineStats" } });
@@ -239,6 +259,38 @@ test("Pi extension freeflow_derive schema stays Pi-compatible while rejecting in
   assertSchemaRejects(schema, { source, operation: { kind: "topN", limit: 1001 } });
   assertSchemaRejects(schema, { source, operation: { kind: "extractUrls", maxMatches: 1001 } });
   assertSchemaRejects(schema, { source, operation: { kind: "extractCitations", maxMatches: 1001 } });
+  assertSchemaRejects(schema, { sources: [{ kind: "vault", outputId: "ffout_source", alias: "1bad" }], operation: { kind: "script", language: "python", code: "ok" } });
+  assertSchemaRejects(schema, { sources: [{ kind: "vault", outputId: "ffout_source", alias: "ok" }], operation: { kind: "script", language: "ruby", code: "ok" } });
+  assertSchemaRejects(schema, { sources: [{ kind: "vault", outputId: "ffout_source", alias: "ok" }], operation: { kind: "script", language: "python", code: "" } });
+  assertSchemaRejects(schema, { sources: [{ kind: "vault", outputId: "ffout_source", alias: "ok" }], operation: { kind: "script", language: "python", code: "ok" }, limits: { timeoutMs: 0 } });
+});
+
+test("Pi extension public freeflow_derive returns structured disabled result for script derive by default", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-derive-script-disabled-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow" }), "utf8");
+
+    const { tools } = registerMockPi();
+    const derive = tools.get("freeflow_derive");
+    const result = await derive.execute(
+      "derive-script-disabled",
+      {
+        sources: [{ kind: "vault", outputId: "ffout_missing", alias: "missing" }],
+        operation: { kind: "script", language: "python", code: "print('RAW_SCRIPT_SENTINEL')" },
+      },
+      undefined,
+      undefined,
+      mockCtx(cwd, "pi-extension-derive-script-disabled-test"),
+    );
+
+    assert.equal(result.details.result.failure.kind, "script_derive_disabled");
+    assert.equal(result.details.result.deriveExecution.status, "unavailable");
+    assert.equal(result.details.result.persistence.recoverability, "none");
+    assert.doesNotMatch(JSON.stringify(result.details.result), /RAW_SCRIPT_SENTINEL/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
 });
 
 test("Pi extension public freeflow_derive returns structured failures for operation-specific validation", async () => {

@@ -42,13 +42,33 @@ export const FREEFLOW_RETRIEVE_PARAMETERS = {
             properties: {
                 kind: { type: "string", enum: ["repo", "vault"] },
                 path: { ...STRING_SCHEMA, description: "Repo path for source.kind=repo." },
-                outputId: { ...STRING_SCHEMA, description: "Vault output id for source.kind=vault." },
-                stream: { ...STREAM_SCHEMA, description: "Vault stream to read." },
+                outputId: { ...STRING_SCHEMA, description: "Vault output id for source.kind=vault. Optional for vault query/locate." },
+                stream: { ...STREAM_SCHEMA, description: "Vault stream to read or filter." },
+                producerKind: { type: "string", enum: ["command", "native", "repo", "web", "fetch", "code_search", "mcp", "provider", "derive", "other"], description: "Vault index producer-kind filter for source.kind=vault query/locate." },
+                server: { ...STRING_SCHEMA, description: "Vault index MCP server filter for source.kind=vault query/locate." },
+                tool: { ...STRING_SCHEMA, description: "Vault index MCP/tool filter for source.kind=vault query/locate." },
+                hostToolName: { ...STRING_SCHEMA, description: "Vault index host-tool filter for source.kind=vault query/locate." },
+                recordKind: { type: "string", enum: ["command", "text", "metadata", "repo-file"], description: "Vault record-kind filter for source.kind=vault query/locate." },
+                recoverability: { type: "string", enum: ["exact", "redacted", "metadata_only", "none"], description: "Vault recoverability filter for source.kind=vault query/locate." },
             },
             required: ["kind"],
             description: "Source to retrieve from. Repo root and vault session are supplied by Freeflow/Pi.",
         },
         query: { ...STRING_SCHEMA, description: "Text query for query/locate actions." },
+        filters: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                producerKind: { type: "string", enum: ["command", "native", "repo", "web", "fetch", "code_search", "mcp", "provider", "derive", "other"] },
+                server: STRING_SCHEMA,
+                tool: STRING_SCHEMA,
+                hostToolName: STRING_SCHEMA,
+                stream: STREAM_SCHEMA,
+                recordKind: { type: "string", enum: ["command", "text", "metadata", "repo-file"] },
+                recoverability: { type: "string", enum: ["exact", "redacted", "metadata_only", "none"] },
+            },
+            description: "Vault index filters for source.kind=vault query/locate.",
+        },
         preserve: { ...PRESERVE_SCHEMA, description: "Fidelity mode. Default: important." },
         evidence: {
             type: "object",
@@ -57,7 +77,7 @@ export const FREEFLOW_RETRIEVE_PARAMETERS = {
         },
         expansion: { ...EXPANSION_SCHEMA, description: "Expansion breadth for expand action." },
         maxFullBytes: { type: "number", description: "Cap for preserve=full before exact chunks are returned." },
-        topK: { type: "number", description: "Number of ranked repo candidates for query/locate. Defaults: query=1, locate=5; max 10." },
+        topK: { type: "number", description: "Number of ranked repo or vault candidates for query/locate. Defaults: query=1, locate=5; max 10." },
         lineRange: {
             type: "object",
             additionalProperties: false,
@@ -97,7 +117,29 @@ const DERIVE_SOURCE_SCHEMA = {
         stream: { ...STREAM_SCHEMA, description: "Vault stream to read. Defaults by source record kind." },
     },
     required: ["kind", "outputId"],
-    description: "Existing vaulted source evidence. Slice 5 supports vault sources only.",
+    description: "Existing vaulted source evidence for deterministic derive operations.",
+};
+const SCRIPT_DERIVE_SOURCE_SCHEMA = {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+        kind: { type: "string", enum: ["vault"] },
+        outputId: { ...NON_EMPTY_STRING_SCHEMA, description: "Vault output id to mount as script input." },
+        stream: { ...STREAM_SCHEMA, description: "Vault stream to mount. Defaults by source record kind." },
+        alias: { type: "string", pattern: "^[A-Za-z][A-Za-z0-9_-]{0,63}$", description: "Script input alias." },
+    },
+    required: ["kind", "outputId", "alias"],
+    description: "Existing vaulted source evidence for operation.kind=script.",
+};
+const SCRIPT_DERIVE_LIMITS_SCHEMA = {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+        timeoutMs: { type: "integer", minimum: 1, maximum: 30000 },
+        maxInputBytes: { type: "integer", minimum: 1, maximum: 10485760 },
+        maxOutputBytes: { type: "integer", minimum: 1, maximum: 1048576 },
+    },
+    description: "Script derive resource limits. They only tighten configured defaults.",
 };
 const DERIVE_OPERATION_KINDS = [
     "regexFilter",
@@ -110,17 +152,24 @@ const DERIVE_OPERATION_KINDS = [
     "extractCitations",
     "lineStats",
     "sizeStats",
+    "script",
 ];
 export const FREEFLOW_DERIVE_PARAMETERS = {
     type: "object",
     additionalProperties: false,
     properties: {
         source: DERIVE_SOURCE_SCHEMA,
+        sources: {
+            type: "array",
+            minItems: 1,
+            items: SCRIPT_DERIVE_SOURCE_SCHEMA,
+            description: "Vault sources for operation.kind=script. Deterministic operations keep using source.",
+        },
         operation: {
             type: "object",
             additionalProperties: false,
             properties: {
-                kind: { type: "string", enum: DERIVE_OPERATION_KINDS, description: "Deterministic derive operation kind." },
+                kind: { type: "string", enum: DERIVE_OPERATION_KINDS, description: "Derive operation kind. script is disabled by default and requires a sandbox." },
                 pattern: { ...NON_EMPTY_STRING_SCHEMA, description: "Regex pattern for regexFilter, countMatches, groupByRegex, or regex-backed topN. No arbitrary code is executed." },
                 flags: REGEX_FLAGS_SCHEMA,
                 pointer: {
@@ -145,35 +194,15 @@ export const FREEFLOW_DERIVE_PARAMETERS = {
                 sort: { type: "string", enum: ["text", "numeric"], description: "topN sort mode. Default: text." },
                 order: { type: "string", enum: ["asc", "desc"], description: "topN sort order. Equal scores preserve source order." },
                 dedupe: { type: "boolean", description: "Return each URL once for extractUrls." },
+                language: { type: "string", enum: ["javascript", "python", "jq"], description: "Script derive language for operation.kind=script." },
+                code: { ...NON_EMPTY_STRING_SCHEMA, description: "Script derive code for operation.kind=script. Raw code is not persisted by default." },
+                label: { ...NON_EMPTY_STRING_SCHEMA, description: "Optional script derive label." },
             },
             required: ["kind"],
-            description: "Deterministic operation to apply to existing evidence. Operation-specific constraints are validated by Freeflow before execution.",
+            description: "Operation to apply to existing evidence. Script operations are disabled by default and operation-specific constraints are validated by Freeflow before execution."
         },
+        limits: SCRIPT_DERIVE_LIMITS_SCHEMA,
         preserve: { ...PRESERVE_SCHEMA, description: "Fidelity mode. Default: important." },
     },
-    required: ["source", "operation"],
-};
-export const FREEFLOW_CAPTURE_PARAMETERS = {
-    type: "object",
-    additionalProperties: false,
-    properties: {
-        producer: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-                kind: { type: "string", enum: ["mcp"], description: "Producer kind. Currently exposes read-only MCP only." },
-                server: { ...STRING_SCHEMA, description: "MCP server name. Currently supports serena." },
-                tool: { ...STRING_SCHEMA, description: "MCP tool name. Use unprefixed Serena names such as get_symbols_overview." },
-            },
-            required: ["kind", "server", "tool"],
-            description: "Read-only service/protocol producer to capture.",
-        },
-        args: {
-            type: "object",
-            additionalProperties: true,
-            description: "Arguments passed to the read-only producer tool.",
-        },
-        preserve: { ...PRESERVE_SCHEMA, description: "Fidelity mode. Default: important." },
-    },
-    required: ["producer"],
+    required: ["operation"],
 };

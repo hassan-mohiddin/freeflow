@@ -8,7 +8,7 @@ export declare const EXECUTION_STATUSES: readonly ["success", "failed", "timed_o
 export type ExecutionStatus = (typeof EXECUTION_STATUSES)[number];
 export declare const ROUTING_STATUSES: readonly ["routed", "passed_through", "partial", "failed"];
 export type RoutingStatus = (typeof ROUTING_STATUSES)[number];
-export declare const ROUTE_KINDS: readonly ["retrieve", "run", "capture", "derive", "safety-net", "pass-through"];
+export declare const ROUTE_KINDS: readonly ["retrieve", "run", "capture", "derive", "observed", "safety-net", "pass-through"];
 export type RouteKind = (typeof ROUTE_KINDS)[number];
 export declare const PRODUCER_KINDS: readonly ["command", "native", "repo", "web", "fetch", "code_search", "mcp", "provider", "derive", "other"];
 export type ProducerKind = (typeof PRODUCER_KINDS)[number];
@@ -16,7 +16,7 @@ export declare const PERSISTENCE_STATUSES: readonly ["vaulted", "redacted", "met
 export type PersistenceStatus = (typeof PERSISTENCE_STATUSES)[number];
 export declare const RECOVERABILITY_MODES: readonly ["exact", "redacted", "metadata_only", "none"];
 export type RecoverabilityMode = (typeof RECOVERABILITY_MODES)[number];
-export declare const ROUTER_FAILURE_KINDS: readonly ["adapter_unavailable", "unsupported_producer", "mutating_producer_rejected", "producer_execution_failure", "partial_capture", "storage_failure", "redaction_failure", "derive_source_unavailable", "derive_validation_failure", "derive_execution_failure"];
+export declare const ROUTER_FAILURE_KINDS: readonly ["adapter_unavailable", "unsupported_producer", "mutating_producer_rejected", "producer_execution_failure", "partial_capture", "storage_failure", "redaction_failure", "observed_routing_failure", "script_derive_disabled", "derive_source_unavailable", "derive_validation_failure", "derive_execution_failure"];
 export type RouterFailureKind = (typeof ROUTER_FAILURE_KINDS)[number];
 export declare const FAILURE_EXECUTION_STATUSES: readonly ["unavailable", "unsupported", "rejected", "failed", "partial"];
 export type FailureExecutionStatus = (typeof FAILURE_EXECUTION_STATUSES)[number];
@@ -36,6 +36,12 @@ export declare const PROVIDER_MODES: readonly ["discovery", "read-only"];
 export type ProviderMode = (typeof PROVIDER_MODES)[number];
 export declare const PROVIDER_CATEGORIES: readonly ["symbols", "references", "diagnostics", "graph", "architecture", "search"];
 export type ProviderCategory = (typeof PROVIDER_CATEGORIES)[number];
+export declare const OBSERVED_ROUTING_FAILURE_MODES: readonly ["fail-open"];
+export type ObservedRoutingFailureMode = (typeof OBSERVED_ROUTING_FAILURE_MODES)[number];
+export declare const OBSERVED_ROUTING_PERSISTENCE_MODES: readonly ["exact", "metadata-only", "none"];
+export type ObservedRoutingPersistenceMode = (typeof OBSERVED_ROUTING_PERSISTENCE_MODES)[number];
+export declare const RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES: readonly ["redacted"];
+export type ReservedObservedRoutingPersistenceMode = (typeof RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES)[number];
 export interface RepoSourceRef {
     kind: "repo";
     path: string;
@@ -164,6 +170,36 @@ export interface CaptureRoutedResult extends RoutedResultBase {
     outputId: string;
     summary?: string;
 }
+export interface ObservedHostDescriptor {
+    name: string;
+    toolName: string;
+}
+export declare const OBSERVED_PRODUCER_RISK_CLASSES: readonly ["read", "write", "unknown"];
+export type ObservedProducerRiskClass = (typeof OBSERVED_PRODUCER_RISK_CLASSES)[number];
+export declare const OBSERVED_PRODUCER_RISK_SOURCES: readonly ["configured", "mcp_annotation", "manifest", "heuristic", "unknown"];
+export type ObservedProducerRiskSource = (typeof OBSERVED_PRODUCER_RISK_SOURCES)[number];
+export interface ObservedProducerRisk {
+    classification: ObservedProducerRiskClass;
+    source: ObservedProducerRiskSource;
+    reason: string;
+}
+export interface ObservedOutputNormalization {
+    shape: "text" | "json" | "content_blocks" | "stdio" | "structured";
+    mediaType?: string;
+    byteCount: number;
+    lineCount: number;
+}
+export interface ObservedRoutedResult extends RoutedResultBase {
+    outputId?: string;
+    host: ObservedHostDescriptor;
+    normalized: ObservedOutputNormalization;
+    risk?: ObservedProducerRisk;
+    summary?: string;
+    passthrough?: {
+        text: string;
+        reason: string;
+    };
+}
 export interface DeriveRoutedResult extends RoutedResultBase {
     outputId: string;
     source: SourceRef;
@@ -173,7 +209,7 @@ export interface DeriveRoutedResult extends RoutedResultBase {
 export interface FailureRoutedResult extends RoutedResultBase {
     outputId?: string;
 }
-export type RoutedResult = RetrievalRoutedResult | CommandRoutedResult | CaptureRoutedResult | DeriveRoutedResult | FailureRoutedResult;
+export type RoutedResult = RetrievalRoutedResult | CommandRoutedResult | CaptureRoutedResult | ObservedRoutedResult | DeriveRoutedResult | FailureRoutedResult;
 export interface LineByteCounts {
     lines: number;
     bytes: number;
@@ -235,7 +271,7 @@ export interface CommandOutputRecord extends VaultRecordBase {
 }
 export interface TextOutputRecord extends VaultRecordBase {
     kind: "text";
-    sourceKind: "native" | "mcp" | "fetch" | "derive" | "other";
+    sourceKind: "native" | "mcp" | "web" | "fetch" | "code_search" | "derive" | "other";
     paths: {
         meta: string;
         raw: string;
@@ -259,7 +295,24 @@ export interface RepoFileReferenceRecord extends VaultRecordBase {
     };
     hashSha256?: string;
 }
-export type VaultRecord = CommandOutputRecord | TextOutputRecord | RepoFileReferenceRecord;
+export interface MetadataOutputRecord extends VaultRecordBase {
+    kind: "metadata";
+    sourceKind: TextOutputRecord["sourceKind"];
+    paths: {
+        meta: string;
+    };
+    lineCounts: {
+        raw: number;
+    };
+    byteCounts: {
+        raw: number;
+    };
+    hashes: {
+        rawSha256?: string;
+    };
+    metadata?: Record<string, unknown>;
+}
+export type VaultRecord = CommandOutputRecord | TextOutputRecord | RepoFileReferenceRecord | MetadataOutputRecord;
 export interface SessionIndexEntry {
     outputId: string;
     recordId?: string;
@@ -332,8 +385,42 @@ export interface ProviderEnablement {
 export interface ProvidersConfig {
     enabled: ProviderEnablement[];
 }
+export interface ObservedRoutingProducerConfig {
+    enabled: boolean;
+    persistence: ObservedRoutingPersistenceMode;
+}
+export interface ObservedRoutingMcpConfig {
+    servers: Record<string, ObservedRoutingProducerConfig>;
+}
+export interface ObservedRoutingConfig {
+    enabled: boolean;
+    onRoutingFailure: ObservedRoutingFailureMode;
+    mcp: ObservedRoutingMcpConfig;
+    web: ObservedRoutingProducerConfig;
+    fetch: ObservedRoutingProducerConfig;
+    codeSearch: ObservedRoutingProducerConfig;
+}
+export type ScriptDeriveLanguage = "javascript" | "python" | "jq";
+export type ScriptDeriveNetworkPolicy = "off";
+export type ScriptDeriveSandboxMode = "auto";
+export type ScriptDeriveRawScriptPersistence = "disabled";
+export interface ScriptDeriveLimits {
+    timeoutMs: number;
+    maxInputBytes: number;
+    maxOutputBytes: number;
+}
+export interface ScriptDeriveConfig {
+    enabled: boolean;
+    sandbox: ScriptDeriveSandboxMode;
+    languages: ScriptDeriveLanguage[];
+    network: ScriptDeriveNetworkPolicy;
+    limits: ScriptDeriveLimits;
+    rawScriptPersistence: ScriptDeriveRawScriptPersistence;
+}
 export interface FreeflowConfig {
     outputRouter: RouterConfig;
     capture: CaptureConfig;
     providers: ProvidersConfig;
+    observedRouting: ObservedRoutingConfig;
+    scriptDerive: ScriptDeriveConfig;
 }

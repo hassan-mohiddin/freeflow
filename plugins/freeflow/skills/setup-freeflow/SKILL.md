@@ -9,7 +9,7 @@ Use `references/activation-contract.md` before rendering activation text, config
 
 Use `references/host-setup.md` when the request mentions Codex, Claude, both hosts, team setup, solo setup, strict defaults, hooks, CLI, or setup profiles.
 
-Use `references/output-router-setup.md` when setup reaches the optional evidence-routing decision point or asks for output-router/capture/provider repo config, generated-path hints, native safety-net routing, vault settings, or output thresholds.
+Use `references/output-router-setup.md` when setup reaches the optional evidence-routing decision point or asks for output-router/observed-routing/provider repo config, generated-path hints, native safety-net routing, vault settings, or output thresholds.
 
 ## Stop Before Editing
 
@@ -50,13 +50,13 @@ Create or update `.freeflow/config.json` using the config adapter in `references
 
 Minimal setup writes only `defaultMode`. Use `workflow` unless the user explicitly asks to persist a valid repo default: `conversation`, `workflow`, or `strict-workflow`.
 
-Ask one optional evidence-routing decision point: whether to persist Output Router/capture/provider support beyond the minimal default. If declined, keep the minimal setup path.
+Ask one optional evidence-routing decision point: whether to persist Output Router, observed routing, or provider support beyond the minimal default. If declined, keep the minimal setup path.
 
-If accepted, read `references/output-router-setup.md` and ask only path-changing follow-ups: router profile or intentional overrides, direct host-tool capture policy, providers to enable, and read-only provider categories. Write high-level decisions and explicit overrides only. Do not add empty `outputRouter`, `capture`, or `providers` objects, and do not dump effective defaults.
+If accepted, read `references/output-router-setup.md` and ask only path-changing follow-ups: router profile or intentional overrides, observed MCP/web/fetch/code-search producers to enable, persistence for each enabled producer/server, direct host-tool capture policy, providers to enable, and read-only provider categories. Write high-level decisions and explicit overrides only. Do not add empty `outputRouter`, `observedRouting`, `capture`, or `providers` objects, and do not dump effective defaults.
 
 If the user asks for router setup but gives no config knobs, say the router works with built-in defaults and ask which optional config they want persisted. Recommend no repo config unless they need provider enablement, repo-specific hints, or safety-net behavior.
 
-Never enable native safety-net routing or direct host-tool capture by default. `outputRouter.postToolRouting: "safety-net"` requires an explicit request; `strict` is reserved and needs a separate confirmation before writing. `capture.directHostTools` stays `off` unless a later explicit design supports a requested policy.
+Never enable observed routing, native safety-net routing, or direct host-tool capture by default. Observed routing requires explicit producer/server entries and a user-chosen persistence mode for each enabled entry. `outputRouter.postToolRouting: "safety-net"` requires an explicit request; `strict` is reserved and needs a separate confirmation before writing. `capture.directHostTools` stays `off` unless a later explicit design supports a requested policy.
 
 Do not infer `strict-workflow` from "team", "strict gates", "careful", or high-risk examples. Recommend or ask unless the user explicitly says to make a mode the repo default.
 
@@ -84,8 +84,9 @@ Plugin-bundled context hooks are installed with Freeflow, not created by repo se
 Before claiming setup is complete, check:
 - config JSON parses
 - minimal config contains only `defaultMode` with the requested explicit default, or `workflow` when no explicit default was requested
-- optional `outputRouter`, `capture`, and `providers` config appears only after the evidence-routing decision point or explicit request, and contains only requested valid keys
-- native safety-net routing and direct host-tool capture are off unless explicitly requested and supported
+- optional `outputRouter`, `observedRouting`, `capture`, and `providers` config appears only after the evidence-routing decision point or explicit request, and contains only requested valid keys
+- observed routing, native safety-net routing, and direct host-tool capture are off unless explicitly requested and supported
+- every enabled observed-routing producer/server has user-chosen persistence: `exact`, `metadata-only`, or `none`; setup does not offer or write `redacted`
 - Codex setup has exactly one `## Freeflow` block in `AGENTS.md`
 - Claude setup has exactly one `CLAUDE.md` import and one `.claude/rules/freeflow-core.md` core file
 - `.codex/rules` was not created or changed for Freeflow behavior

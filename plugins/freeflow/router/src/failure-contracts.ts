@@ -118,6 +118,24 @@ export function redactionFailure(options: StorageFailureOptions): FailureRoutedR
   });
 }
 
+export function scriptDeriveDisabledFailure(options: DeriveFailureOptions): FailureRoutedResult {
+  return createFailureResult({
+    ...options,
+    kind: "script_derive_disabled",
+    operation: "derive",
+    executionStatus: "unavailable",
+  });
+}
+
+export function deriveAdapterUnavailableFailure(options: DeriveFailureOptions): FailureRoutedResult {
+  return createFailureResult({
+    ...options,
+    kind: "adapter_unavailable",
+    operation: "derive",
+    executionStatus: "unavailable",
+  });
+}
+
 export function deriveSourceUnavailableFailure(options: DeriveFailureOptions): FailureRoutedResult {
   return createFailureResult({
     ...options,
@@ -253,7 +271,7 @@ function recoveryHintForPersistence(persistence: EvidencePersistence): RecoveryH
 }
 
 function defaultExecutionStatus(kind: RouterFailureKind): FailureExecutionStatus {
-  if (kind === "adapter_unavailable" || kind === "derive_source_unavailable") {
+  if (kind === "adapter_unavailable" || kind === "derive_source_unavailable" || kind === "script_derive_disabled") {
     return "unavailable";
   }
   if (kind === "unsupported_producer") {

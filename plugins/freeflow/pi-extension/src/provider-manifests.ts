@@ -1,5 +1,5 @@
 import { normalizeProvidersConfig } from "../../router/dist/index.js";
-import { isMcpServerConfigured } from "./mcp-capture.js";
+import { isMcpServerConfigured } from "./mcp-config.js";
 
 const MAX_CAPABILITIES = 6;
 const MAX_PAIRING_RULES = 4;
@@ -32,7 +32,7 @@ export const BUILT_IN_PROVIDER_MANIFESTS = [
       },
     ],
     pairingRules: [
-      "Use Serena through freeflow_capture for the configured read-only evidence categories.",
+      "Use direct Serena MCP calls; when observed routing is configured for the Serena server, Freeflow routes completed MCP output after host execution.",
       "Call Serena mutating refactor tools directly only after explicit user intent; then use Freeflow retrieve/run/review/verify for evidence and closeout.",
     ],
   },
@@ -55,7 +55,7 @@ export const BUILT_IN_PROVIDER_MANIFESTS = [
       },
     ],
     pairingRules: [
-      "Use codebase-memory only when a safe read-only adapter is configured; recover important evidence through Freeflow routing.",
+      "Use codebase-memory through direct host MCP calls only when the server is configured; recover important evidence through observed routing when enabled.",
     ],
   },
 ];
@@ -127,7 +127,7 @@ export async function providerRuntimeContext(cwd, freeflowConfig = {}) {
   }
 
   if (enabledProviders.has("codebase-memory")) {
-    unavailable.push({ manifest: builtIns.get("codebase-memory"), reason: "No Pi read-only capture adapter is registered yet." });
+    unavailable.push({ manifest: builtIns.get("codebase-memory"), reason: "No Pi observed-routing capability check is registered for this provider yet." });
   }
 
   for (const [index, rawManifest] of customManifests.entries()) {

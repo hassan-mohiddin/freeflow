@@ -13,7 +13,7 @@ export type ExecutionStatus = (typeof EXECUTION_STATUSES)[number];
 export const ROUTING_STATUSES = ["routed", "passed_through", "partial", "failed"] as const;
 export type RoutingStatus = (typeof ROUTING_STATUSES)[number];
 
-export const ROUTE_KINDS = ["retrieve", "run", "capture", "derive", "safety-net", "pass-through"] as const;
+export const ROUTE_KINDS = ["retrieve", "run", "capture", "derive", "observed", "safety-net", "pass-through"] as const;
 export type RouteKind = (typeof ROUTE_KINDS)[number];
 
 export const PRODUCER_KINDS = ["command", "native", "repo", "web", "fetch", "code_search", "mcp", "provider", "derive", "other"] as const;
@@ -33,6 +33,8 @@ export const ROUTER_FAILURE_KINDS = [
   "partial_capture",
   "storage_failure",
   "redaction_failure",
+  "observed_routing_failure",
+  "script_derive_disabled",
   "derive_source_unavailable",
   "derive_validation_failure",
   "derive_execution_failure",
@@ -65,6 +67,15 @@ export type ProviderMode = (typeof PROVIDER_MODES)[number];
 
 export const PROVIDER_CATEGORIES = ["symbols", "references", "diagnostics", "graph", "architecture", "search"] as const;
 export type ProviderCategory = (typeof PROVIDER_CATEGORIES)[number];
+
+export const OBSERVED_ROUTING_FAILURE_MODES = ["fail-open"] as const;
+export type ObservedRoutingFailureMode = (typeof OBSERVED_ROUTING_FAILURE_MODES)[number];
+
+export const OBSERVED_ROUTING_PERSISTENCE_MODES = ["exact", "metadata-only", "none"] as const;
+export type ObservedRoutingPersistenceMode = (typeof OBSERVED_ROUTING_PERSISTENCE_MODES)[number];
+
+export const RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES = ["redacted"] as const;
+export type ReservedObservedRoutingPersistenceMode = (typeof RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES)[number];
 
 export interface RepoSourceRef {
   kind: "repo";
@@ -216,6 +227,42 @@ export interface CaptureRoutedResult extends RoutedResultBase {
   summary?: string;
 }
 
+export interface ObservedHostDescriptor {
+  name: string;
+  toolName: string;
+}
+
+export const OBSERVED_PRODUCER_RISK_CLASSES = ["read", "write", "unknown"] as const;
+export type ObservedProducerRiskClass = (typeof OBSERVED_PRODUCER_RISK_CLASSES)[number];
+
+export const OBSERVED_PRODUCER_RISK_SOURCES = ["configured", "mcp_annotation", "manifest", "heuristic", "unknown"] as const;
+export type ObservedProducerRiskSource = (typeof OBSERVED_PRODUCER_RISK_SOURCES)[number];
+
+export interface ObservedProducerRisk {
+  classification: ObservedProducerRiskClass;
+  source: ObservedProducerRiskSource;
+  reason: string;
+}
+
+export interface ObservedOutputNormalization {
+  shape: "text" | "json" | "content_blocks" | "stdio" | "structured";
+  mediaType?: string;
+  byteCount: number;
+  lineCount: number;
+}
+
+export interface ObservedRoutedResult extends RoutedResultBase {
+  outputId?: string;
+  host: ObservedHostDescriptor;
+  normalized: ObservedOutputNormalization;
+  risk?: ObservedProducerRisk;
+  summary?: string;
+  passthrough?: {
+    text: string;
+    reason: string;
+  };
+}
+
 export interface DeriveRoutedResult extends RoutedResultBase {
   outputId: string;
   source: SourceRef;
@@ -227,7 +274,7 @@ export interface FailureRoutedResult extends RoutedResultBase {
   outputId?: string;
 }
 
-export type RoutedResult = RetrievalRoutedResult | CommandRoutedResult | CaptureRoutedResult | DeriveRoutedResult | FailureRoutedResult;
+export type RoutedResult = RetrievalRoutedResult | CommandRoutedResult | CaptureRoutedResult | ObservedRoutedResult | DeriveRoutedResult | FailureRoutedResult;
 
 export interface LineByteCounts {
   lines: number;
@@ -293,7 +340,7 @@ export interface CommandOutputRecord extends VaultRecordBase {
 
 export interface TextOutputRecord extends VaultRecordBase {
   kind: "text";
-  sourceKind: "native" | "mcp" | "fetch" | "derive" | "other";
+  sourceKind: "native" | "mcp" | "web" | "fetch" | "code_search" | "derive" | "other";
   paths: {
     meta: string;
     raw: string;
@@ -319,7 +366,25 @@ export interface RepoFileReferenceRecord extends VaultRecordBase {
   hashSha256?: string;
 }
 
-export type VaultRecord = CommandOutputRecord | TextOutputRecord | RepoFileReferenceRecord;
+export interface MetadataOutputRecord extends VaultRecordBase {
+  kind: "metadata";
+  sourceKind: TextOutputRecord["sourceKind"];
+  paths: {
+    meta: string;
+  };
+  lineCounts: {
+    raw: number;
+  };
+  byteCounts: {
+    raw: number;
+  };
+  hashes: {
+    rawSha256?: string;
+  };
+  metadata?: Record<string, unknown>;
+}
+
+export type VaultRecord = CommandOutputRecord | TextOutputRecord | RepoFileReferenceRecord | MetadataOutputRecord;
 
 export interface SessionIndexEntry {
   outputId: string;
@@ -407,8 +472,48 @@ export interface ProvidersConfig {
   enabled: ProviderEnablement[];
 }
 
+export interface ObservedRoutingProducerConfig {
+  enabled: boolean;
+  persistence: ObservedRoutingPersistenceMode;
+}
+
+export interface ObservedRoutingMcpConfig {
+  servers: Record<string, ObservedRoutingProducerConfig>;
+}
+
+export interface ObservedRoutingConfig {
+  enabled: boolean;
+  onRoutingFailure: ObservedRoutingFailureMode;
+  mcp: ObservedRoutingMcpConfig;
+  web: ObservedRoutingProducerConfig;
+  fetch: ObservedRoutingProducerConfig;
+  codeSearch: ObservedRoutingProducerConfig;
+}
+
+export type ScriptDeriveLanguage = "javascript" | "python" | "jq";
+export type ScriptDeriveNetworkPolicy = "off";
+export type ScriptDeriveSandboxMode = "auto";
+export type ScriptDeriveRawScriptPersistence = "disabled";
+
+export interface ScriptDeriveLimits {
+  timeoutMs: number;
+  maxInputBytes: number;
+  maxOutputBytes: number;
+}
+
+export interface ScriptDeriveConfig {
+  enabled: boolean;
+  sandbox: ScriptDeriveSandboxMode;
+  languages: ScriptDeriveLanguage[];
+  network: ScriptDeriveNetworkPolicy;
+  limits: ScriptDeriveLimits;
+  rawScriptPersistence: ScriptDeriveRawScriptPersistence;
+}
+
 export interface FreeflowConfig {
   outputRouter: RouterConfig;
   capture: CaptureConfig;
   providers: ProvidersConfig;
+  observedRouting: ObservedRoutingConfig;
+  scriptDerive: ScriptDeriveConfig;
 }

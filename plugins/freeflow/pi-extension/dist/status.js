@@ -1,12 +1,12 @@
 import { constants as fsConstants } from "node:fs";
 import { access, readFile, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { DEFAULT_CAPTURE_CONFIG, DEFAULT_OUTPUT_ROUTER_ENABLED, DEFAULT_OUTPUT_ROUTER_PROFILE, DEFAULT_POST_TOOL_ROUTING, DEFAULT_PROVIDERS_CONFIG, DEFAULT_ROUTER_THRESHOLDS, DEFAULT_VAULT_RETENTION, DEFAULT_VAULT_ROOT, createVault, normalizeFreeflowConfig, } from "../../router/dist/index.js";
-import { isMcpServerConfigured } from "./mcp-capture.js";
+import { DEFAULT_CAPTURE_CONFIG, DEFAULT_OBSERVED_ROUTING_CONFIG, DEFAULT_OUTPUT_ROUTER_ENABLED, DEFAULT_OUTPUT_ROUTER_PROFILE, DEFAULT_POST_TOOL_ROUTING, DEFAULT_PROVIDERS_CONFIG, DEFAULT_ROUTER_THRESHOLDS, DEFAULT_SCRIPT_DERIVE_CONFIG, OBSERVED_ROUTING_PERSISTENCE_MODES, RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES, DEFAULT_VAULT_RETENTION, DEFAULT_VAULT_ROOT, createLocalVaultIndex, createVault, normalizeFreeflowConfig, probeScriptSandboxAdapters, } from "../../router/dist/index.js";
+import { isMcpServerConfigured } from "./mcp-config.js";
 import { BUILT_IN_PROVIDER_MANIFESTS, validateProviderManifest } from "./provider-manifests.js";
 import { VALID_MODES, readModeState } from "./runtime-context.js";
 const STATUS_ACTIONS = new Set(["status", "doctor", "migration"]);
-const TOP_LEVEL_CONFIG_KEYS = new Set(["defaultMode", "outputRouter", "capture", "providers"]);
+const TOP_LEVEL_CONFIG_KEYS = new Set(["defaultMode", "outputRouter", "capture", "providers", "observedRouting", "scriptDerive"]);
 const OUTPUT_ROUTER_CONFIG_KEYS = new Set([
     "enabled",
     "profile",
@@ -20,6 +20,10 @@ const OUTPUT_ROUTER_CONFIG_KEYS = new Set([
 ]);
 const CAPTURE_CONFIG_KEYS = new Set(["freeflowMediated", "directHostTools"]);
 const PROVIDERS_CONFIG_KEYS = new Set(["enabled", "manifests", "customManifests"]);
+const OBSERVED_ROUTING_CONFIG_KEYS = new Set(["enabled", "onRoutingFailure", "mcp", "web", "fetch", "codeSearch"]);
+const OBSERVED_ROUTING_PRODUCER_KEYS = new Set(["enabled", "persistence"]);
+const OBSERVED_ROUTING_MCP_KEYS = new Set(["servers"]);
+const SCRIPT_DERIVE_CONFIG_KEYS = new Set(["enabled", "sandbox", "languages", "network", "limits", "rawScriptPersistence"]);
 export async function buildFreeflowStatusReport(params = {}, ctx) {
     const action = normalizeStatusAction(params.action);
     const configFile = await readConfigFile(ctx.cwd);
@@ -36,9 +40,11 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
     if (isRecord(configFile.parsed) && configFile.parsed.defaultMode !== undefined && !VALID_MODES.has(configFile.parsed.defaultMode)) {
         configWarnings.push(`Invalid defaultMode=${JSON.stringify(configFile.parsed.defaultMode)}; using workflow.`);
     }
-    const [vaultWritability, providers] = await Promise.all([
+    const [vaultWritability, vaultIndex, providers, scriptSandbox] = await Promise.all([
         inspectVaultWritability(vault.root),
+        inspectVaultIndex(vault),
         inspectProviders(ctx.cwd, configFile.parsed, normalized.config.providers),
+        probeScriptSandboxAdapters({ config: normalized.config.scriptDerive }),
     ]);
     const migration = migrationReport(configFile.parsed);
     return {
@@ -59,6 +65,8 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
             },
             capture: normalized.config.capture,
             providers: normalized.config.providers,
+            observedRouting: normalized.config.observedRouting,
+            scriptDerive: normalized.config.scriptDerive,
         },
         effectiveDefaults: {
             outputRouter: {
@@ -71,6 +79,8 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
             },
             capture: DEFAULT_CAPTURE_CONFIG,
             providers: DEFAULT_PROVIDERS_CONFIG,
+            observedRouting: DEFAULT_OBSERVED_ROUTING_CONFIG,
+            scriptDerive: DEFAULT_SCRIPT_DERIVE_CONFIG,
         },
         vault: {
             root: vault.root,
@@ -78,17 +88,20 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
             retention: normalized.config.outputRouter.vault.retention,
             writability: vaultWritability,
         },
+        vaultIndex,
         capture: {
             freeflowMediated: normalized.config.capture.freeflowMediated,
             directHostTools: normalized.config.capture.directHostTools,
             directHostToolCaptureStatus: normalized.config.capture.directHostTools === "off" ? "off" : "unsupported",
-            recoverabilityDefault: "Freeflow-mediated read-only captures persist exact raw text when producer policy allows it; direct host-tool capture is off.",
+            recoverabilityDefault: "Pi public freeflow_capture has been removed; observed routing handles configured MCP/web/fetch/code-search outputs after host execution. Direct host-tool capture is off."
         },
+        observedRouting: observedRoutingStatus(normalized.config.observedRouting),
+        scriptDerive: scriptDeriveStatus(normalized.config.scriptDerive, scriptSandbox),
         providers,
         recoverabilityDefaults: {
             freeflowRun: "exact stdout/stderr/combined recovery through outputId when persisted",
-            freeflowCapture: "exact raw recovery for supported read-only producers when persisted",
-            freeflowDerive: "exact derived-output recovery with source lineage when persisted",
+            observedRouting: "exact raw recovery for enabled observed producers when exact persistence is configured; metadata-only stores no raw stream",
+            freeflowDerive: "deterministic derive stores exact derived-output recovery with source lineage when persisted; script derive is disabled by default and unavailable without a sandbox adapter",
             directHostTools: "off by default; optional native read/bash safety-net only when outputRouter.postToolRouting is safety-net",
         },
         configWarnings,
@@ -137,6 +150,27 @@ async function inspectVaultWritability(root) {
             return { status: "not_writable", detail: `Vault root exists but is not writable (${code}).` };
         }
         return { status: "unknown", detail: `Could not determine vault writability (${code ?? "unknown"}).` };
+    }
+}
+async function inspectVaultIndex(vault) {
+    try {
+        return await createLocalVaultIndex(vault).status();
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+            engine: "local-json-sidecar",
+            root: `${vault.root}/index/v1`,
+            available: false,
+            degraded: true,
+            stale: true,
+            rebuildRecommended: true,
+            entryCount: 0,
+            textEntryCount: 0,
+            metadataOnlyEntryCount: 0,
+            outputCount: 0,
+            lastError: message,
+        };
     }
 }
 async function inspectMissingVaultRoot(root) {
@@ -206,7 +240,7 @@ async function providerAvailability(cwd, provider, customManifestValidation) {
             mode: provider.mode,
             categories: provider.categories ?? [],
             status: "unavailable",
-            reason: "No Pi read-only capture adapter is registered yet.",
+            reason: "No Pi observed-routing capability check is registered for this provider yet.",
         };
     }
     const customManifest = customManifestValidation.valid.find((manifest) => manifest.id === provider.id);
@@ -226,6 +260,60 @@ async function providerAvailability(cwd, provider, customManifestValidation) {
         categories: provider.categories ?? [],
         status: builtIn ? "configured" : "unknown_provider",
         reason: builtIn ? "Provider is configured; availability is not detectable in this Pi adapter." : "Provider id has no built-in manifest or valid custom manifest.",
+    };
+}
+function scriptDeriveStatus(config, sandboxReport) {
+    return {
+        enabled: config.enabled,
+        sandbox: config.sandbox,
+        adapterAvailable: sandboxReport.adapterAvailable,
+        adapterStatus: sandboxReport.adapterStatus,
+        adapterContractVersion: sandboxReport.contractVersion,
+        configuredLanguages: sandboxReport.configuredLanguages,
+        availableLanguages: sandboxReport.availableLanguages,
+        unavailableLanguages: sandboxReport.unavailableLanguages,
+        registeredAdapters: sandboxReport.registeredAdapters,
+        requiredProofs: sandboxReport.requiredProofs,
+        candidateMechanisms: sandboxReport.candidateMechanisms,
+        network: config.network,
+        limits: config.limits,
+        rawScriptPersistence: config.rawScriptPersistence,
+        executionStatus: config.enabled && sandboxReport.adapterAvailable ? "adapter_available_execution_deferred" : config.enabled ? "adapter_unavailable" : "disabled",
+        notes: [
+            "Script derive is disabled by default and setup must not enable it implicitly.",
+            "No unsandboxed fallback is allowed; script code is not executed without an approved sandbox adapter.",
+            "Raw script text is not persisted by default.",
+            ...sandboxReport.notes,
+        ],
+    };
+}
+function observedRoutingStatus(config) {
+    const servers = Object.entries((config.mcp?.servers ?? {})).map(([id, server]) => ({
+        id,
+        enabled: server.enabled,
+        persistence: server.persistence,
+    }));
+    return {
+        enabled: config.enabled,
+        onRoutingFailure: config.onRoutingFailure,
+        host: {
+            name: "pi",
+            outputReplacement: "available",
+            reason: "Pi tool_result hooks can modify tool results; observed routing remains controlled by explicit producer/server config.",
+        },
+        mcp: {
+            configuredServerCount: servers.length,
+            servers,
+        },
+        web: config.web,
+        fetch: config.fetch,
+        codeSearch: config.codeSearch,
+        persistenceModes: [...OBSERVED_ROUTING_PERSISTENCE_MODES],
+        unsupportedPersistenceModes: [...RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES],
+        notes: [
+            "Observed routing is off unless observedRouting.enabled and the individual producer/server are enabled.",
+            "redacted persistence is reserved for future work; unsupported redacted config falls back to metadata-only.",
+        ],
     };
 }
 function validateCustomManifests(rawConfig) {
@@ -290,6 +378,8 @@ function collectMigrationRecommendations(rawConfig) {
     collectOutputRouterRecommendations(rawConfig.outputRouter, recommendations);
     collectCaptureRecommendations(rawConfig.capture, recommendations);
     collectProviderRecommendations(rawConfig.providers, recommendations);
+    collectObservedRoutingRecommendations(rawConfig.observedRouting, recommendations);
+    collectScriptDeriveRecommendations(rawConfig.scriptDerive, recommendations);
     return recommendations;
 }
 function collectOutputRouterRecommendations(value, recommendations) {
@@ -353,6 +443,81 @@ function collectProviderRecommendations(value, recommendations) {
     }
     if (Object.keys(value).length === 0) {
         recommendations.push(recommendation("providers", "remove", "Empty providers object can be removed; built-in defaults apply."));
+    }
+}
+function collectScriptDeriveRecommendations(value, recommendations) {
+    if (value === undefined) {
+        return;
+    }
+    if (!isRecord(value)) {
+        recommendations.push(recommendation("scriptDerive", "fix", "Expected object; remove or rewrite invalid scriptDerive config."));
+        return;
+    }
+    for (const key of Object.keys(value)) {
+        if (!SCRIPT_DERIVE_CONFIG_KEYS.has(key)) {
+            recommendations.push(recommendation(`scriptDerive.${key}`, "review", "Unrecognized scriptDerive key; review before migrating."));
+        }
+    }
+    addDefaultRecommendation(recommendations, "scriptDerive.enabled", value.enabled, DEFAULT_SCRIPT_DERIVE_CONFIG.enabled);
+    addDefaultRecommendation(recommendations, "scriptDerive.sandbox", value.sandbox, DEFAULT_SCRIPT_DERIVE_CONFIG.sandbox);
+    addDefaultRecommendation(recommendations, "scriptDerive.network", value.network, DEFAULT_SCRIPT_DERIVE_CONFIG.network);
+    addDefaultRecommendation(recommendations, "scriptDerive.rawScriptPersistence", value.rawScriptPersistence, DEFAULT_SCRIPT_DERIVE_CONFIG.rawScriptPersistence);
+    if (Object.keys(value).length === 0) {
+        recommendations.push(recommendation("scriptDerive", "remove", "Empty scriptDerive object can be removed; script derive is disabled by default."));
+    }
+}
+function collectObservedRoutingRecommendations(value, recommendations) {
+    if (value === undefined) {
+        return;
+    }
+    if (!isRecord(value)) {
+        recommendations.push(recommendation("observedRouting", "fix", "Expected object; remove or rewrite invalid observedRouting config."));
+        return;
+    }
+    for (const key of Object.keys(value)) {
+        if (!OBSERVED_ROUTING_CONFIG_KEYS.has(key)) {
+            recommendations.push(recommendation(`observedRouting.${key}`, "review", "Unrecognized observedRouting key; review before migrating."));
+        }
+    }
+    addDefaultRecommendation(recommendations, "observedRouting.enabled", value.enabled, DEFAULT_OBSERVED_ROUTING_CONFIG.enabled);
+    addDefaultRecommendation(recommendations, "observedRouting.onRoutingFailure", value.onRoutingFailure, DEFAULT_OBSERVED_ROUTING_CONFIG.onRoutingFailure);
+    collectObservedMcpRecommendations(value.mcp, recommendations);
+    collectObservedProducerRecommendations(value.web, "observedRouting.web", recommendations);
+    collectObservedProducerRecommendations(value.fetch, "observedRouting.fetch", recommendations);
+    collectObservedProducerRecommendations(value.codeSearch, "observedRouting.codeSearch", recommendations);
+    if (Object.keys(value).length === 0) {
+        recommendations.push(recommendation("observedRouting", "remove", "Empty observedRouting object can be removed; observed routing is off by default."));
+    }
+}
+function collectObservedMcpRecommendations(value, recommendations) {
+    if (value === undefined) {
+        return;
+    }
+    if (!isRecord(value)) {
+        recommendations.push(recommendation("observedRouting.mcp", "fix", "Expected object with explicit servers."));
+        return;
+    }
+    for (const key of Object.keys(value)) {
+        if (!OBSERVED_ROUTING_MCP_KEYS.has(key)) {
+            recommendations.push(recommendation(`observedRouting.mcp.${key}`, "review", "Unrecognized observedRouting.mcp key; review before migrating."));
+        }
+    }
+    if (value.servers !== undefined && !isRecord(value.servers)) {
+        recommendations.push(recommendation("observedRouting.mcp.servers", "fix", "Expected object keyed by MCP server id."));
+    }
+}
+function collectObservedProducerRecommendations(value, path, recommendations) {
+    if (value === undefined) {
+        return;
+    }
+    if (!isRecord(value)) {
+        recommendations.push(recommendation(path, "fix", "Expected object with enabled and persistence."));
+        return;
+    }
+    for (const key of Object.keys(value)) {
+        if (!OBSERVED_ROUTING_PRODUCER_KEYS.has(key)) {
+            recommendations.push(recommendation(`${path}.${key}`, "review", "Unrecognized observed routing producer key; review before migrating."));
+        }
     }
 }
 function addDefaultRecommendation(recommendations, path, value, defaultValue) {

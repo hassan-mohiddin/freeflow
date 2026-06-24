@@ -18,18 +18,6 @@ export function commandLabel(command) {
   return truncateText(command ?? "...", 120);
 }
 
-export function captureProducerLabel(producer) {
-  if (!producer || typeof producer !== "object") {
-    return "producer";
-  }
-  if (producer.kind === "mcp") {
-    const server = producer.server ? `${producer.server}` : "mcp";
-    const tool = producer.tool ? `/${producer.tool}` : "";
-    return `${server}${tool}`;
-  }
-  return [producer.kind, producer.adapter, producer.name, producer.server, producer.tool].filter(Boolean).join(":") || "producer";
-}
-
 function retrieveSourceLabel(source) {
   if (!source || source.kind === "repo") {
     return `repo ${shortenMiddle(source?.path ?? ".", 80)}`;
@@ -98,13 +86,6 @@ export function renderFreeflowRunCall(args, theme) {
   return textComponent(`${title} ${command}${suffix}`);
 }
 
-export function renderFreeflowCaptureCall(args, theme) {
-  const title = themeFg(theme, "toolTitle", themeBold(theme, "freeflow_capture"));
-  const producer = themeFg(theme, "accent", captureProducerLabel(args?.producer));
-  const preserve = args?.preserve ? ` ${themeFg(theme, "dim", `(preserve=${args.preserve})`)}` : "";
-  return textComponent(`${title} ${producer}${preserve}`);
-}
-
 function deriveOperationLabel(operation) {
   if (!operation || typeof operation !== "object") {
     return "operation";
@@ -137,11 +118,12 @@ export function renderFreeflowStatusResult(result, { expanded }: any = {}, theme
   const providerAvailability = Array.isArray(report.providers?.availability) ? report.providers.availability : [];
   const router = report.effectiveConfig?.outputRouter ?? {};
   const capture = report.effectiveConfig?.capture ?? {};
+  const observedRouting = report.observedRouting ?? report.effectiveConfig?.observedRouting ?? {};
   const icon = statusIcon(report.toolStatus);
   const lines = [
     `${themeFg(theme, "success", icon)} ${themeFg(theme, "toolTitle", "freeflow_status")} ${themeFg(theme, "muted", report.action ?? "status")} • router ${formatStatus(theme, router.enabled === false ? "off" : "ok")} ${themeFg(theme, "dim", router.profile ?? "standard")}`,
     `${themeFg(theme, "muted", "vault:")} ${themeFg(theme, "accent", shortenMiddle(report.vault?.root ?? "unknown", 80))} ${themeFg(theme, "dim", report.vault?.writability?.status ?? "unknown")}`,
-    `${themeFg(theme, "muted", "capture:")} mediated=${capture.freeflowMediated ?? "raw"} direct-host=${capture.directHostTools ?? "off"} • providers=${providerAvailability.length} • warnings=${warnings.length} • migrations=${recommendations.length}`,
+    `${themeFg(theme, "muted", "capture:")} mediated=${capture.freeflowMediated ?? "raw"} direct-host=${capture.directHostTools ?? "off"} • observed=${observedRouting.enabled ? "on" : "off"} • providers=${providerAvailability.length} • warnings=${warnings.length} • migrations=${recommendations.length}`,
   ];
 
   if (!expanded) {
@@ -166,6 +148,36 @@ export function renderFreeflowStatusResult(result, { expanded }: any = {}, theme
   lines.push(`  ${themeFg(theme, "muted", "directHostTools:")} ${capture.directHostTools ?? "off"}`);
   if (report.capture?.recoverabilityDefault) {
     lines.push(`  ${truncateText(report.capture.recoverabilityDefault, 180)}`);
+  }
+
+  const vaultIndex = report.vaultIndex;
+  if (vaultIndex) {
+    lines.push("", themeFg(theme, "toolTitle", "Vault index"));
+    lines.push(`  ${themeFg(theme, "muted", "engine:")} ${vaultIndex.engine ?? "local-json-sidecar"}`);
+    lines.push(`  ${themeFg(theme, "muted", "available:")} ${String(Boolean(vaultIndex.available))} degraded=${String(Boolean(vaultIndex.degraded))} stale=${String(Boolean(vaultIndex.stale))} rebuildRecommended=${String(Boolean(vaultIndex.rebuildRecommended))}`);
+    lines.push(`  ${themeFg(theme, "muted", "entries:")} ${vaultIndex.entryCount ?? 0} text=${vaultIndex.textEntryCount ?? 0} metadata=${vaultIndex.metadataOnlyEntryCount ?? 0}`);
+    if (vaultIndex.lastError) {
+      lines.push(`  ${themeFg(theme, "warning", `lastError: ${truncateText(vaultIndex.lastError, 160)}`)}`);
+    }
+  }
+
+  const scriptDerive = report.scriptDerive;
+  if (scriptDerive) {
+    lines.push("", themeFg(theme, "toolTitle", "Script derive"));
+    lines.push(`  ${themeFg(theme, "muted", "enabled:")} ${String(Boolean(scriptDerive.enabled))}`);
+    lines.push(`  ${themeFg(theme, "muted", "adapter:")} ${scriptDerive.adapterStatus ?? "unavailable"}`);
+    lines.push(`  ${themeFg(theme, "muted", "languages:")} ${(scriptDerive.configuredLanguages ?? []).join(", ") || "none"}`);
+    lines.push(`  ${themeFg(theme, "muted", "network:")} ${scriptDerive.network ?? "off"}`);
+    lines.push(`  ${themeFg(theme, "muted", "rawScriptPersistence:")} ${scriptDerive.rawScriptPersistence ?? "disabled"}`);
+  }
+
+  lines.push("", themeFg(theme, "toolTitle", "Observed routing"));
+  lines.push(`  ${themeFg(theme, "muted", "enabled:")} ${String(Boolean(observedRouting.enabled))}`);
+  lines.push(`  ${themeFg(theme, "muted", "onRoutingFailure:")} ${observedRouting.onRoutingFailure ?? "fail-open"}`);
+  lines.push(`  ${themeFg(theme, "muted", "host:")} ${observedRouting.host?.name ?? "pi"} outputReplacement=${observedRouting.host?.outputReplacement ?? "available"}`);
+  lines.push(`  ${themeFg(theme, "muted", "mcp servers:")} ${observedRouting.mcp?.configuredServerCount ?? 0}`);
+  if (observedRouting.web || observedRouting.fetch || observedRouting.codeSearch) {
+    lines.push(`  ${themeFg(theme, "muted", "web/fetch/codeSearch:")} web=${observedRouting.web?.enabled ? "on" : "off"} fetch=${observedRouting.fetch?.enabled ? "on" : "off"} codeSearch=${observedRouting.codeSearch?.enabled ? "on" : "off"}`);
   }
 
   lines.push("", themeFg(theme, "toolTitle", "Providers"));
@@ -438,85 +450,6 @@ export function renderFreeflowDeriveResult(result, { expanded }: any = {}, theme
     if (routed.lineage.operationHash) {
       lines.push(`  ${themeFg(theme, "muted", "operationHash:")} ${shortenMiddle(routed.lineage.operationHash, 80)}`);
     }
-  }
-
-  lines.push("", themeFg(theme, "toolTitle", "Evidence"));
-  if (evidence.length === 0) {
-    lines.push(`  ${themeFg(theme, "dim", "No evidence packets returned.")}`);
-  } else {
-    evidence.forEach((packet, index) => {
-      lines.push(`  ${themeFg(theme, "accent", `#${index + 1} ${evidenceLabel(packet)}`)} ${themeFg(theme, "dim", `window=${packet.window}`)}`);
-      if (packet.why) {
-        lines.push(`    ${themeFg(theme, "muted", "why:")} ${truncateText(packet.why, 160)}`);
-      }
-      lines.push(...excerptLines(theme, packet.excerpt, "    ", 8));
-    });
-  }
-
-  if (routed.recovery?.how || outputId) {
-    lines.push("", themeFg(theme, "toolTitle", "Recovery"));
-    if (outputId) {
-      lines.push(`  ${themeFg(theme, "muted", "outputId:")} ${themeFg(theme, "accent", outputId)}`);
-    }
-    if (routed.recovery?.how) {
-      lines.push(`  ${truncateText(routed.recovery.how, 180)}`);
-    }
-  }
-
-  return textComponent(lines.join("\n"));
-}
-
-export function renderFreeflowCaptureResult(result, { expanded }: any = {}, theme) {
-  const routed = routerResultFromToolResult(result);
-  if (!routed) {
-    return textComponent(fallbackResultText(result));
-  }
-
-  const outputId = routed.outputId || routed.recovery?.outputId;
-  const failed = routed.failure || routed.toolStatus === "error" || routed.routing?.status === "failed";
-  const icon = failed ? "✗" : statusIcon(routed.toolStatus);
-  const evidence = Array.isArray(routed.evidence) ? routed.evidence : [];
-  const lines = [
-    `${themeFg(theme, failed ? "error" : "success", icon)} ${themeFg(theme, "toolTitle", "freeflow_capture")} ${themeFg(theme, "accent", captureProducerLabel(routed.producer))} • ${routeSummaryLine(theme, routed)}`,
-  ];
-
-  const statusParts = [];
-  if (outputId) {
-    statusParts.push(`outputId ${outputId}`);
-  }
-  if (routed.recordId) {
-    statusParts.push(`recordId ${routed.recordId}`);
-  }
-  if (routed.persistence?.status) {
-    statusParts.push(`persistence ${routed.persistence.status}/${routed.persistence.recoverability}`);
-  }
-  if (statusParts.length > 0) {
-    lines.push(themeFg(theme, "accent", statusParts.join(" • ")));
-  }
-
-  if (routed.failure?.message) {
-    lines.push(themeFg(theme, "warning", `${routed.failure.kind}: ${truncateText(routed.failure.message, 140)}`));
-  } else if (routed.summary) {
-    lines.push(themeFg(theme, "muted", truncateText(routed.summary, 140)));
-  }
-  lines.push(themeFg(theme, "dim", `${evidence.length} evidence packet(s)${outputId ? " • raw capture recoverable from vault" : ""}`));
-
-  if (!expanded) {
-    lines.push(themeFg(theme, "dim", "ctrl+o to expand producer, evidence, and recovery details"));
-    return textComponent(lines.join("\n"));
-  }
-
-  lines.push("", themeFg(theme, "toolTitle", "Status"));
-  lines.push(`  ${themeFg(theme, "muted", "toolStatus:")} ${formatStatus(theme, routed.toolStatus)}`);
-  if (routed.producerExecution?.status) {
-    lines.push(`  ${themeFg(theme, "muted", "producerExecution.status:")} ${formatStatus(theme, routed.producerExecution.status)}`);
-  }
-  lines.push(`  ${themeFg(theme, "muted", "routing.status:")} ${formatStatus(theme, routed.routing?.status)}`);
-  if (routed.persistence?.status) {
-    lines.push(`  ${themeFg(theme, "muted", "persistence:")} ${routed.persistence.status} / ${routed.persistence.recoverability}`);
-  }
-  if (routed.routing?.reason) {
-    lines.push(`  ${themeFg(theme, "muted", "reason:")} ${truncateText(routed.routing.reason, 180)}`);
   }
 
   lines.push("", themeFg(theme, "toolTitle", "Evidence"));

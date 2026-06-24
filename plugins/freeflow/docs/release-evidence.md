@@ -41,11 +41,15 @@ Verified in the development repo:
 
 - Retrieval benchmark: improved router passed 7/7 gated fixtures and fixed the generated-artifact Sandbox Permissions false-positive shape.
 - Command-output benchmark: `freeflow_run` passed 8/8 fixtures, preserved exact facts, and verified raw vault recovery.
-- Capture/derive/provider eval: targeted Slice 9 eval passed 14/14 objective gates for read-only provider capture, web-shaped capture recovery, long-log derive, and provider-summary category scoping.
-- Optional local index benchmark: scanner remains default, index is not adopted by default, and the no-dependency index remains experimental.
+- Capture/derive/provider eval: targeted historical eval passed 14/14 objective gates for read-only provider capture, web-shaped capture recovery, long-log derive, and provider-summary category scoping.
+- Pi observed-routing eval: targeted eval passed 28/28 gates with 82.2% overall byte reduction across MCP/web/fetch/code-search fixtures, exact recovery where configured, metadata-only no-raw recovery, and Pi capability status.
+- Vault-index storage/write/query path: selected deterministic local JSON sidecar for vault evidence indexing without adding native dependencies, indexes persisted appends immediately, supports vault-wide `freeflow_retrieve` query/locate with recovery pointers, preserves metadata-only/no-persist rules, and keeps index failures non-blocking; SQLite/FTS remains deferred pending owner approval.
+- Script-derive schema/status gate: `freeflow_derive operation.kind="script"` is shaped under the existing public tool, disabled by default, reports status/config/limits/raw-script persistence, resolves vault sources only when enabled, and returns structured disabled/unavailable without executing script code.
+- Script-sandbox proof gate: router exposes a sandbox adapter/probe interface, required adversarial proofs, rejected unsafe mechanisms, and status-visible candidate-unproven mechanisms; no adapter is registered, no unsandboxed fallback exists, and script execution remains unavailable.
+- Optional repo-source local index benchmark: scanner remains default, index is not adopted by default, and the no-dependency repo-source index remains experimental.
 - Codex Structured Q&A macro benchmark: improved router passed the first Sandbox Permissions Q&A fixture while the native broad-search proxy selected `graphify-out/graph.html`.
 - Large Codex scanner benchmark: scanner remains the retrieval backend; latest recorded report-refresh evidence kept scanner at 6/8 strict fixtures with bounded context.
-- Setup/config eval: `setup-freeflow` supports optional evidence-routing repo config (`outputRouter`, `capture`, `providers`) only after an explicit setup branch/request; minimal setup still writes only `defaultMode`.
+- Setup/config eval: `setup-freeflow` supports optional evidence-routing repo config (`outputRouter`, `observedRouting`, `providers`) only after an explicit setup branch/request; minimal setup still writes only `defaultMode`.
 
 Adoption decisions:
 
