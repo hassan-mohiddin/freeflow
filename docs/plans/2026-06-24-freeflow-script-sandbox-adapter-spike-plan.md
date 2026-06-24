@@ -2,7 +2,7 @@
 > **Date:** 2026-06-24
 > **Owner:** Hassan Mohiddin
 > **Type:** Plan
-> **Status:** In progress — Slice 0 package inventory and Slice 1 proof fixture harness implemented; script execution remains blocked
+> **Status:** In progress — Slices 0-2 proof evidence captured for JavaScript; script execution remains blocked
 > **Source:** `docs/designs/freeflow-script-derive-sandbox-design.md`, `docs/plans/2026-06-24-freeflow-observed-output-routing-vault-index-script-derive-implementation-plan.md`, current `plugins/freeflow/router/src/script-sandbox.ts`, and owner direction to eventually cover JavaScript, Python, and jq.
 
 # Freeflow Script Sandbox Adapter Spike Plan
@@ -222,6 +222,13 @@ Stop if:
 
 - QuickJS/WASM needs host APIs that violate the contract,
 - timeout/output caps cannot be enforced deterministically.
+
+Slice 2 progress:
+
+- Added `plugins/freeflow/evals/scripts/run-quickjs-wasi-proof-spike.js`, a proof-only runner that uses an explicit `quickjs-wasi` package root and does not add repo dependencies.
+- Ran the proof runner against a temporary `quickjs-wasi@3.0.1` install. Required JavaScript proof fixtures passed 9/9.
+- Report written to `plugins/freeflow/evals/reports/runtime/quickjs-wasi-proof-spike-1-report.md`.
+- This is feasibility evidence only: no optional adapter package has been added to `package.json`, no adapter has been registered by default, and `freeflow_derive` script execution remains blocked.
 
 ### Slice 3: Python WASM Adapter Probe Spike
 

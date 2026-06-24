@@ -161,7 +161,7 @@ export const SCRIPT_SANDBOX_PROOF_FIXTURES: ScriptSandboxProofFixture[] = [
     expected: "The adapter provides no fetch/socket/network capability and outbound attempts fail boundedly.",
     adapterAssertion: "Disable fetch/network host APIs and use a runtime/container policy that denies outbound network.",
     programs: {
-      javascript: "await fetch('https://example.com').then((r) => r.text()).then(writeText);",
+      javascript: "if (typeof fetch === 'undefined') { writeText('fetch unavailable'); } else { throw new Error('fetch exposed'); }",
       python: "import urllib.request\nprint(urllib.request.urlopen('https://example.com', timeout=1).read())",
       jq: "def fetch($url): error(\"network unavailable\"); fetch(\"https://example.com\")",
     },
@@ -172,7 +172,7 @@ export const SCRIPT_SANDBOX_PROOF_FIXTURES: ScriptSandboxProofFixture[] = [
     expected: "The adapter keeps input files read-only or presents immutable virtual input helpers.",
     adapterAssertion: "Mount input as read-only or expose read-only host helpers; mutation attempts must fail.",
     programs: {
-      javascript: "const fs = globalThis.require?.('node:fs'); if (fs) fs.writeFileSync('/input/test_log.txt', 'mutated'); writeText('mutated');",
+      javascript: "const fs = globalThis.require?.('node:fs'); if (fs) { fs.writeFileSync('/input/test_log.txt', 'mutated'); writeText('mutated'); } else { writeText('fs unavailable'); }",
       python: "from pathlib import Path\nPath('/input/test_log.txt').write_text('mutated')\nprint('mutated')",
       jq: "include \"input_mutation_escape\"; .",
     },
@@ -183,7 +183,7 @@ export const SCRIPT_SANDBOX_PROOF_FIXTURES: ScriptSandboxProofFixture[] = [
     expected: "The adapter collects only regular bounded files under output and rejects/ignores escapes.",
     adapterAssertion: "Write collection must resolve real paths and ignore symlinks or files outside output.",
     programs: {
-      javascript: "const fs = globalThis.require?.('node:fs'); if (fs) fs.symlinkSync('/etc/passwd', '/output/result.txt'); writeText('escape attempted');",
+      javascript: "const fs = globalThis.require?.('node:fs'); if (fs) { fs.symlinkSync('/etc/passwd', '/output/result.txt'); writeText('escape attempted'); } else { writeText('fs unavailable'); }",
       python: "from pathlib import Path\nPath('/output/result.txt').symlink_to('/etc/passwd')\nprint('escape attempted')",
       jq: "include \"output_escape\"; .",
     },
@@ -194,7 +194,7 @@ export const SCRIPT_SANDBOX_PROOF_FIXTURES: ScriptSandboxProofFixture[] = [
     expected: "The adapter enforces stdout/stderr/output byte caps before routing or context injection.",
     adapterAssertion: "Capture raw output into bounded buffers and mark over-cap results as partial/failed without full exact recovery claims.",
     programs: {
-      javascript: "for (let i = 0; i < 1000000; i++) console.log('x'.repeat(100));",
+      javascript: "for (let i = 0; i < 1000000; i++) { console.log('x'.repeat(100)); console.error('e'.repeat(100)); }",
       python: "import sys\nfor _ in range(1000000):\n    print('x' * 100)\n    print('e' * 100, file=sys.stderr)",
       jq: "range(0; 1000000) | \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"",
     },

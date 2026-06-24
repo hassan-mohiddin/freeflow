@@ -1,7 +1,7 @@
 # Freeflow Script Sandbox Adapter Spike Report
 
 > **Date:** 2026-06-24
-> **Status:** Preliminary Slice 0 evidence; Slice 1 no-dependency proof fixtures added
+> **Status:** Preliminary Slice 0 evidence; Slice 1 proof fixtures added; JavaScript QuickJS/WASI proof spike passed
 > **Related plan:** `docs/plans/2026-06-24-freeflow-script-sandbox-adapter-spike-plan.md`
 > **Source truth:** `docs/designs/freeflow-script-derive-sandbox-design.md`, current `plugins/freeflow/router/src/script-sandbox.ts`
 
@@ -153,7 +153,10 @@ Implications:
 - Added a proof fixture registry for the current required proof set across JavaScript, Python, and jq.
 - The fixtures are adversarial programs plus adapter-level assertions; they do not execute untrusted code by themselves.
 - Added tests that every required proof has fixture coverage for every target language.
-- No dependencies or runtime adapters were added.
+- Added a proof-only QuickJS/WASI runner: `plugins/freeflow/evals/scripts/run-quickjs-wasi-proof-spike.js`.
+- Ran the QuickJS/WASI runner against the temporary installed `quickjs-wasi@3.0.1` package root; required JavaScript proof fixtures passed 9/9.
+- Report: `plugins/freeflow/evals/reports/runtime/quickjs-wasi-proof-spike-1-report.md`.
+- No repo dependencies or runtime adapters were added, and no Freeflow script execution path was enabled.
 
 ## Next Evidence To Gather
 
