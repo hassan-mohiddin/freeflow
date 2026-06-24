@@ -13,13 +13,15 @@ import type {
 } from "./script-sandbox.js";
 import type { ScriptDeriveConfig } from "./types.js";
 
-const DEFAULT_PROBE_TIMEOUT_MS = 500;
+const DEFAULT_PROBE_TIMEOUT_MS = 250;
 const DEFAULT_PROBE_OUTPUT_BYTES = 4096;
 const DEFAULT_WORKER_OLD_GENERATION_MB = 64;
 const DEFAULT_WORKER_YOUNG_GENERATION_MB = 16;
 const SECRET_SENTINEL = "FREEFLOW_SANDBOX_SECRET_SENTINEL_VALUE";
 
 export const JQ_WASM_ROOT_ENV = "FREEFLOW_JQ_WASM_ROOT";
+
+const jqProbeCache = new Map<string, Promise<ScriptSandboxProbeResult>>();
 
 export interface JqWasmSandboxAdapterOptions {
   packageRoot: string;
@@ -214,6 +216,25 @@ async function loadJqRuntime(packageRoot: string): Promise<JqWasmRuntime> {
 }
 
 async function probeJqRuntime(runtime: JqWasmRuntime, config: ScriptDeriveConfig): Promise<ScriptSandboxProbeResult> {
+  const timeoutMs = Math.min(config.limits.timeoutMs, DEFAULT_PROBE_TIMEOUT_MS);
+  const outputBytes = Math.min(config.limits.maxOutputBytes, DEFAULT_PROBE_OUTPUT_BYTES);
+  const cacheKey = [runtime.packageVersion, runtime.entrySha256, timeoutMs, outputBytes, config.network].join(":");
+  const cached = jqProbeCache.get(cacheKey);
+  if (cached) {
+    return cloneProbeResult(await cached);
+  }
+
+  const probePromise = runJqProbe(runtime, timeoutMs, outputBytes);
+  jqProbeCache.set(cacheKey, probePromise);
+  try {
+    return cloneProbeResult(await probePromise);
+  } catch (error) {
+    jqProbeCache.delete(cacheKey);
+    throw error;
+  }
+}
+
+async function runJqProbe(runtime: JqWasmRuntime, timeoutMs: number, outputBytes: number): Promise<ScriptSandboxProbeResult> {
   const previousSecret = process.env.FREEFLOW_SANDBOX_SECRET_SENTINEL;
   process.env.FREEFLOW_SANDBOX_SECRET_SENTINEL = SECRET_SENTINEL;
   try {
@@ -224,10 +245,10 @@ async function probeJqRuntime(runtime: JqWasmRuntime, config: ScriptDeriveConfig
       const run = await runJq(runtime, {
         query: fixture.program,
         json: { test_log: "INFO setup\nERROR target\n" },
-        timeoutMs: Math.min(config.limits.timeoutMs, DEFAULT_PROBE_TIMEOUT_MS),
-        outputBytes: Math.min(config.limits.maxOutputBytes, DEFAULT_PROBE_OUTPUT_BYTES),
+        timeoutMs,
+        outputBytes,
       });
-      const assessment = assessJqProof(fixture.proof, run, Math.min(config.limits.timeoutMs, DEFAULT_PROBE_TIMEOUT_MS), Math.min(config.limits.maxOutputBytes, DEFAULT_PROBE_OUTPUT_BYTES));
+      const assessment = assessJqProof(fixture.proof, run, timeoutMs, outputBytes);
       if (assessment) {
         passedProofs.push(fixture.proof);
       } else {
@@ -249,6 +270,18 @@ async function probeJqRuntime(runtime: JqWasmRuntime, config: ScriptDeriveConfig
       process.env.FREEFLOW_SANDBOX_SECRET_SENTINEL = previousSecret;
     }
   }
+}
+
+function cloneProbeResult(result: ScriptSandboxProbeResult): ScriptSandboxProbeResult {
+  const clone: ScriptSandboxProbeResult = {
+    ...result,
+    passedProofs: [...result.passedProofs],
+    failedProofs: [...result.failedProofs],
+  };
+  if (result.runtime) {
+    clone.runtime = { ...result.runtime };
+  }
+  return clone;
 }
 
 async function runJq(runtime: JqWasmRuntime, options: JqRunOptions): Promise<JqRunResult> {

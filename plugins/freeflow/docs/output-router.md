@@ -176,7 +176,7 @@ Current product execution support is partial and Pi-first:
 - jq can run through a proof-backed `jq-wasm` adapter only when script derive is explicitly enabled and Pi can discover a local `jq-wasm` package root.
 - Python remains unavailable.
 
-`freeflow_status` reports the script-sandbox contract version, configured languages, required adversarial proofs, rejected unsafe mechanisms such as Node `vm`/plain subprocesses, candidate-unproven OS sandbox adapters, and whether QuickJS/jq-wasm adapters are available. A language remains unavailable until a registered adapter passes every required proof.
+`freeflow_status` reports the script-sandbox contract version, configured languages, required adversarial proofs, rejected unsafe mechanisms such as Node `vm`/plain subprocesses, candidate-unproven OS sandbox adapters, and whether QuickJS/jq-wasm adapters are available. A language remains unavailable until a registered adapter passes every required proof. Proof results are cached in-process by adapter content hash and probe limits so repeated status/derive checks do not rerun the same adversarial probes.
 
 Current deterministic operations include:
 

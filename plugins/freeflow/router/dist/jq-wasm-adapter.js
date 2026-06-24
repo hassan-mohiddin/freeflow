@@ -3,12 +3,13 @@ import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { Worker } from "node:worker_threads";
 import { SCRIPT_SANDBOX_REQUIRED_PROOFS, scriptSandboxProofFixturesForLanguage } from "./script-sandbox.js";
-const DEFAULT_PROBE_TIMEOUT_MS = 500;
+const DEFAULT_PROBE_TIMEOUT_MS = 250;
 const DEFAULT_PROBE_OUTPUT_BYTES = 4096;
 const DEFAULT_WORKER_OLD_GENERATION_MB = 64;
 const DEFAULT_WORKER_YOUNG_GENERATION_MB = 16;
 const SECRET_SENTINEL = "FREEFLOW_SANDBOX_SECRET_SENTINEL_VALUE";
 export const JQ_WASM_ROOT_ENV = "FREEFLOW_JQ_WASM_ROOT";
+const jqProbeCache = new Map();
 export async function discoverJqWasmSandboxAdaptersFromEnv(env = process.env) {
     const packageRoot = env[JQ_WASM_ROOT_ENV];
     if (!packageRoot) {
@@ -163,6 +164,24 @@ async function loadJqRuntime(packageRoot) {
     };
 }
 async function probeJqRuntime(runtime, config) {
+    const timeoutMs = Math.min(config.limits.timeoutMs, DEFAULT_PROBE_TIMEOUT_MS);
+    const outputBytes = Math.min(config.limits.maxOutputBytes, DEFAULT_PROBE_OUTPUT_BYTES);
+    const cacheKey = [runtime.packageVersion, runtime.entrySha256, timeoutMs, outputBytes, config.network].join(":");
+    const cached = jqProbeCache.get(cacheKey);
+    if (cached) {
+        return cloneProbeResult(await cached);
+    }
+    const probePromise = runJqProbe(runtime, timeoutMs, outputBytes);
+    jqProbeCache.set(cacheKey, probePromise);
+    try {
+        return cloneProbeResult(await probePromise);
+    }
+    catch (error) {
+        jqProbeCache.delete(cacheKey);
+        throw error;
+    }
+}
+async function runJqProbe(runtime, timeoutMs, outputBytes) {
     const previousSecret = process.env.FREEFLOW_SANDBOX_SECRET_SENTINEL;
     process.env.FREEFLOW_SANDBOX_SECRET_SENTINEL = SECRET_SENTINEL;
     try {
@@ -173,10 +192,10 @@ async function probeJqRuntime(runtime, config) {
             const run = await runJq(runtime, {
                 query: fixture.program,
                 json: { test_log: "INFO setup\nERROR target\n" },
-                timeoutMs: Math.min(config.limits.timeoutMs, DEFAULT_PROBE_TIMEOUT_MS),
-                outputBytes: Math.min(config.limits.maxOutputBytes, DEFAULT_PROBE_OUTPUT_BYTES),
+                timeoutMs,
+                outputBytes,
             });
-            const assessment = assessJqProof(fixture.proof, run, Math.min(config.limits.timeoutMs, DEFAULT_PROBE_TIMEOUT_MS), Math.min(config.limits.maxOutputBytes, DEFAULT_PROBE_OUTPUT_BYTES));
+            const assessment = assessJqProof(fixture.proof, run, timeoutMs, outputBytes);
             if (assessment) {
                 passedProofs.push(fixture.proof);
             }
@@ -201,6 +220,17 @@ async function probeJqRuntime(runtime, config) {
             process.env.FREEFLOW_SANDBOX_SECRET_SENTINEL = previousSecret;
         }
     }
+}
+function cloneProbeResult(result) {
+    const clone = {
+        ...result,
+        passedProofs: [...result.passedProofs],
+        failedProofs: [...result.failedProofs],
+    };
+    if (result.runtime) {
+        clone.runtime = { ...result.runtime };
+    }
+    return clone;
 }
 async function runJq(runtime, options) {
     const start = Date.now();

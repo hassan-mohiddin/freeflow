@@ -57,6 +57,15 @@ test("script sandbox proof fixtures cover every required proof for every target 
   }
 });
 
+test("script sandbox stdout/stderr proof fixtures avoid runaway flood counts", () => {
+  const fixture = SCRIPT_SANDBOX_PROOF_FIXTURES.find((entry) => entry.proof === "stdout_stderr_bounded");
+  assert.ok(fixture, "stdout_stderr_bounded fixture should exist");
+  for (const [language, program] of Object.entries(fixture.programs)) {
+    const oversizedNumericLiterals = program.match(/\b\d{5,}\b/g) ?? [];
+    assert.deepEqual(oversizedNumericLiterals, [], `${language} output-bound proof should not use runaway loop counts`);
+  }
+});
+
 test("script sandbox probe reports all configured languages unavailable when no adapter is registered", async () => {
   const report = await probeScriptSandboxAdapters({ config: config({ enabled: true, languages: ["javascript", "python", "jq"] }) });
 

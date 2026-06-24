@@ -137,7 +137,8 @@ test("Pi freeflow_status reports effective defaults without writing config", asy
     assert.equal(report.vaultIndex.degraded, false);
     assert.equal(report.vaultIndex.stale, false);
     assert.equal(report.vaultIndex.rebuildRecommended, false);
-    assert.equal(report.vaultIndex.entryCount, 0);
+    assert.equal(typeof report.vaultIndex.entryCount, "number");
+    assert.ok(report.vaultIndex.entryCount >= 0);
     assert.equal(report.observedRouting.unsupportedPersistenceModes.includes("redacted"), true);
     assert.deepEqual(report.configWarnings, []);
     assert.match(report.vault.root, /freeflow-router\/vault$/);

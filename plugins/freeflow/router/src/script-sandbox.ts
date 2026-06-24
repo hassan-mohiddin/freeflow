@@ -194,9 +194,9 @@ export const SCRIPT_SANDBOX_PROOF_FIXTURES: ScriptSandboxProofFixture[] = [
     expected: "The adapter enforces stdout/stderr/output byte caps before routing or context injection.",
     adapterAssertion: "Capture raw output into bounded buffers and mark over-cap results as partial/failed without full exact recovery claims.",
     programs: {
-      javascript: "for (let i = 0; i < 1000000; i++) { console.log('x'.repeat(100)); console.error('e'.repeat(100)); }",
-      python: "import sys\nfor _ in range(1000000):\n    print('x' * 100)\n    print('e' * 100, file=sys.stderr)",
-      jq: "range(0; 100000) | (\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"), (\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\" | debug | empty)",
+      javascript: "for (let i = 0; i < 1000; i++) { console.log('x'.repeat(100)); console.error('e'.repeat(100)); }",
+      python: "import sys\nfor _ in range(1000):\n    print('x' * 100)\n    print('e' * 100, file=sys.stderr)",
+      jq: "range(0; 1000) | (\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"), (\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\" | debug | empty)",
     },
   },
   {

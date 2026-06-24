@@ -8,6 +8,7 @@ const DEFAULT_PROBE_MEMORY_BYTES = 8 * 1024 * 1024;
 const DEFAULT_PROBE_OUTPUT_BYTES = 4096;
 const SECRET_SENTINEL = "FREEFLOW_SANDBOX_SECRET_SENTINEL_VALUE";
 export const QUICKJS_WASI_ROOT_ENV = "FREEFLOW_QUICKJS_WASI_ROOT";
+const quickJsProbeCache = new Map();
 export async function discoverQuickJsWasiSandboxAdaptersFromEnv(env = process.env) {
     const packageRoot = env[QUICKJS_WASI_ROOT_ENV];
     if (!packageRoot) {
@@ -153,6 +154,24 @@ async function loadQuickJsRuntime(packageRoot) {
     };
 }
 async function probeQuickJsRuntime(runtime, config) {
+    const timeoutMs = Math.min(config.limits.timeoutMs, DEFAULT_PROBE_TIMEOUT_MS);
+    const outputBytes = Math.min(config.limits.maxOutputBytes, DEFAULT_PROBE_OUTPUT_BYTES);
+    const cacheKey = [runtime.packageVersion, runtime.wasmSha256, timeoutMs, outputBytes, config.network].join(":");
+    const cached = quickJsProbeCache.get(cacheKey);
+    if (cached) {
+        return cloneProbeResult(await cached);
+    }
+    const probePromise = runQuickJsProbe(runtime, timeoutMs, outputBytes);
+    quickJsProbeCache.set(cacheKey, probePromise);
+    try {
+        return cloneProbeResult(await probePromise);
+    }
+    catch (error) {
+        quickJsProbeCache.delete(cacheKey);
+        throw error;
+    }
+}
+async function runQuickJsProbe(runtime, timeoutMs, outputBytes) {
     const previousSecret = process.env.FREEFLOW_SANDBOX_SECRET_SENTINEL;
     process.env.FREEFLOW_SANDBOX_SECRET_SENTINEL = SECRET_SENTINEL;
     try {
@@ -162,12 +181,12 @@ async function probeQuickJsRuntime(runtime, config) {
         for (const fixture of fixtures) {
             const run = await runQuickJs(runtime, {
                 code: fixture.program,
-                timeoutMs: Math.min(config.limits.timeoutMs, DEFAULT_PROBE_TIMEOUT_MS),
+                timeoutMs,
                 memoryBytes: DEFAULT_PROBE_MEMORY_BYTES,
-                outputBytes: Math.min(config.limits.maxOutputBytes, DEFAULT_PROBE_OUTPUT_BYTES),
+                outputBytes,
                 inputs: { test_log: "INFO setup\nERROR target\n" },
             });
-            const assessment = assessQuickJsProof(fixture.proof, run, Math.min(config.limits.timeoutMs, DEFAULT_PROBE_TIMEOUT_MS), Math.min(config.limits.maxOutputBytes, DEFAULT_PROBE_OUTPUT_BYTES));
+            const assessment = assessQuickJsProof(fixture.proof, run, timeoutMs, outputBytes);
             if (assessment) {
                 passedProofs.push(fixture.proof);
             }
@@ -192,6 +211,17 @@ async function probeQuickJsRuntime(runtime, config) {
             process.env.FREEFLOW_SANDBOX_SECRET_SENTINEL = previousSecret;
         }
     }
+}
+function cloneProbeResult(result) {
+    const clone = {
+        ...result,
+        passedProofs: [...result.passedProofs],
+        failedProofs: [...result.failedProofs],
+    };
+    if (result.runtime) {
+        clone.runtime = { ...result.runtime };
+    }
+    return clone;
 }
 async function runQuickJs(runtime, options) {
     const start = Date.now();

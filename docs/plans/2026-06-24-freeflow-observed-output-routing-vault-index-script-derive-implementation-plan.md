@@ -868,6 +868,7 @@ Slice 17 partial progress:
 - With a registered/provided jq-wasm adapter, jq scripts receive a JSON object keyed by copied vault-source alias and write bounded stdout/stderr through `jq.raw`.
 - jq timeouts use Worker termination. Output-limit failures return structured `derive_execution_failure` without exact recovery. Residual caveat: `jq-wasm` can still generate large strings inside the Worker before wrapper truncation.
 - Evidence: `plugins/freeflow/evals/reports/runtime/quickjs-script-derive-execution-1-report.md` and `plugins/freeflow/evals/reports/runtime/jq-script-derive-execution-1-report.md`.
+- Follow-up resource hardening reduced sandbox proof flood fixture counts, lowered jq proof timeout, cached adapter proof results by adapter hash/probe limits, and fixed a global-vault test assumption. Evidence: `plugins/freeflow/evals/reports/runtime/script-sandbox-probe-resource-hardening-1-report.md`.
 
 ## Slice 18: Final Docs, Evals, Benchmarks, And Cleanup
 
