@@ -19,7 +19,7 @@ The router ships explicit tools and Pi observed routing:
 - `freeflow_retrieve`: retrieve targeted repo/vault evidence.
 - `freeflow_run`: run likely-large/noisy commands, vault raw output, and return compact evidence.
 - Pi observed routing: route enabled MCP/web/fetch/code-search outputs after direct host tool calls.
-- `freeflow_derive`: deterministically transform vaulted evidence into bounded derived evidence; a future `operation.kind="script"` branch is present but disabled by default.
+- `freeflow_derive`: deterministically transform vaulted evidence into bounded derived evidence; `operation.kind="script"` is disabled by default and can execute only through explicit proof-backed JavaScript/jq adapters.
 - `freeflow_status`: inspect effective config, vault writability/index state, provider availability, and non-destructive migration recommendations.
 
 Native tools still matter:

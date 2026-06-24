@@ -2,7 +2,7 @@
 > **Date:** 2026-06-24
 > **Owner:** Hassan Mohiddin
 > **Type:** Plan
-> **Status:** In progress — Slices 0-16 implemented; Slice 17 partially implemented for explicit QuickJS JavaScript execution; Python and jq execution remain unavailable
+> **Status:** In progress — Slices 0-17 implemented for Pi observed routing, vault index, deterministic derive, and explicit JavaScript/jq script derive; Python remains unavailable
 > **Source:** `docs/specs/freeflow-observed-output-routing-vault-index-and-script-derive-design.md`
 
 # Freeflow Observed Output Routing, Vault Index, And Script Derive Implementation Plan

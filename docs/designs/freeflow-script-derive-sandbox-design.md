@@ -4,14 +4,14 @@
 > **Date:** 2026-06-23
 > **Owner:** Hassan Mohiddin
 > **Type:** Architecture Design
-> **Status:** Draft
+> **Status:** Implemented for Pi JavaScript/jq adapters; Python remains unavailable
 > **Source:** `docs/specs/freeflow-observed-output-routing-vault-index-and-script-derive-design.md`, `docs/plans/2026-06-24-freeflow-observed-output-routing-vault-index-script-derive-implementation-plan.md`, current router source under `plugins/freeflow/router/src/`, and output-router safety policy.
 
 ## Purpose
 
-Define the sandbox and security contract for a future script-derived evidence feature before any implementation exists.
+Define the sandbox and security contract for script-derived evidence.
 
-This document is design-only. It must not be treated as approval to implement arbitrary code execution. Implementation requires a follow-up plan, owner approval for the public API shape, and a passing security/artifact review.
+This document is the sandbox contract, not approval for arbitrary code execution. JavaScript and jq now have Pi product adapter paths through explicit package-root opt-in; Python remains unavailable. New languages, adapter families, raw-script persistence, network access, or direct repo inputs still require a follow-up plan, owner approval, and passing security/artifact review.
 
 ## Problem
 
@@ -30,7 +30,7 @@ Script derive must therefore be explicit, sandboxed, disabled by default, and is
 
 ## Design Decision
 
-Public surface: keep one public `freeflow_derive` tool and add a clearly labeled future operation, `operation.kind="script"`.
+Public surface: keep one public `freeflow_derive` tool and add a clearly labeled sandboxed operation, `operation.kind="script"`.
 
 There must be no separate public `freeflow_script_derive` tool. Deterministic derive operations and script derive share validation, status, routing, persistence, and lineage conventions, but dispatch to separate backend engines.
 
@@ -396,10 +396,10 @@ Useful adversarial eval fixtures:
 
 ## Implementation Gates
 
-Do not implement script derive until all are true:
+The initial Pi JavaScript/jq implementation satisfied these gates. Apply the same gates before enabling any new language, adapter family, network mode, raw-script persistence mode, direct repo input mode, or materially different execution path:
 
 1. Public API remains the current source-truth shape: one `freeflow_derive` tool with `operation.kind="script"`; no separate `freeflow_script_derive` registration.
-2. A sandbox adapter exists for at least one target language and proves no-network/read-only-input/write-bounded-output behavior.
+2. A sandbox adapter exists for the target language and proves no-network/read-only-input/write-bounded-output behavior.
 3. Script derive stays disabled by default and setup does not enable it implicitly.
 4. Security/artifact review passes for this design or its approved successor.
 5. Tests cover the verification requirements above.
@@ -408,8 +408,7 @@ Do not implement script derive until all are true:
 
 ## Open Decisions
 
-- Which sandbox adapter is acceptable for each target language/runtime?
-- What jq-compatible runtime or equivalent structured-data query adapter should satisfy the jq target?
+- Which Python sandbox adapter is acceptable?
 - Should any raw script text ever be persisted for reproducibility, and under what explicit opt-in?
 - Should script derive ever support repo-file inputs directly, or must repo content always be captured into vault first?
-- Should metadata-only/no-persistence output modes ship before script derive, or can the first implementation require exact output persistence under caps?
+- Should metadata-only/no-persistence output modes ship for script derive outputs, or should exact output persistence under caps remain the only successful-output policy?
