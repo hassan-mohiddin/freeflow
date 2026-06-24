@@ -17,6 +17,7 @@ import {
   DEFAULT_VAULT_ROOT,
   createLocalVaultIndex,
   createVault,
+  discoverEryxPythonSandboxAdaptersFromEnv,
   discoverJqWasmSandboxAdaptersFromEnv,
   discoverQuickJsWasiSandboxAdaptersFromEnv,
   normalizeFreeflowConfig,
@@ -67,6 +68,7 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
   const scriptSandboxAdapters = [
     ...(await discoverQuickJsWasiSandboxAdaptersFromEnv()),
     ...(await discoverJqWasmSandboxAdaptersFromEnv()),
+    ...(await discoverEryxPythonSandboxAdaptersFromEnv()),
   ];
   const [vaultWritability, vaultIndex, providers, scriptSandbox] = await Promise.all([
     inspectVaultWritability(vault.root),

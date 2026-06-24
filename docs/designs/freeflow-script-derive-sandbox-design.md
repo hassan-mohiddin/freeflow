@@ -4,14 +4,14 @@
 > **Date:** 2026-06-23
 > **Owner:** Hassan Mohiddin
 > **Type:** Architecture Design
-> **Status:** Implemented for Pi JavaScript/jq adapters; Python remains unavailable
+> **Status:** Implemented for Pi JavaScript/Python/jq adapters through explicit package-root opt-in
 > **Source:** `docs/specs/freeflow-observed-output-routing-vault-index-and-script-derive-design.md`, `docs/plans/2026-06-24-freeflow-observed-output-routing-vault-index-script-derive-implementation-plan.md`, current router source under `plugins/freeflow/router/src/`, and output-router safety policy.
 
 ## Purpose
 
 Define the sandbox and security contract for script-derived evidence.
 
-This document is the sandbox contract, not approval for arbitrary code execution. JavaScript and jq now have Pi product adapter paths through explicit package-root opt-in; Python remains unavailable. New languages, adapter families, raw-script persistence, network access, or direct repo inputs still require a follow-up plan, owner approval, and passing security/artifact review.
+This document is the sandbox contract, not approval for arbitrary code execution. JavaScript, Python, and jq now have Pi product adapter paths through explicit package-root opt-in. New languages, adapter families, raw-script persistence, network access, direct repo inputs, or materially different execution wrappers still require a follow-up plan, owner approval, and passing security/artifact review.
 
 ## Problem
 
@@ -396,7 +396,7 @@ Useful adversarial eval fixtures:
 
 ## Implementation Gates
 
-The initial Pi JavaScript/jq implementation satisfied these gates. Apply the same gates before enabling any new language, adapter family, network mode, raw-script persistence mode, direct repo input mode, or materially different execution path:
+The initial Pi JavaScript/Python/jq implementation satisfied these gates through explicit package-root adapters. Apply the same gates before enabling any new language, adapter family, network mode, raw-script persistence mode, direct repo input mode, or materially different execution path:
 
 1. Public API remains the current source-truth shape: one `freeflow_derive` tool with `operation.kind="script"`; no separate `freeflow_script_derive` registration.
 2. A sandbox adapter exists for the target language and proves no-network/read-only-input/write-bounded-output behavior.

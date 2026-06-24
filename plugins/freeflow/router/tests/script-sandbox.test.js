@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   DEFAULT_SCRIPT_DERIVE_CONFIG,
+  discoverEryxPythonSandboxAdaptersFromEnv,
   discoverJqWasmSandboxAdaptersFromEnv,
   discoverQuickJsWasiSandboxAdaptersFromEnv,
   SCRIPT_DERIVE_LANGUAGES,
@@ -197,6 +198,16 @@ test("jq-wasm discovery reports unavailable for invalid explicit package roots",
   const report = await probeScriptSandboxAdapters({ config: config({ enabled: true, languages: ["jq"] }), adapters });
   assert.equal(report.adapterAvailable, false);
   assert.equal(report.unavailableLanguages[0].adapterId, "jq-wasm");
+  assert.match(report.unavailableLanguages[0].reason, /could not load/);
+});
+
+test("Eryx Python discovery reports unavailable for invalid explicit package roots", async () => {
+  const adapters = await discoverEryxPythonSandboxAdaptersFromEnv({ FREEFLOW_ERYX_ROOT: "/tmp/freeflow-missing-eryx-root" });
+  assert.equal(adapters.length, 1);
+
+  const report = await probeScriptSandboxAdapters({ config: config({ enabled: true, languages: ["python"] }), adapters });
+  assert.equal(report.adapterAvailable, false);
+  assert.equal(report.unavailableLanguages[0].adapterId, "eryx-python");
   assert.match(report.unavailableLanguages[0].reason, /could not load/);
 });
 

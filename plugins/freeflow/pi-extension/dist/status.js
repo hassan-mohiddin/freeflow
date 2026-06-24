@@ -1,7 +1,7 @@
 import { constants as fsConstants } from "node:fs";
 import { access, readFile, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { DEFAULT_CAPTURE_CONFIG, DEFAULT_OBSERVED_ROUTING_CONFIG, DEFAULT_OUTPUT_ROUTER_ENABLED, DEFAULT_OUTPUT_ROUTER_PROFILE, DEFAULT_POST_TOOL_ROUTING, DEFAULT_PROVIDERS_CONFIG, DEFAULT_ROUTER_THRESHOLDS, DEFAULT_SCRIPT_DERIVE_CONFIG, OBSERVED_ROUTING_PERSISTENCE_MODES, RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES, DEFAULT_VAULT_RETENTION, DEFAULT_VAULT_ROOT, createLocalVaultIndex, createVault, discoverJqWasmSandboxAdaptersFromEnv, discoverQuickJsWasiSandboxAdaptersFromEnv, normalizeFreeflowConfig, probeScriptSandboxAdapters, } from "../../router/dist/index.js";
+import { DEFAULT_CAPTURE_CONFIG, DEFAULT_OBSERVED_ROUTING_CONFIG, DEFAULT_OUTPUT_ROUTER_ENABLED, DEFAULT_OUTPUT_ROUTER_PROFILE, DEFAULT_POST_TOOL_ROUTING, DEFAULT_PROVIDERS_CONFIG, DEFAULT_ROUTER_THRESHOLDS, DEFAULT_SCRIPT_DERIVE_CONFIG, OBSERVED_ROUTING_PERSISTENCE_MODES, RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES, DEFAULT_VAULT_RETENTION, DEFAULT_VAULT_ROOT, createLocalVaultIndex, createVault, discoverEryxPythonSandboxAdaptersFromEnv, discoverJqWasmSandboxAdaptersFromEnv, discoverQuickJsWasiSandboxAdaptersFromEnv, normalizeFreeflowConfig, probeScriptSandboxAdapters, } from "../../router/dist/index.js";
 import { isMcpServerConfigured } from "./mcp-config.js";
 import { BUILT_IN_PROVIDER_MANIFESTS, validateProviderManifest } from "./provider-manifests.js";
 import { VALID_MODES, readModeState } from "./runtime-context.js";
@@ -43,6 +43,7 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
     const scriptSandboxAdapters = [
         ...(await discoverQuickJsWasiSandboxAdaptersFromEnv()),
         ...(await discoverJqWasmSandboxAdaptersFromEnv()),
+        ...(await discoverEryxPythonSandboxAdaptersFromEnv()),
     ];
     const [vaultWritability, vaultIndex, providers, scriptSandbox] = await Promise.all([
         inspectVaultWritability(vault.root),

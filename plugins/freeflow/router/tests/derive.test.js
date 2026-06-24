@@ -6,6 +6,7 @@ import test from "node:test";
 
 import {
   createVault,
+  discoverEryxPythonSandboxAdaptersFromEnv,
   freeflowDerive,
   readOutputText,
   SCRIPT_SANDBOX_REQUIRED_PROOFS,
@@ -22,6 +23,11 @@ async function withTempVault(fn) {
     await rm(root, { recursive: true, force: true });
   }
 }
+
+const HAS_JSPI = process.execArgv.includes("--experimental-wasm-jspi") || (process.env.NODE_OPTIONS ?? "").split(/\s+/).includes("--experimental-wasm-jspi");
+const ERYX_INTEGRATION_SKIP_REASON = process.env.FREEFLOW_ERYX_ROOT
+  ? (HAS_JSPI ? false : "FREEFLOW_ERYX_ROOT is set but Node was not started with --experimental-wasm-jspi")
+  : "FREEFLOW_ERYX_ROOT is not set";
 
 test("validateDeriveInput accepts vault regex filter and count operations", () => {
   const regexFilter = validateDeriveInput({
@@ -393,6 +399,47 @@ test("freeflowDerive script operation executes jq through a registered proof-bac
     assert.deepEqual(result.lineage.sourceRecordIds, [source.recordId]);
     const derived = await readOutputText(vault, "script-jq-execute-session", result.outputId, "raw");
     assert.equal(derived, "JQ:SCRIPT_SOURCE_TARGET");
+    validateRoutedResult(result);
+  });
+});
+
+test("freeflowDerive script operation executes Python through discovered Eryx adapter when configured", { skip: ERYX_INTEGRATION_SKIP_REASON }, async () => {
+  await withTempVault(async (vault) => {
+    const source = await storeCommandOutput(vault, {
+      sessionId: "script-eryx-execute-session",
+      command: "printf log",
+      stdout: "alpha",
+      stderr: "",
+      executionStatus: "success",
+      exitCode: 0,
+      createdAt: "2026-06-24T00:00:00.000Z",
+    });
+    const adapters = await discoverEryxPythonSandboxAdaptersFromEnv({ FREEFLOW_ERYX_ROOT: process.env.FREEFLOW_ERYX_ROOT });
+
+    const result = await freeflowDerive({
+      sessionId: "script-eryx-execute-session",
+      vaultRoot: vault.root,
+      scriptDerive: {
+        enabled: true,
+        sandbox: "auto",
+        languages: ["python"],
+        network: "off",
+        limits: { timeoutMs: 1000, maxInputBytes: 1024, maxOutputBytes: 4096 },
+        rawScriptPersistence: "disabled",
+      },
+      scriptSandboxAdapters: adapters,
+      sources: [{ kind: "vault", outputId: source.outputId, stream: "stdout", alias: "log" }],
+      operation: { kind: "script", language: "python", code: "write_text(read_text('log').upper())\n# RAW_PYTHON_SCRIPT_SENTINEL" },
+      limits: { timeoutMs: 1000, maxInputBytes: 1024, maxOutputBytes: 4096 },
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.operation.kind, "script");
+    assert.equal(result.operation.language, "python");
+    assert.match(result.operation.codeSha256, /^sha256_[0-9a-f]{64}$/);
+    assert.doesNotMatch(JSON.stringify(result), /RAW_PYTHON_SCRIPT_SENTINEL/);
+    const derived = await readOutputText(vault, "script-eryx-execute-session", result.outputId, "raw");
+    assert.equal(derived, "ALPHA");
     validateRoutedResult(result);
   });
 });

@@ -53,7 +53,7 @@ Supported high-level repo config keys:
   "scriptDerive": {
     "enabled": true,
     "sandbox": "auto",
-    "languages": ["javascript", "jq"],
+    "languages": ["javascript", "python", "jq"],
     "network": "off",
     "limits": {
       "timeoutMs": 5000,
@@ -86,8 +86,8 @@ Rules:
 - `providers.enabled` accepts provider ids or objects with `id`, optional `mode` (`discovery` or `read-only`), and optional read-only categories (`symbols`, `references`, `diagnostics`, `graph`, `architecture`, `search`).
 - Custom provider manifests are user-owned, must validate as single-line structured fields, and are labeled `custom/unverified`.
 - `scriptDerive.enabled` defaults to `false`; write it only after an explicit script-execution opt-in.
-- Setup must not install, download, or vendor script runtimes. For Pi JavaScript execution, the user must separately provide a `quickjs-wasi` package root through `FREEFLOW_QUICKJS_WASI_ROOT`; for Pi jq execution, the user must separately provide a `jq-wasm` package root through `FREEFLOW_JQ_WASM_ROOT`.
-- `scriptDerive.languages` supports `javascript`, `python`, and `jq`, but only JavaScript and jq have product adapter paths in the current Pi implementation. Do not enable Python execution in setup docs until a Python product adapter passes proof and review.
+- Setup must not install, download, or vendor script runtimes. For Pi JavaScript execution, the user must separately provide a `quickjs-wasi` package root through `FREEFLOW_QUICKJS_WASI_ROOT`; for Pi Python execution, the user must separately provide an `@bsull/eryx` package root through `FREEFLOW_ERYX_ROOT` and run Node with `--experimental-wasm-jspi`; for Pi jq execution, the user must separately provide a `jq-wasm` package root through `FREEFLOW_JQ_WASM_ROOT`.
+- `scriptDerive.languages` supports `javascript`, `python`, and `jq`; enable only the languages whose explicit package roots and runtime requirements the user chose.
 - `scriptDerive.sandbox` currently supports `auto`, `network` supports only `off`, and `rawScriptPersistence` supports only `disabled`.
 - `scriptDerive.limits.timeoutMs`, `maxInputBytes`, and `maxOutputBytes` must be positive integers within product caps. Per-call script limits may only tighten configured values.
 

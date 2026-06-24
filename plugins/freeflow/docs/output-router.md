@@ -19,7 +19,7 @@ The router ships explicit tools and Pi observed routing:
 - `freeflow_retrieve`: retrieve targeted repo/vault evidence.
 - `freeflow_run`: run likely-large/noisy commands, vault raw output, and return compact evidence.
 - Pi observed routing: route enabled MCP/web/fetch/code-search outputs after direct host tool calls.
-- `freeflow_derive`: deterministically transform vaulted evidence into bounded derived evidence; `operation.kind="script"` is disabled by default and can execute only through explicit proof-backed JavaScript/jq adapters.
+- `freeflow_derive`: deterministically transform vaulted evidence into bounded derived evidence; `operation.kind="script"` is disabled by default and can execute only through explicit proof-backed JavaScript, Python, or jq adapters.
 - `freeflow_status`: inspect effective config, vault writability/index state, provider availability, and non-destructive migration recommendations.
 
 Native tools still matter:
@@ -170,13 +170,13 @@ Mutating provider tools remain direct provider calls after explicit user intent.
 
 `operation.kind="script"` is the sandboxed branch under the same tool. It is disabled by default, has no unsandboxed fallback, and does not persist raw script text. Successful script output is vaulted as derived stdout with source lineage; failures and output-limit overflows return structured no-recovery results.
 
-Current product execution support is partial and Pi-first:
+Current product execution support is Pi-first and explicit package-root opt-in:
 
 - JavaScript can run through a proof-backed QuickJS adapter only when script derive is explicitly enabled and Pi can discover a local `quickjs-wasi` package root.
+- Python can run through a proof-backed Eryx adapter only when script derive is explicitly enabled, Pi can discover a local `@bsull/eryx` package root, and the Node process has `--experimental-wasm-jspi` available.
 - jq can run through a proof-backed `jq-wasm` adapter only when script derive is explicitly enabled and Pi can discover a local `jq-wasm` package root.
-- Python remains unavailable.
 
-`freeflow_status` reports the script-sandbox contract version, configured languages, required adversarial proofs, rejected unsafe mechanisms such as Node `vm`/plain subprocesses, candidate-unproven OS sandbox adapters, and whether QuickJS/jq-wasm adapters are available. A language remains unavailable until a registered adapter passes every required proof. Proof results are cached in-process by adapter content hash and probe limits so repeated status/derive checks do not rerun the same adversarial probes.
+`freeflow_status` reports the script-sandbox contract version, configured languages, required adversarial proofs, rejected unsafe mechanisms such as Node `vm`/plain subprocesses, candidate-unproven OS sandbox adapters, and whether QuickJS, Eryx, and jq-wasm adapters are available. A language remains unavailable until a registered adapter passes every required proof. Proof results are cached in-process by adapter content hash and probe limits so repeated status/derive checks do not rerun the same adversarial probes.
 
 Current deterministic operations include:
 
@@ -193,6 +193,7 @@ Derived output is vaulted separately and points back to source output ids throug
 Freeflow does not install or download script runtimes during execution. Pi discovers optional adapters only from explicit package-root environment variables:
 
 - `FREEFLOW_QUICKJS_WASI_ROOT` points at an existing `quickjs-wasi` package root, for example a separately installed `quickjs-wasi@3.0.1` directory containing `package.json`, `dist/index.js`, and `quickjs.wasm`.
+- `FREEFLOW_ERYX_ROOT` points at an existing `@bsull/eryx` package root, for example a separately installed `@bsull/eryx@0.5.0` directory containing `package.json`, `index.js`, `eryx-sandbox.js`, `python-stdlib.tar.gz`, and the packaged `eryx-sandbox.core*.wasm` shards. The parent Node process must run with `--experimental-wasm-jspi`.
 - `FREEFLOW_JQ_WASM_ROOT` points at an existing `jq-wasm` package root, for example a separately installed `jq-wasm@1.2.0-jq-1.8.2` directory containing `package.json` and `dist/index.js`.
 
 Discovery alone does not enable execution. `.freeflow/config.json` must explicitly opt in, for example:
@@ -202,14 +203,16 @@ Discovery alone does not enable execution. `.freeflow/config.json` must explicit
   "defaultMode": "workflow",
   "scriptDerive": {
     "enabled": true,
-    "languages": ["javascript", "jq"]
+    "languages": ["javascript", "python", "jq"]
   }
 }
 ```
 
 Supported `scriptDerive` keys are `enabled`, `sandbox`, `languages`, `network`, `limits`, and `rawScriptPersistence`. Defaults keep `sandbox: "auto"`, `network: "off"`, `rawScriptPersistence: "disabled"`, and conservative input/output/time limits. Per-call script limits may only tighten configured limits.
 
-QuickJS guest JavaScript receives only `readText(alias)`, `writeText(text)`, `console.log`, and `console.error`. jq receives a JSON object keyed by source alias, so a source with alias `log` is available as `.log`. Vault sources are copied into temporary input files before adapter execution; repo, home, vault, process, require, fetch, package loading, and host filesystem APIs are not exposed to guest code. Invalid or missing adapter roots fail closed as adapter unavailable.
+QuickJS guest JavaScript receives only `readText(alias)`, `writeText(text)`, `console.log`, and `console.error`. Eryx guest Python receives `read_text(alias)`, `write_text(text)`, and a `sources` dict keyed by source alias. jq receives a JSON object keyed by source alias, so a source with alias `log` is available as `.log`. Vault sources are copied into temporary input files before adapter execution; repo, home, vault, process, require, fetch, package loading, and host filesystem APIs are not exposed to guest code. Invalid or missing adapter roots fail closed as adapter unavailable.
+
+The Python adapter runs Eryx inside a Node Worker with Worker termination for timeouts, bounded stdout/stderr before results cross the Worker-to-host boundary, a temp-copy import rewrite to force preview2 browser/in-memory shims, and a deny-only network shim. It collects no output files; derived content comes from stdout. Residual caveat: Eryx/Python can still materialize large strings inside the Worker before wrapper truncation; product execution treats output-limit overflow as a structured failure with no exact recovery.
 
 The jq adapter runs `jq-wasm` inside a Node Worker with Worker termination for timeouts and bounded stdout/stderr before results cross the Worker-to-host boundary. Residual caveat: `jq-wasm` can still generate large in-Worker strings before truncation; product execution treats output-limit overflow as a structured failure with no exact recovery.
 

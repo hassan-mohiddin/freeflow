@@ -1,4 +1,4 @@
-import { discoverJqWasmSandboxAdaptersFromEnv, discoverQuickJsWasiSandboxAdaptersFromEnv, freeflowDerive, freeflowRetrieve, freeflowRun } from "../../router/dist/index.js";
+import { discoverEryxPythonSandboxAdaptersFromEnv, discoverJqWasmSandboxAdaptersFromEnv, discoverQuickJsWasiSandboxAdaptersFromEnv, freeflowDerive, freeflowRetrieve, freeflowRun } from "../../router/dist/index.js";
 import { buildFreeflowStatusReport } from "./status.js";
 import { renderFreeflowDeriveCall, renderFreeflowDeriveResult, renderFreeflowRetrieveCall, renderFreeflowRetrieveResult, renderFreeflowRunCall, renderFreeflowRunResult, renderFreeflowStatusCall, renderFreeflowStatusResult, } from "./renderers.js";
 import { readOutputRouterConfig, notifyRouterConfigWarnings } from "./runtime-context.js";
@@ -230,6 +230,7 @@ export function registerRouterTools(pi) {
             const scriptSandboxAdapters = [
                 ...(await discoverQuickJsWasiSandboxAdaptersFromEnv()),
                 ...(await discoverJqWasmSandboxAdaptersFromEnv()),
+                ...(await discoverEryxPythonSandboxAdaptersFromEnv()),
             ];
             const result = await freeflowDerive({
                 ...normalized,

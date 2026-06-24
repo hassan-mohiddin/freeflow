@@ -2,7 +2,7 @@
 > **Date:** 2026-06-24
 > **Owner:** Hassan Mohiddin
 > **Type:** Plan
-> **Status:** In progress — Slices 0-17 implemented for Pi observed routing, vault index, deterministic derive, and explicit JavaScript/jq script derive; Python remains unavailable
+> **Status:** In progress — Slices 0-17 implemented for Pi observed routing, vault index, deterministic derive, and explicit JavaScript/Python/jq script derive
 > **Source:** `docs/specs/freeflow-observed-output-routing-vault-index-and-script-derive-design.md`
 
 # Freeflow Observed Output Routing, Vault Index, And Script Derive Implementation Plan
@@ -817,12 +817,12 @@ Slice 16 decision after implementation:
 - `freeflow_status` now reports proof-backed script sandbox availability, required proofs, rejected/candidate mechanisms, configured languages, and unavailable language reasons.
 - Adapter probing is order-independent: every matching adapter is probed until one passes all required proofs; if none passes, the language remains unavailable with failure evidence.
 - At the Slice 16 checkpoint, no real sandbox adapter was registered, no script code executed, and no unsandboxed fallback existed. Local checks found Docker daemon unavailable; macOS `sandbox-exec` could launch with an allow-all profile but no restrictive adapter/proof suite had been approved.
-- Focused sandbox adapter spike proved JavaScript (`quickjs-wasi`) and jq (`jq-wasm`) candidates against the contract, while Python remained unavailable. The owner approved the QuickJS-first route and then jq product execution with the Worker-boundary large-output caveat documented and reviewed.
+- Focused sandbox adapter spike proved JavaScript (`quickjs-wasi`) and jq (`jq-wasm`) candidates against the contract. A later Eryx reprobe and proof spike moved Python from blocked to proof-backed through a temp-copy/import-rewrite wrapper and deny-only network shim. The owner approved the QuickJS-first route, then jq product execution with the Worker-boundary large-output caveat documented and reviewed, then Eryx Python product execution through explicit package-root opt-in.
 - Evidence: targeted sandbox/derive/Pi tests passed, full `npm run test:router` passed 269/269 tests, `git diff --check && git diff --cached --check` passed, and focused confirmation review passed with no findings after the adapter-order fix.
 
 ## Slice 17: Script Derive Execution Engine
 
-Status: partial JavaScript and jq implementation complete. QuickJS JavaScript and jq-wasm execution are implemented only for explicitly registered/provided adapter roots and remain disabled by default. Python remains unavailable.
+Status: JavaScript, Python, and jq implementation complete for Pi explicit package-root adapters. QuickJS JavaScript, Eryx Python, and jq-wasm execution are implemented only for explicitly registered/provided adapter roots and remain disabled by default.
 
 Purpose: execute sandboxed scripts over vault sources and route output.
 
@@ -862,12 +862,16 @@ Slice 17 partial progress:
 - `freeflow_derive operation.kind="script"` still returns disabled by default unless `scriptDerive.enabled=true` is configured.
 - With a registered/provided QuickJS adapter, JavaScript scripts can read copied vault-source input through `readText(alias)` and write bounded stdout/stderr through `writeText`, `console.log`, and `console.error`.
 - Raw script code is still represented by `codeSha256` only.
-- Python execution remains unavailable.
+- Added dependency-free Eryx Python adapter support. No `package.json` dependency was added.
+- Pi discovers Python only through the explicit `FREEFLOW_ERYX_ROOT` package-root environment variable, and Eryx requires the parent Node process to run with `--experimental-wasm-jspi`.
+- With a registered/provided Eryx adapter, Python scripts receive copied vault-source input through `read_text(alias)` and a `sources` dict, and write bounded stdout through `write_text`/`print`.
+- The Eryx adapter uses a temp-copy import rewrite to force preview2 browser/in-memory shims, a deny-only network shim with proof-visible not-permitted events, Node Worker termination for timeouts, and bounded stdout/stderr before results cross from Worker to parent. It collects no output files.
+- Eryx residual caveat: Python can still materialize large strings inside the Worker before wrapper truncation. Output-limit failures return structured `derive_execution_failure` without exact recovery.
 - Added dependency-free jq-wasm adapter support. No `package.json` dependency was added.
 - Pi discovers jq only through the explicit `FREEFLOW_JQ_WASM_ROOT` package-root environment variable.
 - With a registered/provided jq-wasm adapter, jq scripts receive a JSON object keyed by copied vault-source alias and write bounded stdout/stderr through `jq.raw`.
 - jq timeouts use Worker termination. Output-limit failures return structured `derive_execution_failure` without exact recovery. Residual caveat: `jq-wasm` can still generate large strings inside the Worker before wrapper truncation.
-- Evidence: `plugins/freeflow/evals/reports/runtime/quickjs-script-derive-execution-1-report.md` and `plugins/freeflow/evals/reports/runtime/jq-script-derive-execution-1-report.md`.
+- Evidence: `plugins/freeflow/evals/reports/runtime/quickjs-script-derive-execution-1-report.md`, `plugins/freeflow/evals/reports/runtime/eryx-python-proof-spike-2-report.md`, `plugins/freeflow/evals/reports/runtime/eryx-python-script-derive-execution-1-report.md`, and `plugins/freeflow/evals/reports/runtime/jq-script-derive-execution-1-report.md`.
 - Follow-up resource hardening reduced sandbox proof flood fixture counts, lowered jq proof timeout, cached adapter proof results by adapter hash/probe limits, and fixed a global-vault test assumption. Evidence: `plugins/freeflow/evals/reports/runtime/script-sandbox-probe-resource-hardening-1-report.md`.
 
 ## Slice 18: Final Docs, Evals, Benchmarks, And Cleanup
