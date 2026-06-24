@@ -176,7 +176,7 @@ Result:
 ✔ freeflowDerive script operation executes Python through discovered Eryx adapter when configured
 ```
 
-Command evidence: `ffout_b1fbb65e96d814268c0aa0c2`.
+Command evidence: `ffout_b1fbb65e96d814268c0aa0c2`; post-full-tree-fingerprint rerun evidence: `ffout_f7ccfed70b4323788ce921c7`; post-mutation-check rerun evidence: `ffout_4a0268f37ecc9436804fcab5`.
 
 ## Pi Status Smoke
 
@@ -213,7 +213,7 @@ Result:
 
 The skipped test is the optional Eryx integration path.
 
-Command evidence: `ffout_8b08d9c1893023bb3a74c702`.
+Command evidence: `ffout_8b08d9c1893023bb3a74c702`; post-full-tree-fingerprint rerun evidence: `ffout_002c6ed4ff25a713538bb738`; post-mutation-check rerun evidence: `ffout_d88f87f47353dfa6351e22a9`.
 
 ## Current Availability
 

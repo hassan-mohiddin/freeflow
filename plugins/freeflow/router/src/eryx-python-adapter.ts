@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, lstat, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -197,19 +197,35 @@ async function loadEryxRuntime(packageRoot: string): Promise<EryxRuntime> {
 
 async function hashEryxRuntime(packageRoot: string, preview2ShimRoot: string): Promise<string> {
   const hash = createHash("sha256");
-  for (const relativePath of ["package.json", "index.js", "eryx-sandbox.js", "python-stdlib.tar.gz"]) {
-    hash.update(relativePath);
-    hash.update(await readFile(join(packageRoot, relativePath)));
-  }
-  for (const filename of (await readdir(packageRoot)).filter((entry) => entry.endsWith(".wasm")).sort()) {
-    hash.update(filename);
-    hash.update(await readFile(join(packageRoot, filename)));
-  }
-  for (const relativePath of ["package.json", "lib/browser/filesystem.js", "lib/browser/cli.js", "lib/browser/io.js"]) {
-    hash.update(`preview2:${relativePath}`);
-    hash.update(await readFile(join(preview2ShimRoot, relativePath)));
-  }
+  hash.update("eryx-runtime-tree-v1\0");
+  await hashRuntimeTree(hash, packageRoot, "eryx");
+  await hashRuntimeTree(hash, preview2ShimRoot, "preview2-shim");
   return `sha256_${hash.digest("hex")}`;
+}
+
+async function hashRuntimeTree(hash: ReturnType<typeof createHash>, root: string, label: string, relativeDir = "."): Promise<void> {
+  const dir = join(root, relativeDir);
+  const entries = await readdir(dir, { withFileTypes: true });
+  entries.sort((left, right) => left.name.localeCompare(right.name));
+
+  for (const entry of entries) {
+    const relativePath = relativeDir === "." ? entry.name : join(relativeDir, entry.name);
+    const fullPath = join(root, relativePath);
+    const stats = await lstat(fullPath);
+    if (stats.isSymbolicLink()) {
+      throw new Error(`${label} runtime tree contains unsupported symlink: ${relativePath}`);
+    }
+    if (stats.isDirectory()) {
+      hash.update(`${label}:dir:${relativePath}\0`);
+      await hashRuntimeTree(hash, root, label, relativePath);
+      continue;
+    }
+    if (!stats.isFile()) {
+      throw new Error(`${label} runtime tree contains unsupported non-file entry: ${relativePath}`);
+    }
+    hash.update(`${label}:file:${relativePath}:${stats.size}\0`);
+    hash.update(await readFile(fullPath));
+  }
 }
 
 function nodeJspiAvailable(): boolean {
@@ -227,7 +243,17 @@ function runtimeInfo(runtime: EryxRuntime) {
 async function probeEryxRuntime(runtime: EryxRuntime, config: ScriptDeriveConfig): Promise<ScriptSandboxProbeResult> {
   const timeoutMs = Math.min(config.limits.timeoutMs, DEFAULT_PROBE_TIMEOUT_MS);
   const outputBytes = Math.min(config.limits.maxOutputBytes, DEFAULT_PROBE_OUTPUT_BYTES);
-  const cacheKey = [runtime.packageVersion, runtime.preview2ShimVersion, runtime.runtimeHash, runtime.jspiAvailable, timeoutMs, outputBytes, config.network].join(":");
+  const currentRuntimeHash = await hashEryxRuntime(runtime.packageRoot, runtime.preview2ShimRoot);
+  if (currentRuntimeHash !== runtime.runtimeHash) {
+    return {
+      status: "unavailable",
+      reason: "eryx-python explicit package root changed after adapter creation; refusing to reuse stale proof cache.",
+      passedProofs: [],
+      failedProofs: [...SCRIPT_SANDBOX_REQUIRED_PROOFS],
+      runtime: runtimeInfo(runtime),
+    };
+  }
+  const cacheKey = [runtime.packageVersion, runtime.preview2ShimVersion, currentRuntimeHash, runtime.jspiAvailable, timeoutMs, outputBytes, config.network].join(":");
   const cached = eryxProbeCache.get(cacheKey);
   if (cached) {
     return cloneProbeResult(await cached);
@@ -314,20 +340,30 @@ async function createPatchedPackageTree(runtime: EryxRuntime): Promise<{ root: s
   const root = await mkdtemp(join(tmpdir(), "freeflow-eryx-adapter-"));
   const eryxRoot = join(root, "node_modules", "@bsull", "eryx");
   const preview2ShimRoot = join(root, "node_modules", "@bytecodealliance", "preview2-shim");
-  await mkdir(dirname(eryxRoot), { recursive: true });
-  await mkdir(dirname(preview2ShimRoot), { recursive: true });
-  await cp(runtime.packageRoot, eryxRoot, { recursive: true, dereference: false });
-  await cp(runtime.preview2ShimRoot, preview2ShimRoot, { recursive: true, dereference: false });
+  try {
+    await mkdir(dirname(eryxRoot), { recursive: true });
+    await mkdir(dirname(preview2ShimRoot), { recursive: true });
+    await cp(runtime.packageRoot, eryxRoot, { recursive: true, dereference: false });
+    await cp(runtime.preview2ShimRoot, preview2ShimRoot, { recursive: true, dereference: false });
 
-  for (const file of [join(eryxRoot, "index.js"), join(eryxRoot, "eryx-sandbox.js")]) {
-    let text = await readFile(file, "utf8");
-    for (const [from, to] of PREVIEW2_IMPORTS) {
-      text = text.split(from).join(to);
+    const copiedRuntimeHash = await hashEryxRuntime(eryxRoot, preview2ShimRoot);
+    if (copiedRuntimeHash !== runtime.runtimeHash) {
+      throw new Error("eryx-python explicit package root changed while preparing sandbox copy; refusing to execute unproven runtime files.");
     }
-    await writeFile(file, text, "utf8");
+
+    for (const file of [join(eryxRoot, "index.js"), join(eryxRoot, "eryx-sandbox.js")]) {
+      let text = await readFile(file, "utf8");
+      for (const [from, to] of PREVIEW2_IMPORTS) {
+        text = text.split(from).join(to);
+      }
+      await writeFile(file, text, "utf8");
+    }
+    await writeInstrumentedNetworkDenyShim(eryxRoot);
+    return { root, eryxRoot };
+  } catch (error) {
+    await rm(root, { recursive: true, force: true });
+    throw error;
   }
-  await writeInstrumentedNetworkDenyShim(eryxRoot);
-  return { root, eryxRoot };
 }
 
 async function writeInstrumentedNetworkDenyShim(eryxRoot: string): Promise<void> {
