@@ -97,7 +97,7 @@ export const SCRIPT_SANDBOX_PROOF_FIXTURES = [
         programs: {
             javascript: "for (let i = 0; i < 1000000; i++) { console.log('x'.repeat(100)); console.error('e'.repeat(100)); }",
             python: "import sys\nfor _ in range(1000000):\n    print('x' * 100)\n    print('e' * 100, file=sys.stderr)",
-            jq: "range(0; 1000000) | \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"",
+            jq: "range(0; 100000) | (\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"), (\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\" | debug | empty)",
         },
     },
     {

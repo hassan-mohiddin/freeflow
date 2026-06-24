@@ -2,7 +2,7 @@
 > **Date:** 2026-06-24
 > **Owner:** Hassan Mohiddin
 > **Type:** Plan
-> **Status:** In progress — Slices 0-3 evidence captured; JavaScript proof passed, Python Eryx candidate blocked before proofs; script execution remains blocked
+> **Status:** In progress — Slices 0-4 evidence captured; JavaScript and jq proof spikes passed, Python Eryx candidate blocked before proofs; script execution remains blocked
 > **Source:** `docs/designs/freeflow-script-derive-sandbox-design.md`, `docs/plans/2026-06-24-freeflow-observed-output-routing-vault-index-script-derive-implementation-plan.md`, current `plugins/freeflow/router/src/script-sandbox.ts`, and owner direction to eventually cover JavaScript, Python, and jq.
 
 # Freeflow Script Sandbox Adapter Spike Plan
@@ -280,6 +280,15 @@ Stop if:
 
 - jq candidate lacks timeout/output controls,
 - jq input model would require broad host filesystem access.
+
+Slice 4 progress:
+
+- Added `plugins/freeflow/evals/scripts/run-jq-wasm-proof-spike.js`, a proof-only runner that uses an explicit `jq-wasm` package root and does not add repo dependencies.
+- Ran the proof runner against a temporary `jq-wasm@1.2.0-jq-1.8.2` install. Required jq proof fixtures passed 9/9.
+- Report written to `plugins/freeflow/evals/reports/runtime/jq-wasm-proof-spike-1-report.md`.
+- Timeout proof uses Worker termination because in-thread recursive jq blocks the event loop.
+- Output proof caps what crosses the Worker boundary; `jq-wasm` can still generate large in-Worker strings before the wrapper truncates them, so implementation/security review must decide whether that boundary is sufficient before any execution adapter is approved.
+- This is feasibility evidence only: no optional adapter package has been added to `package.json`, no adapter has been registered by default, and `freeflow_derive` script execution remains blocked.
 
 ### Slice 5: Adapter Selection Review And Slice 17 Gate
 

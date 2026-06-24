@@ -23,7 +23,8 @@ Use `scripts/run-output-router-capture-derive-eval.js` after capture/derive/prov
 Use `scripts/run-pi-observed-routing-eval.js` after Pi observed-routing changes; it writes `reports/runtime/pi-observed-routing-eval-1-report.md`.
 Use `npm run bench:router:vault-index` after vault-index interface/storage changes; it writes `reports/runtime/vault-index-storage-spike-1-report.md`.
 Use `scripts/run-quickjs-wasi-proof-spike.js --quickjs-wasi-root <temp-or-installed-package-root>` after JavaScript sandbox-adapter proof changes; it writes `reports/runtime/quickjs-wasi-proof-spike-1-report.md`.
-Use `reports/runtime/eryx-python-proof-spike-1-report.md` for the current Python Eryx compatibility result; Eryx is blocked before sandbox proofs until a compatible dependency set or alternate Python WASM candidate is selected. jq proof work may continue independently while Python remains blocked.
+Use `reports/runtime/eryx-python-proof-spike-1-report.md` for the current Python Eryx compatibility result; Eryx is blocked before sandbox proofs until a compatible dependency set or alternate Python WASM candidate is selected.
+Use `scripts/run-jq-wasm-proof-spike.js --jq-wasm-root <temp-or-installed-package-root>` after jq sandbox-adapter proof changes; it writes `reports/runtime/jq-wasm-proof-spike-1-report.md`.
 Use `scripts/validate-release-metadata.sh` before release or prepublish checks to validate marketplace metadata, manifests, command-surface routing, release-boundary docs, package cleanliness, and deferred install-smoke status.
 Use `scripts/check-runtime-context-hook.sh` after changing plugin-bundled runtime context hooks.
 Prefer the latest acceptance report over old smoke evals when evidence conflicts.

@@ -1,7 +1,7 @@
 # Freeflow Script Sandbox Adapter Spike Report
 
 > **Date:** 2026-06-24
-> **Status:** Preliminary Slice 0 evidence; Slice 1 proof fixtures added; JavaScript QuickJS/WASI proof spike passed; Python Eryx candidate blocked before proofs
+> **Status:** Preliminary Slice 0 evidence; Slice 1 proof fixtures added; JavaScript QuickJS/WASI and jq-wasm proof spikes passed; Python Eryx candidate blocked before proofs
 > **Related plan:** `docs/plans/2026-06-24-freeflow-script-sandbox-adapter-spike-plan.md`
 > **Source truth:** `docs/designs/freeflow-script-derive-sandbox-design.md`, current `plugins/freeflow/router/src/script-sandbox.ts`
 
@@ -52,7 +52,7 @@ No repo dependencies were installed. Metadata came from `npm view <package> --js
 | `quickjs-emscripten` | JavaScript runtime | 0.32.0 | MIT | ~2.4 MB | Pulls several wasmfile variants plus core. | Mature QuickJS WASM binding; more variants/size than a single pinned artifact. Needs custom host API and proof fixtures. |
 | `quickjs-wasi` | JavaScript runtime | 3.0.1 | MIT | ~3.0 MB | Ships `quickjs.wasm`; caller supplies bytes/module. | Docs say it performs no implicit filesystem or network I/O; exposes memory limit and interrupt handler for timeout. WASI overrides must be audited. Good JS candidate. Temp install size: 2,976 KB; `quickjs.wasm`: 1,552 KB. |
 | `@bsull/eryx` | Python | 0.5.0 | MIT OR Apache-2.0 | ~48.9 MB | Depends on `@bytecodealliance/preview2-shim`; ships CPython/WASM runtime. | Docs claim no filesystem/network by default, resource limits, cancellation, VFS, host-controlled networking. Strong Python candidate on paper, but current temp probes failed before Python execution because `@bytecodealliance/preview2-shim/filesystem` does not export `_setFileData` for the tested dependency sets. Temp install size: 47,876 KB; largest WASM core: 26,620 KB; stdlib tarball: 3,012 KB. |
-| `jq-wasm` | jq | 1.2.0-jq-1.8.2 | MIT | ~1.2 MB | No native dependency shown in metadata. | Runs jq in WASM and returns stdout/stderr/exitCode. Need proof for timeout/cancellation and output caps; default Node build reads `jq.wasm` from package, inline build embeds artifact. Temp install size: 1,180 KB. |
+| `jq-wasm` | jq | 1.2.0-jq-1.8.2 | MIT | ~1.2 MB | No native dependency shown in metadata. | Runs jq in WASM and returns stdout/stderr/exitCode. Proof runner passed 9/9 using Worker termination for timeout and wrapper caps before Worker result crosses to host. Caveat: `jq-wasm` can generate large strings inside the Worker before truncation, so implementation/security review must decide whether that boundary is sufficient. Temp install size: 1,180 KB. |
 | `jq-web` | jq | 0.6.2 | ISC | ~3.3 MB | Older Emscripten jq package. | Browser-oriented; less attractive than `jq-wasm` unless proof shows better controls. |
 | `@wasm-sandbox/runtime` | generic WASM runtime | 1.3.0 | MIT | ~20 KB wrapper | Optional platform-native packages for OS/arch. | Potential generic runtime layer; needs deeper API review and optional binary package-size inventory before use. |
 
@@ -72,7 +72,7 @@ API notes from installed package files:
 | --- | --- | --- | --- | --- |
 | JavaScript | QuickJS WASM packages such as `@sebastianwessel/quickjs`, `quickjs-emscripten`, `quickjs-wasi` | WASM isolation; can omit fetch/fs/env by default; host can expose tiny APIs; no Docker daemon. | Need dependency approval; package/runtime maturity; timeout/memory behavior must be tested; some packages expose optional fetch/fs that must stay disabled. | Primary path to test first after dependency decision. |
 | Python | CPython/MicroPython/Pyodide/Eryx-style WASM runtimes; Wasmtime-backed Python sandboxes | Plausible no-network/no-filesystem-by-default story; can align with WASI capabilities. | Artifact size may be large; startup latency; package maturity; Node version/JSPI requirements for some packages; pure-Python vs CPython compatibility tradeoff. | Primary path, but dependency/package impact is a hard owner decision. |
-| jq | `jq-web`, `jq-wasm`, other jq-to-WASM builds | Avoids shell/jq subprocess; can run as pure WASM/JS package. | Timeout/output control may be weak; package maturity; input model must avoid host fs; may need wrapper-level caps. | Primary jq direction if timeout/output proofs pass. |
+| jq | `jq-web`, `jq-wasm`, other jq-to-WASM builds | Avoids shell/jq subprocess; can run as pure WASM/JS package. | `jq-wasm` needs Worker-level timeout and wrapper-level output caps; package maturity; input model must avoid host fs. | `jq-wasm` proof spike passed as a partial-availability candidate, with the in-Worker large-output caveat pending security/implementation review. |
 
 Overall: this is the best fit for the owner requirement that Freeflow eventually cover JavaScript, Python, and jq without requiring a daemon or OS-specific sandbox.
 
@@ -122,7 +122,7 @@ Within that family, the current best candidate set to investigate is:
 
 - JavaScript: `quickjs-wasi` first, with `@sebastianwessel/quickjs` or low-level `quickjs-emscripten` as alternatives.
 - Python: `@bsull/eryx` is blocked before proof execution on package/transitive compatibility; next Python path needs either a compatible Eryx dependency set or an alternate Python WASM candidate.
-- jq: `jq-wasm`, pending proof for timeout/output caps.
+- jq: `jq-wasm` proof spike passed using Worker termination and wrapper-level output caps, with in-Worker large-output generation left as a security/implementation review caveat.
 
 Do not implement script execution yet. Current proof routing:
 
@@ -158,6 +158,9 @@ Implications:
 - Report: `plugins/freeflow/evals/reports/runtime/quickjs-wasi-proof-spike-1-report.md`.
 - Tested `@bsull/eryx@0.5.0` from temp-only installs; both the default transitive `@bytecodealliance/preview2-shim@0.17.9` and explicit `0.17.0` pin failed before Python execution because `_setFileData` was not exported from `@bytecodealliance/preview2-shim/filesystem`.
 - Report: `plugins/freeflow/evals/reports/runtime/eryx-python-proof-spike-1-report.md`.
+- Added a proof-only jq/WASM runner: `plugins/freeflow/evals/scripts/run-jq-wasm-proof-spike.js`.
+- Ran the jq/WASM runner against the temporary installed `jq-wasm@1.2.0-jq-1.8.2` package root; required jq proof fixtures passed 9/9.
+- Report: `plugins/freeflow/evals/reports/runtime/jq-wasm-proof-spike-1-report.md`.
 - No repo dependencies or runtime adapters were added, and no Freeflow script execution path was enabled.
 
 ## Next Evidence To Gather
