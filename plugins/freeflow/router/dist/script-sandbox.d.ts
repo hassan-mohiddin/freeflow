@@ -86,6 +86,17 @@ export interface ScriptSandboxProbeReport {
     candidateMechanisms: ScriptSandboxCandidateMechanism[];
     notes: string[];
 }
+export interface ScriptSandboxProofFixture {
+    proof: ScriptSandboxProof;
+    description: string;
+    expected: string;
+    adapterAssertion: string;
+    programs: Record<ScriptDeriveLanguage, string>;
+}
+export declare const SCRIPT_SANDBOX_PROOF_FIXTURES: ScriptSandboxProofFixture[];
+export declare function scriptSandboxProofFixturesForLanguage(language: ScriptDeriveLanguage): Array<Omit<ScriptSandboxProofFixture, "programs"> & {
+    program: string;
+}>;
 export declare const SCRIPT_SANDBOX_CANDIDATE_MECHANISMS: ScriptSandboxCandidateMechanism[];
 export interface ProbeScriptSandboxAdaptersOptions {
     config?: ScriptDeriveConfig;

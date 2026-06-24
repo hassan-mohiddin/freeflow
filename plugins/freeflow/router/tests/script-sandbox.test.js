@@ -3,8 +3,11 @@ import test from "node:test";
 
 import {
   DEFAULT_SCRIPT_DERIVE_CONFIG,
+  SCRIPT_DERIVE_LANGUAGES,
+  SCRIPT_SANDBOX_PROOF_FIXTURES,
   SCRIPT_SANDBOX_REQUIRED_PROOFS,
   probeScriptSandboxAdapters,
+  scriptSandboxProofFixturesForLanguage,
   selectScriptSandboxAdapter,
 } from "../dist/index.js";
 
@@ -30,6 +33,27 @@ function fakeAdapter({ id = "fake-sandbox", languages = ["javascript"], probe })
     },
   };
 }
+
+test("script sandbox proof fixtures cover every required proof for every target language", () => {
+  assert.deepEqual(
+    SCRIPT_SANDBOX_PROOF_FIXTURES.map((fixture) => fixture.proof).sort(),
+    [...SCRIPT_SANDBOX_REQUIRED_PROOFS].sort(),
+  );
+
+  for (const language of SCRIPT_DERIVE_LANGUAGES) {
+    const fixtures = scriptSandboxProofFixturesForLanguage(language);
+    assert.deepEqual(
+      fixtures.map((fixture) => fixture.proof).sort(),
+      [...SCRIPT_SANDBOX_REQUIRED_PROOFS].sort(),
+    );
+    for (const fixture of fixtures) {
+      assert.equal(typeof fixture.program, "string");
+      assert.ok(fixture.program.length > 0, `${language} fixture ${fixture.proof} should include an adversarial program`);
+      assert.ok(fixture.adapterAssertion.length > 0, `${fixture.proof} should describe the adapter-level assertion`);
+      assert.ok(fixture.expected.length > 0, `${fixture.proof} should describe expected behavior`);
+    }
+  }
+});
 
 test("script sandbox probe reports all configured languages unavailable when no adapter is registered", async () => {
   const report = await probeScriptSandboxAdapters({ config: config({ enabled: true, languages: ["javascript", "python", "jq"] }) });
