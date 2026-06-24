@@ -21,7 +21,7 @@ Native tools stay direct unless explicit config enables the safety net. Use nati
 - Need to run a likely-large, broad, exploratory, or noisy command: use `freeflow_run`.
 - Need enabled Pi MCP/web/fetch/code-search output: call the host tool directly; observed routing runs after the tool result when configured.
 - Need deterministic filtering, extraction, counts, grouping, dedupe, topN, URL/citation extraction, or stats from vaulted evidence: use `freeflow_derive`.
-- Need script derive: `freeflow_derive operation.kind=script` exists as a disabled-by-default sandboxed branch; do not use it as unsandboxed code execution.
+- Need script derive: `freeflow_derive operation.kind=script` is a disabled-by-default sandboxed branch. JavaScript can execute only with explicit scriptDerive opt-in and an available proof-backed QuickJS adapter; Python and jq execution remain unavailable unless later product adapters pass proof/review. Do not use script derive as unsandboxed code execution.
 - Need effective Freeflow router/capture/provider config, vault writability, provider availability, or migration recommendations: use `freeflow_status`.
 - Need a whole known file/artifact and direct file contents are intended: use native read.
 - Need direct shell behavior with expected-small exact output: use native bash.
@@ -70,7 +70,7 @@ Use `query` first when the needed lines are unknown. Use `expand` when a previou
 
 ## Config
 
-The router works with built-in defaults. Use `freeflow_status` to inspect effective defaults and non-destructive migration recommendations. Persist `outputRouter`, `observedRouting`, or `providers` config only after the setup evidence-routing decision point or an explicit request; `setup-freeflow` owns repo setup/config changes.
+The router works with built-in defaults. Use `freeflow_status` to inspect effective defaults and non-destructive migration recommendations. Persist `outputRouter`, `observedRouting`, `providers`, or `scriptDerive` config only after the setup evidence-routing/script-execution decision point or an explicit request; `setup-freeflow` owns repo setup/config changes.
 
 Supported `outputRouter` keys are `enabled`, `profile`, `postToolRouting`, `largeOutputBytes`, `largeOutputLines`, `vaultRoot`, `vaultRetentionDays`, `generatedPaths`, and `noisyCommandHints`. Supported `observedRouting` keys are `enabled`, `onRoutingFailure`, `mcp.servers`, `web`, `fetch`, and `codeSearch`, with persistence modes `exact`, `metadata-only`, and `none`. Supported `scriptDerive` keys are `enabled`, `sandbox`, `languages`, `network`, `limits`, and `rawScriptPersistence`; defaults keep it disabled with no unsandboxed fallback. Supported high-level provider keys include `providers.enabled`.
 
@@ -83,11 +83,11 @@ Supported `outputRouter` keys are `enabled`, `profile`, `postToolRouting`, `larg
 Rules:
 
 - Minimal setup stays only `defaultMode`.
-- Do not dump defaults or create empty `outputRouter`, `observedRouting`, `capture`, or `providers` objects; Pi setup should not write legacy `capture` config.
+- Do not dump defaults or create empty `outputRouter`, `observedRouting`, `capture`, `providers`, or `scriptDerive` objects; Pi setup should not write legacy `capture` config.
 - `generatedPaths` affects broad scans only; explicit path retrieval remains available.
 - Freeflow mode changes guidance strength only. It must not enable `postToolRouting` or direct host-tool capture.
 - `observedRouting` is explicit opt-in per producer/server. The user must choose persistence for each enabled entry.
-- `scriptDerive.enabled` defaults to false. Setup must not enable it implicitly, and no script code may execute without an approved sandbox adapter.
+- `scriptDerive.enabled` defaults to false. Setup must not enable it implicitly, and no script code may execute without an approved sandbox adapter. Pi JavaScript discovery is explicit via `FREEFLOW_QUICKJS_WASI_ROOT`; Freeflow must not install or download script runtimes during execution.
 - Do not offer or write `redacted`; it is future-only and currently falls back to `metadata-only` if hand-edited.
 - `capture.directHostTools` currently remains `off`; broad direct host-tool capture needs separate design/confirmation before other policies are written.
 - Invalid config must fall back safely with a warning.

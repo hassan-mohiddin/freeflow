@@ -168,9 +168,15 @@ Mutating provider tools remain direct provider calls after explicit user intent.
 
 `freeflow_derive` transforms existing vaulted output. Current deterministic operations do not execute arbitrary code.
 
-`operation.kind="script"` is a future sandboxed branch under the same tool. It is disabled by default, has no unsandboxed fallback, does not persist raw script text by default, and returns structured disabled/unavailable output until an approved sandbox adapter exists.
+`operation.kind="script"` is the sandboxed branch under the same tool. It is disabled by default, has no unsandboxed fallback, and does not persist raw script text. Successful script output is vaulted as derived stdout with source lineage; failures and output-limit overflows return structured no-recovery results.
 
-`freeflow_status` reports the script-sandbox contract version, configured languages, required adversarial proofs, rejected unsafe mechanisms such as Node `vm`/plain subprocesses, and candidate-unproven OS sandbox adapters. A language remains unavailable until a registered adapter passes every required proof.
+Current product execution support is partial and Pi-first:
+
+- JavaScript can run through a proof-backed QuickJS adapter only when script derive is explicitly enabled and Pi can discover a local `quickjs-wasi` package root.
+- Python remains unavailable.
+- jq remains proof-backed by spike evidence but is not product-enabled yet.
+
+`freeflow_status` reports the script-sandbox contract version, configured languages, required adversarial proofs, rejected unsafe mechanisms such as Node `vm`/plain subprocesses, candidate-unproven OS sandbox adapters, and whether a QuickJS adapter is available. A language remains unavailable until a registered adapter passes every required proof.
 
 Current deterministic operations include:
 
@@ -181,6 +187,26 @@ Current deterministic operations include:
 - line and size stats.
 
 Derived output is vaulted separately and points back to source output ids through lineage. Script operation hashing records code hashes, not raw code.
+
+### Optional QuickJS JavaScript adapter
+
+Freeflow does not install or download script runtimes during execution. The Pi extension discovers QuickJS only when `FREEFLOW_QUICKJS_WASI_ROOT` points at an existing `quickjs-wasi` package root, for example a separately installed `quickjs-wasi@3.0.1` directory containing `package.json`, `dist/index.js`, and `quickjs.wasm`.
+
+Discovery alone does not enable execution. `.freeflow/config.json` must explicitly opt in, for example:
+
+```json
+{
+  "defaultMode": "workflow",
+  "scriptDerive": {
+    "enabled": true,
+    "languages": ["javascript"]
+  }
+}
+```
+
+Supported `scriptDerive` keys are `enabled`, `sandbox`, `languages`, `network`, `limits`, and `rawScriptPersistence`. Defaults keep `sandbox: "auto"`, `network: "off"`, `rawScriptPersistence: "disabled"`, and conservative input/output/time limits. Per-call script limits may only tighten configured limits.
+
+QuickJS guest JavaScript receives only `readText(alias)`, `writeText(text)`, `console.log`, and `console.error`. Vault sources are copied into temporary input files and exposed by alias; repo, home, vault, process, require, fetch, package loading, and host filesystem APIs are not exposed. Invalid or missing `FREEFLOW_QUICKJS_WASI_ROOT` fails closed as adapter unavailable.
 
 ## `freeflow_status`
 

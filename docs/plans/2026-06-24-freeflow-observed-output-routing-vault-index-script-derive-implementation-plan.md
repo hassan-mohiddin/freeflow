@@ -816,13 +816,13 @@ Slice 16 decision after implementation:
 - Rejected unsafe mechanisms in status/source truth: Node `vm` or plain Node subprocess, plain Python subprocess, and plain jq subprocess are not sufficient without OS/container isolation.
 - `freeflow_status` now reports proof-backed script sandbox availability, required proofs, rejected/candidate mechanisms, configured languages, and unavailable language reasons.
 - Adapter probing is order-independent: every matching adapter is probed until one passes all required proofs; if none passes, the language remains unavailable with failure evidence.
-- No real sandbox adapter is registered, no script code executes, and no unsandboxed fallback exists. Local checks found Docker daemon unavailable; macOS `sandbox-exec` can launch with an allow-all profile but no restrictive adapter/proof suite has been approved.
-- Focused sandbox adapter spike now proves JavaScript (`quickjs-wasi`) and jq (`jq-wasm`) candidates against the contract, while Python remains unavailable. Slice 17 remains blocked until owner dependency/security decisions approve which optional adapter packages and residual risks may enter product implementation.
+- At the Slice 16 checkpoint, no real sandbox adapter was registered, no script code executed, and no unsandboxed fallback existed. Local checks found Docker daemon unavailable; macOS `sandbox-exec` could launch with an allow-all profile but no restrictive adapter/proof suite had been approved.
+- Focused sandbox adapter spike proved JavaScript (`quickjs-wasi`) and jq (`jq-wasm`) candidates against the contract, while Python remained unavailable. The owner approved the QuickJS-first route; jq product execution remains gated by separate security review of the Worker-boundary large-output caveat.
 - Evidence: targeted sandbox/derive/Pi tests passed, full `npm run test:router` passed 269/269 tests, `git diff --check && git diff --cached --check` passed, and focused confirmation review passed with no findings after the adapter-order fix.
 
 ## Slice 17: Script Derive Execution Engine
 
-Status: partial JavaScript implementation in progress. QuickJS JavaScript execution is implemented only for explicitly registered/provided adapter roots and remains disabled by default. Python remains unavailable. jq remains proof-backed but not product-enabled pending separate security review of the Worker-boundary large-output caveat.
+Status: partial JavaScript implementation complete. QuickJS JavaScript execution is implemented only for explicitly registered/provided adapter roots and remains disabled by default. Python remains unavailable. jq remains proof-backed but not product-enabled pending separate security review of the Worker-boundary large-output caveat.
 
 Purpose: execute sandboxed scripts over vault sources and route output.
 
@@ -843,7 +843,7 @@ Steps:
 Tests/checks:
 
 - disabled script derive does not execute and returns structured disabled output,
-- successful JavaScript/Python/jq script derives bounded output only when enabled and adapters are available,
+- successful script derives produce bounded output only when the requested language is enabled and backed by an available proof-backed adapter,
 - multi-source script derives joined output,
 - timeout/cap/nonzero exit failures are structured,
 - lineage and operation hash are present,

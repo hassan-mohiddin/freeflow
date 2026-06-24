@@ -1,12 +1,12 @@
 # Output Router Setup
 
-Use this when setup reaches the optional evidence-routing branch or explicitly asks for output-router, observed-routing, provider, generated-path, native safety-net, vault, or threshold repo config.
+Use this when setup reaches the optional evidence-routing branch or explicitly asks for output-router, observed-routing, provider, generated-path, native safety-net, vault, threshold, or script-derive repo config.
 
 ## Defaults
 
 - The output router has built-in defaults. A repo does not need optional config for normal retrieval/run/derive behavior.
 - Minimal `/setup-freeflow` must still write only `defaultMode`.
-- Ask one evidence-routing decision point. If declined, do not write `outputRouter`, `observedRouting`, `capture`, or `providers`.
+- Ask one evidence-routing decision point. If declined, do not write `outputRouter`, `observedRouting`, `capture`, `providers`, or `scriptDerive`.
 - Observed routing is opt-in per producer/server. The user must choose persistence for each enabled entry before setup writes config.
 - Do not create a separate `setup-output-router` skill.
 
@@ -14,7 +14,7 @@ If the user says only “set up the output router” with no requested knobs, sa
 
 ## Config Shape
 
-Write only keys the user explicitly requests. Do not dump all defaults and do not create empty `outputRouter`, `observedRouting`, `capture`, or `providers` objects.
+Write only keys the user explicitly requests. Do not dump all defaults and do not create empty `outputRouter`, `observedRouting`, `capture`, `providers`, or `scriptDerive` objects.
 
 Supported high-level repo config keys:
 
@@ -49,6 +49,18 @@ Supported high-level repo config keys:
     "enabled": [
       { "id": "serena", "mode": "discovery", "categories": ["symbols", "references", "diagnostics"] }
     ]
+  },
+  "scriptDerive": {
+    "enabled": true,
+    "sandbox": "auto",
+    "languages": ["javascript"],
+    "network": "off",
+    "limits": {
+      "timeoutMs": 5000,
+      "maxInputBytes": 1048576,
+      "maxOutputBytes": 65536
+    },
+    "rawScriptPersistence": "disabled"
   }
 }
 ```
@@ -73,6 +85,11 @@ Rules:
 - `capture.directHostTools` currently supports only `off`; broad direct host-tool capture needs a separate design/confirmation before other policies are written.
 - `providers.enabled` accepts provider ids or objects with `id`, optional `mode` (`discovery` or `read-only`), and optional read-only categories (`symbols`, `references`, `diagnostics`, `graph`, `architecture`, `search`).
 - Custom provider manifests are user-owned, must validate as single-line structured fields, and are labeled `custom/unverified`.
+- `scriptDerive.enabled` defaults to `false`; write it only after an explicit script-execution opt-in.
+- Setup must not install, download, or vendor script runtimes. For Pi JavaScript execution, the user must separately provide a `quickjs-wasi` package root through `FREEFLOW_QUICKJS_WASI_ROOT`.
+- `scriptDerive.languages` supports `javascript`, `python`, and `jq`, but only JavaScript has a product adapter path in the current Pi implementation. Do not enable Python or jq execution in setup docs until their product adapters pass proof and review.
+- `scriptDerive.sandbox` currently supports `auto`, `network` supports only `off`, and `rawScriptPersistence` supports only `disabled`.
+- `scriptDerive.limits.timeoutMs`, `maxInputBytes`, and `maxOutputBytes` must be positive integers within product caps. Per-call script limits may only tighten configured values.
 
 ## Verify
 
@@ -81,9 +98,9 @@ After writing optional evidence-routing config, use `freeflow_status` or equival
 - JSON parses.
 - `defaultMode` is valid.
 - Minimal setup still contains only `defaultMode` when evidence routing was declined.
-- Optional `outputRouter`, `observedRouting`, `capture`, and `providers` sections contain only requested keys.
-- Invalid router/observed-routing/capture/provider values are not written.
-- Observed routing and native safety-net routing are not enabled unless explicitly requested.
+- Optional `outputRouter`, `observedRouting`, `capture`, `providers`, and `scriptDerive` sections contain only requested keys.
+- Invalid router/observed-routing/capture/provider/script-derive values are not written.
+- Observed routing, native safety-net routing, and script derive are not enabled unless explicitly requested.
 - No observed-routing entry uses `redacted`, and every enabled entry has explicit persistence.
 - Direct host-tool capture remains `off` unless explicitly requested and supported.
 - `freeflow_status` shows effective defaults and migration recommendations without rewriting config.
