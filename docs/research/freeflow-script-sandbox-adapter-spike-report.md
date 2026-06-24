@@ -1,7 +1,7 @@
 # Freeflow Script Sandbox Adapter Spike Report
 
 > **Date:** 2026-06-24
-> **Status:** Preliminary Slice 0 evidence; Slice 1 proof fixtures added; JavaScript QuickJS/WASI and jq-wasm proof spikes passed; Python Eryx candidate blocked before proofs
+> **Status:** Preliminary Slice 0 evidence; Slice 1 proof fixtures added; JavaScript QuickJS/WASI and jq-wasm proof spikes passed; Python Eryx candidate blocked before proofs; adapter-family selection review complete
 > **Related plan:** `docs/plans/2026-06-24-freeflow-script-sandbox-adapter-spike-plan.md`
 > **Source truth:** `docs/designs/freeflow-script-derive-sandbox-design.md`, current `plugins/freeflow/router/src/script-sandbox.ts`
 
@@ -114,7 +114,9 @@ Open risks:
 - Node's WASI docs warn not to rely on `node:wasi` alone for comprehensive filesystem security: https://nodejs.org/api/wasi.html
 - QuickJS WASM packages expose configurable fetch/filesystem options, which means Freeflow must keep them disabled unless explicitly proven safe: https://sebastianwessel.github.io/quickjs/docs/runtime-options.html
 
-## Preliminary Recommendation
+## Adapter Selection
+
+Selection review: `plugins/freeflow/evals/reports/runtime/script-sandbox-adapter-selection-review-1-report.md`.
 
 Use a **multi-language WASM/WASI adapter family** as the primary direction.
 
@@ -161,6 +163,8 @@ Implications:
 - Added a proof-only jq/WASM runner: `plugins/freeflow/evals/scripts/run-jq-wasm-proof-spike.js`.
 - Ran the jq/WASM runner against the temporary installed `jq-wasm@1.2.0-jq-1.8.2` package root; required jq proof fixtures passed 9/9.
 - Report: `plugins/freeflow/evals/reports/runtime/jq-wasm-proof-spike-1-report.md`.
+- Added adapter selection review: `plugins/freeflow/evals/reports/runtime/script-sandbox-adapter-selection-review-1-report.md`.
+- Selected the optional pinned WASM/WASI family conditionally, with JavaScript and jq as proof-backed partial candidates and Python unavailable.
 - No repo dependencies or runtime adapters were added, and no Freeflow script execution path was enabled.
 
 ## Next Evidence To Gather
@@ -174,7 +178,9 @@ For each candidate package/runtime:
 - timeout/memory controls under adversarial fixtures,
 - filesystem/network control model under adversarial fixtures,
 - API for virtual inputs and bounded output,
-- whether proof fixtures can run deterministically in CI.
+- whether proof fixtures can run deterministically in CI,
+- owner approval for adding optional pinned adapter packages,
+- security acceptance of jq Worker-boundary truncation despite possible large in-Worker allocation.
 
 ## Stop Conditions
 

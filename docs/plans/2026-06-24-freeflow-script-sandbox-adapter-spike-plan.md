@@ -2,7 +2,7 @@
 > **Date:** 2026-06-24
 > **Owner:** Hassan Mohiddin
 > **Type:** Plan
-> **Status:** In progress — Slices 0-4 evidence captured; JavaScript and jq proof spikes passed, Python Eryx candidate blocked before proofs; script execution remains blocked
+> **Status:** In progress — Slices 0-5 evidence captured; WASM/WASI family selected conditionally, JavaScript and jq proof spikes passed, Python Eryx candidate blocked before proofs; script execution remains blocked pending owner dependency/security decisions
 > **Source:** `docs/designs/freeflow-script-derive-sandbox-design.md`, `docs/plans/2026-06-24-freeflow-observed-output-routing-vault-index-script-derive-implementation-plan.md`, current `plugins/freeflow/router/src/script-sandbox.ts`, and owner direction to eventually cover JavaScript, Python, and jq.
 
 # Freeflow Script Sandbox Adapter Spike Plan
@@ -313,6 +313,14 @@ Stop if:
 - adapter proof results require weakening the sandbox contract,
 - dependency/package decisions are still owner-owned,
 - any execution path could run scripts before review approval.
+
+Slice 5 progress:
+
+- Added `plugins/freeflow/evals/reports/runtime/script-sandbox-adapter-selection-review-1-report.md`.
+- Selected the optional pinned WASM/WASI adapter family as the current direction.
+- Marked `quickjs-wasi@3.0.1` and `jq-wasm@1.2.0-jq-1.8.2` as proof-backed partial candidates, not product-enabled adapters.
+- Kept Python unavailable because `@bsull/eryx@0.5.0` is blocked before proof execution.
+- Kept Slice 17 blocked pending explicit owner approval for optional adapter package additions and the jq in-Worker large-output caveat.
 
 ## Final Verification For The Spike
 

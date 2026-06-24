@@ -2,7 +2,7 @@
 > **Date:** 2026-06-24
 > **Owner:** Hassan Mohiddin
 > **Type:** Plan
-> **Status:** In progress — Slices 0-16 implemented; Slice 17 blocked pending a proof-backed sandbox adapter spike
+> **Status:** In progress — Slices 0-16 implemented; sandbox adapter spike proved JavaScript and jq candidates, but Slice 17 remains blocked pending owner dependency/security approval
 > **Source:** `docs/specs/freeflow-observed-output-routing-vault-index-and-script-derive-design.md`
 
 # Freeflow Observed Output Routing, Vault Index, And Script Derive Implementation Plan
@@ -817,12 +817,12 @@ Slice 16 decision after implementation:
 - `freeflow_status` now reports proof-backed script sandbox availability, required proofs, rejected/candidate mechanisms, configured languages, and unavailable language reasons.
 - Adapter probing is order-independent: every matching adapter is probed until one passes all required proofs; if none passes, the language remains unavailable with failure evidence.
 - No real sandbox adapter is registered, no script code executes, and no unsandboxed fallback exists. Local checks found Docker daemon unavailable; macOS `sandbox-exec` can launch with an allow-all profile but no restrictive adapter/proof suite has been approved.
-- Slice 17 remains blocked until a focused sandbox adapter spike proves at least one adapter against the contract.
+- Focused sandbox adapter spike now proves JavaScript (`quickjs-wasi`) and jq (`jq-wasm`) candidates against the contract, while Python remains unavailable. Slice 17 remains blocked until owner dependency/security decisions approve which optional adapter packages and residual risks may enter product implementation.
 - Evidence: targeted sandbox/derive/Pi tests passed, full `npm run test:router` passed 269/269 tests, `git diff --check && git diff --cached --check` passed, and focused confirmation review passed with no findings after the adapter-order fix.
 
 ## Slice 17: Script Derive Execution Engine
 
-Status: blocked pending a proof-backed sandbox adapter spike. Do not implement script execution until at least one adapter passes Slice 16's required proofs and a security/artifact review approves the adapter.
+Status: blocked pending owner dependency/security approval. Proof spikes passed for JavaScript (`quickjs-wasi`) and jq (`jq-wasm`), Python remains unavailable, and script execution must not be implemented until the owner approves optional adapter package additions and the security/artifact review accepts the selected adapter boundaries.
 
 Purpose: execute sandboxed scripts over vault sources and route output.
 
