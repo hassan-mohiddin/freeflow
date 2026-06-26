@@ -402,7 +402,8 @@ function commandFixtureDefinitions() {
             combined: repeatedOutput,
             requiredFacts: ["REPEATED_OUTPUT identical command output stays recoverable"],
             repeatRuns: 2,
-            notes: ["Exact duplicate detection returns a compact note while current and prior raw outputs remain recoverable."],
+            thresholds: { largeOutputLines: 10, largeOutputBytes: 10_000 },
+            notes: ["Exact duplicate detection returns a compact note; current metadata points to the prior exact raw output."],
         },
     ];
 }
@@ -468,7 +469,7 @@ async function improvedCommandObservation(fixture, vaultRoot) {
     if (!result) {
         return skippedObservation("improved-freeflow-run", "freeflowRun did not produce a result.");
     }
-    const recovery = await verifyCommandRecovery(vault.root, sessionId, result.outputId, fixture.combined, fixture.requiredFacts);
+    const recovery = await verifyCommandRecovery(vault.root, sessionId, result.recovery?.outputId ?? result.outputId, fixture.combined, fixture.requiredFacts);
     const notes = [result.routing.reason, ...(fixture.notes ?? [])];
     if (outputIds.length > 1) {
         notes.push(`repeatedRuns=${outputIds.length}`);

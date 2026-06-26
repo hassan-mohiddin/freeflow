@@ -1,4 +1,4 @@
-import { EXECUTION_STATUSES, EVIDENCE_WINDOWS, FAILURE_EXECUTION_STATUSES, OUTPUT_STREAMS, PERSISTENCE_STATUSES, PRESERVE_MODES, PRODUCER_KINDS, RECOVERABILITY_MODES, RETRIEVAL_ACTIONS, ROUTE_KINDS, ROUTER_FAILURE_KINDS, ROUTING_STATUSES, TOOL_STATUSES, } from "./types.js";
+import { BATCH_STEP_KINDS, EXECUTION_STATUSES, EVIDENCE_WINDOWS, FAILURE_EXECUTION_STATUSES, OUTPUT_STREAMS, PERSISTENCE_STATUSES, PRESERVE_MODES, PRODUCER_KINDS, RECOVERABILITY_MODES, RETRIEVAL_ACTIONS, ROUTE_KINDS, ROUTER_FAILURE_KINDS, ROUTING_STATUSES, STORAGE_POLICY_MODES, TOOL_STATUSES, } from "./types.js";
 import { isValidPostToolRoutingMode, validateNormalizedRouterHints, validatePositiveIntegerThreshold, validateVaultRetentionPolicy, } from "./router-contract.js";
 function isRecord(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -194,6 +194,73 @@ function validateParserMetadata(value, path, issues) {
         }
     }
 }
+function validateRunOutputFilterMetadata(value, path, issues) {
+    if (value === undefined) {
+        return;
+    }
+    if (!isRecord(value)) {
+        issues.push({ path, message: "Expected run filter metadata object." });
+        return;
+    }
+    if (value.stream !== "stdout" && value.stream !== "stderr" && value.stream !== "combined") {
+        issues.push({ path: `${path}.stream`, message: "Expected stdout, stderr, or combined stream." });
+    }
+    for (const key of ["include", "exclude"]) {
+        if (value[key] !== undefined && (!Array.isArray(value[key]) || !value[key].every((item) => typeof item === "string"))) {
+            issues.push({ path: `${path}.${key}`, message: "Expected string array when present." });
+        }
+    }
+    if (value.flags !== undefined && typeof value.flags !== "string") {
+        issues.push({ path: `${path}.flags`, message: "Expected string flags when present." });
+    }
+    for (const key of ["head", "tail", "maxLines", "maxBytes", "sourceLines", "selectedLines"]) {
+        const numericValue = value[key];
+        if (numericValue !== undefined && (typeof numericValue !== "number" || !Number.isInteger(numericValue) || numericValue < 0)) {
+            issues.push({ path: `${path}.${key}`, message: "Expected non-negative integer when present." });
+        }
+    }
+    if (value.fallbackPreservedFailureEvidence !== undefined && typeof value.fallbackPreservedFailureEvidence !== "boolean") {
+        issues.push({ path: `${path}.fallbackPreservedFailureEvidence`, message: "Expected boolean when present." });
+    }
+}
+function validateRunScriptFilterMetadata(value, path, issues) {
+    if (value === undefined) {
+        return;
+    }
+    if (!isRecord(value)) {
+        issues.push({ path, message: "Expected run script filter metadata object." });
+        return;
+    }
+    if (typeof value.status !== "string" || value.status.length === 0) {
+        issues.push({ path: `${path}.status`, message: "Expected script filter status string." });
+    }
+    if (typeof value.language !== "string" || value.language.length === 0) {
+        issues.push({ path: `${path}.language`, message: "Expected script filter language string." });
+    }
+    requireString(value, "rawOutputId", path, issues);
+    if (!Array.isArray(value.sourceAliases) || !value.sourceAliases.every((item) => typeof item === "string")) {
+        issues.push({ path: `${path}.sourceAliases`, message: "Expected script source alias string array." });
+    }
+    if (value.label !== undefined && typeof value.label !== "string") {
+        issues.push({ path: `${path}.label`, message: "Expected label string when present." });
+    }
+    if (value.operation !== undefined && !isRecord(value.operation)) {
+        issues.push({ path: `${path}.operation`, message: "Expected operation object when present." });
+    }
+    if (value.outputId !== undefined && typeof value.outputId !== "string") {
+        issues.push({ path: `${path}.outputId`, message: "Expected output id string when present." });
+    }
+    if (value.recordId !== undefined && typeof value.recordId !== "string") {
+        issues.push({ path: `${path}.recordId`, message: "Expected record id string when present." });
+    }
+    validateEvidencePersistence(value.persistence, `${path}.persistence`, issues);
+    validateEvidenceLineage(value.lineage, `${path}.lineage`, issues);
+    validateFailure(value.failure, `${path}.failure`, issues);
+    validateFailureExecution(value.deriveExecution, `${path}.deriveExecution`, issues);
+    if (value.summary !== undefined && typeof value.summary !== "string") {
+        issues.push({ path: `${path}.summary`, message: "Expected summary string when present." });
+    }
+}
 function validateParserReference(value, path, issues) {
     if (!isRecord(value)) {
         issues.push({ path, message: "Expected parser reference object." });
@@ -269,6 +336,45 @@ function validateEvidenceArray(value, path, issues) {
         }
     });
 }
+function validateBatchSteps(value, path, issues) {
+    if (value === undefined) {
+        return;
+    }
+    if (!Array.isArray(value)) {
+        issues.push({ path, message: "Expected batch steps array." });
+        return;
+    }
+    value.forEach((step, index) => {
+        const stepPath = `${path}[${index}]`;
+        if (!isRecord(step)) {
+            issues.push({ path: stepPath, message: "Expected batch step result object." });
+            return;
+        }
+        requireString(step, "id", stepPath, issues);
+        requireInteger(step, "index", stepPath, issues);
+        if (!isOneOf(step.kind, BATCH_STEP_KINDS)) {
+            issues.push({ path: `${stepPath}.kind`, message: "Expected batch step kind run, retrieve, search, derive, or transform." });
+        }
+        if (step.status !== "ok" && step.status !== "failed") {
+            issues.push({ path: `${stepPath}.status`, message: "Expected batch step status ok or failed." });
+        }
+        if (step.toolStatus !== undefined && !isOneOf(step.toolStatus, TOOL_STATUSES)) {
+            issues.push({ path: `${stepPath}.toolStatus`, message: "Expected toolStatus ok or error when present." });
+        }
+        requireNonNegativeNumber(step, "durationMs", stepPath, issues);
+        if (step.error !== undefined && typeof step.error !== "string") {
+            issues.push({ path: `${stepPath}.error`, message: "Expected error string when present." });
+        }
+        if (step.result !== undefined) {
+            const nested = validateRoutedResult(step.result);
+            if (!nested.ok) {
+                for (const issue of nested.issues) {
+                    issues.push({ path: `${stepPath}.result${issue.path.slice(1)}`, message: issue.message });
+                }
+            }
+        }
+    });
+}
 export function validatePreserveMode(value) {
     if (!isOneOf(value, PRESERVE_MODES)) {
         return failure([{ path: "$", message: "Expected preserve mode summary, important, or full." }]);
@@ -277,7 +383,7 @@ export function validatePreserveMode(value) {
 }
 export function validateRetrievalAction(value) {
     if (!isOneOf(value, RETRIEVAL_ACTIONS)) {
-        return failure([{ path: "$", message: "Expected retrieval action query, locate, retrieve, expand, or explain." }]);
+        return failure([{ path: "$", message: "Expected retrieval action query, locate, get, retrieve, expand, or explain." }]);
     }
     return success(value);
 }
@@ -299,6 +405,19 @@ export function validateEvidencePacket(value) {
     }
     if (value.lines !== undefined && typeof value.lines !== "string") {
         issues.push({ path: "$.lines", message: "Expected a string when present." });
+    }
+    if (value.match !== undefined) {
+        if (!isRecord(value.match)) {
+            issues.push({ path: "$.match", message: "Expected match metadata object when present." });
+        }
+        else {
+            if (!["exact_phrase", "lexical", "metadata"].includes(String(value.match.type))) {
+                issues.push({ path: "$.match.type", message: "Expected known match type." });
+            }
+            if (typeof value.match.confidence !== "number" || !Number.isFinite(value.match.confidence) || value.match.confidence < 0 || value.match.confidence > 1) {
+                issues.push({ path: "$.match.confidence", message: "Expected match confidence between 0 and 1." });
+            }
+        }
     }
     return issues.length === 0 ? success(value) : failure(issues);
 }
@@ -369,6 +488,21 @@ export function validateRoutedResult(value) {
     validateFailureExecution(value.deriveExecution, "$.deriveExecution", issues);
     validateImportantLines(value.importantLines, "$.importantLines", issues);
     validateParserMetadata(value.parser, "$.parser", issues);
+    validateRunOutputFilterMetadata(value.filters, "$.filters", issues);
+    validateRunScriptFilterMetadata(value.scriptFilter, "$.scriptFilter", issues);
+    validateBatchSteps(value.steps, "$.steps", issues);
+    if (value.stepCount !== undefined) {
+        requireNonNegativeNumber(value, "stepCount", "$", issues);
+    }
+    if (value.okCount !== undefined) {
+        requireNonNegativeNumber(value, "okCount", "$", issues);
+    }
+    if (value.failedCount !== undefined) {
+        requireNonNegativeNumber(value, "failedCount", "$", issues);
+    }
+    if (value.concurrency !== undefined) {
+        requireNonNegativeNumber(value, "concurrency", "$", issues);
+    }
     return issues.length === 0 ? success(value) : failure(issues);
 }
 export function validateRouterConfig(value) {
@@ -378,6 +512,9 @@ export function validateRouterConfig(value) {
     }
     if (!isValidPostToolRoutingMode(value.postToolRouting)) {
         issues.push({ path: "$.postToolRouting", message: "Expected postToolRouting off, safety-net, or strict." });
+    }
+    if (!isOneOf(value.storagePolicy, STORAGE_POLICY_MODES)) {
+        issues.push({ path: "$.storagePolicy", message: "Expected storagePolicy store-everything or hybrid-dedupe." });
     }
     if (!isRecord(value.thresholds)) {
         issues.push({ path: "$.thresholds", message: "Expected thresholds object." });

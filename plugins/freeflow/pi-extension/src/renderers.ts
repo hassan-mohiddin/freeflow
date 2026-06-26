@@ -55,6 +55,134 @@ function routeSummaryLine(theme, result) {
   return `${themeFg(theme, "muted", "routing:")} ${formatStatus(theme, route)}${themeFg(theme, "dim", preserve)}`;
 }
 
+function evidenceSourceSummary(source) {
+  if (!source || typeof source !== "object") {
+    return "unknown";
+  }
+  if (source.kind === "repo") {
+    return `repo ${source.path ?? "."}`;
+  }
+  if (source.kind === "vault") {
+    const stream = source.stream ? `:${source.stream}` : "";
+    return `vault ${source.outputId ?? "..."}${stream}`;
+  }
+  return oneLine(source.kind ?? "source");
+}
+
+function runFilterLabel(filters) {
+  if (!filters || typeof filters !== "object") {
+    return "";
+  }
+  const parts = [`stream=${filters.stream ?? "selected"}`];
+  if (Array.isArray(filters.include) && filters.include.length > 0) {
+    parts.push(`include=${filters.include.join("|")}`);
+  }
+  if (Array.isArray(filters.exclude) && filters.exclude.length > 0) {
+    parts.push(`exclude=${filters.exclude.join("|")}`);
+  }
+  if (filters.flags) {
+    parts.push(`flags=${filters.flags}`);
+  }
+  for (const key of ["head", "tail", "maxLines", "maxBytes"] as const) {
+    if (filters[key] !== undefined) {
+      parts.push(`${key}=${filters[key]}`);
+    }
+  }
+  if (filters.selectedLines !== undefined && filters.sourceLines !== undefined) {
+    parts.push(`selected=${filters.selectedLines}/${filters.sourceLines}`);
+  }
+  if (filters.fallbackPreservedFailureEvidence) {
+    parts.push("fallback=failure-evidence");
+  }
+  return parts.join(" ");
+}
+
+function runScriptFilterLabel(scriptFilter) {
+  if (!scriptFilter || typeof scriptFilter !== "object") {
+    return "";
+  }
+  const parts = [`${scriptFilter.language ?? "script"}:${scriptFilter.status ?? "unknown"}`];
+  if (scriptFilter.label) {
+    parts.push(`label=${scriptFilter.label}`);
+  }
+  if (scriptFilter.outputId) {
+    parts.push(`derived=${scriptFilter.outputId}`);
+  }
+  if (scriptFilter.failure?.kind) {
+    parts.push(`failure=${scriptFilter.failure.kind}`);
+  }
+  return parts.join(" ");
+}
+
+function appendStorageSection(lines, theme, routed, outputId, title = "Storage") {
+  const persistence = routed?.persistence;
+  const recoveryOutputId = persistence?.recoveryOutputId ?? persistence?.outputId ?? routed?.recovery?.outputId;
+  const hasStorage = routed?.decisionId || outputId || routed?.recordId || persistence?.status || recoveryOutputId;
+  if (!hasStorage) {
+    return;
+  }
+
+  lines.push("", themeFg(theme, "toolTitle", title));
+  if (routed?.decisionId) {
+    lines.push(`  ${themeFg(theme, "muted", "decisionId:")} ${themeFg(theme, "accent", routed.decisionId)}`);
+  }
+  if (outputId) {
+    lines.push(`  ${themeFg(theme, "muted", "outputId:")} ${themeFg(theme, "accent", outputId)}`);
+  }
+  if (routed?.recordId) {
+    lines.push(`  ${themeFg(theme, "muted", "recordId:")} ${themeFg(theme, "accent", routed.recordId)}`);
+  }
+  if (persistence?.status) {
+    lines.push(`  ${themeFg(theme, "muted", "persistence:")} ${persistence.status} / ${persistence.recoverability ?? "unknown"}`);
+  }
+  if (recoveryOutputId && recoveryOutputId !== outputId) {
+    lines.push(`  ${themeFg(theme, "muted", "recoveryOutputId:")} ${themeFg(theme, "accent", recoveryOutputId)}`);
+  }
+}
+
+function exactRetrieveHintFromEvidence(packet) {
+  if (!packet?.lines) {
+    return "";
+  }
+  const source = packet.source;
+  if (source?.kind === "vault" && source.outputId) {
+    return `action=retrieve source.kind=vault lineRange=${packet.lines} stream=${source.stream ?? "raw"} outputId=${source.outputId}`;
+  }
+  const path = packet.path ?? (source?.kind === "repo" ? source.path : undefined);
+  if (path && source?.kind !== "vault") {
+    return `action=retrieve source.kind=repo lineRange=${packet.lines} path=${path}`;
+  }
+  return "";
+}
+
+function firstExactRetrieveHintFromEvidence(evidence) {
+  if (!Array.isArray(evidence)) {
+    return "";
+  }
+  for (const packet of evidence) {
+    const hint = exactRetrieveHintFromEvidence(packet);
+    if (hint) {
+      return hint;
+    }
+  }
+  return "";
+}
+
+function exactRetrieveHintFromImportantLines(outputId, importantLines) {
+  if (!outputId || !Array.isArray(importantLines)) {
+    return "";
+  }
+  const firstSpan = importantLines.find((line) => line?.lines);
+  if (!firstSpan) {
+    return "";
+  }
+  return `action=retrieve source.kind=vault lineRange=${firstSpan.lines} stream=${firstSpan.stream ?? "combined"} outputId=${outputId}`;
+}
+
+function recoveryStartingPoint(outputId) {
+  return outputId ? `freeflow_retrieve source.kind=vault outputId=${outputId} (choose stream + lineRange, or query/expand)` : "";
+}
+
 function routerResultFromToolResult(result) {
   return result?.details?.result;
 }
@@ -82,6 +210,9 @@ export function renderFreeflowRunCall(args, theme) {
   if (args?.timeoutMs !== undefined) {
     extras.push(`timeout=${args.timeoutMs}ms`);
   }
+  if (args?.scriptFilter?.language) {
+    extras.push(`script=${args.scriptFilter.language}`);
+  }
   const suffix = extras.length > 0 ? ` ${themeFg(theme, "dim", `(${extras.join(", ")})`)}` : "";
   return textComponent(`${title} ${command}${suffix}`);
 }
@@ -99,6 +230,80 @@ export function renderFreeflowDeriveCall(args, theme) {
   const source = themeFg(theme, "muted", retrieveSourceLabel(args?.source));
   const preserve = args?.preserve ? ` ${themeFg(theme, "dim", `(preserve=${args.preserve})`)}` : "";
   return textComponent(`${title} ${operation} ${source}${preserve}`);
+}
+
+export function renderFreeflowBatchCall(args, theme) {
+  const title = themeFg(theme, "toolTitle", themeBold(theme, "freeflow_batch"));
+  const steps = Array.isArray(args?.steps) ? args.steps : [];
+  const kinds = steps.slice(0, 4).map((step) => step?.kind ?? "step").join(", ");
+  const more = steps.length > 4 ? ` +${steps.length - 4}` : "";
+  const concurrency = args?.concurrency ? ` ${themeFg(theme, "dim", `(concurrency=${args.concurrency})`)}` : "";
+  return textComponent(`${title} ${themeFg(theme, "accent", `${steps.length} step(s)`)} ${themeFg(theme, "muted", kinds + more)}${concurrency}`);
+}
+
+export function renderFreeflowBatchResult(result, { expanded }: any = {}, theme) {
+  const routed = routerResultFromToolResult(result);
+  if (!routed) {
+    return textComponent(fallbackResultText(result));
+  }
+
+  const failed = routed.failedCount ?? 0;
+  const icon = failed > 0 || routed.toolStatus === "error" ? "✗" : statusIcon(routed.toolStatus);
+  const steps = Array.isArray(routed.steps) ? routed.steps : [];
+  const lines = [
+    `${themeFg(theme, failed > 0 ? "warning" : "success", icon)} ${themeFg(theme, "toolTitle", "freeflow_batch")} ${themeFg(theme, "muted", `${routed.okCount ?? 0}/${routed.stepCount ?? steps.length} ok`)} • ${routeSummaryLine(theme, routed)}`,
+  ];
+  if (routed.summary) {
+    lines.push(themeFg(theme, "muted", truncateText(routed.summary, 160)));
+  }
+  lines.push(themeFg(theme, "dim", `concurrency=${routed.concurrency ?? "?"} • child outputs suppressed; full child results in details.result.steps`));
+
+  if (!expanded) {
+    lines.push(themeFg(theme, "dim", "ctrl+o to expand child step statuses and recovery pointers"));
+    return textComponent(lines.join("\n"));
+  }
+
+  lines.push("", themeFg(theme, "toolTitle", "Steps"));
+  if (steps.length === 0) {
+    lines.push(`  ${themeFg(theme, "dim", "No steps returned.")}`);
+  } else {
+    steps.forEach((step) => {
+      const child = step.result;
+      const outputId = child?.outputId ?? child?.recovery?.outputId;
+      const status = step.status ?? child?.toolStatus ?? "unknown";
+      const pieces = [`${step.kind}`, `status=${status}`, `${step.durationMs ?? 0}ms`];
+      if (child?.routing?.status) {
+        pieces.push(`routing=${child.routing.status}`);
+      }
+      if (child?.execution?.status) {
+        pieces.push(`execution=${child.execution.status}`);
+      }
+      if (outputId) {
+        pieces.push(`outputId=${outputId}`);
+      }
+      if (Array.isArray(child?.evidence)) {
+        pieces.push(`evidence=${child.evidence.length}`);
+      }
+      if (Array.isArray(child?.importantLines)) {
+        pieces.push(`spans=${child.importantLines.length}`);
+      }
+      lines.push(`  ${themeFg(theme, status === "failed" ? "warning" : "accent", `#${step.index + 1} ${step.id}`)} ${themeFg(theme, "muted", pieces.join(" • "))}`);
+      const message = step.error ?? child?.failure?.message ?? child?.summary ?? child?.routing?.reason;
+      if (message) {
+        lines.push(`    ${truncateText(message, 180)}`);
+      }
+      if (outputId) {
+        lines.push(`    ${themeFg(theme, "muted", "recovery starting point:")} ${recoveryStartingPoint(outputId)}`);
+      }
+    });
+  }
+
+  lines.push("", themeFg(theme, "toolTitle", "Batch recovery"));
+  if (routed.recovery?.how) {
+    lines.push(`  ${truncateText(routed.recovery.how, 220)}`);
+  }
+  lines.push(`  ${themeFg(theme, "dim", "Use details.result.steps for complete child routed results; model-visible output intentionally omits child excerpts.")}`);
+  return textComponent(lines.join("\n"));
 }
 
 export function renderFreeflowStatusCall(args, theme) {
@@ -139,6 +344,7 @@ export function renderFreeflowStatusResult(result, { expanded }: any = {}, theme
   lines.push(`  ${themeFg(theme, "muted", "enabled:")} ${String(router.enabled !== false)}`);
   lines.push(`  ${themeFg(theme, "muted", "profile:")} ${router.profile ?? "standard"}`);
   lines.push(`  ${themeFg(theme, "muted", "postToolRouting:")} ${router.postToolRouting ?? "off"}`);
+  lines.push(`  ${themeFg(theme, "muted", "storagePolicy:")} ${router.storagePolicy ?? "hybrid-dedupe"}`);
   if (router.thresholds) {
     lines.push(`  ${themeFg(theme, "muted", "thresholds:")} ${JSON.stringify(router.thresholds)}`);
   }
@@ -231,6 +437,14 @@ export function renderFreeflowRetrieveResult(result, { expanded }: any = {}, the
     return textComponent(lines.join("\n"));
   }
 
+  lines.push("", themeFg(theme, "toolTitle", "Source"));
+  lines.push(`  ${themeFg(theme, "accent", retrieveSourceLabel(routed.source))}`);
+  if (routed.preserve) {
+    lines.push(`  ${themeFg(theme, "muted", "preserve:")} ${routed.preserve}`);
+  }
+
+  appendStorageSection(lines, theme, routed, routed.outputId || routed.recovery?.outputId);
+
   lines.push("", themeFg(theme, "toolTitle", "Routing"));
   lines.push(`  ${themeFg(theme, "muted", "toolStatus:")} ${formatStatus(theme, routed.toolStatus)}`);
   lines.push(`  ${themeFg(theme, "muted", "routing.status:")} ${formatStatus(theme, routed.routing?.status)}`);
@@ -245,6 +459,19 @@ export function renderFreeflowRetrieveResult(result, { expanded }: any = {}, the
   } else {
     evidence.forEach((packet, index) => {
       lines.push(`  ${themeFg(theme, "accent", `#${index + 1} ${evidenceLabel(packet)}`)} ${themeFg(theme, "dim", `window=${packet.window}`)}`);
+      if (packet.id) {
+        lines.push(`    ${themeFg(theme, "muted", "evidenceId:")} ${themeFg(theme, "accent", packet.id)}`);
+      }
+      if (packet.source) {
+        lines.push(`    ${themeFg(theme, "muted", "source:")} ${evidenceSourceSummary(packet.source)}`);
+      }
+      if (packet.expandable !== undefined) {
+        lines.push(`    ${themeFg(theme, "muted", "expandable:")} ${String(Boolean(packet.expandable))}`);
+      }
+      const exactHint = exactRetrieveHintFromEvidence(packet);
+      if (exactHint) {
+        lines.push(`    ${themeFg(theme, "muted", "exact retrieve:")} ${exactHint}`);
+      }
       if (packet.why) {
         lines.push(`    ${themeFg(theme, "muted", "why:")} ${truncateText(packet.why, 160)}`);
       }
@@ -258,8 +485,15 @@ export function renderFreeflowRetrieveResult(result, { expanded }: any = {}, the
     if (routed.recovery.outputId) {
       lines.push(`  ${themeFg(theme, "muted", "outputId:")} ${themeFg(theme, "accent", routed.recovery.outputId)}`);
     }
+    const exactHint = firstExactRetrieveHintFromEvidence(evidence);
+    if (exactHint) {
+      lines.push(`  ${themeFg(theme, "muted", "exact retrieve:")} ${exactHint}`);
+    } else if (routed.recovery.outputId) {
+      lines.push(`  ${themeFg(theme, "muted", "recovery starting point:")} ${recoveryStartingPoint(routed.recovery.outputId)}`);
+    }
     if (routed.recovery.evidenceId) {
       lines.push(`  ${themeFg(theme, "muted", "evidenceId:")} ${themeFg(theme, "accent", routed.recovery.evidenceId)}`);
+      lines.push(`  ${themeFg(theme, "muted", "expand hint:")} freeflow_retrieve action=expand evidenceId=${routed.recovery.evidenceId}`);
     }
   }
 
@@ -273,7 +507,8 @@ export function renderFreeflowRunResult(result, { expanded }: any = {}, theme, c
   }
 
   const executionStatus = routed.execution?.status ?? routed.toolStatus;
-  const outputId = routed.outputId || routed.recovery?.outputId;
+  const outputId = routed.outputId;
+  const exactRecoveryOutputId = routed.persistence?.recoverability === "exact" ? outputId : routed.recovery?.outputId;
   const icon = statusIcon(executionStatus);
   const importantLines = Array.isArray(routed.importantLines) ? routed.importantLines : [];
   const lines = [
@@ -288,7 +523,13 @@ export function renderFreeflowRunResult(result, { expanded }: any = {}, theme, c
     statusParts.push(`${routed.execution.durationMs}ms`);
   }
   if (outputId) {
-    statusParts.push(`outputId ${outputId}`);
+    statusParts.push(`${routed.persistence?.recoverability === "metadata_only" ? "metadataId" : "outputId"} ${outputId}`);
+  }
+  if (exactRecoveryOutputId && exactRecoveryOutputId !== outputId) {
+    statusParts.push(`exact ${exactRecoveryOutputId}`);
+  }
+  if (routed.scriptFilter?.outputId) {
+    statusParts.push(`derived ${routed.scriptFilter.outputId}`);
   }
   if (routed.parser?.name) {
     statusParts.push(`parser ${routed.parser.name} ${Number(routed.parser.confidence ?? 0).toFixed(2)}`);
@@ -299,7 +540,7 @@ export function renderFreeflowRunResult(result, { expanded }: any = {}, theme, c
   if (routed.summary) {
     lines.push(themeFg(theme, "muted", truncateText(routed.summary, 140)));
   }
-  lines.push(themeFg(theme, "dim", `${importantLines.length} important span(s) • raw output recoverable from vault`));
+  lines.push(themeFg(theme, "dim", `${importantLines.length} important span(s) • ${exactRecoveryOutputId ? (routed.scriptFilter?.outputId ? "raw and script output recoverable from vault" : "raw output recoverable from vault") : "metadata-only record; exact raw output not vaulted"}`));
 
   if (!expanded) {
     lines.push(themeFg(theme, "dim", "ctrl+o to expand status, evidence, and vault recovery"));
@@ -320,6 +561,8 @@ export function renderFreeflowRunResult(result, { expanded }: any = {}, theme, c
     lines.push(`  ${themeFg(theme, "muted", "durationMs:")} ${routed.execution.durationMs}`);
   }
 
+  appendStorageSection(lines, theme, routed, outputId);
+
   if (routed.routing?.reason || routed.summary) {
     lines.push("", themeFg(theme, "toolTitle", "Routing"));
     if (routed.summary) {
@@ -327,6 +570,28 @@ export function renderFreeflowRunResult(result, { expanded }: any = {}, theme, c
     }
     if (routed.routing?.reason) {
       lines.push(`  ${themeFg(theme, "muted", "reason:")} ${truncateText(routed.routing.reason, 180)}`);
+    }
+  }
+
+  if (routed.filters) {
+    lines.push("", themeFg(theme, "toolTitle", "Filters"));
+    lines.push(`  ${truncateText(runFilterLabel(routed.filters), 220)}`);
+  }
+
+  if (routed.scriptFilter) {
+    lines.push("", themeFg(theme, "toolTitle", "Script filter"));
+    lines.push(`  ${truncateText(runScriptFilterLabel(routed.scriptFilter), 220)}`);
+    if (routed.scriptFilter.rawOutputId) {
+      lines.push(`  ${themeFg(theme, "muted", "rawOutputId:")} ${themeFg(theme, "accent", routed.scriptFilter.rawOutputId)}`);
+    }
+    if (Array.isArray(routed.scriptFilter.sourceAliases)) {
+      lines.push(`  ${themeFg(theme, "muted", "sources:")} ${routed.scriptFilter.sourceAliases.join(", ")}`);
+    }
+    if (routed.scriptFilter.operation) {
+      lines.push(`  ${themeFg(theme, "muted", "operation:")} ${truncateText(JSON.stringify(routed.scriptFilter.operation), 180)}`);
+    }
+    if (routed.scriptFilter.failure?.message) {
+      lines.push(`  ${themeFg(theme, "warning", truncateText(routed.scriptFilter.failure.message, 180))}`);
     }
   }
 
@@ -363,6 +628,18 @@ export function renderFreeflowRunResult(result, { expanded }: any = {}, theme, c
     if (routed.recovery?.how) {
       lines.push(`  ${truncateText(routed.recovery.how, 180)}`);
     }
+    const evidenceOutputId = routed.scriptFilter?.outputId ?? exactRecoveryOutputId;
+    const exactHint = exactRetrieveHintFromImportantLines(evidenceOutputId, importantLines);
+    if (exactHint) {
+      const hint = routed.scriptFilter?.outputId ? exactHint.replace(/stream=(stdout|stderr|combined)/, "stream=raw") : exactHint;
+      lines.push(`  ${themeFg(theme, "muted", "exact retrieve:")} ${hint}`);
+      if (routed.scriptFilter?.outputId && outputId) {
+        lines.push(`  ${themeFg(theme, "muted", "raw command starting point:")} ${recoveryStartingPoint(outputId)}`);
+      }
+    } else if (exactRecoveryOutputId) {
+      lines.push(`  ${themeFg(theme, "muted", "recovery starting point:")} ${recoveryStartingPoint(exactRecoveryOutputId)}`);
+    }
+    lines.push(`  ${themeFg(theme, "dim", "Full structured result remains available in details.result.")}`);
   }
 
   return textComponent(lines.join("\n"));
@@ -426,6 +703,8 @@ export function renderFreeflowDeriveResult(result, { expanded }: any = {}, theme
     lines.push(`  ${themeFg(theme, "muted", "reason:")} ${truncateText(routed.routing.reason, 180)}`);
   }
 
+  appendStorageSection(lines, theme, routed, outputId);
+
   lines.push("", themeFg(theme, "toolTitle", "Source"));
   lines.push(`  ${themeFg(theme, "accent", sourceLabel)}`);
 
@@ -458,6 +737,19 @@ export function renderFreeflowDeriveResult(result, { expanded }: any = {}, theme
   } else {
     evidence.forEach((packet, index) => {
       lines.push(`  ${themeFg(theme, "accent", `#${index + 1} ${evidenceLabel(packet)}`)} ${themeFg(theme, "dim", `window=${packet.window}`)}`);
+      if (packet.id) {
+        lines.push(`    ${themeFg(theme, "muted", "evidenceId:")} ${themeFg(theme, "accent", packet.id)}`);
+      }
+      if (packet.source) {
+        lines.push(`    ${themeFg(theme, "muted", "source:")} ${evidenceSourceSummary(packet.source)}`);
+      }
+      if (packet.expandable !== undefined) {
+        lines.push(`    ${themeFg(theme, "muted", "expandable:")} ${String(Boolean(packet.expandable))}`);
+      }
+      const exactHint = exactRetrieveHintFromEvidence(packet);
+      if (exactHint) {
+        lines.push(`    ${themeFg(theme, "muted", "exact retrieve:")} ${exactHint}`);
+      }
       if (packet.why) {
         lines.push(`    ${themeFg(theme, "muted", "why:")} ${truncateText(packet.why, 160)}`);
       }
@@ -472,6 +764,12 @@ export function renderFreeflowDeriveResult(result, { expanded }: any = {}, theme
     }
     if (routed.recovery?.how) {
       lines.push(`  ${truncateText(routed.recovery.how, 180)}`);
+    }
+    const exactHint = firstExactRetrieveHintFromEvidence(evidence);
+    if (exactHint) {
+      lines.push(`  ${themeFg(theme, "muted", "exact retrieve:")} ${exactHint}`);
+    } else if (outputId) {
+      lines.push(`  ${themeFg(theme, "muted", "recovery starting point:")} ${recoveryStartingPoint(outputId)}`);
     }
   }
 

@@ -1,13 +1,18 @@
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { dirname, resolve } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { performance } from "node:perf_hooks";
 import { defaultJsonRunReportPath, escapeMarkdownTableCell as escapeTable, formatPercent, latencySummary, normalizeIterations, parseBenchmarkCliArgs, reductionPercent, writeBenchmarkReportPair, } from "./benchmark-harness.js";
 import { freeflowRetrieve } from "./retrieve.js";
 import { buildOrLoadExperimentalRepoIndex, queryExperimentalRepoIndex, } from "./experiments/local-index.js";
 const DEFAULT_ITERATIONS = 3;
+const BENCHMARK_TOP_K = 3;
+const FTS_CONTEXT_LINES = 2;
+const require = createRequire(import.meta.url);
+let cachedFtsCandidateStatus;
 export async function runIndexBenchmarks(options = {}) {
     const iterations = normalizeIterations(options.iterations, DEFAULT_ITERATIONS);
     const fixtures = indexFixtureDefinitions();
@@ -35,9 +40,9 @@ export function renderIndexBenchmarkReport(report) {
         "",
         "## Scope",
         "",
-        "Optional Local Index Experiment for `freeflow_retrieve`. The scanner remains the product default; this benchmark measures an isolated no-dependency local index for cold build, warm query, stale refresh, accuracy, and bounded context bytes.",
+        "Repo Search Backend Benchmark for `freeflow_retrieve`. The scanner remains the product default; this benchmark compares scanner-only retrieval, the no-dependency local lexical index, a conservative hybrid scanner+index path, and records whether an FTS5/BM25/trigram candidate is available.",
         "",
-        "The index cache is keyed by repo root and stores outside the repo by default. No external service, vector DB, or native dependency is required.",
+        "The index cache is keyed by repo root and stores outside the repo by default. No external service, vector DB, or native dependency is required for the local lexical index.",
         "",
         "## Command",
         "",
@@ -52,8 +57,11 @@ export function renderIndexBenchmarkReport(report) {
         `- Fixtures: ${report.summary.fixtures}`,
         `- Scanner remains default: ${report.summary.scannerDefault ? "yes" : "no"}`,
         `- Index adopted by default: ${report.summary.indexAdopted ? "yes" : "no"}`,
-        `- Scanner pass: ${report.summary.scanner.passed}/${report.summary.fixtures}`,
-        `- Index warm pass: ${report.summary.index.passed}/${report.summary.fixtures}`,
+        `- Scanner pass: ${report.summary.scanner.passed}/${report.summary.fixtures} (recall@${BENCHMARK_TOP_K}: ${report.summary.scanner.recallAtK}/${report.summary.fixtures})`,
+        `- Index warm pass: ${report.summary.index.passed}/${report.summary.fixtures} (recall@${BENCHMARK_TOP_K}: ${report.summary.index.recallAtK}/${report.summary.fixtures})`,
+        `- FTS5/BM25/trigram pass: ${report.summary.fts.passed}/${report.summary.fixtures} (skipped: ${report.summary.fts.skipped}; recall@${BENCHMARK_TOP_K}: ${report.summary.fts.recallAtK}/${report.summary.fixtures})`,
+        `- Hybrid warm pass: ${report.summary.hybrid.passed}/${report.summary.fixtures} (recall@${BENCHMARK_TOP_K}: ${report.summary.hybrid.recallAtK}/${report.summary.fixtures})`,
+        `- FTS5/BM25/trigram candidate: ${report.summary.ftsCandidate.available ? "available" : "unavailable"} — ${report.summary.ftsCandidate.reason}`,
         `- Generated false positives: ${report.summary.generatedFalsePositiveCount}/${report.summary.modeResults}`,
         `- Cold build p50/p95: ${report.summary.coldBuildMs.p50.toFixed(2)}/${report.summary.coldBuildMs.p95.toFixed(2)} ms`,
         `- Warm query p50/p95: ${report.summary.warmQueryMs.p50.toFixed(2)}/${report.summary.warmQueryMs.p95.toFixed(2)} ms`,
@@ -62,21 +70,21 @@ export function renderIndexBenchmarkReport(report) {
         "",
         "## Results",
         "",
-        "| fixture | mode | correctness | checks | path | lines | raw/context bytes | context reduction | latency p50/p95 ms | build/query ms | index mode | notes |",
-        "| --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- |",
+        "| fixture | mode | correctness | checks | path | lines | candidates | raw/context bytes | context reduction | latency p50/p95 ms | build/query ms | index mode | notes |",
+        "| --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- |",
     ];
     for (const fixture of report.fixtures) {
         for (const result of fixture.results) {
-            const correctness = result.correctness.passed ? "pass" : "fail";
+            const correctness = result.skipped ? "skipped" : result.correctness.passed ? "pass" : "fail";
             const checks = formatCorrectnessChecks(result.correctness);
             const buildQuery = `${(result.buildMs ?? 0).toFixed(2)}/${(result.queryMs ?? 0).toFixed(2)}`;
             const notes = result.notes.length ? result.notes.join("; ") : "";
-            lines.push(`| ${escapeTable(fixture.id)} | ${escapeTable(result.mode)} | ${correctness} | ${escapeTable(checks)} | ${escapeTable(result.actualPath ?? "-")} | ${escapeTable(result.actualLines ?? "-")} | ${result.rawBytes}/${result.contextBytes} | ${formatPercent(result.contextReductionPercent)} | ${result.latencyMs.p50.toFixed(2)}/${result.latencyMs.p95.toFixed(2)} | ${buildQuery} | ${escapeTable(result.indexMode ?? "-")} | ${escapeTable(notes)} |`);
+            lines.push(`| ${escapeTable(fixture.id)} | ${escapeTable(result.mode)} | ${correctness} | ${escapeTable(checks)} | ${escapeTable(result.actualPath ?? "-")} | ${escapeTable(result.actualLines ?? "-")} | ${escapeTable(result.candidatePaths.join(", ") || "-")} | ${result.rawBytes}/${result.contextBytes} | ${formatPercent(result.contextReductionPercent)} | ${result.latencyMs.p50.toFixed(2)}/${result.latencyMs.p95.toFixed(2)} | ${buildQuery} | ${escapeTable(result.indexMode ?? "-")} | ${escapeTable(notes)} |`);
         }
     }
-    lines.push("", "## Adoption Decision", "", "Index adopted by default: no. This slice only adds an experiment and benchmark evidence; scanner behavior remains the default until a later adoption checkpoint explicitly approves otherwise.", "", "## Regression Status", "", report.summary.index.failed === 0
-        ? "Warm experimental index passed all gated fixtures without generated-artifact false positives."
-        : `Warm experimental index failed ${report.summary.index.failed} fixture(s).`, "");
+    lines.push("", "## Adoption Decision", "", "Index adopted by default: no. This slice only records benchmark evidence; scanner behavior remains the default until a later adoption checkpoint explicitly approves otherwise.", "", "## Regression Status", "", report.summary.index.failed === 0 && report.summary.fts.failed === 0 && report.summary.hybrid.failed === 0
+        ? "Warm experimental index, FTS5/BM25/trigram, and hybrid modes passed all gated fixtures without generated-artifact false positives."
+        : `Failures: warm index ${report.summary.index.failed}, FTS5/BM25/trigram ${report.summary.fts.failed}, hybrid ${report.summary.hybrid.failed}.`, "");
     return lines.join("\n");
 }
 export async function writeIndexBenchmarkReport(report, reportPath) {
@@ -104,20 +112,25 @@ async function runIndexFixtureMode(fixture, mode, iterations) {
         latencies.push(performance.now() - startedAt);
     }
     if (!observation) {
-        observation = { toolPathUsed: mode, rawBytes: 0, contextBytes: 0, excerpt: "", notes: ["no observation"] };
+        observation = { toolPathUsed: mode, skipped: true, skipReason: "No observation was produced.", rawBytes: 0, contextBytes: 0, excerpt: "", notes: ["no observation"] };
     }
     const correctness = scoreCorrectness(fixtureExpectedForMode(fixture, mode), observation);
     const result = {
         mode,
         toolPathUsed: observation.toolPathUsed,
+        skipped: observation.skipped ?? false,
         rawBytes: observation.rawBytes,
         contextBytes: observation.contextBytes,
         contextReductionPercent: reductionPercent(observation.rawBytes, observation.contextBytes),
         latencyMs: latencySummary(latencies),
+        candidatePaths: observation.candidatePaths ?? [],
         excerpt: observation.excerpt,
         correctness,
         notes: observation.notes ?? [],
     };
+    if (observation.skipReason) {
+        result.skipReason = observation.skipReason;
+    }
     if (observation.buildMs !== undefined) {
         result.buildMs = observation.buildMs;
     }
@@ -145,12 +158,19 @@ async function observeIndexFixture(fixture, mode) {
             await writeFixtureFiles(root.path, fixture.staleFiles ?? { "stale-marker.txt": "stale refresh marker" });
             return await indexObservation(root.path, cacheRoot.path, fixture.staleQuery ?? fixture.query, mode);
         }
-        const finalFiles = mode === "scanner-default" || mode === "index-cold" || mode === "index-warm"
+        const finalFiles = mode === "scanner-default" || mode === "index-cold" || mode === "index-warm" || mode === "fts5-bm25-trigram" || mode === "hybrid-warm"
             ? { ...fixture.files, ...(fixture.staleFiles && fixture.staleExpected ? fixture.staleFiles : {}) }
             : fixture.files;
         await writeFixtureFiles(root.path, finalFiles);
         if (mode === "scanner-default") {
             return await scannerObservation(root.path, fixture.staleQuery && fixture.staleExpected ? fixture.staleQuery : fixture.query);
+        }
+        if (mode === "fts5-bm25-trigram") {
+            return await ftsObservation(root.path, fixture.staleQuery && fixture.staleExpected ? fixture.staleQuery : fixture.query);
+        }
+        if (mode === "hybrid-warm") {
+            await buildOrLoadExperimentalRepoIndex({ root: root.path, cacheRoot: cacheRoot.path });
+            return await hybridObservation(root.path, cacheRoot.path, fixture.staleQuery && fixture.staleExpected ? fixture.staleQuery : fixture.query);
         }
         if (mode === "index-warm") {
             await buildOrLoadExperimentalRepoIndex({ root: root.path, cacheRoot: cacheRoot.path });
@@ -165,15 +185,17 @@ async function observeIndexFixture(fixture, mode) {
 async function scannerObservation(root, query) {
     const rawBytes = await repoRawBytes(root);
     const queryStartedAt = performance.now();
-    const result = await freeflowRetrieve({ action: "query", source: { kind: "repo", root }, query, preserve: "important" });
+    const result = await freeflowRetrieve({ action: "query", source: { kind: "repo", root }, query, preserve: "important", topK: BENCHMARK_TOP_K });
     const queryMs = performance.now() - queryStartedAt;
     const evidence = result.evidence?.[0];
+    const candidatePaths = uniqueCandidatePaths(result.evidence?.map((packet) => packet.path));
     return {
         toolPathUsed: "scanner-default: freeflowRetrieve repo scanner",
         rawBytes,
         contextBytes: byteLength(JSON.stringify(result)),
         ...(evidence?.path !== undefined ? { actualPath: evidence.path } : {}),
         ...(evidence?.lines !== undefined ? { actualLines: evidence.lines } : {}),
+        candidatePaths,
         excerpt: evidence?.excerpt ?? "",
         queryMs,
         notes: [result.routing.reason],
@@ -183,7 +205,7 @@ async function indexObservation(root, cacheRoot, query, mode) {
     const rawBytes = await repoRawBytes(root);
     const load = await buildOrLoadExperimentalRepoIndex({ root, cacheRoot });
     const queryStartedAt = performance.now();
-    const candidates = queryExperimentalRepoIndex(load.index, query, { topK: 1 });
+    const candidates = queryExperimentalRepoIndex(load.index, query, { topK: BENCHMARK_TOP_K });
     const queryMs = performance.now() - queryStartedAt;
     const candidate = candidates[0];
     return {
@@ -192,6 +214,7 @@ async function indexObservation(root, cacheRoot, query, mode) {
         contextBytes: byteLength(JSON.stringify(candidates)),
         ...(candidate?.path !== undefined ? { actualPath: candidate.path } : {}),
         ...(candidate?.lines !== undefined ? { actualLines: candidate.lines } : {}),
+        candidatePaths: uniqueCandidatePaths(candidates.map((entry) => entry.path)),
         excerpt: candidate?.excerpt ?? "",
         buildMs: load.buildMs,
         queryMs,
@@ -199,9 +222,250 @@ async function indexObservation(root, cacheRoot, query, mode) {
         notes: candidate ? [candidate.reason, `cachePath=${load.cachePath}`, ...(load.refreshReason ? [`refresh=${load.refreshReason}`] : [])] : ["no index candidate"],
     };
 }
+async function ftsObservation(root, query) {
+    const rawBytes = await repoRawBytes(root);
+    const ftsStatus = detectFtsCandidateStatus();
+    if (!ftsStatus.available) {
+        return {
+            toolPathUsed: "fts5-bm25-trigram: unavailable optional candidate",
+            skipped: true,
+            skipReason: ftsStatus.reason,
+            rawBytes,
+            contextBytes: 0,
+            candidatePaths: [],
+            excerpt: "",
+            notes: [ftsStatus.reason],
+        };
+    }
+    const files = await readFtsTextFiles(root);
+    const sqlite = loadSqliteModule();
+    const startedAt = performance.now();
+    const db = new sqlite.DatabaseSync(":memory:");
+    try {
+        db.exec("CREATE VIRTUAL TABLE docs USING fts5(path UNINDEXED, body, tokenize='trigram')");
+        const insert = db.prepare("INSERT INTO docs(path, body) VALUES (?, ?)");
+        for (const file of files) {
+            insert.run(file.path, file.text);
+        }
+        const matchQuery = ftsMatchQuery(query);
+        const rows = matchQuery
+            ? db.prepare("SELECT path, bm25(docs) AS rank FROM docs WHERE docs MATCH ? ORDER BY rank LIMIT ?").all(matchQuery, BENCHMARK_TOP_K)
+            : [];
+        const queryMs = performance.now() - startedAt;
+        const byPath = new Map(files.map((file) => [file.path, file]));
+        const candidates = rows.flatMap((row) => {
+            const file = byPath.get(row.path);
+            if (!file) {
+                return [];
+            }
+            const range = bestFtsLineRange(file, query);
+            return [{
+                    path: file.path,
+                    lines: `${range.start}-${range.end}`,
+                    excerpt: file.lines.slice(range.start - 1, range.end).join("\n"),
+                    rank: row.rank,
+                    reason: `SQLite FTS5 trigram MATCH with bm25 rank ${row.rank.toFixed(6)}`,
+                }];
+        });
+        const first = candidates[0];
+        return {
+            toolPathUsed: "fts5-bm25-trigram: node:sqlite FTS5 trigram virtual table",
+            rawBytes,
+            contextBytes: byteLength(JSON.stringify(candidates)),
+            ...(first?.path !== undefined ? { actualPath: first.path } : {}),
+            ...(first?.lines !== undefined ? { actualLines: first.lines } : {}),
+            candidatePaths: uniqueCandidatePaths(candidates.map((candidate) => candidate.path)),
+            excerpt: first?.excerpt ?? "",
+            buildMs: queryMs,
+            queryMs,
+            notes: first ? [first.reason] : ["no FTS5 candidate"],
+        };
+    }
+    finally {
+        db.close();
+    }
+}
+async function hybridObservation(root, cacheRoot, query) {
+    const rawBytes = await repoRawBytes(root);
+    const load = await buildOrLoadExperimentalRepoIndex({ root, cacheRoot });
+    const indexStartedAt = performance.now();
+    const indexCandidates = queryExperimentalRepoIndex(load.index, query, { topK: BENCHMARK_TOP_K });
+    const indexQueryMs = performance.now() - indexStartedAt;
+    const scannerStartedAt = performance.now();
+    const scanner = await freeflowRetrieve({ action: "query", source: { kind: "repo", root }, query, preserve: "important", topK: BENCHMARK_TOP_K });
+    const scannerQueryMs = performance.now() - scannerStartedAt;
+    const scannerEvidence = scanner.evidence?.[0];
+    const scannerPaths = uniqueCandidatePaths(scanner.evidence?.map((packet) => packet.path));
+    const indexPaths = uniqueCandidatePaths(indexCandidates.map((candidate) => candidate.path));
+    const hybridInput = { scannerPaths, indexCandidates, indexPaths };
+    if (scannerEvidence !== undefined) {
+        hybridInput.scannerEvidence = scannerEvidence;
+    }
+    const selected = chooseHybridCandidate(hybridInput);
+    const contextPayload = {
+        selected: selected.payload,
+        scannerCandidateCount: scannerPaths.length,
+        indexCandidateCount: indexPaths.length,
+        selection: selected.selection,
+    };
+    return {
+        toolPathUsed: "hybrid-warm: scanner fallback with warm lexical-index candidates",
+        rawBytes,
+        contextBytes: byteLength(JSON.stringify(contextPayload)),
+        ...(selected.path !== undefined ? { actualPath: selected.path } : {}),
+        ...(selected.lines !== undefined ? { actualLines: selected.lines } : {}),
+        candidatePaths: uniqueCandidatePaths([...scannerPaths, ...indexPaths]),
+        excerpt: selected.excerpt,
+        buildMs: load.buildMs,
+        queryMs: indexQueryMs + scannerQueryMs,
+        indexMode: load.mode,
+        notes: [
+            `selection=${selected.selection}`,
+            `scannerQueryMs=${scannerQueryMs.toFixed(2)}`,
+            `indexQueryMs=${indexQueryMs.toFixed(2)}`,
+            ...(load.refreshReason ? [`refresh=${load.refreshReason}`] : []),
+        ],
+    };
+}
+function chooseHybridCandidate(options) {
+    const scannerEvidence = options.scannerEvidence;
+    if (scannerEvidence?.path) {
+        const indexAgrees = options.indexPaths.includes(scannerEvidence.path);
+        return {
+            selection: indexAgrees ? "scanner-index-agree" : "scanner-fallback",
+            path: scannerEvidence.path,
+            ...(scannerEvidence.lines !== undefined ? { lines: scannerEvidence.lines } : {}),
+            excerpt: scannerEvidence.excerpt ?? "",
+            payload: {
+                source: "scanner",
+                path: scannerEvidence.path,
+                ...(scannerEvidence.lines !== undefined ? { lines: scannerEvidence.lines } : {}),
+                indexAgrees,
+            },
+        };
+    }
+    const indexCandidate = options.indexCandidates[0];
+    if (indexCandidate) {
+        return {
+            selection: "index-only",
+            path: indexCandidate.path,
+            lines: indexCandidate.lines,
+            excerpt: indexCandidate.excerpt,
+            payload: {
+                source: "index",
+                path: indexCandidate.path,
+                lines: indexCandidate.lines,
+                score: indexCandidate.score,
+            },
+        };
+    }
+    return { selection: "none", excerpt: "", payload: { source: "none" } };
+}
+function detectFtsCandidateStatus() {
+    if (cachedFtsCandidateStatus !== undefined) {
+        return cachedFtsCandidateStatus;
+    }
+    let db;
+    try {
+        const sqlite = loadSqliteModule();
+        db = new sqlite.DatabaseSync(":memory:");
+        db.exec("CREATE VIRTUAL TABLE docs USING fts5(path UNINDEXED, body, tokenize='trigram')");
+        db.exec("INSERT INTO docs(path, body) VALUES ('probe', 'freeflow fts probe')");
+        const rows = db.prepare("SELECT path, bm25(docs) AS rank FROM docs WHERE docs MATCH ?").all("freeflow AND probe");
+        cachedFtsCandidateStatus = rows.length > 0
+            ? {
+                available: true,
+                engine: "fts5-bm25-trigram",
+                reason: "Node node:sqlite is available and supports SQLite FTS5 trigram tokenization with bm25 ranking.",
+            }
+            : {
+                available: false,
+                engine: "none",
+                reason: "SQLite FTS5 probe returned no rows for a known trigram query.",
+            };
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        cachedFtsCandidateStatus = {
+            available: false,
+            engine: "none",
+            reason: `SQLite FTS5/BM25/trigram candidate unavailable: ${message}`,
+        };
+    }
+    finally {
+        db?.close();
+    }
+    return cachedFtsCandidateStatus;
+}
+function loadSqliteModule() {
+    return require("node:sqlite");
+}
+async function readFtsTextFiles(root) {
+    const files = [];
+    await collectFtsTextFiles(root, root, files);
+    return files.sort((a, b) => a.path.localeCompare(b.path));
+}
+async function collectFtsTextFiles(root, currentPath, files) {
+    const currentStat = await stat(currentPath);
+    if (currentStat.isDirectory()) {
+        const dirEntries = await readdir(currentPath, { withFileTypes: true });
+        for (const entry of dirEntries.sort((a, b) => a.name.localeCompare(b.name))) {
+            await collectFtsTextFiles(root, resolve(currentPath, entry.name), files);
+        }
+        return;
+    }
+    if (!currentStat.isFile()) {
+        return;
+    }
+    const path = relative(root, currentPath).split(/[\\/]+/).join("/");
+    if (isGeneratedBenchmarkPath(path)) {
+        return;
+    }
+    try {
+        const text = await readFile(currentPath, "utf8");
+        if (!text.includes("\0")) {
+            files.push({ path, text, lines: splitLines(text) });
+        }
+    }
+    catch {
+        // ignore non-text fixture files
+    }
+}
+function ftsMatchQuery(query) {
+    return searchTokens(query).filter((token) => token.length >= 3).join(" AND ");
+}
+function bestFtsLineRange(file, query) {
+    const tokens = searchTokens(query);
+    let bestIndex = 0;
+    let bestScore = -1;
+    for (let index = 0; index < file.lines.length; index += 1) {
+        const normalizedLine = (file.lines[index] ?? "").toLowerCase();
+        const score = tokens.reduce((sum, token) => sum + (normalizedLine.includes(token) ? 1 : 0), 0);
+        if (score > bestScore) {
+            bestScore = score;
+            bestIndex = index;
+        }
+    }
+    const start = Math.max(1, bestIndex + 1 - FTS_CONTEXT_LINES);
+    const end = Math.min(file.lines.length, bestIndex + 1 + FTS_CONTEXT_LINES);
+    return { start, end };
+}
+function searchTokens(value) {
+    const seen = new Set();
+    const tokens = [];
+    for (const token of value.toLowerCase().match(/[a-z0-9_]+/g) ?? []) {
+        if (!seen.has(token)) {
+            seen.add(token);
+            tokens.push(token);
+        }
+    }
+    return tokens;
+}
 function summarizeIndexReport(fixtures) {
     const scanner = summarizeMode(fixtures, "scanner-default");
     const index = summarizeMode(fixtures, "index-warm");
+    const fts = summarizeMode(fixtures, "fts5-bm25-trigram");
+    const hybrid = summarizeMode(fixtures, "hybrid-warm");
     const generatedFalsePositiveCount = fixtures
         .flatMap((fixture) => fixture.results)
         .filter((result) => result.correctness.generatedFalsePositive).length;
@@ -213,8 +477,11 @@ function summarizeIndexReport(fixtures) {
         modeResults: fixtures.reduce((count, fixture) => count + fixture.results.length, 0),
         scannerDefault: true,
         indexAdopted: false,
+        ftsCandidate: detectFtsCandidateStatus(),
         scanner,
         index,
+        fts,
+        hybrid,
         generatedFalsePositiveCount,
         coldBuildMs,
         warmQueryMs,
@@ -228,7 +495,10 @@ function summarizeMode(fixtures, mode) {
     const totalRawBytes = results.reduce((sum, result) => sum + result.rawBytes, 0);
     const totalContextBytes = results.reduce((sum, result) => sum + result.contextBytes, 0);
     return results.reduce((summary, result) => {
-        if (result.correctness.passed) {
+        if (result.skipped) {
+            summary.skipped += 1;
+        }
+        else if (result.correctness.passed) {
             summary.passed += 1;
         }
         else {
@@ -243,13 +513,18 @@ function summarizeMode(fixtures, mode) {
         if (result.correctness.excerptComplete) {
             summary.excerptComplete += 1;
         }
+        if (result.correctness.recallAtK) {
+            summary.recallAtK += 1;
+        }
         return summary;
     }, {
         passed: 0,
         failed: 0,
+        skipped: 0,
         pathCorrect: 0,
         spanCorrect: 0,
         excerptComplete: 0,
+        recallAtK: 0,
         totalRawBytes,
         totalContextBytes,
         weightedContextReductionPercent: reductionPercent(totalRawBytes, totalContextBytes),
@@ -336,15 +611,28 @@ function fixtureExpectedForMode(fixture, mode) {
     return fixture.expected;
 }
 function scoreCorrectness(expected, observation) {
+    if (observation.skipped) {
+        return {
+            passed: false,
+            pathCorrect: false,
+            spanCorrect: false,
+            excerptComplete: false,
+            recallAtK: false,
+            generatedFalsePositive: false,
+        };
+    }
     const pathCorrect = observation.actualPath === expected.path;
     const spanCorrect = expected.lines ? Boolean(observation.actualLines && rangesOverlap(expected.lines, observation.actualLines)) : true;
     const excerptComplete = expected.requiredExcerpt.every((snippet) => observation.excerpt.toLowerCase().includes(snippet.toLowerCase()));
+    const candidatePaths = observation.candidatePaths ?? [];
+    const recallAtK = candidatePaths.length === 0 ? pathCorrect : candidatePaths.includes(expected.path);
     const generatedFalsePositive = observation.actualPath ? isGeneratedBenchmarkPath(observation.actualPath) : false;
     return {
-        passed: pathCorrect && spanCorrect && excerptComplete && !generatedFalsePositive,
+        passed: pathCorrect && spanCorrect && excerptComplete && recallAtK && !generatedFalsePositive,
         pathCorrect,
         spanCorrect,
         excerptComplete,
+        recallAtK,
         generatedFalsePositive,
     };
 }
@@ -392,7 +680,7 @@ async function createTempDir(prefix) {
     };
 }
 function indexBenchmarkModes() {
-    return ["scanner-default", "index-cold", "index-warm", "index-stale-refresh"];
+    return ["scanner-default", "index-cold", "index-warm", "index-stale-refresh", "fts5-bm25-trigram", "hybrid-warm"];
 }
 function rangesOverlap(left, right) {
     const leftRange = parseRange(left);
@@ -411,6 +699,18 @@ function parseRange(range) {
     const end = Number(match[2]);
     return Number.isInteger(start) && Number.isInteger(end) ? { start, end } : null;
 }
+function uniqueCandidatePaths(paths) {
+    const seen = new Set();
+    const unique = [];
+    for (const path of paths ?? []) {
+        if (!path || seen.has(path)) {
+            continue;
+        }
+        seen.add(path);
+        unique.push(path);
+    }
+    return unique;
+}
 function isGeneratedBenchmarkPath(path) {
     const segments = path.split(/[\\/]+/);
     if (segments.includes("graphify-out")) {
@@ -418,6 +718,9 @@ function isGeneratedBenchmarkPath(path) {
     }
     const name = segments.at(-1)?.toLowerCase() ?? path.toLowerCase();
     return name.endsWith(".log") || name.endsWith(".map") || name.endsWith(".min.js") || name.endsWith(".min.css") || name.includes(".bundle.");
+}
+function splitLines(text) {
+    return text.split(/\r?\n/);
 }
 function byteLength(value) {
     return Buffer.byteLength(value, "utf8");
@@ -427,6 +730,7 @@ function formatCorrectnessChecks(correctness) {
         `path ${correctness.pathCorrect ? "✓" : "✗"}`,
         `span ${correctness.spanCorrect ? "✓" : "✗"}`,
         `excerpt ${correctness.excerptComplete ? "✓" : "✗"}`,
+        `recall@${BENCHMARK_TOP_K} ${correctness.recallAtK ? "✓" : "✗"}`,
         `gen-fp ${correctness.generatedFalsePositive ? "✗" : "✓"}`,
     ].join(" ");
 }
@@ -444,12 +748,12 @@ async function runCli() {
         jsonReportPath: jsonReportPath === undefined ? defaultJsonRunReportPath(reportPath) : jsonReportPath,
     });
     const shortId = createHash("sha256").update(JSON.stringify(report.summary)).digest("hex").slice(0, 8);
-    console.log(`Freeflow index benchmark ${shortId}: index ${report.summary.index.passed}/${report.summary.fixtures} pass`);
+    console.log(`Freeflow repo search backend benchmark ${shortId}: scanner ${report.summary.scanner.passed}/${report.summary.fixtures}, index ${report.summary.index.passed}/${report.summary.fixtures}, fts ${report.summary.fts.passed}/${report.summary.fixtures}, hybrid ${report.summary.hybrid.passed}/${report.summary.fixtures} pass`);
     console.log(`Markdown report: ${reports.markdown}`);
     if (reports.json) {
         console.log(`JSON run data: ${reports.json}`);
     }
-    if (report.summary.index.failed > 0) {
+    if (report.summary.scanner.failed > 0 || report.summary.index.failed > 0 || report.summary.fts.failed > 0 || report.summary.hybrid.failed > 0) {
         process.exitCode = 1;
     }
 }

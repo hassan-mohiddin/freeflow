@@ -1,6 +1,6 @@
 export declare const PRESERVE_MODES: readonly ["summary", "important", "full"];
 export type PreserveMode = (typeof PRESERVE_MODES)[number];
-export declare const RETRIEVAL_ACTIONS: readonly ["query", "locate", "retrieve", "expand", "explain"];
+export declare const RETRIEVAL_ACTIONS: readonly ["query", "locate", "get", "retrieve", "expand", "explain"];
 export type RetrievalAction = (typeof RETRIEVAL_ACTIONS)[number];
 export declare const TOOL_STATUSES: readonly ["ok", "error"];
 export type ToolStatus = (typeof TOOL_STATUSES)[number];
@@ -8,8 +8,10 @@ export declare const EXECUTION_STATUSES: readonly ["success", "failed", "timed_o
 export type ExecutionStatus = (typeof EXECUTION_STATUSES)[number];
 export declare const ROUTING_STATUSES: readonly ["routed", "passed_through", "partial", "failed"];
 export type RoutingStatus = (typeof ROUTING_STATUSES)[number];
-export declare const ROUTE_KINDS: readonly ["retrieve", "run", "capture", "derive", "observed", "safety-net", "pass-through"];
+export declare const ROUTE_KINDS: readonly ["retrieve", "run", "capture", "derive", "batch", "observed", "safety-net", "pass-through"];
 export type RouteKind = (typeof ROUTE_KINDS)[number];
+export declare const BATCH_STEP_KINDS: readonly ["run", "retrieve", "search", "derive", "transform"];
+export type BatchStepKind = (typeof BATCH_STEP_KINDS)[number];
 export declare const PRODUCER_KINDS: readonly ["command", "native", "repo", "web", "fetch", "code_search", "mcp", "provider", "derive", "other"];
 export type ProducerKind = (typeof PRODUCER_KINDS)[number];
 export declare const PERSISTENCE_STATUSES: readonly ["vaulted", "redacted", "metadata_only", "not_persisted"];
@@ -28,6 +30,8 @@ export declare const POST_TOOL_ROUTING_MODES: readonly ["off", "safety-net", "st
 export type PostToolRoutingMode = (typeof POST_TOOL_ROUTING_MODES)[number];
 export declare const OUTPUT_ROUTER_PROFILES: readonly ["standard"];
 export type OutputRouterProfile = (typeof OUTPUT_ROUTER_PROFILES)[number];
+export declare const STORAGE_POLICY_MODES: readonly ["store-everything", "hybrid-dedupe"];
+export type StoragePolicyMode = (typeof STORAGE_POLICY_MODES)[number];
 export declare const CAPTURE_FREEFLOW_MEDIATED_MODES: readonly ["raw"];
 export type CaptureFreeflowMediatedMode = (typeof CAPTURE_FREEFLOW_MEDIATED_MODES)[number];
 export declare const DIRECT_HOST_TOOL_CAPTURE_MODES: readonly ["off"];
@@ -95,6 +99,10 @@ export interface EvidenceRecordIdentity {
     recoveryOutputId?: string;
     outputId?: string;
 }
+export interface EvidenceMatchMetadata {
+    type: "exact_phrase" | "lexical" | "metadata";
+    confidence: number;
+}
 export interface EvidencePacket {
     id: string;
     source: SourceRef;
@@ -104,6 +112,7 @@ export interface EvidencePacket {
     expandable: boolean;
     path?: string;
     lines?: string;
+    match?: EvidenceMatchMetadata;
 }
 export interface RecoveryHint {
     how: string;
@@ -132,6 +141,34 @@ export interface CommandParserReference {
     code?: string;
     severity?: "error" | "warning" | "info";
     message: string;
+}
+export interface RunOutputFilterMetadata {
+    stream: Exclude<OutputStream, "raw">;
+    include?: string[];
+    exclude?: string[];
+    flags?: string;
+    head?: number;
+    tail?: number;
+    maxLines?: number;
+    maxBytes?: number;
+    sourceLines: number;
+    selectedLines: number;
+    fallbackPreservedFailureEvidence?: boolean;
+}
+export interface RunScriptFilterMetadata {
+    status: "success" | FailureExecutionStatus;
+    language: ScriptDeriveLanguage;
+    sourceAliases: string[];
+    rawOutputId: string;
+    label?: string;
+    operation?: Record<string, unknown>;
+    outputId?: string;
+    recordId?: string;
+    persistence?: EvidencePersistence;
+    lineage?: EvidenceLineage;
+    failure?: RouterFailure;
+    deriveExecution?: DeriveExecutionFailure;
+    summary?: string;
 }
 export interface CommandParserMetadata {
     name: string;
@@ -165,6 +202,8 @@ export interface CommandRoutedResult extends RoutedResultBase {
     summary?: string;
     importantLines?: ImportantLine[];
     parser?: CommandParserMetadata;
+    filters?: RunOutputFilterMetadata;
+    scriptFilter?: RunScriptFilterMetadata;
 }
 export interface CaptureRoutedResult extends RoutedResultBase {
     outputId: string;
@@ -206,10 +245,28 @@ export interface DeriveRoutedResult extends RoutedResultBase {
     operation: Record<string, unknown>;
     summary?: string;
 }
+export interface BatchStepRoutedResult {
+    id: string;
+    index: number;
+    kind: BatchStepKind;
+    status: "ok" | "failed";
+    toolStatus?: ToolStatus;
+    durationMs: number;
+    result?: RoutedResult;
+    error?: string;
+}
+export interface BatchRoutedResult extends RoutedResultBase {
+    summary: string;
+    concurrency: number;
+    stepCount: number;
+    okCount: number;
+    failedCount: number;
+    steps: BatchStepRoutedResult[];
+}
 export interface FailureRoutedResult extends RoutedResultBase {
     outputId?: string;
 }
-export type RoutedResult = RetrievalRoutedResult | CommandRoutedResult | CaptureRoutedResult | ObservedRoutedResult | DeriveRoutedResult | FailureRoutedResult;
+export type RoutedResult = RetrievalRoutedResult | CommandRoutedResult | CaptureRoutedResult | ObservedRoutedResult | DeriveRoutedResult | BatchRoutedResult | FailureRoutedResult;
 export interface LineByteCounts {
     lines: number;
     bytes: number;
@@ -369,6 +426,7 @@ export interface RouterConfig {
     enabled: boolean;
     profile: OutputRouterProfile;
     postToolRouting: PostToolRoutingMode;
+    storagePolicy: StoragePolicyMode;
     thresholds: RouterThresholds;
     vault: RouterVaultConfig;
     hints?: RouterHints;

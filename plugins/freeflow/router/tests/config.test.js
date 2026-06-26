@@ -19,6 +19,7 @@ test("normalizeFreeflowConfig keeps minimal setup config valid without dumping o
   assert.deepEqual(result.warnings, []);
   assert.equal(result.config.outputRouter.enabled, true);
   assert.equal(result.config.outputRouter.profile, "standard");
+  assert.equal(result.config.outputRouter.storagePolicy, "hybrid-dedupe");
   assert.deepEqual(result.config.capture, DEFAULT_CAPTURE_CONFIG);
   assert.deepEqual(result.config.providers, DEFAULT_PROVIDERS_CONFIG);
   assert.deepEqual(result.config.observedRouting, DEFAULT_OBSERVED_ROUTING_CONFIG);
@@ -28,7 +29,7 @@ test("normalizeFreeflowConfig keeps minimal setup config valid without dumping o
 test("normalizeFreeflowConfig accepts high-level capture and provider decisions", () => {
   const result = normalizeFreeflowConfig({
     defaultMode: "workflow",
-    outputRouter: { enabled: true, profile: "standard", postToolRouting: "off" },
+    outputRouter: { enabled: true, profile: "standard", postToolRouting: "off", storagePolicy: "store-everything" },
     capture: { freeflowMediated: "raw", directHostTools: "off" },
     providers: {
       enabled: [
@@ -63,6 +64,7 @@ test("normalizeFreeflowConfig accepts high-level capture and provider decisions"
   assert.deepEqual(result.warnings, []);
   assert.equal(result.config.outputRouter.enabled, true);
   assert.equal(result.config.outputRouter.profile, "standard");
+  assert.equal(result.config.outputRouter.storagePolicy, "store-everything");
   assert.equal(result.config.capture.freeflowMediated, "raw");
   assert.equal(result.config.capture.directHostTools, "off");
   assert.deepEqual(result.config.providers.enabled, [
@@ -95,7 +97,7 @@ test("normalizeFreeflowConfig accepts high-level capture and provider decisions"
 
 test("normalizeFreeflowConfig rejects invalid capture and provider values", () => {
   const result = normalizeFreeflowConfig({
-    outputRouter: { enabled: "yes", profile: "maximum" },
+    outputRouter: { enabled: "yes", profile: "maximum", storagePolicy: "metadata-only" },
     capture: { freeflowMediated: "metadata-only", directHostTools: "raw" },
     providers: {
       enabled: [
@@ -130,6 +132,7 @@ test("normalizeFreeflowConfig rejects invalid capture and provider values", () =
 
   assert.equal(result.config.outputRouter.enabled, true);
   assert.equal(result.config.outputRouter.profile, "standard");
+  assert.equal(result.config.outputRouter.storagePolicy, "hybrid-dedupe");
   assert.deepEqual(result.config.capture, DEFAULT_CAPTURE_CONFIG);
   assert.deepEqual(result.config.providers.enabled, []);
   assert.equal(result.config.observedRouting.enabled, false);
@@ -141,6 +144,7 @@ test("normalizeFreeflowConfig rejects invalid capture and provider values", () =
   assert.equal(result.config.observedRouting.codeSearch.persistence, "metadata-only");
   assert.ok(result.warnings.some((warning) => warning.includes("outputRouter.enabled")));
   assert.ok(result.warnings.some((warning) => warning.includes("outputRouter.profile")));
+  assert.ok(result.warnings.some((warning) => warning.includes("outputRouter.storagePolicy")));
   assert.ok(result.warnings.some((warning) => warning.includes("capture.freeflowMediated")));
   assert.ok(result.warnings.some((warning) => warning.includes("capture.directHostTools")));
   assert.ok(result.warnings.some((warning) => warning.includes("providers.enabled[0].mode")));
@@ -169,6 +173,7 @@ test("normalizeRouterConfig uses defaults when outputRouter is missing", () => {
 
   assert.deepEqual(result.warnings, []);
   assert.equal(result.config.postToolRouting, "off");
+  assert.equal(result.config.storagePolicy, "hybrid-dedupe");
   assert.deepEqual(result.config.thresholds, DEFAULT_ROUTER_THRESHOLDS);
   assert.equal(result.config.vault.root, DEFAULT_VAULT_ROOT);
   assert.deepEqual(result.config.vault.retention, DEFAULT_VAULT_RETENTION);
@@ -177,6 +182,7 @@ test("normalizeRouterConfig uses defaults when outputRouter is missing", () => {
 test("normalizeRouterConfig maps repo outputRouter candidate fields", () => {
   const result = normalizeRouterConfig({
     postToolRouting: "safety-net",
+    storagePolicy: "store-everything",
     largeOutputBytes: 1234,
     largeOutputLines: 42,
     vaultRoot: "~/custom-freeflow-vault",
@@ -187,6 +193,7 @@ test("normalizeRouterConfig maps repo outputRouter candidate fields", () => {
 
   assert.deepEqual(result.warnings, []);
   assert.equal(result.config.postToolRouting, "safety-net");
+  assert.equal(result.config.storagePolicy, "store-everything");
   assert.equal(result.config.thresholds.largeOutputBytes, 1234);
   assert.equal(result.config.thresholds.largeOutputLines, 42);
   assert.equal(result.config.vault.root, "~/custom-freeflow-vault");
@@ -198,6 +205,7 @@ test("normalizeRouterConfig maps repo outputRouter candidate fields", () => {
 test("normalizeRouterConfig falls back safely and reports invalid values", () => {
   const result = normalizeRouterConfig({
     postToolRouting: "always",
+    storagePolicy: "metadata-only",
     largeOutputBytes: -1,
     largeOutputLines: "many",
     vaultRetentionDays: 0,
@@ -206,11 +214,13 @@ test("normalizeRouterConfig falls back safely and reports invalid values", () =>
   });
 
   assert.equal(result.config.postToolRouting, "off");
+  assert.equal(result.config.storagePolicy, "hybrid-dedupe");
   assert.equal(result.config.thresholds.largeOutputBytes, DEFAULT_ROUTER_THRESHOLDS.largeOutputBytes);
   assert.equal(result.config.thresholds.largeOutputLines, DEFAULT_ROUTER_THRESHOLDS.largeOutputLines);
   assert.deepEqual(result.config.vault.retention, DEFAULT_VAULT_RETENTION);
   assert.ok(result.warnings.length >= 5);
   assert.ok(result.warnings.some((warning) => warning.includes("postToolRouting")));
+  assert.ok(result.warnings.some((warning) => warning.includes("storagePolicy")));
   assert.ok(result.warnings.some((warning) => warning.includes("largeOutputBytes")));
   assert.ok(result.warnings.some((warning) => warning.includes("largeOutputLines")));
   assert.ok(result.warnings.some((warning) => warning.includes("vaultRetentionDays")));

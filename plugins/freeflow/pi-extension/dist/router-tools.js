@@ -1,9 +1,9 @@
-import { discoverEryxPythonSandboxAdaptersFromEnv, discoverJqWasmSandboxAdaptersFromEnv, discoverQuickJsWasiSandboxAdaptersFromEnv, freeflowDerive, freeflowRetrieve, freeflowRun } from "../../router/dist/index.js";
+import { discoverEryxPythonSandboxAdaptersFromEnv, discoverJqWasmSandboxAdaptersFromEnv, discoverQuickJsWasiSandboxAdaptersFromEnv, freeflowBatch, freeflowDerive, freeflowRetrieve, freeflowRun } from "../../router/dist/index.js";
 import { buildFreeflowStatusReport } from "./status.js";
-import { renderFreeflowDeriveCall, renderFreeflowDeriveResult, renderFreeflowRetrieveCall, renderFreeflowRetrieveResult, renderFreeflowRunCall, renderFreeflowRunResult, renderFreeflowStatusCall, renderFreeflowStatusResult, } from "./renderers.js";
+import { renderFreeflowBatchCall, renderFreeflowBatchResult, renderFreeflowDeriveCall, renderFreeflowDeriveResult, renderFreeflowRetrieveCall, renderFreeflowRetrieveResult, renderFreeflowRunCall, renderFreeflowRunResult, renderFreeflowStatusCall, renderFreeflowStatusResult, } from "./renderers.js";
 import { readOutputRouterConfig, notifyRouterConfigWarnings } from "./runtime-context.js";
-import { FREEFLOW_DERIVE_PARAMETERS, FREEFLOW_RETRIEVE_PARAMETERS, FREEFLOW_RUN_PARAMETERS, FREEFLOW_STATUS_PARAMETERS } from "./schemas.js";
-import { getRouterSessionId, routedToolText } from "./utils.js";
+import { FREEFLOW_BATCH_PARAMETERS, FREEFLOW_DERIVE_PARAMETERS, FREEFLOW_RETRIEVE_PARAMETERS, FREEFLOW_RUN_PARAMETERS, FREEFLOW_STATUS_PARAMETERS } from "./schemas.js";
+import { compactBatchToolText, compactDeriveToolText, compactRetrieveToolText, compactRunToolText, getRouterSessionId, routedToolText } from "./utils.js";
 function normalizeDeriveOperation(operation) {
     if (!operation || typeof operation !== "object" || Array.isArray(operation)) {
         return operation;
@@ -56,9 +56,11 @@ async function normalizeDeriveParams(params, ctx) {
         },
     };
 }
-async function normalizeRetrieveParams(params, ctx) {
-    const routerConfigResult = await readOutputRouterConfig(ctx.cwd);
-    notifyRouterConfigWarnings(ctx, routerConfigResult);
+async function normalizeRetrieveParams(params, ctx, providedRouterConfigResult = undefined) {
+    const routerConfigResult = providedRouterConfigResult ?? await readOutputRouterConfig(ctx.cwd);
+    if (!providedRouterConfigResult) {
+        notifyRouterConfigWarnings(ctx, routerConfigResult);
+    }
     const source = params.source ?? { kind: "repo" };
     if (source.kind === "repo") {
         return {
@@ -72,7 +74,7 @@ async function normalizeRetrieveParams(params, ctx) {
         };
     }
     if (source.kind === "vault") {
-        if (!source.outputId && params.action !== "query" && params.action !== "locate") {
+        if (!source.outputId && params.action !== "query" && params.action !== "locate" && params.action !== "get") {
             throw new Error("freeflow_retrieve source.kind=vault requires source.outputId for retrieve, expand, and explain.");
         }
         return {
@@ -93,6 +95,70 @@ async function normalizeRetrieveParams(params, ctx) {
         };
     }
     throw new Error(`Unsupported freeflow_retrieve source kind: ${source.kind}`);
+}
+async function normalizeBatchParams(params, ctx, routerConfigResult) {
+    if (!Array.isArray(params.steps)) {
+        throw new Error("freeflow_batch requires steps[].");
+    }
+    const steps = [];
+    for (let index = 0; index < params.steps.length; index += 1) {
+        const step = params.steps[index];
+        if (!step || typeof step !== "object") {
+            throw new Error(`freeflow_batch step ${index} must be an object.`);
+        }
+        const input = step.input ?? {};
+        if (step.kind === "run") {
+            steps.push({
+                id: step.id,
+                kind: "run",
+                input: {
+                    ...input,
+                    cwd: input.cwd ?? ctx.cwd,
+                },
+            });
+            continue;
+        }
+        if (step.kind === "retrieve" || step.kind === "search") {
+            steps.push({
+                id: step.id,
+                kind: step.kind,
+                input: await normalizeRetrieveParams(input, ctx, routerConfigResult),
+            });
+            continue;
+        }
+        if (step.kind === "derive" || step.kind === "transform") {
+            steps.push({
+                id: step.id,
+                kind: step.kind,
+                input: await normalizeDeriveParams(input, ctx),
+            });
+            continue;
+        }
+        throw new Error(`Unsupported freeflow_batch step kind: ${step.kind}`);
+    }
+    return {
+        steps,
+        ...(params.concurrency !== undefined ? { concurrency: params.concurrency } : {}),
+        ...(params.preserve !== undefined ? { preserve: params.preserve } : {}),
+    };
+}
+function batchNeedsScriptAdapters(params) {
+    if (!Array.isArray(params?.steps)) {
+        return false;
+    }
+    return params.steps.some((step) => {
+        const input = step?.input;
+        if (!input || typeof input !== "object") {
+            return false;
+        }
+        if (step.kind === "run") {
+            return Boolean(input.scriptFilter);
+        }
+        if (step.kind === "derive" || step.kind === "transform") {
+            return input.operation?.kind === "script";
+        }
+        return false;
+    });
 }
 function createPiCommandRunner(pi, signal) {
     return {
@@ -156,7 +222,7 @@ export function registerRouterTools(pi) {
         async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
             const result = await freeflowRetrieve(await normalizeRetrieveParams(params, ctx));
             return {
-                content: [{ type: "text", text: routedToolText(result) }],
+                content: [{ type: "text", text: compactRetrieveToolText(result) }],
                 details: { result },
             };
         },
@@ -181,16 +247,28 @@ export function registerRouterTools(pi) {
             const routerConfigResult = await readOutputRouterConfig(ctx.cwd);
             notifyRouterConfigWarnings(ctx, routerConfigResult);
             const runner = createPiCommandRunner(pi, signal);
+            const scriptSandboxAdapters = params.scriptFilter
+                ? [
+                    ...(await discoverQuickJsWasiSandboxAdaptersFromEnv()),
+                    ...(await discoverJqWasmSandboxAdaptersFromEnv()),
+                    ...(await discoverEryxPythonSandboxAdaptersFromEnv()),
+                ]
+                : [];
             const result = await freeflowRun({
                 command: params.command,
                 cwd: params.cwd ?? ctx.cwd,
                 timeoutMs: params.timeoutMs,
                 preserve: params.preserve,
                 goal: params.goal,
+                filters: params.filters,
+                scriptFilter: params.scriptFilter,
                 sessionId: getRouterSessionId(ctx),
                 vaultRoot: routerConfigResult.config.vault.root,
                 vaultRetention: routerConfigResult.config.vault.retention,
                 thresholds: routerConfigResult.config.thresholds,
+                storagePolicy: routerConfigResult.config.storagePolicy,
+                scriptDerive: routerConfigResult.freeflowConfig.scriptDerive,
+                scriptSandboxAdapters,
             }, {
                 async run(request) {
                     if (signal?.aborted) {
@@ -200,7 +278,7 @@ export function registerRouterTools(pi) {
                 },
             });
             return {
-                content: [{ type: "text", text: routedToolText(result) }],
+                content: [{ type: "text", text: compactRunToolText(result) }],
                 details: { result },
             };
         },
@@ -209,6 +287,58 @@ export function registerRouterTools(pi) {
         },
         renderResult(result, options, theme, context) {
             return renderFreeflowRunResult(result, options, theme, context);
+        },
+    });
+    pi.registerTool({
+        name: "freeflow_batch",
+        label: "Freeflow Batch",
+        description: "Run independent Freeflow-owned operations in parallel and return one compact summary while preserving full child results in details.result.steps.",
+        promptSnippet: "Batch independent Freeflow run/search/transform operations with compact model-visible output.",
+        promptGuidelines: [
+            "Use freeflow_batch when several independent Freeflow-owned run, search/retrieve, or transform/derive operations can run in parallel.",
+            "Do not use freeflow_batch for sequenced workflows, arbitrary external tool orchestration, or mutating batch work in v1.",
+            "Intermediate child outputs are suppressed from model-visible output; inspect details.result.steps or child recovery ids when needed.",
+        ],
+        parameters: FREEFLOW_BATCH_PARAMETERS,
+        async execute(_toolCallId, params, signal, _onUpdate, ctx) {
+            const routerConfigResult = await readOutputRouterConfig(ctx.cwd);
+            notifyRouterConfigWarnings(ctx, routerConfigResult);
+            const normalized = await normalizeBatchParams(params, ctx, routerConfigResult);
+            const runner = createPiCommandRunner(pi, signal);
+            const scriptSandboxAdapters = batchNeedsScriptAdapters(params)
+                ? [
+                    ...(await discoverQuickJsWasiSandboxAdaptersFromEnv()),
+                    ...(await discoverJqWasmSandboxAdaptersFromEnv()),
+                    ...(await discoverEryxPythonSandboxAdaptersFromEnv()),
+                ]
+                : [];
+            const result = await freeflowBatch({
+                ...normalized,
+                sessionId: getRouterSessionId(ctx),
+                vaultRoot: routerConfigResult.config.vault.root,
+                vaultRetention: routerConfigResult.config.vault.retention,
+                thresholds: routerConfigResult.config.thresholds,
+                storagePolicy: routerConfigResult.config.storagePolicy,
+                scriptDerive: routerConfigResult.freeflowConfig.scriptDerive,
+                scriptSandboxAdapters,
+            }, {
+                async run(request) {
+                    if (signal?.aborted) {
+                        return { stdout: "", stderr: "", executionStatus: "cancelled", exitCode: null };
+                    }
+                    return runner.run(request);
+                },
+            });
+            return {
+                content: [{ type: "text", text: compactBatchToolText(result) }],
+                details: { result },
+            };
+        },
+        renderCall(args, theme) {
+            return renderFreeflowBatchCall(args, theme);
+        },
+        renderResult(result, options, theme) {
+            return renderFreeflowBatchResult(result, options, theme);
         },
     });
     pi.registerTool({
@@ -242,7 +372,7 @@ export function registerRouterTools(pi) {
                 scriptSandboxAdapters,
             });
             return {
-                content: [{ type: "text", text: routedToolText(result) }],
+                content: [{ type: "text", text: compactDeriveToolText(result) }],
                 details: { result },
             };
         },

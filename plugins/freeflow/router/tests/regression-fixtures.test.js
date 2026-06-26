@@ -928,7 +928,8 @@ test("regression fixture: Pi safety net labels native output and recovers exact 
       undefined,
       context(cwd),
     );
-    const payload = JSON.parse(retrieved.content[0].text);
+    const payload = retrieved.details.result;
+    assert.doesNotMatch(retrieved.content[0].text, /^\s*\{/);
     assert.equal(payload.evidence[0].excerpt, "native output fixture line 038\nnative output fixture line 039\nNATIVE_RAW_TAIL_SENTINEL");
   } finally {
     await rm(cwd, { recursive: true, force: true });

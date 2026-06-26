@@ -72,7 +72,7 @@ Use `query` first when the needed lines are unknown. Use `expand` when a previou
 
 The router works with built-in defaults. Use `freeflow_status` to inspect effective defaults and non-destructive migration recommendations. Persist `outputRouter`, `observedRouting`, `providers`, or `scriptDerive` config only after the setup evidence-routing/script-execution decision point or an explicit request; `setup-freeflow` owns repo setup/config changes.
 
-Supported `outputRouter` keys are `enabled`, `profile`, `postToolRouting`, `largeOutputBytes`, `largeOutputLines`, `vaultRoot`, `vaultRetentionDays`, `generatedPaths`, and `noisyCommandHints`. Supported `observedRouting` keys are `enabled`, `onRoutingFailure`, `mcp.servers`, `web`, `fetch`, and `codeSearch`, with persistence modes `exact`, `metadata-only`, and `none`. Supported `scriptDerive` keys are `enabled`, `sandbox`, `languages`, `network`, `limits`, and `rawScriptPersistence`; defaults keep it disabled with no unsandboxed fallback. Supported high-level provider keys include `providers.enabled`.
+Supported `outputRouter` keys are `enabled`, `profile`, `postToolRouting`, `storagePolicy`, `largeOutputBytes`, `largeOutputLines`, `vaultRoot`, `vaultRetentionDays`, `generatedPaths`, and `noisyCommandHints`. `storagePolicy` supports `hybrid-dedupe` (default for `freeflow_run` command capture) and `store-everything` (compatibility/diagnostic override). Supported `observedRouting` keys are `enabled`, `onRoutingFailure`, `mcp.servers`, `web`, `fetch`, and `codeSearch`, with persistence modes `exact`, `metadata-only`, and `none`. Supported `scriptDerive` keys are `enabled`, `sandbox`, `languages`, `network`, `limits`, and `rawScriptPersistence`; defaults keep it disabled with no unsandboxed fallback. Supported high-level provider keys include `providers.enabled`.
 
 `outputRouter.postToolRouting` controls native read/bash safety-net routing:
 
@@ -83,6 +83,7 @@ Supported `outputRouter` keys are `enabled`, `profile`, `postToolRouting`, `larg
 Rules:
 
 - Minimal setup stays only `defaultMode`.
+- Metadata-only command records must never claim exact recovery. Exact duplicate metadata may point to a prior exact `outputId`; plain metadata-only records only get rerun guidance.
 - Do not dump defaults or create empty `outputRouter`, `observedRouting`, `capture`, `providers`, or `scriptDerive` objects; Pi setup should not write legacy `capture` config.
 - `generatedPaths` affects broad scans only; explicit path retrieval remains available.
 - Freeflow mode changes guidance strength only. It must not enable `postToolRouting` or direct host-tool capture.

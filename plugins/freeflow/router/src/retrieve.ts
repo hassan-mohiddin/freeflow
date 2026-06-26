@@ -46,6 +46,17 @@ export interface VaultRetrieveSourceInput {
 
 export type RetrieveSourceInput = RepoRetrieveSourceInput | VaultRetrieveSourceInput;
 
+export const FREEFLOW_SEARCH_ACTIONS = ["locate", "query", "get", "expand", "transform"] as const;
+export type FreeflowSearchAction = (typeof FREEFLOW_SEARCH_ACTIONS)[number];
+export type RetrieveCompatibilityAction = "retrieve" | "explain";
+
+export function searchActionForRetrieveAction(action: RetrievalAction): FreeflowSearchAction | RetrieveCompatibilityAction {
+  if (action === "retrieve" || action === "explain") {
+    return action;
+  }
+  return action;
+}
+
 export type RepoExpansion = "lines_30" | "lines_80" | "full";
 
 export interface RetrieveLineRangeInput {
@@ -120,6 +131,10 @@ export async function freeflowRetrieve(options: FreeflowRetrieveOptions): Promis
       return await locateRepo(root, options as RepoRetrieveOptions, preserve);
     }
 
+    if (options.action === "get") {
+      return await getRepo(root, options as RepoRetrieveOptions, preserve);
+    }
+
     if (options.action === "expand") {
       return await expandRepoEvidence(root, options as RepoRetrieveOptions, preserve);
     }
@@ -164,7 +179,7 @@ async function retrieveVault(
     return explainVaultOutput(options, preserve);
   }
 
-  if (options.action !== "query" && options.action !== "locate") {
+  if (options.action !== "query" && options.action !== "locate" && options.action !== "get") {
     return errorResult(preserve, `Vault retrieval action ${options.action} is not implemented yet.`);
   }
 
@@ -172,8 +187,8 @@ async function retrieveVault(
     return errorResult(preserve, `Vault ${options.action} requires a non-empty query string.`);
   }
 
-  if (hasVaultOutputId(options) && options.action === "query") {
-    return querySingleVaultOutput(options, preserve);
+  if (hasVaultOutputId(options) && (options.action === "query" || options.action === "get")) {
+    return querySingleVaultOutput(options, preserve, options.action);
   }
 
   return queryVaultIndex(options, preserve, options.action);
@@ -182,6 +197,7 @@ async function retrieveVault(
 async function querySingleVaultOutput(
   options: VaultOutputRetrieveOptions,
   preserve: PreserveMode,
+  action: "query" | "get" = "query",
 ): Promise<RetrievalRoutedResult> {
   const query = options.query?.trim();
   if (!query) {
@@ -198,14 +214,14 @@ async function querySingleVaultOutput(
   if (candidateLine === null) {
     return {
       toolStatus: "ok",
-      decisionId: decisionId("vault-query", options.source.outputId, stream, query, "none"),
+      decisionId: decisionId(`vault-${action}`, options.source.outputId, stream, query, "none"),
       preserve,
       source: { kind: "vault", outputId: options.source.outputId, stream },
       ...vaultRecordResultFields(record),
       routing: {
         status: "routed",
         route: "retrieve",
-        reason: "Deterministic lexical vault retrieval found no matching output evidence.",
+        reason: action === "get" ? "Freeflow search get found no matching vaulted output evidence." : "Deterministic lexical vault retrieval found no matching output evidence.",
       },
       evidence: [],
       recovery: {
@@ -218,31 +234,39 @@ async function querySingleVaultOutput(
   const start = Math.max(0, candidateLine - DEFAULT_CONTEXT_LINES);
   const end = Math.min(lines.length - 1, candidateLine + DEFAULT_CONTEXT_LINES);
   const evidenceLines = `${start + 1}-${end + 1}`;
+  const match = matchMetadataForText(lines[candidateLine] ?? "", query);
   const evidence: EvidencePacket = {
     id: evidenceIdFor(`${options.source.outputId}:${stream}`, evidenceLines, query),
     source: { kind: "vault", outputId: options.source.outputId, stream },
     path: `${options.source.outputId}:${stream}`,
     lines: evidenceLines,
     excerpt: excerptForLineRange(lines, { start: start + 1, end: end + 1 }, "small"),
-    why: `Deterministic lexical match for query terms in vaulted ${stream} output near line ${candidateLine + 1}.`,
+    why: action === "get"
+      ? `Best vaulted get match near line ${candidateLine + 1}; matchType=${match.type} confidence=${match.confidence.toFixed(2)}.`
+      : `Deterministic lexical match for query terms in vaulted ${stream} output near line ${candidateLine + 1}.`,
     window: "small",
     expandable: true,
+    ...(action === "get" ? { match } : {}),
   };
 
   return {
     toolStatus: "ok",
-    decisionId: decisionId("vault-query", options.source.outputId, stream, query, evidenceLines),
+    decisionId: decisionId(`vault-${action}`, options.source.outputId, stream, query, evidenceLines),
     preserve,
     source: { kind: "vault", outputId: options.source.outputId, stream },
     ...vaultRecordResultFields(record),
     routing: {
       status: "routed",
       route: "retrieve",
-      reason: `Deterministic lexical retrieval selected vaulted outputId=${options.source.outputId} stream=${stream} lines=${evidenceLines}.`,
+      reason: action === "get"
+        ? `Freeflow search get selected best vaulted outputId=${options.source.outputId} stream=${stream} lines=${evidenceLines}; matchType=${match.type} confidence=${match.confidence.toFixed(2)}.`
+        : `Deterministic lexical retrieval selected vaulted outputId=${options.source.outputId} stream=${stream} lines=${evidenceLines}.`,
     },
     evidence: [evidence],
     recovery: {
-      how: `Use freeflow_retrieve action=expand with evidenceId=${evidence.id}, or action=retrieve with outputId=${options.source.outputId} and stream=${stream}.`,
+      how: action === "get"
+        ? `Use freeflow_retrieve action=retrieve with outputId=${options.source.outputId}, stream=${stream}, and lineRange=${evidenceLines} for exact recovery; use action=expand with evidenceId=${evidence.id} for more context.`
+        : `Use freeflow_retrieve action=expand with evidenceId=${evidence.id}, or action=retrieve with outputId=${options.source.outputId} and stream=${stream}.`,
       outputId: options.source.outputId,
       evidenceId: evidence.id,
     },
@@ -252,14 +276,14 @@ async function querySingleVaultOutput(
 async function queryVaultIndex(
   options: VaultRetrieveOptions,
   preserve: PreserveMode,
-  action: "query" | "locate",
+  action: "query" | "locate" | "get",
 ): Promise<RetrievalRoutedResult> {
   const query = options.query?.trim();
   if (!query) {
     return errorResult(preserve, `Vault ${action} requires a non-empty query string.`);
   }
 
-  const topK = parseTopK(options.topK, action === "query" ? DEFAULT_QUERY_TOP_K : DEFAULT_LOCATE_TOP_K);
+  const topK = parseTopK(options.topK, action === "locate" ? DEFAULT_LOCATE_TOP_K : DEFAULT_QUERY_TOP_K);
   if (typeof topK === "string") {
     return errorResult(preserve, topK);
   }
@@ -304,7 +328,9 @@ async function queryVaultIndex(
       route: "retrieve",
       reason: action === "locate"
         ? `Located ${evidence.length} indexed vault candidate(s) without raw output retrieval; top result ${first.outputId}${first.stream ? `:${first.stream}` : ""}${firstEvidence.lines ? `:${firstEvidence.lines}` : ""}.`
-        : `Vault-wide query selected ${evidence.length} indexed candidate(s); top result ${first.outputId}${first.stream ? `:${first.stream}` : ""}${firstEvidence.lines ? `:${firstEvidence.lines}` : ""}.`,
+        : action === "get"
+          ? `Freeflow search get selected best indexed vault match ${first.outputId}${first.stream ? `:${first.stream}` : ""}${firstEvidence.lines ? `:${firstEvidence.lines}` : ""}; matchType=${firstEvidence.match?.type ?? "lexical"} confidence=${(firstEvidence.match?.confidence ?? scoreConfidence(first.score)).toFixed(2)}.`
+          : `Vault-wide query selected ${evidence.length} indexed candidate(s); top result ${first.outputId}${first.stream ? `:${first.stream}` : ""}${firstEvidence.lines ? `:${firstEvidence.lines}` : ""}.`,
     },
     evidence,
     recovery: {
@@ -317,13 +343,16 @@ async function queryVaultIndex(
   };
 }
 
-function evidenceFromVaultIndexMatch(match: VaultIndexMatch, query: string, action: "query" | "locate"): EvidencePacket {
+function evidenceFromVaultIndexMatch(match: VaultIndexMatch, query: string, action: "query" | "locate" | "get"): EvidencePacket {
   const source = sourceRefForVaultIndexMatch(match);
   const lines = match.lineStart !== undefined && match.lineEnd !== undefined ? `${match.lineStart}-${match.lineEnd}` : undefined;
   const path = `${match.outputId}${match.stream ? `:${match.stream}` : ":metadata"}`;
+  const matchMetadata = match.metadataOnly ? { type: "metadata" as const, confidence: scoreConfidence(match.score) } : matchMetadataForText(match.excerpt, query, match.score);
   const why = match.metadataOnly
     ? `Indexed metadata-only ${action} match for query terms; raw content is not recoverable from this entry.`
-    : `Indexed vault ${action} match for query terms with score ${match.score}.`;
+    : action === "get"
+      ? `Best indexed vault get match; matchType=${matchMetadata.type} confidence=${matchMetadata.confidence.toFixed(2)} score=${match.score}.`
+      : `Indexed vault ${action} match for query terms with score ${match.score}.`;
 
   return {
     id: evidenceIdFor(path, lines ?? match.chunkId, query),
@@ -334,6 +363,7 @@ function evidenceFromVaultIndexMatch(match: VaultIndexMatch, query: string, acti
     why,
     window: "small",
     expandable: !match.metadataOnly && lines !== undefined && match.stream !== undefined,
+    ...(action === "get" ? { match: matchMetadata } : {}),
   };
 }
 
@@ -817,6 +847,67 @@ async function queryRepo(
   };
 }
 
+async function getRepo(
+  root: string,
+  options: RepoRetrieveOptions,
+  preserve: PreserveMode,
+): Promise<RetrievalRoutedResult> {
+  if (!options.query?.trim()) {
+    return errorResult(preserve, "Repo get requires a non-empty query string.");
+  }
+
+  const query = options.query.trim();
+  const files = await readRepoTextFiles(root, options.source.path, options.generatedPathGlobs);
+  const candidates = searchRepoEvidenceCandidates({
+    files,
+    query,
+    topK: 1,
+    defaultContextLines: DEFAULT_CONTEXT_LINES,
+    queryCoverageMaxLines: QUERY_COVERAGE_MAX_LINES,
+  });
+
+  const candidate = candidates[0];
+  if (!candidate) {
+    return {
+      toolStatus: "ok",
+      decisionId: decisionId("repo-get", query, root, "none"),
+      preserve,
+      source: { kind: "repo", path: options.source.path ?? "." },
+      routing: {
+        status: "routed",
+        route: "retrieve",
+        reason: "Freeflow search get found no matching repo evidence.",
+      },
+      evidence: [],
+      recovery: {
+        how: "Refine the query, use action=locate for candidate paths, or use native read for a known whole file.",
+      },
+    };
+  }
+
+  const match = matchMetadataForCandidate(candidate);
+  const evidence = evidenceFromCandidate(candidate, query);
+  evidence.why = `Best repo get match; matchType=${match.type} confidence=${match.confidence.toFixed(2)}. ${evidence.why}`;
+  evidence.match = match;
+
+  return {
+    toolStatus: "ok",
+    decisionId: decisionId("repo-get", query, evidence.path ?? candidate.file.path, evidence.lines ?? ""),
+    preserve,
+    source: { kind: "repo", path: candidate.file.path },
+    routing: {
+      status: "routed",
+      route: "retrieve",
+      reason: `Freeflow search get selected best repo match ${candidate.file.path}:${evidence.lines}; matchType=${match.type} confidence=${match.confidence.toFixed(2)} (${candidate.reason}).`,
+    },
+    evidence: [evidence],
+    recovery: {
+      how: `Use freeflow_retrieve action=retrieve with path=${candidate.file.path} and lineRange=${evidence.lines} for exact recovery, or action=expand with evidenceId=${evidence.id}.`,
+      evidenceId: evidence.id,
+    },
+  };
+}
+
 async function locateRepo(
   root: string,
   options: RepoRetrieveOptions,
@@ -1269,6 +1360,34 @@ function parseTopK(value: number | undefined, defaultValue: number): number | st
   }
 
   return value;
+}
+
+function matchMetadataForCandidate(candidate: EvidenceSearchCandidate<RepoTextFile>): NonNullable<EvidencePacket["match"]> {
+  return {
+    type: candidate.exactNormalizedPhrase ? "exact_phrase" : "lexical",
+    confidence: candidate.exactNormalizedPhrase ? 0.95 : scoreConfidence(candidate.score),
+  };
+}
+
+function matchMetadataForText(text: string, query: string, score?: number): NonNullable<EvidencePacket["match"]> {
+  const normalizedText = normalizeComparableText(text);
+  const normalizedQuery = normalizeComparableText(query);
+  const exact = normalizedQuery.length > 0 && normalizedText.includes(normalizedQuery);
+  return {
+    type: exact ? "exact_phrase" : "lexical",
+    confidence: exact ? 0.95 : scoreConfidence(score),
+  };
+}
+
+function scoreConfidence(score?: number): number {
+  if (score === undefined || !Number.isFinite(score) || score <= 0) {
+    return 0.6;
+  }
+  return Math.max(0.6, Math.min(0.9, score / (score + 10)));
+}
+
+function normalizeComparableText(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9_.$/-]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
 function evidenceFromCandidate(candidate: EvidenceSearchCandidate<RepoTextFile>, query: string): EvidencePacket {

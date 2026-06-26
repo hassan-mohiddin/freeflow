@@ -1,7 +1,7 @@
 export const PRESERVE_MODES = ["summary", "important", "full"] as const;
 export type PreserveMode = (typeof PRESERVE_MODES)[number];
 
-export const RETRIEVAL_ACTIONS = ["query", "locate", "retrieve", "expand", "explain"] as const;
+export const RETRIEVAL_ACTIONS = ["query", "locate", "get", "retrieve", "expand", "explain"] as const;
 export type RetrievalAction = (typeof RETRIEVAL_ACTIONS)[number];
 
 export const TOOL_STATUSES = ["ok", "error"] as const;
@@ -13,8 +13,11 @@ export type ExecutionStatus = (typeof EXECUTION_STATUSES)[number];
 export const ROUTING_STATUSES = ["routed", "passed_through", "partial", "failed"] as const;
 export type RoutingStatus = (typeof ROUTING_STATUSES)[number];
 
-export const ROUTE_KINDS = ["retrieve", "run", "capture", "derive", "observed", "safety-net", "pass-through"] as const;
+export const ROUTE_KINDS = ["retrieve", "run", "capture", "derive", "batch", "observed", "safety-net", "pass-through"] as const;
 export type RouteKind = (typeof ROUTE_KINDS)[number];
+
+export const BATCH_STEP_KINDS = ["run", "retrieve", "search", "derive", "transform"] as const;
+export type BatchStepKind = (typeof BATCH_STEP_KINDS)[number];
 
 export const PRODUCER_KINDS = ["command", "native", "repo", "web", "fetch", "code_search", "mcp", "provider", "derive", "other"] as const;
 export type ProducerKind = (typeof PRODUCER_KINDS)[number];
@@ -55,6 +58,9 @@ export type PostToolRoutingMode = (typeof POST_TOOL_ROUTING_MODES)[number];
 
 export const OUTPUT_ROUTER_PROFILES = ["standard"] as const;
 export type OutputRouterProfile = (typeof OUTPUT_ROUTER_PROFILES)[number];
+
+export const STORAGE_POLICY_MODES = ["store-everything", "hybrid-dedupe"] as const;
+export type StoragePolicyMode = (typeof STORAGE_POLICY_MODES)[number];
 
 export const CAPTURE_FREEFLOW_MEDIATED_MODES = ["raw"] as const;
 export type CaptureFreeflowMediatedMode = (typeof CAPTURE_FREEFLOW_MEDIATED_MODES)[number];
@@ -141,6 +147,11 @@ export interface EvidenceRecordIdentity {
   outputId?: string;
 }
 
+export interface EvidenceMatchMetadata {
+  type: "exact_phrase" | "lexical" | "metadata";
+  confidence: number;
+}
+
 export interface EvidencePacket {
   id: string;
   source: SourceRef;
@@ -150,6 +161,7 @@ export interface EvidencePacket {
   expandable: boolean;
   path?: string;
   lines?: string;
+  match?: EvidenceMatchMetadata;
 }
 
 export interface RecoveryHint {
@@ -183,6 +195,36 @@ export interface CommandParserReference {
   code?: string;
   severity?: "error" | "warning" | "info";
   message: string;
+}
+
+export interface RunOutputFilterMetadata {
+  stream: Exclude<OutputStream, "raw">;
+  include?: string[];
+  exclude?: string[];
+  flags?: string;
+  head?: number;
+  tail?: number;
+  maxLines?: number;
+  maxBytes?: number;
+  sourceLines: number;
+  selectedLines: number;
+  fallbackPreservedFailureEvidence?: boolean;
+}
+
+export interface RunScriptFilterMetadata {
+  status: "success" | FailureExecutionStatus;
+  language: ScriptDeriveLanguage;
+  sourceAliases: string[];
+  rawOutputId: string;
+  label?: string;
+  operation?: Record<string, unknown>;
+  outputId?: string;
+  recordId?: string;
+  persistence?: EvidencePersistence;
+  lineage?: EvidenceLineage;
+  failure?: RouterFailure;
+  deriveExecution?: DeriveExecutionFailure;
+  summary?: string;
 }
 
 export interface CommandParserMetadata {
@@ -220,6 +262,8 @@ export interface CommandRoutedResult extends RoutedResultBase {
   summary?: string;
   importantLines?: ImportantLine[];
   parser?: CommandParserMetadata;
+  filters?: RunOutputFilterMetadata;
+  scriptFilter?: RunScriptFilterMetadata;
 }
 
 export interface CaptureRoutedResult extends RoutedResultBase {
@@ -270,11 +314,31 @@ export interface DeriveRoutedResult extends RoutedResultBase {
   summary?: string;
 }
 
+export interface BatchStepRoutedResult {
+  id: string;
+  index: number;
+  kind: BatchStepKind;
+  status: "ok" | "failed";
+  toolStatus?: ToolStatus;
+  durationMs: number;
+  result?: RoutedResult;
+  error?: string;
+}
+
+export interface BatchRoutedResult extends RoutedResultBase {
+  summary: string;
+  concurrency: number;
+  stepCount: number;
+  okCount: number;
+  failedCount: number;
+  steps: BatchStepRoutedResult[];
+}
+
 export interface FailureRoutedResult extends RoutedResultBase {
   outputId?: string;
 }
 
-export type RoutedResult = RetrievalRoutedResult | CommandRoutedResult | CaptureRoutedResult | ObservedRoutedResult | DeriveRoutedResult | FailureRoutedResult;
+export type RoutedResult = RetrievalRoutedResult | CommandRoutedResult | CaptureRoutedResult | ObservedRoutedResult | DeriveRoutedResult | BatchRoutedResult | FailureRoutedResult;
 
 export interface LineByteCounts {
   lines: number;
@@ -452,6 +516,7 @@ export interface RouterConfig {
   enabled: boolean;
   profile: OutputRouterProfile;
   postToolRouting: PostToolRoutingMode;
+  storagePolicy: StoragePolicyMode;
   thresholds: RouterThresholds;
   vault: RouterVaultConfig;
   hints?: RouterHints;

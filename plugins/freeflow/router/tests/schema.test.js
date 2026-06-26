@@ -7,14 +7,20 @@ import {
   OUTPUT_ROUTER_SKILL_PATH,
   createDefaultRouterConfig,
   validateCommandOutputRecord,
+  validateRetrievalAction,
   validateRouterConfig,
   validateRoutedResult,
 } from "../dist/index.js";
+
+test("retrieval action schema includes get", () => {
+  assert.deepEqual(validateRetrievalAction("get"), { ok: true, value: "get" });
+});
 
 test("default router config uses seven-day TTL and validates", () => {
   const config = createDefaultRouterConfig();
 
   assert.equal(config.postToolRouting, "off");
+  assert.equal(config.storagePolicy, "hybrid-dedupe");
   assert.equal(config.vault.root, DEFAULT_VAULT_ROOT);
   assert.deepEqual(config.vault.retention, DEFAULT_VAULT_RETENTION);
   assert.equal(OUTPUT_ROUTER_SKILL_PATH, "plugins/freeflow/skills/output-router/SKILL.md");
@@ -25,12 +31,14 @@ test("router config validation rejects zero thresholds and malformed normalized 
   const config = createDefaultRouterConfig();
   const result = validateRouterConfig({
     ...config,
+    storagePolicy: "threshold-exact",
     thresholds: { largeOutputBytes: 0, largeOutputLines: 0 },
     hints: { generatedPathGlobs: ["dist/**", 1], noisyCommandPatterns: "test" },
   });
 
   assert.equal(result.ok, false);
   const paths = result.issues.map((issue) => issue.path).join("\n");
+  assert.match(paths, /\$\.storagePolicy/);
   assert.match(paths, /\$\.thresholds\.largeOutputBytes/);
   assert.match(paths, /\$\.thresholds\.largeOutputLines/);
   assert.match(paths, /\$\.hints\.generatedPathGlobs\[1\]/);
@@ -111,6 +119,65 @@ test("routed result validates producer and recoverability metadata", () => {
   assert.match(paths, /\$\.recordId/);
   assert.match(paths, /\$\.producer\.kind/);
   assert.match(paths, /\$\.persistence\.recoveryOutputId/);
+});
+
+test("routed command result validates run filter metadata", () => {
+  const valid = {
+    toolStatus: "ok",
+    decisionId: "ffdec_123",
+    outputId: "ffout_123",
+    preserve: "important",
+    execution: { status: "success", exitCode: 0 },
+    routing: { status: "partial", route: "run", reason: "filtered" },
+    filters: { stream: "stdout", include: ["TARGET"], sourceLines: 10, selectedLines: 1 },
+  };
+
+  assert.deepEqual(validateRoutedResult(valid), { ok: true, value: valid });
+
+  const invalid = validateRoutedResult({
+    ...valid,
+    filters: { stream: "raw", include: [1], sourceLines: -1, selectedLines: "many" },
+  });
+
+  assert.equal(invalid.ok, false);
+  const paths = invalid.issues.map((issue) => issue.path).join("\n");
+  assert.match(paths, /\$\.filters\.stream/);
+  assert.match(paths, /\$\.filters\.include/);
+  assert.match(paths, /\$\.filters\.sourceLines/);
+  assert.match(paths, /\$\.filters\.selectedLines/);
+});
+
+test("routed command result validates run script filter metadata", () => {
+  const valid = {
+    toolStatus: "ok",
+    decisionId: "ffdec_123",
+    outputId: "ffout_raw",
+    preserve: "important",
+    execution: { status: "success", exitCode: 0 },
+    routing: { status: "partial", route: "run", reason: "script filtered" },
+    scriptFilter: {
+      status: "success",
+      language: "javascript",
+      rawOutputId: "ffout_raw",
+      sourceAliases: ["stdout", "stderr", "combined"],
+      outputId: "ffout_derived",
+      operation: { kind: "script", language: "javascript", codeSha256: "sha256_abc" },
+    },
+  };
+
+  assert.deepEqual(validateRoutedResult(valid), { ok: true, value: valid });
+
+  const invalid = validateRoutedResult({
+    ...valid,
+    scriptFilter: { status: 1, language: null, rawOutputId: "", sourceAliases: [1] },
+  });
+
+  assert.equal(invalid.ok, false);
+  const paths = invalid.issues.map((issue) => issue.path).join("\n");
+  assert.match(paths, /\$\.scriptFilter\.status/);
+  assert.match(paths, /\$\.scriptFilter\.language/);
+  assert.match(paths, /\$\.scriptFilter\.rawOutputId/);
+  assert.match(paths, /\$\.scriptFilter\.sourceAliases/);
 });
 
 test("routed command parser metadata validates confidence and fidelity", () => {

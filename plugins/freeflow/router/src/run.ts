@@ -5,21 +5,38 @@ import {
   createVault,
   findExactDuplicateCommandOutput,
   storeCommandOutput,
+  storeMetadataOutput,
 } from "./vault.js";
-import { DEFAULT_ROUTER_THRESHOLDS } from "./config.js";
+import { DEFAULT_ROUTER_THRESHOLDS, DEFAULT_STORAGE_POLICY } from "./config.js";
+import { freeflowTransform, validateDeriveInput, type ScriptDeriveLimitsInput } from "./transform.js";
 import { assembleTextEvidence, byteLength, countLines, type BoundedEvidence } from "./evidence.js";
 import { parseCommandOutput, type ParsedCommandOutput } from "./parsers.js";
+import {
+  applyRunOutputFilters,
+  hasRunOutputFilters,
+  normalizeRunOutputFilters,
+  type NormalizedRunOutputFilters,
+  type RunOutputFilterMetadata,
+  type RunOutputFiltersInput,
+} from "./run-filters.js";
 import type {
   CommandOutputRecord,
   CommandParserMetadata,
+  MetadataOutputRecord,
   CommandRoutedResult,
+  DeriveRoutedResult,
   ExecutionStatus,
+  FailureRoutedResult,
   ImportantLine,
   PreserveMode,
   RouterThresholds,
+  ScriptDeriveConfig,
+  ScriptDeriveLanguage,
   SessionIndexEntry,
+  StoragePolicyMode,
   VaultRetentionPolicy,
 } from "./types.js";
+import type { ScriptSandboxAdapter } from "./script-sandbox.js";
 
 export interface HostCommandRunRequest {
   command: string | readonly string[];
@@ -40,6 +57,13 @@ export interface HostCommandRunner {
   run(request: HostCommandRunRequest): Promise<HostCommandRunResult>;
 }
 
+export interface RunScriptFilterInput {
+  language: ScriptDeriveLanguage;
+  code: string;
+  label?: string;
+  limits?: ScriptDeriveLimitsInput;
+}
+
 export interface FreeflowRunOptions extends HostCommandRunRequest {
   sessionId: string;
   vaultRoot?: string;
@@ -47,6 +71,11 @@ export interface FreeflowRunOptions extends HostCommandRunRequest {
   preserve?: PreserveMode;
   goal?: string;
   thresholds?: Partial<RouterThresholds>;
+  filters?: RunOutputFiltersInput;
+  scriptFilter?: RunScriptFilterInput;
+  scriptDerive?: ScriptDeriveConfig;
+  scriptSandboxAdapters?: readonly ScriptSandboxAdapter[];
+  storagePolicy?: StoragePolicyMode;
 }
 
 export async function freeflowRun(
@@ -54,6 +83,26 @@ export async function freeflowRun(
   runner: HostCommandRunner,
 ): Promise<CommandRoutedResult> {
   const preserve = options.preserve ?? "important";
+  const filterValidation = normalizeRunOutputFilters(options.filters);
+  if (!filterValidation.ok) {
+    return commandFilterValidationFailureResult({
+      command: options.command,
+      preserve,
+      message: filterValidation.message,
+      path: filterValidation.path,
+    });
+  }
+  const scriptFilterValidation = normalizeRunScriptFilter(options.scriptFilter);
+  if (!scriptFilterValidation.ok) {
+    return commandScriptFilterValidationFailureResult({
+      command: options.command,
+      preserve,
+      message: scriptFilterValidation.message,
+      path: scriptFilterValidation.path,
+    });
+  }
+  const filters = hasRunOutputFilters(filterValidation.filters) ? filterValidation.filters : undefined;
+  const scriptFilter = scriptFilterValidation.scriptFilter;
   const thresholds = { ...DEFAULT_ROUTER_THRESHOLDS, ...options.thresholds };
   const vaultOptions: { root?: string; retention?: VaultRetentionPolicy } = {};
   if (options.vaultRoot !== undefined) {
@@ -96,7 +145,7 @@ export async function freeflowRun(
   }
 
   const combined = runResult.combined ?? combineOutputSections(runResult.stdout, runResult.stderr);
-  let record: Awaited<ReturnType<typeof storeCommandOutput>> | undefined;
+  let record: CommandOutputRecord | MetadataOutputRecord | undefined;
   let duplicate: SessionIndexEntry | undefined;
 
   const fingerprints = commandOutputFingerprints({
@@ -108,16 +157,44 @@ export async function freeflowRun(
     exitCode: runResult.exitCode,
     ...(options.cwd !== undefined ? { cwd: options.cwd } : {}),
   });
-  if (preserve !== "full") {
-    try {
-      duplicate = await findExactDuplicateCommandOutput(vault, {
-        sessionId: options.sessionId,
-        fingerprints,
-      });
-    } catch {
-      duplicate = undefined;
-    }
+  try {
+    duplicate = await findExactDuplicateCommandOutput(vault, {
+      sessionId: options.sessionId,
+      fingerprints,
+    });
+  } catch {
+    duplicate = undefined;
   }
+
+  const storagePolicy = options.storagePolicy ?? DEFAULT_STORAGE_POLICY;
+  const storageParser = parseCommandOutput({
+    command: options.command,
+    executionStatus: runResult.executionStatus,
+    exitCode: runResult.exitCode,
+    stdout: runResult.stdout,
+    stderr: runResult.stderr,
+    combined,
+    ...(options.goal !== undefined ? { goal: options.goal } : {}),
+  });
+  const storageInput = {
+    policy: storagePolicy,
+    command: options.command,
+    preserve,
+    executionStatus: runResult.executionStatus,
+    outputBytes: byteLength(combined),
+    outputLines: countLines(combined),
+    thresholds,
+    parserName: storageParser.parser.name,
+    hasFilters: filters !== undefined,
+    hasScriptFilter: scriptFilter !== undefined,
+  };
+  if (options.goal !== undefined) {
+    Object.assign(storageInput, { goal: options.goal });
+  }
+  if (duplicate !== undefined) {
+    Object.assign(storageInput, { duplicate });
+  }
+  const storageDecision = decideCommandStorage(storageInput);
 
   const execution = {
     status: runResult.executionStatus,
@@ -144,7 +221,22 @@ export async function freeflowRun(
     if (runResult.durationMs !== undefined) {
       Object.assign(storeOptions, { durationMs: runResult.durationMs });
     }
-    record = await storeCommandOutput(vault, storeOptions);
+    const metadataStoreOptions = {
+      vault,
+      sessionId: options.sessionId,
+      command: options.command,
+      runResult,
+      combined,
+      fingerprints,
+      storageDecision,
+      parserName: storageParser.parser.name,
+    };
+    if (options.cwd !== undefined) {
+      Object.assign(metadataStoreOptions, { cwd: options.cwd });
+    }
+    record = storageDecision.mode === "exact"
+      ? await storeCommandOutput(vault, storeOptions)
+      : await storeCommandMetadataOutput(metadataStoreOptions);
 
     const routeOptions: RouteCommandOutputOptions = {
       outputId: record.outputId,
@@ -156,19 +248,46 @@ export async function freeflowRun(
       combined,
       preserve,
       thresholds,
+      storage: storageDecision,
     };
+    if (filters !== undefined) {
+      routeOptions.filters = filters;
+    }
     if (options.goal !== undefined) {
       routeOptions.goal = options.goal;
     }
-    const routing = duplicate
-      ? routeDuplicateCommandOutput({
-          outputId: record.outputId,
-          duplicate,
-          command: options.command,
-          executionStatus: runResult.executionStatus,
-          exitCode: runResult.exitCode,
-        })
-      : routeCommandOutput(routeOptions);
+    let routing: CommandRoutingOutcome;
+    const duplicateForRouting = duplicate && preserve !== "full" && filters === undefined && scriptFilter === undefined ? duplicate : undefined;
+    if (duplicateForRouting) {
+      routing = routeDuplicateCommandOutput({
+        outputId: record.outputId,
+        duplicate: duplicateForRouting,
+        storage: storageDecision,
+        command: options.command,
+        executionStatus: runResult.executionStatus,
+        exitCode: runResult.exitCode,
+      });
+    } else if (scriptFilter) {
+      const scriptRouteOptions = {
+        routeOptions,
+        rawRecord: record as CommandOutputRecord,
+        sessionId: options.sessionId,
+        scriptFilter,
+        scriptSandboxAdapters: options.scriptSandboxAdapters ?? [],
+      };
+      if (options.vaultRoot !== undefined) {
+        Object.assign(scriptRouteOptions, { vaultRoot: options.vaultRoot });
+      }
+      if (options.vaultRetention !== undefined) {
+        Object.assign(scriptRouteOptions, { vaultRetention: options.vaultRetention });
+      }
+      if (options.scriptDerive !== undefined) {
+        Object.assign(scriptRouteOptions, { scriptDerive: options.scriptDerive });
+      }
+      routing = await routeScriptFilteredOutput(scriptRouteOptions);
+    } else {
+      routing = routeCommandOutput(routeOptions);
+    }
 
     return {
       toolStatus: "ok",
@@ -179,7 +298,10 @@ export async function freeflowRun(
       execution,
       producer: record.producer,
       persistence: record.persistence,
-      ...(record.lineage !== undefined ? { lineage: record.lineage } : {}),
+      ...(routing.lineage !== undefined ? { lineage: routing.lineage } : record.lineage !== undefined ? { lineage: record.lineage } : {}),
+      ...(routing.failure !== undefined ? { failure: routing.failure } : {}),
+      ...(routing.deriveExecution !== undefined ? { deriveExecution: routing.deriveExecution } : {}),
+      ...(routing.evidence !== undefined ? { evidence: routing.evidence } : {}),
       routing: {
         status: routing.routingStatus,
         route: "run",
@@ -188,7 +310,9 @@ export async function freeflowRun(
       summary: routing.summary,
       importantLines: routing.importantLines,
       parser: routing.parser,
-      recovery: commandRecoveryHint(record.outputId, duplicate),
+      ...(routing.filters !== undefined ? { filters: routing.filters } : {}),
+      ...(routing.scriptFilter !== undefined ? { scriptFilter: routing.scriptFilter } : {}),
+      recovery: routing.recovery ?? commandRecoveryHint(record.outputId, storageDecision),
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -202,8 +326,17 @@ export async function freeflowRun(
       stderr: runResult.stderr,
       combined,
       errorMessage: message,
+      storage: storageDecision,
     });
   }
+}
+
+interface CommandStorageDecision {
+  policy: StoragePolicyMode;
+  mode: "exact" | "metadata-only" | "duplicate-metadata";
+  exactnessSensitive: boolean;
+  exactRecoveryOutputId?: string;
+  reason: string;
 }
 
 interface RouteCommandOutputOptions {
@@ -216,7 +349,9 @@ interface RouteCommandOutputOptions {
   combined: string;
   preserve: PreserveMode;
   thresholds: RouterThresholds;
+  storage?: CommandStorageDecision;
   goal?: string;
+  filters?: NormalizedRunOutputFilters;
 }
 
 interface CommandRoutingOutcome {
@@ -226,19 +361,29 @@ interface CommandRoutingOutcome {
   summary: string;
   importantLines: ImportantLine[];
   parser: CommandParserMetadata;
+  filters?: RunOutputFilterMetadata;
+  scriptFilter?: CommandRoutedResult["scriptFilter"];
+  failure?: CommandRoutedResult["failure"];
+  deriveExecution?: CommandRoutedResult["deriveExecution"];
+  lineage?: CommandRoutedResult["lineage"];
+  evidence?: CommandRoutedResult["evidence"];
+  recovery?: CommandRoutedResult["recovery"];
 }
 
 function routeDuplicateCommandOutput(options: {
   outputId: string;
   duplicate: SessionIndexEntry;
+  storage: CommandStorageDecision;
   command: string | readonly string[];
   executionStatus: ExecutionStatus;
   exitCode: number | null;
 }): CommandRoutingOutcome {
   const currentVaultText =
-    options.outputId === options.duplicate.outputId
-      ? `Current run resolved to the same outputId=${options.outputId}.`
-      : `Current raw output was vaulted as outputId=${options.outputId}.`;
+    options.storage.mode === "duplicate-metadata"
+      ? `Current run stored metadata-only as outputId=${options.outputId}; exact raw output remains recoverable from prior outputId=${options.duplicate.outputId}.`
+      : options.outputId === options.duplicate.outputId
+        ? `Current run resolved to the same outputId=${options.outputId}.`
+        : `Current raw output was vaulted as outputId=${options.outputId}.`;
   const statusText = `executionStatus=${options.executionStatus} exitCode=${options.exitCode}`;
 
   return {
@@ -257,30 +402,221 @@ function routeDuplicateCommandOutput(options: {
   };
 }
 
-function commandRecoveryHint(outputId: string, duplicate?: SessionIndexEntry) {
-  if (duplicate) {
+function commandRecoveryHint(outputId: string, storage: CommandStorageDecision) {
+  if (storage.mode === "exact") {
     return {
-      how: `Current exact command output: use freeflow_retrieve with source.kind=vault and outputId=${outputId}. Prior identical output: outputId=${duplicate.outputId}.`,
+      how: `Use freeflow_retrieve with source.kind=vault and outputId=${outputId} to recover exact command output.`,
       outputId,
     };
   }
 
+  if (storage.mode === "duplicate-metadata" && storage.exactRecoveryOutputId) {
+    return {
+      how: `Current command record is metadata-only outputId=${outputId}; exact duplicate raw output is recoverable with freeflow_retrieve source.kind=vault outputId=${storage.exactRecoveryOutputId}.`,
+      outputId: storage.exactRecoveryOutputId,
+    };
+  }
+
   return {
-    how: `Use freeflow_retrieve with source.kind=vault and outputId=${outputId} to recover exact command output.`,
-    outputId,
+    how: `Current command record is metadata-only outputId=${outputId}; exact raw output was not vaulted by storagePolicy=${storage.policy}. Rerun with preserve=full or a verification/diagnosis goal if exact recovery is required.`,
+  };
+}
+
+function commandStorageReason(storage: CommandStorageDecision | undefined): string {
+  if (!storage || storage.mode === "exact") {
+    return "raw output was vaulted";
+  }
+  if (storage.mode === "duplicate-metadata" && storage.exactRecoveryOutputId) {
+    return `current output was stored as metadata-only with exact duplicate recovery from outputId=${storage.exactRecoveryOutputId}`;
+  }
+  return `current output was stored as metadata-only by storagePolicy=${storage.policy}; exact raw output was not vaulted`;
+}
+
+function decideCommandStorage(options: {
+  policy: StoragePolicyMode;
+  command: string | readonly string[];
+  preserve: PreserveMode;
+  executionStatus: ExecutionStatus;
+  outputBytes: number;
+  outputLines: number;
+  thresholds: RouterThresholds;
+  parserName: string;
+  goal?: string;
+  hasFilters: boolean;
+  hasScriptFilter: boolean;
+  duplicate?: SessionIndexEntry;
+}): CommandStorageDecision {
+  const exactnessSensitive = commandOutputIsExactnessSensitive(options);
+  if (options.policy === "store-everything") {
+    return { policy: options.policy, mode: "exact", exactnessSensitive, reason: "storagePolicy=store-everything stores every command output exactly." };
+  }
+  if (!exactnessSensitive) {
+    return {
+      policy: options.policy,
+      mode: "metadata-only",
+      exactnessSensitive,
+      reason: "Small non-sensitive successful command output is stored metadata-only by storagePolicy=hybrid-dedupe.",
+    };
+  }
+  if (options.duplicate?.outputId) {
+    return {
+      policy: options.policy,
+      mode: "duplicate-metadata",
+      exactnessSensitive,
+      exactRecoveryOutputId: options.duplicate.outputId,
+      reason: `Exactness-sensitive command output duplicates prior exact outputId=${options.duplicate.outputId}; current record stores metadata only.`,
+    };
+  }
+  return {
+    policy: options.policy,
+    mode: "exact",
+    exactnessSensitive,
+    reason: "Command output is exactness-sensitive or large/noisy; storagePolicy=hybrid-dedupe stores it exactly.",
+  };
+}
+
+function commandOutputIsExactnessSensitive(options: {
+  command: string | readonly string[];
+  preserve: PreserveMode;
+  executionStatus: ExecutionStatus;
+  outputBytes: number;
+  outputLines: number;
+  thresholds: RouterThresholds;
+  parserName: string;
+  goal?: string;
+  hasFilters: boolean;
+  hasScriptFilter: boolean;
+}): boolean {
+  if (options.preserve === "full" || options.executionStatus !== "success" || options.hasFilters || options.hasScriptFilter) {
+    return true;
+  }
+  if (options.outputBytes > options.thresholds.largeOutputBytes || options.outputLines > options.thresholds.largeOutputLines) {
+    return true;
+  }
+  const goalText = `${options.goal ?? ""} ${commandText(options.command)}`.toLowerCase();
+  if (/\b(verify|verification|test|tests|lint|typecheck|type-check|diagnos|debug|build|ci)\b/.test(goalText)) {
+    return true;
+  }
+  return options.parserName !== "generic";
+}
+
+async function storeCommandMetadataOutput(options: {
+  vault: ReturnType<typeof createVault>;
+  sessionId: string;
+  command: string | readonly string[];
+  cwd?: string;
+  runResult: HostCommandRunResult;
+  combined: string;
+  fingerprints: ReturnType<typeof commandOutputFingerprints>;
+  storageDecision: CommandStorageDecision;
+  parserName: string;
+}): Promise<MetadataOutputRecord> {
+  const metadata: Record<string, unknown> = {
+    storagePolicy: options.storageDecision.policy,
+    storageDecision: options.storageDecision.mode,
+    storageReason: options.storageDecision.reason,
+    command: options.command,
+    executionStatus: options.runResult.executionStatus,
+    exitCode: options.runResult.exitCode,
+    parserName: options.parserName,
+    exactnessSensitive: options.storageDecision.exactnessSensitive,
+    byteCounts: {
+      stdout: byteLength(options.runResult.stdout),
+      stderr: byteLength(options.runResult.stderr),
+      combined: byteLength(options.combined),
+    },
+    lineCounts: {
+      stdout: countLines(options.runResult.stdout),
+      stderr: countLines(options.runResult.stderr),
+      combined: countLines(options.combined),
+    },
+    fingerprints: options.fingerprints,
+  };
+  if (options.cwd !== undefined) {
+    metadata.cwd = options.cwd;
+  }
+  if (options.runResult.durationMs !== undefined) {
+    metadata.durationMs = options.runResult.durationMs;
+  }
+  if (options.storageDecision.exactRecoveryOutputId !== undefined) {
+    metadata.exactRecoveryOutputId = options.storageDecision.exactRecoveryOutputId;
+  }
+
+  return storeMetadataOutput(options.vault, {
+    sessionId: options.sessionId,
+    sourceKind: "other",
+    rawLineCount: countLines(options.combined),
+    rawByteCount: byteLength(options.combined),
+    rawSha256: hash(options.combined),
+    decisionIds: [decisionId("run-metadata", commandText(options.command), options.sessionId, options.storageDecision.mode)],
+    producer: { kind: "command", name: "freeflow_run" },
+    metadata,
+  });
+}
+
+function commandFilterValidationFailureResult(options: {
+  command: string | readonly string[];
+  preserve: PreserveMode;
+  message: string;
+  path: string;
+}): CommandRoutedResult {
+  return {
+    toolStatus: "error",
+    decisionId: decisionId("run-filter-validation", commandText(options.command), options.path, options.message),
+    outputId: "",
+    preserve: options.preserve,
+    execution: { status: "failed", exitCode: null },
+    producer: { kind: "command" },
+    persistence: { status: "not_persisted", recoverability: "none" },
+    routing: {
+      status: "failed",
+      route: "run",
+      reason: `Invalid freeflow_run filters at ${options.path}: ${options.message}`,
+    },
+    summary: "Command was not executed because freeflow_run filters were invalid.",
+    recovery: {
+      how: "No command output was captured. Fix the declarative filter and rerun through freeflow_run.",
+    },
+  };
+}
+
+function commandScriptFilterValidationFailureResult(options: {
+  command: string | readonly string[];
+  preserve: PreserveMode;
+  message: string;
+  path: string;
+}): CommandRoutedResult {
+  return {
+    toolStatus: "error",
+    decisionId: decisionId("run-script-filter-validation", commandText(options.command), options.path, options.message),
+    outputId: "",
+    preserve: options.preserve,
+    execution: { status: "failed", exitCode: null },
+    producer: { kind: "command" },
+    persistence: { status: "not_persisted", recoverability: "none" },
+    routing: {
+      status: "failed",
+      route: "run",
+      reason: `Invalid freeflow_run scriptFilter at ${options.path}: ${options.message}`,
+    },
+    summary: "Command was not executed because freeflow_run scriptFilter was invalid.",
+    recovery: {
+      how: "No command output was captured. Fix the sandboxed script filter and rerun through freeflow_run.",
+    },
   };
 }
 
 function commandRoutingFailureResult(options: {
   command: string | readonly string[];
   outputId: string;
-  record: CommandOutputRecord | undefined;
+  record: CommandOutputRecord | MetadataOutputRecord | undefined;
   preserve: PreserveMode;
   execution: CommandRoutedResult["execution"];
   stdout: string;
   stderr: string;
   combined: string;
   errorMessage: string;
+  storage?: CommandStorageDecision;
 }): CommandRoutedResult {
   const { stream, text } = routedCommandText({
     outputId: options.outputId,
@@ -301,10 +637,12 @@ function commandRoutingFailureResult(options: {
     compressed: fallback.compressed,
   };
   const recovery = options.outputId
-    ? {
-        how: `Routing failed after vault capture; use freeflow_retrieve with source.kind=vault and outputId=${options.outputId} to recover exact command output.`,
-        outputId: options.outputId,
-      }
+    ? options.storage !== undefined
+      ? commandRecoveryHint(options.outputId, options.storage)
+      : {
+          how: `Routing failed after vault capture; use freeflow_retrieve with source.kind=vault and outputId=${options.outputId} to recover exact command output.`,
+          outputId: options.outputId,
+        }
     : {
         how: "Command output could not be vaulted. A bounded in-memory preview was returned; rerun through the host-approved runner if exact recovery is required.",
       };
@@ -353,6 +691,10 @@ function routeCommandOutput(options: RouteCommandOutputOptions): CommandRoutingO
   const statusText = `executionStatus=${options.executionStatus} exitCode=${options.exitCode}`;
   const parserText = parserTextFor(parser);
 
+  if (options.filters) {
+    return routeFilteredOutput({ ...options, filters: options.filters }, parsed, statusText);
+  }
+
   if (options.preserve === "full") {
     return routeFullOutput(options, parsed, outputBytes, outputLines, statusText);
   }
@@ -361,7 +703,7 @@ function routeCommandOutput(options: RouteCommandOutputOptions): CommandRoutingO
     return {
       decisionId: decisionId("run-route", options.outputId, options.executionStatus, "failed", parser.name),
       routingStatus: "routed",
-      reason: `Command failed or did not complete (${statusText}); selected failure evidence was returned and raw output was vaulted before routing (${parserText}).`,
+      reason: `Command failed or did not complete (${statusText}); selected failure evidence was returned and ${commandStorageReason(options.storage)} before routing (${parserText}).`,
       summary: parsed.summary ?? `Command ${options.executionStatus} with exitCode=${options.exitCode}.`,
       importantLines: parsed.importantLines,
       parser,
@@ -372,7 +714,7 @@ function routeCommandOutput(options: RouteCommandOutputOptions): CommandRoutingO
     return {
       decisionId: decisionId("run-route", options.outputId, "large-success", parser.name),
       routingStatus: "partial",
-      reason: `Large successful command output (${outputBytes} bytes, ${outputLines} lines) was vaulted; bounded important lines were returned instead of full output (${parserText}).`,
+      reason: `Large successful command output (${outputBytes} bytes, ${outputLines} lines): ${commandStorageReason(options.storage)}; bounded important lines were returned instead of full output (${parserText}).`,
       summary: parsed.summary ?? `Command succeeded with ${outputLines} output lines and ${outputBytes} bytes.`,
       importantLines: parsed.importantLines,
       parser,
@@ -384,10 +726,148 @@ function routeCommandOutput(options: RouteCommandOutputOptions): CommandRoutingO
   return {
     decisionId: decisionId("run-route", options.outputId, "small-success", parser.name, nearRaw.fidelity),
     routingStatus: nearRaw.fidelity === "exact" ? "routed" : "partial",
-    reason: `Small successful command output was captured in the vault and returned near-raw (${parserTextFor(nearRawParser)}).`,
+    reason: `Small successful command output: ${commandStorageReason(options.storage)}; routed evidence was returned near-raw from the captured execution (${parserTextFor(nearRawParser)}).`,
     summary: parsed.summary ?? `Command success with exitCode=${options.exitCode}.`,
     importantLines: nearRaw.importantLines,
     parser: nearRawParser,
+  };
+}
+
+function routeFilteredOutput(
+  options: RouteCommandOutputOptions & { filters: NormalizedRunOutputFilters },
+  parsed: ParsedCommandOutput,
+  statusText: string,
+): CommandRoutingOutcome {
+  const defaultText = routedCommandText(options);
+  const filtered = applyRunOutputFilters({
+    filters: options.filters,
+    defaultStream: defaultText.stream,
+    stdout: options.stdout,
+    stderr: options.stderr,
+    combined: options.combined,
+    fallbackImportantLines: parsed.importantLines,
+    preserveFallbackFailureEvidence: options.executionStatus !== "success",
+    caps: {
+      maxLines: options.thresholds.largeOutputLines,
+      maxExcerptBytes: options.thresholds.largeOutputBytes,
+      maxLineBytes: options.thresholds.largeOutputBytes,
+    },
+  });
+  const parser = parserWithEvidence(parsed.parser, filtered.evidence);
+  const fallbackText = filtered.metadata.fallbackPreservedFailureEvidence
+    ? " No filtered lines matched, so parsed failure evidence was preserved instead of hiding the failure."
+    : "";
+  const selectedText = `${filtered.metadata.selectedLines}/${filtered.metadata.sourceLines} line(s) selected`;
+
+  return {
+    decisionId: decisionId("run-route", options.outputId, "filtered", filtered.description, parser.name),
+    routingStatus: filtered.evidence.compressed ? "partial" : "routed",
+    reason: `Command output was vaulted before declarative filters were applied (${statusText}; filters: ${filtered.description}; ${parserTextFor(parser)}).${fallbackText}`,
+    summary: `${parsed.summary ?? `Command ${options.executionStatus} with exitCode=${options.exitCode}.`} Filtered routed evidence: ${selectedText} from ${filtered.stream}.`,
+    importantLines: filtered.evidence.importantLines,
+    parser: {
+      ...parser,
+      counts: {
+        ...(parser.counts ?? {}),
+        filterSourceLines: filtered.metadata.sourceLines,
+        filterSelectedLines: filtered.metadata.selectedLines,
+      },
+    },
+    filters: filtered.metadata,
+  };
+}
+
+async function routeScriptFilteredOutput(options: {
+  routeOptions: RouteCommandOutputOptions;
+  rawRecord: CommandOutputRecord;
+  sessionId: string;
+  vaultRoot?: string;
+  vaultRetention?: VaultRetentionPolicy;
+  scriptFilter: RunScriptFilterInput;
+  scriptDerive?: ScriptDeriveConfig;
+  scriptSandboxAdapters: readonly ScriptSandboxAdapter[];
+}): Promise<CommandRoutingOutcome> {
+  const { routeOptions, rawRecord, scriptFilter } = options;
+  const baseRouting = routeCommandOutput(routeOptions);
+  const operation: { kind: "script"; language: ScriptDeriveLanguage; code: string; label?: string } = {
+    kind: "script",
+    language: scriptFilter.language,
+    code: scriptFilter.code,
+  };
+  if (scriptFilter.label !== undefined) {
+    operation.label = scriptFilter.label;
+  }
+
+  const transformOptions = {
+    sessionId: options.sessionId,
+    sources: runScriptFilterSources(rawRecord.outputId),
+    operation,
+    preserve: routeOptions.preserve,
+    thresholds: routeOptions.thresholds,
+    scriptSandboxAdapters: options.scriptSandboxAdapters,
+  };
+  if (options.scriptDerive !== undefined) {
+    Object.assign(transformOptions, { scriptDerive: options.scriptDerive });
+  }
+  if (options.vaultRoot !== undefined) {
+    Object.assign(transformOptions, { vaultRoot: options.vaultRoot });
+  }
+  if (options.vaultRetention !== undefined) {
+    Object.assign(transformOptions, { vaultRetention: options.vaultRetention });
+  }
+  if (scriptFilter.limits !== undefined) {
+    Object.assign(transformOptions, { limits: scriptFilter.limits });
+  }
+
+  const scriptResult = await freeflowTransform(transformOptions);
+  const metadata = runScriptFilterMetadata(scriptFilter, scriptResult, rawRecord.outputId);
+
+  if (isSuccessfulScriptFilterResult(scriptResult)) {
+    const importantLines = evidencePacketsAsImportantLines(scriptResult.evidence);
+    const parser: CommandParserMetadata = {
+      name: `script-filter:${scriptFilter.language}`,
+      confidence: 1,
+      fidelity: "exact",
+      compressed: scriptResult.routing.status === "partial",
+      counts: {
+        scriptEvidencePackets: scriptResult.evidence?.length ?? 0,
+      },
+    };
+
+    return {
+      decisionId: decisionId("run-route", rawRecord.outputId, "script-filter", scriptResult.outputId, scriptFilter.language),
+      routingStatus: scriptResult.routing.status,
+      reason: `Command output was vaulted as outputId=${rawRecord.outputId} before a sandboxed ${scriptFilter.language} script filter ran over captured stdout/stderr/combined. ${scriptResult.routing.reason}`,
+      summary: `${baseRouting.summary} Script filter completed; derived outputId=${scriptResult.outputId}.`,
+      importantLines,
+      parser,
+      ...(baseRouting.filters !== undefined ? { filters: baseRouting.filters } : {}),
+      scriptFilter: metadata,
+      ...(scriptResult.lineage !== undefined ? { lineage: scriptResult.lineage } : {}),
+      ...(scriptResult.evidence !== undefined ? { evidence: scriptResult.evidence } : {}),
+      recovery: commandScriptFilterRecoveryHint(rawRecord.outputId, scriptResult.outputId),
+    };
+  }
+
+  const failureMessage = scriptResult.failure?.message ?? scriptResult.routing.reason;
+  return {
+    ...baseRouting,
+    decisionId: decisionId("run-route", rawRecord.outputId, "script-filter-failed", scriptFilter.language, failureMessage),
+    routingStatus: baseRouting.routingStatus === "failed" ? "failed" : "partial",
+    reason: `Command executed and raw output was vaulted as outputId=${rawRecord.outputId}, but the sandboxed ${scriptFilter.language} script filter did not produce derived output: ${failureMessage} Base command evidence was returned instead.`,
+    summary: `${baseRouting.summary} Script filter did not produce derived output: ${failureMessage}`,
+    parser: {
+      ...baseRouting.parser,
+      counts: {
+        ...(baseRouting.parser.counts ?? {}),
+        scriptFilterFailures: 1,
+      },
+    },
+    scriptFilter: metadata,
+    ...(scriptResult.failure !== undefined ? { failure: scriptResult.failure } : {}),
+    ...(scriptResult.deriveExecution !== undefined ? { deriveExecution: scriptResult.deriveExecution } : {}),
+    ...(scriptResult.lineage !== undefined ? { lineage: scriptResult.lineage } : {}),
+    recovery: commandScriptFilterRecoveryHint(rawRecord.outputId),
   };
 }
 
@@ -404,7 +884,7 @@ function routeFullOutput(
   const capText = `${options.thresholds.largeOutputBytes} byte full-context cap`;
   const reason =
     full.fidelity === "exact"
-      ? `preserve=full returned exact command output within the ${capText} after raw output was vaulted (${statusText}; ${parserTextFor(parser)}).`
+      ? `preserve=full returned exact command output within the ${capText} after ${commandStorageReason(options.storage)} (${statusText}; ${parserTextFor(parser)}).`
       : `preserve=full output exceeded the bounded context policy (${outputBytes} bytes, ${outputLines} lines); a bounded preview was returned with raw vault recovery (${statusText}; ${parserTextFor(parser)}).`;
 
   return {
@@ -451,6 +931,139 @@ function routedCommandText(options: RouteCommandOutputOptions): { stream: Import
     return { stream: "stderr", text: options.stderr };
   }
   return { stream: "combined", text: options.combined };
+}
+
+function runScriptFilterSources(outputId: string) {
+  return [
+    { kind: "vault" as const, outputId, stream: "stdout" as const, alias: "stdout" },
+    { kind: "vault" as const, outputId, stream: "stderr" as const, alias: "stderr" },
+    { kind: "vault" as const, outputId, stream: "combined" as const, alias: "combined" },
+  ];
+}
+
+function isSuccessfulScriptFilterResult(result: DeriveRoutedResult | FailureRoutedResult): result is DeriveRoutedResult {
+  return result.toolStatus === "ok" && result.failure === undefined && typeof result.outputId === "string" && result.outputId.length > 0;
+}
+
+function runScriptFilterMetadata(
+  input: RunScriptFilterInput,
+  result: DeriveRoutedResult | FailureRoutedResult,
+  rawOutputId: string,
+): NonNullable<CommandRoutedResult["scriptFilter"]> {
+  const metadata: NonNullable<CommandRoutedResult["scriptFilter"]> = {
+    status: isSuccessfulScriptFilterResult(result) ? "success" : result.deriveExecution?.status ?? "failed",
+    language: input.language,
+    sourceAliases: ["stdout", "stderr", "combined"],
+    rawOutputId,
+  };
+  if (input.label !== undefined) {
+    metadata.label = input.label;
+  }
+  if ("operation" in result && result.operation !== undefined) {
+    metadata.operation = result.operation;
+  }
+  if (result.outputId !== undefined) {
+    metadata.outputId = result.outputId;
+  }
+  if (result.recordId !== undefined) {
+    metadata.recordId = result.recordId;
+  }
+  if (result.persistence !== undefined) {
+    metadata.persistence = result.persistence;
+  }
+  if (result.lineage !== undefined) {
+    metadata.lineage = result.lineage;
+  }
+  if (result.failure !== undefined) {
+    metadata.failure = result.failure;
+  }
+  if (result.deriveExecution !== undefined) {
+    metadata.deriveExecution = result.deriveExecution;
+  }
+  if ("summary" in result && result.summary !== undefined) {
+    metadata.summary = result.summary;
+  }
+  return metadata;
+}
+
+function evidencePacketsAsImportantLines(evidence: CommandRoutedResult["evidence"]): ImportantLine[] {
+  if (!Array.isArray(evidence)) {
+    return [];
+  }
+  return evidence
+    .filter((packet) => typeof packet.excerpt === "string" && typeof packet.lines === "string")
+    .map((packet) => ({
+      stream: "combined" as const,
+      lines: packet.lines!,
+      excerpt: packet.excerpt,
+    }));
+}
+
+function commandScriptFilterRecoveryHint(rawOutputId: string, derivedOutputId?: string) {
+  if (derivedOutputId) {
+    return {
+      how: `Raw command output: use freeflow_retrieve with source.kind=vault and outputId=${rawOutputId}. Script-filtered derived output: use freeflow_retrieve with source.kind=vault, outputId=${derivedOutputId}, stream=raw, and an exact lineRange.`,
+      outputId: rawOutputId,
+    };
+  }
+  return {
+    how: `Script filter did not produce derived output. Raw command output remains recoverable with freeflow_retrieve source.kind=vault outputId=${rawOutputId}.`,
+    outputId: rawOutputId,
+  };
+}
+
+function normalizeRunScriptFilter(input: unknown):
+  | { ok: true; scriptFilter?: RunScriptFilterInput }
+  | { ok: false; path: string; message: string } {
+  if (input === undefined || input === null) {
+    return { ok: true };
+  }
+  if (!isRecord(input)) {
+    return { ok: false, path: "$.scriptFilter", message: "freeflow_run scriptFilter must be an object." };
+  }
+
+  const operation: Record<string, unknown> = { kind: "script" };
+  if (input.language !== undefined) {
+    operation.language = input.language;
+  }
+  if (input.code !== undefined) {
+    operation.code = input.code;
+  }
+  if (input.label !== undefined) {
+    operation.label = input.label;
+  }
+  const candidate: Record<string, unknown> = {
+    sources: runScriptFilterSources("ffout_run_script_filter_validation"),
+    operation,
+  };
+  if (input.limits !== undefined) {
+    candidate.limits = input.limits;
+  }
+  const validation = validateDeriveInput(candidate);
+  if (!validation.ok) {
+    const issue = validation.issues[0] ?? { path: "$.scriptFilter", message: "Invalid script filter." };
+    return {
+      ok: false,
+      path: issue.path.replace(/^\$\.operation/, "$.scriptFilter").replace(/^\$\.limits/, "$.scriptFilter.limits"),
+      message: issue.message,
+    };
+  }
+
+  const scriptFilter: RunScriptFilterInput = {
+    language: input.language as ScriptDeriveLanguage,
+    code: input.code as string,
+  };
+  if (input.label !== undefined) {
+    scriptFilter.label = input.label as string;
+  }
+  if (input.limits !== undefined) {
+    scriptFilter.limits = input.limits as ScriptDeriveLimitsInput;
+  }
+  return { ok: true, scriptFilter };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function parserWithEvidence(parser: CommandParserMetadata, evidence: BoundedEvidence): CommandParserMetadata {

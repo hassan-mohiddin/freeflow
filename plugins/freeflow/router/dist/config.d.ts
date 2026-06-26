@@ -4,6 +4,7 @@ export declare const DEFAULT_VAULT_ROOT = "~/.cache/freeflow-router/vault";
 export declare const DEFAULT_POST_TOOL_ROUTING = "off";
 export declare const DEFAULT_OUTPUT_ROUTER_ENABLED = true;
 export declare const DEFAULT_OUTPUT_ROUTER_PROFILE = "standard";
+export declare const DEFAULT_STORAGE_POLICY: "hybrid-dedupe";
 export declare const DEFAULT_VAULT_RETENTION: {
     readonly strategy: "ttl";
     readonly ttlDays: 7;

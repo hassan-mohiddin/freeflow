@@ -69,6 +69,7 @@ test("Pi registers output-router as a direct command and no public capture tool"
   assert.ok(toolNames.includes("freeflow_status"));
   assert.ok(toolNames.includes("freeflow_retrieve"));
   assert.ok(toolNames.includes("freeflow_run"));
+  assert.ok(toolNames.includes("freeflow_batch"));
   assert.ok(toolNames.includes("freeflow_derive"));
   assert.ok(!toolNames.includes("freeflow_capture"));
 });
@@ -548,6 +549,7 @@ test("Pi freeflow_retrieve renders compact and expanded routed evidence UI", () 
   const { tools } = loadExtension();
   const retrieveTool = tools.find((tool) => tool.name === "freeflow_retrieve");
   assert.ok(retrieveTool);
+  assert.ok(retrieveTool.parameters.properties.action.enum.includes("get"));
 
   const call = renderText(
     retrieveTool.renderCall(
@@ -596,10 +598,44 @@ test("Pi freeflow_retrieve renders compact and expanded routed evidence UI", () 
   assert.doesNotMatch(collapsed, /raw json/);
 
   const expanded = renderText(retrieveTool.renderResult(toolResult, { expanded: true }, testTheme));
+  assert.match(expanded, /Source/);
+  assert.match(expanded, /preserve: important/);
+  assert.match(expanded, /Storage/);
+  assert.match(expanded, /decisionId: ffdec_test/);
   assert.match(expanded, /Evidence/);
+  assert.match(expanded, /evidenceId: ev_test/);
+  assert.match(expanded, /source: repo docs\/example\.md/);
+  assert.match(expanded, /expandable: true/);
+  assert.match(expanded, /exact retrieve: action=retrieve source.kind=repo lineRange=523-527 path=docs\/example\.md/);
   assert.match(expanded, /### Sandbox Permissions/);
   assert.match(expanded, /Recovery/);
-  assert.match(expanded, /ev_test/);
+  assert.match(expanded, /expand hint: freeflow_retrieve action=expand evidenceId=ev_test/);
+});
+
+test("Pi freeflow_run exposes declarative filter schema", () => {
+  const { tools } = loadExtension();
+  const runTool = tools.find((tool) => tool.name === "freeflow_run");
+  assert.ok(runTool);
+
+  const filters = runTool.parameters.properties.filters;
+  assert.equal(filters.type, "object");
+  assert.equal(filters.additionalProperties, false);
+  assert.deepEqual(filters.properties.stream.enum, ["stdout", "stderr", "combined"]);
+  assert.equal(filters.properties.include.items.minLength, 1);
+  assert.equal(filters.properties.exclude.items.minLength, 1);
+  assert.match(filters.properties.flags.pattern, /gimsu/);
+  assert.equal(filters.properties.head.minimum, 1);
+  assert.equal(filters.properties.tail.minimum, 1);
+  assert.equal(filters.properties.maxLines.minimum, 1);
+  assert.equal(filters.properties.maxBytes.minimum, 1);
+
+  const scriptFilter = runTool.parameters.properties.scriptFilter;
+  assert.equal(scriptFilter.type, "object");
+  assert.equal(scriptFilter.additionalProperties, false);
+  assert.deepEqual(scriptFilter.properties.language.enum, ["javascript", "python", "jq"]);
+  assert.equal(scriptFilter.properties.code.minLength, 1);
+  assert.equal(scriptFilter.properties.limits.properties.timeoutMs.maximum, 30000);
+  assert.deepEqual(scriptFilter.required, ["language", "code"]);
 });
 
 test("Pi freeflow_run renders compact and expanded status, evidence, and vault UI", () => {
@@ -619,6 +655,7 @@ test("Pi freeflow_run renders compact and expanded status, evidence, and vault U
         decisionId: "ffdec_run_test",
         preserve: "important",
         outputId: "ffout_test123",
+        recordId: "ffrec_test123",
         execution: { status: "failed", exitCode: 1, durationMs: 842 },
         routing: {
           status: "routed",
@@ -627,6 +664,17 @@ test("Pi freeflow_run renders compact and expanded status, evidence, and vault U
         },
         summary: "Command failed with exitCode=1.",
         parser: { name: "test-runner", confidence: 0.92, fidelity: "exact", compressed: true, counts: { testsFailed: 1 } },
+        persistence: { status: "vaulted", recoverability: "exact", recoveryOutputId: "ffout_test123" },
+        filters: { stream: "stderr", include: ["AssertionError"], sourceLines: 2, selectedLines: 1 },
+        scriptFilter: {
+          status: "success",
+          language: "javascript",
+          label: "failures-only",
+          rawOutputId: "ffout_test123",
+          sourceAliases: ["stdout", "stderr", "combined"],
+          outputId: "ffout_script123",
+          operation: { kind: "script", language: "javascript", codeSha256: "sha256_abc" },
+        },
         importantLines: [
           {
             stream: "stderr",
@@ -646,8 +694,9 @@ test("Pi freeflow_run renders compact and expanded status, evidence, and vault U
   assert.match(collapsed, /execution: failed/);
   assert.match(collapsed, /routing: routed/);
   assert.match(collapsed, /ffout_test123/);
+  assert.match(collapsed, /ffout_script123/);
   assert.match(collapsed, /parser test-runner 0\.92/);
-  assert.match(collapsed, /raw output recoverable from vault/);
+  assert.match(collapsed, /raw and script output recoverable from vault/);
   assert.match(collapsed, /ctrl\+o to expand/);
   assert.doesNotMatch(collapsed, /raw json/);
 
@@ -656,6 +705,19 @@ test("Pi freeflow_run renders compact and expanded status, evidence, and vault U
   );
   assert.match(expanded, /Status/);
   assert.match(expanded, /execution.status: failed/);
+  assert.match(expanded, /Storage/);
+  assert.match(expanded, /decisionId: ffdec_run_test/);
+  assert.match(expanded, /recordId: ffrec_test123/);
+  assert.match(expanded, /persistence: vaulted \/ exact/);
+  assert.match(expanded, /Filters/);
+  assert.match(expanded, /stream=stderr/);
+  assert.match(expanded, /include=AssertionError/);
+  assert.match(expanded, /selected=1\/2/);
+  assert.match(expanded, /Script filter/);
+  assert.match(expanded, /javascript:success/);
+  assert.match(expanded, /rawOutputId: ffout_test123/);
+  assert.match(expanded, /sources: stdout, stderr, combined/);
+  assert.match(expanded, /sha256_abc/);
   assert.match(expanded, /Parser/);
   assert.match(expanded, /confidence: 0\.92/);
   assert.match(expanded, /counts:.*testsFailed/);
@@ -663,6 +725,147 @@ test("Pi freeflow_run renders compact and expanded status, evidence, and vault U
   assert.match(expanded, /AssertionError/);
   assert.match(expanded, /Vault recovery/);
   assert.match(expanded, /source.kind=vault/);
+  assert.match(expanded, /exact retrieve: action=retrieve source.kind=vault lineRange=14-16 stream=raw outputId=ffout_script123/);
+  assert.match(expanded, /raw command starting point: freeflow_retrieve source.kind=vault outputId=ffout_test123/);
+  assert.match(expanded, /details\.result/);
+});
+
+test("Pi freeflow_run returns compact model-visible text with full structured details", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-run-compact-text-"));
+  try {
+    const tools = [];
+    const pi = {
+      registerTool(tool) {
+        tools.push(tool);
+      },
+      registerCommand() {},
+      on() {},
+      appendEntry() {},
+      sendUserMessage() {},
+      async exec() {
+        return {
+          stdout: "Tests:       1 failed, 24 passed, 25 total\n",
+          stderr: "AssertionError: expected false to equal true\nSTACK_BENCH_MARKER exact failure line\n",
+          code: 1,
+          killed: false,
+        };
+      },
+    };
+    freeflowExtension(pi);
+    const runTool = tools.find((tool) => tool.name === "freeflow_run");
+    assert.ok(runTool);
+
+    const result = await runTool.execute(
+      "tool-call",
+      { command: "npm test", goal: "verification" },
+      undefined,
+      undefined,
+      context(cwd),
+    );
+
+    const visibleText = result.content[0].text;
+    const detailsText = JSON.stringify(result.details.result, null, 2);
+
+    assert.match(visibleText, /freeflow_run failed/);
+    assert.match(visibleText, /exit=1/);
+    assert.match(visibleText, /raw=ffout_/);
+    assert.match(visibleText, /STACK_BENCH_MARKER exact failure line/);
+    assert.match(visibleText, /recover exact span: freeflow_retrieve action=retrieve source.kind=vault lineRange=1-3 stream=stderr outputId=ffout_/);
+    assert.match(visibleText, /details\.result/);
+    assert.doesNotMatch(visibleText, /^\s*\{/);
+    assert.ok(Buffer.byteLength(visibleText, "utf8") < Buffer.byteLength(detailsText, "utf8"));
+    assert.ok(Buffer.byteLength(visibleText, "utf8") < 900);
+
+    assert.equal(result.details.result.toolStatus, "ok");
+    assert.equal(result.details.result.execution.status, "failed");
+    assert.equal(result.details.result.execution.exitCode, 1);
+    assert.ok(result.details.result.recovery.outputId.startsWith("ffout_"));
+    assert.ok(Array.isArray(result.details.result.importantLines));
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi freeflow_batch returns compact summary and preserves child details", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-batch-compact-text-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({ defaultMode: "workflow", outputRouter: { vaultRoot: join(cwd, "vault") } }),
+      "utf8",
+    );
+
+    const tools = [];
+    const pi = {
+      registerTool(tool) {
+        tools.push(tool);
+      },
+      registerCommand() {},
+      on() {},
+      appendEntry() {},
+      sendUserMessage() {},
+      async exec(_bin, args) {
+        const command = args?.[1] ?? "unknown";
+        const prefix = command.includes("one") ? "ONE" : "TWO";
+        return {
+          stdout: Array.from({ length: 20 }, (_, index) => `${prefix}_VISIBLE_BATCH_SENTINEL_${index + 1}`).join("\n") + "\n",
+          stderr: "",
+          code: 0,
+          killed: false,
+        };
+      },
+    };
+    freeflowExtension(pi);
+    const runTool = tools.find((tool) => tool.name === "freeflow_run");
+    const batchTool = tools.find((tool) => tool.name === "freeflow_batch");
+    assert.ok(runTool);
+    assert.ok(batchTool);
+
+    const batchCtx = context(cwd);
+    batchCtx.sessionManager.getSessionId = () => "batch-compact";
+    const batch = await batchTool.execute(
+      "batch-call",
+      {
+        steps: [
+          { id: "one", kind: "run", input: { command: "fixture one" } },
+          { id: "two", kind: "run", input: { command: "fixture two" } },
+        ],
+      },
+      undefined,
+      undefined,
+      batchCtx,
+    );
+
+    const separateCtx = context(cwd);
+    separateCtx.sessionManager.getSessionId = () => "batch-separate";
+    const separateOne = await runTool.execute("run-one", { command: "fixture one" }, undefined, undefined, separateCtx);
+    const separateTwo = await runTool.execute("run-two", { command: "fixture two" }, undefined, undefined, separateCtx);
+    const separateVisible = `${separateOne.content[0].text}\n${separateTwo.content[0].text}`;
+    const visibleText = batch.content[0].text;
+
+    assert.match(visibleText, /freeflow_batch routed/);
+    assert.match(visibleText, /steps=2/);
+    assert.match(visibleText, /details\.result\.steps/);
+    assert.doesNotMatch(visibleText, /^\s*\{/);
+    assert.doesNotMatch(visibleText, /VISIBLE_BATCH_SENTINEL/);
+    assert.ok(Buffer.byteLength(visibleText, "utf8") < Buffer.byteLength(separateVisible, "utf8"));
+
+    const payload = batch.details.result;
+    assert.equal(payload.stepCount, 2);
+    assert.equal(payload.okCount, 2);
+    assert.equal(payload.failedCount, 0);
+    assert.equal(payload.steps[0].result.importantLines[0].excerpt.includes("ONE_VISIBLE_BATCH_SENTINEL_1"), true);
+    assert.equal(payload.steps[1].result.importantLines[0].excerpt.includes("TWO_VISIBLE_BATCH_SENTINEL_1"), true);
+
+    const expanded = renderText(batchTool.renderResult(batch, { expanded: true }, testTheme));
+    assert.match(expanded, /Steps/);
+    assert.match(expanded, /#1 one/);
+    assert.match(expanded, /#2 two/);
+    assert.match(expanded, /details\.result\.steps/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
 });
 
 test("Pi freeflow_run uses outputRouter thresholds and vault root from repo config", async () => {
@@ -706,8 +909,13 @@ test("Pi freeflow_run uses outputRouter thresholds and vault root from repo conf
       undefined,
       context(cwd),
     );
-    const payload = JSON.parse(result.content[0].text);
+    const visibleText = result.content[0].text;
+    const payload = result.details.result;
 
+    assert.match(visibleText, /freeflow_run success/);
+    assert.match(visibleText, /routing=partial/);
+    assert.match(visibleText, /raw=ffout_/);
+    assert.doesNotMatch(visibleText, /^\s*\{/);
     assert.equal(payload.toolStatus, "ok");
     assert.equal(payload.routing.status, "partial");
     assert.ok(payload.recovery.outputId.startsWith("ffout_"));
@@ -751,7 +959,11 @@ test("Pi freeflow_retrieve applies configured generated path hints", async () =>
       undefined,
       context(cwd),
     );
-    const broadPayload = JSON.parse(broad.content[0].text);
+    const broadVisible = broad.content[0].text;
+    const broadPayload = broad.details.result;
+    assert.match(broadVisible, /freeflow_retrieve routed/);
+    assert.doesNotMatch(broadVisible, /^\s*\{/);
+    assert.ok(Buffer.byteLength(broadVisible, "utf8") < Buffer.byteLength(JSON.stringify(broadPayload, null, 2), "utf8"));
     assert.equal(broadPayload.evidence[0].path, "target.md");
     assert.doesNotMatch(broadPayload.evidence[0].excerpt, /pihintsentinel/);
 
@@ -766,7 +978,7 @@ test("Pi freeflow_retrieve applies configured generated path hints", async () =>
       undefined,
       context(cwd),
     );
-    const explicitPayload = JSON.parse(explicit.content[0].text);
+    const explicitPayload = explicit.details.result;
     assert.equal(explicitPayload.evidence[0].path, "custom-generated/decoy.md");
   } finally {
     await rm(cwd, { recursive: true, force: true });
@@ -811,7 +1023,11 @@ test("Pi freeflow_retrieve supports vault-wide query without outputId", async ()
       undefined,
       ctx,
     );
-    const payload = JSON.parse(result.content[0].text);
+    const visibleText = result.content[0].text;
+    const payload = result.details.result;
+    assert.match(visibleText, /freeflow_retrieve routed/);
+    assert.match(visibleText, /PI_VAULT_WIDE_TARGET/);
+    assert.doesNotMatch(visibleText, /^\s*\{/);
     assert.equal(payload.toolStatus, "ok");
     assert.equal(payload.evidence[0].source.outputId, stored.outputId);
     assert.equal(payload.evidence[0].source.stream, "raw");
@@ -1089,7 +1305,8 @@ test("Pi post-tool safety net vaults and labels large native bash output when en
       undefined,
       context(cwd),
     );
-    const payload = JSON.parse(retrieved.content[0].text);
+    const payload = retrieved.details.result;
+    assert.doesNotMatch(retrieved.content[0].text, /^\s*\{/);
     assert.equal(payload.evidence[0].excerpt, "line 18\nline 19\nline 20");
   } finally {
     await rm(cwd, { recursive: true, force: true });

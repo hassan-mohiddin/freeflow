@@ -22,6 +22,9 @@
     "test:router": "npm run build && node --test plugins/freeflow/router/tests/*.test.js",
     "bench:router": "npm run build:router && node plugins/freeflow/router/dist/benchmarks.js",
     "bench:router:commands": "npm run build:router && node plugins/freeflow/router/dist/command-benchmarks.js",
+    "bench:router:context-saving-baseline": "npm run build:router && node plugins/freeflow/router/dist/context-saving-baseline.js",
+    "bench:router:context-mode-normalized": "npm run build:router && node plugins/freeflow/router/dist/context-mode-normalized-benchmarks.js",
+    "bench:router:storage-policy": "npm run build:router && node plugins/freeflow/router/dist/storage-policy-benchmarks.js",
     "bench:router:index": "npm run build:router && node plugins/freeflow/router/dist/index-benchmarks.js",
     "bench:router:vault-index": "npm run build:router && node plugins/freeflow/router/dist/vault-index-benchmarks.js",
     "bench:router:codex-qa": "npm run build:router && node plugins/freeflow/router/dist/codex-qa-benchmarks.js"

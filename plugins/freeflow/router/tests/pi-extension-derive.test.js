@@ -389,7 +389,12 @@ test("Pi extension public freeflow_derive executes against vaulted output", asyn
       mockCtx(cwd, sessionId),
     );
 
+    const visibleText = result.content[0].text;
     const routed = result.details.result;
+    assert.match(visibleText, /freeflow_derive routed/);
+    assert.match(visibleText, /regexFilter/);
+    assert.doesNotMatch(visibleText, /^\s*\{/);
+    assert.ok(Buffer.byteLength(visibleText, "utf8") < Buffer.byteLength(JSON.stringify(routed, null, 2), "utf8"));
     assert.equal(routed.toolStatus, "ok");
     assert.equal(routed.routing.route, "derive");
     assert.equal(routed.routing.status, "routed");
@@ -479,6 +484,9 @@ test("Pi extension freeflow_derive renders source, operation, lineage, routing, 
   assert.match(expanded, /toolStatus: ok/);
   assert.match(expanded, /routing\.status: routed/);
   assert.match(expanded, /persistence: vaulted \/ exact/);
+  assert.match(expanded, /Storage/);
+  assert.match(expanded, /decisionId: ffdec_derive_test/);
+  assert.match(expanded, /recordId: ffrec_derive123/);
   assert.match(expanded, /Source/);
   assert.match(expanded, /ffout_source123:stdout/);
   assert.match(expanded, /Operation/);
@@ -486,7 +494,11 @@ test("Pi extension freeflow_derive renders source, operation, lineage, routing, 
   assert.match(expanded, /Lineage/);
   assert.match(expanded, /sourceOutputIds: ffout_source123/);
   assert.match(expanded, /Evidence/);
+  assert.match(expanded, /evidenceId: ev_derive/);
+  assert.match(expanded, /source: vault ffout_derive123:raw/);
+  assert.match(expanded, /expandable: true/);
   assert.match(expanded, /duration=200 slow/);
   assert.match(expanded, /Recovery/);
   assert.match(expanded, /ffout_derive123/);
+  assert.match(expanded, /exact retrieve: action=retrieve source.kind=vault lineRange=1-8 stream=raw outputId=ffout_derive123/);
 });

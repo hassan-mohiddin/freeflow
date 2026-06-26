@@ -1,7 +1,7 @@
 import { constants as fsConstants } from "node:fs";
 import { access, readFile, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { DEFAULT_CAPTURE_CONFIG, DEFAULT_OBSERVED_ROUTING_CONFIG, DEFAULT_OUTPUT_ROUTER_ENABLED, DEFAULT_OUTPUT_ROUTER_PROFILE, DEFAULT_POST_TOOL_ROUTING, DEFAULT_PROVIDERS_CONFIG, DEFAULT_ROUTER_THRESHOLDS, DEFAULT_SCRIPT_DERIVE_CONFIG, OBSERVED_ROUTING_PERSISTENCE_MODES, RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES, DEFAULT_VAULT_RETENTION, DEFAULT_VAULT_ROOT, createLocalVaultIndex, createVault, discoverEryxPythonSandboxAdaptersFromEnv, discoverJqWasmSandboxAdaptersFromEnv, discoverQuickJsWasiSandboxAdaptersFromEnv, normalizeFreeflowConfig, probeScriptSandboxAdapters, } from "../../router/dist/index.js";
+import { DEFAULT_CAPTURE_CONFIG, DEFAULT_OBSERVED_ROUTING_CONFIG, DEFAULT_OUTPUT_ROUTER_ENABLED, DEFAULT_OUTPUT_ROUTER_PROFILE, DEFAULT_POST_TOOL_ROUTING, DEFAULT_PROVIDERS_CONFIG, DEFAULT_ROUTER_THRESHOLDS, DEFAULT_SCRIPT_DERIVE_CONFIG, DEFAULT_STORAGE_POLICY, OBSERVED_ROUTING_PERSISTENCE_MODES, RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES, DEFAULT_VAULT_RETENTION, DEFAULT_VAULT_ROOT, createLocalVaultIndex, createVault, discoverEryxPythonSandboxAdaptersFromEnv, discoverJqWasmSandboxAdaptersFromEnv, discoverQuickJsWasiSandboxAdaptersFromEnv, normalizeFreeflowConfig, probeScriptSandboxAdapters, } from "../../router/dist/index.js";
 import { isMcpServerConfigured } from "./mcp-config.js";
 import { BUILT_IN_PROVIDER_MANIFESTS, validateProviderManifest } from "./provider-manifests.js";
 import { VALID_MODES, readModeState } from "./runtime-context.js";
@@ -11,6 +11,7 @@ const OUTPUT_ROUTER_CONFIG_KEYS = new Set([
     "enabled",
     "profile",
     "postToolRouting",
+    "storagePolicy",
     "largeOutputBytes",
     "largeOutputLines",
     "vaultRoot",
@@ -64,6 +65,7 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
                 enabled: normalized.config.outputRouter.enabled,
                 profile: normalized.config.outputRouter.profile,
                 postToolRouting: normalized.config.outputRouter.postToolRouting,
+                storagePolicy: normalized.config.outputRouter.storagePolicy,
                 thresholds: normalized.config.outputRouter.thresholds,
                 vault: normalized.config.outputRouter.vault,
                 hints: normalized.config.outputRouter.hints ?? {},
@@ -78,6 +80,7 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
                 enabled: DEFAULT_OUTPUT_ROUTER_ENABLED,
                 profile: DEFAULT_OUTPUT_ROUTER_PROFILE,
                 postToolRouting: DEFAULT_POST_TOOL_ROUTING,
+                storagePolicy: DEFAULT_STORAGE_POLICY,
                 thresholds: DEFAULT_ROUTER_THRESHOLDS,
                 vaultRoot: DEFAULT_VAULT_ROOT,
                 vaultRetention: DEFAULT_VAULT_RETENTION,
@@ -104,7 +107,7 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
         scriptDerive: scriptDeriveStatus(normalized.config.scriptDerive, scriptSandbox),
         providers,
         recoverabilityDefaults: {
-            freeflowRun: "exact stdout/stderr/combined recovery through outputId when persisted",
+            freeflowRun: "hybrid-dedupe command capture: exact when exactness-sensitive or duplicate recovery points to a prior exact outputId; small non-sensitive successes may be metadata-only",
             observedRouting: "exact raw recovery for enabled observed producers when exact persistence is configured; metadata-only stores no raw stream",
             freeflowDerive: "deterministic derive stores exact derived-output recovery with source lineage when persisted; script derive is disabled by default and requires an approved sandbox adapter",
             directHostTools: "off by default; optional native read/bash safety-net only when outputRouter.postToolRouting is safety-net",
@@ -404,6 +407,7 @@ function collectOutputRouterRecommendations(value, recommendations) {
     addDefaultRecommendation(recommendations, "outputRouter.enabled", value.enabled, DEFAULT_OUTPUT_ROUTER_ENABLED);
     addDefaultRecommendation(recommendations, "outputRouter.profile", value.profile, DEFAULT_OUTPUT_ROUTER_PROFILE);
     addDefaultRecommendation(recommendations, "outputRouter.postToolRouting", value.postToolRouting, DEFAULT_POST_TOOL_ROUTING);
+    addDefaultRecommendation(recommendations, "outputRouter.storagePolicy", value.storagePolicy, DEFAULT_STORAGE_POLICY);
     addDefaultRecommendation(recommendations, "outputRouter.largeOutputBytes", value.largeOutputBytes, DEFAULT_ROUTER_THRESHOLDS.largeOutputBytes);
     addDefaultRecommendation(recommendations, "outputRouter.largeOutputLines", value.largeOutputLines, DEFAULT_ROUTER_THRESHOLDS.largeOutputLines);
     addDefaultRecommendation(recommendations, "outputRouter.vaultRoot", value.vaultRoot, DEFAULT_VAULT_ROOT);

@@ -146,6 +146,38 @@ test("vault-wide query finds indexed chunks across output ids with exact recover
   });
 });
 
+test("vault get returns best matching output location with match metadata", async () => {
+  await withTempVault(async (vault) => {
+    const command = await storeCommandOutput(vault, {
+      sessionId: "vault-get-session",
+      command: "npm test",
+      stdout: ["setup", "VAULT_GET_TARGET best output", "done"].join("\n"),
+      stderr: "",
+      executionStatus: "success",
+      exitCode: 0,
+      createdAt: "2026-06-16T00:00:00.000Z",
+    });
+
+    const result = await freeflowRetrieve({
+      action: "get",
+      source: { kind: "vault", root: vault.root, sessionId: "vault-get-session" },
+      query: "VAULT_GET_TARGET best output",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.match(result.routing.reason, /Freeflow search get selected best indexed vault match/);
+    assert.equal(result.evidence?.length, 1);
+    const evidence = result.evidence[0];
+    assert.equal(evidence.source.kind, "vault");
+    assert.equal(evidence.source.outputId, command.outputId);
+    assert.match(evidence.excerpt, /VAULT_GET_TARGET best output/);
+    assert.equal(evidence.match?.type, "exact_phrase");
+    assert.ok(evidence.match?.confidence >= 0.9);
+    assert.match(result.recovery?.how ?? "", /action=retrieve/);
+  });
+});
+
 test("vault-wide locate supports producer filters and metadata-only results stay non-expandable", async () => {
   await withTempVault(async (vault) => {
     const github = await storeTextOutput(vault, {
@@ -1186,6 +1218,29 @@ test("querying repo files returns bounded evidence instead of a whole file", asy
     assert.match(evidence.excerpt, /output router skill teaches tool choice/);
     assert.ok(!evidence.excerpt.includes("filler line 140"));
     assert.ok(evidence.excerpt.length < 700);
+  });
+});
+
+test("repo get returns best matching location with content and match metadata", async () => {
+  await withFixtureRepo(async (root) => {
+    const result = await freeflowRetrieve({
+      action: "get",
+      source: { kind: "repo", root },
+      query: "output router skill teaches tool choice",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.match(result.routing.reason, /Freeflow search get selected best repo match/);
+    assert.equal(result.evidence?.length, 1);
+    const evidence = result.evidence[0];
+    assert.equal(evidence.source.kind, "repo");
+    assert.equal(evidence.path, "router-notes.md");
+    assert.match(evidence.excerpt, /output router skill teaches tool choice/);
+    assert.equal(evidence.match?.type, "exact_phrase");
+    assert.ok(evidence.match?.confidence >= 0.9);
+    assert.match(result.recovery?.how ?? "", /action=retrieve/);
+    assert.match(result.recovery?.how ?? "", /lineRange=/);
   });
 });
 

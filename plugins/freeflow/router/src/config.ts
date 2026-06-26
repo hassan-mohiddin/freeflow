@@ -8,6 +8,7 @@ import {
   PROVIDER_CATEGORIES,
   PROVIDER_MODES,
   RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES,
+  STORAGE_POLICY_MODES,
 } from "./types.js";
 import type {
   CaptureConfig,
@@ -35,6 +36,8 @@ export const DEFAULT_POST_TOOL_ROUTING = "off";
 export const DEFAULT_OUTPUT_ROUTER_ENABLED = true;
 
 export const DEFAULT_OUTPUT_ROUTER_PROFILE = "standard";
+
+export const DEFAULT_STORAGE_POLICY = "hybrid-dedupe" as const;
 
 export const DEFAULT_VAULT_RETENTION = {
   strategy: "ttl",
@@ -100,6 +103,7 @@ export function createDefaultRouterConfig(options: CreateDefaultRouterConfigOpti
     enabled: DEFAULT_OUTPUT_ROUTER_ENABLED,
     profile: DEFAULT_OUTPUT_ROUTER_PROFILE,
     postToolRouting: DEFAULT_POST_TOOL_ROUTING,
+    storagePolicy: DEFAULT_STORAGE_POLICY,
     thresholds: { ...DEFAULT_ROUTER_THRESHOLDS },
     vault: {
       root: options.vaultRoot ?? DEFAULT_VAULT_ROOT,
@@ -156,6 +160,7 @@ export function normalizeRouterConfig(input: unknown): NormalizeRouterConfigResu
   applyRouterEnabled(config, warnings, input.enabled);
   applyRouterProfile(config, warnings, input.profile);
   applyPostToolRouting(config, warnings, input.postToolRouting);
+  applyStringEnum(config, warnings, input.storagePolicy, "storagePolicy", "outputRouter.storagePolicy", STORAGE_POLICY_MODES, DEFAULT_STORAGE_POLICY);
   applyPositiveInteger(config.thresholds, warnings, input.largeOutputBytes, "largeOutputBytes");
   applyPositiveInteger(config.thresholds, warnings, input.largeOutputLines, "largeOutputLines");
   applyVaultRoot(config, warnings, input.vaultRoot);

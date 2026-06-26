@@ -10,14 +10,14 @@ For the full architecture, see [`docs/designs/freeflow-output-router-architectur
 
 ```text
 smallest sufficient evidence in context
-+ exact raw recovery outside context
++ exact recovery when exactness matters
 + no surprise native tool semantics
 ```
 
 The router ships explicit tools and Pi observed routing:
 
 - `freeflow_retrieve`: retrieve targeted repo/vault evidence.
-- `freeflow_run`: run likely-large/noisy commands, vault raw output, and return compact evidence.
+- `freeflow_run`: run commands, apply the command storage policy, and return compact evidence with recovery guidance.
 - Pi observed routing: route enabled MCP/web/fetch/code-search outputs after direct host tool calls.
 - `freeflow_derive`: deterministically transform vaulted evidence into bounded derived evidence; `operation.kind="script"` is disabled by default and can execute only through explicit proof-backed JavaScript, Python, or jq adapters.
 - `freeflow_status`: inspect effective config, vault writability/index state, provider availability, and non-destructive migration recommendations.
@@ -42,7 +42,7 @@ flowchart LR
   Status[freeflow_status]
   Native[native read/bash]
   Evidence[bounded evidence]
-  Raw[exact recovery]
+  Raw[exact or metadata-only recovery]
 
   Agent -->|existing info| Retrieve
   Agent -->|noisy command| Run
@@ -129,7 +129,7 @@ Vault-wide retrieval uses the vault index sidecar. Exact records return source o
 
 ## `freeflow_run`
 
-`freeflow_run` executes once through the host-approved runner, stores exact raw output in the vault, then returns useful command evidence.
+`freeflow_run` executes once through the host-approved runner, applies the configured command storage policy, then returns useful command evidence. The default `hybrid-dedupe` policy keeps exact raw recovery for exactness-sensitive output while allowing small non-sensitive successes to become metadata-only.
 
 Example:
 
@@ -147,7 +147,7 @@ Returned results include:
 - `execution.status` and `exitCode`,
 - parser metadata,
 - important lines,
-- exact recovery instructions.
+- exact recovery instructions when exact recovery exists, or metadata-only rerun guidance when it does not.
 
 Command parsers currently cover:
 
@@ -270,6 +270,7 @@ Optional repo config lives in `.freeflow/config.json` only after the setup evide
     "enabled": true,
     "profile": "standard",
     "postToolRouting": "off",
+    "storagePolicy": "hybrid-dedupe",
     "largeOutputBytes": 64000,
     "largeOutputLines": 1000,
     "vaultRoot": "~/.cache/freeflow-router/vault",
@@ -301,6 +302,9 @@ Optional repo config lives in `.freeflow/config.json` only after the setup evide
 Rules:
 
 - `postToolRouting` defaults to `off`.
+- `storagePolicy` defaults to `hybrid-dedupe` for `freeflow_run` command capture. `store-everything` is the compatibility/diagnostic override.
+- Small non-sensitive successful command output may be metadata-only; failures, verification/diagnosis/build/test output, `preserve=full`, filters/script filters, and large/noisy output stay exact.
+- Exact duplicate command output may store current metadata pointing to a prior exact `outputId`; plain metadata-only records must not claim exact recovery.
 - `safety-net` is opt-in.
 - `strict` is reserved.
 - Observed routing is opt-in per producer/server. Setup writes explicit entries only after the user chooses them.
@@ -339,12 +343,14 @@ Current adoption decisions:
 Current release evidence:
 
 - Retrieval benchmark: improved router passed 7/7 fixtures.
-- Command benchmark: `freeflow_run` passed 8/8 fixtures with exact recovery.
+- Command benchmark: `freeflow_run` passed 8/8 fixtures with exact recovery for exactness-sensitive command fixtures and duplicate recovery through prior exact output ids.
 - Capture/derive/provider eval: targeted Slice 9 eval passed 14/14 objective gates for read-only provider capture, web-shaped capture recovery, long-log derive, and provider-summary category scoping.
 - Pi observed-routing eval: targeted eval passed 28/28 objective gates for MCP, web, fetch, code-search, metadata-only persistence, and Pi capability status.
 - Vault-index storage spike: selected deterministic local JSON sidecar behind the vault-index interface; SQLite/FTS remains deferred because native/runtime dependency adoption needs owner approval.
-- Optional repo-source index benchmark: scanner remains default; repo-source index not adopted.
+- Optional repo-source index benchmark: scanner remains default; repo-source index not adopted. Latest repo search backend benchmark compared scanner-only, local lexical index, Node `node:sqlite` FTS5/BM25/trigram, and conservative hybrid scanner+index; all passed 3/3 fixtures with recall@3 3/3 and zero generated false positives. FTS was tested through the experimental Node runtime available in this environment; no package dependency was added.
+- Storage-policy benchmark: `hybrid-dedupe` is the command-capture default after benchmark evidence; threshold-only storage was disqualified.
 - Codex Structured Q&A benchmark: improved router passed the Sandbox Permissions fixture where native broad search selected `graphify-out/graph.html`.
+- Context Mode normalized benchmark: Freeflow-owned tools and the normalized Context Mode-style proxy both passed 6/6 fixtures. Freeflow preserved exact facts/recovery on 6/6 but did not beat the proxy on model-visible bytes in these normalized fixtures; no public superiority claim is made.
 - Setup eval: optional `outputRouter`/`observedRouting`/`providers` config is opt-in through the evidence-routing branch; minimal setup remains only `defaultMode`.
 
 See `release-evidence.md` and runtime reports under `plugins/freeflow/evals/reports/runtime/`.

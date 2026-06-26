@@ -19,6 +19,10 @@ export interface VaultRetrieveSourceInput {
     recoverability?: EvidencePersistence["recoverability"];
 }
 export type RetrieveSourceInput = RepoRetrieveSourceInput | VaultRetrieveSourceInput;
+export declare const FREEFLOW_SEARCH_ACTIONS: readonly ["locate", "query", "get", "expand", "transform"];
+export type FreeflowSearchAction = (typeof FREEFLOW_SEARCH_ACTIONS)[number];
+export type RetrieveCompatibilityAction = "retrieve" | "explain";
+export declare function searchActionForRetrieveAction(action: RetrievalAction): FreeflowSearchAction | RetrieveCompatibilityAction;
 export type RepoExpansion = "lines_30" | "lines_80" | "full";
 export interface RetrieveLineRangeInput {
     start: number;

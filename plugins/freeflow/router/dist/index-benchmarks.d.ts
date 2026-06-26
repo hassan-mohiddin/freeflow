@@ -14,19 +14,29 @@ export interface IndexBenchmarkSummary {
     modeResults: number;
     scannerDefault: boolean;
     indexAdopted: boolean;
+    ftsCandidate: FtsCandidateStatus;
     scanner: IndexModeSummary;
     index: IndexModeSummary;
+    fts: IndexModeSummary;
+    hybrid: IndexModeSummary;
     generatedFalsePositiveCount: number;
     coldBuildMs: LatencySummary;
     warmQueryMs: LatencySummary;
     staleRefreshMs: LatencySummary;
 }
+export interface FtsCandidateStatus {
+    available: boolean;
+    engine: "none" | "fts5-bm25-trigram";
+    reason: string;
+}
 export interface IndexModeSummary {
     passed: number;
     failed: number;
+    skipped: number;
     pathCorrect: number;
     spanCorrect: number;
     excerptComplete: number;
+    recallAtK: number;
     totalRawBytes: number;
     totalContextBytes: number;
     weightedContextReductionPercent: number;
@@ -49,6 +59,8 @@ export interface IndexBenchmarkExpected {
 export interface IndexBenchmarkModeResult {
     mode: IndexBenchmarkMode;
     toolPathUsed: string;
+    skipped: boolean;
+    skipReason?: string;
     rawBytes: number;
     contextBytes: number;
     contextReductionPercent: number;
@@ -58,6 +70,7 @@ export interface IndexBenchmarkModeResult {
     indexMode?: ExperimentalIndexLoadMode;
     actualPath?: string;
     actualLines?: string;
+    candidatePaths: string[];
     excerpt: string;
     correctness: IndexCorrectnessResult;
     notes: string[];
@@ -67,9 +80,10 @@ export interface IndexCorrectnessResult {
     pathCorrect: boolean;
     spanCorrect: boolean;
     excerptComplete: boolean;
+    recallAtK: boolean;
     generatedFalsePositive: boolean;
 }
-type IndexBenchmarkMode = "scanner-default" | "index-cold" | "index-warm" | "index-stale-refresh";
+type IndexBenchmarkMode = "scanner-default" | "index-cold" | "index-warm" | "index-stale-refresh" | "fts5-bm25-trigram" | "hybrid-warm";
 export declare function runIndexBenchmarks(options?: RunIndexBenchmarksOptions): Promise<IndexBenchmarkReport>;
 export declare function renderIndexBenchmarkReport(report: IndexBenchmarkReport): string;
 export declare function writeIndexBenchmarkReport(report: IndexBenchmarkReport, reportPath: string): Promise<void>;

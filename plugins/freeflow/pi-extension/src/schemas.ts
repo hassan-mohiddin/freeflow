@@ -2,10 +2,11 @@ const STRING_SCHEMA = { type: "string" };
 const PRESERVE_SCHEMA = { type: "string", enum: ["summary", "important", "full"] };
 const RETRIEVE_ACTION_SCHEMA = {
   type: "string",
-  enum: ["query", "locate", "retrieve", "expand", "explain"],
+  enum: ["query", "locate", "get", "retrieve", "expand", "explain"],
 };
 const EXPANSION_SCHEMA = { type: "string", enum: ["lines_30", "lines_80", "full"] };
 const STREAM_SCHEMA = { type: "string", enum: ["stdout", "stderr", "combined", "raw"] };
+const RUN_FILTER_STREAM_SCHEMA = { type: "string", enum: ["stdout", "stderr", "combined"] };
 const NON_EMPTY_STRING_SCHEMA = { type: "string", minLength: 1 };
 const MAX_CONTEXT_LINES_SCHEMA = { type: "integer", minimum: 0, maximum: 20 };
 const MAX_REGEX_MATCHES_SCHEMA = { type: "integer", minimum: 1, maximum: 1000 };
@@ -20,6 +21,16 @@ const REGEX_FLAGS_SCHEMA = {
 };
 const JSON_POINTER_PATTERN = String.raw`^(?:|/(?:[^~/]|~[01])*(?:/(?:[^~/]|~[01])*)*)$`;
 const JSON_PATH_PATTERN = String.raw`^\$(?:\.[A-Za-z_$][A-Za-z0-9_$-]*|\[(?:0|[1-9][0-9]*)\]|\["(?:[^"\\\u0000-\u001F]|\\(?:["\\/bfnrt]|u[0-9A-Fa-f]{4}))*"\])*$`;
+const SCRIPT_LANGUAGE_SCHEMA = { type: "string", enum: ["javascript", "python", "jq"] };
+const SCRIPT_LIMITS_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    timeoutMs: { type: "integer", minimum: 1, maximum: 30000 },
+    maxInputBytes: { type: "integer", minimum: 1, maximum: 10485760 },
+    maxOutputBytes: { type: "integer", minimum: 1, maximum: 1048576 },
+  },
+};
 
 export const FREEFLOW_STATUS_PARAMETERS = {
   type: "object",
@@ -108,6 +119,33 @@ export const FREEFLOW_RUN_PARAMETERS = {
     timeoutMs: { type: "number", description: "Optional timeout in milliseconds." },
     preserve: { ...PRESERVE_SCHEMA, description: "Fidelity mode. Default: important." },
     goal: { ...STRING_SCHEMA, description: "Goal such as verification, test, build, or search." },
+    filters: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        stream: { ...RUN_FILTER_STREAM_SCHEMA, description: "Output stream to filter. Defaults to Freeflow's selected routed stream." },
+        include: { type: "array", items: NON_EMPTY_STRING_SCHEMA, description: "Regex patterns; keep lines matching any pattern." },
+        exclude: { type: "array", items: NON_EMPTY_STRING_SCHEMA, description: "Regex patterns; drop lines matching any pattern after include filtering." },
+        flags: REGEX_FLAGS_SCHEMA,
+        head: { type: "integer", minimum: 1, description: "Keep the first N filtered lines." },
+        tail: { type: "integer", minimum: 1, description: "Keep the last N filtered lines. With head, returns the union of both spans." },
+        maxLines: { type: "integer", minimum: 1, description: "Maximum filtered lines to return." },
+        maxBytes: { type: "integer", minimum: 1, description: "Maximum bytes of filtered evidence to return." },
+      },
+      description: "Declarative line filters applied after raw capture and before routed evidence is returned. Exact raw output remains recoverable.",
+    },
+    scriptFilter: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        language: { ...SCRIPT_LANGUAGE_SCHEMA, description: "Sandboxed script language. Requires configured scriptDerive.enabled and a proof-backed adapter." },
+        code: { ...NON_EMPTY_STRING_SCHEMA, description: "Script code. Raw code is not persisted by default." },
+        label: { ...NON_EMPTY_STRING_SCHEMA, description: "Optional script filter label." },
+        limits: { ...SCRIPT_LIMITS_SCHEMA, description: "Script resource limits. They only tighten configured scriptDerive defaults." },
+      },
+      required: ["language", "code"],
+      description: "Sandboxed programmable filter over captured stdout/stderr/combined after raw command output is vaulted. No unsandboxed fallback is used.",
+    },
   },
   required: ["command"],
 };
@@ -161,6 +199,32 @@ const DERIVE_OPERATION_KINDS = [
   "sizeStats",
   "script",
 ];
+
+export const FREEFLOW_BATCH_PARAMETERS = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    steps: {
+      type: "array",
+      minItems: 1,
+      maxItems: 50,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          id: { ...NON_EMPTY_STRING_SCHEMA, description: "Optional stable step id for matching results." },
+          kind: { type: "string", enum: ["run", "retrieve", "search", "derive", "transform"], description: "Freeflow-owned operation kind. Steps are independent and run in parallel." },
+          input: { type: "object", additionalProperties: true, description: "Input for the selected Freeflow operation. Uses the same shape as freeflow_run, freeflow_retrieve/search-compatible, or freeflow_derive/transform-compatible inputs." },
+        },
+        required: ["kind", "input"],
+      },
+      description: "Independent Freeflow-owned steps to run in parallel. No sequencing or external tool orchestration in v1.",
+    },
+    concurrency: { type: "integer", minimum: 1, maximum: 16, description: "Maximum number of independent steps to run at once. Default: 4." },
+    preserve: { ...PRESERVE_SCHEMA, description: "Default fidelity mode for steps that do not set preserve." },
+  },
+  required: ["steps"],
+};
 
 export const FREEFLOW_DERIVE_PARAMETERS = {
   type: "object",

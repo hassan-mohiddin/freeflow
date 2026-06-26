@@ -122,6 +122,18 @@ test("index benchmark reports cold, warm, stale, and scanner comparison without 
   assert.equal(report.summary.indexAdopted, false);
   assert.equal(report.summary.index.failed, 0);
   assert.equal(report.summary.index.passed, report.fixtures.length);
+  assert.equal(report.summary.hybrid.failed, 0);
+  assert.equal(report.summary.hybrid.passed, report.fixtures.length);
+  assert.equal(report.summary.scanner.recallAtK, report.fixtures.length);
+  assert.equal(report.summary.index.recallAtK, report.fixtures.length);
+  assert.equal(report.summary.hybrid.recallAtK, report.fixtures.length);
+  if (report.summary.ftsCandidate.available) {
+    assert.equal(report.summary.fts.failed, 0);
+    assert.equal(report.summary.fts.passed, report.fixtures.length);
+    assert.equal(report.summary.fts.recallAtK, report.fixtures.length);
+  } else {
+    assert.equal(report.summary.fts.skipped, report.fixtures.length);
+  }
   assert.equal(report.summary.generatedFalsePositiveCount, 0);
   assert.ok(report.summary.coldBuildMs.p50 >= 0);
   assert.ok(report.summary.warmQueryMs.p50 >= 0);
@@ -140,9 +152,28 @@ test("index benchmark reports cold, warm, stale, and scanner comparison without 
   assert.equal(staleResult.correctness.passed, true);
   assert.equal(staleResult.indexMode, "stale-refreshed");
 
+  const fts = report.fixtures.find((fixture) => fixture.id === "index-generated-artifact-decoy")?.results.find((result) => result.mode === "fts5-bm25-trigram");
+  assert.ok(fts);
+  if (report.summary.ftsCandidate.available) {
+    assert.equal(fts.correctness.passed, true);
+    assert.equal(fts.actualPath, "docs/codex-cli-agent-harness/2026-06-12-pass-3-sandboxing-and-permissions.md");
+    assert.equal(fts.correctness.recallAtK, true);
+  } else {
+    assert.equal(fts.skipped, true);
+  }
+
+  const hybrid = report.fixtures.find((fixture) => fixture.id === "index-generated-artifact-decoy")?.results.find((result) => result.mode === "hybrid-warm");
+  assert.ok(hybrid);
+  assert.equal(hybrid.correctness.passed, true);
+  assert.equal(hybrid.actualPath, "docs/codex-cli-agent-harness/2026-06-12-pass-3-sandboxing-and-permissions.md");
+  assert.equal(hybrid.correctness.recallAtK, true);
+
   const rendered = renderIndexBenchmarkReport(report);
   assert.match(rendered, /Output Router Index Benchmark Report/);
   assert.match(rendered, /Scanner remains default: yes/);
+  assert.match(rendered, /FTS5\/BM25\/trigram pass:/);
+  assert.match(rendered, /Hybrid warm pass:/);
+  assert.match(rendered, /FTS5\/BM25\/trigram candidate: (available|unavailable)/);
   assert.match(rendered, /Index adopted by default: no/);
 });
 
@@ -157,9 +188,13 @@ test("index benchmark writer emits markdown and machine-readable JSON", async ()
     assert.ok(reports.json);
     const json = JSON.parse(await readFile(reports.json, "utf8"));
 
-    assert.match(markdown, /Optional Local Index Experiment/);
+    assert.match(markdown, /Repo Search Backend Benchmark/);
     assert.match(markdown, /machine-readable JSON/);
     assert.equal(json.summary.index.passed, report.fixtures.length);
+    if (json.summary.ftsCandidate.available) {
+      assert.equal(json.summary.fts.passed, report.fixtures.length);
+    }
+    assert.equal(json.summary.hybrid.passed, report.fixtures.length);
     assert.equal(json.fixtures.length, report.fixtures.length);
   } finally {
     await rm(root, { recursive: true, force: true });

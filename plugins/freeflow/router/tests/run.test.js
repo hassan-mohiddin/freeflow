@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
 
-import { createVault, freeflowRun, readOutputText } from "../dist/index.js";
+import { createVault, freeflowRun, readOutputText, SCRIPT_SANDBOX_REQUIRED_PROOFS } from "../dist/index.js";
 import { parseCommandOutput } from "../dist/parsers.js";
 
 async function withTempVault(fn) {
@@ -16,7 +16,25 @@ async function withTempVault(fn) {
   }
 }
 
-test("freeflowRun uses an adapter runner and stores small successful output", async () => {
+function availableScriptAdapter(execute) {
+  return {
+    id: "fake-run-script-filter",
+    version: "test",
+    languages: ["javascript"],
+    async probe() {
+      return {
+        status: "available",
+        reason: "fake adapter passed every required proof",
+        passedProofs: [...SCRIPT_SANDBOX_REQUIRED_PROOFS],
+        failedProofs: [],
+        runtime: { name: "fake-js", version: "test" },
+      };
+    },
+    execute,
+  };
+}
+
+test("freeflowRun uses an adapter runner and stores small successful output metadata-only by default", async () => {
   await withTempVault(async (vault) => {
     const calls = [];
     const runner = {
@@ -52,9 +70,8 @@ test("freeflowRun uses an adapter runner and stores small successful output", as
     assert.ok(result.recordId.startsWith("ffrec_"));
     assert.equal(result.producer?.kind, "command");
     assert.deepEqual(result.persistence, {
-      status: "vaulted",
-      recoverability: "exact",
-      recoveryOutputId: result.outputId,
+      status: "metadata_only",
+      recoverability: "metadata_only",
       outputId: result.outputId,
     });
     assert.equal(result.routing.status, "routed");
@@ -63,9 +80,13 @@ test("freeflowRun uses an adapter runner and stores small successful output", as
     assert.equal(result.parser?.fidelity, "exact");
     assert.equal(result.importantLines?.[0].stream, "stdout");
     assert.equal(result.importantLines?.[0].excerpt, "done\n");
-    assert.equal(result.recovery?.outputId, result.outputId);
+    assert.equal(result.recovery?.outputId, undefined);
+    assert.match(result.recovery?.how ?? "", /metadata-only/);
 
-    assert.equal(await readOutputText(vault, "run-session", result.outputId, "stdout"), "done\n");
+    await assert.rejects(
+      readOutputText(vault, "run-session", result.outputId, "stdout"),
+      /Metadata only records store no raw stream/,
+    );
   });
 });
 
@@ -115,12 +136,17 @@ test("repeated command output returns a compact duplicate note with recovery ids
     assert.equal(second.routing.status, "partial");
     assert.equal(second.parser?.name, "duplicate-output");
     assert.match(second.summary ?? "", new RegExp(`exact duplicate.+${first.outputId}`));
-    assert.match(second.recovery?.how ?? "", new RegExp(`outputId=${second.outputId}`));
+    assert.match(second.recovery?.how ?? "", new RegExp(`metadata-only outputId=${second.outputId}`));
     assert.match(second.recovery?.how ?? "", new RegExp(`outputId=${first.outputId}`));
+    assert.equal(second.persistence?.recoverability, "metadata_only");
+    assert.equal(second.recovery?.outputId, first.outputId);
     assert.equal(second.importantLines?.length ?? 0, 0);
     assert.notEqual(second.outputId, first.outputId);
     assert.equal(await readOutputText(vault, "duplicate-session", first.outputId, "stdout"), stdout);
-    assert.equal(await readOutputText(vault, "duplicate-session", second.outputId, "stdout"), stdout);
+    await assert.rejects(
+      readOutputText(vault, "duplicate-session", second.outputId, "stdout"),
+      /Metadata only records store no raw stream/,
+    );
   });
 });
 
@@ -269,6 +295,388 @@ test("large successful command returns deterministic important lines plus output
     assert.match(result.importantLines?.[0].excerpt, /line 1/);
     assert.ok(!result.importantLines?.[0].excerpt.includes("line 30"));
     assert.equal(await readOutputText(vault, "large-session", result.outputId, "stdout"), output);
+  });
+});
+
+test("freeflowRun declarative include filter returns matching lines with raw recovery", async () => {
+  await withTempVault(async (vault) => {
+    const stdout = ["alpha", "TARGET keep", "beta", "TARGET second"].join("\n");
+    const runner = {
+      async run() {
+        return {
+          stdout,
+          stderr: "",
+          executionStatus: "success",
+          exitCode: 0,
+        };
+      },
+    };
+
+    const result = await freeflowRun(
+      {
+        command: "generate output",
+        sessionId: "filter-include-session",
+        vaultRoot: vault.root,
+        preserve: "important",
+        filters: { include: ["TARGET"], maxLines: 10 },
+      },
+      runner,
+    );
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.routing.status, "partial");
+    assert.match(result.routing.reason, /declarative filters/);
+    assert.equal(result.filters?.stream, "stdout");
+    assert.deepEqual(result.filters?.include, ["TARGET"]);
+    assert.equal(result.filters?.selectedLines, 2);
+    assert.equal(result.filters?.sourceLines, 4);
+    assert.equal(result.parser?.counts?.filterSelectedLines, 2);
+    assert.equal(result.importantLines?.length, 2);
+    assert.equal(result.importantLines?.[0].lines, "2-2");
+    assert.equal(result.importantLines?.[0].excerpt, "TARGET keep");
+    assert.equal(result.importantLines?.[1].lines, "4-4");
+    assert.equal(result.importantLines?.[1].excerpt, "TARGET second");
+    assert.equal(await readOutputText(vault, "filter-include-session", result.outputId, "stdout"), stdout);
+  });
+});
+
+test("freeflowRun declarative stream and exclude filters hide routed noise but keep raw output", async () => {
+  await withTempVault(async (vault) => {
+    const stdout = "public\nSECRET_TOKEN=abc\nfinal\n";
+    const stderr = "warn one\nwarn two\n";
+    const runner = {
+      async run() {
+        return {
+          stdout,
+          stderr,
+          combined: `[stdout]\n${stdout}\n[stderr]\n${stderr}`,
+          executionStatus: "success",
+          exitCode: 0,
+        };
+      },
+    };
+
+    const result = await freeflowRun(
+      {
+        command: "mixed output",
+        sessionId: "filter-exclude-session",
+        vaultRoot: vault.root,
+        preserve: "important",
+        filters: { stream: "stdout", exclude: ["SECRET_TOKEN"], tail: 2 },
+      },
+      runner,
+    );
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.filters?.stream, "stdout");
+    assert.deepEqual(result.filters?.exclude, ["SECRET_TOKEN"]);
+    assert.doesNotMatch(result.importantLines?.map((line) => line.excerpt).join("\n") ?? "", /SECRET_TOKEN/);
+    assert.match(result.importantLines?.map((line) => line.excerpt).join("\n") ?? "", /public|final/);
+    assert.equal(await readOutputText(vault, "filter-exclude-session", result.outputId, "stdout"), stdout);
+  });
+});
+
+test("freeflowRun preserves parsed failure evidence when filters match nothing", async () => {
+  await withTempVault(async (vault) => {
+    const stdout = "Tests: 2 failed, 8 passed, 10 total\n";
+    const runner = {
+      async run() {
+        return {
+          stdout,
+          stderr: "",
+          executionStatus: "failed",
+          exitCode: 1,
+        };
+      },
+    };
+
+    const result = await freeflowRun(
+      {
+        command: "npm test",
+        sessionId: "filter-failure-session",
+        vaultRoot: vault.root,
+        preserve: "important",
+        filters: { include: ["DOES_NOT_MATCH"] },
+      },
+      runner,
+    );
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.execution.status, "failed");
+    assert.equal(result.filters?.selectedLines, 0);
+    assert.equal(result.filters?.fallbackPreservedFailureEvidence, true);
+    assert.match(result.routing.reason, /parsed failure evidence was preserved/);
+    assert.equal(result.importantLines?.[0].excerpt, "Tests: 2 failed, 8 passed, 10 total");
+    assert.equal(await readOutputText(vault, "filter-failure-session", result.outputId, "stdout"), stdout);
+  });
+});
+
+test("freeflowRun rejects invalid declarative filters before executing command", async () => {
+  await withTempVault(async (vault) => {
+    let calls = 0;
+    const runner = {
+      async run() {
+        calls += 1;
+        return {
+          stdout: "should not run",
+          stderr: "",
+          executionStatus: "success",
+          exitCode: 0,
+        };
+      },
+    };
+
+    const result = await freeflowRun(
+      {
+        command: "dangerous command",
+        sessionId: "filter-invalid-session",
+        vaultRoot: vault.root,
+        preserve: "important",
+        filters: { include: ["("], maxLines: 1 },
+      },
+      runner,
+    );
+
+    assert.equal(calls, 0);
+    assert.equal(result.toolStatus, "error");
+    assert.equal(result.outputId, "");
+    assert.equal(result.routing.status, "failed");
+    assert.match(result.routing.reason, /Invalid freeflow_run filters/);
+    assert.match(result.recovery?.how ?? "", /No command output was captured/);
+  });
+});
+
+test("freeflowRun script filter runs command once, sees captured streams, and stores derived output", async () => {
+  await withTempVault(async (vault) => {
+    let calls = 0;
+    const stdout = "alpha\nTARGET stdout\n";
+    const stderr = "warn stderr\n";
+    const combined = `[stdout]\n${stdout}\n[stderr]\n${stderr}`;
+    const runner = {
+      async run() {
+        calls += 1;
+        return {
+          stdout,
+          stderr,
+          combined,
+          executionStatus: "success",
+          exitCode: 0,
+        };
+      },
+    };
+    const adapter = availableScriptAdapter(async (request) => {
+      assert.equal(request.language, "javascript");
+      assert.equal(request.network, "off");
+      assert.equal(request.sources.length, 3);
+      assert.deepEqual(request.sources.map((source) => source.alias), ["stdout", "stderr", "combined"]);
+      const stdoutText = await readFile(request.sources.find((source) => source.alias === "stdout").path, "utf8");
+      const stderrText = await readFile(request.sources.find((source) => source.alias === "stderr").path, "utf8");
+      const combinedText = await readFile(request.sources.find((source) => source.alias === "combined").path, "utf8");
+      assert.equal(stdoutText, stdout);
+      assert.equal(stderrText, stderr);
+      assert.equal(combinedText, combined);
+      return {
+        status: "success",
+        stdout: `SCRIPT:${stdoutText.split("\n").find((line) => line.includes("TARGET"))}:${stderrText.trim()}:${combinedText.includes("[stderr]")}`,
+        stderr: "",
+        outputFiles: [],
+        exitCode: 0,
+        durationMs: 2,
+      };
+    });
+
+    const result = await freeflowRun(
+      {
+        command: "expensive command",
+        sessionId: "run-script-filter-session",
+        vaultRoot: vault.root,
+        preserve: "important",
+        scriptFilter: { language: "javascript", code: "write filtered output", label: "target-only" },
+        scriptDerive: {
+          enabled: true,
+          sandbox: "auto",
+          languages: ["javascript"],
+          network: "off",
+          limits: { timeoutMs: 1000, maxInputBytes: 4096, maxOutputBytes: 4096 },
+          rawScriptPersistence: "disabled",
+        },
+        scriptSandboxAdapters: [adapter],
+      },
+      runner,
+    );
+
+    assert.equal(calls, 1);
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.execution.status, "success");
+    assert.equal(result.outputId.startsWith("ffout_"), true);
+    assert.equal(result.scriptFilter?.status, "success");
+    assert.equal(result.scriptFilter?.language, "javascript");
+    assert.equal(result.scriptFilter?.label, "target-only");
+    assert.equal(result.scriptFilter?.rawOutputId, result.outputId);
+    assert.equal(result.scriptFilter?.outputId?.startsWith("ffout_"), true);
+    assert.notEqual(result.scriptFilter?.outputId, result.outputId);
+    assert.match(result.scriptFilter?.operation?.codeSha256, /^sha256_[0-9a-f]{64}$/);
+    assert.doesNotMatch(JSON.stringify(result), /write filtered output/);
+    assert.match(result.summary ?? "", /derived outputId=ffout_/);
+    assert.match(result.importantLines?.[0].excerpt ?? "", /SCRIPT:TARGET stdout:warn stderr:true/);
+    assert.equal(await readOutputText(vault, "run-script-filter-session", result.outputId, "stdout"), stdout);
+    assert.equal(await readOutputText(vault, "run-script-filter-session", result.scriptFilter.outputId, "raw"), "SCRIPT:TARGET stdout:warn stderr:true");
+    assert.match(result.recovery?.how ?? "", new RegExp(`outputId=${result.outputId}`));
+    assert.match(result.recovery?.how ?? "", new RegExp(`outputId=${result.scriptFilter.outputId}`));
+  });
+});
+
+test("freeflowRun script filter disabled preserves base command result and raw recovery", async () => {
+  await withTempVault(async (vault) => {
+    let calls = 0;
+    const runner = {
+      async run() {
+        calls += 1;
+        return {
+          stdout: "base output\n",
+          stderr: "",
+          executionStatus: "success",
+          exitCode: 0,
+        };
+      },
+    };
+
+    const result = await freeflowRun(
+      {
+        command: "base command",
+        sessionId: "run-script-disabled-session",
+        vaultRoot: vault.root,
+        preserve: "important",
+        scriptFilter: { language: "javascript", code: "RAW_SCRIPT_SENTINEL" },
+      },
+      runner,
+    );
+
+    assert.equal(calls, 1);
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.execution.status, "success");
+    assert.equal(result.routing.status, "partial");
+    assert.equal(result.failure?.kind, "script_derive_disabled");
+    assert.equal(result.deriveExecution?.status, "unavailable");
+    assert.equal(result.scriptFilter?.status, "unavailable");
+    assert.equal(result.scriptFilter?.outputId, undefined);
+    assert.doesNotMatch(JSON.stringify(result), /RAW_SCRIPT_SENTINEL/);
+    assert.equal(result.importantLines?.[0].excerpt, "base output\n");
+    assert.equal(await readOutputText(vault, "run-script-disabled-session", result.outputId, "stdout"), "base output\n");
+  });
+});
+
+test("freeflowRun rejects invalid script filters before executing command", async () => {
+  await withTempVault(async (vault) => {
+    let calls = 0;
+    const runner = {
+      async run() {
+        calls += 1;
+        return {
+          stdout: "should not run",
+          stderr: "",
+          executionStatus: "success",
+          exitCode: 0,
+        };
+      },
+    };
+
+    const result = await freeflowRun(
+      {
+        command: "dangerous command",
+        sessionId: "run-script-invalid-session",
+        vaultRoot: vault.root,
+        preserve: "important",
+        scriptFilter: { language: "ruby", code: "puts 1" },
+      },
+      runner,
+    );
+
+    assert.equal(calls, 0);
+    assert.equal(result.toolStatus, "error");
+    assert.equal(result.outputId, "");
+    assert.match(result.routing.reason, /Invalid freeflow_run scriptFilter/);
+    assert.match(result.recovery?.how ?? "", /No command output was captured/);
+  });
+});
+
+test("freeflowRun script filter output caps and timeouts do not hide raw command output", async () => {
+  await withTempVault(async (vault) => {
+    const runner = {
+      async run() {
+        return {
+          stdout: "raw before script failure\n",
+          stderr: "",
+          executionStatus: "success",
+          exitCode: 0,
+        };
+      },
+    };
+    const overCapAdapter = availableScriptAdapter(async () => ({
+      status: "success",
+      stdout: "x".repeat(100),
+      stderr: "",
+      outputFiles: [],
+      exitCode: 0,
+    }));
+    const overCap = await freeflowRun(
+      {
+        command: "base command",
+        sessionId: "run-script-overcap-session",
+        vaultRoot: vault.root,
+        preserve: "important",
+        scriptFilter: { language: "javascript", code: "flood", limits: { maxOutputBytes: 10 } },
+        scriptDerive: {
+          enabled: true,
+          sandbox: "auto",
+          languages: ["javascript"],
+          network: "off",
+          limits: { timeoutMs: 1000, maxInputBytes: 4096, maxOutputBytes: 4096 },
+          rawScriptPersistence: "disabled",
+        },
+        scriptSandboxAdapters: [overCapAdapter],
+      },
+      runner,
+    );
+
+    assert.equal(overCap.failure?.kind, "derive_execution_failure");
+    assert.equal(overCap.scriptFilter?.status, "failed");
+    assert.equal(overCap.scriptFilter?.outputId, undefined);
+    assert.match(overCap.failure?.message ?? "", /maxOutputBytes 10/);
+    assert.equal(await readOutputText(vault, "run-script-overcap-session", overCap.outputId, "stdout"), "raw before script failure\n");
+
+    const timeoutAdapter = availableScriptAdapter(async () => ({
+      status: "timed_out",
+      stdout: "partial",
+      stderr: "",
+      outputFiles: [],
+      exitCode: null,
+      reason: "timeout enforced",
+    }));
+    const timeout = await freeflowRun(
+      {
+        command: "base command",
+        sessionId: "run-script-timeout-session",
+        vaultRoot: vault.root,
+        preserve: "important",
+        scriptFilter: { language: "javascript", code: "while(true){}", limits: { timeoutMs: 5 } },
+        scriptDerive: {
+          enabled: true,
+          sandbox: "auto",
+          languages: ["javascript"],
+          network: "off",
+          limits: { timeoutMs: 1000, maxInputBytes: 4096, maxOutputBytes: 4096 },
+          rawScriptPersistence: "disabled",
+        },
+        scriptSandboxAdapters: [timeoutAdapter],
+      },
+      runner,
+    );
+
+    assert.equal(timeout.failure?.kind, "derive_execution_failure");
+    assert.equal(timeout.scriptFilter?.status, "failed");
+    assert.match(timeout.failure?.message ?? "", /timed_out/);
+    assert.equal(await readOutputText(vault, "run-script-timeout-session", timeout.outputId, "stdout"), "raw before script failure\n");
   });
 });
 
@@ -698,6 +1106,7 @@ test("successful command output mentioning build tools uses generic fallback", a
         sessionId: "grep-typescript-session",
         vaultRoot: vault.root,
         preserve: "important",
+        storagePolicy: "store-everything",
       },
       runner,
     );
@@ -761,6 +1170,7 @@ test("git output parser leaves non-status git output to generic fallback", async
         sessionId: "git-log-session",
         vaultRoot: vault.root,
         preserve: "important",
+        storagePolicy: "store-everything",
       },
       runner,
     );
