@@ -15,6 +15,7 @@ import {
 } from "./benchmark-harness.js";
 import { freeflowBatch } from "../tools/batch.js";
 import { freeflowRetrieve, type FreeflowRetrieveOptions } from "../tools/retrieve.js";
+import { processSource } from "../processing/engine.js";
 import { freeflowRun, type FreeflowRunOptions, type HostCommandRunner, type HostCommandRunResult } from "../tools/run.js";
 import { freeflowTransform, type DeterministicDeriveOperation } from "../transform/engine.js";
 import type { CommandRoutedResult, OutputStream } from "../config/types.js";
@@ -330,6 +331,15 @@ export async function runContextModeRealDeepBenchmark(
       return { result, text: freeflowText(result), latencyMs: Math.round(performance.now() - start) };
     }
 
+    async function ffProcessRepoFile(relativePath: string): Promise<Observation> {
+      const start = performance.now();
+      const result = await processSource(
+        { kind: "repo-file", root: projectRoot, path: relativePath },
+        { sessionId, vaultRoot: freeflowVaultRoot },
+      );
+      return { result, text: processingText(result), latencyMs: Math.round(performance.now() - start) };
+    }
+
     function record(input: RecordInput): void {
       const text = input.obs.text;
       const factsFound = factCount(text, input.facts);
@@ -395,6 +405,20 @@ export async function runContextModeRealDeepBenchmark(
         capability: "command capture/routing",
         obs: ffDefault,
       });
+
+      if (scenario.id === "access-summary") {
+        const ffProcessed = await ffProcessRepoFile(scenario.file);
+        record({
+          fixture: scenario.id,
+          category: scenario.category,
+          rawBytes,
+          facts: scenario.facts,
+          mode: "freeflow:process-access-log-reducer",
+          capability: "processing engine built-in reducer",
+          obs: ffProcessed,
+          notes: "Uses the internal processing engine access-log reducer; no public Pi surface is selected.",
+        });
+      }
 
       const command = await writeScenarioScript(scenario.id, scenario.file, scenario.code);
       const ffComputed = await ffRun(command, scenario.goal);
@@ -1374,6 +1398,13 @@ function freeflowText(result: unknown): string {
     parts.push(recoveryHow);
   }
   return parts.filter(Boolean).join("\n");
+}
+
+function processingText(result: unknown): string {
+  const record = asRecord(result);
+  const visibleText = stringValue(record?.visibleText);
+  const recovery = stringValue(asRecord(record?.recovery)?.how);
+  return [visibleText, recovery].filter(Boolean).join("\n");
 }
 
 function recoveryScore(result: unknown, mode: string): string {

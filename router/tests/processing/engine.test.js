@@ -7,6 +7,16 @@ import test from "node:test";
 import { loadProcessingSource, processSource } from "../../dist/processing/engine.js";
 import { freeflowRun } from "../../dist/tools/run.js";
 
+function accessLogSample() {
+  return [
+    '192.168.1.1 - - [23/Feb/2026:10:00:01 +0000] "GET /api/a HTTP/1.1" 200 892 100ms',
+    '192.168.1.2 - - [23/Feb/2026:10:00:02 +0000] "GET /api/b HTTP/1.1" 200 892 200ms',
+    '192.168.1.3 - - [23/Feb/2026:10:00:03 +0000] "POST /api/c HTTP/1.1" 500 892 1200ms',
+    '192.168.1.4 - - [23/Feb/2026:10:00:04 +0000] "GET /api/d HTTP/1.1" 404 892 20ms',
+    '192.168.1.5 - - [23/Feb/2026:10:00:05 +0000] "GET /api/e HTTP/1.1" 201 892 300ms',
+  ].join("\n");
+}
+
 function fixtureRunner() {
   return {
     async run(request) {
@@ -77,6 +87,26 @@ test("processing engine blocks repo path escapes and symlink escapes without rea
   } finally {
     await rm(root, { recursive: true, force: true });
     await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test("processing engine selects access-log reducer for explicit processing calls", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-processing-access-log-"));
+  try {
+    await writeFile(join(root, "access.log"), accessLogSample(), "utf8");
+
+    const result = await processSource({ kind: "repo-file", root, path: "access.log" });
+
+    assert.equal(result.status, "ok");
+    assert.equal(result.reducer.status, "selected");
+    assert.equal(result.reducer.selected.name, "access-log");
+    assert.match(result.visibleText, /access-log summary/);
+    assert.match(result.visibleText, /requests: 5/);
+    assert.match(result.visibleText, /errors: 2 \(40\.0%\)/);
+    assert.match(result.visibleText, /status: 200:2/);
+    assert.match(result.visibleText, /slow>=1000ms: 1/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
 });
 

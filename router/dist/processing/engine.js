@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { relative } from "node:path";
 import { resolveRepoPath } from "../repo/repo-traversal.js";
+import { selectProcessingReducer } from "./reducers.js";
 import { createVault, readOutputText, readVaultRecord, storeRepoFileReference, storeTextOutput } from "../vault/vault.js";
 export const PROCESSING_ENGINE_IMPLEMENTATION = "processing-engine-skeleton-v1";
 const DEFAULT_PROCESSING_LIMITS = {
@@ -21,7 +22,7 @@ export async function loadProcessingSource(source, options = {}) {
 }
 export async function processSource(source, options = {}) {
     const loaded = await loadProcessingSource(source, options);
-    const reducer = selectReducerSkeleton();
+    const reducer = notSelectedReducer("Source was not loaded; reducer selection was skipped.");
     const script = selectScriptPolicySkeleton();
     if (loaded.status === "blocked") {
         return {
@@ -48,8 +49,9 @@ export async function processSource(source, options = {}) {
             script,
         };
     }
-    const facts = sourceFacts(loaded);
-    const visibleText = truncateVisible(renderFactFirstSourceSummary(loaded, facts), normalizeLimits(options.limits).maxVisibleBytes);
+    const selectedReducer = selectProcessingReducer({ text: loaded.text });
+    const facts = selectedReducer.status === "selected" ? [...selectedReducer.result.facts, ...sourceFacts(loaded)] : sourceFacts(loaded);
+    const visibleText = truncateVisible(renderFactFirstProcessingSummary(loaded, selectedReducer, facts), normalizeLimits(options.limits).maxVisibleBytes);
     const persisted = await persistProcessingVisibleText(visibleText, loaded, options);
     const result = {
         implementation: PROCESSING_ENGINE_IMPLEMENTATION,
@@ -58,7 +60,7 @@ export async function processSource(source, options = {}) {
         stats: loaded.stats,
         visibleText,
         facts,
-        reducer,
+        reducer: selectedReducer,
         script,
     };
     const lineage = persisted.lineage ?? loaded.lineage;
@@ -277,11 +279,11 @@ async function persistProcessingVisibleText(visibleText, loaded, options) {
         recovery: { how: `Recover processing result with freeflow_retrieve action=retrieve outputId=${record.outputId} stream=raw.`, outputId: record.outputId },
     };
 }
-function selectReducerSkeleton() {
+function notSelectedReducer(reason) {
     return {
         status: "not_selected",
         candidates: [],
-        reason: "Reducer registry is reserved for Slice 2; Slice 1 only loads and bounds sources.",
+        reason,
     };
 }
 function selectScriptPolicySkeleton() {
@@ -299,7 +301,18 @@ function sourceFacts(loaded) {
         { name: "source.sha256", value: loaded.stats.sha256 },
     ];
 }
-function renderFactFirstSourceSummary(loaded, facts) {
+function renderFactFirstProcessingSummary(loaded, reducer, facts) {
+    if (reducer.status === "selected") {
+        const lines = [
+            reducer.result.visibleText,
+            `reducer: ${reducer.selected.name}@${reducer.selected.version} confidence=${reducer.selected.confidence.toFixed(2)}`,
+            `source: ${loaded.source.displayPath}`,
+        ];
+        if (loaded.recovery?.how) {
+            lines.push(`source recovery: ${loaded.recovery.how}`);
+        }
+        return lines.join("\n");
+    }
     const lines = ["processing source loaded", ...facts.map((fact) => `${fact.name}: ${fact.value}`)];
     if (loaded.recovery?.how) {
         lines.push(`source recovery: ${loaded.recovery.how}`);

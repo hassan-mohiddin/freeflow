@@ -9,6 +9,7 @@ import { performance } from "node:perf_hooks";
 import { defaultJsonRunReportPath, escapeMarkdownTableCell as escapeMarkdown, parseBenchmarkCliArgs, writeBenchmarkReportPair, } from "./benchmark-harness.js";
 import { freeflowBatch } from "../tools/batch.js";
 import { freeflowRetrieve } from "../tools/retrieve.js";
+import { processSource } from "../processing/engine.js";
 import { freeflowRun } from "../tools/run.js";
 import { freeflowTransform } from "../transform/engine.js";
 const DEFAULT_CONTEXT_MODE_REPO = "/tmp/pi-github-repos/mksglu/context-mode";
@@ -117,6 +118,11 @@ export async function runContextModeRealDeepBenchmark(options = {}) {
             });
             return { result, text: freeflowText(result), latencyMs: Math.round(performance.now() - start) };
         }
+        async function ffProcessRepoFile(relativePath) {
+            const start = performance.now();
+            const result = await processSource({ kind: "repo-file", root: projectRoot, path: relativePath }, { sessionId, vaultRoot: freeflowVaultRoot });
+            return { result, text: processingText(result), latencyMs: Math.round(performance.now() - start) };
+        }
         function record(input) {
             const text = input.obs.text;
             const factsFound = factCount(text, input.facts);
@@ -177,6 +183,19 @@ export async function runContextModeRealDeepBenchmark(options = {}) {
                 capability: "command capture/routing",
                 obs: ffDefault,
             });
+            if (scenario.id === "access-summary") {
+                const ffProcessed = await ffProcessRepoFile(scenario.file);
+                record({
+                    fixture: scenario.id,
+                    category: scenario.category,
+                    rawBytes,
+                    facts: scenario.facts,
+                    mode: "freeflow:process-access-log-reducer",
+                    capability: "processing engine built-in reducer",
+                    obs: ffProcessed,
+                    notes: "Uses the internal processing engine access-log reducer; no public Pi surface is selected.",
+                });
+            }
             const command = await writeScenarioScript(scenario.id, scenario.file, scenario.code);
             const ffComputed = await ffRun(command, scenario.goal);
             record({
@@ -1078,6 +1097,12 @@ function freeflowText(result) {
         parts.push(recoveryHow);
     }
     return parts.filter(Boolean).join("\n");
+}
+function processingText(result) {
+    const record = asRecord(result);
+    const visibleText = stringValue(record?.visibleText);
+    const recovery = stringValue(asRecord(record?.recovery)?.how);
+    return [visibleText, recovery].filter(Boolean).join("\n");
 }
 function recoveryScore(result, mode) {
     if (mode.startsWith("freeflow")) {

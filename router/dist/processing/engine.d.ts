@@ -1,3 +1,4 @@
+import { type ProcessingReducerSelection } from "./reducers.js";
 import type { EvidenceLineage, EvidencePersistence, OutputStream, RecoveryHint, SourceRef, VaultRetentionPolicy } from "../config/types.js";
 export declare const PROCESSING_ENGINE_IMPLEMENTATION = "processing-engine-skeleton-v1";
 export interface ProcessingLimits {
@@ -68,11 +69,7 @@ export interface ProcessingFact {
     name: string;
     value: string | number | boolean;
 }
-export interface ReducerSelectionResult {
-    status: "not_selected";
-    candidates: string[];
-    reason: string;
-}
+export type ReducerSelectionResult = ProcessingReducerSelection;
 export interface ScriptPolicySelectionResult {
     status: "not_configured";
     reason: string;
