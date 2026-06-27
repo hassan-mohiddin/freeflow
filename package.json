@@ -24,6 +24,7 @@
     "bench:router:commands": "npm run build:router && node router/dist/benchmarks/command-benchmarks.js",
     "bench:router:context-saving-baseline": "npm run build:router && node router/dist/benchmarks/context-saving-baseline.js",
     "bench:router:context-mode-normalized": "npm run build:router && node router/dist/benchmarks/context-mode-normalized-benchmarks.js",
+    "bench:router:context-mode-real-deep": "npm run build:router && node router/dist/benchmarks/context-mode-real-deep-benchmark.js",
     "bench:router:storage-policy": "npm run build:router && node router/dist/benchmarks/storage-policy-benchmarks.js",
     "bench:router:index": "npm run build:router && node router/dist/benchmarks/index-benchmarks.js",
     "bench:router:vault-index": "npm run build:router && node router/dist/benchmarks/vault-index-benchmarks.js",

@@ -95,7 +95,8 @@ Steps:
 2. Convert it to TypeScript or repo-standard JS consistent with existing router benchmark harnesses.
 3. Store current baseline report:
    - Markdown under `evals/reports/runtime/`.
-   - JSON under `evals/runs/output-router/`.
+   - Durable JSON under `evals/reports/runtime/`.
+   - Generated rerun JSON may still go under ignored `evals/runs/output-router/`.
 4. Add npm script, proposed:
    - `bench:router:context-mode-real-deep`
 5. Add tests that verify:

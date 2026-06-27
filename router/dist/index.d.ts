@@ -3,6 +3,7 @@ export * from "./benchmarks/benchmarks.js";
 export * from "./benchmarks/command-benchmarks.js";
 export * from "./benchmarks/context-saving-baseline.js";
 export * from "./benchmarks/context-mode-normalized-benchmarks.js";
+export * from "./benchmarks/context-mode-real-deep-benchmark.js";
 export * from "./benchmarks/codex-qa-benchmarks.js";
 export * from "./experiments/local-index.js";
 export * from "./benchmarks/index-benchmarks.js";
