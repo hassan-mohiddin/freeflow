@@ -21,7 +21,7 @@ export interface ProcessingReducerResult {
   reason: string;
   facts: ProcessingReducerFact[];
   visibleText: string;
-  details: AccessLogReducerDetails | TestOutputReducerDetails | BuildOutputReducerDetails | DiagnosticsReducerDetails;
+  details: AccessLogReducerDetails | TestOutputReducerDetails | BuildOutputReducerDetails | DiagnosticsReducerDetails | TableReducerDetails;
 }
 
 export type ProcessingReducerSelection =
@@ -105,6 +105,27 @@ export interface DiagnosticSummary {
   message: string;
 }
 
+export interface TableReducerDetails {
+  kind: "table";
+  format: "csv" | "json";
+  rowCount: number;
+  columns: string[];
+  categorical: TableCategoricalSummary[];
+  numeric: TableNumericSummary[];
+}
+
+export interface TableCategoricalSummary {
+  column: string;
+  counts: Array<{ value: string; count: number }>;
+}
+
+export interface TableNumericSummary {
+  column: string;
+  min: number;
+  max: number;
+  average: number;
+}
+
 export interface AccessLogSlowExample {
   method: string;
   path: string;
@@ -134,6 +155,11 @@ const DIAGNOSTICS_REDUCER = {
   version: "1",
 };
 
+const TABLE_REDUCER = {
+  name: "table",
+  version: "1",
+};
+
 const ACCESS_LOG_REDUCER = {
   name: "access-log",
   version: "1",
@@ -148,9 +174,10 @@ export function selectProcessingReducer(input: ProcessingReducerInput): Processi
   const testOutput = reduceTestOutput(input.text);
   const buildOutput = reduceBuildOutput(input.text);
   const diagnostics = reduceDiagnosticsOutput(input.text);
+  const table = reduceTableOutput(input.text);
   const accessLog = reduceAccessLog(input.text);
-  const candidates = [testOutput.candidate, buildOutput.candidate, diagnostics.candidate, accessLog.candidate];
-  const selected = [testOutput, buildOutput, diagnostics, accessLog].find((reduced) => reduced.result !== undefined);
+  const candidates = [testOutput.candidate, buildOutput.candidate, diagnostics.candidate, table.candidate, accessLog.candidate];
+  const selected = [testOutput, buildOutput, diagnostics, table, accessLog].find((reduced) => reduced.result !== undefined);
   if (selected?.result) {
     return {
       status: "selected",
@@ -656,6 +683,241 @@ function stripAnsi(text: string): string {
 
 function basename(path: string): string {
   return path.split(/[\\/]/).pop() || path;
+}
+
+export function reduceTableOutput(text: string): { candidate: ProcessingReducerCandidate; result?: ProcessingReducerResult } {
+  const parsed = parseTable(text);
+  const confidence = tableConfidence(parsed);
+  const candidate: ProcessingReducerCandidate = {
+    ...TABLE_REDUCER,
+    confidence,
+    reason: parsed === undefined
+      ? "No CSV or JSON table shape detected."
+      : `Detected ${parsed.format} table with ${parsed.rows.length} row(s) and ${parsed.columns.length} column(s).`,
+  };
+
+  if (parsed === undefined || confidence < 0.8) {
+    return { candidate };
+  }
+
+  const details = summarizeTable(parsed);
+  return {
+    candidate,
+    result: {
+      ...TABLE_REDUCER,
+      confidence,
+      reason: candidate.reason,
+      facts: tableFacts(details),
+      visibleText: renderTableSummary(details),
+      details,
+    },
+  };
+}
+
+interface ParsedTable {
+  format: "csv" | "json";
+  columns: string[];
+  rows: Array<Record<string, string>>;
+}
+
+function parseTable(text: string): ParsedTable | undefined {
+  return parseCsvTable(text) ?? parseJsonTable(text);
+}
+
+function parseCsvTable(text: string): ParsedTable | undefined {
+  const lines = text.trim().split(/\r?\n/).filter((line) => line.trim().length > 0);
+  if (lines.length < 3 || !lines[0]?.includes(",")) {
+    return undefined;
+  }
+  const columns = parseCsvLine(lines[0]).map((column) => column.trim());
+  if (columns.length < 2 || !columns.every(isTableColumnName)) {
+    return undefined;
+  }
+  const rows: Array<Record<string, string>> = [];
+  for (const line of lines.slice(1)) {
+    const rawValues = parseCsvLine(line);
+    if (rawValues.length < columns.length) {
+      return undefined;
+    }
+    const values = rawValues.length === columns.length
+      ? rawValues
+      : [...rawValues.slice(0, columns.length - 1), rawValues.slice(columns.length - 1).join(",")];
+    rows.push(Object.fromEntries(columns.map((column, index) => [column, values[index] ?? ""])));
+  }
+  return rows.length >= 2 ? { format: "csv", columns, rows } : undefined;
+}
+
+function parseJsonTable(text: string): ParsedTable | undefined {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+  if (!Array.isArray(value) || value.length < 2 || !value.every(isJsonObject)) {
+    return undefined;
+  }
+  const columns = uniqueStrings(value.flatMap((row) => Object.keys(row))).filter((column) => value.some((row) => primitiveTableValue(row[column])));
+  if (columns.length < 2) {
+    return undefined;
+  }
+  const rows = value.map((row) => Object.fromEntries(columns.map((column) => [column, stringifyTableValue(row[column])])));
+  return { format: "json", columns, rows };
+}
+
+function tableConfidence(parsed: ParsedTable | undefined): number {
+  if (parsed === undefined) {
+    return 0;
+  }
+  if (parsed.rows.length >= 10 && parsed.columns.length >= 3) {
+    return parsed.format === "csv" ? 1 : 0.95;
+  }
+  if (parsed.rows.length >= 3 && parsed.columns.length >= 2) {
+    return 0.9;
+  }
+  return 0.75;
+}
+
+function summarizeTable(parsed: ParsedTable): TableReducerDetails {
+  return {
+    kind: "table",
+    format: parsed.format,
+    rowCount: parsed.rows.length,
+    columns: parsed.columns,
+    categorical: summarizeCategoricalColumns(parsed),
+    numeric: summarizeNumericColumns(parsed),
+  };
+}
+
+function summarizeCategoricalColumns(table: ParsedTable): TableCategoricalSummary[] {
+  const summaries: TableCategoricalSummary[] = [];
+  for (const column of table.columns) {
+    const values = table.rows.map((row) => row[column] ?? "").filter((value) => value.length > 0);
+    if (values.length !== table.rows.length) {
+      continue;
+    }
+    const counts = countValues(values);
+    if (counts.length < 2 || counts.length > Math.min(20, Math.max(3, Math.floor(table.rows.length / 2)))) {
+      continue;
+    }
+    summaries.push({ column, counts: counts.slice(0, 8) });
+  }
+  return summaries.sort((left, right) => categoricalPriority(left.column) - categoricalPriority(right.column) || left.counts.length - right.counts.length || left.column.localeCompare(right.column));
+}
+
+function summarizeNumericColumns(table: ParsedTable): TableNumericSummary[] {
+  const summaries: TableNumericSummary[] = [];
+  for (const column of table.columns) {
+    const numbers = table.rows.map((row) => Number(row[column])).filter((value) => Number.isFinite(value));
+    if (numbers.length !== table.rows.length || numbers.length === 0) {
+      continue;
+    }
+    const total = numbers.reduce((sum, value) => sum + value, 0);
+    summaries.push({ column, min: Math.min(...numbers), max: Math.max(...numbers), average: Math.round((total / numbers.length) * 10) / 10 });
+  }
+  return summaries.sort((left, right) => numericPriority(left.column) - numericPriority(right.column) || right.max - left.max || left.column.localeCompare(right.column)).slice(0, 5);
+}
+
+function tableFacts(details: TableReducerDetails): ProcessingReducerFact[] {
+  const facts: ProcessingReducerFact[] = [{ name: "rows", value: details.rowCount }];
+  const categorical = details.categorical[0];
+  if (categorical) {
+    facts.push({ name: categorical.column, value: categorical.counts.map(({ value, count }) => `${value}:${count}`).join(", ") });
+  }
+  const numeric = details.numeric[0];
+  if (numeric) {
+    facts.push({ name: `${numeric.column}.max`, value: numeric.max });
+  }
+  return facts;
+}
+
+function renderTableSummary(details: TableReducerDetails): string {
+  const lines = ["table summary", `rows: ${details.rowCount}`];
+  const categorical = details.categorical[0];
+  if (categorical) {
+    lines.push(`${categorical.column}: ${categorical.counts.map(({ value, count }) => `${value}:${count}`).join(", ")}`);
+  }
+  const numeric = details.numeric[0];
+  if (numeric) {
+    lines.push(`${numeric.column}.max: ${numeric.max}`);
+  }
+  return lines.join("\n");
+}
+
+function parseCsvLine(line: string): string[] {
+  const values: string[] = [];
+  let current = "";
+  let quoted = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (char === '"') {
+      if (quoted && line[index + 1] === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        quoted = !quoted;
+      }
+      continue;
+    }
+    if (char === "," && !quoted) {
+      values.push(current);
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  values.push(current);
+  return values;
+}
+
+function countValues(values: readonly string[]): Array<{ value: string; count: number }> {
+  const counts = new Map<string, number>();
+  for (const value of values) {
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort(([leftValue, leftCount], [rightValue, rightCount]) => rightCount - leftCount || leftValue.localeCompare(rightValue))
+    .map(([value, count]) => ({ value, count }));
+}
+
+function categoricalPriority(column: string): number {
+  const normalized = column.toLowerCase();
+  const priorities = ["status", "state", "result", "outcome", "role", "type", "category", "action", "resource"];
+  const index = priorities.indexOf(normalized);
+  return index === -1 ? priorities.length : index;
+}
+
+function numericPriority(column: string): number {
+  const normalized = column.toLowerCase();
+  if (normalized.includes("duration") || normalized.endsWith("_ms") || normalized.endsWith("ms")) {
+    return 0;
+  }
+  if (normalized.includes("latency") || normalized.includes("elapsed")) {
+    return 1;
+  }
+  return 2;
+}
+
+function isTableColumnName(value: string): boolean {
+  return /^[A-Za-z_][A-Za-z0-9_.-]*$/.test(value.trim());
+}
+
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function primitiveTableValue(value: unknown): boolean {
+  return ["string", "number", "boolean"].includes(typeof value) || value === null;
+}
+
+function stringifyTableValue(value: unknown): string {
+  if (value === null || value === undefined) {
+    return "";
+  }
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return "";
 }
 
 export function reduceAccessLog(text: string): { candidate: ProcessingReducerCandidate; result?: ProcessingReducerResult } {

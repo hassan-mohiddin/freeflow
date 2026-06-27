@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { reduceAccessLog, reduceBuildOutput, reduceDiagnosticsOutput, reduceTestOutput, selectProcessingReducer } from "../../dist/processing/reducers.js";
+import { reduceAccessLog, reduceBuildOutput, reduceDiagnosticsOutput, reduceTableOutput, reduceTestOutput, selectProcessingReducer } from "../../dist/processing/reducers.js";
 
 function syntheticAccessLogFixture() {
   const lines = [];
@@ -26,6 +26,24 @@ function syntheticAccessLogFixture() {
     }
   }
   return lines.join("\n");
+}
+
+function syntheticCsvTableFixture() {
+  const rows = ["id,status,duration_ms,action"];
+  for (let index = 1; index <= 10; index += 1) {
+    const status = index <= 8 ? "success" : index === 9 ? "error" : "timeout";
+    const duration = index === 10 ? 34000 : index * 10;
+    rows.push(`${index},${status},${duration},view`);
+  }
+  return rows.join("\n");
+}
+
+function syntheticJsonTableFixture() {
+  return JSON.stringify([
+    { id: 1, role: "admin", score: 10 },
+    { id: 2, role: "user", score: 30 },
+    { id: 3, role: "user", score: 20 },
+  ]);
 }
 
 function syntheticBuildFixture() {
@@ -123,7 +141,40 @@ test("processing reducer registry selects test output before other reducers", ()
 
   assert.equal(selected.status, "selected");
   assert.equal(selected.selected.name, "test-output");
-  assert.deepEqual(selected.candidates.map((candidate) => candidate.name), ["test-output", "build-output", "diagnostics", "access-log"]);
+  assert.deepEqual(selected.candidates.map((candidate) => candidate.name), ["test-output", "build-output", "diagnostics", "table", "access-log"]);
+});
+
+test("table reducer computes CSV row counts, grouped status counts, and numeric max", () => {
+  const reduced = reduceTableOutput(syntheticCsvTableFixture());
+
+  assert.ok(reduced.result);
+  assert.equal(reduced.candidate.name, "table");
+  assert.equal(reduced.candidate.confidence, 1);
+  assert.equal(reduced.result.details.kind, "table");
+  assert.equal(reduced.result.details.format, "csv");
+  assert.equal(reduced.result.details.rowCount, 10);
+  assert.deepEqual(reduced.result.details.categorical[0].counts, [
+    { value: "success", count: 8 },
+    { value: "error", count: 1 },
+    { value: "timeout", count: 1 },
+  ]);
+  assert.equal(reduced.result.details.numeric[0].column, "duration_ms");
+  assert.equal(reduced.result.details.numeric[0].max, 34000);
+  assert.match(reduced.result.visibleText, /rows: 10/);
+  assert.match(reduced.result.visibleText, /success:8/);
+  assert.match(reduced.result.visibleText, /timeout:1/);
+  assert.match(reduced.result.visibleText, /duration_ms\.max: 34000/);
+});
+
+test("table reducer handles JSON arrays of records", () => {
+  const reduced = reduceTableOutput(syntheticJsonTableFixture());
+
+  assert.ok(reduced.result);
+  assert.equal(reduced.result.details.format, "json");
+  assert.equal(reduced.result.details.rowCount, 3);
+  assert.equal(reduced.result.details.categorical[0].column, "role");
+  assert.match(reduced.result.visibleText, /rows: 3/);
+  assert.match(reduced.result.visibleText, /role: user:2, admin:1/);
 });
 
 test("build output reducer computes build errors, warnings, and files", () => {
@@ -197,6 +248,6 @@ test("processing reducer registry does not select low-confidence prose", () => {
   const selected = selectProcessingReducer({ text: "hello\nnot an access log\n" });
 
   assert.equal(selected.status, "not_selected");
-  assert.deepEqual(selected.candidates.map((candidate) => candidate.name), ["test-output", "build-output", "diagnostics", "access-log"]);
+  assert.deepEqual(selected.candidates.map((candidate) => candidate.name), ["test-output", "build-output", "diagnostics", "table", "access-log"]);
   assert.ok(selected.candidates.every((candidate) => candidate.confidence < 0.8));
 });

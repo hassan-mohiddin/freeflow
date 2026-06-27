@@ -21,6 +21,16 @@ function testOutputSample() {
   ].join("\n");
 }
 
+function tableSample() {
+  return [
+    "id,status,duration_ms",
+    "1,success,10",
+    "2,success,20",
+    "3,error,30",
+    "4,timeout,34000",
+  ].join("\n");
+}
+
 function buildOutputSample() {
   return [
     "  ▲ Next.js 15.1.0",
@@ -158,6 +168,24 @@ test("processing engine selects test-output reducer for explicit processing call
     assert.match(result.visibleText, /UserList\.test\.tsx/);
     assert.match(result.visibleText, /DataGrid\.test\.tsx/);
     assert.doesNotMatch(result.visibleText, /test-output summary/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("processing engine selects table reducer for explicit processing calls", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-processing-table-"));
+  try {
+    await writeFile(join(root, "analytics.csv"), tableSample(), "utf8");
+
+    const result = await processSource({ kind: "repo-file", root, path: "analytics.csv" });
+
+    assert.equal(result.status, "ok");
+    assert.equal(result.reducer.status, "selected");
+    assert.equal(result.reducer.selected.name, "table");
+    assert.equal(result.visibleText.split("\n")[0], "rows: 4");
+    assert.match(result.visibleText, /status: success:2, error:1, timeout:1/);
+    assert.match(result.visibleText, /duration_ms\.max: 34000/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

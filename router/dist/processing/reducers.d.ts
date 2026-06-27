@@ -18,7 +18,7 @@ export interface ProcessingReducerResult {
     reason: string;
     facts: ProcessingReducerFact[];
     visibleText: string;
-    details: AccessLogReducerDetails | TestOutputReducerDetails | BuildOutputReducerDetails | DiagnosticsReducerDetails;
+    details: AccessLogReducerDetails | TestOutputReducerDetails | BuildOutputReducerDetails | DiagnosticsReducerDetails | TableReducerDetails;
 }
 export type ProcessingReducerSelection = {
     status: "selected";
@@ -97,6 +97,27 @@ export interface DiagnosticSummary {
     code?: string;
     message: string;
 }
+export interface TableReducerDetails {
+    kind: "table";
+    format: "csv" | "json";
+    rowCount: number;
+    columns: string[];
+    categorical: TableCategoricalSummary[];
+    numeric: TableNumericSummary[];
+}
+export interface TableCategoricalSummary {
+    column: string;
+    counts: Array<{
+        value: string;
+        count: number;
+    }>;
+}
+export interface TableNumericSummary {
+    column: string;
+    min: number;
+    max: number;
+    average: number;
+}
 export interface AccessLogSlowExample {
     method: string;
     path: string;
@@ -113,6 +134,10 @@ export declare function reduceBuildOutput(text: string): {
     result?: ProcessingReducerResult;
 };
 export declare function reduceDiagnosticsOutput(text: string): {
+    candidate: ProcessingReducerCandidate;
+    result?: ProcessingReducerResult;
+};
+export declare function reduceTableOutput(text: string): {
     candidate: ProcessingReducerCandidate;
     result?: ProcessingReducerResult;
 };
