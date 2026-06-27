@@ -3,6 +3,7 @@ import { readFile, stat } from "node:fs/promises";
 import { relative } from "node:path";
 
 import { resolveRepoPath } from "../repo/repo-traversal.js";
+import { renderProcessingResult, classifyProcessingRecovery } from "./renderers.js";
 import { selectProcessingReducer, type ProcessingReducerSelection } from "./reducers.js";
 import { createVault, readOutputText, readVaultRecord, storeRepoFileReference, storeTextOutput } from "../vault/vault.js";
 import type { EvidenceLineage, EvidencePersistence, OutputStream, RecoveryHint, SourceRef, VaultRecord, VaultRetentionPolicy } from "../config/types.js";
@@ -152,6 +153,7 @@ export async function processSource(
   options: ProcessingEngineOptions = {},
 ): Promise<ProcessingResult> {
   const loaded = await loadProcessingSource(source, options);
+  const limits = normalizeLimits(options.limits);
   const reducer = notSelectedReducer("Source was not loaded; reducer selection was skipped.");
   const script = selectScriptPolicySkeleton();
 
@@ -162,7 +164,13 @@ export async function processSource(
       source: loaded.source,
       reason: loaded.reason,
       policy: loaded.policy,
-      visibleText: `${loaded.policy}: ${loaded.reason}`,
+      visibleText: renderProcessingResult({
+        status: "blocked",
+        source: loaded.source,
+        facts: [],
+        maxVisibleBytes: limits.maxVisibleBytes,
+        failure: { policy: loaded.policy, reason: loaded.reason },
+      }),
       facts: [],
       reducer,
       script,
@@ -175,7 +183,13 @@ export async function processSource(
       status: "unavailable",
       source: loaded.source,
       reason: loaded.reason,
-      visibleText: `source unavailable: ${loaded.reason}`,
+      visibleText: renderProcessingResult({
+        status: "unavailable",
+        source: loaded.source,
+        facts: [],
+        maxVisibleBytes: limits.maxVisibleBytes,
+        failure: { reason: loaded.reason },
+      }),
       facts: [],
       reducer,
       script,
@@ -184,7 +198,21 @@ export async function processSource(
 
   const selectedReducer = selectProcessingReducer({ text: loaded.text });
   const facts = selectedReducer.status === "selected" ? [...selectedReducer.result.facts, ...sourceFacts(loaded)] : sourceFacts(loaded);
-  const visibleText = truncateVisible(renderFactFirstProcessingSummary(loaded, selectedReducer, facts), normalizeLimits(options.limits).maxVisibleBytes);
+  const visibleText = renderProcessingResult({
+    status: "ok",
+    source: loaded.source,
+    stats: loaded.stats,
+    facts,
+    reducer: selectedReducer,
+    ...(loaded.recovery !== undefined ? { recovery: loaded.recovery } : {}),
+    ...(loaded.persistence !== undefined ? { persistence: loaded.persistence } : {}),
+    recoveryClass: classifyProcessingRecovery({
+      ...(loaded.recovery !== undefined ? { recovery: loaded.recovery } : {}),
+      ...(loaded.persistence !== undefined ? { persistence: loaded.persistence } : {}),
+      resultWillBePersisted: options.sessionId !== undefined,
+    }),
+    maxVisibleBytes: limits.maxVisibleBytes,
+  });
   const persisted = await persistProcessingVisibleText(visibleText, loaded, options);
 
   const result: ProcessingOkResult = {
@@ -470,30 +498,6 @@ function sourceFacts(loaded: LoadedProcessingSource): ProcessingFact[] {
   ];
 }
 
-function renderFactFirstProcessingSummary(
-  loaded: LoadedProcessingSource,
-  reducer: ReducerSelectionResult,
-  facts: readonly ProcessingFact[],
-): string {
-  if (reducer.status === "selected") {
-    const lines = [
-      reducer.result.visibleText,
-      `reducer: ${reducer.selected.name}@${reducer.selected.version} confidence=${reducer.selected.confidence.toFixed(2)}`,
-      `source: ${loaded.source.displayPath}`,
-    ];
-    if (loaded.recovery?.how) {
-      lines.push(`source recovery: ${loaded.recovery.how}`);
-    }
-    return lines.join("\n");
-  }
-
-  const lines = ["processing source loaded", ...facts.map((fact) => `${fact.name}: ${fact.value}`)];
-  if (loaded.recovery?.how) {
-    lines.push(`source recovery: ${loaded.recovery.how}`);
-  }
-  return lines.join("\n");
-}
-
 function commandOutputStreamText(source: CapturedCommandOutputProcessingSource, stream: Exclude<OutputStream, "raw">): string {
   if (stream === "stdout") {
     return source.stdout ?? "";
@@ -569,17 +573,6 @@ function combineOutput(stdout: string, stderr: string): string {
     return `[stdout]\n${stdout}\n[stderr]\n${stderr}`;
   }
   return stdout || stderr;
-}
-
-function truncateVisible(text: string, maxBytes: number): string {
-  if (byteLength(text) <= maxBytes) {
-    return text;
-  }
-  let end = Math.min(text.length, maxBytes);
-  while (end > 0 && byteLength(text.slice(0, end)) > maxBytes) {
-    end -= 1;
-  }
-  return `${text.slice(0, end)}\n… [truncated]`;
 }
 
 function errorMessage(error: unknown): string {

@@ -52,7 +52,8 @@ test("processing engine loads repo file sources and returns fact-first source me
     assert.equal(result.status, "ok");
     assert.equal(result.source.ref.kind, "repo");
     assert.equal(result.source.displayPath, "input.log");
-    assert.match(result.visibleText, /processing source loaded/);
+    assert.equal(result.visibleText.split("\n")[0], "source.kind: repo-file");
+    assert.doesNotMatch(result.visibleText, /processing source loaded/);
     assert.deepEqual(result.facts.map((fact) => fact.name), [
       "source.kind",
       "source.path",
@@ -100,11 +101,12 @@ test("processing engine selects access-log reducer for explicit processing calls
     assert.equal(result.status, "ok");
     assert.equal(result.reducer.status, "selected");
     assert.equal(result.reducer.selected.name, "access-log");
-    assert.match(result.visibleText, /access-log summary/);
-    assert.match(result.visibleText, /requests: 5/);
-    assert.match(result.visibleText, /errors: 2 \(40\.0%\)/);
-    assert.match(result.visibleText, /status: 200:2/);
+    assert.equal(result.visibleText.split("\n")[0], "requests: 5");
+    assert.match(result.visibleText, /errors: 2/);
+    assert.match(result.visibleText, /errorRatePercent: 40/);
+    assert.match(result.visibleText, /status: 200:2, 201:1, 404:1, 500:1/);
     assert.match(result.visibleText, /slow>=1000ms: 1/);
+    assert.doesNotMatch(result.visibleText, /access-log summary/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -163,7 +165,7 @@ test("processing engine defaults text vault records to raw stream", async () => 
 
     assert.equal(loaded.status, "ok");
     assert.equal(loaded.source.stream, "raw");
-    assert.match(loaded.text, /processing source loaded/);
+    assert.match(loaded.text, /source.kind: repo-file/);
   } finally {
     await rm(root, { recursive: true, force: true });
     await rm(repo, { recursive: true, force: true });

@@ -1100,9 +1100,7 @@ function freeflowText(result) {
 }
 function processingText(result) {
     const record = asRecord(result);
-    const visibleText = stringValue(record?.visibleText);
-    const recovery = stringValue(asRecord(record?.recovery)?.how);
-    return [visibleText, recovery].filter(Boolean).join("\n");
+    return stringValue(record?.visibleText);
 }
 function recoveryScore(result, mode) {
     if (mode.startsWith("freeflow")) {

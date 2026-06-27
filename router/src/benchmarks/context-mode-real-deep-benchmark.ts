@@ -1402,9 +1402,7 @@ function freeflowText(result: unknown): string {
 
 function processingText(result: unknown): string {
   const record = asRecord(result);
-  const visibleText = stringValue(record?.visibleText);
-  const recovery = stringValue(asRecord(record?.recovery)?.how);
-  return [visibleText, recovery].filter(Boolean).join("\n");
+  return stringValue(record?.visibleText);
 }
 
 function recoveryScore(result: unknown, mode: string): string {
