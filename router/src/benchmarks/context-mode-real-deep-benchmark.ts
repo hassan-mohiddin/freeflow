@@ -27,12 +27,6 @@ const DEFAULT_ITERATION_LABEL = "Iteration 1";
 export const CONTEXT_MODE_REAL_DEEP_IMPLEMENTATION = "context-mode-real-deep-benchmark-v1";
 
 export const EXPECTED_BASELINE_FAILURE_KEYS = [
-  "tsc-summary/freeflow:run-cat-default",
-  "access-summary/freeflow:run-cat-default",
-  "analytics-summary/freeflow:run-cat-default",
-  "mcp-tools-summary/freeflow:run-cat-default",
-  "playwright-summary/freeflow:run-cat-default",
-  "git-log-summary/freeflow:run-cat-default",
   "react-code-search/freeflow:repo-query",
   "next-cache-search/freeflow:repo-query",
   "tailwind-responsive-search/freeflow:repo-query",

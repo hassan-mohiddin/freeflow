@@ -472,6 +472,9 @@ export function renderFreeflowRunResult(result, { expanded } = {}, theme, contex
     if (routed.scriptFilter?.outputId) {
         statusParts.push(`derived ${routed.scriptFilter.outputId}`);
     }
+    if (routed.reducer?.outputId) {
+        statusParts.push(`reduced ${routed.reducer.outputId}`);
+    }
     if (routed.parser?.name) {
         statusParts.push(`parser ${routed.parser.name} ${Number(routed.parser.confidence ?? 0).toFixed(2)}`);
     }
@@ -481,7 +484,7 @@ export function renderFreeflowRunResult(result, { expanded } = {}, theme, contex
     if (routed.summary) {
         lines.push(themeFg(theme, "muted", truncateText(routed.summary, 140)));
     }
-    lines.push(themeFg(theme, "dim", `${importantLines.length} important span(s) • ${exactRecoveryOutputId ? (routed.scriptFilter?.outputId ? "raw and script output recoverable from vault" : "raw output recoverable from vault") : "metadata-only record; exact raw output not vaulted"}`));
+    lines.push(themeFg(theme, "dim", `${importantLines.length} important span(s) • ${exactRecoveryOutputId ? (routed.scriptFilter?.outputId ? "raw and script output recoverable from vault" : routed.reducer?.outputId ? "raw and reducer output recoverable from vault" : "raw output recoverable from vault") : "metadata-only record; exact raw output not vaulted"}`));
     if (!expanded) {
         lines.push(themeFg(theme, "dim", "ctrl+o to expand status, evidence, and vault recovery"));
         return textComponent(lines.join("\n"));
@@ -511,6 +514,19 @@ export function renderFreeflowRunResult(result, { expanded } = {}, theme, contex
     if (routed.filters) {
         lines.push("", themeFg(theme, "toolTitle", "Filters"));
         lines.push(`  ${truncateText(runFilterLabel(routed.filters), 220)}`);
+    }
+    if (routed.reducer) {
+        lines.push("", themeFg(theme, "toolTitle", "Reducer"));
+        lines.push(`  ${routed.reducer.name}@${routed.reducer.version} confidence=${Number(routed.reducer.confidence ?? 0).toFixed(2)} status=${routed.reducer.status}`);
+        if (routed.reducer.rawOutputId) {
+            lines.push(`  ${themeFg(theme, "muted", "rawOutputId:")} ${themeFg(theme, "accent", routed.reducer.rawOutputId)}`);
+        }
+        if (routed.reducer.outputId) {
+            lines.push(`  ${themeFg(theme, "muted", "outputId:")} ${themeFg(theme, "accent", routed.reducer.outputId)}`);
+        }
+        if (Array.isArray(routed.reducer.facts) && routed.reducer.facts.length > 0) {
+            lines.push(`  ${themeFg(theme, "muted", "facts:")} ${truncateText(JSON.stringify(routed.reducer.facts), 220)}`);
+        }
     }
     if (routed.scriptFilter) {
         lines.push("", themeFg(theme, "toolTitle", "Script filter"));
@@ -560,12 +576,12 @@ export function renderFreeflowRunResult(result, { expanded } = {}, theme, contex
         if (routed.recovery?.how) {
             lines.push(`  ${truncateText(routed.recovery.how, 180)}`);
         }
-        const evidenceOutputId = routed.scriptFilter?.outputId ?? exactRecoveryOutputId;
+        const evidenceOutputId = routed.scriptFilter?.outputId ?? routed.reducer?.outputId ?? exactRecoveryOutputId;
         const exactHint = exactRetrieveHintFromImportantLines(evidenceOutputId, importantLines);
         if (exactHint) {
-            const hint = routed.scriptFilter?.outputId ? exactHint.replace(/stream=(stdout|stderr|combined)/, "stream=raw") : exactHint;
+            const hint = routed.scriptFilter?.outputId || routed.reducer?.outputId ? exactHint.replace(/stream=(stdout|stderr|combined)/, "stream=raw") : exactHint;
             lines.push(`  ${themeFg(theme, "muted", "exact retrieve:")} ${hint}`);
-            if (routed.scriptFilter?.outputId && outputId) {
+            if ((routed.scriptFilter?.outputId || routed.reducer?.outputId) && outputId) {
                 lines.push(`  ${themeFg(theme, "muted", "raw command starting point:")} ${recoveryStartingPoint(outputId)}`);
             }
         }

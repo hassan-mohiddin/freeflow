@@ -170,6 +170,22 @@ export interface RunScriptFilterMetadata {
     deriveExecution?: DeriveExecutionFailure;
     summary?: string;
 }
+export interface RunReducerMetadata {
+    status: "selected" | "success";
+    name: string;
+    version: string;
+    confidence: number;
+    rawOutputId: string;
+    facts: Array<{
+        name: string;
+        value: string | number | boolean;
+    }>;
+    summary?: string;
+    outputId?: string;
+    recordId?: string;
+    persistence?: EvidencePersistence;
+    lineage?: EvidenceLineage;
+}
 export interface CommandParserMetadata {
     name: string;
     confidence: number;
@@ -204,6 +220,7 @@ export interface CommandRoutedResult extends RoutedResultBase {
     parser?: CommandParserMetadata;
     filters?: RunOutputFilterMetadata;
     scriptFilter?: RunScriptFilterMetadata;
+    reducer?: RunReducerMetadata;
 }
 export interface CaptureRoutedResult extends RoutedResultBase {
     outputId: string;

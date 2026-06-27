@@ -225,6 +225,131 @@ test("small successful parsed output remains near-raw", async () => {
   });
 });
 
+test("freeflowRun routes explicit summary goals through reducers with raw and derived recovery", async () => {
+  await withTempVault(async (vault) => {
+    const stdout = [
+      "id,status,duration_ms",
+      "1,success,10",
+      "2,success,20",
+      "3,error,30",
+      "4,timeout,34000",
+    ].join("\n");
+    const runner = {
+      async run() {
+        return {
+          stdout,
+          stderr: "",
+          executionStatus: "success",
+          exitCode: 0,
+        };
+      },
+    };
+
+    const result = await freeflowRun(
+      {
+        command: "cat analytics.csv",
+        sessionId: "run-reducer-session",
+        vaultRoot: vault.root,
+        preserve: "important",
+        goal: "CSV summary",
+      },
+      runner,
+    );
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.routing.status, "partial");
+    assert.equal(result.persistence?.recoverability, "exact");
+    assert.equal(result.parser?.name, "generic+reducer:table");
+    assert.equal(result.reducer?.status, "success");
+    assert.equal(result.reducer?.name, "table");
+    assert.equal(result.reducer?.rawOutputId, result.outputId);
+    assert.ok(result.reducer?.outputId?.startsWith("ffout_"));
+    assert.notEqual(result.reducer?.outputId, result.outputId);
+    assert.match(result.summary ?? "", /rows: 4/);
+    assert.match(result.importantLines?.[0].excerpt ?? "", /status: success:2, error:1, timeout:1/);
+    assert.match(result.importantLines?.[0].excerpt ?? "", /duration_ms\.max: 34000/);
+    assert.match(result.recovery?.how ?? "", new RegExp(`outputId=${result.outputId}`));
+    assert.match(result.recovery?.how ?? "", new RegExp(`outputId=${result.reducer.outputId}`));
+    assert.equal(await readOutputText(vault, "run-reducer-session", result.outputId, "stdout"), stdout);
+    assert.equal(await readOutputText(vault, "run-reducer-session", result.reducer.outputId, "raw"), result.reducer.summary);
+  });
+});
+
+test("generic summary intent does not route JSON tables when reducer-specific facts would be speculative", async () => {
+  await withTempVault(async (vault) => {
+    const stdout = JSON.stringify([
+      { number: 1, title: "Bug A", labels: [{ name: "Type: Bug" }] },
+      { number: 2, title: "Bug B", labels: [{ name: "Status: Unconfirmed" }] },
+      { number: 3, title: "Bug C", labels: [{ name: "Type: Bug" }] },
+    ]);
+    const runner = {
+      async run() {
+        return {
+          stdout,
+          stderr: "",
+          executionStatus: "success",
+          exitCode: 0,
+        };
+      },
+    };
+
+    const result = await freeflowRun(
+      {
+        command: "cat github-issues.json",
+        sessionId: "run-reducer-speculative-json-session",
+        vaultRoot: vault.root,
+        preserve: "important",
+        goal: "GitHub issues summary",
+      },
+      runner,
+    );
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.reducer, undefined);
+    assert.equal(result.parser?.name, "generic");
+    assert.equal(result.importantLines?.[0].excerpt, stdout);
+  });
+});
+
+test("preserve full bypasses reducer routing and returns exact command output", async () => {
+  await withTempVault(async (vault) => {
+    const stdout = [
+      "id,status,duration_ms",
+      "1,success,10",
+      "2,success,20",
+      "3,error,30",
+    ].join("\n");
+    const runner = {
+      async run() {
+        return {
+          stdout,
+          stderr: "",
+          executionStatus: "success",
+          exitCode: 0,
+        };
+      },
+    };
+
+    const result = await freeflowRun(
+      {
+        command: "cat analytics.csv",
+        sessionId: "run-reducer-full-session",
+        vaultRoot: vault.root,
+        preserve: "full",
+        goal: "CSV summary",
+      },
+      runner,
+    );
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.routing.status, "routed");
+    assert.equal(result.reducer, undefined);
+    assert.equal(result.parser?.name, "generic");
+    assert.equal(result.importantLines?.[0].excerpt, stdout);
+    assert.equal(await readOutputText(vault, "run-reducer-full-session", result.outputId, "stdout"), stdout);
+  });
+});
+
 test("preserve full keeps blank lines and trailing newline exact under cap", async () => {
   await withTempVault(async (vault) => {
     const stdout = "alpha\n\nbeta\n";

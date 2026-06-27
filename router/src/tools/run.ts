@@ -6,6 +6,7 @@ import {
   findExactDuplicateCommandOutput,
   storeCommandOutput,
   storeMetadataOutput,
+  storeTextOutput,
 } from "../vault/vault.js";
 import { DEFAULT_ROUTER_THRESHOLDS, DEFAULT_STORAGE_POLICY } from "../config/config.js";
 import { freeflowTransform, validateDeriveInput, type ScriptDeriveLimitsInput } from "../transform/engine.js";
@@ -19,10 +20,17 @@ import {
   type RunOutputFilterMetadata,
   type RunOutputFiltersInput,
 } from "../routing/run-filters.js";
+import {
+  parserWithReducer,
+  reducerImportantLines,
+  selectRunReducerRoute,
+  type RunReducerRoute,
+} from "../routing/run-reducers.js";
 import type {
   CommandOutputRecord,
   CommandParserMetadata,
   MetadataOutputRecord,
+  TextOutputRecord,
   CommandRoutedResult,
   DeriveRoutedResult,
   ExecutionStatus,
@@ -176,6 +184,18 @@ export async function freeflowRun(
     combined,
     ...(options.goal !== undefined ? { goal: options.goal } : {}),
   });
+  const reducerRoute = selectRunReducerRoute({
+    command: options.command,
+    ...(options.goal !== undefined ? { goal: options.goal } : {}),
+    executionStatus: runResult.executionStatus,
+    stdout: runResult.stdout,
+    stderr: runResult.stderr,
+    combined,
+    preserve,
+    thresholds,
+    hasFilters: filters !== undefined,
+    hasScriptFilter: scriptFilter !== undefined,
+  });
   const storageInput = {
     policy: storagePolicy,
     command: options.command,
@@ -187,6 +207,7 @@ export async function freeflowRun(
     parserName: storageParser.parser.name,
     hasFilters: filters !== undefined,
     hasScriptFilter: scriptFilter !== undefined,
+    hasReducer: reducerRoute.status === "selected",
   };
   if (options.goal !== undefined) {
     Object.assign(storageInput, { goal: options.goal });
@@ -256,6 +277,9 @@ export async function freeflowRun(
     if (options.goal !== undefined) {
       routeOptions.goal = options.goal;
     }
+    if (reducerRoute.status === "selected") {
+      routeOptions.reducer = reducerRoute;
+    }
     let routing: CommandRoutingOutcome;
     const duplicateForRouting = duplicate && preserve !== "full" && filters === undefined && scriptFilter === undefined ? duplicate : undefined;
     if (duplicateForRouting) {
@@ -286,6 +310,14 @@ export async function freeflowRun(
       }
       routing = await routeScriptFilteredOutput(scriptRouteOptions);
     } else {
+      if (routeOptions.reducer?.status === "selected" && record.kind === "command" && storageDecision.mode === "exact") {
+        routeOptions.reducerRecord = await storeReducerOutput({
+          vault,
+          sessionId: options.sessionId,
+          rawRecord: record,
+          reducer: routeOptions.reducer,
+        });
+      }
       routing = routeCommandOutput(routeOptions);
     }
 
@@ -312,6 +344,7 @@ export async function freeflowRun(
       parser: routing.parser,
       ...(routing.filters !== undefined ? { filters: routing.filters } : {}),
       ...(routing.scriptFilter !== undefined ? { scriptFilter: routing.scriptFilter } : {}),
+      ...(routing.reducer !== undefined ? { reducer: routing.reducer } : {}),
       recovery: routing.recovery ?? commandRecoveryHint(record.outputId, storageDecision),
     };
   } catch (error) {
@@ -352,6 +385,8 @@ interface RouteCommandOutputOptions {
   storage?: CommandStorageDecision;
   goal?: string;
   filters?: NormalizedRunOutputFilters;
+  reducer?: Extract<RunReducerRoute, { status: "selected" }>;
+  reducerRecord?: TextOutputRecord;
 }
 
 interface CommandRoutingOutcome {
@@ -363,6 +398,7 @@ interface CommandRoutingOutcome {
   parser: CommandParserMetadata;
   filters?: RunOutputFilterMetadata;
   scriptFilter?: CommandRoutedResult["scriptFilter"];
+  reducer?: CommandRoutedResult["reducer"];
   failure?: CommandRoutedResult["failure"];
   deriveExecution?: CommandRoutedResult["deriveExecution"];
   lineage?: CommandRoutedResult["lineage"];
@@ -444,6 +480,7 @@ function decideCommandStorage(options: {
   goal?: string;
   hasFilters: boolean;
   hasScriptFilter: boolean;
+  hasReducer: boolean;
   duplicate?: SessionIndexEntry;
 }): CommandStorageDecision {
   const exactnessSensitive = commandOutputIsExactnessSensitive(options);
@@ -486,8 +523,9 @@ function commandOutputIsExactnessSensitive(options: {
   goal?: string;
   hasFilters: boolean;
   hasScriptFilter: boolean;
+  hasReducer: boolean;
 }): boolean {
-  if (options.preserve === "full" || options.executionStatus !== "success" || options.hasFilters || options.hasScriptFilter) {
+  if (options.preserve === "full" || options.executionStatus !== "success" || options.hasFilters || options.hasScriptFilter || options.hasReducer) {
     return true;
   }
   if (options.outputBytes > options.thresholds.largeOutputBytes || options.outputLines > options.thresholds.largeOutputLines) {
@@ -710,6 +748,10 @@ function routeCommandOutput(options: RouteCommandOutputOptions): CommandRoutingO
     };
   }
 
+  if (options.reducer) {
+    return routeReducedCommandOutput({ ...options, reducer: options.reducer }, parsed, statusText);
+  }
+
   if (isLarge) {
     return {
       decisionId: decisionId("run-route", options.outputId, "large-success", parser.name),
@@ -730,6 +772,26 @@ function routeCommandOutput(options: RouteCommandOutputOptions): CommandRoutingO
     summary: parsed.summary ?? `Command success with exitCode=${options.exitCode}.`,
     importantLines: nearRaw.importantLines,
     parser: nearRawParser,
+  };
+}
+
+function routeReducedCommandOutput(
+  options: RouteCommandOutputOptions & { reducer: Extract<RunReducerRoute, { status: "selected" }> },
+  parsed: ParsedCommandOutput,
+  statusText: string,
+): CommandRoutingOutcome {
+  const importantLines = reducerImportantLines(options.reducer);
+  const parser = parserWithReducer(parsed.parser, options.reducer);
+  return {
+    decisionId: decisionId("run-route", options.outputId, "reducer", options.reducer.result.name, options.reducer.result.version),
+    routingStatus: "partial",
+    reason: `Reducer ${options.reducer.result.name}@${options.reducer.result.version} selected for successful command output (${statusText}); raw output was vaulted before deterministic reduction (${parserTextFor(parser)}).`,
+    summary: options.reducer.result.visibleText,
+    importantLines,
+    parser,
+    reducer: runReducerMetadata(options.outputId, options.reducer, options.reducerRecord),
+    ...(options.reducerRecord?.lineage !== undefined ? { lineage: options.reducerRecord.lineage } : {}),
+    recovery: commandReducerRecoveryHint(options.outputId, options.reducerRecord?.outputId),
   };
 }
 
@@ -997,6 +1059,63 @@ function evidencePacketsAsImportantLines(evidence: CommandRoutedResult["evidence
       lines: packet.lines!,
       excerpt: packet.excerpt,
     }));
+}
+
+function storeReducerOutput(options: {
+  vault: ReturnType<typeof createVault>;
+  sessionId: string;
+  rawRecord: CommandOutputRecord;
+  reducer: Extract<RunReducerRoute, { status: "selected" }>;
+}): Promise<TextOutputRecord> {
+  const operation = `run-reducer:${options.reducer.result.name}@${options.reducer.result.version}`;
+  return storeTextOutput(options.vault, {
+    sessionId: options.sessionId,
+    raw: options.reducer.result.visibleText,
+    sourceKind: "derive",
+    decisionIds: [decisionId("run-reducer", options.rawRecord.outputId, options.reducer.result.name, options.reducer.result.version)],
+    producer: { kind: "derive", name: "freeflow_run reducer" },
+    lineage: {
+      sourceRecordIds: [options.rawRecord.recordId],
+      sourceOutputIds: [options.rawRecord.outputId],
+      operation,
+      operationHash: hash(JSON.stringify({ operation, sourceOutputId: options.rawRecord.outputId, facts: options.reducer.result.facts })),
+    },
+  });
+}
+
+function runReducerMetadata(
+  rawOutputId: string,
+  reducer: Extract<RunReducerRoute, { status: "selected" }>,
+  reducerRecord: TextOutputRecord | undefined,
+): NonNullable<CommandRoutedResult["reducer"]> {
+  return {
+    status: reducerRecord === undefined ? "selected" : "success",
+    name: reducer.result.name,
+    version: reducer.result.version,
+    confidence: reducer.result.confidence,
+    rawOutputId,
+    summary: reducer.result.visibleText,
+    facts: reducer.result.facts,
+    ...(reducerRecord !== undefined ? {
+      outputId: reducerRecord.outputId,
+      recordId: reducerRecord.recordId,
+      persistence: reducerRecord.persistence,
+      lineage: reducerRecord.lineage,
+    } : {}),
+  };
+}
+
+function commandReducerRecoveryHint(rawOutputId: string, derivedOutputId?: string) {
+  if (derivedOutputId) {
+    return {
+      how: `Raw command output: use freeflow_retrieve with source.kind=vault and outputId=${rawOutputId}. Reducer-derived output: use freeflow_retrieve with source.kind=vault, outputId=${derivedOutputId}, stream=raw, and an exact lineRange.`,
+      outputId: rawOutputId,
+    };
+  }
+  return {
+    how: `Reducer output was returned in the structured command result. Raw command output remains recoverable with freeflow_retrieve source.kind=vault outputId=${rawOutputId}.`,
+    outputId: rawOutputId,
+  };
 }
 
 function commandScriptFilterRecoveryHint(rawOutputId: string, derivedOutputId?: string) {
