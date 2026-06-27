@@ -9,6 +9,18 @@ import { SCRIPT_SANDBOX_REQUIRED_PROOFS } from "../../dist/sandbox/script-sandbo
 import { freeflowRun } from "../../dist/tools/run.js";
 import { createVault, readOutputText } from "../../dist/vault/vault.js";
 
+function testOutputSample() {
+  return [
+    " RUN  v2.1.8 /repo",
+    " ✗ src/components/UserList.test.tsx (4 tests) 234ms",
+    "   ✗ handles empty state 156ms",
+    " ✗ src/components/DataGrid.test.tsx (5 tests) 345ms",
+    "   ✗ filters with complex queries 198ms",
+    " Test Files  2 failed | 28 passed (30)",
+    " Tests       2 failed | 110 passed (112)",
+  ].join("\n");
+}
+
 function accessLogSample() {
   return [
     '192.168.1.1 - - [23/Feb/2026:10:00:01 +0000] "GET /api/a HTTP/1.1" 200 892 100ms',
@@ -108,6 +120,26 @@ test("processing engine blocks repo path escapes and symlink escapes without rea
   } finally {
     await rm(root, { recursive: true, force: true });
     await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test("processing engine selects test-output reducer for explicit processing calls", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-processing-test-output-"));
+  try {
+    await writeFile(join(root, "test-output.txt"), testOutputSample(), "utf8");
+
+    const result = await processSource({ kind: "repo-file", root, path: "test-output.txt" });
+
+    assert.equal(result.status, "ok");
+    assert.equal(result.reducer.status, "selected");
+    assert.equal(result.reducer.selected.name, "test-output");
+    assert.equal(result.visibleText.split("\n")[0], "tests: 2 failed, 110 passed, (112)");
+    assert.doesNotMatch(result.visibleText, /testFiles:/);
+    assert.match(result.visibleText, /UserList\.test\.tsx/);
+    assert.match(result.visibleText, /DataGrid\.test\.tsx/);
+    assert.doesNotMatch(result.visibleText, /test-output summary/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
 });
 

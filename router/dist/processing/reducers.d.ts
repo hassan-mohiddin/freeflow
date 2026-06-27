@@ -18,7 +18,7 @@ export interface ProcessingReducerResult {
     reason: string;
     facts: ProcessingReducerFact[];
     visibleText: string;
-    details: AccessLogReducerDetails;
+    details: AccessLogReducerDetails | TestOutputReducerDetails;
 }
 export type ProcessingReducerSelection = {
     status: "selected";
@@ -32,6 +32,7 @@ export type ProcessingReducerSelection = {
     reason: string;
 };
 export interface AccessLogReducerDetails {
+    kind: "access-log";
     requestCount: number;
     statusCounts: Record<string, number>;
     errorCount: number;
@@ -42,6 +43,19 @@ export interface AccessLogReducerDetails {
     slowExamples: AccessLogSlowExample[];
     ignoredLineCount: number;
 }
+export interface TestOutputReducerDetails {
+    kind: "test-output";
+    testFiles: TestOutputCounts;
+    tests: TestOutputCounts;
+    failedFiles: string[];
+    failedTests: string[];
+}
+export interface TestOutputCounts {
+    failed?: number;
+    passed?: number;
+    skipped?: number;
+    total?: number;
+}
 export interface AccessLogSlowExample {
     method: string;
     path: string;
@@ -49,6 +63,10 @@ export interface AccessLogSlowExample {
     latencyMs: number;
 }
 export declare function selectProcessingReducer(input: ProcessingReducerInput): ProcessingReducerSelection;
+export declare function reduceTestOutput(text: string): {
+    candidate: ProcessingReducerCandidate;
+    result?: ProcessingReducerResult;
+};
 export declare function reduceAccessLog(text: string): {
     candidate: ProcessingReducerCandidate;
     result?: ProcessingReducerResult;

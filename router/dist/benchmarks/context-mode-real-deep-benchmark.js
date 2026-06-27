@@ -183,17 +183,17 @@ export async function runContextModeRealDeepBenchmark(options = {}) {
                 capability: "command capture/routing",
                 obs: ffDefault,
             });
-            if (scenario.id === "access-summary") {
+            if (scenario.id === "vitest-summary" || scenario.id === "access-summary") {
                 const ffProcessed = await ffProcessRepoFile(scenario.file);
                 record({
                     fixture: scenario.id,
                     category: scenario.category,
                     rawBytes,
                     facts: scenario.facts,
-                    mode: "freeflow:process-access-log-reducer",
+                    mode: scenario.id === "vitest-summary" ? "freeflow:process-test-output-reducer" : "freeflow:process-access-log-reducer",
                     capability: "processing engine built-in reducer",
                     obs: ffProcessed,
-                    notes: "Uses the internal processing engine access-log reducer; no public Pi surface is selected.",
+                    notes: `Uses the internal processing engine ${scenario.id === "vitest-summary" ? "test-output" : "access-log"} reducer; no public Pi surface is selected.`,
                 });
             }
             const command = await writeScenarioScript(scenario.id, scenario.file, scenario.code);
