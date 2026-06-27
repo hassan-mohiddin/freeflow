@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { reduceAccessLog, reduceBuildOutput, reduceDiagnosticsOutput, reduceTableOutput, reduceTestOutput, selectProcessingReducer } from "../../dist/processing/reducers.js";
+import { reduceAccessLog, reduceBuildOutput, reduceDiagnosticsOutput, reduceMcpToolsOutput, reduceTableOutput, reduceTestOutput, selectProcessingReducer } from "../../dist/processing/reducers.js";
 
 function syntheticAccessLogFixture() {
   const lines = [];
@@ -44,6 +44,29 @@ function syntheticJsonTableFixture() {
     { id: 2, role: "user", score: 30 },
     { id: 3, role: "user", score: 20 },
   ]);
+}
+
+function syntheticMcpToolsFixture() {
+  return JSON.stringify([
+    mcpTool("search_codebase", ["pattern", "path", "fileType"], ["pattern"]),
+    mcpTool("read_file", ["path", "startLine", "endLine"], ["path"]),
+    mcpTool("git_status", []),
+    mcpTool("git_diff", ["cached"], []),
+    mcpTool("run_tests", ["pattern"], []),
+    mcpTool("typecheck", [], []),
+  ]);
+}
+
+function mcpTool(name, properties, required = []) {
+  return {
+    name,
+    description: `${name} tool`,
+    inputSchema: {
+      type: "object",
+      properties: Object.fromEntries(properties.map((property) => [property, { type: "string" }])),
+      required,
+    },
+  };
 }
 
 function syntheticBuildFixture() {
@@ -141,7 +164,40 @@ test("processing reducer registry selects test output before other reducers", ()
 
   assert.equal(selected.status, "selected");
   assert.equal(selected.selected.name, "test-output");
-  assert.deepEqual(selected.candidates.map((candidate) => candidate.name), ["test-output", "build-output", "diagnostics", "table", "access-log"]);
+  assert.deepEqual(selected.candidates.map((candidate) => candidate.name), ["test-output", "build-output", "diagnostics", "mcp-tools", "table", "access-log"]);
+});
+
+test("mcp tools reducer computes tool count, categories, and signatures", () => {
+  const reduced = reduceMcpToolsOutput(syntheticMcpToolsFixture());
+
+  assert.ok(reduced.result);
+  assert.equal(reduced.candidate.name, "mcp-tools");
+  assert.equal(reduced.candidate.confidence, 0.9);
+  assert.equal(reduced.result.details.kind, "mcp-tools");
+  assert.equal(reduced.result.details.toolCount, 6);
+  assert.deepEqual(reduced.result.details.categories.slice(0, 3), [
+    { category: "git", count: 2 },
+    { category: "read", count: 1 },
+    { category: "run", count: 1 },
+  ]);
+  assert.deepEqual(reduced.result.details.signatures[0], {
+    name: "search_codebase",
+    category: "search",
+    parameters: ["pattern", "path?", "fileType?"],
+    required: ["pattern"],
+    description: "search_codebase tool",
+  });
+  assert.match(reduced.result.visibleText, /tools: 6/);
+  assert.match(reduced.result.visibleText, /git:2/);
+  assert.match(reduced.result.visibleText, /typecheck:1/);
+  assert.match(reduced.result.visibleText, /search_codebase\(pattern, path\?, fileType\?\)/);
+});
+
+test("mcp tools reducer wins over generic JSON table detection", () => {
+  const selected = selectProcessingReducer({ text: syntheticMcpToolsFixture() });
+
+  assert.equal(selected.status, "selected");
+  assert.equal(selected.selected.name, "mcp-tools");
 });
 
 test("table reducer computes CSV row counts, grouped status counts, and numeric max", () => {
@@ -248,6 +304,6 @@ test("processing reducer registry does not select low-confidence prose", () => {
   const selected = selectProcessingReducer({ text: "hello\nnot an access log\n" });
 
   assert.equal(selected.status, "not_selected");
-  assert.deepEqual(selected.candidates.map((candidate) => candidate.name), ["test-output", "build-output", "diagnostics", "table", "access-log"]);
+  assert.deepEqual(selected.candidates.map((candidate) => candidate.name), ["test-output", "build-output", "diagnostics", "mcp-tools", "table", "access-log"]);
   assert.ok(selected.candidates.every((candidate) => candidate.confidence < 0.8));
 });

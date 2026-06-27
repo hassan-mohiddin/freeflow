@@ -18,7 +18,7 @@ export interface ProcessingReducerResult {
     reason: string;
     facts: ProcessingReducerFact[];
     visibleText: string;
-    details: AccessLogReducerDetails | TestOutputReducerDetails | BuildOutputReducerDetails | DiagnosticsReducerDetails | TableReducerDetails;
+    details: AccessLogReducerDetails | TestOutputReducerDetails | BuildOutputReducerDetails | DiagnosticsReducerDetails | McpToolsReducerDetails | TableReducerDetails;
 }
 export type ProcessingReducerSelection = {
     status: "selected";
@@ -97,6 +97,22 @@ export interface DiagnosticSummary {
     code?: string;
     message: string;
 }
+export interface McpToolsReducerDetails {
+    kind: "mcp-tools";
+    toolCount: number;
+    categories: Array<{
+        category: string;
+        count: number;
+    }>;
+    signatures: McpToolSignature[];
+}
+export interface McpToolSignature {
+    name: string;
+    category: string;
+    parameters: string[];
+    required: string[];
+    description?: string;
+}
 export interface TableReducerDetails {
     kind: "table";
     format: "csv" | "json";
@@ -134,6 +150,10 @@ export declare function reduceBuildOutput(text: string): {
     result?: ProcessingReducerResult;
 };
 export declare function reduceDiagnosticsOutput(text: string): {
+    candidate: ProcessingReducerCandidate;
+    result?: ProcessingReducerResult;
+};
+export declare function reduceMcpToolsOutput(text: string): {
     candidate: ProcessingReducerCandidate;
     result?: ProcessingReducerResult;
 };

@@ -21,7 +21,7 @@ export interface ProcessingReducerResult {
   reason: string;
   facts: ProcessingReducerFact[];
   visibleText: string;
-  details: AccessLogReducerDetails | TestOutputReducerDetails | BuildOutputReducerDetails | DiagnosticsReducerDetails | TableReducerDetails;
+  details: AccessLogReducerDetails | TestOutputReducerDetails | BuildOutputReducerDetails | DiagnosticsReducerDetails | McpToolsReducerDetails | TableReducerDetails;
 }
 
 export type ProcessingReducerSelection =
@@ -105,6 +105,21 @@ export interface DiagnosticSummary {
   message: string;
 }
 
+export interface McpToolsReducerDetails {
+  kind: "mcp-tools";
+  toolCount: number;
+  categories: Array<{ category: string; count: number }>;
+  signatures: McpToolSignature[];
+}
+
+export interface McpToolSignature {
+  name: string;
+  category: string;
+  parameters: string[];
+  required: string[];
+  description?: string;
+}
+
 export interface TableReducerDetails {
   kind: "table";
   format: "csv" | "json";
@@ -155,6 +170,11 @@ const DIAGNOSTICS_REDUCER = {
   version: "1",
 };
 
+const MCP_TOOLS_REDUCER = {
+  name: "mcp-tools",
+  version: "1",
+};
+
 const TABLE_REDUCER = {
   name: "table",
   version: "1",
@@ -174,10 +194,11 @@ export function selectProcessingReducer(input: ProcessingReducerInput): Processi
   const testOutput = reduceTestOutput(input.text);
   const buildOutput = reduceBuildOutput(input.text);
   const diagnostics = reduceDiagnosticsOutput(input.text);
+  const mcpTools = reduceMcpToolsOutput(input.text);
   const table = reduceTableOutput(input.text);
   const accessLog = reduceAccessLog(input.text);
-  const candidates = [testOutput.candidate, buildOutput.candidate, diagnostics.candidate, table.candidate, accessLog.candidate];
-  const selected = [testOutput, buildOutput, diagnostics, table, accessLog].find((reduced) => reduced.result !== undefined);
+  const candidates = [testOutput.candidate, buildOutput.candidate, diagnostics.candidate, mcpTools.candidate, table.candidate, accessLog.candidate];
+  const selected = [testOutput, buildOutput, diagnostics, mcpTools, table, accessLog].find((reduced) => reduced.result !== undefined);
   if (selected?.result) {
     return {
       status: "selected",
@@ -683,6 +704,153 @@ function stripAnsi(text: string): string {
 
 function basename(path: string): string {
   return path.split(/[\\/]/).pop() || path;
+}
+
+export function reduceMcpToolsOutput(text: string): { candidate: ProcessingReducerCandidate; result?: ProcessingReducerResult } {
+  const tools = parseMcpToolsList(text);
+  const confidence = mcpToolsConfidence(tools);
+  const candidate: ProcessingReducerCandidate = {
+    ...MCP_TOOLS_REDUCER,
+    confidence,
+    reason: tools === undefined
+      ? "No MCP tools/list JSON shape detected."
+      : `Detected MCP tools/list JSON with ${tools.length} tool(s).`,
+  };
+
+  if (tools === undefined || confidence < 0.8) {
+    return { candidate };
+  }
+
+  const details = summarizeMcpTools(tools);
+  return {
+    candidate,
+    result: {
+      ...MCP_TOOLS_REDUCER,
+      confidence,
+      reason: candidate.reason,
+      facts: mcpToolsFacts(details),
+      visibleText: renderMcpToolsSummary(details),
+      details,
+    },
+  };
+}
+
+interface ParsedMcpTool {
+  name: string;
+  description?: string;
+  inputSchema: Record<string, unknown>;
+}
+
+function parseMcpToolsList(text: string): ParsedMcpTool[] | undefined {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+  const rawTools = Array.isArray(value)
+    ? value
+    : isJsonObject(value) && Array.isArray(value.tools)
+      ? value.tools
+      : undefined;
+  if (rawTools === undefined || rawTools.length < 2 || !rawTools.every(isJsonObject)) {
+    return undefined;
+  }
+
+  const tools: ParsedMcpTool[] = [];
+  for (const tool of rawTools) {
+    const name = typeof tool.name === "string" ? tool.name.trim() : "";
+    if (!isMcpToolName(name) || !isJsonObject(tool.inputSchema)) {
+      return undefined;
+    }
+    const description = typeof tool.description === "string" && tool.description.trim().length > 0 ? oneLine(tool.description, 160) : undefined;
+    tools.push({
+      name,
+      ...(description !== undefined ? { description } : {}),
+      inputSchema: tool.inputSchema,
+    });
+  }
+
+  return uniqueStrings(tools.map((tool) => tool.name)).length === tools.length ? tools : undefined;
+}
+
+function mcpToolsConfidence(tools: readonly ParsedMcpTool[] | undefined): number {
+  if (tools === undefined) {
+    return 0;
+  }
+  if (tools.length >= 10) {
+    return 1;
+  }
+  if (tools.length >= 2) {
+    return 0.9;
+  }
+  return 0.6;
+}
+
+function summarizeMcpTools(tools: readonly ParsedMcpTool[]): McpToolsReducerDetails {
+  const signatures = tools.map((tool) => {
+    const required = schemaRequiredProperties(tool.inputSchema);
+    const parameters = schemaPropertyNames(tool.inputSchema).map((property) => required.includes(property) ? property : `${property}?`);
+    return {
+      name: tool.name,
+      category: mcpToolCategory(tool.name),
+      parameters,
+      required,
+      ...(tool.description !== undefined ? { description: tool.description } : {}),
+    };
+  });
+  return {
+    kind: "mcp-tools",
+    toolCount: tools.length,
+    categories: countValues(signatures.map((signature) => signature.category)).map(({ value, count }) => ({ category: value, count })),
+    signatures,
+  };
+}
+
+function mcpToolsFacts(details: McpToolsReducerDetails): ProcessingReducerFact[] {
+  return [
+    { name: "tools", value: details.toolCount },
+    { name: "categories", value: details.categories.map(({ category, count }) => `${category}:${count}`).join(", ") },
+    { name: "signatures", value: details.signatures.slice(0, 10).map(renderMcpToolSignature).join(", ") },
+  ];
+}
+
+function renderMcpToolsSummary(details: McpToolsReducerDetails): string {
+  return [
+    "mcp tools summary",
+    `tools: ${details.toolCount}`,
+    `categories: ${details.categories.map(({ category, count }) => `${category}:${count}`).join(", ")}`,
+    `signatures: ${details.signatures.slice(0, 10).map(renderMcpToolSignature).join(", ")}`,
+  ].join("\n");
+}
+
+function renderMcpToolSignature(signature: McpToolSignature): string {
+  return `${signature.name}(${signature.parameters.join(", ")})`;
+}
+
+function schemaPropertyNames(schema: Record<string, unknown>): string[] {
+  return isJsonObject(schema.properties) ? Object.keys(schema.properties).filter(isMcpParameterName) : [];
+}
+
+function schemaRequiredProperties(schema: Record<string, unknown>): string[] {
+  return Array.isArray(schema.required) ? schema.required.filter((property): property is string => typeof property === "string" && isMcpParameterName(property)) : [];
+}
+
+function mcpToolCategory(name: string): string {
+  return name.split("_")[0] || "other";
+}
+
+function isMcpToolName(value: string): boolean {
+  return /^[A-Za-z][A-Za-z0-9_-]*$/.test(value);
+}
+
+function isMcpParameterName(value: string): boolean {
+  return /^[A-Za-z_$][A-Za-z0-9_$.-]*$/.test(value);
+}
+
+function oneLine(text: string, maxChars: number): string {
+  const compact = text.replace(/\s+/g, " ").trim();
+  return compact.length <= maxChars ? compact : `${compact.slice(0, maxChars - 1)}…`;
 }
 
 export function reduceTableOutput(text: string): { candidate: ProcessingReducerCandidate; result?: ProcessingReducerResult } {

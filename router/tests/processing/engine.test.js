@@ -31,6 +31,15 @@ function tableSample() {
   ].join("\n");
 }
 
+function mcpToolsSample() {
+  return JSON.stringify([
+    { name: "search_codebase", description: "Search code", inputSchema: { type: "object", properties: { pattern: { type: "string" }, path: { type: "string" } }, required: ["pattern"] } },
+    { name: "git_status", description: "Git status", inputSchema: { type: "object", properties: {}, required: [] } },
+    { name: "git_diff", description: "Git diff", inputSchema: { type: "object", properties: { cached: { type: "boolean" } }, required: [] } },
+    { name: "typecheck", description: "Run typecheck", inputSchema: { type: "object", properties: {}, required: [] } },
+  ]);
+}
+
 function buildOutputSample() {
   return [
     "  ▲ Next.js 15.1.0",
@@ -186,6 +195,25 @@ test("processing engine selects table reducer for explicit processing calls", as
     assert.equal(result.visibleText.split("\n")[0], "rows: 4");
     assert.match(result.visibleText, /status: success:2, error:1, timeout:1/);
     assert.match(result.visibleText, /duration_ms\.max: 34000/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("processing engine selects mcp-tools reducer for explicit processing calls", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-processing-mcp-tools-"));
+  try {
+    await writeFile(join(root, "mcp-tools.json"), mcpToolsSample(), "utf8");
+
+    const result = await processSource({ kind: "repo-file", root, path: "mcp-tools.json" });
+
+    assert.equal(result.status, "ok");
+    assert.equal(result.reducer.status, "selected");
+    assert.equal(result.reducer.selected.name, "mcp-tools");
+    assert.equal(result.visibleText.split("\n")[0], "tools: 4");
+    assert.match(result.visibleText, /categories: git:2/);
+    assert.match(result.visibleText, /typecheck:1/);
+    assert.match(result.visibleText, /search_codebase\(pattern, path\?\)/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
