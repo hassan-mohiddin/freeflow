@@ -391,7 +391,7 @@ test("Pi extension public freeflow_derive executes against vaulted output", asyn
 
     const visibleText = result.content[0].text;
     const routed = result.details.result;
-    assert.match(visibleText, /freeflow_derive routed/);
+    assert.match(visibleText, /freeflow_derive\|routed/);
     assert.match(visibleText, /regexFilter/);
     assert.doesNotMatch(visibleText, /^\s*\{/);
     assert.ok(Buffer.byteLength(visibleText, "utf8") < Buffer.byteLength(JSON.stringify(routed, null, 2), "utf8"));

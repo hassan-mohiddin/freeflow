@@ -13,115 +13,51 @@ export function routedToolText(result) {
 }
 
 export function compactBatchToolText(result) {
-  const header = [
-    `freeflow_batch ${result?.routing?.status ?? result?.toolStatus ?? "unknown"}`,
-    `steps=${result?.stepCount ?? 0}`,
-    `ok=${result?.okCount ?? 0}`,
-    `failed=${result?.failedCount ?? 0}`,
-    `concurrency=${result?.concurrency ?? "?"}`,
-  ];
-  const lines = [header.join(" · ")];
+  const lines = [row("freeflow_batch", result?.routing?.status ?? result?.toolStatus ?? "unknown", `steps=${result?.stepCount ?? 0}`, `ok=${result?.okCount ?? 0}`, `failed=${result?.failedCount ?? 0}`, `c=${result?.concurrency ?? "?"}`)];
   if (result?.summary) {
-    lines.push(`summary: ${truncateText(result.summary, 220)}`);
+    lines.push(row("s", truncateRawLine(result.summary, 220)));
   } else if (result?.routing?.reason) {
-    lines.push(`reason: ${truncateText(result.routing.reason, 220)}`);
+    lines.push(row("why", truncateRawLine(result.routing.reason, 220)));
   }
 
   const queries = Array.isArray(result?.queries) ? result.queries : [];
   queries.slice(0, 5).forEach((answer) => {
-    lines.push(`answer: ${truncateText(answer?.summary ?? answer?.query ?? "query", 260)}`);
+    lines.push(row("q", answer?.status ?? "query", truncateRawLine(answer?.query ?? "query", 120), truncateRawLine(answer?.summary ?? "", 700)));
   });
-  const omittedQueries = queries.length - Math.min(queries.length, 5);
-  if (omittedQueries > 0) {
-    lines.push(`… ${omittedQueries} more query answer(s); see details.result.queries`);
-  }
+  appendOmittedRow(lines, "q", queries.length, 5, "details.result.queries");
 
   const steps = Array.isArray(result?.steps) ? result.steps : [];
-  steps.slice(0, 8).forEach((step) => {
-    lines.push(compactBatchStepLine(step));
-  });
-  const omitted = steps.length - Math.min(steps.length, 8);
-  if (omitted > 0) {
-    lines.push(`… ${omitted} more step(s); see details.result.steps`);
-  }
-  lines.push(queries.length > 0 ? "details: full child results and query matches are available in details.result / TUI" : "details: full child results are available in details.result.steps / TUI");
+  steps.slice(0, 8).forEach((step) => lines.push(compactBatchStepLine(step)));
+  appendOmittedRow(lines, "step", steps.length, 8, "details.result.steps");
+  lines.push(row("details", queries.length > 0 ? "details.result steps+queries" : "details.result.steps"));
   return lines.join("\n");
 }
 
 export function compactRunToolText(result) {
   const executionStatus = result?.execution?.status ?? result?.toolStatus ?? "unknown";
   const outputId = result?.outputId ?? result?.recovery?.outputId;
-  const headerParts = [`freeflow_run ${executionStatus}`];
-
-  if (result?.execution?.exitCode !== undefined && result?.execution?.exitCode !== null) {
-    headerParts.push(`exit=${result.execution.exitCode}`);
-  }
-  if (result?.routing?.status) {
-    headerParts.push(`routing=${result.routing.status}`);
-  }
-  if (result?.parser?.name) {
-    headerParts.push(`parser=${result.parser.name}`);
-  }
+  const header = ["freeflow_run", executionStatus];
+  if (result?.execution?.exitCode !== undefined && result?.execution?.exitCode !== null) header.push(`exit=${result.execution.exitCode}`);
+  if (result?.routing?.status) header.push(`route=${result.routing.status}`);
+  if (result?.parser?.name) header.push(`parser=${result.parser.name}`);
   const counts = compactParserCounts(result?.parser?.counts);
-  if (counts) {
-    headerParts.push(counts);
-  }
-  if (outputId) {
-    headerParts.push(`${result?.persistence?.recoverability === "exact" ? "raw" : "metadata"}=${outputId}`);
-  }
-  if (result?.persistence?.recoverability !== "exact" && result?.recovery?.outputId) {
-    headerParts.push(`exact=${result.recovery.outputId}`);
-  }
-  if (result?.scriptFilter?.outputId) {
-    headerParts.push(`derived=${result.scriptFilter.outputId}`);
-  }
+  if (counts) header.push(counts);
+  if (outputId) header.push(`${result?.persistence?.recoverability === "exact" ? "raw" : "metadata"}=${outputId}`);
+  if (result?.persistence?.recoverability !== "exact" && result?.recovery?.outputId) header.push(`exact=${result.recovery.outputId}`);
+  if (result?.scriptFilter?.outputId) header.push(`derived=${result.scriptFilter.outputId}`);
 
-  const lines = [headerParts.join(" · ")];
-  if (result?.summary) {
-    lines.push(`summary: ${truncateText(result.summary, 220)}`);
-  }
+  const lines = [row(...header)];
+  if (result?.summary) lines.push(row("s", truncateRawLine(result.summary, 220)));
   const filterText = compactRunFilterText(result?.filters);
-  if (filterText) {
-    lines.push(`filters: ${filterText}`);
-  }
+  if (filterText) lines.push(row("filter", filterText));
   const scriptFilterText = compactRunScriptFilterText(result?.scriptFilter);
-  if (scriptFilterText) {
-    lines.push(`scriptFilter: ${scriptFilterText}`);
-  }
+  if (scriptFilterText) lines.push(row("script", scriptFilterText));
 
   const importantLines = Array.isArray(result?.importantLines) ? result.importantLines : [];
-  importantLines.slice(0, 3).forEach((line) => {
-    const stream = line?.stream ?? "stream";
-    const lineRange = line?.lines ?? "?";
-    lines.push(`evidence ${stream}:${lineRange}:`);
-    const excerptLines = splitLines(String(line?.excerpt ?? ""));
-    const shown = excerptLines.slice(0, 4);
-    shown.forEach((excerptLine) => lines.push(`  ${truncateRawLine(excerptLine, 220)}`));
-    const omitted = excerptLines.length - shown.length;
-    if (omitted > 0) {
-      lines.push(`  … ${omitted} more line(s); use raw recovery for exact output`);
-    }
-  });
-  const omittedSpans = importantLines.length - Math.min(importantLines.length, 3);
-  if (omittedSpans > 0) {
-    lines.push(`… ${omittedSpans} more important span(s); see details.result`);
-  }
-
-  const firstImportantLine = importantLines[0];
-  const exactRecoveryOutputId = result?.scriptFilter?.outputId ?? (result?.persistence?.recoverability === "exact" ? outputId : result?.recovery?.outputId);
-  const evidenceStream = result?.scriptFilter?.outputId ? "raw" : firstImportantLine?.stream ?? "combined";
-  if (exactRecoveryOutputId && firstImportantLine?.lines) {
-    lines.push(`recover exact span: freeflow_retrieve action=retrieve source.kind=vault lineRange=${firstImportantLine.lines} stream=${evidenceStream} outputId=${exactRecoveryOutputId}`);
-    if (result?.scriptFilter?.outputId && outputId) {
-      lines.push(`recover raw command: freeflow_retrieve source.kind=vault outputId=${outputId} (choose stream + lineRange, or query/expand)`);
-    }
-  } else if (result?.persistence?.recoverability === "exact" && outputId) {
-    lines.push(`recover starting point: freeflow_retrieve source.kind=vault outputId=${outputId} (choose stream + lineRange, or query/expand)`);
-  } else if (result?.recovery?.how) {
-    lines.push(`recover: ${truncateText(result.recovery.how, 220)}`);
-  }
-  lines.push("details: full structured result is available in details.result / TUI");
-
+  importantLines.slice(0, 3).forEach((line) => appendExcerptRows(lines, "p", `${line?.stream ?? "stream"}:${line?.lines ?? "?"}`, line?.excerpt, 4));
+  appendOmittedRow(lines, "p", importantLines.length, 3, "details.result");
+  appendRunRecoveryRow(lines, result, outputId, importantLines[0]);
+  lines.push(row("details", "details.result"));
   return lines.join("\n");
 }
 
@@ -129,24 +65,15 @@ export function compactRetrieveToolText(result) {
   const routeStatus = result?.routing?.status ?? result?.toolStatus ?? "unknown";
   const evidence = Array.isArray(result?.evidence) ? result.evidence : [];
   const source = compactSourceLabel(result?.source ?? evidence[0]?.source);
-  const headerParts = [`freeflow_retrieve ${routeStatus}`];
-  if (source) {
-    headerParts.push(source);
-  }
-  headerParts.push(`${evidence.length} evidence`);
-  if (result?.recovery?.outputId) {
-    headerParts.push(`output=${result.recovery.outputId}`);
-  }
-
-  const lines = [headerParts.join(" · ")];
+  const lines = [row("freeflow_retrieve", routeStatus, source, `e=${evidence.length}`, result?.recovery?.outputId ? `out=${result.recovery.outputId}` : "")];
   if (result?.failure?.message) {
-    lines.push(`failure: ${truncateText(result.failure.message, 220)}`);
+    lines.push(row("fail", truncateRawLine(result.failure.message, 220)));
   } else if (result?.routing?.reason) {
-    lines.push(`reason: ${truncateText(result.routing.reason, 220)}`);
+    lines.push(row("why", truncateRawLine(result.routing.reason, 220)));
   }
-  appendCompactEvidence(lines, evidence, 3);
-  appendCompactRecovery(lines, result?.recovery, evidence, result?.recovery?.outputId);
-  lines.push("details: full structured result is available in details.result / TUI");
+  appendEvidenceRows(lines, evidence, 3, 4);
+  appendRecoveryRow(lines, result?.recovery, evidence, result?.recovery?.outputId);
+  lines.push(row("details", "details.result"));
   return lines.join("\n");
 }
 
@@ -156,54 +83,105 @@ export function compactDeriveToolText(result) {
   const evidence = Array.isArray(result?.evidence) ? result.evidence : [];
   const operation = compactOperationLabel(result?.operation ?? { kind: result?.producer?.name });
   const outputId = result?.outputId ?? result?.recovery?.outputId;
-  const headerParts = [`freeflow_derive ${routeStatus}`, operation];
   const source = compactSourceLabel(result?.source);
-  if (source) {
-    headerParts.push(source);
-  }
-  if (outputId) {
-    headerParts.push(`output=${outputId}`);
-  }
-
-  const lines = [headerParts.join(" · ")];
+  const lines = [row("freeflow_derive", routeStatus, operation, source, outputId ? `out=${outputId}` : "")];
   if (result?.failure?.message) {
-    lines.push(`failure: ${truncateText(result.failure.message, 220)}`);
+    lines.push(row("fail", truncateRawLine(result.failure.message, 220)));
   } else if (result?.summary) {
-    lines.push(`summary: ${truncateText(result.summary, 220)}`);
+    lines.push(row("s", truncateRawLine(result.summary, 220)));
   } else if (result?.routing?.reason) {
-    lines.push(`reason: ${truncateText(result.routing.reason, 220)}`);
+    lines.push(row("why", truncateRawLine(result.routing.reason, 220)));
   }
-  appendCompactEvidence(lines, evidence, 3);
-  appendCompactRecovery(lines, result?.recovery, evidence, outputId);
-  lines.push("details: full structured result is available in details.result / TUI");
+  appendEvidenceRows(lines, evidence, 3, 4);
+  appendRecoveryRow(lines, result?.recovery, evidence, outputId);
+  lines.push(row("details", "details.result"));
   return lines.join("\n");
+}
+
+function row(...fields) {
+  return fields.filter((field) => field !== undefined && field !== null && String(field).length > 0).map(escapeRowField).join("|");
+}
+
+function escapeRowField(value) {
+  return String(value ?? "").replace(/\r?\n/g, " ").replace(/\|/g, "¦");
+}
+
+function appendOmittedRow(lines, tag, total, shown, target) {
+  const omitted = total - Math.min(total, shown);
+  if (omitted > 0) {
+    lines.push(row("more", tag, omitted, target));
+  }
+}
+
+function appendExcerptRows(lines, tag, label, excerpt, maxLines) {
+  lines.push(row(tag, label));
+  const excerptLines = splitLines(String(excerpt ?? ""));
+  excerptLines.slice(0, maxLines).forEach((excerptLine) => lines.push(row(">", truncateRawLine(excerptLine, 220))));
+  appendOmittedRow(lines, ">", excerptLines.length, maxLines, "details.result");
+}
+
+function appendEvidenceRows(lines, evidence, maxPackets, maxLines) {
+  evidence.slice(0, maxPackets).forEach((packet, index) => {
+    const match = packet?.match ? `${packet.match.type}:${Number(packet.match.confidence ?? 0).toFixed(2)}` : "";
+    lines.push(row("e", index + 1, compactEvidenceLabel(packet), match));
+    splitLines(String(packet?.excerpt ?? "")).slice(0, maxLines).forEach((excerptLine) => lines.push(row(">", truncateRawLine(excerptLine, 220))));
+    appendOmittedRow(lines, ">", splitLines(String(packet?.excerpt ?? "")).length, maxLines, "details.result");
+  });
+  appendOmittedRow(lines, "e", evidence.length, maxPackets, "details.result");
+}
+
+function appendRunRecoveryRow(lines, result, outputId, firstImportantLine) {
+  const exactRecoveryOutputId = result?.scriptFilter?.outputId ?? (result?.persistence?.recoverability === "exact" ? outputId : result?.recovery?.outputId);
+  const evidenceStream = result?.scriptFilter?.outputId ? "raw" : firstImportantLine?.stream ?? "combined";
+  if (exactRecoveryOutputId && firstImportantLine?.lines) {
+    lines.push(row("rec", "vault", exactRecoveryOutputId, evidenceStream, firstImportantLine.lines));
+    if (result?.scriptFilter?.outputId && outputId) {
+      lines.push(row("raw", outputId));
+    }
+    return;
+  }
+  if (result?.persistence?.recoverability === "exact" && outputId) {
+    lines.push(row("rec", "vault", outputId));
+    return;
+  }
+  if (result?.recovery?.how) {
+    lines.push(row("rec", truncateRawLine(result.recovery.how, 160)));
+  }
+}
+
+function appendRecoveryRow(lines, recovery, evidence, fallbackOutputId) {
+  const first = Array.isArray(evidence) ? evidence.find((packet) => packet?.lines) : undefined;
+  if (first?.source?.kind === "vault" && first.source.outputId && first.lines) {
+    lines.push(row("rec", "vault", first.source.outputId, first.source.stream ?? "raw", first.lines));
+    return;
+  }
+  if (first?.source?.kind === "repo" && (first.path || first.source.path) && first.lines) {
+    lines.push(row("rec", "repo", `${first.path ?? first.source.path}:${first.lines}`));
+    return;
+  }
+  const outputId = recovery?.outputId ?? fallbackOutputId;
+  if (outputId) {
+    lines.push(row("rec", "vault", outputId));
+    return;
+  }
+  if (recovery?.how) {
+    lines.push(row("rec", truncateRawLine(recovery.how, 160)));
+  }
 }
 
 function compactBatchStepLine(step) {
   const result = step?.result;
-  const parts = [`#${Number(step?.index ?? 0) + 1}`, step?.id ?? "step", step?.kind ?? "step", step?.status ?? "unknown"];
-  if (result?.routing?.status) {
-    parts.push(`routing=${result.routing.status}`);
-  }
-  if (step?.durationMs !== undefined) {
-    parts.push(`${step.durationMs}ms`);
-  }
-  if (result?.outputId) {
-    parts.push(`output=${result.outputId}`);
-  } else if (result?.recovery?.outputId) {
-    parts.push(`output=${result.recovery.outputId}`);
-  }
-  if (Array.isArray(result?.evidence)) {
-    parts.push(`evidence=${result.evidence.length}`);
-  }
-  if (Array.isArray(result?.importantLines)) {
-    parts.push(`spans=${result.importantLines.length}`);
-  }
-  if (result?.execution?.status) {
-    parts.push(`execution=${result.execution.status}`);
-  }
+  const outputId = result?.outputId ?? result?.recovery?.outputId;
+  const parts = ["step", Number(step?.index ?? 0) + 1, step?.id ?? "step", step?.kind ?? "step", step?.status ?? "unknown"];
+  if (result?.routing?.status) parts.push(`route=${result.routing.status}`);
+  if (step?.durationMs !== undefined) parts.push(`${step.durationMs}ms`);
+  if (outputId) parts.push(`out=${outputId}`);
+  if (Array.isArray(result?.evidence)) parts.push(`e=${result.evidence.length}`);
+  if (Array.isArray(result?.importantLines)) parts.push(`p=${result.importantLines.length}`);
+  if (result?.execution?.status) parts.push(`exec=${result.execution.status}`);
   const message = step?.error ?? result?.failure?.message ?? result?.summary;
-  return message ? `${parts.join(" · ")} — ${truncateText(message, 160)}` : parts.join(" · ");
+  if (message) parts.push(truncateRawLine(message, 160));
+  return row(...parts);
 }
 
 function compactRunFilterText(filters) {
@@ -253,45 +231,6 @@ function compactRunScriptFilterText(scriptFilter) {
     parts.push(`failure=${scriptFilter.failure.kind}`);
   }
   return parts.join(" ");
-}
-
-function appendCompactEvidence(lines, evidence, maxPackets) {
-  evidence.slice(0, maxPackets).forEach((packet, index) => {
-    const label = compactEvidenceLabel(packet);
-    const match = packet?.match ? ` match=${packet.match.type}:${Number(packet.match.confidence ?? 0).toFixed(2)}` : "";
-    lines.push(`evidence #${index + 1} ${label}${match}:`);
-    const excerptLines = splitLines(String(packet?.excerpt ?? ""));
-    const shown = excerptLines.slice(0, 4);
-    shown.forEach((excerptLine) => lines.push(`  ${truncateRawLine(excerptLine, 220)}`));
-    const omitted = excerptLines.length - shown.length;
-    if (omitted > 0) {
-      lines.push(`  … ${omitted} more line(s); use recovery for exact context`);
-    }
-  });
-  const omittedPackets = evidence.length - Math.min(evidence.length, maxPackets);
-  if (omittedPackets > 0) {
-    lines.push(`… ${omittedPackets} more evidence packet(s); see details.result`);
-  }
-}
-
-function appendCompactRecovery(lines, recovery, evidence, fallbackOutputId) {
-  const first = Array.isArray(evidence) ? evidence.find((packet) => packet?.lines) : undefined;
-  if (first?.source?.kind === "vault" && first.source.outputId && first.lines) {
-    lines.push(`recover exact span: freeflow_retrieve action=retrieve source.kind=vault lineRange=${first.lines} stream=${first.source.stream ?? "raw"} outputId=${first.source.outputId}`);
-    return;
-  }
-  if (first?.source?.kind === "repo" && (first.path || first.source.path) && first.lines) {
-    lines.push(`recover exact span: freeflow_retrieve action=retrieve source.kind=repo lineRange=${first.lines} path=${first.path ?? first.source.path}`);
-    return;
-  }
-  const outputId = recovery?.outputId ?? fallbackOutputId;
-  if (outputId) {
-    lines.push(`recover starting point: freeflow_retrieve source.kind=vault outputId=${outputId} (choose stream + lineRange, or query/expand)`);
-    return;
-  }
-  if (recovery?.how) {
-    lines.push(`recover: ${truncateText(recovery.how, 220)}`);
-  }
 }
 
 function compactEvidenceLabel(packet) {

@@ -766,11 +766,11 @@ test("Pi freeflow_run returns compact model-visible text with full structured de
     const visibleText = result.content[0].text;
     const detailsText = JSON.stringify(result.details.result, null, 2);
 
-    assert.match(visibleText, /freeflow_run failed/);
+    assert.match(visibleText, /freeflow_run\|failed/);
     assert.match(visibleText, /exit=1/);
     assert.match(visibleText, /raw=ffout_/);
     assert.match(visibleText, /STACK_BENCH_MARKER exact failure line/);
-    assert.match(visibleText, /recover exact span: freeflow_retrieve action=retrieve source.kind=vault lineRange=1-3 stream=stderr outputId=ffout_/);
+    assert.match(visibleText, /rec\|vault\|ffout_[^|]+\|stderr\|1-3/);
     assert.match(visibleText, /details\.result/);
     assert.doesNotMatch(visibleText, /^\s*\{/);
     assert.ok(Buffer.byteLength(visibleText, "utf8") < Buffer.byteLength(detailsText, "utf8"));
@@ -844,7 +844,7 @@ test("Pi freeflow_batch returns compact summary and preserves child details", as
     const separateVisible = `${separateOne.content[0].text}\n${separateTwo.content[0].text}`;
     const visibleText = batch.content[0].text;
 
-    assert.match(visibleText, /freeflow_batch routed/);
+    assert.match(visibleText, /freeflow_batch\|routed/);
     assert.match(visibleText, /steps=2/);
     assert.match(visibleText, /details\.result\.steps/);
     assert.doesNotMatch(visibleText, /^\s*\{/);
@@ -917,7 +917,7 @@ test("Pi freeflow_batch accepts queries and renders compact answers", async () =
     );
 
     const visibleText = batch.content[0].text;
-    assert.match(visibleText, /answer:/);
+    assert.match(visibleText, /q\|answered\|BATCH_QUERY_VISIBLE_FACT_99/);
     assert.match(visibleText, /BATCH_QUERY_VISIBLE_FACT_99/);
     assert.equal(batch.details.result.queries[0].status, "answered");
 
@@ -973,8 +973,8 @@ test("Pi freeflow_run uses outputRouter thresholds and vault root from repo conf
     const visibleText = result.content[0].text;
     const payload = result.details.result;
 
-    assert.match(visibleText, /freeflow_run success/);
-    assert.match(visibleText, /routing=partial/);
+    assert.match(visibleText, /freeflow_run\|success/);
+    assert.match(visibleText, /route=partial/);
     assert.match(visibleText, /raw=ffout_/);
     assert.doesNotMatch(visibleText, /^\s*\{/);
     assert.equal(payload.toolStatus, "ok");
@@ -1022,7 +1022,7 @@ test("Pi freeflow_retrieve applies configured generated path hints", async () =>
     );
     const broadVisible = broad.content[0].text;
     const broadPayload = broad.details.result;
-    assert.match(broadVisible, /freeflow_retrieve routed/);
+    assert.match(broadVisible, /freeflow_retrieve\|routed/);
     assert.doesNotMatch(broadVisible, /^\s*\{/);
     assert.ok(Buffer.byteLength(broadVisible, "utf8") < Buffer.byteLength(JSON.stringify(broadPayload, null, 2), "utf8"));
     assert.equal(broadPayload.evidence[0].path, "target.md");
@@ -1086,7 +1086,7 @@ test("Pi freeflow_retrieve supports vault-wide query without outputId", async ()
     );
     const visibleText = result.content[0].text;
     const payload = result.details.result;
-    assert.match(visibleText, /freeflow_retrieve routed/);
+    assert.match(visibleText, /freeflow_retrieve\|routed/);
     assert.match(visibleText, /PI_VAULT_WIDE_TARGET/);
     assert.doesNotMatch(visibleText, /^\s*\{/);
     assert.equal(payload.toolStatus, "ok");
