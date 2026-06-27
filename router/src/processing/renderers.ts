@@ -4,6 +4,7 @@ import type {
   ProcessingSourceDescriptor,
   ProcessingSourceStats,
   ReducerSelectionResult,
+  ScriptPolicySelectionResult,
 } from "./engine.js";
 
 export type ProcessingRecoveryClass = "exact-result" | "exact-source" | "metadata-only" | "hint-only" | "none";
@@ -15,6 +16,7 @@ export interface ProcessingRenderInput {
   maxVisibleBytes: number;
   stats?: ProcessingSourceStats;
   reducer?: ReducerSelectionResult;
+  script?: ScriptPolicySelectionResult;
   recovery?: RecoveryHint;
   persistence?: EvidencePersistence;
   recoveryClass?: ProcessingRecoveryClass;
@@ -54,10 +56,18 @@ export function classifyProcessingRecovery(input: {
 
 function renderOkLines(input: ProcessingRenderInput): string[] {
   const recoveryClass = recoveryClassForInput(input);
-  const visibleFacts = visibleFactLines(input.facts, input.reducer);
+  const scriptLines = scriptOutputLines(input.script);
+  const visibleFacts = scriptLines.length > 0 ? scriptLines : visibleFactLines(input.facts, input.reducer);
   const lines = visibleFacts.length > 0 ? visibleFacts : [`status: ${input.status}`];
   lines.push(`source: ${sourcePointer(input.source, input.stats)}`);
   lines.push(`recovery: ${recoveryClass}`);
+  if (input.script?.status === "executed") {
+    lines.push(`script: ${input.script.language} sandboxed adapter=${input.script.adapterId}`);
+  } else if (input.script?.status === "unavailable") {
+    lines.push(`script: unavailable; reducer fallback; no host fallback`);
+  } else if (input.script?.status === "failed") {
+    lines.push(`script: failed; no host fallback`);
+  }
   if (input.reducer?.status === "selected") {
     lines.push(`reducer: ${input.reducer.selected.name}@${input.reducer.selected.version} confidence=${input.reducer.selected.confidence.toFixed(2)}`);
   }
@@ -85,6 +95,17 @@ function recoveryClassForInput(input: ProcessingRenderInput): ProcessingRecovery
     ...(input.recovery !== undefined ? { recovery: input.recovery } : {}),
     ...(input.persistence !== undefined ? { persistence: input.persistence } : {}),
   });
+}
+
+function scriptOutputLines(script: ScriptPolicySelectionResult | undefined): string[] {
+  if (script?.status !== "executed") {
+    return [];
+  }
+  const lines = script.outputText.split(/\r?\n/).filter((line) => line.trim().length > 0);
+  if (lines.length > 0) {
+    return lines;
+  }
+  return [`script.stdoutBytes: ${script.stdoutBytes}`];
 }
 
 function visibleFactLines(facts: readonly ProcessingFact[], reducer: ReducerSelectionResult | undefined): string[] {

@@ -1,5 +1,7 @@
 import { type ProcessingReducerSelection } from "./reducers.js";
-import type { EvidenceLineage, EvidencePersistence, OutputStream, RecoveryHint, SourceRef, VaultRetentionPolicy } from "../config/types.js";
+import { type ProcessingScriptRequest, type ProcessingScriptResult } from "./scripts.js";
+import type { EvidenceLineage, EvidencePersistence, OutputStream, RecoveryHint, ScriptDeriveConfig, SourceRef, VaultRetentionPolicy } from "../config/types.js";
+import type { ScriptSandboxAdapter } from "../sandbox/script-sandbox.js";
 export declare const PROCESSING_ENGINE_IMPLEMENTATION = "processing-engine-skeleton-v1";
 export interface ProcessingLimits {
     maxSourceBytes: number;
@@ -10,6 +12,9 @@ export interface ProcessingEngineOptions {
     vaultRoot?: string;
     vaultRetention?: VaultRetentionPolicy;
     limits?: Partial<ProcessingLimits>;
+    script?: ProcessingScriptRequest;
+    scriptDerive?: ScriptDeriveConfig;
+    scriptSandboxAdapters?: readonly ScriptSandboxAdapter[];
 }
 export interface RepoFileProcessingSource {
     kind: "repo-file";
@@ -70,10 +75,7 @@ export interface ProcessingFact {
     value: string | number | boolean;
 }
 export type ReducerSelectionResult = ProcessingReducerSelection;
-export interface ScriptPolicySelectionResult {
-    status: "not_configured";
-    reason: string;
-}
+export type ScriptPolicySelectionResult = ProcessingScriptResult;
 export interface ProcessingResultBase {
     implementation: typeof PROCESSING_ENGINE_IMPLEMENTATION;
     source: ProcessingSourceDescriptor;

@@ -5,8 +5,16 @@ import { relative } from "node:path";
 import { resolveRepoPath } from "../repo/repo-traversal.js";
 import { renderProcessingResult, classifyProcessingRecovery } from "./renderers.js";
 import { selectProcessingReducer, type ProcessingReducerSelection } from "./reducers.js";
+import {
+  processingScriptNotConfigured,
+  processingScriptUnavailableForUnloadedSource,
+  runProcessingScript,
+  type ProcessingScriptRequest,
+  type ProcessingScriptResult,
+} from "./scripts.js";
 import { createVault, readOutputText, readVaultRecord, storeRepoFileReference, storeTextOutput } from "../vault/vault.js";
-import type { EvidenceLineage, EvidencePersistence, OutputStream, RecoveryHint, SourceRef, VaultRecord, VaultRetentionPolicy } from "../config/types.js";
+import type { EvidenceLineage, EvidencePersistence, OutputStream, RecoveryHint, ScriptDeriveConfig, SourceRef, VaultRecord, VaultRetentionPolicy } from "../config/types.js";
+import type { ScriptSandboxAdapter } from "../sandbox/script-sandbox.js";
 
 export const PROCESSING_ENGINE_IMPLEMENTATION = "processing-engine-skeleton-v1";
 
@@ -20,6 +28,9 @@ export interface ProcessingEngineOptions {
   vaultRoot?: string;
   vaultRetention?: VaultRetentionPolicy;
   limits?: Partial<ProcessingLimits>;
+  script?: ProcessingScriptRequest;
+  scriptDerive?: ScriptDeriveConfig;
+  scriptSandboxAdapters?: readonly ScriptSandboxAdapter[];
 }
 
 export interface RepoFileProcessingSource {
@@ -93,10 +104,7 @@ export interface ProcessingFact {
 
 export type ReducerSelectionResult = ProcessingReducerSelection;
 
-export interface ScriptPolicySelectionResult {
-  status: "not_configured";
-  reason: string;
-}
+export type ScriptPolicySelectionResult = ProcessingScriptResult;
 
 export interface ProcessingResultBase {
   implementation: typeof PROCESSING_ENGINE_IMPLEMENTATION;
@@ -155,7 +163,9 @@ export async function processSource(
   const loaded = await loadProcessingSource(source, options);
   const limits = normalizeLimits(options.limits);
   const reducer = notSelectedReducer("Source was not loaded; reducer selection was skipped.");
-  const script = selectScriptPolicySkeleton();
+  const script = options.script
+    ? processingScriptUnavailableForUnloadedSource(options.script, "Source was not loaded; script processing was skipped.")
+    : processingScriptNotConfigured();
 
   if (loaded.status === "blocked") {
     return {
@@ -196,7 +206,17 @@ export async function processSource(
     };
   }
 
-  const selectedReducer = selectProcessingReducer({ text: loaded.text });
+  const selectedScript = options.script
+    ? await runProcessingScript({
+        loaded,
+        script: options.script,
+        ...(options.scriptDerive !== undefined ? { scriptDerive: options.scriptDerive } : {}),
+        ...(options.scriptSandboxAdapters !== undefined ? { adapters: options.scriptSandboxAdapters } : {}),
+      })
+    : processingScriptNotConfigured();
+  const selectedReducer = selectedScript.status === "executed"
+    ? notSelectedReducer("Sandboxed script processing produced output; reducer selection was skipped.")
+    : selectProcessingReducer({ text: loaded.text });
   const facts = selectedReducer.status === "selected" ? [...selectedReducer.result.facts, ...sourceFacts(loaded)] : sourceFacts(loaded);
   const visibleText = renderProcessingResult({
     status: "ok",
@@ -204,6 +224,7 @@ export async function processSource(
     stats: loaded.stats,
     facts,
     reducer: selectedReducer,
+    script: selectedScript,
     ...(loaded.recovery !== undefined ? { recovery: loaded.recovery } : {}),
     ...(loaded.persistence !== undefined ? { persistence: loaded.persistence } : {}),
     recoveryClass: classifyProcessingRecovery({
@@ -213,7 +234,16 @@ export async function processSource(
     }),
     maxVisibleBytes: limits.maxVisibleBytes,
   });
-  const persisted = await persistProcessingVisibleText(visibleText, loaded, options);
+  const persisted = await persistProcessingResultText({
+    resultText: selectedScript.status === "executed" ? selectedScript.outputText : visibleText,
+    loaded,
+    options,
+    operation: selectedScript.status === "executed" ? `processing-script:${selectedScript.language}` : "processing-fact-summary",
+    producerName: selectedScript.status === "executed" ? `processing-script:${selectedScript.language}` : "processing-engine",
+    operationHashSeed: selectedScript.status === "executed"
+      ? { source: loaded.source, stats: loaded.stats, script: { language: selectedScript.language, codeHashSha256: selectedScript.codeHashSha256 } }
+      : { source: loaded.source, stats: loaded.stats },
+  });
 
   const result: ProcessingOkResult = {
     implementation: PROCESSING_ENGINE_IMPLEMENTATION,
@@ -223,7 +253,7 @@ export async function processSource(
     visibleText,
     facts,
     reducer: selectedReducer,
-    script,
+    script: selectedScript,
   };
   const lineage = persisted.lineage ?? loaded.lineage;
   const persistence = persisted.persistence ?? loaded.persistence;
@@ -435,33 +465,36 @@ async function persistRepoFileReferenceIfRequested(input: {
   };
 }
 
-async function persistProcessingVisibleText(
-  visibleText: string,
-  loaded: LoadedProcessingSource,
-  options: ProcessingEngineOptions,
-): Promise<{ lineage?: EvidenceLineage; persistence?: EvidencePersistence; recovery?: RecoveryHint }> {
-  if (options.sessionId === undefined) {
+async function persistProcessingResultText(input: {
+  resultText: string;
+  loaded: LoadedProcessingSource;
+  options: ProcessingEngineOptions;
+  operation: string;
+  producerName: string;
+  operationHashSeed: unknown;
+}): Promise<{ lineage?: EvidenceLineage; persistence?: EvidencePersistence; recovery?: RecoveryHint }> {
+  if (input.options.sessionId === undefined) {
     return {};
   }
 
   const vaultOptions: { root?: string; retention?: VaultRetentionPolicy } = {};
-  if (options.vaultRoot !== undefined) {
-    vaultOptions.root = options.vaultRoot;
+  if (input.options.vaultRoot !== undefined) {
+    vaultOptions.root = input.options.vaultRoot;
   }
-  if (options.vaultRetention !== undefined) {
-    vaultOptions.retention = options.vaultRetention;
+  if (input.options.vaultRetention !== undefined) {
+    vaultOptions.retention = input.options.vaultRetention;
   }
   const lineage: EvidenceLineage = {
-    ...(loaded.lineage?.sourceRecordIds !== undefined ? { sourceRecordIds: loaded.lineage.sourceRecordIds } : {}),
-    ...(loaded.lineage?.sourceOutputIds !== undefined ? { sourceOutputIds: loaded.lineage.sourceOutputIds } : {}),
-    operation: "processing-fact-summary",
-    operationHash: sha256(JSON.stringify({ source: loaded.source, stats: loaded.stats })),
+    ...(input.loaded.lineage?.sourceRecordIds !== undefined ? { sourceRecordIds: input.loaded.lineage.sourceRecordIds } : {}),
+    ...(input.loaded.lineage?.sourceOutputIds !== undefined ? { sourceOutputIds: input.loaded.lineage.sourceOutputIds } : {}),
+    operation: input.operation,
+    operationHash: sha256(JSON.stringify(input.operationHashSeed)),
   };
   const record = await storeTextOutput(createVault(vaultOptions), {
-    sessionId: options.sessionId,
-    raw: visibleText,
+    sessionId: input.options.sessionId,
+    raw: input.resultText,
     sourceKind: "derive",
-    producer: { kind: "derive", name: "processing-engine" },
+    producer: { kind: "derive", name: input.producerName },
     persistence: { status: "vaulted", recoverability: "exact" },
     lineage,
   });
@@ -478,13 +511,6 @@ function notSelectedReducer(reason: string): ReducerSelectionResult {
     status: "not_selected",
     candidates: [],
     reason,
-  };
-}
-
-function selectScriptPolicySkeleton(): ScriptPolicySelectionResult {
-  return {
-    status: "not_configured",
-    reason: "Script processing is reserved for a later slice; no sandbox or host fallback runs in Slice 1.",
   };
 }
 

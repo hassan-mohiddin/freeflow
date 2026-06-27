@@ -1,5 +1,5 @@
 import type { EvidencePersistence, RecoveryHint } from "../config/types.js";
-import type { ProcessingFact, ProcessingSourceDescriptor, ProcessingSourceStats, ReducerSelectionResult } from "./engine.js";
+import type { ProcessingFact, ProcessingSourceDescriptor, ProcessingSourceStats, ReducerSelectionResult, ScriptPolicySelectionResult } from "./engine.js";
 export type ProcessingRecoveryClass = "exact-result" | "exact-source" | "metadata-only" | "hint-only" | "none";
 export interface ProcessingRenderInput {
     status: "ok" | "blocked" | "unavailable";
@@ -8,6 +8,7 @@ export interface ProcessingRenderInput {
     maxVisibleBytes: number;
     stats?: ProcessingSourceStats;
     reducer?: ReducerSelectionResult;
+    script?: ScriptPolicySelectionResult;
     recovery?: RecoveryHint;
     persistence?: EvidencePersistence;
     recoveryClass?: ProcessingRecoveryClass;
