@@ -12,7 +12,7 @@
       "description": "Conversation, workflow, and strict-workflow skills for coding agents.",
       "version": "0.2.0",
       "category": "development",
-      "source": "./plugins/freeflow",
+      "source": ".",
       "author": {
         "name": "Hassan Mohiddin"
       },

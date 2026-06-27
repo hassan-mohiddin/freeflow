@@ -368,7 +368,7 @@ local_delegate harness:
 Potential monorepo layout:
 
 ```text
-plugins/freeflow/
+
   skills/
   docs/
   evals/

@@ -1103,7 +1103,7 @@ Do not mix that with full tool-system or subagent internals. `run_turn` alone is
 The directory README is the canonical pass index and roadmap:
 
 ```text
-docs/research/codex-cli-agent-harness/README.md
+docs/codex-cli-agent-harness/README.md
 ```
 
 Completed in this artifact:

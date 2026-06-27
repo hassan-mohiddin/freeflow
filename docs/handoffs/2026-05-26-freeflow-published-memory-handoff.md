@@ -31,7 +31,7 @@ Re-enter clarification when new ambiguity would change the next action.
 
 ## Current Repository Shape
 
-The repo root is the public marketplace repository. The installable runtime is under `plugins/freeflow/`.
+The repo root is the public marketplace repository. The installable runtime is under the repo root.
 
 ```text
 freeflow/
@@ -43,7 +43,7 @@ freeflow/
   AGENTS.md
   CONTEXT.md
   docs/
-  plugins/freeflow/
+
     .codex-plugin/plugin.json
     .claude-plugin/plugin.json
     command-surface.json
@@ -54,9 +54,9 @@ freeflow/
 
 Root `docs/` is the main project documentation workspace for planning, current state, research, handoffs, and durable project decisions.
 
-`plugins/freeflow/docs/` is the refined user-facing plugin documentation that ships with the plugin runtime.
+`docs/` is the refined user-facing plugin documentation that ships with the plugin runtime.
 
-`plugins/freeflow/` is the single source of truth for runtime skills, references, evals, manifests, command-surface metadata, and plugin docs. Do not recreate a generated `packages/freeflow/` mirror.
+the repo root is the single source of truth for runtime skills, references, evals, manifests, command-surface metadata, and plugin docs. Do not recreate a generated `packages/freeflow/` mirror.
 
 ## How Publishing Works
 
@@ -75,13 +75,13 @@ Codex discovers Freeflow through:
 That marketplace points to:
 
 ```json
-"path": "./plugins/freeflow"
+"path": "."
 ```
 
 Codex then reads the plugin manifest at:
 
 ```text
-plugins/freeflow/.codex-plugin/plugin.json
+.codex-plugin/plugin.json
 ```
 
 Claude discovers Freeflow through:
@@ -93,16 +93,16 @@ Claude discovers Freeflow through:
 That marketplace also points to:
 
 ```text
-./plugins/freeflow
+.
 ```
 
 Claude then reads:
 
 ```text
-plugins/freeflow/.claude-plugin/plugin.json
+.claude-plugin/plugin.json
 ```
 
-The tested important detail: Codex did not discover an installable plugin when the marketplace source path was `"."`. It did discover the plugin when the source path was `"./plugins/freeflow"`.
+The tested important detail: Codex did not discover an installable plugin when the marketplace source path was `"."`. It did discover the plugin when the source path was `"."`.
 
 ## Current Git State
 
@@ -130,12 +130,12 @@ The plugin was cleaned into one runtime:
 
 - Kept root marketplace files for Codex and Claude.
 - Kept root README, license, changelog, project docs, `AGENTS.md`, and `CONTEXT.md`.
-- Moved the installable plugin runtime to `plugins/freeflow/`.
+- Moved the installable plugin runtime to the repo root.
 - Removed old duplicate/generated package mirrors.
 - Removed the old `packages/freeflow/` direction from current docs.
 - Kept root `docs/` as project memory and planning docs.
-- Kept `plugins/freeflow/docs/` as refined plugin-user docs.
-- Moved `command-surface.json` to `plugins/freeflow/command-surface.json`.
+- Kept `docs/` as refined plugin-user docs.
+- Moved `command-surface.json` to `command-surface.json`.
 - Updated `.gitignore` so generated eval runs are ignored while eval definitions, fixtures, scripts, and reports remain tracked.
 
 The README was rewritten around:
@@ -166,15 +166,15 @@ The `grill-context` behavior was corrected so questions come before recommendati
 Local verification passed after the single-runtime cleanup:
 
 ```text
-find plugins/freeflow .agents .claude-plugin -name '*.json' -print0 | xargs -0 -n1 jq empty
+find the repo root .agents .claude-plugin -name '*.json' -print0 | xargs -0 -n1 jq empty
 ```
 
 ```text
-python3 /Users/mohammedhassanmohiddin/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py plugins/freeflow
+python3 /Users/mohammedhassanmohiddin/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py the repo root
 ```
 
 ```text
-plugins/freeflow/evals/scripts/audit-command-surface.sh
+evals/scripts/audit-command-surface.sh
 ```
 
 Command-surface audit result:
@@ -190,14 +190,14 @@ git diff --check
 A temporary Codex marketplace test passed with the current layout:
 
 - Temporary marketplace pointed to a copy of the repo.
-- Marketplace source path used `./plugins/freeflow`.
+- Marketplace source path used `.`.
 - `codex plugin list` showed Freeflow as available under the temporary marketplace.
 - The temporary marketplace was removed afterward.
 
 Generated eval run output is ignored under:
 
 ```text
-plugins/freeflow/evals/runs/
+evals/runs/
 ```
 
 ## Current Install Commands
@@ -234,13 +234,13 @@ or:
 
 ## How To Make Changes Going Forward
 
-Treat `plugins/freeflow/` as the runtime source of truth.
+Treat the repo root as the runtime source of truth.
 
 For skill behavior changes:
 
-1. Edit the relevant `plugins/freeflow/skills/<skill>/SKILL.md`.
+1. Edit the relevant `skills/<skill>/SKILL.md`.
 2. Update or add a reference only if it prevents real drift or keeps the skill file short.
-3. Update `plugins/freeflow/command-surface.json` only if the command surface changes.
+3. Update `command-surface.json` only if the command surface changes.
 4. Add or update eval prompts/fixtures/registries when behavior changes materially.
 5. Add or update reports after running the relevant eval.
 6. Run JSON validation, plugin validation, command-surface audit, and `git diff --check`.
@@ -251,17 +251,17 @@ For skill behavior changes:
 For docs changes:
 
 - Use root `docs/` for project planning, current state, design notes, research, handoffs, and durable development decisions.
-- Use `plugins/freeflow/docs/` for refined user-facing plugin docs.
+- Use `docs/` for refined user-facing plugin docs.
 - Keep README short and install-focused.
 - Avoid duplicating long explanations across README, root docs, and plugin docs. Link instead.
 
 For publishing changes:
 
-- Keep `.agents/plugins/marketplace.json` pointing to `./plugins/freeflow`.
-- Keep `.claude-plugin/marketplace.json` pointing to `./plugins/freeflow`.
+- Keep `.agents/plugins/marketplace.json` pointing to `.`.
+- Keep `.claude-plugin/marketplace.json` pointing to `.`.
 - Keep plugin version in both manifests aligned:
-  - `plugins/freeflow/.codex-plugin/plugin.json`
-  - `plugins/freeflow/.claude-plugin/plugin.json`
+  - `.codex-plugin/plugin.json`
+  - `.claude-plugin/plugin.json`
 - Do not add native slash handlers unless the runtime truly supports them and evals cover them.
 - Do not add hooks or CLI enforcement until skill wording and evals prove enforcement is needed.
 

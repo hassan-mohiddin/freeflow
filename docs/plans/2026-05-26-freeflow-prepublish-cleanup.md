@@ -1,6 +1,6 @@
 # Freeflow Prepublish Cleanup Implementation Plan
 
-> **Superseded Layout Note:** This plan records the earlier `packages/freeflow/` packaging pass. The current release layout uses the repository root as the marketplace shell and `plugins/freeflow/` as the single plugin runtime; root `docs/` holds project docs and `plugins/freeflow/docs/` holds refined user-facing docs.
+> **Superseded Layout Note:** This plan records the earlier `packages/freeflow/` packaging pass. The current release layout uses the repository root as the marketplace shell and the repo root as the single plugin runtime; root `docs/` holds project docs and `docs/` holds refined user-facing docs.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -16,15 +16,15 @@
 
 - Modify: `docs/freeflow-packaging-and-publishing-design.md` to reflect approved dev-space identity.
 - Modify: `AGENTS.md`, `CONTEXT.md`, and current durable docs under `docs/` to use Freeflow as current identity.
-- Current dev plugin path: `plugins/freeflow/`.
-- Current setup skill path: `plugins/freeflow/skills/setup-freeflow/`.
+- Current dev plugin path: the repo root.
+- Current setup skill path: `skills/setup-freeflow/`.
 - Create: `packages/freeflow/` as the clean publishable package.
 - Create: `packages/freeflow/README.md`, `LICENSE`, `CHANGELOG.md`, `.codex-plugin/plugin.json`, `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`.
 - Create: `packages/freeflow/skills/workflow/references/workflow-map.md` with a simple full-pipeline diagram and backward loops.
 - Create: `spec-shapes`, `handoff templates`, and `approach-framing` references for the three previously recommended skills.
 - Modify: workflow skill to reference `references/workflow-map.md`.
-- Reorganize: `plugins/freeflow/evals/` into clearer registry/report/runbook structure while preserving fixtures and reports.
-- Update: scripts and docs that reference `plugins/freeflow`.
+- Reorganize: `evals/` into clearer registry/report/runbook structure while preserving fixtures and reports.
+- Update: scripts and docs that reference the repo root.
 
 ## Task 1: Update Design Commit For Approved Identity
 
@@ -66,17 +66,17 @@ Expected: commit succeeds.
 
 ## Task 2: Rename Development Plugin Path And Product Identity
 
-Status: completed. The dev plugin now lives at `plugins/freeflow/`, the setup skill is `setup-freeflow`, `.freeflow/config.json` is the setup config path, and tracked content no longer preserves the previous candidate identity.
+Status: completed. The dev plugin now lives at the repo root, the setup skill is `setup-freeflow`, `.freeflow/config.json` is the setup config path, and tracked content no longer preserves the previous candidate identity.
 
 **Files:**
-- Move: development plugin directory to `plugins/freeflow/`
-- Move: setup skill directory to `plugins/freeflow/skills/setup-freeflow/`
+- Move: development plugin directory to the repo root
+- Move: setup skill directory to `skills/setup-freeflow/`
 - Modify: scripts, docs, and manifests that referenced the previous dev path
 - Modify: `.gitignore`
 
 - [x] **Step 1: Move the plugin directory**
 
-Expected: Git records directory renames into `plugins/freeflow/`.
+Expected: Git records directory renames into the repo root.
 
 - [x] **Step 2: Update path references**
 
@@ -86,7 +86,7 @@ Rewrite old research, handoff, and report text too. The requirement is no previo
 
 - [x] **Step 3: Update gitignore**
 
-Expected: `.gitignore` ignores `plugins/freeflow/evals/runs/`.
+Expected: `.gitignore` ignores `evals/runs/`.
 
 - [x] **Step 4: Validate no previous identity references remain**
 
@@ -97,10 +97,10 @@ Expected: no tracked text keeps the previous candidate identity.
 Run:
 
 ```sh
-plugins/freeflow/evals/scripts/audit-command-surface.sh
+evals/scripts/audit-command-surface.sh
 ```
 
-Expected: audit passes using `plugins/freeflow`.
+Expected: audit passes using the repo root.
 
 - [x] **Step 6: Commit rename**
 
@@ -118,12 +118,12 @@ Expected: commit succeeds.
 Status: completed.
 
 **Files:**
-- Create: `plugins/freeflow/skills/workflow/references/workflow-map.md`
-- Modify: `plugins/freeflow/skills/workflow/SKILL.md`
+- Create: `skills/workflow/references/workflow-map.md`
+- Modify: `skills/workflow/SKILL.md`
 
 - [x] **Step 1: Create workflow map reference**
 
-Add `plugins/freeflow/skills/workflow/references/workflow-map.md`:
+Add `skills/workflow/references/workflow-map.md`:
 
 ````markdown
 # Freeflow Workflow Map
@@ -182,7 +182,7 @@ Expected: diagram is text-only and renders in GitHub Markdown.
 
 - [x] **Step 2: Link from workflow skill**
 
-In `plugins/freeflow/skills/workflow/SKILL.md`, add a concise line:
+In `skills/workflow/SKILL.md`, add a concise line:
 
 ```markdown
 Read `references/workflow-map.md` when the user asks for the full pipeline, public docs need a figure, or the next workflow entry point is unclear.
@@ -193,7 +193,7 @@ Read `references/workflow-map.md` when the user asks for the full pipeline, publ
 Run:
 
 ```sh
-wc -l plugins/freeflow/skills/workflow/SKILL.md
+wc -l skills/workflow/SKILL.md
 ```
 
 Expected: under 100 lines.
@@ -203,7 +203,7 @@ Expected: under 100 lines.
 Run:
 
 ```sh
-git add plugins/freeflow/skills/workflow
+git add skills/workflow
 git commit -m "Add Freeflow workflow map"
 ```
 
@@ -214,16 +214,16 @@ Expected: commit succeeds.
 Status: completed.
 
 **Files:**
-- Create: `plugins/freeflow/skills/write-spec/references/spec-shapes.md`
-- Create: `plugins/freeflow/skills/handoff/references/templates.md`
-- Create: `plugins/freeflow/skills/grill-context/references/approach-framing.md`
-- Modify: `plugins/freeflow/skills/write-spec/SKILL.md`
-- Modify: `plugins/freeflow/skills/handoff/SKILL.md`
-- Modify: `plugins/freeflow/skills/grill-context/SKILL.md`
+- Create: `skills/write-spec/references/spec-shapes.md`
+- Create: `skills/handoff/references/templates.md`
+- Create: `skills/grill-context/references/approach-framing.md`
+- Modify: `skills/write-spec/SKILL.md`
+- Modify: `skills/handoff/SKILL.md`
+- Modify: `skills/grill-context/SKILL.md`
 
 - [x] **Step 1: Add spec shapes reference**
 
-Create `plugins/freeflow/skills/write-spec/references/spec-shapes.md` with concise shapes for:
+Create `skills/write-spec/references/spec-shapes.md` with concise shapes for:
 
 - product spec
 - technical design
@@ -235,7 +235,7 @@ Each shape should be a short section list, not a full template.
 
 - [x] **Step 2: Add handoff templates reference**
 
-Create `plugins/freeflow/skills/handoff/references/templates.md` with short handoff shapes for:
+Create `skills/handoff/references/templates.md` with short handoff shapes for:
 
 - continuation handoff
 - blocked handoff
@@ -246,7 +246,7 @@ Each template must omit volatile file inventories unless they are necessary for 
 
 - [x] **Step 3: Add approach framing reference**
 
-Create `plugins/freeflow/skills/grill-context/references/approach-framing.md` with concise framing patterns:
+Create `skills/grill-context/references/approach-framing.md` with concise framing patterns:
 
 - options with recommendation
 - reversible versus hard-to-reverse choice
@@ -263,7 +263,7 @@ Add one line to each relevant `SKILL.md` telling the agent when to read the refe
 Run:
 
 ```sh
-wc -l plugins/freeflow/skills/write-spec/SKILL.md plugins/freeflow/skills/handoff/SKILL.md plugins/freeflow/skills/grill-context/SKILL.md
+wc -l skills/write-spec/SKILL.md skills/handoff/SKILL.md skills/grill-context/SKILL.md
 ```
 
 Expected: all under 100 lines.
@@ -273,7 +273,7 @@ Expected: all under 100 lines.
 Run:
 
 ```sh
-git add plugins/freeflow/skills/write-spec plugins/freeflow/skills/handoff plugins/freeflow/skills/grill-context
+git add skills/write-spec skills/handoff skills/grill-context
 git commit -m "Add Freeflow publishing references"
 ```
 
@@ -285,7 +285,7 @@ Status: completed. The package lives under `packages/freeflow/` with runtime ski
 
 **Files:**
 - Create: `packages/freeflow/`
-- Copy: current skill set from `plugins/freeflow/skills/`
+- Copy: current skill set from `skills/`
 - Create: package manifests and public docs
 
 - [x] **Step 1: Create package directories**
@@ -294,7 +294,7 @@ Run:
 
 ```sh
 mkdir -p packages/freeflow/.codex-plugin packages/freeflow/.claude-plugin packages/freeflow/docs
-cp -R plugins/freeflow/skills packages/freeflow/skills
+cp -R skills packages/freeflow/skills
 ```
 
 Expected: package contains only skills and package metadata directories.
@@ -512,7 +512,7 @@ Freeflow v0.1 passed the local acceptance suite after measured fixes:
 - decision capture asks before inventing memory conventions
 - bypass skips ceremony, not judgment
 
-See the development report in the Research repo: `plugins/freeflow/evals/reports/acceptance/v0.1-acceptance-report.md`.
+See the development report in the Research repo: `evals/reports/acceptance/v0.1-acceptance-report.md`.
 
 ## What Freeflow is not
 
@@ -570,7 +570,7 @@ Expected: commit succeeds.
 Status: completed. Eval evidence now uses registries, report buckets, runbooks, suites, and a directory README. Acceptance, harness, and runtime reports have their own buckets instead of being forced into skill-family reports.
 
 **Files:**
-- Modify: `plugins/freeflow/evals/`
+- Modify: `evals/`
 - Modify: eval runner scripts if paths move
 - Modify: docs that link eval files
 
@@ -579,7 +579,7 @@ Status: completed. Eval evidence now uses registries, report buckets, runbooks, 
 Run:
 
 ```sh
-mkdir -p plugins/freeflow/evals/registries plugins/freeflow/evals/reports/by-skill plugins/freeflow/evals/reports/by-command-surface plugins/freeflow/evals/reports/iterations plugins/freeflow/evals/reports/harness plugins/freeflow/evals/reports/acceptance plugins/freeflow/evals/reports/runtime plugins/freeflow/evals/runbooks plugins/freeflow/evals/suites
+mkdir -p evals/registries evals/reports/by-skill evals/reports/by-command-surface evals/reports/iterations evals/reports/harness evals/reports/acceptance evals/reports/runtime evals/runbooks evals/suites
 ```
 
 - [x] **Step 2: Move registries**
@@ -587,11 +587,11 @@ mkdir -p plugins/freeflow/evals/registries plugins/freeflow/evals/reports/by-ski
 Run:
 
 ```sh
-git mv plugins/freeflow/evals/fixture-evals.json plugins/freeflow/evals/registries/fixture-evals.json
-git mv plugins/freeflow/evals/evals.json plugins/freeflow/evals/registries/legacy-evals.json
-git mv plugins/freeflow/evals/handoff-evals.json plugins/freeflow/evals/registries/handoff-evals.json
-git mv plugins/freeflow/evals/verify-work-evals.json plugins/freeflow/evals/registries/verify-work-evals.json
-git mv plugins/freeflow/evals/adversarial-evals.json plugins/freeflow/evals/registries/adversarial-evals.json
+git mv evals/fixture-evals.json evals/registries/fixture-evals.json
+git mv evals/evals.json evals/registries/legacy-evals.json
+git mv evals/handoff-evals.json evals/registries/handoff-evals.json
+git mv evals/verify-work-evals.json evals/registries/verify-work-evals.json
+git mv evals/adversarial-evals.json evals/registries/adversarial-evals.json
 ```
 
 - [x] **Step 3: Move reports, runbooks, suites**
@@ -599,23 +599,23 @@ git mv plugins/freeflow/evals/adversarial-evals.json plugins/freeflow/evals/regi
 Run:
 
 ```sh
-git mv plugins/freeflow/evals/iteration-*-report.md plugins/freeflow/evals/reports/iterations/
-git mv plugins/freeflow/evals/command-surface-*-report.md plugins/freeflow/evals/reports/by-command-surface/
-git mv plugins/freeflow/evals/command-surface-matrix.md plugins/freeflow/evals/reports/by-command-surface/
-git mv plugins/freeflow/evals/claude-harness-1-report.md plugins/freeflow/evals/reports/harness/
-git mv plugins/freeflow/evals/eval-harness-1-report.md plugins/freeflow/evals/reports/harness/
-git mv plugins/freeflow/evals/v0.1-acceptance-report.md plugins/freeflow/evals/reports/acceptance/
-git mv plugins/freeflow/evals/always-on-runtime-1-report.md plugins/freeflow/evals/reports/runtime/
-git mv plugins/freeflow/evals/*-report.md plugins/freeflow/evals/reports/by-skill/
-git mv plugins/freeflow/evals/*runbook.md plugins/freeflow/evals/runbooks/
-git mv plugins/freeflow/evals/v0.1-acceptance-suite.md plugins/freeflow/evals/suites/v0.1-acceptance-suite.md
+git mv evals/iteration-*-report.md evals/reports/iterations/
+git mv evals/command-surface-*-report.md evals/reports/by-command-surface/
+git mv evals/command-surface-matrix.md evals/reports/by-command-surface/
+git mv evals/claude-harness-1-report.md evals/reports/harness/
+git mv evals/eval-harness-1-report.md evals/reports/harness/
+git mv evals/v0.1-acceptance-report.md evals/reports/acceptance/
+git mv evals/always-on-runtime-1-report.md evals/reports/runtime/
+git mv evals/*-report.md evals/reports/by-skill/
+git mv evals/*runbook.md evals/runbooks/
+git mv evals/v0.1-acceptance-suite.md evals/suites/v0.1-acceptance-suite.md
 ```
 
 If a broad wildcard fails because no files remain in the source directory, continue after confirming all reports have moved.
 
 - [x] **Step 4: Update scripts for new registry path**
 
-In `plugins/freeflow/evals/scripts/run-fixture-eval-by-id.sh`, change default registry from:
+In `evals/scripts/run-fixture-eval-by-id.sh`, change default registry from:
 
 ```sh
 $plugin_root/evals/fixture-evals.json
@@ -631,7 +631,7 @@ Update any docs/scripts that reference moved registry/report/runbook/suite paths
 
 - [x] **Step 5: Add eval README**
 
-Create `plugins/freeflow/evals/README.md`:
+Create `evals/README.md`:
 
 ```markdown
 # Freeflow Evals
@@ -658,8 +658,8 @@ Use `registries/fixture-evals.json` for current adversarial fixture coverage. Pr
 Run:
 
 ```sh
-jq empty plugins/freeflow/evals/registries/fixture-evals.json
-plugins/freeflow/evals/scripts/audit-command-surface.sh
+jq empty evals/registries/fixture-evals.json
+evals/scripts/audit-command-surface.sh
 ```
 
 Expected: JSON parses and audit passes.
@@ -669,7 +669,7 @@ Expected: JSON parses and audit passes.
 Run:
 
 ```sh
-git add -A plugins/freeflow/evals docs AGENTS.md CONTEXT.md
+git add -A evals docs AGENTS.md CONTEXT.md
 git commit -m "Organize Freeflow eval evidence"
 ```
 
@@ -708,7 +708,7 @@ Current status:
 
 - Name: Freeflow.
 - Package target: `packages/freeflow/`.
-- Development plugin: `plugins/freeflow/`.
+- Development plugin: the repo root.
 - v0.1 local acceptance suite: passed.
 - First publish targets: Codex and Claude.
 - Native slash handlers: not shipped.
@@ -725,7 +725,7 @@ Update `AGENTS.md` read-first guidance to point at:
 - `CONTEXT.md`
 - `docs/freeflow-current-state.md`
 - `docs/freeflow-packaging-and-publishing-design.md`
-- latest acceptance report under `plugins/freeflow/evals/reports/`
+- latest acceptance report under `evals/reports/`
 - `docs/adr/`
 
 Move older research docs into "History / research, not current authority."
@@ -747,7 +747,7 @@ Do not include volatile task inventory.
 Run:
 
 ```sh
-rg -n 'candidate plugin|not final branding|pilot-workflow|setup-pilot-workflow|PILOT_WORKFLOW|\.pilot-workflow|agent-workflow-plugin' AGENTS.md CONTEXT.md docs packages/freeflow plugins/freeflow
+rg -n 'candidate plugin|not final branding|pilot-workflow|setup-pilot-workflow|PILOT_WORKFLOW|\.pilot-workflow|agent-workflow-plugin' AGENTS.md CONTEXT.md docs packages/freeflow the repo root
 ```
 
 Expected: no current-authority matches. Historical handoffs and research may preserve old context when clearly historical.
@@ -765,7 +765,7 @@ Expected: commit succeeds.
 
 ## Task 8: Final Verification
 
-Status: completed. Fresh prepublish fixture runs were saved under `plugins/freeflow/evals/runs/freeflow-prepublish/`.
+Status: completed. Fresh prepublish fixture runs were saved under `evals/runs/freeflow-prepublish/`.
 
 **Files:**
 - No planned edits unless verification exposes broken paths.
@@ -775,7 +775,7 @@ Status: completed. Fresh prepublish fixture runs were saved under `plugins/freef
 Run:
 
 ```sh
-find plugins/freeflow packages/freeflow -name '*.json' -print0 | xargs -0 -n1 jq empty
+find the repo root packages/freeflow -name '*.json' -print0 | xargs -0 -n1 jq empty
 ```
 
 Expected: all JSON parses.
@@ -785,7 +785,7 @@ Expected: all JSON parses.
 Run:
 
 ```sh
-plugins/freeflow/evals/scripts/audit-command-surface.sh
+evals/scripts/audit-command-surface.sh
 git diff --check
 ```
 
@@ -793,7 +793,7 @@ Expected: both pass.
 
 - [x] **Step 3: Run v0.1 acceptance suite from renamed path**
 
-Run the suite in `plugins/freeflow/evals/runs/freeflow-prepublish/` using the moved registry path.
+Run the suite in `evals/runs/freeflow-prepublish/` using the moved registry path.
 
 Expected: required fixture evals pass semantically, especially `WSP-006`, `CAP-002`, and `XPL-004`.
 
@@ -803,13 +803,13 @@ Run:
 
 ```sh
 find packages/freeflow -maxdepth 4 -type f | sort
-rg -n 'Freeflow|freeflow|plugins/freeflow|setup-freeflow' packages/freeflow
+rg -n 'Freeflow|freeflow|the repo root|setup-freeflow' packages/freeflow
 ```
 
 Expected: package contains only publishable assets. For old identity/dev-only scans, use:
 
 ```sh
-rg -n 'pilot-workflow|setup-pilot-workflow|PILOT_WORKFLOW|\.pilot-workflow|plugins/freeflow/evals|Research repo|command-surface|nativeSlashHandlers' packages/freeflow
+rg -n 'pilot-workflow|setup-pilot-workflow|PILOT_WORKFLOW|\.pilot-workflow|evals|Research repo|command-surface|nativeSlashHandlers' packages/freeflow
 ```
 
 - [x] **Step 5: Final commit if needed**
@@ -819,13 +819,13 @@ rg -n 'pilot-workflow|setup-pilot-workflow|PILOT_WORKFLOW|\.pilot-workflow|plugi
 Run:
 
 ```sh
-rg -n 'Freeflow|freeflow|plugins/freeflow|setup-freeflow' .
+rg -n 'Freeflow|freeflow|the repo root|setup-freeflow' .
 ```
 
 Expected: this command is obsolete because Freeflow is the current identity. Use targeted old-identity scans instead:
 
 ```sh
-rg -n 'pilot-workflow|setup-pilot-workflow|PILOT_WORKFLOW|\.pilot-workflow|pilot_workflow' AGENTS.md CONTEXT.md docs plugins/freeflow packages/freeflow .gitignore
+rg -n 'pilot-workflow|setup-pilot-workflow|PILOT_WORKFLOW|\.pilot-workflow|pilot_workflow' AGENTS.md CONTEXT.md docs the repo root packages/freeflow .gitignore
 ```
 
 - [x] **Step 6: Final commit if needed**
@@ -849,7 +849,7 @@ Expected: clean worktree.
 
 - Spec coverage: covers all user requirements: publish all current skills, Matt-style README, plugin comparison, install/use docs, workflow map reference and README diagram, the three recommended references, eval reorganization with clearer report families, core docs cleanup, durable memory updates, AGENTS/CONTEXT updates, and full rename.
 - Placeholder scan: no placeholder tokens remain. Open product choices are resolved in favor of Freeflow, MIT, `hassan-mohiddin/freeflow`, and package path `packages/freeflow/`.
-- Type/path consistency: plan uses `plugins/freeflow/` after rename and `packages/freeflow/` for the public package.
+- Type/path consistency: plan uses the repo root after rename and `packages/freeflow/` for the public package.
 - Risk: Task 2 and Task 5 are broad path moves. Keep them in separate commits and run audits immediately after each.
 
-> **Superseded Layout Note:** This plan records the earlier `packages/freeflow/` packaging pass. The current release layout uses the repository root as the marketplace shell and `plugins/freeflow/` as the single plugin runtime; root `docs/` holds project docs and `plugins/freeflow/docs/` holds refined user-facing docs.
+> **Superseded Layout Note:** This plan records the earlier `packages/freeflow/` packaging pass. The current release layout uses the repository root as the marketplace shell and the repo root as the single plugin runtime; root `docs/` holds project docs and `docs/` holds refined user-facing docs.

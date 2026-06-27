@@ -25,14 +25,14 @@ Current files:
 
 - `.agents/plugins/marketplace.json`
 - `.claude-plugin/marketplace.json`
-- `plugins/freeflow/.codex-plugin/plugin.json`
-- `plugins/freeflow/.claude-plugin/plugin.json`
-- `plugins/freeflow/command-surface.json`
-- `plugins/freeflow/evals/scripts/audit-command-surface.sh`
-- `plugins/freeflow/docs/architecture.md`
-- `plugins/freeflow/docs/release-evidence.md`
-- `plugins/freeflow/docs/adr/0003-release-boundary.md`
-- `plugins/freeflow/evals/reports/acceptance/v0.1-acceptance-report.md`
+- `.codex-plugin/plugin.json`
+- `.claude-plugin/plugin.json`
+- `command-surface.json`
+- `evals/scripts/audit-command-surface.sh`
+- `plugin-docs/architecture.md`
+- `plugin-docs/release-evidence.md`
+- `plugin-docs/adr/0003-release-boundary.md`
+- `evals/reports/acceptance/v0.1-acceptance-report.md`
 - `.gitignore`
 
 ## Problem
@@ -59,7 +59,7 @@ Use a hybrid design:
 ```text
 validateReleaseMetadata()
   -> ReleaseMetadataValidator.validate({
-       pluginRoot: "plugins/freeflow",
+       pluginRoot: "the repo root",
        mode: "prepublish",
        checks: defaultLocalChecks
      })
@@ -93,7 +93,7 @@ Explicit caller:
 ```text
 ReleaseMetadataValidator.validate({
   repoRoot,
-  pluginRoot: "plugins/freeflow",
+  pluginRoot: "the repo root",
   releaseVersion: "0.1.0",
   mode: "prepublish",
   checks: [
@@ -122,9 +122,9 @@ Report shape:
 ## Invariants
 
 - repo root is the marketplace and GitHub-facing shell
-- `plugins/freeflow/` is the only plugin runtime source of truth
-- root Codex marketplace points to `./plugins/freeflow`
-- root Claude marketplace points to `./plugins/freeflow`
+- the repo root is the only plugin runtime source of truth
+- root Codex marketplace points to `.`
+- root Claude marketplace points to `.`
 - Codex and Claude manifests agree on stable release metadata: `name`, `version`, `license`, author, homepage, repository, and identity language
 - `command-surface.json` is command authority
 - `nativeSlashHandlers=false` means manifests do not declare `commands` or `slashCommands`
@@ -142,8 +142,8 @@ Adapters:
 
 - `CodexMarketplaceAdapter`: reads `.agents/plugins/marketplace.json`.
 - `ClaudeMarketplaceAdapter`: reads `.claude-plugin/marketplace.json`.
-- `CodexManifestAdapter`: reads `plugins/freeflow/.codex-plugin/plugin.json`.
-- `ClaudeManifestAdapter`: reads `plugins/freeflow/.claude-plugin/plugin.json`.
+- `CodexManifestAdapter`: reads `.codex-plugin/plugin.json`.
+- `ClaudeManifestAdapter`: reads `.claude-plugin/plugin.json`.
 - `CommandSurfaceAdapter`: wraps or replaces `audit-command-surface.sh`.
 - `DocsEvidenceAdapter`: checks release evidence, architecture docs, and ADR 0003 for drift.
 - `GitPackageScanAdapter`: checks ignored generated runs, duplicate package copies, old identity, and package cleanliness.
@@ -158,8 +158,8 @@ Use this as a readiness checklist for future work, not as an approved implementa
 - [ ] Decide implementation language for the validator and default caller.
 - [ ] Decide whether the first caller is a script, module, or both.
 - [ ] Add or update eval/fixture coverage before replacing release checks.
-- [ ] Preserve `plugins/freeflow/` as the single runtime.
-- [ ] Preserve root marketplace files pointing to `./plugins/freeflow`.
+- [ ] Preserve the repo root as the single runtime.
+- [ ] Preserve root marketplace files pointing to `.`.
 - [ ] Preserve Codex and Claude manifest identity alignment.
 - [ ] Preserve `nativeSlashHandlers=false` and no manifest command handlers for v0.1.
 - [ ] Preserve generated-run exclusion and `.gitignore` behavior.
@@ -180,7 +180,7 @@ Use this as a readiness checklist for future work, not as an approved implementa
 
 ## Open Questions
 
-- Should the validator live under `plugins/freeflow/evals/scripts/`, a new release-validation module, or another runtime-adjacent folder?
+- Should the validator live under `evals/scripts/`, a new release-validation module, or another runtime-adjacent folder?
 - Should local package cleanliness inspect the working tree only, or also a generated archive later?
 - Which checks should be release-blocking versus warning/deferred in `local`, `prepublish`, and `release` modes?
 - Should docs drift checks start as targeted string checks, or should release docs get structured metadata later?

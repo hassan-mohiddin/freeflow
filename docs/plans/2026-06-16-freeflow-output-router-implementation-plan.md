@@ -5,7 +5,7 @@
 > **Owner:** Hassan Mohiddin
 > **Type:** Plan
 > **Status:** Draft
-> **Source:** `docs/specs/freeflow-output-router-design.md`; reviewed current `package.json`; `plugins/freeflow/docs/architecture.md`; `plugins/freeflow/pi-extension/index.js`.
+> **Source:** `docs/specs/freeflow-output-router-design.md`; reviewed current `package.json`; `plugin-docs/architecture.md`; `pi-extension/index.js`.
 
 ## Goal
 
@@ -26,10 +26,10 @@ Primary source:
 
 Supporting repo evidence:
 
-- `package.json` currently loads `plugins/freeflow/skills` and `plugins/freeflow/pi-extension/index.js` through the Pi package manifest.
+- `package.json` currently loads `skills` and `pi-extension/index.js` through the Pi package manifest.
 - `package.json` uses a `files` whitelist; any new shipped router path must be included or the npm package can omit it.
-- `plugins/freeflow/docs/architecture.md` says `plugins/freeflow/` is the single runtime source of truth and host runtimes control tools, sandboxing, approvals, and permissions.
-- `plugins/freeflow/pi-extension/index.js` is the current Pi adapter and already injects Freeflow runtime context during `before_agent_start`.
+- `plugin-docs/architecture.md` says the repo root is the single runtime source of truth and host runtimes control tools, sandboxing, approvals, and permissions.
+- `pi-extension/index.js` is the current Pi adapter and already injects Freeflow runtime context during `before_agent_start`.
 
 ## Plan Status
 
@@ -37,11 +37,11 @@ This plan is **Approved for Slice 1**. Later slices still need their own confirm
 
 Chosen Slice 1 boundary:
 
-- Keep the router as an optional companion runtime under `plugins/freeflow/`.
-- Router path: `plugins/freeflow/router/`.
-- TypeScript source: `plugins/freeflow/router/src/`.
-- Compiled JavaScript runtime: `plugins/freeflow/router/dist/`.
-- Host-portable output-router skill: `plugins/freeflow/skills/output-router/SKILL.md`.
+- Keep the router as an optional companion runtime under the repo root.
+- Router path: `router/`.
+- TypeScript source: `router/src/`.
+- Compiled JavaScript runtime: `router/dist/`.
+- Host-portable output-router skill: `skills/output-router/SKILL.md`.
 - Default non-repo vault root: `~/.cache/freeflow-router/vault/`.
 - Default vault retention for normal non-durable outputs: 7-day TTL metadata.
 - Package whitelist includes skills and compiled router runtime.
@@ -80,18 +80,18 @@ For Pi, the adapter should use Pi's host execution API where available, such as 
 
 Likely new files/directories:
 
-- `plugins/freeflow/router/` or equivalent internal router package path.
+- `router/` or equivalent internal router package path.
 - Host-neutral `output-router` skill with runtime-facing references.
 - Router source modules for schemas, vault, retrieval, command routing, output policy, and config.
-- Router tests/fixtures under `plugins/freeflow/router/` or `plugins/freeflow/evals/`.
+- Router tests/fixtures under `router/` or `evals/`.
 - Optional safety policy reference if the implementation needs runtime-facing detail.
 
 Likely modified files:
 
-- `plugins/freeflow/pi-extension/index.js` to register `freeflow_retrieve`, `freeflow_run`, inject the output-router skill plus safety-policy context, and render Freeflow tool calls/results with compact/expanded Pi TUI views.
+- `pi-extension/index.js` to register `freeflow_retrieve`, `freeflow_run`, inject the output-router skill plus safety-policy context, and render Freeflow tool calls/results with compact/expanded Pi TUI views.
 - `package.json` if build/test scripts, package metadata, or the `files` whitelist must change to include the router runtime.
 - `.freeflow/config.json` only if repo-local output-router defaults are intentionally recorded for this repo.
-- `plugins/freeflow/docs/architecture.md` only after implementation changes the runtime boundary enough that docs would otherwise be stale.
+- `plugin-docs/architecture.md` only after implementation changes the runtime boundary enough that docs would otherwise be stale.
 
 ## Slice 1: Lock Package Boundary And Core Schemas
 
@@ -99,7 +99,7 @@ Purpose: establish the implementation skeleton without committing to broad runti
 
 Steps:
 
-- Confirm the internal router path under `plugins/freeflow/`.
+- Confirm the internal router path under the repo root.
 - Decide whether the router path must be included in the npm package `files` whitelist.
 - Decide the minimal TypeScript/Node build strategy for this repo.
 - Decide the initial session-linked vault root and retention defaults before implementing storage.

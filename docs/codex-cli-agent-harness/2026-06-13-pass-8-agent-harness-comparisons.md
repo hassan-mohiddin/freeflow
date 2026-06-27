@@ -20,7 +20,7 @@ This document is research memory, not an implementation plan. It does not define
 This artifact was created after chat compaction. Pass 8A and Pass 8B were first completed in chat without a saved artifact. The notes below reconstruct those passes from:
 
 - `/private/tmp/freeflow-codex-cli-agent-harness-tmp-handoff-2026-06-13.md`
-- local research artifacts under `docs/research/codex-cli-agent-harness/`
+- local research artifacts under `docs/codex-cli-agent-harness/`
 - `docs/designs/local-delegation-harness-design.md`
 - `docs/research/2026-06-10-local-model-delegation-routing.md`
 - fresh primary-source checks for external projects on 2026-06-13

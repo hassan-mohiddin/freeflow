@@ -19,11 +19,11 @@ Do not assume the path silently.
 - `CONTEXT.md`
 - `docs/adr/`
 - `docs/research/freeflow-artifact-skills.md`
-- `plugins/freeflow/skills/write-spec/SKILL.md`
-- `plugins/freeflow/skills/review-artifact/SKILL.md`
-- `plugins/freeflow/skills/write-plan/SKILL.md`
-- `plugins/freeflow/evals/reports/by-skill/write-plan-1-report.md`
-- `plugins/freeflow/evals/reports/by-skill/write-plan-2-report.md`
+- `skills/write-spec/SKILL.md`
+- `skills/review-artifact/SKILL.md`
+- `skills/write-plan/SKILL.md`
+- `evals/reports/by-skill/write-plan-1-report.md`
+- `evals/reports/by-skill/write-plan-2-report.md`
 
 This handoff is memory, not authority. Inspect live files before editing.
 
@@ -52,7 +52,7 @@ Latest `write-plan` eval:
 
 Report:
 
-- `plugins/freeflow/evals/reports/by-skill/write-plan-2-report.md`
+- `evals/reports/by-skill/write-plan-2-report.md`
 
 ## New Issue To Preserve
 
@@ -114,7 +114,7 @@ Expected first work:
 
 - Read Obra `executing-plans`.
 - Read current Freeflow `workflow`, `verify-work`, `review-work`, and `write-plan`.
-- Draft `plugins/freeflow/skills/execute-plan/SKILL.md`.
+- Draft `skills/execute-plan/SKILL.md`.
 - Add focused evals for:
   - Execute from valid plan.
   - Stop on plan/source conflict.
@@ -126,8 +126,8 @@ Use this if the latest failure should be encoded before more workflow skills.
 
 Likely target skills:
 
-- `plugins/freeflow/skills/interview-gate/SKILL.md`
-- Possibly `plugins/freeflow/skills/handoff/SKILL.md`
+- `skills/interview-gate/SKILL.md`
+- Possibly `skills/handoff/SKILL.md`
 
 Expected first eval:
 
@@ -141,23 +141,23 @@ Important: keep wording concise. Do not add a long manual.
 
 Expected dirty state includes:
 
-- Modified `plugins/freeflow/evals/registries/fixture-evals.json`
+- Modified `evals/registries/fixture-evals.json`
 - Untracked artifact skill docs/reports/prompts/fixtures:
   - `docs/research/freeflow-artifact-skills.md`
   - `docs/handoffs/2026-05-25-artifact-skills-handoff.md`
   - `docs/handoffs/2026-05-25-write-plan-next.md`
   - `docs/handoffs/2026-05-25-execute-plan-or-decision-gate.md`
-  - `plugins/freeflow/skills/write-spec/`
-  - `plugins/freeflow/skills/review-artifact/`
-  - `plugins/freeflow/skills/write-plan/`
-  - `plugins/freeflow/evals/fixtures/tiny-artifact-review-app/`
-  - `plugins/freeflow/evals/fixtures/tiny-plan-app/`
-  - `plugins/freeflow/evals/prompts/wsp-*.txt`
-  - `plugins/freeflow/evals/prompts/rar-*.txt`
-  - `plugins/freeflow/evals/prompts/wpl-*.txt`
-  - `plugins/freeflow/evals/reports/by-skill/write-spec-*-report.md`
-  - `plugins/freeflow/evals/reports/by-skill/review-artifact-*-report.md`
-  - `plugins/freeflow/evals/reports/by-skill/write-plan-*-report.md`
+  - `skills/write-spec/`
+  - `skills/review-artifact/`
+  - `skills/write-plan/`
+  - `evals/fixtures/tiny-artifact-review-app/`
+  - `evals/fixtures/tiny-plan-app/`
+  - `evals/prompts/wsp-*.txt`
+  - `evals/prompts/rar-*.txt`
+  - `evals/prompts/wpl-*.txt`
+  - `evals/reports/by-skill/write-spec-*-report.md`
+  - `evals/reports/by-skill/review-artifact-*-report.md`
+  - `evals/reports/by-skill/write-plan-*-report.md`
 
 Do not clean or delete these unless the user asks.
 

@@ -6,7 +6,7 @@ node_modules/
 .env.*
 
 # Generated eval harness output.
-plugins/freeflow/evals/runs/
+evals/runs/
 
 # Graphify generated output.
 graphify-out/

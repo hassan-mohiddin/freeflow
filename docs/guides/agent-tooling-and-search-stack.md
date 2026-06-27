@@ -215,7 +215,7 @@ A smoke search for `interview gate user owned decisions` returned relevant hits 
 
 ```text
 docs/plugin-contract.md
-plugins/freeflow/skills/workflow/references/workflow-map.md
+skills/workflow/references/workflow-map.md
 ```
 
 ### Search Cost
@@ -239,7 +239,7 @@ mcp({
       "graphify-out/**",
       ".tmp/**",
       "tmp/**",
-      "plugins/freeflow/evals/runs/**"
+      "evals/runs/**"
     ]
   })
 })

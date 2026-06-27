@@ -32,19 +32,19 @@ Authoritative spec:
 Foundational router contract:
 
 - `docs/specs/freeflow-output-router-design.md`
-- `plugins/freeflow/skills/output-router/SKILL.md`
-- `plugins/freeflow/skills/output-router/references/safety-policy.md`
+- `skills/output-router/SKILL.md`
+- `skills/output-router/references/safety-policy.md`
 
 Implementation evidence:
 
-- `plugins/freeflow/router/src/retrieve.ts`
-- `plugins/freeflow/router/src/run.ts`
-- `plugins/freeflow/router/src/vault.ts`
-- `plugins/freeflow/router/src/config.ts`
-- `plugins/freeflow/pi-extension/index.js`
-- `plugins/freeflow/router/tests/`
-- `plugins/freeflow/evals/fixtures/output-router/`
-- `plugins/freeflow/evals/reports/runtime/output-router-regression-1-report.md`
+- `router/src/tools/retrieve.ts`
+- `router/src/tools/run.ts`
+- `router/src/vault/vault.ts`
+- `router/src/config/config.ts`
+- `pi-extension/index.js`
+- `router/tests/`
+- `evals/fixtures/output-router/`
+- `evals/reports/runtime/output-router-regression-1-report.md`
 - `docs/handoffs/2026-06-16-output-router-implementation-and-retrieval-benchmark.md`
 
 Research benchmark oracle:
@@ -80,12 +80,12 @@ Do not:
 
 Core router:
 
-- `plugins/freeflow/router/src/retrieve.ts`
-- `plugins/freeflow/router/src/run.ts`
-- `plugins/freeflow/router/src/types.ts`
-- `plugins/freeflow/router/src/schema.ts`
-- `plugins/freeflow/router/src/config.ts`
-- possible new files under `plugins/freeflow/router/src/`:
+- `router/src/tools/retrieve.ts`
+- `router/src/tools/run.ts`
+- `router/src/config/types.ts`
+- `router/src/config/schema.ts`
+- `router/src/config/config.ts`
+- possible new files under `router/src/`:
   - `repo-filters.ts`
   - `chunks.ts`
   - `scoring.ts`
@@ -95,25 +95,25 @@ Core router:
 
 Tests and fixtures:
 
-- `plugins/freeflow/router/tests/retrieve.test.js`
-- `plugins/freeflow/router/tests/regression-fixtures.test.js`
-- `plugins/freeflow/router/tests/run.test.js`
-- `plugins/freeflow/router/tests/config.test.js`
-- `plugins/freeflow/router/tests/pi-extension.test.js`
-- `plugins/freeflow/evals/fixtures/output-router/`
-- possible new benchmark fixtures under `plugins/freeflow/evals/fixtures/output-router/benchmarks/`
-- possible new scripts under `plugins/freeflow/evals/scripts/`
+- `router/tests/retrieve.test.js`
+- `router/tests/regression-fixtures.test.js`
+- `router/tests/run.test.js`
+- `router/tests/config.test.js`
+- `router/tests/pi-extension.test.js`
+- `evals/fixtures/output-router/`
+- possible new benchmark fixtures under `evals/fixtures/output-router/benchmarks/`
+- possible new scripts under `evals/scripts/`
 
 Docs/reports:
 
-- `plugins/freeflow/evals/reports/runtime/output-router-regression-*.md`
+- `evals/reports/runtime/output-router-regression-*.md`
 - `docs/specs/freeflow-output-router-excellence-spec.md` only if implementation reveals a spec/source conflict
 - `docs/plans/2026-06-16-freeflow-output-router-excellence-implementation-plan.md` if plan changes materially
-- `plugins/freeflow/docs/release-evidence.md` only after verified evidence exists
+- `plugin-docs/release-evidence.md` only after verified evidence exists
 
 Adapter/TUI only when needed:
 
-- `plugins/freeflow/pi-extension/index.js`
+- `pi-extension/index.js`
 
 Package/build only when needed:
 
@@ -129,7 +129,7 @@ Steps:
 1. Check current working tree and note uncommitted files.
 2. Run current checks:
    - `npm run test:router`
-   - `node --check plugins/freeflow/pi-extension/index.js`
+   - `node --check pi-extension/index.js`
 3. If Pi TUI renderer changes are still in the working tree, sync/reinstall into the installed Pi cache and do a real TUI smoke for:
    - `freeflow_retrieve` collapsed row,
    - `freeflow_retrieve` expanded `ctrl+o`,
@@ -288,7 +288,7 @@ Implementation:
    - latency p50/p95 where repeated runs are practical,
    - recovery success,
    - generated false-positive rate.
-4. Add report output under `plugins/freeflow/evals/reports/runtime/`.
+4. Add report output under `evals/reports/runtime/`.
 5. Add a CI-friendly subset that does not require external tools.
 
 Checks:
@@ -477,7 +477,7 @@ Purpose: integrate output-router setup only after core router behavior, caps, to
 Implementation:
 
 1. Update `setup-freeflow` so it owns optional output-router repo setup/config.
-2. Add `plugins/freeflow/skills/setup-freeflow/references/output-router-setup.md` if setup behavior needs durable guidance.
+2. Add `skills/setup-freeflow/references/output-router-setup.md` if setup behavior needs durable guidance.
 3. Update the setup activation contract so minimal setup still writes only `{ "defaultMode": "workflow" }`, while optional `outputRouter` config is allowed only when explicitly requested.
 4. Update setup evals/fixtures that assert config shape.
 5. Update Pi extension detection/diagnostics:
@@ -498,7 +498,7 @@ Checks:
 - Setup docs, activation contract, and setup evals agree.
 - Pi extension treats absent `outputRouter` as default behavior and present invalid config as warning-worthy.
 - TUI smoke is rerun if TUI renderer behavior changed.
-- `plugins/freeflow/evals/scripts/check-activation-contract.sh` passes if setup behavior or activation text changed.
+- `evals/scripts/check-activation-contract.sh` passes if setup behavior or activation text changed.
 
 Stop if:
 
@@ -513,9 +513,9 @@ Purpose: document only verified claims and decide what remains experimental.
 Implementation:
 
 1. Update runtime eval reports with final measured evidence.
-2. Update `plugins/freeflow/docs/release-evidence.md` only for verified behavior.
+2. Update `plugin-docs/release-evidence.md` only for verified behavior.
 3. Update `docs/specs/freeflow-output-router-excellence-spec.md` if implementation reveals spec changes.
-4. Update `plugins/freeflow/skills/output-router/SKILL.md` only if agent tool-choice behavior needs to change.
+4. Update `skills/output-router/SKILL.md` only if agent tool-choice behavior needs to change.
 5. Make explicit adoption decisions:
    - scanner improvements shipped,
    - optional index kept experimental/adopted/rejected,
@@ -549,9 +549,9 @@ Run at minimum:
 
 ```sh
 npm run test:router
-node --check plugins/freeflow/pi-extension/index.js
+node --check pi-extension/index.js
 npm pack --dry-run --json
-rg -n "child_process|node:child_process|\bspawn\b|\bexecFile\b|\bexecSync\b" plugins/freeflow/router plugins/freeflow/pi-extension || true
+rg -n "child_process|node:child_process|\bspawn\b|\bexecFile\b|\bexecSync\b" router pi-extension || true
 ```
 
 Also run:
@@ -559,7 +559,7 @@ Also run:
 - router retrieval benchmark subset,
 - command-output benchmark subset once added,
 - Codex Q&A benchmark subset once added,
-- `plugins/freeflow/evals/scripts/check-activation-contract.sh` if setup behavior or activation text changes,
+- `evals/scripts/check-activation-contract.sh` if setup behavior or activation text changes,
 - real Pi smoke if Pi adapter or TUI behavior changes,
 - installed-cache `/reload` smoke before claiming installed package behavior.
 

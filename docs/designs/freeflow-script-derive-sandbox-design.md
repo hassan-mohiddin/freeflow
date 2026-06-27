@@ -5,7 +5,7 @@
 > **Owner:** Hassan Mohiddin
 > **Type:** Architecture Design
 > **Status:** Implemented for Pi JavaScript/Python/jq adapters through explicit package-root opt-in
-> **Source:** `docs/specs/freeflow-observed-output-routing-vault-index-and-script-derive-design.md`, `docs/plans/2026-06-24-freeflow-observed-output-routing-vault-index-script-derive-implementation-plan.md`, current router source under `plugins/freeflow/router/src/`, and output-router safety policy.
+> **Source:** `docs/specs/freeflow-observed-output-routing-vault-index-and-script-derive-design.md`, `docs/plans/2026-06-24-freeflow-observed-output-routing-vault-index-script-derive-implementation-plan.md`, current router source under `router/src/`, and output-router safety policy.
 
 ## Purpose
 

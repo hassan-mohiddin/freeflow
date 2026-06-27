@@ -97,19 +97,19 @@ The bootstrapping problem where Freeflow cannot be the main process for building
 _Avoid_: circular dependency
 
 **Plugin Runtime**:
-The installable Freeflow plugin at `plugins/freeflow/`, including manifests, skills, references, public docs, evals, and command-surface metadata.
+The installable Freeflow plugin at the repo root, including manifests, skills, references, public docs, evals, and command-surface metadata.
 _Avoid_: duplicate package copy, generated mirror
 
-**Marketplace Repo**:
-The repository root containing marketplace indexes, root README, license, changelog, and repo memory. It points Codex and Claude to `plugins/freeflow/`.
-_Avoid_: plugin runtime, skill source
+**Public Repo**:
+The repository root is the plugin root and also contains marketplace indexes, README, license, changelog, and repo memory.
+_Avoid_: separate generated package, nested runtime copy
 
 **Project Docs**:
-Root `docs/` is the main project documentation workspace for Freeflow planning, current state, discovery notes, handoffs, and durable project decisions.
-_Avoid_: public install docs, generated package copy
+`docs/` contains project memory for Freeflow planning, current state, discovery notes, handoffs, and durable project decisions.
+_Avoid_: generated package copy, public install docs
 
 **Plugin Docs**:
-Refined user-facing docs under `plugins/freeflow/docs/`. These explain workflow, skills, architecture, release evidence, and release ADRs for users or contributors.
+Refined user-facing docs live under `plugin-docs/`. These explain workflow, skills, architecture, release evidence, and release ADRs for users or contributors.
 _Avoid_: raw discovery notes, handoffs
 
 ## Flagged Ambiguities

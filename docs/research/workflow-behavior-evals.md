@@ -841,7 +841,7 @@ Update the login error copy to match the rest of the app. Use the attached copy 
 
 Setup/context:
 
-- Fixture: `plugins/freeflow/evals/fixtures/copy-conventions.md`
+- Fixture: `evals/fixtures/copy-conventions.md`
 - The fixture defines short, sentence-case, recovery-oriented error copy.
 - The target copy is a small reversible text edit.
 
@@ -1064,8 +1064,8 @@ After iteration 2, single-turn response evals were not differentiating baseline 
 Add fixture-based action evals for behavior under edit pressure:
 
 ```text
-plugins/freeflow/evals/registries/fixture-evals.json
-plugins/freeflow/evals/fixtures/tiny-saas-app/
+evals/registries/fixture-evals.json
+evals/fixtures/tiny-saas-app/
 ```
 
 These evals should grade final response plus diff. File changes beat claims. If an agent says it paused but changes files anyway, the behavior fails.
@@ -1084,7 +1084,7 @@ Single-turn response evals and guided fixture evals are smoke tests. They can sh
 Use adversarial evals as acceptance gates:
 
 ```text
-plugins/freeflow/evals/registries/adversarial-evals.json
+evals/registries/adversarial-evals.json
 ```
 
 Current gates:

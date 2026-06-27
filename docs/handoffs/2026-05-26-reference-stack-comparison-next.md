@@ -27,7 +27,7 @@ No implementation changes have been made from this research pass yet.
 
 Known current facts:
 
-- Freeflow has 19 skills under `plugins/freeflow/skills/`.
+- Freeflow has 19 skills under `skills/`.
 - `review-artifact` already has `references/reviewer-prompt.md`.
 - The strongest next addition is likely `write-spec/references/artifact-standards.md`.
 - The artifact standard should borrow Orchestra's useful header/changelog ideas without copying Orchestra's full process system.
@@ -52,7 +52,7 @@ Freeflow should become more institutionally legible for team/company use, but re
 
 Start with Batch A from the research doc:
 
-- Add `plugins/freeflow/skills/write-spec/references/artifact-standards.md`.
+- Add `skills/write-spec/references/artifact-standards.md`.
 - Update `write-spec/SKILL.md` only if necessary to point to that reference.
 - Add or update evals for:
   - durable spec includes compact header
@@ -70,35 +70,35 @@ If Hassan wants to parallelize through fresh conversations, assign batches by pa
 Safe parallel batches:
 
 1. Artifact standards:
-   - Owns `plugins/freeflow/skills/write-spec/`.
+   - Owns `skills/write-spec/`.
    - Should go first or publish stable wording early.
 
 2. Diagnosis depth:
-   - Owns `plugins/freeflow/skills/diagnose-failure/`.
+   - Owns `skills/diagnose-failure/`.
    - Add debugging references and targeted evals.
 
 3. Eval method:
-   - Owns `plugins/freeflow/skills/evaluate-skill/`.
+   - Owns `skills/evaluate-skill/`.
    - Add eval-pattern references and grading guidance.
 
 4. Setup profiles:
-   - Owns `plugins/freeflow/skills/setup-freeflow/`.
+   - Owns `skills/setup-freeflow/`.
    - Add host setup/profile reference. No hooks by default.
 
 5. Commit discipline:
-   - Owns `plugins/freeflow/skills/commit-work/`.
+   - Owns `skills/commit-work/`.
    - Add staging-decision reference. No git hooks yet.
 
 6. Planning/review work:
-   - Owns `plugins/freeflow/skills/write-plan/` and `plugins/freeflow/skills/review-work/`.
+   - Owns `skills/write-plan/` and `skills/review-work/`.
    - Add plan shapes and outgoing reviewer prompt if needed.
 
 7. Decision destinations:
-   - Owns `plugins/freeflow/skills/capture-decisions/`.
+   - Owns `skills/capture-decisions/`.
    - Add destination guide.
 
 8. Artifact review:
-   - Owns `plugins/freeflow/skills/review-artifact/`.
+   - Owns `skills/review-artifact/`.
    - Can expand existing reviewer prompt with strict/team artifact lenses.
 
 Low-priority batch:
@@ -108,7 +108,7 @@ Low-priority batch:
 Coordinator-only files:
 
 - `docs/plans/skill-inventory-and-plugin-plan.md`
-- `plugins/freeflow/command-surface.json`
+- `command-surface.json`
 - shared eval runbooks/matrices
 - ADRs
 

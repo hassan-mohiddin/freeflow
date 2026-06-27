@@ -137,8 +137,8 @@ Implemented in `review-artifact` and `review-work`.
 
 Evidence:
 
-- `plugins/freeflow/evals/reports/by-skill/review-artifact-4-report.md`
-- `plugins/freeflow/evals/reports/by-skill/review-work-5-report.md`
+- `evals/reports/by-skill/review-artifact-4-report.md`
+- `evals/reports/by-skill/review-work-5-report.md`
 
 ## Open Questions
 

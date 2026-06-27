@@ -2,7 +2,7 @@
 
 Date: 2026-05-26
 
-> Historical handoff. The referenced extra-file pass and v0.1 acceptance suite have since landed. Use `docs/freeflow-current-state.md`, live skill directories, and `plugins/freeflow/evals/README.md` for current state.
+> Historical handoff. The referenced extra-file pass and v0.1 acceptance suite have since landed. Use `docs/freeflow-current-state.md`, live skill directories, and `evals/README.md` for current state.
 
 ## Purpose
 
@@ -16,8 +16,8 @@ The repo is ready for Hassan's local dogfooding in other repos.
 
 Current evidence:
 
-- Plugin draft lives under `plugins/freeflow/`.
-- There are 19 skills under `plugins/freeflow/skills/`.
+- Plugin draft lives under the repo root.
+- There are 19 skills under `skills/`.
 - Every `SKILL.md` is under the 100-line project budget.
 - Command-surface coverage is complete for the current registry:
   - 3 mode commands
@@ -29,8 +29,8 @@ Current evidence:
 
 Use these current evidence files first:
 
-- `plugins/freeflow/evals/reports/by-command-surface/command-surface-matrix.md`
-- `plugins/freeflow/evals/reports/by-command-surface/command-surface-15-report.md`
+- `evals/reports/by-command-surface/command-surface-matrix.md`
+- `evals/reports/by-command-surface/command-surface-15-report.md`
 - `docs/freeflow-runtime-and-lifecycle.md`
 - `docs/plans/skill-inventory-and-plugin-plan.md`
 

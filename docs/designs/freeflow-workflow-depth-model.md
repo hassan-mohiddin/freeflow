@@ -15,15 +15,15 @@ This note comes from discussion and a focused research pass over:
 
 - Freeflow current workflow docs and skills:
   - `docs/freeflow-runtime-and-lifecycle.md`
-  - `plugins/freeflow/skills/workflow/SKILL.md`
-  - `plugins/freeflow/skills/discover/SKILL.md`
-  - `plugins/freeflow/skills/interview-gate/SKILL.md`
-  - `plugins/freeflow/skills/write-spec/SKILL.md`
-  - `plugins/freeflow/skills/write-plan/SKILL.md`
-  - `plugins/freeflow/skills/review-artifact/SKILL.md`
-  - `plugins/freeflow/skills/execute-plan/SKILL.md`
-  - `plugins/freeflow/skills/review-work/SKILL.md`
-  - `plugins/freeflow/skills/diagnose-failure/SKILL.md`
+  - `skills/workflow/SKILL.md`
+  - `skills/discover/SKILL.md`
+  - `skills/interview-gate/SKILL.md`
+  - `skills/write-spec/SKILL.md`
+  - `skills/write-plan/SKILL.md`
+  - `skills/review-artifact/SKILL.md`
+  - `skills/execute-plan/SKILL.md`
+  - `skills/review-work/SKILL.md`
+  - `skills/diagnose-failure/SKILL.md`
 - Matt Pocock `improve-codebase-architecture` skill and its architecture language.
 - Software design references used as research input:
   - John Ousterhout, *A Philosophy of Software Design*: deep modules, shallow modules, information hiding, complexity.
@@ -296,8 +296,8 @@ To avoid drift:
 Accepted implementation shape:
 
 1. Use `/discover` as the active discovery command.
-2. Create `plugins/freeflow/skills/design-for-depth/SKILL.md` as the design lens.
-3. Move discovery skill files under `plugins/freeflow/skills/discover/` and remove the old `research/LANGUAGE.md` compatibility source.
+2. Create `skills/design-for-depth/SKILL.md` as the design lens.
+3. Move discovery skill files under `skills/discover/` and remove the old `research/LANGUAGE.md` compatibility source.
 4. Update existing skills with short trigger lines:
    - `discover`
    - `write-spec`

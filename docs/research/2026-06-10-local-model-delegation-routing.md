@@ -517,7 +517,7 @@ docs/research/artifacts/local-routing/repo-file-src-auth-session.summary.json
 docs/research/artifacts/local-routing/runs/2026-06-10-manual-routing-eval.json
 ```
 
-Runtime plugin docs under `plugins/freeflow/docs/` should be updated only after the skill/tool behavior stabilizes.
+Runtime plugin docs under `docs/` should be updated only after the skill/tool behavior stabilizes.
 
 ## Evaluation Strategy
 

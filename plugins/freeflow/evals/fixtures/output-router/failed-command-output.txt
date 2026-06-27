@@ -1,9 +1,0 @@
-FAIL packages/router/run.test.js
-  freeflowRun failed-command fixture
-AssertionError: expected false to equal true
-    at Object.<anonymous> (plugins/freeflow/router/tests/fixture.test.js:12:7)
-    at async TestContext.run (node:internal/test_runner/test:1054:7)
-Exact failure evidence must remain unchanged.
-Stack trace line 007 for deterministic fixture coverage.
-Stack trace line 008 for deterministic fixture coverage.
-Stack trace line 009 for deterministic fixture coverage.

@@ -3,7 +3,7 @@
 > **Date:** 2026-06-24
 > **Status:** Preliminary Slice 0 evidence; Slice 1 proof fixtures added; JavaScript QuickJS/WASI and jq-wasm proof spikes passed; Python Eryx candidate blocked before proofs; adapter-family selection review complete
 > **Related plan:** `docs/plans/2026-06-24-freeflow-script-sandbox-adapter-spike-plan.md`
-> **Source truth:** `docs/designs/freeflow-script-derive-sandbox-design.md`, current `plugins/freeflow/router/src/script-sandbox.ts`
+> **Source truth:** `docs/designs/freeflow-script-derive-sandbox-design.md`, current `router/src/script-sandbox.ts`
 
 ## Question
 
@@ -116,7 +116,7 @@ Open risks:
 
 ## Adapter Selection
 
-Selection review: `plugins/freeflow/evals/reports/runtime/script-sandbox-adapter-selection-review-1-report.md`.
+Selection review: `evals/reports/runtime/script-sandbox-adapter-selection-review-1-report.md`.
 
 Use a **multi-language WASM/WASI adapter family** as the primary direction.
 
@@ -155,15 +155,15 @@ Implications:
 - Added a proof fixture registry for the current required proof set across JavaScript, Python, and jq.
 - The fixtures are adversarial programs plus adapter-level assertions; they do not execute untrusted code by themselves.
 - Added tests that every required proof has fixture coverage for every target language.
-- Added a proof-only QuickJS/WASI runner: `plugins/freeflow/evals/scripts/run-quickjs-wasi-proof-spike.js`.
+- Added a proof-only QuickJS/WASI runner: `evals/scripts/run-quickjs-wasi-proof-spike.js`.
 - Ran the QuickJS/WASI runner against the temporary installed `quickjs-wasi@3.0.1` package root; required JavaScript proof fixtures passed 9/9.
-- Report: `plugins/freeflow/evals/reports/runtime/quickjs-wasi-proof-spike-1-report.md`.
+- Report: `evals/reports/runtime/quickjs-wasi-proof-spike-1-report.md`.
 - Tested `@bsull/eryx@0.5.0` from temp-only installs; both the default transitive `@bytecodealliance/preview2-shim@0.17.9` and explicit `0.17.0` pin failed before Python execution because `_setFileData` was not exported from `@bytecodealliance/preview2-shim/filesystem`.
-- Report: `plugins/freeflow/evals/reports/runtime/eryx-python-proof-spike-1-report.md`.
-- Added a proof-only jq/WASM runner: `plugins/freeflow/evals/scripts/run-jq-wasm-proof-spike.js`.
+- Report: `evals/reports/runtime/eryx-python-proof-spike-1-report.md`.
+- Added a proof-only jq/WASM runner: `evals/scripts/run-jq-wasm-proof-spike.js`.
 - Ran the jq/WASM runner against the temporary installed `jq-wasm@1.2.0-jq-1.8.2` package root; required jq proof fixtures passed 9/9.
-- Report: `plugins/freeflow/evals/reports/runtime/jq-wasm-proof-spike-1-report.md`.
-- Added adapter selection review: `plugins/freeflow/evals/reports/runtime/script-sandbox-adapter-selection-review-1-report.md`.
+- Report: `evals/reports/runtime/jq-wasm-proof-spike-1-report.md`.
+- Added adapter selection review: `evals/reports/runtime/script-sandbox-adapter-selection-review-1-report.md`.
 - Selected the optional pinned WASM/WASI family conditionally, with JavaScript and jq as proof-backed partial candidates and Python unavailable.
 - No repo dependencies or runtime adapters were added, and no Freeflow script execution path was enabled.
 

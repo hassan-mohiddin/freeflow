@@ -41,7 +41,7 @@
           <div>
             <h3 class="font-semibold text-stone-800">Constraints</h3>
             <ul class="mt-2 list-disc pl-5 text-sm leading-6 text-stone-700">
-              <li>`plugins/freeflow/` remains the only runtime source of truth.</li>
+              <li>the repo root remains the only runtime source of truth.</li>
               <li>Root Codex and Claude marketplace indexes must point at that runtime.</li>
               <li>Codex and Claude manifests must agree on stable identity.</li>
               <li>`nativeSlashHandlers=false` means no manifest command handlers.</li>
@@ -152,7 +152,7 @@
           <pre class="code mt-4 rounded bg-stone-950 p-4 text-sm text-stone-100">validate({
   repoRoot,
   pluginId: "freeflow",
-  runtimeRoot: "plugins/freeflow",
+  runtimeRoot: "the repo root",
   profiles: ["local-release", "package-cleanliness", "docs-drift"],
   hosts: ["codex", "claude", "local"]
 })</pre>
@@ -216,7 +216,7 @@
           </p>
           <pre class="code mt-4 rounded bg-stone-950 p-4 text-sm text-stone-100">validate({
   repoRoot,
-  pluginRoot: "plugins/freeflow",
+  pluginRoot: "the repo root",
   releaseVersion: "0.1.0",
   mode: "prepublish",
   adapters: {
@@ -298,7 +298,7 @@
         </p>
         <pre class="code mt-4 rounded bg-stone-950 p-4 text-sm text-stone-100">validateReleaseMetadata()
   -> ReleaseMetadataValidator.validate({
-       pluginRoot: "plugins/freeflow",
+       pluginRoot: "the repo root",
        mode: "prepublish",
        checks: defaultLocalChecks
      })

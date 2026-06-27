@@ -31,24 +31,24 @@ Freeflow evidence to reopen before changing Freeflow:
 - `docs/freeflow-current-state.md`
 - `docs/freeflow-packaging-and-publishing-design.md`
 - `docs/freeflow-runtime-and-lifecycle.md`
-- `plugins/freeflow/docs/README.md`
-- `plugins/freeflow/docs/workflow.md`
-- `plugins/freeflow/docs/architecture.md`
-- `plugins/freeflow/docs/skills.md`
-- `plugins/freeflow/docs/release-evidence.md`
-- `plugins/freeflow/docs/adr/0001-three-modes.md`
-- `plugins/freeflow/docs/adr/0002-evals-before-hooks.md`
-- `plugins/freeflow/docs/adr/0003-release-boundary.md`
-- `plugins/freeflow/docs/adr/0004-discover-replaces-shallow-discovery-skills.md`
-- `plugins/freeflow/command-surface.json`
-- `plugins/freeflow/skills/*/SKILL.md`
-- `plugins/freeflow/evals/README.md`
-- `plugins/freeflow/evals/reports/acceptance/v0.1-acceptance-report.md`
-- `plugins/freeflow/evals/reports/by-skill/discover-1-report.md`
-- `plugins/freeflow/evals/reports/by-skill/interview-gate-2-report.md`
-- `plugins/freeflow/evals/reports/by-command-surface/command-surface-matrix.md`
-- `plugins/freeflow/evals/reports/runtime/always-on-runtime-1-report.md`
-- `plugins/freeflow/evals/reports/runtime/workflow-context-hook-1-report.md`
+- `docs/README.md`
+- `plugin-docs/workflow.md`
+- `plugin-docs/architecture.md`
+- `plugin-docs/skills.md`
+- `plugin-docs/release-evidence.md`
+- `plugin-docs/adr/0001-three-modes.md`
+- `plugin-docs/adr/0002-evals-before-hooks.md`
+- `plugin-docs/adr/0003-release-boundary.md`
+- `plugin-docs/adr/0004-discover-replaces-shallow-discovery-skills.md`
+- `command-surface.json`
+- `skills/*/SKILL.md`
+- `evals/README.md`
+- `evals/reports/acceptance/v0.1-acceptance-report.md`
+- `evals/reports/by-skill/discover-1-report.md`
+- `evals/reports/by-skill/interview-gate-2-report.md`
+- `evals/reports/by-command-surface/command-surface-matrix.md`
+- `evals/reports/runtime/always-on-runtime-1-report.md`
+- `evals/reports/runtime/workflow-context-hook-1-report.md`
 
 `agent-skills` upstream sources inspected in this pass:
 
@@ -93,7 +93,7 @@ Key observed repo facts from the inspected `agent-skills` clone:
 
 Observed Freeflow comparison facts from this pass:
 
-- Freeflow runtime has 18 active skills under `plugins/freeflow/skills/`.
+- Freeflow runtime has 18 active skills under `skills/`.
 - Freeflow skill bodies are much shorter on average than `agent-skills`.
 - Freeflow has stronger explicit rules for user-owned decisions, source-truth conflicts, artifact destinations, verification claims, handoffs, and mode pressure.
 - Freeflow has stronger behavior eval evidence, including v0.1 acceptance, always-on source-truth conflict evidence, command-surface coverage, workflow context hook checks, and discover/interview-gate eval reports.

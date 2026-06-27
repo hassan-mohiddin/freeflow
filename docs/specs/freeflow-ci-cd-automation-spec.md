@@ -5,7 +5,7 @@
 > **Owner:** Hassan Mohiddin
 > **Type:** Spec
 > **Status:** Draft
-> **Source:** User CI/CD discussion; live repo evidence in `package.json`, `.github/workflows/release.yml`, `docs/freeflow-current-state.md`, `docs/freeflow-packaging-and-publishing-design.md`, and `plugins/freeflow/evals/scripts/`.
+> **Source:** User CI/CD discussion; live repo evidence in `package.json`, `.github/workflows/release.yml`, `docs/freeflow-current-state.md`, `docs/freeflow-packaging-and-publishing-design.md`, and `evals/scripts/`.
 
 ## Problem
 
@@ -31,14 +31,14 @@ Current automation and validation already exist:
 - The release workflow uses npm Trusted Publisher-style permissions: `id-token: write`, `contents: read`, and environment `npm`.
 - The release workflow already checks that the package version is not published and runs `npm pack --dry-run`.
 - `package.json` exposes Freeflow as `@hassangameryt/freeflow@0.1.0` and has no local `scripts` section yet.
-- `plugins/freeflow/evals/scripts/` includes deterministic validation scripts:
+- `evals/scripts/` includes deterministic validation scripts:
   - `audit-command-surface.sh`
   - `check-activation-contract.sh`
   - `check-runtime-context-hook.sh`
   - `validate-release-metadata.sh`
   - fixture/eval helpers for model-based evals
 - `docs/freeflow-current-state.md` says enforcement hooks and CLI enforcement are not shipped in v0.1.
-- `docs/freeflow-packaging-and-publishing-design.md` says the public repo uses one plugin runtime under `plugins/freeflow/` and should not maintain a generated package copy.
+- `docs/freeflow-packaging-and-publishing-design.md` says the public repo uses one plugin runtime under the repo root and should not maintain a generated package copy.
 
 ## Scope
 
@@ -72,13 +72,13 @@ Recommended commands:
 {
   "scripts": {
     "check": "npm run check:json && npm run check:shell && npm run check:js && npm run check:commands && npm run check:activation && npm run check:runtime && npm run check:metadata && npm run pack:dry",
-    "check:json": "find . -path './plugins/freeflow/evals/runs' -prune -o -name '*.json' -print0 | xargs -0 -n1 jq empty",
-    "check:shell": "find plugins/freeflow/evals/scripts plugins/freeflow/evals/fixtures -name '*.sh' -print0 | xargs -0 -n1 bash -n",
-    "check:js": "find plugins/freeflow -name '*.js' -o -name '*.mjs' | xargs -n1 node --check",
-    "check:commands": "plugins/freeflow/evals/scripts/audit-command-surface.sh",
-    "check:activation": "plugins/freeflow/evals/scripts/check-activation-contract.sh",
-    "check:runtime": "plugins/freeflow/evals/scripts/check-runtime-context-hook.sh",
-    "check:metadata": "plugins/freeflow/evals/scripts/validate-release-metadata.sh --mode prepublish --release-version \"$(node -p 'require(\"./package.json\").version')\"",
+    "check:json": "find . -path './evals/runs' -prune -o -name '*.json' -print0 | xargs -0 -n1 jq empty",
+    "check:shell": "find evals/scripts evals/fixtures -name '*.sh' -print0 | xargs -0 -n1 bash -n",
+    "check:js": "find the repo root -name '*.js' -o -name '*.mjs' | xargs -n1 node --check",
+    "check:commands": "evals/scripts/audit-command-surface.sh",
+    "check:activation": "evals/scripts/check-activation-contract.sh",
+    "check:runtime": "evals/scripts/check-runtime-context-hook.sh",
+    "check:metadata": "evals/scripts/validate-release-metadata.sh --mode prepublish --release-version \"$(node -p 'require(\"./package.json\").version')\"",
     "pack:dry": "npm pack --dry-run"
   }
 }
@@ -200,7 +200,7 @@ Do not expose npm tokens or other secrets to untrusted PRs. Prefer Trusted Publi
 
 Automation should preserve the current release boundary:
 
-- one installable plugin runtime under `plugins/freeflow/`
+- one installable plugin runtime under the repo root
 - no generated package copy
 - generated eval runs excluded
 - no enforcement hooks or CLI enforcement

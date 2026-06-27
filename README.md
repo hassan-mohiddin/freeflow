@@ -144,7 +144,7 @@ These hooks do not run after every edit, block tools, grant permissions, or enfo
 
 ### Other Agents
 
-Copy the `plugins/freeflow/skills/` directory into the agent's skills/plugin system and make sure the agent can read `SKILL.md` files with bundled `references/`.
+Copy the `skills/` directory into the agent's skills/plugin system and make sure the agent can read `SKILL.md` files with bundled `references/`.
 
 ## Usage
 
@@ -183,12 +183,12 @@ For Codex and Claude, these commands work as skill-routing language. In Pi, the 
 
 ## Docs
 
-- [Docs index](plugins/freeflow/docs/README.md)
-- [Workflow](plugins/freeflow/docs/workflow.md)
-- [Skills](plugins/freeflow/docs/skills.md)
-- [Architecture](plugins/freeflow/docs/architecture.md)
-- [Release evidence](plugins/freeflow/docs/release-evidence.md)
-- [ADRs](plugins/freeflow/docs/adr/README.md)
+- [Docs index](plugin-docs/README.md)
+- [Workflow](plugin-docs/workflow.md)
+- [Skills](plugin-docs/skills.md)
+- [Architecture](plugin-docs/architecture.md)
+- [Release evidence](plugin-docs/release-evidence.md)
+- [ADRs](plugin-docs/adr/README.md)
 
 ## Evidence
 
@@ -205,9 +205,9 @@ Freeflow does not claim to beat Matt Pocock's skills or Obra's Superpowers. Thos
 | Output router retrieval | - | 7/7 pass | Deterministic router evidence fixes generated-artifact false positives while keeping scanner retrieval default. |
 | Output router command recovery | - | 8/8 pass | `freeflow_run` preserves exact facts and verifies raw vault recovery for routed command output. |
 | Codex Structured Q&A | native proxy 0/1 | improved router 1/1 | Sandbox Permissions Q&A resolves to the source markdown instead of a generated `graphify-out` decoy. |
-| Command surface audit | - | Pass | 4 mode commands, 12 direct skill calls, and 2 developer skill calls are covered while native slash handlers remain disabled for Codex/Claude. |
+| Command surface audit | - | Pass | 4 mode commands, 12 direct skill calls, and 3 developer skill calls are covered while native slash handlers remain disabled for Codex/Claude. |
 
-Eval sources and reports live with the plugin under `plugins/freeflow/evals/`; generated run output is ignored. Concise release evidence is summarized in [plugins/freeflow/docs/release-evidence.md](plugins/freeflow/docs/release-evidence.md).
+Eval sources and reports live with the plugin under `evals/`; generated run output is ignored. Concise release evidence is summarized in [plugin-docs/release-evidence.md](plugin-docs/release-evidence.md).
 
 ## What Freeflow Is Not
 

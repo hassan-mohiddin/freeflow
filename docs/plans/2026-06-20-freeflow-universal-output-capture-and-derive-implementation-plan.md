@@ -22,12 +22,12 @@ Slice 0 public-contract decisions were approved on 2026-06-22. Slices 1-3 were i
 Progress:
 
 - 2026-06-22: Slice 0 decisions recorded in the spec and plan; artifact review passed with no blocking findings.
-- 2026-06-22: Slice 1 added universal evidence metadata and recoverability compatibility; `npm run test:router` passed with 169 tests, `node --check plugins/freeflow/pi-extension/index.js` passed, and `git diff --check` passed.
-- 2026-06-22: Slice 2 added shared failure-contract helpers for capture/derive foundations; `npm run test:router` passed with 174 tests, `node --check plugins/freeflow/pi-extension/index.js` passed, and `git diff --check` passed.
-- 2026-06-22: Slice 3 added the internal `freeflow_capture` interface, fixture adapter contract, read-only enforcement, bounded routing, and capture tests without public Pi registration; `npm run test:router` passed with 179 tests, `node --check plugins/freeflow/pi-extension/index.js` passed, and `git diff --check` passed.
+- 2026-06-22: Slice 1 added universal evidence metadata and recoverability compatibility; `npm run test:router` passed with 169 tests, `node --check pi-extension/index.js` passed, and `git diff --check` passed.
+- 2026-06-22: Slice 2 added shared failure-contract helpers for capture/derive foundations; `npm run test:router` passed with 174 tests, `node --check pi-extension/index.js` passed, and `git diff --check` passed.
+- 2026-06-22: Slice 3 added the internal `freeflow_capture` interface, fixture adapter contract, read-only enforcement, bounded routing, and capture tests without public Pi registration; `npm run test:router` passed with 179 tests, `node --check pi-extension/index.js` passed, and `git diff --check` passed.
 - 2026-06-22: Slice 4 capability inspection initially stopped public exposure: Pi extension docs expose custom tools, `pi.exec`, and tool metadata/activation APIs, but no extension API for invoking MCP/provider tools by name; the MCP gateway had no Serena server connected.
-- 2026-06-22: Serena was installed and configured through `pi-mcp-adapter`; Pi MCP connected to Serena. Slice 4 added an explicit Pi MCP stdio bridge for allowlisted Serena read-only symbol/reference/diagnostic tools and registered public `freeflow_capture`; mutating Serena tools remain rejected through capture and available only as direct MCP calls after explicit user intent. Review fix: MCP child env now uses a safe allowlist plus explicit server env interpolation, with fake stdio MCP coverage for successful capture and secret non-forwarding. Verification: `npm run test:router` passed with 183 tests, `node --check plugins/freeflow/pi-extension/index.js` passed, `git diff --check && git diff --cached --check` passed, and live Serena capture smoke returned routed exact-recoverable evidence.
-- 2026-06-22: Before Slice 5A, the Pi extension was converted to TypeScript source modules. Modules now separate runtime context, schemas, renderers, native safety-net routing, MCP capture bridge, and router tool registration. The root Pi manifest now loads `plugins/freeflow/pi-extension/dist/index.js` directly; the old `plugins/freeflow/pi-extension/index.js` wrapper was removed because there are no external users to preserve. The migration uses `tsc` without `@ts-nocheck`, while keeping `strict` off for incremental typing. Verification after the split: `npm run test:router` passed with 183 tests, `node --check plugins/freeflow/pi-extension/dist/index.js` passed, and `git diff --check && git diff --cached --check` passed.
+- 2026-06-22: Serena was installed and configured through `pi-mcp-adapter`; Pi MCP connected to Serena. Slice 4 added an explicit Pi MCP stdio bridge for allowlisted Serena read-only symbol/reference/diagnostic tools and registered public `freeflow_capture`; mutating Serena tools remain rejected through capture and available only as direct MCP calls after explicit user intent. Review fix: MCP child env now uses a safe allowlist plus explicit server env interpolation, with fake stdio MCP coverage for successful capture and secret non-forwarding. Verification: `npm run test:router` passed with 183 tests, `node --check pi-extension/index.js` passed, `git diff --check && git diff --cached --check` passed, and live Serena capture smoke returned routed exact-recoverable evidence.
+- 2026-06-22: Before Slice 5A, the Pi extension was converted to TypeScript source modules. Modules now separate runtime context, schemas, renderers, native safety-net routing, MCP capture bridge, and router tool registration. The root Pi manifest now loads `pi-extension/dist/index.js` directly; the old `pi-extension/index.js` wrapper was removed because there are no external users to preserve. The migration uses `tsc` without `@ts-nocheck`, while keeping `strict` off for incremental typing. Verification after the split: `npm run test:router` passed with 183 tests, `node --check pi-extension/dist/index.js` passed, and `git diff --check && git diff --cached --check` passed.
 - 2026-06-22: Slice 5A added core deterministic `freeflow_derive` support for vault sources, `regexFilter` with context, `countMatches`, source lineage, exact derived-output recovery, bounded routing, and structured derive failures. Public Pi registration remains deferred to Slice 5E.
 - 2026-06-22: Slice 5B added deterministic `jsonExtract` over vault sources with JSON Pointer and a bounded JSON path subset, plus invalid JSON, unresolved selector, and invalid path failure coverage.
 - 2026-06-22: Slice 5C added deterministic `groupByRegex`, `dedupe`, and `topN` operations over vault sources, with bounded operation settings, persisted derived outputs, lineage, and shared routing/recovery.
@@ -48,24 +48,24 @@ Primary spec:
 Foundational router contract:
 
 - `docs/specs/freeflow-output-router-design.md`
-- `plugins/freeflow/skills/output-router/SKILL.md`
-- `plugins/freeflow/skills/output-router/references/safety-policy.md`
+- `skills/output-router/SKILL.md`
+- `skills/output-router/references/safety-policy.md`
 
 Setup/config source truth:
 
-- `plugins/freeflow/skills/setup-freeflow/SKILL.md`
-- `plugins/freeflow/skills/setup-freeflow/references/output-router-setup.md`
+- `skills/setup-freeflow/SKILL.md`
+- `skills/setup-freeflow/references/output-router-setup.md`
 - `.freeflow/config.json`
 
 Current implementation areas:
 
-- `plugins/freeflow/router/src/`
-- `plugins/freeflow/router/tests/`
-- `plugins/freeflow/pi-extension/src/`
-- `plugins/freeflow/pi-extension/dist/`
-- `plugins/freeflow/router/dist/`
-- `plugins/freeflow/evals/README.md`
-- `plugins/freeflow/evals/reports/runtime/`
+- `router/src/`
+- `router/tests/`
+- `pi-extension/src/`
+- `pi-extension/dist/`
+- `router/dist/`
+- `evals/README.md`
+- `evals/reports/runtime/`
 
 Reference research:
 
@@ -112,52 +112,52 @@ Apply the deletion test before adding modules. If a new helper only forwards arg
 
 Router source:
 
-- `plugins/freeflow/router/src/types.ts`
-- `plugins/freeflow/router/src/schema.ts`
-- `plugins/freeflow/router/src/vault.ts`
-- `plugins/freeflow/router/src/index.ts`
-- `plugins/freeflow/router/src/evidence.ts`
-- `plugins/freeflow/router/src/run.ts`
-- `plugins/freeflow/router/src/retrieve.ts`
+- `router/src/config/types.ts`
+- `router/src/config/schema.ts`
+- `router/src/vault/vault.ts`
+- `router/src/index.ts`
+- `router/src/evidence/evidence.ts`
+- `router/src/tools/run.ts`
+- `router/src/tools/retrieve.ts`
 - possible new files:
-  - `plugins/freeflow/router/src/capture.ts`
-  - `plugins/freeflow/router/src/derive.ts`
-  - `plugins/freeflow/router/src/producers.ts`
-  - `plugins/freeflow/router/src/provider-manifests.ts`
-  - `plugins/freeflow/router/src/recoverability.ts`
+  - `router/src/capture.ts`
+  - `router/src/tools/derive.ts`
+  - `router/src/producers.ts`
+  - `router/src/provider-manifests.ts`
+  - `router/src/recoverability.ts`
 
 Pi adapter:
 
-- `plugins/freeflow/pi-extension/src/`
-- `plugins/freeflow/pi-extension/dist/`
+- `pi-extension/src/`
+- `pi-extension/dist/`
 
 Tests:
 
-- `plugins/freeflow/router/tests/schema.test.js`
-- `plugins/freeflow/router/tests/run.test.js`
-- `plugins/freeflow/router/tests/retrieve.test.js`
+- `router/tests/schema.test.js`
+- `router/tests/run.test.js`
+- `router/tests/retrieve.test.js`
 - possible new tests:
-  - `plugins/freeflow/router/tests/capture.test.js`
-  - `plugins/freeflow/router/tests/derive.test.js`
-  - `plugins/freeflow/router/tests/provider-manifests.test.js`
-  - `plugins/freeflow/router/tests/recoverability.test.js`
-  - `plugins/freeflow/router/tests/pi-extension-capture.test.js`
+  - `router/tests/capture.test.js`
+  - `router/tests/derive.test.js`
+  - `router/tests/provider-manifests.test.js`
+  - `router/tests/recoverability.test.js`
+  - `router/tests/pi-extension-capture.test.js`
 
 Generated output, if build emits it:
 
-- `plugins/freeflow/router/dist/`
+- `router/dist/`
 
 Skills/docs/config:
 
-- `plugins/freeflow/skills/output-router/SKILL.md`
-- `plugins/freeflow/skills/setup-freeflow/SKILL.md`
-- `plugins/freeflow/skills/setup-freeflow/references/output-router-setup.md`
-- `plugins/freeflow/docs/architecture.md` only after behavior is verified
+- `skills/output-router/SKILL.md`
+- `skills/setup-freeflow/SKILL.md`
+- `skills/setup-freeflow/references/output-router-setup.md`
+- `plugin-docs/architecture.md` only after behavior is verified
 - `.freeflow/config.json` only when intentionally changing this repo's own config
 
 Provider manifests:
 
-- possible new directory: `plugins/freeflow/providers/`
+- possible new directory: `providers/`
 
 ## Slice 0: Design Consolidation And Approval Gate
 
@@ -196,7 +196,7 @@ Checks:
 
 - Existing router tests still pass before implementation work starts.
 - `npm run test:router`
-- `node --check plugins/freeflow/pi-extension/dist/index.js`
+- `node --check pi-extension/dist/index.js`
 - Artifact review reports no blocking findings for the Slice 0 decisions.
 
 Stop if:
@@ -499,7 +499,7 @@ Steps:
 Checks:
 
 - `npm run test:router`
-- `node --check plugins/freeflow/pi-extension/dist/index.js`
+- `node --check pi-extension/dist/index.js`
 - `git diff --check`
 - targeted eval/report artifact for capture/derive behavior
 

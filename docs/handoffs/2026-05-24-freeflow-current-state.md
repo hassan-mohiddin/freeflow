@@ -12,12 +12,12 @@ Use this file as a pointer to current state, not as the only source of truth.
 
 ## Key Paths
 
-- Plugin draft: `plugins/freeflow/`
-- Core skills: `plugins/freeflow/skills/`
+- Plugin draft: the repo root
+- Core skills: `skills/`
 - Plugin contract: `docs/plugin-contract.md`
 - Behavior evals: `docs/research/workflow-behavior-evals.md`
-- Eval reports: `plugins/freeflow/evals/reports/`
-- Codex eval harness: `plugins/freeflow/evals/scripts/run-codex-fixture-eval.sh`
+- Eval reports: `evals/reports/`
+- Codex eval harness: `evals/scripts/run-codex-fixture-eval.sh`
 
 ## Current Core Skills
 
@@ -114,7 +114,7 @@ Reason:
 Current harness:
 
 ```text
-plugins/freeflow/evals/scripts/run-codex-fixture-eval.sh
+evals/scripts/run-codex-fixture-eval.sh
 ```
 
 Known caveat:

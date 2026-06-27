@@ -1506,7 +1506,7 @@ Notice what is not here:
 The canonical pass index and roadmap now live in:
 
 ```text
-docs/research/codex-cli-agent-harness/README.md
+docs/codex-cli-agent-harness/README.md
 ```
 
 Completed after this artifact:

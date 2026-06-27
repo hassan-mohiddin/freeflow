@@ -90,7 +90,7 @@ Next: No required next action; the task is verified and no open decisions remain
 
 Primary change:
 
-- `plugins/freeflow/skills/workflow/SKILL.md`
+- `skills/workflow/SKILL.md`
 
 Add a route closeout rule:
 
@@ -113,7 +113,7 @@ Do not auto-create the next artifact unless the user asked to continue or the ne
 
 Secondary change:
 
-- `plugins/freeflow/skills/verify-work/SKILL.md`
+- `skills/verify-work/SKILL.md`
 
 Make `Next:` mandatory for completed consequential work:
 
@@ -123,7 +123,7 @@ For completed consequential work, `Next:` is mandatory. Omit it only for direct 
 
 Map/docs change:
 
-- `plugins/freeflow/skills/workflow/references/workflow-map.md`
+- `skills/workflow/references/workflow-map.md`
 
 Add that phase exits must name a next route, and define forward, backward, branch, and stop.
 

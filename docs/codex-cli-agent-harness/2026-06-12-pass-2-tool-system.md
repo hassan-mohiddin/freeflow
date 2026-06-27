@@ -2319,7 +2319,7 @@ These should be answered later in the actual harness design spec.
 This local roadmap has been superseded by the directory README:
 
 ```text
-docs/research/codex-cli-agent-harness/README.md
+docs/codex-cli-agent-harness/README.md
 ```
 
 The next pass after this artifact was correctly Pass 3, because tool execution without a safety model becomes unrealistic quickly.

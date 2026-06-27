@@ -1,6 +1,6 @@
 # Agent Workflow Plugin Skill Inventory And Development Plan
 
-> Historical planning and inventory note. Use `docs/freeflow-current-state.md`, `docs/freeflow-packaging-and-publishing-design.md`, `plugins/freeflow/evals/README.md`, and live skill files for current release state.
+> Historical planning and inventory note. Use `docs/freeflow-current-state.md`, `docs/freeflow-packaging-and-publishing-design.md`, `evals/README.md`, and live skill files for current release state.
 
 ## Purpose
 
@@ -316,7 +316,7 @@ Role separation:
 
 ## Development Phases
 
-Status note as of 2026-05-26: these phases are historical planning scaffolding. The current development plugin has progressed through the target skill pack, fixture eval harness, developer skill calls, Codex/Claude setup decisions, eval evidence organization, and single-runtime marketplace layout. Use `plugins/freeflow/evals/README.md` and current eval reports for live evidence before choosing new work.
+Status note as of 2026-05-26: these phases are historical planning scaffolding. The current development plugin has progressed through the target skill pack, fixture eval harness, developer skill calls, Codex/Claude setup decisions, eval evidence organization, and single-runtime marketplace layout. Use `evals/README.md` and current eval reports for live evidence before choosing new work.
 
 ### Phase 0: Reference Sync
 
@@ -524,8 +524,8 @@ Current status as of 2026-05-26:
   - `capture-decisions/references/destination-guide.md`
 - Command-surface eval coverage is complete for the current registry: 4 mode commands, 13 direct skill calls, and 2 developer skill calls.
 - Native slash handlers remain disabled; commands are model-routed.
-- The local-only v0.1 acceptance suite passed after measured fixes. See `plugins/freeflow/evals/reports/acceptance/v0.1-acceptance-report.md`.
-- The public marketplace repo points Codex and Claude at `plugins/freeflow/`, which contains runtime skills, manifests, refined plugin docs, evals, command-surface metadata, MIT license context, and changelog context from the repo root.
+- The local-only v0.1 acceptance suite passed after measured fixes. See `evals/reports/acceptance/v0.1-acceptance-report.md`.
+- The public marketplace repo points Codex and Claude at the repo root, which contains runtime skills, manifests, refined plugin docs, evals, command-surface metadata, MIT license context, and changelog context from the repo root.
 - The plugin is ready for Hassan's local Codex-first dogfooding in other repos; live Claude smoke evals are still deferred.
 - The previously optional references `write-spec/references/spec-shapes.md`, `handoff/references/templates.md`, and `grill-context/references/approach-framing.md` were added by explicit product direction as opt-in shape guidance, not mandatory workflow pressure.
 

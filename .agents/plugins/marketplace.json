@@ -8,7 +8,7 @@
       "name": "freeflow",
       "source": {
         "source": "local",
-        "path": "./plugins/freeflow"
+        "path": "."
       },
       "policy": {
         "installation": "AVAILABLE",

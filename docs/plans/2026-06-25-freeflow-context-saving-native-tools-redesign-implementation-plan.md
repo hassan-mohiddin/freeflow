@@ -35,26 +35,25 @@ Primary spec:
 
 Current source-truth docs to preserve:
 
-- `plugins/freeflow/docs/output-router.md`
-- `plugins/freeflow/docs/release-evidence.md`
+- `plugin-docs/output-router.md`
+- `plugin-docs/release-evidence.md`
 - `docs/specs/freeflow-observed-output-routing-vault-index-and-script-derive-design.md`
 - `docs/specs/freeflow-output-router-excellence-spec.md`
 
 Current implementation areas:
 
-- `plugins/freeflow/router/src/run.ts`
-- `plugins/freeflow/router/src/retrieve.ts`
-- `plugins/freeflow/router/src/derive.ts`
-- `plugins/freeflow/router/src/parsers.ts`
-- `plugins/freeflow/router/src/evidence.ts`
-- `plugins/freeflow/router/src/vault.ts`
-- `plugins/freeflow/router/src/vault-index/`
-- `plugins/freeflow/pi-extension/src/router-tools.ts`
-- `plugins/freeflow/pi-extension/src/schemas.ts`
-- `plugins/freeflow/pi-extension/src/renderers.ts`
-- `plugins/freeflow/router/tests/`
-- `plugins/freeflow/evals/scripts/`
-- `plugins/freeflow/evals/reports/runtime/`
+- `router/src/tools/run.ts`
+- `router/src/tools/retrieve.ts`
+- `router/src/tools/derive.ts`
+- `router/src/routing/parsers.ts`
+- `router/src/evidence/`
+- `router/src/vault/`
+- `pi-extension/src/router-tools.ts`
+- `pi-extension/src/schemas.ts`
+- `pi-extension/src/renderers.ts`
+- `router/tests/`
+- `evals/scripts/`
+- `evals/reports/runtime/`
 
 ## Non-Goals
 
@@ -86,7 +85,7 @@ Steps:
 
 1. Run current checks:
    - `npm run test:router`
-   - `node --check plugins/freeflow/pi-extension/dist/index.js`
+   - `node --check pi-extension/dist/index.js`
    - `git diff --check && git diff --cached --check`
 2. Capture current model-visible output sizes for representative `freeflow_run`, `freeflow_retrieve`, and `freeflow_derive` results.
 3. Identify existing fixtures/tests that must remain stable:
@@ -104,7 +103,7 @@ Steps:
 
 Checks:
 
-- Baseline report saved under `plugins/freeflow/evals/reports/runtime/`.
+- Baseline report saved under `evals/reports/runtime/`.
 - Existing tests pass before changes.
 
 Stop if:
@@ -381,8 +380,8 @@ Status: done.
 
 Evidence:
 
-- `plugins/freeflow/evals/reports/runtime/storage-policy-benchmark-1-report.md`
-- `plugins/freeflow/evals/runs/output-router/storage-policy-benchmark-1-report.json`
+- `evals/reports/runtime/storage-policy-benchmark-1-report.md`
+- `evals/runs/output-router/storage-policy-benchmark-1-report.json`
 
 Result:
 
@@ -454,7 +453,7 @@ Stop if:
 - index improves speed but worsens accuracy/recovery,
 - index adds unacceptable dependency/setup/staleness risk.
 
-Status: done. Evidence recorded in `plugins/freeflow/evals/reports/runtime/output-router-index-benchmark-1-report.md` and `plugins/freeflow/evals/runs/output-router/output-router-index-benchmark-1-report.json`. Scanner-only, local lexical index, Node `node:sqlite` FTS5/BM25/trigram, and conservative hybrid scanner+index all passed 3/3 fixtures with recall@3 3/3 and zero generated false positives. FTS5/BM25/trigram was tested through the experimental Node runtime available in this environment; no package dependency was added. Scanner remains default; index is not adopted.
+Status: done. Evidence recorded in `evals/reports/runtime/output-router-index-benchmark-1-report.md` and `evals/runs/output-router/output-router-index-benchmark-1-report.json`. Scanner-only, local lexical index, Node `node:sqlite` FTS5/BM25/trigram, and conservative hybrid scanner+index all passed 3/3 fixtures with recall@3 3/3 and zero generated false positives. FTS5/BM25/trigram was tested through the experimental Node runtime available in this environment; no package dependency was added. Scanner remains default; index is not adopted.
 
 ## Slice 10: Context Mode Normalized Benchmark
 
@@ -491,7 +490,7 @@ Stop if:
 - Freeflow saves fewer tokens without compensating accuracy/recovery benefit,
 - benchmark fixtures are not comparable enough for a claim.
 
-Status: done. Evidence recorded in `plugins/freeflow/evals/reports/runtime/context-mode-normalized-benchmark-1-report.md` and `plugins/freeflow/evals/runs/output-router/context-mode-normalized-benchmark-1-report.json`. Freeflow-owned tools and the normalized Context Mode-style proxy both passed 6/6 fixtures. Freeflow preserved exact facts and recovery on 6/6, but answer-accurate visible output was 4/6 and the proxy had lower model-visible bytes on these normalized fixtures. Freeflow reduced tool calls only for the batch fixture. No public superiority claim is allowed from this benchmark.
+Status: done. Evidence recorded in `evals/reports/runtime/context-mode-normalized-benchmark-1-report.md` and `evals/runs/output-router/context-mode-normalized-benchmark-1-report.json`. Freeflow-owned tools and the normalized Context Mode-style proxy both passed 6/6 fixtures. Freeflow preserved exact facts and recovery on 6/6, but answer-accurate visible output was 4/6 and the proxy had lower model-visible bytes on these normalized fixtures. Freeflow reduced tool calls only for the batch fixture. No public superiority claim is allowed from this benchmark.
 
 ## Slice 11: Public Surface Migration Decision
 
@@ -534,6 +533,10 @@ Stop if:
 - compatibility break needs owner approval,
 - docs would imply external observed routing improvements not implemented in this plan.
 
+Status: done. Decision: do not expose `freeflow_search` or deprecate `freeflow_retrieve` / `freeflow_derive` yet. Keep the public Pi tool surface as `freeflow_run`, `freeflow_retrieve`, `freeflow_derive`, and `freeflow_batch`; organize internals toward search/transform/processing while the file-processing and Context Mode parity work proves the next public shape. No public superiority or external observed-routing claims are allowed from Slice 10 evidence.
+
+Follow-up implementation note: `router/src/` is organized by module responsibility (`tools/`, `transform/`, `evidence/`, `vault/`, `repo/`, `routing/`, `sandbox/`, `config/`, `benchmarks/`, and `experiments/`). Historical router artifacts that should not stay in active runtime code belong under `deprecated/router/`.
+
 ## Review Checkpoints
 
 Run focused review after:
@@ -552,7 +555,7 @@ Before completion claims:
 
 - `npm run test:router`
 - `npm run build`
-- `node --check plugins/freeflow/pi-extension/dist/index.js`
+- `node --check pi-extension/dist/index.js`
 - `git diff --check && git diff --cached --check`
 - compact-output benchmark report passes,
 - storage-policy benchmark report recorded,

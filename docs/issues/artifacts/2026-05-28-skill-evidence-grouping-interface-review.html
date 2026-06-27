@@ -147,12 +147,12 @@ validateSkillEvidence({ skill?: string, audience?: "public" | "internal" })</pre
             A developer-facing command answers the daily workflow: "I changed this skill; show me evidence and commands."
             A declarative skill evidence index owns only grouping metadata.
           </p>
-          <pre class="code mt-4 rounded bg-stone-950 p-4 text-sm text-stone-100">plugins/freeflow/evals/scripts/skill-evidence.sh &lt;skill&gt; \
+          <pre class="code mt-4 rounded bg-stone-950 p-4 text-sm text-stone-100">evals/scripts/skill-evidence.sh &lt;skill&gt; \
   [--format summary|json|commands] \
   [--run-label LABEL] \
   [--agent codex|claude]
 
-plugins/freeflow/evals/registries/skill-evidence.json</pre>
+evals/registries/skill-evidence.json</pre>
           <div class="mt-4 grid gap-4 md:grid-cols-3">
             <div>
               <h3 class="font-semibold">Leverage</h3>
@@ -283,7 +283,7 @@ plugins/freeflow/evals/registries/skill-evidence.json</pre>
           adapters. Add a small explicit evidence index only for ownership/grouping metadata that cannot be safely
           derived from source truth.
         </p>
-        <pre class="code mt-4 rounded bg-stone-950 p-4 text-sm text-stone-100">plugins/freeflow/evals/scripts/skill-evidence.sh &lt;skill&gt; [--format summary|json|commands]
+        <pre class="code mt-4 rounded bg-stone-950 p-4 text-sm text-stone-100">evals/scripts/skill-evidence.sh &lt;skill&gt; [--format summary|json|commands]
   -> getSkillEvidence({
        subject: { kind: "skill", name: skill },
        freshness: "acceptance-over-smoke",

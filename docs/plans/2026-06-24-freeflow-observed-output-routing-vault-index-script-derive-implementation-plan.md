@@ -37,27 +37,27 @@ Superseded or updated source truth to reconcile during execution:
 
 Router and Pi implementation areas:
 
-- `plugins/freeflow/router/src/`
-- `plugins/freeflow/router/tests/`
-- `plugins/freeflow/pi-extension/src/`
-- `plugins/freeflow/pi-extension/dist/`
-- `plugins/freeflow/router/dist/`
+- `router/src/`
+- `router/tests/`
+- `pi-extension/src/`
+- `pi-extension/dist/`
+- `router/dist/`
 
 Docs, skills, setup, evals:
 
-- `plugins/freeflow/skills/output-router/SKILL.md`
-- `plugins/freeflow/skills/setup-freeflow/SKILL.md`
-- `plugins/freeflow/skills/setup-freeflow/references/output-router-setup.md`
-- `plugins/freeflow/docs/`
-- `plugins/freeflow/evals/README.md`
-- `plugins/freeflow/evals/scripts/`
-- `plugins/freeflow/evals/reports/runtime/`
+- `skills/output-router/SKILL.md`
+- `skills/setup-freeflow/SKILL.md`
+- `skills/setup-freeflow/references/output-router-setup.md`
+- `docs/`
+- `evals/README.md`
+- `evals/scripts/`
+- `evals/reports/runtime/`
 
 Deferred adapter surfaces, not implemented by this plan:
 
-- `plugins/freeflow/hooks/`
-- `plugins/freeflow/.claude-plugin/`
-- `plugins/freeflow/.codex-plugin/`
+- `hooks/`
+- `.claude-plugin/`
+- `.codex-plugin/`
 
 Live repo evidence overrides this plan. If source truth changes while implementing, update the plan or route back to discovery/spec before patching forward.
 
@@ -143,50 +143,50 @@ Avoid a single god module that owns host hook handling, config parsing, reducers
 
 Router core:
 
-- `plugins/freeflow/router/src/types.ts`
-- `plugins/freeflow/router/src/config.ts`
-- `plugins/freeflow/router/src/schema.ts`
-- `plugins/freeflow/router/src/evidence.ts`
-- `plugins/freeflow/router/src/vault.ts`
-- `plugins/freeflow/router/src/retrieve.ts`
-- `plugins/freeflow/router/src/derive.ts`
+- `router/src/config/types.ts`
+- `router/src/config/config.ts`
+- `router/src/config/schema.ts`
+- `router/src/evidence/evidence.ts`
+- `router/src/vault/vault.ts`
+- `router/src/tools/retrieve.ts`
+- `router/src/tools/derive.ts`
 - possible new files:
-  - `plugins/freeflow/router/src/observed-routing.ts`
-  - `plugins/freeflow/router/src/observed-producers.ts`
-  - `plugins/freeflow/router/src/observed-policy.ts`
-  - `plugins/freeflow/router/src/reducers/*.ts`
-  - `plugins/freeflow/router/src/vault-index/*.ts`
-  - `plugins/freeflow/router/src/script-derive/*.ts`
-  - `plugins/freeflow/router/src/sandbox/*.ts`
+  - `router/src/observed-routing.ts`
+  - `router/src/observed-producers.ts`
+  - `router/src/observed-policy.ts`
+  - `router/src/reducers/*.ts`
+  - `router/src/vault/*.ts`
+  - `router/src/script-derive/*.ts`
+  - `router/src/sandbox/*.ts`
 
 Pi extension:
 
-- `plugins/freeflow/pi-extension/src/index.ts`
-- `plugins/freeflow/pi-extension/src/native-safety-net.ts`
-- `plugins/freeflow/pi-extension/src/status.ts`
-- `plugins/freeflow/pi-extension/src/runtime-context.ts`
-- `plugins/freeflow/pi-extension/src/renderers.ts`
-- `plugins/freeflow/pi-extension/src/schemas.ts`
+- `pi-extension/src/index.ts`
+- `pi-extension/src/native-safety-net.ts`
+- `pi-extension/src/status.ts`
+- `pi-extension/src/runtime-context.ts`
+- `pi-extension/src/renderers.ts`
+- `pi-extension/src/schemas.ts`
 - possible new files:
-  - `plugins/freeflow/pi-extension/src/observed-tool-routing.ts`
-  - `plugins/freeflow/pi-extension/src/host-producer-identification.ts`
+  - `pi-extension/src/observed-tool-routing.ts`
+  - `pi-extension/src/host-producer-identification.ts`
 
 Tests/evals:
 
-- `plugins/freeflow/router/tests/*.test.js`
+- `router/tests/*.test.js`
 - possible new tests:
   - `observed-routing.test.js`
   - `reducers.test.js`
   - `vault-index.test.js`
   - `script-derive.test.js`
   - `pi-extension-observed-routing.test.js`
-- `plugins/freeflow/evals/scripts/`
-- `plugins/freeflow/evals/reports/runtime/`
+- `evals/scripts/`
+- `evals/reports/runtime/`
 
 Generated output:
 
-- `plugins/freeflow/router/dist/`
-- `plugins/freeflow/pi-extension/dist/`
+- `router/dist/`
+- `pi-extension/dist/`
 
 ## Slice 0: Source Reconciliation, Baseline, And Artifact Review
 
@@ -199,7 +199,7 @@ Steps:
 3. Inspect current router/Pi extension baseline for `freeflow_capture`, native safety-net routing, status/config, and derive behavior.
 4. Run baseline checks:
    - `npm run test:router`
-   - `node --check plugins/freeflow/pi-extension/dist/index.js`
+   - `node --check pi-extension/dist/index.js`
    - `git diff --check && git diff --cached --check`
 5. Run an artifact review of the revised spec and this plan before Slice 1 implementation.
 
@@ -409,7 +409,7 @@ Tests/checks:
 - existing native safety-net tests still pass,
 - `npm run test:router`,
 - `npm run build:pi-extension`,
-- `node --check plugins/freeflow/pi-extension/dist/index.js`.
+- `node --check pi-extension/dist/index.js`.
 
 Stop if:
 
@@ -499,7 +499,7 @@ Steps:
    - Pi capability status.
 3. Record raw bytes/lines/items vs returned evidence bytes/lines/items, including percentage byte reduction where a raw baseline exists.
 4. Verify exact facts preserved and recoverability is accurate.
-5. Write a runtime report under `plugins/freeflow/evals/reports/runtime/`.
+5. Write a runtime report under `evals/reports/runtime/`.
 6. Do not claim Context Mode superiority unless comparable benchmark evidence exists.
 
 Checks:
@@ -582,7 +582,7 @@ Slice 11 decision after benchmark:
 
 - Use `local-json-sidecar` behind the vault-index interface for subsequent slices.
 - Keep SQLite/FTS deferred because introducing a native dependency or relying on experimental runtime SQLite needs explicit owner approval.
-- Evidence: `plugins/freeflow/evals/reports/runtime/vault-index-storage-spike-1-report.md`.
+- Evidence: `evals/reports/runtime/vault-index-storage-spike-1-report.md`.
 
 Tests/checks:
 
@@ -871,8 +871,8 @@ Slice 17 partial progress:
 - Pi discovers jq only through the explicit `FREEFLOW_JQ_WASM_ROOT` package-root environment variable.
 - With a registered/provided jq-wasm adapter, jq scripts receive a JSON object keyed by copied vault-source alias and write bounded stdout/stderr through `jq.raw`.
 - jq timeouts use Worker termination. Output-limit failures return structured `derive_execution_failure` without exact recovery. Residual caveat: `jq-wasm` can still generate large strings inside the Worker before wrapper truncation.
-- Evidence: `plugins/freeflow/evals/reports/runtime/quickjs-script-derive-execution-1-report.md`, `plugins/freeflow/evals/reports/runtime/eryx-python-proof-spike-2-report.md`, `plugins/freeflow/evals/reports/runtime/eryx-python-script-derive-execution-1-report.md`, and `plugins/freeflow/evals/reports/runtime/jq-script-derive-execution-1-report.md`.
-- Follow-up resource hardening reduced sandbox proof flood fixture counts, lowered jq proof timeout, cached adapter proof results by adapter hash/probe limits, and fixed a global-vault test assumption. Evidence: `plugins/freeflow/evals/reports/runtime/script-sandbox-probe-resource-hardening-1-report.md`.
+- Evidence: `evals/reports/runtime/quickjs-script-derive-execution-1-report.md`, `evals/reports/runtime/eryx-python-proof-spike-2-report.md`, `evals/reports/runtime/eryx-python-script-derive-execution-1-report.md`, and `evals/reports/runtime/jq-script-derive-execution-1-report.md`.
+- Follow-up resource hardening reduced sandbox proof flood fixture counts, lowered jq proof timeout, cached adapter proof results by adapter hash/probe limits, and fixed a global-vault test assumption. Evidence: `evals/reports/runtime/script-sandbox-probe-resource-hardening-1-report.md`.
 
 ## Slice 18: Final Docs, Evals, Benchmarks, And Cleanup
 
@@ -894,7 +894,7 @@ Final checks:
 
 - `npm run test:router`
 - `npm run build`
-- `node --check plugins/freeflow/pi-extension/dist/index.js`
+- `node --check pi-extension/dist/index.js`
 - `git diff --check && git diff --cached --check`
 - Pi observed routing eval report passes,
 - vault index eval report passes,

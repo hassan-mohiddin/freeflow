@@ -31,18 +31,18 @@ For project direction, read:
 
 For refined user-facing plugin docs, read:
 
-- `plugins/freeflow/docs/README.md`
-- `plugins/freeflow/docs/workflow.md`
-- `plugins/freeflow/docs/architecture.md`
-- `plugins/freeflow/docs/release-evidence.md`
+- `plugin-docs/README.md`
+- `plugin-docs/workflow.md`
+- `plugin-docs/architecture.md`
+- `plugin-docs/release-evidence.md`
 
-For durable project decisions, read `docs/adr/`. For refined release ADRs, read `plugins/freeflow/docs/adr/`.
+For durable project decisions, read `docs/adr/`. For refined release ADRs, read `plugin-docs/adr/`.
 
 For historical research, read `docs/` only when background matters. Live repo evidence and current plugin docs override older research and handoffs.
 
 For current continuation state, read the latest relevant file in `docs/handoffs/`.
 
-For evidence about whether a skill works, read `plugins/freeflow/evals/README.md`, then the relevant report under `plugins/freeflow/evals/reports/`. Prefer later reports over earlier ones when they conflict.
+For evidence about whether a skill works, read `evals/README.md`, then the relevant report under `evals/reports/`. Prefer later reports over earlier ones when they conflict.
 
 ## Reference Skill Stack
 
@@ -102,11 +102,11 @@ Re-enter clarification when new ambiguity would change the next action.
 
 ## Implementation Pointers
 
-Plugin runtime lives under `plugins/freeflow/`. This is the single source of truth for runtime skills, plugin docs, evals, and command-surface metadata.
+Plugin runtime lives under the repo root. This is the single source of truth for runtime skills, plugin docs, evals, and command-surface metadata.
 
-For the current skill set, inspect `plugins/freeflow/skills/`.
+For the current skill set, inspect `skills/`.
 
-For current eval status, read `plugins/freeflow/evals/README.md`, then the latest relevant report in `plugins/freeflow/evals/reports/`.
+For current eval status, read `evals/README.md`, then the latest relevant report in `evals/reports/`.
 
 For active continuation context, read the latest relevant file in `docs/handoffs/`.
 

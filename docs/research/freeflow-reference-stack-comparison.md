@@ -88,7 +88,7 @@ Orchestra behavior to avoid:
 
 Add one progressive-disclosure reference first:
 
-`plugins/freeflow/skills/write-spec/references/artifact-standards.md`
+`skills/write-spec/references/artifact-standards.md`
 
 This should define a compact Freeflow artifact header for durable, team-facing, strict-workflow, or future-agent-facing artifacts:
 
@@ -232,14 +232,14 @@ Reference-stack follow-up batches completed as of 2026-05-26:
 
 | Batch | Status | Landed evidence |
 | --- | --- | --- |
-| A: Artifact Standards | Done | `write-spec/references/artifact-standards.md`; `plugins/freeflow/evals/reports/by-skill/write-spec-4-report.md` |
-| B: Artifact Review | Done | `review-artifact` uses artifact identity guidance; `plugins/freeflow/evals/reports/by-skill/review-artifact-3-report.md` |
-| C: Diagnosis Depth | Done | `diagnose-failure/references/feedback-loop-catalog.md`, `flaky-and-performance.md`; `plugins/freeflow/evals/reports/by-skill/diagnose-failure-2-report.md` |
-| D: Eval Method | Done | `evaluate-skill/references/eval-patterns.md`, `grading-priority.md`; `plugins/freeflow/evals/reports/by-skill/evaluate-skill-2-report.md` |
-| E: Setup Profiles | Done | `setup-freeflow/references/host-setup.md`; `plugins/freeflow/evals/reports/by-skill/setup-freeflow-3-report.md` |
-| F: Commit Discipline | Done | `commit-work/references/staging-decisions.md`; `plugins/freeflow/evals/reports/by-skill/commit-work-2-report.md` |
-| G: Planning And Review Work | Done | `write-plan/references/plan-shapes.md`, `review-work/references/reviewer-prompt.md`; `plugins/freeflow/evals/reports/by-skill/write-plan-3-report.md`, `review-work-4-report.md` |
-| H: Decision Destinations | Done | `capture-decisions/references/destination-guide.md`; `plugins/freeflow/evals/reports/by-skill/capture-decisions-2-report.md` |
+| A: Artifact Standards | Done | `write-spec/references/artifact-standards.md`; `evals/reports/by-skill/write-spec-4-report.md` |
+| B: Artifact Review | Done | `review-artifact` uses artifact identity guidance; `evals/reports/by-skill/review-artifact-3-report.md` |
+| C: Diagnosis Depth | Done | `diagnose-failure/references/feedback-loop-catalog.md`, `flaky-and-performance.md`; `evals/reports/by-skill/diagnose-failure-2-report.md` |
+| D: Eval Method | Done | `evaluate-skill/references/eval-patterns.md`, `grading-priority.md`; `evals/reports/by-skill/evaluate-skill-2-report.md` |
+| E: Setup Profiles | Done | `setup-freeflow/references/host-setup.md`; `evals/reports/by-skill/setup-freeflow-3-report.md` |
+| F: Commit Discipline | Done | `commit-work/references/staging-decisions.md`; `evals/reports/by-skill/commit-work-2-report.md` |
+| G: Planning And Review Work | Done | `write-plan/references/plan-shapes.md`, `review-work/references/reviewer-prompt.md`; `evals/reports/by-skill/write-plan-3-report.md`, `review-work-4-report.md` |
+| H: Decision Destinations | Done | `capture-decisions/references/destination-guide.md`; `evals/reports/by-skill/capture-decisions-2-report.md` |
 | I: Optional Shape References | Done | `write-spec/references/spec-shapes.md`, `handoff/references/templates.md`, `grill-context/references/approach-framing.md`; added by explicit product direction as opt-in guidance. |
 
 Previously evidence-gated references now landed by explicit product direction:
@@ -284,7 +284,7 @@ The safest way to parallelize is to run several fresh conversations or worktrees
 Use a coordinator session for shared decisions:
 
 - keep this research doc as the common source
-- avoid simultaneous edits to `docs/plans/skill-inventory-and-plugin-plan.md`, `plugins/freeflow/command-surface.json`, and shared eval runbooks
+- avoid simultaneous edits to `docs/plans/skill-inventory-and-plugin-plan.md`, `command-surface.json`, and shared eval runbooks
 - merge or reconcile shared-index updates after batch work lands
 - ensure no batch introduces a new hard rule that conflicts with `workflow`, `mode-contract`, or `interview-gate`
 
@@ -292,15 +292,15 @@ Recommended independent batches:
 
 | Batch | Scope | Owned paths | Dependencies | Exit criteria |
 | --- | --- | --- | --- | --- |
-| A: Artifact Standards | Add Freeflow artifact standards and spec shapes. | `plugins/freeflow/skills/write-spec/`, write-spec eval prompts/reports if needed. | Should run first or publish its reference path early because other batches may cite it. | `write-spec` knows when to use headers/changelogs without forcing them on chat answers. |
-| B: Artifact Review | Upgrade artifact review lenses for strict/team docs. | `plugins/freeflow/skills/review-artifact/`, review-artifact eval prompts/reports. | Can reference Batch A's artifact standards; avoid editing Batch A files. | Reviewer checks owner/status/changelog/stale-doc risk only when relevant. |
-| C: Diagnosis Depth | Add debugging references. | `plugins/freeflow/skills/diagnose-failure/`, diagnose eval prompts/reports. | Independent. | Skill gains feedback-loop, flaky, and performance guidance without bloating `SKILL.md`. |
-| D: Eval Method | Add eval pattern references. | `plugins/freeflow/skills/evaluate-skill/`, eval-skill fixtures/prompts/reports. | Independent; should not edit every skill's evals. | Future skill edits have clearer eval artifact requirements and grading priority. |
-| E: Setup Profiles | Add host setup reference and setup profile guidance. | `plugins/freeflow/skills/setup-freeflow/`, setup eval prompts/reports. | Independent, but should not introduce hooks or CLI by default. | Setup distinguishes solo/team/strict/enterprise guidance and Codex/Claude activation. |
-| F: Commit Discipline | Add staging decision reference. | `plugins/freeflow/skills/commit-work/`, commit eval prompts/reports. | Independent. | Commit behavior handles staged/unstaged/untracked/generated/user-owned/durable-doc changes. |
-| G: Planning And Review Work | Add plan shapes and outgoing reviewer prompt. | `plugins/freeflow/skills/write-plan/`, `plugins/freeflow/skills/review-work/`, related eval prompts/reports. | Independent if it does not edit `execute-plan`. | Plans scale light/normal/strict; outgoing review context is reusable. |
-| H: Decision Destinations | Add destination guide for durable decisions. | `plugins/freeflow/skills/capture-decisions/`, capture-decision eval prompts/reports. | Can cite Batch A artifact standards, but should not modify them. | Agent chooses glossary/ADR/spec/handoff/decision note correctly. |
-| I: Optional Shape References | Add spec shapes, handoff templates, and approach framing. | `plugins/freeflow/skills/write-spec/`, `plugins/freeflow/skills/handoff/`, `plugins/freeflow/skills/grill-context/`. | Added by explicit product direction after initial deferral. | Optional shapes reduce bloat without becoming mandatory workflow pressure. |
+| A: Artifact Standards | Add Freeflow artifact standards and spec shapes. | `skills/write-spec/`, write-spec eval prompts/reports if needed. | Should run first or publish its reference path early because other batches may cite it. | `write-spec` knows when to use headers/changelogs without forcing them on chat answers. |
+| B: Artifact Review | Upgrade artifact review lenses for strict/team docs. | `skills/review-artifact/`, review-artifact eval prompts/reports. | Can reference Batch A's artifact standards; avoid editing Batch A files. | Reviewer checks owner/status/changelog/stale-doc risk only when relevant. |
+| C: Diagnosis Depth | Add debugging references. | `skills/diagnose-failure/`, diagnose eval prompts/reports. | Independent. | Skill gains feedback-loop, flaky, and performance guidance without bloating `SKILL.md`. |
+| D: Eval Method | Add eval pattern references. | `skills/evaluate-skill/`, eval-skill fixtures/prompts/reports. | Independent; should not edit every skill's evals. | Future skill edits have clearer eval artifact requirements and grading priority. |
+| E: Setup Profiles | Add host setup reference and setup profile guidance. | `skills/setup-freeflow/`, setup eval prompts/reports. | Independent, but should not introduce hooks or CLI by default. | Setup distinguishes solo/team/strict/enterprise guidance and Codex/Claude activation. |
+| F: Commit Discipline | Add staging decision reference. | `skills/commit-work/`, commit eval prompts/reports. | Independent. | Commit behavior handles staged/unstaged/untracked/generated/user-owned/durable-doc changes. |
+| G: Planning And Review Work | Add plan shapes and outgoing reviewer prompt. | `skills/write-plan/`, `skills/review-work/`, related eval prompts/reports. | Independent if it does not edit `execute-plan`. | Plans scale light/normal/strict; outgoing review context is reusable. |
+| H: Decision Destinations | Add destination guide for durable decisions. | `skills/capture-decisions/`, capture-decision eval prompts/reports. | Can cite Batch A artifact standards, but should not modify them. | Agent chooses glossary/ADR/spec/handoff/decision note correctly. |
+| I: Optional Shape References | Add spec shapes, handoff templates, and approach framing. | `skills/write-spec/`, `skills/handoff/`, `skills/grill-context/`. | Added by explicit product direction after initial deferral. | Optional shapes reduce bloat without becoming mandatory workflow pressure. |
 
 Recommended batch order:
 

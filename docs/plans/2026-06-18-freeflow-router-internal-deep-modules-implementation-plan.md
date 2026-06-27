@@ -29,8 +29,8 @@ Foundational router contracts:
 
 - `docs/specs/freeflow-output-router-design.md`
 - `docs/specs/freeflow-output-router-excellence-spec.md`
-- `plugins/freeflow/skills/output-router/SKILL.md`
-- `plugins/freeflow/skills/output-router/references/safety-policy.md`
+- `skills/output-router/SKILL.md`
+- `skills/output-router/references/safety-policy.md`
 
 Current blocker memory:
 
@@ -38,12 +38,12 @@ Current blocker memory:
 
 Live implementation areas:
 
-- `plugins/freeflow/router/src/retrieve.ts`
-- `plugins/freeflow/router/src/vault.ts`
-- `plugins/freeflow/router/src/command-benchmarks.ts`
-- `plugins/freeflow/router/src/experimental-local-index.ts`
-- `plugins/freeflow/pi-extension/index.js`
-- `plugins/freeflow/router/tests/`
+- `router/src/tools/retrieve.ts`
+- `router/src/vault/vault.ts`
+- `router/src/benchmarks/command-benchmarks.ts`
+- `router/src/experiments/local-index.ts`
+- `pi-extension/index.js`
+- `router/tests/`
 
 ## Non-Goals
 
@@ -71,32 +71,32 @@ Do not:
 
 Core source:
 
-- new `plugins/freeflow/router/src/repo-traversal.ts`
-- new `plugins/freeflow/router/src/line-ranges.ts`
-- new `plugins/freeflow/router/src/evidence-range-selector.ts`
-- `plugins/freeflow/router/src/retrieve.ts`
-- `plugins/freeflow/router/src/vault.ts`
-- `plugins/freeflow/router/src/command-benchmarks.ts`
-- generated `plugins/freeflow/router/dist/**` after build
+- new `router/src/repo/repo-traversal.ts`
+- new `router/src/line-ranges.ts`
+- new `router/src/evidence-range-selector.ts`
+- `router/src/tools/retrieve.ts`
+- `router/src/vault/vault.ts`
+- `router/src/benchmarks/command-benchmarks.ts`
+- generated `router/dist/**` after build
 
 Tests:
 
-- `plugins/freeflow/router/tests/retrieve.test.js`
-- `plugins/freeflow/router/tests/regression-fixtures.test.js`
-- `plugins/freeflow/router/tests/vault.test.js`
-- `plugins/freeflow/router/tests/command-benchmarks.test.js`
+- `router/tests/retrieve.test.js`
+- `router/tests/regression-fixtures.test.js`
+- `router/tests/vault.test.js`
+- `router/tests/command-benchmarks.test.js`
 - new focused tests if a module earns its own file-level test
 
 Reports:
 
-- `plugins/freeflow/evals/reports/runtime/output-router-command-benchmark-1-report.md`
-- `plugins/freeflow/evals/reports/runtime/output-router-index-benchmark-1-report.md` only if rerun/meaningfully affected
-- `plugins/freeflow/evals/reports/runtime/output-router-codex-large-index-sqlite-adhoc-report.md`
+- `evals/reports/runtime/output-router-command-benchmark-1-report.md`
+- `evals/reports/runtime/output-router-index-benchmark-1-report.md` only if rerun/meaningfully affected
+- `evals/reports/runtime/output-router-codex-large-index-sqlite-adhoc-report.md`
 - other runtime reports only if their underlying benchmark is rerun or corrected
 
 Pi adapter:
 
-- `plugins/freeflow/pi-extension/index.js` only if current uncommitted Pi changes remain in scope or final smoke requires documentation.
+- `pi-extension/index.js` only if current uncommitted Pi changes remain in scope or final smoke requires documentation.
 
 ## Slice 0: Baseline And Dirty-Tree Orientation
 
@@ -140,7 +140,7 @@ Red tests / interface tests:
 
 Implementation:
 
-1. Add `plugins/freeflow/router/src/repo-traversal.ts`.
+1. Add `router/src/repo/repo-traversal.ts`.
 2. Define `RepoTextFileRef` with `path`, `absolutePath`, and `sizeBytes`.
 3. Implement `collectRepoTextFileRefs({ root, requestedPath, generatedPathGlobs })`.
 4. Move traversal responsibilities from `retrieve.ts` into the new module:
@@ -182,7 +182,7 @@ Red tests:
 
 Implementation:
 
-1. Add `plugins/freeflow/router/src/line-ranges.ts`.
+1. Add `router/src/line-ranges.ts`.
 2. Implement a small resolver such as `resolveExactLineRange({ requested, lineCount })`.
 3. Use it from both repo and vault retrieval paths in `retrieve.ts`.
 4. Keep error messages explicit enough to identify repo/vault source and available line count.
@@ -209,7 +209,7 @@ Red tests:
 
 Implementation:
 
-1. Add `plugins/freeflow/router/src/evidence-range-selector.ts`.
+1. Add `router/src/evidence-range-selector.ts`.
 2. Move range-selection logic out of `retrieve.ts`:
    - exact phrase line/span detection,
    - coverage range selection,
@@ -294,7 +294,7 @@ Implementation:
 
 Checks:
 
-- `plugins/freeflow/router/tests/command-benchmarks.test.js`.
+- `router/tests/command-benchmarks.test.js`.
 - `npm run bench:router:commands`.
 - `npm run test:router`.
 
@@ -341,7 +341,7 @@ Required checks:
 - `npm run bench:router:index`
 - large Codex scanner benchmark:
   - `node /tmp/freeflow-codex-large-benchmark/bench-scanner-sqlite.mjs`
-- `node --check plugins/freeflow/pi-extension/index.js` if Pi file remains modified
+- `node --check pi-extension/index.js` if Pi file remains modified
 - production shell API scan for router/Pi source if child-process tests were added
 - `npm pack --dry-run --json`
 - `git diff --check`
@@ -357,7 +357,7 @@ Review checkpoint:
 
 Pi/TUI smoke:
 
-- If `plugins/freeflow/pi-extension/index.js` remains modified in the final diff or adapter readiness is claimed, run real installed-cache/TUI smoke before claiming Slice 0/Pi readiness.
+- If `pi-extension/index.js` remains modified in the final diff or adapter readiness is claimed, run real installed-cache/TUI smoke before claiming Slice 0/Pi readiness.
 - If not run, final response and commit notes must say Pi/TUI smoke is unverified.
 
 Stop if:

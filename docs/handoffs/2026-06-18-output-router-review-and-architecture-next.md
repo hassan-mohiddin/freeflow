@@ -16,13 +16,13 @@ The router work is directionally strong and many accepted review findings were f
 
 Current modified areas are mostly:
 
-- `plugins/freeflow/router/src/retrieve.ts` and `dist/retrieve.*`
-- `plugins/freeflow/router/src/experimental-local-index.ts` and `dist/experimental-local-index.*`
-- `plugins/freeflow/router/src/parsers.ts` and `dist/parsers.js`
-- `plugins/freeflow/router/src/vault.ts` and `dist/vault.js`
-- `plugins/freeflow/pi-extension/index.js`
-- router tests under `plugins/freeflow/router/tests/`
-- `plugins/freeflow/evals/reports/runtime/output-router-codex-large-index-sqlite-adhoc-report.md`
+- `router/src/tools/retrieve.ts` and `dist/tools/retrieve.*`
+- `router/src/experiments/local-index.ts` and `dist/experiments/local-index.*`
+- `router/src/routing/parsers.ts` and `dist/routing/parsers.js`
+- `router/src/vault/vault.ts` and `dist/vault/vault.js`
+- `pi-extension/index.js`
+- router tests under `router/tests/`
+- `evals/reports/runtime/output-router-codex-large-index-sqlite-adhoc-report.md`
 
 Important: subagent review output files were generated and removed (`final-review-code.md`, `final-review-verification.md`, earlier `review-*`). There should be no intended untracked review artifacts.
 
@@ -47,8 +47,8 @@ Primary source truth:
 - `docs/plans/2026-06-16-freeflow-output-router-excellence-implementation-plan.md` — Slices 0-9 and final verification expectations.
 - `docs/specs/freeflow-output-router-design.md` — router core principles: explicit routed tools, raw capture first, exact recovery, no surprise semantics.
 - `docs/specs/freeflow-output-router-excellence-spec.md` — accuracy-first success model and benchmark expectations.
-- `plugins/freeflow/skills/output-router/SKILL.md`
-- `plugins/freeflow/skills/output-router/references/safety-policy.md`
+- `skills/output-router/SKILL.md`
+- `skills/output-router/references/safety-policy.md`
 
 Latest observed green checks after fixes:
 
@@ -57,7 +57,7 @@ Latest observed green checks after fixes:
 - `npm run bench:router:commands` passed `8/8` but final review found the harness may be measuring duplicate notes instead of parser behavior.
 - `npm run bench:router:index` passed `3/3`.
 - Large Codex scanner benchmark command: `node /tmp/freeflow-codex-large-benchmark/bench-scanner-sqlite.mjs` observed scanner `6/8`, p50 about `5,473 ms`, p95 about `8,611 ms`, avg context bytes `2,082`.
-- `node --check plugins/freeflow/pi-extension/index.js` passed.
+- `node --check pi-extension/index.js` passed.
 - `npm pack --dry-run --json` showed router dist included, `graphify-out` and router `src` excluded.
 - Shell API scan found no `child_process|node:child_process|spawn|execFile|execSync` matches in router/Pi extension.
 - `git diff --check` passed.
@@ -96,7 +96,7 @@ Likely deepening candidates:
 
 ### 1. EvidenceRangeSelector
 
-Files: `plugins/freeflow/router/src/retrieve.ts`, tests in `regression-fixtures.test.js` and `retrieve.test.js`.
+Files: `router/src/tools/retrieve.ts`, tests in `regression-fixtures.test.js` and `retrieve.test.js`.
 
 Interface should hide:
 
@@ -151,7 +151,7 @@ Possible invariant: parser/fact-preservation fixtures score the first non-duplic
 
 ### 6. DurableReportEvidence policy
 
-Files: runtime eval reports under `plugins/freeflow/evals/reports/runtime/`.
+Files: runtime eval reports under `evals/reports/runtime/`.
 
 Decide how current evidence vs historical evidence is recorded. Avoid making durable claims with only `/tmp` pointers unless the report clearly says it is ad hoc/historical.
 

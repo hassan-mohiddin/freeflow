@@ -23,12 +23,12 @@ Focused interface review:
 
 Current files:
 
-- `plugins/freeflow/skills/setup-freeflow/SKILL.md`
-- `plugins/freeflow/skills/setup-freeflow/references/host-setup.md`
+- `skills/setup-freeflow/SKILL.md`
+- `skills/setup-freeflow/references/host-setup.md`
 - `docs/freeflow-runtime-and-lifecycle.md`
 - `docs/research/freeflow-always-on-memory.md`
-- `plugins/freeflow/evals/fixtures/tiny-post-setup-*/AGENTS.md`
-- `plugins/freeflow/evals/registries/fixture-evals.json`
+- `evals/fixtures/tiny-post-setup-*/AGENTS.md`
+- `evals/registries/fixture-evals.json`
 
 ## Problem
 

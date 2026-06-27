@@ -23,12 +23,12 @@ Focused interface review:
 
 Current files:
 
-- `plugins/freeflow/evals/scripts/run-fixture-eval-by-id.sh`
-- `plugins/freeflow/evals/scripts/run-codex-fixture-eval.sh`
-- `plugins/freeflow/evals/scripts/run-claude-fixture-eval.sh`
-- `plugins/freeflow/evals/registries/fixture-evals.json`
-- `plugins/freeflow/evals/runbooks/fixture-eval-runbook.md`
-- `plugins/freeflow/evals/suites/v0.1-acceptance-suite.md`
+- `evals/scripts/run-fixture-eval-by-id.sh`
+- `evals/scripts/run-codex-fixture-eval.sh`
+- `evals/scripts/run-claude-fixture-eval.sh`
+- `evals/registries/fixture-evals.json`
+- `evals/runbooks/fixture-eval-runbook.md`
+- `evals/suites/v0.1-acceptance-suite.md`
 
 ## Problem
 
@@ -66,15 +66,15 @@ Reject a broad flexible interface for now. It risks turning the runner into a wo
 Common caller:
 
 ```sh
-plugins/freeflow/evals/scripts/run-fixture-eval.sh IVG-001
+evals/scripts/run-fixture-eval.sh IVG-001
 ```
 
 Explicit cases:
 
 ```sh
-plugins/freeflow/evals/scripts/run-fixture-eval.sh IVG-001 --baseline
-plugins/freeflow/evals/scripts/run-fixture-eval.sh FX-004 --agent claude --baseline
-plugins/freeflow/evals/scripts/run-fixture-eval.sh STP-001 --dry-run
+evals/scripts/run-fixture-eval.sh IVG-001 --baseline
+evals/scripts/run-fixture-eval.sh FX-004 --agent claude --baseline
+evals/scripts/run-fixture-eval.sh STP-001 --dry-run
 ```
 
 Internal module shape:

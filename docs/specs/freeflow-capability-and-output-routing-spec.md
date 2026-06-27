@@ -168,7 +168,7 @@ Candidate capability card fields:
   "conflicts_with": [],
   "supersedes": [],
   "source": {
-    "path": "plugins/freeflow/skills/diagnose-failure/SKILL.md",
+    "path": "skills/diagnose-failure/SKILL.md",
     "hash": "..."
   }
 }

@@ -108,14 +108,14 @@ Relevant Freeflow artifacts:
 - `docs/specs/freeflow-capability-and-output-routing-spec.md`
 - `docs/plans/2026-06-16-freeflow-output-router-implementation-plan.md`
 - `docs/handoffs/2026-06-16-output-router-implementation-and-retrieval-benchmark.md`
-- `plugins/freeflow/skills/output-router/SKILL.md`
-- `plugins/freeflow/skills/output-router/references/safety-policy.md`
-- `plugins/freeflow/router/src/retrieve.ts`
-- `plugins/freeflow/router/src/run.ts`
-- `plugins/freeflow/router/src/vault.ts`
-- `plugins/freeflow/router/tests/`
-- `plugins/freeflow/evals/fixtures/output-router/`
-- `plugins/freeflow/evals/reports/runtime/output-router-regression-1-report.md`
+- `skills/output-router/SKILL.md`
+- `skills/output-router/references/safety-policy.md`
+- `router/src/tools/retrieve.ts`
+- `router/src/tools/run.ts`
+- `router/src/vault/vault.ts`
+- `router/tests/`
+- `evals/fixtures/output-router/`
+- `evals/reports/runtime/output-router-regression-1-report.md`
 
 Reference tools researched:
 
@@ -924,7 +924,7 @@ Every benchmark report should include:
 - notes on skipped external tools,
 - regression status.
 
-Reports should live under `plugins/freeflow/evals/reports/runtime/` unless a better eval-specific location is established.
+Reports should live under `evals/reports/runtime/` unless a better eval-specific location is established.
 
 ## Codex CLI Agent-Harness Macro Benchmark
 
@@ -1075,7 +1075,7 @@ The macro benchmark uses the Pareto rule:
 Run this after core router behavior, caps, top-k behavior, parser metadata, and benchmark evidence stabilize.
 
 - Update `setup-freeflow` to own optional output-router repo setup and config.
-- Add a setup reference such as `plugins/freeflow/skills/setup-freeflow/references/output-router-setup.md` if setup behavior needs durable guidance.
+- Add a setup reference such as `skills/setup-freeflow/references/output-router-setup.md` if setup behavior needs durable guidance.
 - Keep minimal setup writing only `{ "defaultMode": "workflow" }` unless the user explicitly asks to configure the output router.
 - Allow optional `.freeflow/config.json` `outputRouter` config when explicitly requested.
 - Update the setup activation contract/evals so “minimal config exactly `defaultMode`” remains true while optional `outputRouter` is allowed.

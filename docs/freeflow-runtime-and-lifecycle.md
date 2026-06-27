@@ -77,7 +77,7 @@ Version and migration fields can be added when Freeflow is close to shipping.
 
 ## Agent Instruction File
 
-Setup should add the compact always-on runtime contract from `plugins/freeflow/skills/setup-freeflow/references/activation-contract.md` to the host agent's repo instruction file.
+Setup should add the compact always-on runtime contract from `skills/setup-freeflow/references/activation-contract.md` to the host agent's repo instruction file.
 
 Target file rules:
 
@@ -103,7 +103,7 @@ Claude setup should use `CLAUDE.md` plus an explicit import:
 @.claude/rules/freeflow-core.md
 ```
 
-The always-on text should stay compact because users often keep agent instruction files short and already have their own rules. Do not duplicate the full block in docs; use `activation-contract.md` as the source of truth and run `plugins/freeflow/evals/scripts/check-activation-contract.sh` after changes.
+The always-on text should stay compact because users often keep agent instruction files short and already have their own rules. Do not duplicate the full block in docs; use `activation-contract.md` as the source of truth and run `evals/scripts/check-activation-contract.sh` after changes.
 
 Do not list the whole workflow or every mode in the activation block.
 
@@ -133,9 +133,9 @@ Freeflow may ship plugin-bundled hooks that load existing workflow and interview
 
 They should:
 
-- load `plugins/freeflow/skills/workflow/SKILL.md`
-- load `plugins/freeflow/skills/workflow/references/workflow-map.md`
-- load `plugins/freeflow/skills/interview-gate/SKILL.md`
+- load `skills/workflow/SKILL.md`
+- load `skills/workflow/references/workflow-map.md`
+- load `skills/interview-gate/SKILL.md`
 - run on session start for startup, resume, clear, and compact
 - report whether setup appears complete, partial, or missing
 
@@ -362,19 +362,19 @@ Current evidence:
 - `setup-freeflow` has focused setup evals for Codex and Claude activation shapes.
 - `write-skill` has behavior and direct command evals showing that production-ready pressure must not overbuild skill folders.
 - `evaluate-skill` has behavior and direct command evals showing that shortcut wording must not skip creating or updating an eval artifact before skill edits.
-- Command-surface coverage is being updated for the discover migration. The current registry has 4 mode commands, 12 direct skill calls, and 3 developer skill calls. See `plugins/freeflow/evals/reports/by-command-surface/command-surface-matrix.md`.
+- Command-surface coverage is being updated for the discover migration. The current registry has 4 mode commands, 12 direct skill calls, and 3 developer skill calls. See `evals/reports/by-command-surface/command-surface-matrix.md`.
 - The fixture harness supports Codex by default and Claude through `FREEFLOW_FIXTURE_AGENT=claude`; live Claude runs still require local Claude auth and are not active release blockers for Hassan's local Codex-first testing.
 
 ## Current Pack Readiness
 
 The current development plugin has enough local Codex fixture evidence to start dogfooding in Hassan's other repos.
 
-The local-only v0.1 acceptance suite passed after measured fixes in `plugins/freeflow/evals/reports/acceptance/v0.1-acceptance-report.md`. The public marketplace repo now points both Codex and Claude at the single runtime under `plugins/freeflow/`. Live Claude smoke evals and GitHub-install smoke tests are still deferred.
+The local-only v0.1 acceptance suite passed after measured fixes in `evals/reports/acceptance/v0.1-acceptance-report.md`. The public marketplace repo now points both Codex and Claude at the single runtime under the repo root. Live Claude smoke evals and GitHub-install smoke tests are still deferred.
 
 Current packaging shape:
 
-- 18 active skills under `plugins/freeflow/skills/`; deprecated skills live under root `deprecated/skills/` and are not part of the runtime skill surface.
-- Single plugin runtime under `plugins/freeflow/`, including skills, context hooks, manifests, evals, command-surface metadata, and refined plugin docs.
+- 18 active skills under `skills/`; deprecated skills live under root `deprecated/skills/` and are not part of the runtime skill surface.
+- Single plugin runtime under the repo root, including skills, context hooks, manifests, evals, command-surface metadata, and refined plugin docs.
 - Every `SKILL.md` is under the 100-line project budget.
 - Extra reference files exist only where targeted evals or complexity justified progressive disclosure.
 - Native slash handlers remain disabled; commands are model-routed through skill activation.

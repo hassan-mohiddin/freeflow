@@ -13,7 +13,7 @@ Publish the proven Freeflow v0.1 behavior as a separate public plugin named **Fr
 
 Do not copy the contents into the old `orchestra` repo for the first public plugin. Treat old Orchestra as prior art, migration context, and failure evidence. Freeflow should stand alone as the lightweight workflow successor.
 
-The development surface now uses `freeflow` as well. The public repository uses one installable plugin runtime under `plugins/freeflow/`; no generated package copy should be maintained.
+The development surface now uses `freeflow` as well. The public repository uses one installable plugin runtime under the repo root; no generated package copy should be maintained.
 
 ## Product Identity
 
@@ -41,33 +41,34 @@ Publishing separately avoids inheriting old Orchestra expectations while preserv
 
 ## Repository Shape
 
-Use the public repository as the marketplace root and keep one installable plugin runtime:
+Use the public repository as the plugin root and keep one installable runtime:
 
 ```text
 freeflow/
   package.json
   .agents/plugins/marketplace.json
+  .codex-plugin/plugin.json
   .claude-plugin/marketplace.json
+  .claude-plugin/plugin.json
   README.md
   LICENSE
   CHANGELOG.md
+  command-surface.json
+  assets/
+  plugin-docs/
   docs/
-  plugins/freeflow/
-    .codex-plugin/plugin.json
-    .claude-plugin/plugin.json
-    command-surface.json
-    hooks/
-    pi-extension/
-    skills/
-    docs/
-    evals/
+  evals/
+  hooks/
+  pi-extension/
+  router/
+  skills/
 ```
 
-Root `docs/` is the project documentation workspace. `plugins/freeflow/docs/` is the refined user-facing plugin documentation. Generated eval run output stays ignored under `plugins/freeflow/evals/runs/`.
+`plugin-docs/` contains public plugin docs. `docs/` contains project-development memory. Generated eval run output stays ignored under `evals/runs/`.
 
 ## Codex Manifest
 
-Use `plugins/freeflow/.codex-plugin/plugin.json` as the Codex manifest:
+Use `.codex-plugin/plugin.json` as the Codex manifest:
 
 - `name`: `freeflow`
 - `version`: `0.1.0`
@@ -85,16 +86,16 @@ Keep `nativeSlashHandlers=false` in the internal command-surface evidence for Co
 
 Create a Claude plugin manifest modeled on old Orchestra's `.claude-plugin/plugin.json`, but with Freeflow's lighter scope.
 
-The Claude manifest lives at `plugins/freeflow/.claude-plugin/plugin.json` and exposes the same `plugins/freeflow/skills/` directory through the plugin runtime.
+The Claude manifest lives at `.claude-plugin/plugin.json` and exposes the same `skills/` directory through the plugin runtime.
 
-The root `.claude-plugin/marketplace.json` points at `./plugins/freeflow` for manual Claude install and future GitHub publishing.
+The root `.claude-plugin/marketplace.json` points at `.` for manual Claude install and future GitHub publishing.
 
 ## Pi Package Manifest
 
 The root `package.json` exposes the repo as a Pi package:
 
-- `pi.skills`: `plugins/freeflow/skills`
-- `pi.extensions`: `plugins/freeflow/pi-extension/index.js`
+- `pi.skills`: `skills`
+- `pi.extensions`: `pi-extension/dist/index.js`
 
 The Pi extension registers direct Freeflow commands, keeps `/workflow` mode changes session-scoped, loads workflow plus interview-gate context on session start and compact, and injects that context before agent turns. It does not enforce policy, block tools, grant permissions, or create repo-local hooks.
 
@@ -123,7 +124,7 @@ The active plugin runtime ships the current proven skill set:
 - `mode-contract`
 - `interview-gate`
 - `output-router`
-- `research`
+- `discover`
 - `write-spec`
 - `review-artifact`
 - `write-plan`
@@ -142,9 +143,9 @@ The setup skill uses the public `setup-freeflow` name.
 
 ## Publishing Sequence
 
-1. Prepare the public marketplace repo with one runtime at `plugins/freeflow/`. Done.
+1. Prepare the public marketplace repo with one runtime at the repo root. Done.
 2. Add Codex, Claude, and Pi package metadata. Done.
-3. Add README, LICENSE, CHANGELOG, root project docs, and refined plugin docs. Done.
+3. Add README, LICENSE, CHANGELOG, project docs, and refined plugin docs. Done.
 4. Run manifest validation and the existing command-surface audit. Done for manifest validation; command-surface audit remains part of final verification.
 5. Run the v0.1 acceptance suite from the current eval layout or add an equivalent marketplace-layout smoke gate.
 6. Create a separate GitHub repo for `freeflow`. Done: `https://github.com/hassan-mohiddin/freeflow`.
@@ -155,7 +156,7 @@ The setup skill uses the public `setup-freeflow` name.
 ## Remaining Decisions Before Public Announcement
 
 - Whether old Orchestra receives a short README note after Freeflow is published.
-- Whether to publish a summarized eval-evidence page publicly beyond the plugin docs `plugins/freeflow/docs/release-evidence.md`.
+- Whether to publish a summarized eval-evidence page publicly beyond the plugin docs `plugin-docs/release-evidence.md`.
 
 ## Non-Goals For v0.1
 

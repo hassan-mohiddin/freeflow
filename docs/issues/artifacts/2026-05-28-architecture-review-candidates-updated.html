@@ -28,7 +28,7 @@
         <div>
           <p class="text-xs uppercase tracking-wider text-slate-500">Architecture review</p>
           <h1 class="text-4xl font-serif font-semibold">Freeflow deepening candidates</h1>
-          <p class="mt-2 text-sm text-slate-600">Generated 2026-05-28. Runtime source inspected under <code class="font-mono">plugins/freeflow/</code>.</p>
+          <p class="mt-2 text-sm text-slate-600">Generated 2026-05-28. Runtime source inspected under <code class="font-mono"></code>.</p>
         </div>
         <div class="grid gap-3 sm:grid-cols-4 text-sm">
           <div class="rounded-lg border border-slate-200 bg-white p-3"><span class="inline-block h-3 w-8 border border-slate-800 align-middle"></span> solid box = module</div>
@@ -46,10 +46,10 @@
             <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">local-substitutable</span>
           </div>
           <div class="font-mono text-sm text-slate-700 grid gap-1">
-            <span>plugins/freeflow/evals/registries/fixture-evals.json</span>
-            <span>plugins/freeflow/evals/registries/handoff-evals.json</span>
-            <span>plugins/freeflow/evals/scripts/run-fixture-eval.sh</span>
-            <span>plugins/freeflow/evals/reports/acceptance/v0.1-acceptance-report.md</span>
+            <span>evals/registries/fixture-evals.json</span>
+            <span>evals/registries/handoff-evals.json</span>
+            <span>evals/scripts/run-fixture-eval.sh</span>
+            <span>evals/reports/acceptance/v0.1-acceptance-report.md</span>
           </div>
           <div class="grid gap-5 lg:grid-cols-2">
             <div>
@@ -115,12 +115,12 @@
             <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">in-process</span>
           </div>
           <div class="font-mono text-sm text-slate-700 grid gap-1">
-            <span>plugins/freeflow/skills/workflow/SKILL.md</span>
-            <span>plugins/freeflow/skills/interview-gate/SKILL.md</span>
-            <span>plugins/freeflow/skills/write-spec/SKILL.md</span>
-            <span>plugins/freeflow/skills/write-plan/SKILL.md</span>
-            <span>plugins/freeflow/skills/execute-plan/SKILL.md</span>
-            <span>plugins/freeflow/skills/bypass/SKILL.md</span>
+            <span>skills/workflow/SKILL.md</span>
+            <span>skills/interview-gate/SKILL.md</span>
+            <span>skills/write-spec/SKILL.md</span>
+            <span>skills/write-plan/SKILL.md</span>
+            <span>skills/execute-plan/SKILL.md</span>
+            <span>skills/bypass/SKILL.md</span>
           </div>
           <div class="grid gap-5 lg:grid-cols-2">
             <div>
@@ -179,11 +179,11 @@
             <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">in-process</span>
           </div>
           <div class="font-mono text-sm text-slate-700 grid gap-1">
-            <span>plugins/freeflow/skills/mode-contract/SKILL.md</span>
-            <span>plugins/freeflow/skills/setup-freeflow/SKILL.md</span>
-            <span>plugins/freeflow/skills/setup-freeflow/references/activation-contract.md</span>
-            <span>plugins/freeflow/docs/workflow.md</span>
-            <span>plugins/freeflow/command-surface.json</span>
+            <span>skills/mode-contract/SKILL.md</span>
+            <span>skills/setup-freeflow/SKILL.md</span>
+            <span>skills/setup-freeflow/references/activation-contract.md</span>
+            <span>plugin-docs/workflow.md</span>
+            <span>command-surface.json</span>
           </div>
           <div class="grid gap-5 lg:grid-cols-2">
             <div>
@@ -244,10 +244,10 @@ flowchart TB
             <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">ports &amp; adapters</span>
           </div>
           <div class="font-mono text-sm text-slate-700 grid gap-1">
-            <span>plugins/freeflow/evals/scripts/run-fixture-eval.sh</span>
-            <span>plugins/freeflow/evals/scripts/run-codex-fixture-eval.sh</span>
-            <span>plugins/freeflow/evals/scripts/run-claude-fixture-eval.sh</span>
-            <span>plugins/freeflow/evals/runbooks/fixture-eval-runbook.md</span>
+            <span>evals/scripts/run-fixture-eval.sh</span>
+            <span>evals/scripts/run-codex-fixture-eval.sh</span>
+            <span>evals/scripts/run-claude-fixture-eval.sh</span>
+            <span>evals/runbooks/fixture-eval-runbook.md</span>
           </div>
           <div class="grid gap-5 lg:grid-cols-2">
             <div>
@@ -307,11 +307,11 @@ flowchart TB
             <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">in-process</span>
           </div>
           <div class="font-mono text-sm text-slate-700 grid gap-1">
-            <span>plugins/freeflow/command-surface.json</span>
-            <span>plugins/freeflow/evals/registries/skill-evidence.json</span>
-            <span>plugins/freeflow/evals/scripts/skill-evidence.sh</span>
-            <span>plugins/freeflow/evals/scripts/audit-command-surface.sh</span>
-            <span>plugins/freeflow/evals/scripts/validate-release-metadata.sh</span>
+            <span>command-surface.json</span>
+            <span>evals/registries/skill-evidence.json</span>
+            <span>evals/scripts/skill-evidence.sh</span>
+            <span>evals/scripts/audit-command-surface.sh</span>
+            <span>evals/scripts/validate-release-metadata.sh</span>
           </div>
           <div class="grid gap-5 lg:grid-cols-2">
             <div>
@@ -374,9 +374,9 @@ flowchart LR
           <div class="font-mono text-sm text-slate-700 grid gap-1">
             <span>.agents/plugins/marketplace.json</span>
             <span>.claude-plugin/marketplace.json</span>
-            <span>plugins/freeflow/.codex-plugin/plugin.json</span>
-            <span>plugins/freeflow/.claude-plugin/plugin.json</span>
-            <span>plugins/freeflow/evals/scripts/validate-release-metadata.sh</span>
+            <span>.codex-plugin/plugin.json</span>
+            <span>.claude-plugin/plugin.json</span>
+            <span>evals/scripts/validate-release-metadata.sh</span>
           </div>
           <div class="grid gap-5 lg:grid-cols-2">
             <div>

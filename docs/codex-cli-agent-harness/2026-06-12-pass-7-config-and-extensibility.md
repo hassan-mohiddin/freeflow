@@ -1456,7 +1456,7 @@ These should be answered in the Freeflow local harness spec, not inside this res
 The canonical pass index and roadmap should live in:
 
 ```text
-docs/research/codex-cli-agent-harness/README.md
+docs/codex-cli-agent-harness/README.md
 ```
 
 Current local state after this Pass 7 audit:

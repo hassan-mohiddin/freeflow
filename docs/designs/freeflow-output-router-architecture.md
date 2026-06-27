@@ -5,13 +5,13 @@
 > **Owner:** Hassan Mohiddin
 > **Type:** Architecture Design
 > **Status:** Current
-> **Source:** Live router source under `plugins/freeflow/router/src/`, Pi extension source, output-router skills, setup docs, and runtime benchmark reports dated 2026-06-19/2026-06-20.
+> **Source:** Live router source under `router/src/`, Pi extension source, output-router skills, setup docs, and runtime benchmark reports dated 2026-06-19/2026-06-20.
 
 ## Purpose
 
 This is the A-to-Z architecture guide for Freeflow Output Router: what it is, why it exists, how it works, what ships today, what is experimental, and how to operate or extend it safely.
 
-The detailed source-of-truth code lives under `plugins/freeflow/router/src/`. This document explains that implementation in human terms and links concepts to the files that own them.
+The detailed source-of-truth code lives under `router/src/`. This document explains that implementation in human terms and links concepts to the files that own them.
 
 ## How To Read This
 
@@ -59,7 +59,7 @@ If you are reviewing release readiness, read:
 This is the router-specific map, not the whole Freeflow repo.
 
 ```text
-plugins/freeflow/router/
+router/
   src/
     index.ts                    public barrel exports
     types.ts                    preserve/action/status/result/vault types
@@ -262,12 +262,12 @@ Output Router is a companion runtime inside Freeflow.
 
 It ships as:
 
-- TypeScript core under `plugins/freeflow/router/src/`.
-- Compiled runtime under `plugins/freeflow/router/dist/` for package use.
-- Pi extension integration under `plugins/freeflow/pi-extension/index.js`.
-- User/agent guidance under `plugins/freeflow/skills/output-router/`.
-- Optional setup config guidance under `plugins/freeflow/skills/setup-freeflow/references/output-router-setup.md`.
-- Benchmarks and reports under `plugins/freeflow/evals/`.
+- TypeScript core under `router/src/`.
+- Compiled runtime under `router/dist/` for package use.
+- Pi extension integration under `pi-extension/index.js`.
+- User/agent guidance under `skills/output-router/`.
+- Optional setup config guidance under `skills/setup-freeflow/references/output-router-setup.md`.
+- Benchmarks and reports under `evals/`.
 
 It does not require Freeflow skills to depend on the router runtime. When the router is unavailable, agents can still use normal Freeflow workflow skills and host tools.
 
@@ -1126,7 +1126,7 @@ The returned text must say:
 
 If safety-net routing fails, it fails open: the native output passes through with a warning.
 
-This behavior follows `plugins/freeflow/skills/output-router/references/safety-policy.md`.
+This behavior follows `skills/output-router/references/safety-policy.md`.
 
 ## Safety Policy
 
@@ -1172,7 +1172,7 @@ Do not change docs or setup to imply indexing is required.
 
 ## Evidence And Benchmarks
 
-Durable runtime reports live under `plugins/freeflow/evals/reports/runtime/`.
+Durable runtime reports live under `evals/reports/runtime/`.
 
 ### Retrieval Benchmark
 
@@ -1245,7 +1245,7 @@ Summary:
 
 ### Setup Config Eval
 
-Report: `plugins/freeflow/evals/reports/by-skill/setup-freeflow-5-report.md`
+Report: `evals/reports/by-skill/setup-freeflow-5-report.md`
 
 Summary:
 
@@ -1333,8 +1333,8 @@ npm run bench:router
 npm run bench:router:commands
 npm run bench:router:index
 npm run bench:router:codex-qa
-plugins/freeflow/evals/scripts/check-runtime-context-hook.sh
-plugins/freeflow/evals/scripts/check-activation-contract.sh
+evals/scripts/check-runtime-context-hook.sh
+evals/scripts/check-activation-contract.sh
 npm pack --dry-run --json
 git diff --check
 ```
@@ -1369,40 +1369,40 @@ Primary implementation files:
 
 | File | Owns |
 | --- | --- |
-| `plugins/freeflow/router/src/types.ts` | Public internal types: preserve modes, actions, statuses, evidence packets, routed results, vault records. |
-| `plugins/freeflow/router/src/config.ts` | Defaults and `outputRouter` config normalization. |
-| `plugins/freeflow/router/src/router-contract.ts` | Config contract invariants. |
-| `plugins/freeflow/router/src/schema.ts` | Runtime validation of preserve/actions/results/config/records. |
-| `plugins/freeflow/router/src/retrieve.ts` | `freeflow_retrieve` implementation. |
-| `plugins/freeflow/router/src/evidence-search.ts` | Structural chunking and ranking. |
-| `plugins/freeflow/router/src/evidence-range-selector.ts` | Evidence span narrowing. |
-| `plugins/freeflow/router/src/repo-traversal.ts` | Safe repo traversal and broad-scan filters. |
-| `plugins/freeflow/router/src/bounded-evidence.ts` | UTF-8-safe bounded repo/vault excerpts. |
-| `plugins/freeflow/router/src/run.ts` | `freeflow_run` execution/routing. |
-| `plugins/freeflow/router/src/parsers.ts` | Deterministic command parsers. |
-| `plugins/freeflow/router/src/evidence.ts` | Important-line assembly for command output. |
-| `plugins/freeflow/router/src/vault.ts` | File-backed vault, session index, duplicate fingerprints. |
-| `plugins/freeflow/router/src/experiments/local-index.ts` | Experimental no-dependency index. |
-| `plugins/freeflow/pi-extension/index.js` | Pi tool registration, runtime context, TUI rendering, safety net. |
-| `plugins/freeflow/hooks/freeflow-runtime-context.mjs` | Codex/Claude setup detection; accepts optional object-shaped `outputRouter`. |
+| `router/src/config/types.ts` | Public internal types: preserve modes, actions, statuses, evidence packets, routed results, vault records. |
+| `router/src/config/config.ts` | Defaults and `outputRouter` config normalization. |
+| `router/src/config/router-contract.ts` | Config contract invariants. |
+| `router/src/config/schema.ts` | Runtime validation of preserve/actions/results/config/records. |
+| `router/src/tools/retrieve.ts` | `freeflow_retrieve` implementation. |
+| `router/src/evidence-search.ts` | Structural chunking and ranking. |
+| `router/src/evidence-range-selector.ts` | Evidence span narrowing. |
+| `router/src/repo/repo-traversal.ts` | Safe repo traversal and broad-scan filters. |
+| `router/src/bounded-evidence.ts` | UTF-8-safe bounded repo/vault excerpts. |
+| `router/src/tools/run.ts` | `freeflow_run` execution/routing. |
+| `router/src/routing/parsers.ts` | Deterministic command parsers. |
+| `router/src/evidence/evidence.ts` | Important-line assembly for command output. |
+| `router/src/vault/vault.ts` | File-backed vault, session index, duplicate fingerprints. |
+| `router/src/experiments/local-index.ts` | Experimental no-dependency index. |
+| `pi-extension/index.js` | Pi tool registration, runtime context, TUI rendering, safety net. |
+| `hooks/freeflow-runtime-context.mjs` | Codex/Claude setup detection; accepts optional object-shaped `outputRouter`. |
 
 Primary docs and skills:
 
 | File | Owns |
 | --- | --- |
-| `plugins/freeflow/skills/output-router/SKILL.md` | Agent-facing tool choice and recovery guidance. |
-| `plugins/freeflow/skills/output-router/references/safety-policy.md` | Exactness-sensitive routing policy. |
-| `plugins/freeflow/skills/setup-freeflow/references/output-router-setup.md` | Optional repo config setup rules. |
+| `skills/output-router/SKILL.md` | Agent-facing tool choice and recovery guidance. |
+| `skills/output-router/references/safety-policy.md` | Exactness-sensitive routing policy. |
+| `skills/setup-freeflow/references/output-router-setup.md` | Optional repo config setup rules. |
 | `docs/specs/freeflow-output-router-design.md` | Original router design spec. |
 | `docs/specs/freeflow-output-router-excellence-spec.md` | Accuracy/benchmark/index hardening spec. |
-| `plugins/freeflow/docs/release-evidence.md` | Current release evidence summary. |
+| `plugin-docs/release-evidence.md` | Current release evidence summary. |
 
 Primary reports:
 
 | Report | Evidence |
 | --- | --- |
-| `plugins/freeflow/evals/reports/runtime/output-router-benchmark-1-report.md` | Retrieval benchmark, 7/7 improved pass. |
-| `plugins/freeflow/evals/reports/runtime/output-router-command-benchmark-1-report.md` | Command benchmark, 8/8 improved pass and recovery. |
-| `plugins/freeflow/evals/reports/runtime/output-router-index-benchmark-1-report.md` | Optional index experiment; scanner default preserved. |
-| `plugins/freeflow/evals/reports/runtime/output-router-codex-qa-benchmark-1-report.md` | Codex Structured Q&A macro benchmark. |
-| `plugins/freeflow/evals/reports/by-skill/setup-freeflow-5-report.md` | Optional outputRouter setup/config eval. |
+| `evals/reports/runtime/output-router-benchmark-1-report.md` | Retrieval benchmark, 7/7 improved pass. |
+| `evals/reports/runtime/output-router-command-benchmark-1-report.md` | Command benchmark, 8/8 improved pass and recovery. |
+| `evals/reports/runtime/output-router-index-benchmark-1-report.md` | Optional index experiment; scanner default preserved. |
+| `evals/reports/runtime/output-router-codex-qa-benchmark-1-report.md` | Codex Structured Q&A macro benchmark. |
+| `evals/reports/by-skill/setup-freeflow-5-report.md` | Optional outputRouter setup/config eval. |

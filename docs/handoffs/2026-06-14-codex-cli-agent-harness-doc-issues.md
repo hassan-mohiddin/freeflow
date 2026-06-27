@@ -4,30 +4,30 @@
 > **Type:** Memory handoff
 > **Status:** Current for the 2026-06-14 research-doc review
 > **Repo commit at review:** `509d63a`
-> **Scope:** `docs/research/codex-cli-agent-harness/`
+> **Scope:** `docs/codex-cli-agent-harness/`
 
 ## Purpose
 
-This handoff records the issues found after reading every Markdown file in `docs/research/codex-cli-agent-harness/` end to end.
+This handoff records the issues found after reading every Markdown file in `docs/codex-cli-agent-harness/` end to end.
 
 It is meant to help the next agent or future Hassan convert the research into a canonical Freeflow local delegation harness spec without carrying forward stale names, old paths, or unsettled decisions.
 
-This handoff is memory, not authority. Live repo evidence, accepted specs, ADRs, and the runtime under `plugins/freeflow/` override this file if anything conflicts.
+This handoff is memory, not authority. Live repo evidence, accepted specs, ADRs, and the runtime under the repo root override this file if anything conflicts.
 
 ## Corpus Reviewed
 
 The reviewed directory contained 10 Markdown files and 20,503 total lines at the time of review:
 
-- `docs/research/codex-cli-agent-harness/README.md` - 216 lines
-- `docs/research/codex-cli-agent-harness/2026-06-12-pass-0-repo-map.md` - 1,208 lines
-- `docs/research/codex-cli-agent-harness/2026-06-12-pass-1-turn-loop.md` - 1,802 lines
-- `docs/research/codex-cli-agent-harness/2026-06-12-pass-2-tool-system.md` - 2,471 lines
-- `docs/research/codex-cli-agent-harness/2026-06-12-pass-3-sandboxing-and-permissions.md` - 2,499 lines
-- `docs/research/codex-cli-agent-harness/2026-06-12-pass-4-subagents-and-delegation.md` - 2,285 lines
-- `docs/research/codex-cli-agent-harness/2026-06-12-pass-5-model-providers-runtime-adapters.md` - 1,691 lines
-- `docs/research/codex-cli-agent-harness/2026-06-12-pass-6-memory-and-context.md` - 3,498 lines
-- `docs/research/codex-cli-agent-harness/2026-06-12-pass-7-config-and-extensibility.md` - 1,644 lines
-- `docs/research/codex-cli-agent-harness/2026-06-13-pass-8-agent-harness-comparisons.md` - 3,189 lines
+- `docs/codex-cli-agent-harness/README.md` - 216 lines
+- `docs/codex-cli-agent-harness/2026-06-12-pass-0-repo-map.md` - 1,208 lines
+- `docs/codex-cli-agent-harness/2026-06-12-pass-1-turn-loop.md` - 1,802 lines
+- `docs/codex-cli-agent-harness/2026-06-12-pass-2-tool-system.md` - 2,471 lines
+- `docs/codex-cli-agent-harness/2026-06-12-pass-3-sandboxing-and-permissions.md` - 2,499 lines
+- `docs/codex-cli-agent-harness/2026-06-12-pass-4-subagents-and-delegation.md` - 2,285 lines
+- `docs/codex-cli-agent-harness/2026-06-12-pass-5-model-providers-runtime-adapters.md` - 1,691 lines
+- `docs/codex-cli-agent-harness/2026-06-12-pass-6-memory-and-context.md` - 3,498 lines
+- `docs/codex-cli-agent-harness/2026-06-12-pass-7-config-and-extensibility.md` - 1,644 lines
+- `docs/codex-cli-agent-harness/2026-06-13-pass-8-agent-harness-comparisons.md` - 3,189 lines
 
 No implementation files were changed during the review. This handoff is the only artifact created from the issue pass.
 
@@ -398,13 +398,13 @@ This review only classifies the current research issues and recommends how to re
 
 Start with these files before writing a spec:
 
-1. `docs/research/codex-cli-agent-harness/README.md`
+1. `docs/codex-cli-agent-harness/README.md`
    - research/runtime boundary: `README.md:12-16`
    - latest design direction: `README.md:153-176`
    - next roadmap: `README.md:178-191`
    - open questions: `README.md:195-207`
 
-2. `docs/research/codex-cli-agent-harness/2026-06-13-pass-8-agent-harness-comparisons.md`
+2. `docs/codex-cli-agent-harness/2026-06-13-pass-8-agent-harness-comparisons.md`
    - one-shot CLI direction: `2026-06-13-pass-8-agent-harness-comparisons.md:1275-1279`
    - convergence table: `2026-06-13-pass-8-agent-harness-comparisons.md:2632-2648`
    - schema suggestions: `2026-06-13-pass-8-agent-harness-comparisons.md:2768-2826`
@@ -415,22 +415,22 @@ Start with these files before writing a spec:
    - remaining user-owned decisions: `2026-06-13-pass-8-agent-harness-comparisons.md:3106-3117`
    - audit closure: `2026-06-13-pass-8-agent-harness-comparisons.md:3153-3163`
 
-3. `docs/research/codex-cli-agent-harness/2026-06-12-pass-3-sandboxing-and-permissions.md`
+3. `docs/codex-cli-agent-harness/2026-06-12-pass-3-sandboxing-and-permissions.md`
    - local harness safety corrections: `2026-06-12-pass-3-sandboxing-and-permissions.md:1515-1525`
 
-4. `docs/research/codex-cli-agent-harness/2026-06-12-pass-4-subagents-and-delegation.md`
+4. `docs/codex-cli-agent-harness/2026-06-12-pass-4-subagents-and-delegation.md`
    - superseded async command surface: `2026-06-12-pass-4-subagents-and-delegation.md:1812-1864`
    - async versus one-shot open question: `2026-06-12-pass-4-subagents-and-delegation.md:2038-2046`
 
-5. `docs/research/codex-cli-agent-harness/2026-06-12-pass-5-model-providers-runtime-adapters.md`
+5. `docs/codex-cli-agent-harness/2026-06-12-pass-5-model-providers-runtime-adapters.md`
    - provider/runtime open questions: `2026-06-12-pass-5-model-providers-runtime-adapters.md:1494-1503`
 
-6. `docs/research/codex-cli-agent-harness/2026-06-12-pass-6-memory-and-context.md`
+6. `docs/codex-cli-agent-harness/2026-06-12-pass-6-memory-and-context.md`
    - memory separation rule: `2026-06-12-pass-6-memory-and-context.md:2775-2782`
    - v0/v1/v2 memory posture: `2026-06-12-pass-6-memory-and-context.md:2784-2814`
    - memory open questions: `2026-06-12-pass-6-memory-and-context.md:3441-3452`
 
-7. `docs/research/codex-cli-agent-harness/2026-06-12-pass-7-config-and-extensibility.md`
+7. `docs/codex-cli-agent-harness/2026-06-12-pass-7-config-and-extensibility.md`
    - older trace path/config suggestion: `2026-06-12-pass-7-config-and-extensibility.md:1216-1226`
 
 ## Recommended Next Focus

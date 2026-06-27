@@ -85,16 +85,16 @@ Interpretation for Freeflow:
 Live repo evidence to reopen:
 
 - `docs/specs/freeflow-output-router-design.md`
-- `plugins/freeflow/skills/output-router/SKILL.md`
-- `plugins/freeflow/skills/output-router/references/safety-policy.md`
-- `plugins/freeflow/docs/architecture.md`
-- `plugins/freeflow/router/src/retrieve.ts`
-- `plugins/freeflow/router/src/run.ts`
-- `plugins/freeflow/router/src/types.ts`
-- `plugins/freeflow/router/src/parsers.ts`
-- `plugins/freeflow/router/src/experimental-local-index.ts`
-- `plugins/freeflow/evals/reports/runtime/output-router-index-benchmark-1-report.md`
-- `plugins/freeflow/evals/reports/runtime/output-router-command-benchmark-1-report.md`
+- `skills/output-router/SKILL.md`
+- `skills/output-router/references/safety-policy.md`
+- `plugin-docs/architecture.md`
+- `router/src/tools/retrieve.ts`
+- `router/src/tools/run.ts`
+- `router/src/config/types.ts`
+- `router/src/routing/parsers.ts`
+- `router/src/experiments/local-index.ts`
+- `evals/reports/runtime/output-router-index-benchmark-1-report.md`
+- `evals/reports/runtime/output-router-command-benchmark-1-report.md`
 
 Relevant current design facts:
 
@@ -198,22 +198,22 @@ For a direct question:
 Reopen these before changing design or docs:
 
 - Freeflow product/runtime boundary:
-  - `plugins/freeflow/docs/architecture.md`
-  - `plugins/freeflow/docs/workflow.md`
-  - `plugins/freeflow/docs/README.md`
+  - `plugin-docs/architecture.md`
+  - `plugin-docs/workflow.md`
+  - `docs/README.md`
 - Output Router source truth:
   - `docs/specs/freeflow-output-router-design.md`
-  - `plugins/freeflow/skills/output-router/SKILL.md`
-  - `plugins/freeflow/skills/output-router/references/safety-policy.md`
-  - `plugins/freeflow/router/src/types.ts`
-  - `plugins/freeflow/router/src/retrieve.ts`
-  - `plugins/freeflow/router/src/run.ts`
-  - `plugins/freeflow/router/src/parsers.ts`
+  - `skills/output-router/SKILL.md`
+  - `skills/output-router/references/safety-policy.md`
+  - `router/src/config/types.ts`
+  - `router/src/tools/retrieve.ts`
+  - `router/src/tools/run.ts`
+  - `router/src/routing/parsers.ts`
 - Local index experimental status:
-  - `plugins/freeflow/router/src/experimental-local-index.ts`
-  - `plugins/freeflow/evals/reports/runtime/output-router-index-benchmark-1-report.md`
+  - `router/src/experiments/local-index.ts`
+  - `evals/reports/runtime/output-router-index-benchmark-1-report.md`
 - Command router evidence:
-  - `plugins/freeflow/evals/reports/runtime/output-router-command-benchmark-1-report.md`
+  - `evals/reports/runtime/output-router-command-benchmark-1-report.md`
 - External research clones, if still present:
   - `/tmp/pi-github-repos/oraios/serena`
   - `/tmp/pi-github-repos/DeusData/codebase-memory-mcp`

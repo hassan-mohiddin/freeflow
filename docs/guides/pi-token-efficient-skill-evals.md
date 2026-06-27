@@ -243,7 +243,7 @@ git -C "$RUN_DIR" status --short > run.git-status.txt 2>/dev/null || true
 For Freeflow fixture evals, prefer existing deterministic graders when they apply:
 
 ```bash
-plugins/freeflow/evals/scripts/grade-fixture-eval.sh <eval-id> --output <run-output.md>
+evals/scripts/grade-fixture-eval.sh <eval-id> --output <run-output.md>
 ```
 
 ### Tier 5: Full-Fidelity Runtime Eval

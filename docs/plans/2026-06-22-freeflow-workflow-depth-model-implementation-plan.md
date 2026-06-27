@@ -27,24 +27,24 @@ Source context:
 
 - `CONTEXT.md`
 - `docs/freeflow-runtime-and-lifecycle.md`
-- `plugins/freeflow/docs/README.md`
-- `plugins/freeflow/docs/workflow.md`
-- `plugins/freeflow/docs/architecture.md`
-- `plugins/freeflow/docs/skills.md`
-- `plugins/freeflow/command-surface.json`
-- `plugins/freeflow/pi-extension/index.js`
-- `plugins/freeflow/skills/discover/SKILL.md`
-- `plugins/freeflow/skills/design-for-depth/SKILL.md`
-- `plugins/freeflow/skills/workflow/SKILL.md`
-- `plugins/freeflow/skills/write-spec/SKILL.md`
-- `plugins/freeflow/skills/write-plan/SKILL.md`
-- `plugins/freeflow/skills/review-artifact/SKILL.md`
-- `plugins/freeflow/skills/execute-plan/SKILL.md`
-- `plugins/freeflow/skills/review-work/SKILL.md`
-- `plugins/freeflow/skills/diagnose-failure/SKILL.md`
-- `plugins/freeflow/evals/README.md`
-- `plugins/freeflow/evals/registries/fixture-evals.json`
-- `plugins/freeflow/evals/registries/skill-evidence.json`
+- `docs/README.md`
+- `plugin-docs/workflow.md`
+- `plugin-docs/architecture.md`
+- `plugin-docs/skills.md`
+- `command-surface.json`
+- `pi-extension/index.js`
+- `skills/discover/SKILL.md`
+- `skills/design-for-depth/SKILL.md`
+- `skills/workflow/SKILL.md`
+- `skills/write-spec/SKILL.md`
+- `skills/write-plan/SKILL.md`
+- `skills/review-artifact/SKILL.md`
+- `skills/execute-plan/SKILL.md`
+- `skills/review-work/SKILL.md`
+- `skills/diagnose-failure/SKILL.md`
+- `evals/README.md`
+- `evals/registries/fixture-evals.json`
+- `evals/registries/skill-evidence.json`
 
 Research inputs, not authority:
 
@@ -136,7 +136,7 @@ Stop before:
 Run after implementation:
 
 - `git diff --check`
-- `plugins/freeflow/evals/scripts/audit-command-surface.sh`
+- `evals/scripts/audit-command-surface.sh`
 - JSON parsing for eval registries
 - focused review of skill changes
 

@@ -16,13 +16,13 @@ This handoff is memory, not authority. Inspect live files before editing.
 - `CONTEXT.md`
 - `docs/adr/`
 - `docs/research/freeflow-artifact-skills.md`
-- `plugins/freeflow/skills/write-spec/SKILL.md`
-- `plugins/freeflow/skills/review-artifact/SKILL.md`
-- `plugins/freeflow/evals/reports/by-skill/write-spec-1-report.md`
-- `plugins/freeflow/evals/reports/by-skill/write-spec-2-report.md`
-- `plugins/freeflow/evals/reports/by-skill/write-spec-3-report.md`
-- `plugins/freeflow/evals/reports/by-skill/review-artifact-1-report.md`
-- `plugins/freeflow/evals/reports/by-skill/review-artifact-2-report.md`
+- `skills/write-spec/SKILL.md`
+- `skills/review-artifact/SKILL.md`
+- `evals/reports/by-skill/write-spec-1-report.md`
+- `evals/reports/by-skill/write-spec-2-report.md`
+- `evals/reports/by-skill/write-spec-3-report.md`
+- `evals/reports/by-skill/review-artifact-1-report.md`
+- `evals/reports/by-skill/review-artifact-2-report.md`
 
 Reference skills for next work:
 
@@ -74,7 +74,7 @@ Key lesson:
 - Review first. Edit second.
 - "Fix directly" is not approval to invert an artifact's intent.
 - A clean artifact should pass without invented findings.
-- Fresh reviewer prompt exists at `plugins/freeflow/skills/review-artifact/references/reviewer-prompt.md`.
+- Fresh reviewer prompt exists at `skills/review-artifact/references/reviewer-prompt.md`.
 
 ## Dirty / Untracked Work To Preserve
 
@@ -83,20 +83,20 @@ Expected untracked or modified files include:
 - `docs/research/freeflow-artifact-skills.md`
 - `docs/handoffs/2026-05-25-artifact-skills-handoff.md`
 - `docs/handoffs/2026-05-25-write-plan-next.md`
-- `plugins/freeflow/skills/write-spec/`
-- `plugins/freeflow/skills/review-artifact/`
-- `plugins/freeflow/evals/prompts/wsp-001.txt`
-- `plugins/freeflow/evals/prompts/wsp-002.txt`
-- `plugins/freeflow/evals/prompts/wsp-003.txt`
-- `plugins/freeflow/evals/prompts/rar-001.txt`
-- `plugins/freeflow/evals/prompts/rar-002.txt`
-- `plugins/freeflow/evals/fixtures/tiny-artifact-review-app/`
-- `plugins/freeflow/evals/reports/by-skill/write-spec-1-report.md`
-- `plugins/freeflow/evals/reports/by-skill/write-spec-2-report.md`
-- `plugins/freeflow/evals/reports/by-skill/write-spec-3-report.md`
-- `plugins/freeflow/evals/reports/by-skill/review-artifact-1-report.md`
-- `plugins/freeflow/evals/reports/by-skill/review-artifact-2-report.md`
-- modified `plugins/freeflow/evals/registries/fixture-evals.json`
+- `skills/write-spec/`
+- `skills/review-artifact/`
+- `evals/prompts/wsp-001.txt`
+- `evals/prompts/wsp-002.txt`
+- `evals/prompts/wsp-003.txt`
+- `evals/prompts/rar-001.txt`
+- `evals/prompts/rar-002.txt`
+- `evals/fixtures/tiny-artifact-review-app/`
+- `evals/reports/by-skill/write-spec-1-report.md`
+- `evals/reports/by-skill/write-spec-2-report.md`
+- `evals/reports/by-skill/write-spec-3-report.md`
+- `evals/reports/by-skill/review-artifact-1-report.md`
+- `evals/reports/by-skill/review-artifact-2-report.md`
+- modified `evals/registries/fixture-evals.json`
 
 Do not delete or rewrite these as cleanup.
 

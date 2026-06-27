@@ -13,7 +13,7 @@ This directory preserves the Codex CLI agent-harness study for Freeflow's future
 
 These docs are research memory, not shipped Freeflow behavior and not an implementation plan. They explain how Codex CLI works, what Freeflow can learn from it, what the comparison harnesses add, and which decisions must still be made before implementation.
 
-Live Freeflow runtime source under `plugins/freeflow/` and agreed specs override these research artifacts.
+Live Freeflow runtime source under the repo root and agreed specs override these research artifacts.
 
 ## Source Snapshots
 
@@ -103,7 +103,7 @@ If you are reviewing future implementation work:
 
 1. Read the source evidence appendix in the relevant pass.
 2. Refresh the upstream source before treating any finding as current.
-3. Treat Freeflow runtime source under `plugins/freeflow/` as the live source of truth.
+3. Treat Freeflow runtime source under the repo root as the live source of truth.
 4. Treat `docs/designs/local-delegation-harness-design.md` as the current design draft, not shipped runtime behavior.
 
 ## Pass Index

@@ -17,15 +17,15 @@ This handoff is memory, not authority. Inspect live files before editing.
 - `docs/research/freeflow-artifact-skills.md`
 - `docs/plugin-contract.md`
 - `docs/research/agent-workflow-plugin-context.md`
-- `plugins/freeflow/skills/workflow/SKILL.md`
-- `plugins/freeflow/skills/interview-gate/SKILL.md`
-- `plugins/freeflow/skills/review-work/SKILL.md`
+- `skills/workflow/SKILL.md`
+- `skills/interview-gate/SKILL.md`
+- `skills/review-work/SKILL.md`
 
 For eval style:
 
-- `plugins/freeflow/evals/reports/iterations/iteration-6-report.md`
-- `plugins/freeflow/evals/reports/by-skill/review-work-1-report.md`
-- `plugins/freeflow/evals/reports/by-skill/diagnose-failure-1-report.md`
+- `evals/reports/iterations/iteration-6-report.md`
+- `evals/reports/by-skill/review-work-1-report.md`
+- `evals/reports/by-skill/diagnose-failure-1-report.md`
 
 ## Current Decisions
 

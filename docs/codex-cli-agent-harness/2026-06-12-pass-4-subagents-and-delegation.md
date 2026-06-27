@@ -23,7 +23,7 @@ They are child agent threads with identity, status, tool access, context, mailbo
 
 This document is beginner-friendly, but it does not flatten the mechanism. The early sections explain the mental model. The later sections preserve source-level behavior, current-source drift, test evidence, and implications for a future Freeflow local-agent harness.
 
-This is research memory, not shipped Freeflow behavior. Runtime truth for Freeflow still lives under `plugins/freeflow/`.
+This is research memory, not shipped Freeflow behavior. Runtime truth for Freeflow still lives under the repo root.
 
 ## Audit Summary
 
@@ -2055,7 +2055,7 @@ These should be answered after more passes and design work:
 The canonical pass index and roadmap live in:
 
 ```text
-docs/research/codex-cli-agent-harness/README.md
+docs/codex-cli-agent-harness/README.md
 ```
 
 This pass should be cross-checked with:

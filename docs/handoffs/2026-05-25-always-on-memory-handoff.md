@@ -10,12 +10,12 @@ Continue implementation planning for Freeflow host setup: how to keep Freeflow's
 
 - `docs/research/freeflow-always-on-memory.md`
 - `docs/freeflow-runtime-and-lifecycle.md`
-- `plugins/freeflow/skills/setup-freeflow/SKILL.md`
-- `plugins/freeflow/skills/workflow/SKILL.md`
-- `plugins/freeflow/skills/interview-gate/SKILL.md`
-- `plugins/freeflow/skills/mode-contract/SKILL.md`
-- `plugins/freeflow/skills/capture-decisions/SKILL.md`
-- latest setup eval report: `plugins/freeflow/evals/reports/by-skill/setup-freeflow-1-report.md`
+- `skills/setup-freeflow/SKILL.md`
+- `skills/workflow/SKILL.md`
+- `skills/interview-gate/SKILL.md`
+- `skills/mode-contract/SKILL.md`
+- `skills/capture-decisions/SKILL.md`
+- latest setup eval report: `evals/reports/by-skill/setup-freeflow-1-report.md`
 
 ## Current Decision
 

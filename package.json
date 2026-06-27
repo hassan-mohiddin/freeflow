@@ -16,18 +16,18 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "build:router": "tsc -p plugins/freeflow/router/tsconfig.json",
-    "build:pi-extension": "tsc -p plugins/freeflow/pi-extension/tsconfig.json",
+    "build:router": "tsc -p router/tsconfig.json",
+    "build:pi-extension": "tsc -p pi-extension/tsconfig.json",
     "build": "npm run build:router && npm run build:pi-extension",
-    "test:router": "npm run build && node --test plugins/freeflow/router/tests/*.test.js",
-    "bench:router": "npm run build:router && node plugins/freeflow/router/dist/benchmarks.js",
-    "bench:router:commands": "npm run build:router && node plugins/freeflow/router/dist/command-benchmarks.js",
-    "bench:router:context-saving-baseline": "npm run build:router && node plugins/freeflow/router/dist/context-saving-baseline.js",
-    "bench:router:context-mode-normalized": "npm run build:router && node plugins/freeflow/router/dist/context-mode-normalized-benchmarks.js",
-    "bench:router:storage-policy": "npm run build:router && node plugins/freeflow/router/dist/storage-policy-benchmarks.js",
-    "bench:router:index": "npm run build:router && node plugins/freeflow/router/dist/index-benchmarks.js",
-    "bench:router:vault-index": "npm run build:router && node plugins/freeflow/router/dist/vault-index-benchmarks.js",
-    "bench:router:codex-qa": "npm run build:router && node plugins/freeflow/router/dist/codex-qa-benchmarks.js"
+    "test:router": "npm run build && node --test $(find router/tests -name '*.test.js' | sort)",
+    "bench:router": "npm run build:router && node router/dist/benchmarks/benchmarks.js",
+    "bench:router:commands": "npm run build:router && node router/dist/benchmarks/command-benchmarks.js",
+    "bench:router:context-saving-baseline": "npm run build:router && node router/dist/benchmarks/context-saving-baseline.js",
+    "bench:router:context-mode-normalized": "npm run build:router && node router/dist/benchmarks/context-mode-normalized-benchmarks.js",
+    "bench:router:storage-policy": "npm run build:router && node router/dist/benchmarks/storage-policy-benchmarks.js",
+    "bench:router:index": "npm run build:router && node router/dist/benchmarks/index-benchmarks.js",
+    "bench:router:vault-index": "npm run build:router && node router/dist/benchmarks/vault-index-benchmarks.js",
+    "bench:router:codex-qa": "npm run build:router && node router/dist/benchmarks/codex-qa-benchmarks.js"
   },
   "keywords": [
     "pi-package",
@@ -43,27 +43,40 @@
   ],
   "pi": {
     "skills": [
-      "plugins/freeflow/skills"
+      "skills"
     ],
     "extensions": [
-      "plugins/freeflow/pi-extension/dist/index.js"
+      "pi-extension/dist/index.js"
     ],
-    "image": "https://raw.githubusercontent.com/hassan-mohiddin/freeflow/main/plugins/freeflow/assets/freeflow-plugin-icon-transparent.png"
+    "image": "https://raw.githubusercontent.com/hassan-mohiddin/freeflow/main/assets/freeflow-plugin-icon-transparent.png"
   },
   "files": [
     ".agents/**",
     ".claude-plugin/**",
+    ".codex-plugin/**",
     "LICENSE",
     "README.md",
-    "plugins/freeflow/.claude-plugin/**",
-    "plugins/freeflow/.codex-plugin/**",
-    "plugins/freeflow/assets/**",
-    "plugins/freeflow/command-surface.json",
-    "plugins/freeflow/docs/**",
-    "plugins/freeflow/hooks/**",
-    "plugins/freeflow/pi-extension/**",
-    "plugins/freeflow/router/dist/**",
-    "plugins/freeflow/skills/**"
+    "assets/**",
+    "command-surface.json",
+    "plugin-docs/README.md",
+    "plugin-docs/workflow.md",
+    "plugin-docs/skills.md",
+    "plugin-docs/architecture.md",
+    "plugin-docs/output-router.md",
+    "plugin-docs/release-evidence.md",
+    "plugin-docs/adr/**",
+    "evals/README.md",
+    "evals/fixtures/**",
+    "evals/prompts/**",
+    "evals/registries/**",
+    "evals/reports/**",
+    "evals/runbooks/**",
+    "evals/scripts/**",
+    "evals/suites/**",
+    "hooks/**",
+    "pi-extension/**",
+    "router/dist/**",
+    "skills/**"
   ],
   "devDependencies": {
     "@types/node": "^22.15.30",

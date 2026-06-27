@@ -29,11 +29,11 @@ Deepen the router internally while keeping the current product contract stable:
 
 Relevant live source areas:
 
-- `plugins/freeflow/router/src/retrieve.ts` currently owns repo traversal, chunking, scoring, exact phrase range selection, exact line-range handling, evidence assembly, caps, and route text.
-- `plugins/freeflow/router/src/experimental-local-index.ts` duplicated traversal/search policy for an experiment that benchmarks rejected as a product path.
-- `plugins/freeflow/router/src/vault.ts` owns object storage and session index mutation; current in-process locking does not model cross-process safety.
-- `plugins/freeflow/router/src/command-benchmarks.ts` mixes parser/runtime observation with duplicate-output benchmark semantics.
-- `plugins/freeflow/pi-extension/index.js` owns adapter behavior plus some router policy, but adapter portability is not the current priority.
+- `router/src/tools/retrieve.ts` currently owns repo traversal, chunking, scoring, exact phrase range selection, exact line-range handling, evidence assembly, caps, and route text.
+- `router/src/experiments/local-index.ts` duplicated traversal/search policy for an experiment that benchmarks rejected as a product path.
+- `router/src/vault/vault.ts` owns object storage and session index mutation; current in-process locking does not model cross-process safety.
+- `router/src/benchmarks/command-benchmarks.ts` mixes parser/runtime observation with duplicate-output benchmark semantics.
+- `pi-extension/index.js` owns adapter behavior plus some router policy, but adapter portability is not the current priority.
 
 Relevant source truth:
 
@@ -52,7 +52,7 @@ Do not implement the whole EvidenceSearch module first. Build it through narrow 
 Create a new internal router module:
 
 ```text
-plugins/freeflow/router/src/repo-traversal.ts
+router/src/repo/repo-traversal.ts
 ```
 
 Initial interface stays small:
@@ -156,7 +156,7 @@ Unsupported patterns match nothing in the first slice. They do not warn yet and 
 
 ### Experimental Local Index Status
 
-`plugins/freeflow/router/src/experimental-local-index.ts` stays in place for now as a frozen experiment / historical evidence path.
+`router/src/experiments/local-index.ts` stays in place for now as a frozen experiment / historical evidence path.
 
 Constraints:
 
@@ -171,7 +171,7 @@ Constraints:
 Create a small exact range module, likely:
 
 ```text
-plugins/freeflow/router/src/line-ranges.ts
+router/src/line-ranges.ts
 ```
 
 It should be shared by repo and vault retrieval immediately.
@@ -197,7 +197,7 @@ Expected behavior:
 Create a search-specific range selector, likely:
 
 ```text
-plugins/freeflow/router/src/evidence-range-selector.ts
+router/src/evidence-range-selector.ts
 ```
 
 It returns range plus anchor metadata, not full `EvidencePacket`s.

@@ -23,15 +23,15 @@ Focused interface review:
 
 Current files:
 
-- `plugins/freeflow/evals/README.md`
-- `plugins/freeflow/evals/registries/fixture-evals.json`
-- `plugins/freeflow/evals/registries/verify-work-evals.json`
-- `plugins/freeflow/evals/registries/handoff-evals.json`
-- `plugins/freeflow/command-surface.json`
-- `plugins/freeflow/evals/suites/v0.1-acceptance-suite.md`
-- `plugins/freeflow/evals/reports/by-skill/`
-- `plugins/freeflow/evals/reports/by-command-surface/command-surface-matrix.md`
-- `plugins/freeflow/evals/runs/`
+- `evals/README.md`
+- `evals/registries/fixture-evals.json`
+- `evals/registries/verify-work-evals.json`
+- `evals/registries/handoff-evals.json`
+- `command-surface.json`
+- `evals/suites/v0.1-acceptance-suite.md`
+- `evals/reports/by-skill/`
+- `evals/reports/by-command-surface/command-surface-matrix.md`
+- `evals/runs/`
 
 ## Problem
 
@@ -52,7 +52,7 @@ The module is shallow because every caller must understand the whole evidence la
 Use a hybrid design:
 
 ```text
-plugins/freeflow/evals/scripts/skill-evidence.sh <skill> [--format summary|json|commands]
+evals/scripts/skill-evidence.sh <skill> [--format summary|json|commands]
   -> getSkillEvidence({
        subject: { kind: "skill", name: skill },
        freshness: "acceptance-over-smoke",
@@ -80,9 +80,9 @@ Do not move prompts, fixtures, or reports into per-skill directories yet. That i
 Common caller:
 
 ```sh
-plugins/freeflow/evals/scripts/skill-evidence.sh verify-work
-plugins/freeflow/evals/scripts/skill-evidence.sh write-plan --format commands
-plugins/freeflow/evals/scripts/skill-evidence.sh review-work --format json
+evals/scripts/skill-evidence.sh verify-work
+evals/scripts/skill-evidence.sh write-plan --format commands
+evals/scripts/skill-evidence.sh review-work --format json
 ```
 
 Internal module shape:
@@ -101,7 +101,7 @@ Core params:
 
 ## Invariants
 
-- skill names must resolve to `plugins/freeflow/skills/<skill>/SKILL.md`
+- skill names must resolve to `skills/<skill>/SKILL.md`
 - eval IDs must resolve through configured registry adapters
 - `command-surface.json` is authority for command routing
 - command-surface matrix is a report/view, not command authority

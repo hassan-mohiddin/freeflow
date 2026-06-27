@@ -174,10 +174,10 @@ Add setup/runtime evals before changing the setup skill:
 ## Evidence Pointers
 
 - `docs/freeflow-runtime-and-lifecycle.md`
-- `plugins/freeflow/skills/setup-freeflow/SKILL.md`
-- `plugins/freeflow/skills/mode-contract/SKILL.md`
-- `plugins/freeflow/skills/workflow/SKILL.md`
-- `plugins/freeflow/skills/interview-gate/SKILL.md`
-- `plugins/freeflow/skills/capture-decisions/SKILL.md`
+- `skills/setup-freeflow/SKILL.md`
+- `skills/mode-contract/SKILL.md`
+- `skills/workflow/SKILL.md`
+- `skills/interview-gate/SKILL.md`
+- `skills/capture-decisions/SKILL.md`
 - OpenAI Codex docs: `AGENTS.md`, skills, rules, memories
 - Anthropic Claude Code docs: memory files and `CLAUDE.md` imports

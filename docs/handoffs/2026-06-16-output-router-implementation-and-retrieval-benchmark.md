@@ -12,19 +12,19 @@ This handoff is memory, not authority. Reopen linked live files before consequen
 
 The output router is a Pi-first, host-portable routed-output system. It now has:
 
-- Router core in `plugins/freeflow/router/src/`, compiled to `plugins/freeflow/router/dist/`.
-- Pi adapter changes in `plugins/freeflow/pi-extension/index.js`.
-- Runtime-facing skill in `plugins/freeflow/skills/output-router/SKILL.md`.
-- Safety policy reference in `plugins/freeflow/skills/output-router/references/safety-policy.md`.
-- Deterministic regression fixtures in `plugins/freeflow/evals/fixtures/output-router/`.
-- Regression/evidence report in `plugins/freeflow/evals/reports/runtime/output-router-regression-1-report.md`.
+- Router core in `router/src/`, compiled to `router/dist/`.
+- Pi adapter changes in `pi-extension/index.js`.
+- Runtime-facing skill in `skills/output-router/SKILL.md`.
+- Safety policy reference in `skills/output-router/references/safety-policy.md`.
+- Deterministic regression fixtures in `evals/fixtures/output-router/`.
+- Regression/evidence report in `evals/reports/runtime/output-router-regression-1-report.md`.
 
 Current design/spec/plan files were updated away from the earlier bootstrap-only shape:
 
 - `docs/specs/freeflow-output-router-design.md`
 - `docs/plans/2026-06-16-freeflow-output-router-implementation-plan.md`
 
-The earlier `plugins/freeflow/router/bootstrap/output-router-context.md` and `docs/specs/freeflow-output-router-safety-policy.md` were removed/replaced by the real `output-router` skill + skill reference.
+The earlier `router/bootstrap/output-router-context.md` and `docs/specs/freeflow-output-router-safety-policy.md` were removed/replaced by the real `output-router` skill + skill reference.
 
 ## Decisions Made
 
@@ -51,14 +51,14 @@ The earlier `plugins/freeflow/router/bootstrap/output-router-context.md` and `do
 
 Key files:
 
-- `plugins/freeflow/router/src/types.ts`
-- `plugins/freeflow/router/src/schema.ts`
-- `plugins/freeflow/router/src/config.ts`
-- `plugins/freeflow/router/src/vault.ts`
-- `plugins/freeflow/router/src/retrieve.ts`
-- `plugins/freeflow/router/src/run.ts`
-- `plugins/freeflow/router/src/index.ts`
-- `plugins/freeflow/router/tsconfig.json`
+- `router/src/config/types.ts`
+- `router/src/config/schema.ts`
+- `router/src/config/config.ts`
+- `router/src/vault/vault.ts`
+- `router/src/tools/retrieve.ts`
+- `router/src/tools/run.ts`
+- `router/src/index.ts`
+- `router/tsconfig.json`
 
 Implemented behavior:
 
@@ -74,7 +74,7 @@ Implemented behavior:
 
 ### Pi extension
 
-Key file: `plugins/freeflow/pi-extension/index.js`
+Key file: `pi-extension/index.js`
 
 Implemented behavior:
 
@@ -94,7 +94,7 @@ Implemented behavior:
 - `build:router`
 - `test:router`
 - dev deps: `typescript`, `@types/node`
-- package whitelist includes `plugins/freeflow/router/dist/**`; router source/tests are not packaged.
+- package whitelist includes `router/dist/**`; router source/tests are not packaged.
 
 ## Verification Evidence
 
@@ -106,19 +106,19 @@ Latest automated checks passed:
 npm run test:router
 # pass: 45 tests
 
-node --check plugins/freeflow/pi-extension/index.js
+node --check pi-extension/index.js
 
 npm pack --dry-run --json
 # package includes router dist and output-router skill/reference
 # package excludes router src/tests
 
-rg -n "child_process|node:child_process|\bspawn\b|\bexecFile\b|\bexecSync\b" plugins/freeflow/router plugins/freeflow/pi-extension || true
+rg -n "child_process|node:child_process|\bspawn\b|\bexecFile\b|\bexecSync\b" router pi-extension || true
 # no raw Node shell execution APIs found
 ```
 
 ### Real Pi local-extension smoke
 
-Using `pi -e "$PWD/plugins/freeflow/pi-extension/index.js"`:
+Using `pi -e "$PWD/pi-extension/index.js"`:
 
 - `freeflow_retrieve` registered and returned exact fixture evidence.
 - `freeflow_run` used Pi runtime execution and returned `toolStatus=ok`, `execution.status=success`, `routing.status=partial`, and `outputId=ffout_...`.
@@ -134,7 +134,7 @@ The working tree was synced into Pi's installed package cache at:
 
 The user ran `/reload`, then package-discovery smoke passed without `-e` override:
 
-- `freeflow_retrieve` found `OUTPUT_ROUTER_SKILL_DECISION_ANCHOR` in `plugins/freeflow/evals/fixtures/output-router/large-router-manual.md`.
+- `freeflow_retrieve` found `OUTPUT_ROUTER_SKILL_DECISION_ANCHOR` in `evals/fixtures/output-router/large-router-manual.md`.
 - `freeflow_run` returned `toolStatus: ok`, `execution.status: success`, `routing.status: routed`, and an `outputId`.
 - Native `read` safety net with `postToolRouting=safety-net` returned `Freeflow routed this native read result` and `outputId=ffout_...`.
 
@@ -203,7 +203,7 @@ But broad `freeflow_retrieve` from repo root returned:
 graphify-out/graph.html:67-71
 ```
 
-This is a real bug. Cause in `plugins/freeflow/router/src/retrieve.ts`:
+This is a real bug. Cause in `router/src/tools/retrieve.ts`:
 
 - `SKIP_DIRS` currently skips only `.git`, `node_modules`, `dist`, `.next`, `coverage`.
 - It does not skip `graphify-out/**`.
@@ -264,12 +264,12 @@ Recent search/retrieval references support these improvements:
 
 Reopen these before continuing:
 
-- `plugins/freeflow/router/src/retrieve.ts` — broad retrieval bug lives here.
-- `plugins/freeflow/router/tests/regression-fixtures.test.js` — add the SandboxPermissions broad-lookup failure here.
-- `plugins/freeflow/evals/fixtures/output-router/` — add/extend fixtures for generated-artifact and huge-line retrieval failures.
-- `plugins/freeflow/skills/output-router/SKILL.md` — router tool-choice guidance.
-- `plugins/freeflow/skills/output-router/references/safety-policy.md` — exactness-sensitive behavior.
-- `plugins/freeflow/evals/reports/runtime/output-router-regression-1-report.md` — current evidence report; update after fixes.
+- `router/src/tools/retrieve.ts` — broad retrieval bug lives here.
+- `router/tests/regression-fixtures.test.js` — add the SandboxPermissions broad-lookup failure here.
+- `evals/fixtures/output-router/` — add/extend fixtures for generated-artifact and huge-line retrieval failures.
+- `skills/output-router/SKILL.md` — router tool-choice guidance.
+- `skills/output-router/references/safety-policy.md` — exactness-sensitive behavior.
+- `evals/reports/runtime/output-router-regression-1-report.md` — current evidence report; update after fixes.
 - `docs/specs/freeflow-output-router-design.md` — spec now points to output-router skill, not bootstrap artifact.
 - `docs/plans/2026-06-16-freeflow-output-router-implementation-plan.md` — plan updated to skill-based shape but still has historical slice framing.
 

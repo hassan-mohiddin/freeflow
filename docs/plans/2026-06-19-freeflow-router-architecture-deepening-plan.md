@@ -30,10 +30,10 @@ Supporting source truth:
 - `docs/specs/freeflow-output-router-design.md`
 - `docs/specs/freeflow-output-router-excellence-spec.md`
 - `docs/specs/freeflow-router-internal-deep-modules-spec.md`
-- `plugins/freeflow/skills/output-router/SKILL.md`
-- `plugins/freeflow/skills/output-router/references/safety-policy.md`
-- live router source under `plugins/freeflow/router/src/`
-- live router tests under `plugins/freeflow/router/tests/`
+- `skills/output-router/SKILL.md`
+- `skills/output-router/references/safety-policy.md`
+- live router source under `router/src/`
+- live router tests under `router/tests/`
 
 Research inputs:
 
@@ -66,27 +66,27 @@ Do not:
 
 Source:
 
-- new `plugins/freeflow/router/src/bounded-evidence.ts`
-- new `plugins/freeflow/router/src/benchmark-harness.ts`
-- new `plugins/freeflow/router/src/evidence-search.ts`
-- new `plugins/freeflow/router/src/router-contract.ts`
-- new `plugins/freeflow/router/src/experiments/local-index.ts` or similar
-- `plugins/freeflow/router/src/retrieve.ts`
-- `plugins/freeflow/router/src/benchmarks.ts`
-- `plugins/freeflow/router/src/command-benchmarks.ts`
-- `plugins/freeflow/router/src/index-benchmarks.ts`
-- `plugins/freeflow/router/src/config.ts`
-- `plugins/freeflow/router/src/schema.ts`
-- `plugins/freeflow/router/src/experimental-local-index.ts`
-- `plugins/freeflow/pi-extension/index.js` only for RouterContract predicate use or generated path/config checks
-- generated `plugins/freeflow/router/dist/**`
+- new `router/src/bounded-evidence.ts`
+- new `router/src/benchmarks/benchmark-harness.ts`
+- new `router/src/evidence-search.ts`
+- new `router/src/config/router-contract.ts`
+- new `router/src/experiments/local-index.ts` or similar
+- `router/src/tools/retrieve.ts`
+- `router/src/benchmarks/benchmarks.ts`
+- `router/src/benchmarks/command-benchmarks.ts`
+- `router/src/benchmarks/index-benchmarks.ts`
+- `router/src/config/config.ts`
+- `router/src/config/schema.ts`
+- `router/src/experiments/local-index.ts`
+- `pi-extension/index.js` only for RouterContract predicate use or generated path/config checks
+- generated `router/dist/**`
 
 Tests:
 
-- new `plugins/freeflow/router/tests/bounded-evidence.test.js`
-- new `plugins/freeflow/router/tests/benchmark-harness.test.js`
-- new `plugins/freeflow/router/tests/evidence-search.test.js`
-- new `plugins/freeflow/router/tests/router-contract.test.js`
+- new `router/tests/bounded-evidence.test.js`
+- new `router/tests/benchmark-harness.test.js`
+- new `router/tests/evidence-search.test.js`
+- new `router/tests/router-contract.test.js`
 - existing benchmark/retrieve/regression/index/Pi tests as affected
 
 Reports:
@@ -134,7 +134,7 @@ Red/interface tests:
 
 Implementation:
 
-1. Add `plugins/freeflow/router/src/bounded-evidence.ts`.
+1. Add `router/src/bounded-evidence.ts`.
 2. Move bounded excerpt mechanics out of `retrieve.ts`:
    - line caps,
    - byte caps,
@@ -148,7 +148,7 @@ Implementation:
 
 Checks:
 
-- `node --test plugins/freeflow/router/tests/bounded-evidence.test.js`
+- `node --test router/tests/bounded-evidence.test.js`
 - focused retrieve/regression tests for exactness and over-cap behavior
 - `npm run test:router`
 - `git diff --check`
@@ -174,7 +174,7 @@ Red/interface tests:
 
 Implementation:
 
-1. Add `plugins/freeflow/router/src/benchmark-harness.ts`.
+1. Add `router/src/benchmarks/benchmark-harness.ts`.
 2. Move shared mechanics only:
    - `approximateTokens`,
    - percentile/latency helpers,
@@ -188,8 +188,8 @@ Implementation:
 
 Checks:
 
-- `node --test plugins/freeflow/router/tests/benchmark-harness.test.js`
-- `node --test plugins/freeflow/router/tests/benchmarks.test.js plugins/freeflow/router/tests/command-benchmarks.test.js plugins/freeflow/router/tests/index-benchmarks.test.js`
+- `node --test router/tests/benchmark-harness.test.js`
+- `node --test router/tests/benchmarks.test.js router/tests/command-benchmarks.test.js router/tests/index-benchmarks.test.js`
 - `npm run bench:router`
 - `npm run bench:router:commands`
 - `npm run bench:router:index`
@@ -217,7 +217,7 @@ Red/interface tests:
 
 Implementation:
 
-1. Add `plugins/freeflow/router/src/evidence-search.ts`.
+1. Add `router/src/evidence-search.ts`.
 2. Move candidate-search implementation out of `retrieve.ts`:
    - query tokenization / identifier expansion,
    - normalized phrase construction,
@@ -232,7 +232,7 @@ Implementation:
 
 Checks:
 
-- `node --test plugins/freeflow/router/tests/evidence-search.test.js`
+- `node --test router/tests/evidence-search.test.js`
 - focused retrieve/regression ranking tests
 - `npm run test:router`
 - `npm run bench:router`
@@ -262,7 +262,7 @@ Red/interface tests:
 
 Implementation:
 
-1. Add `plugins/freeflow/router/src/router-contract.ts`.
+1. Add `router/src/config/router-contract.ts`.
 2. Move shared predicates/defaults only.
 3. Update `config.ts` and `schema.ts` to use the shared predicates.
 4. Update Pi safety-net predicate only if it stays a narrow contract reuse; do not redesign Pi adapter surface.
@@ -270,9 +270,9 @@ Implementation:
 
 Checks:
 
-- `node --test plugins/freeflow/router/tests/router-contract.test.js plugins/freeflow/router/tests/config.test.js plugins/freeflow/router/tests/schema.test.js plugins/freeflow/router/tests/pi-extension.test.js`
+- `node --test router/tests/router-contract.test.js router/tests/config.test.js router/tests/schema.test.js router/tests/pi-extension.test.js`
 - `npm run test:router`
-- `node --check plugins/freeflow/pi-extension/index.js` if Pi changes
+- `node --check pi-extension/index.js` if Pi changes
 - `git diff --check`
 
 Stop if:
@@ -295,11 +295,11 @@ Red/interface tests:
 
 Implementation:
 
-1. Add an experiment capsule, e.g. `plugins/freeflow/router/src/experiments/local-index.ts`.
+1. Add an experiment capsule, e.g. `router/src/experiments/local-index.ts`.
 2. Move current `experimental-local-index.ts` implementation into the capsule with no scoring/traversal behavior changes.
 3. Convert `experimental-local-index.ts` into a compatibility facade that re-exports existing names.
 4. Update `index-benchmarks.ts` to import the capsule, not the facade.
-5. Keep `plugins/freeflow/router/src/index.ts` public export unchanged.
+5. Keep `router/src/index.ts` public export unchanged.
 6. Do not optimize or productize the experiment in this slice.
 
 Checks:
@@ -350,7 +350,7 @@ Required final checks:
 - `npm run bench:router:index`
 - large Codex scanner benchmark if Slice 3 or ranking-sensitive changes landed:
   - `node /tmp/freeflow-codex-large-benchmark/bench-scanner-sqlite.mjs`
-- `node --check plugins/freeflow/pi-extension/index.js` if Pi changed
+- `node --check pi-extension/index.js` if Pi changed
 - production `child_process` scan if runner/test process work touched production paths
 - `npm pack --dry-run --json`
 - `git diff --check`

@@ -1587,7 +1587,7 @@ The harness should require strict action JSON:
 {
   "action": "read_file",
   "args": {
-    "path": "plugins/freeflow/skills/workflow/SKILL.md"
+    "path": "skills/workflow/SKILL.md"
   }
 }
 ```
@@ -1642,7 +1642,7 @@ These should be answered after more passes, not inside this artifact:
 This local roadmap has been superseded by the directory README:
 
 ```text
-docs/research/codex-cli-agent-harness/README.md
+docs/codex-cli-agent-harness/README.md
 ```
 
 The important correction is that later research split the original roadmap into narrower passes:

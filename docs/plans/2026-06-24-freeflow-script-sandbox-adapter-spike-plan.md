@@ -3,7 +3,7 @@
 > **Owner:** Hassan Mohiddin
 > **Type:** Plan
 > **Status:** Complete for selection; JavaScript and jq proof spikes passed, Python Eryx candidate blocked before proofs; follow-on Slice 17 has begun with explicit QuickJS-only execution
-> **Source:** `docs/designs/freeflow-script-derive-sandbox-design.md`, `docs/plans/2026-06-24-freeflow-observed-output-routing-vault-index-script-derive-implementation-plan.md`, current `plugins/freeflow/router/src/script-sandbox.ts`, and owner direction to eventually cover JavaScript, Python, and jq.
+> **Source:** `docs/designs/freeflow-script-derive-sandbox-design.md`, `docs/plans/2026-06-24-freeflow-observed-output-routing-vault-index-script-derive-implementation-plan.md`, current `router/src/script-sandbox.ts`, and owner direction to eventually cover JavaScript, Python, and jq.
 
 # Freeflow Script Sandbox Adapter Spike Plan
 
@@ -181,7 +181,7 @@ Steps:
 
 Checks:
 
-- `node --test plugins/freeflow/router/tests/script-sandbox.test.js`,
+- `node --test router/tests/script-sandbox.test.js`,
 - `npm run test:router`,
 - `git diff --check && git diff --cached --check`.
 
@@ -192,7 +192,7 @@ Stop if:
 
 Slice 1 progress:
 
-- Added a no-dependency proof fixture registry in `plugins/freeflow/router/src/script-sandbox.ts` for every required proof across JavaScript, Python, and jq.
+- Added a no-dependency proof fixture registry in `router/src/script-sandbox.ts` for every required proof across JavaScript, Python, and jq.
 - Added coverage tests ensuring every target language has an adversarial fixture and adapter-level assertion for each required proof.
 - No runtime adapters were added, no dependencies were installed, and script execution remains unavailable.
 
@@ -225,9 +225,9 @@ Stop if:
 
 Slice 2 progress:
 
-- Added `plugins/freeflow/evals/scripts/run-quickjs-wasi-proof-spike.js`, a proof-only runner that uses an explicit `quickjs-wasi` package root and does not add repo dependencies.
+- Added `evals/scripts/run-quickjs-wasi-proof-spike.js`, a proof-only runner that uses an explicit `quickjs-wasi` package root and does not add repo dependencies.
 - Ran the proof runner against a temporary `quickjs-wasi@3.0.1` install. Required JavaScript proof fixtures passed 9/9.
-- Report written to `plugins/freeflow/evals/reports/runtime/quickjs-wasi-proof-spike-1-report.md`.
+- Report written to `evals/reports/runtime/quickjs-wasi-proof-spike-1-report.md`.
 - This is feasibility evidence only: no optional adapter package has been added to `package.json`, no adapter has been registered by default, and `freeflow_derive` script execution remains blocked.
 
 ### Slice 3: Python WASM Adapter Probe Spike
@@ -257,7 +257,7 @@ Slice 3 progress:
 - Tested `@bsull/eryx@0.5.0` from temp-only installs; no repo dependency was added.
 - Existing temp install with `@bytecodealliance/preview2-shim@0.17.9` failed before Python execution with `SyntaxError: The requested module '@bytecodealliance/preview2-shim/filesystem' does not provide an export named '_setFileData'`.
 - A separate temp-only install explicitly pinning `@bytecodealliance/preview2-shim@0.17.0` failed the same way under `Node.js v25.8.1` with `--experimental-wasm-jspi`.
-- Report written to `plugins/freeflow/evals/reports/runtime/eryx-python-proof-spike-1-report.md`.
+- Report written to `evals/reports/runtime/eryx-python-proof-spike-1-report.md`.
 - Python script derive remains unavailable; the Eryx candidate is blocked on package/transitive compatibility before sandbox proofs can run.
 
 ### Slice 4: jq WASM Adapter Probe Spike
@@ -283,9 +283,9 @@ Stop if:
 
 Slice 4 progress:
 
-- Added `plugins/freeflow/evals/scripts/run-jq-wasm-proof-spike.js`, a proof-only runner that uses an explicit `jq-wasm` package root and does not add repo dependencies.
+- Added `evals/scripts/run-jq-wasm-proof-spike.js`, a proof-only runner that uses an explicit `jq-wasm` package root and does not add repo dependencies.
 - Ran the proof runner against a temporary `jq-wasm@1.2.0-jq-1.8.2` install. Required jq proof fixtures passed 9/9.
-- Report written to `plugins/freeflow/evals/reports/runtime/jq-wasm-proof-spike-1-report.md`.
+- Report written to `evals/reports/runtime/jq-wasm-proof-spike-1-report.md`.
 - Timeout proof uses Worker termination because in-thread recursive jq blocks the event loop.
 - Output proof caps what crosses the Worker boundary; `jq-wasm` can still generate large in-Worker strings before the wrapper truncates them, so implementation/security review must decide whether that boundary is sufficient before any execution adapter is approved.
 - This is feasibility evidence only: no optional adapter package has been added to `package.json`, no adapter has been registered by default, and `freeflow_derive` script execution remains blocked.
@@ -316,7 +316,7 @@ Stop if:
 
 Slice 5 progress:
 
-- Added `plugins/freeflow/evals/reports/runtime/script-sandbox-adapter-selection-review-1-report.md`.
+- Added `evals/reports/runtime/script-sandbox-adapter-selection-review-1-report.md`.
 - Selected the optional pinned WASM/WASI adapter family as the current direction.
 - Marked `quickjs-wasi@3.0.1` and `jq-wasm@1.2.0-jq-1.8.2` as proof-backed partial candidates, not product-enabled adapters.
 - Kept Python unavailable because `@bsull/eryx@0.5.0` is blocked before proof execution.

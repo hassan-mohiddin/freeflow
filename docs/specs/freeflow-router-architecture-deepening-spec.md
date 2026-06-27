@@ -182,7 +182,7 @@ Run relevant focused tests per slice. Final verification should include:
 - `npm run bench:router:index`
 - large Codex scanner benchmark when retrieval/search behavior changes:
   - `node /tmp/freeflow-codex-large-benchmark/bench-scanner-sqlite.mjs`
-- `node --check plugins/freeflow/pi-extension/index.js` if Pi file changes
+- `node --check pi-extension/index.js` if Pi file changes
 - production `child_process` scan if test-only child processes or runner changes are touched
 - `npm pack --dry-run --json`
 - `git diff --check`

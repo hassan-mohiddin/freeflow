@@ -2302,7 +2302,7 @@ Still open for the local harness spec:
 The canonical pass index and roadmap now live in:
 
 ```text
-docs/research/codex-cli-agent-harness/README.md
+docs/codex-cli-agent-harness/README.md
 ```
 
 Completed after the original Pass 3 artifact:
