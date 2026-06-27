@@ -113,3 +113,70 @@ test("evidence range selector uses coverage when no exact phrase exists", () => 
   assert.equal(selection.matchKind, "coverage");
   assert.deepEqual(selection.range, { start: 1, end: 10 });
 });
+
+test("evidence range selector expands section coverage to include introduced fenced code", () => {
+  const lines = [
+    "### Fetch Data with Cleanup Function in React useEffect",
+    "",
+    "Demonstrates cleanup with an ignore flag for stale responses.",
+    "",
+    "```javascript",
+    "useEffect(() => {",
+    "  let ignore = false;",
+    "  return () => {",
+    "    ignore = true;",
+    "  };",
+    "}, [userId]);",
+    "```",
+  ];
+
+  const selection = selectEvidenceRangeForChunk({
+    lines,
+    chunkRange: { start: 1, end: lines.length },
+    chunkKind: "section",
+    queryTokens: ["useeffect", "cleanup", "ignore", "stale", "responses"],
+    normalizedQueryPhrase: "useeffect cleanup ignore stale responses",
+    chunkHasExactPhrase: false,
+    defaultContextLines: 2,
+    queryCoverageMaxLines: 80,
+  });
+
+  assert.equal(selection.matchKind, "coverage");
+  assert.deepEqual(selection.range, { start: 1, end: 12 });
+});
+
+test("evidence range selector returns capped coverage instead of tiny fallback when split terms exceed cap", () => {
+  const lines = ["# alpha heading", ...Array.from({ length: 118 }, (_, index) => `filler ${index}`), "omega appears late"];
+
+  const selection = selectEvidenceRangeForChunk({
+    lines,
+    chunkRange: { start: 1, end: lines.length },
+    chunkKind: "section",
+    queryTokens: ["alpha", "omega"],
+    normalizedQueryPhrase: "alpha omega",
+    chunkHasExactPhrase: false,
+    defaultContextLines: 2,
+    queryCoverageMaxLines: 80,
+  });
+
+  assert.equal(selection.matchKind, "coverage");
+  assert.deepEqual(selection.range, { start: 1, end: 80 });
+});
+
+test("evidence range selector does not expand oversized fenced code blocks past cap", () => {
+  const lines = ["# Target", "alpha beta", "```js", ...Array.from({ length: 20 }, (_, index) => `line ${index}`), "```"];
+
+  const selection = selectEvidenceRangeForChunk({
+    lines,
+    chunkRange: { start: 1, end: lines.length },
+    chunkKind: "section",
+    queryTokens: ["alpha", "beta"],
+    normalizedQueryPhrase: "alpha beta",
+    chunkHasExactPhrase: false,
+    defaultContextLines: 1,
+    queryCoverageMaxLines: 6,
+  });
+
+  assert.equal(selection.matchKind, "coverage");
+  assert.deepEqual(selection.range, { start: 1, end: 3 });
+});

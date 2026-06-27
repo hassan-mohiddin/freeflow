@@ -29,11 +29,12 @@ export function selectEvidenceRangeForChunk(options: SelectEvidenceRangeForChunk
   const anchorLineIndex = exactRange ? exactRange.start - 1 : bestLineIndexInChunk(options);
 
   if (exactRange) {
+    const range = expandSectionRangeToNearbyFencedCodeBlocks(options, {
+      start: Math.max(options.chunkRange.start, exactRange.start - options.defaultContextLines),
+      end: Math.min(options.chunkRange.end, exactRange.end + options.defaultContextLines),
+    });
     return {
-      range: {
-        start: Math.max(options.chunkRange.start, exactRange.start - options.defaultContextLines),
-        end: Math.min(options.chunkRange.end, exactRange.end + options.defaultContextLines),
-      },
+      range,
       anchorLine: exactRange.start,
       matchKind: "exact-phrase",
     };
@@ -50,17 +51,18 @@ export function selectEvidenceRangeForChunk(options: SelectEvidenceRangeForChunk
   const coverageRange = queryCoverageRangeForChunk(options);
   if (coverageRange) {
     return {
-      range: coverageRange,
+      range: expandSectionRangeToNearbyFencedCodeBlocks(options, coverageRange),
       anchorLine: coverageRange.start,
       matchKind: "coverage",
     };
   }
 
+  const range = expandSectionRangeToNearbyFencedCodeBlocks(options, {
+    start: Math.max(options.chunkRange.start, anchorLineIndex + 1 - options.defaultContextLines),
+    end: Math.min(options.chunkRange.end, anchorLineIndex + 1 + options.defaultContextLines),
+  });
   return {
-    range: {
-      start: Math.max(options.chunkRange.start, anchorLineIndex + 1 - options.defaultContextLines),
-      end: Math.min(options.chunkRange.end, anchorLineIndex + 1 + options.defaultContextLines),
-    },
+    range,
     anchorLine: anchorLineIndex + 1,
     matchKind: "best-line",
   };
@@ -137,13 +139,69 @@ function queryCoverageRangeForChunk(options: SelectEvidenceRangeForChunkOptions)
     return null;
   }
 
-  const start = Math.max(options.chunkRange.start, Math.min(...matchingLines) - options.defaultContextLines);
-  const end = Math.min(options.chunkRange.end, Math.max(...matchingLines) + options.defaultContextLines);
-  if (end - start + 1 > options.queryCoverageMaxLines) {
-    return null;
+  return boundedCoverageRange(options, matchingLines);
+}
+
+function boundedCoverageRange(options: SelectEvidenceRangeForChunkOptions, matchingLines: readonly number[]): LineRange {
+  const firstMatch = Math.min(...matchingLines);
+  const lastMatch = Math.max(...matchingLines);
+  const start = Math.max(options.chunkRange.start, firstMatch - options.defaultContextLines);
+  const end = Math.min(options.chunkRange.end, lastMatch + options.defaultContextLines);
+  if (end - start + 1 <= options.queryCoverageMaxLines) {
+    return { start, end };
   }
 
-  return { start, end };
+  const cappedStart = start;
+  const cappedEnd = Math.min(options.chunkRange.end, cappedStart + options.queryCoverageMaxLines - 1);
+  return { start: cappedStart, end: cappedEnd };
+}
+
+function expandSectionRangeToNearbyFencedCodeBlocks(options: SelectEvidenceRangeForChunkOptions, range: LineRange): LineRange {
+  if (options.chunkKind !== "section") {
+    return range;
+  }
+
+  let expanded = range;
+  for (const block of fencedCodeBlocksInChunk(options)) {
+    const adjacentOrOverlapping = block.start <= expanded.end + options.defaultContextLines && block.end >= expanded.start - options.defaultContextLines;
+    if (!adjacentOrOverlapping) {
+      continue;
+    }
+
+    const candidate = {
+      start: Math.min(expanded.start, block.start),
+      end: Math.max(expanded.end, block.end),
+    };
+    if (candidate.end - candidate.start + 1 <= options.queryCoverageMaxLines) {
+      expanded = candidate;
+    }
+  }
+  return expanded;
+}
+
+function fencedCodeBlocksInChunk(options: SelectEvidenceRangeForChunkOptions): LineRange[] {
+  const blocks: LineRange[] = [];
+  let openStart: number | null = null;
+
+  for (let lineIndex = options.chunkRange.start - 1; lineIndex < options.chunkRange.end; lineIndex += 1) {
+    const lineNumber = lineIndex + 1;
+    const line = options.lines[lineIndex] ?? "";
+    if (!/^\s*```/.test(line)) {
+      continue;
+    }
+
+    if (openStart === null) {
+      openStart = lineNumber;
+    } else {
+      blocks.push({ start: openStart, end: lineNumber });
+      openStart = null;
+    }
+  }
+
+  if (openStart !== null) {
+    blocks.push({ start: openStart, end: options.chunkRange.end });
+  }
+  return blocks;
 }
 
 function hasExactNormalizedPhrase(text: string, normalizedQueryPhrase: string): boolean {

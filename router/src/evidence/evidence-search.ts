@@ -278,8 +278,10 @@ function scoreCandidateChunk<TFile extends EvidenceSearchFile>(
     exactPhraseBoost(exactPhrase, chunk.file.path, queryTokens) +
     bm25Score(queryTokens, tokenCounts, chunkLength, stats) * 10 +
     coverageRatio(matchingTokens, queryTokens) * 120 +
+    contentCoverageBoost(matchingTokens, queryTokens, chunk.kind) +
     completeCoverageBoost(matchingTokens, queryTokens, chunk.kind) -
-    missingCoveragePenalty(matchingTokens, queryTokens, chunk.kind) +
+    missingCoveragePenalty(matchingTokens, queryTokens, chunk.kind) -
+    lowContentCoveragePenalty(matchingTokens, queryTokens, pathScore) +
     headingCoverageBoost(chunk.heading ?? "", queryTokens) +
     identifierBoost(chunk.text, queryTokens) +
     (matchingTokens.length >= 4 ? orderedPhraseBoost(chunkTokens, queryTokens) : 0) +
@@ -346,6 +348,14 @@ function coverageRatio(matchingTokens: readonly string[], queryTokens: readonly 
   return queryTokens.length ? matchingTokens.length / queryTokens.length : 0;
 }
 
+function contentCoverageBoost(matchingTokens: readonly string[], queryTokens: readonly string[], chunkKind: CandidateChunk["kind"]): number {
+  if (queryTokens.length === 0) {
+    return 0;
+  }
+  const perTokenBoost = chunkKind === "window" ? 180 : 350;
+  return matchingTokens.length * perTokenBoost + coverageRatio(matchingTokens, queryTokens) * 100;
+}
+
 function completeCoverageBoost(
   matchingTokens: readonly string[],
   queryTokens: readonly string[],
@@ -372,6 +382,15 @@ function missingCoveragePenalty(
   }
 
   return (queryTokens.length - matchingTokens.length) * 90;
+}
+
+function lowContentCoveragePenalty(matchingTokens: readonly string[], queryTokens: readonly string[], pathScore: number): number {
+  if (queryTokens.length < 4 || matchingTokens.length >= 2) {
+    return 0;
+  }
+
+  const pathOnlyPenalty = matchingTokens.length === 0 && pathScore > 0 ? 1_000 : 0;
+  return (2 - matchingTokens.length) * 600 + pathOnlyPenalty;
 }
 
 function exactPhraseBoost(exactPhrase: boolean, path: string, queryTokens: readonly string[]): number {
@@ -457,7 +476,7 @@ function chunkKindBoost(kind: CandidateChunk["kind"]): number {
 function pathIntentBoost(path: string, queryTokens: readonly string[]): number {
   const pathTokens = new Set(tokenize(path));
   const coveredTokens = queryTokens.filter((token) => pathTokens.has(token)).length;
-  return coveredTokens * 28;
+  return coveredTokens * 140 + (coveredTokens >= 2 ? 600 : 0);
 }
 
 function sourceTestPrior(path: string, queryTokens: readonly string[]): number {

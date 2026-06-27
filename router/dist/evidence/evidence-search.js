@@ -192,8 +192,10 @@ function scoreCandidateChunk(chunk, queryTokens, normalizedQueryPhrase, stats, o
     const score = exactPhraseBoost(exactPhrase, chunk.file.path, queryTokens) +
         bm25Score(queryTokens, tokenCounts, chunkLength, stats) * 10 +
         coverageRatio(matchingTokens, queryTokens) * 120 +
+        contentCoverageBoost(matchingTokens, queryTokens, chunk.kind) +
         completeCoverageBoost(matchingTokens, queryTokens, chunk.kind) -
-        missingCoveragePenalty(matchingTokens, queryTokens, chunk.kind) +
+        missingCoveragePenalty(matchingTokens, queryTokens, chunk.kind) -
+        lowContentCoveragePenalty(matchingTokens, queryTokens, pathScore) +
         headingCoverageBoost(chunk.heading ?? "", queryTokens) +
         identifierBoost(chunk.text, queryTokens) +
         (matchingTokens.length >= 4 ? orderedPhraseBoost(chunkTokens, queryTokens) : 0) +
@@ -249,6 +251,13 @@ function bm25Score(queryTokens, tokenCounts, chunkLength, stats) {
 function coverageRatio(matchingTokens, queryTokens) {
     return queryTokens.length ? matchingTokens.length / queryTokens.length : 0;
 }
+function contentCoverageBoost(matchingTokens, queryTokens, chunkKind) {
+    if (queryTokens.length === 0) {
+        return 0;
+    }
+    const perTokenBoost = chunkKind === "window" ? 180 : 350;
+    return matchingTokens.length * perTokenBoost + coverageRatio(matchingTokens, queryTokens) * 100;
+}
 function completeCoverageBoost(matchingTokens, queryTokens, chunkKind) {
     if (queryTokens.length === 0 || matchingTokens.length !== queryTokens.length) {
         return 0;
@@ -263,6 +272,13 @@ function missingCoveragePenalty(matchingTokens, queryTokens, chunkKind) {
         return 0;
     }
     return (queryTokens.length - matchingTokens.length) * 90;
+}
+function lowContentCoveragePenalty(matchingTokens, queryTokens, pathScore) {
+    if (queryTokens.length < 4 || matchingTokens.length >= 2) {
+        return 0;
+    }
+    const pathOnlyPenalty = matchingTokens.length === 0 && pathScore > 0 ? 1_000 : 0;
+    return (2 - matchingTokens.length) * 600 + pathOnlyPenalty;
 }
 function exactPhraseBoost(exactPhrase, path, queryTokens) {
     if (!exactPhrase) {
@@ -333,7 +349,7 @@ function chunkKindBoost(kind) {
 function pathIntentBoost(path, queryTokens) {
     const pathTokens = new Set(tokenize(path));
     const coveredTokens = queryTokens.filter((token) => pathTokens.has(token)).length;
-    return coveredTokens * 28;
+    return coveredTokens * 140 + (coveredTokens >= 2 ? 600 : 0);
 }
 function sourceTestPrior(path, queryTokens) {
     const testPath = isTestPath(path);

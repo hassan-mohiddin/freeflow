@@ -1,5 +1,5 @@
 export declare const CONTEXT_MODE_REAL_DEEP_IMPLEMENTATION = "context-mode-real-deep-benchmark-v1";
-export declare const EXPECTED_BASELINE_FAILURE_KEYS: readonly ["react-code-search/freeflow:repo-query", "next-cache-search/freeflow:repo-query", "tailwind-responsive-search/freeflow:repo-query", "batch-multi-source-query/freeflow:batch", "outside-file-boundary/freeflow:run-cat-host-shell"];
+export declare const EXPECTED_BASELINE_FAILURE_KEYS: readonly ["batch-multi-source-query/freeflow:batch", "outside-file-boundary/freeflow:run-cat-host-shell"];
 export interface RunContextModeRealDeepBenchmarkOptions {
     contextModeRepo?: string;
     contextModeServer?: string;

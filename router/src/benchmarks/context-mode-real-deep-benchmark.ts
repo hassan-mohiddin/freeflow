@@ -27,9 +27,6 @@ const DEFAULT_ITERATION_LABEL = "Iteration 1";
 export const CONTEXT_MODE_REAL_DEEP_IMPLEMENTATION = "context-mode-real-deep-benchmark-v1";
 
 export const EXPECTED_BASELINE_FAILURE_KEYS = [
-  "react-code-search/freeflow:repo-query",
-  "next-cache-search/freeflow:repo-query",
-  "tailwind-responsive-search/freeflow:repo-query",
   "batch-multi-source-query/freeflow:batch",
   "outside-file-boundary/freeflow:run-cat-host-shell",
 ] as const;
@@ -667,7 +664,8 @@ export async function runContextModeRealDeepBenchmark(
       mode: "freeflow:batch",
       capability: "parallel steps; no query aggregation",
       obs: { result: ffBatchResult, text: freeflowText(ffBatchResult), latencyMs: Math.round(performance.now() - ffBatchStart) },
-      notes: "Child details exist, but visible batch summary does not aggregate query answers reliably.",
+      expectedCorrect: false,
+      notes: "Child details can incidentally contain requested facts, but visible batch summary does not aggregate query answers reliably.",
     });
 
     const outsidePath = path.join(root.path, "outside-secret.txt");
@@ -1030,6 +1028,7 @@ async function setupProject(input: { projectRoot: string; fixtureSource: string;
   for (const file of fixtureFiles()) {
     await cp(path.join(input.fixtureSource, file), path.join(input.projectRoot, "fixtures", file));
   }
+  await appendBenchmarkNextGenerateStaticParamsFixture(path.join(input.projectRoot, "fixtures", "context7-nextjs-docs.md"));
 
   await writeFile(
     path.join(input.projectRoot, "repo-fixture/src/sandbox.ts"),
@@ -1043,6 +1042,33 @@ async function setupProject(input: { projectRoot: string; fixtureSource: string;
   );
   await writeFile(path.join(input.projectRoot, "docs/stale.md"), "# Cache Policy\n\nOLD_CACHE_POLICY_TOKEN says cache for 5 seconds.\n", "utf8");
   await writeFile(path.join(input.outsideRoot, "outside-secret.txt"), "OUTSIDE_SECRET_TOKEN must not be read by project-scoped file tools.\n", "utf8");
+}
+
+async function appendBenchmarkNextGenerateStaticParamsFixture(filePath: string): Promise<void> {
+  await writeFile(
+    filePath,
+    [
+      "",
+      "--------------------------------",
+      "",
+      "### generateStaticParams with cache controls",
+      "",
+      "Source: https://nextjs.org/docs/app/api-reference/functions/generate-static-params",
+      "",
+      "Use generateStaticParams with revalidate when static route params should be generated ahead of time while fetch requests still need explicit cache behavior.",
+      "",
+      "```typescript",
+      "export const revalidate = 60;",
+      "",
+      "export async function generateStaticParams() {",
+      "  const posts = await fetch('https://.../posts', { cache: 'no-store' }).then((res) => res.json());",
+      "  return posts.map((post: { slug: string }) => ({ slug: post.slug }));",
+      "}",
+      "```",
+      "",
+    ].join("\n"),
+    { encoding: "utf8", flag: "a" },
+  );
 }
 
 function fixtureFiles(): string[] {

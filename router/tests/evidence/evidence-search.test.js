@@ -90,3 +90,94 @@ test("evidence search de-dupes topK results by path", () => {
 
   assert.deepEqual(candidates.map((candidate) => candidate.file.path), ["docs/target.md", "docs/other.md"]);
 });
+
+test("evidence search includes nearby fenced code for documentation prose matches", () => {
+  const candidates = searchRepoEvidenceCandidates({
+    files: [
+      file("fixtures/context7-react-docs.md", [
+        "### Fetch Data with Cleanup Function in React useEffect",
+        "",
+        "Demonstrates a React useEffect hook that uses cleanup and an ignore flag for stale responses.",
+        "",
+        "```javascript",
+        "useEffect(() => {",
+        "  let ignore = false;",
+        "  return () => {",
+        "    ignore = true;",
+        "  };",
+        "}, [userId]);",
+        "```",
+      ].join("\n")),
+    ],
+    query: "useEffect cleanup ignore stale responses",
+    topK: 1,
+    defaultContextLines: 2,
+    queryCoverageMaxLines: 80,
+  });
+
+  assert.equal(candidates[0].file.path, "fixtures/context7-react-docs.md");
+  assert.deepEqual(candidates[0].range, { start: 1, end: 12 });
+});
+
+test("evidence search prefers content coverage over stale short path-only docs", () => {
+  const candidates = searchRepoEvidenceCandidates({
+    files: [
+      file("docs/stale.md", ["# Cache Policy", "", "OLD_CACHE_POLICY_TOKEN says cache for 5 seconds."].join("\n")),
+      file("fixtures/context7-nextjs-docs.md", [
+        "### generateStaticParams with cache controls",
+        "",
+        "Use generateStaticParams with revalidate when static params need cached regeneration.",
+        "",
+        "```typescript",
+        "export const revalidate = 60;",
+        "export async function generateStaticParams() {",
+        "  return [{ slug: 'a' }];",
+        "}",
+        "export default async function Page() {",
+        "  const res = await fetch('https://...', { cache: 'no-store' });",
+        "  return <div />;",
+        "}",
+        "```",
+      ].join("\n")),
+    ],
+    query: "cache revalidate no-store generateStaticParams",
+    topK: 1,
+    defaultContextLines: 2,
+    queryCoverageMaxLines: 80,
+  });
+
+  assert.equal(candidates[0].file.path, "fixtures/context7-nextjs-docs.md");
+  const excerpt = candidates[0].file.lines.slice(candidates[0].range.start - 1, candidates[0].range.end).join("\n");
+  assert.match(excerpt, /generateStaticParams/);
+  assert.match(excerpt, /revalidate/);
+  assert.match(excerpt, /no-store/);
+});
+
+test("evidence search returns responsive Tailwind code evidence with breakpoint classes", () => {
+  const candidates = searchRepoEvidenceCandidates({
+    files: [
+      file("docs/stale.md", ["# Cache Policy", "", "OLD_CACHE_POLICY_TOKEN says cache for 5 seconds."].join("\n")),
+      file("fixtures/context7-tailwind-docs.md", [
+        "### Create responsive grid layouts with breakpoint variants",
+        "",
+        "Use Tailwind's responsive variants (md, lg, etc.) to apply grid classes at viewport breakpoints.",
+        "",
+        "```html",
+        "<div class=\"grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6\">",
+        "  <!-- ... -->",
+        "</div>",
+        "```",
+      ].join("\n")),
+    ],
+    query: "responsive md lg flex grid classes",
+    topK: 1,
+    defaultContextLines: 2,
+    queryCoverageMaxLines: 80,
+  });
+
+  assert.equal(candidates[0].file.path, "fixtures/context7-tailwind-docs.md");
+  const excerpt = candidates[0].file.lines.slice(candidates[0].range.start - 1, candidates[0].range.end).join("\n");
+  assert.match(excerpt, /md:grid-cols-4/);
+  assert.match(excerpt, /lg:grid-cols-6/);
+  assert.match(excerpt, /grid/);
+});
