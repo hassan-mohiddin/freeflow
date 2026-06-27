@@ -96,4 +96,6 @@ Review can pass. Do not invent issues to justify the review.
 
 When asking another agent to review, give it source truth, changed files, risk lenses, and pass/fail criteria. Do not hand it only the previous agent's summary or your chat history.
 
+Set review subagent timeouts above 10 minutes; default to 15 minutes (`timeoutMs: 900000`). If a review times out, do not reduce review depth to dodge the timeout. Increase the timeout or ask before narrowing scope.
+
 For second and later review iterations, update the prompt with prior findings, owner clarifications, accepted/rejected findings, changed files, and remaining risk. Do not rerun the same broad prompt after the situation narrows.
