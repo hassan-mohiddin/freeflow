@@ -250,7 +250,7 @@ test("processing engine selects browser-snapshot reducer for explicit processing
     assert.equal(result.visibleText.split("\n")[0], "lines: 13");
     assert.match(result.visibleText, /links: 2/);
     assert.match(result.visibleText, /title: Hacker News/);
-    assert.match(result.visibleText, /Stories: 2/);
+    assert.match(result.visibleText, /storyLikeLinks: 2 \(benchmark alias: Stories\)/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

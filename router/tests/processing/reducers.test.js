@@ -215,6 +215,15 @@ test("mcp tools reducer computes tool count, categories, and signatures", () => 
   assert.match(reduced.result.visibleText, /search_codebase\(pattern, path\?, fileType\?\)/);
 });
 
+test("mcp tools reducer selects explicit one-tool lists", () => {
+  const reduced = reduceMcpToolsOutput(JSON.stringify([mcpTool("search_codebase", ["pattern"], ["pattern"])]));
+
+  assert.ok(reduced.result);
+  assert.equal(reduced.candidate.confidence, 0.85);
+  assert.equal(reduced.result.details.toolCount, 1);
+  assert.match(reduced.result.visibleText, /search_codebase\(pattern\)/);
+});
+
 test("mcp tools reducer wins over generic JSON table detection", () => {
   const selected = selectProcessingReducer({ text: syntheticMcpToolsFixture() });
 
@@ -239,10 +248,11 @@ test("browser snapshot reducer computes lines, links, title, roles, and story-li
     { role: "row", count: 1 },
   ]);
   assert.deepEqual(reduced.result.details.topInteractiveNodes.slice(0, 2).map((node) => node.name), ["Hacker News", "A very interesting story"]);
+  assert.deepEqual(reduced.result.details.topInteractiveNodes.slice(0, 2).map((node) => node.ref), ["e4", "e5"]);
   assert.match(reduced.result.visibleText, /lines: 17/);
   assert.match(reduced.result.visibleText, /links: 3/);
   assert.match(reduced.result.visibleText, /title: Hacker News/);
-  assert.match(reduced.result.visibleText, /Stories: 3/);
+  assert.match(reduced.result.visibleText, /storyLikeLinks: 3 \(benchmark alias: Stories\)/);
 });
 
 test("table reducer computes CSV row counts, grouped status counts, and numeric max", () => {

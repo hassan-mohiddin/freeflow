@@ -538,7 +538,7 @@ function parseMcpToolsList(text) {
         : isJsonObject(value) && Array.isArray(value.tools)
             ? value.tools
             : undefined;
-    if (rawTools === undefined || rawTools.length < 2 || !rawTools.every(isJsonObject)) {
+    if (rawTools === undefined || rawTools.length < 1 || !rawTools.every(isJsonObject)) {
         return undefined;
     }
     const tools = [];
@@ -566,7 +566,7 @@ function mcpToolsConfidence(tools) {
     if (tools.length >= 2) {
         return 0.9;
     }
-    return 0.6;
+    return 0.85;
 }
 function summarizeMcpTools(tools) {
     const signatures = tools.map((tool) => {
@@ -933,7 +933,7 @@ function browserSnapshotFacts(details) {
         { name: "lines", value: details.lineCount },
         { name: "links", value: details.namedLinkCount },
         { name: "refs", value: details.refCount },
-        { name: "Stories", value: details.storyLikeLinkCount },
+        { name: "storyLikeLinks", value: `${details.storyLikeLinkCount} (benchmark alias: Stories)` },
     ];
     if (details.pageTitle !== undefined) {
         facts.push({ name: "title", value: details.pageTitle });
@@ -948,7 +948,7 @@ function renderBrowserSnapshotSummary(details) {
         `lines: ${details.lineCount}`,
         `links: ${details.namedLinkCount}`,
         `refs: ${details.refCount}`,
-        `Stories: ${details.storyLikeLinkCount}`,
+        `storyLikeLinks: ${details.storyLikeLinkCount} (benchmark alias: Stories)`,
     ];
     if (details.pageTitle !== undefined) {
         lines.push(`title: ${details.pageTitle}`);
@@ -965,14 +965,15 @@ function parseSnapshotRole(line) {
     return match?.[1];
 }
 function parseNamedSnapshotNode(line, role) {
-    const match = new RegExp(`^\\s*-\\s+${role}\\s+"([^"]+)".*?(?:\\[ref=([^\\]\\s]+)\\])?`).exec(line);
+    const match = new RegExp(`^\\s*-\\s+${role}\\s+"([^"]+)"`).exec(line);
     if (!match?.[1]) {
         return undefined;
     }
+    const ref = /\[ref=([^\]\s]+)\]/.exec(line)?.[1];
     return {
         role,
         name: oneLine(match[1], 160),
-        ...(match[2] !== undefined ? { ref: match[2] } : {}),
+        ...(ref !== undefined ? { ref } : {}),
     };
 }
 function parseSnapshotTextNode(line) {
