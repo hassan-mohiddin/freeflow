@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { reduceAccessLog, reduceBrowserSnapshotOutput, reduceBuildOutput, reduceDiagnosticsOutput, reduceMcpToolsOutput, reduceTableOutput, reduceTestOutput, selectProcessingReducer } from "../../dist/processing/reducers.js";
+import { reduceAccessLog, reduceBrowserSnapshotOutput, reduceBuildOutput, reduceDiagnosticsOutput, reduceGitLogOutput, reduceMcpToolsOutput, reduceTableOutput, reduceTestOutput, selectProcessingReducer } from "../../dist/processing/reducers.js";
 
 function syntheticAccessLogFixture() {
   const lines = [];
@@ -55,6 +55,17 @@ function syntheticMcpToolsFixture() {
     mcpTool("run_tests", ["pattern"], []),
     mcpTool("typecheck", [], []),
   ]);
+}
+
+function syntheticGitLogFixture() {
+  return [
+    "f8a3b1c 2026-02-23 Mert Koseoglu feat: add user role management",
+    "d7e2a0b 2026-02-23 Mert Koseoglu refactor: improve UserList component",
+    "c6d1f9a 2026-02-23 Alice Johnson feat(auth): add email magic link authentication",
+    "b5c0e8f 2026-02-22 Alice Johnson fix: resolve null updatedAt",
+    "a4b9d7e 2026-02-22 Bob Martinez docs: update API documentation",
+    "93a8c6d 2026-02-22 Bob Martinez fix(api): handle validation error",
+  ].join("\n");
 }
 
 function syntheticBrowserSnapshotFixture() {
@@ -186,7 +197,7 @@ test("processing reducer registry selects test output before other reducers", ()
 
   assert.equal(selected.status, "selected");
   assert.equal(selected.selected.name, "test-output");
-  assert.deepEqual(selected.candidates.map((candidate) => candidate.name), ["test-output", "build-output", "diagnostics", "mcp-tools", "table", "browser-snapshot", "access-log"]);
+  assert.deepEqual(selected.candidates.map((candidate) => candidate.name), ["test-output", "build-output", "diagnostics", "mcp-tools", "table", "browser-snapshot", "git-log", "access-log"]);
 });
 
 test("mcp tools reducer computes tool count, categories, and signatures", () => {
@@ -253,6 +264,29 @@ test("browser snapshot reducer computes lines, links, title, roles, and story-li
   assert.match(reduced.result.visibleText, /links: 3/);
   assert.match(reduced.result.visibleText, /title: Hacker News/);
   assert.match(reduced.result.visibleText, /storyLikeLinks: 3 \(benchmark alias: Stories\)/);
+});
+
+test("git log reducer computes commit count, type counts, authors, scopes, and recent commits", () => {
+  const reduced = reduceGitLogOutput(syntheticGitLogFixture());
+
+  assert.ok(reduced.result);
+  assert.equal(reduced.candidate.name, "git-log");
+  assert.equal(reduced.candidate.confidence, 0.9);
+  assert.equal(reduced.result.details.kind, "git-log");
+  assert.equal(reduced.result.details.commitCount, 6);
+  assert.deepEqual(reduced.result.details.typeCounts.slice(0, 4), [
+    { type: "feat", count: 2 },
+    { type: "fix", count: 2 },
+    { type: "docs", count: 1 },
+    { type: "refactor", count: 1 },
+  ]);
+  assert.ok(reduced.result.details.authorCounts.some((entry) => entry.author === "Mert Koseoglu" && entry.count === 2));
+  assert.ok(reduced.result.details.scopeCounts.some((entry) => entry.scope === "auth" && entry.count === 1));
+  assert.equal(reduced.result.details.recentCommits[0].hash, "f8a3b1c");
+  assert.match(reduced.result.visibleText, /commits: 6/);
+  assert.match(reduced.result.visibleText, /feat:2/);
+  assert.match(reduced.result.visibleText, /fix:2/);
+  assert.match(reduced.result.visibleText, /docs:1/);
 });
 
 test("table reducer computes CSV row counts, grouped status counts, and numeric max", () => {
@@ -359,6 +393,6 @@ test("processing reducer registry does not select low-confidence prose", () => {
   const selected = selectProcessingReducer({ text: "hello\nnot an access log\n" });
 
   assert.equal(selected.status, "not_selected");
-  assert.deepEqual(selected.candidates.map((candidate) => candidate.name), ["test-output", "build-output", "diagnostics", "mcp-tools", "table", "browser-snapshot", "access-log"]);
+  assert.deepEqual(selected.candidates.map((candidate) => candidate.name), ["test-output", "build-output", "diagnostics", "mcp-tools", "table", "browser-snapshot", "git-log", "access-log"]);
   assert.ok(selected.candidates.every((candidate) => candidate.confidence < 0.8));
 });

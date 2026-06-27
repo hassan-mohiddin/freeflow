@@ -21,7 +21,7 @@ export interface ProcessingReducerResult {
   reason: string;
   facts: ProcessingReducerFact[];
   visibleText: string;
-  details: AccessLogReducerDetails | TestOutputReducerDetails | BuildOutputReducerDetails | DiagnosticsReducerDetails | McpToolsReducerDetails | TableReducerDetails | BrowserSnapshotReducerDetails;
+  details: AccessLogReducerDetails | TestOutputReducerDetails | BuildOutputReducerDetails | DiagnosticsReducerDetails | McpToolsReducerDetails | TableReducerDetails | BrowserSnapshotReducerDetails | GitLogReducerDetails;
 }
 
 export type ProcessingReducerSelection =
@@ -161,6 +161,24 @@ export interface BrowserSnapshotNode {
   ref?: string;
 }
 
+export interface GitLogReducerDetails {
+  kind: "git-log";
+  commitCount: number;
+  typeCounts: Array<{ type: string; count: number }>;
+  scopeCounts: Array<{ scope: string; count: number }>;
+  authorCounts: Array<{ author: string; count: number }>;
+  recentCommits: GitLogCommitSummary[];
+}
+
+export interface GitLogCommitSummary {
+  hash: string;
+  date?: string;
+  author?: string;
+  type: string;
+  scope?: string;
+  subject: string;
+}
+
 export interface AccessLogSlowExample {
   method: string;
   path: string;
@@ -205,6 +223,11 @@ const BROWSER_SNAPSHOT_REDUCER = {
   version: "1",
 };
 
+const GIT_LOG_REDUCER = {
+  name: "git-log",
+  version: "1",
+};
+
 const ACCESS_LOG_REDUCER = {
   name: "access-log",
   version: "1",
@@ -222,9 +245,10 @@ export function selectProcessingReducer(input: ProcessingReducerInput): Processi
   const mcpTools = reduceMcpToolsOutput(input.text);
   const table = reduceTableOutput(input.text);
   const browserSnapshot = reduceBrowserSnapshotOutput(input.text);
+  const gitLog = reduceGitLogOutput(input.text);
   const accessLog = reduceAccessLog(input.text);
-  const candidates = [testOutput.candidate, buildOutput.candidate, diagnostics.candidate, mcpTools.candidate, table.candidate, browserSnapshot.candidate, accessLog.candidate];
-  const selected = [testOutput, buildOutput, diagnostics, mcpTools, table, browserSnapshot, accessLog].find((reduced) => reduced.result !== undefined);
+  const candidates = [testOutput.candidate, buildOutput.candidate, diagnostics.candidate, mcpTools.candidate, table.candidate, browserSnapshot.candidate, gitLog.candidate, accessLog.candidate];
+  const selected = [testOutput, buildOutput, diagnostics, mcpTools, table, browserSnapshot, gitLog, accessLog].find((reduced) => reduced.result !== undefined);
   if (selected?.result) {
     return {
       status: "selected",
@@ -1294,6 +1318,99 @@ function firstMatch(text: string, pattern: RegExp): string | undefined {
 
 function isStoryLikeLink(value: string): boolean {
   return value.length > 10 && !/^https?:\/\//i.test(value);
+}
+
+export function reduceGitLogOutput(text: string): { candidate: ProcessingReducerCandidate; result?: ProcessingReducerResult } {
+  const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
+  const commits = lines.map(parseGitLogLine).filter((commit): commit is GitLogCommitSummary => commit !== undefined);
+  const parseRatio = lines.length === 0 ? 0 : commits.length / lines.length;
+  const confidence = gitLogConfidence(commits.length, parseRatio);
+  const candidate: ProcessingReducerCandidate = {
+    ...GIT_LOG_REDUCER,
+    confidence,
+    reason: `Parsed ${commits.length}/${lines.length} non-empty line(s) as conventional git log entries.`,
+  };
+
+  if (commits.length < 2 || confidence < 0.8) {
+    return { candidate };
+  }
+
+  const details = summarizeGitLog(commits);
+  return {
+    candidate,
+    result: {
+      ...GIT_LOG_REDUCER,
+      confidence,
+      reason: candidate.reason,
+      facts: gitLogFacts(details),
+      visibleText: renderGitLogSummary(details),
+      details,
+    },
+  };
+}
+
+function parseGitLogLine(line: string): GitLogCommitSummary | undefined {
+  const match = /^([0-9a-f]{7,40})(?:\s+(\d{4}-\d{2}-\d{2}))?\s+(.+?)\s+([A-Za-z][A-Za-z0-9-]*)(?:\(([^)]+)\))?!?:\s+(.+)$/.exec(line.trim());
+  if (!match?.[1] || !match[4] || !match[6]) {
+    return undefined;
+  }
+  const author = match[3]?.trim();
+  return {
+    hash: match[1],
+    ...(match[2] !== undefined ? { date: match[2] } : {}),
+    ...(author !== undefined && author.length > 0 ? { author } : {}),
+    type: match[4].toLowerCase(),
+    ...(match[5] !== undefined ? { scope: match[5].trim() } : {}),
+    subject: oneLine(match[6], 180),
+  };
+}
+
+function gitLogConfidence(parsedLines: number, parseRatio: number): number {
+  if (parsedLines >= 10 && parseRatio >= 0.8) {
+    return 1;
+  }
+  if (parsedLines >= 2 && parseRatio >= 0.8) {
+    return 0.9;
+  }
+  if (parsedLines > 0 && parseRatio >= 0.5) {
+    return 0.6;
+  }
+  return 0;
+}
+
+function summarizeGitLog(commits: readonly GitLogCommitSummary[]): GitLogReducerDetails {
+  return {
+    kind: "git-log",
+    commitCount: commits.length,
+    typeCounts: countValues(commits.map((commit) => commit.type)).map(({ value, count }) => ({ type: value, count })),
+    scopeCounts: countValues(commits.map((commit) => commit.scope ?? "unscoped")).map(({ value, count }) => ({ scope: value, count })).slice(0, 8),
+    authorCounts: countValues(commits.map((commit) => commit.author ?? "unknown")).map(({ value, count }) => ({ author: value, count })).slice(0, 8),
+    recentCommits: commits.slice(0, 8),
+  };
+}
+
+function gitLogFacts(details: GitLogReducerDetails): ProcessingReducerFact[] {
+  return [
+    { name: "commits", value: details.commitCount },
+    { name: "types", value: details.typeCounts.map(({ type, count }) => `${type}:${count}`).join(", ") },
+    { name: "authors", value: details.authorCounts.slice(0, 5).map(({ author, count }) => `${author}:${count}`).join(", ") },
+    { name: "recent", value: details.recentCommits.slice(0, 5).map(renderGitCommit).join(" | ") },
+  ];
+}
+
+function renderGitLogSummary(details: GitLogReducerDetails): string {
+  return [
+    "git log summary",
+    `commits: ${details.commitCount}`,
+    `types: ${details.typeCounts.map(({ type, count }) => `${type}:${count}`).join(", ")}`,
+    `authors: ${details.authorCounts.slice(0, 5).map(({ author, count }) => `${author}:${count}`).join(", ")}`,
+    `recent: ${details.recentCommits.slice(0, 5).map(renderGitCommit).join(" | ")}`,
+  ].join("\n");
+}
+
+function renderGitCommit(commit: GitLogCommitSummary): string {
+  const scope = commit.scope !== undefined ? `(${commit.scope})` : "";
+  return `${commit.hash} ${commit.type}${scope}: ${commit.subject}`;
 }
 
 export function reduceAccessLog(text: string): { candidate: ProcessingReducerCandidate; result?: ProcessingReducerResult } {

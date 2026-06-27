@@ -40,6 +40,15 @@ function mcpToolsSample() {
   ]);
 }
 
+function gitLogSample() {
+  return [
+    "f8a3b1c 2026-02-23 Mert Koseoglu feat: add user role management",
+    "d7e2a0b 2026-02-23 Mert Koseoglu refactor: improve UserList component",
+    "c6d1f9a 2026-02-23 Alice Johnson feat(auth): add email magic link authentication",
+    "b5c0e8f 2026-02-22 Alice Johnson fix: resolve null updatedAt",
+  ].join("\n");
+}
+
 function browserSnapshotSample() {
   return [
     "### Page",
@@ -251,6 +260,25 @@ test("processing engine selects browser-snapshot reducer for explicit processing
     assert.match(result.visibleText, /links: 2/);
     assert.match(result.visibleText, /title: Hacker News/);
     assert.match(result.visibleText, /storyLikeLinks: 2 \(benchmark alias: Stories\)/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("processing engine selects git-log reducer for explicit processing calls", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-processing-git-log-"));
+  try {
+    await writeFile(join(root, "git-log.txt"), gitLogSample(), "utf8");
+
+    const result = await processSource({ kind: "repo-file", root, path: "git-log.txt" });
+
+    assert.equal(result.status, "ok");
+    assert.equal(result.reducer.status, "selected");
+    assert.equal(result.reducer.selected.name, "git-log");
+    assert.equal(result.visibleText.split("\n")[0], "commits: 4");
+    assert.match(result.visibleText, /types: feat:2/);
+    assert.match(result.visibleText, /fix:1/);
+    assert.match(result.visibleText, /Mert Koseoglu:2/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -18,7 +18,7 @@ export interface ProcessingReducerResult {
     reason: string;
     facts: ProcessingReducerFact[];
     visibleText: string;
-    details: AccessLogReducerDetails | TestOutputReducerDetails | BuildOutputReducerDetails | DiagnosticsReducerDetails | McpToolsReducerDetails | TableReducerDetails | BrowserSnapshotReducerDetails;
+    details: AccessLogReducerDetails | TestOutputReducerDetails | BuildOutputReducerDetails | DiagnosticsReducerDetails | McpToolsReducerDetails | TableReducerDetails | BrowserSnapshotReducerDetails | GitLogReducerDetails;
 }
 export type ProcessingReducerSelection = {
     status: "selected";
@@ -155,6 +155,31 @@ export interface BrowserSnapshotNode {
     name: string;
     ref?: string;
 }
+export interface GitLogReducerDetails {
+    kind: "git-log";
+    commitCount: number;
+    typeCounts: Array<{
+        type: string;
+        count: number;
+    }>;
+    scopeCounts: Array<{
+        scope: string;
+        count: number;
+    }>;
+    authorCounts: Array<{
+        author: string;
+        count: number;
+    }>;
+    recentCommits: GitLogCommitSummary[];
+}
+export interface GitLogCommitSummary {
+    hash: string;
+    date?: string;
+    author?: string;
+    type: string;
+    scope?: string;
+    subject: string;
+}
 export interface AccessLogSlowExample {
     method: string;
     path: string;
@@ -183,6 +208,10 @@ export declare function reduceTableOutput(text: string): {
     result?: ProcessingReducerResult;
 };
 export declare function reduceBrowserSnapshotOutput(text: string): {
+    candidate: ProcessingReducerCandidate;
+    result?: ProcessingReducerResult;
+};
+export declare function reduceGitLogOutput(text: string): {
     candidate: ProcessingReducerCandidate;
     result?: ProcessingReducerResult;
 };
