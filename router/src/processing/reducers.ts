@@ -21,7 +21,7 @@ export interface ProcessingReducerResult {
   reason: string;
   facts: ProcessingReducerFact[];
   visibleText: string;
-  details: AccessLogReducerDetails | TestOutputReducerDetails;
+  details: AccessLogReducerDetails | TestOutputReducerDetails | DiagnosticsReducerDetails;
 }
 
 export type ProcessingReducerSelection =
@@ -66,6 +66,26 @@ export interface TestOutputCounts {
   total?: number;
 }
 
+export interface DiagnosticsReducerDetails {
+  kind: "diagnostics";
+  total: number;
+  errorCount: number;
+  warningCount: number;
+  fileCount: number;
+  topFiles: Array<{ file: string; count: number }>;
+  topCodes: Array<{ code: string; count: number }>;
+  firstDiagnostics: DiagnosticSummary[];
+}
+
+export interface DiagnosticSummary {
+  file: string;
+  line: number;
+  column: number;
+  severity: "error" | "warning";
+  code?: string;
+  message: string;
+}
+
 export interface AccessLogSlowExample {
   method: string;
   path: string;
@@ -85,6 +105,11 @@ const TEST_OUTPUT_REDUCER = {
   version: "1",
 };
 
+const DIAGNOSTICS_REDUCER = {
+  name: "diagnostics",
+  version: "1",
+};
+
 const ACCESS_LOG_REDUCER = {
   name: "access-log",
   version: "1",
@@ -97,9 +122,10 @@ const ACCESS_LOG_LINE = /^(\S+)\s+\S+\s+\S+\s+\[[^\]]+\]\s+"([A-Z]+)\s+([^"\s]+)
 
 export function selectProcessingReducer(input: ProcessingReducerInput): ProcessingReducerSelection {
   const testOutput = reduceTestOutput(input.text);
+  const diagnostics = reduceDiagnosticsOutput(input.text);
   const accessLog = reduceAccessLog(input.text);
-  const candidates = [testOutput.candidate, accessLog.candidate];
-  const selected = [testOutput, accessLog].find((reduced) => reduced.result !== undefined);
+  const candidates = [testOutput.candidate, diagnostics.candidate, accessLog.candidate];
+  const selected = [testOutput, diagnostics, accessLog].find((reduced) => reduced.result !== undefined);
   if (selected?.result) {
     return {
       status: "selected",
@@ -286,6 +312,189 @@ function countsSummary(counts: TestOutputCounts): string {
 
 function uniqueStrings(values: readonly string[]): string[] {
   return [...new Set(values)];
+}
+
+export function reduceDiagnosticsOutput(text: string): { candidate: ProcessingReducerCandidate; result?: ProcessingReducerResult } {
+  const diagnostics = parseDiagnostics(text);
+  const confidence = diagnosticsConfidence(diagnostics, text);
+  const candidate: ProcessingReducerCandidate = {
+    ...DIAGNOSTICS_REDUCER,
+    confidence,
+    reason: `Detected ${diagnostics.length} TypeScript/lint diagnostic line(s).`,
+  };
+
+  if (confidence < 0.8 || diagnostics.length === 0) {
+    return { candidate };
+  }
+
+  const details = summarizeDiagnostics(diagnostics);
+  return {
+    candidate,
+    result: {
+      ...DIAGNOSTICS_REDUCER,
+      confidence,
+      reason: candidate.reason,
+      facts: diagnosticsFacts(details),
+      visibleText: renderDiagnosticsSummary(details),
+      details,
+    },
+  };
+}
+
+function parseDiagnostics(text: string): DiagnosticSummary[] {
+  const diagnostics: DiagnosticSummary[] = [];
+  let currentLintFile: string | undefined;
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = stripAnsi(rawLine);
+    const ts = /^(.+?)\((\d+),(\d+)\):\s+(error|warning)\s+(TS\d+):\s+(.+)$/.exec(line);
+    if (ts) {
+      diagnostics.push({
+        file: ts[1] ?? "unknown",
+        line: Number(ts[2]),
+        column: Number(ts[3]),
+        severity: (ts[4] ?? "error") as "error" | "warning",
+        code: ts[5] ?? "TS????",
+        message: ts[6] ?? "",
+      });
+      continue;
+    }
+
+    const compactLint = /^(.+?\.[cm]?[jt]sx?):(\d+):(\d+):\s+(error|warning)\s+(.+?)(?:\s+([@A-Za-z0-9_/-]+))?\s*$/.exec(line);
+    if (compactLint) {
+      diagnostics.push({
+        file: compactLint[1] ?? "unknown",
+        line: Number(compactLint[2]),
+        column: Number(compactLint[3]),
+        severity: (compactLint[4] ?? "error") as "error" | "warning",
+        ...(compactLint[6] !== undefined ? { code: compactLint[6] } : {}),
+        message: compactLint[5] ?? "",
+      });
+      continue;
+    }
+
+    const lintFile = /^\s*([^\s].+\.[cm]?[jt]sx?)\s*$/.exec(line);
+    if (lintFile) {
+      currentLintFile = lintFile[1];
+      continue;
+    }
+
+    const stylishLint = /^\s*(\d+):(\d+)\s+(error|warning)\s+(.+?)\s+([@A-Za-z0-9_/-]+)\s*$/.exec(line);
+    if (stylishLint && currentLintFile) {
+      diagnostics.push({
+        file: currentLintFile,
+        line: Number(stylishLint[1]),
+        column: Number(stylishLint[2]),
+        severity: (stylishLint[3] ?? "error") as "error" | "warning",
+        message: stylishLint[4] ?? "",
+        ...(stylishLint[5] !== undefined ? { code: stylishLint[5] } : {}),
+      });
+    }
+  }
+  return diagnostics;
+}
+
+function diagnosticsConfidence(diagnostics: readonly DiagnosticSummary[], text: string): number {
+  const hasTsCodes = diagnostics.some((diagnostic) => diagnostic.code?.startsWith("TS"));
+  const hasLintRules = diagnostics.some((diagnostic) => diagnostic.code !== undefined && !diagnostic.code.startsWith("TS"));
+  const hasDiagnosticSummary = /\b(?:error TS\d+|problems?\s+\(|eslint|\d+\s+errors?)\b/i.test(text);
+  if (diagnostics.length >= 3 && hasTsCodes) {
+    return 1;
+  }
+  if (diagnostics.length >= 2 && hasLintRules) {
+    return 0.95;
+  }
+  if (diagnostics.length >= 2 && hasDiagnosticSummary) {
+    return 0.85;
+  }
+  if (diagnostics.length === 1 && (hasTsCodes || hasLintRules) && hasDiagnosticSummary) {
+    return 0.75;
+  }
+  return roundConfidence(Math.min(0.7, diagnostics.length * 0.2));
+}
+
+function summarizeDiagnostics(diagnostics: readonly DiagnosticSummary[]): DiagnosticsReducerDetails {
+  const fileCounts = new Map<string, number>();
+  const codeCounts = new Map<string, number>();
+  let errorCount = 0;
+  let warningCount = 0;
+  for (const diagnostic of diagnostics) {
+    fileCounts.set(diagnostic.file, (fileCounts.get(diagnostic.file) ?? 0) + 1);
+    if (diagnostic.code) {
+      codeCounts.set(diagnostic.code, (codeCounts.get(diagnostic.code) ?? 0) + 1);
+    }
+    if (diagnostic.severity === "warning") {
+      warningCount += 1;
+    } else {
+      errorCount += 1;
+    }
+  }
+  return {
+    kind: "diagnostics",
+    total: diagnostics.length,
+    errorCount,
+    warningCount,
+    fileCount: fileCounts.size,
+    topFiles: topCounts(fileCounts, "file").map(({ key, count }) => ({ file: key, count })),
+    topCodes: topCounts(codeCounts, "code").map(({ key, count }) => ({ code: key, count })),
+    firstDiagnostics: diagnostics.slice(0, 5).map((diagnostic) => ({ ...diagnostic })),
+  };
+}
+
+function diagnosticsFacts(details: DiagnosticsReducerDetails): ProcessingReducerFact[] {
+  const facts: ProcessingReducerFact[] = [
+    { name: "diagnostics", value: details.warningCount > 0 ? `${details.total} total` : `${details.total} errors` },
+    { name: "files", value: details.fileCount },
+  ];
+  if (details.warningCount > 0) {
+    facts.push({ name: "errors", value: details.errorCount });
+    facts.push({ name: "warnings", value: details.warningCount });
+  }
+  if (details.topFiles.length > 0) {
+    facts.push({ name: "topFiles", value: details.topFiles.slice(0, 3).map(({ file, count }) => `${basename(file)}:${count}`).join(", ") });
+  }
+  if (details.topCodes.length > 0) {
+    facts.push({ name: "topCodes", value: details.topCodes.slice(0, 3).map(({ code, count }) => `${code}:${count}`).join(", ") });
+  }
+  return facts;
+}
+
+function renderDiagnosticsSummary(details: DiagnosticsReducerDetails): string {
+  const lines = [
+    "diagnostics summary",
+    `diagnostics: ${details.total}`,
+    `files: ${details.fileCount}`,
+    `errors: ${details.errorCount}`,
+  ];
+  if (details.warningCount > 0) {
+    lines.push(`warnings: ${details.warningCount}`);
+  }
+  if (details.topFiles.length > 0) {
+    lines.push(`topFiles: ${details.topFiles.map(({ file, count }) => `${file}:${count}`).join(", ")}`);
+  }
+  if (details.topCodes.length > 0) {
+    lines.push(`topCodes: ${details.topCodes.map(({ code, count }) => `${code}:${count}`).join(", ")}`);
+  }
+  return lines.join("\n");
+}
+
+function topCounts(map: ReadonlyMap<string, number>, tieBreaker: "file" | "code"): Array<{ key: string; count: number }> {
+  return [...map.entries()]
+    .sort(([leftKey, leftCount], [rightKey, rightCount]) => {
+      if (rightCount !== leftCount) {
+        return rightCount - leftCount;
+      }
+      return tieBreaker === "file" ? leftKey.localeCompare(rightKey) : leftKey.localeCompare(rightKey, undefined, { numeric: true });
+    })
+    .slice(0, 5)
+    .map(([key, count]) => ({ key, count }));
+}
+
+function stripAnsi(text: string): string {
+  return text.replace(/\u001b\[[0-9;]*m/g, "");
+}
+
+function basename(path: string): string {
+  return path.split(/[\\/]/).pop() || path;
 }
 
 export function reduceAccessLog(text: string): { candidate: ProcessingReducerCandidate; result?: ProcessingReducerResult } {

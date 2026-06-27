@@ -21,6 +21,15 @@ function testOutputSample() {
   ].join("\n");
 }
 
+function diagnosticsSample() {
+  return [
+    "src/components/UserList.tsx(23,15): error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.",
+    "src/components/UserList.tsx(45,8): error TS2339: Property 'fullName' does not exist on type 'User'.",
+    "src/components/DataGrid.tsx(67,22): error TS2532: Object is possibly 'undefined'.",
+    "src/lib/auth.ts(8,12): error TS2322: Type 'Promise<Session | null>' is not assignable to type 'Session'.",
+  ].join("\n");
+}
+
 function accessLogSample() {
   return [
     '192.168.1.1 - - [23/Feb/2026:10:00:01 +0000] "GET /api/a HTTP/1.1" 200 892 100ms',
@@ -138,6 +147,25 @@ test("processing engine selects test-output reducer for explicit processing call
     assert.match(result.visibleText, /UserList\.test\.tsx/);
     assert.match(result.visibleText, /DataGrid\.test\.tsx/);
     assert.doesNotMatch(result.visibleText, /test-output summary/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("processing engine selects diagnostics reducer for explicit processing calls", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-processing-diagnostics-"));
+  try {
+    await writeFile(join(root, "tsc-errors.txt"), diagnosticsSample(), "utf8");
+
+    const result = await processSource({ kind: "repo-file", root, path: "tsc-errors.txt" });
+
+    assert.equal(result.status, "ok");
+    assert.equal(result.reducer.status, "selected");
+    assert.equal(result.reducer.selected.name, "diagnostics");
+    assert.equal(result.visibleText.split("\n")[0], "diagnostics: 4 errors");
+    assert.match(result.visibleText, /files: 3/);
+    assert.match(result.visibleText, /UserList\.tsx/);
+    assert.match(result.visibleText, /TS2345/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

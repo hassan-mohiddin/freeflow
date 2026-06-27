@@ -406,17 +406,23 @@ export async function runContextModeRealDeepBenchmark(
         obs: ffDefault,
       });
 
-      if (scenario.id === "vitest-summary" || scenario.id === "access-summary") {
+      const processingReducerModes: Record<string, { mode: string; reducer: string }> = {
+        "vitest-summary": { mode: "freeflow:process-test-output-reducer", reducer: "test-output" },
+        "tsc-summary": { mode: "freeflow:process-diagnostics-reducer", reducer: "diagnostics" },
+        "access-summary": { mode: "freeflow:process-access-log-reducer", reducer: "access-log" },
+      };
+      const reducerMode = processingReducerModes[scenario.id];
+      if (reducerMode) {
         const ffProcessed = await ffProcessRepoFile(scenario.file);
         record({
           fixture: scenario.id,
           category: scenario.category,
           rawBytes,
           facts: scenario.facts,
-          mode: scenario.id === "vitest-summary" ? "freeflow:process-test-output-reducer" : "freeflow:process-access-log-reducer",
+          mode: reducerMode.mode,
           capability: "processing engine built-in reducer",
           obs: ffProcessed,
-          notes: `Uses the internal processing engine ${scenario.id === "vitest-summary" ? "test-output" : "access-log"} reducer; no public Pi surface is selected.`,
+          notes: `Uses the internal processing engine ${reducerMode.reducer} reducer; no public Pi surface is selected.`,
         });
       }
 
