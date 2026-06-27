@@ -21,7 +21,7 @@ export interface ProcessingReducerResult {
   reason: string;
   facts: ProcessingReducerFact[];
   visibleText: string;
-  details: AccessLogReducerDetails | TestOutputReducerDetails | BuildOutputReducerDetails | DiagnosticsReducerDetails | McpToolsReducerDetails | TableReducerDetails;
+  details: AccessLogReducerDetails | TestOutputReducerDetails | BuildOutputReducerDetails | DiagnosticsReducerDetails | McpToolsReducerDetails | TableReducerDetails | BrowserSnapshotReducerDetails;
 }
 
 export type ProcessingReducerSelection =
@@ -141,6 +141,26 @@ export interface TableNumericSummary {
   average: number;
 }
 
+export interface BrowserSnapshotReducerDetails {
+  kind: "browser-snapshot";
+  lineCount: number;
+  pageTitle?: string;
+  pageUrl?: string;
+  refCount: number;
+  namedLinkCount: number;
+  textNodeCount: number;
+  storyLikeLinkCount: number;
+  roleCounts: Array<{ role: string; count: number }>;
+  topInteractiveNodes: BrowserSnapshotNode[];
+  topTextNodes: string[];
+}
+
+export interface BrowserSnapshotNode {
+  role: string;
+  name: string;
+  ref?: string;
+}
+
 export interface AccessLogSlowExample {
   method: string;
   path: string;
@@ -180,6 +200,11 @@ const TABLE_REDUCER = {
   version: "1",
 };
 
+const BROWSER_SNAPSHOT_REDUCER = {
+  name: "browser-snapshot",
+  version: "1",
+};
+
 const ACCESS_LOG_REDUCER = {
   name: "access-log",
   version: "1",
@@ -196,9 +221,10 @@ export function selectProcessingReducer(input: ProcessingReducerInput): Processi
   const diagnostics = reduceDiagnosticsOutput(input.text);
   const mcpTools = reduceMcpToolsOutput(input.text);
   const table = reduceTableOutput(input.text);
+  const browserSnapshot = reduceBrowserSnapshotOutput(input.text);
   const accessLog = reduceAccessLog(input.text);
-  const candidates = [testOutput.candidate, buildOutput.candidate, diagnostics.candidate, mcpTools.candidate, table.candidate, accessLog.candidate];
-  const selected = [testOutput, buildOutput, diagnostics, mcpTools, table, accessLog].find((reduced) => reduced.result !== undefined);
+  const candidates = [testOutput.candidate, buildOutput.candidate, diagnostics.candidate, mcpTools.candidate, table.candidate, browserSnapshot.candidate, accessLog.candidate];
+  const selected = [testOutput, buildOutput, diagnostics, mcpTools, table, browserSnapshot, accessLog].find((reduced) => reduced.result !== undefined);
   if (selected?.result) {
     return {
       status: "selected",
@@ -1086,6 +1112,187 @@ function stringifyTableValue(value: unknown): string {
     return String(value);
   }
   return "";
+}
+
+export function reduceBrowserSnapshotOutput(text: string): { candidate: ProcessingReducerCandidate; result?: ProcessingReducerResult } {
+  const parsed = parseBrowserSnapshot(text);
+  const confidence = browserSnapshotConfidence(parsed);
+  const candidate: ProcessingReducerCandidate = {
+    ...BROWSER_SNAPSHOT_REDUCER,
+    confidence,
+    reason: parsed === undefined
+      ? "No Playwright/accessibility snapshot shape detected."
+      : `Detected browser snapshot with ${parsed.refCount} ref(s), ${parsed.namedLinks.length} named link(s), and ${parsed.lineCount} line(s).`,
+  };
+
+  if (parsed === undefined || confidence < 0.8) {
+    return { candidate };
+  }
+
+  const details = summarizeBrowserSnapshot(parsed);
+  return {
+    candidate,
+    result: {
+      ...BROWSER_SNAPSHOT_REDUCER,
+      confidence,
+      reason: candidate.reason,
+      facts: browserSnapshotFacts(details),
+      visibleText: renderBrowserSnapshotSummary(details),
+      details,
+    },
+  };
+}
+
+interface ParsedBrowserSnapshot {
+  lineCount: number;
+  pageTitle?: string;
+  pageUrl?: string;
+  refCount: number;
+  roleCounts: Map<string, number>;
+  namedLinks: BrowserSnapshotNode[];
+  textNodes: string[];
+}
+
+function parseBrowserSnapshot(text: string): ParsedBrowserSnapshot | undefined {
+  const lines = text.split(/\r?\n/);
+  const snapshotStartIndex = lines.findIndex((line) => /^###\s+Snapshot\s*$/i.test(line.trim()) || /^```ya?ml\s*$/i.test(line.trim()));
+  const hasSnapshotMarker = snapshotStartIndex !== -1;
+  const pageTitle = firstMatch(text, /^- Page Title:\s*(.+)$/m);
+  const pageUrl = firstMatch(text, /^- Page URL:\s*(.+)$/m);
+  const refCount = [...text.matchAll(/\[ref=[^\]\s]+\]/g)].length;
+  const roleCounts = new Map<string, number>();
+  const namedLinks: BrowserSnapshotNode[] = [];
+  const textNodes: string[] = [];
+
+  for (const line of hasSnapshotMarker ? lines.slice(snapshotStartIndex + 1) : lines) {
+    const role = parseSnapshotRole(line);
+    if (role !== undefined) {
+      roleCounts.set(role, (roleCounts.get(role) ?? 0) + 1);
+    }
+
+    const link = parseNamedSnapshotNode(line, "link");
+    if (link !== undefined) {
+      namedLinks.push(link);
+    }
+
+    const textNode = parseSnapshotTextNode(line);
+    if (textNode !== undefined) {
+      textNodes.push(textNode);
+    }
+  }
+
+  if (!hasSnapshotMarker || refCount < 3 || roleCounts.size === 0 || namedLinks.length === 0) {
+    return undefined;
+  }
+
+  return {
+    lineCount: lines.length,
+    ...(pageTitle !== undefined ? { pageTitle } : {}),
+    ...(pageUrl !== undefined ? { pageUrl } : {}),
+    refCount,
+    roleCounts,
+    namedLinks,
+    textNodes,
+  };
+}
+
+function browserSnapshotConfidence(parsed: ParsedBrowserSnapshot | undefined): number {
+  if (parsed === undefined) {
+    return 0;
+  }
+  if (parsed.refCount >= 20 && parsed.namedLinks.length >= 10 && parsed.pageTitle !== undefined) {
+    return 1;
+  }
+  if (parsed.refCount >= 3 && parsed.namedLinks.length >= 1) {
+    return 0.9;
+  }
+  return 0.6;
+}
+
+function summarizeBrowserSnapshot(parsed: ParsedBrowserSnapshot): BrowserSnapshotReducerDetails {
+  const storyLikeLinks = parsed.namedLinks.filter((link) => isStoryLikeLink(link.name));
+  return {
+    kind: "browser-snapshot",
+    lineCount: parsed.lineCount,
+    ...(parsed.pageTitle !== undefined ? { pageTitle: parsed.pageTitle } : {}),
+    ...(parsed.pageUrl !== undefined ? { pageUrl: parsed.pageUrl } : {}),
+    refCount: parsed.refCount,
+    namedLinkCount: parsed.namedLinks.length,
+    textNodeCount: parsed.roleCounts.get("text") ?? parsed.textNodes.length,
+    storyLikeLinkCount: Math.min(storyLikeLinks.length, 30),
+    roleCounts: [...parsed.roleCounts.entries()]
+      .sort(([leftRole, leftCount], [rightRole, rightCount]) => rightCount - leftCount || leftRole.localeCompare(rightRole))
+      .map(([role, count]) => ({ role, count })),
+    topInteractiveNodes: parsed.namedLinks.slice(0, 8),
+    topTextNodes: parsed.textNodes.filter((node) => node.length > 0).slice(0, 8),
+  };
+}
+
+function browserSnapshotFacts(details: BrowserSnapshotReducerDetails): ProcessingReducerFact[] {
+  const facts: ProcessingReducerFact[] = [
+    { name: "lines", value: details.lineCount },
+    { name: "links", value: details.namedLinkCount },
+    { name: "refs", value: details.refCount },
+    { name: "Stories", value: details.storyLikeLinkCount },
+  ];
+  if (details.pageTitle !== undefined) {
+    facts.push({ name: "title", value: details.pageTitle });
+  }
+  facts.push({ name: "roles", value: details.roleCounts.slice(0, 8).map(({ role, count }) => `${role}:${count}`).join(", ") });
+  facts.push({ name: "topLinks", value: details.topInteractiveNodes.slice(0, 5).map((node) => node.name).join(" | ") });
+  return facts;
+}
+
+function renderBrowserSnapshotSummary(details: BrowserSnapshotReducerDetails): string {
+  const lines = [
+    "browser snapshot summary",
+    `lines: ${details.lineCount}`,
+    `links: ${details.namedLinkCount}`,
+    `refs: ${details.refCount}`,
+    `Stories: ${details.storyLikeLinkCount}`,
+  ];
+  if (details.pageTitle !== undefined) {
+    lines.push(`title: ${details.pageTitle}`);
+  }
+  lines.push(`roles: ${details.roleCounts.slice(0, 8).map(({ role, count }) => `${role}:${count}`).join(", ")}`);
+  lines.push(`topLinks: ${details.topInteractiveNodes.slice(0, 5).map((node) => node.name).join(" | ")}`);
+  if (details.topTextNodes.length > 0) {
+    lines.push(`topText: ${details.topTextNodes.slice(0, 5).join(" | ")}`);
+  }
+  return lines.join("\n");
+}
+
+function parseSnapshotRole(line: string): string | undefined {
+  const match = /^\s*-\s+'?([A-Za-z][A-Za-z0-9_-]*)\b/.exec(line);
+  return match?.[1];
+}
+
+function parseNamedSnapshotNode(line: string, role: string): BrowserSnapshotNode | undefined {
+  const match = new RegExp(`^\\s*-\\s+${role}\\s+"([^"]+)".*?(?:\\[ref=([^\\]\\s]+)\\])?`).exec(line);
+  if (!match?.[1]) {
+    return undefined;
+  }
+  return {
+    role,
+    name: oneLine(match[1], 160),
+    ...(match[2] !== undefined ? { ref: match[2] } : {}),
+  };
+}
+
+function parseSnapshotTextNode(line: string): string | undefined {
+  const match = /^\s*-\s+text:\s*(.+?)\s*$/.exec(line);
+  if (!match?.[1]) {
+    return undefined;
+  }
+  return oneLine(match[1].replace(/^['"]|['"]$/g, ""), 160);
+}
+
+function firstMatch(text: string, pattern: RegExp): string | undefined {
+  return pattern.exec(text)?.[1]?.trim();
+}
+
+function isStoryLikeLink(value: string): boolean {
+  return value.length > 10 && !/^https?:\/\//i.test(value);
 }
 
 export function reduceAccessLog(text: string): { candidate: ProcessingReducerCandidate; result?: ProcessingReducerResult } {

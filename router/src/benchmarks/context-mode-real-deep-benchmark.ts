@@ -413,6 +413,7 @@ export async function runContextModeRealDeepBenchmark(
         "access-summary": { mode: "freeflow:process-access-log-reducer", reducer: "access-log" },
         "analytics-summary": { mode: "freeflow:process-table-reducer", reducer: "table" },
         "mcp-tools-summary": { mode: "freeflow:process-mcp-tools-reducer", reducer: "mcp-tools" },
+        "playwright-summary": { mode: "freeflow:process-browser-snapshot-reducer", reducer: "browser-snapshot" },
       };
       const reducerMode = processingReducerModes[scenario.id];
       if (reducerMode) {

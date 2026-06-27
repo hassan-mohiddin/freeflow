@@ -18,7 +18,7 @@ export interface ProcessingReducerResult {
     reason: string;
     facts: ProcessingReducerFact[];
     visibleText: string;
-    details: AccessLogReducerDetails | TestOutputReducerDetails | BuildOutputReducerDetails | DiagnosticsReducerDetails | McpToolsReducerDetails | TableReducerDetails;
+    details: AccessLogReducerDetails | TestOutputReducerDetails | BuildOutputReducerDetails | DiagnosticsReducerDetails | McpToolsReducerDetails | TableReducerDetails | BrowserSnapshotReducerDetails;
 }
 export type ProcessingReducerSelection = {
     status: "selected";
@@ -134,6 +134,27 @@ export interface TableNumericSummary {
     max: number;
     average: number;
 }
+export interface BrowserSnapshotReducerDetails {
+    kind: "browser-snapshot";
+    lineCount: number;
+    pageTitle?: string;
+    pageUrl?: string;
+    refCount: number;
+    namedLinkCount: number;
+    textNodeCount: number;
+    storyLikeLinkCount: number;
+    roleCounts: Array<{
+        role: string;
+        count: number;
+    }>;
+    topInteractiveNodes: BrowserSnapshotNode[];
+    topTextNodes: string[];
+}
+export interface BrowserSnapshotNode {
+    role: string;
+    name: string;
+    ref?: string;
+}
 export interface AccessLogSlowExample {
     method: string;
     path: string;
@@ -158,6 +179,10 @@ export declare function reduceMcpToolsOutput(text: string): {
     result?: ProcessingReducerResult;
 };
 export declare function reduceTableOutput(text: string): {
+    candidate: ProcessingReducerCandidate;
+    result?: ProcessingReducerResult;
+};
+export declare function reduceBrowserSnapshotOutput(text: string): {
     candidate: ProcessingReducerCandidate;
     result?: ProcessingReducerResult;
 };

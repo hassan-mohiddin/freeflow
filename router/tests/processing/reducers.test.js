@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { reduceAccessLog, reduceBuildOutput, reduceDiagnosticsOutput, reduceMcpToolsOutput, reduceTableOutput, reduceTestOutput, selectProcessingReducer } from "../../dist/processing/reducers.js";
+import { reduceAccessLog, reduceBrowserSnapshotOutput, reduceBuildOutput, reduceDiagnosticsOutput, reduceMcpToolsOutput, reduceTableOutput, reduceTestOutput, selectProcessingReducer } from "../../dist/processing/reducers.js";
 
 function syntheticAccessLogFixture() {
   const lines = [];
@@ -55,6 +55,28 @@ function syntheticMcpToolsFixture() {
     mcpTool("run_tests", ["pattern"], []),
     mcpTool("typecheck", [], []),
   ]);
+}
+
+function syntheticBrowserSnapshotFixture() {
+  return [
+    "### Page",
+    "- Page URL: https://news.ycombinator.com/",
+    "- Page Title: Hacker News",
+    "### Snapshot",
+    "```yaml",
+    "- table [ref=e1]:",
+    "  - row [ref=e2]:",
+    "    - cell [ref=e3]:",
+    "      - link \"Hacker News\" [ref=e4] [cursor=pointer]:",
+    "        - /url: news",
+    "      - link \"A very interesting story\" [ref=e5] [cursor=pointer]:",
+    "        - /url: item?id=1",
+    "      - link \"Another browser story\" [ref=e6] [cursor=pointer]:",
+    "        - /url: item?id=2",
+    "      - textbox \"Search\" [ref=e7]",
+    "      - text: Welcome to Hacker News",
+    "```",
+  ].join("\n");
 }
 
 function mcpTool(name, properties, required = []) {
@@ -164,7 +186,7 @@ test("processing reducer registry selects test output before other reducers", ()
 
   assert.equal(selected.status, "selected");
   assert.equal(selected.selected.name, "test-output");
-  assert.deepEqual(selected.candidates.map((candidate) => candidate.name), ["test-output", "build-output", "diagnostics", "mcp-tools", "table", "access-log"]);
+  assert.deepEqual(selected.candidates.map((candidate) => candidate.name), ["test-output", "build-output", "diagnostics", "mcp-tools", "table", "browser-snapshot", "access-log"]);
 });
 
 test("mcp tools reducer computes tool count, categories, and signatures", () => {
@@ -198,6 +220,29 @@ test("mcp tools reducer wins over generic JSON table detection", () => {
 
   assert.equal(selected.status, "selected");
   assert.equal(selected.selected.name, "mcp-tools");
+});
+
+test("browser snapshot reducer computes lines, links, title, roles, and story-like link facts", () => {
+  const reduced = reduceBrowserSnapshotOutput(syntheticBrowserSnapshotFixture());
+
+  assert.ok(reduced.result);
+  assert.equal(reduced.candidate.name, "browser-snapshot");
+  assert.equal(reduced.candidate.confidence, 0.9);
+  assert.equal(reduced.result.details.kind, "browser-snapshot");
+  assert.equal(reduced.result.details.lineCount, 17);
+  assert.equal(reduced.result.details.pageTitle, "Hacker News");
+  assert.equal(reduced.result.details.namedLinkCount, 3);
+  assert.equal(reduced.result.details.storyLikeLinkCount, 3);
+  assert.deepEqual(reduced.result.details.roleCounts.slice(0, 3), [
+    { role: "link", count: 3 },
+    { role: "cell", count: 1 },
+    { role: "row", count: 1 },
+  ]);
+  assert.deepEqual(reduced.result.details.topInteractiveNodes.slice(0, 2).map((node) => node.name), ["Hacker News", "A very interesting story"]);
+  assert.match(reduced.result.visibleText, /lines: 17/);
+  assert.match(reduced.result.visibleText, /links: 3/);
+  assert.match(reduced.result.visibleText, /title: Hacker News/);
+  assert.match(reduced.result.visibleText, /Stories: 3/);
 });
 
 test("table reducer computes CSV row counts, grouped status counts, and numeric max", () => {
@@ -304,6 +349,6 @@ test("processing reducer registry does not select low-confidence prose", () => {
   const selected = selectProcessingReducer({ text: "hello\nnot an access log\n" });
 
   assert.equal(selected.status, "not_selected");
-  assert.deepEqual(selected.candidates.map((candidate) => candidate.name), ["test-output", "build-output", "diagnostics", "mcp-tools", "table", "access-log"]);
+  assert.deepEqual(selected.candidates.map((candidate) => candidate.name), ["test-output", "build-output", "diagnostics", "mcp-tools", "table", "browser-snapshot", "access-log"]);
   assert.ok(selected.candidates.every((candidate) => candidate.confidence < 0.8));
 });

@@ -40,6 +40,24 @@ function mcpToolsSample() {
   ]);
 }
 
+function browserSnapshotSample() {
+  return [
+    "### Page",
+    "- Page URL: https://news.ycombinator.com/",
+    "- Page Title: Hacker News",
+    "### Snapshot",
+    "```yaml",
+    "- table [ref=e1]:",
+    "  - row [ref=e2]:",
+    "    - link \"Hacker News\" [ref=e3] [cursor=pointer]:",
+    "      - /url: news",
+    "    - link \"Browser reducer story\" [ref=e4] [cursor=pointer]:",
+    "      - /url: item?id=1",
+    "    - text: Story text",
+    "```",
+  ].join("\n");
+}
+
 function buildOutputSample() {
   return [
     "  ▲ Next.js 15.1.0",
@@ -214,6 +232,25 @@ test("processing engine selects mcp-tools reducer for explicit processing calls"
     assert.match(result.visibleText, /categories: git:2/);
     assert.match(result.visibleText, /typecheck:1/);
     assert.match(result.visibleText, /search_codebase\(pattern, path\?\)/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("processing engine selects browser-snapshot reducer for explicit processing calls", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-processing-browser-snapshot-"));
+  try {
+    await writeFile(join(root, "playwright-snapshot.txt"), browserSnapshotSample(), "utf8");
+
+    const result = await processSource({ kind: "repo-file", root, path: "playwright-snapshot.txt" });
+
+    assert.equal(result.status, "ok");
+    assert.equal(result.reducer.status, "selected");
+    assert.equal(result.reducer.selected.name, "browser-snapshot");
+    assert.equal(result.visibleText.split("\n")[0], "lines: 13");
+    assert.match(result.visibleText, /links: 2/);
+    assert.match(result.visibleText, /title: Hacker News/);
+    assert.match(result.visibleText, /Stories: 2/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
