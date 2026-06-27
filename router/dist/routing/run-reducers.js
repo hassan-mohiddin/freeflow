@@ -17,7 +17,7 @@ export function selectRunReducerRoute(options) {
     if (source === undefined) {
         return { status: "not_selected", reason: "mixed stdout/stderr success output stays near-raw to avoid hiding warnings." };
     }
-    const selection = selectProcessingReducer({ text: source.text });
+    const selection = selectProcessingReducer({ text: source.text, ...(options.goal !== undefined ? { goal: options.goal } : {}) });
     if (selection.status !== "selected") {
         return { status: "not_selected", reason: selection.reason };
     }
@@ -85,6 +85,8 @@ function reducerIntentAllowsSelection(goalText, commandTextValue, reducerName) {
             return /\b(csv|json|table|analytics)\b/.test(goalText);
         case "mcp-tools":
             return /\b(mcp|tools?|schema|signatures?)\b/.test(goalText);
+        case "json-query":
+            return /\b(json|github|issues?|labels?|repo|repository|summary|summarize|summarise|analysis|analyze|analyse)\b/.test(goalText);
         case "browser-snapshot":
             return /\b(browser|snapshot|playwright|accessibility|dom)\b/.test(goalText);
         case "git-log":
@@ -94,8 +96,8 @@ function reducerIntentAllowsSelection(goalText, commandTextValue, reducerName) {
     }
 }
 function reducerLargeOutputAllowsSelection(goalText, result) {
-    if (result.name === "table" && result.details.kind === "table" && result.details.format === "json") {
-        return /\b(json|csv|table|analytics)\b/.test(goalText);
+    if (result.name === "json-query") {
+        return result.confidence >= 0.8;
     }
     return true;
 }

@@ -76,7 +76,7 @@ export async function processSource(source, options = {}) {
         : processingScriptNotConfigured();
     const selectedReducer = selectedScript.status === "executed"
         ? notSelectedReducer("Sandboxed script processing produced output; reducer selection was skipped.")
-        : selectProcessingReducer({ text: loaded.text });
+        : selectProcessingReducer({ text: loaded.text, ...(options.goal !== undefined ? { goal: options.goal } : {}) });
     const facts = selectedReducer.status === "selected" ? [...selectedReducer.result.facts, ...sourceFacts(loaded)] : sourceFacts(loaded);
     const visibleText = renderProcessingResult({
         status: "ok",

@@ -1,5 +1,6 @@
 export interface ProcessingReducerInput {
     text: string;
+    goal?: string;
 }
 export interface ProcessingReducerFact {
     name: string;
@@ -18,7 +19,7 @@ export interface ProcessingReducerResult {
     reason: string;
     facts: ProcessingReducerFact[];
     visibleText: string;
-    details: AccessLogReducerDetails | TestOutputReducerDetails | BuildOutputReducerDetails | DiagnosticsReducerDetails | McpToolsReducerDetails | TableReducerDetails | BrowserSnapshotReducerDetails | GitLogReducerDetails;
+    details: AccessLogReducerDetails | TestOutputReducerDetails | BuildOutputReducerDetails | DiagnosticsReducerDetails | McpToolsReducerDetails | JsonQueryReducerDetails | TableReducerDetails | BrowserSnapshotReducerDetails | GitLogReducerDetails;
 }
 export type ProcessingReducerSelection = {
     status: "selected";
@@ -113,9 +114,49 @@ export interface McpToolSignature {
     required: string[];
     description?: string;
 }
+export interface JsonQueryReducerDetails {
+    kind: "json-query";
+    rootKind: "array" | "object";
+    itemCount?: number;
+    matchedPaths: JsonQueryMatchedPath[];
+    categorical: JsonQueryCategoricalSummary[];
+    numeric: JsonQueryNumericSummary[];
+    mentions: JsonQueryMention[];
+    samples: JsonQuerySample[];
+}
+export interface JsonQueryMatchedPath {
+    path: string;
+    score: number;
+    reason: string;
+}
+export interface JsonQueryCategoricalSummary {
+    path: string;
+    counts: Array<{
+        value: string;
+        count: number;
+    }>;
+    score: number;
+}
+export interface JsonQueryNumericSummary {
+    path: string;
+    min: number;
+    max: number;
+    average: number;
+    score: number;
+}
+export interface JsonQueryMention {
+    kind: "githubRepo";
+    value: string;
+    count: number;
+    paths: string[];
+}
+export interface JsonQuerySample {
+    label: string;
+    paths: Record<string, string | number | boolean>;
+}
 export interface TableReducerDetails {
     kind: "table";
-    format: "csv" | "json";
+    format: "csv";
     rowCount: number;
     columns: string[];
     categorical: TableCategoricalSummary[];
@@ -200,6 +241,10 @@ export declare function reduceDiagnosticsOutput(text: string): {
     result?: ProcessingReducerResult;
 };
 export declare function reduceMcpToolsOutput(text: string): {
+    candidate: ProcessingReducerCandidate;
+    result?: ProcessingReducerResult;
+};
+export declare function reduceJsonQueryOutput(text: string, goal?: string): {
     candidate: ProcessingReducerCandidate;
     result?: ProcessingReducerResult;
 };

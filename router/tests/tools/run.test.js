@@ -275,12 +275,12 @@ test("freeflowRun routes explicit summary goals through reducers with raw and de
   });
 });
 
-test("generic summary intent does not route JSON tables when reducer-specific facts would be speculative", async () => {
+test("query-aware JSON reducer routes nested issue summaries with raw and derived recovery", async () => {
   await withTempVault(async (vault) => {
     const stdout = JSON.stringify([
-      { number: 1, title: "Bug A", labels: [{ name: "Type: Bug" }] },
-      { number: 2, title: "Bug B", labels: [{ name: "Status: Unconfirmed" }] },
-      { number: 3, title: "Bug C", labels: [{ name: "Type: Bug" }] },
+      { number: 1, title: "Bug A", body: "repo:facebook/react", labels: [{ name: "Type: Bug" }] },
+      { number: 2, title: "Bug B", body: "https://github.com/facebook/react/issues/2", labels: [{ name: "Status: Unconfirmed" }] },
+      { number: 3, title: "Bug C", body: "repo:facebook/react", labels: [{ name: "Type: Bug" }, { name: "Status: Unconfirmed" }] },
     ]);
     const runner = {
       async run() {
@@ -296,10 +296,53 @@ test("generic summary intent does not route JSON tables when reducer-specific fa
     const result = await freeflowRun(
       {
         command: "cat github-issues.json",
-        sessionId: "run-reducer-speculative-json-session",
+        sessionId: "run-reducer-json-query-session",
         vaultRoot: vault.root,
         preserve: "important",
         goal: "GitHub issues summary",
+      },
+      runner,
+    );
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.routing.status, "partial");
+    assert.equal(result.reducer?.name, "json-query");
+    assert.equal(result.parser?.name, "generic+reducer:json-query");
+    assert.match(result.summary ?? "", /items: 3/);
+    assert.match(result.summary ?? "", /githubRepo: facebook\/react:3/);
+    assert.match(result.summary ?? "", /labels\[\]\.name: Status: Unconfirmed:2, Type: Bug:2/);
+    assert.match(result.recovery?.how ?? "", new RegExp(`outputId=${result.outputId}`));
+    assert.match(result.recovery?.how ?? "", new RegExp(`outputId=${result.reducer.outputId}`));
+    assert.equal(await readOutputText(vault, "run-reducer-json-query-session", result.outputId, "stdout"), stdout);
+    assert.equal(await readOutputText(vault, "run-reducer-json-query-session", result.reducer.outputId, "raw"), result.reducer.summary);
+  });
+});
+
+test("weak generic JSON summary remains near-raw when query-aware reducer has no path signal", async () => {
+  await withTempVault(async (vault) => {
+    const stdout = JSON.stringify([
+      { id: 1, value: "alpha", score: 10 },
+      { id: 2, value: "beta", score: 20 },
+      { id: 3, value: "gamma", score: 30 },
+    ]);
+    const runner = {
+      async run() {
+        return {
+          stdout,
+          stderr: "",
+          executionStatus: "success",
+          exitCode: 0,
+        };
+      },
+    };
+
+    const result = await freeflowRun(
+      {
+        command: "cat generic.json",
+        sessionId: "run-reducer-weak-json-session",
+        vaultRoot: vault.root,
+        preserve: "important",
+        goal: "summary",
       },
       runner,
     );

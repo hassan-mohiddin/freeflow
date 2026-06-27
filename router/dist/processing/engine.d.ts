@@ -11,6 +11,7 @@ export interface ProcessingEngineOptions {
     sessionId?: string;
     vaultRoot?: string;
     vaultRetention?: VaultRetentionPolicy;
+    goal?: string;
     limits?: Partial<ProcessingLimits>;
     script?: ProcessingScriptRequest;
     scriptDerive?: ScriptDeriveConfig;

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { reduceAccessLog, reduceBrowserSnapshotOutput, reduceBuildOutput, reduceDiagnosticsOutput, reduceGitLogOutput, reduceMcpToolsOutput, reduceTableOutput, reduceTestOutput, selectProcessingReducer } from "../../dist/processing/reducers.js";
+import { reduceAccessLog, reduceBrowserSnapshotOutput, reduceBuildOutput, reduceDiagnosticsOutput, reduceGitLogOutput, reduceJsonQueryOutput, reduceMcpToolsOutput, reduceTableOutput, reduceTestOutput, selectProcessingReducer } from "../../dist/processing/reducers.js";
 
 function syntheticAccessLogFixture() {
   const lines = [];
@@ -38,11 +38,19 @@ function syntheticCsvTableFixture() {
   return rows.join("\n");
 }
 
-function syntheticJsonTableFixture() {
+function syntheticGitHubIssuesFixture() {
   return JSON.stringify([
-    { id: 1, role: "admin", score: 10 },
-    { id: 2, role: "user", score: 30 },
-    { id: 3, role: "user", score: 20 },
+    { number: 35855, title: "Bug: ViewTransition cleanup", body: "repo:facebook/react", labels: [{ name: "Status: Unconfirmed" }, { name: "Type: Bug" }] },
+    { number: 35856, title: "Bug: Suspense fallback", body: "see https://github.com/facebook/react/issues/1", labels: [{ name: "Status: Unconfirmed" }] },
+    { number: 35857, title: "Feature request", body: "repo:facebook/react", labels: [{ name: "Type: Bug" }] },
+  ]);
+}
+
+function syntheticGenericJsonFixture() {
+  return JSON.stringify([
+    { id: 1, value: "alpha", score: 10 },
+    { id: 2, value: "beta", score: 30 },
+    { id: 3, value: "gamma", score: 20 },
   ]);
 }
 
@@ -197,7 +205,7 @@ test("processing reducer registry selects test output before other reducers", ()
 
   assert.equal(selected.status, "selected");
   assert.equal(selected.selected.name, "test-output");
-  assert.deepEqual(selected.candidates.map((candidate) => candidate.name), ["test-output", "build-output", "diagnostics", "mcp-tools", "table", "browser-snapshot", "git-log", "access-log"]);
+  assert.deepEqual(selected.candidates.map((candidate) => candidate.name), ["test-output", "build-output", "diagnostics", "mcp-tools", "json-query", "table", "browser-snapshot", "git-log", "access-log"]);
 });
 
 test("mcp tools reducer computes tool count, categories, and signatures", () => {
@@ -289,6 +297,46 @@ test("git log reducer computes commit count, type counts, authors, scopes, and r
   assert.match(reduced.result.visibleText, /docs:1/);
 });
 
+test("json query reducer ranks nested paths and mentions from goal", () => {
+  const reduced = reduceJsonQueryOutput(syntheticGitHubIssuesFixture(), "GitHub issues summary");
+
+  assert.ok(reduced.result);
+  assert.equal(reduced.candidate.name, "json-query");
+  assert.equal(reduced.result.details.kind, "json-query");
+  assert.equal(reduced.result.details.itemCount, 3);
+  assert.equal(reduced.result.details.mentions[0].value, "facebook/react");
+  assert.equal(reduced.result.details.categorical[0].path, "labels[].name");
+  assert.deepEqual(reduced.result.details.categorical[0].counts.slice(0, 2), [
+    { value: "Status: Unconfirmed", count: 2 },
+    { value: "Type: Bug", count: 2 },
+  ]);
+  assert.match(reduced.result.visibleText, /items: 3/);
+  assert.match(reduced.result.visibleText, /githubRepo: facebook\/react:3/);
+  assert.match(reduced.result.visibleText, /labels\[\]\.name: Status: Unconfirmed:2, Type: Bug:2/);
+  assert.match(reduced.result.visibleText, /#35855 Bug: ViewTransition cleanup/);
+});
+
+test("json query reducer does not select weak generic JSON without query/path signal", () => {
+  const reduced = reduceJsonQueryOutput(syntheticGenericJsonFixture(), "summary");
+
+  assert.equal(reduced.result, undefined);
+  assert.ok(reduced.candidate.confidence < 0.8);
+});
+
+test("json query reducer does not select high-signal paths for unrelated goals", () => {
+  const reduced = reduceJsonQueryOutput(syntheticGitHubIssuesFixture(), "deployment summary");
+
+  assert.equal(reduced.result, undefined);
+  assert.ok(reduced.candidate.confidence < 0.8);
+});
+
+test("json query reducer wins over CSV table only for JSON with goal signal", () => {
+  const selected = selectProcessingReducer({ text: syntheticGitHubIssuesFixture(), goal: "GitHub issues summary" });
+
+  assert.equal(selected.status, "selected");
+  assert.equal(selected.selected.name, "json-query");
+});
+
 test("table reducer computes CSV row counts, grouped status counts, and numeric max", () => {
   const reduced = reduceTableOutput(syntheticCsvTableFixture());
 
@@ -311,15 +359,12 @@ test("table reducer computes CSV row counts, grouped status counts, and numeric 
   assert.match(reduced.result.visibleText, /duration_ms\.max: 34000/);
 });
 
-test("table reducer handles JSON arrays of records", () => {
-  const reduced = reduceTableOutput(syntheticJsonTableFixture());
+test("table reducer ignores JSON arrays without CSV shape", () => {
+  const reduced = reduceTableOutput(syntheticGenericJsonFixture());
 
-  assert.ok(reduced.result);
-  assert.equal(reduced.result.details.format, "json");
-  assert.equal(reduced.result.details.rowCount, 3);
-  assert.equal(reduced.result.details.categorical[0].column, "role");
-  assert.match(reduced.result.visibleText, /rows: 3/);
-  assert.match(reduced.result.visibleText, /role: user:2, admin:1/);
+  assert.equal(reduced.result, undefined);
+  assert.equal(reduced.candidate.name, "table");
+  assert.equal(reduced.candidate.confidence, 0);
 });
 
 test("build output reducer computes build errors, warnings, and files", () => {
@@ -393,6 +438,6 @@ test("processing reducer registry does not select low-confidence prose", () => {
   const selected = selectProcessingReducer({ text: "hello\nnot an access log\n" });
 
   assert.equal(selected.status, "not_selected");
-  assert.deepEqual(selected.candidates.map((candidate) => candidate.name), ["test-output", "build-output", "diagnostics", "mcp-tools", "table", "browser-snapshot", "git-log", "access-log"]);
+  assert.deepEqual(selected.candidates.map((candidate) => candidate.name), ["test-output", "build-output", "diagnostics", "mcp-tools", "json-query", "table", "browser-snapshot", "git-log", "access-log"]);
   assert.ok(selected.candidates.every((candidate) => candidate.confidence < 0.8));
 });

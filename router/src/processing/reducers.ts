@@ -1,5 +1,6 @@
 export interface ProcessingReducerInput {
   text: string;
+  goal?: string;
 }
 
 export interface ProcessingReducerFact {
@@ -21,7 +22,7 @@ export interface ProcessingReducerResult {
   reason: string;
   facts: ProcessingReducerFact[];
   visibleText: string;
-  details: AccessLogReducerDetails | TestOutputReducerDetails | BuildOutputReducerDetails | DiagnosticsReducerDetails | McpToolsReducerDetails | TableReducerDetails | BrowserSnapshotReducerDetails | GitLogReducerDetails;
+  details: AccessLogReducerDetails | TestOutputReducerDetails | BuildOutputReducerDetails | DiagnosticsReducerDetails | McpToolsReducerDetails | JsonQueryReducerDetails | TableReducerDetails | BrowserSnapshotReducerDetails | GitLogReducerDetails;
 }
 
 export type ProcessingReducerSelection =
@@ -120,9 +121,52 @@ export interface McpToolSignature {
   description?: string;
 }
 
+export interface JsonQueryReducerDetails {
+  kind: "json-query";
+  rootKind: "array" | "object";
+  itemCount?: number;
+  matchedPaths: JsonQueryMatchedPath[];
+  categorical: JsonQueryCategoricalSummary[];
+  numeric: JsonQueryNumericSummary[];
+  mentions: JsonQueryMention[];
+  samples: JsonQuerySample[];
+}
+
+export interface JsonQueryMatchedPath {
+  path: string;
+  score: number;
+  reason: string;
+}
+
+export interface JsonQueryCategoricalSummary {
+  path: string;
+  counts: Array<{ value: string; count: number }>;
+  score: number;
+}
+
+export interface JsonQueryNumericSummary {
+  path: string;
+  min: number;
+  max: number;
+  average: number;
+  score: number;
+}
+
+export interface JsonQueryMention {
+  kind: "githubRepo";
+  value: string;
+  count: number;
+  paths: string[];
+}
+
+export interface JsonQuerySample {
+  label: string;
+  paths: Record<string, string | number | boolean>;
+}
+
 export interface TableReducerDetails {
   kind: "table";
-  format: "csv" | "json";
+  format: "csv";
   rowCount: number;
   columns: string[];
   categorical: TableCategoricalSummary[];
@@ -213,6 +257,11 @@ const MCP_TOOLS_REDUCER = {
   version: "1",
 };
 
+const JSON_QUERY_REDUCER = {
+  name: "json-query",
+  version: "1",
+};
+
 const TABLE_REDUCER = {
   name: "table",
   version: "1",
@@ -243,12 +292,13 @@ export function selectProcessingReducer(input: ProcessingReducerInput): Processi
   const buildOutput = reduceBuildOutput(input.text);
   const diagnostics = reduceDiagnosticsOutput(input.text);
   const mcpTools = reduceMcpToolsOutput(input.text);
+  const jsonQuery = reduceJsonQueryOutput(input.text, input.goal);
   const table = reduceTableOutput(input.text);
   const browserSnapshot = reduceBrowserSnapshotOutput(input.text);
   const gitLog = reduceGitLogOutput(input.text);
   const accessLog = reduceAccessLog(input.text);
-  const candidates = [testOutput.candidate, buildOutput.candidate, diagnostics.candidate, mcpTools.candidate, table.candidate, browserSnapshot.candidate, gitLog.candidate, accessLog.candidate];
-  const selected = [testOutput, buildOutput, diagnostics, mcpTools, table, browserSnapshot, gitLog, accessLog].find((reduced) => reduced.result !== undefined);
+  const candidates = [testOutput.candidate, buildOutput.candidate, diagnostics.candidate, mcpTools.candidate, jsonQuery.candidate, table.candidate, browserSnapshot.candidate, gitLog.candidate, accessLog.candidate];
+  const selected = [testOutput, buildOutput, diagnostics, mcpTools, jsonQuery, table, browserSnapshot, gitLog, accessLog].find((reduced) => reduced.result !== undefined);
   if (selected?.result) {
     return {
       status: "selected",
@@ -903,6 +953,368 @@ function oneLine(text: string, maxChars: number): string {
   return compact.length <= maxChars ? compact : `${compact.slice(0, maxChars - 1)}…`;
 }
 
+export function reduceJsonQueryOutput(text: string, goal?: string): { candidate: ProcessingReducerCandidate; result?: ProcessingReducerResult } {
+  const indexed = indexJsonForQuery(text);
+  const goalTokens = tokenizeGoal(goal ?? "");
+  const details = indexed ? summarizeJsonQuery(indexed, goalTokens) : undefined;
+  const confidence = jsonQueryConfidence(indexed, details, goalTokens);
+  const candidate: ProcessingReducerCandidate = {
+    ...JSON_QUERY_REDUCER,
+    confidence,
+    reason: indexed === undefined
+      ? "No JSON object/array shape detected."
+      : `Indexed ${indexed.rootKind} JSON with ${indexed.entries.length} primitive value(s), ${details?.matchedPaths.length ?? 0} matched path(s), and ${goalTokens.size} goal token(s).`,
+  };
+
+  if (indexed === undefined || details === undefined || confidence < 0.8) {
+    return { candidate };
+  }
+
+  return {
+    candidate,
+    result: {
+      ...JSON_QUERY_REDUCER,
+      confidence,
+      reason: candidate.reason,
+      facts: jsonQueryFacts(details),
+      visibleText: renderJsonQuerySummary(details),
+      details,
+    },
+  };
+}
+
+interface JsonQueryIndex {
+  rootKind: "array" | "object";
+  itemCount?: number;
+  entries: JsonPrimitiveEntry[];
+  rootItems: unknown[];
+}
+
+interface JsonPrimitiveEntry {
+  path: string;
+  value: string | number | boolean | null;
+  itemIndex?: number;
+}
+
+function indexJsonForQuery(text: string): JsonQueryIndex | undefined {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+  if (!Array.isArray(value) && !isJsonObject(value)) {
+    return undefined;
+  }
+
+  const entries: JsonPrimitiveEntry[] = [];
+  if (Array.isArray(value)) {
+    value.slice(0, 500).forEach((item, itemIndex) => flattenJsonValue(item, "", entries, itemIndex, 0));
+    return { rootKind: "array", itemCount: value.length, entries, rootItems: value.slice(0, 20) };
+  }
+
+  flattenJsonValue(value, "", entries, undefined, 0);
+  return { rootKind: "object", entries, rootItems: [value] };
+}
+
+function flattenJsonValue(
+  value: unknown,
+  path: string,
+  entries: JsonPrimitiveEntry[],
+  itemIndex: number | undefined,
+  depth: number,
+): void {
+  if (entries.length >= 5_000 || depth > 6) {
+    return;
+  }
+  if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    if (path.length > 0) {
+      entries.push({
+        path,
+        value: typeof value === "string" ? oneLine(value, 2_000) : value,
+        ...(itemIndex !== undefined ? { itemIndex } : {}),
+      });
+    }
+    return;
+  }
+  if (Array.isArray(value)) {
+    const nextPath = path.length > 0 ? `${path}[]` : "[]";
+    for (const item of value.slice(0, 100)) {
+      flattenJsonValue(item, nextPath, entries, itemIndex, depth + 1);
+    }
+    return;
+  }
+  if (isJsonObject(value)) {
+    for (const [key, nested] of Object.entries(value)) {
+      const safeKey = key.replace(/\s+/g, "_");
+      const nextPath = path.length > 0 ? `${path}.${safeKey}` : safeKey;
+      flattenJsonValue(nested, nextPath, entries, itemIndex, depth + 1);
+    }
+  }
+}
+
+function summarizeJsonQuery(index: JsonQueryIndex, goalTokens: Set<string>): JsonQueryReducerDetails {
+  const categorical = summarizeJsonCategorical(index.entries, goalTokens);
+  const numeric = summarizeJsonNumeric(index.entries, goalTokens);
+  const mentions = summarizeJsonMentions(index.entries);
+  const samples = summarizeJsonSamples(index.rootItems);
+  const matchedPaths = [
+    ...categorical.slice(0, 5).map((summary) => ({ path: summary.path, score: summary.score, reason: "categorical path/value overlap" })),
+    ...numeric.slice(0, 3).map((summary) => ({ path: summary.path, score: summary.score, reason: "numeric path/value overlap" })),
+    ...mentions.slice(0, 3).map((mention) => ({ path: `mentions.${mention.kind}`, score: 10, reason: "structured mention extracted from JSON string values" })),
+  ].sort((left, right) => right.score - left.score || left.path.localeCompare(right.path));
+
+  return {
+    kind: "json-query",
+    rootKind: index.rootKind,
+    ...(index.itemCount !== undefined ? { itemCount: index.itemCount } : {}),
+    matchedPaths,
+    categorical,
+    numeric,
+    mentions,
+    samples,
+  };
+}
+
+function summarizeJsonCategorical(entries: readonly JsonPrimitiveEntry[], goalTokens: Set<string>): JsonQueryCategoricalSummary[] {
+  const byPath = groupJsonEntriesByPath(entries.filter((entry) => typeof entry.value === "string" || typeof entry.value === "boolean" || entry.value === null));
+  const summaries: JsonQueryCategoricalSummary[] = [];
+  for (const [path, pathEntries] of byPath) {
+    const values = pathEntries.map((entry) => String(entry.value ?? "null")).filter((value) => value.length > 0);
+    if (values.length === 0) {
+      continue;
+    }
+    const averageLength = values.reduce((sum, value) => sum + value.length, 0) / values.length;
+    const counts = countValues(values);
+    if (counts.length > 50 || (counts.length === values.length && !jsonPathIsSampleField(path)) || averageLength > 160) {
+      continue;
+    }
+    const score = jsonPathScore(path, counts.map((count) => count.value), goalTokens);
+    if (score <= 0 && !isHighSignalJsonPath(path)) {
+      continue;
+    }
+    summaries.push({ path, counts: counts.slice(0, 8), score });
+  }
+  return summaries.sort((left, right) => right.score - left.score || left.path.localeCompare(right.path)).slice(0, 8);
+}
+
+function summarizeJsonNumeric(entries: readonly JsonPrimitiveEntry[], goalTokens: Set<string>): JsonQueryNumericSummary[] {
+  const byPath = groupJsonEntriesByPath(entries.filter((entry) => typeof entry.value === "number" && Number.isFinite(entry.value)));
+  const summaries: JsonQueryNumericSummary[] = [];
+  for (const [path, pathEntries] of byPath) {
+    const numbers = pathEntries.map((entry) => Number(entry.value)).filter((value) => Number.isFinite(value));
+    if (numbers.length === 0) {
+      continue;
+    }
+    const total = numbers.reduce((sum, value) => sum + value, 0);
+    const score = jsonPathScore(path, [], goalTokens);
+    summaries.push({
+      path,
+      min: Math.min(...numbers),
+      max: Math.max(...numbers),
+      average: Math.round((total / numbers.length) * 10) / 10,
+      score,
+    });
+  }
+  return summaries.sort((left, right) => right.score - left.score || right.max - left.max || left.path.localeCompare(right.path)).slice(0, 5);
+}
+
+function summarizeJsonMentions(entries: readonly JsonPrimitiveEntry[]): JsonQueryMention[] {
+  const repoMentions = new Map<string, { count: number; paths: Set<string> }>();
+  for (const entry of entries) {
+    if (typeof entry.value !== "string") {
+      continue;
+    }
+    const text = entry.value;
+    for (const match of text.matchAll(/(?:github\.com\/|repo:)([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/g)) {
+      const value = match[1];
+      if (!value) {
+        continue;
+      }
+      const current = repoMentions.get(value) ?? { count: 0, paths: new Set<string>() };
+      current.count += 1;
+      current.paths.add(entry.path);
+      repoMentions.set(value, current);
+    }
+  }
+  return [...repoMentions.entries()]
+    .map(([value, mention]) => ({ kind: "githubRepo" as const, value, count: mention.count, paths: [...mention.paths].slice(0, 5) }))
+    .sort((left, right) => right.count - left.count || left.value.localeCompare(right.value))
+    .slice(0, 5);
+}
+
+function summarizeJsonSamples(items: readonly unknown[]): JsonQuerySample[] {
+  const samples: JsonQuerySample[] = [];
+  for (const item of items.slice(0, 5)) {
+    if (!isJsonObject(item)) {
+      continue;
+    }
+    const number = primitiveSampleValue(item.number);
+    const title = primitiveSampleValue(item.title) ?? primitiveSampleValue(item.name);
+    const state = primitiveSampleValue(item.state) ?? primitiveSampleValue(item.status);
+    if (title === undefined && number === undefined) {
+      continue;
+    }
+    const label = `${number !== undefined ? `#${number} ` : ""}${title ?? "item"}`;
+    const paths: Record<string, string | number | boolean> = {};
+    if (number !== undefined) {
+      paths.number = number;
+    }
+    if (title !== undefined) {
+      paths.title = title;
+    }
+    if (state !== undefined) {
+      paths.state = state;
+    }
+    samples.push({ label: oneLine(label, 180), paths });
+  }
+  return samples;
+}
+
+function jsonQueryConfidence(index: JsonQueryIndex | undefined, details: JsonQueryReducerDetails | undefined, goalTokens: Set<string>): number {
+  if (index === undefined || details === undefined || goalTokens.size === 0) {
+    return 0;
+  }
+  if (details.mentions.some((mention) => jsonMentionOverlapsGoal(mention, goalTokens))) {
+    return 0.95;
+  }
+  if (details.categorical.some((summary) => jsonCategoricalSummaryOverlapsGoal(summary, goalTokens)) || details.numeric.some((summary) => jsonPathOverlapsGoal(summary.path, [], goalTokens))) {
+    return 0.9;
+  }
+  return 0.6;
+}
+
+function jsonMentionOverlapsGoal(mention: JsonQueryMention, goalTokens: Set<string>): boolean {
+  if (mention.kind === "githubRepo" && (goalTokens.has("github") || goalTokens.has("repo") || goalTokens.has("repository"))) {
+    return true;
+  }
+  return overlapCount(tokenizeGoal(mention.value), goalTokens) > 0;
+}
+
+function jsonCategoricalSummaryOverlapsGoal(summary: JsonQueryCategoricalSummary, goalTokens: Set<string>): boolean {
+  return jsonPathOverlapsGoal(summary.path, summary.counts.map((count) => count.value), goalTokens);
+}
+
+function jsonPathOverlapsGoal(path: string, values: readonly string[], goalTokens: Set<string>): boolean {
+  const pathTokens = tokenizeGoal(path);
+  const valueTokens = new Set(values.flatMap((value) => [...tokenizeGoal(value)].slice(0, 8)));
+  return overlapCount(pathTokens, goalTokens) > 0 || overlapCount(valueTokens, goalTokens) > 0;
+}
+
+function jsonQueryFacts(details: JsonQueryReducerDetails): ProcessingReducerFact[] {
+  const facts: ProcessingReducerFact[] = [];
+  if (details.itemCount !== undefined) {
+    facts.push({ name: "items", value: details.itemCount });
+  } else {
+    facts.push({ name: "root", value: details.rootKind });
+  }
+  const repoMentions = details.mentions.filter((mention) => mention.kind === "githubRepo");
+  if (repoMentions.length > 0) {
+    facts.push({ name: "githubRepo", value: repoMentions.map((mention) => `${mention.value}:${mention.count}`).join(", ") });
+  }
+  const categorical = details.categorical[0];
+  if (categorical) {
+    facts.push({ name: categorical.path, value: categorical.counts.map(({ value, count }) => `${value}:${count}`).join(", ") });
+  }
+  const sample = details.samples[0];
+  if (sample) {
+    facts.push({ name: "sample", value: sample.label });
+  }
+  return facts;
+}
+
+function renderJsonQuerySummary(details: JsonQueryReducerDetails): string {
+  const lines = ["json query summary"];
+  if (details.itemCount !== undefined) {
+    lines.push(`items: ${details.itemCount}`);
+  } else {
+    lines.push(`root: ${details.rootKind}`);
+  }
+  const repoMentions = details.mentions.filter((mention) => mention.kind === "githubRepo");
+  if (repoMentions.length > 0) {
+    lines.push(`githubRepo: ${repoMentions.map((mention) => `${mention.value}:${mention.count}`).join(", ")}`);
+  }
+  for (const summary of details.categorical.slice(0, 3)) {
+    lines.push(`${summary.path}: ${summary.counts.map(({ value, count }) => `${value}:${count}`).join(", ")}`);
+  }
+  for (const summary of details.numeric.filter((entry) => entry.score > 0).slice(0, 2)) {
+    lines.push(`${summary.path}: min=${summary.min}, max=${summary.max}, avg=${summary.average}`);
+  }
+  if (details.samples.length > 0) {
+    lines.push(`samples: ${details.samples.slice(0, 3).map((sample) => sample.label).join(" | ")}`);
+  }
+  return lines.join("\n");
+}
+
+function groupJsonEntriesByPath(entries: readonly JsonPrimitiveEntry[]): Map<string, JsonPrimitiveEntry[]> {
+  const byPath = new Map<string, JsonPrimitiveEntry[]>();
+  for (const entry of entries) {
+    const pathEntries = byPath.get(entry.path) ?? [];
+    pathEntries.push(entry);
+    byPath.set(entry.path, pathEntries);
+  }
+  return byPath;
+}
+
+function jsonPathScore(path: string, values: readonly string[], goalTokens: Set<string>): number {
+  const pathTokens = tokenizeGoal(path);
+  const valueTokens = new Set(values.flatMap((value) => [...tokenizeGoal(value)].slice(0, 8)));
+  const pathOverlap = overlapCount(pathTokens, goalTokens);
+  const valueOverlap = overlapCount(valueTokens, goalTokens);
+  return pathOverlap * 5 + valueOverlap * 3 + highSignalJsonPathScore(path, values);
+}
+
+function highSignalJsonPathScore(path: string, values: readonly string[] = []): number {
+  const normalized = path.toLowerCase();
+  if (/labels?\[\]\.name$/.test(normalized)) {
+    return 12;
+  }
+  if (/(^|\.)(status|state|type|category|kind|severity|priority|role|result)$/.test(normalized)) {
+    return 8;
+  }
+  if (/(^|\.)(repo|repository|full_name|owner|name|title)$/.test(normalized)) {
+    return 5;
+  }
+  if (values.some((value) => /^(status|type|category|priority):/i.test(value))) {
+    return 6;
+  }
+  return 0;
+}
+
+function isHighSignalJsonPath(path: string): boolean {
+  return highSignalJsonPathScore(path) > 0;
+}
+
+function jsonPathIsSampleField(path: string): boolean {
+  return /(^|\.)(title|name)$/.test(path.toLowerCase());
+}
+
+function tokenizeGoal(text: string): Set<string> {
+  return new Set(text.toLowerCase().split(/[^a-z0-9]+/).filter((token) => token.length > 1 && !JSON_STOP_TOKENS.has(token)));
+}
+
+const JSON_STOP_TOKENS = new Set(["json", "the", "and", "for", "with", "from"]);
+
+function overlapCount(left: Set<string>, right: Set<string>): number {
+  let count = 0;
+  for (const token of left) {
+    if (right.has(token)) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function primitiveSampleValue(value: unknown): string | number | boolean | undefined {
+  if (typeof value === "string" && value.trim().length > 0) {
+    return oneLine(value, 120);
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+  return undefined;
+}
+
 export function reduceTableOutput(text: string): { candidate: ProcessingReducerCandidate; result?: ProcessingReducerResult } {
   const parsed = parseTable(text);
   const confidence = tableConfidence(parsed);
@@ -910,7 +1322,7 @@ export function reduceTableOutput(text: string): { candidate: ProcessingReducerC
     ...TABLE_REDUCER,
     confidence,
     reason: parsed === undefined
-      ? "No CSV or JSON table shape detected."
+      ? "No CSV table shape detected."
       : `Detected ${parsed.format} table with ${parsed.rows.length} row(s) and ${parsed.columns.length} column(s).`,
   };
 
@@ -933,13 +1345,13 @@ export function reduceTableOutput(text: string): { candidate: ProcessingReducerC
 }
 
 interface ParsedTable {
-  format: "csv" | "json";
+  format: "csv";
   columns: string[];
   rows: Array<Record<string, string>>;
 }
 
 function parseTable(text: string): ParsedTable | undefined {
-  return parseCsvTable(text) ?? parseJsonTable(text);
+  return parseCsvTable(text);
 }
 
 function parseCsvTable(text: string): ParsedTable | undefined {
@@ -965,30 +1377,12 @@ function parseCsvTable(text: string): ParsedTable | undefined {
   return rows.length >= 2 ? { format: "csv", columns, rows } : undefined;
 }
 
-function parseJsonTable(text: string): ParsedTable | undefined {
-  let value: unknown;
-  try {
-    value = JSON.parse(text);
-  } catch {
-    return undefined;
-  }
-  if (!Array.isArray(value) || value.length < 2 || !value.every(isJsonObject)) {
-    return undefined;
-  }
-  const columns = uniqueStrings(value.flatMap((row) => Object.keys(row))).filter((column) => value.some((row) => primitiveTableValue(row[column])));
-  if (columns.length < 2) {
-    return undefined;
-  }
-  const rows = value.map((row) => Object.fromEntries(columns.map((column) => [column, stringifyTableValue(row[column])])));
-  return { format: "json", columns, rows };
-}
-
 function tableConfidence(parsed: ParsedTable | undefined): number {
   if (parsed === undefined) {
     return 0;
   }
   if (parsed.rows.length >= 10 && parsed.columns.length >= 3) {
-    return parsed.format === "csv" ? 1 : 0.95;
+    return 1;
   }
   if (parsed.rows.length >= 3 && parsed.columns.length >= 2) {
     return 0.9;
@@ -1122,20 +1516,6 @@ function isTableColumnName(value: string): boolean {
 
 function isJsonObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function primitiveTableValue(value: unknown): boolean {
-  return ["string", "number", "boolean"].includes(typeof value) || value === null;
-}
-
-function stringifyTableValue(value: unknown): string {
-  if (value === null || value === undefined) {
-    return "";
-  }
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-  return "";
 }
 
 export function reduceBrowserSnapshotOutput(text: string): { candidate: ProcessingReducerCandidate; result?: ProcessingReducerResult } {
