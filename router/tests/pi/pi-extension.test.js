@@ -868,6 +868,67 @@ test("Pi freeflow_batch returns compact summary and preserves child details", as
   }
 });
 
+test("Pi freeflow_batch accepts queries and renders compact answers", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-batch-query-text-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({ defaultMode: "workflow", outputRouter: { vaultRoot: join(cwd, "vault") } }),
+      "utf8",
+    );
+
+    const tools = [];
+    const pi = {
+      registerTool(tool) {
+        tools.push(tool);
+      },
+      registerCommand() {},
+      on() {},
+      appendEntry() {},
+      sendUserMessage() {},
+      async exec() {
+        return {
+          stdout: "query answer source\nBATCH_QUERY_VISIBLE_FACT_99\n",
+          stderr: "",
+          code: 0,
+          killed: false,
+        };
+      },
+    };
+    freeflowExtension(pi);
+    const batchTool = tools.find((tool) => tool.name === "freeflow_batch");
+    assert.ok(batchTool);
+    assert.ok(batchTool.parameters.properties.queries);
+
+    const batchCtx = context(cwd);
+    batchCtx.sessionManager.getSessionId = () => "batch-query-render";
+    const batch = await batchTool.execute(
+      "batch-query-call",
+      {
+        queries: ["BATCH_QUERY_VISIBLE_FACT_99"],
+        steps: [
+          { id: "fact", kind: "run", input: { command: "fixture fact", preserve: "full" } },
+        ],
+      },
+      undefined,
+      undefined,
+      batchCtx,
+    );
+
+    const visibleText = batch.content[0].text;
+    assert.match(visibleText, /answer:/);
+    assert.match(visibleText, /BATCH_QUERY_VISIBLE_FACT_99/);
+    assert.equal(batch.details.result.queries[0].status, "answered");
+
+    const expanded = renderText(batchTool.renderResult(batch, { expanded: true }, testTheme));
+    assert.match(expanded, /Query answers/);
+    assert.match(expanded, /BATCH_QUERY_VISIBLE_FACT_99/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 test("Pi freeflow_run uses outputRouter thresholds and vault root from repo config", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-run-config-"));
   try {

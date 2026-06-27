@@ -340,6 +340,26 @@ export interface BatchStepRoutedResult {
   error?: string;
 }
 
+export interface BatchQueryMatch {
+  stepId: string;
+  stepIndex: number;
+  stepKind: BatchStepKind;
+  source: SourceRef;
+  excerpt: string;
+  why: string;
+  score: number;
+  outputId?: string;
+  evidenceId?: string;
+  lines?: string;
+}
+
+export interface BatchQueryAnswer {
+  query: string;
+  status: "answered" | "no_match";
+  summary: string;
+  matches: BatchQueryMatch[];
+}
+
 export interface BatchRoutedResult extends RoutedResultBase {
   summary: string;
   concurrency: number;
@@ -347,6 +367,7 @@ export interface BatchRoutedResult extends RoutedResultBase {
   okCount: number;
   failedCount: number;
   steps: BatchStepRoutedResult[];
+  queries?: BatchQueryAnswer[];
 }
 
 export interface FailureRoutedResult extends RoutedResultBase {

@@ -17,5 +17,6 @@ export interface FreeflowBatchOptions {
     scriptDerive?: ScriptDeriveConfig;
     scriptSandboxAdapters?: readonly ScriptSandboxAdapter[];
     storagePolicy?: StoragePolicyMode;
+    queries?: readonly string[];
 }
 export declare function freeflowBatch(options: FreeflowBatchOptions, runner: HostCommandRunner): Promise<BatchRoutedResult>;

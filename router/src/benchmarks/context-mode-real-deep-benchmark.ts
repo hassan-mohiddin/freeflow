@@ -27,7 +27,6 @@ const DEFAULT_ITERATION_LABEL = "Iteration 1";
 export const CONTEXT_MODE_REAL_DEEP_IMPLEMENTATION = "context-mode-real-deep-benchmark-v1";
 
 export const EXPECTED_BASELINE_FAILURE_KEYS = [
-  "batch-multi-source-query/freeflow:batch",
   "outside-file-boundary/freeflow:run-cat-host-shell",
 ] as const;
 
@@ -616,12 +615,18 @@ export async function runContextModeRealDeepBenchmark(
     });
 
     const ffBatchStart = performance.now();
+    const ffBatchQueries = [
+      "failed test files and counts",
+      "HTTP error count status distribution slow requests",
+      "useEffect cleanup ignore stale responses",
+    ];
     const ffBatchResult = await freeflowBatch(
       {
         sessionId,
         vaultRoot: freeflowVaultRoot,
         preserve: "important",
         concurrency: 3,
+        queries: ffBatchQueries,
         steps: [
           {
             id: "test-summary",
@@ -662,10 +667,10 @@ export async function runContextModeRealDeepBenchmark(
       rawBytes: batchRawBytes,
       facts: batchFacts,
       mode: "freeflow:batch",
-      capability: "parallel steps; no query aggregation",
+      capability: "parallel steps + deterministic query aggregation",
       obs: { result: ffBatchResult, text: freeflowText(ffBatchResult), latencyMs: Math.round(performance.now() - ffBatchStart) },
-      expectedCorrect: false,
-      notes: "Child details can incidentally contain requested facts, but visible batch summary does not aggregate query answers reliably.",
+      expectedCorrect: hasFacts(batchQueryAnswerText(ffBatchResult), batchFacts),
+      notes: "Query answers are derived deterministically from child evidence handles; full child details remain in details.result.steps.",
     });
 
     const outsidePath = path.join(root.path, "outside-secret.txt");
@@ -1382,6 +1387,18 @@ function factCount(text: string, facts: readonly string[]): number {
 
 function hasFacts(text: string, facts: readonly string[]): boolean {
   return factCount(text, facts) === facts.length;
+}
+
+function batchQueryAnswerText(result: unknown): string {
+  const record = asRecord(result);
+  const queries = Array.isArray(record?.queries) ? record.queries : [];
+  return queries.map((query) => {
+    const queryRecord = asRecord(query);
+    const summary = stringValue(queryRecord?.summary);
+    const matches = Array.isArray(queryRecord?.matches) ? queryRecord.matches : [];
+    const matchText = matches.map((match) => stringValue(asRecord(match)?.excerpt)).filter(Boolean).join("\n");
+    return [summary, matchText].filter(Boolean).join("\n");
+  }).filter(Boolean).join("\n");
 }
 
 function freeflowText(result: unknown): string {

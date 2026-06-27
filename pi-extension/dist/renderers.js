@@ -222,10 +222,30 @@ export function renderFreeflowBatchResult(result, { expanded } = {}, theme) {
     if (routed.summary) {
         lines.push(themeFg(theme, "muted", truncateText(routed.summary, 160)));
     }
+    const queryAnswers = Array.isArray(routed.queries) ? routed.queries : [];
+    if (queryAnswers.length > 0) {
+        lines.push(themeFg(theme, "dim", `${queryAnswers.filter((answer) => answer?.status === "answered").length}/${queryAnswers.length} query answer(s) from child evidence handles`));
+        for (const answer of queryAnswers.slice(0, 3)) {
+            lines.push(themeFg(theme, "muted", truncateText(answer?.summary ?? answer?.query ?? "query", 180)));
+        }
+    }
     lines.push(themeFg(theme, "dim", `concurrency=${routed.concurrency ?? "?"} • child outputs suppressed; full child results in details.result.steps`));
     if (!expanded) {
         lines.push(themeFg(theme, "dim", "ctrl+o to expand child step statuses and recovery pointers"));
         return textComponent(lines.join("\n"));
+    }
+    if (queryAnswers.length > 0) {
+        lines.push("", themeFg(theme, "toolTitle", "Query answers"));
+        queryAnswers.forEach((answer, index) => {
+            lines.push(`  ${themeFg(theme, answer?.status === "answered" ? "accent" : "warning", `#${index + 1} ${answer?.status ?? "unknown"}`)} ${truncateText(answer?.query ?? "query", 120)}`);
+            if (answer?.summary) {
+                lines.push(`    ${truncateText(answer.summary, 220)}`);
+            }
+            const matches = Array.isArray(answer?.matches) ? answer.matches : [];
+            matches.slice(0, 3).forEach((match) => {
+                lines.push(`    ${themeFg(theme, "muted", `${match.stepId ?? "step"}:`)} ${truncateText(match.excerpt ?? "", 180)}`);
+            });
+        });
     }
     lines.push("", themeFg(theme, "toolTitle", "Steps"));
     if (steps.length === 0) {

@@ -23,6 +23,14 @@ export function compactBatchToolText(result) {
     else if (result?.routing?.reason) {
         lines.push(`reason: ${truncateText(result.routing.reason, 220)}`);
     }
+    const queries = Array.isArray(result?.queries) ? result.queries : [];
+    queries.slice(0, 5).forEach((answer) => {
+        lines.push(`answer: ${truncateText(answer?.summary ?? answer?.query ?? "query", 260)}`);
+    });
+    const omittedQueries = queries.length - Math.min(queries.length, 5);
+    if (omittedQueries > 0) {
+        lines.push(`… ${omittedQueries} more query answer(s); see details.result.queries`);
+    }
     const steps = Array.isArray(result?.steps) ? result.steps : [];
     steps.slice(0, 8).forEach((step) => {
         lines.push(compactBatchStepLine(step));
@@ -31,7 +39,7 @@ export function compactBatchToolText(result) {
     if (omitted > 0) {
         lines.push(`… ${omitted} more step(s); see details.result.steps`);
     }
-    lines.push("details: full child results are available in details.result.steps / TUI");
+    lines.push(queries.length > 0 ? "details: full child results and query matches are available in details.result / TUI" : "details: full child results are available in details.result.steps / TUI");
     return lines.join("\n");
 }
 export function compactRunToolText(result) {

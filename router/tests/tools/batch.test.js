@@ -7,6 +7,7 @@ import test from "node:test";
 import {
   createVault,
   freeflowBatch,
+  freeflowRun,
   readOutputText,
   storeCommandOutput,
   validateRoutedResult,
@@ -134,6 +135,123 @@ test("freeflowBatch supports mixed run, search, and transform steps", async () =
     const derivedText = await readOutputText(vault, "batch-mixed", derivedOutputId, "raw");
     assert.match(derivedText, /keep this line/);
   });
+});
+
+test("freeflowBatch answers queries from child evidence handles", async () => {
+  await withTempDir("freeflow-router-batch-query-", async (root) => {
+    const repoRoot = join(root, "repo");
+    const vaultRoot = join(root, "vault");
+    await mkdir(repoRoot);
+    await writeFile(
+      join(repoRoot, "react.md"),
+      [
+        "### Fetch Data with Cleanup Function in React useEffect",
+        "",
+        "Cleanup ignores stale responses.",
+        "",
+        "```javascript",
+        "useEffect(() => {",
+        "  let ignore = false;",
+        "  return () => { ignore = true; };",
+        "}, [userId]);",
+        "```",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = await freeflowBatch({
+      sessionId: "batch-query",
+      vaultRoot,
+      queries: ["failed test files and counts", "useEffect cleanup ignore stale responses"],
+      steps: [
+        { id: "tests", kind: "run", input: { command: "tests", preserve: "full" } },
+        { id: "react-docs", kind: "retrieve", input: { action: "query", source: { kind: "repo", root: repoRoot }, query: "useEffect cleanup ignore stale responses" } },
+      ],
+    }, {
+      async run() {
+        return {
+          stdout: [
+            "test-output summary",
+            "tests: 4 failed, 108 passed, (112)",
+            "testFiles: 4 failed, 26 passed, (30)",
+            "failedFiles: UserList.test.tsx, DataGrid.test.tsx",
+          ].join("\n"),
+          stderr: "",
+          executionStatus: "success",
+          exitCode: 0,
+        };
+      },
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.queries.length, 2);
+    assert.equal(result.queries[0].status, "answered");
+    assert.equal(result.queries[1].status, "answered");
+    assert.match(result.summary, /query answers:/);
+    assert.match(result.summary, /4 failed/);
+    assert.match(result.summary, /ignore = true/);
+    assert.equal(result.queries[0].matches[0].stepId, "tests");
+    assert.equal(result.queries[1].matches[0].stepId, "react-docs");
+    assert.equal(result.steps.length, 2);
+    assert.equal(validateRoutedResult(result).ok, true);
+  });
+});
+
+test("freeflowBatch query aggregation can use duplicate exact recovery output", async () => {
+  await withTempDir("freeflow-router-batch-query-duplicate-", async (root) => {
+    const vaultRoot = join(root, "vault");
+    const stdout = Array.from({ length: 20 }, (_, index) => `duplicate fact line ${index + 1}`).join("\n") + "\nDUPLICATE_BATCH_FACT_42\n";
+    const runner = {
+      async run() {
+        return { stdout, stderr: "", executionStatus: "success", exitCode: 0 };
+      },
+    };
+
+    const first = await freeflowRun({
+      command: "npm test -- duplicate-batch",
+      cwd: root,
+      sessionId: "batch-query-duplicate",
+      vaultRoot,
+      preserve: "important",
+      thresholds: { largeOutputLines: 10, largeOutputBytes: 10_000 },
+    }, runner);
+    assert.equal(first.persistence.recoverability, "exact");
+
+    const result = await freeflowBatch({
+      sessionId: "batch-query-duplicate",
+      vaultRoot,
+      queries: ["DUPLICATE_BATCH_FACT_42"],
+      steps: [
+        {
+          id: "duplicate-run",
+          kind: "run",
+          input: {
+            command: "npm test -- duplicate-batch",
+            cwd: root,
+            preserve: "important",
+            thresholds: { largeOutputLines: 10, largeOutputBytes: 10_000 },
+          },
+        },
+      ],
+    }, runner);
+
+    assert.equal(result.steps[0].result.parser.name, "duplicate-output");
+    assert.equal(result.steps[0].result.persistence.recoverability, "metadata_only");
+    assert.equal(result.queries[0].status, "answered");
+    assert.match(result.queries[0].summary, /DUPLICATE_BATCH_FACT_42/);
+    assert.equal(result.queries[0].matches[0].outputId, first.outputId);
+  });
+});
+
+test("freeflowBatch validates query input", async () => {
+  const result = await freeflowBatch({
+    sessionId: "batch-query-validation",
+    queries: [""],
+    steps: [{ kind: "run", input: { command: "unused" } }],
+  }, { async run() { throw new Error("runner should not be used"); } });
+
+  assert.equal(result.toolStatus, "error");
+  assert.match(result.routing.reason, /queries\[0\]/);
 });
 
 test("freeflowBatch reports a failing step without hiding other child results", async () => {

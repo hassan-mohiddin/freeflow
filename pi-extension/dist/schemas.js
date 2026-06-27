@@ -212,6 +212,12 @@ export const FREEFLOW_BATCH_PARAMETERS = {
             },
             description: "Independent Freeflow-owned steps to run in parallel. No sequencing or external tool orchestration in v1.",
         },
+        queries: {
+            type: "array",
+            maxItems: 10,
+            items: { ...NON_EMPTY_STRING_SCHEMA, maxLength: 500 },
+            description: "Optional independent query/fact requests to answer from completed child evidence handles.",
+        },
         concurrency: { type: "integer", minimum: 1, maximum: 16, description: "Maximum number of independent steps to run at once. Default: 4." },
         preserve: { ...PRESERVE_SCHEMA, description: "Default fidelity mode for steps that do not set preserve." },
     },

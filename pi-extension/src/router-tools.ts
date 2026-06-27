@@ -157,6 +157,7 @@ async function normalizeBatchParams(params, ctx, routerConfigResult) {
   }
   return {
     steps,
+    ...(Array.isArray(params.queries) ? { queries: params.queries } : {}),
     ...(params.concurrency !== undefined ? { concurrency: params.concurrency } : {}),
     ...(params.preserve !== undefined ? { preserve: params.preserve } : {}),
   };
@@ -328,8 +329,9 @@ export function registerRouterTools(pi) {
     promptSnippet: "Batch independent Freeflow run/search/transform operations with compact model-visible output.",
     promptGuidelines: [
       "Use freeflow_batch when several independent Freeflow-owned run, search/retrieve, or transform/derive operations can run in parallel.",
+      "Use queries[] when the batch should answer deterministic fact requests from completed child evidence handles.",
       "Do not use freeflow_batch for sequenced workflows, arbitrary external tool orchestration, or mutating batch work in v1.",
-      "Intermediate child outputs are suppressed from model-visible output; inspect details.result.steps or child recovery ids when needed.",
+      "Intermediate child outputs are suppressed unless needed for query answers; inspect details.result.steps or child recovery ids when needed.",
     ],
     parameters: FREEFLOW_BATCH_PARAMETERS,
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
