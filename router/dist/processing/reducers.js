@@ -2,6 +2,10 @@ const TEST_OUTPUT_REDUCER = {
     name: "test-output",
     version: "1",
 };
+const BUILD_OUTPUT_REDUCER = {
+    name: "build-output",
+    version: "1",
+};
 const DIAGNOSTICS_REDUCER = {
     name: "diagnostics",
     version: "1",
@@ -16,10 +20,11 @@ const SLOW_REQUEST_THRESHOLD_MS = 1_000;
 const ACCESS_LOG_LINE = /^(\S+)\s+\S+\s+\S+\s+\[[^\]]+\]\s+"([A-Z]+)\s+([^"\s]+)\s+HTTP\/[^"\s]+"\s+(\d{3})\s+(?:\d+|-)\s+(\d+)ms\s*$/;
 export function selectProcessingReducer(input) {
     const testOutput = reduceTestOutput(input.text);
+    const buildOutput = reduceBuildOutput(input.text);
     const diagnostics = reduceDiagnosticsOutput(input.text);
     const accessLog = reduceAccessLog(input.text);
-    const candidates = [testOutput.candidate, diagnostics.candidate, accessLog.candidate];
-    const selected = [testOutput, diagnostics, accessLog].find((reduced) => reduced.result !== undefined);
+    const candidates = [testOutput.candidate, buildOutput.candidate, diagnostics.candidate, accessLog.candidate];
+    const selected = [testOutput, buildOutput, diagnostics, accessLog].find((reduced) => reduced.result !== undefined);
     if (selected?.result) {
         return {
             status: "selected",
@@ -187,6 +192,127 @@ function countsSummary(counts) {
 }
 function uniqueStrings(values) {
     return [...new Set(values)];
+}
+export function reduceBuildOutput(text) {
+    const lines = text.split(/\r?\n/);
+    const finalStatus = lines.map((line) => stripAnsi(line).trim()).find((line) => /\bBuild completed with\b/i.test(line));
+    const errors = lines.map(parseBuildError).filter((issue) => issue !== undefined);
+    const warnings = lines.map(parseBuildWarning).filter((issue) => issue !== undefined);
+    const compiledCount = lines.filter((line) => /^\s*✓\s+Compiled\s+/.test(stripAnsi(line))).length;
+    const finalCounts = parseBuildFinalCounts(finalStatus);
+    const errorCount = finalCounts.errors ?? errors.length;
+    const warningCount = finalCounts.warnings ?? warnings.length;
+    const confidence = buildOutputConfidence({ text, finalStatus, errors, warnings, compiledCount });
+    const candidate = {
+        ...BUILD_OUTPUT_REDUCER,
+        confidence,
+        reason: `Detected build output finalStatus=${finalStatus ? "yes" : "no"}, errors=${errorCount}, warnings=${warningCount}.`,
+    };
+    if (confidence < 0.8 || (errorCount === 0 && warningCount === 0 && !finalStatus)) {
+        return { candidate };
+    }
+    const details = {
+        kind: "build-output",
+        errorCount,
+        warningCount,
+        compiledCount,
+        errorFiles: uniqueStrings(errors.map((issue) => issue.file)),
+        warningFiles: uniqueStrings(warnings.map((issue) => issue.file)),
+        firstErrors: errors.slice(0, 5),
+        firstWarnings: warnings.slice(0, 5),
+        ...(finalStatus !== undefined ? { finalStatus } : {}),
+    };
+    return {
+        candidate,
+        result: {
+            ...BUILD_OUTPUT_REDUCER,
+            confidence,
+            reason: candidate.reason,
+            facts: buildOutputFacts(details),
+            visibleText: renderBuildOutputSummary(details),
+            details,
+        },
+    };
+}
+function parseBuildError(rawLine) {
+    const line = stripAnsi(rawLine);
+    const match = /^\s*ERROR in\s+(.+?)(?:\((\d+),(\d+)\))?:\s*(.+?)\s*$/.exec(line);
+    if (!match) {
+        return undefined;
+    }
+    const issue = {
+        file: match[1] ?? "unknown",
+        message: match[4] ?? "",
+    };
+    if (match[2] !== undefined) {
+        issue.line = Number(match[2]);
+    }
+    if (match[3] !== undefined) {
+        issue.column = Number(match[3]);
+    }
+    return issue;
+}
+function parseBuildWarning(rawLine) {
+    const line = stripAnsi(rawLine);
+    const match = /^\s*(?:⚠\s+)?Warning:\s+(.+?)\s+-\s+(.+?)\s*$/.exec(line);
+    if (!match) {
+        return undefined;
+    }
+    return {
+        file: match[1] ?? "unknown",
+        message: match[2] ?? "",
+    };
+}
+function parseBuildFinalCounts(finalStatus) {
+    if (!finalStatus) {
+        return {};
+    }
+    const errors = /(\d+)\s+errors?\b/i.exec(finalStatus);
+    const warnings = /(\d+)\s+warnings?\b/i.exec(finalStatus);
+    return {
+        ...(errors !== null ? { errors: Number(errors[1]) } : {}),
+        ...(warnings !== null ? { warnings: Number(warnings[1]) } : {}),
+    };
+}
+function buildOutputConfidence(input) {
+    let confidence = 0;
+    if (input.finalStatus !== undefined) {
+        confidence += 0.55;
+    }
+    if (input.errors.length > 0 || input.warnings.length > 0) {
+        confidence += 0.25;
+    }
+    if (input.compiledCount > 0) {
+        confidence += 0.1;
+    }
+    if (/\b(?:Creating an optimized production build|Route \(app\)|First Load JS|next\.js|webpack|compiled)\b/i.test(input.text)) {
+        confidence += 0.15;
+    }
+    return Math.min(1, roundConfidence(confidence));
+}
+function buildOutputFacts(details) {
+    const facts = [
+        { name: "build", value: `${details.errorCount} errors, ${details.warningCount} warnings` },
+    ];
+    const files = uniqueStrings([...details.errorFiles, ...details.warningFiles].map(basename));
+    if (files.length > 0) {
+        facts.push({ name: "files", value: files.slice(0, 6).join(", ") });
+    }
+    return facts;
+}
+function renderBuildOutputSummary(details) {
+    const lines = [
+        "build summary",
+        `build: ${details.errorCount} errors, ${details.warningCount} warnings`,
+    ];
+    const files = uniqueStrings([...details.errorFiles, ...details.warningFiles].map(basename));
+    if (files.length > 0) {
+        lines.push(`files: ${files.slice(0, 6).join(", ")}`);
+    }
+    if (details.finalStatus) {
+        lines.push(`final: ${details.finalStatus}`);
+    }
+    return lines.join("\n");
 }
 export function reduceDiagnosticsOutput(text) {
     const diagnostics = parseDiagnostics(text);

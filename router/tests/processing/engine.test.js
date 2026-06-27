@@ -21,6 +21,17 @@ function testOutputSample() {
   ].join("\n");
 }
 
+function buildOutputSample() {
+  return [
+    "  ▲ Next.js 15.1.0",
+    "   Creating an optimized production build ...",
+    "  ERROR in src/middleware.ts(23,8): TS2345: Argument of type '{ callbackUrl: string; }' is not assignable to parameter of type 'URLSearchParams'.",
+    "  ⚠ Warning: src/middleware.ts - Middleware should not redirect to external URLs",
+    "  ERROR in src/components/DataGrid.tsx(89,23): TS18047: 'data' is possibly 'null'.",
+    "  Build completed with 2 errors and 1 warning.",
+  ].join("\n");
+}
+
 function diagnosticsSample() {
   return [
     "src/components/UserList.tsx(23,15): error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.",
@@ -147,6 +158,24 @@ test("processing engine selects test-output reducer for explicit processing call
     assert.match(result.visibleText, /UserList\.test\.tsx/);
     assert.match(result.visibleText, /DataGrid\.test\.tsx/);
     assert.doesNotMatch(result.visibleText, /test-output summary/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("processing engine selects build-output reducer for explicit processing calls", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-processing-build-output-"));
+  try {
+    await writeFile(join(root, "build-output.txt"), buildOutputSample(), "utf8");
+
+    const result = await processSource({ kind: "repo-file", root, path: "build-output.txt" });
+
+    assert.equal(result.status, "ok");
+    assert.equal(result.reducer.status, "selected");
+    assert.equal(result.reducer.selected.name, "build-output");
+    assert.equal(result.visibleText.split("\n")[0], "build: 2 errors, 1 warnings");
+    assert.match(result.visibleText, /DataGrid\.tsx/);
+    assert.match(result.visibleText, /middleware\.ts/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

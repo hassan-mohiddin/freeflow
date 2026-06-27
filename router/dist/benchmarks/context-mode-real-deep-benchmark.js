@@ -186,6 +186,7 @@ export async function runContextModeRealDeepBenchmark(options = {}) {
             const processingReducerModes = {
                 "vitest-summary": { mode: "freeflow:process-test-output-reducer", reducer: "test-output" },
                 "tsc-summary": { mode: "freeflow:process-diagnostics-reducer", reducer: "diagnostics" },
+                "build-summary": { mode: "freeflow:process-build-output-reducer", reducer: "build-output" },
                 "access-summary": { mode: "freeflow:process-access-log-reducer", reducer: "access-log" },
             };
             const reducerMode = processingReducerModes[scenario.id];

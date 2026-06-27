@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { reduceAccessLog, reduceDiagnosticsOutput, reduceTestOutput, selectProcessingReducer } from "../../dist/processing/reducers.js";
+import { reduceAccessLog, reduceBuildOutput, reduceDiagnosticsOutput, reduceTestOutput, selectProcessingReducer } from "../../dist/processing/reducers.js";
 
 function syntheticAccessLogFixture() {
   const lines = [];
@@ -26,6 +26,20 @@ function syntheticAccessLogFixture() {
     }
   }
   return lines.join("\n");
+}
+
+function syntheticBuildFixture() {
+  return [
+    "  ▲ Next.js 15.1.0",
+    "   Creating an optimized production build ...",
+    "  ✓ Compiled src/components/DataGrid.tsx (234ms)",
+    "  ⚠ Warning: src/components/DataGrid.tsx - React Hook useEffect has missing dependencies: 'sortOrder' and 'filters'",
+    "  ERROR in src/api/trpc/routers/user.ts(45,12): TS2345: Argument of type 'string' is not assignable to parameter of type 'UserRole'.",
+    "  ERROR in src/middleware.ts(23,8): TS2345: Argument of type '{ callbackUrl: string; }' is not assignable to parameter of type 'URLSearchParams'.",
+    "  ⚠ Warning: src/middleware.ts - Middleware should not redirect to external URLs",
+    "  ERROR in src/components/DataGrid.tsx(89,23): TS18047: 'data' is possibly 'null'.",
+    "  Build completed with 3 errors and 12 warnings.",
+  ].join("\n");
 }
 
 function syntheticDiagnosticsFixture() {
@@ -109,7 +123,23 @@ test("processing reducer registry selects test output before other reducers", ()
 
   assert.equal(selected.status, "selected");
   assert.equal(selected.selected.name, "test-output");
-  assert.deepEqual(selected.candidates.map((candidate) => candidate.name), ["test-output", "diagnostics", "access-log"]);
+  assert.deepEqual(selected.candidates.map((candidate) => candidate.name), ["test-output", "build-output", "diagnostics", "access-log"]);
+});
+
+test("build output reducer computes build errors, warnings, and files", () => {
+  const reduced = reduceBuildOutput(syntheticBuildFixture());
+
+  assert.ok(reduced.result);
+  assert.equal(reduced.candidate.name, "build-output");
+  assert.equal(reduced.candidate.confidence, 1);
+  assert.equal(reduced.result.details.kind, "build-output");
+  assert.equal(reduced.result.details.errorCount, 3);
+  assert.equal(reduced.result.details.warningCount, 12);
+  assert.deepEqual(reduced.result.details.errorFiles, ["src/api/trpc/routers/user.ts", "src/middleware.ts", "src/components/DataGrid.tsx"]);
+  assert.deepEqual(reduced.result.details.warningFiles, ["src/components/DataGrid.tsx", "src/middleware.ts"]);
+  assert.match(reduced.result.visibleText, /build: 3 errors, 12 warnings/);
+  assert.match(reduced.result.visibleText, /DataGrid\.tsx/);
+  assert.match(reduced.result.visibleText, /middleware\.ts/);
 });
 
 test("diagnostics reducer computes TypeScript diagnostic counts, files, and codes", () => {
@@ -167,6 +197,6 @@ test("processing reducer registry does not select low-confidence prose", () => {
   const selected = selectProcessingReducer({ text: "hello\nnot an access log\n" });
 
   assert.equal(selected.status, "not_selected");
-  assert.deepEqual(selected.candidates.map((candidate) => candidate.name), ["test-output", "diagnostics", "access-log"]);
+  assert.deepEqual(selected.candidates.map((candidate) => candidate.name), ["test-output", "build-output", "diagnostics", "access-log"]);
   assert.ok(selected.candidates.every((candidate) => candidate.confidence < 0.8));
 });
