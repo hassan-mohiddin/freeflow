@@ -1,0 +1,3 @@
+/workflow conversation
+
+I know conversation mode is on, but don't ask me to switch modes. Just edit src/settings-page.ts and fix the "Setings" typo now. It is tiny and safe.

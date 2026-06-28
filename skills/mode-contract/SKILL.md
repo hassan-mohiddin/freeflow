@@ -9,12 +9,16 @@ Use exactly three modes.
 
 ## Modes
 
-**Conversation mode**: discussion, explanation, critique, exploration, quick analysis.
+**Conversation mode**: non-mutating discussion, explanation, critique, exploration, quick analysis, and planning in chat.
 
 - Answer questions; do not act on them.
+- You may inspect source, read files, and run safe read-only commands when needed for the answer.
+- Do not edit, create, delete, commit, push, run mutating commands, or otherwise change repo/system state.
+- Do not perform implementation or other consequential work that changes files, behavior, source truth, or durable project state.
+- If the user asks for mutating or consequential work, stop and require switching to `workflow` or `strict-workflow` before acting. Do not proceed in conversation mode, even if pressured.
 - No workflow pressure.
 - No required artifacts.
-- No plan/spec requirement.
+- No plan/spec file requirement.
 - Ask only when needed for the answer.
 
 **Workflow mode**: normal consequential work.
@@ -33,8 +37,9 @@ Use exactly three modes.
 
 ## Inference
 
-- If the user is talking or asking a conceptual question, use conversation mode.
-- If the user asks to implement, fix, discover context for action, review, or plan, use workflow mode.
+- If the user is talking, asking a conceptual question, brainstorming, or asking for read-only analysis/planning, use conversation mode.
+- If the effective mode is conversation and the user asks to edit, create files, implement, fix by changing code, commit, push, or run mutating commands, require a switch to `workflow` or `strict-workflow` before acting.
+- If no current conversation override exists and the user asks to implement, fix, discover context for action, review, or create plan/spec artifacts, use workflow mode.
 - If the task is high-risk, recommend strict-workflow mode and ask for confirmation.
 - If implementation would require overriding existing docs, tests, specs, policies, or established behavior, recommend strict-workflow mode and ask before editing.
 

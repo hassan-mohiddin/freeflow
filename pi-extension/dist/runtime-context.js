@@ -206,7 +206,7 @@ Repo default mode from \`.freeflow/config.json\`: ${modeState.defaultMode}.
 Current session mode override: ${currentMode}.
 Effective Freeflow mode: ${modeState.effectiveMode}.
 
-Use the installed Freeflow skills when they match the task. This Pi extension loads context and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.${priorityText}${discoverText}${routerText}`;
+Treat the effective mode as the current mode for this turn. Follow the installed Freeflow rules for that mode; default workflow means use workflow rules for consequential work. Conversation mode is non-mutating only: discussion, read-only inspection, safe read-only commands, and planning in chat. If effective mode is conversation and the user asks to edit, create files, run mutating commands, commit, push, or otherwise change repo/system state, require switching to \`workflow\` or \`strict-workflow\` before acting, even if pressured. If mode interpretation, a mode change, or a mode mismatch affects the next action, use \`mode-contract\` before proceeding. If evidence routing or output-router config affects the next action, use \`output-router\`, \`freeflow_status\`, and live config instead of remembered routing rules. Use the installed Freeflow skills when they match the task. This Pi extension loads context and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.${priorityText}${discoverText}${routerText}`;
     }
     return `# Freeflow Runtime Context
 

@@ -26,7 +26,7 @@ flowchart LR
 ```
 
 ```text
-Use conversation mode for questions. Use workflow mode for consequential work.
+Use conversation mode for non-mutating questions, critique, read-only exploration, and planning in chat. Use workflow mode for edits, file creation, mutating commands, or other consequential work.
 Use strict-workflow for risky work; same spine, stronger gates.
 Loop back when new evidence, source conflicts, user-owned decisions, or failed checks change the path.
 Use `Next:` when a response leaves a useful next route. Completed consequential phases should close with forward, backward, branch, or stop unless the reply is only an answer, status update, clarification, or direct owner-decision question.
@@ -75,7 +75,7 @@ flowchart TD
 
 ## Common Entry Points
 
-- Use `conversation mode` when the user asks a question, wants critique, or is exploring.
+- Use `conversation mode` when the user asks a question, wants critique, or is doing non-mutating exploration or planning in chat. If the user asks to edit, create files, run mutating commands, commit, push, or otherwise change repo/system state, require `workflow` or `strict-workflow` before acting.
 - Use `discover` when repo, domain, evidence, current facts, brainstorming, targeted questions, or a decision checkpoint are needed before spec, plan, build, or durable memory.
 - Use `interview-gate` when direction is vague, source truth conflicts, or user-owned decisions are still open.
 - Use `write-spec` when requirements are agreed but not durable.

@@ -10,7 +10,7 @@ Freeflow is a workflow layer, not a new agent. It helps the agent choose the rig
 
 ### Modes
 
-- `conversation`: answer, explain, critique, or explore without workflow pressure.
+- `conversation`: non-mutating discussion, read-only exploration, and planning in chat; edits or other state-changing work require switching to `workflow` or `strict-workflow` first.
 - `workflow`: default for consequential work; use the workflow spine and scale detail to risk.
 - `strict-workflow`: high-risk or hard-to-reverse work with stronger gates.
 

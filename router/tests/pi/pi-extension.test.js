@@ -107,6 +107,12 @@ test("Pi before_agent_start uses short Freeflow context after the first turn", a
   assert.match(first.systemPrompt, /## Loaded Output Router Skill/);
   assert.match(second.systemPrompt, /## Freeflow Runtime Context/);
   assert.match(second.systemPrompt, /Effective Freeflow mode:/);
+  assert.match(second.systemPrompt, /Treat the effective mode as the current mode for this turn/);
+  assert.match(second.systemPrompt, /default workflow means use workflow rules for consequential work/);
+  assert.match(second.systemPrompt, /Conversation mode is non-mutating only/);
+  assert.match(second.systemPrompt, /require switching to `workflow` or `strict-workflow` before acting, even if pressured/);
+  assert.match(second.systemPrompt, /use `mode-contract` before proceeding/);
+  assert.match(second.systemPrompt, /use `output-router`, `freeflow_status`, and live config instead of remembered routing rules/);
   assert.match(second.systemPrompt, /Use the installed Freeflow skills when they match the task/);
   assert.match(second.systemPrompt, /## Freeflow Runtime Priority/);
   assert.doesNotMatch(second.systemPrompt, /## Loaded Workflow Skill/);
