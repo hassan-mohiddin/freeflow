@@ -24,7 +24,7 @@ function registerMockPi() {
     appendEntry() {},
     async sendUserMessage() {},
     async exec() {
-      throw new Error("exec should not be called in pi extension derive tests");
+      throw new Error("exec should not be called in pi extension transform tests");
     },
   };
   freeflow(pi);
@@ -192,7 +192,7 @@ test("Pi extension registers public freeflow_search with deterministic operation
   const search = tools.get("freeflow_search");
 
   assert.ok(search, "freeflow_search should be registered");
-  assert.equal(tools.has("freeflow_script_derive"), false);
+  assert.equal(tools.has("freeflow_script_transform"), false);
   assert.deepEqual(search.parameters.required, ["action"]);
   assert.deepEqual(search.parameters.properties.source.properties.kind.enum, ["repo", "vault"]);
   assert.match(search.description, /Search|transform/i);
@@ -268,7 +268,7 @@ test("Pi extension freeflow_search schema stays Pi-compatible while rejecting in
 });
 
 test("Pi extension public freeflow_search returns structured disabled result for script transform by default", async () => {
-  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-derive-script-disabled-"));
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-transform-script-disabled-"));
   try {
     await mkdir(join(cwd, ".freeflow"));
     await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow" }), "utf8");
@@ -287,8 +287,8 @@ test("Pi extension public freeflow_search returns structured disabled result for
       mockCtx(cwd, "pi-extension-search-script-disabled-test"),
     );
 
-    assert.equal(result.details.result.failure.kind, "script_derive_disabled");
-    assert.equal(result.details.result.deriveExecution.status, "unavailable");
+    assert.equal(result.details.result.failure.kind, "script_transform_disabled");
+    assert.equal(result.details.result.transformExecution.status, "unavailable");
     assert.equal(result.details.result.persistence.recoverability, "none");
     assert.doesNotMatch(JSON.stringify(result.details.result), /RAW_SCRIPT_SENTINEL/);
   } finally {
@@ -297,7 +297,7 @@ test("Pi extension public freeflow_search returns structured disabled result for
 });
 
 test("Pi extension public freeflow_search returns structured failures for operation-specific validation", async () => {
-  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-derive-invalid-"));
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-transform-invalid-"));
   const sessionId = "pi-extension-search-invalid-test";
   try {
     const vaultRoot = join(cwd, "vault");
@@ -333,8 +333,8 @@ test("Pi extension public freeflow_search returns structured failures for operat
       mockCtx(cwd, sessionId),
     );
 
-    assert.equal(missingSelector.details.result.failure.kind, "derive_validation_failure");
-    assert.equal(missingSelector.details.result.deriveExecution.status, "rejected");
+    assert.equal(missingSelector.details.result.failure.kind, "transform_validation_failure");
+    assert.equal(missingSelector.details.result.transformExecution.status, "rejected");
     assert.match(missingSelector.details.result.failure.message, /exactly one JSON selector/);
 
     const topNGroupWithoutPattern = await search.execute(
@@ -349,8 +349,8 @@ test("Pi extension public freeflow_search returns structured failures for operat
       mockCtx(cwd, sessionId),
     );
 
-    assert.equal(topNGroupWithoutPattern.details.result.failure.kind, "derive_validation_failure");
-    assert.equal(topNGroupWithoutPattern.details.result.deriveExecution.status, "rejected");
+    assert.equal(topNGroupWithoutPattern.details.result.failure.kind, "transform_validation_failure");
+    assert.equal(topNGroupWithoutPattern.details.result.transformExecution.status, "rejected");
     assert.match(topNGroupWithoutPattern.details.result.failure.message, /topN group requires a pattern/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
@@ -402,7 +402,7 @@ test("Pi extension public freeflow_search action=transform processes repo files"
 });
 
 test("Pi extension public freeflow_search executes against vaulted output", async () => {
-  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-derive-"));
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-transform-"));
   const sessionId = "pi-extension-search-execute-test";
   try {
     const vaultRoot = join(cwd, "vault");
@@ -446,7 +446,7 @@ test("Pi extension public freeflow_search executes against vaulted output", asyn
     assert.doesNotMatch(visibleText, /^\s*\{/);
     assert.ok(Buffer.byteLength(visibleText, "utf8") < Buffer.byteLength(JSON.stringify(routed, null, 2), "utf8"));
     assert.equal(routed.toolStatus, "ok");
-    assert.equal(routed.routing.route, "derive");
+    assert.equal(routed.routing.route, "transform");
     assert.equal(routed.routing.status, "routed");
     assert.equal(routed.producer.name, "regexFilter");
     assert.equal(routed.source.outputId, source.outputId);
@@ -488,38 +488,38 @@ test("Pi extension freeflow_search renders source, operation, lineage, routing, 
     details: {
       result: {
         toolStatus: "ok",
-        decisionId: "ffdec_derive_test",
+        decisionId: "ffdec_transform_test",
         preserve: "important",
-        outputId: "ffout_derive123",
-        recordId: "ffrec_derive123",
+        outputId: "ffout_transform123",
+        recordId: "ffrec_transform123",
         action: "transform",
         source: { kind: "vault", outputId: "ffout_source123", stream: "stdout" },
         operation: { kind: "topN", pattern: "duration=(\\d+)", group: 1, sort: "numeric", order: "desc", limit: 2 },
-        producer: { kind: "derive", name: "topN" },
-        persistence: { status: "vaulted", recoverability: "exact", recoveryOutputId: "ffout_derive123" },
+        producer: { kind: "transform", name: "topN" },
+        persistence: { status: "vaulted", recoverability: "exact", recoveryOutputId: "ffout_transform123" },
         lineage: {
           sourceOutputIds: ["ffout_source123"],
           sourceRecordIds: ["ffrec_source123"],
           operation: "topN",
           operationHash: "sha256_abcdef",
         },
-        routing: { status: "routed", route: "derive", reason: "Derived output was vaulted and returned within routing caps." },
-        summary: "Derived topN from vaulted stdout output: returned 2 of 3 matched line(s).",
+        routing: { status: "routed", route: "transform", reason: "Transformed output was vaulted and returned within routing caps." },
+        summary: "Transformed topN from vaulted stdout output: returned 2 of 3 matched line(s).",
         evidence: [
           {
-            id: "ev_derive",
-            source: { kind: "vault", outputId: "ffout_derive123", stream: "raw" },
-            path: "ffout_derive123:raw",
+            id: "ev_transform",
+            source: { kind: "vault", outputId: "ffout_transform123", stream: "raw" },
+            path: "ffout_transform123:raw",
             lines: "1-8",
             excerpt: "# freeflow_search topN\n2| score=200 | duration=200 slow",
-            why: "Derived exact topN output from source ffout_source123:stdout within routing caps; source lineage is preserved.",
+            why: "Transformed exact topN output from source ffout_source123:stdout within routing caps; source lineage is preserved.",
             window: "exact",
             expandable: true,
           },
         ],
         recovery: {
-          how: "Use freeflow_search with source.kind=vault and outputId=ffout_derive123 to recover exact derived content.",
-          outputId: "ffout_derive123",
+          how: "Use freeflow_search with source.kind=vault and outputId=ffout_transform123 to recover exact transformed content.",
+          outputId: "ffout_transform123",
         },
       },
     },
@@ -529,7 +529,7 @@ test("Pi extension freeflow_search renders source, operation, lineage, routing, 
   assert.match(collapsed, /freeflow_search topN/);
   assert.match(collapsed, /routing: routed/);
   assert.match(collapsed, /persistence vaulted\/exact/);
-  assert.match(collapsed, /derived output recoverable from vault/);
+  assert.match(collapsed, /transformed output recoverable from vault/);
   assert.doesNotMatch(collapsed, /raw json/);
 
   const expanded = renderText(search.renderResult(toolResult, { expanded: true }, testTheme));
@@ -537,8 +537,8 @@ test("Pi extension freeflow_search renders source, operation, lineage, routing, 
   assert.match(expanded, /routing\.status: routed/);
   assert.match(expanded, /persistence: vaulted \/ exact/);
   assert.match(expanded, /Storage/);
-  assert.match(expanded, /decisionId: ffdec_derive_test/);
-  assert.match(expanded, /recordId: ffrec_derive123/);
+  assert.match(expanded, /decisionId: ffdec_transform_test/);
+  assert.match(expanded, /recordId: ffrec_transform123/);
   assert.match(expanded, /Source/);
   assert.match(expanded, /ffout_source123:stdout/);
   assert.match(expanded, /Operation/);
@@ -546,11 +546,11 @@ test("Pi extension freeflow_search renders source, operation, lineage, routing, 
   assert.match(expanded, /Lineage/);
   assert.match(expanded, /sourceOutputIds: ffout_source123/);
   assert.match(expanded, /Evidence/);
-  assert.match(expanded, /evidenceId: ev_derive/);
-  assert.match(expanded, /source: vault ffout_derive123:raw/);
+  assert.match(expanded, /evidenceId: ev_transform/);
+  assert.match(expanded, /source: vault ffout_transform123:raw/);
   assert.match(expanded, /expandable: true/);
   assert.match(expanded, /duration=200 slow/);
   assert.match(expanded, /Recovery/);
-  assert.match(expanded, /ffout_derive123/);
-  assert.match(expanded, /exact search: action=retrieve source.kind=vault lineRange=1-8 stream=raw outputId=ffout_derive123/);
+  assert.match(expanded, /ffout_transform123/);
+  assert.match(expanded, /exact search: action=retrieve source.kind=vault lineRange=1-8 stream=raw outputId=ffout_transform123/);
 });

@@ -108,8 +108,8 @@ jq -e '
 jq -e '
   .evals[]
   | select(.id == "STP-010")
-  | any(.assertions[]; test("workflow and interview-gate context is loaded"))
-' "$registry" >/dev/null || fail "STP-010 must assert same-session workflow and interview-gate loading."
+  | any(.assertions[]; test("workflow, interview-gate, and discover context is loaded"))
+' "$registry" >/dev/null || fail "STP-010 must assert same-session workflow, interview-gate, and discover loading."
 
 if [ "$failures" -gt 0 ]; then
   exit 1

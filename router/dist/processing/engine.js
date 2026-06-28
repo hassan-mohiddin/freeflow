@@ -70,7 +70,7 @@ export async function processSource(source, options = {}) {
         ? await runProcessingScript({
             loaded,
             script: options.script,
-            ...(options.scriptDerive !== undefined ? { scriptDerive: options.scriptDerive } : {}),
+            ...(options.scriptTransform !== undefined ? { scriptTransform: options.scriptTransform } : {}),
             ...(options.localConfig !== undefined ? { localConfig: options.localConfig } : {}),
             ...(options.scriptSandboxAdapters !== undefined ? { adapters: options.scriptSandboxAdapters } : {}),
         })
@@ -319,8 +319,8 @@ async function persistProcessingResultText(input) {
     const record = await storeTextOutput(createVault(vaultOptions), {
         sessionId: input.options.sessionId,
         raw: input.resultText,
-        sourceKind: "derive",
-        producer: { kind: "derive", name: input.producerName },
+        sourceKind: "transform",
+        producer: { kind: "transform", name: input.producerName },
         persistence: { status: "vaulted", recoverability: "exact" },
         lineage,
     });

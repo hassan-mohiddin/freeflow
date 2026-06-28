@@ -3,53 +3,53 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { DEFAULT_ROUTER_THRESHOLDS, DEFAULT_SCRIPT_DERIVE_CONFIG, MAX_SCRIPT_DERIVE_LIMITS, SCRIPT_DERIVE_LANGUAGES } from "../config/config.js";
+import { DEFAULT_ROUTER_THRESHOLDS, DEFAULT_SCRIPT_TRANSFORM_CONFIG, MAX_SCRIPT_TRANSFORM_LIMITS, SCRIPT_TRANSFORM_LANGUAGES } from "../config/config.js";
 import { assembleTextEvidence, byteLength, countLines, splitLines } from "../evidence/evidence.js";
 import { selectScriptSandboxAdapter } from "../sandbox/script-sandbox.js";
 import {
-  deriveAdapterUnavailableFailure,
-  deriveSourceUnavailableFailure,
-  deriveValidationFailure,
-  deriveExecutionFailure,
-  scriptDeriveDisabledFailure,
+  transformAdapterUnavailableFailure,
+  transformSourceUnavailableFailure,
+  transformValidationFailure,
+  transformExecutionFailure,
+  scriptTransformDisabledFailure,
   storageFailure,
 } from "../evidence/failure-contracts.js";
 import { createVault, readOutputText, readVaultRecord, storeTextOutput } from "../vault/vault.js";
 import type {
-  DeriveRoutedResult,
+  TransformRoutedResult,
   EvidenceLineage,
   FailureRoutedResult,
   EvidencePacket,
   OutputStream,
   PreserveMode,
   RouterThresholds,
-  ScriptDeriveConfig,
-  ScriptDeriveLanguage,
+  ScriptTransformConfig,
+  ScriptTransformLanguage,
   SourceRef,
   VaultRecord,
   VaultRetentionPolicy,
 } from "../config/types.js";
 import type { ScriptSandboxAdapter, ScriptSandboxExecutionResult, ScriptSandboxSourceMount } from "../sandbox/script-sandbox.js";
 
-export interface DeriveVaultSourceInput {
+export interface TransformVaultSourceInput {
   kind: "vault";
   outputId: string;
   stream?: OutputStream;
 }
 
-export type DeriveSourceInput = DeriveVaultSourceInput;
+export type TransformSourceInput = TransformVaultSourceInput;
 
-export interface ScriptDeriveSourceInput extends DeriveVaultSourceInput {
+export interface ScriptTransformSourceInput extends TransformVaultSourceInput {
   alias: string;
 }
 
-export interface ScriptDeriveLimitsInput {
+export interface ScriptTransformLimitsInput {
   timeoutMs?: number;
   maxInputBytes?: number;
   maxOutputBytes?: number;
 }
 
-export interface RegexFilterDeriveOperation {
+export interface RegexFilterTransformOperation {
   kind: "regexFilter";
   pattern: string;
   flags?: string;
@@ -57,19 +57,19 @@ export interface RegexFilterDeriveOperation {
   maxMatches?: number;
 }
 
-export interface CountMatchesDeriveOperation {
+export interface CountMatchesTransformOperation {
   kind: "countMatches";
   pattern: string;
   flags?: string;
 }
 
-export interface JsonExtractDeriveOperation {
+export interface JsonExtractTransformOperation {
   kind: "jsonExtract";
   pointer?: string;
   path?: string;
 }
 
-export interface GroupByRegexDeriveOperation {
+export interface GroupByRegexTransformOperation {
   kind: "groupByRegex";
   pattern: string;
   flags?: string;
@@ -78,14 +78,14 @@ export interface GroupByRegexDeriveOperation {
   maxLinesPerGroup?: number;
 }
 
-export interface DedupeDeriveOperation {
+export interface DedupeTransformOperation {
   kind: "dedupe";
   trim?: boolean;
   caseSensitive?: boolean;
   maxLines?: number;
 }
 
-export interface TopNDeriveOperation {
+export interface TopNTransformOperation {
   kind: "topN";
   limit: number;
   pattern?: string;
@@ -95,82 +95,82 @@ export interface TopNDeriveOperation {
   order?: "asc" | "desc";
 }
 
-export interface ExtractUrlsDeriveOperation {
+export interface ExtractUrlsTransformOperation {
   kind: "extractUrls";
   dedupe?: boolean;
   maxMatches?: number;
 }
 
-export interface ExtractCitationsDeriveOperation {
+export interface ExtractCitationsTransformOperation {
   kind: "extractCitations";
   maxMatches?: number;
 }
 
-export interface LineStatsDeriveOperation {
+export interface LineStatsTransformOperation {
   kind: "lineStats";
 }
 
-export interface SizeStatsDeriveOperation {
+export interface SizeStatsTransformOperation {
   kind: "sizeStats";
 }
 
-export interface ScriptDeriveOperation {
+export interface ScriptTransformOperation {
   kind: "script";
-  language: ScriptDeriveLanguage;
+  language: ScriptTransformLanguage;
   code: string;
   label?: string;
 }
 
-type RegexDeriveOperation = RegexFilterDeriveOperation | CountMatchesDeriveOperation | GroupByRegexDeriveOperation | TopNDeriveOperation;
-type RegexPatternDeriveOperation = RegexFilterDeriveOperation | CountMatchesDeriveOperation | GroupByRegexDeriveOperation | (TopNDeriveOperation & { pattern: string });
-export type DeterministicDeriveOperation =
-  | RegexFilterDeriveOperation
-  | CountMatchesDeriveOperation
-  | JsonExtractDeriveOperation
-  | GroupByRegexDeriveOperation
-  | DedupeDeriveOperation
-  | TopNDeriveOperation
-  | ExtractUrlsDeriveOperation
-  | ExtractCitationsDeriveOperation
-  | LineStatsDeriveOperation
-  | SizeStatsDeriveOperation;
+type RegexTransformOperation = RegexFilterTransformOperation | CountMatchesTransformOperation | GroupByRegexTransformOperation | TopNTransformOperation;
+type RegexPatternTransformOperation = RegexFilterTransformOperation | CountMatchesTransformOperation | GroupByRegexTransformOperation | (TopNTransformOperation & { pattern: string });
+export type DeterministicTransformOperation =
+  | RegexFilterTransformOperation
+  | CountMatchesTransformOperation
+  | JsonExtractTransformOperation
+  | GroupByRegexTransformOperation
+  | DedupeTransformOperation
+  | TopNTransformOperation
+  | ExtractUrlsTransformOperation
+  | ExtractCitationsTransformOperation
+  | LineStatsTransformOperation
+  | SizeStatsTransformOperation;
 
-export type DeriveOperation = DeterministicDeriveOperation | ScriptDeriveOperation;
+export type TransformOperation = DeterministicTransformOperation | ScriptTransformOperation;
 
-export interface DeterministicDeriveInput {
-  source: DeriveSourceInput;
-  operation: DeterministicDeriveOperation;
+export interface DeterministicTransformInput {
+  source: TransformSourceInput;
+  operation: DeterministicTransformOperation;
   preserve?: PreserveMode;
 }
 
-export interface ScriptDeriveInput {
-  sources: ScriptDeriveSourceInput[];
-  operation: ScriptDeriveOperation;
-  limits?: ScriptDeriveLimitsInput;
+export interface ScriptTransformInput {
+  sources: ScriptTransformSourceInput[];
+  operation: ScriptTransformOperation;
+  limits?: ScriptTransformLimitsInput;
   preserve?: PreserveMode;
 }
 
-export type DeriveInput = DeterministicDeriveInput | ScriptDeriveInput;
+export type TransformInput = DeterministicTransformInput | ScriptTransformInput;
 
-export type FreeflowTransformOptions = DeriveInput & {
+export type FreeflowTransformOptions = TransformInput & {
   sessionId: string;
   vaultRoot?: string;
   vaultRetention?: VaultRetentionPolicy;
   thresholds?: Partial<RouterThresholds>;
-  scriptDerive?: ScriptDeriveConfig;
+  scriptTransform?: ScriptTransformConfig;
   scriptSandboxAdapters?: readonly ScriptSandboxAdapter[];
 };
 
 export const TRANSFORM_ENGINE_IMPLEMENTATION = "shared-transform-engine-v1";
 
-export interface DeriveValidationIssue {
+export interface TransformValidationIssue {
   path: string;
   message: string;
 }
 
-export type DeriveValidationResult =
-  | { ok: true; value: DeriveInput }
-  | { ok: false; issues: DeriveValidationIssue[] };
+export type TransformValidationResult =
+  | { ok: true; value: TransformInput }
+  | { ok: false; issues: TransformValidationIssue[] };
 
 interface CompiledRegexOperation {
   regex: RegExp;
@@ -184,7 +184,7 @@ interface PreparedJsonExtractOperation {
   segments: readonly JsonSelectorSegment[];
 }
 
-type PreparedDeriveOperation =
+type PreparedTransformOperation =
   | { kind: "regex"; value: CompiledRegexOperation }
   | { kind: "json"; value: PreparedJsonExtractOperation }
   | { kind: "none" };
@@ -200,7 +200,7 @@ interface MatchStats {
   truncated: boolean;
 }
 
-interface DerivedOutput {
+interface TransformedOutput {
   text: string;
   summary: string;
   stats: MatchStats;
@@ -238,21 +238,21 @@ const URL_PATTERN = /https?:\/\/[^\s<>"'\])}]+/gi;
 const SCRIPT_ALIAS_PATTERN = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
 const MAX_SCRIPT_CODE_BYTES = 256 * 1024;
 
-export function validateTransformInput(value: unknown): DeriveValidationResult {
-  const issues: DeriveValidationIssue[] = [];
+export function validateTransformInput(value: unknown): TransformValidationResult {
+  const issues: TransformValidationIssue[] = [];
 
   if (!isRecord(value)) {
     return { ok: false, issues: [{ path: "$", message: "Expected transform input object." }] };
   }
 
   const operationKind = isRecord(value.operation) ? value.operation.kind : undefined;
-  validateDeriveOperation(value.operation, "$.operation", issues);
+  validateTransformOperation(value.operation, "$.operation", issues);
 
   if (operationKind === "script") {
-    validateScriptDeriveSources(value.sources, "$.sources", issues);
-    validateScriptDeriveLimits(value.limits, "$.limits", issues);
+    validateScriptTransformSources(value.sources, "$.sources", issues);
+    validateScriptTransformLimits(value.limits, "$.limits", issues);
   } else {
-    validateDeriveSource(value.source, "$.source", issues);
+    validateTransformSource(value.source, "$.source", issues);
   }
 
   if (value.preserve !== undefined && (typeof value.preserve !== "string" || !PRESERVE_MODES.has(value.preserve))) {
@@ -264,12 +264,12 @@ export function validateTransformInput(value: unknown): DeriveValidationResult {
   }
 
   if (operationKind === "script") {
-    const input: ScriptDeriveInput = {
-      sources: value.sources as ScriptDeriveSourceInput[],
-      operation: value.operation as ScriptDeriveOperation,
+    const input: ScriptTransformInput = {
+      sources: value.sources as ScriptTransformSourceInput[],
+      operation: value.operation as ScriptTransformOperation,
     };
     if (value.limits !== undefined) {
-      input.limits = value.limits as ScriptDeriveLimitsInput;
+      input.limits = value.limits as ScriptTransformLimitsInput;
     }
     if (value.preserve !== undefined) {
       input.preserve = value.preserve as PreserveMode;
@@ -277,9 +277,9 @@ export function validateTransformInput(value: unknown): DeriveValidationResult {
     return { ok: true, value: input };
   }
 
-  const input: DeterministicDeriveInput = {
-    source: value.source as DeriveSourceInput,
-    operation: value.operation as DeterministicDeriveOperation,
+  const input: DeterministicTransformInput = {
+    source: value.source as TransformSourceInput,
+    operation: value.operation as DeterministicTransformOperation,
   };
   if (value.preserve !== undefined) {
     input.preserve = value.preserve as PreserveMode;
@@ -287,15 +287,15 @@ export function validateTransformInput(value: unknown): DeriveValidationResult {
   return { ok: true, value: input };
 }
 
-export async function freeflowTransform(options: FreeflowTransformOptions): Promise<DeriveRoutedResult | FailureRoutedResult> {
+export async function freeflowTransform(options: FreeflowTransformOptions): Promise<TransformRoutedResult | FailureRoutedResult> {
   return executeTransform(options);
 }
 
-async function executeTransform(options: FreeflowTransformOptions): Promise<DeriveRoutedResult | FailureRoutedResult> {
+async function executeTransform(options: FreeflowTransformOptions): Promise<TransformRoutedResult | FailureRoutedResult> {
   const preserve = options.preserve ?? "important";
   const inputValidation = validateTransformInput(options);
   if (!inputValidation.ok) {
-    return deriveValidationFailureWithOptionalLineage({
+    return transformValidationFailureWithOptionalLineage({
       message: validationMessage(inputValidation.issues),
       preserve,
       lineage: lineageFromInput(options),
@@ -303,8 +303,8 @@ async function executeTransform(options: FreeflowTransformOptions): Promise<Deri
     });
   }
 
-  if (isScriptDeriveInput(inputValidation.value)) {
-    return handleScriptDerive({
+  if (isScriptTransformInput(inputValidation.value)) {
+    return handleScriptTransform({
       input: inputValidation.value,
       options,
       preserve,
@@ -313,9 +313,9 @@ async function executeTransform(options: FreeflowTransformOptions): Promise<Deri
 
   const deterministicInput = inputValidation.value;
   const operation = deterministicInput.operation;
-  const prepared = prepareDeriveOperation(operation);
+  const prepared = prepareTransformOperation(operation);
   if (!prepared.ok) {
-    return deriveValidationFailureWithOptionalLineage({
+    return transformValidationFailureWithOptionalLineage({
       message: prepared.message,
       preserve,
       lineage: lineageFromInput(deterministicInput),
@@ -340,7 +340,7 @@ async function executeTransform(options: FreeflowTransformOptions): Promise<Deri
   try {
     sourceRecord = await readVaultRecord(vault, options.sessionId, source.outputId);
   } catch (error) {
-    return deriveSourceUnavailableFailureWithOptionalLineage({
+    return transformSourceUnavailableFailureWithOptionalLineage({
       message: `Vault source outputId=${source.outputId} could not be found or read: ${errorMessage(error)}`,
       preserve,
       lineage: lineageFromInput(inputValidation.value),
@@ -350,7 +350,7 @@ async function executeTransform(options: FreeflowTransformOptions): Promise<Deri
 
   const streamResult = resolveSourceStream(sourceRecord, source.stream);
   if (!streamResult.ok) {
-    return deriveValidationFailure({
+    return transformValidationFailure({
       message: streamResult.message,
       preserve,
       lineage: lineageForSource(sourceRecord, operation),
@@ -362,7 +362,7 @@ async function executeTransform(options: FreeflowTransformOptions): Promise<Deri
   try {
     sourceText = await readOutputText(vault, options.sessionId, source.outputId, stream);
   } catch (error) {
-    return deriveSourceUnavailableFailure({
+    return transformSourceUnavailableFailure({
       message: `Vault source outputId=${source.outputId} stream=${stream} could not be read: ${errorMessage(error)}`,
       preserve,
       lineage: lineageForSource(sourceRecord, operation),
@@ -370,48 +370,46 @@ async function executeTransform(options: FreeflowTransformOptions): Promise<Deri
     });
   }
 
-  let derived: DerivedOutput;
+  let transformed: TransformedOutput;
   try {
-    derived = deriveText({
+    transformed = transformText({
       text: sourceText,
       sourceLabel: `${source.outputId}:${stream}`,
       operation,
       prepared: prepared.value,
     });
   } catch (error) {
-    return deriveExecutionFailure({
-      message: `Derive operation ${operation.kind} failed: ${errorMessage(error)}`,
+    return transformExecutionFailure({
+      message: `Transform operation ${operation.kind} failed: ${errorMessage(error)}`,
       preserve,
       lineage: lineageForSource(sourceRecord, operation),
-      decisionSeed: "derive-execution",
+      decisionSeed: "transform-execution",
     });
   }
 
-  const producer = { kind: "derive" as const, name: operation.kind };
+  const producer = { kind: "transform" as const, name: operation.kind };
   const lineage = lineageForSource(sourceRecord, operation);
   let record;
   try {
     record = await storeTextOutput(vault, {
       sessionId: options.sessionId,
-      raw: derived.text,
-      sourceKind: "derive",
+      raw: transformed.text,
+      sourceKind: "transform",
       producer,
       lineage,
-      decisionIds: [decisionId("derive-store", source.outputId, stream, operation.kind, lineage.operationHash ?? "")],
+      decisionIds: [decisionId("transform-store", source.outputId, stream, operation.kind, lineage.operationHash ?? "")],
     });
   } catch (error) {
     return storageFailure({
-      operation: "derive",
-      message: `Derived output could not be persisted: ${errorMessage(error)}`,
+      message: `Transformed output could not be persisted: ${errorMessage(error)}`,
       preserve,
-      producer,
       lineage,
     });
   }
 
-  const routed = routeDerivedText({
+  const routed = routeTransformedText({
     outputId: record.outputId,
-    text: derived.text,
+    text: transformed.text,
     preserve,
     thresholds,
     source: { kind: "vault", outputId: source.outputId, stream },
@@ -420,7 +418,7 @@ async function executeTransform(options: FreeflowTransformOptions): Promise<Deri
 
   return {
     toolStatus: "ok",
-    decisionId: decisionId("derive", record.outputId, source.outputId, stream, operation.kind, routed.routingStatus),
+    decisionId: decisionId("transform", record.outputId, source.outputId, stream, operation.kind, routed.routingStatus),
     outputId: record.outputId,
     recordId: record.recordId,
     preserve,
@@ -431,33 +429,33 @@ async function executeTransform(options: FreeflowTransformOptions): Promise<Deri
     lineage,
     routing: {
       status: routed.routingStatus,
-      route: "derive",
+      route: "transform",
       reason: routed.reason,
     },
-    summary: derived.summary,
+    summary: transformed.summary,
     evidence: routed.evidence,
     recovery: {
-      how: `Use freeflow_search with source.kind=vault and outputId=${record.outputId}, stream=raw, and an exact lineRange to recover exact derived content. Source evidence remains outputId=${source.outputId} stream=${stream}.`,
+      how: `Use freeflow_search with source.kind=vault and outputId=${record.outputId}, stream=raw, and an exact lineRange to recover exact transformed content. Source evidence remains outputId=${source.outputId} stream=${stream}.`,
       outputId: record.outputId,
     },
   };
 }
 
-async function handleScriptDerive(options: {
-  input: ScriptDeriveInput;
+async function handleScriptTransform(options: {
+  input: ScriptTransformInput;
   options: FreeflowTransformOptions;
   preserve: PreserveMode;
-}): Promise<DeriveRoutedResult | FailureRoutedResult> {
-  const config = effectiveScriptDeriveConfig(options.options.scriptDerive);
+}): Promise<TransformRoutedResult | FailureRoutedResult> {
+  const config = effectiveScriptTransformConfig(options.options.scriptTransform);
   const limits = effectiveScriptLimits(config, options.input.limits);
   const initialLineage = lineageForScriptInput(options.input, limits);
 
   if (!config.enabled) {
-    return scriptDeriveDisabledFailure({
-      message: "Script transform is disabled by default. Enable scriptDerive.enabled only after a sandbox adapter has passed capability probes and review. No script code was executed.",
+    return scriptTransformDisabledFailure({
+      message: "Script transform is disabled by default. Enable scriptTransform.enabled only after a sandbox adapter has passed capability probes and review. No script code was executed.",
       preserve: options.preserve,
       lineage: initialLineage,
-      decisionSeed: "script-derive-disabled",
+      decisionSeed: "script-transform-disabled",
     });
   }
 
@@ -483,11 +481,11 @@ async function handleScriptDerive(options: {
 
   const adapterSelection = await selectScriptSandboxAdapter(options.input.operation.language, config, options.options.scriptSandboxAdapters ?? []);
   if (!adapterSelection.ok) {
-    return deriveAdapterUnavailableFailure({
+    return transformAdapterUnavailableFailure({
       message: `${adapterSelection.status.reason} No script code was executed.`,
       preserve: options.preserve,
       lineage: lineageForResolvedScriptSources(resolved.sources, options.input, limits),
-      decisionSeed: "script-derive-adapter-unavailable",
+      decisionSeed: "script-transform-adapter-unavailable",
     });
   }
 
@@ -500,15 +498,15 @@ async function handleScriptDerive(options: {
   });
   const lineage = lineageForResolvedScriptSources(resolved.sources, options.input, limits);
   if (!execution.ok) {
-    return deriveExecutionFailure({
+    return transformExecutionFailure({
       message: execution.message,
       preserve: options.preserve,
       lineage,
-      decisionSeed: "script-derive-execution",
+      decisionSeed: "script-transform-execution",
     });
   }
 
-  const producer = { kind: "derive" as const, name: `script:${options.input.operation.language}` };
+  const producer = { kind: "transform" as const, name: `script:${options.input.operation.language}` };
   const vaultOptionsForStore: { root?: string; retention?: VaultRetentionPolicy } = {};
   if (options.options.vaultRoot !== undefined) {
     vaultOptionsForStore.root = options.options.vaultRoot;
@@ -522,24 +520,22 @@ async function handleScriptDerive(options: {
     record = await storeTextOutput(storeVault, {
       sessionId: options.options.sessionId,
       raw: execution.result.stdout,
-      sourceKind: "derive",
+      sourceKind: "transform",
       producer,
       lineage,
-      decisionIds: [decisionId("script-derive-store", options.input.operation.language, lineage.operationHash ?? "")],
+      decisionIds: [decisionId("script-transform-store", options.input.operation.language, lineage.operationHash ?? "")],
     });
   } catch (error) {
     return storageFailure({
-      operation: "derive",
-      message: `Script-derived output could not be persisted: ${errorMessage(error)}`,
+      message: `Script-transformed output could not be persisted: ${errorMessage(error)}`,
       preserve: options.preserve,
-      producer,
       lineage,
     });
   }
 
   const thresholds = { ...DEFAULT_ROUTER_THRESHOLDS, ...options.options.thresholds };
   const primarySource = primaryScriptSourceRef(resolved.sources, options.input.sources);
-  const routed = routeDerivedText({
+  const routed = routeTransformedText({
     outputId: record.outputId,
     text: execution.result.stdout,
     preserve: options.preserve,
@@ -550,7 +546,7 @@ async function handleScriptDerive(options: {
 
   return {
     toolStatus: "ok",
-    decisionId: decisionId("script-derive", record.outputId, options.input.operation.language, routed.routingStatus),
+    decisionId: decisionId("script-transform", record.outputId, options.input.operation.language, routed.routingStatus),
     outputId: record.outputId,
     recordId: record.recordId,
     preserve: options.preserve,
@@ -561,19 +557,19 @@ async function handleScriptDerive(options: {
     lineage,
     routing: {
       status: routed.routingStatus,
-      route: "derive",
+      route: "transform",
       reason: routed.reason,
     },
     summary: `Script transform ${options.input.operation.language} completed with ${byteLength(execution.result.stdout)} stdout bytes and ${byteLength(execution.result.stderr)} stderr bytes.`,
     evidence: routed.evidence,
     recovery: {
-      how: `Use freeflow_search with source.kind=vault and outputId=${record.outputId}, stream=raw, and an exact lineRange to recover exact script-derived content. Source evidence remains linked in lineage.sourceOutputIds.`,
+      how: `Use freeflow_search with source.kind=vault and outputId=${record.outputId}, stream=raw, and an exact lineRange to recover exact script-transformed content. Source evidence remains linked in lineage.sourceOutputIds.`,
       outputId: record.outputId,
     },
   };
 }
 
-function primaryScriptSourceRef(resolvedSources: readonly ResolvedScriptSource[], inputSources: readonly ScriptDeriveSourceInput[]): Extract<SourceRef, { kind: "vault" }> {
+function primaryScriptSourceRef(resolvedSources: readonly ResolvedScriptSource[], inputSources: readonly ScriptTransformSourceInput[]): Extract<SourceRef, { kind: "vault" }> {
   const resolved = resolvedSources[0];
   if (resolved) {
     return { kind: "vault", outputId: resolved.outputId, stream: resolved.stream };
@@ -587,12 +583,12 @@ function primaryScriptSourceRef(resolvedSources: readonly ResolvedScriptSource[]
 
 async function executeScriptWithAdapter(options: {
   adapter: ScriptSandboxAdapter;
-  input: ScriptDeriveInput;
+  input: ScriptTransformInput;
   resolvedSources: readonly ResolvedScriptSource[];
-  limits: Required<ScriptDeriveLimitsInput>;
-  config: ScriptDeriveConfig;
+  limits: Required<ScriptTransformLimitsInput>;
+  config: ScriptTransformConfig;
 }): Promise<{ ok: true; result: ScriptSandboxExecutionResult } | { ok: false; message: string }> {
-  const tempRoot = await mkdtemp(join(tmpdir(), "freeflow-script-derive-"));
+  const tempRoot = await mkdtemp(join(tmpdir(), "freeflow-script-transform-"));
   const inputDir = join(tempRoot, "input");
   const workDir = join(tempRoot, "work");
   const outputDir = join(tempRoot, "output");
@@ -651,9 +647,9 @@ async function executeScriptWithAdapter(options: {
 async function resolveScriptSources(options: {
   vault: ReturnType<typeof createVault>;
   sessionId: string;
-  sources: readonly ScriptDeriveSourceInput[];
+  sources: readonly ScriptTransformSourceInput[];
   maxInputBytes: number;
-  operation: ScriptDeriveOperation;
+  operation: ScriptTransformOperation;
   preserve: PreserveMode;
 }): Promise<
   | { ok: true; sources: ResolvedScriptSource[] }
@@ -669,7 +665,7 @@ async function resolveScriptSources(options: {
     } catch (error) {
       return {
         ok: false,
-        failure: deriveSourceUnavailableFailure({
+        failure: transformSourceUnavailableFailure({
           message: `Script transform source alias=${source.alias} outputId=${source.outputId} could not be found or read: ${errorMessage(error)}`,
           preserve: options.preserve,
           lineage: lineageForScriptInput({ sources: [...options.sources], operation: options.operation }, { maxInputBytes: options.maxInputBytes }),
@@ -682,7 +678,7 @@ async function resolveScriptSources(options: {
     if (!streamResult.ok) {
       return {
         ok: false,
-        failure: deriveValidationFailure({
+        failure: transformValidationFailure({
           message: `Script transform source alias=${source.alias} outputId=${source.outputId} stream is invalid: ${streamResult.message}`,
           preserve: options.preserve,
           lineage: lineageForSource(record, options.operation),
@@ -697,7 +693,7 @@ async function resolveScriptSources(options: {
     } catch (error) {
       return {
         ok: false,
-        failure: deriveSourceUnavailableFailure({
+        failure: transformSourceUnavailableFailure({
           message: `Script transform source alias=${source.alias} outputId=${source.outputId} stream=${streamResult.stream} could not be read: ${errorMessage(error)}`,
           preserve: options.preserve,
           lineage: lineageForSource(record, options.operation),
@@ -711,7 +707,7 @@ async function resolveScriptSources(options: {
     if (totalBytes > options.maxInputBytes) {
       return {
         ok: false,
-        failure: deriveValidationFailure({
+        failure: transformValidationFailure({
           message: `Script transform input bytes ${totalBytes} exceed maxInputBytes ${options.maxInputBytes}.`,
           preserve: options.preserve,
           lineage: lineageForSource(record, options.operation),
@@ -746,14 +742,14 @@ interface ResolvedScriptSource {
   text: string;
 }
 
-function validateDeriveSource(value: unknown, path: string, issues: DeriveValidationIssue[]) {
+function validateTransformSource(value: unknown, path: string, issues: TransformValidationIssue[]) {
   if (!isRecord(value)) {
-    issues.push({ path, message: "Expected derive source object." });
+    issues.push({ path, message: "Expected transform source object." });
     return;
   }
 
   if (value.kind !== "vault") {
-    issues.push({ path: `${path}.kind`, message: "Slice 5A supports only vault derive sources." });
+    issues.push({ path: `${path}.kind`, message: "Slice 5A supports only vault transform sources." });
     return;
   }
 
@@ -765,14 +761,14 @@ function validateDeriveSource(value: unknown, path: string, issues: DeriveValida
   }
 }
 
-function validateDeriveOperation(value: unknown, path: string, issues: DeriveValidationIssue[]) {
+function validateTransformOperation(value: unknown, path: string, issues: TransformValidationIssue[]) {
   if (!isRecord(value)) {
-    issues.push({ path, message: "Expected derive operation object." });
+    issues.push({ path, message: "Expected transform operation object." });
     return;
   }
 
   if (typeof value.kind !== "string" || !OPERATION_KINDS.has(value.kind)) {
-    issues.push({ path: `${path}.kind`, message: "Expected a supported derive operation kind." });
+    issues.push({ path: `${path}.kind`, message: "Expected a supported transform operation kind." });
     return;
   }
 
@@ -840,9 +836,9 @@ function validateDeriveOperation(value: unknown, path: string, issues: DeriveVal
   }
 }
 
-function validateScriptOperation(value: Record<string, unknown>, path: string, issues: DeriveValidationIssue[]) {
-  if (!isStringIn(value.language, SCRIPT_DERIVE_LANGUAGES)) {
-    issues.push({ path: `${path}.language`, message: `Expected script language ${SCRIPT_DERIVE_LANGUAGES.join(", ")}.` });
+function validateScriptOperation(value: Record<string, unknown>, path: string, issues: TransformValidationIssue[]) {
+  if (!isStringIn(value.language, SCRIPT_TRANSFORM_LANGUAGES)) {
+    issues.push({ path: `${path}.language`, message: `Expected script language ${SCRIPT_TRANSFORM_LANGUAGES.join(", ")}.` });
   }
   if (typeof value.code !== "string" || value.code.length === 0) {
     issues.push({ path: `${path}.code`, message: "Expected non-empty script code string." });
@@ -854,7 +850,7 @@ function validateScriptOperation(value: Record<string, unknown>, path: string, i
   }
 }
 
-function validateScriptDeriveSources(value: unknown, path: string, issues: DeriveValidationIssue[]) {
+function validateScriptTransformSources(value: unknown, path: string, issues: TransformValidationIssue[]) {
   if (!Array.isArray(value) || value.length === 0) {
     issues.push({ path, message: "Expected one or more script transform vault sources." });
     return;
@@ -863,7 +859,7 @@ function validateScriptDeriveSources(value: unknown, path: string, issues: Deriv
   const aliases = new Set<string>();
   value.forEach((source, index) => {
     const sourcePath = `${path}[${index}]`;
-    validateDeriveSource(source, sourcePath, issues);
+    validateTransformSource(source, sourcePath, issues);
     if (!isRecord(source)) {
       return;
     }
@@ -878,7 +874,7 @@ function validateScriptDeriveSources(value: unknown, path: string, issues: Deriv
   });
 }
 
-function validateScriptDeriveLimits(value: unknown, path: string, issues: DeriveValidationIssue[]) {
+function validateScriptTransformLimits(value: unknown, path: string, issues: TransformValidationIssue[]) {
   if (value === undefined) {
     return;
   }
@@ -886,19 +882,19 @@ function validateScriptDeriveLimits(value: unknown, path: string, issues: Derive
     issues.push({ path, message: "Expected script transform limits object." });
     return;
   }
-  validateOptionalIntegerRange(value.timeoutMs, `${path}.timeoutMs`, 1, MAX_SCRIPT_DERIVE_LIMITS.timeoutMs, issues);
-  validateOptionalIntegerRange(value.maxInputBytes, `${path}.maxInputBytes`, 1, MAX_SCRIPT_DERIVE_LIMITS.maxInputBytes, issues);
-  validateOptionalIntegerRange(value.maxOutputBytes, `${path}.maxOutputBytes`, 1, MAX_SCRIPT_DERIVE_LIMITS.maxOutputBytes, issues);
+  validateOptionalIntegerRange(value.timeoutMs, `${path}.timeoutMs`, 1, MAX_SCRIPT_TRANSFORM_LIMITS.timeoutMs, issues);
+  validateOptionalIntegerRange(value.maxInputBytes, `${path}.maxInputBytes`, 1, MAX_SCRIPT_TRANSFORM_LIMITS.maxInputBytes, issues);
+  validateOptionalIntegerRange(value.maxOutputBytes, `${path}.maxOutputBytes`, 1, MAX_SCRIPT_TRANSFORM_LIMITS.maxOutputBytes, issues);
 }
 
-function validateOptionalIntegerRange(value: unknown, path: string, min: number, max: number, issues: DeriveValidationIssue[]) {
+function validateOptionalIntegerRange(value: unknown, path: string, min: number, max: number, issues: TransformValidationIssue[]) {
   if (value === undefined) {
     return;
   }
   validateIntegerRange(value, path, min, max, issues);
 }
 
-function validateJsonExtractOperation(value: Record<string, unknown>, path: string, issues: DeriveValidationIssue[]) {
+function validateJsonExtractOperation(value: Record<string, unknown>, path: string, issues: TransformValidationIssue[]) {
   const hasPointer = value.pointer !== undefined;
   const hasPath = value.path !== undefined;
 
@@ -935,7 +931,7 @@ function validateJsonExtractOperation(value: Record<string, unknown>, path: stri
   }
 }
 
-function validateDedupeOperation(value: Record<string, unknown>, path: string, issues: DeriveValidationIssue[]) {
+function validateDedupeOperation(value: Record<string, unknown>, path: string, issues: TransformValidationIssue[]) {
   if (value.trim !== undefined && typeof value.trim !== "boolean") {
     issues.push({ path: `${path}.trim`, message: "Expected boolean when present." });
   }
@@ -953,7 +949,7 @@ function validateDedupeOperation(value: Record<string, unknown>, path: string, i
   }
 }
 
-function validateTopNOperation(value: Record<string, unknown>, path: string, issues: DeriveValidationIssue[]) {
+function validateTopNOperation(value: Record<string, unknown>, path: string, issues: TransformValidationIssue[]) {
   validateIntegerRange(value.limit, `${path}.limit`, 1, MAX_TOP_N_LIMIT, issues);
 
   const hasPattern = value.pattern !== undefined;
@@ -986,7 +982,7 @@ function validateTopNOperation(value: Record<string, unknown>, path: string, iss
   }
 }
 
-function validateExtractOperation(value: Record<string, unknown>, path: string, issues: DeriveValidationIssue[]) {
+function validateExtractOperation(value: Record<string, unknown>, path: string, issues: TransformValidationIssue[]) {
   if (value.maxMatches !== undefined) {
     validateIntegerRange(value.maxMatches, `${path}.maxMatches`, 1, MAX_EXTRACT_MATCHES, issues);
   }
@@ -1004,7 +1000,7 @@ function validateExtractOperation(value: Record<string, unknown>, path: string, 
   }
 }
 
-function validateStatsOperation(value: Record<string, unknown>, path: string, issues: DeriveValidationIssue[]) {
+function validateStatsOperation(value: Record<string, unknown>, path: string, issues: TransformValidationIssue[]) {
   for (const key of ["pattern", "flags", "contextLines", "maxMatches", "group", "maxGroups", "maxLinesPerGroup", "limit", "sort", "order", "trim", "caseSensitive", "maxLines", "dedupe"] as const) {
     if (value[key] !== undefined) {
       issues.push({ path: `${path}.${key}`, message: `Operation ${value.kind} does not accept ${key}.` });
@@ -1012,7 +1008,7 @@ function validateStatsOperation(value: Record<string, unknown>, path: string, is
   }
 }
 
-function validateGroupSelector(value: unknown, path: string, issues: DeriveValidationIssue[]) {
+function validateGroupSelector(value: unknown, path: string, issues: TransformValidationIssue[]) {
   if (value === undefined) {
     return;
   }
@@ -1028,7 +1024,7 @@ function validateGroupSelector(value: unknown, path: string, issues: DeriveValid
   issues.push({ path, message: "Expected a non-empty string group name or non-negative integer group index." });
 }
 
-function validateRegexFlags(value: unknown, path: string, issues: DeriveValidationIssue[]) {
+function validateRegexFlags(value: unknown, path: string, issues: TransformValidationIssue[]) {
   if (value === undefined) {
     return;
   }
@@ -1056,16 +1052,16 @@ function validateIntegerRange(
   path: string,
   min: number,
   max: number,
-  issues: DeriveValidationIssue[],
+  issues: TransformValidationIssue[],
 ) {
   if (!Number.isInteger(value) || (value as number) < min || (value as number) > max) {
     issues.push({ path, message: `Expected integer from ${min} to ${max}.` });
   }
 }
 
-function prepareDeriveOperation(
-  operation: DeterministicDeriveOperation,
-): { ok: true; value: PreparedDeriveOperation } | { ok: false; message: string } {
+function prepareTransformOperation(
+  operation: DeterministicTransformOperation,
+): { ok: true; value: PreparedTransformOperation } | { ok: false; message: string } {
   if (operation.kind === "jsonExtract") {
     const preparedJson = prepareJsonExtractOperation(operation);
     if (!preparedJson.ok) {
@@ -1085,7 +1081,7 @@ function prepareDeriveOperation(
     return { ok: true, value: { kind: "none" } };
   }
 
-  const compiledRegex = compileRegexOperation(operation as RegexPatternDeriveOperation);
+  const compiledRegex = compileRegexOperation(operation as RegexPatternTransformOperation);
   if (!compiledRegex.ok) {
     return compiledRegex;
   }
@@ -1093,7 +1089,7 @@ function prepareDeriveOperation(
 }
 
 function compileRegexOperation(
-  operation: RegexPatternDeriveOperation,
+  operation: RegexPatternTransformOperation,
 ): { ok: true; value: CompiledRegexOperation } | { ok: false; message: string } {
   const flags = normalizeRegexFlags(operation.flags);
   let regex: RegExp;
@@ -1123,7 +1119,7 @@ function compileRegexOperation(
 }
 
 function prepareJsonExtractOperation(
-  operation: JsonExtractDeriveOperation,
+  operation: JsonExtractTransformOperation,
 ): { ok: true; value: PreparedJsonExtractOperation } | { ok: false; message: string } {
   if (operation.pointer !== undefined) {
     const pointer = parseJsonPointer(operation.pointer);
@@ -1158,17 +1154,17 @@ function prepareJsonExtractOperation(
   return { ok: false, message: "jsonExtract requires exactly one JSON selector: pointer or path." };
 }
 
-function deriveText(options: {
+function transformText(options: {
   text: string;
   sourceLabel: string;
-  operation: DeterministicDeriveOperation;
-  prepared: PreparedDeriveOperation;
-}): DerivedOutput {
+  operation: DeterministicTransformOperation;
+  prepared: PreparedTransformOperation;
+}): TransformedOutput {
   if (options.operation.kind === "jsonExtract") {
     if (options.prepared.kind !== "json") {
       throw new Error("jsonExtract operation was not prepared with a JSON selector.");
     }
-    return deriveJsonExtract({
+    return transformJsonExtract({
       text: options.text,
       sourceLabel: options.sourceLabel,
       operation: options.operation,
@@ -1177,7 +1173,7 @@ function deriveText(options: {
   }
 
   if (options.operation.kind === "dedupe") {
-    return deriveDedupe({
+    return transformDedupe({
       text: options.text,
       sourceLabel: options.sourceLabel,
       operation: options.operation,
@@ -1188,7 +1184,7 @@ function deriveText(options: {
     const topNOptions: {
       text: string;
       sourceLabel: string;
-      operation: TopNDeriveOperation;
+      operation: TopNTransformOperation;
       compiled?: CompiledRegexOperation;
     } = {
       text: options.text,
@@ -1198,23 +1194,23 @@ function deriveText(options: {
     if (options.prepared.kind === "regex") {
       topNOptions.compiled = options.prepared.value;
     }
-    return deriveTopN(topNOptions);
+    return transformTopN(topNOptions);
   }
 
   if (options.operation.kind === "extractUrls") {
-    return deriveExtractUrls({ text: options.text, sourceLabel: options.sourceLabel, operation: options.operation });
+    return transformExtractUrls({ text: options.text, sourceLabel: options.sourceLabel, operation: options.operation });
   }
 
   if (options.operation.kind === "extractCitations") {
-    return deriveExtractCitations({ text: options.text, sourceLabel: options.sourceLabel, operation: options.operation });
+    return transformExtractCitations({ text: options.text, sourceLabel: options.sourceLabel, operation: options.operation });
   }
 
   if (options.operation.kind === "lineStats") {
-    return deriveLineStats({ text: options.text, sourceLabel: options.sourceLabel });
+    return transformLineStats({ text: options.text, sourceLabel: options.sourceLabel });
   }
 
   if (options.operation.kind === "sizeStats") {
-    return deriveSizeStats({ text: options.text, sourceLabel: options.sourceLabel });
+    return transformSizeStats({ text: options.text, sourceLabel: options.sourceLabel });
   }
 
   if (options.prepared.kind !== "regex") {
@@ -1222,7 +1218,7 @@ function deriveText(options: {
   }
 
   if (options.operation.kind === "regexFilter") {
-    return deriveRegexFilter({
+    return transformRegexFilter({
       text: options.text,
       sourceLabel: options.sourceLabel,
       operation: options.operation,
@@ -1230,14 +1226,14 @@ function deriveText(options: {
     });
   }
   if (options.operation.kind === "groupByRegex") {
-    return deriveGroupByRegex({
+    return transformGroupByRegex({
       text: options.text,
       sourceLabel: options.sourceLabel,
       operation: options.operation,
       compiled: options.prepared.value,
     });
   }
-  return deriveCountMatches({
+  return transformCountMatches({
     text: options.text,
     sourceLabel: options.sourceLabel,
     operation: options.operation,
@@ -1245,12 +1241,12 @@ function deriveText(options: {
   });
 }
 
-function deriveRegexFilter(options: {
+function transformRegexFilter(options: {
   text: string;
   sourceLabel: string;
-  operation: RegexFilterDeriveOperation;
+  operation: RegexFilterTransformOperation;
   compiled: CompiledRegexOperation;
-}): DerivedOutput {
+}): TransformedOutput {
   const lines = splitLines(options.text);
   const contextLines = options.operation.contextLines ?? DEFAULT_CONTEXT_LINES;
   const maxMatches = options.operation.maxMatches ?? DEFAULT_MAX_MATCHES;
@@ -1281,17 +1277,17 @@ function deriveRegexFilter(options: {
 
   return {
     text: `${parts.join("\n")}\n`,
-    summary: `Derived regexFilter from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${stats.matches} match(es) across ${stats.matchedLines} line(s).`,
+    summary: `Transformed regexFilter from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${stats.matches} match(es) across ${stats.matchedLines} line(s).`,
     stats,
   };
 }
 
-function deriveCountMatches(options: {
+function transformCountMatches(options: {
   text: string;
   sourceLabel: string;
-  operation: CountMatchesDeriveOperation;
+  operation: CountMatchesTransformOperation;
   compiled: CompiledRegexOperation;
-}): DerivedOutput {
+}): TransformedOutput {
   const lines = splitLines(options.text);
   const stats = collectMatches(lines, options.compiled.regex);
   const text = [
@@ -1305,17 +1301,17 @@ function deriveCountMatches(options: {
 
   return {
     text,
-    summary: `Derived countMatches from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${stats.matches} match(es) across ${stats.matchedLines} line(s).`,
+    summary: `Transformed countMatches from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${stats.matches} match(es) across ${stats.matchedLines} line(s).`,
     stats,
   };
 }
 
-function deriveGroupByRegex(options: {
+function transformGroupByRegex(options: {
   text: string;
   sourceLabel: string;
-  operation: GroupByRegexDeriveOperation;
+  operation: GroupByRegexTransformOperation;
   compiled: CompiledRegexOperation;
-}): DerivedOutput {
+}): TransformedOutput {
   const lines = splitLines(options.text);
   const groupSelector = options.operation.group ?? 1;
   const maxGroups = options.operation.maxGroups ?? DEFAULT_MAX_GROUPS;
@@ -1379,7 +1375,7 @@ function deriveGroupByRegex(options: {
 
   return {
     text: `${parts.join("\n")}\n`,
-    summary: `Derived groupByRegex from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${allGroupKeys.size} group(s), ${matchedLines} matched line(s).`,
+    summary: `Transformed groupByRegex from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${allGroupKeys.size} group(s), ${matchedLines} matched line(s).`,
     stats: {
       matches: matchedLines,
       matchedLines,
@@ -1389,11 +1385,11 @@ function deriveGroupByRegex(options: {
   };
 }
 
-function deriveDedupe(options: {
+function transformDedupe(options: {
   text: string;
   sourceLabel: string;
-  operation: DedupeDeriveOperation;
-}): DerivedOutput {
+  operation: DedupeTransformOperation;
+}): TransformedOutput {
   const lines = splitLines(options.text);
   const trim = options.operation.trim ?? false;
   const caseSensitive = options.operation.caseSensitive ?? true;
@@ -1439,7 +1435,7 @@ function deriveDedupe(options: {
 
   return {
     text: `${parts.join("\n")}\n`,
-    summary: `Derived dedupe from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${seen.size} unique line(s), ${duplicatesRemoved} duplicate line(s) removed.`,
+    summary: `Transformed dedupe from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${seen.size} unique line(s), ${duplicatesRemoved} duplicate line(s) removed.`,
     stats: {
       matches: seen.size,
       matchedLines: seen.size,
@@ -1449,12 +1445,12 @@ function deriveDedupe(options: {
   };
 }
 
-function deriveTopN(options: {
+function transformTopN(options: {
   text: string;
   sourceLabel: string;
-  operation: TopNDeriveOperation;
+  operation: TopNTransformOperation;
   compiled?: CompiledRegexOperation;
-}): DerivedOutput {
+}): TransformedOutput {
   const lines = splitLines(options.text);
   const sort = options.operation.sort ?? "text";
   const order = options.operation.order ?? "asc";
@@ -1504,7 +1500,7 @@ function deriveTopN(options: {
 
   return {
     text: `${parts.join("\n")}\n`,
-    summary: `Derived topN from vaulted ${sourceStreamLabel(options.sourceLabel)} output: returned ${selected.length} of ${scored.length} matched line(s).`,
+    summary: `Transformed topN from vaulted ${sourceStreamLabel(options.sourceLabel)} output: returned ${selected.length} of ${scored.length} matched line(s).`,
     stats: {
       matches: selected.length,
       matchedLines: scored.length,
@@ -1514,11 +1510,11 @@ function deriveTopN(options: {
   };
 }
 
-function deriveExtractUrls(options: {
+function transformExtractUrls(options: {
   text: string;
   sourceLabel: string;
-  operation: ExtractUrlsDeriveOperation;
-}): DerivedOutput {
+  operation: ExtractUrlsTransformOperation;
+}): TransformedOutput {
   const maxMatches = options.operation.maxMatches ?? DEFAULT_MAX_EXTRACT_MATCHES;
   const dedupe = options.operation.dedupe ?? false;
   const lines = splitLines(options.text);
@@ -1566,7 +1562,7 @@ function deriveExtractUrls(options: {
 
   return {
     text: `${parts.join("\n")}\n`,
-    summary: `Derived extractUrls from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${entries.length} URL(s) returned from ${matches} match(es).`,
+    summary: `Transformed extractUrls from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${entries.length} URL(s) returned from ${matches} match(es).`,
     stats: {
       matches: entries.length,
       matchedLines: new Set(entries.map((entry) => entry.lineNumber)).size,
@@ -1576,11 +1572,11 @@ function deriveExtractUrls(options: {
   };
 }
 
-function deriveExtractCitations(options: {
+function transformExtractCitations(options: {
   text: string;
   sourceLabel: string;
-  operation: ExtractCitationsDeriveOperation;
-}): DerivedOutput {
+  operation: ExtractCitationsTransformOperation;
+}): TransformedOutput {
   const maxMatches = options.operation.maxMatches ?? DEFAULT_MAX_EXTRACT_MATCHES;
   const lines = splitLines(options.text);
   const entries: { lineNumber: number; type: string; label: string; target?: string }[] = [];
@@ -1621,7 +1617,7 @@ function deriveExtractCitations(options: {
 
   return {
     text: `${parts.join("\n")}\n`,
-    summary: `Derived extractCitations from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${entries.length} citation(s) returned.`,
+    summary: `Transformed extractCitations from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${entries.length} citation(s) returned.`,
     stats: {
       matches: entries.length,
       matchedLines: new Set(entries.map((entry) => entry.lineNumber)).size,
@@ -1631,7 +1627,7 @@ function deriveExtractCitations(options: {
   };
 }
 
-function deriveLineStats(options: { text: string; sourceLabel: string }): DerivedOutput {
+function transformLineStats(options: { text: string; sourceLabel: string }): TransformedOutput {
   const lines = splitLines(options.text);
   let blankLines = 0;
   let maxLineBytes = 0;
@@ -1662,7 +1658,7 @@ function deriveLineStats(options: { text: string; sourceLabel: string }): Derive
 
   return {
     text,
-    summary: `Derived lineStats from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${lines.length} line(s), ${nonEmptyLines} non-empty, ${blankLines} blank.`,
+    summary: `Transformed lineStats from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${lines.length} line(s), ${nonEmptyLines} non-empty, ${blankLines} blank.`,
     stats: {
       matches: lines.length,
       matchedLines: lines.length,
@@ -1672,7 +1668,7 @@ function deriveLineStats(options: { text: string; sourceLabel: string }): Derive
   };
 }
 
-function deriveSizeStats(options: { text: string; sourceLabel: string }): DerivedOutput {
+function transformSizeStats(options: { text: string; sourceLabel: string }): TransformedOutput {
   const bytes = byteLength(options.text);
   const utf16CodeUnits = options.text.length;
   const codePoints = Array.from(options.text).length;
@@ -1691,7 +1687,7 @@ function deriveSizeStats(options: { text: string; sourceLabel: string }): Derive
 
   return {
     text,
-    summary: `Derived sizeStats from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${bytes} byte(s), ${utf16CodeUnits} code unit(s), ${lines} line(s).`,
+    summary: `Transformed sizeStats from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${bytes} byte(s), ${utf16CodeUnits} code unit(s), ${lines} line(s).`,
     stats: {
       matches: bytes,
       matchedLines: lines,
@@ -1701,12 +1697,12 @@ function deriveSizeStats(options: { text: string; sourceLabel: string }): Derive
   };
 }
 
-function deriveJsonExtract(options: {
+function transformJsonExtract(options: {
   text: string;
   sourceLabel: string;
-  operation: JsonExtractDeriveOperation;
+  operation: JsonExtractTransformOperation;
   prepared: PreparedJsonExtractOperation;
-}): DerivedOutput {
+}): TransformedOutput {
   let parsed: unknown;
   try {
     parsed = JSON.parse(options.text) as unknown;
@@ -1733,7 +1729,7 @@ function deriveJsonExtract(options: {
 
   return {
     text,
-    summary: `Derived jsonExtract from vaulted ${sourceStreamLabel(options.sourceLabel)} output using ${options.prepared.selectorKind} ${options.prepared.selector}.`,
+    summary: `Transformed jsonExtract from vaulted ${sourceStreamLabel(options.sourceLabel)} output using ${options.prepared.selectorKind} ${options.prepared.selector}.`,
     stats: {
       matches: 1,
       matchedLines: 1,
@@ -1798,7 +1794,7 @@ function mergeLineWindows(windows: { start: number; end: number }[]): { start: n
   return merged;
 }
 
-function routeDerivedText(options: {
+function routeTransformedText(options: {
   outputId: string;
   text: string;
   preserve: PreserveMode;
@@ -1831,8 +1827,8 @@ function routeDerivedText(options: {
     excerpt: line.excerpt,
     why:
       routingStatus === "partial"
-        ? `Bounded derived ${options.operationKind} output from source ${sourceLabel}; exact derived content is recoverable from the vault and source lineage is preserved.`
-        : `Derived exact ${options.operationKind} output from source ${sourceLabel} within routing caps; source lineage is preserved.`,
+        ? `Bounded transformed ${options.operationKind} output from source ${sourceLabel}; exact transformed content is recoverable from the vault and source lineage is preserved.`
+        : `Transformed exact ${options.operationKind} output from source ${sourceLabel} within routing caps; source lineage is preserved.`,
     window: routingStatus === "partial" ? "small" : "exact",
     expandable: true,
   }));
@@ -1841,8 +1837,8 @@ function routeDerivedText(options: {
     routingStatus,
     reason:
       routingStatus === "partial"
-        ? `Derived output from operation ${options.operationKind} over source ${sourceLabel} (${outputBytes} bytes, ${outputLines} lines) was vaulted; bounded evidence was returned with exact recovery.`
-        : `Derived output from operation ${options.operationKind} over source ${sourceLabel} (${outputBytes} bytes, ${outputLines} lines) was vaulted and returned within routing caps.`,
+        ? `Transformed output from operation ${options.operationKind} over source ${sourceLabel} (${outputBytes} bytes, ${outputLines} lines) was vaulted; bounded evidence was returned with exact recovery.`
+        : `Transformed output from operation ${options.operationKind} over source ${sourceLabel} (${outputBytes} bytes, ${outputLines} lines) was vaulted and returned within routing caps.`,
     evidence,
   };
 }
@@ -2110,12 +2106,12 @@ function jsonValueType(value: unknown): string {
   return typeof value;
 }
 
-function effectiveScriptDeriveConfig(config: ScriptDeriveConfig | undefined): ScriptDeriveConfig {
+function effectiveScriptTransformConfig(config: ScriptTransformConfig | undefined): ScriptTransformConfig {
   if (config === undefined) {
     return {
-      ...DEFAULT_SCRIPT_DERIVE_CONFIG,
-      languages: [...DEFAULT_SCRIPT_DERIVE_CONFIG.languages],
-      limits: { ...DEFAULT_SCRIPT_DERIVE_CONFIG.limits },
+      ...DEFAULT_SCRIPT_TRANSFORM_CONFIG,
+      languages: [...DEFAULT_SCRIPT_TRANSFORM_CONFIG.languages],
+      limits: { ...DEFAULT_SCRIPT_TRANSFORM_CONFIG.limits },
     };
   }
   return {
@@ -2125,11 +2121,11 @@ function effectiveScriptDeriveConfig(config: ScriptDeriveConfig | undefined): Sc
   };
 }
 
-function effectiveScriptLimits(config: ScriptDeriveConfig, input: ScriptDeriveLimitsInput | undefined): Required<ScriptDeriveLimitsInput> {
+function effectiveScriptLimits(config: ScriptTransformConfig, input: ScriptTransformLimitsInput | undefined): Required<ScriptTransformLimitsInput> {
   return {
-    timeoutMs: boundedScriptLimit(input?.timeoutMs, config.limits.timeoutMs, MAX_SCRIPT_DERIVE_LIMITS.timeoutMs),
-    maxInputBytes: boundedScriptLimit(input?.maxInputBytes, config.limits.maxInputBytes, MAX_SCRIPT_DERIVE_LIMITS.maxInputBytes),
-    maxOutputBytes: boundedScriptLimit(input?.maxOutputBytes, config.limits.maxOutputBytes, MAX_SCRIPT_DERIVE_LIMITS.maxOutputBytes),
+    timeoutMs: boundedScriptLimit(input?.timeoutMs, config.limits.timeoutMs, MAX_SCRIPT_TRANSFORM_LIMITS.timeoutMs),
+    maxInputBytes: boundedScriptLimit(input?.maxInputBytes, config.limits.maxInputBytes, MAX_SCRIPT_TRANSFORM_LIMITS.maxInputBytes),
+    maxOutputBytes: boundedScriptLimit(input?.maxOutputBytes, config.limits.maxOutputBytes, MAX_SCRIPT_TRANSFORM_LIMITS.maxOutputBytes),
   };
 }
 
@@ -2161,10 +2157,10 @@ function resolveSourceStream(
     return { ok: true, stream };
   }
 
-  return { ok: false, message: "Repo file reference vault records store metadata only and cannot be used as derive text sources." };
+  return { ok: false, message: "Repo file reference vault records store metadata only and cannot be used as transform text sources." };
 }
 
-function lineageForSource(record: VaultRecord, operation: DeriveOperation): EvidenceLineage {
+function lineageForSource(record: VaultRecord, operation: TransformOperation): EvidenceLineage {
   return {
     sourceRecordIds: [record.recordId],
     sourceOutputIds: [record.outputId],
@@ -2173,7 +2169,7 @@ function lineageForSource(record: VaultRecord, operation: DeriveOperation): Evid
   };
 }
 
-function lineageForScriptInput(input: Pick<ScriptDeriveInput, "sources" | "operation" | "limits">, limits?: Partial<ScriptDeriveLimitsInput>): EvidenceLineage {
+function lineageForScriptInput(input: Pick<ScriptTransformInput, "sources" | "operation" | "limits">, limits?: Partial<ScriptTransformLimitsInput>): EvidenceLineage {
   return {
     sourceOutputIds: input.sources.map((source) => source.outputId),
     operation: `script:${input.operation.language}`,
@@ -2181,7 +2177,7 @@ function lineageForScriptInput(input: Pick<ScriptDeriveInput, "sources" | "opera
   };
 }
 
-function lineageForResolvedScriptSources(sources: readonly ResolvedScriptSource[], input: ScriptDeriveInput, limits: Required<ScriptDeriveLimitsInput>): EvidenceLineage {
+function lineageForResolvedScriptSources(sources: readonly ResolvedScriptSource[], input: ScriptTransformInput, limits: Required<ScriptTransformLimitsInput>): EvidenceLineage {
   return {
     sourceRecordIds: sources.map((source) => source.recordId),
     sourceOutputIds: sources.map((source) => source.outputId),
@@ -2218,7 +2214,7 @@ function lineageFromInput(input: unknown): EvidenceLineage | undefined {
   return Object.keys(lineage).length > 0 ? lineage : undefined;
 }
 
-function operationSummary(operation: DeriveOperation): Record<string, unknown> {
+function operationSummary(operation: TransformOperation): Record<string, unknown> {
   if (operation.kind === "script") {
     return scriptOperationSummary(operation);
   }
@@ -2299,14 +2295,14 @@ function operationSummary(operation: DeriveOperation): Record<string, unknown> {
   };
 }
 
-function operationHash(operation: DeriveOperation): string {
+function operationHash(operation: TransformOperation): string {
   return `sha256_${hash(JSON.stringify(operationSummary(operation)))}`;
 }
 
 function operationHashForScript(
-  operation: ScriptDeriveOperation,
-  sources: readonly ScriptDeriveSourceInput[],
-  limits: Partial<ScriptDeriveLimitsInput> | undefined,
+  operation: ScriptTransformOperation,
+  sources: readonly ScriptTransformSourceInput[],
+  limits: Partial<ScriptTransformLimitsInput> | undefined,
   resolvedSources: readonly ResolvedScriptSource[] = [],
 ): string {
   return `sha256_${hash(JSON.stringify({
@@ -2326,7 +2322,7 @@ function operationHashForScript(
   }))}`;
 }
 
-function scriptOperationSummary(operation: ScriptDeriveOperation): Record<string, unknown> {
+function scriptOperationSummary(operation: ScriptTransformOperation): Record<string, unknown> {
   return {
     kind: "script",
     language: operation.language,
@@ -2352,7 +2348,7 @@ function sourceStreamLabel(sourceLabel: string): string {
   return stream ?? "combined";
 }
 
-function deriveValidationFailureWithOptionalLineage(options: {
+function transformValidationFailureWithOptionalLineage(options: {
   message: string;
   preserve: PreserveMode;
   lineage: EvidenceLineage | undefined;
@@ -2364,12 +2360,12 @@ function deriveValidationFailureWithOptionalLineage(options: {
     decisionSeed: options.decisionSeed,
   };
   if (options.lineage !== undefined) {
-    return deriveValidationFailure({ ...failureOptions, lineage: options.lineage });
+    return transformValidationFailure({ ...failureOptions, lineage: options.lineage });
   }
-  return deriveValidationFailure(failureOptions);
+  return transformValidationFailure(failureOptions);
 }
 
-function deriveSourceUnavailableFailureWithOptionalLineage(options: {
+function transformSourceUnavailableFailureWithOptionalLineage(options: {
   message: string;
   preserve: PreserveMode;
   lineage: EvidenceLineage | undefined;
@@ -2381,16 +2377,16 @@ function deriveSourceUnavailableFailureWithOptionalLineage(options: {
     decisionSeed: options.decisionSeed,
   };
   if (options.lineage !== undefined) {
-    return deriveSourceUnavailableFailure({ ...failureOptions, lineage: options.lineage });
+    return transformSourceUnavailableFailure({ ...failureOptions, lineage: options.lineage });
   }
-  return deriveSourceUnavailableFailure(failureOptions);
+  return transformSourceUnavailableFailure(failureOptions);
 }
 
-function validationMessage(issues: readonly DeriveValidationIssue[]): string {
-  return `Invalid derive input: ${issues.map((issue) => `${issue.path} ${issue.message}`).join("; ")}`;
+function validationMessage(issues: readonly TransformValidationIssue[]): string {
+  return `Invalid transform input: ${issues.map((issue) => `${issue.path} ${issue.message}`).join("; ")}`;
 }
 
-function isScriptDeriveInput(input: DeriveInput): input is ScriptDeriveInput {
+function isScriptTransformInput(input: TransformInput): input is ScriptTransformInput {
   return input.operation.kind === "script";
 }
 

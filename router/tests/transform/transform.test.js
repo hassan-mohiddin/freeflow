@@ -43,16 +43,16 @@ test("freeflowTransform preserves freeflow_search action=transform deterministic
 
     assert.equal(TRANSFORM_ENGINE_IMPLEMENTATION, "shared-transform-engine-v1");
     assert.equal(result.toolStatus, "ok");
-    assert.equal(result.routing.route, "derive");
+    assert.equal(result.routing.route, "transform");
     assert.equal(result.operation.kind, "regexFilter");
     assert.deepEqual(result.lineage.sourceOutputIds, [source.outputId]);
     assert.ok(result.outputId.startsWith("ffout_"));
     assert.match(result.recovery.how, new RegExp(result.outputId));
 
-    const derivedText = await readOutputText(vault, "transform-deterministic", result.outputId, "raw");
-    assert.match(derivedText, /# freeflow_search action=transform regexFilter/);
-    assert.match(derivedText, /beta target/);
-    assert.match(derivedText, /gamma target/);
+    const transformedText = await readOutputText(vault, "transform-deterministic", result.outputId, "raw");
+    assert.match(transformedText, /# freeflow_search action=transform regexFilter/);
+    assert.match(transformedText, /beta target/);
+    assert.match(transformedText, /gamma target/);
   });
 });
 

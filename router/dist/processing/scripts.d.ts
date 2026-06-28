@@ -1,20 +1,20 @@
 import { type ScriptSandboxAdapter } from "../sandbox/script-sandbox.js";
-import type { LocalFreeflowConfig, ProcessingScriptPolicy, ScriptDeriveConfig, ScriptDeriveLanguage } from "../config/types.js";
+import type { LocalFreeflowConfig, ProcessingScriptPolicy, ScriptTransformConfig, ScriptTransformLanguage } from "../config/types.js";
 import type { LoadedProcessingSource } from "./engine.js";
 export interface ProcessingScriptRequest {
-    language: ScriptDeriveLanguage;
+    language: ScriptTransformLanguage;
     code: string;
     label?: string;
     alias?: string;
     policy?: ProcessingScriptPolicy;
-    limits?: Partial<ScriptDeriveConfig["limits"]>;
+    limits?: Partial<ScriptTransformConfig["limits"]>;
 }
 export type ProcessingScriptResult = {
     status: "not_configured";
     reason: string;
 } | {
     status: "unavailable";
-    language: ScriptDeriveLanguage;
+    language: ScriptTransformLanguage;
     policy: ProcessingScriptPolicy;
     reason: string;
     recommendation: string;
@@ -26,7 +26,7 @@ export type ProcessingScriptResult = {
     failedProofs?: string[];
 } | {
     status: "rejected";
-    language: ScriptDeriveLanguage;
+    language: ScriptTransformLanguage;
     policy: "unsafe-unsandboxed";
     reason: string;
     recommendation: string;
@@ -35,7 +35,7 @@ export type ProcessingScriptResult = {
     localOptInRequired?: true;
 } | {
     status: "executed";
-    language: ScriptDeriveLanguage;
+    language: ScriptTransformLanguage;
     policy: ProcessingScriptPolicy;
     adapterId?: string;
     adapterVersion?: string;
@@ -54,7 +54,7 @@ export type ProcessingScriptResult = {
     codeHashSha256: string;
 } | {
     status: "failed";
-    language: ScriptDeriveLanguage;
+    language: ScriptTransformLanguage;
     policy: ProcessingScriptPolicy;
     reason: string;
     adapterId?: string;
@@ -69,7 +69,7 @@ export type ProcessingScriptResult = {
 export interface RunProcessingScriptOptions {
     loaded: LoadedProcessingSource;
     script: ProcessingScriptRequest;
-    scriptDerive?: ScriptDeriveConfig;
+    scriptTransform?: ScriptTransformConfig;
     localConfig?: LocalFreeflowConfig;
     adapters?: readonly ScriptSandboxAdapter[];
 }

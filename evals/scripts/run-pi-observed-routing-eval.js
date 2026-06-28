@@ -403,7 +403,7 @@ async function main() {
         "```",
         "## Recover",
         "```sh",
-        "freeflow_retrieve source.kind=vault outputId=ffout_example stream=raw",
+        "freeflow_search action=retrieve source.kind=vault outputId=ffout_example stream=raw",
         "```",
         "tail noise ".repeat(120),
       ].join("\n"),
@@ -453,7 +453,7 @@ async function main() {
       id: "pi-fetch-content-exact",
       config: commonObserved,
       event: builtInEvent("fetch_content", fetchResult),
-      criticalFacts: [/Observed Routing Docs/, /## Configure/, /freeflow_retrieve source\.kind=vault/],
+      criticalFacts: [/Observed Routing Docs/, /## Configure/, /freeflow_search action=retrieve source\.kind=vault/],
     }));
     results.push(await runObservedFixture({
       tmpRoot,

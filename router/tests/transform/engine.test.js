@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import test from "node:test";
 
 import {
@@ -16,7 +17,7 @@ import {
 } from "../../dist/index.js";
 
 async function withTempVault(fn) {
-  const root = await mkdtemp(join(tmpdir(), "freeflow-router-derive-"));
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-transform-"));
   try {
     return await fn(createVault({ root }));
   } finally {
@@ -24,10 +25,9 @@ async function withTempVault(fn) {
   }
 }
 
-const HAS_JSPI = process.execArgv.includes("--experimental-wasm-jspi") || (process.env.NODE_OPTIONS ?? "").split(/\s+/).includes("--experimental-wasm-jspi");
-const ERYX_INTEGRATION_SKIP_REASON = process.env.FREEFLOW_ERYX_ROOT
-  ? (HAS_JSPI ? false : "FREEFLOW_ERYX_ROOT is set but Node was not started with --experimental-wasm-jspi")
-  : "FREEFLOW_ERYX_ROOT is not set";
+const HAS_ERYX_ADAPTER = Boolean(process.env.FREEFLOW_ERYX_ROOT)
+  || existsSync(join(homedir(), ".cache", "freeflow-script-adapters", "node_modules", "@bsull", "eryx", "package.json"));
+const ERYX_INTEGRATION_SKIP_REASON = HAS_ERYX_ADAPTER ? false : "No Eryx adapter package root found in FREEFLOW_ERYX_ROOT or the global Freeflow adapter cache.";
 
 test("validateTransformInput accepts vault regex filter and count operations", () => {
   const regexFilter = validateTransformInput({
@@ -211,8 +211,8 @@ test("freeflowTransform script operation is disabled by default and does not per
     });
 
     assert.equal(result.toolStatus, "ok");
-    assert.equal(result.failure.kind, "script_derive_disabled");
-    assert.equal(result.deriveExecution.status, "unavailable");
+    assert.equal(result.failure.kind, "script_transform_disabled");
+    assert.equal(result.transformExecution.status, "unavailable");
     assert.equal(result.persistence.recoverability, "none");
     assert.equal(result.outputId, undefined);
     assert.equal(result.lineage.operation, "script:python");
@@ -236,7 +236,7 @@ test("freeflowTransform script operation resolves sources but returns adapter un
     const result = await freeflowTransform({
       sessionId: "script-adapter-session",
       vaultRoot: vault.root,
-      scriptDerive: {
+      scriptTransform: {
         enabled: true,
         sandbox: "auto",
         languages: ["python"],
@@ -250,7 +250,7 @@ test("freeflowTransform script operation resolves sources but returns adapter un
     });
 
     assert.equal(result.failure.kind, "adapter_unavailable");
-    assert.equal(result.deriveExecution.status, "unavailable");
+    assert.equal(result.transformExecution.status, "unavailable");
     assert.deepEqual(result.lineage.sourceOutputIds, [source.outputId]);
     assert.deepEqual(result.lineage.sourceRecordIds, [source.recordId]);
     assert.equal(result.lineage.operation, "script:python");
@@ -290,7 +290,7 @@ test("freeflowTransform script operation executes through a registered proof-bac
         const sourceText = await readFile(request.sources[0].path, "utf8");
         return {
           status: "success",
-          stdout: `DERIVED:${sourceText}`,
+          stdout: `TRANSFORMED:${sourceText}`,
           stderr: "",
           outputFiles: [],
           exitCode: 0,
@@ -302,7 +302,7 @@ test("freeflowTransform script operation executes through a registered proof-bac
     const result = await freeflowTransform({
       sessionId: "script-execute-session",
       vaultRoot: vault.root,
-      scriptDerive: {
+      scriptTransform: {
         enabled: true,
         sandbox: "auto",
         languages: ["javascript"],
@@ -324,8 +324,8 @@ test("freeflowTransform script operation executes through a registered proof-bac
     assert.doesNotMatch(JSON.stringify(result), /RAW_SCRIPT_SENTINEL/);
     assert.deepEqual(result.lineage.sourceOutputIds, [source.outputId]);
     assert.deepEqual(result.lineage.sourceRecordIds, [source.recordId]);
-    const derived = await readOutputText(vault, "script-execute-session", result.outputId, "raw");
-    assert.equal(derived, "DERIVED:SCRIPT_SOURCE_TARGET");
+    const transformed = await readOutputText(vault, "script-execute-session", result.outputId, "raw");
+    assert.equal(transformed, "TRANSFORMED:SCRIPT_SOURCE_TARGET");
     validateRoutedResult(result);
   });
 });
@@ -375,7 +375,7 @@ test("freeflowTransform script operation executes jq through a registered proof-
     const result = await freeflowTransform({
       sessionId: "script-jq-execute-session",
       vaultRoot: vault.root,
-      scriptDerive: {
+      scriptTransform: {
         enabled: true,
         sandbox: "auto",
         languages: ["jq"],
@@ -397,8 +397,8 @@ test("freeflowTransform script operation executes jq through a registered proof-
     assert.doesNotMatch(JSON.stringify(result), /RAW_JQ_SCRIPT_SENTINEL/);
     assert.deepEqual(result.lineage.sourceOutputIds, [source.outputId]);
     assert.deepEqual(result.lineage.sourceRecordIds, [source.recordId]);
-    const derived = await readOutputText(vault, "script-jq-execute-session", result.outputId, "raw");
-    assert.equal(derived, "JQ:SCRIPT_SOURCE_TARGET");
+    const transformed = await readOutputText(vault, "script-jq-execute-session", result.outputId, "raw");
+    assert.equal(transformed, "JQ:SCRIPT_SOURCE_TARGET");
     validateRoutedResult(result);
   });
 });
@@ -419,7 +419,7 @@ test("freeflowTransform script operation executes Python through discovered Eryx
     const result = await freeflowTransform({
       sessionId: "script-eryx-execute-session",
       vaultRoot: vault.root,
-      scriptDerive: {
+      scriptTransform: {
         enabled: true,
         sandbox: "auto",
         languages: ["python"],
@@ -438,8 +438,8 @@ test("freeflowTransform script operation executes Python through discovered Eryx
     assert.equal(result.operation.language, "python");
     assert.match(result.operation.codeSha256, /^sha256_[0-9a-f]{64}$/);
     assert.doesNotMatch(JSON.stringify(result), /RAW_PYTHON_SCRIPT_SENTINEL/);
-    const derived = await readOutputText(vault, "script-eryx-execute-session", result.outputId, "raw");
-    assert.equal(derived, "ALPHA");
+    const transformed = await readOutputText(vault, "script-eryx-execute-session", result.outputId, "raw");
+    assert.equal(transformed, "ALPHA");
     validateRoutedResult(result);
   });
 });
@@ -483,7 +483,7 @@ test("freeflowTransform script operation returns structured failure for adapter 
     const result = await freeflowTransform({
       sessionId: "script-failure-session",
       vaultRoot: vault.root,
-      scriptDerive: {
+      scriptTransform: {
         enabled: true,
         sandbox: "auto",
         languages: ["javascript"],
@@ -496,8 +496,8 @@ test("freeflowTransform script operation returns structured failure for adapter 
       operation: { kind: "script", language: "javascript", code: "while (true) {}" },
     });
 
-    assert.equal(result.failure.kind, "derive_execution_failure");
-    assert.equal(result.deriveExecution.status, "failed");
+    assert.equal(result.failure.kind, "transform_execution_failure");
+    assert.equal(result.transformExecution.status, "failed");
     assert.equal(result.persistence.recoverability, "none");
     assert.equal(result.outputId, undefined);
     assert.match(result.failure.message, /timed_out/);
@@ -544,7 +544,7 @@ test("freeflowTransform script operation does not persist output-limit failures 
     const result = await freeflowTransform({
       sessionId: "script-output-cap-session",
       vaultRoot: vault.root,
-      scriptDerive: {
+      scriptTransform: {
         enabled: true,
         sandbox: "auto",
         languages: ["javascript"],
@@ -558,8 +558,8 @@ test("freeflowTransform script operation does not persist output-limit failures 
       limits: { maxOutputBytes: 10 },
     });
 
-    assert.equal(result.failure.kind, "derive_execution_failure");
-    assert.equal(result.deriveExecution.status, "failed");
+    assert.equal(result.failure.kind, "transform_execution_failure");
+    assert.equal(result.transformExecution.status, "failed");
     assert.equal(result.persistence.recoverability, "none");
     assert.equal(result.outputId, undefined);
     assert.match(result.failure.message, /exceeded maxOutputBytes/);
@@ -581,11 +581,11 @@ test("freeflowTransform script source resolver fails clearly for missing sources
     const missing = await freeflowTransform({
       sessionId: "script-source-session",
       vaultRoot: vault.root,
-      scriptDerive: config,
+      scriptTransform: config,
       sources: [{ kind: "vault", outputId: "ffout_missing", alias: "missing" }],
       operation: { kind: "script", language: "python", code: "write_text('ok')" },
     });
-    assert.equal(missing.failure.kind, "derive_source_unavailable");
+    assert.equal(missing.failure.kind, "transform_source_unavailable");
     assert.match(missing.failure.message, /ffout_missing/);
 
     const source = await storeCommandOutput(vault, {
@@ -600,30 +600,30 @@ test("freeflowTransform script source resolver fails clearly for missing sources
     const overCap = await freeflowTransform({
       sessionId: "script-source-session",
       vaultRoot: vault.root,
-      scriptDerive: config,
+      scriptTransform: config,
       sources: [{ kind: "vault", outputId: source.outputId, stream: "stdout", alias: "log" }],
       operation: { kind: "script", language: "python", code: "write_text('ok')" },
     });
-    assert.equal(overCap.failure.kind, "derive_validation_failure");
+    assert.equal(overCap.failure.kind, "transform_validation_failure");
     assert.match(overCap.failure.message, /exceed maxInputBytes/);
 
     const loosenedByCall = await freeflowTransform({
       sessionId: "script-source-session",
       vaultRoot: vault.root,
-      scriptDerive: config,
+      scriptTransform: config,
       sources: [{ kind: "vault", outputId: source.outputId, stream: "stdout", alias: "log" }],
       operation: { kind: "script", language: "python", code: "write_text('ok')" },
       limits: { maxInputBytes: 1024 },
     });
-    assert.equal(loosenedByCall.failure.kind, "derive_validation_failure");
+    assert.equal(loosenedByCall.failure.kind, "transform_validation_failure");
     assert.match(loosenedByCall.failure.message, /exceed maxInputBytes/);
   });
 });
 
-test("freeflowTransform regexFilter routes vaulted derived output with source lineage", async () => {
+test("freeflowTransform regexFilter routes vaulted transformed output with source lineage", async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {
-      sessionId: "derive-regex-session",
+      sessionId: "transform-regex-session",
       command: "npm test",
       stdout: "214 passing",
       stderr: [
@@ -642,7 +642,7 @@ test("freeflowTransform regexFilter routes vaulted derived output with source li
     });
 
     const result = await freeflowTransform({
-      sessionId: "derive-regex-session",
+      sessionId: "transform-regex-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: source.outputId, stream: "stderr" },
       operation: { kind: "regexFilter", pattern: "FAIL|ERROR", contextLines: 1, maxMatches: 10 },
@@ -650,9 +650,9 @@ test("freeflowTransform regexFilter routes vaulted derived output with source li
     });
 
     assert.equal(result.toolStatus, "ok");
-    assert.equal(result.routing.route, "derive");
+    assert.equal(result.routing.route, "transform");
     assert.equal(result.routing.status, "routed");
-    assert.equal(result.producer.kind, "derive");
+    assert.equal(result.producer.kind, "transform");
     assert.equal(result.producer.name, "regexFilter");
     assert.equal(result.source.outputId, source.outputId);
     assert.equal(result.persistence.recoverability, "exact");
@@ -667,7 +667,7 @@ test("freeflowTransform regexFilter routes vaulted derived output with source li
     assert.match(result.evidence[0].why, new RegExp(source.outputId));
     assert.deepEqual(validateRoutedResult(result), { ok: true, value: result });
 
-    const raw = await readOutputText(vault, "derive-regex-session", result.outputId, "raw");
+    const raw = await readOutputText(vault, "transform-regex-session", result.outputId, "raw");
     assert.match(raw, /# freeflow_search action=transform regexFilter/);
     assert.match(raw, /source: .*:stderr/);
     assert.match(raw, /matches: 2/);
@@ -679,10 +679,10 @@ test("freeflowTransform regexFilter routes vaulted derived output with source li
   });
 });
 
-test("freeflowTransform countMatches stores exact derived counts", async () => {
+test("freeflowTransform countMatches stores exact transformed counts", async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {
-      sessionId: "derive-count-session",
+      sessionId: "transform-count-session",
       command: "node lint.js",
       stdout: ["FAIL once", "ok", "FAIL twice FAIL third"].join("\n"),
       stderr: "",
@@ -692,29 +692,29 @@ test("freeflowTransform countMatches stores exact derived counts", async () => {
     });
 
     const result = await freeflowTransform({
-      sessionId: "derive-count-session",
+      sessionId: "transform-count-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
       operation: { kind: "countMatches", pattern: "FAIL" },
     });
 
     assert.equal(result.toolStatus, "ok");
-    assert.equal(result.summary, "Derived countMatches from vaulted stdout output: 3 match(es) across 2 line(s).");
+    assert.equal(result.summary, "Transformed countMatches from vaulted stdout output: 3 match(es) across 2 line(s).");
     assert.deepEqual(result.lineage.sourceOutputIds, [source.outputId]);
     assert.equal(result.lineage.operation, "countMatches");
 
-    const raw = await readOutputText(vault, "derive-count-session", result.outputId, "raw");
+    const raw = await readOutputText(vault, "transform-count-session", result.outputId, "raw");
     assert.match(raw, /# freeflow_search action=transform countMatches/);
     assert.match(raw, /matches: 3/);
     assert.match(raw, /matchedLines: 2/);
   });
 });
 
-test("freeflowTransform routes huge derived output with bounded evidence and exact recovery", async () => {
+test("freeflowTransform routes huge transformed output with bounded evidence and exact recovery", async () => {
   await withTempVault(async (vault) => {
-    const text = Array.from({ length: 40 }, (_, index) => `FAIL derived output line ${index + 1}`).join("\n");
+    const text = Array.from({ length: 40 }, (_, index) => `FAIL transformed output line ${index + 1}`).join("\n");
     const source = await storeCommandOutput(vault, {
-      sessionId: "derive-large-session",
+      sessionId: "transform-large-session",
       command: "npm test",
       stdout: text,
       stderr: "",
@@ -724,7 +724,7 @@ test("freeflowTransform routes huge derived output with bounded evidence and exa
     });
 
     const result = await freeflowTransform({
-      sessionId: "derive-large-session",
+      sessionId: "transform-large-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
       operation: { kind: "regexFilter", pattern: "FAIL", contextLines: 0, maxMatches: 40 },
@@ -737,16 +737,16 @@ test("freeflowTransform routes huge derived output with bounded evidence and exa
     assert.equal(result.persistence.recoverability, "exact");
     assert.ok(Buffer.byteLength(result.evidence[0].excerpt, "utf8") <= 240);
 
-    const raw = await readOutputText(vault, "derive-large-session", result.outputId, "raw");
-    assert.match(raw, /FAIL derived output line 40/);
-    assert.doesNotMatch(result.evidence[0].excerpt, /FAIL derived output line 40/);
+    const raw = await readOutputText(vault, "transform-large-session", result.outputId, "raw");
+    assert.match(raw, /FAIL transformed output line 40/);
+    assert.doesNotMatch(result.evidence[0].excerpt, /FAIL transformed output line 40/);
   });
 });
 
 test("freeflowTransform groupByRegex groups matching lines by capture", async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {
-      sessionId: "derive-group-session",
+      sessionId: "transform-group-session",
       command: "node report.js",
       stdout: ["api: FAIL first", "ui: FAIL second", "api: FAIL third", "db: PASS fourth"].join("\n"),
       stderr: "",
@@ -756,7 +756,7 @@ test("freeflowTransform groupByRegex groups matching lines by capture", async ()
     });
 
     const result = await freeflowTransform({
-      sessionId: "derive-group-session",
+      sessionId: "transform-group-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
       operation: { kind: "groupByRegex", pattern: "^([^:]+):", group: 1, maxGroups: 10, maxLinesPerGroup: 5 },
@@ -764,9 +764,9 @@ test("freeflowTransform groupByRegex groups matching lines by capture", async ()
 
     assert.equal(result.toolStatus, "ok");
     assert.equal(result.producer.name, "groupByRegex");
-    assert.equal(result.summary, "Derived groupByRegex from vaulted stdout output: 3 group(s), 4 matched line(s)." );
+    assert.equal(result.summary, "Transformed groupByRegex from vaulted stdout output: 3 group(s), 4 matched line(s)." );
     assert.deepEqual(result.lineage.sourceOutputIds, [source.outputId]);
-    const raw = await readOutputText(vault, "derive-group-session", result.outputId, "raw");
+    const raw = await readOutputText(vault, "transform-group-session", result.outputId, "raw");
     assert.match(raw, /# freeflow_search action=transform groupByRegex/);
     assert.match(raw, /groups: 3/);
     assert.match(raw, /matchedLines: 4/);
@@ -780,7 +780,7 @@ test("freeflowTransform groupByRegex groups matching lines by capture", async ()
 test("freeflowTransform dedupe returns first-seen unique lines", async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {
-      sessionId: "derive-dedupe-session",
+      sessionId: "transform-dedupe-session",
       command: "node report.js",
       stdout: ["alpha", "beta", "alpha", " Beta ", "beta", "gamma"].join("\n"),
       stderr: "",
@@ -790,16 +790,16 @@ test("freeflowTransform dedupe returns first-seen unique lines", async () => {
     });
 
     const result = await freeflowTransform({
-      sessionId: "derive-dedupe-session",
+      sessionId: "transform-dedupe-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
       operation: { kind: "dedupe", trim: true, caseSensitive: false },
     });
 
     assert.equal(result.toolStatus, "ok");
-    assert.equal(result.summary, "Derived dedupe from vaulted stdout output: 3 unique line(s), 3 duplicate line(s) removed.");
+    assert.equal(result.summary, "Transformed dedupe from vaulted stdout output: 3 unique line(s), 3 duplicate line(s) removed.");
     assert.deepEqual(result.lineage.sourceOutputIds, [source.outputId]);
-    const raw = await readOutputText(vault, "derive-dedupe-session", result.outputId, "raw");
+    const raw = await readOutputText(vault, "transform-dedupe-session", result.outputId, "raw");
     assert.match(raw, /# freeflow_search action=transform dedupe/);
     assert.match(raw, /inputLines: 6/);
     assert.match(raw, /uniqueLines: 3/);
@@ -814,7 +814,7 @@ test("freeflowTransform dedupe returns first-seen unique lines", async () => {
 test("freeflowTransform topN sorts regex-matched lines by captured score", async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {
-      sessionId: "derive-top-session",
+      sessionId: "transform-top-session",
       command: "node perf.js",
       stdout: ["duration=12 fast", "duration=200 slow-a", "duration=200 slow-b", "duration=50 medium"].join("\n"),
       stderr: "",
@@ -824,16 +824,16 @@ test("freeflowTransform topN sorts regex-matched lines by captured score", async
     });
 
     const result = await freeflowTransform({
-      sessionId: "derive-top-session",
+      sessionId: "transform-top-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
       operation: { kind: "topN", pattern: "duration=(\\d+)", group: 1, sort: "numeric", order: "desc", limit: 2 },
     });
 
     assert.equal(result.toolStatus, "ok");
-    assert.equal(result.summary, "Derived topN from vaulted stdout output: returned 2 of 4 matched line(s).");
+    assert.equal(result.summary, "Transformed topN from vaulted stdout output: returned 2 of 4 matched line(s).");
     assert.deepEqual(result.lineage.sourceOutputIds, [source.outputId]);
-    const raw = await readOutputText(vault, "derive-top-session", result.outputId, "raw");
+    const raw = await readOutputText(vault, "transform-top-session", result.outputId, "raw");
     assert.match(raw, /# freeflow_search action=transform topN/);
     assert.match(raw, /matchedLines: 4/);
     assert.match(raw, /returnedLines: 2/);
@@ -848,7 +848,7 @@ test("freeflowTransform topN sorts regex-matched lines by captured score", async
 test("freeflowTransform extractUrls returns bounded URL evidence", async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {
-      sessionId: "derive-urls-session",
+      sessionId: "transform-urls-session",
       command: "node links.js",
       stdout: [
         "Docs: https://example.com/docs and https://example.com/api.",
@@ -862,7 +862,7 @@ test("freeflowTransform extractUrls returns bounded URL evidence", async () => {
     });
 
     const result = await freeflowTransform({
-      sessionId: "derive-urls-session",
+      sessionId: "transform-urls-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
       operation: { kind: "extractUrls", dedupe: true, maxMatches: 10 },
@@ -870,9 +870,9 @@ test("freeflowTransform extractUrls returns bounded URL evidence", async () => {
 
     assert.equal(result.toolStatus, "ok");
     assert.equal(result.producer.name, "extractUrls");
-    assert.equal(result.summary, "Derived extractUrls from vaulted stdout output: 3 URL(s) returned from 4 match(es).");
+    assert.equal(result.summary, "Transformed extractUrls from vaulted stdout output: 3 URL(s) returned from 4 match(es).");
     assert.deepEqual(result.lineage.sourceOutputIds, [source.outputId]);
-    const raw = await readOutputText(vault, "derive-urls-session", result.outputId, "raw");
+    const raw = await readOutputText(vault, "transform-urls-session", result.outputId, "raw");
     assert.match(raw, /# freeflow_search action=transform extractUrls/);
     assert.match(raw, /matches: 4/);
     assert.match(raw, /returnedUrls: 3/);
@@ -886,7 +886,7 @@ test("freeflowTransform extractUrls returns bounded URL evidence", async () => {
 test("freeflowTransform extractCitations returns markdown citation targets", async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {
-      sessionId: "derive-citations-session",
+      sessionId: "transform-citations-session",
       command: "node citations.js",
       stdout: [
         "See [Freeflow docs](https://example.com/freeflow) and [@smith2024].",
@@ -900,16 +900,16 @@ test("freeflowTransform extractCitations returns markdown citation targets", asy
     });
 
     const result = await freeflowTransform({
-      sessionId: "derive-citations-session",
+      sessionId: "transform-citations-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
       operation: { kind: "extractCitations", maxMatches: 10 },
     });
 
     assert.equal(result.toolStatus, "ok");
-    assert.equal(result.summary, "Derived extractCitations from vaulted stdout output: 4 citation(s) returned.");
+    assert.equal(result.summary, "Transformed extractCitations from vaulted stdout output: 4 citation(s) returned.");
     assert.deepEqual(result.lineage.sourceOutputIds, [source.outputId]);
-    const raw = await readOutputText(vault, "derive-citations-session", result.outputId, "raw");
+    const raw = await readOutputText(vault, "transform-citations-session", result.outputId, "raw");
     assert.match(raw, /# freeflow_search action=transform extractCitations/);
     assert.match(raw, /1\| markdown-link \| Freeflow docs \| https:\/\/example\.com\/freeflow/);
     assert.match(raw, /1\| citekey \| smith2024/);
@@ -922,7 +922,7 @@ test("freeflowTransform lineStats and sizeStats summarize vaulted text", async (
   await withTempVault(async (vault) => {
     const sourceText = ["alpha", "", "γamma"].join("\n");
     const source = await storeCommandOutput(vault, {
-      sessionId: "derive-stats-session",
+      sessionId: "transform-stats-session",
       command: "printf stats",
       stdout: sourceText,
       stderr: "",
@@ -932,15 +932,15 @@ test("freeflowTransform lineStats and sizeStats summarize vaulted text", async (
     });
 
     const lineStats = await freeflowTransform({
-      sessionId: "derive-stats-session",
+      sessionId: "transform-stats-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
       operation: { kind: "lineStats" },
     });
 
     assert.equal(lineStats.toolStatus, "ok");
-    assert.equal(lineStats.summary, "Derived lineStats from vaulted stdout output: 3 line(s), 2 non-empty, 1 blank.");
-    const lineRaw = await readOutputText(vault, "derive-stats-session", lineStats.outputId, "raw");
+    assert.equal(lineStats.summary, "Transformed lineStats from vaulted stdout output: 3 line(s), 2 non-empty, 1 blank.");
+    const lineRaw = await readOutputText(vault, "transform-stats-session", lineStats.outputId, "raw");
     assert.match(lineRaw, /# freeflow_search action=transform lineStats/);
     assert.match(lineRaw, /lines: 3/);
     assert.match(lineRaw, /nonEmptyLines: 2/);
@@ -949,16 +949,16 @@ test("freeflowTransform lineStats and sizeStats summarize vaulted text", async (
     assert.match(lineRaw, /maxLineNumber: 3/);
 
     const sizeStats = await freeflowTransform({
-      sessionId: "derive-stats-session",
+      sessionId: "transform-stats-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
       operation: { kind: "sizeStats" },
     });
 
     assert.equal(sizeStats.toolStatus, "ok");
-    assert.equal(sizeStats.summary, "Derived sizeStats from vaulted stdout output: 13 byte(s), 12 code unit(s), 3 line(s).");
+    assert.equal(sizeStats.summary, "Transformed sizeStats from vaulted stdout output: 13 byte(s), 12 code unit(s), 3 line(s).");
     assert.deepEqual(sizeStats.lineage.sourceOutputIds, [source.outputId]);
-    const sizeRaw = await readOutputText(vault, "derive-stats-session", sizeStats.outputId, "raw");
+    const sizeRaw = await readOutputText(vault, "transform-stats-session", sizeStats.outputId, "raw");
     assert.match(sizeRaw, /# freeflow_search action=transform sizeStats/);
     assert.match(sizeRaw, /bytes: 13/);
     assert.match(sizeRaw, /utf16CodeUnits: 12/);
@@ -970,7 +970,7 @@ test("freeflowTransform lineStats and sizeStats summarize vaulted text", async (
 test("freeflowTransform jsonExtract supports JSON pointer and path selectors", async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {
-      sessionId: "derive-json-session",
+      sessionId: "transform-json-session",
       command: "node report.js",
       stdout: JSON.stringify({
         suite: {
@@ -985,7 +985,7 @@ test("freeflowTransform jsonExtract supports JSON pointer and path selectors", a
     });
 
     const pointer = await freeflowTransform({
-      sessionId: "derive-json-session",
+      sessionId: "transform-json-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
       operation: { kind: "jsonExtract", pointer: "/suite/failures/0/message" },
@@ -997,7 +997,7 @@ test("freeflowTransform jsonExtract supports JSON pointer and path selectors", a
     assert.deepEqual(pointer.lineage.sourceOutputIds, [source.outputId]);
     assert.equal(pointer.persistence.recoverability, "exact");
     assert.deepEqual(validateRoutedResult(pointer), { ok: true, value: pointer });
-    const pointerRaw = await readOutputText(vault, "derive-json-session", pointer.outputId, "raw");
+    const pointerRaw = await readOutputText(vault, "transform-json-session", pointer.outputId, "raw");
     assert.match(pointerRaw, /# freeflow_search action=transform jsonExtract/);
     assert.match(pointerRaw, /selectorKind: pointer/);
     assert.match(pointerRaw, /selector: \/suite\/failures\/0\/message/);
@@ -1005,15 +1005,15 @@ test("freeflowTransform jsonExtract supports JSON pointer and path selectors", a
     assert.match(pointerRaw, /"expected true to equal false"/);
 
     const path = await freeflowTransform({
-      sessionId: "derive-json-session",
+      sessionId: "transform-json-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
       operation: { kind: "jsonExtract", path: "$.suite.stats.failed" },
     });
 
     assert.equal(path.toolStatus, "ok");
-    assert.equal(path.summary, "Derived jsonExtract from vaulted stdout output using path $.suite.stats.failed.");
-    const pathRaw = await readOutputText(vault, "derive-json-session", path.outputId, "raw");
+    assert.equal(path.summary, "Transformed jsonExtract from vaulted stdout output using path $.suite.stats.failed.");
+    const pathRaw = await readOutputText(vault, "transform-json-session", path.outputId, "raw");
     assert.match(pathRaw, /selectorKind: path/);
     assert.match(pathRaw, /valueType: number/);
     assert.match(pathRaw, /\n1\n/);
@@ -1023,7 +1023,7 @@ test("freeflowTransform jsonExtract supports JSON pointer and path selectors", a
 test("freeflowTransform returns structured failures for invalid JSON and unresolved JSON selectors", async () => {
   await withTempVault(async (vault) => {
     const badJson = await storeCommandOutput(vault, {
-      sessionId: "derive-json-failure-session",
+      sessionId: "transform-json-failure-session",
       command: "node report.js",
       stdout: "{ not-json",
       stderr: "",
@@ -1033,19 +1033,19 @@ test("freeflowTransform returns structured failures for invalid JSON and unresol
     });
 
     const parseFailure = await freeflowTransform({
-      sessionId: "derive-json-failure-session",
+      sessionId: "transform-json-failure-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: badJson.outputId, stream: "stdout" },
       operation: { kind: "jsonExtract", pointer: "/suite" },
     });
 
-    assert.equal(parseFailure.failure.kind, "derive_execution_failure");
-    assert.equal(parseFailure.deriveExecution.status, "failed");
+    assert.equal(parseFailure.failure.kind, "transform_execution_failure");
+    assert.equal(parseFailure.transformExecution.status, "failed");
     assert.match(parseFailure.failure.message, /Invalid JSON source/);
     assert.deepEqual(parseFailure.lineage.sourceOutputIds, [badJson.outputId]);
 
     const goodJson = await storeCommandOutput(vault, {
-      sessionId: "derive-json-failure-session",
+      sessionId: "transform-json-failure-session",
       command: "node report.js",
       stdout: JSON.stringify({ suite: { stats: { passed: 1 } } }),
       stderr: "",
@@ -1055,26 +1055,26 @@ test("freeflowTransform returns structured failures for invalid JSON and unresol
     });
 
     const pathFailure = await freeflowTransform({
-      sessionId: "derive-json-failure-session",
+      sessionId: "transform-json-failure-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: goodJson.outputId, stream: "stdout" },
       operation: { kind: "jsonExtract", path: "$.suite.stats.failed" },
     });
 
-    assert.equal(pathFailure.failure.kind, "derive_execution_failure");
-    assert.equal(pathFailure.deriveExecution.status, "failed");
+    assert.equal(pathFailure.failure.kind, "transform_execution_failure");
+    assert.equal(pathFailure.transformExecution.status, "failed");
     assert.match(pathFailure.failure.message, /did not resolve/);
     assert.deepEqual(pathFailure.lineage.sourceOutputIds, [goodJson.outputId]);
 
     const invalidPath = await freeflowTransform({
-      sessionId: "derive-json-failure-session",
+      sessionId: "transform-json-failure-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: goodJson.outputId, stream: "stdout" },
       operation: { kind: "jsonExtract", path: "suite.stats" },
     });
 
-    assert.equal(invalidPath.failure.kind, "derive_validation_failure");
-    assert.equal(invalidPath.deriveExecution.status, "rejected");
+    assert.equal(invalidPath.failure.kind, "transform_validation_failure");
+    assert.equal(invalidPath.transformExecution.status, "rejected");
     assert.match(invalidPath.failure.message, /Invalid JSON path/);
   });
 });
@@ -1082,28 +1082,28 @@ test("freeflowTransform returns structured failures for invalid JSON and unresol
 test("freeflowTransform returns structured failures for missing source and invalid regex", async () => {
   await withTempVault(async (vault) => {
     const missing = await freeflowTransform({
-      sessionId: "derive-missing-session",
+      sessionId: "transform-missing-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: "ffout_missing", stream: "combined" },
       operation: { kind: "regexFilter", pattern: "FAIL" },
     });
 
     assert.equal(missing.toolStatus, "ok");
-    assert.equal(missing.routing.route, "derive");
-    assert.equal(missing.failure.kind, "derive_source_unavailable");
-    assert.equal(missing.deriveExecution.status, "unavailable");
+    assert.equal(missing.routing.route, "transform");
+    assert.equal(missing.failure.kind, "transform_source_unavailable");
+    assert.equal(missing.transformExecution.status, "unavailable");
     assert.deepEqual(missing.lineage.sourceOutputIds, ["ffout_missing"]);
     assert.equal(missing.persistence.recoverability, "none");
 
     const invalid = await freeflowTransform({
-      sessionId: "derive-invalid-session",
+      sessionId: "transform-invalid-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: "ffout_missing", stream: "combined" },
       operation: { kind: "countMatches", pattern: "(" },
     });
 
-    assert.equal(invalid.failure.kind, "derive_validation_failure");
-    assert.equal(invalid.deriveExecution.status, "rejected");
+    assert.equal(invalid.failure.kind, "transform_validation_failure");
+    assert.equal(invalid.transformExecution.status, "rejected");
     assert.match(invalid.failure.message, /Invalid regex pattern/);
   });
 });

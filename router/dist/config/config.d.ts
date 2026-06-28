@@ -1,4 +1,4 @@
-import type { CaptureConfig, FreeflowConfig, ObservedRoutingConfig, LocalFreeflowConfig, ProvidersConfig, RouterConfig, ScriptDeriveConfig, VaultRetentionPolicy } from "./types.js";
+import type { FreeflowConfig, ObservedRoutingConfig, LocalFreeflowConfig, RouterConfig, ScriptTransformConfig, VaultRetentionPolicy } from "./types.js";
 export declare const OUTPUT_ROUTER_SKILL_PATH = "skills/output-router/SKILL.md";
 export declare const DEFAULT_VAULT_ROOT = "~/.cache/freeflow-router/vault";
 export declare const DEFAULT_POST_TOOL_ROUTING = "off";
@@ -12,13 +12,6 @@ export declare const DEFAULT_VAULT_RETENTION: {
 export declare const DEFAULT_ROUTER_THRESHOLDS: {
     readonly largeOutputBytes: 64000;
     readonly largeOutputLines: 1000;
-};
-export declare const DEFAULT_CAPTURE_CONFIG: {
-    readonly freeflowMediated: "raw";
-    readonly directHostTools: "off";
-};
-export declare const DEFAULT_PROVIDERS_CONFIG: {
-    readonly enabled: [];
 };
 export declare const DEFAULT_OBSERVED_ROUTING_PERSISTENCE: "none";
 export declare const SAFE_OBSERVED_ROUTING_PERSISTENCE_FALLBACK: "metadata-only";
@@ -41,18 +34,18 @@ export declare const DEFAULT_OBSERVED_ROUTING_CONFIG: {
         readonly persistence: "none";
     };
 };
-export declare const SCRIPT_DERIVE_LANGUAGES: readonly ["javascript", "python", "jq"];
-export declare const DEFAULT_SCRIPT_DERIVE_LIMITS: {
+export declare const SCRIPT_TRANSFORM_LANGUAGES: readonly ["javascript", "python", "jq"];
+export declare const DEFAULT_SCRIPT_TRANSFORM_LIMITS: {
     readonly timeoutMs: 5000;
     readonly maxInputBytes: 1048576;
     readonly maxOutputBytes: 65536;
 };
-export declare const MAX_SCRIPT_DERIVE_LIMITS: {
+export declare const MAX_SCRIPT_TRANSFORM_LIMITS: {
     readonly timeoutMs: 30000;
     readonly maxInputBytes: 10485760;
     readonly maxOutputBytes: 1048576;
 };
-export declare const DEFAULT_SCRIPT_DERIVE_CONFIG: {
+export declare const DEFAULT_SCRIPT_TRANSFORM_CONFIG: {
     enabled: false;
     sandbox: "auto";
     languages: ("javascript" | "python" | "jq")[];
@@ -80,20 +73,12 @@ export interface NormalizeRouterConfigResult {
     config: RouterConfig;
     warnings: string[];
 }
-export interface NormalizeCaptureConfigResult {
-    config: CaptureConfig;
-    warnings: string[];
-}
-export interface NormalizeProvidersConfigResult {
-    config: ProvidersConfig;
-    warnings: string[];
-}
 export interface NormalizeObservedRoutingConfigResult {
     config: ObservedRoutingConfig;
     warnings: string[];
 }
-export interface NormalizeScriptDeriveConfigResult {
-    config: ScriptDeriveConfig;
+export interface NormalizeScriptTransformConfigResult {
+    config: ScriptTransformConfig;
     warnings: string[];
 }
 export interface NormalizeFreeflowConfigResult {
@@ -105,9 +90,7 @@ export interface NormalizeLocalFreeflowConfigResult {
     warnings: string[];
 }
 export declare function normalizeRouterConfig(input: unknown): NormalizeRouterConfigResult;
-export declare function normalizeCaptureConfig(input: unknown): NormalizeCaptureConfigResult;
-export declare function normalizeProvidersConfig(input: unknown): NormalizeProvidersConfigResult;
 export declare function normalizeObservedRoutingConfig(input: unknown): NormalizeObservedRoutingConfigResult;
-export declare function normalizeScriptDeriveConfig(input: unknown): NormalizeScriptDeriveConfigResult;
+export declare function normalizeScriptTransformConfig(input: unknown): NormalizeScriptTransformConfigResult;
 export declare function normalizeLocalFreeflowConfig(input: unknown): NormalizeLocalFreeflowConfigResult;
 export declare function normalizeFreeflowConfig(input: unknown): NormalizeFreeflowConfigResult;

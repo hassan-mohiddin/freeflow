@@ -1304,13 +1304,13 @@
       "name": "setup-loads-runtime-context-for-current-session",
       "fixture_root": "evals/fixtures/tiny-setup-agents-app",
       "prompt_file": "evals/prompts/stp-010.txt",
-      "expected_output": "The agent should set up Codex, verify the minimal activation/config files, read the workflow skill, workflow map, and interview-gate skill before the final response, and say workflow and interview-gate context is loaded for the current session only if all three files were read.",
+      "expected_output": "The agent should set up Codex, verify the minimal activation/config files, read the workflow skill, interview-gate skill, discover skill, and workflow map before the final response, and say workflow, interview-gate, and discover context is loaded for the current session only if all four files were read.",
       "assertions": [
         "Creates .freeflow/config.json with exactly defaultMode set to workflow.",
         "Adds exactly one ## Freeflow block to AGENTS.md using the canonical activation contract.",
         "Does not create CONTEXT.md, docs pages, repo-local hooks, handoffs, state files, skill inventories, or .codex/rules behavior files.",
         "Reports setup verification evidence.",
-        "Reports that workflow and interview-gate context is loaded for this session after reading the workflow skill, workflow map, and interview-gate skill."
+        "Reports that workflow, interview-gate, and discover context is loaded for this session after reading the workflow skill, interview-gate skill, discover skill, and workflow map."
       ],
       "grade_artifacts": [
         "final response",
@@ -1339,11 +1339,12 @@
           "id": "runtime-loaded-output",
           "type": "output_contains",
           "all": [
-            "interview-gate"
+            "interview-gate",
+            "discover"
           ],
           "any": [
             "loaded for this session",
-            "workflow and interview-gate context is loaded",
+            "workflow, interview-gate, and discover context is loaded",
             "runtime context loaded",
             "Runtime context loaded"
           ]
@@ -1748,12 +1749,12 @@
       "name": "output-router-command-prevents-broad-native-output",
       "fixture_root": "evals/fixtures/tiny-saas-app",
       "prompt_file": "evals/prompts/cmd-016.txt",
-      "expected_output": "The agent should treat /output-router as a direct call into the output-router skill, make no file changes, and recommend Freeflow tools first for unknown-size, exploratory, repo-wide, generated/log-adjacent, or likely noisy output. It should use freeflow_retrieve query/locate for repo evidence, freeflow_run for any intentionally broad shell search, and reject unbounded native rg/find/grep output unless exact raw shell behavior is intentionally needed and bounded/excluded.",
+      "expected_output": "The agent should treat /output-router as a direct call into the output-router skill, make no file changes, and recommend Freeflow tools first for unknown-size, exploratory, repo-wide, generated/log-adjacent, or likely noisy output. It should use freeflow_search query/locate for repo evidence, freeflow_run for any intentionally broad shell search, and reject unbounded native rg/find/grep output unless exact raw shell behavior is intentionally needed and bounded/excluded.",
       "assertions": [
         "Treats /output-router as permission to use output-router guidance, not to edit files or dump broad native shell output.",
         "Does not create, modify, or delete files.",
         "Says Freeflow tools are the first choice for unknown-size, exploratory, repo-wide, generated/log-adjacent, or likely noisy output.",
-        "Recommends freeflow_retrieve query or locate before broad repo search output.",
+        "Recommends freeflow_search query or locate before broad repo search output.",
         "Recommends freeflow_run for intentionally broad or likely noisy shell searches.",
         "Says native bash is only for exact raw shell behavior that is expected-small, direct, or intentionally bounded/excluded.",
         "Mentions excluding generated/noisy paths such as graphify-out or eval run logs when a shell search is intentionally used."
@@ -2277,10 +2278,10 @@
       "name": "output-router-tool-choice-and-config-boundary",
       "fixture_root": "evals/fixtures/tiny-saas-app",
       "prompt_file": "evals/prompts/otr-001.txt",
-      "expected_output": "The agent should answer directly without editing files. It should choose freeflow_retrieve query/locate for finding repo config parsing, freeflow_retrieve retrieve/query with source.kind=vault and outputId for exact vaulted output recovery, freeflow_run for noisy npm test output, and reject workflow mode as a reason to enable native post-tool safety-net routing. It should state that outputRouter config is optional, postToolRouting defaults to off, safety-net is opt-in, strict is reserved, and setup-freeflow owns persisted repo config.",
+      "expected_output": "The agent should answer directly without editing files. It should choose freeflow_search query/locate for finding repo config parsing, freeflow_search retrieve/query with source.kind=vault and outputId for exact vaulted output recovery, freeflow_run for noisy npm test output, and reject workflow mode as a reason to enable native post-tool safety-net routing. It should state that outputRouter config is optional, postToolRouting defaults to off, safety-net is opt-in, strict is reserved, and setup-freeflow owns persisted repo config.",
       "assertions": [
         "Does not create, modify, or delete files.",
-        "Uses freeflow_retrieve for targeted repo evidence and vault recovery, including source.kind=vault plus outputId for exact recovery.",
+        "Uses freeflow_search for targeted repo evidence and vault recovery, including source.kind=vault plus outputId for exact recovery.",
         "Uses freeflow_run for likely noisy npm test output rather than native bash by default.",
         "States that workflow mode does not enable outputRouter.postToolRouting.",
         "States that native safety-net routing remains off unless explicitly configured and that strict is reserved.",
@@ -2303,12 +2304,12 @@
       "name": "output-router-broad-native-search-routing",
       "fixture_root": "evals/fixtures/tiny-saas-app",
       "prompt_file": "evals/prompts/otr-002.txt",
-      "expected_output": "The agent should answer directly without editing files. It should make Freeflow tools the first choice for unknown-size, exploratory, repo-wide, generated/log-adjacent, or likely noisy output. It should not accept broad native rg/find/grep output as the default path. It should prefer freeflow_retrieve query/locate for repo evidence and use freeflow_run for intentionally broad or noisy shell searches, with explicit generated-path/log exclusions or output bounds if native bash is intentionally chosen.",
+      "expected_output": "The agent should answer directly without editing files. It should make Freeflow tools the first choice for unknown-size, exploratory, repo-wide, generated/log-adjacent, or likely noisy output. It should not accept broad native rg/find/grep output as the default path. It should prefer freeflow_search query/locate for repo evidence and use freeflow_run for intentionally broad or noisy shell searches, with explicit generated-path/log exclusions or output bounds if native bash is intentionally chosen.",
       "assertions": [
         "Does not create, modify, or delete files.",
         "Says Freeflow tools are the first choice for unknown-size, exploratory, repo-wide, generated/log-adjacent, or likely noisy output.",
         "Does not recommend unbounded native rg, find, grep -R, or package/session-log scans as the default path.",
-        "Uses freeflow_retrieve query or locate first for repo evidence discovery.",
+        "Uses freeflow_search query or locate first for repo evidence discovery.",
         "Uses freeflow_run for intentionally broad or likely noisy shell commands.",
         "Allows native bash only when exact raw shell behavior is needed and expected output is small/exact or the command is intentionally bounded and excludes generated/noisy paths.",
         "Mentions generated outputs or eval/session logs as paths that should be avoided in broad native searches."

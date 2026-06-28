@@ -1,6 +1,6 @@
 import { type ProcessingReducerSelection } from "./reducers.js";
 import { type ProcessingScriptRequest, type ProcessingScriptResult } from "./scripts.js";
-import type { EvidenceLineage, EvidencePersistence, LocalFreeflowConfig, OutputStream, RecoveryHint, ScriptDeriveConfig, SourceRef, VaultRetentionPolicy } from "../config/types.js";
+import type { EvidenceLineage, EvidencePersistence, LocalFreeflowConfig, OutputStream, RecoveryHint, ScriptTransformConfig, SourceRef, VaultRetentionPolicy } from "../config/types.js";
 import type { ScriptSandboxAdapter } from "../sandbox/script-sandbox.js";
 export declare const PROCESSING_ENGINE_IMPLEMENTATION = "processing-engine-skeleton-v1";
 export interface ProcessingLimits {
@@ -14,7 +14,7 @@ export interface ProcessingEngineOptions {
     goal?: string;
     limits?: Partial<ProcessingLimits>;
     script?: ProcessingScriptRequest;
-    scriptDerive?: ScriptDeriveConfig;
+    scriptTransform?: ScriptTransformConfig;
     localConfig?: LocalFreeflowConfig;
     scriptSandboxAdapters?: readonly ScriptSandboxAdapter[];
 }

@@ -17,7 +17,7 @@ import { freeflowBatch } from "../tools/batch.js";
 import { freeflowSearch, type FreeflowSearchOptions } from "../tools/search.js";
 import { processSource } from "../processing/engine.js";
 import { freeflowRun, type FreeflowRunOptions, type HostCommandRunner, type HostCommandRunResult } from "../tools/run.js";
-import { freeflowTransform, type DeterministicDeriveOperation } from "../transform/engine.js";
+import { freeflowTransform, type DeterministicTransformOperation } from "../transform/engine.js";
 import type { CommandRoutedResult, OutputStream } from "../config/types.js";
 
 const DEFAULT_CONTEXT_MODE_REPO = "/tmp/pi-github-repos/mksglu/context-mode";
@@ -309,7 +309,7 @@ export async function runContextModeRealDeepBenchmark(
       return { result, text: freeflowText(result), latencyMs: Math.round(performance.now() - start) };
     }
 
-    async function ffTransform(sourceOutputId: string, stream: OutputStream, operation: DeterministicDeriveOperation): Promise<Observation> {
+    async function ffTransform(sourceOutputId: string, stream: OutputStream, operation: DeterministicTransformOperation): Promise<Observation> {
       const start = performance.now();
       const result = await freeflowTransform({
         source: { kind: "vault", outputId: sourceOutputId, stream },
@@ -670,7 +670,7 @@ export async function runContextModeRealDeepBenchmark(
       capability: "parallel steps + deterministic query aggregation",
       obs: { result: ffBatchResult, text: freeflowText(ffBatchResult), latencyMs: Math.round(performance.now() - ffBatchStart) },
       expectedCorrect: hasFacts(batchQueryAnswerText(ffBatchResult), batchFacts),
-      notes: "Query answers are derived deterministically from child evidence handles; full child details remain in details.result.steps.",
+      notes: "Query answers are transformed deterministically from child evidence handles; full child details remain in details.result.steps.",
     });
 
     const outsidePath = path.join(root.path, "outside-secret.txt");

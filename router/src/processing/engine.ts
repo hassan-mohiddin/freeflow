@@ -13,7 +13,7 @@ import {
   type ProcessingScriptResult,
 } from "./scripts.js";
 import { createVault, readOutputText, readVaultRecord, storeRepoFileReference, storeTextOutput } from "../vault/vault.js";
-import type { EvidenceLineage, EvidencePersistence, LocalFreeflowConfig, OutputStream, RecoveryHint, ScriptDeriveConfig, SourceRef, VaultRecord, VaultRetentionPolicy } from "../config/types.js";
+import type { EvidenceLineage, EvidencePersistence, LocalFreeflowConfig, OutputStream, RecoveryHint, ScriptTransformConfig, SourceRef, VaultRecord, VaultRetentionPolicy } from "../config/types.js";
 import type { ScriptSandboxAdapter } from "../sandbox/script-sandbox.js";
 
 export const PROCESSING_ENGINE_IMPLEMENTATION = "processing-engine-skeleton-v1";
@@ -30,7 +30,7 @@ export interface ProcessingEngineOptions {
   goal?: string;
   limits?: Partial<ProcessingLimits>;
   script?: ProcessingScriptRequest;
-  scriptDerive?: ScriptDeriveConfig;
+  scriptTransform?: ScriptTransformConfig;
   localConfig?: LocalFreeflowConfig;
   scriptSandboxAdapters?: readonly ScriptSandboxAdapter[];
 }
@@ -212,7 +212,7 @@ export async function processSource(
     ? await runProcessingScript({
         loaded,
         script: options.script,
-        ...(options.scriptDerive !== undefined ? { scriptDerive: options.scriptDerive } : {}),
+        ...(options.scriptTransform !== undefined ? { scriptTransform: options.scriptTransform } : {}),
         ...(options.localConfig !== undefined ? { localConfig: options.localConfig } : {}),
         ...(options.scriptSandboxAdapters !== undefined ? { adapters: options.scriptSandboxAdapters } : {}),
       })
@@ -496,8 +496,8 @@ async function persistProcessingResultText(input: {
   const record = await storeTextOutput(createVault(vaultOptions), {
     sessionId: input.options.sessionId,
     raw: input.resultText,
-    sourceKind: "derive",
-    producer: { kind: "derive", name: input.producerName },
+    sourceKind: "transform",
+    producer: { kind: "transform", name: input.producerName },
     persistence: { status: "vaulted", recoverability: "exact" },
     lineage,
   });

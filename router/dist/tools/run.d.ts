@@ -1,6 +1,6 @@
-import { type ScriptDeriveLimitsInput } from "../transform/engine.js";
+import { type ScriptTransformLimitsInput } from "../transform/engine.js";
 import { type RunOutputFiltersInput } from "../routing/run-filters.js";
-import type { CommandRoutedResult, ExecutionStatus, PreserveMode, RouterThresholds, ScriptDeriveConfig, ScriptDeriveLanguage, StoragePolicyMode, VaultRetentionPolicy } from "../config/types.js";
+import type { CommandRoutedResult, ExecutionStatus, PreserveMode, RouterThresholds, ScriptTransformConfig, ScriptTransformLanguage, StoragePolicyMode, VaultRetentionPolicy } from "../config/types.js";
 import type { ScriptSandboxAdapter } from "../sandbox/script-sandbox.js";
 export interface HostCommandRunRequest {
     command: string | readonly string[];
@@ -19,10 +19,10 @@ export interface HostCommandRunner {
     run(request: HostCommandRunRequest): Promise<HostCommandRunResult>;
 }
 export interface RunScriptFilterInput {
-    language: ScriptDeriveLanguage;
+    language: ScriptTransformLanguage;
     code: string;
     label?: string;
-    limits?: ScriptDeriveLimitsInput;
+    limits?: ScriptTransformLimitsInput;
 }
 export interface FreeflowRunOptions extends HostCommandRunRequest {
     sessionId: string;
@@ -33,7 +33,7 @@ export interface FreeflowRunOptions extends HostCommandRunRequest {
     thresholds?: Partial<RouterThresholds>;
     filters?: RunOutputFiltersInput;
     scriptFilter?: RunScriptFilterInput;
-    scriptDerive?: ScriptDeriveConfig;
+    scriptTransform?: ScriptTransformConfig;
     scriptSandboxAdapters?: readonly ScriptSandboxAdapter[];
     storagePolicy?: StoragePolicyMode;
 }

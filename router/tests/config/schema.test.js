@@ -160,7 +160,7 @@ test("routed command result validates run script filter metadata", () => {
       language: "javascript",
       rawOutputId: "ffout_raw",
       sourceAliases: ["stdout", "stderr", "combined"],
-      outputId: "ffout_derived",
+      outputId: "ffout_transformed",
       operation: { kind: "script", language: "javascript", codeSha256: "sha256_abc" },
     },
   };

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { Worker } from "node:worker_threads";
+import { resolveScriptTransformAdapterRoot } from "./adapter-roots.js";
 import { SCRIPT_SANDBOX_REQUIRED_PROOFS, scriptSandboxProofFixturesForLanguage } from "./script-sandbox.js";
 const DEFAULT_PROBE_TIMEOUT_MS = 250;
 const DEFAULT_PROBE_OUTPUT_BYTES = 4096;
@@ -11,15 +12,15 @@ const SECRET_SENTINEL = "FREEFLOW_SANDBOX_SECRET_SENTINEL_VALUE";
 export const JQ_WASM_ROOT_ENV = "FREEFLOW_JQ_WASM_ROOT";
 const jqProbeCache = new Map();
 export async function discoverJqWasmSandboxAdaptersFromEnv(env = process.env) {
-    const packageRoot = env[JQ_WASM_ROOT_ENV];
-    if (!packageRoot) {
+    const candidate = await resolveScriptTransformAdapterRoot("jq", env);
+    if (!candidate) {
         return [];
     }
     try {
-        return [await createJqWasmSandboxAdapter({ packageRoot })];
+        return [await createJqWasmSandboxAdapter({ packageRoot: candidate.packageRoot })];
     }
     catch (error) {
-        return [unavailableJqAdapter(`jq-wasm adapter could not load from ${JQ_WASM_ROOT_ENV}: ${errorMessage(error)}`)];
+        return [unavailableJqAdapter(`jq-wasm adapter could not load from ${candidate.source === "env" ? candidate.envVar : "global adapter cache"}: ${errorMessage(error)}`)];
     }
 }
 export async function createJqWasmSandboxAdapter(options) {

@@ -3,19 +3,18 @@ import { access, readFile, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import {
-  DEFAULT_CAPTURE_CONFIG,
   DEFAULT_OBSERVED_ROUTING_CONFIG,
   DEFAULT_OUTPUT_ROUTER_ENABLED,
   DEFAULT_OUTPUT_ROUTER_PROFILE,
   DEFAULT_POST_TOOL_ROUTING,
-  DEFAULT_PROVIDERS_CONFIG,
   DEFAULT_ROUTER_THRESHOLDS,
-  DEFAULT_SCRIPT_DERIVE_CONFIG,
+  DEFAULT_SCRIPT_TRANSFORM_CONFIG,
   DEFAULT_STORAGE_POLICY,
   OBSERVED_ROUTING_PERSISTENCE_MODES,
   RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES,
   DEFAULT_VAULT_RETENTION,
   DEFAULT_VAULT_ROOT,
+  defaultScriptTransformAdaptersHome,
   createLocalVaultIndex,
   createVault,
   discoverEryxPythonSandboxAdaptersFromEnv,
@@ -25,12 +24,10 @@ import {
   normalizeLocalFreeflowConfig,
   probeScriptSandboxAdapters,
 } from "../../router/dist/index.js";
-import { isMcpServerConfigured } from "./mcp-config.js";
-import { BUILT_IN_PROVIDER_MANIFESTS, validateProviderManifest } from "./provider-manifests.js";
 import { VALID_MODES, readModeState } from "./runtime-context.js";
 
 const STATUS_ACTIONS = new Set(["status", "doctor", "migration"]);
-const TOP_LEVEL_CONFIG_KEYS = new Set(["defaultMode", "outputRouter", "capture", "providers", "observedRouting", "scriptDerive"]);
+const TOP_LEVEL_CONFIG_KEYS = new Set(["defaultMode", "outputRouter", "observedRouting", "scriptTransform"]);
 const OUTPUT_ROUTER_CONFIG_KEYS = new Set([
   "enabled",
   "profile",
@@ -43,12 +40,10 @@ const OUTPUT_ROUTER_CONFIG_KEYS = new Set([
   "generatedPaths",
   "noisyCommandHints",
 ]);
-const CAPTURE_CONFIG_KEYS = new Set(["freeflowMediated", "directHostTools"]);
-const PROVIDERS_CONFIG_KEYS = new Set(["enabled", "manifests", "customManifests"]);
 const OBSERVED_ROUTING_CONFIG_KEYS = new Set(["enabled", "onRoutingFailure", "mcp", "web", "fetch", "codeSearch"]);
 const OBSERVED_ROUTING_PRODUCER_KEYS = new Set(["enabled", "persistence"]);
 const OBSERVED_ROUTING_MCP_KEYS = new Set(["servers"]);
-const SCRIPT_DERIVE_CONFIG_KEYS = new Set(["enabled", "sandbox", "languages", "network", "limits", "rawScriptPersistence"]);
+const SCRIPT_TRANSFORM_CONFIG_KEYS = new Set(["enabled", "sandbox", "languages", "network", "limits", "rawScriptPersistence"]);
 
 export async function buildFreeflowStatusReport(params = {}, ctx) {
   const action = normalizeStatusAction((params as any).action);
@@ -79,11 +74,10 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
     ...(await discoverJqWasmSandboxAdaptersFromEnv()),
     ...(await discoverEryxPythonSandboxAdaptersFromEnv()),
   ];
-  const [vaultWritability, vaultIndex, providers, scriptSandbox] = await Promise.all([
+  const [vaultWritability, vaultIndex, scriptSandbox] = await Promise.all([
     inspectVaultWritability(vault.root),
     inspectVaultIndex(vault),
-    inspectProviders(ctx.cwd, configFile.parsed, normalized.config.providers),
-    probeScriptSandboxAdapters({ config: normalized.config.scriptDerive, adapters: scriptSandboxAdapters }),
+    probeScriptSandboxAdapters({ config: normalized.config.scriptTransform, adapters: scriptSandboxAdapters }),
   ]);
   const migration = migrationReport(configFile.parsed);
 
@@ -106,10 +100,8 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
         vault: normalized.config.outputRouter.vault,
         hints: normalized.config.outputRouter.hints ?? {},
       },
-      capture: normalized.config.capture,
-      providers: normalized.config.providers,
       observedRouting: normalized.config.observedRouting,
-      scriptDerive: normalized.config.scriptDerive,
+      scriptTransform: normalized.config.scriptTransform,
     },
     effectiveLocalConfig: localNormalized.config,
     effectiveDefaults: {
@@ -122,10 +114,8 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
         vaultRoot: DEFAULT_VAULT_ROOT,
         vaultRetention: DEFAULT_VAULT_RETENTION,
       },
-      capture: DEFAULT_CAPTURE_CONFIG,
-      providers: DEFAULT_PROVIDERS_CONFIG,
       observedRouting: DEFAULT_OBSERVED_ROUTING_CONFIG,
-      scriptDerive: DEFAULT_SCRIPT_DERIVE_CONFIG,
+      scriptTransform: DEFAULT_SCRIPT_TRANSFORM_CONFIG,
     },
     vault: {
       root: vault.root,
@@ -134,21 +124,14 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
       writability: vaultWritability,
     },
     vaultIndex,
-    capture: {
-      freeflowMediated: normalized.config.capture.freeflowMediated,
-      directHostTools: normalized.config.capture.directHostTools,
-      directHostToolCaptureStatus: normalized.config.capture.directHostTools === "off" ? "off" : "unsupported",
-      recoverabilityDefault: "Pi public freeflow_capture has been removed; observed routing handles configured MCP/web/fetch/code-search outputs after host execution. Direct host-tool capture is off."
-    },
     observedRouting: observedRoutingStatus(normalized.config.observedRouting),
-    scriptDerive: scriptDeriveStatus(normalized.config.scriptDerive, scriptSandbox),
+    scriptTransform: scriptTransformStatus(normalized.config.scriptTransform, scriptSandbox),
     processing: processingStatus(localNormalized.config),
-    providers,
     recoverabilityDefaults: {
       freeflowRun: "hybrid-dedupe command capture: exact when exactness-sensitive or duplicate recovery points to a prior exact outputId; small non-sensitive successes may be metadata-only",
       observedRouting: "exact raw recovery for enabled observed producers when exact persistence is configured; metadata-only stores no raw stream",
       freeflowTransform: "deterministic transform stores exact transformed-output recovery with source lineage when persisted; script transform is disabled by default and requires an approved sandbox adapter",
-      directHostTools: "off by default; optional native read/bash safety-net only when outputRouter.postToolRouting is safety-net",
+      nativeSafetyNet: "off by default; optional native read/bash safety-net only when outputRouter.postToolRouting is safety-net",
     },
     configWarnings,
     localConfigWarnings,
@@ -275,67 +258,8 @@ async function nearestExistingAncestor(startPath) {
   }
 }
 
-async function inspectProviders(cwd, rawConfig, providersConfig) {
-  const customManifestValidation = validateCustomManifests(rawConfig);
-  const enabled = [];
-  const availability = [];
-
-  for (const provider of providersConfig.enabled) {
-    enabled.push(provider);
-    availability.push(await providerAvailability(cwd, provider, customManifestValidation));
-  }
-
-  return {
-    enabled,
-    availability,
-    customManifests: customManifestValidation,
-  };
-}
-
-async function providerAvailability(cwd, provider, customManifestValidation) {
-  if (provider.id === "serena") {
-    const configured = await isMcpServerConfigured("serena", cwd);
-    return {
-      id: provider.id,
-      mode: provider.mode,
-      categories: provider.categories ?? [],
-      status: configured ? "available" : "unavailable",
-      reason: configured ? "Serena MCP server is configured for Pi." : "MCP server serena is not configured for Pi.",
-    };
-  }
-
-  if (provider.id === "codebase-memory") {
-    return {
-      id: provider.id,
-      mode: provider.mode,
-      categories: provider.categories ?? [],
-      status: "unavailable",
-      reason: "No Pi observed-routing capability check is registered for this provider yet.",
-    };
-  }
-
-  const customManifest = customManifestValidation.valid.find((manifest) => manifest.id === provider.id);
-  if (customManifest) {
-    return {
-      id: provider.id,
-      mode: provider.mode,
-      categories: provider.categories ?? [],
-      status: "custom_unverified",
-      reason: "Custom provider manifest is valid but no executable adapter is verified by Freeflow.",
-    };
-  }
-
-  const builtIn = BUILT_IN_PROVIDER_MANIFESTS.find((manifest) => manifest.id === provider.id);
-  return {
-    id: provider.id,
-    mode: provider.mode,
-    categories: provider.categories ?? [],
-    status: builtIn ? "configured" : "unknown_provider",
-    reason: builtIn ? "Provider is configured; availability is not detectable in this Pi adapter." : "Provider id has no built-in manifest or valid custom manifest.",
-  };
-}
-
-function scriptDeriveStatus(config, sandboxReport) {
+function scriptTransformStatus(config, sandboxReport) {
+  const adapterHome = defaultScriptTransformAdaptersHome();
   return {
     enabled: config.enabled,
     sandbox: config.sandbox,
@@ -352,11 +276,14 @@ function scriptDeriveStatus(config, sandboxReport) {
     limits: config.limits,
     rawScriptPersistence: config.rawScriptPersistence,
     executionStatus: config.enabled && sandboxReport.adapterAvailable ? "available" : config.enabled ? "adapter_unavailable" : "disabled",
+    adapterHome,
+    setupCommand: "node <plugin-root>/router/dist/setup/script-transform-adapters.js install --config .freeflow/config.json",
     notes: [
-      "Script transform is disabled by default and setup must not enable it implicitly.",
+      "Script transform is disabled until setup/user config opts in with scriptTransform.enabled=true.",
+      "Setup can install proof-backed adapters into a user-global Freeflow cache and enable only languages that pass sandbox probes.",
       "No unsandboxed fallback is allowed; script code is not executed without an approved sandbox adapter.",
       "Raw script text is not persisted by default.",
-      `Script adapter discovery is explicit via ${"FREEFLOW_QUICKJS_WASI_ROOT"} and ${"FREEFLOW_JQ_WASM_ROOT"}; no runtime artifacts are downloaded by Freeflow.`,
+      `Global adapter cache: ${adapterHome}. Custom roots may use FREEFLOW_QUICKJS_WASI_ROOT, FREEFLOW_JQ_WASM_ROOT, or FREEFLOW_ERYX_ROOT.`,
       ...sandboxReport.notes,
     ],
   };
@@ -413,47 +340,6 @@ function observedRoutingStatus(config) {
   };
 }
 
-function validateCustomManifests(rawConfig) {
-  const rawManifests = configuredCustomManifests(rawConfig);
-  const valid = [];
-  const invalid = [];
-
-  rawManifests.forEach((manifest, index) => {
-    const result = validateProviderManifest(manifest, "custom");
-    if (result.ok) {
-      valid.push({
-        id: result.value.id,
-        displayName: result.value.displayName,
-        capabilityCount: result.value.capabilities.length,
-        pairingRuleCount: result.value.pairingRules.length,
-      });
-    } else {
-      invalid.push({ index, issues: result.issues });
-    }
-  });
-
-  return {
-    total: rawManifests.length,
-    validCount: valid.length,
-    invalidCount: invalid.length,
-    valid,
-    invalid,
-  };
-}
-
-function configuredCustomManifests(rawConfig) {
-  if (!isRecord(rawConfig) || !isRecord(rawConfig.providers)) {
-    return [];
-  }
-  if (Array.isArray(rawConfig.providers.manifests)) {
-    return rawConfig.providers.manifests;
-  }
-  if (Array.isArray(rawConfig.providers.customManifests)) {
-    return rawConfig.providers.customManifests;
-  }
-  return [];
-}
-
 function migrationReport(rawConfig) {
   const recommendations = collectMigrationRecommendations(rawConfig);
   return {
@@ -479,10 +365,8 @@ function collectMigrationRecommendations(rawConfig) {
   }
 
   collectOutputRouterRecommendations(rawConfig.outputRouter, recommendations);
-  collectCaptureRecommendations(rawConfig.capture, recommendations);
-  collectProviderRecommendations(rawConfig.providers, recommendations);
   collectObservedRoutingRecommendations(rawConfig.observedRouting, recommendations);
-  collectScriptDeriveRecommendations(rawConfig.scriptDerive, recommendations);
+  collectScriptTransformRecommendations(rawConfig.scriptTransform, recommendations);
   return recommendations;
 }
 
@@ -515,74 +399,28 @@ function collectOutputRouterRecommendations(value, recommendations) {
   }
 }
 
-function collectCaptureRecommendations(value, recommendations) {
+function collectScriptTransformRecommendations(value, recommendations) {
   if (value === undefined) {
     return;
   }
   if (!isRecord(value)) {
-    recommendations.push(recommendation("capture", "fix", "Expected object; remove or rewrite invalid capture config."));
+    recommendations.push(recommendation("scriptTransform", "fix", "Expected object; remove or rewrite invalid scriptTransform config."));
     return;
   }
 
   for (const key of Object.keys(value)) {
-    if (!CAPTURE_CONFIG_KEYS.has(key)) {
-      recommendations.push(recommendation(`capture.${key}`, "review", "Unrecognized capture key; review before migrating."));
+    if (!SCRIPT_TRANSFORM_CONFIG_KEYS.has(key)) {
+      recommendations.push(recommendation(`scriptTransform.${key}`, "review", "Unrecognized scriptTransform key; review before migrating."));
     }
   }
 
-  addDefaultRecommendation(recommendations, "capture.freeflowMediated", value.freeflowMediated, DEFAULT_CAPTURE_CONFIG.freeflowMediated);
-  addDefaultRecommendation(recommendations, "capture.directHostTools", value.directHostTools, DEFAULT_CAPTURE_CONFIG.directHostTools);
+  addDefaultRecommendation(recommendations, "scriptTransform.enabled", value.enabled, DEFAULT_SCRIPT_TRANSFORM_CONFIG.enabled);
+  addDefaultRecommendation(recommendations, "scriptTransform.sandbox", value.sandbox, DEFAULT_SCRIPT_TRANSFORM_CONFIG.sandbox);
+  addDefaultRecommendation(recommendations, "scriptTransform.network", value.network, DEFAULT_SCRIPT_TRANSFORM_CONFIG.network);
+  addDefaultRecommendation(recommendations, "scriptTransform.rawScriptPersistence", value.rawScriptPersistence, DEFAULT_SCRIPT_TRANSFORM_CONFIG.rawScriptPersistence);
 
   if (Object.keys(value).length === 0) {
-    recommendations.push(recommendation("capture", "remove", "Empty capture object can be removed; built-in defaults apply."));
-  }
-}
-
-function collectProviderRecommendations(value, recommendations) {
-  if (value === undefined) {
-    return;
-  }
-  if (!isRecord(value)) {
-    recommendations.push(recommendation("providers", "fix", "Expected object; remove or rewrite invalid providers config."));
-    return;
-  }
-
-  for (const key of Object.keys(value)) {
-    if (!PROVIDERS_CONFIG_KEYS.has(key)) {
-      recommendations.push(recommendation(`providers.${key}`, "review", "Unrecognized providers key; review before migrating."));
-    }
-  }
-
-  if (Array.isArray(value.enabled) && value.enabled.length === 0 && Object.keys(value).length === 1) {
-    recommendations.push(recommendation("providers", "remove", "providers.enabled is empty; remove providers object unless preserving an intentional setup decision."));
-  }
-  if (Object.keys(value).length === 0) {
-    recommendations.push(recommendation("providers", "remove", "Empty providers object can be removed; built-in defaults apply."));
-  }
-}
-
-function collectScriptDeriveRecommendations(value, recommendations) {
-  if (value === undefined) {
-    return;
-  }
-  if (!isRecord(value)) {
-    recommendations.push(recommendation("scriptDerive", "fix", "Expected object; remove or rewrite invalid scriptDerive config."));
-    return;
-  }
-
-  for (const key of Object.keys(value)) {
-    if (!SCRIPT_DERIVE_CONFIG_KEYS.has(key)) {
-      recommendations.push(recommendation(`scriptDerive.${key}`, "review", "Unrecognized scriptDerive key; review before migrating."));
-    }
-  }
-
-  addDefaultRecommendation(recommendations, "scriptDerive.enabled", value.enabled, DEFAULT_SCRIPT_DERIVE_CONFIG.enabled);
-  addDefaultRecommendation(recommendations, "scriptDerive.sandbox", value.sandbox, DEFAULT_SCRIPT_DERIVE_CONFIG.sandbox);
-  addDefaultRecommendation(recommendations, "scriptDerive.network", value.network, DEFAULT_SCRIPT_DERIVE_CONFIG.network);
-  addDefaultRecommendation(recommendations, "scriptDerive.rawScriptPersistence", value.rawScriptPersistence, DEFAULT_SCRIPT_DERIVE_CONFIG.rawScriptPersistence);
-
-  if (Object.keys(value).length === 0) {
-    recommendations.push(recommendation("scriptDerive", "remove", "Empty scriptDerive object can be removed; script transform is disabled by default."));
+    recommendations.push(recommendation("scriptTransform", "remove", "Empty scriptTransform object can be removed; script transform is disabled by default."));
   }
 }
 

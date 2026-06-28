@@ -8,17 +8,17 @@ export declare const EXECUTION_STATUSES: readonly ["success", "failed", "timed_o
 export type ExecutionStatus = (typeof EXECUTION_STATUSES)[number];
 export declare const ROUTING_STATUSES: readonly ["routed", "passed_through", "partial", "failed"];
 export type RoutingStatus = (typeof ROUTING_STATUSES)[number];
-export declare const ROUTE_KINDS: readonly ["retrieve", "run", "capture", "derive", "batch", "observed", "safety-net", "pass-through"];
+export declare const ROUTE_KINDS: readonly ["retrieve", "run", "transform", "batch", "observed", "safety-net", "pass-through"];
 export type RouteKind = (typeof ROUTE_KINDS)[number];
 export declare const BATCH_STEP_KINDS: readonly ["run", "search"];
 export type BatchStepKind = (typeof BATCH_STEP_KINDS)[number];
-export declare const PRODUCER_KINDS: readonly ["command", "native", "repo", "web", "fetch", "code_search", "mcp", "provider", "derive", "other"];
+export declare const PRODUCER_KINDS: readonly ["command", "native", "repo", "web", "fetch", "code_search", "mcp", "transform", "other"];
 export type ProducerKind = (typeof PRODUCER_KINDS)[number];
 export declare const PERSISTENCE_STATUSES: readonly ["vaulted", "redacted", "metadata_only", "not_persisted"];
 export type PersistenceStatus = (typeof PERSISTENCE_STATUSES)[number];
 export declare const RECOVERABILITY_MODES: readonly ["exact", "redacted", "metadata_only", "none"];
 export type RecoverabilityMode = (typeof RECOVERABILITY_MODES)[number];
-export declare const ROUTER_FAILURE_KINDS: readonly ["adapter_unavailable", "unsupported_producer", "mutating_producer_rejected", "producer_execution_failure", "partial_capture", "storage_failure", "redaction_failure", "observed_routing_failure", "script_derive_disabled", "derive_source_unavailable", "derive_validation_failure", "derive_execution_failure"];
+export declare const ROUTER_FAILURE_KINDS: readonly ["adapter_unavailable", "storage_failure", "observed_routing_failure", "script_transform_disabled", "transform_source_unavailable", "transform_validation_failure", "transform_execution_failure"];
 export type RouterFailureKind = (typeof ROUTER_FAILURE_KINDS)[number];
 export declare const FAILURE_EXECUTION_STATUSES: readonly ["unavailable", "unsupported", "rejected", "failed", "partial"];
 export type FailureExecutionStatus = (typeof FAILURE_EXECUTION_STATUSES)[number];
@@ -32,14 +32,6 @@ export declare const OUTPUT_ROUTER_PROFILES: readonly ["standard"];
 export type OutputRouterProfile = (typeof OUTPUT_ROUTER_PROFILES)[number];
 export declare const STORAGE_POLICY_MODES: readonly ["store-everything", "hybrid-dedupe"];
 export type StoragePolicyMode = (typeof STORAGE_POLICY_MODES)[number];
-export declare const CAPTURE_FREEFLOW_MEDIATED_MODES: readonly ["raw"];
-export type CaptureFreeflowMediatedMode = (typeof CAPTURE_FREEFLOW_MEDIATED_MODES)[number];
-export declare const DIRECT_HOST_TOOL_CAPTURE_MODES: readonly ["off"];
-export type DirectHostToolCaptureMode = (typeof DIRECT_HOST_TOOL_CAPTURE_MODES)[number];
-export declare const PROVIDER_MODES: readonly ["discovery", "read-only"];
-export type ProviderMode = (typeof PROVIDER_MODES)[number];
-export declare const PROVIDER_CATEGORIES: readonly ["symbols", "references", "diagnostics", "graph", "architecture", "search"];
-export type ProviderCategory = (typeof PROVIDER_CATEGORIES)[number];
 export declare const OBSERVED_ROUTING_FAILURE_MODES: readonly ["fail-open"];
 export type ObservedRoutingFailureMode = (typeof OBSERVED_ROUTING_FAILURE_MODES)[number];
 export declare const OBSERVED_ROUTING_PERSISTENCE_MODES: readonly ["exact", "metadata-only", "none"];
@@ -84,12 +76,7 @@ export interface RouterFailure {
     kind: RouterFailureKind;
     message: string;
 }
-export interface ProducerExecutionFailure {
-    status: FailureExecutionStatus;
-    failureKind: RouterFailureKind;
-    message: string;
-}
-export interface DeriveExecutionFailure {
+export interface TransformExecutionFailure {
     status: FailureExecutionStatus;
     failureKind: RouterFailureKind;
     message: string;
@@ -157,7 +144,7 @@ export interface RunOutputFilterMetadata {
 }
 export interface RunScriptFilterMetadata {
     status: "success" | FailureExecutionStatus;
-    language: ScriptDeriveLanguage;
+    language: ScriptTransformLanguage;
     sourceAliases: string[];
     rawOutputId: string;
     label?: string;
@@ -167,7 +154,7 @@ export interface RunScriptFilterMetadata {
     persistence?: EvidencePersistence;
     lineage?: EvidenceLineage;
     failure?: RouterFailure;
-    deriveExecution?: DeriveExecutionFailure;
+    transformExecution?: TransformExecutionFailure;
     summary?: string;
 }
 export interface RunReducerMetadata {
@@ -204,8 +191,7 @@ export interface RoutedResultBase {
     persistence?: EvidencePersistence;
     lineage?: EvidenceLineage;
     failure?: RouterFailure;
-    producerExecution?: ProducerExecutionFailure;
-    deriveExecution?: DeriveExecutionFailure;
+    transformExecution?: TransformExecutionFailure;
     recovery?: RecoveryHint;
     evidence?: EvidencePacket[];
 }
@@ -221,10 +207,6 @@ export interface CommandRoutedResult extends RoutedResultBase {
     filters?: RunOutputFilterMetadata;
     scriptFilter?: RunScriptFilterMetadata;
     reducer?: RunReducerMetadata;
-}
-export interface CaptureRoutedResult extends RoutedResultBase {
-    outputId: string;
-    summary?: string;
 }
 export interface ObservedHostDescriptor {
     name: string;
@@ -256,7 +238,7 @@ export interface ObservedRoutedResult extends RoutedResultBase {
         reason: string;
     };
 }
-export interface DeriveRoutedResult extends RoutedResultBase {
+export interface TransformRoutedResult extends RoutedResultBase {
     outputId: string;
     source: SourceRef;
     operation: Record<string, unknown>;
@@ -302,7 +284,7 @@ export interface BatchRoutedResult extends RoutedResultBase {
 export interface FailureRoutedResult extends RoutedResultBase {
     outputId?: string;
 }
-export type RoutedResult = RetrievalRoutedResult | CommandRoutedResult | CaptureRoutedResult | ObservedRoutedResult | DeriveRoutedResult | BatchRoutedResult | FailureRoutedResult;
+export type RoutedResult = RetrievalRoutedResult | CommandRoutedResult | ObservedRoutedResult | TransformRoutedResult | BatchRoutedResult | FailureRoutedResult;
 export interface LineByteCounts {
     lines: number;
     bytes: number;
@@ -364,7 +346,7 @@ export interface CommandOutputRecord extends VaultRecordBase {
 }
 export interface TextOutputRecord extends VaultRecordBase {
     kind: "text";
-    sourceKind: "native" | "mcp" | "web" | "fetch" | "code_search" | "derive" | "other";
+    sourceKind: "native" | "mcp" | "web" | "fetch" | "code_search" | "transform" | "other";
     paths: {
         meta: string;
         raw: string;
@@ -467,18 +449,6 @@ export interface RouterConfig {
     vault: RouterVaultConfig;
     hints?: RouterHints;
 }
-export interface CaptureConfig {
-    freeflowMediated: CaptureFreeflowMediatedMode;
-    directHostTools: DirectHostToolCaptureMode;
-}
-export interface ProviderEnablement {
-    id: string;
-    mode: ProviderMode;
-    categories?: ProviderCategory[];
-}
-export interface ProvidersConfig {
-    enabled: ProviderEnablement[];
-}
 export interface ObservedRoutingProducerConfig {
     enabled: boolean;
     persistence: ObservedRoutingPersistenceMode;
@@ -494,23 +464,23 @@ export interface ObservedRoutingConfig {
     fetch: ObservedRoutingProducerConfig;
     codeSearch: ObservedRoutingProducerConfig;
 }
-export type ScriptDeriveLanguage = "javascript" | "python" | "jq";
-export type ScriptDeriveNetworkPolicy = "off";
-export type ScriptDeriveSandboxMode = "auto";
-export type ScriptDeriveRawScriptPersistence = "disabled";
+export type ScriptTransformLanguage = "javascript" | "python" | "jq";
+export type ScriptTransformNetworkPolicy = "off";
+export type ScriptTransformSandboxMode = "auto";
+export type ScriptTransformRawScriptPersistence = "disabled";
 export type ProcessingScriptPolicy = "sandboxed" | "unsafe-unsandboxed";
-export interface ScriptDeriveLimits {
+export interface ScriptTransformLimits {
     timeoutMs: number;
     maxInputBytes: number;
     maxOutputBytes: number;
 }
-export interface ScriptDeriveConfig {
+export interface ScriptTransformConfig {
     enabled: boolean;
-    sandbox: ScriptDeriveSandboxMode;
-    languages: ScriptDeriveLanguage[];
-    network: ScriptDeriveNetworkPolicy;
-    limits: ScriptDeriveLimits;
-    rawScriptPersistence: ScriptDeriveRawScriptPersistence;
+    sandbox: ScriptTransformSandboxMode;
+    languages: ScriptTransformLanguage[];
+    network: ScriptTransformNetworkPolicy;
+    limits: ScriptTransformLimits;
+    rawScriptPersistence: ScriptTransformRawScriptPersistence;
 }
 export interface ProcessingUnsafeUnsandboxedConfig {
     enabled: boolean;
@@ -523,8 +493,6 @@ export interface LocalFreeflowConfig {
 }
 export interface FreeflowConfig {
     outputRouter: RouterConfig;
-    capture: CaptureConfig;
-    providers: ProvidersConfig;
     observedRouting: ObservedRoutingConfig;
-    scriptDerive: ScriptDeriveConfig;
+    scriptTransform: ScriptTransformConfig;
 }

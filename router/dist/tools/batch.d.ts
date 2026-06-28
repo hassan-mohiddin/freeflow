@@ -1,5 +1,5 @@
 import { type HostCommandRunner } from "./run.js";
-import type { BatchRoutedResult, BatchStepKind, PreserveMode, RouterThresholds, ScriptDeriveConfig, StoragePolicyMode, VaultRetentionPolicy } from "../config/types.js";
+import type { BatchRoutedResult, BatchStepKind, PreserveMode, RouterThresholds, ScriptTransformConfig, StoragePolicyMode, VaultRetentionPolicy } from "../config/types.js";
 import type { ScriptSandboxAdapter } from "../sandbox/script-sandbox.js";
 export interface FreeflowBatchStepInput {
     id?: string;
@@ -14,7 +14,7 @@ export interface FreeflowBatchOptions {
     vaultRoot?: string;
     vaultRetention?: VaultRetentionPolicy;
     thresholds?: Partial<RouterThresholds>;
-    scriptDerive?: ScriptDeriveConfig;
+    scriptTransform?: ScriptTransformConfig;
     scriptSandboxAdapters?: readonly ScriptSandboxAdapter[];
     storagePolicy?: StoragePolicyMode;
     queries?: readonly string[];

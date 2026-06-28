@@ -19,7 +19,7 @@ Do not add a code module until setup behavior needs logic that cannot be kept cl
 
 - Activation text contains always-on invariants only, not the full workflow spine.
 - Minimal config has exactly one field: `defaultMode`.
-- Optional `outputRouter`, `observedRouting`, and `providers` config is allowed only after the evidence-routing decision point or an explicit request. Legacy `capture` config is not written by Pi setup.
+- Optional `outputRouter`, `observedRouting`, and `scriptTransform` config is allowed only after the capabilities decision point or an explicit request. Removed `capture` and `providers` config is not written by setup.
 - Valid defaults are exactly `conversation`, `workflow`, and `strict-workflow`.
 - Default mode is `workflow` unless the user explicitly persists another valid mode.
 - Codex activation writes `AGENTS.md`, not `.codex/rules`.
@@ -28,8 +28,8 @@ Do not add a code module until setup behavior needs logic that cannot be kept cl
 - Existing repo instructions remain source truth.
 - Setup hard-stops before unresolved host ambiguity or repo-rule conflict.
 - Setup does not create repo-local hooks, docs inventories, state files, handoffs, empty `CONTEXT.md`, skill inventories, `setup-output-router` skills, version metadata, activation path, current task, or current phase.
-- Plugin-bundled context hooks may load workflow and interview-gate context at session start, but they are package runtime, not setup output.
-- After successful setup verification, setup reads the workflow skill, workflow map, and interview-gate skill before its final response so the current session is immediately usable.
+- Plugin-bundled context hooks may load workflow, interview-gate, discover, and workflow-map context at session start, but they are package runtime, not setup output.
+- After successful setup verification, setup reads the workflow skill, interview-gate skill, discover skill, and workflow map before its final response so the current session is immediately usable.
 
 ## Host Adapters
 
@@ -50,9 +50,9 @@ Config adapter:
 - Create or update `.freeflow/config.json`.
 - For minimal setup, write exactly `{ "defaultMode": "<mode>" }`.
 - Use `workflow` unless the user explicitly asks to persist `conversation` or `strict-workflow`.
-- Add `outputRouter`, `observedRouting`, or `providers` only after the evidence-routing decision point or an explicit request, using `output-router-setup.md`. Do not write `capture` during Pi setup.
-- Missing `outputRouter`, `observedRouting`, `capture`, and `providers` means built-in defaults, not a setup warning.
-- Never enable observed routing, native safety-net routing, or direct host-tool capture by default.
+- Add `outputRouter`, `observedRouting`, or `scriptTransform` only after the capabilities decision point or an explicit request, using `output-router-setup.md`. Do not write removed `capture` or `providers` config.
+- Missing `outputRouter`, `observedRouting`, and `scriptTransform` means built-in defaults, not a setup warning.
+- Never enable observed routing or native safety-net routing by default.
 - Observed routing requires explicit producer/server entries and user-chosen persistence: `exact`, `metadata-only`, or `none`. Do not offer or write `redacted`.
 
 ## Codex Core Block

@@ -370,8 +370,8 @@ function sourceKindForProducer(producer: ProducerDescriptor): TextOutputRecord["
   if (producer.kind === "code_search") {
     return "code_search";
   }
-  if (producer.kind === "derive") {
-    return "derive";
+  if (producer.kind === "transform") {
+    return "transform";
   }
   if (producer.kind === "native") {
     return "native";

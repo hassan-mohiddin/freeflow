@@ -225,7 +225,7 @@ test("small successful parsed output remains near-raw", async () => {
   });
 });
 
-test("freeflowRun routes explicit summary goals through reducers with raw and derived recovery", async () => {
+test("freeflowRun routes explicit summary goals through reducers with raw and transformed recovery", async () => {
   await withTempVault(async (vault) => {
     const stdout = [
       "id,status,duration_ms",
@@ -275,7 +275,7 @@ test("freeflowRun routes explicit summary goals through reducers with raw and de
   });
 });
 
-test("query-aware JSON reducer routes nested issue summaries with raw and derived recovery", async () => {
+test("query-aware JSON reducer routes nested issue summaries with raw and transformed recovery", async () => {
   await withTempVault(async (vault) => {
     const stdout = JSON.stringify([
       { number: 1, title: "Bug A", body: "repo:facebook/react", labels: [{ name: "Type: Bug" }] },
@@ -614,7 +614,7 @@ test("freeflowRun rejects invalid declarative filters before executing command",
   });
 });
 
-test("freeflowRun script filter runs command once, sees captured streams, and stores derived output", async () => {
+test("freeflowRun script filter runs command once, sees captured streams, and stores transformed output", async () => {
   await withTempVault(async (vault) => {
     let calls = 0;
     const stdout = "alpha\nTARGET stdout\n";
@@ -660,7 +660,7 @@ test("freeflowRun script filter runs command once, sees captured streams, and st
         vaultRoot: vault.root,
         preserve: "important",
         scriptFilter: { language: "javascript", code: "write filtered output", label: "target-only" },
-        scriptDerive: {
+        scriptTransform: {
           enabled: true,
           sandbox: "auto",
           languages: ["javascript"],
@@ -685,7 +685,7 @@ test("freeflowRun script filter runs command once, sees captured streams, and st
     assert.notEqual(result.scriptFilter?.outputId, result.outputId);
     assert.match(result.scriptFilter?.operation?.codeSha256, /^sha256_[0-9a-f]{64}$/);
     assert.doesNotMatch(JSON.stringify(result), /write filtered output/);
-    assert.match(result.summary ?? "", /derived outputId=ffout_/);
+    assert.match(result.summary ?? "", /transformed outputId=ffout_/);
     assert.match(result.importantLines?.[0].excerpt ?? "", /SCRIPT:TARGET stdout:warn stderr:true/);
     assert.equal(await readOutputText(vault, "run-script-filter-session", result.outputId, "stdout"), stdout);
     assert.equal(await readOutputText(vault, "run-script-filter-session", result.scriptFilter.outputId, "raw"), "SCRIPT:TARGET stdout:warn stderr:true");
@@ -724,8 +724,8 @@ test("freeflowRun script filter disabled preserves base command result and raw r
     assert.equal(result.toolStatus, "ok");
     assert.equal(result.execution.status, "success");
     assert.equal(result.routing.status, "partial");
-    assert.equal(result.failure?.kind, "script_derive_disabled");
-    assert.equal(result.deriveExecution?.status, "unavailable");
+    assert.equal(result.failure?.kind, "script_transform_disabled");
+    assert.equal(result.transformExecution?.status, "unavailable");
     assert.equal(result.scriptFilter?.status, "unavailable");
     assert.equal(result.scriptFilter?.outputId, undefined);
     assert.doesNotMatch(JSON.stringify(result), /RAW_SCRIPT_SENTINEL/);
@@ -794,7 +794,7 @@ test("freeflowRun script filter output caps and timeouts do not hide raw command
         vaultRoot: vault.root,
         preserve: "important",
         scriptFilter: { language: "javascript", code: "flood", limits: { maxOutputBytes: 10 } },
-        scriptDerive: {
+        scriptTransform: {
           enabled: true,
           sandbox: "auto",
           languages: ["javascript"],
@@ -807,7 +807,7 @@ test("freeflowRun script filter output caps and timeouts do not hide raw command
       runner,
     );
 
-    assert.equal(overCap.failure?.kind, "derive_execution_failure");
+    assert.equal(overCap.failure?.kind, "transform_execution_failure");
     assert.equal(overCap.scriptFilter?.status, "failed");
     assert.equal(overCap.scriptFilter?.outputId, undefined);
     assert.match(overCap.failure?.message ?? "", /maxOutputBytes 10/);
@@ -828,7 +828,7 @@ test("freeflowRun script filter output caps and timeouts do not hide raw command
         vaultRoot: vault.root,
         preserve: "important",
         scriptFilter: { language: "javascript", code: "while(true){}", limits: { timeoutMs: 5 } },
-        scriptDerive: {
+        scriptTransform: {
           enabled: true,
           sandbox: "auto",
           languages: ["javascript"],
@@ -841,7 +841,7 @@ test("freeflowRun script filter output caps and timeouts do not hide raw command
       runner,
     );
 
-    assert.equal(timeout.failure?.kind, "derive_execution_failure");
+    assert.equal(timeout.failure?.kind, "transform_execution_failure");
     assert.equal(timeout.scriptFilter?.status, "failed");
     assert.match(timeout.failure?.message ?? "", /timed_out/);
     assert.equal(await readOutputText(vault, "run-script-timeout-session", timeout.outputId, "stdout"), "raw before script failure\n");

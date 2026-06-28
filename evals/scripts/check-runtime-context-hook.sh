@@ -49,11 +49,15 @@ require_contains "Claude SessionStart output" "$claude_session_output" "Freeflow
 require_contains "Claude SessionStart output" "$claude_session_output" "Setup status: this repo does not appear to be set up for Freeflow yet."
 require_contains "Claude SessionStart output" "$claude_session_output" "Repo default mode: missing \`.freeflow/config.json\`; effective default mode falls back to \`workflow\`."
 require_contains "Claude SessionStart output" "$claude_session_output" "Required user-facing notice: in the next assistant reply, tell the user Freeflow is installed but this repo is not set up yet, and recommend \`/setup-freeflow\`."
+require_contains "Claude SessionStart output" "$claude_session_output" "Freeflow Runtime Priority"
 require_contains "Claude SessionStart output" "$claude_session_output" "Loaded Workflow Skill"
 require_contains "Claude SessionStart output" "$claude_session_output" "Loaded Interview Gate Skill"
+require_contains "Claude SessionStart output" "$claude_session_output" "Loaded Discover Skill"
 require_contains "Claude SessionStart output" "$claude_session_output" "Loaded Workflow Map"
 require_contains "Claude SessionStart output" "$claude_session_output" "Question means answer. Do not turn a question into a file edit"
 require_contains "Claude SessionStart output" "$claude_session_output" "Stop before silent decisions."
+require_contains "Claude SessionStart output" "$claude_session_output" "Discover is the context-building loop before action"
+require_contains "Claude SessionStart output" "$claude_session_output" "Output Router chooses evidence transport after the workflow/interview/discover route is clear."
 
 codex_session_output="$(
   printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s","model":"gpt-test"}' "$workspace" |
@@ -65,6 +69,7 @@ require_contains "Codex SessionStart output" "$codex_session_output" "effective 
 require_contains "Codex SessionStart output" "$codex_session_output" "Do this even if the user's prompt is casual, such as a greeting."
 require_contains "Codex SessionStart output" "$codex_session_output" "Loaded Workflow Skill"
 require_contains "Codex SessionStart output" "$codex_session_output" "Loaded Interview Gate Skill"
+require_contains "Codex SessionStart output" "$codex_session_output" "Loaded Discover Skill"
 if [[ "$codex_session_output" == *"hookSpecificOutput"* ]]; then
   fail "Codex SessionStart output should be plain context, not Claude hook JSON."
 fi
@@ -121,6 +126,33 @@ fi
 
 cat >"$workspace/.freeflow/config.json" <<'JSON'
 {
+  "defaultMode": "workflow",
+  "observedRouting": {
+    "enabled": true,
+    "mcp": {
+      "servers": {
+        "github": { "enabled": true, "persistence": "metadata-only" }
+      }
+    }
+  },
+  "scriptTransform": {
+    "enabled": false
+  }
+}
+JSON
+
+observed_routing_configured_output="$(
+  printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s","model":"gpt-test"}' "$workspace" |
+    PLUGIN_ROOT="$plugin_root" CLAUDE_PLUGIN_ROOT="$plugin_root" node "$hook_script" SessionStart
+)"
+
+require_contains "Observed-routing configured SessionStart output" "$observed_routing_configured_output" "Setup status: configured for Codex AGENTS.md with defaultMode \`workflow\`."
+if [[ "$observed_routing_configured_output" == *"partial setup"* || "$observed_routing_configured_output" == *"invalid \`.freeflow/config.json\`"* ]]; then
+  fail "observedRouting/scriptTransform config should not make setup partial or invalid."
+fi
+
+cat >"$workspace/.freeflow/config.json" <<'JSON'
+{
   "defaultMode": "conversation"
 }
 JSON
@@ -144,4 +176,4 @@ if [ "$failures" -gt 0 ]; then
   exit 1
 fi
 
-printf 'Runtime context hook check passed: hook config parses, startup injects workflow and interview-gate context, disable env suppresses output, and PostToolUse stays disabled.\n'
+printf 'Runtime context hook check passed: hook config parses, startup injects workflow, interview-gate, discover, and workflow-map context, disable env suppresses output, and PostToolUse stays disabled.\n'

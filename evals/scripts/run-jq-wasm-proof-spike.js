@@ -247,7 +247,7 @@ function renderReport(data) {
   lines.push("## Notes");
   lines.push("");
   lines.push("- This proof runner uses a temporary installed `jq-wasm` package root passed explicitly by the caller.");
-  lines.push("- It does not add repo dependencies and does not wire the adapter into `freeflow_derive` execution.");
+  lines.push("- It does not add repo dependencies and does not wire the adapter into `freeflow_search action=transform` execution.");
   lines.push("- Timeout proof uses Node Worker termination because in-thread recursive jq blocks the event loop.");
   lines.push("- Output proof caps what crosses the Worker boundary; `jq-wasm` itself can still generate large in-Worker strings before the wrapper truncates them.");
   lines.push("- Passing this spike only supports jq adapter feasibility; Python remains unavailable until a Python candidate passes proofs.");

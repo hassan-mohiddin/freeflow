@@ -765,8 +765,8 @@ function producerForTextSourceKind(sourceKind: TextOutputRecord["sourceKind"]): 
   if (sourceKind === "code_search") {
     return { kind: "code_search" };
   }
-  if (sourceKind === "derive") {
-    return { kind: "derive" };
+  if (sourceKind === "transform") {
+    return { kind: "transform" };
   }
   return { kind: "other" };
 }

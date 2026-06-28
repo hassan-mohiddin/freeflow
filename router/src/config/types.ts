@@ -13,13 +13,13 @@ export type ExecutionStatus = (typeof EXECUTION_STATUSES)[number];
 export const ROUTING_STATUSES = ["routed", "passed_through", "partial", "failed"] as const;
 export type RoutingStatus = (typeof ROUTING_STATUSES)[number];
 
-export const ROUTE_KINDS = ["retrieve", "run", "capture", "derive", "batch", "observed", "safety-net", "pass-through"] as const;
+export const ROUTE_KINDS = ["retrieve", "run", "transform", "batch", "observed", "safety-net", "pass-through"] as const;
 export type RouteKind = (typeof ROUTE_KINDS)[number];
 
 export const BATCH_STEP_KINDS = ["run", "search"] as const;
 export type BatchStepKind = (typeof BATCH_STEP_KINDS)[number];
 
-export const PRODUCER_KINDS = ["command", "native", "repo", "web", "fetch", "code_search", "mcp", "provider", "derive", "other"] as const;
+export const PRODUCER_KINDS = ["command", "native", "repo", "web", "fetch", "code_search", "mcp", "transform", "other"] as const;
 export type ProducerKind = (typeof PRODUCER_KINDS)[number];
 
 export const PERSISTENCE_STATUSES = ["vaulted", "redacted", "metadata_only", "not_persisted"] as const;
@@ -30,17 +30,12 @@ export type RecoverabilityMode = (typeof RECOVERABILITY_MODES)[number];
 
 export const ROUTER_FAILURE_KINDS = [
   "adapter_unavailable",
-  "unsupported_producer",
-  "mutating_producer_rejected",
-  "producer_execution_failure",
-  "partial_capture",
   "storage_failure",
-  "redaction_failure",
   "observed_routing_failure",
-  "script_derive_disabled",
-  "derive_source_unavailable",
-  "derive_validation_failure",
-  "derive_execution_failure",
+  "script_transform_disabled",
+  "transform_source_unavailable",
+  "transform_validation_failure",
+  "transform_execution_failure",
 ] as const;
 export type RouterFailureKind = (typeof ROUTER_FAILURE_KINDS)[number];
 
@@ -61,18 +56,6 @@ export type OutputRouterProfile = (typeof OUTPUT_ROUTER_PROFILES)[number];
 
 export const STORAGE_POLICY_MODES = ["store-everything", "hybrid-dedupe"] as const;
 export type StoragePolicyMode = (typeof STORAGE_POLICY_MODES)[number];
-
-export const CAPTURE_FREEFLOW_MEDIATED_MODES = ["raw"] as const;
-export type CaptureFreeflowMediatedMode = (typeof CAPTURE_FREEFLOW_MEDIATED_MODES)[number];
-
-export const DIRECT_HOST_TOOL_CAPTURE_MODES = ["off"] as const;
-export type DirectHostToolCaptureMode = (typeof DIRECT_HOST_TOOL_CAPTURE_MODES)[number];
-
-export const PROVIDER_MODES = ["discovery", "read-only"] as const;
-export type ProviderMode = (typeof PROVIDER_MODES)[number];
-
-export const PROVIDER_CATEGORIES = ["symbols", "references", "diagnostics", "graph", "architecture", "search"] as const;
-export type ProviderCategory = (typeof PROVIDER_CATEGORIES)[number];
 
 export const OBSERVED_ROUTING_FAILURE_MODES = ["fail-open"] as const;
 export type ObservedRoutingFailureMode = (typeof OBSERVED_ROUTING_FAILURE_MODES)[number];
@@ -129,13 +112,7 @@ export interface RouterFailure {
   message: string;
 }
 
-export interface ProducerExecutionFailure {
-  status: FailureExecutionStatus;
-  failureKind: RouterFailureKind;
-  message: string;
-}
-
-export interface DeriveExecutionFailure {
+export interface TransformExecutionFailure {
   status: FailureExecutionStatus;
   failureKind: RouterFailureKind;
   message: string;
@@ -213,7 +190,7 @@ export interface RunOutputFilterMetadata {
 
 export interface RunScriptFilterMetadata {
   status: "success" | FailureExecutionStatus;
-  language: ScriptDeriveLanguage;
+  language: ScriptTransformLanguage;
   sourceAliases: string[];
   rawOutputId: string;
   label?: string;
@@ -223,7 +200,7 @@ export interface RunScriptFilterMetadata {
   persistence?: EvidencePersistence;
   lineage?: EvidenceLineage;
   failure?: RouterFailure;
-  deriveExecution?: DeriveExecutionFailure;
+  transformExecution?: TransformExecutionFailure;
   summary?: string;
 }
 
@@ -260,8 +237,7 @@ export interface RoutedResultBase {
   persistence?: EvidencePersistence;
   lineage?: EvidenceLineage;
   failure?: RouterFailure;
-  producerExecution?: ProducerExecutionFailure;
-  deriveExecution?: DeriveExecutionFailure;
+  transformExecution?: TransformExecutionFailure;
   recovery?: RecoveryHint;
   evidence?: EvidencePacket[];
 }
@@ -279,11 +255,6 @@ export interface CommandRoutedResult extends RoutedResultBase {
   filters?: RunOutputFilterMetadata;
   scriptFilter?: RunScriptFilterMetadata;
   reducer?: RunReducerMetadata;
-}
-
-export interface CaptureRoutedResult extends RoutedResultBase {
-  outputId: string;
-  summary?: string;
 }
 
 export interface ObservedHostDescriptor {
@@ -322,7 +293,7 @@ export interface ObservedRoutedResult extends RoutedResultBase {
   };
 }
 
-export interface DeriveRoutedResult extends RoutedResultBase {
+export interface TransformRoutedResult extends RoutedResultBase {
   outputId: string;
   source: SourceRef;
   operation: Record<string, unknown>;
@@ -374,7 +345,7 @@ export interface FailureRoutedResult extends RoutedResultBase {
   outputId?: string;
 }
 
-export type RoutedResult = RetrievalRoutedResult | CommandRoutedResult | CaptureRoutedResult | ObservedRoutedResult | DeriveRoutedResult | BatchRoutedResult | FailureRoutedResult;
+export type RoutedResult = RetrievalRoutedResult | CommandRoutedResult | ObservedRoutedResult | TransformRoutedResult | BatchRoutedResult | FailureRoutedResult;
 
 export interface LineByteCounts {
   lines: number;
@@ -440,7 +411,7 @@ export interface CommandOutputRecord extends VaultRecordBase {
 
 export interface TextOutputRecord extends VaultRecordBase {
   kind: "text";
-  sourceKind: "native" | "mcp" | "web" | "fetch" | "code_search" | "derive" | "other";
+  sourceKind: "native" | "mcp" | "web" | "fetch" | "code_search" | "transform" | "other";
   paths: {
     meta: string;
     raw: string;
@@ -558,21 +529,6 @@ export interface RouterConfig {
   hints?: RouterHints;
 }
 
-export interface CaptureConfig {
-  freeflowMediated: CaptureFreeflowMediatedMode;
-  directHostTools: DirectHostToolCaptureMode;
-}
-
-export interface ProviderEnablement {
-  id: string;
-  mode: ProviderMode;
-  categories?: ProviderCategory[];
-}
-
-export interface ProvidersConfig {
-  enabled: ProviderEnablement[];
-}
-
 export interface ObservedRoutingProducerConfig {
   enabled: boolean;
   persistence: ObservedRoutingPersistenceMode;
@@ -591,25 +547,25 @@ export interface ObservedRoutingConfig {
   codeSearch: ObservedRoutingProducerConfig;
 }
 
-export type ScriptDeriveLanguage = "javascript" | "python" | "jq";
-export type ScriptDeriveNetworkPolicy = "off";
-export type ScriptDeriveSandboxMode = "auto";
-export type ScriptDeriveRawScriptPersistence = "disabled";
+export type ScriptTransformLanguage = "javascript" | "python" | "jq";
+export type ScriptTransformNetworkPolicy = "off";
+export type ScriptTransformSandboxMode = "auto";
+export type ScriptTransformRawScriptPersistence = "disabled";
 export type ProcessingScriptPolicy = "sandboxed" | "unsafe-unsandboxed";
 
-export interface ScriptDeriveLimits {
+export interface ScriptTransformLimits {
   timeoutMs: number;
   maxInputBytes: number;
   maxOutputBytes: number;
 }
 
-export interface ScriptDeriveConfig {
+export interface ScriptTransformConfig {
   enabled: boolean;
-  sandbox: ScriptDeriveSandboxMode;
-  languages: ScriptDeriveLanguage[];
-  network: ScriptDeriveNetworkPolicy;
-  limits: ScriptDeriveLimits;
-  rawScriptPersistence: ScriptDeriveRawScriptPersistence;
+  sandbox: ScriptTransformSandboxMode;
+  languages: ScriptTransformLanguage[];
+  network: ScriptTransformNetworkPolicy;
+  limits: ScriptTransformLimits;
+  rawScriptPersistence: ScriptTransformRawScriptPersistence;
 }
 
 export interface ProcessingUnsafeUnsandboxedConfig {
@@ -626,8 +582,6 @@ export interface LocalFreeflowConfig {
 
 export interface FreeflowConfig {
   outputRouter: RouterConfig;
-  capture: CaptureConfig;
-  providers: ProvidersConfig;
   observedRouting: ObservedRoutingConfig;
-  scriptDerive: ScriptDeriveConfig;
+  scriptTransform: ScriptTransformConfig;
 }

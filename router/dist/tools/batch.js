@@ -179,7 +179,7 @@ async function executeStepResult(step, options, runner) {
             ...(options.vaultRoot !== undefined ? { vaultRoot: options.vaultRoot } : {}),
             ...(options.vaultRetention !== undefined ? { vaultRetention: options.vaultRetention } : {}),
             ...(options.thresholds !== undefined ? { thresholds: options.thresholds } : {}),
-            ...(options.scriptDerive !== undefined ? { scriptDerive: options.scriptDerive } : {}),
+            ...(options.scriptTransform !== undefined ? { scriptTransform: options.scriptTransform } : {}),
             ...(options.scriptSandboxAdapters !== undefined ? { scriptSandboxAdapters: options.scriptSandboxAdapters } : {}),
             ...(options.storagePolicy !== undefined ? { storagePolicy: options.storagePolicy } : {}),
         }, runner);

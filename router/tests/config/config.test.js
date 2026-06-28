@@ -2,11 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  DEFAULT_CAPTURE_CONFIG,
   DEFAULT_OBSERVED_ROUTING_CONFIG,
-  DEFAULT_PROVIDERS_CONFIG,
   DEFAULT_ROUTER_THRESHOLDS,
-  DEFAULT_SCRIPT_DERIVE_CONFIG,
+  DEFAULT_SCRIPT_TRANSFORM_CONFIG,
   DEFAULT_VAULT_RETENTION,
   DEFAULT_VAULT_ROOT,
   normalizeFreeflowConfig,
@@ -20,24 +18,17 @@ test("normalizeFreeflowConfig keeps minimal setup config valid without dumping o
   assert.equal(result.config.outputRouter.enabled, true);
   assert.equal(result.config.outputRouter.profile, "standard");
   assert.equal(result.config.outputRouter.storagePolicy, "hybrid-dedupe");
-  assert.deepEqual(result.config.capture, DEFAULT_CAPTURE_CONFIG);
-  assert.deepEqual(result.config.providers, DEFAULT_PROVIDERS_CONFIG);
+  assert.equal("capture" in result.config, false);
+  assert.equal("providers" in result.config, false);
   assert.deepEqual(result.config.observedRouting, DEFAULT_OBSERVED_ROUTING_CONFIG);
-  assert.deepEqual(result.config.scriptDerive, DEFAULT_SCRIPT_DERIVE_CONFIG);
+  assert.deepEqual(result.config.scriptTransform, DEFAULT_SCRIPT_TRANSFORM_CONFIG);
 });
 
-test("normalizeFreeflowConfig accepts high-level capture and provider decisions", () => {
+test("normalizeFreeflowConfig accepts output router, observed routing, and script transform decisions", () => {
   const result = normalizeFreeflowConfig({
     defaultMode: "workflow",
     outputRouter: { enabled: true, profile: "standard", postToolRouting: "off", storagePolicy: "store-everything" },
-    capture: { freeflowMediated: "raw", directHostTools: "off" },
-    providers: {
-      enabled: [
-        { id: "serena", mode: "discovery", categories: ["symbols", "references", "diagnostics"] },
-        "custom-search",
-      ],
-    },
-    scriptDerive: {
+    scriptTransform: {
       enabled: true,
       sandbox: "auto",
       languages: ["python", "javascript", "python"],
@@ -65,13 +56,7 @@ test("normalizeFreeflowConfig accepts high-level capture and provider decisions"
   assert.equal(result.config.outputRouter.enabled, true);
   assert.equal(result.config.outputRouter.profile, "standard");
   assert.equal(result.config.outputRouter.storagePolicy, "store-everything");
-  assert.equal(result.config.capture.freeflowMediated, "raw");
-  assert.equal(result.config.capture.directHostTools, "off");
-  assert.deepEqual(result.config.providers.enabled, [
-    { id: "serena", mode: "discovery", categories: ["symbols", "references", "diagnostics"] },
-    { id: "custom-search", mode: "discovery" },
-  ]);
-  assert.deepEqual(result.config.scriptDerive, {
+  assert.deepEqual(result.config.scriptTransform, {
     enabled: true,
     sandbox: "auto",
     languages: ["python", "javascript"],
@@ -95,18 +80,12 @@ test("normalizeFreeflowConfig accepts high-level capture and provider decisions"
   });
 });
 
-test("normalizeFreeflowConfig rejects invalid capture and provider values", () => {
+test("normalizeFreeflowConfig ignores removed capture/provider config and rejects invalid active values", () => {
   const result = normalizeFreeflowConfig({
     outputRouter: { enabled: "yes", profile: "maximum", storagePolicy: "metadata-only" },
     capture: { freeflowMediated: "metadata-only", directHostTools: "raw" },
-    providers: {
-      enabled: [
-        { id: "serena", mode: "write" },
-        { id: "github", mode: "read-only", categories: ["issues", "symbols"] },
-        "",
-      ],
-    },
-    scriptDerive: {
+    providers: { enabled: [{ id: "serena", mode: "write" }] },
+    scriptTransform: {
       enabled: "yes",
       sandbox: "none",
       languages: ["ruby", 1],
@@ -133,10 +112,10 @@ test("normalizeFreeflowConfig rejects invalid capture and provider values", () =
   assert.equal(result.config.outputRouter.enabled, true);
   assert.equal(result.config.outputRouter.profile, "standard");
   assert.equal(result.config.outputRouter.storagePolicy, "hybrid-dedupe");
-  assert.deepEqual(result.config.capture, DEFAULT_CAPTURE_CONFIG);
-  assert.deepEqual(result.config.providers.enabled, []);
+  assert.equal("capture" in result.config, false);
+  assert.equal("providers" in result.config, false);
   assert.equal(result.config.observedRouting.enabled, false);
-  assert.deepEqual(result.config.scriptDerive, DEFAULT_SCRIPT_DERIVE_CONFIG);
+  assert.deepEqual(result.config.scriptTransform, DEFAULT_SCRIPT_TRANSFORM_CONFIG);
   assert.equal(result.config.observedRouting.mcp.servers.github.persistence, "metadata-only");
   assert.equal(result.config.observedRouting.mcp.servers.gmail.persistence, "metadata-only");
   assert.equal(result.config.observedRouting.web.persistence, "metadata-only");
@@ -145,19 +124,16 @@ test("normalizeFreeflowConfig rejects invalid capture and provider values", () =
   assert.ok(result.warnings.some((warning) => warning.includes("outputRouter.enabled")));
   assert.ok(result.warnings.some((warning) => warning.includes("outputRouter.profile")));
   assert.ok(result.warnings.some((warning) => warning.includes("outputRouter.storagePolicy")));
-  assert.ok(result.warnings.some((warning) => warning.includes("capture.freeflowMediated")));
-  assert.ok(result.warnings.some((warning) => warning.includes("capture.directHostTools")));
-  assert.ok(result.warnings.some((warning) => warning.includes("providers.enabled[0].mode")));
-  assert.ok(result.warnings.some((warning) => warning.includes("providers.enabled[1].categories")));
-  assert.ok(result.warnings.some((warning) => warning.includes("providers.enabled[2]")));
-  assert.ok(result.warnings.some((warning) => warning.includes("scriptDerive.enabled")));
-  assert.ok(result.warnings.some((warning) => warning.includes("scriptDerive.sandbox")));
-  assert.ok(result.warnings.some((warning) => warning.includes("scriptDerive.languages")));
-  assert.ok(result.warnings.some((warning) => warning.includes("scriptDerive.network")));
-  assert.ok(result.warnings.some((warning) => warning.includes("scriptDerive.limits.timeoutMs")));
-  assert.ok(result.warnings.some((warning) => warning.includes("scriptDerive.limits.maxInputBytes")));
-  assert.ok(result.warnings.some((warning) => warning.includes("scriptDerive.limits.maxOutputBytes")));
-  assert.ok(result.warnings.some((warning) => warning.includes("scriptDerive.rawScriptPersistence")));
+  assert.ok(!result.warnings.some((warning) => warning.includes("capture.")));
+  assert.ok(!result.warnings.some((warning) => warning.includes("providers.")));
+  assert.ok(result.warnings.some((warning) => warning.includes("scriptTransform.enabled")));
+  assert.ok(result.warnings.some((warning) => warning.includes("scriptTransform.sandbox")));
+  assert.ok(result.warnings.some((warning) => warning.includes("scriptTransform.languages")));
+  assert.ok(result.warnings.some((warning) => warning.includes("scriptTransform.network")));
+  assert.ok(result.warnings.some((warning) => warning.includes("scriptTransform.limits.timeoutMs")));
+  assert.ok(result.warnings.some((warning) => warning.includes("scriptTransform.limits.maxInputBytes")));
+  assert.ok(result.warnings.some((warning) => warning.includes("scriptTransform.limits.maxOutputBytes")));
+  assert.ok(result.warnings.some((warning) => warning.includes("scriptTransform.rawScriptPersistence")));
   assert.ok(result.warnings.some((warning) => warning.includes("observedRouting.enabled")));
   assert.ok(result.warnings.some((warning) => warning.includes("observedRouting.onRoutingFailure")));
   assert.ok(result.warnings.some((warning) => warning.includes("observedRouting.mcp.servers.github.persistence") && warning.includes("redacted")));
@@ -179,49 +155,23 @@ test("normalizeRouterConfig uses defaults when outputRouter is missing", () => {
   assert.deepEqual(result.config.vault.retention, DEFAULT_VAULT_RETENTION);
 });
 
-test("normalizeRouterConfig maps repo outputRouter candidate fields", () => {
+test("normalizeRouterConfig parses repo-specific hints", () => {
   const result = normalizeRouterConfig({
-    postToolRouting: "safety-net",
-    storagePolicy: "store-everything",
-    largeOutputBytes: 1234,
-    largeOutputLines: 42,
-    vaultRoot: "~/custom-freeflow-vault",
-    vaultRetentionDays: 3,
-    generatedPaths: ["dist/**"],
-    noisyCommandHints: ["test"],
+    generatedPaths: ["graphify-out/**", "dist/**"],
+    noisyCommandHints: ["npm test", "pnpm lint"],
   });
 
   assert.deepEqual(result.warnings, []);
-  assert.equal(result.config.postToolRouting, "safety-net");
-  assert.equal(result.config.storagePolicy, "store-everything");
-  assert.equal(result.config.thresholds.largeOutputBytes, 1234);
-  assert.equal(result.config.thresholds.largeOutputLines, 42);
-  assert.equal(result.config.vault.root, "~/custom-freeflow-vault");
-  assert.deepEqual(result.config.vault.retention, { strategy: "ttl", ttlDays: 3 });
-  assert.deepEqual(result.config.hints?.generatedPathGlobs, ["dist/**"]);
-  assert.deepEqual(result.config.hints?.noisyCommandPatterns, ["test"]);
+  assert.deepEqual(result.config.hints, {
+    generatedPathGlobs: ["graphify-out/**", "dist/**"],
+    noisyCommandPatterns: ["npm test", "pnpm lint"],
+  });
 });
 
-test("normalizeRouterConfig falls back safely and reports invalid values", () => {
-  const result = normalizeRouterConfig({
-    postToolRouting: "always",
-    storagePolicy: "metadata-only",
-    largeOutputBytes: -1,
-    largeOutputLines: "many",
-    vaultRetentionDays: 0,
-    generatedPaths: ["dist/**", 123],
-    noisyCommandHints: "test",
-  });
+test("normalizeRouterConfig warns for invalid hint arrays", () => {
+  const result = normalizeRouterConfig({ generatedPaths: "graphify-out/**", noisyCommandHints: ["npm test", 42] });
 
-  assert.equal(result.config.postToolRouting, "off");
-  assert.equal(result.config.storagePolicy, "hybrid-dedupe");
-  assert.equal(result.config.thresholds.largeOutputBytes, DEFAULT_ROUTER_THRESHOLDS.largeOutputBytes);
-  assert.equal(result.config.thresholds.largeOutputLines, DEFAULT_ROUTER_THRESHOLDS.largeOutputLines);
-  assert.deepEqual(result.config.vault.retention, DEFAULT_VAULT_RETENTION);
-  assert.ok(result.warnings.length >= 5);
-  assert.ok(result.warnings.some((warning) => warning.includes("postToolRouting")));
-  assert.ok(result.warnings.some((warning) => warning.includes("storagePolicy")));
-  assert.ok(result.warnings.some((warning) => warning.includes("largeOutputBytes")));
-  assert.ok(result.warnings.some((warning) => warning.includes("largeOutputLines")));
-  assert.ok(result.warnings.some((warning) => warning.includes("vaultRetentionDays")));
+  assert.deepEqual(result.config.hints, undefined);
+  assert.equal(result.warnings.length, 2);
+  assert.ok(result.warnings.every((warning) => warning.includes("outputRouter.")));
 });

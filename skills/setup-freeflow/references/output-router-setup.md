@@ -1,20 +1,20 @@
 # Output Router Setup
 
-Use this when setup reaches the optional evidence-routing branch or explicitly asks for output-router, observed-routing, provider, generated-path, native safety-net, vault, threshold, or script-transform repo config (`scriptDerive`).
+Use this when setup reaches the optional capabilities branch or explicitly asks for output-router, observed-routing, generated-path, native safety-net, vault, threshold, script-transform adapters, or script-transform repo config (`scriptTransform`).
 
 ## Defaults
 
 - The output router has built-in defaults. A repo does not need optional config for normal search/run/transform behavior.
 - Minimal `/setup-freeflow` must still write only `defaultMode`.
-- Ask one evidence-routing decision point. If declined, do not write `outputRouter`, `observedRouting`, `capture`, `providers`, or `scriptDerive`.
+- Ask one capabilities decision point. If declined, do not write `outputRouter`, `observedRouting`, or `scriptTransform`, and do not install script adapters.
 - Observed routing is opt-in per producer/server. The user must choose persistence for each enabled entry before setup writes config.
 - Do not create a separate `setup-output-router` skill.
 
-If the user says only “set up the output router” with no requested knobs, say the router works with built-in defaults and ask which optional config they want persisted. Recommend no repo config unless they need provider enablement, repo-specific hints, or safety-net behavior.
+If the user says only “set up the output router” with no requested knobs, say the router works with built-in defaults and ask which optional config they want persisted. Recommend no repo config unless they need observed routing, repo-specific hints, script transform setup, or safety-net behavior.
 
 ## Config Shape
 
-Write only keys the user explicitly requests. Do not dump all defaults and do not create empty `outputRouter`, `observedRouting`, `capture`, `providers`, or `scriptDerive` objects.
+Write only keys the user explicitly requests. Do not dump all defaults and do not create empty `outputRouter`, `observedRouting`, or `scriptTransform` objects. Do not write removed `capture` or `providers` config.
 
 Supported high-level repo config keys:
 
@@ -45,12 +45,7 @@ Supported high-level repo config keys:
     "fetch": { "enabled": true, "persistence": "exact" },
     "codeSearch": { "enabled": true, "persistence": "exact" }
   },
-  "providers": {
-    "enabled": [
-      { "id": "serena", "mode": "discovery", "categories": ["symbols", "references", "diagnostics"] }
-    ]
-  },
-  "scriptDerive": {
+  "scriptTransform": {
     "enabled": true,
     "sandbox": "auto",
     "languages": ["javascript", "python", "jq"],
@@ -81,15 +76,15 @@ Rules:
 - Every enabled observed-routing entry needs a user-chosen persistence mode: `exact`, `metadata-only`, or `none`.
 - Recommend `exact` for public-ish evidence producers such as GitHub, web, fetch, and code search. Recommend `metadata-only` for sensitive or unknown producers such as Gmail, Slack, private customer systems, or likely-secret outputs.
 - Do not offer or write `redacted`; it is reserved for future work and currently falls back to `metadata-only` with a warning if hand-edited.
-- Pi public `freeflow_capture` has been removed. Do not write `capture.freeflowMediated` during Pi setup.
-- `capture.directHostTools` currently supports only `off`; broad direct host-tool capture needs a separate design/confirmation before other policies are written.
-- `providers.enabled` accepts provider ids or objects with `id`, optional `mode` (`discovery` or `read-only`), and optional read-only categories (`symbols`, `references`, `diagnostics`, `graph`, `architecture`, `search`).
-- Custom provider manifests are user-owned, must validate as single-line structured fields, and are labeled `custom/unverified`.
-- `scriptDerive.enabled` defaults to `false`; write it only after an explicit script-execution opt-in.
-- Setup must not install, download, or vendor script runtimes. For Pi JavaScript execution, the user must separately provide a `quickjs-wasi` package root through `FREEFLOW_QUICKJS_WASI_ROOT`; for Pi Python execution, the user must separately provide an `@bsull/eryx` package root through `FREEFLOW_ERYX_ROOT` and run Node with `--experimental-wasm-jspi`; for Pi jq execution, the user must separately provide a `jq-wasm` package root through `FREEFLOW_JQ_WASM_ROOT`.
-- `scriptDerive.languages` supports `javascript`, `python`, and `jq`; enable only the languages whose explicit package roots and runtime requirements the user chose.
-- `scriptDerive.sandbox` currently supports `auto`, `network` supports only `off`, and `rawScriptPersistence` supports only `disabled`.
-- `scriptDerive.limits.timeoutMs`, `maxInputBytes`, and `maxOutputBytes` must be positive integers within product caps. Per-call script limits may only tighten configured values.
+- Pi public `freeflow_capture` and the separate `providers` setup surface have been removed. Do not write removed `capture` or `providers` config.
+- `scriptTransform.enabled` defaults to `false`; write it only after an explicit script-execution opt-in.
+- If the user opts into script transform setup and adapters are missing or unavailable, recommend installing global adapters. On consent, resolve `../../router/dist/setup/script-transform-adapters.js` relative to `skills/setup-freeflow/SKILL.md` and run `node <plugin-root>/router/dist/setup/script-transform-adapters.js install --config .freeflow/config.json`.
+- The installer uses `~/.cache/freeflow-script-adapters` by default, or `FREEFLOW_SCRIPT_TRANSFORM_ADAPTERS_HOME` when set. It installs `quickjs-wasi@3.0.1`, `jq-wasm@1.2.0-jq-1.8.2`, `@bsull/eryx@0.5.0`, and `node@24` for the Python JSPI child runner, writes `freeflow-adapter-env.sh`, probes sandbox proofs, and updates `scriptTransform.languages` with only proof-passing languages.
+- Freeflow auto-discovers adapters from that global cache. The explicit roots `FREEFLOW_QUICKJS_WASI_ROOT`, `FREEFLOW_JQ_WASM_ROOT`, and `FREEFLOW_ERYX_ROOT` remain overrides for custom installs.
+- Python/Eryx is installed by setup and uses the setup-installed child Node process launched with `--experimental-wasm-jspi` when the host process lacks JSPI. It must not be marked available unless that child runner passes the required sandbox probes.
+- `scriptTransform.languages` supports `javascript`, `python`, and `jq`; enable only languages whose adapters passed sandbox proofs.
+- `scriptTransform.sandbox` currently supports `auto`, `network` supports only `off`, and `rawScriptPersistence` supports only `disabled`.
+- `scriptTransform.limits.timeoutMs`, `maxInputBytes`, and `maxOutputBytes` must be positive integers within product caps. Per-call script limits may only tighten configured values.
 
 ## Verify
 
@@ -97,11 +92,11 @@ After writing optional evidence-routing config, use `freeflow_status` or equival
 
 - JSON parses.
 - `defaultMode` is valid.
-- Minimal setup still contains only `defaultMode` when evidence routing was declined.
-- Optional `outputRouter`, `observedRouting`, `capture`, `providers`, and `scriptDerive` sections contain only requested keys.
-- Invalid router/observed-routing/capture/provider/script-transform values are not written.
+- Minimal setup still contains only `defaultMode` when capabilities were declined.
+- Optional `outputRouter`, `observedRouting`, and `scriptTransform` sections contain only requested keys.
+- Invalid router/observed-routing/script-transform values are not written.
 - Observed routing, native safety-net routing, and script transform are not enabled unless explicitly requested.
+- If script transform setup was accepted, global adapter install completed or a clear install/probe failure was reported, and enabled languages match proof-passing adapters.
 - No observed-routing entry uses `redacted`, and every enabled entry has explicit persistence.
-- Direct host-tool capture remains `off` unless explicitly requested and supported.
 - `freeflow_status` shows effective defaults and migration recommendations without rewriting config.
 - No repo-local hooks, skill files, setup-output-router skill, docs inventories, or repo-local storage directories were created.

@@ -1,4 +1,4 @@
-import type { ScriptDeriveConfig, ScriptDeriveLanguage } from "../config/types.js";
+import type { ScriptTransformConfig, ScriptTransformLanguage } from "../config/types.js";
 export declare const SCRIPT_SANDBOX_ADAPTER_CONTRACT_VERSION = 1;
 export declare const SCRIPT_SANDBOX_REQUIRED_PROOFS: readonly ["env_access_denied", "home_access_denied", "repo_access_denied", "vault_access_denied", "network_access_denied", "input_read_only", "output_escape_denied", "stdout_stderr_bounded", "timeout_enforced"];
 export type ScriptSandboxProof = (typeof SCRIPT_SANDBOX_REQUIRED_PROOFS)[number];
@@ -21,14 +21,14 @@ export interface ScriptSandboxSourceMount {
     sha256: string;
 }
 export interface ScriptSandboxExecutionRequest {
-    language: ScriptDeriveLanguage;
+    language: ScriptTransformLanguage;
     code: string;
     inputDir: string;
     workDir: string;
     outputDir: string;
     sources: ScriptSandboxSourceMount[];
-    limits: ScriptDeriveConfig["limits"];
-    network: ScriptDeriveConfig["network"];
+    limits: ScriptTransformConfig["limits"];
+    network: ScriptTransformConfig["network"];
 }
 export interface ScriptSandboxExecutionResult {
     status: "success" | "failed" | "timed_out" | "policy_violation";
@@ -46,18 +46,18 @@ export interface ScriptSandboxExecutionResult {
 export interface ScriptSandboxAdapter {
     id: string;
     version: string;
-    languages: readonly ScriptDeriveLanguage[];
-    probe(language: ScriptDeriveLanguage, config: ScriptDeriveConfig): Promise<ScriptSandboxProbeResult>;
+    languages: readonly ScriptTransformLanguage[];
+    probe(language: ScriptTransformLanguage, config: ScriptTransformConfig): Promise<ScriptSandboxProbeResult>;
     execute(request: ScriptSandboxExecutionRequest): Promise<ScriptSandboxExecutionResult>;
 }
 export interface ScriptSandboxCandidateMechanism {
     id: string;
-    languages: readonly ScriptDeriveLanguage[];
+    languages: readonly ScriptTransformLanguage[];
     status: "rejected" | "candidate_unproven";
     reason: string;
 }
 export interface ScriptSandboxLanguageStatus {
-    language: ScriptDeriveLanguage;
+    language: ScriptTransformLanguage;
     status: ScriptSandboxAvailability;
     reason: string;
     adapterId?: string;
@@ -69,18 +69,18 @@ export interface ScriptSandboxLanguageStatus {
 }
 export interface ScriptSandboxProbeReport {
     contractVersion: number;
-    sandbox: ScriptDeriveConfig["sandbox"];
-    network: ScriptDeriveConfig["network"];
-    configuredLanguages: ScriptDeriveLanguage[];
+    sandbox: ScriptTransformConfig["sandbox"];
+    network: ScriptTransformConfig["network"];
+    configuredLanguages: ScriptTransformLanguage[];
     adapterAvailable: boolean;
     adapterStatus: ScriptSandboxAvailability;
-    availableLanguages: ScriptDeriveLanguage[];
+    availableLanguages: ScriptTransformLanguage[];
     unavailableLanguages: ScriptSandboxLanguageStatus[];
     languages: ScriptSandboxLanguageStatus[];
     registeredAdapters: Array<{
         id: string;
         version: string;
-        languages: ScriptDeriveLanguage[];
+        languages: ScriptTransformLanguage[];
     }>;
     requiredProofs: ScriptSandboxProof[];
     candidateMechanisms: ScriptSandboxCandidateMechanism[];
@@ -91,19 +91,19 @@ export interface ScriptSandboxProofFixture {
     description: string;
     expected: string;
     adapterAssertion: string;
-    programs: Record<ScriptDeriveLanguage, string>;
+    programs: Record<ScriptTransformLanguage, string>;
 }
 export declare const SCRIPT_SANDBOX_PROOF_FIXTURES: ScriptSandboxProofFixture[];
-export declare function scriptSandboxProofFixturesForLanguage(language: ScriptDeriveLanguage): Array<Omit<ScriptSandboxProofFixture, "programs"> & {
+export declare function scriptSandboxProofFixturesForLanguage(language: ScriptTransformLanguage): Array<Omit<ScriptSandboxProofFixture, "programs"> & {
     program: string;
 }>;
 export declare const SCRIPT_SANDBOX_CANDIDATE_MECHANISMS: ScriptSandboxCandidateMechanism[];
 export interface ProbeScriptSandboxAdaptersOptions {
-    config?: ScriptDeriveConfig;
+    config?: ScriptTransformConfig;
     adapters?: readonly ScriptSandboxAdapter[];
 }
 export declare function probeScriptSandboxAdapters(options?: ProbeScriptSandboxAdaptersOptions): Promise<ScriptSandboxProbeReport>;
-export declare function selectScriptSandboxAdapter(language: ScriptDeriveLanguage, config: ScriptDeriveConfig, adapters?: readonly ScriptSandboxAdapter[]): Promise<{
+export declare function selectScriptSandboxAdapter(language: ScriptTransformLanguage, config: ScriptTransformConfig, adapters?: readonly ScriptSandboxAdapter[]): Promise<{
     ok: true;
     adapter: ScriptSandboxAdapter;
     status: ScriptSandboxLanguageStatus;

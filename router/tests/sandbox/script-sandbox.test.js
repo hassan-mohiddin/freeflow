@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  DEFAULT_SCRIPT_DERIVE_CONFIG,
+  DEFAULT_SCRIPT_TRANSFORM_CONFIG,
   discoverEryxPythonSandboxAdaptersFromEnv,
   discoverJqWasmSandboxAdaptersFromEnv,
   discoverQuickJsWasiSandboxAdaptersFromEnv,
-  SCRIPT_DERIVE_LANGUAGES,
+  SCRIPT_TRANSFORM_LANGUAGES,
   SCRIPT_SANDBOX_PROOF_FIXTURES,
   SCRIPT_SANDBOX_REQUIRED_PROOFS,
   probeScriptSandboxAdapters,
@@ -16,10 +16,10 @@ import {
 
 function config(overrides = {}) {
   return {
-    ...DEFAULT_SCRIPT_DERIVE_CONFIG,
+    ...DEFAULT_SCRIPT_TRANSFORM_CONFIG,
     ...overrides,
-    languages: overrides.languages ?? [...DEFAULT_SCRIPT_DERIVE_CONFIG.languages],
-    limits: { ...DEFAULT_SCRIPT_DERIVE_CONFIG.limits, ...(overrides.limits ?? {}) },
+    languages: overrides.languages ?? [...DEFAULT_SCRIPT_TRANSFORM_CONFIG.languages],
+    limits: { ...DEFAULT_SCRIPT_TRANSFORM_CONFIG.limits, ...(overrides.limits ?? {}) },
   };
 }
 
@@ -43,7 +43,7 @@ test("script sandbox proof fixtures cover every required proof for every target 
     [...SCRIPT_SANDBOX_REQUIRED_PROOFS].sort(),
   );
 
-  for (const language of SCRIPT_DERIVE_LANGUAGES) {
+  for (const language of SCRIPT_TRANSFORM_LANGUAGES) {
     const fixtures = scriptSandboxProofFixturesForLanguage(language);
     assert.deepEqual(
       fixtures.map((fixture) => fixture.proof).sort(),
@@ -211,7 +211,7 @@ test("Eryx Python discovery reports unavailable for invalid explicit package roo
   assert.match(report.unavailableLanguages[0].reason, /could not load/);
 });
 
-test("script sandbox selection respects scriptDerive.languages before probing adapters", async () => {
+test("script sandbox selection respects scriptTransform.languages before probing adapters", async () => {
   let probed = false;
   const adapter = fakeAdapter({
     languages: ["python"],
@@ -229,5 +229,5 @@ test("script sandbox selection respects scriptDerive.languages before probing ad
   const selected = await selectScriptSandboxAdapter("python", config({ enabled: true, languages: ["javascript"] }), [adapter]);
   assert.equal(selected.ok, false);
   assert.equal(probed, false);
-  assert.match(selected.status.reason, /not enabled by scriptDerive\.languages/);
+  assert.match(selected.status.reason, /not enabled by scriptTransform\.languages/);
 });

@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DEFAULT_SCRIPT_DERIVE_CONFIG, MAX_SCRIPT_DERIVE_LIMITS } from "../config/config.js";
+import { DEFAULT_SCRIPT_TRANSFORM_CONFIG, MAX_SCRIPT_TRANSFORM_LIMITS } from "../config/config.js";
 import { selectScriptSandboxAdapter } from "../sandbox/script-sandbox.js";
 const execFileAsync = promisify(execFile);
 export function processingScriptNotConfigured() {
@@ -18,7 +18,7 @@ export function processingScriptUnavailableForUnloadedSource(script, reason) {
 }
 export async function runProcessingScript(options) {
     const policy = options.script.policy ?? "sandboxed";
-    const config = effectiveProcessingScriptConfig(options.scriptDerive);
+    const config = effectiveProcessingScriptConfig(options.scriptTransform);
     const limits = effectiveScriptLimits(config, options.script.limits);
     if (policy === "unsafe-unsandboxed") {
         return runUnsafeUnsandboxedProcessingScript({ ...options, config, limits });
@@ -301,7 +301,7 @@ async function executeProcessingScriptWithAdapter(options) {
     }
 }
 function effectiveProcessingScriptConfig(config) {
-    const base = config ?? { ...DEFAULT_SCRIPT_DERIVE_CONFIG, enabled: true };
+    const base = config ?? { ...DEFAULT_SCRIPT_TRANSFORM_CONFIG, enabled: true };
     return {
         ...base,
         languages: [...base.languages],
@@ -310,9 +310,9 @@ function effectiveProcessingScriptConfig(config) {
 }
 function effectiveScriptLimits(config, input) {
     return {
-        timeoutMs: boundedScriptLimit(input?.timeoutMs, config.limits.timeoutMs, MAX_SCRIPT_DERIVE_LIMITS.timeoutMs),
-        maxInputBytes: boundedScriptLimit(input?.maxInputBytes, config.limits.maxInputBytes, MAX_SCRIPT_DERIVE_LIMITS.maxInputBytes),
-        maxOutputBytes: boundedScriptLimit(input?.maxOutputBytes, config.limits.maxOutputBytes, MAX_SCRIPT_DERIVE_LIMITS.maxOutputBytes),
+        timeoutMs: boundedScriptLimit(input?.timeoutMs, config.limits.timeoutMs, MAX_SCRIPT_TRANSFORM_LIMITS.timeoutMs),
+        maxInputBytes: boundedScriptLimit(input?.maxInputBytes, config.limits.maxInputBytes, MAX_SCRIPT_TRANSFORM_LIMITS.maxInputBytes),
+        maxOutputBytes: boundedScriptLimit(input?.maxOutputBytes, config.limits.maxOutputBytes, MAX_SCRIPT_TRANSFORM_LIMITS.maxOutputBytes),
     };
 }
 function boundedScriptLimit(value, configured, max) {

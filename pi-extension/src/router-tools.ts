@@ -128,7 +128,7 @@ async function normalizeSearchTransformProcessingParams(params, ctx, routerConfi
         goal: params.goal,
         limits: params.limits,
         script: params.script,
-        scriptDerive: routerConfigResult.freeflowConfig.scriptDerive,
+        scriptTransform: routerConfigResult.freeflowConfig.scriptTransform,
         localConfig: routerConfigResult.localConfig,
         scriptSandboxAdapters: params.script
           ? [
@@ -160,7 +160,7 @@ async function normalizeSearchTransformProcessingParams(params, ctx, routerConfi
         goal: params.goal,
         limits: params.limits,
         script: params.script,
-        scriptDerive: routerConfigResult.freeflowConfig.scriptDerive,
+        scriptTransform: routerConfigResult.freeflowConfig.scriptTransform,
         localConfig: routerConfigResult.localConfig,
         scriptSandboxAdapters: params.script
           ? [
@@ -193,7 +193,7 @@ async function executeSearch(params, ctx, routerConfigResult) {
         vaultRoot: routerConfigResult.config.vault.root,
         vaultRetention: routerConfigResult.config.vault.retention,
         thresholds: routerConfigResult.config.thresholds,
-        scriptDerive: routerConfigResult.freeflowConfig.scriptDerive,
+        scriptTransform: routerConfigResult.freeflowConfig.scriptTransform,
         scriptSandboxAdapters,
       });
     }
@@ -303,8 +303,8 @@ export function registerRouterTools(pi) {
     name: "freeflow_status",
     label: "Freeflow Status",
     description:
-      "Inspect effective Freeflow router/capture/provider behavior, vault writability, warnings, and non-destructive migration recommendations.",
-    promptSnippet: "Inspect Freeflow effective config, provider availability, vault status, and migration recommendations.",
+      "Inspect effective Freeflow router, observed-routing, script-transform, vault, warnings, and non-destructive migration recommendations.",
+    promptSnippet: "Inspect Freeflow effective config, observed routing, script transform, vault status, and migration recommendations.",
     promptGuidelines: [
       "Use freeflow_status when setup/config/status/doctor evidence is needed.",
       "Status and migration recommendations are read-only; do not rewrite .freeflow/config.json without explicit confirmation.",
@@ -390,7 +390,7 @@ export function registerRouterTools(pi) {
           vaultRetention: routerConfigResult.config.vault.retention,
           thresholds: routerConfigResult.config.thresholds,
           storagePolicy: routerConfigResult.config.storagePolicy,
-          scriptDerive: routerConfigResult.freeflowConfig.scriptDerive,
+          scriptTransform: routerConfigResult.freeflowConfig.scriptTransform,
           scriptSandboxAdapters,
         },
         {
@@ -448,7 +448,7 @@ export function registerRouterTools(pi) {
           vaultRetention: routerConfigResult.config.vault.retention,
           thresholds: routerConfigResult.config.thresholds,
           storagePolicy: routerConfigResult.config.storagePolicy,
-          scriptDerive: routerConfigResult.freeflowConfig.scriptDerive,
+          scriptTransform: routerConfigResult.freeflowConfig.scriptTransform,
           scriptSandboxAdapters,
         },
         {

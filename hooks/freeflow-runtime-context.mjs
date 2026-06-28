@@ -54,12 +54,13 @@ function loadRuntimeContext() {
   const interviewGateSkill = readText(
     path.join(PLUGIN_ROOT, "skills", "interview-gate", "SKILL.md")
   );
+  const discoverSkill = readText(path.join(PLUGIN_ROOT, "skills", "discover", "SKILL.md"));
 
-  if (!workflowSkill || !workflowMap || !interviewGateSkill) {
+  if (!workflowSkill || !workflowMap || !interviewGateSkill || !discoverSkill) {
     throw new Error("Freeflow runtime context files are missing.");
   }
 
-  return { workflowSkill, workflowMap, interviewGateSkill };
+  return { workflowSkill, workflowMap, interviewGateSkill, discoverSkill };
 }
 
 function readConfig(root) {
@@ -83,7 +84,7 @@ function isValidSetupConfig(value) {
     return false;
   }
 
-  const allowedKeys = new Set(["defaultMode", "outputRouter"]);
+  const allowedKeys = new Set(["defaultMode", "outputRouter", "observedRouting", "scriptTransform"]);
   if (!Object.keys(value).every((key) => allowedKeys.has(key))) {
     return false;
   }
@@ -92,11 +93,25 @@ function isValidSetupConfig(value) {
     return false;
   }
 
-  if (!Object.prototype.hasOwnProperty.call(value, "outputRouter")) {
-    return true;
+  if (Object.prototype.hasOwnProperty.call(value, "outputRouter")) {
+    if (!Boolean(value.outputRouter) || typeof value.outputRouter !== "object" || Array.isArray(value.outputRouter)) {
+      return false;
+    }
   }
 
-  return Boolean(value.outputRouter) && typeof value.outputRouter === "object" && !Array.isArray(value.outputRouter);
+  if (Object.prototype.hasOwnProperty.call(value, "observedRouting")) {
+    if (!Boolean(value.observedRouting) || typeof value.observedRouting !== "object" || Array.isArray(value.observedRouting)) {
+      return false;
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(value, "scriptTransform")) {
+    if (!Boolean(value.scriptTransform) || typeof value.scriptTransform !== "object" || Array.isArray(value.scriptTransform)) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function inspectSetup(root) {
@@ -187,7 +202,7 @@ function shouldInject(eventName) {
 
 function buildContext(input) {
   const root = findWorkspaceRoot(input.cwd || process.cwd());
-  const { workflowSkill, workflowMap, interviewGateSkill } = loadRuntimeContext();
+  const { workflowSkill, workflowMap, interviewGateSkill, discoverSkill } = loadRuntimeContext();
 
   return [
     "# Freeflow Runtime Context",
@@ -198,6 +213,14 @@ function buildContext(input) {
     "## Repo Setup",
     buildSetupStatus(root),
     "",
+    "## Freeflow Runtime Priority",
+    "Priority order for matched skills:",
+    "",
+    "1. Workflow classifies conversation versus consequential work.",
+    "2. Interview Gate stops silent decisions, user-owned decisions, source-truth conflicts, and question-to-action mistakes.",
+    "3. Discover handles context-building after no immediate stop condition remains. Use it before first repo/code exploration or design answers for consequential product/API/tool/runtime hypotheses.",
+    "4. Output Router chooses evidence transport after the workflow/interview/discover route is clear.",
+    "",
     "## Loaded Workflow Skill",
     "```md",
     workflowSkill.trim(),
@@ -206,6 +229,11 @@ function buildContext(input) {
     "## Loaded Interview Gate Skill",
     "```md",
     interviewGateSkill.trim(),
+    "```",
+    "",
+    "## Loaded Discover Skill",
+    "```md",
+    discoverSkill.trim(),
     "```",
     "",
     "## Loaded Workflow Map",

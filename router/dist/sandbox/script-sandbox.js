@@ -1,4 +1,4 @@
-import { DEFAULT_SCRIPT_DERIVE_CONFIG, SCRIPT_DERIVE_LANGUAGES } from "../config/config.js";
+import { DEFAULT_SCRIPT_TRANSFORM_CONFIG, SCRIPT_TRANSFORM_LANGUAGES } from "../config/config.js";
 export const SCRIPT_SANDBOX_ADAPTER_CONTRACT_VERSION = 1;
 export const SCRIPT_SANDBOX_REQUIRED_PROOFS = [
     "env_access_denied",
@@ -142,13 +142,13 @@ export const SCRIPT_SANDBOX_CANDIDATE_MECHANISMS = [
     },
     {
         id: "os-sandbox-adapter",
-        languages: [...SCRIPT_DERIVE_LANGUAGES],
+        languages: [...SCRIPT_TRANSFORM_LANGUAGES],
         status: "candidate_unproven",
         reason: "An OS-level sandbox may be acceptable only after an adapter implementation passes all required adversarial proofs on the target platform.",
     },
 ];
 export async function probeScriptSandboxAdapters(options = {}) {
-    const config = cloneScriptDeriveConfig(options.config ?? DEFAULT_SCRIPT_DERIVE_CONFIG);
+    const config = cloneScriptTransformConfig(options.config ?? DEFAULT_SCRIPT_TRANSFORM_CONFIG);
     const adapters = options.adapters ?? [];
     const statuses = [];
     for (const language of config.languages) {
@@ -172,12 +172,12 @@ export async function probeScriptSandboxAdapters(options = {}) {
         notes: [
             "Script transform has no unsandboxed fallback.",
             "Languages remain unavailable until a registered adapter passes every required proof.",
-            "Adapter availability alone does not execute scripts while scriptDerive.enabled is false.",
+            "Adapter availability alone does not execute scripts while scriptTransform.enabled is false.",
         ],
     };
 }
 export async function selectScriptSandboxAdapter(language, config, adapters = []) {
-    const status = await probeLanguage(language, cloneScriptDeriveConfig(config), adapters);
+    const status = await probeLanguage(language, cloneScriptTransformConfig(config), adapters);
     if (status.status !== "available" || !status.adapterId) {
         return { ok: false, status };
     }
@@ -197,7 +197,7 @@ export async function selectScriptSandboxAdapter(language, config, adapters = []
 }
 async function probeLanguage(language, config, adapters) {
     if (!config.languages.includes(language)) {
-        return unavailableLanguageStatus(language, `Language ${language} is not enabled by scriptDerive.languages.`);
+        return unavailableLanguageStatus(language, `Language ${language} is not enabled by scriptTransform.languages.`);
     }
     const matchingAdapters = adapters.filter((adapter) => adapter.languages.includes(language));
     if (matchingAdapters.length === 0) {
@@ -291,7 +291,7 @@ function dedupeProofs(proofs) {
     }
     return result;
 }
-function cloneScriptDeriveConfig(config) {
+function cloneScriptTransformConfig(config) {
     return {
         ...config,
         languages: [...config.languages],

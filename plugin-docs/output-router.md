@@ -20,7 +20,7 @@ The router ships explicit tools and Pi observed routing:
 - `freeflow_run`: run commands, apply the command storage policy, and return compact evidence with recovery guidance.
 - `freeflow_batch`: run independent `run`/`search` steps and optionally aggregate query answers.
 - Pi observed routing: route enabled MCP/web/fetch/code-search outputs after direct host tool calls.
-- `freeflow_status`: inspect effective config, vault writability/index state, provider availability, and non-destructive migration recommendations.
+- `freeflow_status`: inspect effective config, observed routing, script transform, vault writability/index state, and non-destructive migration recommendations.
 
 Native tools still matter:
 
@@ -74,7 +74,7 @@ flowchart LR
 | Use enabled Pi MCP/web/fetch/code-search output | Call the host tool directly; observed routing runs after the tool result |
 | Transform repo/vault sources or compute deterministic subsets/stats from vaulted output | `freeflow_search action=transform` |
 | Inspect script-transform disabled/unavailable state | `freeflow_status` |
-| Inspect effective config, providers, vault/index state, or migration recommendations | `freeflow_status` |
+| Inspect effective config, observed routing, script transform, vault/index state, or migration recommendations | `freeflow_status` |
 | Read a known whole file | native `read` |
 | Run small exact command | native `bash` |
 
@@ -162,7 +162,7 @@ Command parsers currently cover:
 
 Pi observed routing handles configured MCP, web, fetch, and code-search outputs after direct host tool execution. Public Pi `freeflow_capture` has been removed; use the host MCP/web/fetch/code-search tool directly and configure `observedRouting` when routed recovery is needed.
 
-Mutating provider tools remain direct provider calls after explicit user intent. Freeflow treats read/write classification as routing metadata, not as a host permission gate.
+Mutating MCP/tools remain direct host calls after explicit user intent. Freeflow treats read/write classification as routing metadata, not as a host permission gate.
 
 ## `freeflow_search action=transform`
 
@@ -173,7 +173,7 @@ Mutating provider tools remain direct provider calls after explicit user intent.
 Current product execution support is Pi-first and explicit package-root opt-in:
 
 - JavaScript can run through a proof-backed QuickJS adapter only when script transform is explicitly enabled and Pi can discover a local `quickjs-wasi` package root.
-- Python can run through a proof-backed Eryx adapter only when script transform is explicitly enabled, Pi can discover a local `@bsull/eryx` package root, and the Node process has `--experimental-wasm-jspi` available.
+- Python can run through a proof-backed Eryx adapter only when script transform is explicitly enabled and Freeflow can discover an installed `@bsull/eryx` package root plus a JSPI-capable Node runtime. Setup installs `node@24` for this Python child runner. When the host process lacks JSPI, the adapter runs Eryx through that setup-installed child Node process launched with `--experimental-wasm-jspi` and enables Python only if the runner passes sandbox proofs.
 - jq can run through a proof-backed `jq-wasm` adapter only when script transform is explicitly enabled and Pi can discover a local `jq-wasm` package root.
 
 `freeflow_status` reports the script-sandbox contract version, configured languages, required adversarial proofs, rejected unsafe mechanisms such as Node `vm`/plain subprocesses, candidate-unproven OS sandbox adapters, and whether QuickJS, Eryx, and jq-wasm adapters are available. A language remains unavailable until a registered adapter passes every required proof. Proof results are cached in-process by adapter content hash and probe limits so repeated status/transform checks do not rerun the same adversarial probes.
@@ -190,25 +190,31 @@ Transformed output is vaulted separately and points back to source output ids th
 
 ### Optional script adapters
 
-Freeflow does not install or download script runtimes during execution. Pi discovers optional adapters only from explicit package-root environment variables:
+Freeflow setup can install script adapters into a user-global cache after explicit consent. The default adapter home is `~/.cache/freeflow-script-adapters`; override it with `FREEFLOW_SCRIPT_TRANSFORM_ADAPTERS_HOME` when needed. Setup installs:
 
-- `FREEFLOW_QUICKJS_WASI_ROOT` points at an existing `quickjs-wasi` package root, for example a separately installed `quickjs-wasi@3.0.1` directory containing `package.json`, `dist/index.js`, and `quickjs.wasm`.
-- `FREEFLOW_ERYX_ROOT` points at an existing `@bsull/eryx` package root, for example a separately installed `@bsull/eryx@0.5.0` directory containing `package.json`, `index.js`, `eryx-sandbox.js`, `python-stdlib.tar.gz`, and the packaged `eryx-sandbox.core*.wasm` shards. The parent Node process must run with `--experimental-wasm-jspi`.
-- `FREEFLOW_JQ_WASM_ROOT` points at an existing `jq-wasm` package root, for example a separately installed `jq-wasm@1.2.0-jq-1.8.2` directory containing `package.json` and `dist/index.js`.
+- `quickjs-wasi@3.0.1` for JavaScript.
+- `jq-wasm@1.2.0-jq-1.8.2` for jq.
+- `@bsull/eryx@0.5.0` plus `node@24` for Python. The adapter launches the setup-installed child Node process with `--experimental-wasm-jspi` when needed; setup enables Python only after that child runner passes sandbox proofs.
 
-Discovery alone does not enable execution. `.freeflow/config.json` must explicitly opt in, for example:
+Freeflow auto-discovers adapters from the global cache. Explicit package-root overrides remain available:
+
+- `FREEFLOW_QUICKJS_WASI_ROOT` for a custom `quickjs-wasi` package root.
+- `FREEFLOW_JQ_WASM_ROOT` for a custom `jq-wasm` package root.
+- `FREEFLOW_ERYX_ROOT` for a custom `@bsull/eryx` package root.
+
+Discovery alone does not enable execution. `.freeflow/config.json` must opt in. The setup installer writes only proof-passing languages, for example:
 
 ```json
 {
   "defaultMode": "workflow",
-  "scriptDerive": {
+  "scriptTransform": {
     "enabled": true,
-    "languages": ["javascript", "python", "jq"]
+    "languages": ["javascript", "jq"]
   }
 }
 ```
 
-Supported `scriptDerive` keys are `enabled`, `sandbox`, `languages`, `network`, `limits`, and `rawScriptPersistence`. Defaults keep `sandbox: "auto"`, `network: "off"`, `rawScriptPersistence: "disabled"`, and conservative input/output/time limits. Per-call script limits may only tighten configured limits.
+Supported `scriptTransform` keys are `enabled`, `sandbox`, `languages`, `network`, `limits`, and `rawScriptPersistence`. Defaults keep `sandbox: "auto"`, `network: "off"`, `rawScriptPersistence: "disabled"`, and conservative input/output/time limits. Per-call script limits may only tighten configured limits.
 
 QuickJS guest JavaScript receives only `readText(alias)`, `writeText(text)`, `console.log`, and `console.error`. Eryx guest Python receives `read_text(alias)`, `write_text(text)`, and a `sources` dict keyed by source alias. jq receives a JSON object keyed by source alias, so a source with alias `log` is available as `.log`. Vault sources are copied into temporary input files before adapter execution; repo, home, vault, process, require, fetch, package loading, and host filesystem APIs are not exposed to guest code. Invalid or missing adapter roots fail closed as adapter unavailable.
 
@@ -248,10 +254,8 @@ It shows:
 
 - router enabled/profile and thresholds,
 - vault path and writability,
-- capture policy and recoverability defaults,
-- enabled providers and availability,
-- script-transform enabled/off state through `scriptDerive`, adapter availability, configured languages, required sandbox proofs, rejected/candidate mechanisms, no-network policy, limits, and raw-script persistence state,
-- custom manifest validity,
+- observed-routing policy and recoverability defaults,
+- script-transform enabled/off state through `scriptTransform`, adapter availability, configured languages, required sandbox proofs, rejected/candidate mechanisms, no-network policy, limits, and raw-script persistence state,
 - config warnings and safe fallbacks,
 - non-destructive migration recommendations for stale explicit defaults or unknown keys.
 
@@ -314,11 +318,6 @@ Optional repo config lives in `.freeflow/config.json` only after the setup evide
     "web": { "enabled": true, "persistence": "exact" },
     "fetch": { "enabled": true, "persistence": "exact" },
     "codeSearch": { "enabled": true, "persistence": "exact" }
-  },
-  "providers": {
-    "enabled": [
-      { "id": "serena", "mode": "discovery", "categories": ["symbols", "references", "diagnostics"] }
-    ]
   }
 }
 ```
@@ -333,8 +332,7 @@ Rules:
 - `strict` is reserved.
 - Observed routing is opt-in per producer/server. Setup writes explicit entries only after the user chooses them.
 - Observed-routing persistence modes are `exact`, `metadata-only`, and `none`. `redacted` is future-only and not a setup option.
-- Direct host-tool capture remains `off` unless explicitly requested and supported by a later design.
-- Pi setup should not write legacy `capture` config.
+- Native safety-net routing is configured with `outputRouter.postToolRouting`; removed `capture` and `providers` config must not be written.
 - Do not dump defaults into config.
 - Write only requested keys.
 
@@ -368,13 +366,13 @@ Current release evidence:
 
 - Retrieval benchmark: improved router passed 7/7 fixtures.
 - Command benchmark: `freeflow_run` passed 8/8 fixtures with exact recovery for exactness-sensitive command fixtures and duplicate recovery through prior exact output ids.
-- Capture/transform/provider eval: targeted Slice 9 eval passed 14/14 objective gates for read-only provider capture, web-shaped capture recovery, long-log transform, and provider-summary category scoping.
+- Historical capture/transform/provider eval: targeted Slice 9 eval passed 14/14 objective gates before the provider-summary config surface was removed; observed routing now owns producer output routing.
 - Pi observed-routing eval: targeted eval passed 28/28 objective gates for MCP, web, fetch, code-search, metadata-only persistence, and Pi capability status.
 - Vault-index storage spike: selected deterministic local JSON sidecar behind the vault-index interface; SQLite/FTS remains deferred because native/runtime dependency adoption needs owner approval.
 - Optional repo-source index benchmark: scanner remains default; repo-source index not adopted. Latest repo search backend benchmark compared scanner-only, local lexical index, Node `node:sqlite` FTS5/BM25/trigram, and conservative hybrid scanner+index; all passed 3/3 fixtures with recall@3 3/3 and zero generated false positives. FTS was tested through the experimental Node runtime available in this environment; no package dependency was added.
 - Storage-policy benchmark: `hybrid-dedupe` is the command-capture default after benchmark evidence; threshold-only storage was disqualified.
 - Codex Structured Q&A benchmark: improved router passed the Sandbox Permissions fixture where native broad search selected `graphify-out/graph.html`.
 - Context Mode normalized benchmark: Freeflow-owned tools and the normalized Context Mode-style proxy both passed 6/6 fixtures. Freeflow preserved exact facts/recovery on 6/6 but did not beat the proxy on model-visible bytes in these normalized fixtures; no public superiority claim is made.
-- Setup eval: optional `outputRouter`/`observedRouting`/`providers` config is opt-in through the evidence-routing branch; minimal setup remains only `defaultMode`.
+- Setup eval: optional `outputRouter`/`observedRouting`/`scriptTransform` config is opt-in through the capabilities branch; minimal setup remains only `defaultMode`.
 
 See `release-evidence.md` and runtime reports under `evals/reports/runtime/`.

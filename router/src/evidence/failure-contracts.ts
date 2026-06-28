@@ -1,29 +1,26 @@
 import { createHash } from "node:crypto";
 
 import type {
-  DeriveExecutionFailure,
+  TransformExecutionFailure,
   EvidenceLineage,
   EvidencePacket,
   EvidencePersistence,
   FailureExecutionStatus,
   FailureRoutedResult,
   PreserveMode,
-  ProducerDescriptor,
-  ProducerExecutionFailure,
   RecoveryHint,
   RouterFailureKind,
   RoutingStatus,
   ToolStatus,
 } from "../config/types.js";
 
-export type FailureOperationKind = "capture" | "derive";
+export type FailureOperationKind = "transform";
 
 export interface FailureResultOptions {
   kind: RouterFailureKind;
   operation: FailureOperationKind;
   message: string;
   preserve?: PreserveMode;
-  producer?: ProducerDescriptor;
   executionStatus?: FailureExecutionStatus;
   toolStatus?: ToolStatus;
   routingStatus?: RoutingStatus;
@@ -36,63 +33,11 @@ export interface FailureResultOptions {
   decisionSeed?: string;
 }
 
-export type CaptureFailureOptions = Omit<FailureResultOptions, "kind" | "operation" | "executionStatus"> & {
-  producer?: ProducerDescriptor;
-};
+export type TransformFailureOptions = Omit<FailureResultOptions, "kind" | "operation" | "executionStatus">;
 
-export type DeriveFailureOptions = Omit<FailureResultOptions, "kind" | "operation" | "executionStatus" | "producer">;
-
-export type StorageFailureOptions = Omit<FailureResultOptions, "kind" | "operation" | "executionStatus"> & {
-  operation?: FailureOperationKind;
-};
+export type StorageFailureOptions = Omit<FailureResultOptions, "kind" | "operation" | "executionStatus">;
 
 const DEFAULT_PRESERVE: PreserveMode = "important";
-
-export function adapterUnavailableFailure(options: CaptureFailureOptions): FailureRoutedResult {
-  return createFailureResult({
-    ...options,
-    kind: "adapter_unavailable",
-    operation: "capture",
-    executionStatus: "unavailable",
-  });
-}
-
-export function unsupportedProducerFailure(options: CaptureFailureOptions): FailureRoutedResult {
-  return createFailureResult({
-    ...options,
-    kind: "unsupported_producer",
-    operation: "capture",
-    executionStatus: "unsupported",
-  });
-}
-
-export function mutatingProducerRejectedFailure(options: CaptureFailureOptions): FailureRoutedResult {
-  return createFailureResult({
-    ...options,
-    kind: "mutating_producer_rejected",
-    operation: "capture",
-    executionStatus: "rejected",
-  });
-}
-
-export function producerExecutionFailure(options: CaptureFailureOptions): FailureRoutedResult {
-  return createFailureResult({
-    ...options,
-    kind: "producer_execution_failure",
-    operation: "capture",
-    executionStatus: "failed",
-  });
-}
-
-export function partialCaptureFailure(options: CaptureFailureOptions): FailureRoutedResult {
-  return createFailureResult({
-    routingStatus: "partial",
-    ...options,
-    kind: "partial_capture",
-    operation: "capture",
-    executionStatus: "partial",
-  });
-}
 
 export function storageFailure(options: StorageFailureOptions): FailureRoutedResult {
   return createFailureResult({
@@ -100,65 +45,53 @@ export function storageFailure(options: StorageFailureOptions): FailureRoutedRes
     routingStatus: "failed",
     ...options,
     kind: "storage_failure",
-    operation: options.operation ?? "capture",
+    operation: "transform",
     executionStatus: "failed",
     persistence: options.persistence ?? noPersistence(),
   });
 }
 
-export function redactionFailure(options: StorageFailureOptions): FailureRoutedResult {
-  return createFailureResult({
-    toolStatus: "error",
-    routingStatus: "failed",
-    ...options,
-    kind: "redaction_failure",
-    operation: options.operation ?? "capture",
-    executionStatus: "failed",
-    persistence: options.persistence ?? noPersistence(),
-  });
-}
-
-export function scriptDeriveDisabledFailure(options: DeriveFailureOptions): FailureRoutedResult {
+export function scriptTransformDisabledFailure(options: TransformFailureOptions): FailureRoutedResult {
   return createFailureResult({
     ...options,
-    kind: "script_derive_disabled",
-    operation: "derive",
+    kind: "script_transform_disabled",
+    operation: "transform",
     executionStatus: "unavailable",
   });
 }
 
-export function deriveAdapterUnavailableFailure(options: DeriveFailureOptions): FailureRoutedResult {
+export function transformAdapterUnavailableFailure(options: TransformFailureOptions): FailureRoutedResult {
   return createFailureResult({
     ...options,
     kind: "adapter_unavailable",
-    operation: "derive",
+    operation: "transform",
     executionStatus: "unavailable",
   });
 }
 
-export function deriveSourceUnavailableFailure(options: DeriveFailureOptions): FailureRoutedResult {
+export function transformSourceUnavailableFailure(options: TransformFailureOptions): FailureRoutedResult {
   return createFailureResult({
     ...options,
-    kind: "derive_source_unavailable",
-    operation: "derive",
+    kind: "transform_source_unavailable",
+    operation: "transform",
     executionStatus: "unavailable",
   });
 }
 
-export function deriveValidationFailure(options: DeriveFailureOptions): FailureRoutedResult {
+export function transformValidationFailure(options: TransformFailureOptions): FailureRoutedResult {
   return createFailureResult({
     ...options,
-    kind: "derive_validation_failure",
-    operation: "derive",
+    kind: "transform_validation_failure",
+    operation: "transform",
     executionStatus: "rejected",
   });
 }
 
-export function deriveExecutionFailure(options: DeriveFailureOptions): FailureRoutedResult {
+export function transformExecutionFailure(options: TransformFailureOptions): FailureRoutedResult {
   return createFailureResult({
     ...options,
-    kind: "derive_execution_failure",
-    operation: "derive",
+    kind: "transform_execution_failure",
+    operation: "transform",
     executionStatus: "failed",
   });
 }
@@ -166,9 +99,8 @@ export function deriveExecutionFailure(options: DeriveFailureOptions): FailureRo
 export function createFailureResult(options: FailureResultOptions): FailureRoutedResult {
   const preserve = options.preserve ?? DEFAULT_PRESERVE;
   const persistence = normalizePersistence(options.persistence, options.outputId);
-  const routingStatus = options.routingStatus ?? (options.kind === "partial_capture" ? "partial" : "failed");
+  const routingStatus = options.routingStatus ?? "failed";
   const recovery = recoveryHintForPersistence(persistence);
-  const route = options.operation === "derive" ? "derive" : "capture";
   const executionStatus = options.executionStatus ?? defaultExecutionStatus(options.kind);
   const result: FailureRoutedResult = {
     toolStatus: options.toolStatus ?? "ok",
@@ -176,7 +108,7 @@ export function createFailureResult(options: FailureResultOptions): FailureRoute
     preserve,
     routing: {
       status: routingStatus,
-      route,
+      route: "transform",
       reason: options.routingReason ?? failureReason(options.kind, options.operation, options.message, persistence),
     },
     failure: {
@@ -185,6 +117,7 @@ export function createFailureResult(options: FailureResultOptions): FailureRoute
     },
     persistence,
     recovery,
+    transformExecution: executionFailure(executionStatus, options.kind, options.message),
   };
 
   if (options.recordId !== undefined) {
@@ -193,20 +126,11 @@ export function createFailureResult(options: FailureResultOptions): FailureRoute
   if (options.outputId !== undefined) {
     result.outputId = options.outputId;
   }
-  if (options.producer !== undefined) {
-    result.producer = options.producer;
-  }
   if (options.lineage !== undefined) {
     result.lineage = options.lineage;
   }
   if (options.evidence !== undefined) {
     result.evidence = options.evidence;
-  }
-
-  if (options.operation === "derive") {
-    result.deriveExecution = executionFailure(executionStatus, options.kind, options.message);
-  } else {
-    result.producerExecution = executionFailure(executionStatus, options.kind, options.message);
   }
 
   return result;
@@ -216,7 +140,7 @@ function executionFailure(
   status: FailureExecutionStatus,
   failureKind: RouterFailureKind,
   message: string,
-): ProducerExecutionFailure | DeriveExecutionFailure {
+): TransformExecutionFailure {
   return { status, failureKind, message };
 }
 
@@ -247,7 +171,7 @@ function recoveryHintForPersistence(persistence: EvidencePersistence): RecoveryH
 
   if (persistence.recoverability === "exact" && recoveryOutputId !== undefined) {
     return {
-      how: `Use freeflow_search with source.kind=vault and outputId=${recoveryOutputId} to recover exact captured content.`,
+      how: `Use freeflow_search with source.kind=vault and outputId=${recoveryOutputId} to recover exact transformed content.`,
       outputId: recoveryOutputId,
     };
   }
@@ -271,17 +195,11 @@ function recoveryHintForPersistence(persistence: EvidencePersistence): RecoveryH
 }
 
 function defaultExecutionStatus(kind: RouterFailureKind): FailureExecutionStatus {
-  if (kind === "adapter_unavailable" || kind === "derive_source_unavailable" || kind === "script_derive_disabled") {
+  if (kind === "adapter_unavailable" || kind === "transform_source_unavailable" || kind === "script_transform_disabled") {
     return "unavailable";
   }
-  if (kind === "unsupported_producer") {
-    return "unsupported";
-  }
-  if (kind === "mutating_producer_rejected" || kind === "derive_validation_failure") {
+  if (kind === "transform_validation_failure") {
     return "rejected";
-  }
-  if (kind === "partial_capture") {
-    return "partial";
   }
   return "failed";
 }
@@ -300,7 +218,6 @@ function failureDecisionId(options: FailureResultOptions): string {
     "failure",
     options.kind,
     options.operation,
-    options.producer ?? null,
     options.recordId ?? null,
     options.outputId ?? null,
     options.decisionSeed ?? null,

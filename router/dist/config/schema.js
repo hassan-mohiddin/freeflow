@@ -256,7 +256,7 @@ function validateRunScriptFilterMetadata(value, path, issues) {
     validateEvidencePersistence(value.persistence, `${path}.persistence`, issues);
     validateEvidenceLineage(value.lineage, `${path}.lineage`, issues);
     validateFailure(value.failure, `${path}.failure`, issues);
-    validateFailureExecution(value.deriveExecution, `${path}.deriveExecution`, issues);
+    validateFailureExecution(value.transformExecution, `${path}.transformExecution`, issues);
     if (value.summary !== undefined && typeof value.summary !== "string") {
         issues.push({ path: `${path}.summary`, message: "Expected summary string when present." });
     }
@@ -484,8 +484,7 @@ export function validateRoutedResult(value) {
     validateEvidencePersistence(value.persistence, "$.persistence", issues);
     validateEvidenceLineage(value.lineage, "$.lineage", issues);
     validateFailure(value.failure, "$.failure", issues);
-    validateFailureExecution(value.producerExecution, "$.producerExecution", issues);
-    validateFailureExecution(value.deriveExecution, "$.deriveExecution", issues);
+    validateFailureExecution(value.transformExecution, "$.transformExecution", issues);
     validateImportantLines(value.importantLines, "$.importantLines", issues);
     validateParserMetadata(value.parser, "$.parser", issues);
     validateRunOutputFilterMetadata(value.filters, "$.filters", issues);

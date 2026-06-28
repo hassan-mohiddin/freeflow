@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { Worker } from "node:worker_threads";
 
+import { resolveScriptTransformAdapterRoot } from "./adapter-roots.js";
 import { SCRIPT_SANDBOX_REQUIRED_PROOFS, scriptSandboxProofFixturesForLanguage } from "./script-sandbox.js";
 import type {
   ScriptSandboxAdapter,
@@ -11,7 +12,7 @@ import type {
   ScriptSandboxProof,
   ScriptSandboxProbeResult,
 } from "./script-sandbox.js";
-import type { ScriptDeriveConfig } from "../config/types.js";
+import type { ScriptTransformConfig } from "../config/types.js";
 
 const DEFAULT_PROBE_TIMEOUT_MS = 250;
 const DEFAULT_PROBE_OUTPUT_BYTES = 4096;
@@ -59,14 +60,14 @@ interface JqRunResult {
 }
 
 export async function discoverJqWasmSandboxAdaptersFromEnv(env: NodeJS.ProcessEnv = process.env): Promise<ScriptSandboxAdapter[]> {
-  const packageRoot = env[JQ_WASM_ROOT_ENV];
-  if (!packageRoot) {
+  const candidate = await resolveScriptTransformAdapterRoot("jq", env);
+  if (!candidate) {
     return [];
   }
   try {
-    return [await createJqWasmSandboxAdapter({ packageRoot })];
+    return [await createJqWasmSandboxAdapter({ packageRoot: candidate.packageRoot })];
   } catch (error) {
-    return [unavailableJqAdapter(`jq-wasm adapter could not load from ${JQ_WASM_ROOT_ENV}: ${errorMessage(error)}`)];
+    return [unavailableJqAdapter(`jq-wasm adapter could not load from ${candidate.source === "env" ? candidate.envVar : "global adapter cache"}: ${errorMessage(error)}`)];
   }
 }
 
@@ -76,7 +77,7 @@ export async function createJqWasmSandboxAdapter(options: JqWasmSandboxAdapterOp
     id: options.id ?? "jq-wasm",
     version: options.version ?? runtime.packageVersion,
     languages: ["jq"],
-    async probe(language: string, config: ScriptDeriveConfig): Promise<ScriptSandboxProbeResult> {
+    async probe(language: string, config: ScriptTransformConfig): Promise<ScriptSandboxProbeResult> {
       if (language !== "jq") {
         return {
           status: "unavailable",
@@ -215,7 +216,7 @@ async function loadJqRuntime(packageRoot: string): Promise<JqWasmRuntime> {
   };
 }
 
-async function probeJqRuntime(runtime: JqWasmRuntime, config: ScriptDeriveConfig): Promise<ScriptSandboxProbeResult> {
+async function probeJqRuntime(runtime: JqWasmRuntime, config: ScriptTransformConfig): Promise<ScriptSandboxProbeResult> {
   const timeoutMs = Math.min(config.limits.timeoutMs, DEFAULT_PROBE_TIMEOUT_MS);
   const outputBytes = Math.min(config.limits.maxOutputBytes, DEFAULT_PROBE_OUTPUT_BYTES);
   const cacheKey = [runtime.packageVersion, runtime.entrySha256, timeoutMs, outputBytes, config.network].join(":");

@@ -1,37 +1,37 @@
-import type { DeriveRoutedResult, FailureRoutedResult, OutputStream, PreserveMode, RouterThresholds, ScriptDeriveConfig, ScriptDeriveLanguage, VaultRetentionPolicy } from "../config/types.js";
+import type { TransformRoutedResult, FailureRoutedResult, OutputStream, PreserveMode, RouterThresholds, ScriptTransformConfig, ScriptTransformLanguage, VaultRetentionPolicy } from "../config/types.js";
 import type { ScriptSandboxAdapter } from "../sandbox/script-sandbox.js";
-export interface DeriveVaultSourceInput {
+export interface TransformVaultSourceInput {
     kind: "vault";
     outputId: string;
     stream?: OutputStream;
 }
-export type DeriveSourceInput = DeriveVaultSourceInput;
-export interface ScriptDeriveSourceInput extends DeriveVaultSourceInput {
+export type TransformSourceInput = TransformVaultSourceInput;
+export interface ScriptTransformSourceInput extends TransformVaultSourceInput {
     alias: string;
 }
-export interface ScriptDeriveLimitsInput {
+export interface ScriptTransformLimitsInput {
     timeoutMs?: number;
     maxInputBytes?: number;
     maxOutputBytes?: number;
 }
-export interface RegexFilterDeriveOperation {
+export interface RegexFilterTransformOperation {
     kind: "regexFilter";
     pattern: string;
     flags?: string;
     contextLines?: number;
     maxMatches?: number;
 }
-export interface CountMatchesDeriveOperation {
+export interface CountMatchesTransformOperation {
     kind: "countMatches";
     pattern: string;
     flags?: string;
 }
-export interface JsonExtractDeriveOperation {
+export interface JsonExtractTransformOperation {
     kind: "jsonExtract";
     pointer?: string;
     path?: string;
 }
-export interface GroupByRegexDeriveOperation {
+export interface GroupByRegexTransformOperation {
     kind: "groupByRegex";
     pattern: string;
     flags?: string;
@@ -39,13 +39,13 @@ export interface GroupByRegexDeriveOperation {
     maxGroups?: number;
     maxLinesPerGroup?: number;
 }
-export interface DedupeDeriveOperation {
+export interface DedupeTransformOperation {
     kind: "dedupe";
     trim?: boolean;
     caseSensitive?: boolean;
     maxLines?: number;
 }
-export interface TopNDeriveOperation {
+export interface TopNTransformOperation {
     kind: "topN";
     limit: number;
     pattern?: string;
@@ -54,60 +54,60 @@ export interface TopNDeriveOperation {
     sort?: "text" | "numeric";
     order?: "asc" | "desc";
 }
-export interface ExtractUrlsDeriveOperation {
+export interface ExtractUrlsTransformOperation {
     kind: "extractUrls";
     dedupe?: boolean;
     maxMatches?: number;
 }
-export interface ExtractCitationsDeriveOperation {
+export interface ExtractCitationsTransformOperation {
     kind: "extractCitations";
     maxMatches?: number;
 }
-export interface LineStatsDeriveOperation {
+export interface LineStatsTransformOperation {
     kind: "lineStats";
 }
-export interface SizeStatsDeriveOperation {
+export interface SizeStatsTransformOperation {
     kind: "sizeStats";
 }
-export interface ScriptDeriveOperation {
+export interface ScriptTransformOperation {
     kind: "script";
-    language: ScriptDeriveLanguage;
+    language: ScriptTransformLanguage;
     code: string;
     label?: string;
 }
-export type DeterministicDeriveOperation = RegexFilterDeriveOperation | CountMatchesDeriveOperation | JsonExtractDeriveOperation | GroupByRegexDeriveOperation | DedupeDeriveOperation | TopNDeriveOperation | ExtractUrlsDeriveOperation | ExtractCitationsDeriveOperation | LineStatsDeriveOperation | SizeStatsDeriveOperation;
-export type DeriveOperation = DeterministicDeriveOperation | ScriptDeriveOperation;
-export interface DeterministicDeriveInput {
-    source: DeriveSourceInput;
-    operation: DeterministicDeriveOperation;
+export type DeterministicTransformOperation = RegexFilterTransformOperation | CountMatchesTransformOperation | JsonExtractTransformOperation | GroupByRegexTransformOperation | DedupeTransformOperation | TopNTransformOperation | ExtractUrlsTransformOperation | ExtractCitationsTransformOperation | LineStatsTransformOperation | SizeStatsTransformOperation;
+export type TransformOperation = DeterministicTransformOperation | ScriptTransformOperation;
+export interface DeterministicTransformInput {
+    source: TransformSourceInput;
+    operation: DeterministicTransformOperation;
     preserve?: PreserveMode;
 }
-export interface ScriptDeriveInput {
-    sources: ScriptDeriveSourceInput[];
-    operation: ScriptDeriveOperation;
-    limits?: ScriptDeriveLimitsInput;
+export interface ScriptTransformInput {
+    sources: ScriptTransformSourceInput[];
+    operation: ScriptTransformOperation;
+    limits?: ScriptTransformLimitsInput;
     preserve?: PreserveMode;
 }
-export type DeriveInput = DeterministicDeriveInput | ScriptDeriveInput;
-export type FreeflowTransformOptions = DeriveInput & {
+export type TransformInput = DeterministicTransformInput | ScriptTransformInput;
+export type FreeflowTransformOptions = TransformInput & {
     sessionId: string;
     vaultRoot?: string;
     vaultRetention?: VaultRetentionPolicy;
     thresholds?: Partial<RouterThresholds>;
-    scriptDerive?: ScriptDeriveConfig;
+    scriptTransform?: ScriptTransformConfig;
     scriptSandboxAdapters?: readonly ScriptSandboxAdapter[];
 };
 export declare const TRANSFORM_ENGINE_IMPLEMENTATION = "shared-transform-engine-v1";
-export interface DeriveValidationIssue {
+export interface TransformValidationIssue {
     path: string;
     message: string;
 }
-export type DeriveValidationResult = {
+export type TransformValidationResult = {
     ok: true;
-    value: DeriveInput;
+    value: TransformInput;
 } | {
     ok: false;
-    issues: DeriveValidationIssue[];
+    issues: TransformValidationIssue[];
 };
-export declare function validateTransformInput(value: unknown): DeriveValidationResult;
-export declare function freeflowTransform(options: FreeflowTransformOptions): Promise<DeriveRoutedResult | FailureRoutedResult>;
+export declare function validateTransformInput(value: unknown): TransformValidationResult;
+export declare function freeflowTransform(options: FreeflowTransformOptions): Promise<TransformRoutedResult | FailureRoutedResult>;

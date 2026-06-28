@@ -1,9 +1,11 @@
+import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cp, lstat, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, cp, lstat, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { Worker } from "node:worker_threads";
+import { defaultScriptTransformNodeBinary, resolveScriptTransformAdapterRoot } from "./adapter-roots.js";
 import { SCRIPT_SANDBOX_REQUIRED_PROOFS, scriptSandboxProofFixturesForLanguage } from "./script-sandbox.js";
 const DEFAULT_PROBE_TIMEOUT_MS = 250;
 const DEFAULT_PROBE_OUTPUT_BYTES = 4096;
@@ -11,6 +13,8 @@ const DEFAULT_WORKER_OLD_GENERATION_MB = 256;
 const DEFAULT_WORKER_YOUNG_GENERATION_MB = 32;
 const SECRET_SENTINEL = "FREEFLOW_SANDBOX_SECRET_SENTINEL_VALUE";
 const HOST_HOME = process.env.HOME ?? "__no_home__";
+const ERYX_CHILD_MODE_ARG = "__freeflow_eryx_child__";
+const ERYX_CHILD_TIMEOUT_FLOOR_MS = 30_000;
 export const ERYX_ROOT_ENV = "FREEFLOW_ERYX_ROOT";
 const PREVIEW2_IMPORTS = new Map([
     ["@bytecodealliance/preview2-shim/cli", "../../@bytecodealliance/preview2-shim/lib/browser/cli.js"],
@@ -21,15 +25,15 @@ const PREVIEW2_IMPORTS = new Map([
 ]);
 const eryxProbeCache = new Map();
 export async function discoverEryxPythonSandboxAdaptersFromEnv(env = process.env) {
-    const packageRoot = env[ERYX_ROOT_ENV];
-    if (!packageRoot) {
+    const candidate = await resolveScriptTransformAdapterRoot("python", env);
+    if (!candidate) {
         return [];
     }
     try {
-        return [await createEryxPythonSandboxAdapter({ packageRoot })];
+        return [await createEryxPythonSandboxAdapter({ packageRoot: candidate.packageRoot })];
     }
     catch (error) {
-        return [unavailableEryxAdapter(`eryx-python adapter could not load from ${ERYX_ROOT_ENV}: ${errorMessage(error)}`)];
+        return [unavailableEryxAdapter(`eryx-python adapter could not load from ${candidate.source === "env" ? candidate.envVar : "global adapter cache"}: ${errorMessage(error)}`)];
     }
 }
 export async function createEryxPythonSandboxAdapter(options) {
@@ -72,14 +76,7 @@ export async function createEryxPythonSandboxAdapter(options) {
                 };
             }
             if (!runtime.jspiAvailable) {
-                return {
-                    status: "policy_violation",
-                    stdout: "",
-                    stderr: "",
-                    outputFiles: [],
-                    exitCode: null,
-                    reason: "eryx-python requires Node to be started with --experimental-wasm-jspi.",
-                };
+                return executeEryxInJspiChild(runtime, request);
             }
             const inputs = {};
             for (const source of request.sources) {
@@ -168,7 +165,8 @@ async function hashRuntimeTree(hash, root, label, relativeDir = ".") {
 }
 function nodeJspiAvailable() {
     const nodeOptions = process.env.NODE_OPTIONS ?? "";
-    return process.execArgv.includes("--experimental-wasm-jspi") || nodeOptions.split(/\s+/).includes("--experimental-wasm-jspi");
+    const flagPresent = process.execArgv.includes("--experimental-wasm-jspi") || nodeOptions.split(/\s+/).includes("--experimental-wasm-jspi");
+    return flagPresent && typeof WebAssembly.Suspending === "function";
 }
 function runtimeInfo(runtime) {
     return {
@@ -215,13 +213,7 @@ async function runEryxProbe(runtime, config, timeoutMs, outputBytes) {
         };
     }
     if (!runtime.jspiAvailable) {
-        return {
-            status: "unavailable",
-            reason: "eryx-python requires Node to be started with --experimental-wasm-jspi.",
-            passedProofs: [],
-            failedProofs: [...SCRIPT_SANDBOX_REQUIRED_PROOFS],
-            runtime: runtimeInfo(runtime),
-        };
+        return probeEryxInJspiChild(runtime, config);
     }
     const previousSecret = process.env.FREEFLOW_SANDBOX_SECRET_SENTINEL;
     process.env.FREEFLOW_SANDBOX_SECRET_SENTINEL = SECRET_SENTINEL;
@@ -260,6 +252,143 @@ async function runEryxProbe(runtime, config, timeoutMs, outputBytes) {
             process.env.FREEFLOW_SANDBOX_SECRET_SENTINEL = previousSecret;
         }
     }
+}
+async function probeEryxInJspiChild(runtime, config) {
+    try {
+        const result = await runEryxChildRequest({
+            kind: "probe",
+            packageRoot: runtime.packageRoot,
+            config,
+        }, childTimeoutMsForProbe(config));
+        if (isProbeResult(result)) {
+            return {
+                ...result,
+                reason: result.status === "available"
+                    ? `${result.reason} via child Node --experimental-wasm-jspi.`
+                    : result.reason,
+            };
+        }
+        return unavailableProbeResult("eryx-python child probe returned an execution result instead of a probe result.", runtime);
+    }
+    catch (error) {
+        return unavailableProbeResult(`eryx-python child JSPI probe failed: ${errorMessage(error)}`, runtime);
+    }
+}
+async function executeEryxInJspiChild(runtime, request) {
+    try {
+        const result = await runEryxChildRequest({
+            kind: "execute",
+            packageRoot: runtime.packageRoot,
+            request,
+        }, childTimeoutMsForExecution(request));
+        if (isExecutionResult(result)) {
+            return result;
+        }
+        return {
+            status: "failed",
+            stdout: "",
+            stderr: "eryx-python child execution returned a probe result instead of an execution result.",
+            outputFiles: [],
+            exitCode: null,
+            reason: "Invalid child execution response.",
+        };
+    }
+    catch (error) {
+        const message = errorMessage(error);
+        return {
+            status: "failed",
+            stdout: "",
+            stderr: message,
+            outputFiles: [],
+            exitCode: null,
+            reason: `eryx-python child JSPI execution failed: ${message}`,
+        };
+    }
+}
+async function runEryxChildRequest(request, timeoutMs) {
+    const root = await mkdtemp(join(tmpdir(), "freeflow-eryx-child-"));
+    const requestPath = join(root, "request.json");
+    const responsePath = join(root, "response.json");
+    try {
+        await writeFile(requestPath, JSON.stringify(request), "utf8");
+        await runEryxChildProcess(requestPath, responsePath, timeoutMs);
+        const response = JSON.parse(await readFile(responsePath, "utf8"));
+        if (!response.ok) {
+            throw new Error(response.message);
+        }
+        return response.result;
+    }
+    finally {
+        await rm(root, { recursive: true, force: true });
+    }
+}
+async function runEryxChildProcess(requestPath, responsePath, timeoutMs) {
+    const nodeBinary = await resolveEryxChildNodeBinary();
+    const child = spawn(nodeBinary, ["--experimental-wasm-jspi", fileURLToPath(import.meta.url), ERYX_CHILD_MODE_ARG, requestPath, responsePath], {
+        stdio: ["ignore", "ignore", "pipe"],
+        env: process.env,
+    });
+    let stderr = "";
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk) => {
+        stderr += String(chunk);
+    });
+    await new Promise((resolvePromise, reject) => {
+        const timer = setTimeout(() => {
+            child.kill("SIGKILL");
+            reject(new Error(`eryx-python child process timed out after ${timeoutMs}ms.`));
+        }, timeoutMs);
+        child.on("error", (error) => {
+            clearTimeout(timer);
+            reject(error);
+        });
+        child.on("close", (code) => {
+            clearTimeout(timer);
+            if (code === 0) {
+                resolvePromise();
+            }
+            else {
+                reject(new Error(`eryx-python child process ${nodeBinary} exited with code ${code}. ${stderr.trim()}`));
+            }
+        });
+    });
+}
+async function resolveEryxChildNodeBinary() {
+    const configured = defaultScriptTransformNodeBinary();
+    if (await fileExists(configured)) {
+        return configured;
+    }
+    return process.execPath;
+}
+async function fileExists(path) {
+    try {
+        await access(path);
+        return true;
+    }
+    catch {
+        return false;
+    }
+}
+function childTimeoutMsForProbe(config) {
+    return Math.max(ERYX_CHILD_TIMEOUT_FLOOR_MS, Math.min(config.limits.timeoutMs, DEFAULT_PROBE_TIMEOUT_MS) * SCRIPT_SANDBOX_REQUIRED_PROOFS.length * 8);
+}
+function childTimeoutMsForExecution(request) {
+    return Math.max(ERYX_CHILD_TIMEOUT_FLOOR_MS, request.limits.timeoutMs + 5_000);
+}
+function unavailableProbeResult(reason, runtime) {
+    return {
+        status: "unavailable",
+        reason,
+        passedProofs: [],
+        failedProofs: [...SCRIPT_SANDBOX_REQUIRED_PROOFS],
+        runtime: runtimeInfo(runtime),
+    };
+}
+function isProbeResult(value) {
+    return Array.isArray(value.passedProofs) && Array.isArray(value.failedProofs);
+}
+function isExecutionResult(value) {
+    return Array.isArray(value.outputFiles);
 }
 async function runEryx(runtime, options) {
     const start = Date.now();
@@ -635,6 +764,34 @@ function cloneProbeResult(result) {
     }
     return cloned;
 }
+async function runEryxChildCli(argv) {
+    const requestPath = argv[0];
+    const responsePath = argv[1];
+    if (!requestPath || !responsePath) {
+        throw new Error("eryx-python child mode requires request and response paths.");
+    }
+    const payload = JSON.parse(await readFile(requestPath, "utf8"));
+    let response;
+    try {
+        const adapter = await createEryxPythonSandboxAdapter({ packageRoot: payload.packageRoot });
+        if (payload.kind === "probe") {
+            response = { ok: true, result: await adapter.probe("python", payload.config) };
+        }
+        else {
+            response = { ok: true, result: await adapter.execute(payload.request) };
+        }
+    }
+    catch (error) {
+        response = { ok: false, message: errorMessage(error) };
+    }
+    await writeFile(responsePath, JSON.stringify(response), "utf8");
+}
 function errorMessage(error) {
     return error instanceof Error ? error.message : String(error);
+}
+if (process.argv[2] === ERYX_CHILD_MODE_ARG) {
+    runEryxChildCli(process.argv.slice(3)).catch((error) => {
+        console.error(errorMessage(error));
+        process.exit(1);
+    });
 }

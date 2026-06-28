@@ -1,7 +1,7 @@
 import { handleNativeToolSafetyNet } from "./native-safety-net.js";
 import { handleObservedToolRouting } from "./observed-tool-routing.js";
 import { registerRouterTools } from "./router-tools.js";
-import { CONTRIBUTOR_COMMANDS, WORKFLOW_COMMANDS, getRuntimeContext, handleWorkflowCommand, hasFreeflowActivation, hasOutputRouterActivation, hasProviderActivation, readModeState, readOutputRouterConfig, readProviderContext, refreshRuntimeContext, restoreModeOverride, runtimeContext, setModeStatus, skillPrompt, notifyRouterConfigWarnings, } from "./runtime-context.js";
+import { CONTRIBUTOR_COMMANDS, WORKFLOW_COMMANDS, getRuntimeContext, handleWorkflowCommand, hasDiscoverActivation, hasFreeflowActivation, hasFreeflowPriorityActivation, hasOutputRouterActivation, readModeState, readOutputRouterConfig, refreshRuntimeContext, restoreModeOverride, runtimeContext, setModeStatus, skillPrompt, notifyRouterConfigWarnings, } from "./runtime-context.js";
 export default function freeflow(pi) {
     registerRouterTools(pi);
     pi.on("session_start", async (_event, ctx) => {
@@ -24,18 +24,17 @@ export default function freeflow(pi) {
         notifyRouterConfigWarnings(ctx, routerConfigResult);
     });
     pi.on("before_agent_start", async (event, ctx) => {
-        const [modeState, freeflowContext, routerConfigResult, providerContext] = await Promise.all([
+        const [modeState, freeflowContext, routerConfigResult] = await Promise.all([
             readModeState(ctx.cwd),
             getRuntimeContext(),
             readOutputRouterConfig(ctx.cwd),
-            readProviderContext(ctx.cwd),
         ]);
         setModeStatus(ctx, modeState);
         notifyRouterConfigWarnings(ctx, routerConfigResult);
         return {
             systemPrompt: event.systemPrompt +
                 "\n\n" +
-                runtimeContext(modeState, freeflowContext, routerConfigResult, providerContext, hasFreeflowActivation(event.systemPrompt), hasOutputRouterActivation(event.systemPrompt), hasProviderActivation(event.systemPrompt)),
+                runtimeContext(modeState, freeflowContext, routerConfigResult, hasFreeflowActivation(event.systemPrompt), hasOutputRouterActivation(event.systemPrompt), hasDiscoverActivation(event.systemPrompt), hasFreeflowPriorityActivation(event.systemPrompt)),
         };
     });
     pi.on("tool_result", async (event, ctx) => {

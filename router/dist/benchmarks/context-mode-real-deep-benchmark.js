@@ -432,7 +432,7 @@ export async function runContextModeRealDeepBenchmark(options = {}) {
             capability: "parallel steps + deterministic query aggregation",
             obs: { result: ffBatchResult, text: freeflowText(ffBatchResult), latencyMs: Math.round(performance.now() - ffBatchStart) },
             expectedCorrect: hasFacts(batchQueryAnswerText(ffBatchResult), batchFacts),
-            notes: "Query answers are derived deterministically from child evidence handles; full child details remain in details.result.steps.",
+            notes: "Query answers are transformed deterministically from child evidence handles; full child details remain in details.result.steps.",
         });
         const outsidePath = path.join(root.path, "outside-secret.txt");
         const cmSafety = await callCM("ctx_execute_file", {

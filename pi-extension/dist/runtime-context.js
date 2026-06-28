@@ -1,7 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { normalizeFreeflowConfig, normalizeLocalFreeflowConfig } from "../../router/dist/index.js";
-import { providerRuntimeContext } from "./provider-manifests.js";
 export const VALID_MODES = new Set(["conversation", "workflow", "strict-workflow"]);
 export const WORKFLOW_COMMANDS = [
     { command: "discover", skill: "discover" },
@@ -28,14 +27,15 @@ let runtimeContextCache = null;
 let currentModeOverride = null;
 let lastRouterConfigWarningKey = null;
 async function loadRuntimeContext() {
-    const [workflowSkill, workflowMap, interviewGateSkill, outputRouterSkill, outputRouterSafetyPolicy] = await Promise.all([
+    const [workflowSkill, workflowMap, interviewGateSkill, discoverSkill, outputRouterSkill, outputRouterSafetyPolicy] = await Promise.all([
         readFile(new URL("../../skills/workflow/SKILL.md", import.meta.url), "utf8"),
         readFile(new URL("../../skills/workflow/references/workflow-map.md", import.meta.url), "utf8"),
         readFile(new URL("../../skills/interview-gate/SKILL.md", import.meta.url), "utf8"),
+        readFile(new URL("../../skills/discover/SKILL.md", import.meta.url), "utf8"),
         readFile(new URL("../../skills/output-router/SKILL.md", import.meta.url), "utf8"),
         readFile(new URL("../../skills/output-router/references/safety-policy.md", import.meta.url), "utf8"),
     ]);
-    return { workflowSkill, workflowMap, interviewGateSkill, outputRouterSkill, outputRouterSafetyPolicy };
+    return { workflowSkill, workflowMap, interviewGateSkill, discoverSkill, outputRouterSkill, outputRouterSafetyPolicy };
 }
 export async function refreshRuntimeContext() {
     runtimeContextCache = await loadRuntimeContext();
@@ -81,10 +81,6 @@ export async function readOutputRouterConfig(cwd) {
         localConfig: local.config,
         warnings: [...normalized.warnings, ...local.warnings],
     };
-}
-export async function readProviderContext(cwd) {
-    const parsed = await readFreeflowConfig(cwd);
-    return providerRuntimeContext(cwd, parsed);
 }
 export function notifyRouterConfigWarnings(ctx, routerConfigResult) {
     if (!routerConfigResult.warnings.length) {
@@ -135,12 +131,15 @@ export function hasFreeflowActivation(systemPrompt) {
         systemPrompt.includes("## Loaded Workflow Map") &&
         systemPrompt.includes("## Loaded Interview Gate Skill"));
 }
+export function hasDiscoverActivation(systemPrompt) {
+    return systemPrompt.includes("## Loaded Discover Skill");
+}
+export function hasFreeflowPriorityActivation(systemPrompt) {
+    return systemPrompt.includes("## Freeflow Runtime Priority");
+}
 export function hasOutputRouterActivation(systemPrompt) {
     return (systemPrompt.includes("## Loaded Output Router Skill") &&
         systemPrompt.includes("## Loaded Output Router Safety Policy"));
-}
-export function hasProviderActivation(systemPrompt) {
-    return systemPrompt.includes("## Freeflow Producer Providers");
 }
 function outputRouterModeGuidance(mode) {
     if (mode === "conversation") {
@@ -169,9 +168,27 @@ ${freeflowContext.outputRouterSkill.trim()}
 ${freeflowContext.outputRouterSafetyPolicy.trim()}
 \`\`\``;
 }
-export function runtimeContext(modeState, freeflowContext, routerConfigResult, providerContext, alreadyActivated, routerAlreadyActivated, providerAlreadyActivated) {
+function runtimePriorityContext() {
+    return `## Freeflow Runtime Priority
+
+Priority order for matched skills:
+
+1. Workflow classifies conversation versus consequential work.
+2. Interview Gate stops silent decisions, user-owned decisions, source-truth conflicts, and question-to-action mistakes.
+3. Discover handles context-building after no immediate stop condition remains. Use it before first repo/code exploration or design answers for consequential product/API/tool/runtime hypotheses.
+4. Output Router chooses evidence transport after the workflow/interview/discover route is clear.`;
+}
+function discoverContext(freeflowContext) {
+    return `## Loaded Discover Skill
+
+\`\`\`md
+${freeflowContext.discoverSkill.trim()}
+\`\`\``;
+}
+export function runtimeContext(modeState, freeflowContext, routerConfigResult, alreadyActivated, routerAlreadyActivated, discoverAlreadyActivated, priorityAlreadyActivated) {
     const currentMode = modeState.currentMode ?? "none";
-    const providerText = providerAlreadyActivated || !providerContext ? "" : `\n\n${providerContext}`;
+    const priorityText = priorityAlreadyActivated ? "" : `\n\n${runtimePriorityContext()}`;
+    const discoverText = discoverAlreadyActivated ? "" : `\n\n${discoverContext(freeflowContext)}`;
     const routerText = routerAlreadyActivated || !routerConfigResult.config.enabled ? "" : `\n\n${outputRouterContext(modeState, freeflowContext, routerConfigResult)}`;
     if (alreadyActivated) {
         return `## Freeflow Runtime Context
@@ -180,7 +197,7 @@ Repo default mode from \`.freeflow/config.json\`: ${modeState.defaultMode}.
 Current session mode override: ${currentMode}.
 Effective Freeflow mode: ${modeState.effectiveMode}.
 
-Use the installed Freeflow skills when they match the task. This Pi extension loads context and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.${providerText}${routerText}`;
+Use the installed Freeflow skills when they match the task. This Pi extension loads context and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.${priorityText}${discoverText}${routerText}`;
     }
     return `# Freeflow Runtime Context
 
@@ -195,9 +212,10 @@ Effective Freeflow mode: \`${modeState.effectiveMode}\`.
 Treat the effective mode as the current mode for this agent turn.
 For mode changes or mode interpretation, use \`mode-contract\`.
 Do not announce the current mode on every reply. Mention it when the user asks, setup/config is discussed, or the mode changes the next action.
-${providerText}
 
-${routerText ? `${routerText.trimStart()}\n\n` : ""}## Loaded Workflow Skill
+${runtimePriorityContext()}
+
+## Loaded Workflow Skill
 
 \`\`\`md
 ${freeflowContext.workflowSkill.trim()}
@@ -209,13 +227,15 @@ ${freeflowContext.workflowSkill.trim()}
 ${freeflowContext.interviewGateSkill.trim()}
 \`\`\`
 
+${discoverContext(freeflowContext)}
+
 ## Loaded Workflow Map
 
 \`\`\`md
 ${freeflowContext.workflowMap.trim()}
 \`\`\`
 
-This Pi extension loads context and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.`;
+${routerText ? `${routerText.trimStart()}\n\n` : ""}This Pi extension loads context and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.`;
 }
 export async function handleWorkflowCommand(args, ctx, pi) {
     const arg = args?.trim();

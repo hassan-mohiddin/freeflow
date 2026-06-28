@@ -1,11 +1,15 @@
 ---
 name: discover
-description: Use when discovering context for an idea, feature, architecture direction, vague task, bug-like unknown, or consequential question before spec, plan, build, or durable memory. Use when repo evidence, external-source checking, codebase exploration, brainstorming, targeted questions, design pressure, and decision checkpointing need to interleave.
+description: Use before the first answer or repo/code exploration when the user is shaping an idea, feature, tool/API surface, runtime behavior, architecture direction, vague task, bug-like unknown, or consequential hypothesis/question before spec, plan, build, or durable memory. Trigger especially on "should we", "why not", "what do you think", or design questions.
 ---
 
 # Discover
 
 Discover is the context-building loop before action: evidence-guided discussion that finds the next high-leverage decision and ends in a checkpoint.
+
+If this skill matches, load it before the first repo search, code read, web lookup, command, design answer, or artifact. Direct questions still use discovery-light: inspect the smallest relevant evidence, then answer directly.
+
+Priority: Interview Gate stops silent decisions and user-owned decisions first. Discover handles context-building after no immediate stop condition remains. Output Router only chooses evidence transport after the workflow/discovery route is clear.
 
 Do not turn discovery into a questionnaire, a report by default, or a decision-capture script. The hard part is shared understanding, not filling an artifact.
 

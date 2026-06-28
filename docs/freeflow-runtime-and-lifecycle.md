@@ -61,7 +61,7 @@ with:
 
 Minimal setup should not add any other config fields.
 
-Optional evidence-routing config (`outputRouter`, `capture`, `providers`) may be added only after the setup evidence-routing decision point or an explicit request for router/capture/provider config such as provider enablement, generated-path hints, output thresholds, vault settings, or native safety-net routing. Missing optional sections means built-in defaults, not a warning. Native safety-net routing and direct host-tool capture remain off unless explicitly requested and supported.
+Optional evidence-routing config (`outputRouter`, `observedRouting`, `scriptTransform`) may be added only after the setup evidence-routing/script-execution decision point or an explicit request for generated-path hints, output thresholds, vault settings, native safety-net routing, observed MCP/web/fetch/code-search routing, or script-transform adapters. Missing optional sections means built-in defaults, not a warning. Native safety-net routing remains off unless explicitly requested and supported; observed routing handles configured MCP/web/fetch/code-search output after host execution.
 
 Do not store:
 
@@ -107,7 +107,7 @@ The always-on text should stay compact because users often keep agent instructio
 
 Do not list the whole workflow or every mode in the activation block.
 
-The full workflow skill, workflow map, and interview-gate skill are loaded by plugin-bundled context hooks, not by setup copying full skills into repo memory.
+The full workflow skill, interview-gate skill, discover skill, and workflow map are loaded by plugin-bundled context hooks, not by setup copying full skills into repo memory.
 
 Placement matters:
 
@@ -129,13 +129,15 @@ ADRs remain reserved for hard-to-reverse, surprising, tradeoff-driven decisions.
 
 ## Runtime Context Hooks
 
-Freeflow may ship plugin-bundled hooks that load existing workflow and interview-gate context. These hooks belong to the installed plugin, not the target repo.
+Freeflow may ship plugin-bundled hooks that load existing workflow, interview-gate, and discover context. These hooks belong to the installed plugin, not the target repo.
 
 They should:
 
 - load `skills/workflow/SKILL.md`
-- load `skills/workflow/references/workflow-map.md`
 - load `skills/interview-gate/SKILL.md`
+- load `skills/discover/SKILL.md`
+- load `skills/workflow/references/workflow-map.md`
+- state the runtime priority: workflow classifies, interview-gate stops silent decisions, discover handles context-building, output-router chooses evidence transport
 - run on session start for startup, resume, clear, and compact
 - report whether setup appears complete, partial, or missing
 
@@ -148,7 +150,7 @@ They should not:
 - create repo-local hook files
 - replace setup activation in `AGENTS.md` or `CLAUDE.md`
 
-Setup itself should read the workflow skill, workflow map, and interview-gate skill after successful verification, before its final response, so the current session has the runtime context loaded without a post-tool hook.
+Setup itself should read the workflow skill, interview-gate skill, discover skill, and workflow map after successful verification, before its final response, so the current session has the runtime context loaded without a post-tool hook.
 
 ## Existing Rule Conflicts
 
@@ -378,8 +380,8 @@ Current packaging shape:
 - Every `SKILL.md` is under the 100-line project budget.
 - Extra reference files exist only where targeted evals or complexity justified progressive disclosure.
 - Native slash handlers remain disabled; commands are model-routed through skill activation.
-- Context-loading hooks are shipped to load workflow and interview-gate context at session start.
-- Setup reads workflow and interview-gate context after successful setup verification for same-session use.
+- Context-loading hooks are shipped to load workflow, interview-gate, discover, and workflow-map context at session start.
+- Setup reads workflow, interview-gate, discover, and workflow-map context after successful setup verification for same-session use.
 - Enforcement hooks remain deferred until skill behavior and evals prove mechanical enforcement is needed.
 
 Reference-file additions from the reference-stack pass have landed. Do not add more references, scripts, examples, or assets merely because a skill is broad. Add them only when they keep the active `SKILL.md` short, reduce repeated deterministic work, or prevent a measured behavior failure.

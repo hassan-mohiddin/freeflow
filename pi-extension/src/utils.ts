@@ -44,7 +44,7 @@ export function compactRunToolText(result) {
   if (counts) header.push(counts);
   if (outputId) header.push(`${result?.persistence?.recoverability === "exact" ? "raw" : "metadata"}=${outputId}`);
   if (result?.persistence?.recoverability !== "exact" && result?.recovery?.outputId) header.push(`exact=${result.recovery.outputId}`);
-  if (result?.scriptFilter?.outputId) header.push(`derived=${result.scriptFilter.outputId}`);
+  if (result?.scriptFilter?.outputId) header.push(`transformed=${result.scriptFilter.outputId}`);
 
   const lines = [row(...header)];
   if (result?.summary) lines.push(row("s", truncateRawLine(result.summary, 220)));
@@ -65,7 +65,7 @@ export function compactSearchToolText(result) {
   if (result?.implementation === "processing-engine-skeleton-v1") {
     return compactProcessingToolText(result);
   }
-  if (result?.routing?.route === "derive") {
+  if (result?.routing?.route === "transform") {
     return compactTransformToolText(result, "freeflow_search");
   }
   return compactSearchEvidenceToolText(result, "freeflow_search");
@@ -251,7 +251,7 @@ function compactRunScriptFilterText(scriptFilter) {
     parts.push(`label=${scriptFilter.label}`);
   }
   if (scriptFilter.outputId) {
-    parts.push(`derived=${scriptFilter.outputId}`);
+    parts.push(`transformed=${scriptFilter.outputId}`);
   }
   if (scriptFilter.failure?.kind) {
     parts.push(`failure=${scriptFilter.failure.kind}`);

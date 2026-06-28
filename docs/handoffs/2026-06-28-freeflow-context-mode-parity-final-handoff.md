@@ -33,9 +33,9 @@ Reports under `evals/reports/` are Markdown-only. Machine-readable JSON belongs 
 - Keep reducers deterministic/fact-based, not model-assisted.
 - Keep `details.result` structured JSON; compact model-visible text is separate.
 - Keep unsafe/YOLO processing local-only through `.freeflow/local.json`; shared `.freeflow/config.json` must not enable it.
-- Keep `scriptDerive` as the existing config key for script execution settings, but public/user-facing wording should say script transform where possible.
+- Use `scriptTransform` as the live config/status key for script execution settings. Do not reintroduce `scriptDerive` naming in runtime or public docs.
 - Keep `router/src/routing/` and `router/src/processing/` separate:
-  - `routing/` owns capture, route selection, exact recovery, persistence, parser/reducer safety, observed routing, and policy.
+  - `routing/` owns route selection, exact recovery, persistence, parser/reducer safety, observed routing, and policy.
   - `processing/` owns source loading, deterministic reducers, script execution policy, fact rendering, lineage, and processed-result recovery.
   - `transform/engine.ts` is shared by `freeflow_search action=transform` and `freeflow_run scriptFilter`.
 - Public `freeflow_batch` step kinds are `run` and `search` only. Transform is reached through `freeflow_search`, not a standalone batch step kind.
@@ -204,4 +204,4 @@ Stop and ask before:
 - `router/src/tools/search-transform.ts` facade should remain absent.
 - JSON report artifacts under `evals/reports/` are intentionally removed.
 - The final benchmark does not settle whether Freeflow should adopt an index; it shows why search remains the largest gap.
-- Web/MCP capture reduction is proven by targeted eval, but not yet part of the final Context Mode comparison.
+- Web/MCP observed-routing reduction is proven by targeted eval, but not yet part of the final Context Mode comparison.

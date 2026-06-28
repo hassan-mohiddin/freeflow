@@ -188,7 +188,7 @@ export async function runContextSavingBaseline(options = {}) {
                 result: vaultQueryResult,
                 requiredFacts: ["ROUTER_BENCH_FAILED", outputId],
             }));
-            const deriveResult = await freeflowTransform({
+            const transformResult = await freeflowTransform({
                 source: { kind: "vault", outputId, stream: "combined" },
                 operation: { kind: "regexFilter", pattern: "AUTH_TOKEN|ROUTER_BENCH_FAILED|Tests:", maxMatches: 10 },
                 sessionId,
@@ -201,7 +201,7 @@ export async function runContextSavingBaseline(options = {}) {
                 tool: "freeflow_search action=transform",
                 action: "regexFilter vault",
                 rawBytes: commandRawBytes,
-                result: deriveResult,
+                result: transformResult,
                 requiredFacts: ["AUTH_TOKEN", "ROUTER_BENCH_FAILED", "regexFilter"],
             }));
         }

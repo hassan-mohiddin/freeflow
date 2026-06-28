@@ -278,7 +278,7 @@ function renderReport(data) {
   lines.push("## Notes");
   lines.push("");
   lines.push("- This proof runner uses a temporary installed `quickjs-wasi` package root passed explicitly by the caller.");
-  lines.push("- It does not add repo dependencies and does not wire the adapter into `freeflow_derive` execution.");
+  lines.push("- It does not add repo dependencies and does not wire the adapter into `freeflow_search action=transform` execution.");
   lines.push("- Passing this spike only supports JavaScript adapter feasibility; Python and jq remain unavailable until their own proof slices pass.");
   lines.push("- Before product execution, this must still go through implementation/security review and source-plan update.");
   lines.push("");

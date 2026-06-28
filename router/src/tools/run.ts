@@ -9,7 +9,7 @@ import {
   storeTextOutput,
 } from "../vault/vault.js";
 import { DEFAULT_ROUTER_THRESHOLDS, DEFAULT_STORAGE_POLICY } from "../config/config.js";
-import { freeflowTransform, validateTransformInput, type ScriptDeriveLimitsInput } from "../transform/engine.js";
+import { freeflowTransform, validateTransformInput, type ScriptTransformLimitsInput } from "../transform/engine.js";
 import { assembleTextEvidence, byteLength, countLines, type BoundedEvidence } from "../evidence/evidence.js";
 import { parseCommandOutput, type ParsedCommandOutput } from "../routing/parsers.js";
 import {
@@ -32,14 +32,14 @@ import type {
   MetadataOutputRecord,
   TextOutputRecord,
   CommandRoutedResult,
-  DeriveRoutedResult,
+  TransformRoutedResult,
   ExecutionStatus,
   FailureRoutedResult,
   ImportantLine,
   PreserveMode,
   RouterThresholds,
-  ScriptDeriveConfig,
-  ScriptDeriveLanguage,
+  ScriptTransformConfig,
+  ScriptTransformLanguage,
   SessionIndexEntry,
   StoragePolicyMode,
   VaultRetentionPolicy,
@@ -66,10 +66,10 @@ export interface HostCommandRunner {
 }
 
 export interface RunScriptFilterInput {
-  language: ScriptDeriveLanguage;
+  language: ScriptTransformLanguage;
   code: string;
   label?: string;
-  limits?: ScriptDeriveLimitsInput;
+  limits?: ScriptTransformLimitsInput;
 }
 
 export interface FreeflowRunOptions extends HostCommandRunRequest {
@@ -81,7 +81,7 @@ export interface FreeflowRunOptions extends HostCommandRunRequest {
   thresholds?: Partial<RouterThresholds>;
   filters?: RunOutputFiltersInput;
   scriptFilter?: RunScriptFilterInput;
-  scriptDerive?: ScriptDeriveConfig;
+  scriptTransform?: ScriptTransformConfig;
   scriptSandboxAdapters?: readonly ScriptSandboxAdapter[];
   storagePolicy?: StoragePolicyMode;
 }
@@ -305,8 +305,8 @@ export async function freeflowRun(
       if (options.vaultRetention !== undefined) {
         Object.assign(scriptRouteOptions, { vaultRetention: options.vaultRetention });
       }
-      if (options.scriptDerive !== undefined) {
-        Object.assign(scriptRouteOptions, { scriptDerive: options.scriptDerive });
+      if (options.scriptTransform !== undefined) {
+        Object.assign(scriptRouteOptions, { scriptTransform: options.scriptTransform });
       }
       routing = await routeScriptFilteredOutput(scriptRouteOptions);
     } else {
@@ -332,7 +332,7 @@ export async function freeflowRun(
       persistence: record.persistence,
       ...(routing.lineage !== undefined ? { lineage: routing.lineage } : record.lineage !== undefined ? { lineage: record.lineage } : {}),
       ...(routing.failure !== undefined ? { failure: routing.failure } : {}),
-      ...(routing.deriveExecution !== undefined ? { deriveExecution: routing.deriveExecution } : {}),
+      ...(routing.transformExecution !== undefined ? { transformExecution: routing.transformExecution } : {}),
       ...(routing.evidence !== undefined ? { evidence: routing.evidence } : {}),
       routing: {
         status: routing.routingStatus,
@@ -400,7 +400,7 @@ interface CommandRoutingOutcome {
   scriptFilter?: CommandRoutedResult["scriptFilter"];
   reducer?: CommandRoutedResult["reducer"];
   failure?: CommandRoutedResult["failure"];
-  deriveExecution?: CommandRoutedResult["deriveExecution"];
+  transformExecution?: CommandRoutedResult["transformExecution"];
   lineage?: CommandRoutedResult["lineage"];
   evidence?: CommandRoutedResult["evidence"];
   recovery?: CommandRoutedResult["recovery"];
@@ -846,12 +846,12 @@ async function routeScriptFilteredOutput(options: {
   vaultRoot?: string;
   vaultRetention?: VaultRetentionPolicy;
   scriptFilter: RunScriptFilterInput;
-  scriptDerive?: ScriptDeriveConfig;
+  scriptTransform?: ScriptTransformConfig;
   scriptSandboxAdapters: readonly ScriptSandboxAdapter[];
 }): Promise<CommandRoutingOutcome> {
   const { routeOptions, rawRecord, scriptFilter } = options;
   const baseRouting = routeCommandOutput(routeOptions);
-  const operation: { kind: "script"; language: ScriptDeriveLanguage; code: string; label?: string } = {
+  const operation: { kind: "script"; language: ScriptTransformLanguage; code: string; label?: string } = {
     kind: "script",
     language: scriptFilter.language,
     code: scriptFilter.code,
@@ -868,8 +868,8 @@ async function routeScriptFilteredOutput(options: {
     thresholds: routeOptions.thresholds,
     scriptSandboxAdapters: options.scriptSandboxAdapters,
   };
-  if (options.scriptDerive !== undefined) {
-    Object.assign(transformOptions, { scriptDerive: options.scriptDerive });
+  if (options.scriptTransform !== undefined) {
+    Object.assign(transformOptions, { scriptTransform: options.scriptTransform });
   }
   if (options.vaultRoot !== undefined) {
     Object.assign(transformOptions, { vaultRoot: options.vaultRoot });
@@ -900,7 +900,7 @@ async function routeScriptFilteredOutput(options: {
       decisionId: decisionId("run-route", rawRecord.outputId, "script-filter", scriptResult.outputId, scriptFilter.language),
       routingStatus: scriptResult.routing.status,
       reason: `Command output was vaulted as outputId=${rawRecord.outputId} before a sandboxed ${scriptFilter.language} script filter ran over captured stdout/stderr/combined. ${scriptResult.routing.reason}`,
-      summary: `${baseRouting.summary} Script filter completed; derived outputId=${scriptResult.outputId}.`,
+      summary: `${baseRouting.summary} Script filter completed; transformed outputId=${scriptResult.outputId}.`,
       importantLines,
       parser,
       ...(baseRouting.filters !== undefined ? { filters: baseRouting.filters } : {}),
@@ -916,8 +916,8 @@ async function routeScriptFilteredOutput(options: {
     ...baseRouting,
     decisionId: decisionId("run-route", rawRecord.outputId, "script-filter-failed", scriptFilter.language, failureMessage),
     routingStatus: baseRouting.routingStatus === "failed" ? "failed" : "partial",
-    reason: `Command executed and raw output was vaulted as outputId=${rawRecord.outputId}, but the sandboxed ${scriptFilter.language} script filter did not produce derived output: ${failureMessage} Base command evidence was returned instead.`,
-    summary: `${baseRouting.summary} Script filter did not produce derived output: ${failureMessage}`,
+    reason: `Command executed and raw output was vaulted as outputId=${rawRecord.outputId}, but the sandboxed ${scriptFilter.language} script filter did not produce transformed output: ${failureMessage} Base command evidence was returned instead.`,
+    summary: `${baseRouting.summary} Script filter did not produce transformed output: ${failureMessage}`,
     parser: {
       ...baseRouting.parser,
       counts: {
@@ -927,7 +927,7 @@ async function routeScriptFilteredOutput(options: {
     },
     scriptFilter: metadata,
     ...(scriptResult.failure !== undefined ? { failure: scriptResult.failure } : {}),
-    ...(scriptResult.deriveExecution !== undefined ? { deriveExecution: scriptResult.deriveExecution } : {}),
+    ...(scriptResult.transformExecution !== undefined ? { transformExecution: scriptResult.transformExecution } : {}),
     ...(scriptResult.lineage !== undefined ? { lineage: scriptResult.lineage } : {}),
     recovery: commandScriptFilterRecoveryHint(rawRecord.outputId),
   };
@@ -1003,17 +1003,17 @@ function runScriptFilterSources(outputId: string) {
   ];
 }
 
-function isSuccessfulScriptFilterResult(result: DeriveRoutedResult | FailureRoutedResult): result is DeriveRoutedResult {
+function isSuccessfulScriptFilterResult(result: TransformRoutedResult | FailureRoutedResult): result is TransformRoutedResult {
   return result.toolStatus === "ok" && result.failure === undefined && typeof result.outputId === "string" && result.outputId.length > 0;
 }
 
 function runScriptFilterMetadata(
   input: RunScriptFilterInput,
-  result: DeriveRoutedResult | FailureRoutedResult,
+  result: TransformRoutedResult | FailureRoutedResult,
   rawOutputId: string,
 ): NonNullable<CommandRoutedResult["scriptFilter"]> {
   const metadata: NonNullable<CommandRoutedResult["scriptFilter"]> = {
-    status: isSuccessfulScriptFilterResult(result) ? "success" : result.deriveExecution?.status ?? "failed",
+    status: isSuccessfulScriptFilterResult(result) ? "success" : result.transformExecution?.status ?? "failed",
     language: input.language,
     sourceAliases: ["stdout", "stderr", "combined"],
     rawOutputId,
@@ -1039,8 +1039,8 @@ function runScriptFilterMetadata(
   if (result.failure !== undefined) {
     metadata.failure = result.failure;
   }
-  if (result.deriveExecution !== undefined) {
-    metadata.deriveExecution = result.deriveExecution;
+  if (result.transformExecution !== undefined) {
+    metadata.transformExecution = result.transformExecution;
   }
   if ("summary" in result && result.summary !== undefined) {
     metadata.summary = result.summary;
@@ -1071,9 +1071,9 @@ function storeReducerOutput(options: {
   return storeTextOutput(options.vault, {
     sessionId: options.sessionId,
     raw: options.reducer.result.visibleText,
-    sourceKind: "derive",
+    sourceKind: "transform",
     decisionIds: [decisionId("run-reducer", options.rawRecord.outputId, options.reducer.result.name, options.reducer.result.version)],
-    producer: { kind: "derive", name: "freeflow_run reducer" },
+    producer: { kind: "transform", name: "freeflow_run reducer" },
     lineage: {
       sourceRecordIds: [options.rawRecord.recordId],
       sourceOutputIds: [options.rawRecord.outputId],
@@ -1105,10 +1105,10 @@ function runReducerMetadata(
   };
 }
 
-function commandReducerRecoveryHint(rawOutputId: string, derivedOutputId?: string) {
-  if (derivedOutputId) {
+function commandReducerRecoveryHint(rawOutputId: string, transformedOutputId?: string) {
+  if (transformedOutputId) {
     return {
-      how: `Raw command output: use freeflow_search with source.kind=vault and outputId=${rawOutputId}. Reducer-derived output: use freeflow_search with source.kind=vault, outputId=${derivedOutputId}, stream=raw, and an exact lineRange.`,
+      how: `Raw command output: use freeflow_search with source.kind=vault and outputId=${rawOutputId}. Reducer-transformed output: use freeflow_search with source.kind=vault, outputId=${transformedOutputId}, stream=raw, and an exact lineRange.`,
       outputId: rawOutputId,
     };
   }
@@ -1118,15 +1118,15 @@ function commandReducerRecoveryHint(rawOutputId: string, derivedOutputId?: strin
   };
 }
 
-function commandScriptFilterRecoveryHint(rawOutputId: string, derivedOutputId?: string) {
-  if (derivedOutputId) {
+function commandScriptFilterRecoveryHint(rawOutputId: string, transformedOutputId?: string) {
+  if (transformedOutputId) {
     return {
-      how: `Raw command output: use freeflow_search with source.kind=vault and outputId=${rawOutputId}. Script-filtered derived output: use freeflow_search with source.kind=vault, outputId=${derivedOutputId}, stream=raw, and an exact lineRange.`,
+      how: `Raw command output: use freeflow_search with source.kind=vault and outputId=${rawOutputId}. Script-filtered transformed output: use freeflow_search with source.kind=vault, outputId=${transformedOutputId}, stream=raw, and an exact lineRange.`,
       outputId: rawOutputId,
     };
   }
   return {
-    how: `Script filter did not produce derived output. Raw command output remains recoverable with freeflow_search source.kind=vault outputId=${rawOutputId}.`,
+    how: `Script filter did not produce transformed output. Raw command output remains recoverable with freeflow_search source.kind=vault outputId=${rawOutputId}.`,
     outputId: rawOutputId,
   };
 }
@@ -1169,14 +1169,14 @@ function normalizeRunScriptFilter(input: unknown):
   }
 
   const scriptFilter: RunScriptFilterInput = {
-    language: input.language as ScriptDeriveLanguage,
+    language: input.language as ScriptTransformLanguage,
     code: input.code as string,
   };
   if (input.label !== undefined) {
     scriptFilter.label = input.label as string;
   }
   if (input.limits !== undefined) {
-    scriptFilter.limits = input.limits as ScriptDeriveLimitsInput;
+    scriptFilter.limits = input.limits as ScriptTransformLimitsInput;
   }
   return { ok: true, scriptFilter };
 }

@@ -2,10 +2,10 @@ import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DEFAULT_ROUTER_THRESHOLDS, DEFAULT_SCRIPT_DERIVE_CONFIG, MAX_SCRIPT_DERIVE_LIMITS, SCRIPT_DERIVE_LANGUAGES } from "../config/config.js";
+import { DEFAULT_ROUTER_THRESHOLDS, DEFAULT_SCRIPT_TRANSFORM_CONFIG, MAX_SCRIPT_TRANSFORM_LIMITS, SCRIPT_TRANSFORM_LANGUAGES } from "../config/config.js";
 import { assembleTextEvidence, byteLength, countLines, splitLines } from "../evidence/evidence.js";
 import { selectScriptSandboxAdapter } from "../sandbox/script-sandbox.js";
-import { deriveAdapterUnavailableFailure, deriveSourceUnavailableFailure, deriveValidationFailure, deriveExecutionFailure, scriptDeriveDisabledFailure, storageFailure, } from "../evidence/failure-contracts.js";
+import { transformAdapterUnavailableFailure, transformSourceUnavailableFailure, transformValidationFailure, transformExecutionFailure, scriptTransformDisabledFailure, storageFailure, } from "../evidence/failure-contracts.js";
 import { createVault, readOutputText, readVaultRecord, storeTextOutput } from "../vault/vault.js";
 export const TRANSFORM_ENGINE_IMPLEMENTATION = "shared-transform-engine-v1";
 const PRESERVE_MODES = new Set(["summary", "important", "full"]);
@@ -45,13 +45,13 @@ export function validateTransformInput(value) {
         return { ok: false, issues: [{ path: "$", message: "Expected transform input object." }] };
     }
     const operationKind = isRecord(value.operation) ? value.operation.kind : undefined;
-    validateDeriveOperation(value.operation, "$.operation", issues);
+    validateTransformOperation(value.operation, "$.operation", issues);
     if (operationKind === "script") {
-        validateScriptDeriveSources(value.sources, "$.sources", issues);
-        validateScriptDeriveLimits(value.limits, "$.limits", issues);
+        validateScriptTransformSources(value.sources, "$.sources", issues);
+        validateScriptTransformLimits(value.limits, "$.limits", issues);
     }
     else {
-        validateDeriveSource(value.source, "$.source", issues);
+        validateTransformSource(value.source, "$.source", issues);
     }
     if (value.preserve !== undefined && (typeof value.preserve !== "string" || !PRESERVE_MODES.has(value.preserve))) {
         issues.push({ path: "$.preserve", message: "Expected preserve mode summary, important, or full." });
@@ -88,15 +88,15 @@ async function executeTransform(options) {
     const preserve = options.preserve ?? "important";
     const inputValidation = validateTransformInput(options);
     if (!inputValidation.ok) {
-        return deriveValidationFailureWithOptionalLineage({
+        return transformValidationFailureWithOptionalLineage({
             message: validationMessage(inputValidation.issues),
             preserve,
             lineage: lineageFromInput(options),
             decisionSeed: "input-validation",
         });
     }
-    if (isScriptDeriveInput(inputValidation.value)) {
-        return handleScriptDerive({
+    if (isScriptTransformInput(inputValidation.value)) {
+        return handleScriptTransform({
             input: inputValidation.value,
             options,
             preserve,
@@ -104,9 +104,9 @@ async function executeTransform(options) {
     }
     const deterministicInput = inputValidation.value;
     const operation = deterministicInput.operation;
-    const prepared = prepareDeriveOperation(operation);
+    const prepared = prepareTransformOperation(operation);
     if (!prepared.ok) {
-        return deriveValidationFailureWithOptionalLineage({
+        return transformValidationFailureWithOptionalLineage({
             message: prepared.message,
             preserve,
             lineage: lineageFromInput(deterministicInput),
@@ -130,7 +130,7 @@ async function executeTransform(options) {
         sourceRecord = await readVaultRecord(vault, options.sessionId, source.outputId);
     }
     catch (error) {
-        return deriveSourceUnavailableFailureWithOptionalLineage({
+        return transformSourceUnavailableFailureWithOptionalLineage({
             message: `Vault source outputId=${source.outputId} could not be found or read: ${errorMessage(error)}`,
             preserve,
             lineage: lineageFromInput(inputValidation.value),
@@ -139,7 +139,7 @@ async function executeTransform(options) {
     }
     const streamResult = resolveSourceStream(sourceRecord, source.stream);
     if (!streamResult.ok) {
-        return deriveValidationFailure({
+        return transformValidationFailure({
             message: streamResult.message,
             preserve,
             lineage: lineageForSource(sourceRecord, operation),
@@ -151,16 +151,16 @@ async function executeTransform(options) {
         sourceText = await readOutputText(vault, options.sessionId, source.outputId, stream);
     }
     catch (error) {
-        return deriveSourceUnavailableFailure({
+        return transformSourceUnavailableFailure({
             message: `Vault source outputId=${source.outputId} stream=${stream} could not be read: ${errorMessage(error)}`,
             preserve,
             lineage: lineageForSource(sourceRecord, operation),
             decisionSeed: "source-text",
         });
     }
-    let derived;
+    let transformed;
     try {
-        derived = deriveText({
+        transformed = transformText({
             text: sourceText,
             sourceLabel: `${source.outputId}:${stream}`,
             operation,
@@ -168,38 +168,36 @@ async function executeTransform(options) {
         });
     }
     catch (error) {
-        return deriveExecutionFailure({
-            message: `Derive operation ${operation.kind} failed: ${errorMessage(error)}`,
+        return transformExecutionFailure({
+            message: `Transform operation ${operation.kind} failed: ${errorMessage(error)}`,
             preserve,
             lineage: lineageForSource(sourceRecord, operation),
-            decisionSeed: "derive-execution",
+            decisionSeed: "transform-execution",
         });
     }
-    const producer = { kind: "derive", name: operation.kind };
+    const producer = { kind: "transform", name: operation.kind };
     const lineage = lineageForSource(sourceRecord, operation);
     let record;
     try {
         record = await storeTextOutput(vault, {
             sessionId: options.sessionId,
-            raw: derived.text,
-            sourceKind: "derive",
+            raw: transformed.text,
+            sourceKind: "transform",
             producer,
             lineage,
-            decisionIds: [decisionId("derive-store", source.outputId, stream, operation.kind, lineage.operationHash ?? "")],
+            decisionIds: [decisionId("transform-store", source.outputId, stream, operation.kind, lineage.operationHash ?? "")],
         });
     }
     catch (error) {
         return storageFailure({
-            operation: "derive",
-            message: `Derived output could not be persisted: ${errorMessage(error)}`,
+            message: `Transformed output could not be persisted: ${errorMessage(error)}`,
             preserve,
-            producer,
             lineage,
         });
     }
-    const routed = routeDerivedText({
+    const routed = routeTransformedText({
         outputId: record.outputId,
-        text: derived.text,
+        text: transformed.text,
         preserve,
         thresholds,
         source: { kind: "vault", outputId: source.outputId, stream },
@@ -207,7 +205,7 @@ async function executeTransform(options) {
     });
     return {
         toolStatus: "ok",
-        decisionId: decisionId("derive", record.outputId, source.outputId, stream, operation.kind, routed.routingStatus),
+        decisionId: decisionId("transform", record.outputId, source.outputId, stream, operation.kind, routed.routingStatus),
         outputId: record.outputId,
         recordId: record.recordId,
         preserve,
@@ -218,27 +216,27 @@ async function executeTransform(options) {
         lineage,
         routing: {
             status: routed.routingStatus,
-            route: "derive",
+            route: "transform",
             reason: routed.reason,
         },
-        summary: derived.summary,
+        summary: transformed.summary,
         evidence: routed.evidence,
         recovery: {
-            how: `Use freeflow_search with source.kind=vault and outputId=${record.outputId}, stream=raw, and an exact lineRange to recover exact derived content. Source evidence remains outputId=${source.outputId} stream=${stream}.`,
+            how: `Use freeflow_search with source.kind=vault and outputId=${record.outputId}, stream=raw, and an exact lineRange to recover exact transformed content. Source evidence remains outputId=${source.outputId} stream=${stream}.`,
             outputId: record.outputId,
         },
     };
 }
-async function handleScriptDerive(options) {
-    const config = effectiveScriptDeriveConfig(options.options.scriptDerive);
+async function handleScriptTransform(options) {
+    const config = effectiveScriptTransformConfig(options.options.scriptTransform);
     const limits = effectiveScriptLimits(config, options.input.limits);
     const initialLineage = lineageForScriptInput(options.input, limits);
     if (!config.enabled) {
-        return scriptDeriveDisabledFailure({
-            message: "Script transform is disabled by default. Enable scriptDerive.enabled only after a sandbox adapter has passed capability probes and review. No script code was executed.",
+        return scriptTransformDisabledFailure({
+            message: "Script transform is disabled by default. Enable scriptTransform.enabled only after a sandbox adapter has passed capability probes and review. No script code was executed.",
             preserve: options.preserve,
             lineage: initialLineage,
-            decisionSeed: "script-derive-disabled",
+            decisionSeed: "script-transform-disabled",
         });
     }
     const vaultOptions = {};
@@ -262,11 +260,11 @@ async function handleScriptDerive(options) {
     }
     const adapterSelection = await selectScriptSandboxAdapter(options.input.operation.language, config, options.options.scriptSandboxAdapters ?? []);
     if (!adapterSelection.ok) {
-        return deriveAdapterUnavailableFailure({
+        return transformAdapterUnavailableFailure({
             message: `${adapterSelection.status.reason} No script code was executed.`,
             preserve: options.preserve,
             lineage: lineageForResolvedScriptSources(resolved.sources, options.input, limits),
-            decisionSeed: "script-derive-adapter-unavailable",
+            decisionSeed: "script-transform-adapter-unavailable",
         });
     }
     const execution = await executeScriptWithAdapter({
@@ -278,14 +276,14 @@ async function handleScriptDerive(options) {
     });
     const lineage = lineageForResolvedScriptSources(resolved.sources, options.input, limits);
     if (!execution.ok) {
-        return deriveExecutionFailure({
+        return transformExecutionFailure({
             message: execution.message,
             preserve: options.preserve,
             lineage,
-            decisionSeed: "script-derive-execution",
+            decisionSeed: "script-transform-execution",
         });
     }
-    const producer = { kind: "derive", name: `script:${options.input.operation.language}` };
+    const producer = { kind: "transform", name: `script:${options.input.operation.language}` };
     const vaultOptionsForStore = {};
     if (options.options.vaultRoot !== undefined) {
         vaultOptionsForStore.root = options.options.vaultRoot;
@@ -299,24 +297,22 @@ async function handleScriptDerive(options) {
         record = await storeTextOutput(storeVault, {
             sessionId: options.options.sessionId,
             raw: execution.result.stdout,
-            sourceKind: "derive",
+            sourceKind: "transform",
             producer,
             lineage,
-            decisionIds: [decisionId("script-derive-store", options.input.operation.language, lineage.operationHash ?? "")],
+            decisionIds: [decisionId("script-transform-store", options.input.operation.language, lineage.operationHash ?? "")],
         });
     }
     catch (error) {
         return storageFailure({
-            operation: "derive",
-            message: `Script-derived output could not be persisted: ${errorMessage(error)}`,
+            message: `Script-transformed output could not be persisted: ${errorMessage(error)}`,
             preserve: options.preserve,
-            producer,
             lineage,
         });
     }
     const thresholds = { ...DEFAULT_ROUTER_THRESHOLDS, ...options.options.thresholds };
     const primarySource = primaryScriptSourceRef(resolved.sources, options.input.sources);
-    const routed = routeDerivedText({
+    const routed = routeTransformedText({
         outputId: record.outputId,
         text: execution.result.stdout,
         preserve: options.preserve,
@@ -326,7 +322,7 @@ async function handleScriptDerive(options) {
     });
     return {
         toolStatus: "ok",
-        decisionId: decisionId("script-derive", record.outputId, options.input.operation.language, routed.routingStatus),
+        decisionId: decisionId("script-transform", record.outputId, options.input.operation.language, routed.routingStatus),
         outputId: record.outputId,
         recordId: record.recordId,
         preserve: options.preserve,
@@ -337,13 +333,13 @@ async function handleScriptDerive(options) {
         lineage,
         routing: {
             status: routed.routingStatus,
-            route: "derive",
+            route: "transform",
             reason: routed.reason,
         },
         summary: `Script transform ${options.input.operation.language} completed with ${byteLength(execution.result.stdout)} stdout bytes and ${byteLength(execution.result.stderr)} stderr bytes.`,
         evidence: routed.evidence,
         recovery: {
-            how: `Use freeflow_search with source.kind=vault and outputId=${record.outputId}, stream=raw, and an exact lineRange to recover exact script-derived content. Source evidence remains linked in lineage.sourceOutputIds.`,
+            how: `Use freeflow_search with source.kind=vault and outputId=${record.outputId}, stream=raw, and an exact lineRange to recover exact script-transformed content. Source evidence remains linked in lineage.sourceOutputIds.`,
             outputId: record.outputId,
         },
     };
@@ -360,7 +356,7 @@ function primaryScriptSourceRef(resolvedSources, inputSources) {
     return { kind: "vault", outputId: input?.outputId ?? "unknown" };
 }
 async function executeScriptWithAdapter(options) {
-    const tempRoot = await mkdtemp(join(tmpdir(), "freeflow-script-derive-"));
+    const tempRoot = await mkdtemp(join(tmpdir(), "freeflow-script-transform-"));
     const inputDir = join(tempRoot, "input");
     const workDir = join(tempRoot, "work");
     const outputDir = join(tempRoot, "output");
@@ -426,7 +422,7 @@ async function resolveScriptSources(options) {
         catch (error) {
             return {
                 ok: false,
-                failure: deriveSourceUnavailableFailure({
+                failure: transformSourceUnavailableFailure({
                     message: `Script transform source alias=${source.alias} outputId=${source.outputId} could not be found or read: ${errorMessage(error)}`,
                     preserve: options.preserve,
                     lineage: lineageForScriptInput({ sources: [...options.sources], operation: options.operation }, { maxInputBytes: options.maxInputBytes }),
@@ -438,7 +434,7 @@ async function resolveScriptSources(options) {
         if (!streamResult.ok) {
             return {
                 ok: false,
-                failure: deriveValidationFailure({
+                failure: transformValidationFailure({
                     message: `Script transform source alias=${source.alias} outputId=${source.outputId} stream is invalid: ${streamResult.message}`,
                     preserve: options.preserve,
                     lineage: lineageForSource(record, options.operation),
@@ -453,7 +449,7 @@ async function resolveScriptSources(options) {
         catch (error) {
             return {
                 ok: false,
-                failure: deriveSourceUnavailableFailure({
+                failure: transformSourceUnavailableFailure({
                     message: `Script transform source alias=${source.alias} outputId=${source.outputId} stream=${streamResult.stream} could not be read: ${errorMessage(error)}`,
                     preserve: options.preserve,
                     lineage: lineageForSource(record, options.operation),
@@ -466,7 +462,7 @@ async function resolveScriptSources(options) {
         if (totalBytes > options.maxInputBytes) {
             return {
                 ok: false,
-                failure: deriveValidationFailure({
+                failure: transformValidationFailure({
                     message: `Script transform input bytes ${totalBytes} exceed maxInputBytes ${options.maxInputBytes}.`,
                     preserve: options.preserve,
                     lineage: lineageForSource(record, options.operation),
@@ -487,13 +483,13 @@ async function resolveScriptSources(options) {
     }
     return { ok: true, sources: resolved };
 }
-function validateDeriveSource(value, path, issues) {
+function validateTransformSource(value, path, issues) {
     if (!isRecord(value)) {
-        issues.push({ path, message: "Expected derive source object." });
+        issues.push({ path, message: "Expected transform source object." });
         return;
     }
     if (value.kind !== "vault") {
-        issues.push({ path: `${path}.kind`, message: "Slice 5A supports only vault derive sources." });
+        issues.push({ path: `${path}.kind`, message: "Slice 5A supports only vault transform sources." });
         return;
     }
     if (typeof value.outputId !== "string" || value.outputId.length === 0) {
@@ -503,13 +499,13 @@ function validateDeriveSource(value, path, issues) {
         issues.push({ path: `${path}.stream`, message: "Expected a known output stream." });
     }
 }
-function validateDeriveOperation(value, path, issues) {
+function validateTransformOperation(value, path, issues) {
     if (!isRecord(value)) {
-        issues.push({ path, message: "Expected derive operation object." });
+        issues.push({ path, message: "Expected transform operation object." });
         return;
     }
     if (typeof value.kind !== "string" || !OPERATION_KINDS.has(value.kind)) {
-        issues.push({ path: `${path}.kind`, message: "Expected a supported derive operation kind." });
+        issues.push({ path: `${path}.kind`, message: "Expected a supported transform operation kind." });
         return;
     }
     if (value.kind === "script") {
@@ -566,8 +562,8 @@ function validateDeriveOperation(value, path, issues) {
     }
 }
 function validateScriptOperation(value, path, issues) {
-    if (!isStringIn(value.language, SCRIPT_DERIVE_LANGUAGES)) {
-        issues.push({ path: `${path}.language`, message: `Expected script language ${SCRIPT_DERIVE_LANGUAGES.join(", ")}.` });
+    if (!isStringIn(value.language, SCRIPT_TRANSFORM_LANGUAGES)) {
+        issues.push({ path: `${path}.language`, message: `Expected script language ${SCRIPT_TRANSFORM_LANGUAGES.join(", ")}.` });
     }
     if (typeof value.code !== "string" || value.code.length === 0) {
         issues.push({ path: `${path}.code`, message: "Expected non-empty script code string." });
@@ -579,7 +575,7 @@ function validateScriptOperation(value, path, issues) {
         issues.push({ path: `${path}.label`, message: "Expected non-empty script label string when present." });
     }
 }
-function validateScriptDeriveSources(value, path, issues) {
+function validateScriptTransformSources(value, path, issues) {
     if (!Array.isArray(value) || value.length === 0) {
         issues.push({ path, message: "Expected one or more script transform vault sources." });
         return;
@@ -587,7 +583,7 @@ function validateScriptDeriveSources(value, path, issues) {
     const aliases = new Set();
     value.forEach((source, index) => {
         const sourcePath = `${path}[${index}]`;
-        validateDeriveSource(source, sourcePath, issues);
+        validateTransformSource(source, sourcePath, issues);
         if (!isRecord(source)) {
             return;
         }
@@ -601,7 +597,7 @@ function validateScriptDeriveSources(value, path, issues) {
         aliases.add(source.alias);
     });
 }
-function validateScriptDeriveLimits(value, path, issues) {
+function validateScriptTransformLimits(value, path, issues) {
     if (value === undefined) {
         return;
     }
@@ -609,9 +605,9 @@ function validateScriptDeriveLimits(value, path, issues) {
         issues.push({ path, message: "Expected script transform limits object." });
         return;
     }
-    validateOptionalIntegerRange(value.timeoutMs, `${path}.timeoutMs`, 1, MAX_SCRIPT_DERIVE_LIMITS.timeoutMs, issues);
-    validateOptionalIntegerRange(value.maxInputBytes, `${path}.maxInputBytes`, 1, MAX_SCRIPT_DERIVE_LIMITS.maxInputBytes, issues);
-    validateOptionalIntegerRange(value.maxOutputBytes, `${path}.maxOutputBytes`, 1, MAX_SCRIPT_DERIVE_LIMITS.maxOutputBytes, issues);
+    validateOptionalIntegerRange(value.timeoutMs, `${path}.timeoutMs`, 1, MAX_SCRIPT_TRANSFORM_LIMITS.timeoutMs, issues);
+    validateOptionalIntegerRange(value.maxInputBytes, `${path}.maxInputBytes`, 1, MAX_SCRIPT_TRANSFORM_LIMITS.maxInputBytes, issues);
+    validateOptionalIntegerRange(value.maxOutputBytes, `${path}.maxOutputBytes`, 1, MAX_SCRIPT_TRANSFORM_LIMITS.maxOutputBytes, issues);
 }
 function validateOptionalIntegerRange(value, path, min, max, issues) {
     if (value === undefined) {
@@ -763,7 +759,7 @@ function validateIntegerRange(value, path, min, max, issues) {
         issues.push({ path, message: `Expected integer from ${min} to ${max}.` });
     }
 }
-function prepareDeriveOperation(operation) {
+function prepareTransformOperation(operation) {
     if (operation.kind === "jsonExtract") {
         const preparedJson = prepareJsonExtractOperation(operation);
         if (!preparedJson.ok) {
@@ -843,12 +839,12 @@ function prepareJsonExtractOperation(operation) {
     }
     return { ok: false, message: "jsonExtract requires exactly one JSON selector: pointer or path." };
 }
-function deriveText(options) {
+function transformText(options) {
     if (options.operation.kind === "jsonExtract") {
         if (options.prepared.kind !== "json") {
             throw new Error("jsonExtract operation was not prepared with a JSON selector.");
         }
-        return deriveJsonExtract({
+        return transformJsonExtract({
             text: options.text,
             sourceLabel: options.sourceLabel,
             operation: options.operation,
@@ -856,7 +852,7 @@ function deriveText(options) {
         });
     }
     if (options.operation.kind === "dedupe") {
-        return deriveDedupe({
+        return transformDedupe({
             text: options.text,
             sourceLabel: options.sourceLabel,
             operation: options.operation,
@@ -871,25 +867,25 @@ function deriveText(options) {
         if (options.prepared.kind === "regex") {
             topNOptions.compiled = options.prepared.value;
         }
-        return deriveTopN(topNOptions);
+        return transformTopN(topNOptions);
     }
     if (options.operation.kind === "extractUrls") {
-        return deriveExtractUrls({ text: options.text, sourceLabel: options.sourceLabel, operation: options.operation });
+        return transformExtractUrls({ text: options.text, sourceLabel: options.sourceLabel, operation: options.operation });
     }
     if (options.operation.kind === "extractCitations") {
-        return deriveExtractCitations({ text: options.text, sourceLabel: options.sourceLabel, operation: options.operation });
+        return transformExtractCitations({ text: options.text, sourceLabel: options.sourceLabel, operation: options.operation });
     }
     if (options.operation.kind === "lineStats") {
-        return deriveLineStats({ text: options.text, sourceLabel: options.sourceLabel });
+        return transformLineStats({ text: options.text, sourceLabel: options.sourceLabel });
     }
     if (options.operation.kind === "sizeStats") {
-        return deriveSizeStats({ text: options.text, sourceLabel: options.sourceLabel });
+        return transformSizeStats({ text: options.text, sourceLabel: options.sourceLabel });
     }
     if (options.prepared.kind !== "regex") {
         throw new Error(`${options.operation.kind} operation was not prepared with a regex.`);
     }
     if (options.operation.kind === "regexFilter") {
-        return deriveRegexFilter({
+        return transformRegexFilter({
             text: options.text,
             sourceLabel: options.sourceLabel,
             operation: options.operation,
@@ -897,21 +893,21 @@ function deriveText(options) {
         });
     }
     if (options.operation.kind === "groupByRegex") {
-        return deriveGroupByRegex({
+        return transformGroupByRegex({
             text: options.text,
             sourceLabel: options.sourceLabel,
             operation: options.operation,
             compiled: options.prepared.value,
         });
     }
-    return deriveCountMatches({
+    return transformCountMatches({
         text: options.text,
         sourceLabel: options.sourceLabel,
         operation: options.operation,
         compiled: options.prepared.value,
     });
 }
-function deriveRegexFilter(options) {
+function transformRegexFilter(options) {
     const lines = splitLines(options.text);
     const contextLines = options.operation.contextLines ?? DEFAULT_CONTEXT_LINES;
     const maxMatches = options.operation.maxMatches ?? DEFAULT_MAX_MATCHES;
@@ -938,11 +934,11 @@ function deriveRegexFilter(options) {
     }
     return {
         text: `${parts.join("\n")}\n`,
-        summary: `Derived regexFilter from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${stats.matches} match(es) across ${stats.matchedLines} line(s).`,
+        summary: `Transformed regexFilter from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${stats.matches} match(es) across ${stats.matchedLines} line(s).`,
         stats,
     };
 }
-function deriveCountMatches(options) {
+function transformCountMatches(options) {
     const lines = splitLines(options.text);
     const stats = collectMatches(lines, options.compiled.regex);
     const text = [
@@ -955,11 +951,11 @@ function deriveCountMatches(options) {
     ].join("\n");
     return {
         text,
-        summary: `Derived countMatches from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${stats.matches} match(es) across ${stats.matchedLines} line(s).`,
+        summary: `Transformed countMatches from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${stats.matches} match(es) across ${stats.matchedLines} line(s).`,
         stats,
     };
 }
-function deriveGroupByRegex(options) {
+function transformGroupByRegex(options) {
     const lines = splitLines(options.text);
     const groupSelector = options.operation.group ?? 1;
     const maxGroups = options.operation.maxGroups ?? DEFAULT_MAX_GROUPS;
@@ -1018,7 +1014,7 @@ function deriveGroupByRegex(options) {
     }
     return {
         text: `${parts.join("\n")}\n`,
-        summary: `Derived groupByRegex from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${allGroupKeys.size} group(s), ${matchedLines} matched line(s).`,
+        summary: `Transformed groupByRegex from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${allGroupKeys.size} group(s), ${matchedLines} matched line(s).`,
         stats: {
             matches: matchedLines,
             matchedLines,
@@ -1027,7 +1023,7 @@ function deriveGroupByRegex(options) {
         },
     };
 }
-function deriveDedupe(options) {
+function transformDedupe(options) {
     const lines = splitLines(options.text);
     const trim = options.operation.trim ?? false;
     const caseSensitive = options.operation.caseSensitive ?? true;
@@ -1070,7 +1066,7 @@ function deriveDedupe(options) {
     }
     return {
         text: `${parts.join("\n")}\n`,
-        summary: `Derived dedupe from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${seen.size} unique line(s), ${duplicatesRemoved} duplicate line(s) removed.`,
+        summary: `Transformed dedupe from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${seen.size} unique line(s), ${duplicatesRemoved} duplicate line(s) removed.`,
         stats: {
             matches: seen.size,
             matchedLines: seen.size,
@@ -1079,7 +1075,7 @@ function deriveDedupe(options) {
         },
     };
 }
-function deriveTopN(options) {
+function transformTopN(options) {
     const lines = splitLines(options.text);
     const sort = options.operation.sort ?? "text";
     const order = options.operation.order ?? "asc";
@@ -1124,7 +1120,7 @@ function deriveTopN(options) {
     }
     return {
         text: `${parts.join("\n")}\n`,
-        summary: `Derived topN from vaulted ${sourceStreamLabel(options.sourceLabel)} output: returned ${selected.length} of ${scored.length} matched line(s).`,
+        summary: `Transformed topN from vaulted ${sourceStreamLabel(options.sourceLabel)} output: returned ${selected.length} of ${scored.length} matched line(s).`,
         stats: {
             matches: selected.length,
             matchedLines: scored.length,
@@ -1133,7 +1129,7 @@ function deriveTopN(options) {
         },
     };
 }
-function deriveExtractUrls(options) {
+function transformExtractUrls(options) {
     const maxMatches = options.operation.maxMatches ?? DEFAULT_MAX_EXTRACT_MATCHES;
     const dedupe = options.operation.dedupe ?? false;
     const lines = splitLines(options.text);
@@ -1177,7 +1173,7 @@ function deriveExtractUrls(options) {
     }
     return {
         text: `${parts.join("\n")}\n`,
-        summary: `Derived extractUrls from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${entries.length} URL(s) returned from ${matches} match(es).`,
+        summary: `Transformed extractUrls from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${entries.length} URL(s) returned from ${matches} match(es).`,
         stats: {
             matches: entries.length,
             matchedLines: new Set(entries.map((entry) => entry.lineNumber)).size,
@@ -1186,7 +1182,7 @@ function deriveExtractUrls(options) {
         },
     };
 }
-function deriveExtractCitations(options) {
+function transformExtractCitations(options) {
     const maxMatches = options.operation.maxMatches ?? DEFAULT_MAX_EXTRACT_MATCHES;
     const lines = splitLines(options.text);
     const entries = [];
@@ -1221,7 +1217,7 @@ function deriveExtractCitations(options) {
     }
     return {
         text: `${parts.join("\n")}\n`,
-        summary: `Derived extractCitations from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${entries.length} citation(s) returned.`,
+        summary: `Transformed extractCitations from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${entries.length} citation(s) returned.`,
         stats: {
             matches: entries.length,
             matchedLines: new Set(entries.map((entry) => entry.lineNumber)).size,
@@ -1230,7 +1226,7 @@ function deriveExtractCitations(options) {
         },
     };
 }
-function deriveLineStats(options) {
+function transformLineStats(options) {
     const lines = splitLines(options.text);
     let blankLines = 0;
     let maxLineBytes = 0;
@@ -1258,7 +1254,7 @@ function deriveLineStats(options) {
     ].join("\n");
     return {
         text,
-        summary: `Derived lineStats from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${lines.length} line(s), ${nonEmptyLines} non-empty, ${blankLines} blank.`,
+        summary: `Transformed lineStats from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${lines.length} line(s), ${nonEmptyLines} non-empty, ${blankLines} blank.`,
         stats: {
             matches: lines.length,
             matchedLines: lines.length,
@@ -1267,7 +1263,7 @@ function deriveLineStats(options) {
         },
     };
 }
-function deriveSizeStats(options) {
+function transformSizeStats(options) {
     const bytes = byteLength(options.text);
     const utf16CodeUnits = options.text.length;
     const codePoints = Array.from(options.text).length;
@@ -1285,7 +1281,7 @@ function deriveSizeStats(options) {
     ].join("\n");
     return {
         text,
-        summary: `Derived sizeStats from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${bytes} byte(s), ${utf16CodeUnits} code unit(s), ${lines} line(s).`,
+        summary: `Transformed sizeStats from vaulted ${sourceStreamLabel(options.sourceLabel)} output: ${bytes} byte(s), ${utf16CodeUnits} code unit(s), ${lines} line(s).`,
         stats: {
             matches: bytes,
             matchedLines: lines,
@@ -1294,7 +1290,7 @@ function deriveSizeStats(options) {
         },
     };
 }
-function deriveJsonExtract(options) {
+function transformJsonExtract(options) {
     let parsed;
     try {
         parsed = JSON.parse(options.text);
@@ -1319,7 +1315,7 @@ function deriveJsonExtract(options) {
     ].join("\n");
     return {
         text,
-        summary: `Derived jsonExtract from vaulted ${sourceStreamLabel(options.sourceLabel)} output using ${options.prepared.selectorKind} ${options.prepared.selector}.`,
+        summary: `Transformed jsonExtract from vaulted ${sourceStreamLabel(options.sourceLabel)} output using ${options.prepared.selectorKind} ${options.prepared.selector}.`,
         stats: {
             matches: 1,
             matchedLines: 1,
@@ -1378,7 +1374,7 @@ function mergeLineWindows(windows) {
     }
     return merged;
 }
-function routeDerivedText(options) {
+function routeTransformedText(options) {
     const caps = options.preserve === "full"
         ? {
             maxLines: Number.MAX_SAFE_INTEGER,
@@ -1402,16 +1398,16 @@ function routeDerivedText(options) {
         lines: line.lines,
         excerpt: line.excerpt,
         why: routingStatus === "partial"
-            ? `Bounded derived ${options.operationKind} output from source ${sourceLabel}; exact derived content is recoverable from the vault and source lineage is preserved.`
-            : `Derived exact ${options.operationKind} output from source ${sourceLabel} within routing caps; source lineage is preserved.`,
+            ? `Bounded transformed ${options.operationKind} output from source ${sourceLabel}; exact transformed content is recoverable from the vault and source lineage is preserved.`
+            : `Transformed exact ${options.operationKind} output from source ${sourceLabel} within routing caps; source lineage is preserved.`,
         window: routingStatus === "partial" ? "small" : "exact",
         expandable: true,
     }));
     return {
         routingStatus,
         reason: routingStatus === "partial"
-            ? `Derived output from operation ${options.operationKind} over source ${sourceLabel} (${outputBytes} bytes, ${outputLines} lines) was vaulted; bounded evidence was returned with exact recovery.`
-            : `Derived output from operation ${options.operationKind} over source ${sourceLabel} (${outputBytes} bytes, ${outputLines} lines) was vaulted and returned within routing caps.`,
+            ? `Transformed output from operation ${options.operationKind} over source ${sourceLabel} (${outputBytes} bytes, ${outputLines} lines) was vaulted; bounded evidence was returned with exact recovery.`
+            : `Transformed output from operation ${options.operationKind} over source ${sourceLabel} (${outputBytes} bytes, ${outputLines} lines) was vaulted and returned within routing caps.`,
         evidence,
     };
 }
@@ -1627,12 +1623,12 @@ function jsonValueType(value) {
     }
     return typeof value;
 }
-function effectiveScriptDeriveConfig(config) {
+function effectiveScriptTransformConfig(config) {
     if (config === undefined) {
         return {
-            ...DEFAULT_SCRIPT_DERIVE_CONFIG,
-            languages: [...DEFAULT_SCRIPT_DERIVE_CONFIG.languages],
-            limits: { ...DEFAULT_SCRIPT_DERIVE_CONFIG.limits },
+            ...DEFAULT_SCRIPT_TRANSFORM_CONFIG,
+            languages: [...DEFAULT_SCRIPT_TRANSFORM_CONFIG.languages],
+            limits: { ...DEFAULT_SCRIPT_TRANSFORM_CONFIG.limits },
         };
     }
     return {
@@ -1643,9 +1639,9 @@ function effectiveScriptDeriveConfig(config) {
 }
 function effectiveScriptLimits(config, input) {
     return {
-        timeoutMs: boundedScriptLimit(input?.timeoutMs, config.limits.timeoutMs, MAX_SCRIPT_DERIVE_LIMITS.timeoutMs),
-        maxInputBytes: boundedScriptLimit(input?.maxInputBytes, config.limits.maxInputBytes, MAX_SCRIPT_DERIVE_LIMITS.maxInputBytes),
-        maxOutputBytes: boundedScriptLimit(input?.maxOutputBytes, config.limits.maxOutputBytes, MAX_SCRIPT_DERIVE_LIMITS.maxOutputBytes),
+        timeoutMs: boundedScriptLimit(input?.timeoutMs, config.limits.timeoutMs, MAX_SCRIPT_TRANSFORM_LIMITS.timeoutMs),
+        maxInputBytes: boundedScriptLimit(input?.maxInputBytes, config.limits.maxInputBytes, MAX_SCRIPT_TRANSFORM_LIMITS.maxInputBytes),
+        maxOutputBytes: boundedScriptLimit(input?.maxOutputBytes, config.limits.maxOutputBytes, MAX_SCRIPT_TRANSFORM_LIMITS.maxOutputBytes),
     };
 }
 function boundedScriptLimit(value, configured, max) {
@@ -1670,7 +1666,7 @@ function resolveSourceStream(record, requested) {
         }
         return { ok: true, stream };
     }
-    return { ok: false, message: "Repo file reference vault records store metadata only and cannot be used as derive text sources." };
+    return { ok: false, message: "Repo file reference vault records store metadata only and cannot be used as transform text sources." };
 }
 function lineageForSource(record, operation) {
     return {
@@ -1831,32 +1827,32 @@ function sourceStreamLabel(sourceLabel) {
     const [, stream] = sourceLabel.split(":");
     return stream ?? "combined";
 }
-function deriveValidationFailureWithOptionalLineage(options) {
+function transformValidationFailureWithOptionalLineage(options) {
     const failureOptions = {
         message: options.message,
         preserve: options.preserve,
         decisionSeed: options.decisionSeed,
     };
     if (options.lineage !== undefined) {
-        return deriveValidationFailure({ ...failureOptions, lineage: options.lineage });
+        return transformValidationFailure({ ...failureOptions, lineage: options.lineage });
     }
-    return deriveValidationFailure(failureOptions);
+    return transformValidationFailure(failureOptions);
 }
-function deriveSourceUnavailableFailureWithOptionalLineage(options) {
+function transformSourceUnavailableFailureWithOptionalLineage(options) {
     const failureOptions = {
         message: options.message,
         preserve: options.preserve,
         decisionSeed: options.decisionSeed,
     };
     if (options.lineage !== undefined) {
-        return deriveSourceUnavailableFailure({ ...failureOptions, lineage: options.lineage });
+        return transformSourceUnavailableFailure({ ...failureOptions, lineage: options.lineage });
     }
-    return deriveSourceUnavailableFailure(failureOptions);
+    return transformSourceUnavailableFailure(failureOptions);
 }
 function validationMessage(issues) {
-    return `Invalid derive input: ${issues.map((issue) => `${issue.path} ${issue.message}`).join("; ")}`;
+    return `Invalid transform input: ${issues.map((issue) => `${issue.path} ${issue.message}`).join("; ")}`;
 }
-function isScriptDeriveInput(input) {
+function isScriptTransformInput(input) {
     return input.operation.kind === "script";
 }
 function isOutputStream(value) {

@@ -1,5 +1,5 @@
 import { isValidPostToolRoutingMode, validatePositiveIntegerThreshold } from "./router-contract.js";
-import { CAPTURE_FREEFLOW_MEDIATED_MODES, DIRECT_HOST_TOOL_CAPTURE_MODES, OBSERVED_ROUTING_FAILURE_MODES, OBSERVED_ROUTING_PERSISTENCE_MODES, OUTPUT_ROUTER_PROFILES, PROVIDER_CATEGORIES, PROVIDER_MODES, RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES, STORAGE_POLICY_MODES, } from "./types.js";
+import { OBSERVED_ROUTING_FAILURE_MODES, OBSERVED_ROUTING_PERSISTENCE_MODES, OUTPUT_ROUTER_PROFILES, RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES, STORAGE_POLICY_MODES, } from "./types.js";
 export const OUTPUT_ROUTER_SKILL_PATH = "skills/output-router/SKILL.md";
 export const DEFAULT_VAULT_ROOT = "~/.cache/freeflow-router/vault";
 export const DEFAULT_POST_TOOL_ROUTING = "off";
@@ -14,13 +14,6 @@ export const DEFAULT_ROUTER_THRESHOLDS = {
     largeOutputBytes: 64_000,
     largeOutputLines: 1_000,
 };
-export const DEFAULT_CAPTURE_CONFIG = {
-    freeflowMediated: "raw",
-    directHostTools: "off",
-};
-export const DEFAULT_PROVIDERS_CONFIG = {
-    enabled: [],
-};
 export const DEFAULT_OBSERVED_ROUTING_PERSISTENCE = "none";
 export const SAFE_OBSERVED_ROUTING_PERSISTENCE_FALLBACK = "metadata-only";
 export const DEFAULT_OBSERVED_ROUTING_CONFIG = {
@@ -31,23 +24,23 @@ export const DEFAULT_OBSERVED_ROUTING_CONFIG = {
     fetch: { enabled: false, persistence: DEFAULT_OBSERVED_ROUTING_PERSISTENCE },
     codeSearch: { enabled: false, persistence: DEFAULT_OBSERVED_ROUTING_PERSISTENCE },
 };
-export const SCRIPT_DERIVE_LANGUAGES = ["javascript", "python", "jq"];
-export const DEFAULT_SCRIPT_DERIVE_LIMITS = {
+export const SCRIPT_TRANSFORM_LANGUAGES = ["javascript", "python", "jq"];
+export const DEFAULT_SCRIPT_TRANSFORM_LIMITS = {
     timeoutMs: 5_000,
     maxInputBytes: 1_048_576,
     maxOutputBytes: 65_536,
 };
-export const MAX_SCRIPT_DERIVE_LIMITS = {
+export const MAX_SCRIPT_TRANSFORM_LIMITS = {
     timeoutMs: 30_000,
     maxInputBytes: 10_485_760,
     maxOutputBytes: 1_048_576,
 };
-export const DEFAULT_SCRIPT_DERIVE_CONFIG = {
+export const DEFAULT_SCRIPT_TRANSFORM_CONFIG = {
     enabled: false,
     sandbox: "auto",
-    languages: [...SCRIPT_DERIVE_LANGUAGES],
+    languages: [...SCRIPT_TRANSFORM_LANGUAGES],
     network: "off",
-    limits: { ...DEFAULT_SCRIPT_DERIVE_LIMITS },
+    limits: { ...DEFAULT_SCRIPT_TRANSFORM_LIMITS },
     rawScriptPersistence: "disabled",
 };
 export const DEFAULT_LOCAL_FREEFLOW_CONFIG = {
@@ -93,49 +86,6 @@ export function normalizeRouterConfig(input) {
     applyHints(config, warnings, input.generatedPaths, input.noisyCommandHints);
     return { config, warnings };
 }
-export function normalizeCaptureConfig(input) {
-    const config = { ...DEFAULT_CAPTURE_CONFIG };
-    const warnings = [];
-    if (input === undefined || input === null) {
-        return { config, warnings };
-    }
-    if (!isRecord(input)) {
-        return {
-            config,
-            warnings: ["capture config must be an object; using built-in capture defaults."],
-        };
-    }
-    applyStringEnum(config, warnings, input.freeflowMediated, "freeflowMediated", "capture.freeflowMediated", CAPTURE_FREEFLOW_MEDIATED_MODES, DEFAULT_CAPTURE_CONFIG.freeflowMediated);
-    applyStringEnum(config, warnings, input.directHostTools, "directHostTools", "capture.directHostTools", DIRECT_HOST_TOOL_CAPTURE_MODES, DEFAULT_CAPTURE_CONFIG.directHostTools);
-    return { config, warnings };
-}
-export function normalizeProvidersConfig(input) {
-    const config = { enabled: [] };
-    const warnings = [];
-    if (input === undefined || input === null) {
-        return { config, warnings };
-    }
-    if (!isRecord(input)) {
-        return {
-            config,
-            warnings: ["providers config must be an object; using built-in provider defaults."],
-        };
-    }
-    if (input.enabled === undefined) {
-        return { config, warnings };
-    }
-    if (!Array.isArray(input.enabled)) {
-        warnings.push("Invalid providers.enabled; expected an array of provider ids or provider enablement objects.");
-        return { config, warnings };
-    }
-    input.enabled.forEach((entry, index) => {
-        const parsed = parseProviderEnablement(entry, index, warnings);
-        if (parsed) {
-            config.enabled.push(parsed);
-        }
-    });
-    return { config, warnings };
-}
 export function normalizeObservedRoutingConfig(input) {
     const config = createDefaultObservedRoutingConfig();
     const warnings = [];
@@ -156,11 +106,11 @@ export function normalizeObservedRoutingConfig(input) {
     config.codeSearch = parseObservedProducerConfig(input.codeSearch, "observedRouting.codeSearch", warnings);
     return { config, warnings };
 }
-export function normalizeScriptDeriveConfig(input) {
+export function normalizeScriptTransformConfig(input) {
     const config = {
-        ...DEFAULT_SCRIPT_DERIVE_CONFIG,
-        languages: [...DEFAULT_SCRIPT_DERIVE_CONFIG.languages],
-        limits: { ...DEFAULT_SCRIPT_DERIVE_CONFIG.limits },
+        ...DEFAULT_SCRIPT_TRANSFORM_CONFIG,
+        languages: [...DEFAULT_SCRIPT_TRANSFORM_CONFIG.languages],
+        limits: { ...DEFAULT_SCRIPT_TRANSFORM_CONFIG.limits },
     };
     const warnings = [];
     if (input === undefined || input === null) {
@@ -169,7 +119,7 @@ export function normalizeScriptDeriveConfig(input) {
     if (!isRecord(input)) {
         return {
             config,
-            warnings: ["scriptDerive config must be an object; script transform is disabled by default."],
+            warnings: ["scriptTransform config must be an object; script transform is disabled by default."],
         };
     }
     if (input.enabled !== undefined) {
@@ -177,14 +127,14 @@ export function normalizeScriptDeriveConfig(input) {
             config.enabled = input.enabled;
         }
         else {
-            warnings.push(`Invalid scriptDerive.enabled=${JSON.stringify(input.enabled)}; using false.`);
+            warnings.push(`Invalid scriptTransform.enabled=${JSON.stringify(input.enabled)}; using false.`);
         }
     }
-    applyStringEnum(config, warnings, input.sandbox, "sandbox", "scriptDerive.sandbox", ["auto"], DEFAULT_SCRIPT_DERIVE_CONFIG.sandbox);
-    applyStringEnum(config, warnings, input.network, "network", "scriptDerive.network", ["off"], DEFAULT_SCRIPT_DERIVE_CONFIG.network);
-    applyStringEnum(config, warnings, input.rawScriptPersistence, "rawScriptPersistence", "scriptDerive.rawScriptPersistence", ["disabled"], DEFAULT_SCRIPT_DERIVE_CONFIG.rawScriptPersistence);
-    applyScriptDeriveLanguages(config, warnings, input.languages);
-    applyScriptDeriveLimits(config, warnings, input.limits);
+    applyStringEnum(config, warnings, input.sandbox, "sandbox", "scriptTransform.sandbox", ["auto"], DEFAULT_SCRIPT_TRANSFORM_CONFIG.sandbox);
+    applyStringEnum(config, warnings, input.network, "network", "scriptTransform.network", ["off"], DEFAULT_SCRIPT_TRANSFORM_CONFIG.network);
+    applyStringEnum(config, warnings, input.rawScriptPersistence, "rawScriptPersistence", "scriptTransform.rawScriptPersistence", ["disabled"], DEFAULT_SCRIPT_TRANSFORM_CONFIG.rawScriptPersistence);
+    applyScriptTransformLanguages(config, warnings, input.languages);
+    applyScriptTransformLimits(config, warnings, input.limits);
     return { config, warnings };
 }
 export function normalizeLocalFreeflowConfig(input) {
@@ -230,17 +180,13 @@ export function normalizeFreeflowConfig(input) {
     const warnings = [];
     if (input !== undefined && input !== null && !isRecord(input)) {
         const router = normalizeRouterConfig(undefined);
-        const capture = normalizeCaptureConfig(undefined);
-        const providers = normalizeProvidersConfig(undefined);
         const observedRouting = normalizeObservedRoutingConfig(undefined);
-        const scriptDerive = normalizeScriptDeriveConfig(undefined);
+        const scriptTransform = normalizeScriptTransformConfig(undefined);
         return {
             config: {
                 outputRouter: router.config,
-                capture: capture.config,
-                providers: providers.config,
                 observedRouting: observedRouting.config,
-                scriptDerive: scriptDerive.config,
+                scriptTransform: scriptTransform.config,
             },
             warnings: ["Freeflow config must be an object; using built-in defaults."],
         };
@@ -250,18 +196,14 @@ export function normalizeFreeflowConfig(input) {
         warnings.push(".freeflow/config.json processing config is ignored; unsafe unsandboxed processing must be enabled in local-only .freeflow/local.json.");
     }
     const router = normalizeRouterConfig(source.outputRouter);
-    const capture = normalizeCaptureConfig(source.capture);
-    const providers = normalizeProvidersConfig(source.providers);
     const observedRouting = normalizeObservedRoutingConfig(source.observedRouting);
-    const scriptDerive = normalizeScriptDeriveConfig(source.scriptDerive);
-    warnings.push(...router.warnings, ...capture.warnings, ...providers.warnings, ...observedRouting.warnings, ...scriptDerive.warnings);
+    const scriptTransform = normalizeScriptTransformConfig(source.scriptTransform);
+    warnings.push(...router.warnings, ...observedRouting.warnings, ...scriptTransform.warnings);
     return {
         config: {
             outputRouter: router.config,
-            capture: capture.config,
-            providers: providers.config,
             observedRouting: observedRouting.config,
-            scriptDerive: scriptDerive.config,
+            scriptTransform: scriptTransform.config,
         },
         warnings,
     };
@@ -347,35 +289,35 @@ function applyHints(config, warnings, generatedPaths, noisyCommandHints) {
         config.hints = hints;
     }
 }
-function applyScriptDeriveLanguages(config, warnings, value) {
+function applyScriptTransformLanguages(config, warnings, value) {
     if (value === undefined) {
         return;
     }
     if (!Array.isArray(value)) {
-        warnings.push("Invalid scriptDerive.languages; expected an array of supported language ids.");
+        warnings.push("Invalid scriptTransform.languages; expected an array of supported language ids.");
         return;
     }
     const languages = [];
     for (const item of value) {
-        if (isStringIn(item, SCRIPT_DERIVE_LANGUAGES)) {
+        if (isStringIn(item, SCRIPT_TRANSFORM_LANGUAGES)) {
             if (!languages.includes(item)) {
                 languages.push(item);
             }
         }
         else {
-            warnings.push(`Invalid scriptDerive.languages entry=${JSON.stringify(item)}; supported languages are ${SCRIPT_DERIVE_LANGUAGES.join(", ")}.`);
+            warnings.push(`Invalid scriptTransform.languages entry=${JSON.stringify(item)}; supported languages are ${SCRIPT_TRANSFORM_LANGUAGES.join(", ")}.`);
         }
     }
     if (languages.length > 0) {
         config.languages = languages;
     }
 }
-function applyScriptDeriveLimits(config, warnings, value) {
+function applyScriptTransformLimits(config, warnings, value) {
     if (value === undefined) {
         return;
     }
     if (!isRecord(value)) {
-        warnings.push("Invalid scriptDerive.limits; expected an object with positive integer limits.");
+        warnings.push("Invalid scriptTransform.limits; expected an object with positive integer limits.");
         return;
     }
     applyScriptLimit(config, warnings, value.timeoutMs, "timeoutMs");
@@ -386,12 +328,12 @@ function applyScriptLimit(config, warnings, value, key) {
     if (value === undefined) {
         return;
     }
-    const max = MAX_SCRIPT_DERIVE_LIMITS[key];
+    const max = MAX_SCRIPT_TRANSFORM_LIMITS[key];
     if (Number.isInteger(value) && Number(value) > 0 && Number(value) <= max) {
         config.limits[key] = Number(value);
         return;
     }
-    warnings.push(`Invalid scriptDerive.limits.${key}=${JSON.stringify(value)}; using ${DEFAULT_SCRIPT_DERIVE_LIMITS[key]}.`);
+    warnings.push(`Invalid scriptTransform.limits.${key}=${JSON.stringify(value)}; using ${DEFAULT_SCRIPT_TRANSFORM_LIMITS[key]}.`);
 }
 function applyStringEnum(config, warnings, value, key, path, allowed, fallback) {
     if (value === undefined) {
@@ -487,52 +429,6 @@ function parseObservedPersistence(value, path, enabled, warnings) {
     const fallback = enabled ? SAFE_OBSERVED_ROUTING_PERSISTENCE_FALLBACK : DEFAULT_OBSERVED_ROUTING_PERSISTENCE;
     warnings.push(`Invalid ${path}=${JSON.stringify(value)}; expected exact, metadata-only, or none. Using ${fallback}.`);
     return fallback;
-}
-function parseProviderEnablement(entry, index, warnings) {
-    const path = `providers.enabled[${index}]`;
-    if (typeof entry === "string") {
-        const id = parseConfigString(entry, path, warnings);
-        return id ? { id, mode: "discovery" } : undefined;
-    }
-    if (!isRecord(entry)) {
-        warnings.push(`Invalid ${path}; expected a provider id string or provider enablement object.`);
-        return undefined;
-    }
-    const id = parseConfigString(entry.id, `${path}.id`, warnings);
-    if (!id) {
-        return undefined;
-    }
-    let mode = "discovery";
-    if (entry.mode !== undefined) {
-        if (!isStringIn(entry.mode, PROVIDER_MODES)) {
-            warnings.push(`Invalid ${path}.mode=${JSON.stringify(entry.mode)}; expected discovery or read-only.`);
-            return undefined;
-        }
-        mode = entry.mode;
-    }
-    const categories = parseProviderCategories(entry.categories, `${path}.categories`, warnings);
-    if (entry.categories !== undefined && categories === undefined) {
-        return undefined;
-    }
-    return categories ? { id, mode, categories } : { id, mode };
-}
-function parseProviderCategories(value, path, warnings) {
-    if (value === undefined) {
-        return undefined;
-    }
-    if (!Array.isArray(value) || value.length === 0) {
-        warnings.push(`Invalid ${path}; expected a non-empty array of read-only provider categories.`);
-        return undefined;
-    }
-    const categories = [];
-    for (const category of value) {
-        if (!isStringIn(category, PROVIDER_CATEGORIES)) {
-            warnings.push(`Invalid ${path}; unsupported provider category ${JSON.stringify(category)}.`);
-            return undefined;
-        }
-        categories.push(category);
-    }
-    return categories;
 }
 function parseConfigString(value, path, warnings) {
     if (typeof value !== "string" || value.trim().length === 0 || /[\u0000-\u001F\u007F-\u009F\u2028\u2029]/.test(value)) {

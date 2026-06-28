@@ -497,7 +497,7 @@ function renderReport(data) {
   lines.push("## Notes");
   lines.push("");
   lines.push("- This proof runner uses a temporary installed `@bsull/eryx` package root passed explicitly by the caller.");
-  lines.push("- It does not add repo dependencies and does not wire Python into `freeflow_derive` execution.");
+  lines.push("- It does not add repo dependencies and does not wire Python into `freeflow_search action=transform` execution.");
   lines.push("- It performs a temp-copy import rewrite and deny-only network-shim replacement. A product adapter would need an explicit package-root wrapper and focused security review before enabling this path.");
   lines.push("- Timeout proof uses Node Worker termination because Eryx's high-level JS API does not expose timeout or fuel controls.");
   lines.push("- Output proof caps what crosses from Worker to parent; Eryx/Python can still materialize large strings inside the Worker before the wrapper truncates them.");

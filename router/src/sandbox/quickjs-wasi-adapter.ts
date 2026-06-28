@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { resolveScriptTransformAdapterRoot } from "./adapter-roots.js";
 import { SCRIPT_SANDBOX_REQUIRED_PROOFS, scriptSandboxProofFixturesForLanguage } from "./script-sandbox.js";
 import type {
   ScriptSandboxAdapter,
@@ -11,7 +12,7 @@ import type {
   ScriptSandboxProof,
   ScriptSandboxProbeResult,
 } from "./script-sandbox.js";
-import type { ScriptDeriveConfig } from "../config/types.js";
+import type { ScriptTransformConfig } from "../config/types.js";
 
 const DEFAULT_PROBE_TIMEOUT_MS = 250;
 const DEFAULT_PROBE_MEMORY_BYTES = 8 * 1024 * 1024;
@@ -58,14 +59,14 @@ interface QuickJsRunResult {
 }
 
 export async function discoverQuickJsWasiSandboxAdaptersFromEnv(env: NodeJS.ProcessEnv = process.env): Promise<ScriptSandboxAdapter[]> {
-  const packageRoot = env[QUICKJS_WASI_ROOT_ENV];
-  if (!packageRoot) {
+  const candidate = await resolveScriptTransformAdapterRoot("javascript", env);
+  if (!candidate) {
     return [];
   }
   try {
-    return [await createQuickJsWasiSandboxAdapter({ packageRoot })];
+    return [await createQuickJsWasiSandboxAdapter({ packageRoot: candidate.packageRoot })];
   } catch (error) {
-    return [unavailableQuickJsAdapter(`quickjs-wasi adapter could not load from ${QUICKJS_WASI_ROOT_ENV}: ${errorMessage(error)}`)];
+    return [unavailableQuickJsAdapter(`quickjs-wasi adapter could not load from ${candidate.source === "env" ? candidate.envVar : "global adapter cache"}: ${errorMessage(error)}`)];
   }
 }
 
@@ -75,7 +76,7 @@ export async function createQuickJsWasiSandboxAdapter(options: QuickJsWasiSandbo
     id: options.id ?? "quickjs-wasi",
     version: options.version ?? runtime.packageVersion,
     languages: ["javascript"],
-    async probe(language: string, config: ScriptDeriveConfig): Promise<ScriptSandboxProbeResult> {
+    async probe(language: string, config: ScriptTransformConfig): Promise<ScriptSandboxProbeResult> {
       if (language !== "javascript") {
         return {
           status: "unavailable",
@@ -204,7 +205,7 @@ async function loadQuickJsRuntime(packageRoot: string): Promise<QuickJsRuntime> 
   };
 }
 
-async function probeQuickJsRuntime(runtime: QuickJsRuntime, config: ScriptDeriveConfig): Promise<ScriptSandboxProbeResult> {
+async function probeQuickJsRuntime(runtime: QuickJsRuntime, config: ScriptTransformConfig): Promise<ScriptSandboxProbeResult> {
   const timeoutMs = Math.min(config.limits.timeoutMs, DEFAULT_PROBE_TIMEOUT_MS);
   const outputBytes = Math.min(config.limits.maxOutputBytes, DEFAULT_PROBE_OUTPUT_BYTES);
   const cacheKey = [runtime.packageVersion, runtime.wasmSha256, timeoutMs, outputBytes, config.network].join(":");

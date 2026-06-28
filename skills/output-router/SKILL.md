@@ -1,11 +1,13 @@
 ---
 name: output-router
-description: Use when choosing between native tools and Freeflow routed tools, retrieving repo/vault evidence, capturing read-only provider evidence, deriving bounded evidence, handling unknown-size or broad output, running likely-large/noisy commands, recovering vaulted output, configuring outputRouter, or handling optional native read/bash safety-net routing.
+description: Use after the workflow, interview-gate, or discover route is clear when choosing between native tools and Freeflow routed tools, retrieving repo/vault evidence, transforming bounded evidence, handling unknown-size or broad output, running likely-large/noisy commands, recovering vaulted output, configuring outputRouter/observedRouting/scriptTransform, or handling optional native read/bash safety-net routing.
 ---
 
 # Output Router
 
 Route output deliberately. Freeflow tools are the safe first choice for unknown-size, exploratory, repo-wide, generated/log-adjacent, or likely noisy output.
+
+Output Router chooses evidence transport. It does not classify the workflow route. For product/API/tool/runtime/design questions, use Interview Gate and Discover before choosing tools.
 
 Native tools stay direct unless explicit config enables the safety net. Use native output only when it is intentionally direct, small, exact, or bounded.
 
@@ -21,8 +23,8 @@ Native tools stay direct unless explicit config enables the safety net. Use nati
 - Need to run a likely-large, broad, exploratory, or noisy command: use `freeflow_run`.
 - Need enabled Pi MCP/web/fetch/code-search output: call the host tool directly; observed routing runs after the tool result when configured.
 - Need deterministic filtering, extraction, counts, grouping, dedupe, topN, URL/citation extraction, or stats from vaulted evidence: use `freeflow_search action=transform`.
-- Need script transform: `freeflow_search action=transform operation.kind=script` is a disabled-by-default sandboxed branch. JavaScript, Python, and jq can execute only with explicit scriptDerive opt-in and available proof-backed adapters. Do not use script transform as unsandboxed code execution.
-- Need effective Freeflow router/capture/provider config, vault writability, provider availability, or migration recommendations: use `freeflow_status`.
+- Need script transform: `freeflow_search action=transform operation.kind=script` is a disabled-by-default sandboxed branch. JavaScript, Python, and jq can execute only with explicit scriptTransform opt-in and available proof-backed adapters. Do not use script transform as unsandboxed code execution.
+- Need effective Freeflow router, observed-routing, script-transform, vault writability, or migration recommendations: use `freeflow_status`.
 - Need a whole known file/artifact and direct file contents are intended: use native read.
 - Need direct shell behavior with expected-small exact output: use native bash.
 - Need to edit files: use native edit/write.
@@ -70,9 +72,9 @@ Use `query` first when the needed lines are unknown. Use `expand` when a previou
 
 ## Config
 
-The router works with built-in defaults. Use `freeflow_status` to inspect effective defaults and non-destructive migration recommendations. Persist `outputRouter`, `observedRouting`, `providers`, or `scriptDerive` config only after the setup evidence-routing/script-execution decision point or an explicit request; `setup-freeflow` owns repo setup/config changes.
+The router works with built-in defaults. Use `freeflow_status` to inspect effective defaults and non-destructive migration recommendations. Persist `outputRouter`, `observedRouting`, or `scriptTransform` config only after the setup evidence-routing/script-execution decision point or an explicit request; `setup-freeflow` owns repo setup/config changes.
 
-Supported `outputRouter` keys are `enabled`, `profile`, `postToolRouting`, `storagePolicy`, `largeOutputBytes`, `largeOutputLines`, `vaultRoot`, `vaultRetentionDays`, `generatedPaths`, and `noisyCommandHints`. `storagePolicy` supports `hybrid-dedupe` (default for `freeflow_run` command capture) and `store-everything` (compatibility/diagnostic override). Supported `observedRouting` keys are `enabled`, `onRoutingFailure`, `mcp.servers`, `web`, `fetch`, and `codeSearch`, with persistence modes `exact`, `metadata-only`, and `none`. Supported `scriptDerive` keys are `enabled`, `sandbox`, `languages`, `network`, `limits`, and `rawScriptPersistence`; defaults keep it disabled with no unsandboxed fallback. Local-only `.freeflow/local.json` may enable internal processing `unsafeUnsandboxed`; shared `.freeflow/config.json` must not. Supported high-level provider keys include `providers.enabled`.
+Supported `outputRouter` keys are `enabled`, `profile`, `postToolRouting`, `storagePolicy`, `largeOutputBytes`, `largeOutputLines`, `vaultRoot`, `vaultRetentionDays`, `generatedPaths`, and `noisyCommandHints`. `storagePolicy` supports `hybrid-dedupe` (default for `freeflow_run` command capture) and `store-everything` (compatibility/diagnostic override). Supported `observedRouting` keys are `enabled`, `onRoutingFailure`, `mcp.servers`, `web`, `fetch`, and `codeSearch`, with persistence modes `exact`, `metadata-only`, and `none`. Supported `scriptTransform` keys are `enabled`, `sandbox`, `languages`, `network`, `limits`, and `rawScriptPersistence`; defaults keep it disabled with no unsandboxed fallback. Local-only `.freeflow/local.json` may enable internal processing `unsafeUnsandboxed`; shared `.freeflow/config.json` must not.
 
 `outputRouter.postToolRouting` controls native read/bash safety-net routing:
 
@@ -84,12 +86,11 @@ Rules:
 
 - Minimal setup stays only `defaultMode`.
 - Metadata-only command records must never claim exact recovery. Exact duplicate metadata may point to a prior exact `outputId`; plain metadata-only records only get rerun guidance.
-- Do not dump defaults or create empty `outputRouter`, `observedRouting`, `capture`, `providers`, or `scriptDerive` objects; Pi setup should not write legacy `capture` config.
+- Do not dump defaults or create empty `outputRouter`, `observedRouting`, or `scriptTransform` objects. Do not write removed `capture` or `providers` config.
 - `generatedPaths` affects broad scans only; explicit path retrieval remains available.
-- Freeflow mode changes guidance strength only. It must not enable `postToolRouting` or direct host-tool capture.
+- Freeflow mode changes guidance strength only. It must not enable `postToolRouting`.
 - `observedRouting` is explicit opt-in per producer/server. The user must choose persistence for each enabled entry.
-- `scriptDerive.enabled` defaults to false. Setup must not enable it implicitly, and no script code may execute without an approved sandbox adapter. Pi JavaScript discovery is explicit via `FREEFLOW_QUICKJS_WASI_ROOT`; Pi Python discovery is explicit via `FREEFLOW_ERYX_ROOT` and requires Node `--experimental-wasm-jspi`; Pi jq discovery is explicit via `FREEFLOW_JQ_WASM_ROOT`; Freeflow must not install or download script runtimes during execution.
+- `scriptTransform.enabled` defaults to false. Setup may install global adapters and enable proof-passing `scriptTransform.languages` only after explicit consent. No script code may execute without an approved sandbox adapter. Freeflow auto-discovers setup-installed adapters under `~/.cache/freeflow-script-adapters`; `FREEFLOW_QUICKJS_WASI_ROOT`, `FREEFLOW_JQ_WASM_ROOT`, and `FREEFLOW_ERYX_ROOT` remain custom-root overrides. Python/Eryx uses the setup-installed `node@24` child process with `--experimental-wasm-jspi` when needed and is enabled only after that runner passes proofs.
 - Unsafe unsandboxed processing is local-only: `.freeflow/local.json` can enable it for this checkout, each call must still request `script.policy="unsafe-unsandboxed"`, and results must say `unsafe/unsandboxed`. Do not put this opt-in in shared `.freeflow/config.json`.
 - Do not offer or write `redacted`; it is future-only and currently falls back to `metadata-only` if hand-edited.
-- `capture.directHostTools` currently remains `off`; broad direct host-tool capture needs separate design/confirmation before other policies are written.
 - Invalid config must fall back safely with a warning.

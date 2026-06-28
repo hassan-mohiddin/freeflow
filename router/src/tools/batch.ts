@@ -17,7 +17,7 @@ import type {
   RouterThresholds,
   RoutedResult,
   SourceRef,
-  ScriptDeriveConfig,
+  ScriptTransformConfig,
   StoragePolicyMode,
   VaultRetentionPolicy,
 } from "../config/types.js";
@@ -37,7 +37,7 @@ export interface FreeflowBatchOptions {
   vaultRoot?: string;
   vaultRetention?: VaultRetentionPolicy;
   thresholds?: Partial<RouterThresholds>;
-  scriptDerive?: ScriptDeriveConfig;
+  scriptTransform?: ScriptTransformConfig;
   scriptSandboxAdapters?: readonly ScriptSandboxAdapter[];
   storagePolicy?: StoragePolicyMode;
   queries?: readonly string[];
@@ -264,7 +264,7 @@ async function executeStepResult(
       ...(options.vaultRoot !== undefined ? { vaultRoot: options.vaultRoot } : {}),
       ...(options.vaultRetention !== undefined ? { vaultRetention: options.vaultRetention } : {}),
       ...(options.thresholds !== undefined ? { thresholds: options.thresholds } : {}),
-      ...(options.scriptDerive !== undefined ? { scriptDerive: options.scriptDerive } : {}),
+      ...(options.scriptTransform !== undefined ? { scriptTransform: options.scriptTransform } : {}),
       ...(options.scriptSandboxAdapters !== undefined ? { scriptSandboxAdapters: options.scriptSandboxAdapters } : {}),
       ...(options.storagePolicy !== undefined ? { storagePolicy: options.storagePolicy } : {}),
     } as FreeflowRunOptions, runner);

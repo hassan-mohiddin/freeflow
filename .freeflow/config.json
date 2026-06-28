@@ -1,6 +1,16 @@
 {
   "defaultMode": "workflow",
   "outputRouter": {
-    "generatedPaths": ["graphify-out/**"]
+    "generatedPaths": [
+      "graphify-out/**"
+    ]
+  },
+  "scriptTransform": {
+    "enabled": true,
+    "languages": [
+      "javascript",
+      "jq",
+      "python"
+    ]
   }
 }

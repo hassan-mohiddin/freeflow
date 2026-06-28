@@ -145,16 +145,16 @@ function makeSamples() {
         routing: { status: "routed" },
         operation: { kind: "countMatches", pattern: "failed" },
         source: { kind: "vault", outputId: "ffout_vitest", stream: "stdout" },
-        outputId: "ffout_derive_count_failed",
-        summary: "Derived countMatches from vaulted stdout output: 4 matches for failed.",
+        outputId: "ffout_transform_count_failed",
+        summary: "Transformed countMatches from vaulted stdout output: 4 matches for failed.",
         evidence: [
           {
-            source: { kind: "vault", outputId: "ffout_derive_count_failed", stream: "raw" },
+            source: { kind: "vault", outputId: "ffout_transform_count_failed", stream: "raw" },
             lines: "1-6",
             excerpt: "# freeflow_search action=transform countMatches\npattern: /failed/\nmatches: 4\nline 1: 4 failed",
           },
         ],
-        recovery: { outputId: "ffout_derive_count_failed" },
+        recovery: { outputId: "ffout_transform_count_failed" },
       },
     },
     {

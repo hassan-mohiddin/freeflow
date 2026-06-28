@@ -5,18 +5,18 @@ import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { DEFAULT_SCRIPT_DERIVE_CONFIG, MAX_SCRIPT_DERIVE_LIMITS } from "../config/config.js";
+import { DEFAULT_SCRIPT_TRANSFORM_CONFIG, MAX_SCRIPT_TRANSFORM_LIMITS } from "../config/config.js";
 import { selectScriptSandboxAdapter, type ScriptSandboxAdapter, type ScriptSandboxExecutionResult, type ScriptSandboxSourceMount } from "../sandbox/script-sandbox.js";
-import type { LocalFreeflowConfig, ProcessingScriptPolicy, ScriptDeriveConfig, ScriptDeriveLanguage } from "../config/types.js";
+import type { LocalFreeflowConfig, ProcessingScriptPolicy, ScriptTransformConfig, ScriptTransformLanguage } from "../config/types.js";
 import type { LoadedProcessingSource } from "./engine.js";
 
 export interface ProcessingScriptRequest {
-  language: ScriptDeriveLanguage;
+  language: ScriptTransformLanguage;
   code: string;
   label?: string;
   alias?: string;
   policy?: ProcessingScriptPolicy;
-  limits?: Partial<ScriptDeriveConfig["limits"]>;
+  limits?: Partial<ScriptTransformConfig["limits"]>;
 }
 
 export type ProcessingScriptResult =
@@ -26,7 +26,7 @@ export type ProcessingScriptResult =
     }
   | {
       status: "unavailable";
-      language: ScriptDeriveLanguage;
+      language: ScriptTransformLanguage;
       policy: ProcessingScriptPolicy;
       reason: string;
       recommendation: string;
@@ -39,7 +39,7 @@ export type ProcessingScriptResult =
     }
   | {
       status: "rejected";
-      language: ScriptDeriveLanguage;
+      language: ScriptTransformLanguage;
       policy: "unsafe-unsandboxed";
       reason: string;
       recommendation: string;
@@ -49,7 +49,7 @@ export type ProcessingScriptResult =
     }
   | {
       status: "executed";
-      language: ScriptDeriveLanguage;
+      language: ScriptTransformLanguage;
       policy: ProcessingScriptPolicy;
       adapterId?: string;
       adapterVersion?: string;
@@ -66,7 +66,7 @@ export type ProcessingScriptResult =
     }
   | {
       status: "failed";
-      language: ScriptDeriveLanguage;
+      language: ScriptTransformLanguage;
       policy: ProcessingScriptPolicy;
       reason: string;
       adapterId?: string;
@@ -82,7 +82,7 @@ export type ProcessingScriptResult =
 export interface RunProcessingScriptOptions {
   loaded: LoadedProcessingSource;
   script: ProcessingScriptRequest;
-  scriptDerive?: ScriptDeriveConfig;
+  scriptTransform?: ScriptTransformConfig;
   localConfig?: LocalFreeflowConfig;
   adapters?: readonly ScriptSandboxAdapter[];
 }
@@ -102,7 +102,7 @@ export function processingScriptUnavailableForUnloadedSource(script: ProcessingS
 
 export async function runProcessingScript(options: RunProcessingScriptOptions): Promise<ProcessingScriptResult> {
   const policy = options.script.policy ?? "sandboxed";
-  const config = effectiveProcessingScriptConfig(options.scriptDerive);
+  const config = effectiveProcessingScriptConfig(options.scriptTransform);
   const limits = effectiveScriptLimits(config, options.script.limits);
 
   if (policy === "unsafe-unsandboxed") {
@@ -216,8 +216,8 @@ function unavailableResult(
 }
 
 async function runUnsafeUnsandboxedProcessingScript(options: RunProcessingScriptOptions & {
-  config: ScriptDeriveConfig;
-  limits: ScriptDeriveConfig["limits"];
+  config: ScriptTransformConfig;
+  limits: ScriptTransformConfig["limits"];
 }): Promise<ProcessingScriptResult> {
   if (!options.localConfig?.processing.unsafeUnsandboxed.enabled) {
     return {
@@ -290,7 +290,7 @@ async function runUnsafeUnsandboxedProcessingScript(options: RunProcessingScript
 }
 
 async function executeUnsafeJavaScriptProcessingScript(options: RunProcessingScriptOptions & {
-  limits: ScriptDeriveConfig["limits"];
+  limits: ScriptTransformConfig["limits"];
 }): Promise<
   | { ok: true; stdout: string; stderr: string; durationMs?: number }
   | { ok: false; reason: string; stdoutBytes?: number; stderrBytes?: number }
@@ -364,8 +364,8 @@ async function executeProcessingScriptWithAdapter(options: {
   adapter: ScriptSandboxAdapter;
   loaded: LoadedProcessingSource;
   script: ProcessingScriptRequest;
-  config: ScriptDeriveConfig;
-  limits: ScriptDeriveConfig["limits"];
+  config: ScriptTransformConfig;
+  limits: ScriptTransformConfig["limits"];
 }): Promise<
   | { ok: true; result: ScriptSandboxExecutionResult }
   | { ok: false; reason: string; stdoutBytes?: number; stderrBytes?: number }
@@ -438,8 +438,8 @@ async function executeProcessingScriptWithAdapter(options: {
   }
 }
 
-function effectiveProcessingScriptConfig(config: ScriptDeriveConfig | undefined): ScriptDeriveConfig {
-  const base = config ?? { ...DEFAULT_SCRIPT_DERIVE_CONFIG, enabled: true };
+function effectiveProcessingScriptConfig(config: ScriptTransformConfig | undefined): ScriptTransformConfig {
+  const base = config ?? { ...DEFAULT_SCRIPT_TRANSFORM_CONFIG, enabled: true };
   return {
     ...base,
     languages: [...base.languages],
@@ -447,11 +447,11 @@ function effectiveProcessingScriptConfig(config: ScriptDeriveConfig | undefined)
   };
 }
 
-function effectiveScriptLimits(config: ScriptDeriveConfig, input: Partial<ScriptDeriveConfig["limits"]> | undefined): ScriptDeriveConfig["limits"] {
+function effectiveScriptLimits(config: ScriptTransformConfig, input: Partial<ScriptTransformConfig["limits"]> | undefined): ScriptTransformConfig["limits"] {
   return {
-    timeoutMs: boundedScriptLimit(input?.timeoutMs, config.limits.timeoutMs, MAX_SCRIPT_DERIVE_LIMITS.timeoutMs),
-    maxInputBytes: boundedScriptLimit(input?.maxInputBytes, config.limits.maxInputBytes, MAX_SCRIPT_DERIVE_LIMITS.maxInputBytes),
-    maxOutputBytes: boundedScriptLimit(input?.maxOutputBytes, config.limits.maxOutputBytes, MAX_SCRIPT_DERIVE_LIMITS.maxOutputBytes),
+    timeoutMs: boundedScriptLimit(input?.timeoutMs, config.limits.timeoutMs, MAX_SCRIPT_TRANSFORM_LIMITS.timeoutMs),
+    maxInputBytes: boundedScriptLimit(input?.maxInputBytes, config.limits.maxInputBytes, MAX_SCRIPT_TRANSFORM_LIMITS.maxInputBytes),
+    maxOutputBytes: boundedScriptLimit(input?.maxOutputBytes, config.limits.maxOutputBytes, MAX_SCRIPT_TRANSFORM_LIMITS.maxOutputBytes),
   };
 }
 
