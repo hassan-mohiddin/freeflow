@@ -26,15 +26,6 @@ const RESET_MODE_ARGS = new Set(["reset"]);
 let runtimeContextCache = null;
 let currentModeOverride = null;
 let lastRouterConfigWarningKey = null;
-let shouldInjectFullRuntimeContext = true;
-export function resetRuntimeContextInjection() {
-    shouldInjectFullRuntimeContext = true;
-}
-export function consumeRuntimeContextInjectionState() {
-    const shouldInjectFull = shouldInjectFullRuntimeContext;
-    shouldInjectFullRuntimeContext = false;
-    return shouldInjectFull;
-}
 async function loadRuntimeContext() {
     const [modeContractSkill, workflowSkill, interviewGateSkill, discoverSkill, outputRouterSkill] = await Promise.all([
         readFile(new URL("../../skills/mode-contract/SKILL.md", import.meta.url), "utf8"),
@@ -134,20 +125,6 @@ export function skillPrompt(skill, args) {
     const trimmed = args?.trim();
     return trimmed ? `/skill:${skill}\n\n${trimmed}` : `/skill:${skill}`;
 }
-export function hasFreeflowActivation(systemPrompt) {
-    return (systemPrompt.includes("## Loaded Mode Contract Skill") &&
-        systemPrompt.includes("## Loaded Workflow Skill") &&
-        systemPrompt.includes("## Loaded Interview Gate Skill"));
-}
-export function hasDiscoverActivation(systemPrompt) {
-    return systemPrompt.includes("## Loaded Discover Skill");
-}
-export function hasFreeflowPriorityActivation(systemPrompt) {
-    return systemPrompt.includes("## Freeflow Runtime Priority");
-}
-export function hasOutputRouterActivation(systemPrompt) {
-    return systemPrompt.includes("## Loaded Output Router Skill");
-}
 function outputRouterModeGuidance(mode) {
     if (mode === "conversation") {
         return "conversation mode: keep routed-tool guidance soft; answer questions directly.";
@@ -168,25 +145,6 @@ Mode guidance: ${outputRouterModeGuidance(modeState.effectiveMode)}${safetyNetTe
 \`\`\`md
 ${freeflowContext.outputRouterSkill.trim()}
 \`\`\``;
-}
-function outputRouterReminderContext(routerConfigResult) {
-    const safetyNet = routerConfigResult.config.postToolRouting === "off"
-        ? "native safety-net=off; native read/bash stay direct unless deliberately small/exact."
-        : `native safety-net=${routerConfigResult.config.postToolRouting}; large native read/bash may be vaulted and labeled with recovery.`;
-    return `## Freeflow Output Router Reminder
-
-Tools remain available every turn:
-
-- Existing repo/vault evidence: \`freeflow_search\`.
-- Snippet/text to coordinates: \`freeflow_search action=get\`.
-- Known coordinates to exact lines: \`freeflow_search action=retrieve\`.
-- Existing data to computed facts/subsets: \`freeflow_search action=transform\`.
-- New noisy/large command or sandboxed script output: \`freeflow_run\`.
-- Independent Freeflow run/search steps: \`freeflow_batch\`.
-- Config, vault, observed-routing, or script-adapter status: \`freeflow_status\`.
-- ${safetyNet}
-
-Prefer routed tools for unknown-size, repo-wide, generated/log-adjacent, structured, or noisy output. Use native read/bash only when direct known-small output is intentional.`;
 }
 function runtimePriorityContext() {
     return `## Freeflow Runtime Priority
@@ -214,22 +172,11 @@ function discoverContext(freeflowContext) {
 ${freeflowContext.discoverSkill.trim()}
 \`\`\``;
 }
-export function runtimeContext(modeState, freeflowContext, routerConfigResult, alreadyActivated, routerAlreadyActivated, discoverAlreadyActivated, priorityAlreadyActivated) {
+export function runtimeContext(modeState, freeflowContext, routerConfigResult) {
     const currentMode = modeState.currentMode ?? "none";
-    const priorityText = priorityAlreadyActivated ? "" : `\n\n${runtimePriorityContext()}`;
-    const discoverText = discoverAlreadyActivated ? "" : `\n\n${discoverContext(freeflowContext)}`;
-    const routerText = routerAlreadyActivated || !routerConfigResult.config.enabled ? "" : `\n\n${outputRouterContext(modeState, freeflowContext, routerConfigResult)}`;
-    const routerReminderText = routerConfigResult.config.enabled ? `\n\n${outputRouterReminderContext(routerConfigResult)}` : "";
-    const shortRouterText = routerText || routerReminderText;
-    if (alreadyActivated) {
-        return `## Freeflow Runtime Context
-
-Repo default mode from \`.freeflow/config.json\`: ${modeState.defaultMode}.
-Current session mode override: ${currentMode}.
-Effective Freeflow mode: ${modeState.effectiveMode}.
-
-Treat the effective mode as the current mode for this turn. Follow the installed Freeflow rules for that mode; default workflow means use workflow rules for consequential work. Conversation mode is non-mutating only: discussion, read-only inspection, safe read-only commands, and planning in chat. If effective mode is conversation and the user asks to edit, create files, run mutating commands, commit, push, or otherwise change repo/system state, require switching to \`workflow\` or \`strict-workflow\` before acting, even if pressured. If mode interpretation, a mode change, or a mode mismatch affects the next action, use \`mode-contract\` before proceeding. If evidence routing or output-router config affects the next action, use \`output-router\`, \`freeflow_status\`, and live config instead of remembered routing rules. Use the installed Freeflow skills when they match the task. This Pi extension loads context and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.${priorityText}${discoverText}${shortRouterText}`;
-    }
+    const routerText = routerConfigResult.config.enabled
+        ? `\n\n${outputRouterContext(modeState, freeflowContext, routerConfigResult)}`
+        : "";
     return `# Freeflow Runtime Context
 
 Freeflow Pi extension loaded this before the agent turn.
@@ -262,7 +209,7 @@ ${freeflowContext.interviewGateSkill.trim()}
 
 ${discoverContext(freeflowContext)}
 
-${routerText ? `${routerText.trimStart()}\n\n` : ""}This Pi extension loads context and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.`;
+${routerText ? `${routerText.trimStart()}\n\n` : ""}This Pi extension loads the full core runtime context before every agent turn and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.`;
 }
 export async function handleWorkflowCommand(args, ctx, pi) {
     const arg = args?.trim();

@@ -1487,19 +1487,19 @@ Output Router is loaded as part of Pi runtime context.
 
 Pi extension lifecycle:
 
-- `session_start`: reset full-context injection, restore mode override, refresh runtime context, read config, update UI status.
-- `session_compact`: same reset/refresh behavior.
-- `before_agent_start`: inject full workflow/interview/discover/output-router skill context once per session/compaction boundary, then short refresh context on later turns.
-- later turns always include a compact output-router tool reminder while the router is enabled, so the agent keeps the tool map without reloading the whole skill.
-- the full output-router safety-policy reference is not injected by default; the active skill carries compact hard rules and points to the reference for policy changes/reviews.
+- `session_start`: restore mode override, refresh runtime context, read config, update UI status.
+- `session_compact`: refresh runtime context, read config, update UI status.
+- `before_agent_start`: inject full mode-contract/workflow/interview-gate/discover/output-router skill context before every agent turn.
+- the workflow-map reference and full output-router safety-policy reference are not injected by default; the active skills carry compact rules and point to references for deeper cases.
 - `tool_result`: observed routing first, native safety net second.
 
 Runtime priority stated to the model:
 
-1. Workflow classifies conversation vs consequential work.
-2. Interview Gate stops silent decisions and source-truth conflicts.
-3. Discover handles context-building.
-4. Output Router chooses evidence transport after the route is clear.
+1. Mode Contract handles mode setting, interpretation, and mismatch.
+2. Workflow classifies conversation vs consequential work.
+3. Interview Gate stops silent decisions and source-truth conflicts.
+4. Discover handles context-building.
+5. Output Router chooses evidence transport after the route is clear.
 
 Output Router must not bypass workflow decisions. It only chooses how evidence is transported.
 

@@ -1,12 +1,10 @@
 import { handleNativeToolSafetyNet } from "./native-safety-net.js";
 import { handleObservedToolRouting } from "./observed-tool-routing.js";
 import { registerRouterTools } from "./router-tools.js";
-import { CONTRIBUTOR_COMMANDS, WORKFLOW_COMMANDS, getRuntimeContext, handleWorkflowCommand, hasDiscoverActivation, hasFreeflowActivation, hasFreeflowPriorityActivation, hasOutputRouterActivation, consumeRuntimeContextInjectionState, readModeState, readOutputRouterConfig, refreshRuntimeContext, resetRuntimeContextInjection, restoreModeOverride, runtimeContext, setModeStatus, skillPrompt, notifyRouterConfigWarnings, } from "./runtime-context.js";
+import { CONTRIBUTOR_COMMANDS, WORKFLOW_COMMANDS, getRuntimeContext, handleWorkflowCommand, readModeState, readOutputRouterConfig, refreshRuntimeContext, restoreModeOverride, runtimeContext, setModeStatus, skillPrompt, notifyRouterConfigWarnings, } from "./runtime-context.js";
 export default function freeflow(pi) {
-    resetRuntimeContextInjection();
     registerRouterTools(pi);
     pi.on("session_start", async (_event, ctx) => {
-        resetRuntimeContextInjection();
         restoreModeOverride(ctx);
         const [modeState, routerConfigResult] = await Promise.all([
             readModeState(ctx.cwd),
@@ -17,7 +15,6 @@ export default function freeflow(pi) {
         notifyRouterConfigWarnings(ctx, routerConfigResult);
     });
     pi.on("session_compact", async (_event, ctx) => {
-        resetRuntimeContextInjection();
         const [modeState, routerConfigResult] = await Promise.all([
             readModeState(ctx.cwd),
             readOutputRouterConfig(ctx.cwd),
@@ -34,17 +31,10 @@ export default function freeflow(pi) {
         ]);
         setModeStatus(ctx, modeState);
         notifyRouterConfigWarnings(ctx, routerConfigResult);
-        // Full skill markdown is expensive. Inject it once per session/compaction boundary,
-        // then keep later turns to a short mode/priority refresh.
-        const injectFullRuntimeContext = consumeRuntimeContextInjectionState();
-        const hasFullRuntimeContext = !injectFullRuntimeContext || hasFreeflowActivation(event.systemPrompt);
-        const routerAlreadyActivated = !injectFullRuntimeContext || hasOutputRouterActivation(event.systemPrompt);
-        const discoverAlreadyActivated = !injectFullRuntimeContext || hasDiscoverActivation(event.systemPrompt);
-        const priorityAlreadyActivated = hasFreeflowPriorityActivation(event.systemPrompt);
         return {
             systemPrompt: event.systemPrompt +
                 "\n\n" +
-                runtimeContext(modeState, freeflowContext, routerConfigResult, hasFullRuntimeContext, routerAlreadyActivated, discoverAlreadyActivated, priorityAlreadyActivated),
+                runtimeContext(modeState, freeflowContext, routerConfigResult),
         };
     });
     pi.on("tool_result", async (event, ctx) => {
