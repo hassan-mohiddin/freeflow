@@ -97,7 +97,7 @@ export async function runContextModeRealDeepBenchmark(options = {}) {
             const result = await freeflowSearch(retrieveOptions);
             return { result, text: freeflowText(result), latencyMs: Math.round(performance.now() - start) };
         }
-        async function ffDerive(sourceOutputId, stream, operation) {
+        async function ffTransform(sourceOutputId, stream, operation) {
             const start = performance.now();
             const result = await freeflowTransform({
                 source: { kind: "vault", outputId: sourceOutputId, stream },
@@ -232,7 +232,7 @@ export async function runContextModeRealDeepBenchmark(options = {}) {
         const accessRaw = await ffRun("cat fixtures/access.log", "diagnosis");
         const accessOutputId = recoveryOutputId(accessRaw.result);
         if (accessOutputId) {
-            const statusGroups = await ffDerive(accessOutputId, "stdout", {
+            const statusGroups = await ffTransform(accessOutputId, "stdout", {
                 kind: "groupByRegex",
                 pattern: '" (\\d{3}) \\d+ (\\d+)ms$',
                 group: "1",
@@ -240,12 +240,12 @@ export async function runContextModeRealDeepBenchmark(options = {}) {
                 maxLinesPerGroup: 1,
             });
             record({
-                fixture: "access-log-derive-status",
-                category: "derive",
+                fixture: "access-log-transform-status",
+                category: "transform",
                 rawBytes: fileSize("fixtures/access.log"),
                 facts: ["200", "500", "401", "404"],
-                mode: "freeflow:derive-groupByRegex",
-                capability: "deterministic derive over vault",
+                mode: "freeflow:transform-groupByRegex",
+                capability: "deterministic transform over vault",
                 obs: statusGroups,
                 notes: "Groups statuses but does not compute all aggregate counts/error rate/avg latency.",
             });
@@ -253,14 +253,14 @@ export async function runContextModeRealDeepBenchmark(options = {}) {
         const analyticsRaw = await ffRun("cat fixtures/analytics.csv", "inspect CSV");
         const analyticsOutputId = recoveryOutputId(analyticsRaw.result);
         if (analyticsOutputId) {
-            const timeouts = await ffDerive(analyticsOutputId, "stdout", { kind: "countMatches", pattern: ",timeout," });
+            const timeouts = await ffTransform(analyticsOutputId, "stdout", { kind: "countMatches", pattern: ",timeout," });
             record({
                 fixture: "analytics-count-timeouts",
-                category: "derive",
+                category: "transform",
                 rawBytes: fileSize("fixtures/analytics.csv"),
                 facts: ["matches: 50"],
-                mode: "freeflow:derive-countMatches",
-                capability: "deterministic derive over vault",
+                mode: "freeflow:transform-countMatches",
+                capability: "deterministic transform over vault",
                 obs: timeouts,
                 notes: "Can count one selected fact but not summarize CSV distribution without a script transform.",
             });
@@ -538,11 +538,11 @@ export function renderContextModeRealDeepBenchmarkReport(report) {
         lines.push(`- ${item}`);
     }
     lines.push("");
-    lines.push("## Baseline checks");
+    lines.push("## Expected limitation checks");
     lines.push("");
-    lines.push(`Expected current Freeflow failures detected: ${report.baselineChecks.expectedCurrentFailuresDetected ? "yes" : "no"}`);
+    lines.push(`Expected Freeflow limitations detected: ${report.baselineChecks.expectedCurrentFailuresDetected ? "yes" : "no"}`);
     if (report.baselineChecks.missingExpectedFailureKeys.length > 0) {
-        lines.push(`Missing expected failure keys: ${report.baselineChecks.missingExpectedFailureKeys.join(", ")}`);
+        lines.push(`Missing expected limitation keys: ${report.baselineChecks.missingExpectedFailureKeys.join(", ")}`);
     }
     for (const note of report.baselineChecks.notes) {
         lines.push(`- ${note}`);
@@ -660,7 +660,7 @@ function buildReport(input) {
         contextModeStatsPreview: input.contextModeStatsPreview,
         notes: [
             "This is a real local Context Mode comparison, but public superiority claims remain disallowed until reviewed acceptance criteria pass.",
-            "Freeflow baseline failures are expected in Slice 0; this benchmark exists to keep those failures durable before behavior changes.",
+            "The remaining expected Freeflow failure is the host-shell outside-file-boundary row: freeflow_run captures host command output and is not a project-boundary file sandbox.",
         ],
     };
 }
@@ -1059,8 +1059,8 @@ function buildBaselineChecks(clusters) {
         detectedFailureKeys: [...detected].sort(),
         missingExpectedFailureKeys,
         notes: [
-            "Slice 0 expects current Freeflow failure classes to be present so later reducer/search/batch work has a durable baseline.",
-            "A missing expected failure means the benchmark changed, behavior improved, or fixture facts need review before using this baseline.",
+            "The expected limitation set tracks Freeflow behavior that should remain visible rather than silently reclassified as a pass.",
+            "A missing expected limitation means behavior changed, the benchmark changed, or fixture facts need review before making comparison claims.",
         ],
     };
 }
@@ -1280,7 +1280,7 @@ async function runCli() {
         jsonReportPath: jsonReportPath === undefined ? defaultRealDeepJsonReportPath(effectiveReportPath) : jsonReportPath,
     });
     const shortId = createHash("sha256").update(JSON.stringify({ summaries: report.summaries, baselineChecks: report.baselineChecks })).digest("hex").slice(0, 8);
-    console.log(`Freeflow real Context Mode deep benchmark ${shortId}: context-mode=${report.contextMode.status}, rows=${report.rows.length}, expected-failures=${report.baselineChecks.expectedCurrentFailuresDetected ? "detected" : "missing"}`);
+    console.log(`Freeflow real Context Mode deep benchmark ${shortId}: context-mode=${report.contextMode.status}, rows=${report.rows.length}, expected-limitations=${report.baselineChecks.expectedCurrentFailuresDetected ? "detected" : "missing"}`);
     console.log(`Markdown report: ${reports.markdown}`);
     if (reports.json) {
         console.log(`JSON run data: ${reports.json}`);

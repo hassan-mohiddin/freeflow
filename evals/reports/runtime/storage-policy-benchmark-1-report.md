@@ -1,6 +1,6 @@
 # Storage Policy Benchmark Report - Iteration 1
 
-Date: 2026-06-26
+Date: 2026-06-28
 
 ## Scope
 
@@ -18,11 +18,11 @@ Benchmark-only experiment for Freeflow vault storage policies. This report does 
 
 | Policy | Exact-sensitive recovery | Storage bytes | Index bytes | Exact stored bytes | Storage reduction | Token-surface reduction | Privacy surface | Metadata-only | Duplicate metadata | Latency p50/p95 | Notes |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| Store everything exactly | 8/8 | 490785 | 185735 | 121022 | 0.00% | 0.00% | 100.00% | 0 | 0 | 1.61/2.97 |  |
-| Threshold exact storage | 0/8 | 466984 | 185391 | 120120 | 0.75% | 0.75% | 99.25% | 14 | 0 | 1.17/1.76 | disqualified: exactness-sensitive failure/verification output would lose exact recovery threshold-only policy is unsafe without an exactness-sensitive override |
-| Metadata-small / exact-large hybrid | 8/8 | 483256 | 186749 | 120884 | 0.11% | 0.12% | 99.89% | 6 | 0 | 1.30/1.78 | hybrid preserved exact recovery for sensitive fixtures while reducing exact raw storage |
-| Duplicate output dedupe | 8/8 | 172791 | 66691 | 30335 | 74.93% | 74.93% | 25.07% | 12 | 12 | 1.06/1.38 | duplicates kept metadata pointers to prior exact output |
-| Hybrid exactness + duplicate dedupe | 8/8 | 168371 | 66134 | 30299 | 74.96% | 74.96% | 25.04% | 14 | 8 | 1.05/1.33 | hybrid+dedupe preserved exact-sensitive recovery while metadata-only small output and duplicate pointers reduced exact raw storage |
+| Store everything exactly | 8/8 | 490785 | 185735 | 121022 | 0.00% | 0.00% | 100.00% | 0 | 0 | 1.58/2.76 |  |
+| Threshold exact storage | 0/8 | 466984 | 185391 | 120120 | 0.75% | 0.75% | 99.25% | 14 | 0 | 1.21/1.78 | disqualified: exactness-sensitive failure/verification output would lose exact recovery threshold-only policy is unsafe without an exactness-sensitive override |
+| Metadata-small / exact-large hybrid | 8/8 | 483256 | 186749 | 120884 | 0.11% | 0.12% | 99.89% | 6 | 0 | 1.32/1.74 | hybrid preserved exact recovery for sensitive fixtures while reducing exact raw storage |
+| Duplicate output dedupe | 8/8 | 172791 | 66691 | 30335 | 74.93% | 74.93% | 25.07% | 12 | 12 | 1.04/1.43 | duplicates kept metadata pointers to prior exact output |
+| Hybrid exactness + duplicate dedupe | 8/8 | 168371 | 66134 | 30299 | 74.96% | 74.96% | 25.04% | 14 | 8 | 1.02/1.35 | hybrid+dedupe preserved exact-sensitive recovery while metadata-only small output and duplicate pointers reduced exact raw storage |
 
 ## Candidate Notes
 
@@ -127,20 +127,20 @@ First occurrence is stored exactly; exact duplicates become metadata-only record
 | small-failure | 1 | command/exact | exact | 104 | exact combined recovery passed |
 | verification-output | 1 | command/exact | exact | 52 | exact combined recovery passed |
 | large-log | 1 | command/exact | exact | 30030 | exact combined recovery passed |
-| large-log-repeat | 1 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_294d89a41483b7dab6ce642b |
+| large-log-repeat | 1 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_a7c4a56fb1bc488dc03fa0ef |
 | repeated-failure-a | 1 | command/exact | exact | 113 | exact combined recovery passed |
-| repeated-failure-b | 1 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_628d69c7cbc7feab3175cbcc |
+| repeated-failure-b | 1 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_8e9758900243b59ade59cc2b |
 | repeat-a | 1 | command/exact | exact | 33 | exact combined recovery passed |
-| repeat-b | 1 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_7beaa2a950f6ebdf3a9110a0 |
-| small-success | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_dc9fd59fb47c5aa74b86124a |
-| small-failure | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_c717966f003e72a574c6c819 |
-| verification-output | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_1f14dc17fb2a201311d662a5 |
-| large-log | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_294d89a41483b7dab6ce642b |
-| large-log-repeat | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_294d89a41483b7dab6ce642b |
-| repeated-failure-a | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_628d69c7cbc7feab3175cbcc |
-| repeated-failure-b | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_628d69c7cbc7feab3175cbcc |
-| repeat-a | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_7beaa2a950f6ebdf3a9110a0 |
-| repeat-b | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_7beaa2a950f6ebdf3a9110a0 |
+| repeat-b | 1 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_a29dfa4bd5a569d730e6cee3 |
+| small-success | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_4e210a9b34da56ca40514bd6 |
+| small-failure | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_a4991d68dddc508bd8043e65 |
+| verification-output | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_57eddf9b12365d59cb7ba3ce |
+| large-log | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_a7c4a56fb1bc488dc03fa0ef |
+| large-log-repeat | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_a7c4a56fb1bc488dc03fa0ef |
+| repeated-failure-a | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_8e9758900243b59ade59cc2b |
+| repeated-failure-b | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_8e9758900243b59ade59cc2b |
+| repeat-a | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_a29dfa4bd5a569d730e6cee3 |
+| repeat-b | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_a29dfa4bd5a569d730e6cee3 |
 
 ### Hybrid exactness + duplicate dedupe
 
@@ -156,18 +156,18 @@ Exactness-sensitive or >= 8192 byte outputs stay exactly recoverable; exact dupl
 | small-failure | 1 | command/exact | exact | 104 | exact combined recovery passed |
 | verification-output | 1 | command/exact | exact | 52 | exact combined recovery passed |
 | large-log | 1 | command/exact | exact | 30030 | exact combined recovery passed |
-| large-log-repeat | 1 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_dc794d837600afc85c0520c7 |
+| large-log-repeat | 1 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_5153e748859b1faf49211433 |
 | repeated-failure-a | 1 | command/exact | exact | 113 | exact combined recovery passed |
-| repeated-failure-b | 1 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_c00d649118203b72321d2654 |
+| repeated-failure-b | 1 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_78ba156d8ff23576c596ff12 |
 | repeat-a | 1 | metadata/metadata_only | metadata-only | 0 | metadata-only record intentionally has no raw exact recovery |
 | repeat-b | 1 | metadata/metadata_only | metadata-only | 0 | metadata-only record intentionally has no raw exact recovery |
 | small-success | 2 | metadata/metadata_only | metadata-only | 0 | metadata-only record intentionally has no raw exact recovery |
-| small-failure | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_bac9a1ffea891a65f4ef9620 |
-| verification-output | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_c8d7d65501504bd00afcdb57 |
-| large-log | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_dc794d837600afc85c0520c7 |
-| large-log-repeat | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_dc794d837600afc85c0520c7 |
-| repeated-failure-a | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_c00d649118203b72321d2654 |
-| repeated-failure-b | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_c00d649118203b72321d2654 |
+| small-failure | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_97633d780c13e9c3385a6196 |
+| verification-output | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_1e58e267e9ad6f288c56c3d7 |
+| large-log | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_5153e748859b1faf49211433 |
+| large-log-repeat | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_5153e748859b1faf49211433 |
+| repeated-failure-a | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_78ba156d8ff23576c596ff12 |
+| repeated-failure-b | 2 | metadata/metadata_only | duplicate-ref | 0 | metadata duplicate points to exact outputId=ffout_78ba156d8ff23576c596ff12 |
 | repeat-a | 2 | metadata/metadata_only | metadata-only | 0 | metadata-only record intentionally has no raw exact recovery |
 | repeat-b | 2 | metadata/metadata_only | metadata-only | 0 | metadata-only record intentionally has no raw exact recovery |
 
