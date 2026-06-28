@@ -112,7 +112,7 @@ For local development from this checkout:
 pi install .
 ```
 
-The Pi package exposes Freeflow skills and a small extension that registers direct Freeflow commands and loads workflow, interview-gate, discover, workflow-map, and output-router context before agent turns.
+The Pi package exposes Freeflow skills and a small extension that registers direct Freeflow commands and loads mode-contract, workflow, interview-gate, discover, and output-router context before agent turns.
 
 ### Required Step 1: Run Setup
 
@@ -124,7 +124,7 @@ The Pi package exposes Freeflow skills and a small extension that registers dire
 
 Setup creates the repo activation file and `.freeflow/config.json`. It does not create repo-local hooks, docs inventories, state files, handoffs, or `.codex/rules` behavior files.
 
-After successful setup, the setup skill reads the workflow, interview-gate, discover, and workflow-map context before its final response so the current session can continue with Freeflow loaded.
+After successful setup, the setup skill reads the mode-contract, workflow, interview-gate, discover, and output-router skills before its final response so the current session can continue with Freeflow loaded.
 
 ### Required Step 2: Enable Hooks
 
@@ -136,7 +136,7 @@ After successful setup, the setup skill reads the workflow, interview-gate, disc
 
 Press `t` to trust/enable the hook when Codex marks it as needing review.
 
-Once enabled, the hook loads Freeflow workflow, interview-gate, discover, and workflow-map context at session start, resume, clear, and compact.
+Once enabled, the hook loads Freeflow mode-contract, workflow, interview-gate, discover, and output-router context at session start, resume, clear, and compact.
 
 In Pi, Freeflow's package extension provides the context-loading hook through Pi lifecycle events. It refreshes workflow context on session start and compact, then injects it before agent turns. If you install it project-locally, trust the project when Pi prompts for project-local package resources.
 

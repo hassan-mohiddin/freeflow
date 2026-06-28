@@ -1,7 +1,7 @@
 {
   "name": "freeflow",
   "description": "Lightweight workflow for coding agents. Conversation, workflow, and strict-workflow skills for planning, execution, review, verification, handoff, and decision capture.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": {
     "name": "Hassan Mohiddin"
   },

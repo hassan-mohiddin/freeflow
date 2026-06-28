@@ -45,16 +45,15 @@ export function consumeRuntimeContextInjectionState() {
 }
 
 async function loadRuntimeContext() {
-  const [workflowSkill, workflowMap, interviewGateSkill, discoverSkill, outputRouterSkill, outputRouterSafetyPolicy] = await Promise.all([
+  const [modeContractSkill, workflowSkill, interviewGateSkill, discoverSkill, outputRouterSkill] = await Promise.all([
+    readFile(new URL("../../skills/mode-contract/SKILL.md", import.meta.url), "utf8"),
     readFile(new URL("../../skills/workflow/SKILL.md", import.meta.url), "utf8"),
-    readFile(new URL("../../skills/workflow/references/workflow-map.md", import.meta.url), "utf8"),
     readFile(new URL("../../skills/interview-gate/SKILL.md", import.meta.url), "utf8"),
     readFile(new URL("../../skills/discover/SKILL.md", import.meta.url), "utf8"),
     readFile(new URL("../../skills/output-router/SKILL.md", import.meta.url), "utf8"),
-    readFile(new URL("../../skills/output-router/references/safety-policy.md", import.meta.url), "utf8"),
   ]);
 
-  return { workflowSkill, workflowMap, interviewGateSkill, discoverSkill, outputRouterSkill, outputRouterSafetyPolicy };
+  return { modeContractSkill, workflowSkill, interviewGateSkill, discoverSkill, outputRouterSkill };
 }
 
 export async function refreshRuntimeContext() {
@@ -162,8 +161,8 @@ export function skillPrompt(skill, args) {
 
 export function hasFreeflowActivation(systemPrompt) {
   return (
+    systemPrompt.includes("## Loaded Mode Contract Skill") &&
     systemPrompt.includes("## Loaded Workflow Skill") &&
-    systemPrompt.includes("## Loaded Workflow Map") &&
     systemPrompt.includes("## Loaded Interview Gate Skill")
   );
 }
@@ -177,10 +176,7 @@ export function hasFreeflowPriorityActivation(systemPrompt) {
 }
 
 export function hasOutputRouterActivation(systemPrompt) {
-  return (
-    systemPrompt.includes("## Loaded Output Router Skill") &&
-    systemPrompt.includes("## Loaded Output Router Safety Policy")
-  );
+  return systemPrompt.includes("## Loaded Output Router Skill");
 }
 
 function outputRouterModeGuidance(mode) {
@@ -205,24 +201,48 @@ Mode guidance: ${outputRouterModeGuidance(modeState.effectiveMode)}${safetyNetTe
 
 \`\`\`md
 ${freeflowContext.outputRouterSkill.trim()}
-\`\`\`
-
-## Loaded Output Router Safety Policy
-
-\`\`\`md
-${freeflowContext.outputRouterSafetyPolicy.trim()}
 \`\`\``;
+}
+
+function outputRouterReminderContext(routerConfigResult) {
+  const safetyNet = routerConfigResult.config.postToolRouting === "off"
+    ? "native safety-net=off; native read/bash stay direct unless deliberately small/exact."
+    : `native safety-net=${routerConfigResult.config.postToolRouting}; large native read/bash may be vaulted and labeled with recovery.`;
+  return `## Freeflow Output Router Reminder
+
+Tools remain available every turn:
+
+- Existing repo/vault evidence: \`freeflow_search\`.
+- Snippet/text to coordinates: \`freeflow_search action=get\`.
+- Known coordinates to exact lines: \`freeflow_search action=retrieve\`.
+- Existing data to computed facts/subsets: \`freeflow_search action=transform\`.
+- New noisy/large command or sandboxed script output: \`freeflow_run\`.
+- Independent Freeflow run/search steps: \`freeflow_batch\`.
+- Config, vault, observed-routing, or script-adapter status: \`freeflow_status\`.
+- ${safetyNet}
+
+Prefer routed tools for unknown-size, repo-wide, generated/log-adjacent, structured, or noisy output. Use native read/bash only when direct known-small output is intentional.`;
 }
 
 function runtimePriorityContext() {
   return `## Freeflow Runtime Priority
 
-Priority order for matched skills:
+Mode Contract handles mode setting, mode interpretation, and mode mismatch before task routing when mode is at issue.
+
+Priority order for matched non-mode workflow skills:
 
 1. Workflow classifies conversation versus consequential work.
 2. Interview Gate stops silent decisions, user-owned decisions, source-truth conflicts, and question-to-action mistakes.
 3. Discover handles context-building after no immediate stop condition remains. Use it before first repo/code exploration or design answers for consequential product/API/tool/runtime hypotheses.
 4. Output Router chooses evidence transport after the workflow/interview/discover route is clear.`;
+}
+
+function modeContractContext(freeflowContext) {
+  return `## Loaded Mode Contract Skill
+
+\`\`\`md
+${freeflowContext.modeContractSkill.trim()}
+\`\`\``;
 }
 
 function discoverContext(freeflowContext) {
@@ -246,6 +266,8 @@ export function runtimeContext(
   const priorityText = priorityAlreadyActivated ? "" : `\n\n${runtimePriorityContext()}`;
   const discoverText = discoverAlreadyActivated ? "" : `\n\n${discoverContext(freeflowContext)}`;
   const routerText = routerAlreadyActivated || !routerConfigResult.config.enabled ? "" : `\n\n${outputRouterContext(modeState, freeflowContext, routerConfigResult)}`;
+  const routerReminderText = routerConfigResult.config.enabled ? `\n\n${outputRouterReminderContext(routerConfigResult)}` : "";
+  const shortRouterText = routerText || routerReminderText;
 
   if (alreadyActivated) {
     return `## Freeflow Runtime Context
@@ -254,7 +276,7 @@ Repo default mode from \`.freeflow/config.json\`: ${modeState.defaultMode}.
 Current session mode override: ${currentMode}.
 Effective Freeflow mode: ${modeState.effectiveMode}.
 
-Treat the effective mode as the current mode for this turn. Follow the installed Freeflow rules for that mode; default workflow means use workflow rules for consequential work. Conversation mode is non-mutating only: discussion, read-only inspection, safe read-only commands, and planning in chat. If effective mode is conversation and the user asks to edit, create files, run mutating commands, commit, push, or otherwise change repo/system state, require switching to \`workflow\` or \`strict-workflow\` before acting, even if pressured. If mode interpretation, a mode change, or a mode mismatch affects the next action, use \`mode-contract\` before proceeding. If evidence routing or output-router config affects the next action, use \`output-router\`, \`freeflow_status\`, and live config instead of remembered routing rules. Use the installed Freeflow skills when they match the task. This Pi extension loads context and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.${priorityText}${discoverText}${routerText}`;
+Treat the effective mode as the current mode for this turn. Follow the installed Freeflow rules for that mode; default workflow means use workflow rules for consequential work. Conversation mode is non-mutating only: discussion, read-only inspection, safe read-only commands, and planning in chat. If effective mode is conversation and the user asks to edit, create files, run mutating commands, commit, push, or otherwise change repo/system state, require switching to \`workflow\` or \`strict-workflow\` before acting, even if pressured. If mode interpretation, a mode change, or a mode mismatch affects the next action, use \`mode-contract\` before proceeding. If evidence routing or output-router config affects the next action, use \`output-router\`, \`freeflow_status\`, and live config instead of remembered routing rules. Use the installed Freeflow skills when they match the task. This Pi extension loads context and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.${priorityText}${discoverText}${shortRouterText}`;
   }
 
   return `# Freeflow Runtime Context
@@ -273,6 +295,8 @@ Do not announce the current mode on every reply. Mention it when the user asks, 
 
 ${runtimePriorityContext()}
 
+${modeContractContext(freeflowContext)}
+
 ## Loaded Workflow Skill
 
 \`\`\`md
@@ -286,12 +310,6 @@ ${freeflowContext.interviewGateSkill.trim()}
 \`\`\`
 
 ${discoverContext(freeflowContext)}
-
-## Loaded Workflow Map
-
-\`\`\`md
-${freeflowContext.workflowMap.trim()}
-\`\`\`
 
 ${routerText ? `${routerText.trimStart()}\n\n` : ""}This Pi extension loads context and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.`;
 }

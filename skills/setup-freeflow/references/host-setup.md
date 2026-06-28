@@ -28,8 +28,8 @@ Valid persisted defaults are exactly `conversation`, `workflow`, and `strict-wor
 
 Do not install repo-local hooks, CLI commands, lint rules, global standards, docs inventories, setup-output-router skills, or state files during setup.
 
-Freeflow's plugin-bundled context hooks are package runtime. They load workflow, interview-gate, discover, and workflow-map context at session start, but setup should not copy hook files into the target repo.
+Freeflow's plugin-bundled context hooks are package runtime. They load mode-contract, workflow, interview-gate, discover, and output-router context at session start, but setup should not copy hook files into the target repo.
 
-After successful setup verification, setup should read the workflow skill, interview-gate skill, discover skill, and workflow map before the final response. If session-start runtime context does not load in later sessions, tell the user to review/trust the installed Freeflow plugin hooks or start a fresh/compacted session. Do not create repo-local hook files as a workaround.
+After successful setup verification, setup should read the mode-contract, workflow, interview-gate, discover, and output-router skills before the final response. If session-start runtime context does not load in later sessions, tell the user to review/trust the installed Freeflow plugin hooks or start a fresh/compacted session. Do not create repo-local hook files as a workaround.
 
 If the user asks for enforcement, say Freeflow setup is instruction-only for now and ask whether to handle enforcement as a separate task.

@@ -107,7 +107,7 @@ The always-on text should stay compact because users often keep agent instructio
 
 Do not list the whole workflow or every mode in the activation block.
 
-The full workflow skill, interview-gate skill, discover skill, and workflow map are loaded by plugin-bundled context hooks, not by setup copying full skills into repo memory.
+The full mode-contract, workflow, interview-gate, discover, and output-router skills are loaded by plugin-bundled context hooks, not by setup copying full skills into repo memory.
 
 Placement matters:
 
@@ -129,15 +129,16 @@ ADRs remain reserved for hard-to-reverse, surprising, tradeoff-driven decisions.
 
 ## Runtime Context Hooks
 
-Freeflow may ship plugin-bundled hooks that load existing workflow, interview-gate, and discover context. These hooks belong to the installed plugin, not the target repo.
+Freeflow may ship plugin-bundled hooks that load existing mode-contract, workflow, interview-gate, discover, and output-router context. These hooks belong to the installed plugin, not the target repo.
 
 They should:
 
+- load `skills/mode-contract/SKILL.md`
 - load `skills/workflow/SKILL.md`
 - load `skills/interview-gate/SKILL.md`
 - load `skills/discover/SKILL.md`
-- load `skills/workflow/references/workflow-map.md`
-- state the runtime priority: workflow classifies, interview-gate stops silent decisions, discover handles context-building, output-router chooses evidence transport
+- load `skills/output-router/SKILL.md`
+- state the runtime priority: mode-contract handles mode issues first, workflow classifies, interview-gate stops silent decisions, discover handles context-building, output-router chooses evidence transport
 - run on session start for startup, resume, clear, and compact
 - report whether setup appears complete, partial, or missing
 
@@ -150,7 +151,7 @@ They should not:
 - create repo-local hook files
 - replace setup activation in `AGENTS.md` or `CLAUDE.md`
 
-Setup itself should read the workflow skill, interview-gate skill, discover skill, and workflow map after successful verification, before its final response, so the current session has the runtime context loaded without a post-tool hook.
+Setup itself should read the mode-contract, workflow, interview-gate, discover, and output-router skills after successful verification, before its final response, so the current session has the runtime context loaded without a post-tool hook.
 
 ## Existing Rule Conflicts
 
@@ -380,8 +381,8 @@ Current packaging shape:
 - Every `SKILL.md` is under the 100-line project budget.
 - Extra reference files exist only where targeted evals or complexity justified progressive disclosure.
 - Native slash handlers remain disabled; commands are model-routed through skill activation.
-- Context-loading hooks are shipped to load workflow, interview-gate, discover, and workflow-map context at session start.
-- Setup reads workflow, interview-gate, discover, and workflow-map context after successful setup verification for same-session use.
+- Context-loading hooks are shipped to load mode-contract, workflow, interview-gate, discover, and output-router context at session start.
+- Setup reads mode-contract, workflow, interview-gate, discover, and output-router context after successful setup verification for same-session use.
 - Enforcement hooks remain deferred until skill behavior and evals prove mechanical enforcement is needed.
 
 Reference-file additions from the reference-stack pass have landed. Do not add more references, scripts, examples, or assets merely because a skill is broad. Add them only when they keep the active `SKILL.md` short, reduce repeated deterministic work, or prevent a measured behavior failure.

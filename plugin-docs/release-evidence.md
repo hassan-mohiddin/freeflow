@@ -1,6 +1,6 @@
 # Release Evidence
 
-Freeflow v0.2.0 is based on the v0.1 local acceptance suite plus targeted runtime, setup, and output-router evidence from the development repository.
+Freeflow v0.3.0 is based on the v0.1 local acceptance suite plus targeted runtime, setup, and output-router evidence from the development repository.
 
 ## Acceptance Summary
 
@@ -27,9 +27,9 @@ Codex/Claude native slash handlers are not shipped in this release. In those hos
 
 ## Runtime Context
 
-Freeflow ships plugin-bundled context hooks that load the existing `workflow`, `interview-gate`, and `discover` skills plus the workflow map at session start. The Pi extension also loads output-router context, including its safety-policy reference, when the routed tools are available. Runtime context states the priority order: workflow classifies, interview-gate stops silent decisions, discover handles context-building, and output-router chooses evidence transport. These hooks do not run after edit/write tools, enforce behavior, block tools, or create repo-local hook files.
+Freeflow ships plugin-bundled context hooks that load the existing `mode-contract`, `workflow`, `interview-gate`, `discover`, and `output-router` skills at session start. The Pi extension injects full skill context once after session/compact boundaries, then keeps later turns to a short mode/priority refresh plus compact output-router tool reminder. Workflow-map and output-router safety-policy references remain available on demand but are not injected wholesale by default. Runtime context states the priority order: mode-contract handles mode issues first, workflow classifies, interview-gate stops silent decisions, discover handles context-building, and output-router chooses evidence transport. These hooks do not run after edit/write tools, enforce behavior, block tools, or create repo-local hook files.
 
-For the same session that runs setup, `setup-freeflow` reads the workflow skill, interview-gate skill, discover skill, and workflow map after successful setup verification before saying workflow, interview-gate, and discover context is loaded.
+For the same session that runs setup, `setup-freeflow` reads the mode-contract, workflow, interview-gate, discover, and output-router skills after successful setup verification before saying that context is loaded.
 
 Host trust prompts for plugin hooks are expected host behavior. Local metadata validation checks hook packaging and deterministic output, not end-to-end host trust UI.
 

@@ -50,10 +50,12 @@ require_contains "Claude SessionStart output" "$claude_session_output" "Setup st
 require_contains "Claude SessionStart output" "$claude_session_output" "Repo default mode: missing \`.freeflow/config.json\`; effective default mode falls back to \`workflow\`."
 require_contains "Claude SessionStart output" "$claude_session_output" "Required user-facing notice: in the next assistant reply, tell the user Freeflow is installed but this repo is not set up yet, and recommend \`/setup-freeflow\`."
 require_contains "Claude SessionStart output" "$claude_session_output" "Freeflow Runtime Priority"
+require_contains "Claude SessionStart output" "$claude_session_output" "Loaded Mode Contract Skill"
 require_contains "Claude SessionStart output" "$claude_session_output" "Loaded Workflow Skill"
 require_contains "Claude SessionStart output" "$claude_session_output" "Loaded Interview Gate Skill"
 require_contains "Claude SessionStart output" "$claude_session_output" "Loaded Discover Skill"
-require_contains "Claude SessionStart output" "$claude_session_output" "Loaded Workflow Map"
+require_contains "Claude SessionStart output" "$claude_session_output" "Loaded Output Router Skill"
+require_contains "Claude SessionStart output" "$claude_session_output" "Use exactly three modes."
 require_contains "Claude SessionStart output" "$claude_session_output" "Question means answer. Do not turn a question into a file edit"
 require_contains "Claude SessionStart output" "$claude_session_output" "Stop before silent decisions."
 require_contains "Claude SessionStart output" "$claude_session_output" "Discover is the context-building loop before action"
@@ -67,9 +69,11 @@ codex_session_output="$(
 require_contains "Codex SessionStart output" "$codex_session_output" "Freeflow Runtime Context"
 require_contains "Codex SessionStart output" "$codex_session_output" "effective default mode falls back to \`workflow\`"
 require_contains "Codex SessionStart output" "$codex_session_output" "Do this even if the user's prompt is casual, such as a greeting."
+require_contains "Codex SessionStart output" "$codex_session_output" "Loaded Mode Contract Skill"
 require_contains "Codex SessionStart output" "$codex_session_output" "Loaded Workflow Skill"
 require_contains "Codex SessionStart output" "$codex_session_output" "Loaded Interview Gate Skill"
 require_contains "Codex SessionStart output" "$codex_session_output" "Loaded Discover Skill"
+require_contains "Codex SessionStart output" "$codex_session_output" "Loaded Output Router Skill"
 if [[ "$codex_session_output" == *"hookSpecificOutput"* ]]; then
   fail "Codex SessionStart output should be plain context, not Claude hook JSON."
 fi
@@ -176,4 +180,4 @@ if [ "$failures" -gt 0 ]; then
   exit 1
 fi
 
-printf 'Runtime context hook check passed: hook config parses, startup injects workflow, interview-gate, discover, and workflow-map context, disable env suppresses output, and PostToolUse stays disabled.\n'
+printf 'Runtime context hook check passed: hook config parses, startup injects mode-contract, workflow, interview-gate, discover, and output-router context, disable env suppresses output, and PostToolUse stays disabled.\n'

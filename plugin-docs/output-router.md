@@ -67,7 +67,8 @@ flowchart LR
 | --- | --- |
 | Find repo evidence before reading files | `freeflow_search action=query` |
 | Get candidate paths first | `freeflow_search action=locate` |
-| Retrieve exact repo/vault lines | `freeflow_search action=retrieve` with `lineRange` |
+| Find where exact-ish text/code exists | `freeflow_search action=get` |
+| Retrieve exact known repo/vault lines | `freeflow_search action=retrieve` with `lineRange` |
 | Widen previous evidence | `freeflow_search action=expand` |
 | Explain a previous routed decision/output | `freeflow_search action=explain` |
 | Run noisy/large command output | `freeflow_run` with `command` |
@@ -90,7 +91,8 @@ Actions:
 
 - `query`: returns best evidence packets; default `topK=1`. For vault sources, omit `outputId` to search the current session's vault index.
 - `locate`: returns candidate locations; default `topK=5`. For vault sources, omit `outputId` to locate indexed vault outputs without raw retrieval.
-- `retrieve`: returns explicit path/line range evidence.
+- `get`: maps exact-ish text/code/query to the best matching path or output id plus line range and matched content.
+- `retrieve`: maps known coordinates to exact content; use it when path/output id and line range are already known.
 - `expand`: expands a previous evidence packet to `lines_30`, `lines_80`, or `full`.
 - `explain`: explains a route decision or vault output.
 

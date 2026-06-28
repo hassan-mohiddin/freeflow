@@ -9,7 +9,7 @@ Usage:
                                [--format text|json]
 
 Default:
-  validate-release-metadata.sh --mode prepublish --release-version 0.2.0 --format text
+  validate-release-metadata.sh --mode prepublish --release-version 0.3.0 --format text
 EOF
 }
 
@@ -24,7 +24,7 @@ repo_root="$(git -C "$script_dir" rev-parse --show-toplevel)"
 plugin_root="$repo_root"
 
 mode="prepublish"
-release_version="0.2.0"
+release_version="0.3.0"
 format="text"
 
 while [ "$#" -gt 0 ]; do

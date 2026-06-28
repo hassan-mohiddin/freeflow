@@ -101,6 +101,6 @@ Before claiming setup is complete, check:
 - `.codex/rules` was not created or changed for Freeflow behavior
 - no unrelated files changed
 
-After successful setup verification, read `../workflow/SKILL.md`, `../interview-gate/SKILL.md`, `../discover/SKILL.md`, and `../workflow/references/workflow-map.md` before the final response. Only say workflow, interview-gate, and discover context is loaded for this session if all four files were read successfully.
+After successful setup verification, read `../mode-contract/SKILL.md`, `../workflow/SKILL.md`, `../interview-gate/SKILL.md`, `../discover/SKILL.md`, and `../output-router/SKILL.md` before the final response. Only say mode-contract, workflow, interview-gate, discover, and output-router context is loaded for this session if all five files were read successfully.
 
 If verification cannot run, say what remains unverified.

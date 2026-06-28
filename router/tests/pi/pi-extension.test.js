@@ -75,13 +75,17 @@ test("Pi registers output-router as a direct command and no public capture tool"
   assert.ok(!toolNames.includes("freeflow_capture"));
 });
 
-test("Pi before_agent_start injects output-router skill context", async () => {
+test("Pi before_agent_start injects core Freeflow and output-router skill context", async () => {
   const { handlers } = loadExtension();
   const beforeAgentStart = handlers.get("before_agent_start");
   assert.ok(beforeAgentStart);
 
   const result = await beforeAgentStart({ systemPrompt: "base prompt" }, context());
 
+  assert.match(result.systemPrompt, /## Loaded Mode Contract Skill/);
+  assert.match(result.systemPrompt, /## Loaded Workflow Skill/);
+  assert.match(result.systemPrompt, /## Loaded Interview Gate Skill/);
+  assert.match(result.systemPrompt, /## Loaded Discover Skill/);
   assert.match(result.systemPrompt, /## Loaded Output Router Skill/);
   assert.match(result.systemPrompt, /name: output-router/);
   assert.match(result.systemPrompt, /freeflow_search/);
@@ -89,8 +93,9 @@ test("Pi before_agent_start injects output-router skill context", async () => {
   assert.doesNotMatch(result.systemPrompt, /freeflow_capture/);
   assert.match(result.systemPrompt, /freeflow_search action=transform/);
   assert.match(result.systemPrompt, /Native tools stay direct/);
-  assert.match(result.systemPrompt, /## Loaded Output Router Safety Policy/);
-  assert.match(result.systemPrompt, /Do not silently summarize or compress exactness-sensitive output/);
+  assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Map/);
+  assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Safety Policy/);
+  assert.doesNotMatch(result.systemPrompt, /Do not silently summarize or compress exactness-sensitive output/);
   assert.doesNotMatch(result.systemPrompt, /large native read\/bash outputs may be vaulted/);
   assert.doesNotMatch(result.systemPrompt, /Output-router config note/);
 });
@@ -103,6 +108,7 @@ test("Pi before_agent_start uses short Freeflow context after the first turn", a
   const first = await beforeAgentStart({ systemPrompt: "base prompt" }, context());
   const second = await beforeAgentStart({ systemPrompt: "base prompt" }, context());
 
+  assert.match(first.systemPrompt, /## Loaded Mode Contract Skill/);
   assert.match(first.systemPrompt, /## Loaded Workflow Skill/);
   assert.match(first.systemPrompt, /## Loaded Output Router Skill/);
   assert.match(second.systemPrompt, /## Freeflow Runtime Context/);
@@ -115,11 +121,18 @@ test("Pi before_agent_start uses short Freeflow context after the first turn", a
   assert.match(second.systemPrompt, /use `output-router`, `freeflow_status`, and live config instead of remembered routing rules/);
   assert.match(second.systemPrompt, /Use the installed Freeflow skills when they match the task/);
   assert.match(second.systemPrompt, /## Freeflow Runtime Priority/);
+  assert.match(second.systemPrompt, /## Freeflow Output Router Reminder/);
+  assert.match(second.systemPrompt, /freeflow_search action=get/);
+  assert.match(second.systemPrompt, /freeflow_search action=retrieve/);
+  assert.match(second.systemPrompt, /freeflow_run/);
+  assert.doesNotMatch(second.systemPrompt, /## Loaded Mode Contract Skill/);
   assert.doesNotMatch(second.systemPrompt, /## Loaded Workflow Skill/);
   assert.doesNotMatch(second.systemPrompt, /## Loaded Interview Gate Skill/);
   assert.doesNotMatch(second.systemPrompt, /## Loaded Discover Skill/);
   assert.doesNotMatch(second.systemPrompt, /## Loaded Output Router Skill/);
   assert.doesNotMatch(second.systemPrompt, /name: output-router/);
+  assert.doesNotMatch(second.systemPrompt, /## Loaded Workflow Map/);
+  assert.doesNotMatch(second.systemPrompt, /## Loaded Output Router Safety Policy/);
 });
 
 test("Pi session_start and session_compact re-arm full Freeflow context injection", async () => {
@@ -137,6 +150,7 @@ test("Pi session_start and session_compact re-arm full Freeflow context injectio
 
   await sessionCompact({ reason: "manual" }, context());
   const fullAfterCompact = await beforeAgentStart({ systemPrompt: "base prompt" }, context());
+  assert.match(fullAfterCompact.systemPrompt, /## Loaded Mode Contract Skill/);
   assert.match(fullAfterCompact.systemPrompt, /## Loaded Workflow Skill/);
   assert.match(fullAfterCompact.systemPrompt, /## Loaded Output Router Skill/);
 
@@ -145,6 +159,7 @@ test("Pi session_start and session_compact re-arm full Freeflow context injectio
 
   await sessionStart({ reason: "resume" }, context());
   const fullAfterResume = await beforeAgentStart({ systemPrompt: "base prompt" }, context());
+  assert.match(fullAfterResume.systemPrompt, /## Loaded Mode Contract Skill/);
   assert.match(fullAfterResume.systemPrompt, /## Loaded Workflow Skill/);
   assert.match(fullAfterResume.systemPrompt, /## Loaded Output Router Skill/);
 });
@@ -484,7 +499,7 @@ test("Pi outputRouter.enabled=false suppresses router context and native safety 
   }
 });
 
-test("Pi output-router skill mentions native safety net only when config enables it", async () => {
+test("Pi output-router context mentions native safety net only when config enables it", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-config-"));
   try {
     await mkdir(join(cwd, ".freeflow"));
@@ -503,7 +518,7 @@ test("Pi output-router skill mentions native safety net only when config enables
 
     assert.match(result.systemPrompt, /large native read\/bash outputs may be vaulted/);
     assert.match(result.systemPrompt, /## Loaded Output Router Skill/);
-    assert.match(result.systemPrompt, /## Loaded Output Router Safety Policy/);
+    assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Safety Policy/);
     assert.match(result.systemPrompt, /freeflow_search/);
     assert.match(result.systemPrompt, /freeflow_search action=transform/);
   } finally {
@@ -1498,36 +1513,41 @@ test("Pi post-tool safety net fails open without losing native output", async ()
   }
 });
 
-test("Pi already-activated context still includes output-router skill and safety policy", async () => {
+test("Pi already-activated core context still injects output-router skill when missing", async () => {
   const { handlers } = loadExtension();
   const beforeAgentStart = handlers.get("before_agent_start");
 
   const existingPrompt = [
+    "## Loaded Mode Contract Skill",
     "## Loaded Workflow Skill",
-    "## Loaded Workflow Map",
     "## Loaded Interview Gate Skill",
+    "## Loaded Discover Skill",
   ].join("\n");
   const result = await beforeAgentStart({ systemPrompt: existingPrompt }, context());
 
   assert.match(result.systemPrompt, /## Loaded Output Router Skill/);
-  assert.match(result.systemPrompt, /## Loaded Output Router Safety Policy/);
   assert.match(result.systemPrompt, /freeflow_search/);
   assert.match(result.systemPrompt, /freeflow_run/);
   assert.match(result.systemPrompt, /freeflow_search action=transform/);
+  assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Safety Policy/);
 });
 
-test("Pi reinjects output-router context when safety policy is missing", async () => {
+test("Pi already-activated full context uses compact output-router reminder", async () => {
   const { handlers } = loadExtension();
   const beforeAgentStart = handlers.get("before_agent_start");
 
   const existingPrompt = [
+    "## Loaded Mode Contract Skill",
     "## Loaded Workflow Skill",
-    "## Loaded Workflow Map",
     "## Loaded Interview Gate Skill",
+    "## Loaded Discover Skill",
     "## Loaded Output Router Skill",
   ].join("\n");
   const result = await beforeAgentStart({ systemPrompt: existingPrompt }, context());
 
-  assert.match(result.systemPrompt, /## Loaded Output Router Safety Policy/);
-  assert.match(result.systemPrompt, /Capture raw evidence before transformation/);
+  assert.match(result.systemPrompt, /## Freeflow Output Router Reminder/);
+  assert.match(result.systemPrompt, /freeflow_search action=get/);
+  assert.match(result.systemPrompt, /freeflow_search action=retrieve/);
+  assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Safety Policy/);
+  assert.doesNotMatch(result.systemPrompt, /Capture raw evidence before transformation/);
 });

@@ -28,8 +28,8 @@ Do not add a code module until setup behavior needs logic that cannot be kept cl
 - Existing repo instructions remain source truth.
 - Setup hard-stops before unresolved host ambiguity or repo-rule conflict.
 - Setup does not create repo-local hooks, docs inventories, state files, handoffs, empty `CONTEXT.md`, skill inventories, `setup-output-router` skills, version metadata, activation path, current task, or current phase.
-- Plugin-bundled context hooks may load workflow, interview-gate, discover, and workflow-map context at session start, but they are package runtime, not setup output.
-- After successful setup verification, setup reads the workflow skill, interview-gate skill, discover skill, and workflow map before its final response so the current session is immediately usable.
+- Plugin-bundled context hooks may load mode-contract, workflow, interview-gate, discover, and output-router context at session start, but they are package runtime, not setup output.
+- After successful setup verification, setup reads the mode-contract, workflow, interview-gate, discover, and output-router skills before its final response so the current session is immediately usable.
 
 ## Host Adapters
 

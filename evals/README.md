@@ -17,7 +17,7 @@
 
 Use `registries/fixture-evals.json` for current adversarial fixture coverage.
 Use `scripts/grade-fixture-eval.sh <eval-id> --output <run-output.md>` after fixture runs that define `objective_checks`; it grades mechanical evidence such as changed files, empty diffs, exit status, and fixed output/diff text.
-Baseline fixture runs set `FREEFLOW_DISABLE_RUNTIME_CONTEXT=1` before launching nested agents so installed lifecycle hooks do not inject Freeflow workflow, interview-gate, discover, and workflow-map context into the baseline.
+Baseline fixture runs set `FREEFLOW_DISABLE_RUNTIME_CONTEXT=1` before launching nested agents so installed lifecycle hooks do not inject Freeflow mode-contract, workflow, interview-gate, discover, and output-router context into the baseline.
 Use `scripts/skill-evidence.sh <skill>` to group command routes, eval definitions, acceptance membership, and reports for a skill.
 Use `scripts/run-output-router-transform-eval.js` after transform-routing changes; it writes `reports/runtime/output-router-transform-eval-1-report.md`.
 Use `scripts/run-pi-observed-routing-eval.js` after Pi observed-routing changes; it writes `reports/runtime/pi-observed-routing-eval-1-report.md`.

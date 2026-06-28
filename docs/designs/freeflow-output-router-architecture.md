@@ -1,397 +1,621 @@
 # Freeflow Output Router Architecture
 
 > **Doc ID:** DESIGN-2026-06-19-freeflow-output-router-architecture
-> **Date:** 2026-06-19
+> **Last updated:** 2026-06-28
 > **Owner:** Hassan Mohiddin
 > **Type:** Architecture Design
 > **Status:** Current
-> **Source:** Live router source under `router/src/`, Pi extension source, output-router skills, setup docs, and runtime benchmark reports dated 2026-06-19/2026-06-20.
+> **Source:** Live router source under `router/src/`, Pi extension source under `pi-extension/src/`, `skills/output-router/`, public plugin docs, runtime specs, and release evidence current through the `freeflow_run` script-producer implementation.
 
 ## Purpose
 
-This is the A-to-Z architecture guide for Freeflow Output Router: what it is, why it exists, how it works, what ships today, what is experimental, and how to operate or extend it safely.
+This is the A-to-Z architecture guide for Freeflow Output Router.
 
-The detailed source-of-truth code lives under `router/src/`. This document explains that implementation in human terms and links concepts to the files that own them.
+It explains:
 
-## How To Read This
+- what the router is,
+- why it exists,
+- how the current tool surface works,
+- how output flows from repo files, commands, scripts, MCP/web/fetch/code-search producers, and native tools into bounded evidence,
+- how exact recovery works,
+- how the vault, vault index, transforms, reducers, and script sandbox fit together,
+- how Pi exposes and renders the router,
+- how to configure, operate, debug, and extend it safely.
 
-If you are new to the router, read:
+The code is still the source of truth. This document describes the live architecture in human terms and points at the files that own each behavior.
 
-- `If You Only Read 10 Minutes`
-- `Core Idea`
-- `Tiny Diagram`
-- `Glossary`
-- `Tool Choice Policy`
-- `The Two Main Tools`
+## Current Product Shape
 
-If you are implementing or debugging, also read:
+Freeflow Output Router is a deterministic context-saving layer for coding agents.
 
-- `Runtime Architecture`
-- `freeflow_retrieve Architecture`
-- `freeflow_run Architecture`
-- `Vault Architecture`
-- `Config And Setup`
-- `Pi Integration`
-- `Safety Net Routing`
+It keeps model-visible output small while preserving exact evidence outside the context window when exactness matters.
 
-If you are reviewing release readiness, read:
+The public Pi tool surface is:
 
-- `Evidence And Benchmarks`
-- `Adoption Decisions`
-- `Known Non-Goals And Deferred Work`
-- `Source Evidence Appendix`
-
-## Diagram Map
-
-| If you are trying to understand... | Start with... |
+| Tool | Job |
 | --- | --- |
-| Why the router exists | `Problem` and `Core Idea` |
-| How routed tools fit around native tools | `Tiny Diagram` and `Runtime Architecture` |
-| How repo retrieval chooses snippets | `Repo Query Flow` and `Retrieval Scoring` |
-| How commands stay recoverable | `freeflow_run Architecture` and `Vault Architecture` |
-| Why output is bounded | `Bounded Evidence` |
-| How Pi exposes the router | `Pi Integration` |
-| What config is allowed | `Config And Setup` |
-| What is default versus experimental | `Adoption Decisions` |
+| `freeflow_status` | Inspect effective router/config/vault/script/observed-routing status without changing config. |
+| `freeflow_search` | Search, locate, get, retrieve, expand, explain, or transform existing repo/vault evidence. |
+| `freeflow_run` | Create new output from either a shell command or sandboxed script producer, store it by policy, and return compact evidence. |
+| `freeflow_batch` | Run independent Freeflow-owned `run`/`search` steps in parallel and optionally answer query prompts from child evidence. |
+| Pi observed routing | Route configured MCP/web/fetch/code-search tool results after direct host execution. |
+| Pi native safety net | Optionally route large/noisy native `read`/`bash` results after the host tool returns. Off by default. |
 
-## Router Repo Map
+Important naming boundary:
 
-This is the router-specific map, not the whole Freeflow repo.
+- `freeflow_search` is the current retrieval/search tool. The older public `freeflow_retrieve` name is gone.
+- Public `freeflow_capture` is gone. Observed routing handles configured external producer output.
+- `capture` and `providers` are removed config concepts. Do not write them into `.freeflow/config.json`.
+
+## The One-Page Mental Model
 
 ```text
-router/
-  src/
-    index.ts                    public barrel exports
-    types.ts                    preserve/action/status/result/vault types
-    schema.ts                   runtime validation for results, config, records
-    router-contract.ts          config invariants such as postToolRouting modes and positive thresholds
-    config.ts                   defaults and .freeflow outputRouter normalization
-
-    retrieve.ts                 freeflow_retrieve action dispatcher and repo/vault retrieval
-    repo-traversal.ts           safe repo path resolution, broad-scan skips, generated-path globs
-    evidence-search.ts          structural chunks, BM25-style scoring, exact phrase boosts
-    evidence-range-selector.ts  narrows winning chunks to useful line spans
-    bounded-evidence.ts         UTF-8-safe repo/vault excerpt caps and edge chunks
-    line-ranges.ts              exact 1-based line-range validation
-
-    run.ts                      freeflow_run execution routing, duplicate handling, recovery hints
-    parsers.ts                  deterministic command parsers for tests, diagnostics, git, builds, generic output
-    evidence.ts                 command important-line assembly and truncation markers
-    vault.ts                    file-backed raw output vault, session index, locks, hashes, recovery reads
-
-    benchmark-harness.ts        shared benchmark helpers
-    benchmarks.ts               retrieval benchmark CLI/report
-    command-benchmarks.ts       freeflow_run benchmark CLI/report
-    index-benchmarks.ts         optional local-index benchmark CLI/report
-    codex-qa-benchmarks.ts      Codex Structured Q&A macro benchmark
-    experimental-local-index.ts compatibility export for the experimental index capsule
-    experiments/local-index.ts  no-dependency local index experiment; not default runtime behavior
-
-  tests/                        public API, regression, benchmark, safety, config, and module tests
-  dist/                         built package runtime generated from src/
-  tsconfig.json                 router TypeScript build config
+unknown-size or noisy source
+-> capture or locate exact source truth outside model context
+-> route deterministically
+-> return smallest useful evidence/facts to the model
+-> keep exact recovery pointers when policy promises recovery
 ```
 
-Mental model:
-
-```mermaid
-flowchart LR
-  Config["config.ts / router-contract.ts"]
-  Retrieve["retrieve.ts"]
-  Run["run.ts"]
-  Traversal["repo-traversal.ts"]
-  Search["evidence-search.ts"]
-  Bounds["bounded-evidence.ts / evidence.ts"]
-  Parsers["parsers.ts"]
-  Vault["vault.ts"]
-  Schema["schema.ts / types.ts"]
-  Bench["benchmarks + tests"]
-
-  Config --> Retrieve
-  Config --> Run
-  Retrieve --> Traversal --> Search --> Bounds
-  Retrieve --> Vault
-  Run --> Parsers --> Bounds
-  Run --> Vault
-  Retrieve --> Schema
-  Run --> Schema
-  Bench --> Retrieve
-  Bench --> Run
-```
-
-## If You Only Read 10 Minutes
-
-Freeflow Output Router is a deterministic evidence router for coding agents.
-
-It exists because native tools like `read` and `bash` are direct and useful, but broad file reads, generated artifacts, logs, and long command output can flood the model context before the agent has proven the output is needed.
-
-The router adds two explicit tools:
-
-- `freeflow_retrieve`: find targeted, labeled, expandable evidence from repo files or previously vaulted output.
-- `freeflow_run`: run likely-large/noisy shell commands or sandboxed script producers once, vault exact raw output when storage policy requires it, then return compact important evidence plus an `outputId` for exact recovery.
-
-The core rule is:
+The central invariant:
 
 ```text
 Smallest sufficient evidence in context.
 Exact raw recovery outside context.
-No surprise native semantics.
+No surprise native tool semantics.
 ```
 
-Important defaults:
+The router separates four concerns that agents often mix up:
 
-- Native `read`, `bash`, `edit`, and `write` keep their normal meaning.
-- Scanner retrieval is the product default.
-- The local index is experimental and not adopted by default.
-- Native post-tool safety-net routing is off by default.
-- `postToolRouting: "safety-net"` is opt-in.
-- `postToolRouting: "strict"` is reserved; do not invent stronger blocking behavior.
-- Runtime summarization/routing is deterministic; model-assisted routing is not default.
+| Concern | Meaning |
+| --- | --- |
+| Source truth | Repo file bytes, command stdout/stderr, vaulted raw output, observed host output, or transformed text. |
+| Routing decision | Why this evidence/span/summary was selected. |
+| Model-visible evidence | The bounded lines/facts the agent needs now. |
+| Recovery | How to get exact text later without re-running or dumping everything. |
 
-The router is not a new agent, not a global replacement for host tools, not a vector database, and not an enforcement hook system.
+The router does **not** replace native tools. It chooses evidence transport.
 
-## Problem
+Use native tools when the output is intentionally small, direct, exact, or mutating:
 
-Native tools are excellent when the agent knows exactly what it needs:
+- native `read`: known whole file or intentionally direct file content,
+- native `bash`: small exact command output or shell behavior that must not be routed,
+- native `edit` / `write`: file mutation.
 
-- read a known file,
-- run a short command,
-- edit a targeted region,
-- inspect exact output.
-
-They are weak when the agent is still exploring:
-
-- searching broad repos,
-- avoiding generated artifacts,
-- handling huge single-line files,
-- reading noisy command logs,
-- preserving exact failed-command evidence,
-- recovering raw output later without rerunning a command.
-
-The dangerous failure is not merely “large output exists.” The deeper failure is:
-
-```text
-irrelevant or generated output enters context before the agent proves it is useful
-```
-
-The original router hardening work was motivated by a concrete failure: a broad query for the Codex Sandbox Permissions section selected a generated `graphify-out/graph.html` blob instead of the source markdown file. The improved router fixes that shape by skipping generated paths in broad scans, scoring source chunks more accurately, bounding evidence, and keeping exact recovery paths.
-
-## Core Idea
-
-The router separates three concerns:
-
-```text
-source truth       exact repo/vault/command output
-routing decision  why this span/output was selected
-model context     bounded evidence needed for the current turn
-```
-
-The model should not have to choose between “dump everything into context” and “lose exact evidence.”
-
-The router captures or locates exact source truth, then returns a structured routed result:
-
-- `toolStatus`: did the tool call itself succeed?
-- `execution.status`: for commands, what happened to the command?
-- `routing.status`: did routing pass through, reduce, partially return, or fail?
-- `evidence` or `importantLines`: what exact snippets are currently useful?
-- `recovery`: how to retrieve the exact/raw evidence later.
-
-## Tiny Diagram
-
-```mermaid
-flowchart TD
-  Agent["agent decides what it needs"]
-  Native["native read/bash/edit/write"]
-  Retrieve["freeflow_retrieve"]
-  Run["freeflow_run"]
-  Repo["repo files"]
-  Vault["Freeflow vault"]
-  Runner["host-approved command runner"]
-  Router["deterministic routing + caps"]
-  Context["bounded model context"]
-  Recovery["exact recovery by path/lineRange/outputId"]
-
-  Agent -->|known whole file or exact shell behavior| Native
-  Agent -->|existing repo/vault evidence| Retrieve
-  Agent -->|likely-large/noisy command| Run
-  Retrieve --> Repo
-  Retrieve --> Vault
-  Run --> Runner
-  Runner --> Vault
-  Repo --> Router
-  Vault --> Router
-  Router --> Context
-  Router --> Recovery
-```
-
-## Glossary
-
-`Routed tool`
-: A Freeflow tool that returns structured evidence instead of raw bulk output. Current routed tools are `freeflow_retrieve` and `freeflow_run`.
-
-`Native tool`
-: A host-provided tool such as Pi `read`, `bash`, `edit`, or `write`. Native tools remain available and direct.
-
-`Evidence packet`
-: A labeled excerpt returned by `freeflow_retrieve`. It includes source, path, lines, excerpt, `why`, window, and whether it can expand.
-
-`Important line`
-: A selected exact command-output span returned by `freeflow_run`.
-
-`Vault`
-: File-backed store for exact raw command/native output outside model context. The vault provides `outputId` recovery.
-
-`Preserve mode`
-: Fidelity request: `summary`, `important`, or `full`. Today the router is mostly exact/important-line oriented; `full` means exact fidelity up to caps, not unlimited context.
-
-`Expansion`
-: Breadth request for previous evidence: `lines_30`, `lines_80`, or `full`.
-
-`Safety net`
-: Optional post-tool routing for large native `read`/`bash` results. It is off by default.
-
-`Scanner`
-: The default deterministic repo traversal and scoring path used by `freeflow_retrieve`.
-
-`Index`
-: Experimental no-dependency local index benchmark path. It is not the default retrieval backend.
+Use Freeflow routed tools when output size, generated artifacts, log volume, or recovery risk is unknown.
 
 ## Product Boundary
 
-Output Router is a companion runtime inside Freeflow.
+The output router is:
 
-It ships as:
+- a deterministic output-routing and recovery layer,
+- a repo/vault lexical evidence searcher,
+- a command/script-output capture layer,
+- a safe transform and reducer surface,
+- a Pi extension tool/rendering layer,
+- a vault and local vault-index implementation.
 
-- TypeScript core under `router/src/`.
-- Compiled runtime under `router/dist/` for package use.
-- Pi extension integration under `pi-extension/index.js`.
-- User/agent guidance under `skills/output-router/`.
-- Optional setup config guidance under `skills/setup-freeflow/references/output-router-setup.md`.
-- Benchmarks and reports under `evals/`.
+It is not:
 
-It does not require Freeflow skills to depend on the router runtime. When the router is unavailable, agents can still use normal Freeflow workflow skills and host tools.
+- a new agent,
+- a semantic code-intelligence engine,
+- an LSP/reference/call-graph system,
+- a vector database,
+- a model-assisted summarizer by default,
+- an enforcement hook system,
+- a replacement for host permissions/sandboxing/approvals,
+- a reason to change workflow mode or user-owned decisions.
+
+Specialist code-intelligence tools such as Serena remain external specialists. Freeflow focuses on tool-output context savings, deterministic evidence, and exact recovery.
+
+## Architecture At A Glance
+
+```mermaid
+flowchart TD
+  Agent[Agent]
+  Native[Native tools\nread/bash/edit/write]
+  Status[freeflow_status]
+  Search[freeflow_search]
+  Run[freeflow_run]
+  Batch[freeflow_batch]
+  Observed[Pi observed routing\nMCP/web/fetch/code-search]
+  Safety[Pi native safety net\nread/bash opt-in]
+
+  Repo[Repo files]
+  HostRunner[Pi host-approved command runner]
+  ScriptSandbox[Proof-backed script sandbox]
+  Transform[Transform engine]
+  Processing[Processing engine + reducers]
+  Vault[Vault objects + session index]
+  VaultIndex[Vault local JSON sidecar index]
+  Evidence[Bounded evidence / facts]
+  Recovery[Exact recovery pointers]
+
+  Agent -->|known small/direct/mutating| Native
+  Agent --> Status
+  Agent --> Search
+  Agent --> Run
+  Agent --> Batch
+  Agent -->|direct host tool call| Observed
+  Native -->|post-tool hook if enabled| Safety
+
+  Search --> Repo
+  Search --> Vault
+  Search --> VaultIndex
+  Search --> Transform
+  Search --> Processing
+
+  Run --> HostRunner
+  Run --> ScriptSandbox
+  Run --> Transform
+  Run --> Vault
+  Run --> Processing
+
+  Batch --> Search
+  Batch --> Run
+
+  Observed --> Vault
+  Safety --> Vault
+  Vault --> VaultIndex
+  Transform --> Vault
+  Processing --> Vault
+
+  Repo --> Evidence
+  Vault --> Evidence
+  VaultIndex --> Evidence
+  Transform --> Evidence
+  Processing --> Evidence
+  Evidence --> Recovery
+```
+
+## Source Map
+
+Router runtime source is under `router/src/`:
+
+```text
+router/src/
+  config/
+    config.ts                 defaults, normalization, safe fallbacks
+    router-contract.ts        config invariant helpers
+    schema.ts                 result/config schema helpers
+    types.ts                  public router/result/vault/config types
+
+  tools/
+    search.ts                 freeflow_search repo/vault retrieval dispatcher
+    run.ts                    freeflow_run command/script capture and routing
+    batch.ts                  freeflow_batch parallel Freeflow step execution
+
+  repo/
+    repo-traversal.ts         safe repo path resolution and broad-scan skips
+
+  evidence/
+    evidence-search.ts        deterministic repo chunk scoring
+    evidence-range-selector.ts narrows winning chunks to useful spans
+    bounded-evidence.ts       bounded repo/vault excerpts and edge chunks
+    evidence.ts               command important-line assembly and byte/line caps
+    line-ranges.ts            exact 1-based line-range validation
+    failure-contracts.ts      structured failure result builders
+
+  routing/
+    parsers.ts                command parsers for tests, diagnostics, git, builds, generic
+    run-filters.ts            declarative run filters
+    run-reducers.ts           reducer selection for freeflow_run output
+    observed-routing.ts       observed host-tool output normalization/storage/routing
+    observed-reducers.ts      reducers for observed host-tool output
+
+  transform/
+    engine.ts                 deterministic and sandboxed script transform engine
+
+  processing/
+    engine.ts                 repo/vault/file/output processing path
+    reducers.ts               built-in fact reducers
+    scripts.ts                sandboxed and local unsafe processing scripts
+    renderers.ts              fact-first processing output renderer
+
+  sandbox/
+    script-sandbox.ts         sandbox adapter contract, proof gates, selection
+    adapter-roots.ts          global adapter cache/env-root discovery
+    quickjs-wasi-adapter.ts   JavaScript adapter
+    jq-wasm-adapter.ts        jq adapter
+    eryx-python-adapter.ts    Python/Eryx adapter
+
+  setup/
+    script-transform-adapters.ts optional adapter installer/status CLI
+
+  vault/
+    vault.ts                  exact/metadata vault records and session indexes
+    vault-index.ts            local JSON sidecar search index over vault records
+
+  benchmarks/                 runtime benchmark harnesses and reports
+  experiments/                non-default search/index experiments
+  index.ts                    package barrel exports
+```
+
+Pi integration is under `pi-extension/src/`:
+
+```text
+pi-extension/src/
+  index.ts                    lifecycle hooks, tool_result routing, commands
+  runtime-context.ts          mode/config reads and context injection
+  router-tools.ts             public Pi tools and parameter normalization
+  schemas.ts                  Pi JSON schemas for public tools
+  renderers.ts                compact/expanded TUI renderers
+  utils.ts                    compact model-visible result text helpers
+  status.ts                   freeflow_status reports and migration hints
+  observed-tool-routing.ts    Pi tool_result observed-routing adapter
+  host-producer-identification.ts MCP/web/fetch/code-search producer detection
+  native-safety-net.ts        optional post-tool routing for native read/bash
+  mcp-config.ts               Pi MCP config helpers
+```
+
+Generated package output mirrors these under `router/dist/` and `pi-extension/dist/`.
+
+## Core Data Model
+
+All routed results share the same vocabulary.
+
+### Status Axes
+
+Keep these separate:
+
+| Field | Owns | Example |
+| --- | --- | --- |
+| `toolStatus` | Did the Freeflow tool itself complete? | `ok`, `error` |
+| `execution.status` | Did the run producer complete? Only on `freeflow_run`. | `success`, `failed`, `timed_out`, `cancelled` |
+| `routing.status` | What did the router do with the output? | `routed`, `passed_through`, `partial`, `failed` |
+
+A command can fail while `toolStatus` is `ok`: the router successfully captured and routed a failed command.
+
+A tool can have `toolStatus: "error"` after the producer already ran if routing/storage failed and only fallback evidence is available.
+
+### Routes
+
+`routing.route` is an internal result category, not the public tool/action name. Most `freeflow_search` actions currently report route `retrieve` because they return evidence from existing sources.
+
+Current route kinds in `router/src/config/types.ts`:
+
+- `retrieve`: existing-source evidence routing for public `freeflow_search` actions such as `query`, `locate`, `get`, `retrieve`, `expand`, and `explain`.
+- `run`: command or script-producer output routing.
+- `transform`: deterministic/script transform output.
+- `batch`: parallel Freeflow-owned operations.
+- `observed`: configured Pi observed-routing outputs.
+- `safety-net`: optional native `read`/`bash` post-tool routing.
+- `pass-through`: reserved/typed for pass-through cases.
+
+### Producers
+
+Producer descriptors explain where output came from:
+
+- `command`: shell command through the host-approved runner.
+- `script`: `freeflow_run` script producer.
+- `native`: native host output captured by the safety net.
+- `repo`: repo file references.
+- `web`, `fetch`, `code_search`: built-in Pi observed producers.
+- `mcp`: Pi MCP observed producer.
+- `transform`: deterministic reducer/transform/script-derived output.
+- `other`: batch or fallback producer.
+
+### Persistence And Recoverability
+
+`persistence.status` says what was persisted:
+
+- `vaulted`: exact content was stored.
+- `metadata_only`: only metadata/hash/counts/recovery linkage were stored.
+- `not_persisted`: no durable record was stored.
+- `redacted`: typed but not a current config option; reserved future behavior.
+
+`persistence.recoverability` says what can be recovered:
+
+- `exact`: exact text is recoverable from the vault.
+- `metadata_only`: no raw stream is recoverable from this record.
+- `none`: no persisted recovery.
+- `redacted`: future-only; do not offer/write it in config.
+
+Metadata-only records must never claim exact recovery. The only exception-like shape is duplicate metadata: the current record can be metadata-only while pointing to a previous exact `outputId` for exact duplicate recovery.
+
+### Evidence Packets And Important Lines
+
+`freeflow_search` returns `EvidencePacket[]`:
+
+- `id`: stable evidence handle for expansion.
+- `source`: repo/vault/native source reference.
+- `path`: repo path or vault `outputId:stream` label.
+- `lines`: exact line span when known.
+- `excerpt`: bounded exact text.
+- `why`: deterministic reason the span was chosen.
+- `window`: `exact`, `small`, `lines_30`, `lines_80`, `section`, or `full`.
+- `expandable`: whether `action=expand` can widen it.
+- `match`: optional exact-phrase/lexical/metadata match metadata for `get`.
+
+`freeflow_run` returns `importantLines[]`:
+
+- `stream`: `stdout`, `stderr`, or `combined`.
+- `lines`: exact line span in that stream.
+- `excerpt`: selected exact output text.
+
+Transform and processing results may also return `evidence[]` or fact-first `summary`/`visibleText` through Pi compact renderers.
+
+### Lineage
+
+Derived outputs carry lineage:
+
+- source `recordId`s,
+- source `outputId`s,
+- operation name,
+- operation hash.
+
+Lineage lets a future tool answer:
+
+```text
+this transformed fact came from outputId X stream Y through operation Z
+```
+
+Script code is not persisted. Operation metadata stores code hashes such as `sha256_...`, labels, language, adapter metadata, and limits.
 
 ## Tool Choice Policy
 
-Use this decision table:
+Use this table when deciding how output should move.
 
-| Need | Prefer |
+| Need | Use |
 | --- | --- |
-| Existing unknown repo information | `freeflow_retrieve` |
-| Candidate paths without broad excerpts | `freeflow_retrieve action=locate` |
-| Exact known repo span | `freeflow_retrieve action=retrieve` with `source.path` and `lineRange` |
-| More context around previous evidence | `freeflow_retrieve action=expand` |
-| Exact output from a previous routed command/native safety-net result | `freeflow_retrieve` with `source.kind=vault` and `outputId` |
-| Likely-large/noisy command or sandboxed script producer | `freeflow_run` |
-| Small exact command where raw output is desired directly | native `bash` |
-| Whole known file/artifact | native `read` |
-| File mutation | native `edit` / `write` |
+| Answer a direct question with no repo/tool need | Chat directly. |
+| Read a known whole file intentionally | Native `read`. |
+| Edit/create files | Native `edit` / `write`. |
+| Run small exact shell behavior | Native `bash`. |
+| Explore unknown-size repo evidence | `freeflow_search action=query` or `locate`. |
+| Find candidate paths/output ids first | `freeflow_search action=locate`. |
+| Find best exact-ish match for a snippet/query | `freeflow_search action=get`. |
+| Retrieve known exact repo/vault line range | `freeflow_search action=retrieve`. |
+| Widen previous evidence | `freeflow_search action=expand`. |
+| Explain a routed decision or vault output | `freeflow_search action=explain`. |
+| Transform existing repo/vault/file/output data | `freeflow_search action=transform`. |
+| Run likely-large/noisy command | `freeflow_run` with `command`. |
+| Run code as new output without repo/home/env/network access | `freeflow_run` with `script`. |
+| Filter captured run output with code | `freeflow_run` with `scriptFilter`. |
+| Run independent Freeflow operations in parallel | `freeflow_batch`. |
+| Route MCP/web/fetch/code-search output | Call host tool directly; Pi observed routing runs after the host result if configured. |
+| Inspect effective behavior/config/vault/script adapters | `freeflow_status`. |
 
-Do not use the router to hide a lack of understanding. Use it to retrieve bounded evidence, then decide.
+The output-router skill chooses evidence transport only. Workflow, interview-gate, and discover still decide whether the task should proceed, stop, or ask.
 
-## Runtime Architecture
-
-The current implementation has four layers:
-
-1. Agent-facing skill guidance.
-2. Host adapter integration.
-3. Deterministic router core.
-4. Vault and benchmark evidence.
+## End-To-End Flow
 
 ```mermaid
-flowchart TB
-  subgraph Guidance["Guidance layer"]
-    Skill["output-router skill"]
-    Safety["safety-policy reference"]
-    Setup["setup-freeflow optional outputRouter config"]
-  end
+sequenceDiagram
+  participant A as Agent
+  participant P as Pi tool layer
+  participant R as Router core
+  participant V as Vault
+  participant I as Vault index
+  participant M as Model context
 
-  subgraph Adapter["Host adapter layer"]
-    PiExt["Pi extension"]
-    ToolReg["freeflow_retrieve/freeflow_run tool registration"]
-    TUI["compact + expanded TUI renderers"]
-    PostTool["optional native tool_result safety net"]
+  A->>P: freeflow_run/search/batch/status
+  P->>P: read .freeflow/config.json + .freeflow/local.json
+  P->>R: normalized options + sessionId + vault config
+  R->>R: validate input and choose route
+  alt output must be captured
+    R->>V: store exact or metadata-only record
+    V->>I: index exact chunks or metadata sidecar
   end
-
-  subgraph Core["Router core"]
-    RetrieveCore["retrieve.ts"]
-    RunCore["run.ts"]
-    Search["evidence-search.ts"]
-    Traversal["repo-traversal.ts"]
-    Bounded["bounded-evidence.ts / evidence.ts"]
-    Parsers["parsers.ts"]
-    Schema["schema.ts / router-contract.ts"]
-  end
-
-  subgraph Store["Storage + evidence"]
-    Vault["vault.ts"]
-    Reports["runtime benchmark reports"]
-  end
-
-  Skill --> PiExt
-  Safety --> PiExt
-  Setup --> PiExt
-  PiExt --> ToolReg
-  PiExt --> TUI
-  PiExt --> PostTool
-  ToolReg --> RetrieveCore
-  ToolReg --> RunCore
-  PostTool --> Vault
-  RetrieveCore --> Search
-  RetrieveCore --> Traversal
-  RetrieveCore --> Bounded
-  RetrieveCore --> Vault
-  RunCore --> Parsers
-  RunCore --> Bounded
-  RunCore --> Vault
-  Core --> Schema
-  Core --> Reports
+  R->>R: parse/filter/reduce/transform/select bounded evidence
+  R-->>P: structured result with routing + recovery
+  P-->>M: compact model-visible text
+  P-->>A: details.result for expanded UI/recovery
 ```
 
-## The Two Main Tools
+## `freeflow_status`
 
-### `freeflow_retrieve`
-
-Retrieves existing information.
-
-Sources:
-
-- `repo`: local repo text files.
-- `vault`: prior Freeflow-vaulted command/native output.
+`freeflow_status` is read-only.
 
 Actions:
 
-| Action | Meaning |
-| --- | --- |
-| `query` | Find and return best evidence packets. Defaults to top 1. |
-| `locate` | Return candidate locations with minimal evidence. Defaults to top 5. |
-| `retrieve` | Retrieve an explicit repo/vault path and optional exact line range. |
-| `expand` | Widen a previous evidence packet to more context. |
-| `explain` | Explain a prior decision or vault output. |
+- `status`: effective config/status summary.
+- `doctor`: deeper diagnostics.
+- `migration`: non-destructive stale/unknown config recommendations.
 
-Example repo query:
+It reports:
+
+- mode state (`defaultMode`, session override, effective mode),
+- effective `outputRouter`, `observedRouting`, and `scriptTransform` config,
+- effective local unsafe processing config,
+- built-in defaults,
+- vault root, retention, and writability without creating directories,
+- vault-index status,
+- observed-routing status and supported persistence modes,
+- script-sandbox adapter availability, required proofs, registered adapters, rejected mechanisms, configured languages, limits, and raw-script persistence,
+- local unsafe processing status,
+- config warnings and local-config warnings,
+- migration recommendations that require explicit confirmation before any rewrite.
+
+`freeflow_status` must not rewrite `.freeflow/config.json` or `.freeflow/local.json`.
+
+## `freeflow_search`
+
+`freeflow_search` is the public surface for existing data.
+
+It works over two public source kinds:
+
+```text
+repo   current checkout files
+vault  previous Freeflow routed/captured/derived outputs
+```
+
+Actions:
+
+| Action | Job |
+| --- | --- |
+| `query` | Return focused evidence snippets for a query. |
+| `locate` | Return candidate locations with tiny evidence/previews. |
+| `get` | Content/snippet to coordinates: user gave exact-ish text/code or asks where something exists; return the best matching path/outputId, line range, and matched content. |
+| `retrieve` | Coordinates to content: caller already knows the path/outputId and line range; return those exact lines. |
+| `expand` | Widen a previous evidence packet. |
+| `explain` | Explain a prior routed decision or a vault output. |
+| `transform` | Process existing repo/vault data through deterministic operations, reducers, or scripts. |
+
+### Search Input Normalization In Pi
+
+Pi supplies runtime-only details before calling router core:
+
+- repo root becomes `ctx.cwd`,
+- vault root comes from normalized config,
+- session id comes from Pi session state,
+- generated path globs come from `outputRouter.generatedPaths`,
+- vault query filters are copied from `source` and `filters`.
+
+For repo sources:
 
 ```json
 {
   "action": "query",
-  "source": { "kind": "repo" },
-  "query": "Sandbox Permissions UseDefault RequireEscalated WithAdditionalPermissions",
-  "preserve": "important"
+  "source": { "kind": "repo", "path": "optional/subtree" },
+  "query": "output router storage policy"
 }
 ```
 
-Example exact repo span:
+For vault sources:
 
 ```json
 {
-  "action": "retrieve",
-  "source": { "kind": "repo", "path": "docs/example.md" },
-  "lineRange": { "start": 10, "end": 25 },
-  "preserve": "full"
+  "action": "query",
+  "source": { "kind": "vault" },
+  "query": "AssertionError",
+  "filters": { "producerKind": "command", "recoverability": "exact" }
 }
 ```
 
-Example vault recovery:
+Vault `outputId` is optional for `query`, `locate`, and `get`; omitting it searches the vault index for the current session. `outputId` is required for `retrieve`, `expand`, and `explain`.
+
+### Repo Query Flow
+
+```mermaid
+flowchart TD
+  Input[freeflow_search repo query/locate/get]
+  Root[realpath repo root]
+  Resolve[resolve optional source.path]
+  Traverse[collect text file refs]
+  Skip[broad-scan generated/dependency/binary/large skips]
+  Read[read text files concurrently]
+  Chunk[markdown/code/window chunks]
+  Score[BM25-style scoring + boosts]
+  Range[select evidence range]
+  Bound[apply excerpt/line caps]
+  Result[evidence packets + recovery]
+
+  Input --> Root --> Resolve --> Traverse --> Skip --> Read --> Chunk --> Score --> Range --> Bound --> Result
+```
+
+Repo traversal is owned by `router/src/repo/repo-traversal.ts`.
+
+Safety rules:
+
+- all paths are resolved through `realpath`,
+- requested paths must remain inside repo root,
+- symlink/root escapes are rejected,
+- broad scans skip generated/dependency/cache/log/build output,
+- explicit path retrieval remains available even if broad scans would skip that path.
+
+Broad-scan default skip examples:
+
+- `.git`, `node_modules`, `dist`, `build`, `out`, `.next`, `coverage`, `target`, `graphify-out`, `.cache`, logs/temp/generated dirs,
+- binary/media/archive/database/font/wasm extensions,
+- `.min.js`, `.min.css`, source maps, bundles, `.log`,
+- files over 1MB,
+- large HTML/JSON files over 64KB.
+
+Configured `outputRouter.generatedPaths` adds project-specific broad-scan skips such as `graphify-out/**`. These affect broad scans only; explicit path retrieval still works.
+
+### Repo Scoring
+
+Repo scoring is deterministic and lexical. It is not semantic/vector search.
+
+Owned by `router/src/evidence/evidence-search.ts`.
+
+Candidate chunks are built from:
+
+- Markdown preamble before first heading,
+- Markdown sections,
+- code symbol chunks for `fn`, `struct`, `enum`, `class`, `interface`, `type`, `const`, `def`, etc.,
+- fallback line windows when no structure exists.
+
+Scoring combines:
+
+- exact normalized phrase boost,
+- BM25-style term scoring,
+- query-token coverage,
+- heading coverage,
+- identifier/code-definition boosts,
+- ordered phrase boost for multi-token queries,
+- path intent boosts,
+- source/test priors,
+- length penalty.
+
+The router selects one top candidate per file to avoid one noisy file consuming all results. `topK` defaults to `1` for `query`, `5` for `locate`, and is capped at `10` in the public search tool.
+
+`evidence-range-selector.ts` narrows winning chunks to the smallest useful line range. `bounded-evidence.ts` then enforces byte and line caps and marks evidence as expandable.
+
+### Repo Retrieve And Expand
+
+`action=retrieve` with `source.kind=repo` supports:
+
+- explicit `source.path`,
+- optional exact `lineRange`,
+- `preserve="full"` for full-file retrieval up to a cap,
+- bounded edge chunks when requested exact/full content is over cap.
+
+`action=expand` requires a previous repo `EvidencePacket` with `path` and `lines`.
+
+Expansion options:
+
+- `lines_30`,
+- `lines_80`,
+- `full`.
+
+`full` still means exact fidelity under caps, not unlimited context injection. Over cap, Freeflow returns bounded start/end chunks and tells the agent how to recover narrower exact spans.
+
+### Vault Query Flow
+
+```mermaid
+flowchart TD
+  Input[freeflow_search vault query/locate/get]
+  HasId{source.outputId?}
+  Single[read exact output stream]
+  Index[query local JSON sidecar index]
+  Filters[apply session/producer/server/tool/stream/record/recoverability filters]
+  Score[lexical score]
+  Evidence[vault evidence packets]
+  Metadata[metadata-only match?]
+  Recovery[exact recovery or metadata-only explanation]
+
+  Input --> HasId
+  HasId -->|yes for query/get| Single --> Evidence --> Recovery
+  HasId -->|no| Index --> Filters --> Score --> Evidence --> Metadata --> Recovery
+```
+
+Vault-wide query/locate/get is powered by `router/src/vault/vault-index.ts`.
+
+The current index backend is a deterministic local JSON sidecar:
+
+```text
+<vaultRoot>/index/v1/state.json
+```
+
+It indexes:
+
+- exact text chunks for exact records,
+- metadata text for metadata-only records,
+- producer metadata,
+- session id,
+- output id,
+- record kind,
+- stream,
+- recoverability,
+- optional host-tool metadata.
+
+Default vault-index chunks are 40 lines and 8KB max. Default query result excerpt cap is 2KB. The index is intentionally simple and dependency-free; SQLite/FTS remains deferred/non-default.
+
+### Vault Retrieve And Expand
+
+Exact vault recovery uses:
 
 ```json
 {
@@ -402,494 +626,512 @@ Example vault recovery:
 }
 ```
 
-### `freeflow_run`
+Streams:
 
-Runs a command through the host-approved runner, captures raw output, stores it in the vault, and returns routed evidence.
+- command/script-producer run records: `stdout`, `stderr`, `combined`,
+- text/native/observed/transform records: `raw`,
+- metadata-only records: no raw stream.
 
-Example:
+If a requested vault line span is over cap, Freeflow returns bounded edge chunks, not a lossy summary.
 
-```json
-{
-  "command": "npm test",
-  "cwd": ".",
-  "timeoutMs": 900000,
-  "goal": "verification",
-  "preserve": "important"
-}
-```
+`action=explain` reads the vault record metadata and reports:
 
-The returned result includes:
+- record kind,
+- producer,
+- execution status when available,
+- persistence and recoverability,
+- lineage when available,
+- whether exact recovery exists.
 
-- `outputId` for exact recovery,
-- `execution.status` and `exitCode`,
-- route reason,
-- parser metadata,
-- selected important lines,
-- recovery instructions.
+## `freeflow_search action=transform`
 
-## Routed Result Contract
+Transform is the public surface for computing useful facts from existing data without dumping raw bytes into context.
 
-All routed results use stable status fields. They intentionally avoid a vague top-level `status`.
+There are two implementation branches in Pi.
 
-```mermaid
-classDiagram
-  class RoutedResult {
-    toolStatus
-    decisionId
-    preserve
-    routing
-    recovery?
-    evidence?
-  }
-  class RetrievalResult {
-    source?
-    evidence[]
-  }
-  class CommandResult {
-    outputId
-    execution
-    summary?
-    importantLines[]
-    parser?
-  }
-  class RoutingDecision {
-    status
-    route
-    reason
-  }
-  class EvidencePacket {
-    id
-    source
-    path?
-    lines?
-    excerpt
-    why
-    window
-    expandable
-  }
-  class CommandExecution {
-    status
-    exitCode
-    durationMs?
-  }
-  class ParserMetadata {
-    name
-    confidence
-    fidelity
-    compressed
-    counts?
-    references?
-  }
+### Branch 1: Explicit `operation` -> Transform Engine
 
-  RoutedResult <|-- RetrievalResult
-  RoutedResult <|-- CommandResult
-  RoutedResult --> RoutingDecision
-  RetrievalResult --> EvidencePacket
-  CommandResult --> CommandExecution
-  CommandResult --> ParserMetadata
-```
+When `params.operation` is present, Pi calls `router/src/transform/engine.ts`.
 
-Status dimensions:
+Current source support:
 
-| Field | Values | Meaning |
-| --- | --- | --- |
-| `toolStatus` | `ok`, `error` | Did the Freeflow tool call complete? |
-| `execution.status` | `success`, `failed`, `timed_out`, `cancelled` | What happened to the command? Only command results have this. |
-| `routing.status` | `routed`, `passed_through`, `partial`, `failed` | How did output routing behave? |
-| `routing.route` | `retrieve`, `run`, `safety-net`, `pass-through` | Which route handled the output? |
+- deterministic operations use one `source.kind="vault"` with `outputId` and optional `stream`,
+- `operation.kind="script"` uses `sources[]`, currently vault sources only, each with an `alias`.
 
-This separation prevents ambiguity such as “status failed” when the command failed but routing succeeded and preserved exact evidence.
+Deterministic operations:
 
-## `freeflow_retrieve` Architecture
+- `regexFilter`,
+- `countMatches`,
+- `jsonExtract` with JSON Pointer or supported JSON path,
+- `groupByRegex`,
+- `dedupe`,
+- `topN`,
+- `extractUrls`,
+- `extractCitations`,
+- `lineStats`,
+- `sizeStats`.
 
-### Retrieve Flow
-
-```mermaid
-sequenceDiagram
-  participant Agent
-  participant Pi as Pi adapter
-  participant Retrieve as freeflowRetrieve
-  participant Traversal as repo traversal
-  participant Search as evidence search
-  participant Vault
-  participant Bounded as bounded evidence
-
-  Agent->>Pi: freeflow_retrieve params
-  Pi->>Pi: inject repo root / vault root / session id
-  Pi->>Retrieve: normalized params
-  alt source.kind = repo and action=query/locate
-    Retrieve->>Traversal: collect text file refs
-    Traversal-->>Retrieve: broad or explicit file refs
-    Retrieve->>Search: score chunks
-    Search-->>Retrieve: ranked candidates
-    Retrieve->>Bounded: build evidence packet excerpts
-    Bounded-->>Retrieve: capped exact snippets
-  else source.kind = repo and action=retrieve/expand
-    Retrieve->>Traversal: resolve path inside root
-    Retrieve->>Bounded: exact/expanded span, capped if needed
-  else source.kind = vault
-    Retrieve->>Vault: read output stream/record
-    Vault-->>Retrieve: exact text or metadata
-    Retrieve->>Bounded: query/retrieve/expand evidence
-  end
-  Retrieve-->>Agent: routed result with evidence + recovery
-```
-
-### Repo Path Resolution
-
-`repo-traversal.ts` owns safe repo traversal.
-
-Key behaviors:
-
-- Realpaths the repo root and requested path.
-- Rejects paths that escape the repo root.
-- Distinguishes broad traversal from explicit requested paths.
-- Broad traversal skips generated/dependency/cache directories.
-- Explicit file or directory retrieval remains available even when broad scans would skip that path.
-- Text files larger than the broad-scan cap are skipped in broad traversal.
-- Binary-like extensions are skipped in broad traversal.
-- Lockfiles are not skipped merely because they are large-ish/generated-like.
-
-Default broad-scan skipped directories include:
-
-```text
-.git, node_modules, dist, build, out, .next, .nuxt, coverage, target,
-graphify-out, .cache, .tmp, tmp, temp, logs, generated
-```
-
-Default broad-scan file exclusions include binary/media/archive/native artifacts, `.map`, `.log`, minified assets, bundle outputs, files over 1 MiB, and large HTML/JSON files over 64 KiB.
-
-Repo-specific `generatedPaths` config adds broad-scan hints such as:
-
-```json
-{
-  "outputRouter": {
-    "generatedPaths": ["graphify-out/**", "dist/**"]
-  }
-}
-```
-
-Those hints affect broad scans. They must not remove the ability to explicitly retrieve a known path.
-
-### Repo Query Flow
-
-Repo query is scanner-based by default.
+Flow:
 
 ```mermaid
 flowchart TD
-  Query["query text"]
-  Files["repo text files"]
-  Chunks["candidate chunks"]
-  Score["score chunks"]
-  Select["select topK distinct files"]
-  Range["choose evidence range"]
-  Bound["build bounded excerpt"]
-  Result["evidence packets + recovery"]
+  Input[freeflow_search transform operation]
+  Validate[validate source + operation]
+  Read[read vault source stream]
+  Apply[apply deterministic operation or sandbox script]
+  Store[store transformed text as text record]
+  Lineage[source outputIds + operation hash]
+  Route[route transformed text under caps]
+  Return[evidence + outputId + recovery]
 
-  Query --> Score
-  Files --> Chunks
-  Chunks --> Score
-  Score --> Select
-  Select --> Range
-  Range --> Bound
-  Bound --> Result
-
-  subgraph ChunkTypes["Chunk types"]
-    Preamble["markdown preamble"]
-    Section["markdown section"]
-    Symbol["code symbol"]
-    Window["line window fallback"]
-  end
-  Chunks --> ChunkTypes
+  Input --> Validate --> Read --> Apply --> Store --> Lineage --> Route --> Return
 ```
 
-Candidate chunks come from:
+Successful transform output is stored as a `TextOutputRecord` with `sourceKind="transform"`, exact recovery for transformed text, and lineage back to source outputs.
 
-1. Markdown preamble before the first heading.
-2. Markdown heading sections.
-3. Code symbol chunks for simple definitions such as `fn`, `class`, `interface`, `type`, `def`, etc.
-4. Line windows when no structural chunks exist.
+Raw script code is not persisted. Script operation metadata stores:
 
-### Retrieval Scoring
+- language,
+- label when present,
+- `codeSha256`,
+- operation hash,
+- source aliases/output ids/streams,
+- adapter/runtime metadata when applicable.
 
-`evidence-search.ts` owns deterministic scoring.
+### Branch 2: No `operation` -> Processing Engine
 
-The scorer combines:
+When `action="transform"` has no `operation`, Pi calls `router/src/processing/engine.ts`.
 
-- token matching after stopword filtering,
-- exact normalized phrase boost,
-- BM25-style term frequency / inverse document frequency,
-- query-token coverage ratio,
-- complete coverage boost,
-- missing coverage penalty for longer queries,
-- heading coverage,
-- backtick identifier coverage,
-- ordered phrase boost,
-- code definition boost for symbol chunks,
-- chunk kind boost for symbols/sections,
-- path intent boost,
-- source/test prior,
-- path text score,
-- length penalty.
+This is the file/output processing path. It supports:
 
-Important design details:
+- repo file source: `source.kind="repo"` with `path`,
+- vault output source: `source.kind="vault"` with `outputId` and optional `stream`,
+- built-in reducers,
+- optional processing script via `params.script`,
+- local-only unsafe unsandboxed processing when explicitly requested and locally enabled.
 
-- Exact phrase matches receive a very high boost so copied text beats loose token repetition.
-- Test paths are not blindly preferred unless the query looks test-related.
-- Results are de-duplicated by file so `topK` returns distinct candidate files.
-- `query` defaults to `topK=1`.
-- `locate` defaults to `topK=5`.
-- The maximum `topK` is 10.
+Processing flow:
 
-### Evidence Range Selection
+```mermaid
+flowchart TD
+  Input[freeflow_search action=transform no operation]
+  Load[load repo-file or vault-output source]
+  Guard[repo containment + source byte limits]
+  Script{script requested?}
+  Sandbox[sandboxed script policy]
+  Unsafe[unsafe local JS policy]
+  Reducer[built-in reducer]
+  Render[fact-first visible output]
+  Persist[persist processing result text if sessionId]
+  Return[visible facts + source/recovery]
 
-After a chunk wins, the router chooses a narrower line range when possible. Exact phrase matches and query-token coverage guide the range. Evidence is then bounded before it enters context.
+  Input --> Load --> Guard --> Script
+  Script -->|sandboxed| Sandbox --> Render
+  Script -->|unsafe-unsandboxed| Unsafe --> Render
+  Script -->|no| Reducer --> Render
+  Render --> Persist --> Return
+```
 
-Evidence packets include:
+Default processing limits:
+
+- max source bytes: 2MB,
+- max visible bytes: 4KB.
+
+Processing output is rendered fact-first:
+
+```text
+facts...
+source: repo path or vault outputId:stream
+recovery: exact-result | exact-source | metadata-only | hint-only | none
+reducer/script metadata
+```
+
+### Built-In Reducers
+
+Reducers live in `router/src/processing/reducers.ts`.
+
+Current reducer families:
+
+| Reducer | Facts produced |
+| --- | --- |
+| `test-output` | test file/test counts, failed files, failed test names. |
+| `diagnostics` | total diagnostics, error/warning counts, top files/codes, first diagnostics. |
+| `build-output` | final status, errors/warnings, compiled count, issue files, first issues. |
+| `access-log` | request count, status counts, error rate, average latency, slow examples. |
+| `table` | CSV row/column counts, categorical counts, numeric min/max/average. |
+| `mcp-tools` | tool counts, categories, signatures, required params. |
+| `json-query` | object/array summaries, matched paths, categorical/numeric summaries, mentions, samples. |
+| `browser-snapshot` | role counts, refs, links, text nodes, top interactive/text nodes. |
+| `git-log` | commit counts by type/scope/author, recent commits. |
+
+Reducers are used by both processing and `freeflow_run` reducer routing.
+
+### Processing Scripts
+
+Processing scripts use `params.script`:
 
 ```json
 {
-  "id": "ev_...",
-  "source": { "kind": "repo", "path": "docs/example.md" },
-  "path": "docs/example.md",
-  "lines": "10-25",
-  "excerpt": "...",
-  "why": "BM25-style scored section chunk with 6/6 query-token coverage near docs/example.md:12.",
-  "window": "small",
-  "expandable": true
+  "action": "transform",
+  "source": { "kind": "repo", "path": "logs/access.log" },
+  "script": {
+    "language": "javascript",
+    "code": "const text = readText('source'); writeText(String(text.length));",
+    "policy": "sandboxed"
+  }
 }
 ```
 
-### Locate Versus Query
+Supported policies:
 
-`query` returns evidence that is intended to be read immediately.
+- `sandboxed` (default),
+- `unsafe-unsandboxed` (local-only JavaScript processing path).
 
-`locate` returns candidate locations with smaller one-line evidence. Use it when you want a ranked candidate list before deciding what to expand or read.
+Sandboxed processing requires `scriptTransform.enabled=true` and a proof-backed adapter for the requested language.
 
-### Retrieve Explicit Repo Spans
+Unsafe unsandboxed processing is deliberately separate:
 
-`action=retrieve` with a repo `source.path` supports:
+- only available through processing scripts, not `freeflow_run` script producers and not `operation.kind="script"`,
+- local-only opt-in via `.freeflow/local.json`,
+- each call must request `script.policy="unsafe-unsandboxed"`,
+- currently JavaScript only,
+- result must say unsafe/unsandboxed,
+- raw script text still is not persisted.
 
-- default first small span when no `lineRange` is supplied,
-- exact 1-based line ranges,
-- full-file retrieval when `preserve=full` and file size is under cap,
-- bounded edge previews when full or exact ranges exceed caps.
+Shared `.freeflow/config.json` cannot enable unsafe unsandboxed processing.
 
-Invalid line ranges are errors. The router should not silently clamp a requested line range past EOF.
+## `freeflow_run`
 
-### Expand Repo Evidence
+`freeflow_run` creates new output.
 
-`action=expand` widens previous repo evidence:
+It accepts exactly one base producer:
 
-- default `lines_30`: ±30 lines,
-- `lines_80`: ±80 lines,
-- `full`: full file span subject to caps.
-
-When expanded output exceeds caps, the router returns bounded head/tail chunks with recovery instructions rather than a lossy summary.
-
-## Vault Retrieval Architecture
-
-Vault retrieval mirrors repo retrieval, but the source is an `outputId` plus stream.
-
-Supported streams:
-
-- command records: `stdout`, `stderr`, `combined`,
-- native safety-net text records: `raw`.
-
-Vault actions:
-
-| Action | Behavior |
-| --- | --- |
-| `query` | Lexically finds the best line in the selected stream and returns a small context window. |
-| `retrieve` | Returns an exact 1-based line range, or bounded edge chunks if over cap. |
-| `expand` | Expands previous vault evidence to `lines_30`, `lines_80`, or `full`. |
-| `explain` | Reads vault metadata and explains output kind/status/decision ids. |
-
-Vault query is intentionally simpler than repo query because the output is already scoped by `outputId`. The agent can query first, then retrieve exact line ranges after identifying the region.
-
-## Bounded Evidence
-
-Bounded evidence prevents context flooding while preserving exact recovery.
-
-Current caps:
-
-| Context | Cap |
-| --- | ---: |
-| Query excerpt | 8 KiB |
-| Per-line preview | 2 KiB |
-| `expand lines_30` | 32 KiB or 120 lines |
-| `expand lines_80` | 64 KiB or 240 lines |
-| Exact repo/vault line range before edge chunks | 64 KiB |
-| Edge chunk | 32 KiB |
-| `freeflow_run` large output threshold | 64 KiB or 1,000 lines by default |
-
-Key properties:
-
-- Truncation is UTF-8/code-point safe.
-- Exact phrase excerpts try to keep the phrase inside the returned excerpt.
-- Over-cap exact retrieval returns bounded head/tail chunks, not a model-written summary.
-- Recovery instructions tell the agent how to request narrower exact spans.
-
-```mermaid
-flowchart LR
-  Span["selected exact span"]
-  Under{"under cap?"}
-  Exact["return exact excerpt"]
-  Phrase["center around exact phrase when present"]
-  Edge["return bounded head/tail previews"]
-  Recover["include lineRange recovery guidance"]
-
-  Span --> Under
-  Under -->|yes| Phrase --> Exact
-  Under -->|no| Edge --> Recover
+```text
+command XOR script
 ```
 
-## `freeflow_run` Architecture
+- `command`: shell command executed through Pi's approved runner.
+- `script`: sandboxed code-as-producer with no repo/home/env/network access.
 
-### Producer Run Flow
+It then routes stdout/stderr/combined through the same capture, storage, parsing, filtering, reducer, and recovery pipeline.
+
+### Run Command Flow
 
 ```mermaid
-sequenceDiagram
-  participant Agent
-  participant Pi as Pi adapter
-  participant Run as freeflowRun
-  participant Host as host-approved runner
-  participant Sandbox as script sandbox adapter
-  participant Vault
-  participant Parser as deterministic parsers
-  participant Router as command router
+flowchart TD
+  Input[freeflow_run command]
+  Validate[validate command/filters/scriptFilter]
+  Runner[Pi exec bash -lc through host-approved runner]
+  Result[stdout/stderr/exit/duration]
+  Fingerprint[exact + normalized + command fingerprints]
+  Duplicate[find prior exact duplicate]
+  Parser[parse output]
+  ReducerSelect[select reducer]
+  Storage[hybrid-dedupe/store-everything decision]
+  Vault[store command or metadata record]
+  Route[duplicate/scriptFilter/filter/full/failure/reducer/large/small route]
+  Return[compact text + details.result + recovery]
 
-  Agent->>Pi: freeflow_run command or script
-  Pi->>Run: command or script + cwd + timeout + session/vault config
-  alt command producer
-    Run->>Host: execute through approved runner
-    Host-->>Run: stdout/stderr/status/exit/duration
-  else sandboxed script producer
-    Run->>Sandbox: execute script with empty source manifest
-    Sandbox-->>Run: stdout/stderr/status/exit/duration
-  end
-  Run->>Vault: store exact stdout/stderr/combined/meta
-  Vault-->>Run: outputId
-  Run->>Vault: check duplicate fingerprint when preserve != full
-  Run->>Parser: parse command output
-  Parser-->>Run: important lines + parser metadata
-  Run->>Router: choose route by preserve/status/size/duplicate
-  Router-->>Agent: result with outputId + recovery
+  Input --> Validate --> Runner --> Result --> Fingerprint --> Duplicate --> Parser --> ReducerSelect --> Storage --> Vault --> Route --> Return
 ```
 
-### Producer Boundaries
+If the host runner throws before output is captured, `freeflow_run` returns a structured no-recovery error. No vault record exists.
 
-For command producers, the core router does not spawn arbitrary processes by itself. It depends on a host-provided runner.
+### Run Script Producer Flow
 
-In Pi, `freeflow_run` command mode uses `pi.exec("bash", ["-lc", command])` through the Pi extension. The adapter maps host results into:
+```mermaid
+flowchart TD
+  Input[freeflow_run script producer]
+  Validate[validate script via transform validation]
+  Config[effective scriptTransform config]
+  Adapter[select proof-backed adapter]
+  Execute[execute with empty source manifest]
+  FailEarly{disabled/adapter/output-limit/adapter throw?}
+  NoCapture[structured no-recovery failure]
+  Captured[stdout/stderr/status/exit]
+  Pipeline[normal run storage + parser + reducer/filter/routing]
+  Return[result with scriptProducer metadata]
+
+  Input --> Validate --> Config --> Adapter --> Execute --> FailEarly
+  FailEarly -->|yes| NoCapture
+  FailEarly -->|no| Captured --> Pipeline --> Return
+```
+
+A script producer does not receive repo files, home files, environment variables, network access, or vault access. It receives an empty source manifest and language-specific guest helpers from the adapter.
+
+Raw script code is never stored. Metadata includes:
+
+- `producer.kind: "script"`,
+- `scriptProducer.language`,
+- `policy: "sandboxed"`,
+- `rawScriptPersistence: "disabled"`,
+- `codeSha256`,
+- limits,
+- label when present,
+- adapter id/version/runtime when available,
+- stdout/stderr byte counts,
+- failure metadata when unavailable/failed.
+
+Important failure distinction:
+
+- disabled sandbox, missing adapter, adapter exception, or output-limit overflow can fail before capture; no output id exists,
+- a script that executes and exits non-zero or returns `status="failed"` still has stdout/stderr captured and routed as a failed run when the adapter returns bounded output.
+
+### Run Storage Policy
+
+Default storage policy: `hybrid-dedupe`.
+
+Override: `store-everything`.
+
+`store-everything` stores every run output exactly.
+
+`hybrid-dedupe` stores exact output when output is exactness-sensitive, and metadata-only for small non-sensitive successes.
+
+Output is exactness-sensitive when any of these is true:
+
+- `preserve="full"`,
+- execution did not succeed,
+- declarative filters are present,
+- `scriptFilter` is present,
+- a reducer is selected,
+- producer is `script`,
+- output exceeds `largeOutputBytes` or `largeOutputLines`,
+- goal/command indicates verification/test/lint/typecheck/diagnosis/debug/build/CI,
+- parser is not generic.
+
+Exact duplicate behavior:
+
+- command/script output is fingerprinted by exact output hash plus producer/cwd/status fingerprint,
+- if exactness-sensitive output duplicates a prior exact record and no script filter is involved, the current record may be metadata-only,
+- recovery points to the prior exact `outputId`,
+- model-visible output gets a compact duplicate note instead of repeated evidence.
+
+Small non-sensitive command successes may be metadata-only. They get rerun guidance, not exact recovery claims.
+
+Script producers are always exactness-sensitive because the raw script text is not persisted and stdout/stderr are the evidence of what happened.
+
+### Vault Records Created By Run
+
+Exact run storage creates a `CommandOutputRecord`:
+
+```text
+meta.json
+stdout.txt
+stderr.txt
+combined.txt
+```
+
+Metadata-only run storage creates a `MetadataOutputRecord`:
+
+```text
+meta.json only
+```
+
+Both records are appended to the session index and vault index. Metadata-only records are searchable by metadata but have no raw stream.
+
+### Run Parsers
+
+`router/src/routing/parsers.ts` picks deterministic important lines before generic fallback.
+
+Parser order:
+
+1. `test-runner`
+2. `typescript-lint`
+3. `git-status-diffstat`
+4. `build-toolchain`
+5. `generic`
+
+Parser metadata includes:
+
+- parser name,
+- confidence,
+- fidelity (`exact` or `lossy`),
+- compressed flag,
+- counts,
+- references for diagnostics where available.
+
+Parsers select exact line spans. They do not perform model summaries.
+
+### Run Reducers
+
+`router/src/routing/run-reducers.ts` can route successful command/script output through built-in processing reducers.
+
+Reducer selection is skipped when:
+
+- `preserve="full"`,
+- execution failed/timed out/cancelled,
+- declarative filters are present,
+- `scriptFilter` is present,
+- successful output mixes stdout and stderr, to avoid hiding warnings.
+
+A reducer is selected only when:
+
+- the processing reducer has high confidence, and
+- output is large enough **or** goal/command intent allows that reducer.
+
+Selected reducer output is stored as a transformed text record when the raw run record is exact. Recovery includes both raw run output and reducer-transformed output ids.
+
+### Declarative Run Filters
+
+`filters` are line filters applied after raw capture/storage and before routed evidence is returned.
+
+Supported fields:
+
+- `stream`: `stdout`, `stderr`, or `combined`,
+- `include`: regex string(s),
+- `exclude`: regex string(s),
+- `flags`: `gimsu` without duplicates,
+- `head`,
+- `tail`,
+- `maxLines`,
+- `maxBytes`.
+
+Filters never rerun the producer. They operate over already captured output.
+
+If a failed command has no matching filtered lines, Freeflow preserves parsed failure evidence instead of hiding the failure. Metadata records this as `fallbackPreservedFailureEvidence`.
+
+### Script Filters
+
+`scriptFilter` runs a sandboxed script over already captured run output.
+
+Flow:
+
+```mermaid
+flowchart TD
+  Base[command or script producer output]
+  Raw[raw stdout/stderr/combined vaulted]
+  Sources[create vault sources aliases stdout/stderr/combined]
+  Transform[freeflowTransform operation.kind=script]
+  Store[store transformed raw output]
+  Route[return transformed evidence or fallback base evidence]
+
+  Base --> Raw --> Sources --> Transform --> Store --> Route
+```
+
+Aliases exposed to the script transform:
 
 - `stdout`,
 - `stderr`,
-- `executionStatus`,
-- `exitCode`,
-- `durationMs`.
+- `combined`.
 
-Execution statuses are:
+Script filters require the same proof-backed sandbox adapters as other script transforms. There is no unsafe fallback.
 
-| Status | Meaning |
-| --- | --- |
-| `success` | process exited with code 0 |
-| `failed` | process exited non-zero |
-| `timed_out` | host runner killed the process |
-| `cancelled` | signal was aborted |
+If the script filter succeeds:
 
-Sandboxed script producers use the same proof-backed script sandbox engine as `freeflow_search action=transform operation.kind="script"`, but with no mounted source files. Raw script code is not persisted; run metadata stores language, label, limits, adapter identity, and a code hash. Successful and failed sandbox executions map to the same stdout/stderr/status/exit/duration shape as host commands. Sandbox-disabled, adapter-unavailable, adapter-throw, and output-cap failures happen before run output exists and return structured no-recovery failures.
+- transformed output is vaulted as a separate text record,
+- `scriptFilter.outputId` points to transformed output,
+- raw output remains recoverable by the raw `outputId`,
+- lineage connects transformed output to the raw run record.
 
-### Raw Capture First
+If it fails/unavailable:
 
-The run output path is:
+- raw output remains recoverable when raw storage succeeded,
+- base routed evidence is returned,
+- failure metadata says why the script filter did not produce transformed output.
+
+## Script Sandbox Architecture
+
+Script sandboxing is shared by:
+
+- `freeflow_search action=transform operation.kind="script"`,
+- `freeflow_run` script producers,
+- `freeflow_run` script filters,
+- processing scripts with `policy="sandboxed"`.
+
+The contract lives in `router/src/sandbox/script-sandbox.ts`.
+
+Supported languages:
+
+- `javascript` through `quickjs-wasi`,
+- `jq` through `jq-wasm`,
+- `python` through `@bsull/eryx`.
+
+Script execution is disabled by default. A language can execute only when:
+
+1. `.freeflow/config.json` has `scriptTransform.enabled=true`,
+2. the requested language is in `scriptTransform.languages`,
+3. a registered adapter for that language is discovered,
+4. the adapter passes every required proof,
+5. per-call and configured limits are valid.
+
+Required proofs:
+
+- `env_access_denied`,
+- `home_access_denied`,
+- `repo_access_denied`,
+- `vault_access_denied`,
+- `network_access_denied`,
+- `input_read_only`,
+- `output_escape_denied`,
+- `stdout_stderr_bounded`,
+- `timeout_enforced`.
+
+Rejected mechanisms:
+
+- Node `vm`,
+- plain Python subprocess,
+- plain jq subprocess.
+
+An OS sandbox adapter remains candidate-unproven until it passes the same contract.
+
+### Adapter Discovery
+
+Adapter roots are discovered from:
+
+- global Freeflow adapter cache: `~/.cache/freeflow-script-adapters`,
+- `FREEFLOW_SCRIPT_TRANSFORM_ADAPTERS_HOME`,
+- `FREEFLOW_QUICKJS_WASI_ROOT`,
+- `FREEFLOW_JQ_WASM_ROOT`,
+- `FREEFLOW_ERYX_ROOT`,
+- `FREEFLOW_SCRIPT_TRANSFORM_NODE` for the Node 24 child runner used by Python/Eryx.
+
+Setup helper:
 
 ```text
-execute one producer -> capture stdout/stderr/combined -> write vault when policy requires -> route bounded evidence
+node <plugin-root>/router/dist/setup/script-transform-adapters.js install --config .freeflow/config.json
 ```
 
-If the adapter fails before output is captured, the result has `toolStatus: "error"`, empty `outputId`, and recovery says no command or script output was captured.
+The installer can install:
 
-If routing fails after producer execution, the router still tries to return bounded in-memory evidence and, if available, an `outputId` for recovery.
+- `quickjs-wasi@3.0.1`,
+- `jq-wasm@1.2.0-jq-1.8.2`,
+- `@bsull/eryx@0.5.0`,
+- `node@24` for Python child execution.
 
-### Run Routing Rules
+It writes only proof-passing languages to config when `--config` is provided.
 
-`run.ts` owns command and script-producer routing.
+Python/Eryx uses a setup-installed Node 24 child process with `--experimental-wasm-jspi` when the host runtime lacks JSPI support. Python remains unavailable unless that runner passes proofs.
 
-```mermaid
-flowchart TD
-  Output["captured run output"]
-  Vault["store in vault"]
-  Duplicate{"exact duplicate?"}
-  Preserve{"preserve=full?"}
-  Failed{"execution success?"}
-  Large{"large by bytes/lines?"}
-  DupNote["compact duplicate note + current/prior outputIds"]
-  Full["exact full output under cap, else bounded preview"]
-  Failure["exact failure evidence + recovery"]
-  Partial["bounded important lines + recovery"]
-  NearRaw["near-raw small success + recovery"]
+### Adapter Execution Boundary
 
-  Output --> Vault --> Duplicate
-  Duplicate -->|yes| DupNote
-  Duplicate -->|no| Preserve
-  Preserve -->|yes| Full
-  Preserve -->|no| Failed
-  Failed -->|no| Failure
-  Failed -->|yes| Large
-  Large -->|yes| Partial
-  Large -->|no| NearRaw
+The transform engine creates a temp root with:
+
+```text
+input/
+work/
+output/
 ```
 
-Routing behavior:
+For source-based transforms, selected vault streams are copied into `input/<alias>.txt` and described in `input/manifest.json`. The vault root and repo root are never mounted.
 
-| Case | Result |
-| --- | --- |
-| Exact duplicate output | Compact duplicate note, current and prior outputs remain recoverable. |
-| `preserve=full` under cap | Exact output returned after vault capture. |
-| `preserve=full` over cap | Bounded preview plus raw vault recovery. |
-| Failed/timed-out/cancelled command | Selected failure evidence returned; raw output vaulted. |
-| Large successful output | Bounded important lines returned; raw output vaulted. |
-| Small successful output | Near-raw bounded output returned and vaulted. |
+For `freeflow_run` script producers, the source list is empty. The script creates new stdout/stderr rather than transforming existing sources.
 
-### Command Parsers
+Adapters receive:
 
-`parsers.ts` owns deterministic command parsing.
+- language,
+- code,
+- temp input/work/output dirs,
+- source mounts,
+- limits,
+- `network: "off"`.
 
-Current parsers run in priority order:
+Adapters return bounded stdout/stderr/status/output-file metadata. The product currently uses stdout/stderr; output-limit overflow is treated as structured failure with no hidden exact recovery claim.
 
-| Parser | Confidence | Trigger shape | Evidence selected |
-| --- | ---: | --- | --- |
-| `test-runner` | 0.92 | test-like commands | failure block and test summary lines |
-| `typescript-lint` | 0.88 | TypeScript/lint-like commands | diagnostic references and error/warning lines |
-| `git-status-diffstat` | 0.76 | `git status`, `git diff --stat`, `git show --stat`, diffstat | status/diffstat evidence lines |
-| `build-toolchain` | 0.66 | build-like commands with errors | build failure block |
-| `generic` | 0.35 | fallback | verification summary, failure block, stderr, or first non-empty line |
-| `duplicate-output` | 1.00 | exact duplicate command output | compact duplicate metadata |
-| `router-fallback` | 0.00 | router error after execution | bounded fallback evidence |
-
-Parser metadata tells the agent how much trust to place in the extraction:
-
-```json
-{
-  "name": "typescript-lint",
-  "confidence": 0.88,
-  "fidelity": "exact",
-  "compressed": true,
-  "counts": { "errors": 2, "warnings": 0 },
-  "references": [
-    { "path": "src/file.ts", "line": 12, "column": 5, "message": "..." }
-  ]
-}
-```
-
-The router does not pretend parser output is the only truth. The raw output remains recoverable by `outputId`.
+Proof results are cached in-process by adapter/runtime/content/limit keys so repeated status checks do not rerun expensive adversarial probes unnecessarily.
 
 ## Vault Architecture
 
-### What The Vault Stores
-
-The vault is a filesystem-backed exact-output store.
+The vault is the router's exact-evidence store.
 
 Default root:
 
@@ -897,76 +1139,399 @@ Default root:
 ~/.cache/freeflow-router/vault
 ```
 
-Default retention:
+Configured by `outputRouter.vaultRoot`. Retention defaults to TTL 7 days.
 
-```json
-{ "strategy": "ttl", "ttlDays": 7 }
-```
+### Object Identity
 
-Command records store:
+Records use content-derived ids:
 
-```text
-objects/sha256_<content-hash>/
-  meta.json
-  stdout.txt
-  stderr.txt
-  combined.txt
-```
+- `objectId`: object directory id,
+- `outputId`: public recovery id (`ffout_...`),
+- `recordId`: record identity (`ffrec_...`).
 
-Native safety-net text records store:
+Ids are derived from hashed payload metadata/content. Records include `contentHashSha256` and per-stream hashes.
 
-```text
-objects/sha256_<content-hash>/
-  meta.json
-  raw.txt
-```
+### Record Kinds
 
-Each session has an index:
-
-```text
-sessions/<session-id>/
-  index.json
-  index.json.lock
-```
-
-### IDs And Hashes
-
-The vault uses content-derived IDs:
-
-- `objectId`: `sha256_<full hash>`
-- `outputId`: `ffout_<first 24 hash chars>`
-
-Command fingerprints include:
-
-- exact stdout/stderr/combined hash,
-- normalized stdout/stderr/combined hash,
-- command/cwd/execution status/exit-code fingerprint.
-
-These fingerprints allow exact duplicate detection without relying on fuzzy text comparison.
+| Kind | Stored files | Used for |
+| --- | --- | --- |
+| `command` | `meta.json`, `stdout.txt`, `stderr.txt`, `combined.txt` | `freeflow_run` exact command/script-producer output. |
+| `text` | `meta.json`, `raw.txt` | native safety-net text, observed exact text, transform/reducer/processing output. |
+| `metadata` | `meta.json` | metadata-only run/observed records. |
+| `repo-file` | `meta.json` | repo file reference records from processing paths. |
 
 ### Session Index
 
-The session index records:
+Each session has a session index:
 
-- `outputs`,
-- `records` by output id,
-- `successful`, `failed`, `timedOut`, `cancelled` command groups,
-- output kind,
-- object id,
-- timestamps,
+```text
+<vaultRoot>/sessions/<sessionId>/index.json
+```
+
+The session index tracks:
+
+- outputs,
+- records by output id,
+- successful/failed/timed_out/cancelled command groups,
+- producer metadata,
+- persistence,
+- lineage,
 - fingerprints.
 
-Session index writes use:
+Writes are guarded by an in-process lock with a timeout/retry loop.
 
-- in-process promise chaining,
-- file-backed lock file,
-- atomic JSON write via temp file and rename.
+### Vault Index
 
-That protects cross-process/session-index updates from common write races.
+The local JSON sidecar index lives under:
 
-### Recovery Pattern
+```text
+<vaultRoot>/index/v1/state.json
+```
 
-For exact command recovery:
+It is updated after each vault append. Index failures are non-blocking: storage still succeeds, and the index records degraded status for `freeflow_status`.
+
+The index stores exact text chunks when recoverability is exact and metadata-only text otherwise. It supports filters by:
+
+- `sessionId`,
+- `outputId`,
+- `recordKind`,
+- `producerKind`,
+- MCP server/tool,
+- host tool name,
+- stream,
+- recoverability.
+
+It powers vault-wide `freeflow_search` query/locate/get without reading every raw vault object into model context.
+
+## Pi Observed Routing
+
+Observed routing is a Pi `tool_result` hook for external producers.
+
+It is off by default. It runs only when:
+
+- `observedRouting.enabled=true`, and
+- the specific producer/server is enabled.
+
+Supported producer families:
+
+- MCP servers via `observedRouting.mcp.servers`,
+- Pi `web_search`,
+- Pi `fetch_content`,
+- Pi `code_search`.
+
+Flow:
+
+```mermaid
+sequenceDiagram
+  participant A as Agent
+  participant H as Host tool
+  participant Hook as Pi tool_result hook
+  participant R as routeObservedToolOutput
+  participant V as Vault
+  participant M as Model context
+
+  A->>H: call MCP/web/fetch/code-search directly
+  H-->>Hook: raw host result
+  Hook->>Hook: identify producer + config + risk
+  Hook->>R: raw result + persistence policy
+  R->>R: normalize string/json/content_blocks/stdio
+  R->>V: store exact text, metadata-only, or nothing
+  R->>R: deterministic observed reducer
+  R-->>Hook: routed observed result
+  Hook-->>M: labeled Freeflow observed-routing output
+```
+
+Host execution remains owned by Pi. Freeflow does not grant permissions, block mutating tools, or decide whether an MCP action is allowed. It classifies producer risk as routing metadata:
+
+- configured override,
+- MCP annotations,
+- built-in manifest for web/fetch/code-search,
+- read/write verb heuristics,
+- unknown fallback.
+
+Persistence modes:
+
+- `exact`: store exact raw normalized text and return vault recovery.
+- `metadata-only`: store metadata/hash/counts only; no raw stream recovery.
+- `none`: no persistence.
+
+`redacted` is future-only and must not be offered as a setup option.
+
+Observed routing fails open. If normalization/storage/reduction fails after the host tool completes, Pi returns the original host output with a Freeflow warning rather than silently shortening or blocking it.
+
+## Pi Native Safety Net
+
+Native safety-net routing is optional post-tool routing for Pi native `read` and `bash` outputs.
+
+Default:
+
+```json
+{
+  "outputRouter": {
+    "postToolRouting": "off"
+  }
+}
+```
+
+Modes:
+
+- `off`: native output passes through unchanged.
+- `safety-net`: large/noisy native `read`/`bash` results may be vaulted and replaced with labeled routed output.
+- `strict`: reserved; no stronger blocking behavior exists today.
+
+Safety-net flow:
+
+```mermaid
+flowchart TD
+  Native[Native read/bash result]
+  Enabled{postToolRouting=safety-net?}
+  Threshold{large bytes/lines or noisy hint?}
+  Store[store exact text record sourceKind=native]
+  Label[labeled routed result with first lines]
+  Recovery[freeflow_search retrieve outputId stream=raw]
+  Pass[pass native output unchanged]
+
+  Native --> Enabled
+  Enabled -->|no| Pass
+  Enabled -->|yes| Threshold
+  Threshold -->|no| Pass
+  Threshold -->|yes| Store --> Label --> Recovery
+```
+
+Trigger conditions:
+
+- native tool is `read` or `bash`,
+- output exceeds configured `largeOutputBytes` or `largeOutputLines`, or
+- configured noisy/generated hints match and a conservative minimum is exceeded.
+
+Safety-net output is always labeled as Freeflow-routed output and includes recovery instructions. If safety-net routing fails, it fails open and appends a warning; native output is not silently removed.
+
+## `freeflow_batch`
+
+`freeflow_batch` runs independent Freeflow-owned steps concurrently.
+
+Step kinds:
+
+- `run`,
+- `search`.
+
+It does not support:
+
+- sequenced workflows,
+- arbitrary external tool orchestration,
+- mutating batch work,
+- public batch transform steps in v1 Pi normalization.
+
+Defaults and caps:
+
+- default concurrency: `4`,
+- max concurrency: `16`,
+- max steps: `50`,
+- max query prompts: `10`,
+- max query length: `500`.
+
+Flow:
+
+```mermaid
+flowchart TD
+  Input[freeflow_batch]
+  Validate[validate steps/concurrency/queries]
+  Parallel[run steps with bounded concurrency]
+  Child[child freeflow_run/freeflow_search results]
+  Query{queries[]?}
+  Match[match child evidence + important lines + exact vault refs]
+  Summary[compact batch summary]
+  Details[full child results in details.result.steps]
+
+  Input --> Validate --> Parallel --> Child --> Query
+  Query -->|yes| Match --> Summary --> Details
+  Query -->|no| Summary --> Details
+```
+
+Query aggregation is deterministic. It searches:
+
+- child evidence packets,
+- child run important lines,
+- recoverable child vault refs when `vaultRoot` is available.
+
+It returns up to three matches per query. It does not ask a model to summarize child outputs.
+
+## Pi Rendering And Model-Visible Text
+
+Pi tool results have two layers:
+
+1. compact model-visible `content[0].text`,
+2. full structured `details.result` for expanded UI/recovery/debugging.
+
+Renderers live in `pi-extension/src/renderers.ts`; compact text helpers live in `pi-extension/src/utils.ts`.
+
+The UI is designed so collapsed tool rows stay readable while expanded rows show:
+
+- status axes,
+- routing reason,
+- storage/persistence,
+- evidence/important lines,
+- filters/reducers/script metadata,
+- parser metadata,
+- vault recovery,
+- exact `freeflow_search` recovery hints,
+- status/migration diagnostics.
+
+Do not treat compact text as the complete result. For debugging or review, inspect `details.result`.
+
+## Configuration
+
+Minimal setup writes only:
+
+```json
+{
+  "defaultMode": "workflow"
+}
+```
+
+All router config has built-in defaults. Optional config is written only after an explicit setup branch/request.
+
+Supported `.freeflow/config.json` keys:
+
+```json
+{
+  "defaultMode": "workflow",
+  "outputRouter": {
+    "enabled": true,
+    "profile": "standard",
+    "postToolRouting": "off",
+    "storagePolicy": "hybrid-dedupe",
+    "largeOutputBytes": 64000,
+    "largeOutputLines": 1000,
+    "vaultRoot": "~/.cache/freeflow-router/vault",
+    "vaultRetentionDays": 7,
+    "generatedPaths": ["graphify-out/**"],
+    "noisyCommandHints": ["npm test"]
+  },
+  "observedRouting": {
+    "enabled": true,
+    "onRoutingFailure": "fail-open",
+    "mcp": {
+      "servers": {
+        "github": { "enabled": true, "persistence": "exact" }
+      }
+    },
+    "web": { "enabled": true, "persistence": "exact" },
+    "fetch": { "enabled": true, "persistence": "exact" },
+    "codeSearch": { "enabled": true, "persistence": "exact" }
+  },
+  "scriptTransform": {
+    "enabled": true,
+    "sandbox": "auto",
+    "languages": ["javascript", "jq", "python"],
+    "network": "off",
+    "limits": {
+      "timeoutMs": 5000,
+      "maxInputBytes": 1048576,
+      "maxOutputBytes": 65536
+    },
+    "rawScriptPersistence": "disabled"
+  }
+}
+```
+
+Do not dump defaults into config. Missing optional sections mean built-in defaults.
+
+### Defaults
+
+| Setting | Default |
+| --- | --- |
+| `outputRouter.enabled` | `true` |
+| `outputRouter.profile` | `standard` |
+| `outputRouter.postToolRouting` | `off` |
+| `outputRouter.storagePolicy` | `hybrid-dedupe` |
+| `largeOutputBytes` | `64000` |
+| `largeOutputLines` | `1000` |
+| `vaultRoot` | `~/.cache/freeflow-router/vault` |
+| `vaultRetentionDays` | `7` |
+| `observedRouting.enabled` | `false` |
+| observed persistence defaults | `none` |
+| `scriptTransform.enabled` | `false` |
+| `scriptTransform.languages` | `javascript`, `python`, `jq` |
+| `scriptTransform.network` | `off` |
+| `scriptTransform.rawScriptPersistence` | `disabled` |
+
+Invalid config falls back safely with warnings.
+
+### Local Unsafe Processing Config
+
+Unsafe processing opt-in is local-only:
+
+```json
+{
+  "processing": {
+    "unsafeUnsandboxed": {
+      "enabled": true
+    }
+  }
+}
+```
+
+This belongs in `.freeflow/local.json`, not shared config.
+
+Rules:
+
+- shared `.freeflow/config.json` cannot enable unsafe processing,
+- each call must still request `script.policy="unsafe-unsandboxed"`,
+- result must label unsafe/unsandboxed,
+- no sandbox/read-only/network-off claims are allowed for unsafe results.
+
+## Runtime Context Integration
+
+Output Router is loaded as part of Pi runtime context.
+
+Pi extension lifecycle:
+
+- `session_start`: reset full-context injection, restore mode override, refresh runtime context, read config, update UI status.
+- `session_compact`: same reset/refresh behavior.
+- `before_agent_start`: inject full workflow/interview/discover/output-router skill context once per session/compaction boundary, then short refresh context on later turns.
+- later turns always include a compact output-router tool reminder while the router is enabled, so the agent keeps the tool map without reloading the whole skill.
+- the full output-router safety-policy reference is not injected by default; the active skill carries compact hard rules and points to the reference for policy changes/reviews.
+- `tool_result`: observed routing first, native safety net second.
+
+Runtime priority stated to the model:
+
+1. Workflow classifies conversation vs consequential work.
+2. Interview Gate stops silent decisions and source-truth conflicts.
+3. Discover handles context-building.
+4. Output Router chooses evidence transport after the route is clear.
+
+Output Router must not bypass workflow decisions. It only chooses how evidence is transported.
+
+## Exactness And Safety Policy
+
+Exactness-sensitive output must not be silently summarized or compressed.
+
+Exactness-sensitive cases include:
+
+- user asked for exact/full output,
+- verification/failure evidence,
+- source-truth conflict evidence,
+- security/privacy/billing/data-loss/public API evidence,
+- `preserve="full"`,
+- failed/timed-out/cancelled runs,
+- script producers,
+- filters/script filters/reducers,
+- large/noisy output under storage policy.
+
+Rules:
+
+- Capture raw evidence before transforming whenever output is routed.
+- Label transformed native/observed results as Freeflow-routed.
+- Include `outputId` and recovery instructions when exact recovery exists.
+- Preserve exact failure and verification evidence lines.
+- For huge exactness-sensitive output, return vault pointers and bounded exact chunks, not lossy summaries.
+- If post-tool native safety-net routing fails, fail open.
+- Do not pretend routed output is native output.
+
+## Recovery Cookbook
+
+Recover exact run output:
 
 ```json
 {
@@ -977,7 +1542,7 @@ For exact command recovery:
 }
 ```
 
-For exact native safety-net recovery:
+Recover exact native/observed/transform text:
 
 ```json
 {
@@ -988,429 +1553,392 @@ For exact native safety-net recovery:
 }
 ```
 
-## Config And Setup
-
-### Built-In Defaults
-
-The router works without repo config.
-
-Default normalized config:
+Search the vault when line numbers are unknown:
 
 ```json
 {
-  "postToolRouting": "off",
-  "thresholds": {
-    "largeOutputBytes": 64000,
-    "largeOutputLines": 1000
-  },
-  "vault": {
-    "root": "~/.cache/freeflow-router/vault",
-    "retention": { "strategy": "ttl", "ttlDays": 7 }
-  }
+  "action": "query",
+  "source": { "kind": "vault" },
+  "query": "AssertionError expected false",
+  "filters": { "producerKind": "command", "recoverability": "exact" }
 }
 ```
 
-### Optional Repo Config
-
-`.freeflow/config.json` may include optional `outputRouter` config, but only when explicitly requested.
-
-Supported setup-facing keys:
+Explain whether a vault output is recoverable:
 
 ```json
 {
-  "defaultMode": "workflow",
-  "outputRouter": {
-    "postToolRouting": "off",
-    "largeOutputBytes": 64000,
-    "largeOutputLines": 1000,
-    "vaultRoot": "~/.cache/freeflow-router/vault",
-    "vaultRetentionDays": 7,
-    "generatedPaths": ["graphify-out/**"],
-    "noisyCommandHints": ["npm test"]
-  }
+  "action": "explain",
+  "source": { "kind": "vault", "outputId": "ffout_..." }
 }
 ```
 
-Mapping into normalized runtime config:
-
-| Repo key | Runtime field |
-| --- | --- |
-| `postToolRouting` | `config.postToolRouting` |
-| `largeOutputBytes` | `config.thresholds.largeOutputBytes` |
-| `largeOutputLines` | `config.thresholds.largeOutputLines` |
-| `vaultRoot` | `config.vault.root` |
-| `vaultRetentionDays` | `config.vault.retention.ttlDays` |
-| `generatedPaths` | `config.hints.generatedPathGlobs` |
-| `noisyCommandHints` | `config.hints.noisyCommandPatterns` |
-
-Invalid config falls back safely with warnings.
-
-### Setup Contract
-
-`setup-freeflow` owns optional output-router config setup.
-
-Rules:
-
-- Minimal setup writes only `{ "defaultMode": "workflow" }`.
-- Do not ask every setup user about router config.
-- Do not write an empty `outputRouter` object.
-- Do not dump defaults.
-- Write only keys the user explicitly requested.
-- Do not create a separate `setup-output-router` skill.
-- Do not enable native safety-net routing unless explicitly requested.
-
-The STP-011 setup eval verifies optional router config while preserving minimal setup behavior.
-
-## Pi Integration
-
-The Pi extension is the strongest current host adapter.
-
-It does five router-related things:
-
-1. Loads `output-router` skill and safety policy into runtime context.
-2. Reads `.freeflow/config.json` and normalizes optional router config.
-3. Registers `freeflow_retrieve` and `freeflow_run` tools.
-4. Renders compact and expanded TUI views for routed results.
-5. Optionally handles native `read`/`bash` safety-net routing on `tool_result` when configured.
-
-```mermaid
-flowchart TD
-  SessionStart["session_start / session_compact"]
-  BeforeAgent["before_agent_start"]
-  ToolCall["model calls freeflow_retrieve/freeflow_run"]
-  ToolResult["native read/bash tool_result"]
-  Config["read + normalize .freeflow/config.json"]
-  Context["inject workflow + interview-gate + output-router context"]
-  Register["registered routed tools"]
-  Safety["optional safety-net handler"]
-  TUI["render collapsed/expanded result"]
-
-  SessionStart --> Config
-  SessionStart --> Context
-  BeforeAgent --> Config
-  BeforeAgent --> Context
-  ToolCall --> Register --> TUI
-  ToolResult --> Config --> Safety
-```
-
-Pi tool parameter normalization:
-
-- Repo source gets `root: ctx.cwd`.
-- Vault source gets `root` from router config and `sessionId` from Pi session id.
-- Generated path hints are passed into repo retrieval.
-- `freeflow_run` gets vault root, retention, thresholds, current cwd, and host runner.
-
-Pi TUI behavior:
-
-- Collapsed rows show route status, evidence count, output id, parser, and recovery hint availability.
-- Expanded rows show routing details, evidence excerpts, parser metadata, important lines, and vault recovery instructions.
-
-## Safety Net Routing
-
-Safety net routing is optional post-tool routing for native `read` and `bash` outputs.
-
-Default:
+Expand previous evidence:
 
 ```json
-{ "postToolRouting": "off" }
+{
+  "action": "expand",
+  "source": { "kind": "repo" },
+  "evidence": { "...": "previous evidence packet" },
+  "expansion": "lines_80"
+}
 ```
 
-When enabled with `safety-net`, the Pi extension may vault and replace large native results with a labeled routed output.
+## Common Flows
 
-A native result may route when:
-
-- the tool is `read` or `bash`, and
-- safety net is enabled, and
-- output exceeds configured bytes or lines, or
-- output matches configured generated/noisy hints and exceeds conservative heuristic floors.
-
-The returned text must say:
-
-- Freeflow routed this native result,
-- why it routed,
-- `outputId`, stream, line and byte stats,
-- exact recovery instructions,
-- exact first captured lines.
-
-If safety-net routing fails, it fails open: the native output passes through with a warning.
-
-This behavior follows `skills/output-router/references/safety-policy.md`.
-
-## Safety Policy
-
-The safety policy protects exactness-sensitive output.
-
-Exactness-sensitive output includes:
-
-- user-requested exact/full output,
-- small outputs,
-- verification output needed for completion claims,
-- failure evidence needed for diagnosis,
-- source-truth conflict evidence,
-- security/privacy/billing/data-loss/public API evidence,
-- anything marked `preserve: full`.
-
-Required behavior:
-
-- Capture raw evidence before transformation whenever output is routed.
-- Label transformed native results as Freeflow-routed output.
-- Include `outputId` and recovery instructions for routed output.
-- Preserve exact failure and verification evidence lines.
-- Pass small native outputs through unchanged.
-- For huge exactness-sensitive output, use vaulting and exact chunk retrieval instead of lossy summarization.
-
-## Experimental Local Index
-
-A no-dependency local index exists as an experiment and benchmark target.
-
-It is not the default backend.
-
-Current adoption decision:
+### Broad Repo Question
 
 ```text
-scanner remains default
-index is not adopted by default
-SQLite/FTS is not adopted
-external/vector services are not required
+Agent needs architecture fact
+-> freeflow_search action=query source.kind=repo
+-> router skips generated paths and scores source chunks
+-> model sees 1-5 evidence packets
+-> if needed, expand or retrieve exact spans
 ```
 
-The index benchmark measures cold build, warm query, stale refresh, generated false positives, context bytes, and latency. It is useful evidence, but not product behavior.
+### Failing Test Suite
 
-Do not change docs or setup to imply indexing is required.
-
-## Evidence And Benchmarks
-
-Durable runtime reports live under `evals/reports/runtime/`.
-
-### Retrieval Benchmark
-
-Report: `output-router-benchmark-1-report.md`
-
-Summary:
-
-- Improved router passed 7/7 gated fixtures.
-- Native baseline proxy passed 3/7.
-- Pre-hardening Freeflow proxy passed 2/7.
-- Improved generated false positives: 0/7.
-- Improved path/span/excerpt checks: 7/7 each.
-- Sandbox failure fixed: yes.
-
-Important fixtures include:
-
-- exact copied text,
-- markdown heading/body query,
-- generated artifact decoy,
-- huge single-line decoy,
-- ambiguous multi-file query,
-- vaulted output query,
-- expand narrow evidence.
-
-### Command Benchmark
-
-Report: `output-router-command-benchmark-1-report.md`
-
-Summary:
-
-- Improved `freeflow_run` passed 8/8 fixtures.
-- Exact fact preservation: 8/8.
-- Raw vault recovery: 8/8.
-- Failed command facts preserved: yes.
-- Weighted byte/token reduction: 85.03% / 85.02%.
-
-Fixtures include:
-
-- noisy success,
-- failed stack trace,
-- test summary,
-- TypeScript/lint diagnostics,
-- git output,
-- repetitive log,
-- huge JSON/table,
-- repeated command output.
-
-### Optional Index Benchmark
-
-Report: `output-router-index-benchmark-1-report.md`
-
-Summary:
-
-- Scanner remains default: yes.
-- Index adopted by default: no.
-- Scanner pass: 3/3.
-- Warm index pass: 3/3.
-- Generated false positives: 0/12.
-
-### Codex Structured Q&A Macro Benchmark
-
-Report: `output-router-codex-qa-benchmark-1-report.md`
-
-Summary:
-
-- Improved Freeflow Router passed 1/1.
-- Native broad-search proxy passed 0/1.
-- The native proxy selected `graphify-out/graph.html`.
-- Improved router selected `docs/codex-cli-agent-harness/2026-06-12-pass-3-sandboxing-and-permissions.md` and expanded enough evidence to answer the question.
-
-### Setup Config Eval
-
-Report: `evals/reports/by-skill/setup-freeflow-5-report.md`
-
-Summary:
-
-- `setup-freeflow` supports optional `outputRouter` config only when requested.
-- Minimal setup still writes only `defaultMode`.
-- STP-011 passed for requested `postToolRouting: "off"`, `largeOutputLines: 2000`, and generated paths.
-
-## Adoption Decisions
-
-Current release/adoption state:
-
-| Area | Decision |
-| --- | --- |
-| Repo retrieval backend | Scanner is default. |
-| Generated artifact handling | Broad scans skip generated/dependency/cache paths; explicit retrieval remains available. |
-| Local index | Experimental only. |
-| SQLite/FTS | Not adopted. Needs benchmark evidence and explicit approval. |
-| Model-assisted routing/summarization | Not default. |
-| Native post-tool routing | Off by default. Opt-in only. |
-| `strict` post-tool mode | Reserved; do not invent blocking behavior. |
-| External tools | Graphify, Claude Context, RTK, and Squeez are optional comparators/references, not dependencies. |
-| Public tool contract | Keep `freeflow_retrieve`, `freeflow_run`, and routed-result schema stable. |
-
-## Failure Modes And How The Router Handles Them
-
-| Failure mode | Router response |
-| --- | --- |
-| Generated artifact wins broad search | Broad traversal skips generated paths; scorer rewards exact phrase/source chunks. |
-| Huge single-line file floods context | Per-line preview and excerpt byte caps truncate safely with recovery guidance. |
-| Agent needs exact lines beyond cap | Return bounded edge chunks and instruct narrower `lineRange` retrieval. |
-| Command fails | Preserve exact failure evidence and vault raw output. |
-| Command output is huge but successful | Return bounded important lines and recovery id. |
-| Same command output repeats | Return compact duplicate note; current and prior output ids remain recoverable. |
-| Router config is invalid | Fall back to built-in defaults and warn. |
-| Safety-net routing fails | Fail open: pass native output through with warning. |
-| User wants raw/direct behavior | Use native read/bash or exact `freeflow_retrieve` line ranges. |
-
-## Extensibility Points
-
-Safe extension paths:
-
-- Add deterministic command parsers with confidence/fidelity metadata.
-- Add benchmark fixtures before changing retrieval ranking.
-- Extend repo chunking only if it improves measured accuracy without breaking exact recovery.
-- Add adapters for other hosts while preserving public tool names and result schema.
-- Expand vault browsing/pruning only as explicit tools or setup workflows.
-- Keep optional index work behind benchmark/adoption gates.
-
-Risky changes that require owner approval:
-
-- enabling native post-tool routing by default,
-- making model-assisted routing default,
-- requiring SQLite/FTS/vector databases/external services,
-- changing `freeflow_retrieve` or `freeflow_run` public names,
-- changing routed-result schema fields,
-- hiding exact recovery behind summaries,
-- treating generated-path hints as explicit-path denial rules.
-
-## Operational Guidance
-
-### When Using The Router
-
-1. Use `freeflow_retrieve query` before broad reads.
-2. Use `locate` when you need candidate paths first.
-3. Use `expand` when the first evidence is relevant but too narrow.
-4. Use `retrieve` with exact line ranges when you need precise recovery.
-5. Use `freeflow_run` for commands likely to be noisy.
-6. Use native `bash` for small direct commands where exact raw behavior is the point.
-7. Mention what was verified before claiming work is complete.
-
-### When Changing The Router
-
-1. Add or update benchmark fixtures first when behavior changes.
-2. Preserve scanner/default behavior unless an explicit adoption decision changes it.
-3. Preserve public routed-result schema.
-4. Preserve raw capture before transformation.
-5. Run targeted tests and benchmark scripts.
-6. Update release evidence only with measured claims.
-
-Common verification commands:
-
-```sh
-npm run test:router
-npm run bench:router
-npm run bench:router:commands
-npm run bench:router:index
-npm run bench:router:codex-qa
-evals/scripts/check-runtime-context-hook.sh
-evals/scripts/check-activation-contract.sh
-npm pack --dry-run --json
-git diff --check
+```text
+Agent runs npm test
+-> freeflow_run command with goal=verification
+-> host runner executes once
+-> stdout/stderr/combined captured
+-> output exactness-sensitive because goal/test/failure
+-> vault stores raw output
+-> parser selects failure block + summary
+-> model sees exact failure lines and outputId
 ```
 
-## Known Non-Goals And Deferred Work
+### Large Logs
 
-Not current behavior:
+```text
+Agent needs facts from access log
+-> freeflow_run command or freeflow_search transform repo/vault source with goal=log analysis
+-> raw source stays outside model context
+-> access-log reducer computes status counts/error rate/slow examples
+-> transformed/reduced result has lineage and recovery
+```
 
-- mandatory index build,
-- SQLite/FTS default retrieval,
-- vector database dependency,
-- model-assisted router default,
-- native post-tool safety-net default,
-- repo-local hooks created by setup,
-- separate `setup-output-router` skill,
-- external Graphify/Claude Context/RTK/Squeez dependency,
-- vault browser/pruning command,
-- full corpus recreation benchmark as a release gate.
+### Script Producer
 
-Deferred work:
+```text
+Agent needs generated data from code but no repo/env/network access
+-> freeflow_run script language=javascript/jq/python
+-> sandbox adapter must be enabled and proof-backed
+-> script stdout/stderr become run output
+-> normal run storage/routing/recovery applies
+```
 
-- larger Codex macro benchmark stages,
-- optional external comparator wiring,
-- long-session vault retention/pruning UX,
-- additional deterministic command parsers,
-- future host adapters beyond Pi,
-- adoption decision for any index backend only after stronger evidence.
+### Script Filter
+
+```text
+Agent already captured huge command output
+-> freeflow_run command + scriptFilter
+-> base producer runs once
+-> raw output vaulted
+-> script transform reads stdout/stderr/combined aliases
+-> transformed output vaulted separately
+-> result points to raw and transformed output ids
+```
+
+### Observed MCP Output
+
+```text
+Agent calls MCP tool directly
+-> Pi host executes MCP call
+-> tool_result hook detects configured MCP server
+-> observed routing normalizes/stores/reduces output
+-> model sees labeled Freeflow observed result
+-> host permissions remain Pi-owned
+```
+
+### Native Safety Net
+
+```text
+Agent accidentally runs broad native bash while safety-net enabled
+-> Pi receives native bash result
+-> safety net sees threshold/noise match
+-> exact native text vaulted
+-> model sees labeled first lines + recovery id
+-> if safety-net fails, native output passes through with warning
+```
+
+## Extending The Router
+
+### Add A New Search Behavior
+
+Prefer improving scanner scoring/range selection before adding a new default index.
+
+Touchpoints:
+
+- `router/src/evidence/evidence-search.ts`,
+- `router/src/evidence/evidence-range-selector.ts`,
+- `router/src/evidence/bounded-evidence.ts`,
+- tests under `router/tests/`,
+- benchmark reports under `evals/reports/runtime/` when behavior changes meaningfully.
+
+Do not make FTS/vector/semantic search default without benchmark-backed adoption and dependency decisions.
+
+### Add A New Run Parser
+
+Touchpoints:
+
+- `router/src/routing/parsers.ts`,
+- `CommandParserMetadata` expectations in `router/src/config/types.ts` if needed,
+- `router/tests/tools/run.test.js`,
+- Pi renderer expectations if new metadata must display.
+
+Parser rules:
+
+- deterministic only,
+- select exact lines,
+- preserve failure evidence,
+- expose counts/references when useful,
+- do not model-summarize.
+
+### Add A New Reducer
+
+Touchpoints:
+
+- `router/src/processing/reducers.ts`,
+- `router/src/routing/run-reducers.ts` for run auto-selection intent,
+- processing/rendering tests,
+- benchmark fixtures that assert facts, not just byte reduction.
+
+Reducer rules:
+
+- output facts first,
+- keep source recovery/lineage,
+- avoid selecting on low confidence,
+- do not hide stderr warnings from mixed successful output.
+
+### Add A New Transform Operation
+
+Touchpoints:
+
+- operation type in `router/src/transform/engine.ts`,
+- validation,
+- execution implementation,
+- operation summary/hash,
+- Pi schema in `pi-extension/src/schemas.ts`,
+- renderer/test coverage.
+
+Transform rules:
+
+- validate before reading broad data,
+- store transformed result with lineage,
+- hash operation metadata,
+- keep raw source recovery separate from transformed output recovery.
+
+### Add A New Script Adapter
+
+Touchpoints:
+
+- `router/src/sandbox/script-sandbox.ts` adapter contract,
+- new adapter under `router/src/sandbox/`,
+- adapter-root discovery if package-installed,
+- setup installer if user-global install is supported,
+- status reporting,
+- adversarial proof tests.
+
+Adapter must pass every required proof before execution is available. No plain subprocess or partial-proof adapter can be enabled as sandboxed.
+
+### Add A New Observed Producer
+
+Touchpoints:
+
+- `pi-extension/src/host-producer-identification.ts`,
+- `router/src/config/types.ts` producer kinds if needed,
+- `router/src/routing/observed-routing.ts`,
+- `pi-extension/src/schemas.ts` config/status/schema if public config changes,
+- release/setup docs.
+
+Observed producer decisions are routing decisions, not host permission decisions.
+
+## Operating And Debugging
+
+Use this checklist when something looks wrong.
+
+### Did The Right Tool Run?
+
+Inspect:
+
+- Pi tool call name,
+- `details.result.routing.route`,
+- `producer.kind`,
+- compact text label.
+
+If native output was routed, it must explicitly say Freeflow routed it.
+
+### Did The Producer Run?
+
+For `freeflow_run`, inspect:
+
+- `toolStatus`,
+- `execution.status`,
+- `execution.exitCode`,
+- `producer.kind`,
+- `scriptProducer` if present.
+
+A script producer can fail before capture; then `outputId` is empty and recovery is unavailable.
+
+### Was Output Stored Exactly?
+
+Inspect:
+
+- `persistence.status`,
+- `persistence.recoverability`,
+- `recovery.outputId`,
+- `recordId`,
+- `lineage` for transformed outputs.
+
+Use `freeflow_search action=explain` on the `outputId` when in doubt.
+
+### Why Did A Result Look Too Small?
+
+Inspect:
+
+- `routing.status` (`partial` often means bounded by caps),
+- parser/reducer/filter metadata,
+- `recovery.how`,
+- `evidence[].why`,
+- `importantLines[].lines`.
+
+Small model-visible output is expected. Exact recovery should be available when policy says exact.
+
+### Why Did Vault Query Miss Something?
+
+Possible reasons:
+
+- record is in a different session,
+- record is metadata-only and only metadata terms are searchable,
+- vault index is degraded/stale,
+- filters are too narrow,
+- exact text was never persisted,
+- source was native and safety net/observed routing was off.
+
+Use `freeflow_status action=doctor`, `action=explain`, or a known `outputId` retrieve.
+
+### Why Did A Script Not Run?
+
+Check `freeflow_status`:
+
+- `scriptTransform.enabled`,
+- configured languages,
+- registered adapters,
+- failed proofs,
+- adapter home/env roots,
+- limits,
+- `rawScriptPersistence`.
+
+Common causes:
+
+- script transform disabled by default,
+- adapter package not installed/discovered,
+- adapter did not pass proofs,
+- language not enabled,
+- input exceeds max input bytes,
+- output exceeds max output bytes,
+- unsafe policy requested without `.freeflow/local.json` opt-in.
+
+### What Should Be Committed?
+
+Runtime source changes usually require generated dist updates:
+
+- `router/src/**` -> `router/dist/**`,
+- `pi-extension/src/**` -> `pi-extension/dist/**`.
+
+Docs-only changes do not require rebuild.
+
+Before claiming a behavior change is complete, run relevant tests and `git diff --check`.
+
+## Non-Goals And Deferred Work
+
+Current non-goals:
+
+- replacing native `read`, `bash`, `edit`, `write`,
+- blocking host tools,
+- granting tool permissions,
+- making `postToolRouting` strict/blocking,
+- making semantic code intelligence a Freeflow responsibility,
+- making model-assisted summaries the default router path,
+- adding vector search,
+- making SQLite/FTS the default vault/repo index,
+- enabling script execution without proof-backed adapters,
+- enabling unsafe processing through shared config,
+- storing raw script code,
+- supporting arbitrary sequenced/mutating batch workflows.
+
+Deferred/adoption-gated work:
+
+- default repo index adoption,
+- SQLite/FTS dependency adoption,
+- broader observed-routing producer set,
+- stricter native safety-net modes,
+- richer deterministic reducers,
+- benchmark-backed public superiority claims over other context-saving tools,
+- enforcement hooks only after repeated behavior failures prove they are needed.
+
+## Evidence And Current Confidence
+
+High-signal current evidence is summarized in `plugin-docs/release-evidence.md` and runtime reports under `evals/reports/runtime/`.
+
+Current adoption decisions:
+
+- scanner retrieval remains default,
+- generated-path broad-scan skipping is default,
+- local JSON vault sidecar index is adopted for vault search,
+- `hybrid-dedupe` is the default `freeflow_run` storage policy,
+- native safety-net routing is off by default,
+- observed routing is off by default and explicit per producer/server,
+- script transform execution is disabled by default and adapter/proof-gated,
+- QuickJS, jq-wasm, and Eryx adapters are product execution paths only when installed, discovered, enabled, and proof-passing,
+- unsafe unsandboxed processing is local-only and explicit per call,
+- public `freeflow_capture` and old provider-summary config are removed.
 
 ## Source Evidence Appendix
 
-Primary implementation files:
+Primary source files:
 
-| File | Owns |
-| --- | --- |
-| `router/src/config/types.ts` | Public internal types: preserve modes, actions, statuses, evidence packets, routed results, vault records. |
-| `router/src/config/config.ts` | Defaults and `outputRouter` config normalization. |
-| `router/src/config/router-contract.ts` | Config contract invariants. |
-| `router/src/config/schema.ts` | Runtime validation of preserve/actions/results/config/records. |
-| `router/src/tools/retrieve.ts` | `freeflow_retrieve` implementation. |
-| `router/src/evidence-search.ts` | Structural chunking and ranking. |
-| `router/src/evidence-range-selector.ts` | Evidence span narrowing. |
-| `router/src/repo/repo-traversal.ts` | Safe repo traversal and broad-scan filters. |
-| `router/src/bounded-evidence.ts` | UTF-8-safe bounded repo/vault excerpts. |
-| `router/src/tools/run.ts` | `freeflow_run` execution/routing. |
-| `router/src/routing/parsers.ts` | Deterministic command parsers. |
-| `router/src/evidence/evidence.ts` | Important-line assembly for command output. |
-| `router/src/vault/vault.ts` | File-backed vault, session index, duplicate fingerprints. |
-| `router/src/experiments/local-index.ts` | Experimental no-dependency index. |
-| `pi-extension/index.js` | Pi tool registration, runtime context, TUI rendering, safety net. |
-| `hooks/freeflow-runtime-context.mjs` | Codex/Claude setup detection; accepts optional object-shaped `outputRouter`. |
+- `router/src/tools/search.ts`
+- `router/src/tools/run.ts`
+- `router/src/tools/batch.ts`
+- `router/src/transform/engine.ts`
+- `router/src/processing/engine.ts`
+- `router/src/processing/reducers.ts`
+- `router/src/processing/scripts.ts`
+- `router/src/routing/parsers.ts`
+- `router/src/routing/run-filters.ts`
+- `router/src/routing/run-reducers.ts`
+- `router/src/routing/observed-routing.ts`
+- `router/src/vault/vault.ts`
+- `router/src/vault/vault-index.ts`
+- `router/src/repo/repo-traversal.ts`
+- `router/src/evidence/evidence-search.ts`
+- `router/src/evidence/evidence-range-selector.ts`
+- `router/src/evidence/bounded-evidence.ts`
+- `router/src/sandbox/script-sandbox.ts`
+- `router/src/sandbox/quickjs-wasi-adapter.ts`
+- `router/src/sandbox/jq-wasm-adapter.ts`
+- `router/src/sandbox/eryx-python-adapter.ts`
+- `router/src/setup/script-transform-adapters.ts`
+- `router/src/config/config.ts`
+- `router/src/config/types.ts`
+- `pi-extension/src/router-tools.ts`
+- `pi-extension/src/schemas.ts`
+- `pi-extension/src/renderers.ts`
+- `pi-extension/src/status.ts`
+- `pi-extension/src/observed-tool-routing.ts`
+- `pi-extension/src/native-safety-net.ts`
+- `pi-extension/src/host-producer-identification.ts`
+- `pi-extension/src/runtime-context.ts`
+- `skills/output-router/SKILL.md`
+- `skills/output-router/references/safety-policy.md`
+- `plugin-docs/output-router.md`
+- `plugin-docs/release-evidence.md`
 
-Primary docs and skills:
+## Change Log
 
-| File | Owns |
-| --- | --- |
-| `skills/output-router/SKILL.md` | Agent-facing tool choice and recovery guidance. |
-| `skills/output-router/references/safety-policy.md` | Exactness-sensitive routing policy. |
-| `skills/setup-freeflow/references/output-router-setup.md` | Optional repo config setup rules. |
-| `docs/specs/freeflow-output-router-design.md` | Original router design spec. |
-| `docs/specs/freeflow-output-router-excellence-spec.md` | Accuracy/benchmark/index hardening spec. |
-| `plugin-docs/release-evidence.md` | Current release evidence summary. |
+### 2026-06-28
 
-Primary reports:
-
-| Report | Evidence |
-| --- | --- |
-| `evals/reports/runtime/output-router-benchmark-1-report.md` | Retrieval benchmark, 7/7 improved pass. |
-| `evals/reports/runtime/output-router-command-benchmark-1-report.md` | Command benchmark, 8/8 improved pass and recovery. |
-| `evals/reports/runtime/output-router-index-benchmark-1-report.md` | Optional index experiment; scanner default preserved. |
-| `evals/reports/runtime/output-router-codex-qa-benchmark-1-report.md` | Codex Structured Q&A macro benchmark. |
-| `evals/reports/by-skill/setup-freeflow-5-report.md` | Optional outputRouter setup/config eval. |
+Rewrote the architecture document around the current `freeflow_search`, `freeflow_run`, `freeflow_batch`, `freeflow_status`, observed-routing, processing, transform, script-sandbox, vault-index, and Pi rendering architecture. Removed stale `freeflow_retrieve`/`freeflow_capture` framing and documented script producers, script filters, built-in reducers, `hybrid-dedupe`, local unsafe processing, and current config boundaries.

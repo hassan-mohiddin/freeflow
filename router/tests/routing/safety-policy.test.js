@@ -17,13 +17,13 @@ test("output-router skill safety policy documents exactness-sensitive routing ca
   assert.match(skill, /references\/safety-policy\.md/);
 
   assert.match(policy, /# Output Router Safety Policy/);
-  assert.match(policy, /Do not silently summarize or compress/);
+  assert.match(policy, /Do not silently summarize, compress, or replace/);
   assert.match(policy, /user-requested exact\/full output/);
-  assert.match(policy, /small outputs/);
+  assert.match(policy, /small native outputs/);
   assert.match(policy, /verification output needed for completion claims/);
   assert.match(policy, /failure evidence needed for diagnosis/);
   assert.match(policy, /source-truth conflict evidence/);
-  assert.match(policy, /security, privacy, billing, data-loss, or public API evidence/);
+  assert.match(policy, /security, privacy, billing, data-loss, permissions, or public API evidence/);
   assert.match(policy, /`preserve: full`/);
   assert.match(policy, /vaulting and exact chunk retrieval/);
 });

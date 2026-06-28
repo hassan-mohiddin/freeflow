@@ -47,20 +47,19 @@ function findWorkspaceRoot(cwd) {
 }
 
 function loadRuntimeContext() {
+  const modeContractSkill = readText(path.join(PLUGIN_ROOT, "skills", "mode-contract", "SKILL.md"));
   const workflowSkill = readText(path.join(PLUGIN_ROOT, "skills", "workflow", "SKILL.md"));
-  const workflowMap = readText(
-    path.join(PLUGIN_ROOT, "skills", "workflow", "references", "workflow-map.md")
-  );
   const interviewGateSkill = readText(
     path.join(PLUGIN_ROOT, "skills", "interview-gate", "SKILL.md")
   );
   const discoverSkill = readText(path.join(PLUGIN_ROOT, "skills", "discover", "SKILL.md"));
+  const outputRouterSkill = readText(path.join(PLUGIN_ROOT, "skills", "output-router", "SKILL.md"));
 
-  if (!workflowSkill || !workflowMap || !interviewGateSkill || !discoverSkill) {
+  if (!modeContractSkill || !workflowSkill || !interviewGateSkill || !discoverSkill || !outputRouterSkill) {
     throw new Error("Freeflow runtime context files are missing.");
   }
 
-  return { workflowSkill, workflowMap, interviewGateSkill, discoverSkill };
+  return { modeContractSkill, workflowSkill, interviewGateSkill, discoverSkill, outputRouterSkill };
 }
 
 function readConfig(root) {
@@ -202,7 +201,7 @@ function shouldInject(eventName) {
 
 function buildContext(input) {
   const root = findWorkspaceRoot(input.cwd || process.cwd());
-  const { workflowSkill, workflowMap, interviewGateSkill, discoverSkill } = loadRuntimeContext();
+  const { modeContractSkill, workflowSkill, interviewGateSkill, discoverSkill, outputRouterSkill } = loadRuntimeContext();
 
   return [
     "# Freeflow Runtime Context",
@@ -214,12 +213,19 @@ function buildContext(input) {
     buildSetupStatus(root),
     "",
     "## Freeflow Runtime Priority",
-    "Priority order for matched skills:",
+    "Mode Contract handles mode setting, mode interpretation, and mode mismatch before task routing when mode is at issue.",
+    "",
+    "Priority order for matched non-mode workflow skills:",
     "",
     "1. Workflow classifies conversation versus consequential work.",
     "2. Interview Gate stops silent decisions, user-owned decisions, source-truth conflicts, and question-to-action mistakes.",
     "3. Discover handles context-building after no immediate stop condition remains. Use it before first repo/code exploration or design answers for consequential product/API/tool/runtime hypotheses.",
     "4. Output Router chooses evidence transport after the workflow/interview/discover route is clear.",
+    "",
+    "## Loaded Mode Contract Skill",
+    "```md",
+    modeContractSkill.trim(),
+    "```",
     "",
     "## Loaded Workflow Skill",
     "```md",
@@ -236,9 +242,9 @@ function buildContext(input) {
     discoverSkill.trim(),
     "```",
     "",
-    "## Loaded Workflow Map",
+    "## Loaded Output Router Skill",
     "```md",
-    workflowMap.trim(),
+    outputRouterSkill.trim(),
     "```"
   ].join("\n");
 }
