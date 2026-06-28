@@ -1,4 +1,4 @@
-import type { CaptureConfig, FreeflowConfig, ObservedRoutingConfig, ProvidersConfig, RouterConfig, ScriptDeriveConfig, VaultRetentionPolicy } from "./types.js";
+import type { CaptureConfig, FreeflowConfig, ObservedRoutingConfig, LocalFreeflowConfig, ProvidersConfig, RouterConfig, ScriptDeriveConfig, VaultRetentionPolicy } from "./types.js";
 export declare const OUTPUT_ROUTER_SKILL_PATH = "skills/output-router/SKILL.md";
 export declare const DEFAULT_VAULT_ROOT = "~/.cache/freeflow-router/vault";
 export declare const DEFAULT_POST_TOOL_ROUTING = "off";
@@ -64,6 +64,13 @@ export declare const DEFAULT_SCRIPT_DERIVE_CONFIG: {
     };
     rawScriptPersistence: "disabled";
 };
+export declare const DEFAULT_LOCAL_FREEFLOW_CONFIG: {
+    processing: {
+        unsafeUnsandboxed: {
+            enabled: false;
+        };
+    };
+};
 export interface CreateDefaultRouterConfigOptions {
     vaultRetention?: VaultRetentionPolicy;
     vaultRoot?: string;
@@ -93,9 +100,14 @@ export interface NormalizeFreeflowConfigResult {
     config: FreeflowConfig;
     warnings: string[];
 }
+export interface NormalizeLocalFreeflowConfigResult {
+    config: LocalFreeflowConfig;
+    warnings: string[];
+}
 export declare function normalizeRouterConfig(input: unknown): NormalizeRouterConfigResult;
 export declare function normalizeCaptureConfig(input: unknown): NormalizeCaptureConfigResult;
 export declare function normalizeProvidersConfig(input: unknown): NormalizeProvidersConfigResult;
 export declare function normalizeObservedRoutingConfig(input: unknown): NormalizeObservedRoutingConfigResult;
 export declare function normalizeScriptDeriveConfig(input: unknown): NormalizeScriptDeriveConfigResult;
+export declare function normalizeLocalFreeflowConfig(input: unknown): NormalizeLocalFreeflowConfigResult;
 export declare function normalizeFreeflowConfig(input: unknown): NormalizeFreeflowConfigResult;

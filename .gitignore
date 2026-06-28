@@ -4,6 +4,7 @@ node_modules/
 # Local environment secrets.
 .env
 .env.*
+.freeflow/local.json
 
 # Generated eval harness output.
 evals/runs/

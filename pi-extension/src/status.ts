@@ -22,6 +22,7 @@ import {
   discoverJqWasmSandboxAdaptersFromEnv,
   discoverQuickJsWasiSandboxAdaptersFromEnv,
   normalizeFreeflowConfig,
+  normalizeLocalFreeflowConfig,
   probeScriptSandboxAdapters,
 } from "../../router/dist/index.js";
 import { isMcpServerConfigured } from "./mcp-config.js";
@@ -52,19 +53,25 @@ const SCRIPT_DERIVE_CONFIG_KEYS = new Set(["enabled", "sandbox", "languages", "n
 export async function buildFreeflowStatusReport(params = {}, ctx) {
   const action = normalizeStatusAction((params as any).action);
   const configFile = await readConfigFile(ctx.cwd);
+  const localConfigFile = await readLocalConfigFile(ctx.cwd);
   const normalized = normalizeFreeflowConfig(configFile.parsed);
+  const localNormalized = normalizeLocalFreeflowConfig(localConfigFile.parsed);
   const modeState = await readModeState(ctx.cwd);
   const vault = createVault({
     root: normalized.config.outputRouter.vault.root,
     retention: normalized.config.outputRouter.vault.retention,
   });
   const configWarnings = [...normalized.warnings];
+  const localConfigWarnings = [...localNormalized.warnings];
 
   if (configFile.parseError) {
     configWarnings.unshift(`.freeflow/config.json could not be parsed; using built-in defaults. ${configFile.parseError}`);
   }
   if (isRecord(configFile.parsed) && configFile.parsed.defaultMode !== undefined && !VALID_MODES.has(configFile.parsed.defaultMode)) {
     configWarnings.push(`Invalid defaultMode=${JSON.stringify(configFile.parsed.defaultMode)}; using workflow.`);
+  }
+  if (localConfigFile.parseError) {
+    localConfigWarnings.unshift(`.freeflow/local.json could not be parsed; local unsafe processing opt-ins are disabled. ${localConfigFile.parseError}`);
   }
 
   const scriptSandboxAdapters = [
@@ -86,6 +93,8 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
     generatedAt: new Date().toISOString(),
     configPath: configFile.path,
     configExists: configFile.exists,
+    localConfigPath: localConfigFile.path,
+    localConfigExists: localConfigFile.exists,
     mode: modeState,
     effectiveConfig: {
       outputRouter: {
@@ -102,6 +111,7 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
       observedRouting: normalized.config.observedRouting,
       scriptDerive: normalized.config.scriptDerive,
     },
+    effectiveLocalConfig: localNormalized.config,
     effectiveDefaults: {
       outputRouter: {
         enabled: DEFAULT_OUTPUT_ROUTER_ENABLED,
@@ -132,6 +142,7 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
     },
     observedRouting: observedRoutingStatus(normalized.config.observedRouting),
     scriptDerive: scriptDeriveStatus(normalized.config.scriptDerive, scriptSandbox),
+    processing: processingStatus(localNormalized.config),
     providers,
     recoverabilityDefaults: {
       freeflowRun: "hybrid-dedupe command capture: exact when exactness-sensitive or duplicate recovery points to a prior exact outputId; small non-sensitive successes may be metadata-only",
@@ -140,6 +151,7 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
       directHostTools: "off by default; optional native read/bash safety-net only when outputRouter.postToolRouting is safety-net",
     },
     configWarnings,
+    localConfigWarnings,
     staleConfig: migration.recommendations,
     migration,
   };
@@ -154,6 +166,22 @@ function normalizeStatusAction(value) {
 
 async function readConfigFile(cwd) {
   const path = join(cwd, ".freeflow/config.json");
+  try {
+    const raw = await readFile(path, "utf8");
+    try {
+      const parsed = JSON.parse(raw);
+      return { path, exists: true, raw, parsed: isRecord(parsed) ? parsed : {}, parseError: null };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return { path, exists: true, raw, parsed: {}, parseError: message };
+    }
+  } catch {
+    return { path, exists: false, raw: null, parsed: {}, parseError: null };
+  }
+}
+
+async function readLocalConfigFile(cwd) {
+  const path = join(cwd, ".freeflow/local.json");
   try {
     const raw = await readFile(path, "utf8");
     try {
@@ -331,6 +359,26 @@ function scriptDeriveStatus(config, sandboxReport) {
       `Script adapter discovery is explicit via ${"FREEFLOW_QUICKJS_WASI_ROOT"} and ${"FREEFLOW_JQ_WASM_ROOT"}; no runtime artifacts are downloaded by Freeflow.`,
       ...sandboxReport.notes,
     ],
+  };
+}
+
+function processingStatus(localConfig) {
+  const enabled = localConfig.processing.unsafeUnsandboxed.enabled;
+  return {
+    unsafeUnsandboxed: {
+      enabled,
+      source: ".freeflow/local.json",
+      status: enabled ? "enabled_unsafe" : "disabled",
+      notes: enabled
+        ? [
+            "Unsafe unsandboxed processing is enabled only by local config for this checkout.",
+            "Every unsafe execution result must be labeled unsafe/unsandboxed and must not claim sandbox/read-only/network-off execution.",
+          ]
+        : [
+            "Unsafe unsandboxed processing is disabled. Shared .freeflow/config.json cannot enable it.",
+            "Enable only in local-only .freeflow/local.json after accepting the risk.",
+          ],
+    },
   };
 }
 

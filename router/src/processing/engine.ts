@@ -13,7 +13,7 @@ import {
   type ProcessingScriptResult,
 } from "./scripts.js";
 import { createVault, readOutputText, readVaultRecord, storeRepoFileReference, storeTextOutput } from "../vault/vault.js";
-import type { EvidenceLineage, EvidencePersistence, OutputStream, RecoveryHint, ScriptDeriveConfig, SourceRef, VaultRecord, VaultRetentionPolicy } from "../config/types.js";
+import type { EvidenceLineage, EvidencePersistence, LocalFreeflowConfig, OutputStream, RecoveryHint, ScriptDeriveConfig, SourceRef, VaultRecord, VaultRetentionPolicy } from "../config/types.js";
 import type { ScriptSandboxAdapter } from "../sandbox/script-sandbox.js";
 
 export const PROCESSING_ENGINE_IMPLEMENTATION = "processing-engine-skeleton-v1";
@@ -31,6 +31,7 @@ export interface ProcessingEngineOptions {
   limits?: Partial<ProcessingLimits>;
   script?: ProcessingScriptRequest;
   scriptDerive?: ScriptDeriveConfig;
+  localConfig?: LocalFreeflowConfig;
   scriptSandboxAdapters?: readonly ScriptSandboxAdapter[];
 }
 
@@ -212,11 +213,12 @@ export async function processSource(
         loaded,
         script: options.script,
         ...(options.scriptDerive !== undefined ? { scriptDerive: options.scriptDerive } : {}),
+        ...(options.localConfig !== undefined ? { localConfig: options.localConfig } : {}),
         ...(options.scriptSandboxAdapters !== undefined ? { adapters: options.scriptSandboxAdapters } : {}),
       })
     : processingScriptNotConfigured();
-  const selectedReducer = selectedScript.status === "executed"
-    ? notSelectedReducer("Sandboxed script processing produced output; reducer selection was skipped.")
+  const selectedReducer = scriptSkipsReducer(selectedScript)
+    ? notSelectedReducer(scriptReducerSkipReason(selectedScript))
     : selectProcessingReducer({ text: loaded.text, ...(options.goal !== undefined ? { goal: options.goal } : {}) });
   const facts = selectedReducer.status === "selected" ? [...selectedReducer.result.facts, ...sourceFacts(loaded)] : sourceFacts(loaded);
   const visibleText = renderProcessingResult({
@@ -513,6 +515,20 @@ function notSelectedReducer(reason: string): ReducerSelectionResult {
     candidates: [],
     reason,
   };
+}
+
+function scriptSkipsReducer(script: ScriptPolicySelectionResult): boolean {
+  return script.status === "executed" || ("policy" in script && script.policy === "unsafe-unsandboxed");
+}
+
+function scriptReducerSkipReason(script: ScriptPolicySelectionResult): string {
+  if (script.status === "executed" && script.policy === "unsafe-unsandboxed") {
+    return "Unsafe unsandboxed script processing produced output; reducer selection was skipped.";
+  }
+  if (script.status === "executed") {
+    return "Sandboxed script processing produced output; reducer selection was skipped.";
+  }
+  return "Unsafe unsandboxed script processing was requested; reducer fallback was skipped to avoid silent fallback.";
 }
 
 function sourceFacts(loaded: LoadedProcessingSource): ProcessingFact[] {

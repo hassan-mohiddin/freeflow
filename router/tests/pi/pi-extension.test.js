@@ -120,6 +120,11 @@ test("Pi freeflow_status reports effective defaults without writing config", asy
     assert.equal(report.effectiveConfig.observedRouting.enabled, false);
     assert.deepEqual(report.effectiveConfig.observedRouting.mcp.servers, {});
     assert.equal(report.effectiveConfig.scriptDerive.enabled, false);
+    assert.equal(report.effectiveLocalConfig.processing.unsafeUnsandboxed.enabled, false);
+    assert.equal(report.processing.unsafeUnsandboxed.enabled, false);
+    assert.equal(report.processing.unsafeUnsandboxed.status, "disabled");
+    assert.equal(report.localConfigExists, false);
+    assert.deepEqual(report.localConfigWarnings, []);
     assert.equal(report.scriptDerive.enabled, false);
     assert.equal(report.scriptDerive.adapterStatus, "unavailable");
     assert.equal(report.scriptDerive.adapterContractVersion, 1);
@@ -179,6 +184,56 @@ test("Pi freeflow_status reports vault writability without creating directories"
     const fileResult = await statusTool.execute("status-vault-file", { action: "doctor" }, undefined, undefined, context(cwd));
     const fileReport = JSON.parse(fileResult.content[0].text);
     assert.equal(fileReport.vault.writability.status, "not_directory");
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi freeflow_status reports local unsafe processing opt-in without shared config", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-status-local-processing-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow" }), "utf8");
+    await writeFile(
+      join(cwd, ".freeflow/local.json"),
+      JSON.stringify({ processing: { unsafeUnsandboxed: { enabled: true } } }),
+      "utf8",
+    );
+
+    const { tools } = loadExtension();
+    const statusTool = tools.find((tool) => tool.name === "freeflow_status");
+    const result = await statusTool.execute("status-local-processing", { action: "doctor" }, undefined, undefined, context(cwd));
+    const report = JSON.parse(result.content[0].text);
+
+    assert.equal(report.localConfigExists, true);
+    assert.equal(report.effectiveLocalConfig.processing.unsafeUnsandboxed.enabled, true);
+    assert.equal(report.processing.unsafeUnsandboxed.enabled, true);
+    assert.equal(report.processing.unsafeUnsandboxed.status, "enabled_unsafe");
+    assert.deepEqual(report.configWarnings, []);
+    assert.deepEqual(report.localConfigWarnings, []);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi freeflow_status warns that shared config cannot enable unsafe processing", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-status-shared-processing-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({ defaultMode: "workflow", processing: { unsafeUnsandboxed: { enabled: true } } }),
+      "utf8",
+    );
+
+    const { tools } = loadExtension();
+    const statusTool = tools.find((tool) => tool.name === "freeflow_status");
+    const result = await statusTool.execute("status-shared-processing", { action: "doctor" }, undefined, undefined, context(cwd));
+    const report = JSON.parse(result.content[0].text);
+
+    assert.equal(report.effectiveLocalConfig.processing.unsafeUnsandboxed.enabled, false);
+    assert.equal(report.processing.unsafeUnsandboxed.enabled, false);
+    assert.ok(report.configWarnings.some((warning) => warning.includes("processing config is ignored")));
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { normalizeFreeflowConfig } from "../../router/dist/index.js";
+import { normalizeFreeflowConfig, normalizeLocalFreeflowConfig } from "../../router/dist/index.js";
 import { providerRuntimeContext } from "./provider-manifests.js";
 export const VALID_MODES = new Set(["conversation", "workflow", "strict-workflow"]);
 export const WORKFLOW_COMMANDS = [
@@ -57,14 +57,30 @@ export async function readFreeflowConfig(cwd) {
         return {};
     }
 }
+export async function readFreeflowLocalConfig(cwd) {
+    try {
+        const raw = await readFile(join(cwd, ".freeflow/local.json"), "utf8");
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" ? parsed : {};
+    }
+    catch {
+        return {};
+    }
+}
 async function readDefaultMode(cwd) {
     const parsed = await readFreeflowConfig(cwd);
     return VALID_MODES.has(parsed.defaultMode) ? parsed.defaultMode : "workflow";
 }
 export async function readOutputRouterConfig(cwd) {
-    const parsed = await readFreeflowConfig(cwd);
+    const [parsed, localParsed] = await Promise.all([readFreeflowConfig(cwd), readFreeflowLocalConfig(cwd)]);
     const normalized = normalizeFreeflowConfig(parsed);
-    return { config: normalized.config.outputRouter, freeflowConfig: normalized.config, warnings: normalized.warnings };
+    const local = normalizeLocalFreeflowConfig(localParsed);
+    return {
+        config: normalized.config.outputRouter,
+        freeflowConfig: normalized.config,
+        localConfig: local.config,
+        warnings: [...normalized.warnings, ...local.warnings],
+    };
 }
 export async function readProviderContext(cwd) {
     const parsed = await readFreeflowConfig(cwd);

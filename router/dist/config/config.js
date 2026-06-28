@@ -50,6 +50,13 @@ export const DEFAULT_SCRIPT_DERIVE_CONFIG = {
     limits: { ...DEFAULT_SCRIPT_DERIVE_LIMITS },
     rawScriptPersistence: "disabled",
 };
+export const DEFAULT_LOCAL_FREEFLOW_CONFIG = {
+    processing: {
+        unsafeUnsandboxed: {
+            enabled: false,
+        },
+    },
+};
 export function createDefaultRouterConfig(options = {}) {
     return {
         enabled: DEFAULT_OUTPUT_ROUTER_ENABLED,
@@ -180,6 +187,45 @@ export function normalizeScriptDeriveConfig(input) {
     applyScriptDeriveLimits(config, warnings, input.limits);
     return { config, warnings };
 }
+export function normalizeLocalFreeflowConfig(input) {
+    const config = {
+        processing: {
+            unsafeUnsandboxed: { ...DEFAULT_LOCAL_FREEFLOW_CONFIG.processing.unsafeUnsandboxed },
+        },
+    };
+    const warnings = [];
+    if (input === undefined || input === null) {
+        return { config, warnings };
+    }
+    if (!isRecord(input)) {
+        return {
+            config,
+            warnings: [".freeflow/local.json must be an object; local unsafe processing opt-ins are disabled."],
+        };
+    }
+    if (input.processing === undefined) {
+        return { config, warnings };
+    }
+    if (!isRecord(input.processing)) {
+        warnings.push("Invalid local processing config; expected an object. unsafeUnsandboxed remains disabled.");
+        return { config, warnings };
+    }
+    const unsafe = input.processing.unsafeUnsandboxed;
+    if (unsafe === undefined) {
+        return { config, warnings };
+    }
+    if (!isRecord(unsafe)) {
+        warnings.push("Invalid local processing.unsafeUnsandboxed config; expected an object with enabled boolean. unsafeUnsandboxed remains disabled.");
+        return { config, warnings };
+    }
+    if (typeof unsafe.enabled === "boolean") {
+        config.processing.unsafeUnsandboxed.enabled = unsafe.enabled;
+    }
+    else if (unsafe.enabled !== undefined) {
+        warnings.push(`Invalid local processing.unsafeUnsandboxed.enabled=${JSON.stringify(unsafe.enabled)}; using false.`);
+    }
+    return { config, warnings };
+}
 export function normalizeFreeflowConfig(input) {
     const warnings = [];
     if (input !== undefined && input !== null && !isRecord(input)) {
@@ -200,6 +246,9 @@ export function normalizeFreeflowConfig(input) {
         };
     }
     const source = isRecord(input) ? input : {};
+    if (source.processing !== undefined) {
+        warnings.push(".freeflow/config.json processing config is ignored; unsafe unsandboxed processing must be enabled in local-only .freeflow/local.json.");
+    }
     const router = normalizeRouterConfig(source.outputRouter);
     const capture = normalizeCaptureConfig(source.capture);
     const providers = normalizeProvidersConfig(source.providers);

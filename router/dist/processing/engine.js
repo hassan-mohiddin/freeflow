@@ -71,11 +71,12 @@ export async function processSource(source, options = {}) {
             loaded,
             script: options.script,
             ...(options.scriptDerive !== undefined ? { scriptDerive: options.scriptDerive } : {}),
+            ...(options.localConfig !== undefined ? { localConfig: options.localConfig } : {}),
             ...(options.scriptSandboxAdapters !== undefined ? { adapters: options.scriptSandboxAdapters } : {}),
         })
         : processingScriptNotConfigured();
-    const selectedReducer = selectedScript.status === "executed"
-        ? notSelectedReducer("Sandboxed script processing produced output; reducer selection was skipped.")
+    const selectedReducer = scriptSkipsReducer(selectedScript)
+        ? notSelectedReducer(scriptReducerSkipReason(selectedScript))
         : selectProcessingReducer({ text: loaded.text, ...(options.goal !== undefined ? { goal: options.goal } : {}) });
     const facts = selectedReducer.status === "selected" ? [...selectedReducer.result.facts, ...sourceFacts(loaded)] : sourceFacts(loaded);
     const visibleText = renderProcessingResult({
@@ -336,6 +337,18 @@ function notSelectedReducer(reason) {
         candidates: [],
         reason,
     };
+}
+function scriptSkipsReducer(script) {
+    return script.status === "executed" || ("policy" in script && script.policy === "unsafe-unsandboxed");
+}
+function scriptReducerSkipReason(script) {
+    if (script.status === "executed" && script.policy === "unsafe-unsandboxed") {
+        return "Unsafe unsandboxed script processing produced output; reducer selection was skipped.";
+    }
+    if (script.status === "executed") {
+        return "Sandboxed script processing produced output; reducer selection was skipped.";
+    }
+    return "Unsafe unsandboxed script processing was requested; reducer fallback was skipped to avoid silent fallback.";
 }
 function sourceFacts(loaded) {
     return [

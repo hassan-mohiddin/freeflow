@@ -426,6 +426,147 @@ test("processing engine returns script-unavailable without unsandboxed fallback"
   }
 });
 
+test("processing engine rejects unsafe unsandboxed scripts without local opt-in and does not fall back", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-processing-unsafe-reject-"));
+  try {
+    await writeFile(join(root, "access.log"), accessLogSample(), "utf8");
+
+    const result = await processSource(
+      { kind: "repo-file", root, path: "access.log" },
+      {
+        script: {
+          language: "javascript",
+          policy: "unsafe-unsandboxed",
+          code: "console.log('UNSAFE_SCRIPT_SHOULD_NOT_RUN')",
+        },
+      },
+    );
+
+    assert.equal(result.status, "ok");
+    assert.equal(result.script.status, "rejected");
+    assert.equal(result.script.policy, "unsafe-unsandboxed");
+    assert.match(result.script.reason, /local\.json/);
+    assert.equal(result.reducer.status, "not_selected");
+    assert.match(result.visibleText, /script: rejected unsafe\/unsandboxed; no execution/);
+    assert.doesNotMatch(result.visibleText, /requests: 5/);
+    assert.doesNotMatch(JSON.stringify(result), /UNSAFE_SCRIPT_SHOULD_NOT_RUN/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("processing engine executes unsafe unsandboxed javascript only with local opt-in and labels output", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-processing-unsafe-execute-"));
+  try {
+    await writeFile(join(root, "input.txt"), "alpha\nbeta\n", "utf8");
+
+    const result = await processSource(
+      { kind: "repo-file", root, path: "input.txt" },
+      {
+        localConfig: { processing: { unsafeUnsandboxed: { enabled: true } } },
+        script: {
+          language: "javascript",
+          policy: "unsafe-unsandboxed",
+          code: [
+            "import { readFileSync } from 'node:fs';",
+            "const text = readFileSync(process.env.FREEFLOW_PROCESSING_SOURCE_PATH, 'utf8');",
+            "console.log(`computedLines: ${text.trim().split(/\\r?\\n/).length}`);",
+            "console.log(`unsafeFlag: ${process.env.FREEFLOW_PROCESSING_UNSAFE_UNSANDBOXED}`);",
+          ].join("\n"),
+        },
+      },
+    );
+
+    assert.equal(result.status, "ok");
+    assert.equal(result.script.status, "executed");
+    assert.equal(result.script.policy, "unsafe-unsandboxed");
+    assert.equal(result.script.unsafeUnsandboxed, true);
+    assert.equal(result.script.rawScriptPersistence, "disabled");
+    assert.equal(result.visibleText.split("\n")[0], "script: javascript unsafe/unsandboxed local-yolo");
+    assert.match(result.visibleText, /computedLines: 2/);
+    assert.match(result.visibleText, /unsafeFlag: 1/);
+    assert.doesNotMatch(result.visibleText, /sandboxed adapter|network-off|read-only/);
+    assert.equal(result.reducer.status, "not_selected");
+    assert.doesNotMatch(JSON.stringify(result), /FREEFLOW_PROCESSING_SOURCE_PATH/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("processing engine keeps unsafe unsandboxed label visible when script output is truncated", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-processing-unsafe-truncate-"));
+  try {
+    await writeFile(join(root, "input.txt"), "alpha\n", "utf8");
+
+    const result = await processSource(
+      { kind: "repo-file", root, path: "input.txt" },
+      {
+        localConfig: { processing: { unsafeUnsandboxed: { enabled: true } } },
+        limits: { maxVisibleBytes: 140 },
+        script: {
+          language: "javascript",
+          policy: "unsafe-unsandboxed",
+          code: "console.log('LONG_UNSAFE_OUTPUT '.repeat(100))",
+        },
+      },
+    );
+
+    assert.equal(result.status, "ok");
+    assert.equal(result.script.status, "executed");
+    assert.equal(result.visibleText.split("\n")[0], "script: javascript unsafe/unsandboxed local-yolo");
+    assert.match(result.visibleText, /unsafe\/unsandboxed/);
+    assert.match(result.visibleText, /truncated/);
+    assert.doesNotMatch(result.visibleText, /sandboxed adapter|network-off|read-only/);
+
+    const tinyBudget = await processSource(
+      { kind: "repo-file", root, path: "input.txt" },
+      {
+        localConfig: { processing: { unsafeUnsandboxed: { enabled: true } } },
+        limits: { maxVisibleBytes: 20 },
+        script: {
+          language: "javascript",
+          policy: "unsafe-unsandboxed",
+          code: "console.log('LONG_UNSAFE_OUTPUT '.repeat(100))",
+        },
+      },
+    );
+    assert.equal(tinyBudget.visibleText.split("\n")[0], "script: javascript unsafe/unsandboxed local-yolo");
+    assert.match(tinyBudget.visibleText, /unsafe\/unsandboxed/);
+    assert.match(tinyBudget.visibleText, /truncated/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("processing engine sanitizes unsafe unsandboxed script failures", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-processing-unsafe-failure-"));
+  try {
+    await writeFile(join(root, "input.txt"), "alpha\n", "utf8");
+
+    const result = await processSource(
+      { kind: "repo-file", root, path: "input.txt" },
+      {
+        localConfig: { processing: { unsafeUnsandboxed: { enabled: true } } },
+        script: {
+          language: "javascript",
+          policy: "unsafe-unsandboxed",
+          code: "throw new Error('RAW_UNSAFE_SCRIPT_SECRET')",
+        },
+      },
+    );
+
+    assert.equal(result.status, "ok");
+    assert.equal(result.script.status, "failed");
+    assert.equal(result.script.policy, "unsafe-unsandboxed");
+    assert.match(result.script.reason, /Detail omitted/);
+    assert.doesNotMatch(JSON.stringify(result), /RAW_UNSAFE_SCRIPT_SECRET/);
+    assert.match(result.visibleText, /script: failed unsafe\/unsandboxed; detail omitted/);
+    assert.doesNotMatch(result.visibleText, /sandboxed adapter|network-off|read-only/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("processing engine sanitizes script failure details and does not persist raw script text", async () => {
   const root = await mkdtemp(join(tmpdir(), "freeflow-processing-script-failure-repo-"));
   const vaultRoot = await mkdtemp(join(tmpdir(), "freeflow-processing-script-failure-vault-"));

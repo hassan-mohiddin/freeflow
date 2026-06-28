@@ -1,6 +1,6 @@
 export function renderProcessingResult(input) {
     const lines = input.status === "ok" ? renderOkLines(input) : renderFailureLines(input);
-    return truncateVisible(lines.join("\n"), input.maxVisibleBytes);
+    return truncateVisible(lines.join("\n"), input.maxVisibleBytes, requiredVisiblePrefix(input));
 }
 export function classifyProcessingRecovery(input) {
     if (input.resultWillBePersisted) {
@@ -20,21 +20,24 @@ export function classifyProcessingRecovery(input) {
     }
     return "none";
 }
+function requiredVisiblePrefix(input) {
+    return input.script && "policy" in input.script && input.script.policy === "unsafe-unsandboxed"
+        ? processingScriptPolicyLine(input.script)
+        : "";
+}
 function renderOkLines(input) {
     const recoveryClass = recoveryClassForInput(input);
     const scriptLines = scriptOutputLines(input.script);
     const visibleFacts = scriptLines.length > 0 ? scriptLines : visibleFactLines(input.facts, input.reducer);
-    const lines = visibleFacts.length > 0 ? visibleFacts : [`status: ${input.status}`];
+    const policyLine = processingScriptPolicyLine(input.script);
+    const unsafeScriptRequested = input.script && "policy" in input.script && input.script.policy === "unsafe-unsandboxed";
+    const lines = unsafeScriptRequested && policyLine
+        ? [policyLine, ...(visibleFacts.length > 0 ? visibleFacts : [`status: ${input.status}`])]
+        : (visibleFacts.length > 0 ? visibleFacts : [`status: ${input.status}`]);
     lines.push(`source: ${sourcePointer(input.source, input.stats)}`);
     lines.push(`recovery: ${recoveryClass}`);
-    if (input.script?.status === "executed") {
-        lines.push(`script: ${input.script.language} sandboxed adapter=${input.script.adapterId}`);
-    }
-    else if (input.script?.status === "unavailable") {
-        lines.push(`script: unavailable; reducer fallback; no host fallback`);
-    }
-    else if (input.script?.status === "failed") {
-        lines.push(`script: failed; no host fallback`);
+    if (!unsafeScriptRequested && policyLine) {
+        lines.push(policyLine);
     }
     if (input.reducer?.status === "selected") {
         lines.push(`reducer: ${input.reducer.selected.name}@${input.reducer.selected.version} confidence=${input.reducer.selected.confidence.toFixed(2)}`);
@@ -61,6 +64,28 @@ function recoveryClassForInput(input) {
         ...(input.recovery !== undefined ? { recovery: input.recovery } : {}),
         ...(input.persistence !== undefined ? { persistence: input.persistence } : {}),
     });
+}
+function processingScriptPolicyLine(script) {
+    if (script?.status === "executed" && script.policy === "unsafe-unsandboxed") {
+        return `script: ${script.language} unsafe/unsandboxed local-yolo`;
+    }
+    if (script?.status === "executed") {
+        return `script: ${script.language} sandboxed adapter=${script.adapterId}`;
+    }
+    if (script?.status === "rejected") {
+        return `script: rejected unsafe/unsandboxed; no execution`;
+    }
+    if (script?.status === "unavailable") {
+        return script.policy === "unsafe-unsandboxed"
+            ? "script: unsafe/unsandboxed unavailable; no execution"
+            : "script: unavailable; reducer fallback; no host fallback";
+    }
+    if (script?.status === "failed") {
+        return script.policy === "unsafe-unsandboxed"
+            ? "script: failed unsafe/unsandboxed; detail omitted"
+            : "script: failed; no host fallback";
+    }
+    return "";
 }
 function scriptOutputLines(script) {
     if (script?.status !== "executed") {
@@ -131,15 +156,30 @@ function shortenMiddle(text, maxChars) {
     const keep = Math.max(4, Math.floor((maxChars - 1) / 2));
     return `${text.slice(0, keep)}…${text.slice(text.length - keep)}`;
 }
-function truncateVisible(text, maxBytes) {
+function truncateVisible(text, maxBytes, requiredPrefix = "") {
     if (byteLength(text) <= maxBytes) {
         return text;
+    }
+    const marker = "\n… [truncated]";
+    if (requiredPrefix && text.startsWith(requiredPrefix)) {
+        const remainder = text.slice(requiredPrefix.length).replace(/^\n/, "");
+        const minimum = `${requiredPrefix}${marker}`;
+        if (byteLength(minimum) >= maxBytes) {
+            return minimum;
+        }
+        const available = maxBytes - byteLength(requiredPrefix) - byteLength(marker) - 1;
+        let end = Math.max(0, Math.min(remainder.length, available));
+        while (end > 0 && byteLength(remainder.slice(0, end)) > available) {
+            end -= 1;
+        }
+        const body = remainder.slice(0, end);
+        return body ? `${requiredPrefix}\n${body}${marker}` : minimum;
     }
     let end = Math.min(text.length, maxBytes);
     while (end > 0 && byteLength(text.slice(0, end)) > maxBytes) {
         end -= 1;
     }
-    return `${text.slice(0, end)}\n… [truncated]`;
+    return `${text.slice(0, end)}${marker}`;
 }
 function byteLength(text) {
     return Buffer.byteLength(text, "utf8");

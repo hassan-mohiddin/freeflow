@@ -1,11 +1,12 @@
 import { type ScriptSandboxAdapter } from "../sandbox/script-sandbox.js";
-import type { ScriptDeriveConfig, ScriptDeriveLanguage } from "../config/types.js";
+import type { LocalFreeflowConfig, ProcessingScriptPolicy, ScriptDeriveConfig, ScriptDeriveLanguage } from "../config/types.js";
 import type { LoadedProcessingSource } from "./engine.js";
 export interface ProcessingScriptRequest {
     language: ScriptDeriveLanguage;
     code: string;
     label?: string;
     alias?: string;
+    policy?: ProcessingScriptPolicy;
     limits?: Partial<ScriptDeriveConfig["limits"]>;
 }
 export type ProcessingScriptResult = {
@@ -14,6 +15,7 @@ export type ProcessingScriptResult = {
 } | {
     status: "unavailable";
     language: ScriptDeriveLanguage;
+    policy: ProcessingScriptPolicy;
     reason: string;
     recommendation: string;
     noHostFallback: true;
@@ -23,10 +25,20 @@ export type ProcessingScriptResult = {
     adapterVersion?: string;
     failedProofs?: string[];
 } | {
+    status: "rejected";
+    language: ScriptDeriveLanguage;
+    policy: "unsafe-unsandboxed";
+    reason: string;
+    recommendation: string;
+    rawScriptPersistence: "disabled";
+    codeHashSha256: string;
+    localOptInRequired?: true;
+} | {
     status: "executed";
     language: ScriptDeriveLanguage;
-    adapterId: string;
-    adapterVersion: string;
+    policy: ProcessingScriptPolicy;
+    adapterId?: string;
+    adapterVersion?: string;
     runtime?: {
         name: string;
         version?: string;
@@ -36,18 +48,21 @@ export type ProcessingScriptResult = {
     stdoutBytes: number;
     stderrBytes: number;
     durationMs?: number;
-    noHostFallback: true;
+    noHostFallback?: true;
+    unsafeUnsandboxed?: true;
     rawScriptPersistence: "disabled";
     codeHashSha256: string;
 } | {
     status: "failed";
     language: ScriptDeriveLanguage;
+    policy: ProcessingScriptPolicy;
     reason: string;
     adapterId?: string;
     adapterVersion?: string;
     stdoutBytes?: number;
     stderrBytes?: number;
-    noHostFallback: true;
+    noHostFallback?: true;
+    unsafeUnsandboxed?: true;
     rawScriptPersistence: "disabled";
     codeHashSha256: string;
 };
@@ -55,6 +70,7 @@ export interface RunProcessingScriptOptions {
     loaded: LoadedProcessingSource;
     script: ProcessingScriptRequest;
     scriptDerive?: ScriptDeriveConfig;
+    localConfig?: LocalFreeflowConfig;
     adapters?: readonly ScriptSandboxAdapter[];
 }
 export declare function processingScriptNotConfigured(): ProcessingScriptResult;

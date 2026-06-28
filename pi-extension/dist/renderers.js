@@ -305,11 +305,12 @@ export function renderFreeflowStatusResult(result, { expanded } = {}, theme) {
     const router = report.effectiveConfig?.outputRouter ?? {};
     const capture = report.effectiveConfig?.capture ?? {};
     const observedRouting = report.observedRouting ?? report.effectiveConfig?.observedRouting ?? {};
+    const unsafeProcessing = report.processing?.unsafeUnsandboxed?.enabled === true;
     const icon = statusIcon(report.toolStatus);
     const lines = [
         `${themeFg(theme, "success", icon)} ${themeFg(theme, "toolTitle", "freeflow_status")} ${themeFg(theme, "muted", report.action ?? "status")} • router ${formatStatus(theme, router.enabled === false ? "off" : "ok")} ${themeFg(theme, "dim", router.profile ?? "standard")}`,
         `${themeFg(theme, "muted", "vault:")} ${themeFg(theme, "accent", shortenMiddle(report.vault?.root ?? "unknown", 80))} ${themeFg(theme, "dim", report.vault?.writability?.status ?? "unknown")}`,
-        `${themeFg(theme, "muted", "capture:")} mediated=${capture.freeflowMediated ?? "raw"} direct-host=${capture.directHostTools ?? "off"} • observed=${observedRouting.enabled ? "on" : "off"} • providers=${providerAvailability.length} • warnings=${warnings.length} • migrations=${recommendations.length}`,
+        `${themeFg(theme, "muted", "capture:")} mediated=${capture.freeflowMediated ?? "raw"} direct-host=${capture.directHostTools ?? "off"} • observed=${observedRouting.enabled ? "on" : "off"} • processing=${unsafeProcessing ? "unsafe/unsandboxed" : "safe-default"} • providers=${providerAvailability.length} • warnings=${warnings.length} • migrations=${recommendations.length}`,
     ];
     if (!expanded) {
         lines.push(themeFg(theme, "dim", "ctrl+o to expand effective config, providers, warnings, and migration recommendations"));
@@ -351,6 +352,14 @@ export function renderFreeflowStatusResult(result, { expanded } = {}, theme) {
         lines.push(`  ${themeFg(theme, "muted", "network:")} ${scriptDerive.network ?? "off"}`);
         lines.push(`  ${themeFg(theme, "muted", "rawScriptPersistence:")} ${scriptDerive.rawScriptPersistence ?? "disabled"}`);
     }
+    const processing = report.processing?.unsafeUnsandboxed;
+    if (processing) {
+        lines.push("", themeFg(theme, "toolTitle", "Processing"));
+        lines.push(`  ${themeFg(theme, "muted", "unsafeUnsandboxed:")} ${processing.enabled ? themeFg(theme, "warning", "enabled unsafe/unsandboxed") : "disabled"}`);
+        lines.push(`  ${themeFg(theme, "muted", "source:")} ${processing.source ?? ".freeflow/local.json"}`);
+        const notes = Array.isArray(processing.notes) ? processing.notes : [];
+        notes.slice(0, 2).forEach((note) => lines.push(`  ${themeFg(theme, processing.enabled ? "warning" : "dim", truncateText(note, 180))}`));
+    }
     lines.push("", themeFg(theme, "toolTitle", "Observed routing"));
     lines.push(`  ${themeFg(theme, "muted", "enabled:")} ${String(Boolean(observedRouting.enabled))}`);
     lines.push(`  ${themeFg(theme, "muted", "onRoutingFailure:")} ${observedRouting.onRoutingFailure ?? "fail-open"}`);
@@ -372,9 +381,11 @@ export function renderFreeflowStatusResult(result, { expanded } = {}, theme) {
     if (custom) {
         lines.push(`  ${themeFg(theme, "muted", "custom manifests:")} valid=${custom.validCount ?? 0} invalid=${custom.invalidCount ?? 0} total=${custom.total ?? 0}`);
     }
-    if (warnings.length > 0) {
+    const localWarnings = Array.isArray(report.localConfigWarnings) ? report.localConfigWarnings : [];
+    const allWarnings = [...warnings, ...localWarnings];
+    if (allWarnings.length > 0) {
         lines.push("", themeFg(theme, "toolTitle", "Warnings"));
-        warnings.slice(0, 8).forEach((warning) => lines.push(`  ${themeFg(theme, "warning", truncateText(warning, 180))}`));
+        allWarnings.slice(0, 8).forEach((warning) => lines.push(`  ${themeFg(theme, "warning", truncateText(warning, 180))}`));
     }
     if (recommendations.length > 0) {
         lines.push("", themeFg(theme, "toolTitle", "Migration recommendations"));

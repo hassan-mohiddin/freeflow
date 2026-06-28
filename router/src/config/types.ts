@@ -595,6 +595,7 @@ export type ScriptDeriveLanguage = "javascript" | "python" | "jq";
 export type ScriptDeriveNetworkPolicy = "off";
 export type ScriptDeriveSandboxMode = "auto";
 export type ScriptDeriveRawScriptPersistence = "disabled";
+export type ProcessingScriptPolicy = "sandboxed" | "unsafe-unsandboxed";
 
 export interface ScriptDeriveLimits {
   timeoutMs: number;
@@ -609,6 +610,18 @@ export interface ScriptDeriveConfig {
   network: ScriptDeriveNetworkPolicy;
   limits: ScriptDeriveLimits;
   rawScriptPersistence: ScriptDeriveRawScriptPersistence;
+}
+
+export interface ProcessingUnsafeUnsandboxedConfig {
+  enabled: boolean;
+}
+
+export interface LocalProcessingConfig {
+  unsafeUnsandboxed: ProcessingUnsafeUnsandboxedConfig;
+}
+
+export interface LocalFreeflowConfig {
+  processing: LocalProcessingConfig;
 }
 
 export interface FreeflowConfig {

@@ -216,6 +216,30 @@ The Python adapter runs Eryx inside a Node Worker with Worker termination for ti
 
 The jq adapter runs `jq-wasm` inside a Node Worker with Worker termination for timeouts and bounded stdout/stderr before results cross the Worker-to-host boundary. Residual caveat: `jq-wasm` can still generate large in-Worker strings before truncation; product execution treats output-limit overflow as a structured failure with no exact recovery.
 
+### Local unsafe processing opt-in
+
+Freeflow also has an internal processing-engine branch for local power users who explicitly accept unsandboxed execution risk. This is not enabled by shared repo config.
+
+Use local-only `.freeflow/local.json`:
+
+```json
+{
+  "processing": {
+    "unsafeUnsandboxed": {
+      "enabled": true
+    }
+  }
+}
+```
+
+Rules:
+
+- `.freeflow/local.json` is local-only and should be ignored by git.
+- `.freeflow/config.json` cannot enable unsafe unsandboxed processing.
+- Each call must still request `script.policy="unsafe-unsandboxed"`; sandboxed remains the default.
+- Unsafe results must say `unsafe/unsandboxed`; they must not claim sandbox, read-only, or network-off execution.
+- Missing or invalid local opt-in rejects the unsafe call. Freeflow must not silently fall back to an unsandboxed host path.
+
 ## `freeflow_status`
 
 `freeflow_status` reports effective Freeflow behavior without rewriting config.
