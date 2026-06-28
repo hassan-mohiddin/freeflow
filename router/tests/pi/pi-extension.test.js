@@ -95,6 +95,54 @@ test("Pi before_agent_start injects output-router skill context", async () => {
   assert.doesNotMatch(result.systemPrompt, /Output-router config note/);
 });
 
+test("Pi before_agent_start uses short Freeflow context after the first turn", async () => {
+  const { handlers } = loadExtension();
+  const beforeAgentStart = handlers.get("before_agent_start");
+  assert.ok(beforeAgentStart);
+
+  const first = await beforeAgentStart({ systemPrompt: "base prompt" }, context());
+  const second = await beforeAgentStart({ systemPrompt: "base prompt" }, context());
+
+  assert.match(first.systemPrompt, /## Loaded Workflow Skill/);
+  assert.match(first.systemPrompt, /## Loaded Output Router Skill/);
+  assert.match(second.systemPrompt, /## Freeflow Runtime Context/);
+  assert.match(second.systemPrompt, /Effective Freeflow mode:/);
+  assert.match(second.systemPrompt, /Use the installed Freeflow skills when they match the task/);
+  assert.match(second.systemPrompt, /## Freeflow Runtime Priority/);
+  assert.doesNotMatch(second.systemPrompt, /## Loaded Workflow Skill/);
+  assert.doesNotMatch(second.systemPrompt, /## Loaded Interview Gate Skill/);
+  assert.doesNotMatch(second.systemPrompt, /## Loaded Discover Skill/);
+  assert.doesNotMatch(second.systemPrompt, /## Loaded Output Router Skill/);
+  assert.doesNotMatch(second.systemPrompt, /name: output-router/);
+});
+
+test("Pi session_start and session_compact re-arm full Freeflow context injection", async () => {
+  const { handlers } = loadExtension();
+  const beforeAgentStart = handlers.get("before_agent_start");
+  const sessionStart = handlers.get("session_start");
+  const sessionCompact = handlers.get("session_compact");
+  assert.ok(beforeAgentStart);
+  assert.ok(sessionStart);
+  assert.ok(sessionCompact);
+
+  await beforeAgentStart({ systemPrompt: "base prompt" }, context());
+  const shortAfterFirst = await beforeAgentStart({ systemPrompt: "base prompt" }, context());
+  assert.doesNotMatch(shortAfterFirst.systemPrompt, /## Loaded Workflow Skill/);
+
+  await sessionCompact({ reason: "manual" }, context());
+  const fullAfterCompact = await beforeAgentStart({ systemPrompt: "base prompt" }, context());
+  assert.match(fullAfterCompact.systemPrompt, /## Loaded Workflow Skill/);
+  assert.match(fullAfterCompact.systemPrompt, /## Loaded Output Router Skill/);
+
+  const shortAfterCompact = await beforeAgentStart({ systemPrompt: "base prompt" }, context());
+  assert.doesNotMatch(shortAfterCompact.systemPrompt, /## Loaded Workflow Skill/);
+
+  await sessionStart({ reason: "resume" }, context());
+  const fullAfterResume = await beforeAgentStart({ systemPrompt: "base prompt" }, context());
+  assert.match(fullAfterResume.systemPrompt, /## Loaded Workflow Skill/);
+  assert.match(fullAfterResume.systemPrompt, /## Loaded Output Router Skill/);
+});
+
 test("Pi freeflow_status reports effective defaults without writing config", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-status-minimal-"));
   try {
@@ -529,6 +577,16 @@ test("Pi freeflow_run exposes declarative filter schema", () => {
   const runTool = tools.find((tool) => tool.name === "freeflow_run");
   assert.ok(runTool);
 
+  assert.deepEqual(runTool.parameters.oneOf, [{ required: ["command"] }, { required: ["script"] }]);
+
+  const script = runTool.parameters.properties.script;
+  assert.equal(script.type, "object");
+  assert.equal(script.additionalProperties, false);
+  assert.deepEqual(script.properties.language.enum, ["javascript", "python", "jq"]);
+  assert.equal(script.properties.code.minLength, 1);
+  assert.equal(script.properties.limits.properties.timeoutMs.maximum, 30000);
+  assert.deepEqual(script.required, ["language", "code"]);
+
   const filters = runTool.parameters.properties.filters;
   assert.equal(filters.type, "object");
   assert.equal(filters.additionalProperties, false);
@@ -693,6 +751,49 @@ test("Pi freeflow_run returns compact model-visible text with full structured de
     assert.equal(result.details.result.execution.exitCode, 1);
     assert.ok(result.details.result.recovery.outputId.startsWith("ffout_"));
     assert.ok(Array.isArray(result.details.result.importantLines));
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi freeflow_run forwards script producer and does not call host exec when sandbox is disabled", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-run-script-producer-"));
+  try {
+    let execCalls = 0;
+    const tools = [];
+    const pi = {
+      registerTool(tool) {
+        tools.push(tool);
+      },
+      registerCommand() {},
+      on() {},
+      appendEntry() {},
+      sendUserMessage() {},
+      async exec() {
+        execCalls += 1;
+        throw new Error("host exec should not be called for sandboxed script producers");
+      },
+    };
+    freeflowExtension(pi);
+    const runTool = tools.find((tool) => tool.name === "freeflow_run");
+    assert.ok(runTool);
+
+    const result = await runTool.execute(
+      "tool-call-script-producer",
+      { script: { language: "javascript", code: "RAW_PI_SCRIPT", label: "pi-script" } },
+      undefined,
+      undefined,
+      context(cwd),
+    );
+
+    assert.equal(execCalls, 0);
+    assert.match(result.content[0].text, /freeflow_run\|failed/);
+    assert.equal(result.details.result.toolStatus, "error");
+    assert.equal(result.details.result.producer.kind, "script");
+    assert.equal(result.details.result.producer.name, "pi-script");
+    assert.equal(result.details.result.failure.kind, "script_transform_disabled");
+    assert.equal(result.details.result.scriptProducer.status, "unavailable");
+    assert.doesNotMatch(JSON.stringify(result), /RAW_PI_SCRIPT/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

@@ -55,7 +55,7 @@ export const FREEFLOW_SEARCH_PARAMETERS = {
                 path: { ...STRING_SCHEMA, description: "Repo path for source.kind=repo." },
                 outputId: { ...STRING_SCHEMA, description: "Vault output id for source.kind=vault. Optional for vault query/locate." },
                 stream: { ...STREAM_SCHEMA, description: "Vault stream to read or filter." },
-                producerKind: { type: "string", enum: ["command", "native", "repo", "web", "fetch", "code_search", "mcp", "transform", "other"], description: "Vault index producer-kind filter for source.kind=vault query/locate." },
+                producerKind: { type: "string", enum: ["command", "script", "native", "repo", "web", "fetch", "code_search", "mcp", "transform", "other"], description: "Vault index producer-kind filter for source.kind=vault query/locate." },
                 server: { ...STRING_SCHEMA, description: "Vault index MCP server filter for source.kind=vault query/locate." },
                 tool: { ...STRING_SCHEMA, description: "Vault index MCP/tool filter for source.kind=vault query/locate." },
                 hostToolName: { ...STRING_SCHEMA, description: "Vault index host-tool filter for source.kind=vault query/locate." },
@@ -130,7 +130,7 @@ export const FREEFLOW_SEARCH_PARAMETERS = {
             type: "object",
             additionalProperties: false,
             properties: {
-                producerKind: { type: "string", enum: ["command", "native", "repo", "web", "fetch", "code_search", "mcp", "transform", "other"] },
+                producerKind: { type: "string", enum: ["command", "script", "native", "repo", "web", "fetch", "code_search", "mcp", "transform", "other"] },
                 server: STRING_SCHEMA,
                 tool: STRING_SCHEMA,
                 hostToolName: STRING_SCHEMA,
@@ -170,9 +170,25 @@ export const FREEFLOW_SEARCH_PARAMETERS = {
 export const FREEFLOW_RUN_PARAMETERS = {
     type: "object",
     additionalProperties: false,
+    oneOf: [
+        { required: ["command"] },
+        { required: ["script"] },
+    ],
     properties: {
-        command: { ...STRING_SCHEMA, description: "Shell command to run through Pi's approved command runner." },
-        cwd: { ...STRING_SCHEMA, description: "Working directory. Defaults to the current Pi cwd." },
+        command: { ...STRING_SCHEMA, description: "Shell command to run through Pi's approved command runner. Mutually exclusive with script." },
+        script: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                language: { ...SCRIPT_LANGUAGE_SCHEMA, description: "Sandboxed script language. Requires configured scriptTransform.enabled and a proof-backed adapter." },
+                code: { ...NON_EMPTY_STRING_SCHEMA, description: "Script code to run as the base producer. Raw code is not persisted; metadata stores a code hash." },
+                label: { ...NON_EMPTY_STRING_SCHEMA, description: "Optional script producer label." },
+                limits: { ...SCRIPT_LIMITS_SCHEMA, description: "Script resource limits. They only tighten configured scriptTransform defaults. Top-level timeoutMs is used as timeoutMs when script.limits.timeoutMs is omitted." },
+            },
+            required: ["language", "code"],
+            description: "Sandboxed script to run as the base producer for freeflow_run. Mutually exclusive with command. Captured stdout/stderr route through normal run storage, parsing, filtering, and recovery.",
+        },
+        cwd: { ...STRING_SCHEMA, description: "Working directory. Defaults to the current Pi cwd. For sandboxed script producers this is metadata only; repo/home/env/network are not mounted." },
         timeoutMs: { type: "number", description: "Optional timeout in milliseconds." },
         preserve: { ...PRESERVE_SCHEMA, description: "Fidelity mode. Default: important." },
         goal: { ...STRING_SCHEMA, description: "Goal such as verification, test, build, or search." },
@@ -204,7 +220,6 @@ export const FREEFLOW_RUN_PARAMETERS = {
             description: "Sandboxed programmable filter over captured stdout/stderr/combined after raw command output is vaulted. No unsandboxed fallback is used.",
         },
     },
-    required: ["command"],
 };
 export const FREEFLOW_BATCH_PARAMETERS = {
     type: "object",

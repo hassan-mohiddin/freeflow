@@ -18,6 +18,14 @@ export function commandLabel(command) {
   return truncateText(command ?? "...", 120);
 }
 
+function runProducerLabel(args) {
+  if (args?.script?.language) {
+    const label = args.script.label ? ` ${args.script.label}` : "";
+    return `script:${args.script.language}${label}`;
+  }
+  return `$ ${commandLabel(args?.command)}`;
+}
+
 function retrieveSourceLabel(source) {
   if (!source || source.kind === "repo") {
     return `repo ${shortenMiddle(source?.path ?? ".", 80)}`;
@@ -93,6 +101,29 @@ function runFilterLabel(filters) {
   }
   if (filters.fallbackPreservedFailureEvidence) {
     parts.push("fallback=failure-evidence");
+  }
+  return parts.join(" ");
+}
+
+function runScriptProducerLabel(scriptProducer) {
+  if (!scriptProducer || typeof scriptProducer !== "object") {
+    return "";
+  }
+  const parts = [`${scriptProducer.language ?? "script"}:${scriptProducer.status ?? "unknown"}`, `policy=${scriptProducer.policy ?? "sandboxed"}`];
+  if (scriptProducer.label) {
+    parts.push(`label=${scriptProducer.label}`);
+  }
+  if (scriptProducer.adapterId) {
+    parts.push(`adapter=${scriptProducer.adapterId}`);
+  }
+  if (scriptProducer.codeSha256) {
+    parts.push(`code=${scriptProducer.codeSha256}`);
+  }
+  if (scriptProducer.stdoutBytes !== undefined || scriptProducer.stderrBytes !== undefined) {
+    parts.push(`bytes=${scriptProducer.stdoutBytes ?? 0}/${scriptProducer.stderrBytes ?? 0}`);
+  }
+  if (scriptProducer.failure?.kind) {
+    parts.push(`failure=${scriptProducer.failure.kind}`);
   }
   return parts.join(" ");
 }
@@ -210,7 +241,7 @@ export function renderFreeflowRetrieveCall(args, theme) {
 
 export function renderFreeflowRunCall(args, theme) {
   const title = themeFg(theme, "toolTitle", themeBold(theme, "freeflow_run"));
-  const command = themeFg(theme, "accent", `$ ${commandLabel(args?.command)}`);
+  const command = themeFg(theme, "accent", runProducerLabel(args));
   const extras = [];
   if (args?.preserve) {
     extras.push(`preserve=${args.preserve}`);
@@ -218,8 +249,11 @@ export function renderFreeflowRunCall(args, theme) {
   if (args?.timeoutMs !== undefined) {
     extras.push(`timeout=${args.timeoutMs}ms`);
   }
+  if (args?.script?.language) {
+    extras.push(`producer=${args.script.language}`);
+  }
   if (args?.scriptFilter?.language) {
-    extras.push(`script=${args.scriptFilter.language}`);
+    extras.push(`scriptFilter=${args.scriptFilter.language}`);
   }
   const suffix = extras.length > 0 ? ` ${themeFg(theme, "dim", `(${extras.join(", ")})`)}` : "";
   return textComponent(`${title} ${command}${suffix}`);
@@ -628,8 +662,8 @@ export function renderFreeflowRunResult(result, { expanded }: any = {}, theme, c
     return textComponent(lines.join("\n"));
   }
 
-  lines.push("", themeFg(theme, "toolTitle", "Command"));
-  lines.push(`  ${themeFg(theme, "accent", `$ ${commandLabel(context.args?.command)}`)}`);
+  lines.push("", themeFg(theme, "toolTitle", context.args?.script ? "Producer script" : "Command"));
+  lines.push(`  ${themeFg(theme, "accent", runProducerLabel(context.args))}`);
 
   lines.push("", themeFg(theme, "toolTitle", "Status"));
   lines.push(`  ${themeFg(theme, "muted", "toolStatus:")} ${formatStatus(theme, routed.toolStatus)}`);
@@ -657,6 +691,17 @@ export function renderFreeflowRunResult(result, { expanded }: any = {}, theme, c
   if (routed.filters) {
     lines.push("", themeFg(theme, "toolTitle", "Filters"));
     lines.push(`  ${truncateText(runFilterLabel(routed.filters), 220)}`);
+  }
+
+  if (routed.scriptProducer) {
+    lines.push("", themeFg(theme, "toolTitle", "Script producer"));
+    lines.push(`  ${truncateText(runScriptProducerLabel(routed.scriptProducer), 220)}`);
+    if (routed.scriptProducer.operation) {
+      lines.push(`  ${themeFg(theme, "muted", "operation:")} ${truncateText(JSON.stringify(routed.scriptProducer.operation), 180)}`);
+    }
+    if (routed.scriptProducer.failure?.message) {
+      lines.push(`  ${themeFg(theme, "warning", truncateText(routed.scriptProducer.failure.message, 180))}`);
+    }
   }
 
   if (routed.reducer) {

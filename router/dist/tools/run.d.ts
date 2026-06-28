@@ -18,13 +18,23 @@ export interface HostCommandRunResult {
 export interface HostCommandRunner {
     run(request: HostCommandRunRequest): Promise<HostCommandRunResult>;
 }
+export interface RunScriptProducerInput {
+    language: ScriptTransformLanguage;
+    code: string;
+    label?: string;
+    limits?: ScriptTransformLimitsInput;
+}
 export interface RunScriptFilterInput {
     language: ScriptTransformLanguage;
     code: string;
     label?: string;
     limits?: ScriptTransformLimitsInput;
 }
-export interface FreeflowRunOptions extends HostCommandRunRequest {
+export interface FreeflowRunOptions {
+    command?: string | readonly string[];
+    script?: RunScriptProducerInput;
+    cwd?: string;
+    timeoutMs?: number;
     sessionId: string;
     vaultRoot?: string;
     vaultRetention?: VaultRetentionPolicy;

@@ -32,6 +32,17 @@ const RESET_MODE_ARGS = new Set(["reset"]);
 let runtimeContextCache = null;
 let currentModeOverride = null;
 let lastRouterConfigWarningKey = null;
+let shouldInjectFullRuntimeContext = true;
+
+export function resetRuntimeContextInjection() {
+  shouldInjectFullRuntimeContext = true;
+}
+
+export function consumeRuntimeContextInjectionState() {
+  const shouldInjectFull = shouldInjectFullRuntimeContext;
+  shouldInjectFullRuntimeContext = false;
+  return shouldInjectFull;
+}
 
 async function loadRuntimeContext() {
   const [workflowSkill, workflowMap, interviewGateSkill, discoverSkill, outputRouterSkill, outputRouterSafetyPolicy] = await Promise.all([

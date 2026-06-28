@@ -128,7 +128,7 @@ It exists because native tools like `read` and `bash` are direct and useful, but
 The router adds two explicit tools:
 
 - `freeflow_retrieve`: find targeted, labeled, expandable evidence from repo files or previously vaulted output.
-- `freeflow_run`: run likely-large/noisy commands once, vault exact raw output, then return compact important evidence plus an `outputId` for exact recovery.
+- `freeflow_run`: run likely-large/noisy shell commands or sandboxed script producers once, vault exact raw output when storage policy requires it, then return compact important evidence plus an `outputId` for exact recovery.
 
 The core rule is:
 
@@ -282,7 +282,7 @@ Use this decision table:
 | Exact known repo span | `freeflow_retrieve action=retrieve` with `source.path` and `lineRange` |
 | More context around previous evidence | `freeflow_retrieve action=expand` |
 | Exact output from a previous routed command/native safety-net result | `freeflow_retrieve` with `source.kind=vault` and `outputId` |
-| Likely-large/noisy command | `freeflow_run` |
+| Likely-large/noisy command or sandboxed script producer | `freeflow_run` |
 | Small exact command where raw output is desired directly | native `bash` |
 | Whole known file/artifact | native `read` |
 | File mutation | native `edit` / `write` |
@@ -746,7 +746,7 @@ flowchart LR
 
 ## `freeflow_run` Architecture
 
-### Command Run Flow
+### Producer Run Flow
 
 ```mermaid
 sequenceDiagram
@@ -754,14 +754,20 @@ sequenceDiagram
   participant Pi as Pi adapter
   participant Run as freeflowRun
   participant Host as host-approved runner
+  participant Sandbox as script sandbox adapter
   participant Vault
   participant Parser as deterministic parsers
   participant Router as command router
 
-  Agent->>Pi: freeflow_run command
-  Pi->>Run: command + cwd + timeout + session/vault config
-  Run->>Host: execute through approved runner
-  Host-->>Run: stdout/stderr/status/exit/duration
+  Agent->>Pi: freeflow_run command or script
+  Pi->>Run: command or script + cwd + timeout + session/vault config
+  alt command producer
+    Run->>Host: execute through approved runner
+    Host-->>Run: stdout/stderr/status/exit/duration
+  else sandboxed script producer
+    Run->>Sandbox: execute script with empty source manifest
+    Sandbox-->>Run: stdout/stderr/status/exit/duration
+  end
   Run->>Vault: store exact stdout/stderr/combined/meta
   Vault-->>Run: outputId
   Run->>Vault: check duplicate fingerprint when preserve != full
@@ -771,11 +777,11 @@ sequenceDiagram
   Router-->>Agent: result with outputId + recovery
 ```
 
-### Host Runner Boundary
+### Producer Boundaries
 
-The core router does not spawn arbitrary processes by itself. It depends on a host-provided runner.
+For command producers, the core router does not spawn arbitrary processes by itself. It depends on a host-provided runner.
 
-In Pi, `freeflow_run` uses `pi.exec("bash", ["-lc", command])` through the Pi extension. The adapter maps host results into:
+In Pi, `freeflow_run` command mode uses `pi.exec("bash", ["-lc", command])` through the Pi extension. The adapter maps host results into:
 
 - `stdout`,
 - `stderr`,
@@ -792,25 +798,27 @@ Execution statuses are:
 | `timed_out` | host runner killed the process |
 | `cancelled` | signal was aborted |
 
+Sandboxed script producers use the same proof-backed script sandbox engine as `freeflow_search action=transform operation.kind="script"`, but with no mounted source files. Raw script code is not persisted; run metadata stores language, label, limits, adapter identity, and a code hash. Successful and failed sandbox executions map to the same stdout/stderr/status/exit/duration shape as host commands. Sandbox-disabled, adapter-unavailable, adapter-throw, and output-cap failures happen before run output exists and return structured no-recovery failures.
+
 ### Raw Capture First
 
-The command output path is:
+The run output path is:
 
 ```text
-execute once -> capture stdout/stderr/combined -> write vault -> route bounded evidence
+execute one producer -> capture stdout/stderr/combined -> write vault when policy requires -> route bounded evidence
 ```
 
-If the adapter fails before output is captured, the result has `toolStatus: "error"`, empty `outputId`, and recovery says no command output was captured.
+If the adapter fails before output is captured, the result has `toolStatus: "error"`, empty `outputId`, and recovery says no command or script output was captured.
 
-If routing fails after command execution, the router still tries to return bounded in-memory evidence and, if available, an `outputId` for recovery.
+If routing fails after producer execution, the router still tries to return bounded in-memory evidence and, if available, an `outputId` for recovery.
 
-### Command Routing Rules
+### Run Routing Rules
 
-`run.ts` owns command routing.
+`run.ts` owns command and script-producer routing.
 
 ```mermaid
 flowchart TD
-  Output["captured command output"]
+  Output["captured run output"]
   Vault["store in vault"]
   Duplicate{"exact duplicate?"}
   Preserve{"preserve=full?"}

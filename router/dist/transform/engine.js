@@ -269,7 +269,7 @@ async function handleScriptTransform(options) {
     }
     const execution = await executeScriptWithAdapter({
         adapter: adapterSelection.adapter,
-        input: options.input,
+        operation: options.input.operation,
         resolvedSources: resolved.sources,
         limits,
         config,
@@ -355,7 +355,85 @@ function primaryScriptSourceRef(resolvedSources, inputSources) {
     }
     return { kind: "vault", outputId: input?.outputId ?? "unknown" };
 }
+export async function executeSandboxedScriptOperation(options) {
+    const config = effectiveScriptTransformConfig(options.scriptTransform);
+    const limits = effectiveScriptLimits(config, options.limits);
+    const operation = scriptOperationSummary(options.operation);
+    if (!config.enabled) {
+        return {
+            ok: false,
+            failureKind: "script_transform_disabled",
+            executionStatus: "unavailable",
+            message: "Script transform is disabled by default. Enable scriptTransform.enabled only after a sandbox adapter has passed capability probes and review. No script code was executed.",
+            limits,
+            operation,
+        };
+    }
+    const adapterSelection = await selectScriptSandboxAdapter(options.operation.language, config, options.scriptSandboxAdapters ?? []);
+    if (!adapterSelection.ok) {
+        const failure = {
+            ok: false,
+            failureKind: "adapter_unavailable",
+            executionStatus: "unavailable",
+            message: `${adapterSelection.status.reason} No script code was executed.`,
+            limits,
+            operation,
+            failedProofs: adapterSelection.status.failedProofs,
+        };
+        if (adapterSelection.status.adapterId !== undefined) {
+            failure.adapterId = adapterSelection.status.adapterId;
+        }
+        if (adapterSelection.status.adapterVersion !== undefined) {
+            failure.adapterVersion = adapterSelection.status.adapterVersion;
+        }
+        return failure;
+    }
+    const execution = await runScriptAdapter({
+        adapter: adapterSelection.adapter,
+        operation: options.operation,
+        resolvedSources: [],
+        limits,
+        config,
+    });
+    if (!execution.ok) {
+        return {
+            ok: false,
+            failureKind: "transform_execution_failure",
+            executionStatus: "failed",
+            message: execution.message,
+            limits,
+            operation,
+            adapterId: adapterSelection.adapter.id,
+            adapterVersion: adapterSelection.adapter.version,
+        };
+    }
+    const success = {
+        ok: true,
+        result: execution.result,
+        limits,
+        operation,
+        adapterId: adapterSelection.adapter.id,
+        adapterVersion: adapterSelection.adapter.version,
+    };
+    if (adapterSelection.status.runtime !== undefined) {
+        success.runtime = adapterSelection.status.runtime;
+    }
+    return success;
+}
 async function executeScriptWithAdapter(options) {
+    const execution = await runScriptAdapter(options);
+    if (!execution.ok) {
+        return execution;
+    }
+    const stdoutBytes = byteLength(execution.result.stdout ?? "");
+    const stderrBytes = byteLength(execution.result.stderr ?? "");
+    if (execution.result.status !== "success") {
+        const detail = execution.result.reason ? ` ${execution.result.reason}` : "";
+        return { ok: false, message: `Script transform ${options.operation.language} ${execution.result.status}.${detail} stdoutBytes=${stdoutBytes} stderrBytes=${stderrBytes}.` };
+    }
+    return { ok: true, result: execution.result };
+}
+async function runScriptAdapter(options) {
     const tempRoot = await mkdtemp(join(tmpdir(), "freeflow-script-transform-"));
     const inputDir = join(tempRoot, "input");
     const workDir = join(tempRoot, "work");
@@ -383,8 +461,8 @@ async function executeScriptWithAdapter(options) {
         let result;
         try {
             result = await options.adapter.execute({
-                language: options.input.operation.language,
-                code: options.input.operation.code,
+                language: options.operation.language,
+                code: options.operation.code,
                 inputDir,
                 workDir,
                 outputDir,
@@ -400,10 +478,6 @@ async function executeScriptWithAdapter(options) {
         const stderrBytes = byteLength(result.stderr ?? "");
         if (stdoutBytes + stderrBytes > options.limits.maxOutputBytes) {
             return { ok: false, message: `Script transform output bytes ${stdoutBytes + stderrBytes} exceed maxOutputBytes ${options.limits.maxOutputBytes}.` };
-        }
-        if (result.status !== "success") {
-            const detail = result.reason ? ` ${result.reason}` : "";
-            return { ok: false, message: `Script transform ${options.input.operation.language} ${result.status}.${detail} stdoutBytes=${stdoutBytes} stderrBytes=${stderrBytes}.` };
         }
         return { ok: true, result };
     }

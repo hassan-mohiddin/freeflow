@@ -753,6 +753,9 @@ function producerForTextSourceKind(sourceKind: TextOutputRecord["sourceKind"]): 
   if (sourceKind === "native") {
     return { kind: "native" };
   }
+  if (sourceKind === "script") {
+    return { kind: "script" };
+  }
   if (sourceKind === "mcp") {
     return { kind: "mcp" };
   }

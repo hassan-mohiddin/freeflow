@@ -21,9 +21,10 @@ Native tools stay direct unless explicit config enables the safety net. Use nati
 - Need more around prior evidence: use `freeflow_search action=expand`.
 - Need to explain a routed result or vault id: use `freeflow_search action=explain`.
 - Need to run a likely-large, broad, exploratory, or noisy command: use `freeflow_run`.
+- Need to run code as the base producer without repo/home/env/network access: use `freeflow_run` with `script`.
 - Need enabled Pi MCP/web/fetch/code-search output: call the host tool directly; observed routing runs after the tool result when configured.
 - Need deterministic filtering, extraction, counts, grouping, dedupe, topN, URL/citation extraction, or stats from vaulted evidence: use `freeflow_search action=transform`.
-- Need script transform: `freeflow_search action=transform operation.kind=script` is a disabled-by-default sandboxed branch. JavaScript, Python, and jq can execute only with explicit scriptTransform opt-in and available proof-backed adapters. Do not use script transform as unsandboxed code execution.
+- Need script transform over existing evidence: use `freeflow_search action=transform operation.kind=script`. Both transform scripts and `freeflow_run` script producers are disabled-by-default sandboxed branches. JavaScript, Python, and jq can execute only with explicit scriptTransform opt-in and available proof-backed adapters. Do not use script transform or script producer as unsandboxed code execution.
 - Need effective Freeflow router, observed-routing, script-transform, vault writability, or migration recommendations: use `freeflow_status`.
 - Need a whole known file/artifact and direct file contents are intended: use native read.
 - Need direct shell behavior with expected-small exact output: use native bash.
@@ -33,12 +34,12 @@ Native tools stay direct unless explicit config enables the safety net. Use nati
 
 Do not run broad native shell commands just to see what comes back. Unknown output size means Freeflow first.
 
-Likely-large native commands include repo-wide `rg`, `grep -R`, `find`, package scans, generated-artifact scans, session/eval log scans, broad `git diff/log`, test suites, builds, and lint/typecheck output.
+Likely-large native commands include repo-wide `rg`, `grep -R`, `find`, package scans, generated-artifact scans, session/eval log scans, broad `git diff/log`, test suites, builds, lint/typecheck output, and one-off host scripts whose output size is unknown.
 
 For these, choose one:
 
 - Use `freeflow_search action=query` or `locate` for repo evidence discovery, or for vault-wide indexed evidence when `source.kind=vault` omits `outputId`.
-- Use `freeflow_run` when the broad shell command is intentional and routed evidence is enough.
+- Use `freeflow_run` when the broad shell command or sandboxed script producer is intentional and routed evidence is enough.
 - Use `freeflow_search action=transform` when the broad output is already vaulted and a deterministic subset/stat is enough.
 - Use native bash only when the command is intentionally bounded/excluded and exact small raw output is needed, for example a targeted file/path search, `head`/`sed` cap, or explicit generated/log exclusions.
 
@@ -74,7 +75,7 @@ Use `query` first when the needed lines are unknown. Use `expand` when a previou
 
 The router works with built-in defaults. Use `freeflow_status` to inspect effective defaults and non-destructive migration recommendations. Persist `outputRouter`, `observedRouting`, or `scriptTransform` config only after the setup evidence-routing/script-execution decision point or an explicit request; `setup-freeflow` owns repo setup/config changes.
 
-Supported `outputRouter` keys are `enabled`, `profile`, `postToolRouting`, `storagePolicy`, `largeOutputBytes`, `largeOutputLines`, `vaultRoot`, `vaultRetentionDays`, `generatedPaths`, and `noisyCommandHints`. `storagePolicy` supports `hybrid-dedupe` (default for `freeflow_run` command capture) and `store-everything` (compatibility/diagnostic override). Supported `observedRouting` keys are `enabled`, `onRoutingFailure`, `mcp.servers`, `web`, `fetch`, and `codeSearch`, with persistence modes `exact`, `metadata-only`, and `none`. Supported `scriptTransform` keys are `enabled`, `sandbox`, `languages`, `network`, `limits`, and `rawScriptPersistence`; defaults keep it disabled with no unsandboxed fallback. Local-only `.freeflow/local.json` may enable internal processing `unsafeUnsandboxed`; shared `.freeflow/config.json` must not.
+Supported `outputRouter` keys are `enabled`, `profile`, `postToolRouting`, `storagePolicy`, `largeOutputBytes`, `largeOutputLines`, `vaultRoot`, `vaultRetentionDays`, `generatedPaths`, and `noisyCommandHints`. `storagePolicy` supports `hybrid-dedupe` (default for `freeflow_run` command/script capture) and `store-everything` (compatibility/diagnostic override). Supported `observedRouting` keys are `enabled`, `onRoutingFailure`, `mcp.servers`, `web`, `fetch`, and `codeSearch`, with persistence modes `exact`, `metadata-only`, and `none`. Supported `scriptTransform` keys are `enabled`, `sandbox`, `languages`, `network`, `limits`, and `rawScriptPersistence`; defaults keep it disabled with no unsandboxed fallback. Local-only `.freeflow/local.json` may enable internal processing `unsafeUnsandboxed`; shared `.freeflow/config.json` must not.
 
 `outputRouter.postToolRouting` controls native read/bash safety-net routing:
 
@@ -85,7 +86,7 @@ Supported `outputRouter` keys are `enabled`, `profile`, `postToolRouting`, `stor
 Rules:
 
 - Minimal setup stays only `defaultMode`.
-- Metadata-only command records must never claim exact recovery. Exact duplicate metadata may point to a prior exact `outputId`; plain metadata-only records only get rerun guidance.
+- Metadata-only run records must never claim exact recovery. Exact duplicate metadata may point to a prior exact `outputId`; plain metadata-only records only get rerun guidance.
 - Do not dump defaults or create empty `outputRouter`, `observedRouting`, or `scriptTransform` objects. Do not write removed `capture` or `providers` config.
 - `generatedPaths` affects broad scans only; explicit path retrieval remains available.
 - Freeflow mode changes guidance strength only. It must not enable `postToolRouting`.

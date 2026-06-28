@@ -203,7 +203,7 @@ Freeflow does not claim to beat Matt Pocock's skills or Obra's Superpowers. Thos
 | Cold spec call without context | 2/10 | 10/10 | Freeflow did not invent onboarding behavior from adjacent files. |
 | Workflow context lifecycle | fail | pass | Setup loads workflow context for the same session; session-start hooks load workflow context without `PostToolUse`. |
 | Output router retrieval | - | 7/7 pass | Deterministic router evidence fixes generated-artifact false positives while keeping scanner retrieval default. |
-| Output router command recovery | - | 8/8 pass | `freeflow_run` preserves exact facts and verifies raw vault recovery for routed command output. |
+| Output router run recovery | - | 8/8 pass + script-producer unit coverage | `freeflow_run` preserves exact facts and verifies raw vault recovery for routed command output; sandboxed script producers capture stdout/stderr through the same run pipeline. |
 | Codex Structured Q&A | native proxy 0/1 | improved router 1/1 | Sandbox Permissions Q&A resolves to the source markdown instead of a generated `graphify-out` decoy. |
 | Command surface audit | - | Pass | 4 mode commands, 12 direct skill calls, and 3 developer skill calls are covered while native slash handlers remain disabled for Codex/Claude. |
 

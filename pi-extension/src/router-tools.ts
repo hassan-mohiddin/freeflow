@@ -264,7 +264,7 @@ function batchNeedsScriptAdapters(params) {
       return false;
     }
     if (step.kind === "run") {
-      return Boolean(input.scriptFilter);
+      return Boolean(input.script) || Boolean(input.scriptFilter);
     }
     if (step.kind === "search") {
       return input.action === "transform" && (Boolean(input.script) || input.operation?.kind === "script");
@@ -358,18 +358,19 @@ export function registerRouterTools(pi) {
     name: "freeflow_run",
     label: "Freeflow Run",
     description:
-      "Run a command through Pi's approved runner, vault exact stdout/stderr, and return compact routed evidence plus an outputId.",
-    promptSnippet: "Run likely-large/noisy commands with vaulted raw output and compact evidence.",
+      "Run a shell command or sandboxed script producer, vault captured stdout/stderr when storage policy requires it, and return compact routed evidence plus an outputId.",
+    promptSnippet: "Run likely-large/noisy commands or sandboxed script producers with routed evidence.",
     promptGuidelines: [
-      "Use freeflow_run for commands likely to produce large or noisy output when routed evidence is enough.",
-      "Use native bash when direct shell behavior or exact small raw output is intentionally needed.",
+      "Use freeflow_run for commands or script producers likely to produce large or noisy output when routed evidence is enough.",
+      "Use freeflow_run script for sandboxed code-as-producer execution when repo/home/env/network access is not needed.",
+      "Use native bash when direct shell behavior, host script access, or exact small raw output is intentionally needed.",
     ],
     parameters: FREEFLOW_RUN_PARAMETERS,
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const routerConfigResult = await readOutputRouterConfig(ctx.cwd);
       notifyRouterConfigWarnings(ctx, routerConfigResult);
       const runner = createPiCommandRunner(pi, signal);
-      const scriptSandboxAdapters = params.scriptFilter
+      const scriptSandboxAdapters = params.script || params.scriptFilter
         ? [
             ...(await discoverQuickJsWasiSandboxAdaptersFromEnv()),
             ...(await discoverJqWasmSandboxAdaptersFromEnv()),
@@ -379,6 +380,7 @@ export function registerRouterTools(pi) {
       const result = await freeflowRun(
         {
           command: params.command,
+          script: params.script,
           cwd: params.cwd ?? ctx.cwd,
           timeoutMs: params.timeoutMs,
           preserve: params.preserve,

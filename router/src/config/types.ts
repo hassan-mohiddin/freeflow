@@ -19,7 +19,7 @@ export type RouteKind = (typeof ROUTE_KINDS)[number];
 export const BATCH_STEP_KINDS = ["run", "search"] as const;
 export type BatchStepKind = (typeof BATCH_STEP_KINDS)[number];
 
-export const PRODUCER_KINDS = ["command", "native", "repo", "web", "fetch", "code_search", "mcp", "transform", "other"] as const;
+export const PRODUCER_KINDS = ["command", "script", "native", "repo", "web", "fetch", "code_search", "mcp", "transform", "other"] as const;
 export type ProducerKind = (typeof PRODUCER_KINDS)[number];
 
 export const PERSISTENCE_STATUSES = ["vaulted", "redacted", "metadata_only", "not_persisted"] as const;
@@ -188,6 +188,26 @@ export interface RunOutputFilterMetadata {
   fallbackPreservedFailureEvidence?: boolean;
 }
 
+export interface RunScriptProducerMetadata {
+  status: "success" | "failed" | "timed_out" | "policy_violation" | "unavailable";
+  language: ScriptTransformLanguage;
+  policy: "sandboxed";
+  rawScriptPersistence: ScriptTransformRawScriptPersistence;
+  codeSha256: string;
+  limits: ScriptTransformLimits;
+  label?: string;
+  adapterId?: string;
+  adapterVersion?: string;
+  runtime?: { name: string; version?: string };
+  stdoutBytes?: number;
+  stderrBytes?: number;
+  exitCode?: number | null;
+  durationMs?: number;
+  operation?: Record<string, unknown>;
+  failure?: RouterFailure;
+  transformExecution?: TransformExecutionFailure;
+}
+
 export interface RunScriptFilterMetadata {
   status: "success" | FailureExecutionStatus;
   language: ScriptTransformLanguage;
@@ -253,6 +273,7 @@ export interface CommandRoutedResult extends RoutedResultBase {
   importantLines?: ImportantLine[];
   parser?: CommandParserMetadata;
   filters?: RunOutputFilterMetadata;
+  scriptProducer?: RunScriptProducerMetadata;
   scriptFilter?: RunScriptFilterMetadata;
   reducer?: RunReducerMetadata;
 }
@@ -411,7 +432,7 @@ export interface CommandOutputRecord extends VaultRecordBase {
 
 export interface TextOutputRecord extends VaultRecordBase {
   kind: "text";
-  sourceKind: "native" | "mcp" | "web" | "fetch" | "code_search" | "transform" | "other";
+  sourceKind: "native" | "script" | "mcp" | "web" | "fetch" | "code_search" | "transform" | "other";
   paths: {
     meta: string;
     raw: string;

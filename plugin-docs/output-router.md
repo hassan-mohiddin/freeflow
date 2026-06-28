@@ -17,7 +17,7 @@ smallest sufficient evidence in context
 The router ships explicit tools and Pi observed routing:
 
 - `freeflow_search`: search/retrieve repo or vault evidence, and transform file/output sources through `action="transform"`.
-- `freeflow_run`: run commands, apply the command storage policy, and return compact evidence with recovery guidance.
+- `freeflow_run`: run shell commands or sandboxed script producers, apply the run storage policy, and return compact evidence with recovery guidance.
 - `freeflow_batch`: run independent `run`/`search` steps and optionally aggregate query answers.
 - Pi observed routing: route enabled MCP/web/fetch/code-search outputs after direct host tool calls.
 - `freeflow_status`: inspect effective config, observed routing, script transform, vault writability/index state, and non-destructive migration recommendations.
@@ -70,7 +70,8 @@ flowchart LR
 | Retrieve exact repo/vault lines | `freeflow_search action=retrieve` with `lineRange` |
 | Widen previous evidence | `freeflow_search action=expand` |
 | Explain a previous routed decision/output | `freeflow_search action=explain` |
-| Run noisy/large command output | `freeflow_run` |
+| Run noisy/large command output | `freeflow_run` with `command` |
+| Run code as a sandboxed base producer | `freeflow_run` with `script` |
 | Use enabled Pi MCP/web/fetch/code-search output | Call the host tool directly; observed routing runs after the tool result |
 | Transform repo/vault sources or compute deterministic subsets/stats from vaulted output | `freeflow_search action=transform` |
 | Inspect script-transform disabled/unavailable state | `freeflow_status` |
@@ -129,9 +130,9 @@ Vault-wide retrieval uses the vault index sidecar. Exact records return source o
 
 ## `freeflow_run`
 
-`freeflow_run` executes once through the host-approved runner, applies the configured command storage policy, then returns useful command evidence. The default `hybrid-dedupe` policy keeps exact raw recovery for exactness-sensitive output while allowing small non-sensitive successes to become metadata-only.
+`freeflow_run` executes one base producer, applies the configured run storage policy, then returns useful evidence. The base producer can be either a host-approved shell command or a sandboxed script. The default `hybrid-dedupe` policy keeps exact raw recovery for exactness-sensitive output while allowing small non-sensitive command successes to become metadata-only. Script producers are treated as exactness-sensitive because raw script text is not persisted.
 
-Example:
+Command example:
 
 ```json
 {
@@ -141,10 +142,25 @@ Example:
 }
 ```
 
+Sandboxed script producer example:
+
+```json
+{
+  "script": {
+    "language": "javascript",
+    "code": "console.log(JSON.stringify({ ok: true }))",
+    "label": "emit-json"
+  },
+  "preserve": "important"
+}
+```
+
 Returned results include:
 
 - `outputId`,
 - `execution.status` and `exitCode`,
+- `producer.kind` (`command` or `script`),
+- `scriptProducer` metadata for sandboxed script producers, including language, policy, adapter, limits, and code hash,
 - parser metadata,
 - important lines,
 - exact recovery instructions when exact recovery exists, or metadata-only rerun guidance when it does not.
@@ -168,7 +184,7 @@ Mutating MCP/tools remain direct host calls after explicit user intent. Freeflow
 
 `freeflow_search action=transform` transforms existing vaulted output. Current deterministic operations do not execute arbitrary code.
 
-`operation.kind="script"` is the sandboxed branch under the same tool. It is disabled by default, has no unsandboxed fallback, and does not persist raw script text. Successful script output is vaulted as transformed stdout with source lineage; failures and output-limit overflows return structured no-recovery results.
+`operation.kind="script"` is the sandboxed transform branch under the same tool. `freeflow_run` also exposes the same sandbox engine as a base `script` producer. Both are disabled by default, have no unsandboxed fallback, and do not persist raw script text. Transform scripts vault successful stdout as transformed text with source lineage. Run script producers capture stdout/stderr/combined as run output with `producer.kind="script"`; failures and output-limit overflows return structured no-recovery results.
 
 Current product execution support is Pi-first and explicit package-root opt-in:
 
@@ -325,9 +341,9 @@ Optional repo config lives in `.freeflow/config.json` only after the setup evide
 Rules:
 
 - `postToolRouting` defaults to `off`.
-- `storagePolicy` defaults to `hybrid-dedupe` for `freeflow_run` command capture. `store-everything` is the compatibility/diagnostic override.
-- Small non-sensitive successful command output may be metadata-only; failures, verification/diagnosis/build/test output, `preserve=full`, filters/script filters, and large/noisy output stay exact.
-- Exact duplicate command output may store current metadata pointing to a prior exact `outputId`; plain metadata-only records must not claim exact recovery.
+- `storagePolicy` defaults to `hybrid-dedupe` for `freeflow_run` command/script capture. `store-everything` is the compatibility/diagnostic override.
+- Small non-sensitive successful command output may be metadata-only; failures, verification/diagnosis/build/test output, `preserve=full`, filters/script filters, script producers, and large/noisy output stay exact.
+- Exact duplicate run output may store current metadata pointing to a prior exact `outputId`; plain metadata-only records must not claim exact recovery.
 - `safety-net` is opt-in.
 - `strict` is reserved.
 - Observed routing is opt-in per producer/server. Setup writes explicit entries only after the user chooses them.

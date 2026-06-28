@@ -1,5 +1,5 @@
-import type { TransformRoutedResult, FailureRoutedResult, OutputStream, PreserveMode, RouterThresholds, ScriptTransformConfig, ScriptTransformLanguage, VaultRetentionPolicy } from "../config/types.js";
-import type { ScriptSandboxAdapter } from "../sandbox/script-sandbox.js";
+import type { TransformRoutedResult, FailureRoutedResult, FailureExecutionStatus, OutputStream, PreserveMode, RouterFailureKind, RouterThresholds, ScriptTransformConfig, ScriptTransformLanguage, VaultRetentionPolicy } from "../config/types.js";
+import type { ScriptSandboxAdapter, ScriptSandboxExecutionResult } from "../sandbox/script-sandbox.js";
 export interface TransformVaultSourceInput {
     kind: "vault";
     outputId: string;
@@ -88,6 +88,30 @@ export interface ScriptTransformInput {
     limits?: ScriptTransformLimitsInput;
     preserve?: PreserveMode;
 }
+export interface SandboxedScriptOperationSuccess {
+    ok: true;
+    result: ScriptSandboxExecutionResult;
+    limits: Required<ScriptTransformLimitsInput>;
+    operation: Record<string, unknown>;
+    adapterId: string;
+    adapterVersion: string;
+    runtime?: {
+        name: string;
+        version?: string;
+    };
+}
+export interface SandboxedScriptOperationFailure {
+    ok: false;
+    failureKind: RouterFailureKind;
+    executionStatus: FailureExecutionStatus;
+    message: string;
+    limits: Required<ScriptTransformLimitsInput>;
+    operation: Record<string, unknown>;
+    adapterId?: string;
+    adapterVersion?: string;
+    failedProofs?: string[];
+}
+export type SandboxedScriptOperationResult = SandboxedScriptOperationSuccess | SandboxedScriptOperationFailure;
 export type TransformInput = DeterministicTransformInput | ScriptTransformInput;
 export type FreeflowTransformOptions = TransformInput & {
     sessionId: string;
@@ -111,3 +135,9 @@ export type TransformValidationResult = {
 };
 export declare function validateTransformInput(value: unknown): TransformValidationResult;
 export declare function freeflowTransform(options: FreeflowTransformOptions): Promise<TransformRoutedResult | FailureRoutedResult>;
+export declare function executeSandboxedScriptOperation(options: {
+    operation: ScriptTransformOperation;
+    limits?: ScriptTransformLimitsInput;
+    scriptTransform?: ScriptTransformConfig;
+    scriptSandboxAdapters?: readonly ScriptSandboxAdapter[];
+}): Promise<SandboxedScriptOperationResult>;

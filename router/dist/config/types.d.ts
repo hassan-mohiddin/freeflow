@@ -12,7 +12,7 @@ export declare const ROUTE_KINDS: readonly ["retrieve", "run", "transform", "bat
 export type RouteKind = (typeof ROUTE_KINDS)[number];
 export declare const BATCH_STEP_KINDS: readonly ["run", "search"];
 export type BatchStepKind = (typeof BATCH_STEP_KINDS)[number];
-export declare const PRODUCER_KINDS: readonly ["command", "native", "repo", "web", "fetch", "code_search", "mcp", "transform", "other"];
+export declare const PRODUCER_KINDS: readonly ["command", "script", "native", "repo", "web", "fetch", "code_search", "mcp", "transform", "other"];
 export type ProducerKind = (typeof PRODUCER_KINDS)[number];
 export declare const PERSISTENCE_STATUSES: readonly ["vaulted", "redacted", "metadata_only", "not_persisted"];
 export type PersistenceStatus = (typeof PERSISTENCE_STATUSES)[number];
@@ -142,6 +142,28 @@ export interface RunOutputFilterMetadata {
     selectedLines: number;
     fallbackPreservedFailureEvidence?: boolean;
 }
+export interface RunScriptProducerMetadata {
+    status: "success" | "failed" | "timed_out" | "policy_violation" | "unavailable";
+    language: ScriptTransformLanguage;
+    policy: "sandboxed";
+    rawScriptPersistence: ScriptTransformRawScriptPersistence;
+    codeSha256: string;
+    limits: ScriptTransformLimits;
+    label?: string;
+    adapterId?: string;
+    adapterVersion?: string;
+    runtime?: {
+        name: string;
+        version?: string;
+    };
+    stdoutBytes?: number;
+    stderrBytes?: number;
+    exitCode?: number | null;
+    durationMs?: number;
+    operation?: Record<string, unknown>;
+    failure?: RouterFailure;
+    transformExecution?: TransformExecutionFailure;
+}
 export interface RunScriptFilterMetadata {
     status: "success" | FailureExecutionStatus;
     language: ScriptTransformLanguage;
@@ -205,6 +227,7 @@ export interface CommandRoutedResult extends RoutedResultBase {
     importantLines?: ImportantLine[];
     parser?: CommandParserMetadata;
     filters?: RunOutputFilterMetadata;
+    scriptProducer?: RunScriptProducerMetadata;
     scriptFilter?: RunScriptFilterMetadata;
     reducer?: RunReducerMetadata;
 }
@@ -346,7 +369,7 @@ export interface CommandOutputRecord extends VaultRecordBase {
 }
 export interface TextOutputRecord extends VaultRecordBase {
     kind: "text";
-    sourceKind: "native" | "mcp" | "web" | "fetch" | "code_search" | "transform" | "other";
+    sourceKind: "native" | "script" | "mcp" | "web" | "fetch" | "code_search" | "transform" | "other";
     paths: {
         meta: string;
         raw: string;

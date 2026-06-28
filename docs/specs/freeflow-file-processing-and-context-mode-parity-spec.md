@@ -103,7 +103,7 @@ Use these as design reference points. Do not copy Context Mode source code into 
 - Making unsandboxed script execution the repo default, enabling it from minimal setup, or silently falling back to it from sandbox failure.
 - Public superiority claims over Context Mode before a durable benchmark supports them.
 - Broad observed-routing redesign for external MCP/web/fetch/code-search outputs.
-- Changing `freeflow_run` into a security sandbox. `freeflow_run` remains host-command capture unless a separate sandboxed API is used.
+- Treating every `freeflow_run` path as a security sandbox. Command producers remain host-command capture; only the explicit `script` producer uses the proof-backed script sandbox.
 
 ## Requirements
 
@@ -304,7 +304,7 @@ Requirements:
 
 ### R10. Separate Host Command Capture From Sandboxed Processing
 
-`freeflow_run` is a host command runner/capture layer. It should not claim sandbox isolation.
+`freeflow_run` command mode is a host command runner/capture layer and should not claim sandbox isolation. Only explicit `script` producer mode uses the proof-backed script sandbox.
 
 New file/output processing APIs that read files directly should include:
 
@@ -421,7 +421,7 @@ without putting raw files/logs/tool payloads into model context and without writ
 - There must be no silent fallback from sandboxed scripts to unsandboxed scripts.
 - Persistent indexing/FTS should not become the default search backend without a separate adoption decision.
 - Freeflow should learn from Context Mode behavior patterns but not copy Elastic-2.0 source code without a licensing decision.
-- `freeflow_run` remains host-command capture, not a sandbox.
+- `freeflow_run` command mode remains host-command capture, not a sandbox; explicit script producer mode is sandboxed.
 
 ## Open Decisions
 

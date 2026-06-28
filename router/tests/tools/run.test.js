@@ -610,7 +610,189 @@ test("freeflowRun rejects invalid declarative filters before executing command",
     assert.equal(result.outputId, "");
     assert.equal(result.routing.status, "failed");
     assert.match(result.routing.reason, /Invalid freeflow_run filters/);
-    assert.match(result.recovery?.how ?? "", /No command output was captured/);
+    assert.match(result.recovery?.how ?? "", /No command or script output was captured/);
+  });
+});
+
+test("freeflowRun script producer runs through the sandbox and stores stdout stderr as run output", async () => {
+  await withTempVault(async (vault) => {
+    let runnerCalls = 0;
+    const runner = {
+      async run() {
+        runnerCalls += 1;
+        throw new Error("host runner should not be called for script producers");
+      },
+    };
+    const adapter = availableScriptAdapter(async (request) => {
+      assert.equal(request.language, "javascript");
+      assert.equal(request.network, "off");
+      assert.equal(request.sources.length, 0);
+      const manifest = JSON.parse(await readFile(join(request.inputDir, "manifest.json"), "utf8"));
+      assert.deepEqual(manifest.sources, []);
+      return {
+        status: "success",
+        stdout: "hello from script\n",
+        stderr: "warn from script\n",
+        outputFiles: [],
+        exitCode: 0,
+        durationMs: 3,
+      };
+    });
+
+    const result = await freeflowRun(
+      {
+        script: { language: "javascript", code: "RAW_SCRIPT_SENTINEL", label: "base-script" },
+        sessionId: "run-script-producer-session",
+        vaultRoot: vault.root,
+        preserve: "important",
+        scriptTransform: {
+          enabled: true,
+          sandbox: "auto",
+          languages: ["javascript"],
+          network: "off",
+          limits: { timeoutMs: 1000, maxInputBytes: 4096, maxOutputBytes: 4096 },
+          rawScriptPersistence: "disabled",
+        },
+        scriptSandboxAdapters: [adapter],
+      },
+      runner,
+    );
+
+    assert.equal(runnerCalls, 0);
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.execution.status, "success");
+    assert.equal(result.execution.exitCode, 0);
+    assert.equal(result.execution.durationMs, 3);
+    assert.equal(result.producer?.kind, "script");
+    assert.equal(result.producer?.name, "base-script");
+    assert.equal(result.producer?.adapter, "fake-run-script-filter");
+    assert.equal(result.scriptProducer?.status, "success");
+    assert.equal(result.scriptProducer?.language, "javascript");
+    assert.equal(result.scriptProducer?.label, "base-script");
+    assert.equal(result.scriptProducer?.policy, "sandboxed");
+    assert.equal(result.scriptProducer?.rawScriptPersistence, "disabled");
+    assert.match(result.scriptProducer?.codeSha256 ?? "", /^sha256_[0-9a-f]{64}$/);
+    assert.doesNotMatch(JSON.stringify(result), /RAW_SCRIPT_SENTINEL/);
+    assert.equal(result.persistence?.recoverability, "exact");
+    assert.equal(result.importantLines?.[0].stream, "combined");
+    assert.match(result.importantLines?.[0].excerpt ?? "", /hello from script/);
+    assert.equal(await readOutputText(vault, "run-script-producer-session", result.outputId, "stdout"), "hello from script\n");
+    assert.equal(await readOutputText(vault, "run-script-producer-session", result.outputId, "stderr"), "warn from script\n");
+    assert.equal(await readOutputText(vault, "run-script-producer-session", result.outputId, "combined"), "[stdout]\nhello from script\n\n[stderr]\nwarn from script\n");
+  });
+});
+
+test("freeflowRun script producer captures failed sandbox execution output", async () => {
+  await withTempVault(async (vault) => {
+    const runner = {
+      async run() {
+        throw new Error("host runner should not be called for script producers");
+      },
+    };
+    const adapter = availableScriptAdapter(async () => ({
+      status: "failed",
+      reason: "boom",
+      stdout: "partial output\n",
+      stderr: "script error\n",
+      outputFiles: [],
+      exitCode: 2,
+      durationMs: 4,
+    }));
+
+    const result = await freeflowRun(
+      {
+        script: { language: "javascript", code: "throw new Error('boom')" },
+        sessionId: "run-script-producer-failure-session",
+        vaultRoot: vault.root,
+        preserve: "important",
+        scriptTransform: {
+          enabled: true,
+          sandbox: "auto",
+          languages: ["javascript"],
+          network: "off",
+          limits: { timeoutMs: 1000, maxInputBytes: 4096, maxOutputBytes: 4096 },
+          rawScriptPersistence: "disabled",
+        },
+        scriptSandboxAdapters: [adapter],
+      },
+      runner,
+    );
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.execution.status, "failed");
+    assert.equal(result.execution.exitCode, 2);
+    assert.equal(result.producer?.kind, "script");
+    assert.equal(result.scriptProducer?.status, "failed");
+    assert.equal(result.persistence?.recoverability, "exact");
+    assert.match(result.summary ?? "", /failed/i);
+    assert.match(result.importantLines?.[0].excerpt ?? "", /script error/);
+    assert.equal(await readOutputText(vault, "run-script-producer-failure-session", result.outputId, "stdout"), "partial output\n");
+    assert.equal(await readOutputText(vault, "run-script-producer-failure-session", result.outputId, "stderr"), "script error\n");
+  });
+});
+
+test("freeflowRun script producer disabled fails before executing host runner or persisting raw code", async () => {
+  await withTempVault(async (vault) => {
+    let runnerCalls = 0;
+    const runner = {
+      async run() {
+        runnerCalls += 1;
+        throw new Error("host runner should not be called for script producers");
+      },
+    };
+
+    const result = await freeflowRun(
+      {
+        script: { language: "javascript", code: "RAW_DISABLED_SCRIPT" },
+        sessionId: "run-script-producer-disabled-session",
+        vaultRoot: vault.root,
+        preserve: "important",
+      },
+      runner,
+    );
+
+    assert.equal(runnerCalls, 0);
+    assert.equal(result.toolStatus, "error");
+    assert.equal(result.outputId, "");
+    assert.equal(result.execution.status, "failed");
+    assert.equal(result.routing.status, "failed");
+    assert.equal(result.failure?.kind, "script_transform_disabled");
+    assert.equal(result.producer?.kind, "script");
+    assert.equal(result.scriptProducer?.status, "unavailable");
+    assert.doesNotMatch(JSON.stringify(result), /RAW_DISABLED_SCRIPT/);
+  });
+});
+
+test("freeflowRun rejects ambiguous command and script producers before execution", async () => {
+  await withTempVault(async (vault) => {
+    let calls = 0;
+    const runner = {
+      async run() {
+        calls += 1;
+        return {
+          stdout: "should not run",
+          stderr: "",
+          executionStatus: "success",
+          exitCode: 0,
+        };
+      },
+    };
+
+    const result = await freeflowRun(
+      {
+        command: "echo command",
+        script: { language: "javascript", code: "console.log('script')" },
+        sessionId: "run-ambiguous-producer-session",
+        vaultRoot: vault.root,
+        preserve: "important",
+      },
+      runner,
+    );
+
+    assert.equal(calls, 0);
+    assert.equal(result.toolStatus, "error");
+    assert.equal(result.outputId, "");
+    assert.match(result.routing.reason, /either command or script, not both/);
   });
 });
 
@@ -764,7 +946,7 @@ test("freeflowRun rejects invalid script filters before executing command", asyn
     assert.equal(result.toolStatus, "error");
     assert.equal(result.outputId, "");
     assert.match(result.routing.reason, /Invalid freeflow_run scriptFilter/);
-    assert.match(result.recovery?.how ?? "", /No command output was captured/);
+    assert.match(result.recovery?.how ?? "", /No command or script output was captured/);
   });
 });
 

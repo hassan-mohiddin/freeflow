@@ -100,8 +100,8 @@ Typical use:
 ### Normal Flow
 
 ```text
-input: shell command + optional declarative filter
--> run command once through Pi/host-approved runner
+input: shell command or sandboxed script producer + optional declarative filter
+-> run one producer once through Pi/host-approved runner or the proof-backed script sandbox
 -> capture stdout/stderr/combined
 -> store according to storage policy
 -> apply known parser when available
@@ -112,15 +112,15 @@ input: shell command + optional declarative filter
 ### Programmable Filter Flow
 
 ```text
-input: base shell command + filter script
--> run base command once
+input: base shell command or sandboxed script producer + filter script
+-> run base producer once
 -> store raw stdout/stderr/combined
--> run script over captured stdout/stderr, not by rerunning command
+-> run filter script over captured stdout/stderr, not by rerunning the base producer
 -> store derived script output
 -> return compact script result plus raw/derived recovery ids where available
 ```
 
-The filter script must process already captured output. It must not rerun the base command, because reruns can duplicate side effects and break evidence.
+The filter script must process already captured output. It must not rerun the base producer, because reruns can duplicate side effects and break evidence. A base `script` producer is different: it creates the captured stdout/stderr/combined in the first step, then normal filters/reducers/routing can operate on that captured output.
 
 Programmable filtering should be implemented as a shared deep module, not duplicated per tool. `freeflow_run` adapts captured stdout/stderr/combined into transform inputs. `freeflow_search transform` adapts repo/vault/search-result inputs into the same transform engine. The engine owns validation, execution policy, limits, storage, lineage, and recovery.
 

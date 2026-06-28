@@ -44,12 +44,15 @@ export function compactRunToolText(result) {
   if (counts) header.push(counts);
   if (outputId) header.push(`${result?.persistence?.recoverability === "exact" ? "raw" : "metadata"}=${outputId}`);
   if (result?.persistence?.recoverability !== "exact" && result?.recovery?.outputId) header.push(`exact=${result.recovery.outputId}`);
+  if (result?.scriptProducer?.language) header.push(`script=${result.scriptProducer.language}:${result.scriptProducer.status ?? "unknown"}`);
   if (result?.scriptFilter?.outputId) header.push(`transformed=${result.scriptFilter.outputId}`);
 
   const lines = [row(...header)];
   if (result?.summary) lines.push(row("s", truncateRawLine(result.summary, 220)));
   const filterText = compactRunFilterText(result?.filters);
   if (filterText) lines.push(row("filter", filterText));
+  const scriptProducerText = compactRunScriptProducerText(result?.scriptProducer);
+  if (scriptProducerText) lines.push(row("producer", scriptProducerText));
   const scriptFilterText = compactRunScriptFilterText(result?.scriptFilter);
   if (scriptFilterText) lines.push(row("script", scriptFilterText));
 
@@ -238,6 +241,26 @@ function compactRunFilterText(filters) {
   }
   if (filters.fallbackPreservedFailureEvidence) {
     parts.push("fallback=failure-evidence");
+  }
+  return parts.join(" ");
+}
+
+function compactRunScriptProducerText(scriptProducer) {
+  if (!scriptProducer || typeof scriptProducer !== "object") {
+    return "";
+  }
+  const parts = [`${scriptProducer.language ?? "script"}:${scriptProducer.status ?? "unknown"}`];
+  if (scriptProducer.label) {
+    parts.push(`label=${scriptProducer.label}`);
+  }
+  if (scriptProducer.adapterId) {
+    parts.push(`adapter=${scriptProducer.adapterId}`);
+  }
+  if (scriptProducer.codeSha256) {
+    parts.push(`code=${scriptProducer.codeSha256}`);
+  }
+  if (scriptProducer.failure?.kind) {
+    parts.push(`failure=${scriptProducer.failure.kind}`);
   }
   return parts.join(" ");
 }
