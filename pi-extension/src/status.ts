@@ -147,7 +147,7 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
     recoverabilityDefaults: {
       freeflowRun: "hybrid-dedupe command capture: exact when exactness-sensitive or duplicate recovery points to a prior exact outputId; small non-sensitive successes may be metadata-only",
       observedRouting: "exact raw recovery for enabled observed producers when exact persistence is configured; metadata-only stores no raw stream",
-      freeflowDerive: "deterministic derive stores exact derived-output recovery with source lineage when persisted; script derive is disabled by default and requires an approved sandbox adapter",
+      freeflowTransform: "deterministic transform stores exact transformed-output recovery with source lineage when persisted; script transform is disabled by default and requires an approved sandbox adapter",
       directHostTools: "off by default; optional native read/bash safety-net only when outputRouter.postToolRouting is safety-net",
     },
     configWarnings,
@@ -353,7 +353,7 @@ function scriptDeriveStatus(config, sandboxReport) {
     rawScriptPersistence: config.rawScriptPersistence,
     executionStatus: config.enabled && sandboxReport.adapterAvailable ? "available" : config.enabled ? "adapter_unavailable" : "disabled",
     notes: [
-      "Script derive is disabled by default and setup must not enable it implicitly.",
+      "Script transform is disabled by default and setup must not enable it implicitly.",
       "No unsandboxed fallback is allowed; script code is not executed without an approved sandbox adapter.",
       "Raw script text is not persisted by default.",
       `Script adapter discovery is explicit via ${"FREEFLOW_QUICKJS_WASI_ROOT"} and ${"FREEFLOW_JQ_WASM_ROOT"}; no runtime artifacts are downloaded by Freeflow.`,
@@ -582,7 +582,7 @@ function collectScriptDeriveRecommendations(value, recommendations) {
   addDefaultRecommendation(recommendations, "scriptDerive.rawScriptPersistence", value.rawScriptPersistence, DEFAULT_SCRIPT_DERIVE_CONFIG.rawScriptPersistence);
 
   if (Object.keys(value).length === 0) {
-    recommendations.push(recommendation("scriptDerive", "remove", "Empty scriptDerive object can be removed; script derive is disabled by default."));
+    recommendations.push(recommendation("scriptDerive", "remove", "Empty scriptDerive object can be removed; script transform is disabled by default."));
   }
 }
 

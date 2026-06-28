@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
 
-import { createVault, freeflowRetrieve, storeCommandOutput, storeMetadataOutput, storeRepoFileReference, storeTextOutput } from "../../dist/index.js";
+import { createVault, freeflowSearch, storeCommandOutput, storeMetadataOutput, storeRepoFileReference, storeTextOutput } from "../../dist/index.js";
 
 function assertUtf8RoundTrips(text) {
   assert.equal(Buffer.from(text, "utf8").toString("utf8"), text);
@@ -33,7 +33,7 @@ async function withFixtureRepo(fn) {
         "## Output Router Skill",
         "",
         "The output router skill teaches tool choice without enforcement.",
-        "It says freeflow_retrieve is for targeted evidence and freeflow_run is for noisy commands.",
+        "It says freeflow_search is for targeted evidence and freeflow_run is for noisy commands.",
         "Native read and bash remain available for intentional raw output.",
         "",
         ...Array.from({ length: 140 }, (_, index) => `filler line ${index + 1}`),
@@ -67,7 +67,7 @@ test("querying vaulted command output returns exact matching failure evidence", 
       createdAt: "2026-06-16T00:00:00.000Z",
     });
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: {
         kind: "vault",
@@ -115,7 +115,7 @@ test("vault-wide query finds indexed chunks across output ids with exact recover
       producer: { kind: "mcp", server: "github", tool: "search_issues" },
     });
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "vault", root: vault.root, sessionId: "vault-wide-query-session" },
       query: "VAULT_WIDE_TARGET",
@@ -136,7 +136,7 @@ test("vault-wide query finds indexed chunks across output ids with exact recover
     assert.ok(result.recovery?.how.includes(`outputId=${command.outputId}`));
 
     const [start, end] = evidence.lines.split("-").map(Number);
-    const recovered = await freeflowRetrieve({
+    const recovered = await freeflowSearch({
       action: "retrieve",
       source: { kind: "vault", root: vault.root, sessionId: "vault-wide-query-session", outputId: command.outputId, stream: "combined" },
       lineRange: { start, end },
@@ -158,7 +158,7 @@ test("vault get returns best matching output location with match metadata", asyn
       createdAt: "2026-06-16T00:00:00.000Z",
     });
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "get",
       source: { kind: "vault", root: vault.root, sessionId: "vault-get-session" },
       query: "VAULT_GET_TARGET best output",
@@ -205,7 +205,7 @@ test("vault-wide locate supports producer filters and metadata-only results stay
       createdAt: "2026-06-16T00:00:02.000Z",
     });
 
-    const githubLocate = await freeflowRetrieve({
+    const githubLocate = await freeflowSearch({
       action: "locate",
       source: { kind: "vault", root: vault.root, sessionId: "vault-wide-locate-session" },
       query: "SHARED_FILTER_TARGET",
@@ -217,7 +217,7 @@ test("vault-wide locate supports producer filters and metadata-only results stay
     assert.equal(githubLocate.evidence[0].source.outputId, github.outputId);
     assert.match(githubLocate.routing.reason, /Located 1 indexed vault candidate/);
 
-    const metadataQuery = await freeflowRetrieve({
+    const metadataQuery = await freeflowSearch({
       action: "query",
       source: { kind: "vault", root: vault.root, sessionId: "vault-wide-locate-session" },
       query: "METADATA_ONLY_INDEX_TARGET",
@@ -246,7 +246,7 @@ test("querying vaulted command output with a huge line returns bounded evidence"
       createdAt: "2026-06-16T00:00:00.000Z",
     });
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: {
         kind: "vault",
@@ -281,7 +281,7 @@ test("expanding vaulted output evidence widens the same stream", async () => {
       exitCode: 1,
       createdAt: "2026-06-16T00:00:00.000Z",
     });
-    const queryResult = await freeflowRetrieve({
+    const queryResult = await freeflowSearch({
       action: "query",
       source: {
         kind: "vault",
@@ -295,7 +295,7 @@ test("expanding vaulted output evidence widens the same stream", async () => {
     });
     const [evidence] = queryResult.evidence;
 
-    const expanded = await freeflowRetrieve({
+    const expanded = await freeflowSearch({
       action: "expand",
       source: {
         kind: "vault",
@@ -333,7 +333,7 @@ test("expanding vaulted output evidence with a huge line returns bounded evidenc
       exitCode: 0,
       createdAt: "2026-06-16T00:00:00.000Z",
     });
-    const queryResult = await freeflowRetrieve({
+    const queryResult = await freeflowSearch({
       action: "query",
       source: {
         kind: "vault",
@@ -347,7 +347,7 @@ test("expanding vaulted output evidence with a huge line returns bounded evidenc
     });
     const [evidence] = queryResult.evidence;
 
-    const expanded = await freeflowRetrieve({
+    const expanded = await freeflowSearch({
       action: "expand",
       source: {
         kind: "vault",
@@ -381,7 +381,7 @@ test("expanding vaulted output evidence to full over cap returns bounded chunks"
       exitCode: 0,
       createdAt: "2026-06-16T00:00:00.000Z",
     });
-    const queryResult = await freeflowRetrieve({
+    const queryResult = await freeflowSearch({
       action: "query",
       source: {
         kind: "vault",
@@ -395,7 +395,7 @@ test("expanding vaulted output evidence to full over cap returns bounded chunks"
     });
     const [evidence] = queryResult.evidence;
 
-    const expanded = await freeflowRetrieve({
+    const expanded = await freeflowSearch({
       action: "expand",
       source: {
         kind: "vault",
@@ -436,7 +436,7 @@ test("expanding vaulted output with many short lines labels the bounded line win
       createdAt: "2026-06-16T00:00:00.000Z",
     });
 
-    const expanded = await freeflowRetrieve({
+    const expanded = await freeflowSearch({
       action: "expand",
       source: {
         kind: "vault",
@@ -482,7 +482,7 @@ test("explaining vaulted output returns stored command decision context", async 
       createdAt: "2026-06-16T00:00:00.000Z",
     });
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "explain",
       source: {
         kind: "vault",
@@ -515,7 +515,7 @@ test("vault text records default to raw stream retrieval", async () => {
       createdAt: "2026-06-16T00:00:00.000Z",
     });
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "retrieve",
       source: {
         kind: "vault",
@@ -545,7 +545,7 @@ test("metadata-only vault records explain recovery without promising raw content
       createdAt: "2026-06-16T00:00:00.000Z",
     });
 
-    const explained = await freeflowRetrieve({
+    const explained = await freeflowSearch({
       action: "explain",
       source: {
         kind: "vault",
@@ -565,7 +565,7 @@ test("metadata-only vault records explain recovery without promising raw content
     assert.match(explained.recovery?.how ?? "", /no raw content stream/i);
     assert.equal(explained.recovery?.outputId, undefined);
 
-    const retrieved = await freeflowRetrieve({
+    const retrieved = await freeflowSearch({
       action: "retrieve",
       source: {
         kind: "vault",
@@ -600,7 +600,7 @@ test("legacy command vault records without universal metadata still retrieve", a
     delete legacyMeta.lineage;
     await writeFile(record.paths.meta, `${JSON.stringify(legacyMeta, null, 2)}\n`, "utf8");
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "retrieve",
       source: {
         kind: "vault",
@@ -633,7 +633,7 @@ test("retrieving vaulted command output returns exact requested lines", async ()
       createdAt: "2026-06-16T00:00:00.000Z",
     });
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "retrieve",
       source: {
         kind: "vault",
@@ -670,7 +670,7 @@ test("retrieving vaulted command output rejects line ranges that start beyond ou
       createdAt: "2026-06-16T00:00:00.000Z",
     });
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "retrieve",
       source: {
         kind: "vault",
@@ -701,7 +701,7 @@ test("retrieving vaulted command output rejects line ranges that end beyond outp
       createdAt: "2026-06-16T00:00:00.000Z",
     });
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "retrieve",
       source: {
         kind: "vault",
@@ -733,7 +733,7 @@ test("retrieving huge one-line vaulted output returns head and tail previews", a
       createdAt: "2026-06-16T00:00:00.000Z",
     });
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "retrieve",
       source: {
         kind: "vault",
@@ -774,7 +774,7 @@ test("retrieving vaulted command output over cap returns bounded previews", asyn
       createdAt: "2026-06-16T00:00:00.000Z",
     });
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "retrieve",
       source: {
         kind: "vault",
@@ -799,7 +799,7 @@ test("retrieving vaulted command output over cap returns bounded previews", asyn
 
 test("retrieving repo files honors exact line ranges", async () => {
   await withFixtureRepo(async (root) => {
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "retrieve",
       source: { kind: "repo", root, path: "router-notes.md" },
       lineRange: { start: 5, end: 8 },
@@ -819,7 +819,7 @@ test("retrieving repo files honors exact line ranges", async () => {
         "## Output Router Skill",
         "",
         "The output router skill teaches tool choice without enforcement.",
-        "It says freeflow_retrieve is for targeted evidence and freeflow_run is for noisy commands.",
+        "It says freeflow_search is for targeted evidence and freeflow_run is for noisy commands.",
       ].join("\n"),
     );
   });
@@ -827,7 +827,7 @@ test("retrieving repo files honors exact line ranges", async () => {
 
 test("retrieving repo files rejects line ranges that start beyond file", async () => {
   await withFixtureRepo(async (root) => {
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "retrieve",
       source: { kind: "repo", root, path: "router-notes.md" },
       lineRange: { start: 999, end: 1000 },
@@ -842,7 +842,7 @@ test("retrieving repo files rejects line ranges that start beyond file", async (
 
 test("retrieving repo files rejects line ranges that end beyond file", async () => {
   await withFixtureRepo(async (root) => {
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "retrieve",
       source: { kind: "repo", root, path: "router-notes.md" },
       lineRange: { start: 2, end: 999 },
@@ -862,7 +862,7 @@ test("repo retrieval rejects paths outside the repo root", async () => {
     await writeFile(join(root, "inside.md"), "inside", "utf8");
     await writeFile(join(outside, "secret.md"), "SECRET_OUTSIDE_REPO", "utf8");
 
-    const relativeEscape = await freeflowRetrieve({
+    const relativeEscape = await freeflowSearch({
       action: "retrieve",
       source: { kind: "repo", root, path: "../secret.md" },
       preserve: "important",
@@ -870,7 +870,7 @@ test("repo retrieval rejects paths outside the repo root", async () => {
     assert.equal(relativeEscape.toolStatus, "error");
     assert.doesNotMatch(JSON.stringify(relativeEscape), /SECRET_OUTSIDE_REPO/);
 
-    const absoluteEscape = await freeflowRetrieve({
+    const absoluteEscape = await freeflowSearch({
       action: "retrieve",
       source: { kind: "repo", root, path: join(outside, "secret.md") },
       preserve: "important",
@@ -890,7 +890,7 @@ test("repo retrieval rejects symlink escapes outside the repo root", async () =>
     await writeFile(join(outside, "secret.md"), "SECRET_SYMLINK_OUTSIDE_REPO", "utf8");
     await symlink(join(outside, "secret.md"), join(root, "secret-link.md"));
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "retrieve",
       source: { kind: "repo", root, path: "secret-link.md" },
       preserve: "important",
@@ -910,7 +910,7 @@ test("repo traversal skips symlink directory cycles", async () => {
     await writeFile(join(root, "inside.md"), "cycle safe output router evidence", "utf8");
     await symlink(root, join(root, "loop"));
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "cycle safe output router evidence",
@@ -931,7 +931,7 @@ test("repo traversal skips broken symlinks during broad retrieval", async () => 
     await writeFile(join(root, "target.md"), "BROKEN_SYMLINK_SAFE_MARKER source truth", "utf8");
     await symlink(join(root, "missing.md"), join(root, "broken-link.md"));
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "BROKEN_SYMLINK_SAFE_MARKER source truth",
@@ -948,7 +948,7 @@ test("repo traversal skips broken symlinks during broad retrieval", async () => 
 
 test("repo and vault read failures return structured errors", async () => {
   await withFixtureRepo(async (root) => {
-    const repoMissing = await freeflowRetrieve({
+    const repoMissing = await freeflowSearch({
       action: "retrieve",
       source: { kind: "repo", root, path: "missing.md" },
       preserve: "important",
@@ -959,7 +959,7 @@ test("repo and vault read failures return structured errors", async () => {
   });
 
   await withTempVault(async (vault) => {
-    const vaultMissing = await freeflowRetrieve({
+    const vaultMissing = await freeflowSearch({
       action: "retrieve",
       source: {
         kind: "vault",
@@ -983,7 +983,7 @@ test("repo query and locate support bounded top-k candidates", async () => {
     await writeFile(join(root, "first.md"), "# First\nshared output router target alpha", "utf8");
     await writeFile(join(root, "second.md"), "# Second\nshared output router target beta", "utf8");
 
-    const query = await freeflowRetrieve({
+    const query = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "shared output router target",
@@ -995,7 +995,7 @@ test("repo query and locate support bounded top-k candidates", async () => {
     assert.equal(query.evidence?.length, 2);
     assert.deepEqual(new Set(query.evidence.map((packet) => packet.path)), new Set(["first.md", "second.md"]));
 
-    const locate = await freeflowRetrieve({
+    const locate = await freeflowSearch({
       action: "locate",
       source: { kind: "repo", root },
       query: "shared output router target",
@@ -1027,7 +1027,7 @@ test("repo scanner skips generated directories during broad retrieval", async ()
       "utf8",
     );
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "SandboxPermissions WithAdditionalPermissions RequireEscalated UseDefault",
@@ -1067,7 +1067,7 @@ test("repo scanner prefers code symbol definitions over repeated usage decoys", 
       "utf8",
     );
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "SandboxPermissions WithAdditionalPermissions RequireEscalated UseDefault",
@@ -1105,7 +1105,7 @@ test("repo scanner uses path and source priors to avoid test decoys", async () =
       "utf8",
     );
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "NetworkProxySpec config network proxy spec",
@@ -1140,7 +1140,7 @@ test("repo scanner boosts explicit path intent for thin entrypoint modules", asy
       "utf8",
     );
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "apply_patch prompt codex prompts lib",
@@ -1157,7 +1157,7 @@ test("repo scanner boosts explicit path intent for thin entrypoint modules", asy
 
 test("invalid repo topK returns a structured error", async () => {
   await withFixtureRepo(async (root) => {
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "output router skill",
@@ -1176,7 +1176,7 @@ test("retrieving repo files over cap returns bounded previews", async () => {
     const text = Array.from({ length: 5000 }, (_, index) => `repo over cap line ${index + 1}`).join("\n");
     await writeFile(join(root, "big.md"), text, "utf8");
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "retrieve",
       source: { kind: "repo", root, path: "big.md" },
       lineRange: { start: 1, end: 5000 },
@@ -1197,7 +1197,7 @@ test("retrieving repo files over cap returns bounded previews", async () => {
 
 test("querying repo files returns bounded evidence instead of a whole file", async () => {
   await withFixtureRepo(async (root) => {
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "output router skill tool choice",
@@ -1223,7 +1223,7 @@ test("querying repo files returns bounded evidence instead of a whole file", asy
 
 test("repo get returns best matching location with content and match metadata", async () => {
   await withFixtureRepo(async (root) => {
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "get",
       source: { kind: "repo", root },
       query: "output router skill teaches tool choice",
@@ -1256,7 +1256,7 @@ test("expanding repo evidence over cap returns bounded output", async () => {
       "utf8",
     );
 
-    const queryResult = await freeflowRetrieve({
+    const queryResult = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "EXPAND_HUGE_MARKER",
@@ -1264,7 +1264,7 @@ test("expanding repo evidence over cap returns bounded output", async () => {
     });
     const [evidence] = queryResult.evidence;
 
-    const expanded = await freeflowRetrieve({
+    const expanded = await freeflowSearch({
       action: "expand",
       source: { kind: "repo", root },
       evidence,
@@ -1285,7 +1285,7 @@ test("expanding repo evidence over cap returns bounded output", async () => {
 
 test("expanding repo evidence widens the same evidence packet", async () => {
   await withFixtureRepo(async (root) => {
-    const queryResult = await freeflowRetrieve({
+    const queryResult = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "output router skill tool choice",
@@ -1293,7 +1293,7 @@ test("expanding repo evidence widens the same evidence packet", async () => {
     });
     const [evidence] = queryResult.evidence;
 
-    const expanded = await freeflowRetrieve({
+    const expanded = await freeflowSearch({
       action: "expand",
       source: { kind: "repo", root },
       evidence,
@@ -1325,7 +1325,7 @@ test("expanding repo evidence to full over cap returns bounded chunks", async ()
       ].join("\n"),
       "utf8",
     );
-    const queryResult = await freeflowRetrieve({
+    const queryResult = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "EXPAND_FULL_HUGE_MARKER",
@@ -1333,7 +1333,7 @@ test("expanding repo evidence to full over cap returns bounded chunks", async ()
     });
     const [evidence] = queryResult.evidence;
 
-    const expanded = await freeflowRetrieve({
+    const expanded = await freeflowSearch({
       action: "expand",
       source: { kind: "repo", root },
       evidence,
@@ -1362,7 +1362,7 @@ test("preserve full over cap keeps a huge final tail line recoverable", async ()
     ];
     await writeFile(join(root, "tail-line.md"), lines.join("\n"), "utf8");
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "retrieve",
       source: { kind: "repo", root, path: "tail-line.md" },
       preserve: "full",
@@ -1389,7 +1389,7 @@ test("expanding repo evidence with many short lines labels the bounded line wind
       "utf8",
     );
 
-    const expanded = await freeflowRetrieve({
+    const expanded = await freeflowSearch({
       action: "expand",
       source: { kind: "repo", root },
       evidence: {
@@ -1427,7 +1427,7 @@ test("preserve full over cap with one huge line returns bounded head and tail ch
       "utf8",
     );
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "retrieve",
       source: { kind: "repo", root, path: "one-line.md" },
       preserve: "full",
@@ -1460,7 +1460,7 @@ test("preserve full over cap keeps multibyte previews well-formed", async () => 
       "utf8",
     );
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "retrieve",
       source: { kind: "repo", root, path: "emoji-line.md" },
       preserve: "full",
@@ -1482,7 +1482,7 @@ test("preserve full over cap keeps multibyte previews well-formed", async () => 
 
 test("preserve full over cap returns bounded previews instead of a summary", async () => {
   await withFixtureRepo(async (root) => {
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "retrieve",
       source: { kind: "repo", root, path: "router-notes.md" },
       preserve: "full",
@@ -1514,7 +1514,7 @@ test("locating repo evidence with a huge line returns bounded preview", async ()
       "utf8",
     );
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "locate",
       source: { kind: "repo", root },
       query: "LOCATE_HUGE_MARKER",
@@ -1534,7 +1534,7 @@ test("locating repo evidence with a huge line returns bounded preview", async ()
 
 test("locating repo evidence returns candidate locations without broad evidence", async () => {
   await withFixtureRepo(async (root) => {
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "locate",
       source: { kind: "repo", root },
       query: "output router skill tool choice",
@@ -1558,14 +1558,14 @@ test("locating repo evidence returns candidate locations without broad evidence"
 
 test("explaining a repo retrieval returns the prior route and recovery guidance", async () => {
   await withFixtureRepo(async (root) => {
-    const queryResult = await freeflowRetrieve({
+    const queryResult = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "output router skill tool choice",
       preserve: "important",
     });
 
-    const explained = await freeflowRetrieve({
+    const explained = await freeflowSearch({
       action: "explain",
       source: { kind: "repo", root },
       decision: queryResult,

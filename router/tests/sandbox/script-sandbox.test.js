@@ -79,7 +79,7 @@ test("script sandbox probe reports all configured languages unavailable when no 
   assert.deepEqual(report.requiredProofs, [...SCRIPT_SANDBOX_REQUIRED_PROOFS]);
   assert.equal(report.unavailableLanguages.length, 3);
   assert.ok(report.unavailableLanguages.every((entry) => entry.status === "unavailable"));
-  assert.ok(report.unavailableLanguages.every((entry) => entry.reason.includes("No script derive sandbox adapter is registered")));
+  assert.ok(report.unavailableLanguages.every((entry) => entry.reason.includes("No script transform sandbox adapter is registered")));
   assert.ok(report.unavailableLanguages.every((entry) => entry.failedProofs.length === SCRIPT_SANDBOX_REQUIRED_PROOFS.length));
   assert.ok(report.candidateMechanisms.some((candidate) => candidate.id === "node-vm" && candidate.status === "rejected"));
   assert.ok(report.candidateMechanisms.some((candidate) => candidate.id === "os-sandbox-adapter" && candidate.status === "candidate_unproven"));

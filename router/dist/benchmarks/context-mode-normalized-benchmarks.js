@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { performance } from "node:perf_hooks";
 import { approximateTokens, defaultJsonRunReportPath, escapeMarkdownTableCell as escapeTable, formatPercent, latencySummary, normalizeIterations, parseBenchmarkCliArgs, reductionPercent, writeBenchmarkReportPair, } from "./benchmark-harness.js";
 import { freeflowBatch } from "../tools/batch.js";
-import { freeflowRetrieve } from "../tools/retrieve.js";
+import { freeflowSearch } from "../tools/search.js";
 import { freeflowRun } from "../tools/run.js";
 const DEFAULT_ITERATIONS = 1;
 const COMPACT_CONTEXT_CAP_BYTES = 1_600;
@@ -210,7 +210,7 @@ function docsFixture(env) {
                 toolCalls: 1,
                 title: "read markdown and store raw document",
             }),
-            "freeflow-owned-tools": async () => freeflowRetrieveObservation(env, {
+            "freeflow-owned-tools": async () => freeflowSearchObservation(env, {
                 rawBytes: byteLength(DOC_TEXT),
                 expectedFacts,
                 query: "outputId line-range recovery Metadata-only exact raw recovery",
@@ -288,7 +288,7 @@ function repoSearchFixture(env) {
                 toolCalls: 1,
                 title: "repo search result stored by proxy",
             }),
-            "freeflow-owned-tools": async () => freeflowRetrieveObservation(env, {
+            "freeflow-owned-tools": async () => freeflowSearchObservation(env, {
                 rawBytes,
                 expectedFacts,
                 query: "RequireEscalated approval required WithAdditionalPermissions",
@@ -408,9 +408,9 @@ async function freeflowRunObservation(env, options) {
         notes: [result.routing.reason],
     };
 }
-async function freeflowRetrieveObservation(env, options) {
+async function freeflowSearchObservation(env, options) {
     const before = await directoryByteSize(env.vaultRoot);
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
         action: "query",
         source: { kind: "repo", root: env.repoRoot },
         query: options.query,
@@ -419,7 +419,7 @@ async function freeflowRetrieveObservation(env, options) {
     });
     const after = await directoryByteSize(env.vaultRoot);
     return {
-        toolPathUsed: "freeflow_retrieve query repo",
+        toolPathUsed: "freeflow_search query repo",
         rawBytes: options.rawBytes,
         modelVisibleText: freeflowVisibleText(result),
         detailsPayload: result,
@@ -440,7 +440,7 @@ async function freeflowBatchObservation(env, options) {
         steps: [
             { id: "test", kind: "run", input: { command: "npm test -- --runInBand", goal: "verification" } },
             { id: "log", kind: "run", input: { command: "tail -n 250 service.log", goal: "diagnose rate limit log spike", filters: { include: ["RATE_LIMIT", "req_critical_42"], maxLines: 5 } } },
-            { id: "doc", kind: "retrieve", input: { action: "query", source: { kind: "repo", root: env.repoRoot }, query: "Recovery Contract outputId line-range", topK: 1 } },
+            { id: "doc", kind: "search", input: { action: "query", source: { kind: "repo", root: env.repoRoot }, query: "Recovery Contract outputId line-range", topK: 1 } },
         ],
     }, env.commandRunner);
     const after = await directoryByteSize(env.vaultRoot);

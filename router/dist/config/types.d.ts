@@ -10,7 +10,7 @@ export declare const ROUTING_STATUSES: readonly ["routed", "passed_through", "pa
 export type RoutingStatus = (typeof ROUTING_STATUSES)[number];
 export declare const ROUTE_KINDS: readonly ["retrieve", "run", "capture", "derive", "batch", "observed", "safety-net", "pass-through"];
 export type RouteKind = (typeof ROUTE_KINDS)[number];
-export declare const BATCH_STEP_KINDS: readonly ["run", "retrieve", "search", "derive", "transform"];
+export declare const BATCH_STEP_KINDS: readonly ["run", "search"];
 export type BatchStepKind = (typeof BATCH_STEP_KINDS)[number];
 export declare const PRODUCER_KINDS: readonly ["command", "native", "repo", "web", "fetch", "code_search", "mcp", "provider", "derive", "other"];
 export type ProducerKind = (typeof PRODUCER_KINDS)[number];

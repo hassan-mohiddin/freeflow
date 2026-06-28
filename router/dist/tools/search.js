@@ -7,11 +7,8 @@ import { resolveExactLineRange } from "../evidence/line-ranges.js";
 import { collectRepoTextFileRefs, resolveRepoPath } from "../repo/repo-traversal.js";
 import { createLocalVaultIndex } from "../vault/vault-index.js";
 import { createVault, readOutputText, readVaultRecord } from "../vault/vault.js";
-export const FREEFLOW_SEARCH_ACTIONS = ["locate", "query", "get", "expand", "transform"];
-export function searchActionForRetrieveAction(action) {
-    if (action === "retrieve" || action === "explain") {
-        return action;
-    }
+export const FREEFLOW_SEARCH_ACTIONS = ["query", "locate", "get", "retrieve", "expand", "explain", "transform"];
+export function searchActionForRetrievalAction(action) {
     return action;
 }
 const DEFAULT_CONTEXT_LINES = 2;
@@ -37,7 +34,7 @@ const BOUNDED_EVIDENCE_CAPS = {
     expandLines80MaxLines: EXPAND_LINES_80_MAX_LINES,
     exactChunkMaxBytes: EXACT_CHUNK_MAX_BYTES,
 };
-export async function freeflowRetrieve(options) {
+export async function freeflowSearch(options) {
     const preserve = options.preserve ?? "important";
     try {
         if (options.source.kind === "vault") {
@@ -66,7 +63,7 @@ export async function freeflowRetrieve(options) {
     }
     catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        return errorResult(preserve, `freeflow_retrieve failed while reading ${options.source.kind} source: ${message}`);
+        return errorResult(preserve, `freeflow_search failed while reading ${options.source.kind} source: ${message}`);
     }
 }
 async function retrieveVault(options, preserve) {
@@ -124,7 +121,7 @@ async function querySingleVaultOutput(options, preserve, action = "query") {
             },
             evidence: [],
             recovery: {
-                how: `Refine the query or use freeflow_retrieve action=retrieve with outputId=${options.source.outputId} and an exact line range.`,
+                how: `Refine the query or use freeflow_search action=retrieve with outputId=${options.source.outputId} and an exact line range.`,
                 outputId: options.source.outputId,
             },
         };
@@ -162,8 +159,8 @@ async function querySingleVaultOutput(options, preserve, action = "query") {
         evidence: [evidence],
         recovery: {
             how: action === "get"
-                ? `Use freeflow_retrieve action=retrieve with outputId=${options.source.outputId}, stream=${stream}, and lineRange=${evidenceLines} for exact recovery; use action=expand with evidenceId=${evidence.id} for more context.`
-                : `Use freeflow_retrieve action=expand with evidenceId=${evidence.id}, or action=retrieve with outputId=${options.source.outputId} and stream=${stream}.`,
+                ? `Use freeflow_search action=retrieve with outputId=${options.source.outputId}, stream=${stream}, and lineRange=${evidenceLines} for exact recovery; use action=expand with evidenceId=${evidence.id} for more context.`
+                : `Use freeflow_search action=expand with evidenceId=${evidence.id}, or action=retrieve with outputId=${options.source.outputId} and stream=${stream}.`,
             outputId: options.source.outputId,
             evidenceId: evidence.id,
         },
@@ -222,8 +219,8 @@ async function queryVaultIndex(options, preserve, action) {
         evidence,
         recovery: {
             how: first.metadataOnly
-                ? `Top match ${first.outputId} is metadata-only; use freeflow_retrieve action=explain with outputId=${first.outputId} for recoverability details.`
-                : `Use freeflow_retrieve action=expand with source.outputId=${first.outputId} and evidenceId=${firstEvidence.id}, or action=retrieve with outputId=${first.outputId}${first.stream ? ` and stream=${first.stream}` : ""}.`,
+                ? `Top match ${first.outputId} is metadata-only; use freeflow_search action=explain with outputId=${first.outputId} for recoverability details.`
+                : `Use freeflow_search action=expand with source.outputId=${first.outputId} and evidenceId=${firstEvidence.id}, or action=retrieve with outputId=${first.outputId}${first.stream ? ` and stream=${first.stream}` : ""}.`,
             outputId: first.outputId,
             evidenceId: firstEvidence.id,
         },
@@ -323,7 +320,7 @@ async function retrieveVaultLines(options, preserve) {
         },
         evidence: [evidence],
         recovery: {
-            how: `Use freeflow_retrieve action=expand with evidenceId=${evidence.id} for more vaulted output context.`,
+            how: `Use freeflow_search action=expand with evidenceId=${evidence.id} for more vaulted output context.`,
             outputId: options.source.outputId,
             evidenceId: evidence.id,
         },
@@ -356,7 +353,7 @@ function retrieveVaultLineRangeOverCap(options, preserve, stream, record, lines,
         },
         evidence,
         recovery: {
-            how: `Use narrower freeflow_retrieve action=retrieve lineRange spans for exact vaulted output recovery, or native vault file access if a full raw span is required.`,
+            how: `Use narrower freeflow_search action=retrieve lineRange spans for exact vaulted output recovery, or native vault file access if a full raw span is required.`,
             outputId: options.source.outputId,
         },
     };
@@ -389,7 +386,7 @@ function expandVaultEvidenceOverCap(options, preserve, stream, record, evidence,
         },
         evidence: chunks,
         recovery: {
-            how: `Use narrower freeflow_retrieve action=retrieve lineRange spans for exact vaulted output recovery.`,
+            how: `Use narrower freeflow_search action=retrieve lineRange spans for exact vaulted output recovery.`,
             outputId: options.source.outputId,
             evidenceId: evidence.id,
         },
@@ -443,7 +440,7 @@ async function expandVaultEvidence(options, preserve) {
         },
         evidence: [expandedEvidence],
         recovery: {
-            how: `Use freeflow_retrieve action=retrieve with outputId=${options.source.outputId}, stream=${stream}, and an exact line range for precise recovery.`,
+            how: `Use freeflow_search action=retrieve with outputId=${options.source.outputId}, stream=${stream}, and an exact line range for precise recovery.`,
             outputId: options.source.outputId,
             evidenceId: evidence.id,
         },
@@ -571,7 +568,7 @@ function vaultRecordRecovery(record, requestedStream) {
         return {
             reason: `Exact content is recoverable from the vault with recoveryOutputId=${recoveryOutputId}.`,
             hint: {
-                how: `Use freeflow_retrieve action=retrieve with outputId=${recoveryOutputId}, stream=${streamText}, and an exact lineRange to recover exact vaulted content.`,
+                how: `Use freeflow_search action=retrieve with outputId=${recoveryOutputId}, stream=${streamText}, and an exact lineRange to recover exact vaulted content.`,
                 outputId: recoveryOutputId,
             },
         };
@@ -580,7 +577,7 @@ function vaultRecordRecovery(record, requestedStream) {
         return {
             reason: `Only redacted content is recoverable from the vault; exact raw content is intentionally unavailable.`,
             hint: {
-                how: `Use freeflow_retrieve action=retrieve with outputId=${recoveryOutputId} to recover redacted persisted content. Exact raw recovery is unavailable.`,
+                how: `Use freeflow_search action=retrieve with outputId=${recoveryOutputId} to recover redacted persisted content. Exact raw recovery is unavailable.`,
                 outputId: recoveryOutputId,
             },
         };
@@ -652,7 +649,7 @@ async function queryRepo(root, options, preserve) {
         },
         evidence,
         recovery: {
-            how: `Use freeflow_retrieve action=expand with evidenceId=${first.id} for more surrounding context, action=locate for candidate paths, or action=retrieve with path=${firstCandidate.file.path} for an explicit span.`,
+            how: `Use freeflow_search action=expand with evidenceId=${first.id} for more surrounding context, action=locate for candidate paths, or action=retrieve with path=${firstCandidate.file.path} for an explicit span.`,
             evidenceId: first.id,
         },
     };
@@ -704,7 +701,7 @@ async function getRepo(root, options, preserve) {
         },
         evidence: [evidence],
         recovery: {
-            how: `Use freeflow_retrieve action=retrieve with path=${candidate.file.path} and lineRange=${evidence.lines} for exact recovery, or action=expand with evidenceId=${evidence.id}.`,
+            how: `Use freeflow_search action=retrieve with path=${candidate.file.path} and lineRange=${evidence.lines} for exact recovery, or action=expand with evidenceId=${evidence.id}.`,
             evidenceId: evidence.id,
         },
     };
@@ -771,7 +768,7 @@ async function locateRepo(root, options, preserve) {
         },
         evidence,
         recovery: {
-            how: `Use freeflow_retrieve action=retrieve with path=${firstCandidate.file.path} for an explicit span, or action=expand with evidenceId=${first.id}.`,
+            how: `Use freeflow_search action=retrieve with path=${firstCandidate.file.path} for an explicit span, or action=expand with evidenceId=${first.id}.`,
             evidenceId: first.id,
         },
     };
@@ -815,7 +812,7 @@ async function expandRepoEvidence(root, options, preserve) {
         recovery: {
             how: expansion === "full"
                 ? `Use native read for direct whole-file behavior if needed for ${evidence.path}.`
-                : `Use freeflow_retrieve action=expand with expansion=lines_80 or full for more context from ${evidence.path}.`,
+                : `Use freeflow_search action=expand with expansion=lines_80 or full for more context from ${evidence.path}.`,
             evidenceId: evidence.id,
         },
     };
@@ -853,7 +850,7 @@ async function retrieveRepoPath(root, options, preserve) {
         },
         evidence: [evidence],
         recovery: {
-            how: `Use freeflow_retrieve action=expand with evidenceId=${evidence.id} for more context from ${file.path}.`,
+            how: `Use freeflow_search action=expand with evidenceId=${evidence.id} for more context from ${file.path}.`,
             evidenceId: evidence.id,
         },
     };
@@ -873,7 +870,7 @@ function expandRepoEvidenceOverCap(file, evidence, expandedRange, preserve, expa
         },
         evidence: chunks,
         recovery: {
-            how: `Use narrower freeflow_retrieve action=retrieve lineRange spans for exact content recovery from ${file.path}, or native read for direct whole-file host behavior.`,
+            how: `Use narrower freeflow_search action=retrieve lineRange spans for exact content recovery from ${file.path}, or native read for direct whole-file host behavior.`,
             evidenceId: evidence.id,
         },
     };
@@ -914,7 +911,7 @@ function retrieveRepoLineRange(file, lineRange, preserve) {
         },
         evidence: [evidence],
         recovery: {
-            how: `Use freeflow_retrieve action=expand with evidenceId=${evidence.id} for more context from ${file.path}.`,
+            how: `Use freeflow_search action=expand with evidenceId=${evidence.id} for more context from ${file.path}.`,
             evidenceId: evidence.id,
         },
     };
@@ -933,7 +930,7 @@ function retrieveRepoLineRangeOverCap(file, requestedRange, preserve, requestedB
         },
         evidence,
         recovery: {
-            how: `Use narrower freeflow_retrieve action=retrieve lineRange spans for exact content recovery from ${file.path}, or native read for direct whole-file host behavior.`,
+            how: `Use narrower freeflow_search action=retrieve lineRange spans for exact content recovery from ${file.path}, or native read for direct whole-file host behavior.`,
         },
     };
 }
@@ -995,7 +992,7 @@ function retrieveFullFile(file, maxFullBytes) {
         },
         evidence,
         recovery: {
-            how: `Use freeflow_retrieve action=retrieve with path=${file.path} and an explicit span to recover exact content, or native read for direct whole-file output.`,
+            how: `Use freeflow_search action=retrieve with path=${file.path} and an explicit span to recover exact content, or native read for direct whole-file output.`,
         },
     };
 }
@@ -1006,7 +1003,7 @@ function explainRepoDecision(options, preserve) {
     }
     const recovery = {
         how: decision.recovery?.how ??
-            "Use freeflow_retrieve action=expand with a returned evidence id, or action=retrieve for an explicit repo span.",
+            "Use freeflow_search action=expand with a returned evidence id, or action=retrieve for an explicit repo span.",
     };
     if (decision.recovery?.outputId !== undefined) {
         Object.assign(recovery, { outputId: decision.recovery.outputId });
@@ -1202,7 +1199,7 @@ function errorResult(preserve, reason) {
         },
         evidence: [],
         recovery: {
-            how: "Use native read for a known whole file, or retry freeflow_retrieve with a supported repo query.",
+            how: "Use native read for a known whole file, or retry freeflow_search with a supported repo query.",
         },
     };
 }

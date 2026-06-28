@@ -280,7 +280,7 @@ export async function probeScriptSandboxAdapters(options: ProbeScriptSandboxAdap
     requiredProofs: [...SCRIPT_SANDBOX_REQUIRED_PROOFS],
     candidateMechanisms: SCRIPT_SANDBOX_CANDIDATE_MECHANISMS.map((candidate) => ({ ...candidate, languages: [...candidate.languages] })),
     notes: [
-      "Script derive has no unsandboxed fallback.",
+      "Script transform has no unsandboxed fallback.",
       "Languages remain unavailable until a registered adapter passes every required proof.",
       "Adapter availability alone does not execute scripts while scriptDerive.enabled is false.",
     ],
@@ -325,7 +325,7 @@ async function probeLanguage(
 
   const matchingAdapters = adapters.filter((adapter) => adapter.languages.includes(language));
   if (matchingAdapters.length === 0) {
-    return unavailableLanguageStatus(language, `No script derive sandbox adapter is registered for language ${language}.`);
+    return unavailableLanguageStatus(language, `No script transform sandbox adapter is registered for language ${language}.`);
   }
 
   const failedStatuses: ScriptSandboxLanguageStatus[] = [];
@@ -377,11 +377,11 @@ async function probeLanguage(
   if (bestFailure) {
     return {
       ...bestFailure,
-      reason: `No script derive sandbox adapter passed required proofs for language ${language}. Best failure from ${bestFailure.adapterId ?? "unknown adapter"}: ${bestFailure.reason}`,
+      reason: `No script transform sandbox adapter passed required proofs for language ${language}. Best failure from ${bestFailure.adapterId ?? "unknown adapter"}: ${bestFailure.reason}`,
     };
   }
 
-  return unavailableLanguageStatus(language, `No script derive sandbox adapter passed required proofs for language ${language}.`);
+  return unavailableLanguageStatus(language, `No script transform sandbox adapter passed required proofs for language ${language}.`);
 }
 
 function bestUnavailableStatus(statuses: readonly ScriptSandboxLanguageStatus[]): ScriptSandboxLanguageStatus | undefined {

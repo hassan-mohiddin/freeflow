@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { performance } from "node:perf_hooks";
 import { defaultJsonRunReportPath, escapeMarkdownTableCell as escapeMarkdown, parseBenchmarkCliArgs, writeBenchmarkReportPair, } from "./benchmark-harness.js";
 import { freeflowBatch } from "../tools/batch.js";
-import { freeflowRetrieve } from "../tools/retrieve.js";
+import { freeflowSearch } from "../tools/search.js";
 import { processSource } from "../processing/engine.js";
 import { freeflowRun } from "../tools/run.js";
 import { freeflowTransform } from "../transform/engine.js";
@@ -94,7 +94,7 @@ export async function runContextModeRealDeepBenchmark(options = {}) {
                 generatedPathGlobs: ["graphify-out/**"],
                 ...extra,
             };
-            const result = await freeflowRetrieve(retrieveOptions);
+            const result = await freeflowSearch(retrieveOptions);
             return { result, text: freeflowText(result), latencyMs: Math.round(performance.now() - start) };
         }
         async function ffDerive(sourceOutputId, stream, operation) {
@@ -207,7 +207,7 @@ export async function runContextModeRealDeepBenchmark(options = {}) {
                 mode: "freeflow:run-computed-script",
                 capability: "host-shell transform via freeflow_run",
                 obs: ffComputed,
-                notes: "Compact because an external Node script computed facts; not Freeflow sandboxed script derive.",
+                notes: "Compact because an external Node script computed facts; not Freeflow sandboxed script transform.",
             });
             if (scenario.upstreamCode !== undefined) {
                 const upstream = await callCM("ctx_execute_file", {
@@ -412,7 +412,7 @@ export async function runContextModeRealDeepBenchmark(options = {}) {
                 },
                 {
                     id: "react-query",
-                    kind: "retrieve",
+                    kind: "search",
                     input: {
                         action: "query",
                         source: { kind: "repo", root: projectRoot },

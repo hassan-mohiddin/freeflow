@@ -67,10 +67,11 @@ test("Pi registers output-router as a direct command and no public capture tool"
 
   assert.ok(commandNames.includes("output-router"));
   assert.ok(toolNames.includes("freeflow_status"));
-  assert.ok(toolNames.includes("freeflow_retrieve"));
+  assert.ok(toolNames.includes("freeflow_search"));
   assert.ok(toolNames.includes("freeflow_run"));
   assert.ok(toolNames.includes("freeflow_batch"));
-  assert.ok(toolNames.includes("freeflow_derive"));
+  assert.ok(!toolNames.includes("freeflow_retrieve"));
+  assert.ok(!toolNames.includes("freeflow_derive"));
   assert.ok(!toolNames.includes("freeflow_capture"));
 });
 
@@ -83,10 +84,10 @@ test("Pi before_agent_start injects output-router skill context", async () => {
 
   assert.match(result.systemPrompt, /## Loaded Output Router Skill/);
   assert.match(result.systemPrompt, /name: output-router/);
-  assert.match(result.systemPrompt, /freeflow_retrieve/);
+  assert.match(result.systemPrompt, /freeflow_search/);
   assert.match(result.systemPrompt, /freeflow_run/);
   assert.doesNotMatch(result.systemPrompt, /freeflow_capture/);
-  assert.match(result.systemPrompt, /freeflow_derive/);
+  assert.doesNotMatch(result.systemPrompt, /freeflow_derive/);
   assert.match(result.systemPrompt, /Native tools stay direct/);
   assert.match(result.systemPrompt, /## Loaded Output Router Safety Policy/);
   assert.match(result.systemPrompt, /Do not silently summarize or compress exactness-sensitive output/);
@@ -593,21 +594,21 @@ test("Pi output-router skill mentions native safety net only when config enables
     assert.match(result.systemPrompt, /large native read\/bash outputs may be vaulted/);
     assert.match(result.systemPrompt, /## Loaded Output Router Skill/);
     assert.match(result.systemPrompt, /## Loaded Output Router Safety Policy/);
-    assert.match(result.systemPrompt, /freeflow_retrieve/);
-    assert.match(result.systemPrompt, /freeflow_derive/);
+    assert.match(result.systemPrompt, /freeflow_search/);
+    assert.doesNotMatch(result.systemPrompt, /freeflow_derive/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
 });
 
-test("Pi freeflow_retrieve renders compact and expanded routed evidence UI", () => {
+test("Pi freeflow_search renders compact and expanded routed evidence UI", () => {
   const { tools } = loadExtension();
-  const retrieveTool = tools.find((tool) => tool.name === "freeflow_retrieve");
-  assert.ok(retrieveTool);
-  assert.ok(retrieveTool.parameters.properties.action.enum.includes("get"));
+  const searchTool = tools.find((tool) => tool.name === "freeflow_search");
+  assert.ok(searchTool);
+  assert.ok(searchTool.parameters.properties.action.enum.includes("get"));
 
   const call = renderText(
-    retrieveTool.renderCall(
+    searchTool.renderCall(
       {
         action: "query",
         source: { kind: "repo", path: "docs/codex-cli-agent-harness/2026-06-12-pass-3-sandboxing-and-permissions.md" },
@@ -617,7 +618,7 @@ test("Pi freeflow_retrieve renders compact and expanded routed evidence UI", () 
     ),
     200,
   );
-  assert.match(call, /freeflow_retrieve query repo/);
+  assert.match(call, /freeflow_search query repo/);
   assert.match(call, /SandboxPermissions/);
 
   const toolResult = {
@@ -628,7 +629,7 @@ test("Pi freeflow_retrieve renders compact and expanded routed evidence UI", () 
         decisionId: "ffdec_test",
         preserve: "important",
         source: { kind: "repo", path: "docs/example.md" },
-        routing: { status: "routed", route: "retrieve", reason: "Deterministic test route." },
+        routing: { status: "routed", route: "search", reason: "Deterministic test route." },
         evidence: [
           {
             id: "ev_test",
@@ -641,18 +642,18 @@ test("Pi freeflow_retrieve renders compact and expanded routed evidence UI", () 
             expandable: true,
           },
         ],
-        recovery: { how: "Use freeflow_retrieve action=expand with evidenceId=ev_test.", evidenceId: "ev_test" },
+        recovery: { how: "Use freeflow_search action=expand with evidenceId=ev_test.", evidenceId: "ev_test" },
       },
     },
   };
 
-  const collapsed = renderText(retrieveTool.renderResult(toolResult, { expanded: false }, testTheme));
+  const collapsed = renderText(searchTool.renderResult(toolResult, { expanded: false }, testTheme));
   assert.match(collapsed, /1 evidence packet/);
   assert.match(collapsed, /docs\/example\.md:523-527/);
   assert.match(collapsed, /ctrl\+o to expand/);
   assert.doesNotMatch(collapsed, /raw json/);
 
-  const expanded = renderText(retrieveTool.renderResult(toolResult, { expanded: true }, testTheme));
+  const expanded = renderText(searchTool.renderResult(toolResult, { expanded: true }, testTheme));
   assert.match(expanded, /Source/);
   assert.match(expanded, /preserve: important/);
   assert.match(expanded, /Storage/);
@@ -661,10 +662,10 @@ test("Pi freeflow_retrieve renders compact and expanded routed evidence UI", () 
   assert.match(expanded, /evidenceId: ev_test/);
   assert.match(expanded, /source: repo docs\/example\.md/);
   assert.match(expanded, /expandable: true/);
-  assert.match(expanded, /exact retrieve: action=retrieve source.kind=repo lineRange=523-527 path=docs\/example\.md/);
+  assert.match(expanded, /exact search: action=retrieve source.kind=repo lineRange=523-527 path=docs\/example\.md/);
   assert.match(expanded, /### Sandbox Permissions/);
   assert.match(expanded, /Recovery/);
-  assert.match(expanded, /expand hint: freeflow_retrieve action=expand evidenceId=ev_test/);
+  assert.match(expanded, /expand hint: freeflow_search action=expand evidenceId=ev_test/);
 });
 
 test("Pi freeflow_run exposes declarative filter schema", () => {
@@ -738,7 +739,7 @@ test("Pi freeflow_run renders compact and expanded status, evidence, and vault U
           },
         ],
         recovery: {
-          how: "Use freeflow_retrieve with source.kind=vault and outputId=ffout_test123 to recover exact command output.",
+          how: "Use freeflow_search with source.kind=vault and outputId=ffout_test123 to recover exact command output.",
           outputId: "ffout_test123",
         },
       },
@@ -780,8 +781,8 @@ test("Pi freeflow_run renders compact and expanded status, evidence, and vault U
   assert.match(expanded, /AssertionError/);
   assert.match(expanded, /Vault recovery/);
   assert.match(expanded, /source.kind=vault/);
-  assert.match(expanded, /exact retrieve: action=retrieve source.kind=vault lineRange=14-16 stream=raw outputId=ffout_script123/);
-  assert.match(expanded, /raw command starting point: freeflow_retrieve source.kind=vault outputId=ffout_test123/);
+  assert.match(expanded, /exact search: action=retrieve source.kind=vault lineRange=14-16 stream=raw outputId=ffout_script123/);
+  assert.match(expanded, /raw command starting point: freeflow_search source.kind=vault outputId=ffout_test123/);
   assert.match(expanded, /details\.result/);
 });
 
@@ -1040,7 +1041,7 @@ test("Pi freeflow_run uses outputRouter thresholds and vault root from repo conf
   }
 });
 
-test("Pi freeflow_retrieve applies configured generated path hints", async () => {
+test("Pi freeflow_search applies configured generated path hints", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-generated-path-hints-"));
   try {
     await mkdir(join(cwd, ".freeflow"));
@@ -1061,11 +1062,11 @@ test("Pi freeflow_retrieve applies configured generated path hints", async () =>
     );
 
     const { tools } = loadExtension();
-    const retrieveTool = tools.find((tool) => tool.name === "freeflow_retrieve");
-    assert.ok(retrieveTool);
+    const searchTool = tools.find((tool) => tool.name === "freeflow_search");
+    assert.ok(searchTool);
 
-    const broad = await retrieveTool.execute(
-      "retrieve-generated-hints",
+    const broad = await searchTool.execute(
+      "search-generated-hints",
       {
         action: "query",
         source: { kind: "repo" },
@@ -1077,14 +1078,14 @@ test("Pi freeflow_retrieve applies configured generated path hints", async () =>
     );
     const broadVisible = broad.content[0].text;
     const broadPayload = broad.details.result;
-    assert.match(broadVisible, /freeflow_retrieve\|routed/);
+    assert.match(broadVisible, /freeflow_search\|routed/);
     assert.doesNotMatch(broadVisible, /^\s*\{/);
     assert.ok(Buffer.byteLength(broadVisible, "utf8") < Buffer.byteLength(JSON.stringify(broadPayload, null, 2), "utf8"));
     assert.equal(broadPayload.evidence[0].path, "target.md");
     assert.doesNotMatch(broadPayload.evidence[0].excerpt, /pihintsentinel/);
 
-    const explicit = await retrieveTool.execute(
-      "retrieve-generated-explicit",
+    const explicit = await searchTool.execute(
+      "search-generated-explicit",
       {
         action: "query",
         source: { kind: "repo", path: "custom-generated/decoy.md" },
@@ -1101,7 +1102,7 @@ test("Pi freeflow_retrieve applies configured generated path hints", async () =>
   }
 });
 
-test("Pi freeflow_retrieve supports vault-wide query without outputId", async () => {
+test("Pi freeflow_search supports vault-wide query without outputId", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-vault-wide-query-"));
   try {
     await mkdir(join(cwd, ".freeflow"));
@@ -1122,13 +1123,13 @@ test("Pi freeflow_retrieve supports vault-wide query without outputId", async ()
     });
 
     const { tools } = loadExtension();
-    const retrieveTool = tools.find((tool) => tool.name === "freeflow_retrieve");
-    assert.ok(retrieveTool);
+    const searchTool = tools.find((tool) => tool.name === "freeflow_search");
+    assert.ok(searchTool);
     const ctx = context(cwd);
     ctx.sessionManager.getSessionId = () => sessionId;
 
-    const result = await retrieveTool.execute(
-      "retrieve-vault-wide-query",
+    const result = await searchTool.execute(
+      "search-vault-wide-query",
       {
         action: "query",
         source: { kind: "vault" },
@@ -1141,7 +1142,7 @@ test("Pi freeflow_retrieve supports vault-wide query without outputId", async ()
     );
     const visibleText = result.content[0].text;
     const payload = result.details.result;
-    assert.match(visibleText, /freeflow_retrieve\|routed/);
+    assert.match(visibleText, /freeflow_search\|routed/);
     assert.match(visibleText, /PI_VAULT_WIDE_TARGET/);
     assert.doesNotMatch(visibleText, /^\s*\{/);
     assert.equal(payload.toolStatus, "ok");
@@ -1409,9 +1410,9 @@ test("Pi post-tool safety net vaults and labels large native bash output when en
 
     const outputId = routedText.match(/outputId=(ffout_[a-f0-9]+)/)?.[1];
     assert.ok(outputId);
-    const retrieveTool = tools.find((tool) => tool.name === "freeflow_retrieve");
-    const retrieved = await retrieveTool.execute(
-      "retrieve-1",
+    const searchTool = tools.find((tool) => tool.name === "freeflow_search");
+    const searched = await searchTool.execute(
+      "search-1",
       {
         action: "retrieve",
         source: { kind: "vault", outputId, stream: "raw" },
@@ -1421,8 +1422,8 @@ test("Pi post-tool safety net vaults and labels large native bash output when en
       undefined,
       context(cwd),
     );
-    const payload = retrieved.details.result;
-    assert.doesNotMatch(retrieved.content[0].text, /^\s*\{/);
+    const payload = searched.details.result;
+    assert.doesNotMatch(searched.content[0].text, /^\s*\{/);
     assert.equal(payload.evidence[0].excerpt, "line 18\nline 19\nline 20");
   } finally {
     await rm(cwd, { recursive: true, force: true });
@@ -1579,9 +1580,9 @@ test("Pi already-activated context still includes output-router skill and safety
 
   assert.match(result.systemPrompt, /## Loaded Output Router Skill/);
   assert.match(result.systemPrompt, /## Loaded Output Router Safety Policy/);
-  assert.match(result.systemPrompt, /freeflow_retrieve/);
+  assert.match(result.systemPrompt, /freeflow_search/);
   assert.match(result.systemPrompt, /freeflow_run/);
-  assert.match(result.systemPrompt, /freeflow_derive/);
+  assert.doesNotMatch(result.systemPrompt, /freeflow_derive/);
 });
 
 test("Pi reinjects output-router context when safety policy is missing", async () => {

@@ -12,16 +12,16 @@ Native tools stay direct unless explicit config enables the safety net. Use nati
 ## Tool Choice
 
 - Unsure how much output a read/search/command will produce: use Freeflow first.
-- Need existing repo or vault information: use `freeflow_retrieve`.
-- Need candidate paths first: use `freeflow_retrieve action=locate`.
-- Need a best evidence packet: use `freeflow_retrieve action=query`; for vault-wide search use `source.kind=vault` without `outputId`.
-- Need exact known repo/vault lines: use `freeflow_retrieve action=retrieve` with `source.path` or `source.kind=vault` plus `outputId` and `lineRange` when exact lines matter.
-- Need more around prior evidence: use `freeflow_retrieve action=expand`.
-- Need to explain a routed result or vault id: use `freeflow_retrieve action=explain`.
+- Need existing repo or vault information: use `freeflow_search`.
+- Need candidate paths first: use `freeflow_search action=locate`.
+- Need a best evidence packet: use `freeflow_search action=query`; for vault-wide search use `source.kind=vault` without `outputId`.
+- Need exact known repo/vault lines: use `freeflow_search action=retrieve` with `source.path` or `source.kind=vault` plus `outputId` and `lineRange` when exact lines matter.
+- Need more around prior evidence: use `freeflow_search action=expand`.
+- Need to explain a routed result or vault id: use `freeflow_search action=explain`.
 - Need to run a likely-large, broad, exploratory, or noisy command: use `freeflow_run`.
 - Need enabled Pi MCP/web/fetch/code-search output: call the host tool directly; observed routing runs after the tool result when configured.
-- Need deterministic filtering, extraction, counts, grouping, dedupe, topN, URL/citation extraction, or stats from vaulted evidence: use `freeflow_derive`.
-- Need script derive: `freeflow_derive operation.kind=script` is a disabled-by-default sandboxed branch. JavaScript, Python, and jq can execute only with explicit scriptDerive opt-in and available proof-backed adapters. Do not use script derive as unsandboxed code execution.
+- Need deterministic filtering, extraction, counts, grouping, dedupe, topN, URL/citation extraction, or stats from vaulted evidence: use `freeflow_search action=transform`.
+- Need script transform: `freeflow_search action=transform operation.kind=script` is a disabled-by-default sandboxed branch. JavaScript, Python, and jq can execute only with explicit scriptDerive opt-in and available proof-backed adapters. Do not use script transform as unsandboxed code execution.
 - Need effective Freeflow router/capture/provider config, vault writability, provider availability, or migration recommendations: use `freeflow_status`.
 - Need a whole known file/artifact and direct file contents are intended: use native read.
 - Need direct shell behavior with expected-small exact output: use native bash.
@@ -35,9 +35,9 @@ Likely-large native commands include repo-wide `rg`, `grep -R`, `find`, package 
 
 For these, choose one:
 
-- Use `freeflow_retrieve action=query` or `locate` for repo evidence discovery, or for vault-wide indexed evidence when `source.kind=vault` omits `outputId`.
+- Use `freeflow_search action=query` or `locate` for repo evidence discovery, or for vault-wide indexed evidence when `source.kind=vault` omits `outputId`.
 - Use `freeflow_run` when the broad shell command is intentional and routed evidence is enough.
-- Use `freeflow_derive` when the broad output is already vaulted and a deterministic subset/stat is enough.
+- Use `freeflow_search action=transform` when the broad output is already vaulted and a deterministic subset/stat is enough.
 - Use native bash only when the command is intentionally bounded/excluded and exact small raw output is needed, for example a targeted file/path search, `head`/`sed` cap, or explicit generated/log exclusions.
 
 ## Hard Rules

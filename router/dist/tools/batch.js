@@ -1,11 +1,10 @@
 import { createHash } from "node:crypto";
-import { freeflowRetrieve } from "./retrieve.js";
+import { freeflowSearch } from "./search.js";
 import { freeflowRun } from "./run.js";
-import { freeflowTransform } from "../transform/engine.js";
 const DEFAULT_BATCH_CONCURRENCY = 4;
 const MAX_BATCH_CONCURRENCY = 16;
 const MAX_BATCH_STEPS = 50;
-const BATCH_STEP_KINDS = new Set(["run", "retrieve", "search", "derive", "transform"]);
+const BATCH_STEP_KINDS = new Set(["run", "search"]);
 const MAX_BATCH_QUERIES = 10;
 const MAX_BATCH_QUERY_LENGTH = 500;
 const MAX_QUERY_MATCHES = 3;
@@ -49,7 +48,7 @@ export async function freeflowBatch(options, runner) {
         steps,
         ...(queryAnswers.length > 0 ? { queries: queryAnswers } : {}),
         recovery: {
-            how: "Inspect details.result.steps for each child result. Child run/derive outputs remain recoverable by their own outputId; child retrieve results keep exact path/outputId and line-range recovery hints. Query answers cite matching child evidence handles when present.",
+            how: "Inspect details.result.steps for each child result. Child run outputs remain recoverable by their own outputId; child search results keep exact path/outputId and line-range recovery hints. Query answers cite matching child evidence handles when present.",
         },
     };
 }
@@ -83,7 +82,7 @@ function validateBatchInput(value) {
                 return;
             }
             if (typeof step.kind !== "string" || !BATCH_STEP_KINDS.has(step.kind)) {
-                issues.push({ path: `$.steps[${index}].kind`, message: "Expected step kind run, retrieve, search, derive, or transform." });
+                issues.push({ path: `$.steps[${index}].kind`, message: "Expected step kind run or search." });
             }
             if (step.id !== undefined && (typeof step.id !== "string" || step.id.length === 0)) {
                 issues.push({ path: `$.steps[${index}].id`, message: "Expected non-empty string id when present." });
@@ -185,21 +184,9 @@ async function executeStepResult(step, options, runner) {
             ...(options.storagePolicy !== undefined ? { storagePolicy: options.storagePolicy } : {}),
         }, runner);
     }
-    if (step.kind === "retrieve" || step.kind === "search") {
-        return freeflowRetrieve({
-            ...step.input,
-            preserve: step.input.preserve ?? options.preserve,
-        });
-    }
-    return freeflowTransform({
+    return freeflowSearch({
         ...step.input,
         preserve: step.input.preserve ?? options.preserve,
-        sessionId: options.sessionId,
-        ...(options.vaultRoot !== undefined ? { vaultRoot: options.vaultRoot } : {}),
-        ...(options.vaultRetention !== undefined ? { vaultRetention: options.vaultRetention } : {}),
-        ...(options.thresholds !== undefined ? { thresholds: options.thresholds } : {}),
-        ...(options.scriptDerive !== undefined ? { scriptDerive: options.scriptDerive } : {}),
-        ...(options.scriptSandboxAdapters !== undefined ? { scriptSandboxAdapters: options.scriptSandboxAdapters } : {}),
     });
 }
 function isFailedChildResult(result, kind) {
@@ -248,7 +235,7 @@ async function collectBatchQueryMatches(options, steps, query) {
                 continue;
             }
             seenVaultQueries.add(`${query}:${key}`);
-            const routed = await freeflowRetrieve({
+            const routed = await freeflowSearch({
                 action: "query",
                 source: { kind: "vault", root: options.vaultRoot, sessionId: options.sessionId, outputId: ref.outputId, stream: ref.stream },
                 query,

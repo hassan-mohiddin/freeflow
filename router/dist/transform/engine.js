@@ -39,10 +39,10 @@ const MAX_EXTRACT_MATCHES = 10_000;
 const URL_PATTERN = /https?:\/\/[^\s<>"'\])}]+/gi;
 const SCRIPT_ALIAS_PATTERN = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
 const MAX_SCRIPT_CODE_BYTES = 256 * 1024;
-export function validateDeriveInput(value) {
+export function validateTransformInput(value) {
     const issues = [];
     if (!isRecord(value)) {
-        return { ok: false, issues: [{ path: "$", message: "Expected derive input object." }] };
+        return { ok: false, issues: [{ path: "$", message: "Expected transform input object." }] };
     }
     const operationKind = isRecord(value.operation) ? value.operation.kind : undefined;
     validateDeriveOperation(value.operation, "$.operation", issues);
@@ -84,12 +84,9 @@ export function validateDeriveInput(value) {
 export async function freeflowTransform(options) {
     return executeTransform(options);
 }
-export async function freeflowDerive(options) {
-    return executeTransform(options);
-}
 async function executeTransform(options) {
     const preserve = options.preserve ?? "important";
-    const inputValidation = validateDeriveInput(options);
+    const inputValidation = validateTransformInput(options);
     if (!inputValidation.ok) {
         return deriveValidationFailureWithOptionalLineage({
             message: validationMessage(inputValidation.issues),
@@ -227,7 +224,7 @@ async function executeTransform(options) {
         summary: derived.summary,
         evidence: routed.evidence,
         recovery: {
-            how: `Use freeflow_retrieve with source.kind=vault and outputId=${record.outputId}, stream=raw, and an exact lineRange to recover exact derived content. Source evidence remains outputId=${source.outputId} stream=${stream}.`,
+            how: `Use freeflow_search with source.kind=vault and outputId=${record.outputId}, stream=raw, and an exact lineRange to recover exact derived content. Source evidence remains outputId=${source.outputId} stream=${stream}.`,
             outputId: record.outputId,
         },
     };
@@ -238,7 +235,7 @@ async function handleScriptDerive(options) {
     const initialLineage = lineageForScriptInput(options.input, limits);
     if (!config.enabled) {
         return scriptDeriveDisabledFailure({
-            message: "Script derive is disabled by default. Enable scriptDerive.enabled only after a sandbox adapter has passed capability probes and review. No script code was executed.",
+            message: "Script transform is disabled by default. Enable scriptDerive.enabled only after a sandbox adapter has passed capability probes and review. No script code was executed.",
             preserve: options.preserve,
             lineage: initialLineage,
             decisionSeed: "script-derive-disabled",
@@ -343,10 +340,10 @@ async function handleScriptDerive(options) {
             route: "derive",
             reason: routed.reason,
         },
-        summary: `Script derive ${options.input.operation.language} completed with ${byteLength(execution.result.stdout)} stdout bytes and ${byteLength(execution.result.stderr)} stderr bytes.`,
+        summary: `Script transform ${options.input.operation.language} completed with ${byteLength(execution.result.stdout)} stdout bytes and ${byteLength(execution.result.stderr)} stderr bytes.`,
         evidence: routed.evidence,
         recovery: {
-            how: `Use freeflow_retrieve with source.kind=vault and outputId=${record.outputId}, stream=raw, and an exact lineRange to recover exact script-derived content. Source evidence remains linked in lineage.sourceOutputIds.`,
+            how: `Use freeflow_search with source.kind=vault and outputId=${record.outputId}, stream=raw, and an exact lineRange to recover exact script-derived content. Source evidence remains linked in lineage.sourceOutputIds.`,
             outputId: record.outputId,
         },
     };
@@ -401,16 +398,16 @@ async function executeScriptWithAdapter(options) {
             });
         }
         catch (error) {
-            return { ok: false, message: `Script derive adapter ${options.adapter.id} threw before returning a result: ${errorMessage(error)}` };
+            return { ok: false, message: `Script transform adapter ${options.adapter.id} threw before returning a result: ${errorMessage(error)}` };
         }
         const stdoutBytes = byteLength(result.stdout ?? "");
         const stderrBytes = byteLength(result.stderr ?? "");
         if (stdoutBytes + stderrBytes > options.limits.maxOutputBytes) {
-            return { ok: false, message: `Script derive output bytes ${stdoutBytes + stderrBytes} exceed maxOutputBytes ${options.limits.maxOutputBytes}.` };
+            return { ok: false, message: `Script transform output bytes ${stdoutBytes + stderrBytes} exceed maxOutputBytes ${options.limits.maxOutputBytes}.` };
         }
         if (result.status !== "success") {
             const detail = result.reason ? ` ${result.reason}` : "";
-            return { ok: false, message: `Script derive ${options.input.operation.language} ${result.status}.${detail} stdoutBytes=${stdoutBytes} stderrBytes=${stderrBytes}.` };
+            return { ok: false, message: `Script transform ${options.input.operation.language} ${result.status}.${detail} stdoutBytes=${stdoutBytes} stderrBytes=${stderrBytes}.` };
         }
         return { ok: true, result };
     }
@@ -430,7 +427,7 @@ async function resolveScriptSources(options) {
             return {
                 ok: false,
                 failure: deriveSourceUnavailableFailure({
-                    message: `Script derive source alias=${source.alias} outputId=${source.outputId} could not be found or read: ${errorMessage(error)}`,
+                    message: `Script transform source alias=${source.alias} outputId=${source.outputId} could not be found or read: ${errorMessage(error)}`,
                     preserve: options.preserve,
                     lineage: lineageForScriptInput({ sources: [...options.sources], operation: options.operation }, { maxInputBytes: options.maxInputBytes }),
                     decisionSeed: "script-source-record",
@@ -442,7 +439,7 @@ async function resolveScriptSources(options) {
             return {
                 ok: false,
                 failure: deriveValidationFailure({
-                    message: `Script derive source alias=${source.alias} outputId=${source.outputId} stream is invalid: ${streamResult.message}`,
+                    message: `Script transform source alias=${source.alias} outputId=${source.outputId} stream is invalid: ${streamResult.message}`,
                     preserve: options.preserve,
                     lineage: lineageForSource(record, options.operation),
                     decisionSeed: "script-source-stream",
@@ -457,7 +454,7 @@ async function resolveScriptSources(options) {
             return {
                 ok: false,
                 failure: deriveSourceUnavailableFailure({
-                    message: `Script derive source alias=${source.alias} outputId=${source.outputId} stream=${streamResult.stream} could not be read: ${errorMessage(error)}`,
+                    message: `Script transform source alias=${source.alias} outputId=${source.outputId} stream=${streamResult.stream} could not be read: ${errorMessage(error)}`,
                     preserve: options.preserve,
                     lineage: lineageForSource(record, options.operation),
                     decisionSeed: "script-source-text",
@@ -470,7 +467,7 @@ async function resolveScriptSources(options) {
             return {
                 ok: false,
                 failure: deriveValidationFailure({
-                    message: `Script derive input bytes ${totalBytes} exceed maxInputBytes ${options.maxInputBytes}.`,
+                    message: `Script transform input bytes ${totalBytes} exceed maxInputBytes ${options.maxInputBytes}.`,
                     preserve: options.preserve,
                     lineage: lineageForSource(record, options.operation),
                     decisionSeed: "script-source-size",
@@ -584,7 +581,7 @@ function validateScriptOperation(value, path, issues) {
 }
 function validateScriptDeriveSources(value, path, issues) {
     if (!Array.isArray(value) || value.length === 0) {
-        issues.push({ path, message: "Expected one or more script derive vault sources." });
+        issues.push({ path, message: "Expected one or more script transform vault sources." });
         return;
     }
     const aliases = new Set();
@@ -609,7 +606,7 @@ function validateScriptDeriveLimits(value, path, issues) {
         return;
     }
     if (!isRecord(value)) {
-        issues.push({ path, message: "Expected script derive limits object." });
+        issues.push({ path, message: "Expected script transform limits object." });
         return;
     }
     validateOptionalIntegerRange(value.timeoutMs, `${path}.timeoutMs`, 1, MAX_SCRIPT_DERIVE_LIMITS.timeoutMs, issues);
@@ -924,7 +921,7 @@ function deriveRegexFilter(options) {
         end: Math.min(lines.length, lineNumber + contextLines),
     })));
     const parts = [
-        "# freeflow_derive regexFilter",
+        "# freeflow_search action=transform regexFilter",
         `source: ${options.sourceLabel}`,
         `pattern: ${formatPattern(options.compiled)}`,
         `contextLines: ${contextLines}`,
@@ -949,7 +946,7 @@ function deriveCountMatches(options) {
     const lines = splitLines(options.text);
     const stats = collectMatches(lines, options.compiled.regex);
     const text = [
-        "# freeflow_derive countMatches",
+        "# freeflow_search action=transform countMatches",
         `source: ${options.sourceLabel}`,
         `pattern: ${formatPattern(options.compiled)}`,
         `matches: ${stats.matches}`,
@@ -1002,7 +999,7 @@ function deriveGroupByRegex(options) {
         }
     }
     const parts = [
-        "# freeflow_derive groupByRegex",
+        "# freeflow_search action=transform groupByRegex",
         `source: ${options.sourceLabel}`,
         `pattern: ${formatPattern(options.compiled)}`,
         `group: ${String(groupSelector)}`,
@@ -1056,7 +1053,7 @@ function deriveDedupe(options) {
         }
     }
     const parts = [
-        "# freeflow_derive dedupe",
+        "# freeflow_search action=transform dedupe",
         `source: ${options.sourceLabel}`,
         `trim: ${trim}`,
         `caseSensitive: ${caseSensitive}`,
@@ -1111,7 +1108,7 @@ function deriveTopN(options) {
     const sorted = [...scored].sort((left, right) => compareTopNEntries(left, right, sort, order));
     const selected = sorted.slice(0, options.operation.limit);
     const parts = [
-        "# freeflow_derive topN",
+        "# freeflow_search action=transform topN",
         `source: ${options.sourceLabel}`,
         ...(options.compiled !== undefined ? [`pattern: ${formatPattern(options.compiled)}`, `group: ${String(groupSelector)}`] : []),
         `sort: ${sort}`,
@@ -1166,7 +1163,7 @@ function deriveExtractUrls(options) {
         }
     }
     const parts = [
-        "# freeflow_derive extractUrls",
+        "# freeflow_search action=transform extractUrls",
         `source: ${options.sourceLabel}`,
         `dedupe: ${dedupe}`,
         `maxMatches: ${maxMatches}`,
@@ -1210,7 +1207,7 @@ function deriveExtractCitations(options) {
         }
     }
     const parts = [
-        "# freeflow_derive extractCitations",
+        "# freeflow_search action=transform extractCitations",
         `source: ${options.sourceLabel}`,
         `maxMatches: ${maxMatches}`,
         `citations: ${entries.length}`,
@@ -1250,7 +1247,7 @@ function deriveLineStats(options) {
     });
     const nonEmptyLines = lines.length - blankLines;
     const text = [
-        "# freeflow_derive lineStats",
+        "# freeflow_search action=transform lineStats",
         `source: ${options.sourceLabel}`,
         `lines: ${lines.length}`,
         `nonEmptyLines: ${nonEmptyLines}`,
@@ -1277,7 +1274,7 @@ function deriveSizeStats(options) {
     const lines = countLines(options.text);
     const hash = hashText(options.text);
     const text = [
-        "# freeflow_derive sizeStats",
+        "# freeflow_search action=transform sizeStats",
         `source: ${options.sourceLabel}`,
         `bytes: ${bytes}`,
         `utf16CodeUnits: ${utf16CodeUnits}`,
@@ -1312,7 +1309,7 @@ function deriveJsonExtract(options) {
     const valueType = jsonValueType(resolved.value);
     const valueText = `${JSON.stringify(resolved.value, null, 2)}\n`;
     const text = [
-        "# freeflow_derive jsonExtract",
+        "# freeflow_search action=transform jsonExtract",
         `source: ${options.sourceLabel}`,
         `selectorKind: ${options.prepared.selectorKind}`,
         `selector: ${options.prepared.selector}`,

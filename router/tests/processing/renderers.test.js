@@ -25,14 +25,14 @@ const reducer = {
     confidence: 1,
     reason: "matched",
     facts: [],
-    visibleText: "access-log summary\nrequests: 500\nerrors: 88\nsource recovery: Recover processing result with freeflow_retrieve ...",
+    visibleText: "access-log summary\nrequests: 500\nerrors: 88\nsource recovery: Recover processing result with freeflow_search ...",
     details: {},
   },
   reason: "matched",
 };
 
 test("processing renderer puts facts first and keeps recovery compact", () => {
-  const previousProse = `${reducer.result.visibleText}\nreducer: access-log@1 confidence=1.00\nsource: fixtures/access.log\nsource recovery: Recover processing result with freeflow_retrieve action=retrieve outputId=ffout_example stream=raw.`;
+  const previousProse = `${reducer.result.visibleText}\nreducer: access-log@1 confidence=1.00\nsource: fixtures/access.log\nsource recovery: Recover processing result with freeflow_search action=retrieve outputId=ffout_example stream=raw.`;
   const rendered = renderProcessingResult({
     status: "ok",
     source,

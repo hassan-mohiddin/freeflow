@@ -377,7 +377,7 @@ async function loadVaultOutputSource(
       text,
       stats,
       lineage,
-      recovery: { how: `Recover source with freeflow_retrieve action=retrieve outputId=${source.outputId} stream=${stream}.`, outputId: source.outputId },
+      recovery: { how: `Recover source with freeflow_search action=retrieve outputId=${source.outputId} stream=${stream}.`, outputId: source.outputId },
     };
   } catch (error) {
     return { status: "unavailable", source: descriptor, reason: errorMessage(error) };
@@ -505,7 +505,7 @@ async function persistProcessingResultText(input: {
   return {
     lineage,
     persistence,
-    recovery: { how: `Recover processing result with freeflow_retrieve action=retrieve outputId=${record.outputId} stream=raw.`, outputId: record.outputId },
+    recovery: { how: `Recover processing result with freeflow_search action=retrieve outputId=${record.outputId} stream=raw.`, outputId: record.outputId },
   };
 }
 

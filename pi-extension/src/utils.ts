@@ -61,11 +61,21 @@ export function compactRunToolText(result) {
   return lines.join("\n");
 }
 
-export function compactRetrieveToolText(result) {
+export function compactSearchToolText(result) {
+  if (result?.implementation === "processing-engine-skeleton-v1") {
+    return compactProcessingToolText(result);
+  }
+  if (result?.routing?.route === "derive") {
+    return compactTransformToolText(result, "freeflow_search");
+  }
+  return compactSearchEvidenceToolText(result, "freeflow_search");
+}
+
+export function compactSearchEvidenceToolText(result, toolName = "freeflow_search") {
   const routeStatus = result?.routing?.status ?? result?.toolStatus ?? "unknown";
   const evidence = Array.isArray(result?.evidence) ? result.evidence : [];
   const source = compactSourceLabel(result?.source ?? evidence[0]?.source);
-  const lines = [row("freeflow_retrieve", routeStatus, source, `e=${evidence.length}`, result?.recovery?.outputId ? `out=${result.recovery.outputId}` : "")];
+  const lines = [row(toolName, routeStatus, source, `e=${evidence.length}`, result?.recovery?.outputId ? `out=${result.recovery.outputId}` : "")];
   if (result?.failure?.message) {
     lines.push(row("fail", truncateRawLine(result.failure.message, 220)));
   } else if (result?.routing?.reason) {
@@ -77,14 +87,14 @@ export function compactRetrieveToolText(result) {
   return lines.join("\n");
 }
 
-export function compactDeriveToolText(result) {
+export function compactTransformToolText(result, toolName = "freeflow_search") {
   const failed = result?.failure || result?.routing?.status === "failed" || result?.toolStatus === "error";
   const routeStatus = failed ? "failed" : result?.routing?.status ?? result?.toolStatus ?? "unknown";
   const evidence = Array.isArray(result?.evidence) ? result.evidence : [];
   const operation = compactOperationLabel(result?.operation ?? { kind: result?.producer?.name });
   const outputId = result?.outputId ?? result?.recovery?.outputId;
   const source = compactSourceLabel(result?.source);
-  const lines = [row("freeflow_derive", routeStatus, operation, source, outputId ? `out=${outputId}` : "")];
+  const lines = [row(toolName, routeStatus, operation, source, outputId ? `out=${outputId}` : "")];
   if (result?.failure?.message) {
     lines.push(row("fail", truncateRawLine(result.failure.message, 220)));
   } else if (result?.summary) {
@@ -96,6 +106,22 @@ export function compactDeriveToolText(result) {
   appendRecoveryRow(lines, result?.recovery, evidence, outputId);
   lines.push(row("details", "details.result"));
   return lines.join("\n");
+}
+
+function compactProcessingToolText(result) {
+  const lines = [row("freeflow_search", result?.status ?? "unknown", "transform", compactProcessingSourceLabel(result?.source))];
+  splitLines(String(result?.visibleText ?? "")).slice(0, 8).forEach((line) => lines.push(row(">", truncateRawLine(line, 220))));
+  appendOmittedRow(lines, ">", splitLines(String(result?.visibleText ?? "")).length, 8, "details.result.visibleText");
+  if (Array.isArray(result?.facts) && result.facts.length > 0) lines.push(row("facts", result.facts.length));
+  if (result?.recovery?.outputId) lines.push(row("rec", "vault", result.recovery.outputId));
+  else if (result?.recovery?.how) lines.push(row("rec", truncateRawLine(result.recovery.how, 160)));
+  lines.push(row("details", "details.result"));
+  return lines.join("\n");
+}
+
+function compactProcessingSourceLabel(source) {
+  if (!source || typeof source !== "object") return "source";
+  return `${source.kind ?? "source"}:${source.displayPath ?? source.ref?.path ?? source.ref?.outputId ?? ""}`;
 }
 
 function row(...fields) {

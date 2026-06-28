@@ -16,10 +16,10 @@ smallest sufficient evidence in context
 
 The router ships explicit tools and Pi observed routing:
 
-- `freeflow_retrieve`: retrieve targeted repo/vault evidence.
+- `freeflow_search`: search/retrieve repo or vault evidence, and transform file/output sources through `action="transform"`.
 - `freeflow_run`: run commands, apply the command storage policy, and return compact evidence with recovery guidance.
+- `freeflow_batch`: run independent `run`/`search` steps and optionally aggregate query answers.
 - Pi observed routing: route enabled MCP/web/fetch/code-search outputs after direct host tool calls.
-- `freeflow_derive`: deterministically transform vaulted evidence into bounded derived evidence; `operation.kind="script"` is disabled by default and can execute only through explicit proof-backed JavaScript, Python, or jq adapters.
 - `freeflow_status`: inspect effective config, vault writability/index state, provider availability, and non-destructive migration recommendations.
 
 Native tools still matter:
@@ -33,31 +33,31 @@ Native tools still matter:
 ```mermaid
 flowchart LR
   Agent[agent]
-  Retrieve[freeflow_retrieve]
+  Search[freeflow_search]
   Run[freeflow_run]
   Repo[repo files]
   Vault[Freeflow vault]
   Observed[Pi observed routing]
-  Derive[freeflow_derive]
+  Transform[freeflow_search action=transform]
   Status[freeflow_status]
   Native[native read/bash]
   Evidence[bounded evidence]
   Raw[exact or metadata-only recovery]
 
-  Agent -->|existing info| Retrieve
+  Agent -->|existing info| Search
   Agent -->|noisy command| Run
   Agent -->|direct MCP/web/fetch/code-search| Observed
-  Agent -->|derive from vault| Derive
+  Agent -->|transform source| Transform
   Agent -->|inspect config/status| Status
   Agent -->|direct/raw known output| Native
-  Retrieve --> Repo --> Evidence
-  Retrieve --> Vault --> Evidence
+  Search --> Repo --> Evidence
+  Search --> Vault --> Evidence
+  Transform --> Vault
+  Transform --> Evidence
   Run --> Vault
   Observed --> Vault
-  Derive --> Vault
   Run --> Evidence
   Observed --> Evidence
-  Derive --> Evidence
   Vault --> Raw
 ```
 
@@ -65,25 +65,25 @@ flowchart LR
 
 | Need | Use |
 | --- | --- |
-| Find repo evidence before reading files | `freeflow_retrieve action=query` |
-| Get candidate paths first | `freeflow_retrieve action=locate` |
-| Retrieve exact repo/vault lines | `freeflow_retrieve action=retrieve` with `lineRange` |
-| Widen previous evidence | `freeflow_retrieve action=expand` |
-| Explain a previous routed decision/output | `freeflow_retrieve action=explain` |
+| Find repo evidence before reading files | `freeflow_search action=query` |
+| Get candidate paths first | `freeflow_search action=locate` |
+| Retrieve exact repo/vault lines | `freeflow_search action=retrieve` with `lineRange` |
+| Widen previous evidence | `freeflow_search action=expand` |
+| Explain a previous routed decision/output | `freeflow_search action=explain` |
 | Run noisy/large command output | `freeflow_run` |
 | Use enabled Pi MCP/web/fetch/code-search output | Call the host tool directly; observed routing runs after the tool result |
-| Derive deterministic subsets/stats from vaulted output | `freeflow_derive` |
-| Inspect script-derive disabled/unavailable state | `freeflow_status` |
+| Transform repo/vault sources or compute deterministic subsets/stats from vaulted output | `freeflow_search action=transform` |
+| Inspect script-transform disabled/unavailable state | `freeflow_status` |
 | Inspect effective config, providers, vault/index state, or migration recommendations | `freeflow_status` |
 | Read a known whole file | native `read` |
 | Run small exact command | native `bash` |
 
-## `freeflow_retrieve`
+## `freeflow_search`
 
 Sources:
 
 - `repo`: local repo files.
-- `vault`: previous routed command/native/observed/derived output, either by known `outputId` or vault-wide index query.
+- `vault`: previous routed command/native/observed/transformed output, either by known `outputId` or vault-wide index query.
 
 Actions:
 
@@ -164,19 +164,19 @@ Pi observed routing handles configured MCP, web, fetch, and code-search outputs 
 
 Mutating provider tools remain direct provider calls after explicit user intent. Freeflow treats read/write classification as routing metadata, not as a host permission gate.
 
-## `freeflow_derive`
+## `freeflow_search action=transform`
 
-`freeflow_derive` transforms existing vaulted output. Current deterministic operations do not execute arbitrary code.
+`freeflow_search action=transform` transforms existing vaulted output. Current deterministic operations do not execute arbitrary code.
 
-`operation.kind="script"` is the sandboxed branch under the same tool. It is disabled by default, has no unsandboxed fallback, and does not persist raw script text. Successful script output is vaulted as derived stdout with source lineage; failures and output-limit overflows return structured no-recovery results.
+`operation.kind="script"` is the sandboxed branch under the same tool. It is disabled by default, has no unsandboxed fallback, and does not persist raw script text. Successful script output is vaulted as transformed stdout with source lineage; failures and output-limit overflows return structured no-recovery results.
 
 Current product execution support is Pi-first and explicit package-root opt-in:
 
-- JavaScript can run through a proof-backed QuickJS adapter only when script derive is explicitly enabled and Pi can discover a local `quickjs-wasi` package root.
-- Python can run through a proof-backed Eryx adapter only when script derive is explicitly enabled, Pi can discover a local `@bsull/eryx` package root, and the Node process has `--experimental-wasm-jspi` available.
-- jq can run through a proof-backed `jq-wasm` adapter only when script derive is explicitly enabled and Pi can discover a local `jq-wasm` package root.
+- JavaScript can run through a proof-backed QuickJS adapter only when script transform is explicitly enabled and Pi can discover a local `quickjs-wasi` package root.
+- Python can run through a proof-backed Eryx adapter only when script transform is explicitly enabled, Pi can discover a local `@bsull/eryx` package root, and the Node process has `--experimental-wasm-jspi` available.
+- jq can run through a proof-backed `jq-wasm` adapter only when script transform is explicitly enabled and Pi can discover a local `jq-wasm` package root.
 
-`freeflow_status` reports the script-sandbox contract version, configured languages, required adversarial proofs, rejected unsafe mechanisms such as Node `vm`/plain subprocesses, candidate-unproven OS sandbox adapters, and whether QuickJS, Eryx, and jq-wasm adapters are available. A language remains unavailable until a registered adapter passes every required proof. Proof results are cached in-process by adapter content hash and probe limits so repeated status/derive checks do not rerun the same adversarial probes.
+`freeflow_status` reports the script-sandbox contract version, configured languages, required adversarial proofs, rejected unsafe mechanisms such as Node `vm`/plain subprocesses, candidate-unproven OS sandbox adapters, and whether QuickJS, Eryx, and jq-wasm adapters are available. A language remains unavailable until a registered adapter passes every required proof. Proof results are cached in-process by adapter content hash and probe limits so repeated status/transform checks do not rerun the same adversarial probes.
 
 Current deterministic operations include:
 
@@ -186,7 +186,7 @@ Current deterministic operations include:
 - URL/citation extraction,
 - line and size stats.
 
-Derived output is vaulted separately and points back to source output ids through lineage. Script operation hashing records code hashes, not raw code.
+Transformed output is vaulted separately and points back to source output ids through lineage. Script operation hashing records code hashes, not raw code.
 
 ### Optional script adapters
 
@@ -212,7 +212,7 @@ Supported `scriptDerive` keys are `enabled`, `sandbox`, `languages`, `network`, 
 
 QuickJS guest JavaScript receives only `readText(alias)`, `writeText(text)`, `console.log`, and `console.error`. Eryx guest Python receives `read_text(alias)`, `write_text(text)`, and a `sources` dict keyed by source alias. jq receives a JSON object keyed by source alias, so a source with alias `log` is available as `.log`. Vault sources are copied into temporary input files before adapter execution; repo, home, vault, process, require, fetch, package loading, and host filesystem APIs are not exposed to guest code. Invalid or missing adapter roots fail closed as adapter unavailable.
 
-The Python adapter runs Eryx inside a Node Worker with Worker termination for timeouts, bounded stdout/stderr before results cross the Worker-to-host boundary, a temp-copy import rewrite to force preview2 browser/in-memory shims, and a deny-only network shim. It collects no output files; derived content comes from stdout. Residual caveat: Eryx/Python can still materialize large strings inside the Worker before wrapper truncation; product execution treats output-limit overflow as a structured failure with no exact recovery.
+The Python adapter runs Eryx inside a Node Worker with Worker termination for timeouts, bounded stdout/stderr before results cross the Worker-to-host boundary, a temp-copy import rewrite to force preview2 browser/in-memory shims, and a deny-only network shim. It collects no output files; transformed content comes from stdout. Residual caveat: Eryx/Python can still materialize large strings inside the Worker before wrapper truncation; product execution treats output-limit overflow as a structured failure with no exact recovery.
 
 The jq adapter runs `jq-wasm` inside a Node Worker with Worker termination for timeouts and bounded stdout/stderr before results cross the Worker-to-host boundary. Residual caveat: `jq-wasm` can still generate large in-Worker strings before truncation; product execution treats output-limit overflow as a structured failure with no exact recovery.
 
@@ -250,7 +250,7 @@ It shows:
 - vault path and writability,
 - capture policy and recoverability defaults,
 - enabled providers and availability,
-- script-derive enabled/off state, adapter availability, configured languages, required sandbox proofs, rejected/candidate mechanisms, no-network policy, limits, and raw-script persistence state,
+- script-transform enabled/off state through `scriptDerive`, adapter availability, configured languages, required sandbox proofs, rejected/candidate mechanisms, no-network policy, limits, and raw-script persistence state,
 - custom manifest validity,
 - config warnings and safe fallbacks,
 - non-destructive migration recommendations for stale explicit defaults or unknown keys.
@@ -368,7 +368,7 @@ Current release evidence:
 
 - Retrieval benchmark: improved router passed 7/7 fixtures.
 - Command benchmark: `freeflow_run` passed 8/8 fixtures with exact recovery for exactness-sensitive command fixtures and duplicate recovery through prior exact output ids.
-- Capture/derive/provider eval: targeted Slice 9 eval passed 14/14 objective gates for read-only provider capture, web-shaped capture recovery, long-log derive, and provider-summary category scoping.
+- Capture/transform/provider eval: targeted Slice 9 eval passed 14/14 objective gates for read-only provider capture, web-shaped capture recovery, long-log transform, and provider-summary category scoping.
 - Pi observed-routing eval: targeted eval passed 28/28 objective gates for MCP, web, fetch, code-search, metadata-only persistence, and Pi capability status.
 - Vault-index storage spike: selected deterministic local JSON sidecar behind the vault-index interface; SQLite/FTS remains deferred because native/runtime dependency adoption needs owner approval.
 - Optional repo-source index benchmark: scanner remains default; repo-source index not adopted. Latest repo search backend benchmark compared scanner-only, local lexical index, Node `node:sqlite` FTS5/BM25/trigram, and conservative hybrid scanner+index; all passed 3/3 fixtures with recall@3 3/3 and zero generated false positives. FTS was tested through the experimental Node runtime available in this environment; no package dependency was added.

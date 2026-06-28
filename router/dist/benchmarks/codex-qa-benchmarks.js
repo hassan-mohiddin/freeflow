@@ -4,7 +4,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { performance } from "node:perf_hooks";
 import { approximateTokens, defaultJsonRunReportPath, escapeMarkdownTableCell as escapeTable, formatPercent, latencySummary, normalizeIterations, parseBenchmarkCliArgs, reductionPercent, writeBenchmarkReportPair, } from "./benchmark-harness.js";
-import { freeflowRetrieve } from "../tools/retrieve.js";
+import { freeflowSearch } from "../tools/search.js";
 const SANDBOX_DOC_PATH = "docs/codex-cli-agent-harness/2026-06-12-pass-3-sandboxing-and-permissions.md";
 const GENERATED_GRAPH_PATH = "graphify-out/graph.html";
 const SANDBOX_QUESTION = "Find the Sandbox Permissions section, report file/lines, and explain UseDefault, RequireEscalated, and WithAdditionalPermissions.";
@@ -162,7 +162,7 @@ async function runModeIterations(fixture, mode, iterations) {
     };
 }
 async function improvedFreeflowObservation(fixture) {
-    const queryResult = await freeflowRetrieve({
+    const queryResult = await freeflowSearch({
         action: "query",
         source: { kind: "repo", root: fixture.root },
         query: fixture.query,
@@ -171,7 +171,7 @@ async function improvedFreeflowObservation(fixture) {
     });
     const seedEvidence = queryResult.evidence?.[0];
     const expandedResult = seedEvidence
-        ? await freeflowRetrieve({
+        ? await freeflowSearch({
             action: "expand",
             source: { kind: "repo", root: fixture.root },
             evidence: seedEvidence,
@@ -182,7 +182,7 @@ async function improvedFreeflowObservation(fixture) {
     const evidence = expandedResult?.evidence?.[0] ?? seedEvidence;
     const evidenceExcerpt = evidence?.excerpt ?? "";
     return {
-        toolPathUsed: "freeflowRetrieve repo query + expand",
+        toolPathUsed: "freeflowSearch repo query + expand",
         proxyCalls: expandedResult ? 2 : 1,
         rawBytes: await repoRawBytes(fixture.root),
         contextBytes: byteLength(JSON.stringify(queryResult)) + byteLength(JSON.stringify(expandedResult ?? {})),

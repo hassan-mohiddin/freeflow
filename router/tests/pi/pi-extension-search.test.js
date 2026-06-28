@@ -31,7 +31,7 @@ function registerMockPi() {
   return { tools, commands, handlers };
 }
 
-function mockCtx(cwd = process.cwd(), sessionId = "pi-extension-derive-test") {
+function mockCtx(cwd = process.cwd(), sessionId = "pi-extension-search-test") {
   return {
     cwd,
     ui: {
@@ -187,19 +187,19 @@ function collectSchemaKeys(schema, keys, path = "$", found = []) {
   return found;
 }
 
-test("Pi extension registers public freeflow_derive with deterministic operation schema", () => {
+test("Pi extension registers public freeflow_search with deterministic operation schema", () => {
   const { tools } = registerMockPi();
-  const derive = tools.get("freeflow_derive");
+  const search = tools.get("freeflow_search");
 
-  assert.ok(derive, "freeflow_derive should be registered");
+  assert.ok(search, "freeflow_search should be registered");
   assert.equal(tools.has("freeflow_script_derive"), false);
-  assert.deepEqual(derive.parameters.required, ["operation"]);
-  assert.deepEqual(derive.parameters.properties.source.properties.kind.enum, ["vault"]);
-  assert.match(derive.description, /deterministic/i);
-  assert.match(derive.promptGuidelines.join("\n"), /existing vaulted evidence/i);
-  assert.deepEqual(collectSchemaKeys(derive.parameters, ["oneOf", "anyOf", "allOf", "not", "const"]), []);
+  assert.deepEqual(search.parameters.required, ["action"]);
+  assert.deepEqual(search.parameters.properties.source.properties.kind.enum, ["repo", "vault"]);
+  assert.match(search.description, /Search|transform/i);
+  assert.match(search.promptGuidelines.join("\n"), /action=transform/i);
+  assert.deepEqual(collectSchemaKeys(search.parameters, ["oneOf", "anyOf", "allOf", "not", "const"]), []);
 
-  const operationKinds = derive.parameters.properties.operation.properties.kind.enum;
+  const operationKinds = search.parameters.properties.operation.properties.kind.enum;
   assert.deepEqual(operationKinds, [
     "regexFilter",
     "countMatches",
@@ -215,73 +215,76 @@ test("Pi extension registers public freeflow_derive with deterministic operation
   ]);
 });
 
-test("Pi extension freeflow_derive schema stays Pi-compatible while rejecting invalid primitive shapes", () => {
+test("Pi extension freeflow_search schema stays Pi-compatible while rejecting invalid primitive shapes", () => {
   const { tools } = registerMockPi();
-  const derive = tools.get("freeflow_derive");
-  const schema = derive.parameters;
+  const search = tools.get("freeflow_search");
+  const schema = search.parameters;
   const source = { kind: "vault", outputId: "ffout_source" };
 
-  assertSchemaAccepts(schema, { source, operation: { kind: "jsonExtract", pointer: "" } });
-  assertSchemaAccepts(schema, { source, operation: { kind: "jsonExtract", pointer: "/suite/failures/0/message" } });
-  assertSchemaAccepts(schema, { source, operation: { kind: "jsonExtract", pointer: "/escaped~0tilde/~1slash" } });
-  assertSchemaAccepts(schema, { source, operation: { kind: "jsonExtract", path: "$" } });
-  assertSchemaAccepts(schema, { source, operation: { kind: "jsonExtract", path: "$.suite.failures[0]" } });
-  assertSchemaAccepts(schema, { source, operation: { kind: "jsonExtract", path: "$[\"quoted.key\"]" } });
-  assertSchemaAccepts(schema, { source, operation: { kind: "topN", limit: 10 } });
+  assertSchemaAccepts(schema, { action: "transform", source, operation: { kind: "jsonExtract", pointer: "" } });
+  assertSchemaAccepts(schema, { action: "transform", source, operation: { kind: "jsonExtract", pointer: "/suite/failures/0/message" } });
+  assertSchemaAccepts(schema, { action: "transform", source, operation: { kind: "jsonExtract", pointer: "/escaped~0tilde/~1slash" } });
+  assertSchemaAccepts(schema, { action: "transform", source, operation: { kind: "jsonExtract", path: "$" } });
+  assertSchemaAccepts(schema, { action: "transform", source, operation: { kind: "jsonExtract", path: "$.suite.failures[0]" } });
+  assertSchemaAccepts(schema, { action: "transform", source, operation: { kind: "jsonExtract", path: "$[\"quoted.key\"]" } });
+  assertSchemaAccepts(schema, { action: "transform", source, operation: { kind: "topN", limit: 10 } });
   assertSchemaAccepts(schema, {
+    action: "transform",
     source,
     operation: { kind: "topN", limit: 10, pattern: "duration=(\\d+)", flags: "im", group: "1", sort: "numeric" },
   });
   assertSchemaAccepts(schema, {
+    action: "transform",
     sources: [{ kind: "vault", outputId: "ffout_source", stream: "combined", alias: "test_log" }],
     operation: { kind: "script", language: "python", code: "write_text('ok')" },
     limits: { timeoutMs: 1000, maxInputBytes: 2048, maxOutputBytes: 4096 },
   });
 
-  assertSchemaRejects(schema, { source: { kind: "vault", outputId: "" }, operation: { kind: "lineStats" } });
-  assertSchemaRejects(schema, { source, operation: { kind: "jsonExtract", pointer: "not/a/pointer" } });
-  assertSchemaRejects(schema, { source, operation: { kind: "jsonExtract", pointer: "/bad~2escape" } });
-  assertSchemaRejects(schema, { source, operation: { kind: "jsonExtract", pointer: "/dangling~" } });
-  assertSchemaRejects(schema, { source, operation: { kind: "jsonExtract", path: "$." } });
-  assertSchemaRejects(schema, { source, operation: { kind: "jsonExtract", path: "$['singleQuoted']" } });
-  assertSchemaRejects(schema, { source, operation: { kind: "jsonExtract", path: "$[01]" } });
-  assertSchemaRejects(schema, { source, operation: { kind: "jsonExtract", path: "$[\"unterminated]" } });
-  assertSchemaRejects(schema, { source, operation: { kind: "jsonExtract", path: "$[\"bad\\xescape\"]" } });
-  assertSchemaRejects(schema, { source, operation: { kind: "notReal" } });
-  assertSchemaRejects(schema, { source, operation: { kind: "topN", limit: 10, group: 1 } });
-  assertSchemaRejects(schema, { source, operation: { kind: "regexFilter", pattern: "FAIL", flags: "ii" } });
-  assertSchemaRejects(schema, { source, operation: { kind: "regexFilter", pattern: "FAIL", flags: "y" } });
-  assertSchemaRejects(schema, { source, operation: { kind: "regexFilter", pattern: "FAIL", contextLines: 21 } });
-  assertSchemaRejects(schema, { source, operation: { kind: "regexFilter", pattern: "FAIL", maxMatches: 1001 } });
-  assertSchemaRejects(schema, { source, operation: { kind: "groupByRegex", pattern: "kind=(\\w+)", maxGroups: 1001 } });
-  assertSchemaRejects(schema, { source, operation: { kind: "groupByRegex", pattern: "kind=(\\w+)", maxLinesPerGroup: 1001 } });
-  assertSchemaRejects(schema, { source, operation: { kind: "dedupe", maxLines: 10001 } });
-  assertSchemaRejects(schema, { source, operation: { kind: "topN", limit: 1001 } });
-  assertSchemaRejects(schema, { source, operation: { kind: "extractUrls", maxMatches: 1001 } });
-  assertSchemaRejects(schema, { source, operation: { kind: "extractCitations", maxMatches: 1001 } });
-  assertSchemaRejects(schema, { sources: [{ kind: "vault", outputId: "ffout_source", alias: "1bad" }], operation: { kind: "script", language: "python", code: "ok" } });
-  assertSchemaRejects(schema, { sources: [{ kind: "vault", outputId: "ffout_source", alias: "ok" }], operation: { kind: "script", language: "ruby", code: "ok" } });
-  assertSchemaRejects(schema, { sources: [{ kind: "vault", outputId: "ffout_source", alias: "ok" }], operation: { kind: "script", language: "python", code: "" } });
-  assertSchemaRejects(schema, { sources: [{ kind: "vault", outputId: "ffout_source", alias: "ok" }], operation: { kind: "script", language: "python", code: "ok" }, limits: { timeoutMs: 0 } });
+  assertSchemaRejects(schema, { action: "transform", source: { kind: "file", outputId: "ffout_source" }, operation: { kind: "lineStats" } });
+  assertSchemaRejects(schema, { action: "transform", source, operation: { kind: "jsonExtract", pointer: "not/a/pointer" } });
+  assertSchemaRejects(schema, { action: "transform", source, operation: { kind: "jsonExtract", pointer: "/bad~2escape" } });
+  assertSchemaRejects(schema, { action: "transform", source, operation: { kind: "jsonExtract", pointer: "/dangling~" } });
+  assertSchemaRejects(schema, { action: "transform", source, operation: { kind: "jsonExtract", path: "$." } });
+  assertSchemaRejects(schema, { action: "transform", source, operation: { kind: "jsonExtract", path: "$['singleQuoted']" } });
+  assertSchemaRejects(schema, { action: "transform", source, operation: { kind: "jsonExtract", path: "$[01]" } });
+  assertSchemaRejects(schema, { action: "transform", source, operation: { kind: "jsonExtract", path: "$[\"unterminated]" } });
+  assertSchemaRejects(schema, { action: "transform", source, operation: { kind: "jsonExtract", path: "$[\"bad\\xescape\"]" } });
+  assertSchemaRejects(schema, { action: "transform", source, operation: { kind: "notReal" } });
+  assertSchemaRejects(schema, { action: "transform", source, operation: { kind: "topN", limit: 10, group: 1 } });
+  assertSchemaRejects(schema, { action: "transform", source, operation: { kind: "regexFilter", pattern: "FAIL", flags: "ii" } });
+  assertSchemaRejects(schema, { action: "transform", source, operation: { kind: "regexFilter", pattern: "FAIL", flags: "y" } });
+  assertSchemaRejects(schema, { action: "transform", source, operation: { kind: "regexFilter", pattern: "FAIL", contextLines: 21 } });
+  assertSchemaRejects(schema, { action: "transform", source, operation: { kind: "regexFilter", pattern: "FAIL", maxMatches: 1001 } });
+  assertSchemaRejects(schema, { action: "transform", source, operation: { kind: "groupByRegex", pattern: "kind=(\\w+)", maxGroups: 1001 } });
+  assertSchemaRejects(schema, { action: "transform", source, operation: { kind: "groupByRegex", pattern: "kind=(\\w+)", maxLinesPerGroup: 1001 } });
+  assertSchemaRejects(schema, { action: "transform", source, operation: { kind: "dedupe", maxLines: 10001 } });
+  assertSchemaRejects(schema, { action: "transform", source, operation: { kind: "topN", limit: 1001 } });
+  assertSchemaRejects(schema, { action: "transform", source, operation: { kind: "extractUrls", maxMatches: 1001 } });
+  assertSchemaRejects(schema, { action: "transform", source, operation: { kind: "extractCitations", maxMatches: 1001 } });
+  assertSchemaRejects(schema, { action: "transform", sources: [{ kind: "vault", outputId: "ffout_source", alias: "1bad" }], operation: { kind: "script", language: "python", code: "ok" } });
+  assertSchemaRejects(schema, { action: "transform", sources: [{ kind: "vault", outputId: "ffout_source", alias: "ok" }], operation: { kind: "script", language: "ruby", code: "ok" } });
+  assertSchemaRejects(schema, { action: "transform", sources: [{ kind: "vault", outputId: "ffout_source", alias: "ok" }], operation: { kind: "script", language: "python", code: "" } });
+  assertSchemaRejects(schema, { action: "transform", sources: [{ kind: "vault", outputId: "ffout_source", alias: "ok" }], operation: { kind: "script", language: "python", code: "ok" }, limits: { timeoutMs: 0 } });
 });
 
-test("Pi extension public freeflow_derive returns structured disabled result for script derive by default", async () => {
+test("Pi extension public freeflow_search returns structured disabled result for script transform by default", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-derive-script-disabled-"));
   try {
     await mkdir(join(cwd, ".freeflow"));
     await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow" }), "utf8");
 
     const { tools } = registerMockPi();
-    const derive = tools.get("freeflow_derive");
-    const result = await derive.execute(
-      "derive-script-disabled",
+    const search = tools.get("freeflow_search");
+    const result = await search.execute(
+      "search-transform-script-disabled",
       {
+        action: "transform",
         sources: [{ kind: "vault", outputId: "ffout_missing", alias: "missing" }],
         operation: { kind: "script", language: "python", code: "print('RAW_SCRIPT_SENTINEL')" },
       },
       undefined,
       undefined,
-      mockCtx(cwd, "pi-extension-derive-script-disabled-test"),
+      mockCtx(cwd, "pi-extension-search-script-disabled-test"),
     );
 
     assert.equal(result.details.result.failure.kind, "script_derive_disabled");
@@ -293,9 +296,9 @@ test("Pi extension public freeflow_derive returns structured disabled result for
   }
 });
 
-test("Pi extension public freeflow_derive returns structured failures for operation-specific validation", async () => {
+test("Pi extension public freeflow_search returns structured failures for operation-specific validation", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-derive-invalid-"));
-  const sessionId = "pi-extension-derive-invalid-test";
+  const sessionId = "pi-extension-search-invalid-test";
   try {
     const vaultRoot = join(cwd, "vault");
     await mkdir(join(cwd, ".freeflow"));
@@ -317,10 +320,11 @@ test("Pi extension public freeflow_derive returns structured failures for operat
     });
 
     const { tools } = registerMockPi();
-    const derive = tools.get("freeflow_derive");
-    const missingSelector = await derive.execute(
-      "derive-invalid-json",
+    const search = tools.get("freeflow_search");
+    const missingSelector = await search.execute(
+      "search-transform-invalid-json",
       {
+        action: "transform",
         source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
         operation: { kind: "jsonExtract" },
       },
@@ -333,9 +337,10 @@ test("Pi extension public freeflow_derive returns structured failures for operat
     assert.equal(missingSelector.details.result.deriveExecution.status, "rejected");
     assert.match(missingSelector.details.result.failure.message, /exactly one JSON selector/);
 
-    const topNGroupWithoutPattern = await derive.execute(
-      "derive-invalid-topn",
+    const topNGroupWithoutPattern = await search.execute(
+      "search-transform-invalid-topn",
       {
+        action: "transform",
         source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
         operation: { kind: "topN", limit: 10, group: "1" },
       },
@@ -352,9 +357,53 @@ test("Pi extension public freeflow_derive returns structured failures for operat
   }
 });
 
-test("Pi extension public freeflow_derive executes against vaulted output", async () => {
+test("Pi extension public freeflow_search action=transform processes repo files", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-search-transform-repo-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow" }), "utf8");
+    await writeFile(
+      join(cwd, "test-output.txt"),
+      [
+        " RUN  v2.1.8 /repo",
+        " ✗ src/components/UserList.test.tsx (4 tests) 234ms",
+        " Test Files  1 failed | 2 passed (3)",
+        " Tests       1 failed | 7 passed (8)",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const { tools } = registerMockPi();
+    const search = tools.get("freeflow_search");
+    const result = await search.execute(
+      "search-transform-repo",
+      {
+        action: "transform",
+        source: { kind: "repo", path: "test-output.txt" },
+        goal: "test output summary",
+      },
+      undefined,
+      undefined,
+      mockCtx(cwd, "pi-extension-search-transform-repo-test"),
+    );
+
+    const visibleText = result.content[0].text;
+    const routed = result.details.result;
+    assert.match(visibleText, /freeflow_search\|ok\|transform/);
+    assert.match(visibleText, /1 failed/);
+    assert.equal(routed.status, "ok");
+    assert.equal(routed.implementation, "processing-engine-skeleton-v1");
+    assert.equal(routed.source.displayPath, "test-output.txt");
+    assert.equal(routed.reducer.status, "selected");
+    assert.equal(routed.reducer.selected.name, "test-output");
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi extension public freeflow_search executes against vaulted output", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-derive-"));
-  const sessionId = "pi-extension-derive-execute-test";
+  const sessionId = "pi-extension-search-execute-test";
   try {
     const vaultRoot = join(cwd, "vault");
     await mkdir(join(cwd, ".freeflow"));
@@ -376,10 +425,11 @@ test("Pi extension public freeflow_derive executes against vaulted output", asyn
     });
 
     const { tools } = registerMockPi();
-    const derive = tools.get("freeflow_derive");
-    const result = await derive.execute(
-      "derive-regex",
+    const search = tools.get("freeflow_search");
+    const result = await search.execute(
+      "search-transform-regex",
       {
+        action: "transform",
         source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
         operation: { kind: "regexFilter", pattern: "FAIL", contextLines: 0, maxMatches: 10 },
         preserve: "important",
@@ -391,7 +441,7 @@ test("Pi extension public freeflow_derive executes against vaulted output", asyn
 
     const visibleText = result.content[0].text;
     const routed = result.details.result;
-    assert.match(visibleText, /freeflow_derive\|routed/);
+    assert.match(visibleText, /freeflow_search\|routed/);
     assert.match(visibleText, /regexFilter/);
     assert.doesNotMatch(visibleText, /^\s*\{/);
     assert.ok(Buffer.byteLength(visibleText, "utf8") < Buffer.byteLength(JSON.stringify(routed, null, 2), "utf8"));
@@ -405,7 +455,7 @@ test("Pi extension public freeflow_derive executes against vaulted output", asyn
     assert.ok(routed.outputId.startsWith("ffout_"));
 
     const raw = await readOutputText(vault, sessionId, routed.outputId, "raw");
-    assert.match(raw, /# freeflow_derive regexFilter/);
+    assert.match(raw, /# freeflow_search action=transform regexFilter/);
     assert.match(raw, /matches: 2/);
     assert.match(raw, /2\| FAIL target/);
     assert.match(raw, /3\| FAIL second/);
@@ -414,13 +464,14 @@ test("Pi extension public freeflow_derive executes against vaulted output", asyn
   }
 });
 
-test("Pi extension freeflow_derive renders source, operation, lineage, routing, persistence, evidence, and recovery", () => {
+test("Pi extension freeflow_search renders source, operation, lineage, routing, persistence, evidence, and recovery", () => {
   const { tools } = registerMockPi();
-  const derive = tools.get("freeflow_derive");
+  const search = tools.get("freeflow_search");
 
   const call = renderText(
-    derive.renderCall(
+    search.renderCall(
       {
+        action: "transform",
         source: { kind: "vault", outputId: "ffout_source123", stream: "stdout" },
         operation: { kind: "topN", pattern: "duration=(\\d+)", group: 1, sort: "numeric", order: "desc", limit: 2 },
         preserve: "important",
@@ -428,9 +479,9 @@ test("Pi extension freeflow_derive renders source, operation, lineage, routing, 
       testTheme,
     ),
   );
-  assert.match(call, /freeflow_derive topN/);
+  assert.match(call, /freeflow_search transform/);
   assert.match(call, /vault ffout_source123:stdout/);
-  assert.match(call, /preserve=important/);
+  assert.doesNotMatch(call, /raw json/);
 
   const toolResult = {
     content: [{ type: "text", text: "raw json should not be the visible UI" }],
@@ -441,6 +492,7 @@ test("Pi extension freeflow_derive renders source, operation, lineage, routing, 
         preserve: "important",
         outputId: "ffout_derive123",
         recordId: "ffrec_derive123",
+        action: "transform",
         source: { kind: "vault", outputId: "ffout_source123", stream: "stdout" },
         operation: { kind: "topN", pattern: "duration=(\\d+)", group: 1, sort: "numeric", order: "desc", limit: 2 },
         producer: { kind: "derive", name: "topN" },
@@ -459,28 +511,28 @@ test("Pi extension freeflow_derive renders source, operation, lineage, routing, 
             source: { kind: "vault", outputId: "ffout_derive123", stream: "raw" },
             path: "ffout_derive123:raw",
             lines: "1-8",
-            excerpt: "# freeflow_derive topN\n2| score=200 | duration=200 slow",
+            excerpt: "# freeflow_search topN\n2| score=200 | duration=200 slow",
             why: "Derived exact topN output from source ffout_source123:stdout within routing caps; source lineage is preserved.",
             window: "exact",
             expandable: true,
           },
         ],
         recovery: {
-          how: "Use freeflow_retrieve with source.kind=vault and outputId=ffout_derive123 to recover exact derived content.",
+          how: "Use freeflow_search with source.kind=vault and outputId=ffout_derive123 to recover exact derived content.",
           outputId: "ffout_derive123",
         },
       },
     },
   };
 
-  const collapsed = renderText(derive.renderResult(toolResult, { expanded: false }, testTheme));
-  assert.match(collapsed, /freeflow_derive topN/);
+  const collapsed = renderText(search.renderResult(toolResult, { expanded: false }, testTheme));
+  assert.match(collapsed, /freeflow_search topN/);
   assert.match(collapsed, /routing: routed/);
   assert.match(collapsed, /persistence vaulted\/exact/);
   assert.match(collapsed, /derived output recoverable from vault/);
   assert.doesNotMatch(collapsed, /raw json/);
 
-  const expanded = renderText(derive.renderResult(toolResult, { expanded: true }, testTheme));
+  const expanded = renderText(search.renderResult(toolResult, { expanded: true }, testTheme));
   assert.match(expanded, /toolStatus: ok/);
   assert.match(expanded, /routing\.status: routed/);
   assert.match(expanded, /persistence: vaulted \/ exact/);
@@ -500,5 +552,5 @@ test("Pi extension freeflow_derive renders source, operation, lineage, routing, 
   assert.match(expanded, /duration=200 slow/);
   assert.match(expanded, /Recovery/);
   assert.match(expanded, /ffout_derive123/);
-  assert.match(expanded, /exact retrieve: action=retrieve source.kind=vault lineRange=1-8 stream=raw outputId=ffout_derive123/);
+  assert.match(expanded, /exact search: action=retrieve source.kind=vault lineRange=1-8 stream=raw outputId=ffout_derive123/);
 });

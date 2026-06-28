@@ -24,13 +24,13 @@ import type {
   VaultRecord,
 } from "../config/types.js";
 
-export interface RepoRetrieveSourceInput {
+export interface RepoSearchSourceInput {
   kind: "repo";
   root: string;
   path?: string;
 }
 
-export interface VaultRetrieveSourceInput {
+export interface VaultSearchSourceInput {
   kind: "vault";
   root: string;
   sessionId: string;
@@ -44,44 +44,40 @@ export interface VaultRetrieveSourceInput {
   recoverability?: EvidencePersistence["recoverability"];
 }
 
-export type RetrieveSourceInput = RepoRetrieveSourceInput | VaultRetrieveSourceInput;
+export type SearchSourceInput = RepoSearchSourceInput | VaultSearchSourceInput;
 
-export const FREEFLOW_SEARCH_ACTIONS = ["locate", "query", "get", "expand", "transform"] as const;
+export const FREEFLOW_SEARCH_ACTIONS = ["query", "locate", "get", "retrieve", "expand", "explain", "transform"] as const;
 export type FreeflowSearchAction = (typeof FREEFLOW_SEARCH_ACTIONS)[number];
-export type RetrieveCompatibilityAction = "retrieve" | "explain";
 
-export function searchActionForRetrieveAction(action: RetrievalAction): FreeflowSearchAction | RetrieveCompatibilityAction {
-  if (action === "retrieve" || action === "explain") {
-    return action;
-  }
+export function searchActionForRetrievalAction(action: RetrievalAction): FreeflowSearchAction {
   return action;
 }
 
 export type RepoExpansion = "lines_30" | "lines_80" | "full";
 
-export interface RetrieveLineRangeInput {
+export interface SearchLineRangeInput {
   start: number;
   end: number;
 }
 
-export interface FreeflowRetrieveOptions {
+export interface FreeflowSearchOptions {
   action: RetrievalAction;
-  source: RetrieveSourceInput;
+  source: SearchSourceInput;
   query?: string;
   preserve?: PreserveMode;
   evidence?: EvidencePacket;
   expansion?: RepoExpansion;
   maxFullBytes?: number;
-  lineRange?: RetrieveLineRangeInput;
+  lineRange?: SearchLineRangeInput;
   topK?: number;
   decision?: RetrievalRoutedResult;
   generatedPathGlobs?: readonly string[];
   filters?: VaultIndexQueryFilters;
 }
 
-type RepoRetrieveOptions = FreeflowRetrieveOptions & { source: RepoRetrieveSourceInput };
-type VaultRetrieveOptions = FreeflowRetrieveOptions & { source: VaultRetrieveSourceInput };
-type VaultOutputRetrieveOptions = VaultRetrieveOptions & { source: VaultRetrieveSourceInput & { outputId: string } };
+type RepoSearchOptions = FreeflowSearchOptions & { source: RepoSearchSourceInput };
+type VaultSearchOptions = FreeflowSearchOptions & { source: VaultSearchSourceInput };
+type VaultOutputSearchOptions = VaultSearchOptions & { source: VaultSearchSourceInput & { outputId: string } };
 
 interface RepoTextFile {
   path: string;
@@ -113,34 +109,34 @@ const BOUNDED_EVIDENCE_CAPS: BoundedEvidenceCaps = {
   expandLines80MaxLines: EXPAND_LINES_80_MAX_LINES,
   exactChunkMaxBytes: EXACT_CHUNK_MAX_BYTES,
 };
-export async function freeflowRetrieve(options: FreeflowRetrieveOptions): Promise<RetrievalRoutedResult> {
+export async function freeflowSearch(options: FreeflowSearchOptions): Promise<RetrievalRoutedResult> {
   const preserve = options.preserve ?? "important";
 
   try {
     if (options.source.kind === "vault") {
-      return await retrieveVault(options as VaultRetrieveOptions, preserve);
+      return await retrieveVault(options as VaultSearchOptions, preserve);
     }
 
     const root = resolve(options.source.root);
 
     if (options.action === "query") {
-      return await queryRepo(root, options as RepoRetrieveOptions, preserve);
+      return await queryRepo(root, options as RepoSearchOptions, preserve);
     }
 
     if (options.action === "locate") {
-      return await locateRepo(root, options as RepoRetrieveOptions, preserve);
+      return await locateRepo(root, options as RepoSearchOptions, preserve);
     }
 
     if (options.action === "get") {
-      return await getRepo(root, options as RepoRetrieveOptions, preserve);
+      return await getRepo(root, options as RepoSearchOptions, preserve);
     }
 
     if (options.action === "expand") {
-      return await expandRepoEvidence(root, options as RepoRetrieveOptions, preserve);
+      return await expandRepoEvidence(root, options as RepoSearchOptions, preserve);
     }
 
     if (options.action === "retrieve") {
-      return await retrieveRepoPath(root, options as RepoRetrieveOptions, preserve);
+      return await retrieveRepoPath(root, options as RepoSearchOptions, preserve);
     }
 
     if (options.action === "explain") {
@@ -150,12 +146,12 @@ export async function freeflowRetrieve(options: FreeflowRetrieveOptions): Promis
     return errorResult(preserve, `Retrieval action ${options.action} is not implemented yet.`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return errorResult(preserve, `freeflow_retrieve failed while reading ${options.source.kind} source: ${message}`);
+    return errorResult(preserve, `freeflow_search failed while reading ${options.source.kind} source: ${message}`);
   }
 }
 
 async function retrieveVault(
-  options: VaultRetrieveOptions,
+  options: VaultSearchOptions,
   preserve: PreserveMode,
 ): Promise<RetrievalRoutedResult> {
   if (options.action === "retrieve") {
@@ -195,7 +191,7 @@ async function retrieveVault(
 }
 
 async function querySingleVaultOutput(
-  options: VaultOutputRetrieveOptions,
+  options: VaultOutputSearchOptions,
   preserve: PreserveMode,
   action: "query" | "get" = "query",
 ): Promise<RetrievalRoutedResult> {
@@ -225,7 +221,7 @@ async function querySingleVaultOutput(
       },
       evidence: [],
       recovery: {
-        how: `Refine the query or use freeflow_retrieve action=retrieve with outputId=${options.source.outputId} and an exact line range.`,
+        how: `Refine the query or use freeflow_search action=retrieve with outputId=${options.source.outputId} and an exact line range.`,
         outputId: options.source.outputId,
       },
     };
@@ -265,8 +261,8 @@ async function querySingleVaultOutput(
     evidence: [evidence],
     recovery: {
       how: action === "get"
-        ? `Use freeflow_retrieve action=retrieve with outputId=${options.source.outputId}, stream=${stream}, and lineRange=${evidenceLines} for exact recovery; use action=expand with evidenceId=${evidence.id} for more context.`
-        : `Use freeflow_retrieve action=expand with evidenceId=${evidence.id}, or action=retrieve with outputId=${options.source.outputId} and stream=${stream}.`,
+        ? `Use freeflow_search action=retrieve with outputId=${options.source.outputId}, stream=${stream}, and lineRange=${evidenceLines} for exact recovery; use action=expand with evidenceId=${evidence.id} for more context.`
+        : `Use freeflow_search action=expand with evidenceId=${evidence.id}, or action=retrieve with outputId=${options.source.outputId} and stream=${stream}.`,
       outputId: options.source.outputId,
       evidenceId: evidence.id,
     },
@@ -274,7 +270,7 @@ async function querySingleVaultOutput(
 }
 
 async function queryVaultIndex(
-  options: VaultRetrieveOptions,
+  options: VaultSearchOptions,
   preserve: PreserveMode,
   action: "query" | "locate" | "get",
 ): Promise<RetrievalRoutedResult> {
@@ -335,8 +331,8 @@ async function queryVaultIndex(
     evidence,
     recovery: {
       how: first.metadataOnly
-        ? `Top match ${first.outputId} is metadata-only; use freeflow_retrieve action=explain with outputId=${first.outputId} for recoverability details.`
-        : `Use freeflow_retrieve action=expand with source.outputId=${first.outputId} and evidenceId=${firstEvidence.id}, or action=retrieve with outputId=${first.outputId}${first.stream ? ` and stream=${first.stream}` : ""}.`,
+        ? `Top match ${first.outputId} is metadata-only; use freeflow_search action=explain with outputId=${first.outputId} for recoverability details.`
+        : `Use freeflow_search action=expand with source.outputId=${first.outputId} and evidenceId=${firstEvidence.id}, or action=retrieve with outputId=${first.outputId}${first.stream ? ` and stream=${first.stream}` : ""}.`,
       outputId: first.outputId,
       evidenceId: firstEvidence.id,
     },
@@ -375,7 +371,7 @@ function sourceRefForVaultIndexMatch(match: VaultIndexMatch): { kind: "vault"; o
   };
 }
 
-function vaultIndexFiltersFromSource(source: VaultRetrieveSourceInput, filters: VaultIndexQueryFilters | undefined): VaultIndexQueryFilters {
+function vaultIndexFiltersFromSource(source: VaultSearchSourceInput, filters: VaultIndexQueryFilters | undefined): VaultIndexQueryFilters {
   return {
     ...filters,
     sessionId: filters?.sessionId ?? source.sessionId,
@@ -390,12 +386,12 @@ function vaultIndexFiltersFromSource(source: VaultRetrieveSourceInput, filters: 
   };
 }
 
-function hasVaultOutputId(options: VaultRetrieveOptions): options is VaultOutputRetrieveOptions {
+function hasVaultOutputId(options: VaultSearchOptions): options is VaultOutputSearchOptions {
   return typeof options.source.outputId === "string" && options.source.outputId.length > 0;
 }
 
 async function retrieveVaultLines(
-  options: VaultOutputRetrieveOptions,
+  options: VaultOutputSearchOptions,
   preserve: PreserveMode,
 ): Promise<RetrievalRoutedResult> {
   const lineRange = options.lineRange;
@@ -448,7 +444,7 @@ async function retrieveVaultLines(
     },
     evidence: [evidence],
     recovery: {
-      how: `Use freeflow_retrieve action=expand with evidenceId=${evidence.id} for more vaulted output context.`,
+      how: `Use freeflow_search action=expand with evidenceId=${evidence.id} for more vaulted output context.`,
       outputId: options.source.outputId,
       evidenceId: evidence.id,
     },
@@ -456,7 +452,7 @@ async function retrieveVaultLines(
 }
 
 function retrieveVaultLineRangeOverCap(
-  options: VaultOutputRetrieveOptions,
+  options: VaultOutputSearchOptions,
   preserve: PreserveMode,
   stream: OutputStream,
   record: VaultRecord,
@@ -497,14 +493,14 @@ function retrieveVaultLineRangeOverCap(
     },
     evidence,
     recovery: {
-      how: `Use narrower freeflow_retrieve action=retrieve lineRange spans for exact vaulted output recovery, or native vault file access if a full raw span is required.`,
+      how: `Use narrower freeflow_search action=retrieve lineRange spans for exact vaulted output recovery, or native vault file access if a full raw span is required.`,
       outputId: options.source.outputId,
     },
   };
 }
 
 function expandVaultEvidenceOverCap(
-  options: VaultOutputRetrieveOptions,
+  options: VaultOutputSearchOptions,
   preserve: PreserveMode,
   stream: OutputStream,
   record: VaultRecord,
@@ -541,7 +537,7 @@ function expandVaultEvidenceOverCap(
     },
     evidence: chunks,
     recovery: {
-      how: `Use narrower freeflow_retrieve action=retrieve lineRange spans for exact vaulted output recovery.`,
+      how: `Use narrower freeflow_search action=retrieve lineRange spans for exact vaulted output recovery.`,
       outputId: options.source.outputId,
       evidenceId: evidence.id,
     },
@@ -549,7 +545,7 @@ function expandVaultEvidenceOverCap(
 }
 
 async function expandVaultEvidence(
-  options: VaultOutputRetrieveOptions,
+  options: VaultOutputSearchOptions,
   preserve: PreserveMode,
 ): Promise<RetrievalRoutedResult> {
   const evidence = options.evidence;
@@ -603,7 +599,7 @@ async function expandVaultEvidence(
     },
     evidence: [expandedEvidence],
     recovery: {
-      how: `Use freeflow_retrieve action=retrieve with outputId=${options.source.outputId}, stream=${stream}, and an exact line range for precise recovery.`,
+      how: `Use freeflow_search action=retrieve with outputId=${options.source.outputId}, stream=${stream}, and an exact line range for precise recovery.`,
       outputId: options.source.outputId,
       evidenceId: evidence.id,
     },
@@ -611,7 +607,7 @@ async function expandVaultEvidence(
 }
 
 async function explainVaultOutput(
-  options: VaultOutputRetrieveOptions,
+  options: VaultOutputSearchOptions,
   preserve: PreserveMode,
 ): Promise<RetrievalRoutedResult> {
   const vault = createVault({ root: options.source.root });
@@ -747,7 +743,7 @@ function vaultRecordRecovery(
     return {
       reason: `Exact content is recoverable from the vault with recoveryOutputId=${recoveryOutputId}.`,
       hint: {
-        how: `Use freeflow_retrieve action=retrieve with outputId=${recoveryOutputId}, stream=${streamText}, and an exact lineRange to recover exact vaulted content.`,
+        how: `Use freeflow_search action=retrieve with outputId=${recoveryOutputId}, stream=${streamText}, and an exact lineRange to recover exact vaulted content.`,
         outputId: recoveryOutputId,
       },
     };
@@ -757,7 +753,7 @@ function vaultRecordRecovery(
     return {
       reason: `Only redacted content is recoverable from the vault; exact raw content is intentionally unavailable.`,
       hint: {
-        how: `Use freeflow_retrieve action=retrieve with outputId=${recoveryOutputId} to recover redacted persisted content. Exact raw recovery is unavailable.`,
+        how: `Use freeflow_search action=retrieve with outputId=${recoveryOutputId} to recover redacted persisted content. Exact raw recovery is unavailable.`,
         outputId: recoveryOutputId,
       },
     };
@@ -782,7 +778,7 @@ function vaultRecordRecovery(
 
 async function queryRepo(
   root: string,
-  options: RepoRetrieveOptions,
+  options: RepoSearchOptions,
   preserve: PreserveMode,
 ): Promise<RetrievalRoutedResult> {
   if (!options.query?.trim()) {
@@ -841,7 +837,7 @@ async function queryRepo(
     },
     evidence,
     recovery: {
-      how: `Use freeflow_retrieve action=expand with evidenceId=${first.id} for more surrounding context, action=locate for candidate paths, or action=retrieve with path=${firstCandidate.file.path} for an explicit span.`,
+      how: `Use freeflow_search action=expand with evidenceId=${first.id} for more surrounding context, action=locate for candidate paths, or action=retrieve with path=${firstCandidate.file.path} for an explicit span.`,
       evidenceId: first.id,
     },
   };
@@ -849,7 +845,7 @@ async function queryRepo(
 
 async function getRepo(
   root: string,
-  options: RepoRetrieveOptions,
+  options: RepoSearchOptions,
   preserve: PreserveMode,
 ): Promise<RetrievalRoutedResult> {
   if (!options.query?.trim()) {
@@ -902,7 +898,7 @@ async function getRepo(
     },
     evidence: [evidence],
     recovery: {
-      how: `Use freeflow_retrieve action=retrieve with path=${candidate.file.path} and lineRange=${evidence.lines} for exact recovery, or action=expand with evidenceId=${evidence.id}.`,
+      how: `Use freeflow_search action=retrieve with path=${candidate.file.path} and lineRange=${evidence.lines} for exact recovery, or action=expand with evidenceId=${evidence.id}.`,
       evidenceId: evidence.id,
     },
   };
@@ -910,7 +906,7 @@ async function getRepo(
 
 async function locateRepo(
   root: string,
-  options: RepoRetrieveOptions,
+  options: RepoSearchOptions,
   preserve: PreserveMode,
 ): Promise<RetrievalRoutedResult> {
   if (!options.query?.trim()) {
@@ -978,7 +974,7 @@ async function locateRepo(
     },
     evidence,
     recovery: {
-      how: `Use freeflow_retrieve action=retrieve with path=${firstCandidate.file.path} for an explicit span, or action=expand with evidenceId=${first.id}.`,
+      how: `Use freeflow_search action=retrieve with path=${firstCandidate.file.path} for an explicit span, or action=expand with evidenceId=${first.id}.`,
       evidenceId: first.id,
     },
   };
@@ -986,7 +982,7 @@ async function locateRepo(
 
 async function expandRepoEvidence(
   root: string,
-  options: RepoRetrieveOptions,
+  options: RepoSearchOptions,
   preserve: PreserveMode,
 ): Promise<RetrievalRoutedResult> {
   const evidence = options.evidence;
@@ -1032,7 +1028,7 @@ async function expandRepoEvidence(
       how:
         expansion === "full"
           ? `Use native read for direct whole-file behavior if needed for ${evidence.path}.`
-          : `Use freeflow_retrieve action=expand with expansion=lines_80 or full for more context from ${evidence.path}.`,
+          : `Use freeflow_search action=expand with expansion=lines_80 or full for more context from ${evidence.path}.`,
       evidenceId: evidence.id,
     },
   };
@@ -1040,7 +1036,7 @@ async function expandRepoEvidence(
 
 async function retrieveRepoPath(
   root: string,
-  options: RepoRetrieveOptions,
+  options: RepoSearchOptions,
   preserve: PreserveMode,
 ): Promise<RetrievalRoutedResult> {
   if (!options.source.path) {
@@ -1080,7 +1076,7 @@ async function retrieveRepoPath(
     },
     evidence: [evidence],
     recovery: {
-      how: `Use freeflow_retrieve action=expand with evidenceId=${evidence.id} for more context from ${file.path}.`,
+      how: `Use freeflow_search action=expand with evidenceId=${evidence.id} for more context from ${file.path}.`,
       evidenceId: evidence.id,
     },
   };
@@ -1110,7 +1106,7 @@ function expandRepoEvidenceOverCap(
     },
     evidence: chunks,
     recovery: {
-      how: `Use narrower freeflow_retrieve action=retrieve lineRange spans for exact content recovery from ${file.path}, or native read for direct whole-file host behavior.`,
+      how: `Use narrower freeflow_search action=retrieve lineRange spans for exact content recovery from ${file.path}, or native read for direct whole-file host behavior.`,
       evidenceId: evidence.id,
     },
   };
@@ -1118,7 +1114,7 @@ function expandRepoEvidenceOverCap(
 
 function retrieveRepoLineRange(
   file: RepoTextFile,
-  lineRange: RetrieveLineRangeInput,
+  lineRange: SearchLineRangeInput,
   preserve: PreserveMode,
 ): RetrievalRoutedResult {
   const resolvedRange = resolveExactLineRange({
@@ -1158,7 +1154,7 @@ function retrieveRepoLineRange(
     },
     evidence: [evidence],
     recovery: {
-      how: `Use freeflow_retrieve action=expand with evidenceId=${evidence.id} for more context from ${file.path}.`,
+      how: `Use freeflow_search action=expand with evidenceId=${evidence.id} for more context from ${file.path}.`,
       evidenceId: evidence.id,
     },
   };
@@ -1191,7 +1187,7 @@ function retrieveRepoLineRangeOverCap(
     },
     evidence,
     recovery: {
-      how: `Use narrower freeflow_retrieve action=retrieve lineRange spans for exact content recovery from ${file.path}, or native read for direct whole-file host behavior.`,
+      how: `Use narrower freeflow_search action=retrieve lineRange spans for exact content recovery from ${file.path}, or native read for direct whole-file host behavior.`,
     },
   };
 }
@@ -1259,13 +1255,13 @@ function retrieveFullFile(file: RepoTextFile, maxFullBytes: number): RetrievalRo
     },
     evidence,
     recovery: {
-      how: `Use freeflow_retrieve action=retrieve with path=${file.path} and an explicit span to recover exact content, or native read for direct whole-file output.`,
+      how: `Use freeflow_search action=retrieve with path=${file.path} and an explicit span to recover exact content, or native read for direct whole-file output.`,
     },
   };
 }
 
 function explainRepoDecision(
-  options: FreeflowRetrieveOptions,
+  options: FreeflowSearchOptions,
   preserve: PreserveMode,
 ): RetrievalRoutedResult {
   const decision = options.decision;
@@ -1276,7 +1272,7 @@ function explainRepoDecision(
   const recovery = {
     how:
       decision.recovery?.how ??
-      "Use freeflow_retrieve action=expand with a returned evidence id, or action=retrieve for an explicit repo span.",
+      "Use freeflow_search action=expand with a returned evidence id, or action=retrieve for an explicit repo span.",
   };
   if (decision.recovery?.outputId !== undefined) {
     Object.assign(recovery, { outputId: decision.recovery.outputId });
@@ -1520,7 +1516,7 @@ function errorResult(preserve: PreserveMode, reason: string): RetrievalRoutedRes
     },
     evidence: [],
     recovery: {
-      how: "Use native read for a known whole file, or retry freeflow_retrieve with a supported repo query.",
+      how: "Use native read for a known whole file, or retry freeflow_search with a supported repo query.",
     },
   };
 }

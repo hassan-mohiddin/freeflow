@@ -303,7 +303,7 @@ export function normalizeScriptDeriveConfig(input: unknown): NormalizeScriptDeri
   if (!isRecord(input)) {
     return {
       config,
-      warnings: ["scriptDerive config must be an object; script derive is disabled by default."],
+      warnings: ["scriptDerive config must be an object; script transform is disabled by default."],
     };
   }
 

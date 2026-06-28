@@ -7,11 +7,11 @@ import test from "node:test";
 import {
   createVault,
   discoverEryxPythonSandboxAdaptersFromEnv,
-  freeflowDerive,
+  freeflowTransform,
   readOutputText,
   SCRIPT_SANDBOX_REQUIRED_PROOFS,
   storeCommandOutput,
-  validateDeriveInput,
+  validateTransformInput,
   validateRoutedResult,
 } from "../../dist/index.js";
 
@@ -29,8 +29,8 @@ const ERYX_INTEGRATION_SKIP_REASON = process.env.FREEFLOW_ERYX_ROOT
   ? (HAS_JSPI ? false : "FREEFLOW_ERYX_ROOT is set but Node was not started with --experimental-wasm-jspi")
   : "FREEFLOW_ERYX_ROOT is not set";
 
-test("validateDeriveInput accepts vault regex filter and count operations", () => {
-  const regexFilter = validateDeriveInput({
+test("validateTransformInput accepts vault regex filter and count operations", () => {
+  const regexFilter = validateTransformInput({
     source: { kind: "vault", outputId: "ffout_source", stream: "stderr" },
     operation: { kind: "regexFilter", pattern: "FAIL|ERROR", flags: "i", contextLines: 2, maxMatches: 10 },
     preserve: "important",
@@ -45,14 +45,14 @@ test("validateDeriveInput accepts vault regex filter and count operations", () =
     maxMatches: 10,
   });
 
-  const countMatches = validateDeriveInput({
+  const countMatches = validateTransformInput({
     source: { kind: "vault", outputId: "ffout_source" },
     operation: { kind: "countMatches", pattern: "warning", flags: "im" },
   });
 
   assert.equal(countMatches.ok, true);
 
-  const invalid = validateDeriveInput({
+  const invalid = validateTransformInput({
     source: { kind: "repo", path: "notes.md" },
     operation: { kind: "regexFilter", pattern: "", flags: "y", contextLines: -1, maxMatches: 0 },
     preserve: "forever",
@@ -68,8 +68,8 @@ test("validateDeriveInput accepts vault regex filter and count operations", () =
   assert.match(paths, /\$\.preserve/);
 });
 
-test("validateDeriveInput accepts JSON extract pointer and path operations", () => {
-  const pointer = validateDeriveInput({
+test("validateTransformInput accepts JSON extract pointer and path operations", () => {
+  const pointer = validateTransformInput({
     source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
     operation: { kind: "jsonExtract", pointer: "/suite/failures/0/message" },
   });
@@ -77,14 +77,14 @@ test("validateDeriveInput accepts JSON extract pointer and path operations", () 
   assert.equal(pointer.ok, true);
   assert.deepEqual(pointer.value.operation, { kind: "jsonExtract", pointer: "/suite/failures/0/message" });
 
-  const path = validateDeriveInput({
+  const path = validateTransformInput({
     source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
     operation: { kind: "jsonExtract", path: "$.suite.stats.failed" },
   });
 
   assert.equal(path.ok, true);
 
-  const invalid = validateDeriveInput({
+  const invalid = validateTransformInput({
     source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
     operation: { kind: "jsonExtract", pointer: "suite", path: "suite.stats" },
   });
@@ -96,29 +96,29 @@ test("validateDeriveInput accepts JSON extract pointer and path operations", () 
   assert.match(paths, /\$\.operation\.path/);
 });
 
-test("validateDeriveInput accepts group, dedupe, and topN operations", () => {
-  const group = validateDeriveInput({
+test("validateTransformInput accepts group, dedupe, and topN operations", () => {
+  const group = validateTransformInput({
     source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
     operation: { kind: "groupByRegex", pattern: "^([^:]+):", group: 1, maxGroups: 10, maxLinesPerGroup: 3 },
   });
 
   assert.equal(group.ok, true);
 
-  const dedupe = validateDeriveInput({
+  const dedupe = validateTransformInput({
     source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
     operation: { kind: "dedupe", trim: true, caseSensitive: false, maxLines: 50 },
   });
 
   assert.equal(dedupe.ok, true);
 
-  const topN = validateDeriveInput({
+  const topN = validateTransformInput({
     source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
     operation: { kind: "topN", pattern: "duration=(\\d+)", group: 1, sort: "numeric", order: "desc", limit: 2 },
   });
 
   assert.equal(topN.ok, true);
 
-  const invalid = validateDeriveInput({
+  const invalid = validateTransformInput({
     source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
     operation: { kind: "topN", group: 0, sort: "date", order: "sideways", limit: 0 },
   });
@@ -131,32 +131,32 @@ test("validateDeriveInput accepts group, dedupe, and topN operations", () => {
   assert.match(paths, /\$\.operation\.limit/);
 });
 
-test("validateDeriveInput accepts URL, citation, and stats operations", () => {
-  const urls = validateDeriveInput({
+test("validateTransformInput accepts URL, citation, and stats operations", () => {
+  const urls = validateTransformInput({
     source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
     operation: { kind: "extractUrls", dedupe: true, maxMatches: 25 },
   });
 
   assert.equal(urls.ok, true);
 
-  const citations = validateDeriveInput({
+  const citations = validateTransformInput({
     source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
     operation: { kind: "extractCitations", maxMatches: 10 },
   });
 
   assert.equal(citations.ok, true);
 
-  assert.equal(validateDeriveInput({
+  assert.equal(validateTransformInput({
     source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
     operation: { kind: "lineStats" },
   }).ok, true);
 
-  assert.equal(validateDeriveInput({
+  assert.equal(validateTransformInput({
     source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
     operation: { kind: "sizeStats" },
   }).ok, true);
 
-  const invalid = validateDeriveInput({
+  const invalid = validateTransformInput({
     source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
     operation: { kind: "extractUrls", dedupe: "yes", maxMatches: 0, pattern: "https" },
   });
@@ -168,8 +168,8 @@ test("validateDeriveInput accepts URL, citation, and stats operations", () => {
   assert.match(paths, /\$\.operation\.pattern/);
 });
 
-test("validateDeriveInput accepts script operation shape and rejects unsafe script inputs", () => {
-  const valid = validateDeriveInput({
+test("validateTransformInput accepts script operation shape and rejects unsafe script inputs", () => {
+  const valid = validateTransformInput({
     sources: [{ kind: "vault", outputId: "ffout_source", stream: "combined", alias: "test_log" }],
     operation: { kind: "script", language: "python", code: "write_json({'ok': True})", label: "count failures" },
     limits: { timeoutMs: 1000, maxInputBytes: 2048, maxOutputBytes: 4096 },
@@ -180,7 +180,7 @@ test("validateDeriveInput accepts script operation shape and rejects unsafe scri
   assert.equal(valid.value.operation.kind, "script");
   assert.deepEqual(valid.value.sources, [{ kind: "vault", outputId: "ffout_source", stream: "combined", alias: "test_log" }]);
 
-  const invalid = validateDeriveInput({
+  const invalid = validateTransformInput({
     sources: [
       { kind: "vault", outputId: "", alias: "1bad" },
       { kind: "vault", outputId: "ffout_source", alias: "1bad" },
@@ -200,9 +200,9 @@ test("validateDeriveInput accepts script operation shape and rejects unsafe scri
   assert.match(issues, /\$\.limits\.maxOutputBytes/);
 });
 
-test("freeflowDerive script operation is disabled by default and does not persist raw code", async () => {
+test("freeflowTransform script operation is disabled by default and does not persist raw code", async () => {
   await withTempVault(async (vault) => {
-    const result = await freeflowDerive({
+    const result = await freeflowTransform({
       sessionId: "script-disabled-session",
       vaultRoot: vault.root,
       sources: [{ kind: "vault", outputId: "ffout_missing", alias: "missing" }],
@@ -221,7 +221,7 @@ test("freeflowDerive script operation is disabled by default and does not persis
   });
 });
 
-test("freeflowDerive script operation resolves sources but returns adapter unavailable without executing code", async () => {
+test("freeflowTransform script operation resolves sources but returns adapter unavailable without executing code", async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {
       sessionId: "script-adapter-session",
@@ -233,7 +233,7 @@ test("freeflowDerive script operation resolves sources but returns adapter unava
       createdAt: "2026-06-24T00:00:00.000Z",
     });
 
-    const result = await freeflowDerive({
+    const result = await freeflowTransform({
       sessionId: "script-adapter-session",
       vaultRoot: vault.root,
       scriptDerive: {
@@ -258,7 +258,7 @@ test("freeflowDerive script operation resolves sources but returns adapter unava
   });
 });
 
-test("freeflowDerive script operation executes through a registered proof-backed adapter", async () => {
+test("freeflowTransform script operation executes through a registered proof-backed adapter", async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {
       sessionId: "script-execute-session",
@@ -299,7 +299,7 @@ test("freeflowDerive script operation executes through a registered proof-backed
       },
     };
 
-    const result = await freeflowDerive({
+    const result = await freeflowTransform({
       sessionId: "script-execute-session",
       vaultRoot: vault.root,
       scriptDerive: {
@@ -330,7 +330,7 @@ test("freeflowDerive script operation executes through a registered proof-backed
   });
 });
 
-test("freeflowDerive script operation executes jq through a registered proof-backed adapter", async () => {
+test("freeflowTransform script operation executes jq through a registered proof-backed adapter", async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {
       sessionId: "script-jq-execute-session",
@@ -372,7 +372,7 @@ test("freeflowDerive script operation executes jq through a registered proof-bac
       },
     };
 
-    const result = await freeflowDerive({
+    const result = await freeflowTransform({
       sessionId: "script-jq-execute-session",
       vaultRoot: vault.root,
       scriptDerive: {
@@ -403,7 +403,7 @@ test("freeflowDerive script operation executes jq through a registered proof-bac
   });
 });
 
-test("freeflowDerive script operation executes Python through discovered Eryx adapter when configured", { skip: ERYX_INTEGRATION_SKIP_REASON }, async () => {
+test("freeflowTransform script operation executes Python through discovered Eryx adapter when configured", { skip: ERYX_INTEGRATION_SKIP_REASON }, async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {
       sessionId: "script-eryx-execute-session",
@@ -416,7 +416,7 @@ test("freeflowDerive script operation executes Python through discovered Eryx ad
     });
     const adapters = await discoverEryxPythonSandboxAdaptersFromEnv({ FREEFLOW_ERYX_ROOT: process.env.FREEFLOW_ERYX_ROOT });
 
-    const result = await freeflowDerive({
+    const result = await freeflowTransform({
       sessionId: "script-eryx-execute-session",
       vaultRoot: vault.root,
       scriptDerive: {
@@ -444,7 +444,7 @@ test("freeflowDerive script operation executes Python through discovered Eryx ad
   });
 });
 
-test("freeflowDerive script operation returns structured failure for adapter execution failures", async () => {
+test("freeflowTransform script operation returns structured failure for adapter execution failures", async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {
       sessionId: "script-failure-session",
@@ -480,7 +480,7 @@ test("freeflowDerive script operation returns structured failure for adapter exe
       },
     };
 
-    const result = await freeflowDerive({
+    const result = await freeflowTransform({
       sessionId: "script-failure-session",
       vaultRoot: vault.root,
       scriptDerive: {
@@ -505,7 +505,7 @@ test("freeflowDerive script operation returns structured failure for adapter exe
   });
 });
 
-test("freeflowDerive script operation does not persist output-limit failures as exact results", async () => {
+test("freeflowTransform script operation does not persist output-limit failures as exact results", async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {
       sessionId: "script-output-cap-session",
@@ -541,7 +541,7 @@ test("freeflowDerive script operation does not persist output-limit failures as 
       },
     };
 
-    const result = await freeflowDerive({
+    const result = await freeflowTransform({
       sessionId: "script-output-cap-session",
       vaultRoot: vault.root,
       scriptDerive: {
@@ -567,7 +567,7 @@ test("freeflowDerive script operation does not persist output-limit failures as 
   });
 });
 
-test("freeflowDerive script source resolver fails clearly for missing sources and input caps", async () => {
+test("freeflowTransform script source resolver fails clearly for missing sources and input caps", async () => {
   await withTempVault(async (vault) => {
     const config = {
       enabled: true,
@@ -578,7 +578,7 @@ test("freeflowDerive script source resolver fails clearly for missing sources an
       rawScriptPersistence: "disabled",
     };
 
-    const missing = await freeflowDerive({
+    const missing = await freeflowTransform({
       sessionId: "script-source-session",
       vaultRoot: vault.root,
       scriptDerive: config,
@@ -597,7 +597,7 @@ test("freeflowDerive script source resolver fails clearly for missing sources an
       exitCode: 0,
       createdAt: "2026-06-24T00:01:00.000Z",
     });
-    const overCap = await freeflowDerive({
+    const overCap = await freeflowTransform({
       sessionId: "script-source-session",
       vaultRoot: vault.root,
       scriptDerive: config,
@@ -607,7 +607,7 @@ test("freeflowDerive script source resolver fails clearly for missing sources an
     assert.equal(overCap.failure.kind, "derive_validation_failure");
     assert.match(overCap.failure.message, /exceed maxInputBytes/);
 
-    const loosenedByCall = await freeflowDerive({
+    const loosenedByCall = await freeflowTransform({
       sessionId: "script-source-session",
       vaultRoot: vault.root,
       scriptDerive: config,
@@ -620,7 +620,7 @@ test("freeflowDerive script source resolver fails clearly for missing sources an
   });
 });
 
-test("freeflowDerive regexFilter routes vaulted derived output with source lineage", async () => {
+test("freeflowTransform regexFilter routes vaulted derived output with source lineage", async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {
       sessionId: "derive-regex-session",
@@ -641,7 +641,7 @@ test("freeflowDerive regexFilter routes vaulted derived output with source linea
       createdAt: "2026-06-22T00:00:00.000Z",
     });
 
-    const result = await freeflowDerive({
+    const result = await freeflowTransform({
       sessionId: "derive-regex-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: source.outputId, stream: "stderr" },
@@ -668,7 +668,7 @@ test("freeflowDerive regexFilter routes vaulted derived output with source linea
     assert.deepEqual(validateRoutedResult(result), { ok: true, value: result });
 
     const raw = await readOutputText(vault, "derive-regex-session", result.outputId, "raw");
-    assert.match(raw, /# freeflow_derive regexFilter/);
+    assert.match(raw, /# freeflow_search action=transform regexFilter/);
     assert.match(raw, /source: .*:stderr/);
     assert.match(raw, /matches: 2/);
     assert.match(raw, /matchedLines: 2/);
@@ -679,7 +679,7 @@ test("freeflowDerive regexFilter routes vaulted derived output with source linea
   });
 });
 
-test("freeflowDerive countMatches stores exact derived counts", async () => {
+test("freeflowTransform countMatches stores exact derived counts", async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {
       sessionId: "derive-count-session",
@@ -691,7 +691,7 @@ test("freeflowDerive countMatches stores exact derived counts", async () => {
       createdAt: "2026-06-22T00:01:00.000Z",
     });
 
-    const result = await freeflowDerive({
+    const result = await freeflowTransform({
       sessionId: "derive-count-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
@@ -704,13 +704,13 @@ test("freeflowDerive countMatches stores exact derived counts", async () => {
     assert.equal(result.lineage.operation, "countMatches");
 
     const raw = await readOutputText(vault, "derive-count-session", result.outputId, "raw");
-    assert.match(raw, /# freeflow_derive countMatches/);
+    assert.match(raw, /# freeflow_search action=transform countMatches/);
     assert.match(raw, /matches: 3/);
     assert.match(raw, /matchedLines: 2/);
   });
 });
 
-test("freeflowDerive routes huge derived output with bounded evidence and exact recovery", async () => {
+test("freeflowTransform routes huge derived output with bounded evidence and exact recovery", async () => {
   await withTempVault(async (vault) => {
     const text = Array.from({ length: 40 }, (_, index) => `FAIL derived output line ${index + 1}`).join("\n");
     const source = await storeCommandOutput(vault, {
@@ -723,7 +723,7 @@ test("freeflowDerive routes huge derived output with bounded evidence and exact 
       createdAt: "2026-06-22T00:02:00.000Z",
     });
 
-    const result = await freeflowDerive({
+    const result = await freeflowTransform({
       sessionId: "derive-large-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
@@ -743,7 +743,7 @@ test("freeflowDerive routes huge derived output with bounded evidence and exact 
   });
 });
 
-test("freeflowDerive groupByRegex groups matching lines by capture", async () => {
+test("freeflowTransform groupByRegex groups matching lines by capture", async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {
       sessionId: "derive-group-session",
@@ -755,7 +755,7 @@ test("freeflowDerive groupByRegex groups matching lines by capture", async () =>
       createdAt: "2026-06-22T00:06:00.000Z",
     });
 
-    const result = await freeflowDerive({
+    const result = await freeflowTransform({
       sessionId: "derive-group-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
@@ -767,7 +767,7 @@ test("freeflowDerive groupByRegex groups matching lines by capture", async () =>
     assert.equal(result.summary, "Derived groupByRegex from vaulted stdout output: 3 group(s), 4 matched line(s)." );
     assert.deepEqual(result.lineage.sourceOutputIds, [source.outputId]);
     const raw = await readOutputText(vault, "derive-group-session", result.outputId, "raw");
-    assert.match(raw, /# freeflow_derive groupByRegex/);
+    assert.match(raw, /# freeflow_search action=transform groupByRegex/);
     assert.match(raw, /groups: 3/);
     assert.match(raw, /matchedLines: 4/);
     assert.match(raw, /## group: api\ncount: 2/);
@@ -777,7 +777,7 @@ test("freeflowDerive groupByRegex groups matching lines by capture", async () =>
   });
 });
 
-test("freeflowDerive dedupe returns first-seen unique lines", async () => {
+test("freeflowTransform dedupe returns first-seen unique lines", async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {
       sessionId: "derive-dedupe-session",
@@ -789,7 +789,7 @@ test("freeflowDerive dedupe returns first-seen unique lines", async () => {
       createdAt: "2026-06-22T00:07:00.000Z",
     });
 
-    const result = await freeflowDerive({
+    const result = await freeflowTransform({
       sessionId: "derive-dedupe-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
@@ -800,7 +800,7 @@ test("freeflowDerive dedupe returns first-seen unique lines", async () => {
     assert.equal(result.summary, "Derived dedupe from vaulted stdout output: 3 unique line(s), 3 duplicate line(s) removed.");
     assert.deepEqual(result.lineage.sourceOutputIds, [source.outputId]);
     const raw = await readOutputText(vault, "derive-dedupe-session", result.outputId, "raw");
-    assert.match(raw, /# freeflow_derive dedupe/);
+    assert.match(raw, /# freeflow_search action=transform dedupe/);
     assert.match(raw, /inputLines: 6/);
     assert.match(raw, /uniqueLines: 3/);
     assert.match(raw, /duplicatesRemoved: 3/);
@@ -811,7 +811,7 @@ test("freeflowDerive dedupe returns first-seen unique lines", async () => {
   });
 });
 
-test("freeflowDerive topN sorts regex-matched lines by captured score", async () => {
+test("freeflowTransform topN sorts regex-matched lines by captured score", async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {
       sessionId: "derive-top-session",
@@ -823,7 +823,7 @@ test("freeflowDerive topN sorts regex-matched lines by captured score", async ()
       createdAt: "2026-06-22T00:08:00.000Z",
     });
 
-    const result = await freeflowDerive({
+    const result = await freeflowTransform({
       sessionId: "derive-top-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
@@ -834,7 +834,7 @@ test("freeflowDerive topN sorts regex-matched lines by captured score", async ()
     assert.equal(result.summary, "Derived topN from vaulted stdout output: returned 2 of 4 matched line(s).");
     assert.deepEqual(result.lineage.sourceOutputIds, [source.outputId]);
     const raw = await readOutputText(vault, "derive-top-session", result.outputId, "raw");
-    assert.match(raw, /# freeflow_derive topN/);
+    assert.match(raw, /# freeflow_search action=transform topN/);
     assert.match(raw, /matchedLines: 4/);
     assert.match(raw, /returnedLines: 2/);
     assert.match(raw, /2\| score=200 \| duration=200 slow-a/);
@@ -845,7 +845,7 @@ test("freeflowDerive topN sorts regex-matched lines by captured score", async ()
   });
 });
 
-test("freeflowDerive extractUrls returns bounded URL evidence", async () => {
+test("freeflowTransform extractUrls returns bounded URL evidence", async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {
       sessionId: "derive-urls-session",
@@ -861,7 +861,7 @@ test("freeflowDerive extractUrls returns bounded URL evidence", async () => {
       createdAt: "2026-06-22T00:09:00.000Z",
     });
 
-    const result = await freeflowDerive({
+    const result = await freeflowTransform({
       sessionId: "derive-urls-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
@@ -873,7 +873,7 @@ test("freeflowDerive extractUrls returns bounded URL evidence", async () => {
     assert.equal(result.summary, "Derived extractUrls from vaulted stdout output: 3 URL(s) returned from 4 match(es).");
     assert.deepEqual(result.lineage.sourceOutputIds, [source.outputId]);
     const raw = await readOutputText(vault, "derive-urls-session", result.outputId, "raw");
-    assert.match(raw, /# freeflow_derive extractUrls/);
+    assert.match(raw, /# freeflow_search action=transform extractUrls/);
     assert.match(raw, /matches: 4/);
     assert.match(raw, /returnedUrls: 3/);
     assert.match(raw, /1\| https:\/\/example\.com\/docs/);
@@ -883,7 +883,7 @@ test("freeflowDerive extractUrls returns bounded URL evidence", async () => {
   });
 });
 
-test("freeflowDerive extractCitations returns markdown citation targets", async () => {
+test("freeflowTransform extractCitations returns markdown citation targets", async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {
       sessionId: "derive-citations-session",
@@ -899,7 +899,7 @@ test("freeflowDerive extractCitations returns markdown citation targets", async 
       createdAt: "2026-06-22T00:10:00.000Z",
     });
 
-    const result = await freeflowDerive({
+    const result = await freeflowTransform({
       sessionId: "derive-citations-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
@@ -910,7 +910,7 @@ test("freeflowDerive extractCitations returns markdown citation targets", async 
     assert.equal(result.summary, "Derived extractCitations from vaulted stdout output: 4 citation(s) returned.");
     assert.deepEqual(result.lineage.sourceOutputIds, [source.outputId]);
     const raw = await readOutputText(vault, "derive-citations-session", result.outputId, "raw");
-    assert.match(raw, /# freeflow_derive extractCitations/);
+    assert.match(raw, /# freeflow_search action=transform extractCitations/);
     assert.match(raw, /1\| markdown-link \| Freeflow docs \| https:\/\/example\.com\/freeflow/);
     assert.match(raw, /1\| citekey \| smith2024/);
     assert.match(raw, /2\| footnote \| note \| https:\/\/example\.com\/note evidence/);
@@ -918,7 +918,7 @@ test("freeflowDerive extractCitations returns markdown citation targets", async 
   });
 });
 
-test("freeflowDerive lineStats and sizeStats summarize vaulted text", async () => {
+test("freeflowTransform lineStats and sizeStats summarize vaulted text", async () => {
   await withTempVault(async (vault) => {
     const sourceText = ["alpha", "", "γamma"].join("\n");
     const source = await storeCommandOutput(vault, {
@@ -931,7 +931,7 @@ test("freeflowDerive lineStats and sizeStats summarize vaulted text", async () =
       createdAt: "2026-06-22T00:11:00.000Z",
     });
 
-    const lineStats = await freeflowDerive({
+    const lineStats = await freeflowTransform({
       sessionId: "derive-stats-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
@@ -941,14 +941,14 @@ test("freeflowDerive lineStats and sizeStats summarize vaulted text", async () =
     assert.equal(lineStats.toolStatus, "ok");
     assert.equal(lineStats.summary, "Derived lineStats from vaulted stdout output: 3 line(s), 2 non-empty, 1 blank.");
     const lineRaw = await readOutputText(vault, "derive-stats-session", lineStats.outputId, "raw");
-    assert.match(lineRaw, /# freeflow_derive lineStats/);
+    assert.match(lineRaw, /# freeflow_search action=transform lineStats/);
     assert.match(lineRaw, /lines: 3/);
     assert.match(lineRaw, /nonEmptyLines: 2/);
     assert.match(lineRaw, /blankLines: 1/);
     assert.match(lineRaw, /maxLineBytes: 6/);
     assert.match(lineRaw, /maxLineNumber: 3/);
 
-    const sizeStats = await freeflowDerive({
+    const sizeStats = await freeflowTransform({
       sessionId: "derive-stats-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
@@ -959,7 +959,7 @@ test("freeflowDerive lineStats and sizeStats summarize vaulted text", async () =
     assert.equal(sizeStats.summary, "Derived sizeStats from vaulted stdout output: 13 byte(s), 12 code unit(s), 3 line(s).");
     assert.deepEqual(sizeStats.lineage.sourceOutputIds, [source.outputId]);
     const sizeRaw = await readOutputText(vault, "derive-stats-session", sizeStats.outputId, "raw");
-    assert.match(sizeRaw, /# freeflow_derive sizeStats/);
+    assert.match(sizeRaw, /# freeflow_search action=transform sizeStats/);
     assert.match(sizeRaw, /bytes: 13/);
     assert.match(sizeRaw, /utf16CodeUnits: 12/);
     assert.match(sizeRaw, /codePoints: 12/);
@@ -967,7 +967,7 @@ test("freeflowDerive lineStats and sizeStats summarize vaulted text", async () =
   });
 });
 
-test("freeflowDerive jsonExtract supports JSON pointer and path selectors", async () => {
+test("freeflowTransform jsonExtract supports JSON pointer and path selectors", async () => {
   await withTempVault(async (vault) => {
     const source = await storeCommandOutput(vault, {
       sessionId: "derive-json-session",
@@ -984,7 +984,7 @@ test("freeflowDerive jsonExtract supports JSON pointer and path selectors", asyn
       createdAt: "2026-06-22T00:03:00.000Z",
     });
 
-    const pointer = await freeflowDerive({
+    const pointer = await freeflowTransform({
       sessionId: "derive-json-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
@@ -998,13 +998,13 @@ test("freeflowDerive jsonExtract supports JSON pointer and path selectors", asyn
     assert.equal(pointer.persistence.recoverability, "exact");
     assert.deepEqual(validateRoutedResult(pointer), { ok: true, value: pointer });
     const pointerRaw = await readOutputText(vault, "derive-json-session", pointer.outputId, "raw");
-    assert.match(pointerRaw, /# freeflow_derive jsonExtract/);
+    assert.match(pointerRaw, /# freeflow_search action=transform jsonExtract/);
     assert.match(pointerRaw, /selectorKind: pointer/);
     assert.match(pointerRaw, /selector: \/suite\/failures\/0\/message/);
     assert.match(pointerRaw, /valueType: string/);
     assert.match(pointerRaw, /"expected true to equal false"/);
 
-    const path = await freeflowDerive({
+    const path = await freeflowTransform({
       sessionId: "derive-json-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: source.outputId, stream: "stdout" },
@@ -1020,7 +1020,7 @@ test("freeflowDerive jsonExtract supports JSON pointer and path selectors", asyn
   });
 });
 
-test("freeflowDerive returns structured failures for invalid JSON and unresolved JSON selectors", async () => {
+test("freeflowTransform returns structured failures for invalid JSON and unresolved JSON selectors", async () => {
   await withTempVault(async (vault) => {
     const badJson = await storeCommandOutput(vault, {
       sessionId: "derive-json-failure-session",
@@ -1032,7 +1032,7 @@ test("freeflowDerive returns structured failures for invalid JSON and unresolved
       createdAt: "2026-06-22T00:04:00.000Z",
     });
 
-    const parseFailure = await freeflowDerive({
+    const parseFailure = await freeflowTransform({
       sessionId: "derive-json-failure-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: badJson.outputId, stream: "stdout" },
@@ -1054,7 +1054,7 @@ test("freeflowDerive returns structured failures for invalid JSON and unresolved
       createdAt: "2026-06-22T00:05:00.000Z",
     });
 
-    const pathFailure = await freeflowDerive({
+    const pathFailure = await freeflowTransform({
       sessionId: "derive-json-failure-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: goodJson.outputId, stream: "stdout" },
@@ -1066,7 +1066,7 @@ test("freeflowDerive returns structured failures for invalid JSON and unresolved
     assert.match(pathFailure.failure.message, /did not resolve/);
     assert.deepEqual(pathFailure.lineage.sourceOutputIds, [goodJson.outputId]);
 
-    const invalidPath = await freeflowDerive({
+    const invalidPath = await freeflowTransform({
       sessionId: "derive-json-failure-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: goodJson.outputId, stream: "stdout" },
@@ -1079,9 +1079,9 @@ test("freeflowDerive returns structured failures for invalid JSON and unresolved
   });
 });
 
-test("freeflowDerive returns structured failures for missing source and invalid regex", async () => {
+test("freeflowTransform returns structured failures for missing source and invalid regex", async () => {
   await withTempVault(async (vault) => {
-    const missing = await freeflowDerive({
+    const missing = await freeflowTransform({
       sessionId: "derive-missing-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: "ffout_missing", stream: "combined" },
@@ -1095,7 +1095,7 @@ test("freeflowDerive returns structured failures for missing source and invalid 
     assert.deepEqual(missing.lineage.sourceOutputIds, ["ffout_missing"]);
     assert.equal(missing.persistence.recoverability, "none");
 
-    const invalid = await freeflowDerive({
+    const invalid = await freeflowTransform({
       sessionId: "derive-invalid-session",
       vaultRoot: vault.root,
       source: { kind: "vault", outputId: "ffout_missing", stream: "combined" },

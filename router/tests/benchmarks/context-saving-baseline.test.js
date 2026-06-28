@@ -28,19 +28,19 @@ test("context-saving baseline measures current model-visible sizes and guardrail
   assert.equal(runObservation.factsPreserved, true);
   assert.equal(runObservation.recoveryAvailable, true);
 
-  const exactRetrieve = report.observations.find((observation) => observation.id === "retrieve-repo-exact-range");
-  assert.ok(exactRetrieve);
-  assert.equal(exactRetrieve.recoveryAvailable, true);
-  assert.ok(exactRetrieve.evidenceLocations.some((location) => location.includes("plugin-docs/output-router.md")));
+  const exactSearch = report.observations.find((observation) => observation.id === "search-repo-exact-range");
+  assert.ok(exactSearch);
+  assert.equal(exactSearch.recoveryAvailable, true);
+  assert.ok(exactSearch.evidenceLocations.some((location) => location.includes("plugin-docs/output-router.md")));
 
-  assert.ok(report.guardrails.some((guardrail) => guardrail.path === "router/tests/retrieve.test.js"));
-  assert.ok(report.guardrails.some((guardrail) => guardrail.path === "router/tests/pi-extension-derive.test.js"));
+  assert.ok(report.guardrails.some((guardrail) => guardrail.path === "router/tests/tools/search.test.js"));
+  assert.ok(report.guardrails.some((guardrail) => guardrail.path === "router/tests/pi/pi-extension-search.test.js"));
 
   const rendered = renderContextSavingBaselineReport(report);
   assert.match(rendered, /Context-Saving Native Tools Baseline Report/);
   assert.match(rendered, /Model-visible bytes/);
   assert.match(rendered, /Guardrail Inventory/);
-  assert.match(rendered, /router\/tests\/retrieve.test.js/);
+  assert.match(rendered, /router\/tests\/tools\/search.test.js/);
 });
 
 test("context-saving baseline writer emits markdown and machine-readable JSON", async () => {

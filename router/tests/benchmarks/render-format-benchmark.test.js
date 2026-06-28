@@ -3,8 +3,8 @@ import test from "node:test";
 
 import {
   compactBatchToolText,
-  compactDeriveToolText,
-  compactRetrieveToolText,
+  compactTransformToolText,
+  compactSearchEvidenceToolText,
   compactRunToolText,
 } from "../../../pi-extension/dist/utils.js";
 
@@ -31,12 +31,12 @@ function makeRunSample(id, summary, excerpt, facts, counts = {}) {
   };
 }
 
-function makeRetrieveSample(id, path, query, excerpt, facts) {
+function makeSearchSample(id, path, query, excerpt, facts) {
   return {
-    tool: "retrieve",
+    tool: "search",
     id,
     facts,
-    render: compactRetrieveToolText,
+    render: compactSearchEvidenceToolText,
     result: {
       toolStatus: "ok",
       routing: { status: "routed", reason: `Deterministic repo retrieval selected ${path} for ${query}.` },
@@ -50,7 +50,7 @@ function makeRetrieveSample(id, path, query, excerpt, facts) {
           match: { type: "query", confidence: 0.98 },
         },
       ],
-      recovery: { how: `freeflow_retrieve action=retrieve source.kind=repo path=${path} lineRange=10-18` },
+      recovery: { how: `freeflow_search action=retrieve source.kind=repo path=${path} lineRange=10-18` },
     },
   };
 }
@@ -114,21 +114,21 @@ function makeSamples() {
       "commits=153\nfeat: add workflow\nfix: route output\ndocs: update guide",
       ["153", "feat", "fix", "docs"],
     ),
-    makeRetrieveSample(
+    makeSearchSample(
       "react",
       "fixtures/context7-react-docs.md",
       "useEffect cleanup ignore stale responses",
       "useEffect(() => {\n  let ignore = false;\n  fetchBio(person).then(result => { if (!ignore) setBio(result); });\n  return () => { ignore = true; };\n}, [person]);\ncleanup prevents stale responses",
       ["ignore = true", "cleanup", "useEffect"],
     ),
-    makeRetrieveSample(
+    makeSearchSample(
       "next",
       "fixtures/context7-nextjs-docs.md",
       "cache revalidate no-store generateStaticParams",
       "export const revalidate = 60;\nexport async function generateStaticParams() {\n  await fetch('/posts', { cache: 'no-store' });\n}\ncache controls stay explicit",
       ["no-store", "revalidate", "generateStaticParams"],
     ),
-    makeRetrieveSample(
+    makeSearchSample(
       "tailwind",
       "fixtures/context7-tailwind-docs.md",
       "responsive md lg flex grid classes",
@@ -136,10 +136,10 @@ function makeSamples() {
       ["md:", "lg:", "grid"],
     ),
     {
-      tool: "derive",
+      tool: "transform",
       id: "count-failed",
       facts: ["matches", "failed"],
-      render: compactDeriveToolText,
+      render: compactTransformToolText,
       result: {
         toolStatus: "ok",
         routing: { status: "routed" },
@@ -151,7 +151,7 @@ function makeSamples() {
           {
             source: { kind: "vault", outputId: "ffout_derive_count_failed", stream: "raw" },
             lines: "1-6",
-            excerpt: "# freeflow_derive countMatches\npattern: /failed/\nmatches: 4\nline 1: 4 failed",
+            excerpt: "# freeflow_search action=transform countMatches\npattern: /failed/\nmatches: 4\nline 1: 4 failed",
           },
         ],
         recovery: { outputId: "ffout_derive_count_failed" },
@@ -190,7 +190,7 @@ function makeSamples() {
         steps: [
           { index: 0, id: "test-summary", kind: "run", status: "ok", durationMs: 12, result: { routing: { status: "routed" }, outputId: "ffout_batch_test", importantLines: [{ excerpt: "4 failed", lines: "1-1" }], execution: { status: "success" }, summary: "Command success with exitCode=0." } },
           { index: 1, id: "access-summary", kind: "run", status: "ok", durationMs: 13, result: { routing: { status: "routed" }, outputId: "ffout_batch_access", importantLines: [{ excerpt: "88", lines: "1-1" }], execution: { status: "success" }, summary: "Command success with exitCode=0." } },
-          { index: 2, id: "react-query", kind: "retrieve", status: "ok", durationMs: 8, result: { routing: { status: "routed" }, recovery: { outputId: "ffout_batch_react" }, evidence: [{ excerpt: "ignore = true", lines: "1-1" }], summary: "Retrieved 1 evidence packet." } },
+          { index: 2, id: "react-query", kind: "search", status: "ok", durationMs: 8, result: { routing: { status: "routed" }, recovery: { outputId: "ffout_batch_react" }, evidence: [{ excerpt: "ignore = true", lines: "1-1" }], summary: "Retrieved 1 evidence packet." } },
         ],
       },
     },
@@ -209,29 +209,29 @@ function renderProseBaseline(sample) {
       `summary: ${result.summary}`,
       `evidence ${span.stream}:${span.lines}:`,
       ...splitLines(span.excerpt).map((line) => `  ${line}`),
-      `recover exact span: freeflow_retrieve action=retrieve source.kind=vault lineRange=${span.lines} stream=${span.stream} outputId=${result.outputId}`,
+      `recover exact span: freeflow_search action=retrieve source.kind=vault lineRange=${span.lines} stream=${span.stream} outputId=${result.outputId}`,
       "details: full structured result is available in details.result / TUI",
     ].join("\n");
   }
-  if (sample.tool === "retrieve") {
+  if (sample.tool === "search") {
     const packet = result.evidence[0];
     return [
-      `freeflow_retrieve ${result.routing.status} · repo ${packet.path} · 1 evidence`,
+      `freeflow_search ${result.routing.status} · repo ${packet.path} · 1 evidence`,
       `reason: ${result.routing.reason}`,
       `evidence #1 ${packet.path}:${packet.lines}:`,
       ...splitLines(packet.excerpt).map((line) => `  ${line}`),
-      `recover exact span: freeflow_retrieve action=retrieve source.kind=repo lineRange=${packet.lines} path=${packet.path}`,
+      `recover exact span: freeflow_search action=retrieve source.kind=repo lineRange=${packet.lines} path=${packet.path}`,
       "details: full structured result is available in details.result / TUI",
     ].join("\n");
   }
-  if (sample.tool === "derive") {
+  if (sample.tool === "transform") {
     const packet = result.evidence[0];
     return [
-      `freeflow_derive ${result.routing.status} · ${result.operation.kind} · vault ${result.source.outputId}:${result.source.stream} · output=${result.outputId}`,
+      `freeflow_search action=transform ${result.routing.status} · ${result.operation.kind} · vault ${result.source.outputId}:${result.source.stream} · output=${result.outputId}`,
       `summary: ${result.summary}`,
       `evidence #1 ${packet.source.outputId}:${packet.source.stream}:${packet.lines}:`,
       ...splitLines(packet.excerpt).map((line) => `  ${line}`),
-      `recover exact span: freeflow_retrieve action=retrieve source.kind=vault lineRange=${packet.lines} stream=${packet.source.stream} outputId=${packet.source.outputId}`,
+      `recover exact span: freeflow_search action=retrieve source.kind=vault lineRange=${packet.lines} stream=${packet.source.stream} outputId=${packet.source.outputId}`,
       "details: full structured result is available in details.result / TUI",
     ].join("\n");
   }

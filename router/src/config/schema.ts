@@ -451,7 +451,7 @@ function validateBatchSteps(value: unknown, path: string, issues: MutableIssues)
     requireString(step, "id", stepPath, issues);
     requireInteger(step, "index", stepPath, issues);
     if (!isOneOf(step.kind, BATCH_STEP_KINDS)) {
-      issues.push({ path: `${stepPath}.kind`, message: "Expected batch step kind run, retrieve, search, derive, or transform." });
+      issues.push({ path: `${stepPath}.kind`, message: "Expected batch step kind run or search." });
     }
     if (step.status !== "ok" && step.status !== "failed") {
       issues.push({ path: `${stepPath}.status`, message: "Expected batch step status ok or failed." });

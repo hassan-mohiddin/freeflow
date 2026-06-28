@@ -16,7 +16,7 @@ import {
   reductionPercent,
   writeBenchmarkReportPair,
 } from "./benchmark-harness.js";
-import { freeflowRetrieve } from "../tools/retrieve.js";
+import { freeflowSearch } from "../tools/search.js";
 import {
   buildOrLoadExperimentalRepoIndex,
   queryExperimentalRepoIndex,
@@ -188,7 +188,7 @@ export function renderIndexBenchmarkReport(report: IndexBenchmarkReport): string
     "",
     "## Scope",
     "",
-    "Repo Search Backend Benchmark for `freeflow_retrieve`. The scanner remains the product default; this benchmark compares scanner-only retrieval, the no-dependency local lexical index, a conservative hybrid scanner+index path, and records whether an FTS5/BM25/trigram candidate is available.",
+    "Repo Search Backend Benchmark for `freeflow_search`. The scanner remains the product default; this benchmark compares scanner-only retrieval, the no-dependency local lexical index, a conservative hybrid scanner+index path, and records whether an FTS5/BM25/trigram candidate is available.",
     "",
     "The index cache is keyed by repo root and stores outside the repo by default. No external service, vector DB, or native dependency is required for the local lexical index.",
     "",
@@ -374,12 +374,12 @@ async function observeIndexFixture(fixture: IndexFixtureDefinition, mode: IndexB
 async function scannerObservation(root: string, query: string): Promise<IndexObservation> {
   const rawBytes = await repoRawBytes(root);
   const queryStartedAt = performance.now();
-  const result = await freeflowRetrieve({ action: "query", source: { kind: "repo", root }, query, preserve: "important", topK: BENCHMARK_TOP_K });
+  const result = await freeflowSearch({ action: "query", source: { kind: "repo", root }, query, preserve: "important", topK: BENCHMARK_TOP_K });
   const queryMs = performance.now() - queryStartedAt;
   const evidence = result.evidence?.[0];
   const candidatePaths = uniqueCandidatePaths(result.evidence?.map((packet) => packet.path));
   return {
-    toolPathUsed: "scanner-default: freeflowRetrieve repo scanner",
+    toolPathUsed: "scanner-default: freeflowSearch repo scanner",
     rawBytes,
     contextBytes: byteLength(JSON.stringify(result)),
     ...(evidence?.path !== undefined ? { actualPath: evidence.path } : {}),
@@ -484,7 +484,7 @@ async function hybridObservation(root: string, cacheRoot: string, query: string)
   const indexCandidates = queryExperimentalRepoIndex(load.index, query, { topK: BENCHMARK_TOP_K });
   const indexQueryMs = performance.now() - indexStartedAt;
   const scannerStartedAt = performance.now();
-  const scanner = await freeflowRetrieve({ action: "query", source: { kind: "repo", root }, query, preserve: "important", topK: BENCHMARK_TOP_K });
+  const scanner = await freeflowSearch({ action: "query", source: { kind: "repo", root }, query, preserve: "important", topK: BENCHMARK_TOP_K });
   const scannerQueryMs = performance.now() - scannerStartedAt;
   const scannerEvidence = scanner.evidence?.[0];
   const scannerPaths = uniqueCandidatePaths(scanner.evidence?.map((packet) => packet.path));

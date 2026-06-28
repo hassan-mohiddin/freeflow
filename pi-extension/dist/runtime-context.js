@@ -154,7 +154,7 @@ function outputRouterModeGuidance(mode) {
 function outputRouterContext(modeState, freeflowContext, routerConfigResult) {
     const safetyNetText = routerConfigResult.config.postToolRouting === "off"
         ? ""
-        : "\n\nOutput-router config note: large native read/bash outputs may be vaulted and replaced with labeled routed output. Use freeflow_retrieve with the output id to recover exact content.";
+        : "\n\nOutput-router config note: large native read/bash outputs may be vaulted and replaced with labeled routed output. Use freeflow_search with the output id to recover exact content.";
     return `## Loaded Output Router Skill
 
 Mode guidance: ${outputRouterModeGuidance(modeState.effectiveMode)}${safetyNetText}

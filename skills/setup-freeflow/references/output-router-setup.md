@@ -1,10 +1,10 @@
 # Output Router Setup
 
-Use this when setup reaches the optional evidence-routing branch or explicitly asks for output-router, observed-routing, provider, generated-path, native safety-net, vault, threshold, or script-derive repo config.
+Use this when setup reaches the optional evidence-routing branch or explicitly asks for output-router, observed-routing, provider, generated-path, native safety-net, vault, threshold, or script-transform repo config (`scriptDerive`).
 
 ## Defaults
 
-- The output router has built-in defaults. A repo does not need optional config for normal retrieval/run/derive behavior.
+- The output router has built-in defaults. A repo does not need optional config for normal search/run/transform behavior.
 - Minimal `/setup-freeflow` must still write only `defaultMode`.
 - Ask one evidence-routing decision point. If declined, do not write `outputRouter`, `observedRouting`, `capture`, `providers`, or `scriptDerive`.
 - Observed routing is opt-in per producer/server. The user must choose persistence for each enabled entry before setup writes config.
@@ -99,8 +99,8 @@ After writing optional evidence-routing config, use `freeflow_status` or equival
 - `defaultMode` is valid.
 - Minimal setup still contains only `defaultMode` when evidence routing was declined.
 - Optional `outputRouter`, `observedRouting`, `capture`, `providers`, and `scriptDerive` sections contain only requested keys.
-- Invalid router/observed-routing/capture/provider/script-derive values are not written.
-- Observed routing, native safety-net routing, and script derive are not enabled unless explicitly requested.
+- Invalid router/observed-routing/capture/provider/script-transform values are not written.
+- Observed routing, native safety-net routing, and script transform are not enabled unless explicitly requested.
 - No observed-routing entry uses `redacted`, and every enabled entry has explicit persistence.
 - Direct host-tool capture remains `off` unless explicitly requested and supported.
 - `freeflow_status` shows effective defaults and migration recommendations without rewriting config.

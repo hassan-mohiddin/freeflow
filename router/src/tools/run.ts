@@ -9,7 +9,7 @@ import {
   storeTextOutput,
 } from "../vault/vault.js";
 import { DEFAULT_ROUTER_THRESHOLDS, DEFAULT_STORAGE_POLICY } from "../config/config.js";
-import { freeflowTransform, validateDeriveInput, type ScriptDeriveLimitsInput } from "../transform/engine.js";
+import { freeflowTransform, validateTransformInput, type ScriptDeriveLimitsInput } from "../transform/engine.js";
 import { assembleTextEvidence, byteLength, countLines, type BoundedEvidence } from "../evidence/evidence.js";
 import { parseCommandOutput, type ParsedCommandOutput } from "../routing/parsers.js";
 import {
@@ -441,14 +441,14 @@ function routeDuplicateCommandOutput(options: {
 function commandRecoveryHint(outputId: string, storage: CommandStorageDecision) {
   if (storage.mode === "exact") {
     return {
-      how: `Use freeflow_retrieve with source.kind=vault and outputId=${outputId} to recover exact command output.`,
+      how: `Use freeflow_search with source.kind=vault and outputId=${outputId} to recover exact command output.`,
       outputId,
     };
   }
 
   if (storage.mode === "duplicate-metadata" && storage.exactRecoveryOutputId) {
     return {
-      how: `Current command record is metadata-only outputId=${outputId}; exact duplicate raw output is recoverable with freeflow_retrieve source.kind=vault outputId=${storage.exactRecoveryOutputId}.`,
+      how: `Current command record is metadata-only outputId=${outputId}; exact duplicate raw output is recoverable with freeflow_search source.kind=vault outputId=${storage.exactRecoveryOutputId}.`,
       outputId: storage.exactRecoveryOutputId,
     };
   }
@@ -678,7 +678,7 @@ function commandRoutingFailureResult(options: {
     ? options.storage !== undefined
       ? commandRecoveryHint(options.outputId, options.storage)
       : {
-          how: `Routing failed after vault capture; use freeflow_retrieve with source.kind=vault and outputId=${options.outputId} to recover exact command output.`,
+          how: `Routing failed after vault capture; use freeflow_search with source.kind=vault and outputId=${options.outputId} to recover exact command output.`,
           outputId: options.outputId,
         }
     : {
@@ -1108,12 +1108,12 @@ function runReducerMetadata(
 function commandReducerRecoveryHint(rawOutputId: string, derivedOutputId?: string) {
   if (derivedOutputId) {
     return {
-      how: `Raw command output: use freeflow_retrieve with source.kind=vault and outputId=${rawOutputId}. Reducer-derived output: use freeflow_retrieve with source.kind=vault, outputId=${derivedOutputId}, stream=raw, and an exact lineRange.`,
+      how: `Raw command output: use freeflow_search with source.kind=vault and outputId=${rawOutputId}. Reducer-derived output: use freeflow_search with source.kind=vault, outputId=${derivedOutputId}, stream=raw, and an exact lineRange.`,
       outputId: rawOutputId,
     };
   }
   return {
-    how: `Reducer output was returned in the structured command result. Raw command output remains recoverable with freeflow_retrieve source.kind=vault outputId=${rawOutputId}.`,
+    how: `Reducer output was returned in the structured command result. Raw command output remains recoverable with freeflow_search source.kind=vault outputId=${rawOutputId}.`,
     outputId: rawOutputId,
   };
 }
@@ -1121,12 +1121,12 @@ function commandReducerRecoveryHint(rawOutputId: string, derivedOutputId?: strin
 function commandScriptFilterRecoveryHint(rawOutputId: string, derivedOutputId?: string) {
   if (derivedOutputId) {
     return {
-      how: `Raw command output: use freeflow_retrieve with source.kind=vault and outputId=${rawOutputId}. Script-filtered derived output: use freeflow_retrieve with source.kind=vault, outputId=${derivedOutputId}, stream=raw, and an exact lineRange.`,
+      how: `Raw command output: use freeflow_search with source.kind=vault and outputId=${rawOutputId}. Script-filtered derived output: use freeflow_search with source.kind=vault, outputId=${derivedOutputId}, stream=raw, and an exact lineRange.`,
       outputId: rawOutputId,
     };
   }
   return {
-    how: `Script filter did not produce derived output. Raw command output remains recoverable with freeflow_retrieve source.kind=vault outputId=${rawOutputId}.`,
+    how: `Script filter did not produce derived output. Raw command output remains recoverable with freeflow_search source.kind=vault outputId=${rawOutputId}.`,
     outputId: rawOutputId,
   };
 }
@@ -1158,7 +1158,7 @@ function normalizeRunScriptFilter(input: unknown):
   if (input.limits !== undefined) {
     candidate.limits = input.limits;
   }
-  const validation = validateDeriveInput(candidate);
+  const validation = validateTransformInput(candidate);
   if (!validation.ok) {
     const issue = validation.issues[0] ?? { path: "$.scriptFilter", message: "Invalid script filter." };
     return {

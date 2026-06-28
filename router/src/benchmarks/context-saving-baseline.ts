@@ -13,8 +13,8 @@ import {
   reductionPercent,
   writeBenchmarkReportPair,
 } from "./benchmark-harness.js";
-import { freeflowDerive } from "../tools/derive.js";
-import { freeflowRetrieve } from "../tools/retrieve.js";
+import { freeflowTransform } from "../transform/engine.js";
+import { freeflowSearch } from "../tools/search.js";
 import { freeflowRun, type HostCommandRunResult } from "../tools/run.js";
 
 export interface RunContextSavingBaselineOptions {
@@ -45,7 +45,7 @@ export interface ContextSavingBaselineSummary {
 export interface ContextSavingBaselineObservation {
   id: string;
   title: string;
-  tool: "freeflow_run" | "freeflow_retrieve" | "freeflow_derive";
+  tool: "freeflow_run" | "freeflow_search" | "freeflow_search action=transform";
   action: string;
   rawBytes: number;
   modelVisibleBytes: number;
@@ -100,7 +100,7 @@ const COMMAND_STDOUT = [
   "  ● refresh token keeps AUTH_TOKEN scoped",
   "    Expected AUTH_TOKEN to be redacted before logging",
   "PASS packages/router/run.test.ts",
-  "PASS packages/router/retrieve.test.ts",
+  "PASS packages/router/search.test.ts",
   "Tests:       1 failed, 24 passed, 25 total",
   "Snapshots:   0 total",
   "Time:        4.21 s",
@@ -123,7 +123,7 @@ const GUARDED_FIXTURES: ContextSavingGuardrail[] = [
     ],
   },
   {
-    path: "router/tests/retrieve.test.js",
+    path: "router/tests/tools/search.test.js",
     behaviors: [
       "exact repo path/range retrieval",
       "exact vault line retrieval",
@@ -132,11 +132,19 @@ const GUARDED_FIXTURES: ContextSavingGuardrail[] = [
     ],
   },
   {
-    path: "router/tests/derive.test.js",
+    path: "router/tests/transform/engine.test.js",
     behaviors: [
-      "deterministic derive operations",
-      "derived-output lineage and exact recovery",
+      "deterministic transform operations",
+      "transformed-output lineage and exact recovery",
       "structured failures for invalid operations and missing sources",
+    ],
+  },
+  {
+    path: "router/tests/tools/batch.test.js",
+    behaviors: [
+      "batch accepts public run/search step kinds",
+      "batch rejects legacy retrieve/transform step kinds",
+      "query aggregation from child evidence handles",
     ],
   },
   {
@@ -148,9 +156,9 @@ const GUARDED_FIXTURES: ContextSavingGuardrail[] = [
     ],
   },
   {
-    path: "router/tests/pi-extension-derive.test.js",
+    path: "router/tests/pi/pi-extension-search.test.js",
     behaviors: [
-      "script derive disabled-by-default behavior",
+      "search action=transform disabled-by-default behavior",
       "adapter-unavailable behavior",
       "proof-backed adapter execution path",
     ],
@@ -166,7 +174,7 @@ const GUARDED_FIXTURES: ContextSavingGuardrail[] = [
   {
     path: "router/tests/vault-index.test.js",
     behaviors: [
-      "command/native/observed/derived vault record indexing",
+      "command/native/observed/transformed vault record indexing",
       "metadata-only indexing without raw recovery claims",
       "retention and degraded-index behavior",
     ],
@@ -223,7 +231,7 @@ export async function runContextSavingBaseline(
       }),
     );
 
-    const repoQueryResult = await freeflowRetrieve({
+    const repoQueryResult = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root: repoRoot },
       query: "Exact recovery outputId line ranges parser decisions",
@@ -232,9 +240,9 @@ export async function runContextSavingBaseline(
     });
     observations.push(
       makeObservation({
-        id: "retrieve-repo-query",
-        title: "freeflow_retrieve repo query",
-        tool: "freeflow_retrieve",
+        id: "search-repo-query",
+        title: "freeflow_search repo query",
+        tool: "freeflow_search",
         action: "query repo",
         rawBytes: byteLength(REPO_DOC_TEXT),
         result: repoQueryResult,
@@ -242,7 +250,7 @@ export async function runContextSavingBaseline(
       }),
     );
 
-    const repoExactResult = await freeflowRetrieve({
+    const repoExactResult = await freeflowSearch({
       action: "retrieve",
       source: { kind: "repo", root: repoRoot, path: "plugin-docs/output-router.md" },
       lineRange: { start: 3, end: 5 },
@@ -250,9 +258,9 @@ export async function runContextSavingBaseline(
     });
     observations.push(
       makeObservation({
-        id: "retrieve-repo-exact-range",
-        title: "freeflow_retrieve exact repo range",
-        tool: "freeflow_retrieve",
+        id: "search-repo-exact-range",
+        title: "freeflow_search exact repo range",
+        tool: "freeflow_search",
         action: "retrieve repo range",
         rawBytes: byteLength(REPO_DOC_TEXT),
         result: repoExactResult,
@@ -262,7 +270,7 @@ export async function runContextSavingBaseline(
     );
 
     if (outputId) {
-      const vaultQueryResult = await freeflowRetrieve({
+      const vaultQueryResult = await freeflowSearch({
         action: "query",
         source: { kind: "vault", root: vaultRoot, sessionId, outputId, stream: "combined" },
         query: "ROUTER_BENCH_FAILED",
@@ -271,9 +279,9 @@ export async function runContextSavingBaseline(
       });
       observations.push(
         makeObservation({
-          id: "retrieve-vault-query",
-          title: "freeflow_retrieve vault query",
-          tool: "freeflow_retrieve",
+          id: "search-vault-query",
+          title: "freeflow_search vault query",
+          tool: "freeflow_search",
           action: "query vault",
           rawBytes: commandRawBytes,
           result: vaultQueryResult,
@@ -281,7 +289,7 @@ export async function runContextSavingBaseline(
         }),
       );
 
-      const deriveResult = await freeflowDerive({
+      const deriveResult = await freeflowTransform({
         source: { kind: "vault", outputId, stream: "combined" },
         operation: { kind: "regexFilter", pattern: "AUTH_TOKEN|ROUTER_BENCH_FAILED|Tests:", maxMatches: 10 },
         sessionId,
@@ -290,9 +298,9 @@ export async function runContextSavingBaseline(
       });
       observations.push(
         makeObservation({
-          id: "derive-regex-filter",
-          title: "freeflow_derive regexFilter",
-          tool: "freeflow_derive",
+          id: "transform-regex-filter",
+          title: "freeflow_search action=transform regexFilter",
+          tool: "freeflow_search action=transform",
           action: "regexFilter vault",
           rawBytes: commandRawBytes,
           result: deriveResult,
@@ -327,7 +335,7 @@ export function renderContextSavingBaselineReport(report: ContextSavingBaselineR
     "",
     "## Scope",
     "",
-    "Baseline current model-visible output sizes for representative `freeflow_run`, `freeflow_retrieve`, and `freeflow_derive` results before the compact-output redesign.",
+    "Baseline current model-visible output sizes for representative `freeflow_run`, `freeflow_search`, and `freeflow_search action=transform` results before the compact-output redesign.",
     "",
     "The baseline intentionally measures current Pi tool text as pretty-printed routed result JSON. Later slices should reduce model-visible bytes while keeping details and exact recovery available.",
     "",

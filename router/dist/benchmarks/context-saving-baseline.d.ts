@@ -23,7 +23,7 @@ export interface ContextSavingBaselineSummary {
 export interface ContextSavingBaselineObservation {
     id: string;
     title: string;
-    tool: "freeflow_run" | "freeflow_retrieve" | "freeflow_derive";
+    tool: "freeflow_run" | "freeflow_search" | "freeflow_search action=transform";
     action: string;
     rawBytes: number;
     modelVisibleBytes: number;

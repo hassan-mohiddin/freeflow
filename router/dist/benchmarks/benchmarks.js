@@ -5,7 +5,7 @@ import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { performance } from "node:perf_hooks";
 import { approximateTokens, averagePercent as average, defaultJsonRunReportPath, escapeMarkdownTableCell as escapeTable, formatPercent, latencySummary, medianPercent as median, normalizeIterations, parseBenchmarkCliArgs, reductionPercent, writeBenchmarkReportPair, } from "./benchmark-harness.js";
-import { freeflowRetrieve } from "../tools/retrieve.js";
+import { freeflowSearch } from "../tools/search.js";
 import { createVault, storeCommandOutput } from "../vault/vault.js";
 const DEFAULT_ITERATIONS = 3;
 const DEFAULT_CONTEXT_LINES = 2;
@@ -424,12 +424,12 @@ async function createVaultedOutputFixture() {
                 query: "ASSERTION_FAILED payments badge",
                 recovery: { status: "failed", detail: "Baseline proxy does not expose structured recovery metadata." },
             }),
-            "improved-freeflow-router": async () => improvedRetrieveObservation(await freeflowRetrieve({
+            "improved-freeflow-router": async () => improvedRetrieveObservation(await freeflowSearch({
                 action: "query",
                 source: { kind: "vault", root: vaultRoot.path, sessionId, outputId: record.outputId, stream: "stderr" },
                 query: "ASSERTION_FAILED payments badge",
                 preserve: "important",
-            }), "improved-freeflow-router: freeflow_retrieve vault query", stderr, (result) => verifyVaultEvidenceRecovery(vaultRoot.path, sessionId, result)),
+            }), "improved-freeflow-router: freeflow_search vault query", stderr, (result) => verifyVaultEvidenceRecovery(vaultRoot.path, sessionId, result)),
         },
         cleanup: vaultRoot.cleanup,
     };
@@ -468,7 +468,7 @@ async function createExpansionFixture() {
                 recovery: { status: "failed", detail: "Baseline proxy does not expose structured expansion recovery." },
             }),
             "improved-freeflow-router": async () => {
-                const queryResult = await freeflowRetrieve({
+                const queryResult = await freeflowSearch({
                     action: "query",
                     source: { kind: "repo", root: repo.path },
                     query,
@@ -476,15 +476,15 @@ async function createExpansionFixture() {
                 });
                 const evidence = queryResult.evidence?.[0];
                 if (!evidence) {
-                    return improvedRetrieveObservation(queryResult, "improved-freeflow-router: freeflow_retrieve query before expand", body.join("\n"), (result) => verifyRepoEvidenceRecovery(repo.path, result));
+                    return improvedRetrieveObservation(queryResult, "improved-freeflow-router: freeflow_search query before expand", body.join("\n"), (result) => verifyRepoEvidenceRecovery(repo.path, result));
                 }
-                return improvedRetrieveObservation(await freeflowRetrieve({
+                return improvedRetrieveObservation(await freeflowSearch({
                     action: "expand",
                     source: { kind: "repo", root: repo.path },
                     evidence,
                     expansion: "lines_30",
                     preserve: "important",
-                }), "improved-freeflow-router: freeflow_retrieve expand lines_30", body.join("\n"), (result) => verifyRepoEvidenceRecovery(repo.path, result));
+                }), "improved-freeflow-router: freeflow_search expand lines_30", body.join("\n"), (result) => verifyRepoEvidenceRecovery(repo.path, result));
             },
         },
         cleanup: repo.cleanup,
@@ -507,12 +507,12 @@ function repoQueryFixture(repo, options) {
                 skipDirs: LEGACY_SKIP_DIRS,
                 recovery: { status: "failed", detail: "Baseline proxy does not expose structured recovery metadata." },
             }),
-            "improved-freeflow-router": async () => improvedRetrieveObservation(await freeflowRetrieve({
+            "improved-freeflow-router": async () => improvedRetrieveObservation(await freeflowSearch({
                 action: "query",
                 source: { kind: "repo", root: repo.path },
                 query: options.query,
                 preserve: "important",
-            }), "improved-freeflow-router: freeflow_retrieve query", await readRepoBytes(repo.path), (result) => verifyRepoEvidenceRecovery(repo.path, result)),
+            }), "improved-freeflow-router: freeflow_search query", await readRepoBytes(repo.path), (result) => verifyRepoEvidenceRecovery(repo.path, result)),
         },
         cleanup: repo.cleanup,
     };
@@ -618,7 +618,7 @@ async function verifyRepoEvidenceRecovery(root, result) {
     if (!range) {
         return { status: "failed", detail: `Unsupported repo evidence range ${evidence.lines}.` };
     }
-    const recovered = await freeflowRetrieve({
+    const recovered = await freeflowSearch({
         action: "retrieve",
         source: { kind: "repo", root, path: evidence.path },
         lineRange: range,
@@ -635,7 +635,7 @@ async function verifyVaultEvidenceRecovery(vaultRoot, sessionId, result) {
     if (!range) {
         return { status: "failed", detail: `Unsupported vault evidence range ${evidence.lines}.` };
     }
-    const recovered = await freeflowRetrieve({
+    const recovered = await freeflowSearch({
         action: "retrieve",
         source: {
             kind: "vault",

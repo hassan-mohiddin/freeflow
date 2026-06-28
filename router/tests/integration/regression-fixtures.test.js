@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import test from "node:test";
 
 import freeflowExtension from "../../../pi-extension/dist/index.js";
-import { createVault, freeflowRetrieve, freeflowRun, readOutputText } from "../../dist/index.js";
+import { createVault, freeflowSearch, freeflowRun, readOutputText } from "../../dist/index.js";
 
 const repoRoot = resolve(new URL("../../../", import.meta.url).pathname);
 const fixtureRoot = resolve(repoRoot, "evals/fixtures/output-router");
@@ -102,7 +102,7 @@ async function withSandboxPermissionsFixtureRepo(fn) {
 
 test("regression fixture: Sandbox Permissions broad query ignores generated graph decoy", async () => {
   await withSandboxPermissionsFixtureRepo(async (root) => {
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "Sandbox Permissions SandboxPermissions Plain-language meaning",
@@ -120,7 +120,7 @@ test("regression fixture: Sandbox Permissions broad query ignores generated grap
 
 test("regression fixture: root-scoped query still ignores generated graph decoy", async () => {
   await withSandboxPermissionsFixtureRepo(async (root) => {
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root, path: "." },
       query: "Sandbox Permissions SandboxPermissions Plain-language meaning",
@@ -136,7 +136,7 @@ test("regression fixture: root-scoped query still ignores generated graph decoy"
 
 test("regression fixture: explicitly requested generated path remains searchable", async () => {
   await withSandboxPermissionsFixtureRepo(async (root) => {
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root, path: "graphify-out/graph.html" },
       query: "GENERATED_GRAPH_DECOY_SENTINEL",
@@ -162,7 +162,7 @@ test("regression fixture: huge single-line evidence is bounded", async () => {
       "utf8",
     );
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "UNIQUE_HUGE_LINE_MARKER",
@@ -194,7 +194,7 @@ test("regression fixture: broad query skips media file decoys but explicit paths
       "utf8",
     );
 
-    const broad = await freeflowRetrieve({
+    const broad = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "MEDIA_SKIP_MARKER source truth router evidence",
@@ -206,7 +206,7 @@ test("regression fixture: broad query skips media file decoys but explicit paths
     assert.equal(broad.evidence[0].path, "target.md");
     assert.doesNotMatch(broad.evidence[0].excerpt, /pngdecoyonlysentinel/);
 
-    const broadMediaOnly = await freeflowRetrieve({
+    const broadMediaOnly = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "pngdecoyonlysentinel",
@@ -216,7 +216,7 @@ test("regression fixture: broad query skips media file decoys but explicit paths
     assert.equal(broadMediaOnly.toolStatus, "ok");
     assert.equal(broadMediaOnly.evidence?.length, 0);
 
-    const explicit = await freeflowRetrieve({
+    const explicit = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root, path: "assets/diagram.png" },
       query: "pngdecoyonlysentinel",
@@ -243,7 +243,7 @@ test("regression fixture: configured generated path hints skip broad decoys but 
       "utf8",
     );
 
-    const broad = await freeflowRetrieve({
+    const broad = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "GENERATED_HINT_MARKER source truth",
@@ -256,7 +256,7 @@ test("regression fixture: configured generated path hints skip broad decoys but 
     assert.equal(broad.evidence[0].path, "target.md");
     assert.doesNotMatch(broad.evidence[0].excerpt, /generatedhintsentinel/);
 
-    const explicitFile = await freeflowRetrieve({
+    const explicitFile = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root, path: "custom-generated/nested/deeper/decoy.md" },
       query: "generatedhintsentinel",
@@ -268,7 +268,7 @@ test("regression fixture: configured generated path hints skip broad decoys but 
     assert.equal(explicitFile.evidence?.length, 1);
     assert.equal(explicitFile.evidence[0].path, "custom-generated/nested/deeper/decoy.md");
 
-    const explicitDirectory = await freeflowRetrieve({
+    const explicitDirectory = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root, path: "custom-generated" },
       query: "generatedhintsentinel",
@@ -293,7 +293,7 @@ test("regression fixture: lockfiles remain searchable in broad retrieval", async
       "utf8",
     );
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "LOCKFILE_SEARCH_MARKER",
@@ -323,7 +323,7 @@ test("regression fixture: exact technical phrase beats repeated loose tokens", a
       "utf8",
     );
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "SandboxPermissions is a per-command request shape",
@@ -361,7 +361,7 @@ test("regression fixture: multiline heading/body phrase beats repeated loose tok
       "utf8",
     );
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "Sandbox Permissions Plain-language meaning",
@@ -384,7 +384,7 @@ test("regression fixture: capped heading boost cannot beat exact phrase", async 
     await writeFile(join(root, "target.md"), "# Target\n\nadaptive compression vault recovery", "utf8");
     await writeFile(join(root, "heading-decoy.md"), `# ${"adaptive ".repeat(30000)}\n`, "utf8");
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "adaptive compression vault recovery",
@@ -416,7 +416,7 @@ test("regression fixture: section chunk coverage beats repeated single-token dec
     );
     await writeFile(join(root, "decoy.md"), `adaptive `.repeat(900), "utf8");
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "adaptive compression vault recovery parser confidence",
@@ -463,7 +463,7 @@ test("regression fixture: source symbol beats test chunk with one extra generic 
       "utf8",
     );
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "NetworkProxySpec config network proxy spec tests",
@@ -513,7 +513,7 @@ test("regression fixture: implementation module beats thin re-export with comple
       "utf8",
     );
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "CodexHttpClient CodexRequestBuilder default client",
@@ -544,7 +544,7 @@ test("regression fixture: exact phrase match evidence includes the exact phrase 
     lines.push("alpha beta exact phrase lives here");
     await writeFile(join(root, "target.md"), lines.join("\n"), "utf8");
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "alpha beta",
@@ -572,7 +572,7 @@ test("regression fixture: long symbol exact phrase evidence includes the exact p
     lines.push("}");
     await writeFile(join(root, "src.rs"), lines.join("\n"), "utf8");
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "omega beta exact phrase",
@@ -607,7 +607,7 @@ test("regression fixture: short section exact phrase evidence includes a late ex
       "utf8",
     );
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "omega beta exact phrase",
@@ -638,7 +638,7 @@ test("regression fixture: multiline huge exact phrase evidence includes the phra
       "utf8",
     );
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "alpha beta",
@@ -668,7 +668,7 @@ test("regression fixture: huge symbol line exact phrase evidence includes the ex
       "utf8",
     );
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "omega beta exact phrase",
@@ -702,7 +702,7 @@ test("regression fixture: markdown frontmatter is searchable before the first he
       "utf8",
     );
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "unique-frontmatter-marker",
@@ -742,7 +742,7 @@ test("regression fixture: section evidence covers spread-out query terms", async
       "utf8",
     );
 
-    const result = await freeflowRetrieve({
+    const result = await freeflowSearch({
       action: "query",
       source: { kind: "repo", root },
       query: "Sandbox Permissions Plain-language meaning UseDefault",
@@ -763,7 +763,7 @@ test("regression fixture: section evidence covers spread-out query terms", async
 
 test("regression fixture: large docs query returns bounded exact evidence", async () => {
   const raw = await fixtureText("large-router-manual.md");
-  const result = await freeflowRetrieve({
+  const result = await freeflowSearch({
     action: "query",
     source: { kind: "repo", root: fixtureRoot },
     query: "OUTPUT_ROUTER_SKILL_DECISION_ANCHOR safety net",
@@ -780,7 +780,7 @@ test("regression fixture: large docs query returns bounded exact evidence", asyn
 
 test("regression fixture: preserve full over cap returns exact chunks instead of a summary", async () => {
   const raw = await fixtureText("large-router-manual.md");
-  const result = await freeflowRetrieve({
+  const result = await freeflowSearch({
     action: "retrieve",
     source: { kind: "repo", root: fixtureRoot, path: "large-router-manual.md" },
     preserve: "full",
@@ -916,8 +916,8 @@ test("regression fixture: Pi safety net labels native output and recovers exact 
     const outputId = routed.content[0].text.match(/outputId=(ffout_[a-f0-9]+)/)?.[1];
     assert.ok(outputId);
 
-    const retrieveTool = tools.find((tool) => tool.name === "freeflow_retrieve");
-    const retrieved = await retrieveTool.execute(
+    const searchTool = tools.find((tool) => tool.name === "freeflow_search");
+    const searched = await searchTool.execute(
       "recover-native-tail",
       {
         action: "retrieve",
@@ -928,8 +928,8 @@ test("regression fixture: Pi safety net labels native output and recovers exact 
       undefined,
       context(cwd),
     );
-    const payload = retrieved.details.result;
-    assert.doesNotMatch(retrieved.content[0].text, /^\s*\{/);
+    const payload = searched.details.result;
+    assert.doesNotMatch(searched.content[0].text, /^\s*\{/);
     assert.equal(payload.evidence[0].excerpt, "native output fixture line 038\nnative output fixture line 039\nNATIVE_RAW_TAIL_SENTINEL");
   } finally {
     await rm(cwd, { recursive: true, force: true });

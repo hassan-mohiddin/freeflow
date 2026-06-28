@@ -1,8 +1,8 @@
 const STRING_SCHEMA = { type: "string" };
 const PRESERVE_SCHEMA = { type: "string", enum: ["summary", "important", "full"] };
-const RETRIEVE_ACTION_SCHEMA = {
+const SEARCH_ACTION_SCHEMA = {
     type: "string",
-    enum: ["query", "locate", "get", "retrieve", "expand", "explain"],
+    enum: ["query", "locate", "get", "retrieve", "expand", "explain", "transform"],
 };
 const EXPANSION_SCHEMA = { type: "string", enum: ["lines_30", "lines_80", "full"] };
 const STREAM_SCHEMA = { type: "string", enum: ["stdout", "stderr", "combined", "raw"] };
@@ -42,11 +42,11 @@ export const FREEFLOW_STATUS_PARAMETERS = {
         },
     },
 };
-export const FREEFLOW_RETRIEVE_PARAMETERS = {
+export const FREEFLOW_SEARCH_PARAMETERS = {
     type: "object",
     additionalProperties: false,
     properties: {
-        action: { ...RETRIEVE_ACTION_SCHEMA, description: "Retrieval action to perform." },
+        action: { ...SEARCH_ACTION_SCHEMA, description: "Search/retrieval action to perform, or transform to process a repo/vault source." },
         source: {
             type: "object",
             additionalProperties: false,
@@ -63,9 +63,69 @@ export const FREEFLOW_RETRIEVE_PARAMETERS = {
                 recoverability: { type: "string", enum: ["exact", "redacted", "metadata_only", "none"], description: "Vault recoverability filter for source.kind=vault query/locate." },
             },
             required: ["kind"],
-            description: "Source to retrieve from. Repo root and vault session are supplied by Freeflow/Pi.",
+            description: "Source to search, retrieve, or transform. Repo root and vault session are supplied by Freeflow/Pi.",
         },
         query: { ...STRING_SCHEMA, description: "Text query for query/locate actions." },
+        goal: { ...STRING_SCHEMA, description: "Goal for action=transform, such as log analysis, CSV summary, or test output processing." },
+        script: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                language: { ...SCRIPT_LANGUAGE_SCHEMA, description: "Processing script language." },
+                code: { ...NON_EMPTY_STRING_SCHEMA, description: "Processing script code. Raw code is not persisted by default." },
+                label: { ...NON_EMPTY_STRING_SCHEMA, description: "Optional script label." },
+                alias: { type: "string", pattern: "^[A-Za-z][A-Za-z0-9_-]{0,63}$", description: "Input source alias exposed to the processing script." },
+                policy: { type: "string", enum: ["sandboxed", "unsafe-unsandboxed"], description: "Script execution policy. unsafe-unsandboxed requires local-only opt-in and is visibly labeled." },
+                limits: { ...SCRIPT_LIMITS_SCHEMA, description: "Script resource limits. They only tighten configured limits." },
+            },
+            required: ["language", "code"],
+            description: "Optional programmable processing for action=transform. Sandboxed remains default; unsafe-unsandboxed requires .freeflow/local.json opt-in.",
+        },
+        operation: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+                kind: { type: "string", enum: ["regexFilter", "countMatches", "jsonExtract", "groupByRegex", "dedupe", "topN", "extractUrls", "extractCitations", "lineStats", "sizeStats", "script"], description: "Deterministic transform operation for action=transform over vaulted output, or sandboxed script transform." },
+                pattern: { ...NON_EMPTY_STRING_SCHEMA, description: "Regex pattern for regexFilter, countMatches, groupByRegex, or regex-backed topN." },
+                flags: REGEX_FLAGS_SCHEMA,
+                pointer: { ...STRING_SCHEMA, pattern: JSON_POINTER_PATTERN, description: "JSON Pointer for jsonExtract." },
+                path: { ...NON_EMPTY_STRING_SCHEMA, pattern: JSON_PATH_PATTERN, description: "JSON path for jsonExtract." },
+                contextLines: MAX_CONTEXT_LINES_SCHEMA,
+                maxMatches: MAX_REGEX_MATCHES_SCHEMA,
+                group: NON_EMPTY_STRING_SCHEMA,
+                maxGroups: MAX_GROUPS_SCHEMA,
+                maxLinesPerGroup: MAX_LINES_PER_GROUP_SCHEMA,
+                trim: { type: "boolean" },
+                caseSensitive: { type: "boolean" },
+                maxLines: MAX_DEDUPE_LINES_SCHEMA,
+                limit: MAX_TOP_N_LIMIT_SCHEMA,
+                sort: { type: "string", enum: ["text", "numeric"] },
+                order: { type: "string", enum: ["asc", "desc"] },
+                dedupe: { type: "boolean" },
+                language: SCRIPT_LANGUAGE_SCHEMA,
+                code: NON_EMPTY_STRING_SCHEMA,
+                label: NON_EMPTY_STRING_SCHEMA,
+            },
+            required: ["kind"],
+            description: "Optional deterministic transform operation for action=transform. Existing source raw output remains recoverable by lineage when available.",
+        },
+        sources: {
+            type: "array",
+            minItems: 1,
+            items: {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                    kind: { type: "string", enum: ["vault"] },
+                    outputId: NON_EMPTY_STRING_SCHEMA,
+                    stream: STREAM_SCHEMA,
+                    alias: { type: "string", pattern: "^[A-Za-z][A-Za-z0-9_-]{0,63}$" },
+                },
+                required: ["kind", "outputId", "alias"],
+            },
+            description: "Vault sources for action=transform operation.kind=script.",
+        },
+        limits: { ...SCRIPT_LIMITS_SCHEMA, description: "Processing or script transform resource limits." },
         filters: {
             type: "object",
             additionalProperties: false,
@@ -84,7 +144,7 @@ export const FREEFLOW_RETRIEVE_PARAMETERS = {
         evidence: {
             type: "object",
             additionalProperties: true,
-            description: "Evidence packet from a previous freeflow_retrieve result, used for expand.",
+            description: "Evidence packet from a previous freeflow_search result, used for expand.",
         },
         expansion: { ...EXPANSION_SCHEMA, description: "Expansion breadth for expand action." },
         maxFullBytes: { type: "number", description: "Cap for preserve=full before exact chunks are returned." },
@@ -105,7 +165,7 @@ export const FREEFLOW_RETRIEVE_PARAMETERS = {
             description: "Prior routed result to explain.",
         },
     },
-    required: ["action", "source"],
+    required: ["action"],
 };
 export const FREEFLOW_RUN_PARAMETERS = {
     type: "object",
@@ -146,52 +206,6 @@ export const FREEFLOW_RUN_PARAMETERS = {
     },
     required: ["command"],
 };
-const DERIVE_SOURCE_SCHEMA = {
-    type: "object",
-    additionalProperties: false,
-    properties: {
-        kind: { type: "string", enum: ["vault"] },
-        outputId: { ...NON_EMPTY_STRING_SCHEMA, description: "Vault output id to derive from." },
-        stream: { ...STREAM_SCHEMA, description: "Vault stream to read. Defaults by source record kind." },
-    },
-    required: ["kind", "outputId"],
-    description: "Existing vaulted source evidence for deterministic derive operations.",
-};
-const SCRIPT_DERIVE_SOURCE_SCHEMA = {
-    type: "object",
-    additionalProperties: false,
-    properties: {
-        kind: { type: "string", enum: ["vault"] },
-        outputId: { ...NON_EMPTY_STRING_SCHEMA, description: "Vault output id to mount as script input." },
-        stream: { ...STREAM_SCHEMA, description: "Vault stream to mount. Defaults by source record kind." },
-        alias: { type: "string", pattern: "^[A-Za-z][A-Za-z0-9_-]{0,63}$", description: "Script input alias." },
-    },
-    required: ["kind", "outputId", "alias"],
-    description: "Existing vaulted source evidence for operation.kind=script.",
-};
-const SCRIPT_DERIVE_LIMITS_SCHEMA = {
-    type: "object",
-    additionalProperties: false,
-    properties: {
-        timeoutMs: { type: "integer", minimum: 1, maximum: 30000 },
-        maxInputBytes: { type: "integer", minimum: 1, maximum: 10485760 },
-        maxOutputBytes: { type: "integer", minimum: 1, maximum: 1048576 },
-    },
-    description: "Script derive resource limits. They only tighten configured defaults.",
-};
-const DERIVE_OPERATION_KINDS = [
-    "regexFilter",
-    "countMatches",
-    "jsonExtract",
-    "groupByRegex",
-    "dedupe",
-    "topN",
-    "extractUrls",
-    "extractCitations",
-    "lineStats",
-    "sizeStats",
-    "script",
-];
 export const FREEFLOW_BATCH_PARAMETERS = {
     type: "object",
     additionalProperties: false,
@@ -205,8 +219,8 @@ export const FREEFLOW_BATCH_PARAMETERS = {
                 additionalProperties: false,
                 properties: {
                     id: { ...NON_EMPTY_STRING_SCHEMA, description: "Optional stable step id for matching results." },
-                    kind: { type: "string", enum: ["run", "retrieve", "search", "derive", "transform"], description: "Freeflow-owned operation kind. Steps are independent and run in parallel." },
-                    input: { type: "object", additionalProperties: true, description: "Input for the selected Freeflow operation. Uses the same shape as freeflow_run, freeflow_retrieve/search-compatible, or freeflow_derive/transform-compatible inputs." },
+                    kind: { type: "string", enum: ["run", "search"], description: "Freeflow-owned public operation kind. Steps are independent and run in parallel." },
+                    input: { type: "object", additionalProperties: true, description: "Input for the selected Freeflow operation. Uses the same shape as freeflow_run or freeflow_search." },
                 },
                 required: ["kind", "input"],
             },
@@ -222,56 +236,4 @@ export const FREEFLOW_BATCH_PARAMETERS = {
         preserve: { ...PRESERVE_SCHEMA, description: "Default fidelity mode for steps that do not set preserve." },
     },
     required: ["steps"],
-};
-export const FREEFLOW_DERIVE_PARAMETERS = {
-    type: "object",
-    additionalProperties: false,
-    properties: {
-        source: DERIVE_SOURCE_SCHEMA,
-        sources: {
-            type: "array",
-            minItems: 1,
-            items: SCRIPT_DERIVE_SOURCE_SCHEMA,
-            description: "Vault sources for operation.kind=script. Deterministic operations keep using source.",
-        },
-        operation: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-                kind: { type: "string", enum: DERIVE_OPERATION_KINDS, description: "Derive operation kind. script is disabled by default and requires a sandbox." },
-                pattern: { ...NON_EMPTY_STRING_SCHEMA, description: "Regex pattern for regexFilter, countMatches, groupByRegex, or regex-backed topN. No arbitrary code is executed." },
-                flags: REGEX_FLAGS_SCHEMA,
-                pointer: {
-                    ...STRING_SCHEMA,
-                    pattern: JSON_POINTER_PATTERN,
-                    description: "JSON Pointer for jsonExtract, such as /suite/failures/0/message. Empty string selects the full JSON document.",
-                },
-                path: {
-                    ...NON_EMPTY_STRING_SCHEMA,
-                    pattern: JSON_PATH_PATTERN,
-                    description: "JSON path for jsonExtract, such as $.suite.stats.failed, $[0], or $[\"quoted.key\"].",
-                },
-                contextLines: { ...MAX_CONTEXT_LINES_SCHEMA, description: "Context lines around each regexFilter matching line." },
-                maxMatches: { ...MAX_REGEX_MATCHES_SCHEMA, description: "Maximum matches for regexFilter, extractUrls, or extractCitations through Pi." },
-                group: { ...NON_EMPTY_STRING_SCHEMA, description: "Capture group index or name for groupByRegex or topN. Numeric strings are treated as group indexes." },
-                maxGroups: { ...MAX_GROUPS_SCHEMA, description: "Maximum groupByRegex groups returned." },
-                maxLinesPerGroup: { ...MAX_LINES_PER_GROUP_SCHEMA, description: "Maximum sample lines per groupByRegex group." },
-                trim: { type: "boolean", description: "Trim lines before dedupe comparison and return." },
-                caseSensitive: { type: "boolean", description: "Whether dedupe comparison is case-sensitive. Default: true." },
-                maxLines: { ...MAX_DEDUPE_LINES_SCHEMA, description: "Maximum unique dedupe lines returned." },
-                limit: { ...MAX_TOP_N_LIMIT_SCHEMA, description: "Maximum topN lines returned." },
-                sort: { type: "string", enum: ["text", "numeric"], description: "topN sort mode. Default: text." },
-                order: { type: "string", enum: ["asc", "desc"], description: "topN sort order. Equal scores preserve source order." },
-                dedupe: { type: "boolean", description: "Return each URL once for extractUrls." },
-                language: { type: "string", enum: ["javascript", "python", "jq"], description: "Script derive language for operation.kind=script." },
-                code: { ...NON_EMPTY_STRING_SCHEMA, description: "Script derive code for operation.kind=script. Raw code is not persisted by default." },
-                label: { ...NON_EMPTY_STRING_SCHEMA, description: "Optional script derive label." },
-            },
-            required: ["kind"],
-            description: "Operation to apply to existing evidence. Script operations are disabled by default and operation-specific constraints are validated by Freeflow before execution."
-        },
-        limits: SCRIPT_DERIVE_LIMITS_SCHEMA,
-        preserve: { ...PRESERVE_SCHEMA, description: "Fidelity mode. Default: important." },
-    },
-    required: ["operation"],
 };

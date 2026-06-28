@@ -89,7 +89,7 @@ export interface ScriptDeriveInput {
     preserve?: PreserveMode;
 }
 export type DeriveInput = DeterministicDeriveInput | ScriptDeriveInput;
-export type FreeflowDeriveOptions = DeriveInput & {
+export type FreeflowTransformOptions = DeriveInput & {
     sessionId: string;
     vaultRoot?: string;
     vaultRetention?: VaultRetentionPolicy;
@@ -97,7 +97,6 @@ export type FreeflowDeriveOptions = DeriveInput & {
     scriptDerive?: ScriptDeriveConfig;
     scriptSandboxAdapters?: readonly ScriptSandboxAdapter[];
 };
-export type FreeflowTransformOptions = FreeflowDeriveOptions;
 export declare const TRANSFORM_ENGINE_IMPLEMENTATION = "shared-transform-engine-v1";
 export interface DeriveValidationIssue {
     path: string;
@@ -110,6 +109,5 @@ export type DeriveValidationResult = {
     ok: false;
     issues: DeriveValidationIssue[];
 };
-export declare function validateDeriveInput(value: unknown): DeriveValidationResult;
+export declare function validateTransformInput(value: unknown): DeriveValidationResult;
 export declare function freeflowTransform(options: FreeflowTransformOptions): Promise<DeriveRoutedResult | FailureRoutedResult>;
-export declare function freeflowDerive(options: FreeflowDeriveOptions): Promise<DeriveRoutedResult | FailureRoutedResult>;

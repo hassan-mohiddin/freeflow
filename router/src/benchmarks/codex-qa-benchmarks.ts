@@ -15,7 +15,7 @@ import {
   reductionPercent,
   writeBenchmarkReportPair,
 } from "./benchmark-harness.js";
-import { freeflowRetrieve } from "../tools/retrieve.js";
+import { freeflowSearch } from "../tools/search.js";
 import type { EvidencePacket } from "../config/types.js";
 
 export interface RunCodexQaBenchmarksOptions {
@@ -320,7 +320,7 @@ async function runModeIterations(
 }
 
 async function improvedFreeflowObservation(fixture: CodexQaFixture): Promise<CodexQaObservation> {
-  const queryResult = await freeflowRetrieve({
+  const queryResult = await freeflowSearch({
     action: "query",
     source: { kind: "repo", root: fixture.root },
     query: fixture.query,
@@ -329,7 +329,7 @@ async function improvedFreeflowObservation(fixture: CodexQaFixture): Promise<Cod
   });
   const seedEvidence = queryResult.evidence?.[0];
   const expandedResult = seedEvidence
-    ? await freeflowRetrieve({
+    ? await freeflowSearch({
       action: "expand",
       source: { kind: "repo", root: fixture.root },
       evidence: seedEvidence,
@@ -340,7 +340,7 @@ async function improvedFreeflowObservation(fixture: CodexQaFixture): Promise<Cod
   const evidence = expandedResult?.evidence?.[0] ?? seedEvidence;
   const evidenceExcerpt = evidence?.excerpt ?? "";
   return {
-    toolPathUsed: "freeflowRetrieve repo query + expand",
+    toolPathUsed: "freeflowSearch repo query + expand",
     proxyCalls: expandedResult ? 2 : 1,
     rawBytes: await repoRawBytes(fixture.root),
     contextBytes: byteLength(JSON.stringify(queryResult)) + byteLength(JSON.stringify(expandedResult ?? {})),

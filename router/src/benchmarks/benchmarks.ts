@@ -18,7 +18,7 @@ import {
   reductionPercent,
   writeBenchmarkReportPair,
 } from "./benchmark-harness.js";
-import { freeflowRetrieve } from "../tools/retrieve.js";
+import { freeflowSearch } from "../tools/search.js";
 import { createVault, storeCommandOutput } from "../vault/vault.js";
 import type { EvidencePacket, RetrievalRoutedResult } from "../config/types.js";
 
@@ -658,13 +658,13 @@ async function createVaultedOutputFixture(): Promise<BenchmarkFixture> {
         recovery: { status: "failed", detail: "Baseline proxy does not expose structured recovery metadata." },
       }),
       "improved-freeflow-router": async () => improvedRetrieveObservation(
-        await freeflowRetrieve({
+        await freeflowSearch({
           action: "query",
           source: { kind: "vault", root: vaultRoot.path, sessionId, outputId: record.outputId, stream: "stderr" },
           query: "ASSERTION_FAILED payments badge",
           preserve: "important",
         }),
-        "improved-freeflow-router: freeflow_retrieve vault query",
+        "improved-freeflow-router: freeflow_search vault query",
         stderr,
         (result) => verifyVaultEvidenceRecovery(vaultRoot.path, sessionId, result),
       ),
@@ -708,7 +708,7 @@ async function createExpansionFixture(): Promise<BenchmarkFixture> {
         recovery: { status: "failed", detail: "Baseline proxy does not expose structured expansion recovery." },
       }),
       "improved-freeflow-router": async () => {
-        const queryResult = await freeflowRetrieve({
+        const queryResult = await freeflowSearch({
           action: "query",
           source: { kind: "repo", root: repo.path },
           query,
@@ -718,20 +718,20 @@ async function createExpansionFixture(): Promise<BenchmarkFixture> {
         if (!evidence) {
           return improvedRetrieveObservation(
             queryResult,
-            "improved-freeflow-router: freeflow_retrieve query before expand",
+            "improved-freeflow-router: freeflow_search query before expand",
             body.join("\n"),
             (result) => verifyRepoEvidenceRecovery(repo.path, result),
           );
         }
         return improvedRetrieveObservation(
-          await freeflowRetrieve({
+          await freeflowSearch({
             action: "expand",
             source: { kind: "repo", root: repo.path },
             evidence,
             expansion: "lines_30",
             preserve: "important",
           }),
-          "improved-freeflow-router: freeflow_retrieve expand lines_30",
+          "improved-freeflow-router: freeflow_search expand lines_30",
           body.join("\n"),
           (result) => verifyRepoEvidenceRecovery(repo.path, result),
         );
@@ -762,13 +762,13 @@ function repoQueryFixture(
         recovery: { status: "failed", detail: "Baseline proxy does not expose structured recovery metadata." },
       }),
       "improved-freeflow-router": async () => improvedRetrieveObservation(
-        await freeflowRetrieve({
+        await freeflowSearch({
           action: "query",
           source: { kind: "repo", root: repo.path },
           query: options.query,
           preserve: "important",
         }),
-        "improved-freeflow-router: freeflow_retrieve query",
+        "improved-freeflow-router: freeflow_search query",
         await readRepoBytes(repo.path),
         (result) => verifyRepoEvidenceRecovery(repo.path, result),
       ),
@@ -909,7 +909,7 @@ async function verifyRepoEvidenceRecovery(root: string, result: RetrievalRoutedR
     return { status: "failed", detail: `Unsupported repo evidence range ${evidence.lines}.` };
   }
 
-  const recovered = await freeflowRetrieve({
+  const recovered = await freeflowSearch({
     action: "retrieve",
     source: { kind: "repo", root, path: evidence.path },
     lineRange: range,
@@ -933,7 +933,7 @@ async function verifyVaultEvidenceRecovery(
     return { status: "failed", detail: `Unsupported vault evidence range ${evidence.lines}.` };
   }
 
-  const recovered = await freeflowRetrieve({
+  const recovered = await freeflowSearch({
     action: "retrieve",
     source: {
       kind: "vault",

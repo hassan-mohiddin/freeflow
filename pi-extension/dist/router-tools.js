@@ -1,10 +1,10 @@
-import { discoverEryxPythonSandboxAdaptersFromEnv, discoverJqWasmSandboxAdaptersFromEnv, discoverQuickJsWasiSandboxAdaptersFromEnv, freeflowBatch, freeflowDerive, freeflowRetrieve, freeflowRun } from "../../router/dist/index.js";
+import { discoverEryxPythonSandboxAdaptersFromEnv, discoverJqWasmSandboxAdaptersFromEnv, discoverQuickJsWasiSandboxAdaptersFromEnv, freeflowBatch, freeflowTransform, freeflowSearch, freeflowRun, processSource } from "../../router/dist/index.js";
 import { buildFreeflowStatusReport } from "./status.js";
-import { renderFreeflowBatchCall, renderFreeflowBatchResult, renderFreeflowDeriveCall, renderFreeflowDeriveResult, renderFreeflowRetrieveCall, renderFreeflowRetrieveResult, renderFreeflowRunCall, renderFreeflowRunResult, renderFreeflowStatusCall, renderFreeflowStatusResult, } from "./renderers.js";
+import { renderFreeflowBatchCall, renderFreeflowBatchResult, renderFreeflowSearchCall, renderFreeflowSearchResult, renderFreeflowRunCall, renderFreeflowRunResult, renderFreeflowStatusCall, renderFreeflowStatusResult, } from "./renderers.js";
 import { readOutputRouterConfig, notifyRouterConfigWarnings } from "./runtime-context.js";
-import { FREEFLOW_BATCH_PARAMETERS, FREEFLOW_DERIVE_PARAMETERS, FREEFLOW_RETRIEVE_PARAMETERS, FREEFLOW_RUN_PARAMETERS, FREEFLOW_STATUS_PARAMETERS } from "./schemas.js";
-import { compactBatchToolText, compactDeriveToolText, compactRetrieveToolText, compactRunToolText, getRouterSessionId, routedToolText } from "./utils.js";
-function normalizeDeriveOperation(operation) {
+import { FREEFLOW_BATCH_PARAMETERS, FREEFLOW_RUN_PARAMETERS, FREEFLOW_SEARCH_PARAMETERS, FREEFLOW_STATUS_PARAMETERS } from "./schemas.js";
+import { compactBatchToolText, compactRunToolText, compactSearchToolText, getRouterSessionId, routedToolText } from "./utils.js";
+function normalizeTransformOperation(operation) {
     if (!operation || typeof operation !== "object" || Array.isArray(operation)) {
         return operation;
     }
@@ -16,18 +16,18 @@ function normalizeDeriveOperation(operation) {
         group: Number(operation.group),
     };
 }
-async function normalizeDeriveParams(params, ctx) {
-    const operation = normalizeDeriveOperation(params.operation);
+async function normalizeTransformParams(params, ctx) {
+    const operation = normalizeTransformOperation(params.operation);
     if (operation?.kind === "script") {
         if (!Array.isArray(params.sources)) {
-            throw new Error("freeflow_derive operation.kind=script requires sources[].");
+            throw new Error("freeflow_search action=transform operation.kind=script requires sources[].");
         }
         return {
             ...params,
             operation,
             sources: params.sources.map((source, index) => {
                 if (!source || source.kind !== "vault") {
-                    throw new Error(`freeflow_derive script source ${index} requires kind=vault.`);
+                    throw new Error(`freeflow_search transform script source ${index} requires kind=vault.`);
                 }
                 return {
                     kind: "vault",
@@ -41,10 +41,10 @@ async function normalizeDeriveParams(params, ctx) {
     }
     const source = params.source;
     if (!source || source.kind !== "vault") {
-        throw new Error("freeflow_derive currently supports source.kind=vault only.");
+        throw new Error("freeflow_search action=transform operation currently supports source.kind=vault only.");
     }
     if (!source.outputId) {
-        throw new Error("freeflow_derive source.kind=vault requires source.outputId.");
+        throw new Error("freeflow_search action=transform source.kind=vault requires source.outputId.");
     }
     return {
         ...params,
@@ -56,7 +56,7 @@ async function normalizeDeriveParams(params, ctx) {
         },
     };
 }
-async function normalizeRetrieveParams(params, ctx, providedRouterConfigResult = undefined) {
+async function normalizeSearchEvidenceParams(params, ctx, providedRouterConfigResult = undefined) {
     const routerConfigResult = providedRouterConfigResult ?? await readOutputRouterConfig(ctx.cwd);
     if (!providedRouterConfigResult) {
         notifyRouterConfigWarnings(ctx, routerConfigResult);
@@ -75,7 +75,7 @@ async function normalizeRetrieveParams(params, ctx, providedRouterConfigResult =
     }
     if (source.kind === "vault") {
         if (!source.outputId && params.action !== "query" && params.action !== "locate" && params.action !== "get") {
-            throw new Error("freeflow_retrieve source.kind=vault requires source.outputId for retrieve, expand, and explain.");
+            throw new Error("freeflow_search source.kind=vault requires source.outputId for retrieve, expand, and explain.");
         }
         return {
             ...params,
@@ -94,7 +94,99 @@ async function normalizeRetrieveParams(params, ctx, providedRouterConfigResult =
             },
         };
     }
-    throw new Error(`Unsupported freeflow_retrieve source kind: ${source.kind}`);
+    throw new Error(`Unsupported freeflow_search source kind: ${source.kind}`);
+}
+async function normalizeSearchTransformProcessingParams(params, ctx, routerConfigResult) {
+    const source = params.source ?? { kind: "repo" };
+    if (source.kind === "repo") {
+        if (!source.path) {
+            throw new Error("freeflow_search action=transform source.kind=repo requires source.path.");
+        }
+        return {
+            source: { kind: "repo-file", root: ctx.cwd, path: source.path },
+            options: {
+                sessionId: getRouterSessionId(ctx),
+                vaultRoot: routerConfigResult.config.vault.root,
+                vaultRetention: routerConfigResult.config.vault.retention,
+                goal: params.goal,
+                limits: params.limits,
+                script: params.script,
+                scriptDerive: routerConfigResult.freeflowConfig.scriptDerive,
+                localConfig: routerConfigResult.localConfig,
+                scriptSandboxAdapters: params.script
+                    ? [
+                        ...(await discoverQuickJsWasiSandboxAdaptersFromEnv()),
+                        ...(await discoverJqWasmSandboxAdaptersFromEnv()),
+                        ...(await discoverEryxPythonSandboxAdaptersFromEnv()),
+                    ]
+                    : [],
+            },
+        };
+    }
+    if (source.kind === "vault") {
+        if (!source.outputId) {
+            throw new Error("freeflow_search action=transform source.kind=vault requires source.outputId.");
+        }
+        return {
+            source: {
+                kind: "vault-output",
+                sessionId: getRouterSessionId(ctx),
+                vaultRoot: routerConfigResult.config.vault.root,
+                outputId: source.outputId,
+                ...(source.stream ? { stream: source.stream } : {}),
+            },
+            options: {
+                sessionId: getRouterSessionId(ctx),
+                vaultRoot: routerConfigResult.config.vault.root,
+                vaultRetention: routerConfigResult.config.vault.retention,
+                goal: params.goal,
+                limits: params.limits,
+                script: params.script,
+                scriptDerive: routerConfigResult.freeflowConfig.scriptDerive,
+                localConfig: routerConfigResult.localConfig,
+                scriptSandboxAdapters: params.script
+                    ? [
+                        ...(await discoverQuickJsWasiSandboxAdaptersFromEnv()),
+                        ...(await discoverJqWasmSandboxAdaptersFromEnv()),
+                        ...(await discoverEryxPythonSandboxAdaptersFromEnv()),
+                    ]
+                    : [],
+            },
+        };
+    }
+    throw new Error(`Unsupported freeflow_search action=transform source kind: ${source.kind}`);
+}
+async function executeSearch(params, ctx, routerConfigResult) {
+    if (params.action === "transform") {
+        if (params.operation) {
+            const normalized = await normalizeTransformParams(params, ctx);
+            const scriptSandboxAdapters = normalized.operation?.kind === "script"
+                ? [
+                    ...(await discoverQuickJsWasiSandboxAdaptersFromEnv()),
+                    ...(await discoverJqWasmSandboxAdaptersFromEnv()),
+                    ...(await discoverEryxPythonSandboxAdaptersFromEnv()),
+                ]
+                : [];
+            return freeflowTransform({
+                ...normalized,
+                sessionId: getRouterSessionId(ctx),
+                vaultRoot: routerConfigResult.config.vault.root,
+                vaultRetention: routerConfigResult.config.vault.retention,
+                thresholds: routerConfigResult.config.thresholds,
+                scriptDerive: routerConfigResult.freeflowConfig.scriptDerive,
+                scriptSandboxAdapters,
+            });
+        }
+        const normalized = await normalizeSearchTransformProcessingParams(params, ctx, routerConfigResult);
+        return processSource(normalized.source, normalized.options);
+    }
+    return freeflowSearch(await normalizeSearchEvidenceParams(params, ctx, routerConfigResult));
+}
+async function normalizeSearchParams(params, ctx, routerConfigResult) {
+    if (params.action === "transform") {
+        return params;
+    }
+    return normalizeSearchEvidenceParams(params, ctx, routerConfigResult);
 }
 async function normalizeBatchParams(params, ctx, routerConfigResult) {
     if (!Array.isArray(params.steps)) {
@@ -118,19 +210,14 @@ async function normalizeBatchParams(params, ctx, routerConfigResult) {
             });
             continue;
         }
-        if (step.kind === "retrieve" || step.kind === "search") {
+        if (step.kind === "search") {
+            if (input.action === "transform") {
+                throw new Error("freeflow_batch search transform steps are not public yet; use freeflow_search directly for transform processing.");
+            }
             steps.push({
                 id: step.id,
-                kind: step.kind,
-                input: await normalizeRetrieveParams(input, ctx, routerConfigResult),
-            });
-            continue;
-        }
-        if (step.kind === "derive" || step.kind === "transform") {
-            steps.push({
-                id: step.id,
-                kind: step.kind,
-                input: await normalizeDeriveParams(input, ctx),
+                kind: "search",
+                input: await normalizeSearchParams(input, ctx, routerConfigResult),
             });
             continue;
         }
@@ -155,8 +242,8 @@ function batchNeedsScriptAdapters(params) {
         if (step.kind === "run") {
             return Boolean(input.scriptFilter);
         }
-        if (step.kind === "derive" || step.kind === "transform") {
-            return input.operation?.kind === "script";
+        if (step.kind === "search") {
+            return input.action === "transform" && (Boolean(input.script) || input.operation?.kind === "script");
         }
         return false;
     });
@@ -211,27 +298,30 @@ export function registerRouterTools(pi) {
         },
     });
     pi.registerTool({
-        name: "freeflow_retrieve",
-        label: "Freeflow Retrieve",
-        description: "Retrieve targeted evidence from repo files or Freeflow-vaulted output. Returns labeled, recoverable routed evidence instead of broad raw output.",
-        promptSnippet: "Retrieve targeted repo/vault evidence with recoverable routed output.",
+        name: "freeflow_search",
+        label: "Freeflow Search",
+        description: "Search, retrieve, expand, explain, or transform repo and vaulted Freeflow evidence. Returns compact facts with recoverable source pointers.",
+        promptSnippet: "Search repo/vault evidence or transform file/output sources with compact recoverable results.",
         promptGuidelines: [
-            "Use freeflow_retrieve for targeted repo or vault evidence before reading whole files or dumping captured output.",
-            "Use freeflow_retrieve with source.kind=vault and an outputId to recover exact output from freeflow_run.",
+            "Use freeflow_search for targeted repo or vault evidence before reading whole files or dumping captured output.",
+            "Use freeflow_search with source.kind=vault and an outputId to recover exact output from freeflow_run.",
+            "Use freeflow_search action=transform for file/output processing through deterministic reducers or explicit scripts.",
         ],
-        parameters: FREEFLOW_RETRIEVE_PARAMETERS,
+        parameters: FREEFLOW_SEARCH_PARAMETERS,
         async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-            const result = await freeflowRetrieve(await normalizeRetrieveParams(params, ctx));
+            const routerConfigResult = await readOutputRouterConfig(ctx.cwd);
+            notifyRouterConfigWarnings(ctx, routerConfigResult);
+            const result = await executeSearch(params, ctx, routerConfigResult);
             return {
-                content: [{ type: "text", text: compactRetrieveToolText(result) }],
+                content: [{ type: "text", text: compactSearchToolText(result) }],
                 details: { result },
             };
         },
         renderCall(args, theme) {
-            return renderFreeflowRetrieveCall(args, theme);
+            return renderFreeflowSearchCall(args, theme);
         },
         renderResult(result, options, theme) {
-            return renderFreeflowRetrieveResult(result, options, theme);
+            return renderFreeflowSearchResult(result, options, theme);
         },
     });
     pi.registerTool({
@@ -294,9 +384,9 @@ export function registerRouterTools(pi) {
         name: "freeflow_batch",
         label: "Freeflow Batch",
         description: "Run independent Freeflow-owned operations in parallel and return one compact summary while preserving full child results in details.result.steps.",
-        promptSnippet: "Batch independent Freeflow run/search/transform operations with compact model-visible output.",
+        promptSnippet: "Batch independent Freeflow run/search operations with compact model-visible output.",
         promptGuidelines: [
-            "Use freeflow_batch when several independent Freeflow-owned run, search/retrieve, or transform/derive operations can run in parallel.",
+            "Use freeflow_batch when several independent Freeflow-owned run/search operations can run in parallel.",
             "Use queries[] when the batch should answer deterministic fact requests from completed child evidence handles.",
             "Do not use freeflow_batch for sequenced workflows, arbitrary external tool orchestration, or mutating batch work in v1.",
             "Intermediate child outputs are suppressed unless needed for query answers; inspect details.result.steps or child recovery ids when needed.",
@@ -341,48 +431,6 @@ export function registerRouterTools(pi) {
         },
         renderResult(result, options, theme) {
             return renderFreeflowBatchResult(result, options, theme);
-        },
-    });
-    pi.registerTool({
-        name: "freeflow_derive",
-        label: "Freeflow Derive",
-        description: "Derive deterministic, bounded evidence from existing Freeflow-vaulted output. Supports regex filtering/counting, JSON extraction, grouping, dedupe, topN, URL/citation extraction, line/size stats, and a disabled-by-default sandboxed script operation.",
-        promptSnippet: "Transform existing vaulted evidence into bounded derived evidence with lineage and recovery.",
-        promptGuidelines: [
-            "Use freeflow_derive when existing vaulted evidence needs deterministic filtering, extraction, counting, grouping, dedupe, topN, URL/citation extraction, or line/size stats.",
-            "Use freeflow_retrieve first when you need to locate or recover the source evidence before deriving from it.",
-            "Script derive uses operation.kind=script, is disabled by default, and must return structured unavailable/disabled unless an approved sandbox adapter is configured.",
-            "Do not use script derive as an unsandboxed code execution path.",
-        ],
-        parameters: FREEFLOW_DERIVE_PARAMETERS,
-        async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-            const routerConfigResult = await readOutputRouterConfig(ctx.cwd);
-            notifyRouterConfigWarnings(ctx, routerConfigResult);
-            const normalized = await normalizeDeriveParams(params, ctx);
-            const scriptSandboxAdapters = [
-                ...(await discoverQuickJsWasiSandboxAdaptersFromEnv()),
-                ...(await discoverJqWasmSandboxAdaptersFromEnv()),
-                ...(await discoverEryxPythonSandboxAdaptersFromEnv()),
-            ];
-            const result = await freeflowDerive({
-                ...normalized,
-                sessionId: getRouterSessionId(ctx),
-                vaultRoot: routerConfigResult.config.vault.root,
-                vaultRetention: routerConfigResult.config.vault.retention,
-                thresholds: routerConfigResult.config.thresholds,
-                scriptDerive: routerConfigResult.freeflowConfig.scriptDerive,
-                scriptSandboxAdapters,
-            });
-            return {
-                content: [{ type: "text", text: compactDeriveToolText(result) }],
-                details: { result },
-            };
-        },
-        renderCall(args, theme) {
-            return renderFreeflowDeriveCall(args, theme);
-        },
-        renderResult(result, options, theme) {
-            return renderFreeflowDeriveResult(result, options, theme);
         },
     });
 }

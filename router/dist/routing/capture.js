@@ -142,7 +142,7 @@ export async function freeflowCapture(options) {
         summary: routed.summary,
         evidence: routed.evidence,
         recovery: {
-            how: `Use freeflow_retrieve with source.kind=vault and outputId=${record.outputId}, stream=raw, and an exact lineRange to recover exact captured content.`,
+            how: `Use freeflow_search with source.kind=vault and outputId=${record.outputId}, stream=raw, and an exact lineRange to recover exact captured content.`,
             outputId: record.outputId,
         },
     };

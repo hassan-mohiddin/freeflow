@@ -6,11 +6,11 @@ import test from "node:test";
 
 import {
   createVault,
-  freeflowDerive,
+  freeflowTransform,
   readOutputText,
   storeCommandOutput,
+  TRANSFORM_ENGINE_IMPLEMENTATION,
 } from "../../dist/index.js";
-import { freeflowTransform, TRANSFORM_ENGINE_IMPLEMENTATION } from "../../dist/transform/engine.js";
 
 async function withTempVault(fn) {
   const root = await mkdtemp(join(tmpdir(), "freeflow-router-transform-"));
@@ -21,7 +21,7 @@ async function withTempVault(fn) {
   }
 }
 
-test("freeflowTransform preserves freeflow_derive deterministic behavior and recovery", async () => {
+test("freeflowTransform preserves freeflow_search action=transform deterministic behavior and recovery", async () => {
   await withTempVault(async (vault, root) => {
     const source = await storeCommandOutput(vault, {
       sessionId: "transform-deterministic",
@@ -50,13 +50,13 @@ test("freeflowTransform preserves freeflow_derive deterministic behavior and rec
     assert.match(result.recovery.how, new RegExp(result.outputId));
 
     const derivedText = await readOutputText(vault, "transform-deterministic", result.outputId, "raw");
-    assert.match(derivedText, /# freeflow_derive regexFilter/);
+    assert.match(derivedText, /# freeflow_search action=transform regexFilter/);
     assert.match(derivedText, /beta target/);
     assert.match(derivedText, /gamma target/);
   });
 });
 
-test("freeflowDerive remains a compatibility facade over the transform engine", async () => {
+test("freeflowTransform is exported from the shared transform engine", async () => {
   await withTempVault(async (vault, root) => {
     const source = await storeCommandOutput(vault, {
       sessionId: "transform-compat",
@@ -68,7 +68,7 @@ test("freeflowDerive remains a compatibility facade over the transform engine", 
       exitCode: 0,
     });
 
-    const result = await freeflowDerive({
+    const result = await freeflowTransform({
       sessionId: "transform-compat",
       vaultRoot: root,
       source: { kind: "vault", outputId: source.outputId, stream: "combined" },
@@ -82,9 +82,10 @@ test("freeflowDerive remains a compatibility facade over the transform engine", 
   });
 });
 
-test("run script filters call the shared transform engine, not the derive facade", async () => {
+test("run script filters call the shared transform engine, not a tool facade", async () => {
   const runSource = await readFile("router/src/tools/run.ts", "utf8");
   assert.match(runSource, /from "\.\.\/transform\/engine\.js"/);
   assert.match(runSource, /freeflowTransform\(transformOptions\)/);
-  assert.doesNotMatch(runSource, /freeflowDerive\(/);
+  assert.doesNotMatch(runSource, /tools\/search-transform/);
+  assert.doesNotMatch(runSource, /freeflowDerive/);
 });

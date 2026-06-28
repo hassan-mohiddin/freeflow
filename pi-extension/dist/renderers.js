@@ -155,7 +155,7 @@ function exactRetrieveHintFromImportantLines(outputId, importantLines) {
     return `action=retrieve source.kind=vault lineRange=${firstSpan.lines} stream=${firstSpan.stream ?? "combined"} outputId=${outputId}`;
 }
 function recoveryStartingPoint(outputId) {
-    return outputId ? `freeflow_retrieve source.kind=vault outputId=${outputId} (choose stream + lineRange, or query/expand)` : "";
+    return outputId ? `freeflow_search source.kind=vault outputId=${outputId} (choose stream + lineRange, or query/expand)` : "";
 }
 function routerResultFromToolResult(result) {
     return result?.details?.result;
@@ -164,8 +164,15 @@ function fallbackResultText(result) {
     const text = extractTextContent(result?.content);
     return text ? truncateText(text, 200) : "No Freeflow result details available.";
 }
+export function renderFreeflowSearchCall(args, theme) {
+    const title = themeFg(theme, "toolTitle", themeBold(theme, "freeflow_search"));
+    const action = themeFg(theme, "muted", args?.action ?? "query");
+    const source = themeFg(theme, "accent", retrieveSourceLabel(args?.source));
+    const query = args?.query ? ` ${themeFg(theme, "dim", `\"${truncateText(args.query, 70)}\"`)}` : "";
+    return textComponent(`${title} ${action} ${source}${query}`);
+}
 export function renderFreeflowRetrieveCall(args, theme) {
-    const title = themeFg(theme, "toolTitle", themeBold(theme, "freeflow_retrieve"));
+    const title = themeFg(theme, "toolTitle", themeBold(theme, "freeflow_search"));
     const action = themeFg(theme, "muted", args?.action ?? "query");
     const source = themeFg(theme, "accent", retrieveSourceLabel(args?.source));
     const query = args?.query ? ` ${themeFg(theme, "dim", `\"${truncateText(args.query, 70)}\"`)}` : "";
@@ -194,7 +201,7 @@ function deriveOperationLabel(operation) {
     return String(operation.kind ?? "operation");
 }
 export function renderFreeflowDeriveCall(args, theme) {
-    const title = themeFg(theme, "toolTitle", themeBold(theme, "freeflow_derive"));
+    const title = themeFg(theme, "toolTitle", themeBold(theme, "freeflow_search action=transform"));
     const operation = themeFg(theme, "accent", deriveOperationLabel(args?.operation));
     const source = themeFg(theme, "muted", retrieveSourceLabel(args?.source));
     const preserve = args?.preserve ? ` ${themeFg(theme, "dim", `(preserve=${args.preserve})`)}` : "";
@@ -345,7 +352,7 @@ export function renderFreeflowStatusResult(result, { expanded } = {}, theme) {
     }
     const scriptDerive = report.scriptDerive;
     if (scriptDerive) {
-        lines.push("", themeFg(theme, "toolTitle", "Script derive"));
+        lines.push("", themeFg(theme, "toolTitle", "Script transform"));
         lines.push(`  ${themeFg(theme, "muted", "enabled:")} ${String(Boolean(scriptDerive.enabled))}`);
         lines.push(`  ${themeFg(theme, "muted", "adapter:")} ${scriptDerive.adapterStatus ?? "unavailable"}`);
         lines.push(`  ${themeFg(theme, "muted", "languages:")} ${(scriptDerive.configuredLanguages ?? []).join(", ") || "none"}`);
@@ -394,7 +401,61 @@ export function renderFreeflowStatusResult(result, { expanded } = {}, theme) {
     }
     return textComponent(lines.join("\n"));
 }
-export function renderFreeflowRetrieveResult(result, { expanded } = {}, theme) {
+export function renderFreeflowSearchResult(result, options = {}, theme) {
+    const routed = routerResultFromToolResult(result);
+    if (routed?.implementation === "processing-engine-skeleton-v1") {
+        return renderFreeflowProcessingResult(result, options, theme);
+    }
+    if (routed?.routing?.route === "derive") {
+        return renderFreeflowDeriveResult(result, options, theme, "freeflow_search");
+    }
+    return renderFreeflowRetrieveResult(result, options, theme, "freeflow_search");
+}
+function renderFreeflowProcessingResult(result, { expanded } = {}, theme) {
+    const routed = routerResultFromToolResult(result);
+    if (!routed) {
+        return textComponent(fallbackResultText(result));
+    }
+    const icon = routed.status === "ok" ? "✓" : routed.status === "blocked" ? "✗" : "!";
+    const unsafe = routed.script && "policy" in routed.script && routed.script.policy === "unsafe-unsandboxed";
+    const lines = [
+        `${themeFg(theme, unsafe ? "warning" : routed.status === "ok" ? "success" : "warning", icon)} ${themeFg(theme, "toolTitle", "freeflow_search")} ${themeFg(theme, "muted", "transform")} • ${formatStatus(theme, routed.status ?? "unknown")}${unsafe ? themeFg(theme, "warning", " • unsafe/unsandboxed") : ""}`,
+    ];
+    const visibleLines = splitLines(String(routed.visibleText ?? ""));
+    visibleLines.slice(0, expanded ? 20 : 4).forEach((line) => lines.push(themeFg(theme, unsafe && line.includes("unsafe/unsandboxed") ? "warning" : "toolOutput", truncateText(line, 160))));
+    if (visibleLines.length > (expanded ? 20 : 4)) {
+        lines.push(themeFg(theme, "dim", `… ${visibleLines.length - (expanded ? 20 : 4)} more line(s)`));
+    }
+    if (!expanded) {
+        lines.push(themeFg(theme, "dim", "ctrl+o to expand transform details and recovery"));
+        return textComponent(lines.join("\n"));
+    }
+    lines.push("", themeFg(theme, "toolTitle", "Source"));
+    lines.push(`  ${themeFg(theme, "accent", routed.source?.displayPath ?? "source")}`);
+    if (routed.stats) {
+        lines.push(`  ${themeFg(theme, "muted", "stats:")} ${routed.stats.bytes} bytes • ${routed.stats.lines} lines`);
+    }
+    if (routed.reducer?.status) {
+        lines.push("", themeFg(theme, "toolTitle", "Reducer"));
+        lines.push(`  ${routed.reducer.status}${routed.reducer.selected?.name ? ` ${routed.reducer.selected.name}` : ""}`);
+    }
+    if (routed.script?.status) {
+        lines.push("", themeFg(theme, "toolTitle", "Script"));
+        lines.push(`  ${themeFg(theme, "muted", "status:")} ${routed.script.status}`);
+        if (routed.script.policy)
+            lines.push(`  ${themeFg(theme, "muted", "policy:")} ${routed.script.policy}`);
+        if (routed.script.unsafeUnsandboxed)
+            lines.push(`  ${themeFg(theme, "warning", "unsafe/unsandboxed local-yolo")}`);
+    }
+    if (routed.recovery?.how) {
+        lines.push("", themeFg(theme, "toolTitle", "Recovery"));
+        lines.push(`  ${truncateText(routed.recovery.how, 180)}`);
+        if (routed.recovery.outputId)
+            lines.push(`  ${themeFg(theme, "muted", "outputId:")} ${themeFg(theme, "accent", routed.recovery.outputId)}`);
+    }
+    return textComponent(lines.join("\n"));
+}
+export function renderFreeflowRetrieveResult(result, { expanded } = {}, theme, toolTitle = "freeflow_search") {
     const routed = routerResultFromToolResult(result);
     if (!routed) {
         return textComponent(fallbackResultText(result));
@@ -403,7 +464,7 @@ export function renderFreeflowRetrieveResult(result, { expanded } = {}, theme) {
     const firstEvidence = evidence[0];
     const icon = statusIcon(routed.toolStatus);
     const lines = [
-        `${themeFg(theme, "success", icon)} ${themeFg(theme, "toolTitle", "freeflow_retrieve")} ${themeFg(theme, "muted", `${evidence.length} evidence packet(s)`)} • ${routeSummaryLine(theme, routed)}`,
+        `${themeFg(theme, "success", icon)} ${themeFg(theme, "toolTitle", toolTitle)} ${themeFg(theme, "muted", `${evidence.length} evidence packet(s)`)} • ${routeSummaryLine(theme, routed)}`,
     ];
     if (firstEvidence) {
         lines.push(`${themeFg(theme, "accent", evidenceLabel(firstEvidence))}${firstEvidence.expandable ? themeFg(theme, "dim", " • expandable") : ""}`);
@@ -446,7 +507,7 @@ export function renderFreeflowRetrieveResult(result, { expanded } = {}, theme) {
             }
             const exactHint = exactRetrieveHintFromEvidence(packet);
             if (exactHint) {
-                lines.push(`    ${themeFg(theme, "muted", "exact retrieve:")} ${exactHint}`);
+                lines.push(`    ${themeFg(theme, "muted", "exact search:")} ${exactHint}`);
             }
             if (packet.why) {
                 lines.push(`    ${themeFg(theme, "muted", "why:")} ${truncateText(packet.why, 160)}`);
@@ -462,14 +523,14 @@ export function renderFreeflowRetrieveResult(result, { expanded } = {}, theme) {
         }
         const exactHint = firstExactRetrieveHintFromEvidence(evidence);
         if (exactHint) {
-            lines.push(`  ${themeFg(theme, "muted", "exact retrieve:")} ${exactHint}`);
+            lines.push(`  ${themeFg(theme, "muted", "exact search:")} ${exactHint}`);
         }
         else if (routed.recovery.outputId) {
             lines.push(`  ${themeFg(theme, "muted", "recovery starting point:")} ${recoveryStartingPoint(routed.recovery.outputId)}`);
         }
         if (routed.recovery.evidenceId) {
             lines.push(`  ${themeFg(theme, "muted", "evidenceId:")} ${themeFg(theme, "accent", routed.recovery.evidenceId)}`);
-            lines.push(`  ${themeFg(theme, "muted", "expand hint:")} freeflow_retrieve action=expand evidenceId=${routed.recovery.evidenceId}`);
+            lines.push(`  ${themeFg(theme, "muted", "expand hint:")} freeflow_search action=expand evidenceId=${routed.recovery.evidenceId}`);
         }
     }
     return textComponent(lines.join("\n"));
@@ -611,7 +672,7 @@ export function renderFreeflowRunResult(result, { expanded } = {}, theme, contex
         const exactHint = exactRetrieveHintFromImportantLines(evidenceOutputId, importantLines);
         if (exactHint) {
             const hint = routed.scriptFilter?.outputId || routed.reducer?.outputId ? exactHint.replace(/stream=(stdout|stderr|combined)/, "stream=raw") : exactHint;
-            lines.push(`  ${themeFg(theme, "muted", "exact retrieve:")} ${hint}`);
+            lines.push(`  ${themeFg(theme, "muted", "exact search:")} ${hint}`);
             if ((routed.scriptFilter?.outputId || routed.reducer?.outputId) && outputId) {
                 lines.push(`  ${themeFg(theme, "muted", "raw command starting point:")} ${recoveryStartingPoint(outputId)}`);
             }
@@ -623,7 +684,7 @@ export function renderFreeflowRunResult(result, { expanded } = {}, theme, contex
     }
     return textComponent(lines.join("\n"));
 }
-export function renderFreeflowDeriveResult(result, { expanded } = {}, theme) {
+export function renderFreeflowDeriveResult(result, { expanded } = {}, theme, toolTitle = "freeflow_search action=transform") {
     const routed = routerResultFromToolResult(result);
     if (!routed) {
         return textComponent(fallbackResultText(result));
@@ -635,7 +696,7 @@ export function renderFreeflowDeriveResult(result, { expanded } = {}, theme) {
     const evidence = Array.isArray(routed.evidence) ? routed.evidence : [];
     const sourceLabel = retrieveSourceLabel(routed.source);
     const lines = [
-        `${themeFg(theme, failed ? "error" : "success", icon)} ${themeFg(theme, "toolTitle", "freeflow_derive")} ${themeFg(theme, "accent", operation)} • ${routeSummaryLine(theme, routed)}`,
+        `${themeFg(theme, failed ? "error" : "success", icon)} ${themeFg(theme, "toolTitle", toolTitle)} ${themeFg(theme, "accent", operation)} • ${routeSummaryLine(theme, routed)}`,
     ];
     const statusParts = [];
     if (outputId) {
@@ -719,7 +780,7 @@ export function renderFreeflowDeriveResult(result, { expanded } = {}, theme) {
             }
             const exactHint = exactRetrieveHintFromEvidence(packet);
             if (exactHint) {
-                lines.push(`    ${themeFg(theme, "muted", "exact retrieve:")} ${exactHint}`);
+                lines.push(`    ${themeFg(theme, "muted", "exact search:")} ${exactHint}`);
             }
             if (packet.why) {
                 lines.push(`    ${themeFg(theme, "muted", "why:")} ${truncateText(packet.why, 160)}`);
@@ -737,7 +798,7 @@ export function renderFreeflowDeriveResult(result, { expanded } = {}, theme) {
         }
         const exactHint = firstExactRetrieveHintFromEvidence(evidence);
         if (exactHint) {
-            lines.push(`  ${themeFg(theme, "muted", "exact retrieve:")} ${exactHint}`);
+            lines.push(`  ${themeFg(theme, "muted", "exact search:")} ${exactHint}`);
         }
         else if (outputId) {
             lines.push(`  ${themeFg(theme, "muted", "recovery starting point:")} ${recoveryStartingPoint(outputId)}`);

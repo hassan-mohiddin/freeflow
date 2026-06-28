@@ -5,11 +5,8 @@ import { tmpdir } from "node:os";
 import test from "node:test";
 
 import {
-  createVault,
   freeflowBatch,
   freeflowRun,
-  readOutputText,
-  storeCommandOutput,
   validateRoutedResult,
 } from "../../dist/index.js";
 
@@ -67,7 +64,7 @@ test("freeflowBatch runs multiple run steps with bounded parallelism", async () 
   });
 });
 
-test("freeflowBatch runs multiple retrieve/search-compatible steps", async () => {
+test("freeflowBatch runs multiple search steps", async () => {
   await withTempDir("freeflow-router-batch-search-", async (root) => {
     await writeFile(join(root, "alpha.md"), "ALPHA_BATCH_TARGET source truth\n", "utf8");
     await writeFile(join(root, "beta.md"), "BETA_BATCH_TARGET source truth\n", "utf8");
@@ -78,7 +75,7 @@ test("freeflowBatch runs multiple retrieve/search-compatible steps", async () =>
       steps: [
         {
           id: "alpha",
-          kind: "retrieve",
+          kind: "search",
           input: { action: "query", source: { kind: "repo", root }, query: "ALPHA_BATCH_TARGET" },
         },
         {
@@ -96,22 +93,26 @@ test("freeflowBatch runs multiple retrieve/search-compatible steps", async () =>
   });
 });
 
-test("freeflowBatch supports mixed run, search, and transform steps", async () => {
+test("freeflowBatch rejects legacy retrieve/transform step kinds", async () => {
+  const result = await freeflowBatch({
+    sessionId: "batch-legacy-kind",
+    steps: [
+      { kind: "retrieve", input: { action: "query", source: { kind: "repo", root: "." }, query: "unused" } },
+      { kind: "transform", input: { operation: { kind: "lineStats" } } },
+    ],
+  }, { async run() { throw new Error("runner should not be used"); } });
+
+  assert.equal(result.toolStatus, "error");
+  assert.match(result.routing.reason, /steps\[0\]\.kind/);
+  assert.match(result.routing.reason, /Expected step kind run or search/);
+});
+
+test("freeflowBatch supports mixed run and search steps", async () => {
   await withTempDir("freeflow-router-batch-mixed-", async (root) => {
     const repoRoot = join(root, "repo");
     const vaultRoot = join(root, "vault");
     await mkdir(repoRoot);
     await writeFile(join(repoRoot, "notes.md"), "MIXED_BATCH_REPO_TARGET\n", "utf8");
-    const vault = createVault({ root: vaultRoot });
-    const source = await storeCommandOutput(vault, {
-      sessionId: "batch-mixed",
-      command: "fixture",
-      stdout: "keep this line\ndrop this line\n",
-      stderr: "",
-      combined: "keep this line\ndrop this line\n",
-      executionStatus: "success",
-      exitCode: 0,
-    });
 
     const result = await freeflowBatch({
       sessionId: "batch-mixed",
@@ -119,7 +120,6 @@ test("freeflowBatch supports mixed run, search, and transform steps", async () =
       steps: [
         { kind: "run", input: { command: "echo batch" } },
         { kind: "search", input: { action: "query", source: { kind: "repo", root: repoRoot }, query: "MIXED_BATCH_REPO_TARGET" } },
-        { kind: "transform", input: { source: { kind: "vault", outputId: source.outputId, stream: "stdout" }, operation: { kind: "regexFilter", pattern: "keep" } } },
       ],
     }, {
       async run() {
@@ -128,12 +128,8 @@ test("freeflowBatch supports mixed run, search, and transform steps", async () =
     });
 
     assert.equal(result.toolStatus, "ok");
-    assert.equal(result.steps.map((step) => step.kind).join(","), "run,search,transform");
+    assert.equal(result.steps.map((step) => step.kind).join(","), "run,search");
     assert.equal(result.steps[1].result.evidence[0].path, "notes.md");
-    const derivedOutputId = result.steps[2].result.outputId;
-    assert.ok(derivedOutputId.startsWith("ffout_"));
-    const derivedText = await readOutputText(vault, "batch-mixed", derivedOutputId, "raw");
-    assert.match(derivedText, /keep this line/);
   });
 });
 
@@ -165,7 +161,7 @@ test("freeflowBatch answers queries from child evidence handles", async () => {
       queries: ["failed test files and counts", "useEffect cleanup ignore stale responses"],
       steps: [
         { id: "tests", kind: "run", input: { command: "tests", preserve: "full" } },
-        { id: "react-docs", kind: "retrieve", input: { action: "query", source: { kind: "repo", root: repoRoot }, query: "useEffect cleanup ignore stale responses" } },
+        { id: "react-docs", kind: "search", input: { action: "query", source: { kind: "repo", root: repoRoot }, query: "useEffect cleanup ignore stale responses" } },
       ],
     }, {
       async run() {

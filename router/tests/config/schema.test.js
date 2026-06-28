@@ -61,7 +61,7 @@ test("routed command result keeps tool, execution, and routing status separate",
       reason: "Deterministic failure extraction returned exact error lines.",
     },
     recovery: {
-      how: "Use freeflow_retrieve with source.kind=vault and outputId=ffout_123.",
+      how: "Use freeflow_search with source.kind=vault and outputId=ffout_123.",
     },
     parser: {
       name: "test-runner",

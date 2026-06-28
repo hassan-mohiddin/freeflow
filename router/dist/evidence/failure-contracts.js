@@ -174,13 +174,13 @@ function recoveryHintForPersistence(persistence) {
     const recoveryOutputId = persistence.recoveryOutputId ?? persistence.outputId;
     if (persistence.recoverability === "exact" && recoveryOutputId !== undefined) {
         return {
-            how: `Use freeflow_retrieve with source.kind=vault and outputId=${recoveryOutputId} to recover exact captured content.`,
+            how: `Use freeflow_search with source.kind=vault and outputId=${recoveryOutputId} to recover exact captured content.`,
             outputId: recoveryOutputId,
         };
     }
     if (persistence.recoverability === "redacted" && recoveryOutputId !== undefined) {
         return {
-            how: `Use freeflow_retrieve with source.kind=vault and outputId=${recoveryOutputId} to recover redacted persisted content. Exact raw recovery is unavailable.`,
+            how: `Use freeflow_search with source.kind=vault and outputId=${recoveryOutputId} to recover redacted persisted content. Exact raw recovery is unavailable.`,
             outputId: recoveryOutputId,
         };
     }
