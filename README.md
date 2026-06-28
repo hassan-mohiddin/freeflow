@@ -38,21 +38,7 @@ Freeflow is not about making every change bureaucratic. It is about applying jus
 
 ## How Freeflow Keeps Agents On Track
 
-Plain-text map of the shape Freeflow tries to preserve:
-
-```text
-question ───────────────────────────────▶ answer directly
-
-work ─▶ discover ─▶ decision/spec ─▶ plan ─▶ execute/diagnose ─▶ review ─▶ verify ─▶ commit/handoff
-          ▲                                  │                  │          │
-          └──────── backward edge ◀─────────┴──────────────────┴──────────┘
-
-backward edge = new evidence, failed check, source-truth conflict, or user-owned decision
-
-Output Router runs beside the flow:
-  repo/vault search • noisy commands • tool output • transforms
-       └─▶ bounded evidence in context + exact recovery outside context
-```
+![Freeflow workflow map](assets/freeflow_workflow_map.png)
 
 The map is orienting, not mandatory. Freeflow’s core rule is:
 
