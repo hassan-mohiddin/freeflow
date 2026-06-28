@@ -85,6 +85,15 @@ Docs/skills:
 
 Find existing patterns before adding new modules. Prefer deep modules for source loading, reducer selection, and result rendering instead of spreading policy across tools.
 
+## Routing vs Processing Boundary
+
+Do not remove or replace existing command parsers while adding reducers.
+
+- `router/src/routing/parsers.ts` remains responsible for `freeflow_run` command-output detection, parser metadata, summaries, and important failure evidence.
+- `router/src/routing/run-filters.ts`, `observed-routing.ts`, `observed-reducers.ts`, and `capture.ts` keep their current routing/capture responsibilities.
+- `router/src/processing/` owns explicit source loading, deterministic reducers, sandboxed scripts, fact-first rendering, lineage, and processed-result recovery.
+- Reducers augment parser-based routing. Slice 6 must define parser/reducer interaction rather than deleting parser behavior.
+
 ## Slice 0: Commit Deep Benchmark Baseline
 
 Purpose: make the current failures durable before changing behavior.
@@ -291,7 +300,7 @@ Steps:
    - explicit reducer hint wins when valid,
    - known goals such as `test`, `build`, `typecheck`, `diagnosis`, `log summary`, and `CSV summary` can select high-confidence reducers,
    - ambiguous small outputs remain near-raw.
-3. Route reduced output through the fact-first renderer while keeping raw/derived recovery and parser metadata in structured details.
+3. Route reduced output through the fact-first renderer while keeping raw/derived recovery, parser metadata, and failure evidence in structured details.
 4. Add tests for every benchmark failure class from default `freeflow_run`:
    - access log no longer returns near-raw,
    - JSON/CSV no longer returns only head/tail rows,
@@ -303,7 +312,7 @@ Steps:
 Checks:
 
 - `freeflow_run` reducer-routing unit tests
-- parser/reducer interaction tests
+- parser/reducer interaction tests that prove parser metadata and failure evidence remain available
 - deep benchmark default-run rows improve without weakening fact assertions
 - `preserve=full` still returns exact output within caps
 
