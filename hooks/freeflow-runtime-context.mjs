@@ -52,14 +52,13 @@ function loadRuntimeContext() {
   const interviewGateSkill = readText(
     path.join(PLUGIN_ROOT, "skills", "interview-gate", "SKILL.md")
   );
-  const discoverSkill = readText(path.join(PLUGIN_ROOT, "skills", "discover", "SKILL.md"));
   const outputRouterSkill = readText(path.join(PLUGIN_ROOT, "skills", "output-router", "SKILL.md"));
 
-  if (!modeContractSkill || !workflowSkill || !interviewGateSkill || !discoverSkill || !outputRouterSkill) {
+  if (!modeContractSkill || !workflowSkill || !interviewGateSkill || !outputRouterSkill) {
     throw new Error("Freeflow runtime context files are missing.");
   }
 
-  return { modeContractSkill, workflowSkill, interviewGateSkill, discoverSkill, outputRouterSkill };
+  return { modeContractSkill, workflowSkill, interviewGateSkill, outputRouterSkill };
 }
 
 function readConfig(root) {
@@ -199,9 +198,17 @@ function shouldInject(eventName) {
   return eventName === "SessionStart";
 }
 
+function discoveryLightContext() {
+  return [
+    "## Discovery-light",
+    "",
+    "For codebase exploration, brainstorming, planning direction, vague ideas, design/API/runtime questions, “should we” / “what do you think” prompts, or first steps before spec/plan/build, inspect the smallest relevant evidence, answer directly, and ask only path-changing questions. Do not create questionnaires or artifacts unless requested. Use full `discover` when sustained discovery, checkpointing, or routing from discovery is needed."
+  ];
+}
+
 function buildContext(input) {
   const root = findWorkspaceRoot(input.cwd || process.cwd());
-  const { modeContractSkill, workflowSkill, interviewGateSkill, discoverSkill, outputRouterSkill } = loadRuntimeContext();
+  const { modeContractSkill, workflowSkill, interviewGateSkill, outputRouterSkill } = loadRuntimeContext();
 
   return [
     "# Freeflow Runtime Context",
@@ -219,8 +226,8 @@ function buildContext(input) {
     "",
     "1. Workflow classifies conversation versus consequential work.",
     "2. Interview Gate stops silent decisions, user-owned decisions, source-truth conflicts, and question-to-action mistakes.",
-    "3. Discover handles context-building after no immediate stop condition remains. Use it before first repo/code exploration or design answers for consequential product/API/tool/runtime hypotheses.",
-    "4. Output Router chooses evidence transport after the workflow/interview/discover route is clear.",
+    "3. Discovery-light handles context-building after no immediate stop condition remains. Use it before first repo/code exploration or design answers for consequential product/API/tool/runtime hypotheses.",
+    "4. Output Router chooses evidence transport after the workflow/interview/discovery route is clear.",
     "",
     "## Loaded Mode Contract Skill",
     "```md",
@@ -237,10 +244,7 @@ function buildContext(input) {
     interviewGateSkill.trim(),
     "```",
     "",
-    "## Loaded Discover Skill",
-    "```md",
-    discoverSkill.trim(),
-    "```",
+    ...discoveryLightContext(),
     "",
     "## Loaded Output Router Skill",
     "```md",

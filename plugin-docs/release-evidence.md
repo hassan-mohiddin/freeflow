@@ -27,9 +27,9 @@ Codex/Claude native slash handlers are not shipped in this release. In those hos
 
 ## Runtime Context
 
-Freeflow ships plugin-bundled context hooks that load the existing `mode-contract`, `workflow`, `interview-gate`, `discover`, and `output-router` skills at session start. The Pi extension injects full core skill context before every agent turn so later turns keep the same behavioral guardrails. Workflow-map and output-router safety-policy references remain available on demand but are not injected wholesale by default. Runtime context states the priority order: mode-contract handles mode issues first, workflow classifies, interview-gate stops silent decisions, discover handles context-building, and output-router chooses evidence transport. These hooks do not run after edit/write tools, enforce behavior, block tools, or create repo-local hook files.
+Freeflow ships plugin-bundled context hooks that load the existing `mode-contract`, `workflow`, `interview-gate`, and `output-router` skills plus discovery-light guidance at session start. The Pi extension injects that core runtime context before every agent turn so later turns keep the same behavioral guardrails. The full `discover` skill, workflow-map reference, and output-router safety-policy reference remain available on demand but are not injected wholesale by default. Runtime context states the priority order: mode-contract handles mode issues first, workflow classifies, interview-gate stops silent decisions, discovery-light handles context-building, and output-router chooses evidence transport. These hooks do not run after edit/write tools, enforce behavior, block tools, or create repo-local hook files.
 
-For the same session that runs setup, `setup-freeflow` reads the mode-contract, workflow, interview-gate, discover, and output-router skills after successful setup verification before saying that context is loaded.
+For the same session that runs setup, `setup-freeflow` reads the mode-contract, workflow, interview-gate, and output-router skills and applies discovery-light after successful setup verification before saying that context is loaded.
 
 Host trust prompts for plugin hooks are expected host behavior. Local metadata validation checks hook packaging and deterministic output, not end-to-end host trust UI.
 

@@ -1489,8 +1489,8 @@ Pi extension lifecycle:
 
 - `session_start`: restore mode override, refresh runtime context, read config, update UI status.
 - `session_compact`: refresh runtime context, read config, update UI status.
-- `before_agent_start`: inject full mode-contract/workflow/interview-gate/discover/output-router skill context before every agent turn.
-- the workflow-map reference and full output-router safety-policy reference are not injected by default; the active skills carry compact rules and point to references for deeper cases.
+- `before_agent_start`: inject full mode-contract/workflow/interview-gate/output-router skill context plus discovery-light before every agent turn.
+- the full Discover skill, workflow-map reference, and full output-router safety-policy reference are not injected by default; the active skills carry compact rules and point to references for deeper cases.
 - `tool_result`: observed routing first, native safety net second.
 
 Runtime priority stated to the model:
@@ -1498,7 +1498,7 @@ Runtime priority stated to the model:
 1. Mode Contract handles mode setting, interpretation, and mismatch.
 2. Workflow classifies conversation vs consequential work.
 3. Interview Gate stops silent decisions and source-truth conflicts.
-4. Discover handles context-building.
+4. Discovery-light handles context-building.
 5. Output Router chooses evidence transport after the route is clear.
 
 Output Router must not bypass workflow decisions. It only chooses how evidence is transported.

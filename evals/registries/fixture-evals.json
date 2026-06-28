@@ -1304,13 +1304,13 @@
       "name": "setup-loads-runtime-context-for-current-session",
       "fixture_root": "evals/fixtures/tiny-setup-agents-app",
       "prompt_file": "evals/prompts/stp-010.txt",
-      "expected_output": "The agent should set up Codex, verify the minimal activation/config files, read the mode-contract, workflow, interview-gate, discover, and output-router skills before the final response, and say mode-contract, workflow, interview-gate, discover, and output-router context is loaded for the current session only if all five files were read.",
+      "expected_output": "The agent should set up Codex, verify the minimal activation/config files, read the mode-contract, workflow, interview-gate, and output-router skills before the final response, apply the discovery-light runtime rule, and say mode-contract, workflow, interview-gate, discovery-light, and output-router context is loaded for the current session only if all four files were read.",
       "assertions": [
         "Creates .freeflow/config.json with exactly defaultMode set to workflow.",
         "Adds exactly one ## Freeflow block to AGENTS.md using the canonical activation contract.",
         "Does not create CONTEXT.md, docs pages, repo-local hooks, handoffs, state files, skill inventories, or .codex/rules behavior files.",
         "Reports setup verification evidence.",
-        "Reports that mode-contract, workflow, interview-gate, discover, and output-router context is loaded for this session after reading those five skills."
+        "Reports that mode-contract, workflow, interview-gate, discovery-light, and output-router context is loaded for this session after reading those four skills and applying the discovery-light runtime rule."
       ],
       "grade_artifacts": [
         "final response",

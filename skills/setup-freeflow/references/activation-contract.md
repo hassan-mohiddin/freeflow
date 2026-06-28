@@ -1,57 +1,47 @@
 # Activation Contract
 
-This is the canonical Freeflow setup contract. Setup renders this contract into host instruction files; docs, fixtures, and eval assertions should reference it or be checked against it.
+Canonical setup contract for host instruction files and `.freeflow/config.json`.
 
-## Interface
-
-Use this Markdown reference as the v0.1 contract module:
-
-```text
-getActivationContract(defaultMode) -> ActivationContract
-planActivation(contract, repoState, request) -> ActivationPlan | ActivationStop
-renderActivation(contract, target) -> rendered text or checks
-planOptionalEvidenceRoutingConfig(request) -> EvidenceRoutingConfigPlan | ActivationStop
-```
-
-Do not add a code module until setup behavior needs logic that cannot be kept clear in the skill and this reference.
+Setup renders this reference. Do not copy full skills, workflow maps, or runtime hook code into repo activation files.
 
 ## Invariants
 
-- Activation text contains always-on invariants only, not the full workflow spine.
+- Activation text contains only always-on invariants.
 - Minimal config has exactly one field: `defaultMode`.
-- Optional `outputRouter`, `observedRouting`, and `scriptTransform` config is allowed only after the capabilities decision point or an explicit request. Removed `capture` and `providers` config is not written by setup.
 - Valid defaults are exactly `conversation`, `workflow`, and `strict-workflow`.
 - Default mode is `workflow` unless the user explicitly persists another valid mode.
+- Optional `outputRouter`, `observedRouting`, and `scriptTransform` config is allowed only after the capabilities decision point or an explicit request.
+- Removed `capture` and `providers` config is not written by setup.
 - Codex activation writes `AGENTS.md`, not `.codex/rules`.
-- Claude activation writes a `CLAUDE.md` import plus one `.claude/rules/freeflow-core.md`.
+- Claude activation writes a `CLAUDE.md` import plus one `.claude/rules/freeflow-core.md` file.
 - Multi-agent setup updates both host surfaces only on explicit request and reports drift risk.
 - Existing repo instructions remain source truth.
 - Setup hard-stops before unresolved host ambiguity or repo-rule conflict.
 - Setup does not create repo-local hooks, docs inventories, state files, handoffs, empty `CONTEXT.md`, skill inventories, `setup-output-router` skills, version metadata, activation path, current task, or current phase.
-- Plugin-bundled context hooks may load mode-contract, workflow, interview-gate, discover, and output-router context at session start, but they are package runtime, not setup output.
-- After successful setup verification, setup reads the mode-contract, workflow, interview-gate, discover, and output-router skills before its final response so the current session is immediately usable.
+- Plugin-bundled context hooks may load mode-contract, workflow, interview-gate, discovery-light, and output-router context at session start, but they are package runtime, not setup output.
+- After successful setup verification, setup reads the mode-contract, workflow, interview-gate, and output-router skills before its final response and applies the discovery-light runtime rule so the current session is immediately usable.
 
 ## Host Adapters
 
-Codex adapter:
+Codex:
 
 - Update an existing `## Freeflow` block in `AGENTS.md`, or add one near existing agent/workflow instructions.
 - Keep exactly one `## Freeflow` block.
 - Never use `.codex/rules` for Freeflow behavior.
 
-Claude adapter:
+Claude:
 
-- Update `CLAUDE.md` with only the import block below.
-- Write the Codex core block text to `.claude/rules/freeflow-core.md`.
+- Put only the Claude import block in `CLAUDE.md`.
+- Put the Codex core block text in `.claude/rules/freeflow-core.md`.
 - Keep exactly one imported core file unless the user explicitly confirms a split after the one-file recommendation.
 
-Config adapter:
+Config:
 
 - Create or update `.freeflow/config.json`.
 - For minimal setup, write exactly `{ "defaultMode": "<mode>" }`.
 - Use `workflow` unless the user explicitly asks to persist `conversation` or `strict-workflow`.
-- Add `outputRouter`, `observedRouting`, or `scriptTransform` only after the capabilities decision point or an explicit request, using `output-router-setup.md`. Do not write removed `capture` or `providers` config.
-- Missing `outputRouter`, `observedRouting`, and `scriptTransform` means built-in defaults, not a setup warning.
+- Add optional config only after the capabilities decision point or an explicit request, using `output-router-setup.md`.
+- Missing optional sections mean built-in defaults, not setup failure.
 - Never enable observed routing or native safety-net routing by default.
 - Observed routing requires explicit producer/server entries and user-chosen persistence: `exact`, `metadata-only`, or `none`. Do not offer or write `redacted`.
 

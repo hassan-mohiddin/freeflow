@@ -53,13 +53,13 @@ require_contains "Claude SessionStart output" "$claude_session_output" "Freeflow
 require_contains "Claude SessionStart output" "$claude_session_output" "Loaded Mode Contract Skill"
 require_contains "Claude SessionStart output" "$claude_session_output" "Loaded Workflow Skill"
 require_contains "Claude SessionStart output" "$claude_session_output" "Loaded Interview Gate Skill"
-require_contains "Claude SessionStart output" "$claude_session_output" "Loaded Discover Skill"
+require_contains "Claude SessionStart output" "$claude_session_output" "Discovery-light"
 require_contains "Claude SessionStart output" "$claude_session_output" "Loaded Output Router Skill"
 require_contains "Claude SessionStart output" "$claude_session_output" "Use exactly three modes."
 require_contains "Claude SessionStart output" "$claude_session_output" "Question means answer. Do not turn a question into a file edit"
 require_contains "Claude SessionStart output" "$claude_session_output" "Stop before silent decisions."
-require_contains "Claude SessionStart output" "$claude_session_output" "Discover is the context-building loop before action"
-require_contains "Claude SessionStart output" "$claude_session_output" "Output Router chooses evidence transport after the workflow/interview/discover route is clear."
+require_contains "Claude SessionStart output" "$claude_session_output" "ask only path-changing questions"
+require_contains "Claude SessionStart output" "$claude_session_output" "Output Router chooses evidence transport after the workflow/interview/discovery route is clear."
 
 codex_session_output="$(
   printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s","model":"gpt-test"}' "$workspace" |
@@ -72,7 +72,7 @@ require_contains "Codex SessionStart output" "$codex_session_output" "Do this ev
 require_contains "Codex SessionStart output" "$codex_session_output" "Loaded Mode Contract Skill"
 require_contains "Codex SessionStart output" "$codex_session_output" "Loaded Workflow Skill"
 require_contains "Codex SessionStart output" "$codex_session_output" "Loaded Interview Gate Skill"
-require_contains "Codex SessionStart output" "$codex_session_output" "Loaded Discover Skill"
+require_contains "Codex SessionStart output" "$codex_session_output" "Discovery-light"
 require_contains "Codex SessionStart output" "$codex_session_output" "Loaded Output Router Skill"
 if [[ "$codex_session_output" == *"hookSpecificOutput"* ]]; then
   fail "Codex SessionStart output should be plain context, not Claude hook JSON."
@@ -180,4 +180,4 @@ if [ "$failures" -gt 0 ]; then
   exit 1
 fi
 
-printf 'Runtime context hook check passed: hook config parses, startup injects mode-contract, workflow, interview-gate, discover, and output-router context, disable env suppresses output, and PostToolUse stays disabled.\n'
+printf 'Runtime context hook check passed: hook config parses, startup injects mode-contract, workflow, interview-gate, discovery-light, and output-router context, disable env suppresses output, and PostToolUse stays disabled.\n'

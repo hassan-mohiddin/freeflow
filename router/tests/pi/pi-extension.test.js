@@ -75,7 +75,7 @@ test("Pi registers output-router as a direct command and no public capture tool"
   assert.ok(!toolNames.includes("freeflow_capture"));
 });
 
-test("Pi before_agent_start injects core Freeflow and output-router skill context", async () => {
+test("Pi before_agent_start injects core Freeflow and output-router context", async () => {
   const { handlers } = loadExtension();
   const beforeAgentStart = handlers.get("before_agent_start");
   assert.ok(beforeAgentStart);
@@ -85,7 +85,8 @@ test("Pi before_agent_start injects core Freeflow and output-router skill contex
   assert.match(result.systemPrompt, /## Loaded Mode Contract Skill/);
   assert.match(result.systemPrompt, /## Loaded Workflow Skill/);
   assert.match(result.systemPrompt, /## Loaded Interview Gate Skill/);
-  assert.match(result.systemPrompt, /## Loaded Discover Skill/);
+  assert.match(result.systemPrompt, /## Discovery-light/);
+  assert.doesNotMatch(result.systemPrompt, /## Loaded Discover Skill/);
   assert.match(result.systemPrompt, /## Loaded Output Router Skill/);
   assert.match(result.systemPrompt, /name: output-router/);
   assert.match(result.systemPrompt, /freeflow_search/);
@@ -100,7 +101,7 @@ test("Pi before_agent_start injects core Freeflow and output-router skill contex
   assert.doesNotMatch(result.systemPrompt, /Output-router config note/);
 });
 
-test("Pi before_agent_start injects full core Freeflow context on every turn", async () => {
+test("Pi before_agent_start injects core Freeflow context on every turn", async () => {
   const { handlers } = loadExtension();
   const beforeAgentStart = handlers.get("before_agent_start");
   assert.ok(beforeAgentStart);
@@ -114,7 +115,8 @@ test("Pi before_agent_start injects full core Freeflow context on every turn", a
     assert.match(result.systemPrompt, /## Loaded Mode Contract Skill/);
     assert.match(result.systemPrompt, /## Loaded Workflow Skill/);
     assert.match(result.systemPrompt, /## Loaded Interview Gate Skill/);
-    assert.match(result.systemPrompt, /## Loaded Discover Skill/);
+    assert.match(result.systemPrompt, /## Discovery-light/);
+    assert.doesNotMatch(result.systemPrompt, /## Loaded Discover Skill/);
     assert.match(result.systemPrompt, /## Loaded Output Router Skill/);
     assert.match(result.systemPrompt, /name: output-router/);
     assert.match(result.systemPrompt, /freeflow_search action=transform/);
@@ -1499,7 +1501,7 @@ test("Pi post-tool safety net fails open without losing native output", async ()
   }
 });
 
-test("Pi already-activated core context still receives full skill context", async () => {
+test("Pi already-activated core context still receives runtime context", async () => {
   const { handlers } = loadExtension();
   const beforeAgentStart = handlers.get("before_agent_start");
 
@@ -1507,14 +1509,14 @@ test("Pi already-activated core context still receives full skill context", asyn
     "## Loaded Mode Contract Skill",
     "## Loaded Workflow Skill",
     "## Loaded Interview Gate Skill",
-    "## Loaded Discover Skill",
   ].join("\n");
   const result = await beforeAgentStart({ systemPrompt: existingPrompt }, context());
 
   assert.match(result.systemPrompt, /## Loaded Mode Contract Skill/);
   assert.match(result.systemPrompt, /## Loaded Workflow Skill/);
   assert.match(result.systemPrompt, /## Loaded Interview Gate Skill/);
-  assert.match(result.systemPrompt, /## Loaded Discover Skill/);
+  assert.match(result.systemPrompt, /## Discovery-light/);
+  assert.doesNotMatch(result.systemPrompt, /## Loaded Discover Skill/);
   assert.match(result.systemPrompt, /## Loaded Output Router Skill/);
   assert.match(result.systemPrompt, /freeflow_search/);
   assert.match(result.systemPrompt, /freeflow_run/);
@@ -1523,7 +1525,7 @@ test("Pi already-activated core context still receives full skill context", asyn
   assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Safety Policy/);
 });
 
-test("Pi already-activated full context is refreshed with full skill context", async () => {
+test("Pi already-activated full context is refreshed with runtime context", async () => {
   const { handlers } = loadExtension();
   const beforeAgentStart = handlers.get("before_agent_start");
 
@@ -1531,7 +1533,7 @@ test("Pi already-activated full context is refreshed with full skill context", a
     "## Loaded Mode Contract Skill",
     "## Loaded Workflow Skill",
     "## Loaded Interview Gate Skill",
-    "## Loaded Discover Skill",
+    "## Discovery-light",
     "## Loaded Output Router Skill",
   ].join("\n");
   const result = await beforeAgentStart({ systemPrompt: existingPrompt }, context());
@@ -1539,7 +1541,8 @@ test("Pi already-activated full context is refreshed with full skill context", a
   assert.match(result.systemPrompt, /## Loaded Mode Contract Skill/);
   assert.match(result.systemPrompt, /## Loaded Workflow Skill/);
   assert.match(result.systemPrompt, /## Loaded Interview Gate Skill/);
-  assert.match(result.systemPrompt, /## Loaded Discover Skill/);
+  assert.match(result.systemPrompt, /## Discovery-light/);
+  assert.doesNotMatch(result.systemPrompt, /## Loaded Discover Skill/);
   assert.match(result.systemPrompt, /## Loaded Output Router Skill/);
   assert.match(result.systemPrompt, /name: output-router/);
   assert.doesNotMatch(result.systemPrompt, /## Freeflow Output Router Reminder/);

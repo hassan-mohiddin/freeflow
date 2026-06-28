@@ -27,14 +27,13 @@ let runtimeContextCache = null;
 let currentModeOverride = null;
 let lastRouterConfigWarningKey = null;
 async function loadRuntimeContext() {
-    const [modeContractSkill, workflowSkill, interviewGateSkill, discoverSkill, outputRouterSkill] = await Promise.all([
+    const [modeContractSkill, workflowSkill, interviewGateSkill, outputRouterSkill] = await Promise.all([
         readFile(new URL("../../skills/mode-contract/SKILL.md", import.meta.url), "utf8"),
         readFile(new URL("../../skills/workflow/SKILL.md", import.meta.url), "utf8"),
         readFile(new URL("../../skills/interview-gate/SKILL.md", import.meta.url), "utf8"),
-        readFile(new URL("../../skills/discover/SKILL.md", import.meta.url), "utf8"),
         readFile(new URL("../../skills/output-router/SKILL.md", import.meta.url), "utf8"),
     ]);
-    return { modeContractSkill, workflowSkill, interviewGateSkill, discoverSkill, outputRouterSkill };
+    return { modeContractSkill, workflowSkill, interviewGateSkill, outputRouterSkill };
 }
 export async function refreshRuntimeContext() {
     runtimeContextCache = await loadRuntimeContext();
@@ -155,21 +154,19 @@ Priority order for matched non-mode workflow skills:
 
 1. Workflow classifies conversation versus consequential work.
 2. Interview Gate stops silent decisions, user-owned decisions, source-truth conflicts, and question-to-action mistakes.
-3. Discover handles context-building after no immediate stop condition remains. Use it before first repo/code exploration or design answers for consequential product/API/tool/runtime hypotheses.
-4. Output Router chooses evidence transport after the workflow/interview/discover route is clear.`;
+3. Discovery-light handles context-building after no immediate stop condition remains. Use it before first repo/code exploration or design answers for consequential product/API/tool/runtime hypotheses.
+4. Output Router chooses evidence transport after the workflow/interview/discovery route is clear.`;
+}
+function discoveryLightContext() {
+    return `## Discovery-light
+
+For codebase exploration, brainstorming, planning direction, vague ideas, design/API/runtime questions, “should we” / “what do you think” prompts, or first steps before spec/plan/build, inspect the smallest relevant evidence, answer directly, and ask only path-changing questions. Do not create questionnaires or artifacts unless requested. Use full \`discover\` when sustained discovery, checkpointing, or routing from discovery is needed.`;
 }
 function modeContractContext(freeflowContext) {
     return `## Loaded Mode Contract Skill
 
 \`\`\`md
 ${freeflowContext.modeContractSkill.trim()}
-\`\`\``;
-}
-function discoverContext(freeflowContext) {
-    return `## Loaded Discover Skill
-
-\`\`\`md
-${freeflowContext.discoverSkill.trim()}
 \`\`\``;
 }
 export function runtimeContext(modeState, freeflowContext, routerConfigResult) {
@@ -207,9 +204,9 @@ ${freeflowContext.workflowSkill.trim()}
 ${freeflowContext.interviewGateSkill.trim()}
 \`\`\`
 
-${discoverContext(freeflowContext)}
+${discoveryLightContext()}
 
-${routerText ? `${routerText.trimStart()}\n\n` : ""}This Pi extension loads the full core runtime context before every agent turn and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.`;
+${routerText ? `${routerText.trimStart()}\n\n` : ""}This Pi extension loads core runtime context before every agent turn and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.`;
 }
 export async function handleWorkflowCommand(args, ctx, pi) {
     const arg = args?.trim();

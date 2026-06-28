@@ -72,8 +72,8 @@ done
 contains_exact "$setup_skill" "../mode-contract/SKILL.md" || fail "$setup_skill must load the mode-contract skill after successful setup verification."
 contains_exact "$setup_skill" "../workflow/SKILL.md" || fail "$setup_skill must load the workflow skill after successful setup verification."
 contains_exact "$setup_skill" "../interview-gate/SKILL.md" || fail "$setup_skill must load the interview-gate skill after successful setup verification."
-contains_exact "$setup_skill" "../discover/SKILL.md" || fail "$setup_skill must load the discover skill after successful setup verification."
 contains_exact "$setup_skill" "../output-router/SKILL.md" || fail "$setup_skill must load the output-router skill after successful setup verification."
+contains_exact "$setup_skill" "discovery-light" || fail "$setup_skill must include the discovery-light runtime rule after successful setup verification."
 contains_exact "$host_setup" "After successful setup verification" || fail "$host_setup must document same-session runtime loading."
 contains_exact "$host_setup" "interview-gate" || fail "$host_setup must document same-session interview-gate loading."
 contains_exact "$runtime_doc" "skills/interview-gate/SKILL.md" || fail "$runtime_doc must document runtime interview-gate loading."
@@ -111,8 +111,8 @@ jq -e '
 jq -e '
   .evals[]
   | select(.id == "STP-010")
-  | any(.assertions[]; test("mode-contract, workflow, interview-gate, discover, and output-router context is loaded"))
-' "$registry" >/dev/null || fail "STP-010 must assert same-session mode-contract, workflow, interview-gate, discover, and output-router loading."
+  | any(.assertions[]; test("mode-contract, workflow, interview-gate, discovery-light, and output-router context is loaded"))
+' "$registry" >/dev/null || fail "STP-010 must assert same-session mode-contract, workflow, interview-gate, discovery-light, and output-router loading."
 
 if [ "$failures" -gt 0 ]; then
   exit 1

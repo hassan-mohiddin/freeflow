@@ -97,7 +97,7 @@ The root `package.json` exposes the repo as a Pi package:
 - `pi.skills`: `skills`
 - `pi.extensions`: `pi-extension/dist/index.js`
 
-The Pi extension registers direct Freeflow commands, keeps `/workflow` mode changes session-scoped, loads mode-contract, workflow, interview-gate, discover, and output-router context on session start and compact, and injects full core skill context before every agent turn. It does not enforce policy, block tools, grant permissions, or create repo-local hooks.
+The Pi extension registers direct Freeflow commands, keeps `/workflow` mode changes session-scoped, loads mode-contract, workflow, interview-gate, discovery-light, and output-router context on session start and compact, and injects core runtime context before every agent turn. It does not enforce policy, block tools, grant permissions, or create repo-local hooks.
 
 ## README Shape
 
