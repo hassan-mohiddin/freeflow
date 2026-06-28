@@ -5,13 +5,12 @@ import { join } from "node:path";
 import test from "node:test";
 
 import {
-  baselineFailureClassesDetected,
   renderContextModeRealDeepBenchmarkReport,
   runContextModeRealDeepBenchmark,
   writeContextModeRealDeepBenchmarkReports,
 } from "../../dist/benchmarks/context-mode-real-deep-benchmark.js";
 
-const baselineJsonPath = "evals/reports/runtime/context-mode-real-deep-baseline-1-report.json";
+const baselineMarkdownPath = "evals/reports/runtime/context-mode-real-deep-baseline-1-report.md";
 
 test("real Context Mode deep benchmark degrades without making claims when Context Mode is unavailable", async () => {
   const root = await mkdtemp(join(tmpdir(), "freeflow-context-mode-real-deep-unavailable-"));
@@ -62,31 +61,19 @@ test("real Context Mode deep benchmark writer emits unavailable markdown and JSO
   }
 });
 
-test("committed real Context Mode baseline preserves schema and current failure classes", async () => {
-  const report = JSON.parse(await readFile(baselineJsonPath, "utf8"));
+test("committed real Context Mode baseline markdown preserves current failure classes", async () => {
+  const markdown = await readFile(baselineMarkdownPath, "utf8");
 
-  assert.equal(report.contextMode.status, "available");
-  assert.equal(report.publicClaimsAllowed, false);
-  assert.ok(Array.isArray(report.rows));
-  assert.ok(report.rows.length > 0);
-  assert.ok(Array.isArray(report.summaries));
-  assert.ok(report.failureClusters);
-  assert.ok(Array.isArray(report.failureClusters.freeflowIncorrect));
-  assert.ok(Array.isArray(report.failureClusters.contextModeIncorrect));
-  assert.ok(Array.isArray(report.failureClusters.freeflowVerbose));
-  assert.ok(Array.isArray(report.failureClusters.metadataOnly));
+  assert.match(markdown, /Context Mode status: available/);
+  assert.match(markdown, /Public superiority claims allowed: no/);
+  assert.match(markdown, /freeflow:run-cat-default/);
+  assert.match(markdown, /access-summary \/ freeflow:run-cat-default/);
+  assert.match(markdown, /batch-multi-source-query \/ freeflow:batch/);
+  assert.match(markdown, /vitest-summary-upstream-script \/ context-mode:upstream-benchmark-script/);
+});
 
-  const row = report.rows.find((candidate) => candidate.mode === "freeflow:run-cat-default");
-  assert.ok(row);
-  assert.equal(typeof row.correct, "boolean");
-  assert.equal(typeof row.factsFound, "number");
-  assert.equal(typeof row.factsTotal, "number");
-  assert.equal(typeof row.rawBytes, "number");
-  assert.equal(typeof row.visibleBytes, "number");
-  assert.equal(typeof row.recovery, "string");
-
-  assert.equal(baselineFailureClassesDetected(report), true);
-  assert.ok(report.failureClusters.freeflowIncorrect.some((failure) => failure.fixture === "access-summary" && failure.mode === "freeflow:run-cat-default"));
-  assert.ok(report.failureClusters.freeflowIncorrect.some((failure) => failure.fixture === "batch-multi-source-query" && failure.mode === "freeflow:batch"));
-  assert.ok(report.failureClusters.contextModeIncorrect.some((failure) => failure.fixture === "vitest-summary-upstream-script"));
+test("committed runtime reports stay markdown-only", async () => {
+  const { readdir } = await import("node:fs/promises");
+  const entries = await readdir("evals/reports/runtime");
+  assert.deepEqual(entries.filter((entry) => entry.endsWith(".json")), []);
 });

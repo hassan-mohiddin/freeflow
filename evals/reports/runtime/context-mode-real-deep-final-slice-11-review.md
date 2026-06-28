@@ -6,7 +6,6 @@ Generated: 2026-06-28
 
 - Baseline: `evals/reports/runtime/context-mode-real-deep-baseline-1-report.md`
 - Final run: `evals/reports/runtime/context-mode-real-deep-final-slice-11-report.md`
-- Final JSON: `evals/reports/runtime/context-mode-real-deep-final-slice-11-report.json`
 
 ## Headline
 

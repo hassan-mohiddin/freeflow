@@ -1570,10 +1570,6 @@ function defaultUnavailableReportPath(): string {
 }
 
 function defaultRealDeepJsonReportPath(markdownReportPath: string): string {
-  const parsed = path.parse(markdownReportPath);
-  if (parsed.ext === ".md" && path.normalize(parsed.dir).endsWith(path.normalize("evals/reports/runtime"))) {
-    return path.join(parsed.dir, `${parsed.name}.json`);
-  }
   return defaultJsonRunReportPath(markdownReportPath);
 }
 

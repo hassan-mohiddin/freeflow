@@ -1251,10 +1251,6 @@ function defaultUnavailableReportPath() {
     return path.resolve(process.cwd(), "evals/reports/runtime/context-mode-real-deep-unavailable-report.md");
 }
 function defaultRealDeepJsonReportPath(markdownReportPath) {
-    const parsed = path.parse(markdownReportPath);
-    if (parsed.ext === ".md" && path.normalize(parsed.dir).endsWith(path.normalize("evals/reports/runtime"))) {
-        return path.join(parsed.dir, `${parsed.name}.json`);
-    }
     return defaultJsonRunReportPath(markdownReportPath);
 }
 async function runCli() {
