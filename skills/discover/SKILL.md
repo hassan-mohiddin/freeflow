@@ -1,6 +1,6 @@
 ---
 name: discover
-description: Use for pre-work thinking before consequential action: codebase exploration, brainstorming, planning direction, shaping ideas/features/specs, design/API/runtime/architecture questions, “should we” / “what do you think” prompts, vague requests, or any work that needs evidence or path-changing questions before spec, plan, build, review, verification, or durable memory.
+description: Use for pre-work thinking before consequential work, including codebase exploration, brainstorming, planning direction, shaping ideas/features/specs, design/API/runtime/architecture questions, "should we" / "what do you think" prompts, vague requests, and work that needs evidence before spec, plan, build, review, verification, or durable memory.
 ---
 
 # Discover
