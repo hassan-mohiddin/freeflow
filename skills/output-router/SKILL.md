@@ -7,7 +7,7 @@ description: Use after the workflow, interview-gate, discovery-light, or full Di
 
 Choose how evidence moves into context.
 
-Freeflow tools are the safe first choice for unknown-size, exploratory, repo-wide, generated/log-adjacent, structured, or likely noisy output. Native tools stay direct for known-small, exact, intentionally raw, or mutating work.
+Freeflow tools are the safe first choice for unknown-size, exploratory, repo-wide, generated/log-adjacent, structured, or likely noisy output. Native tools stay direct for known-small, exact, intentionally raw, or mutating work. A post-hoc cap such as `head`, `tail`, or `wc` does not make a broad producer known-small.
 
 Output Router does not classify the task. Workflow, Interview Gate, discovery-light, or full Discover decide whether to answer, ask, discover, plan, or stop. Output Router starts after that route is clear.
 
@@ -22,7 +22,7 @@ Ask what kind of data you need:
 - Enabled MCP/web/fetch/code-search output: call the host tool directly; Pi observed routing runs after the host result when configured.
 - Known whole file, intentionally exact shell behavior, or edits: use native `read`, `bash`, `edit`, or `write`.
 
-When unsure how much output will return, use Freeflow first.
+When unsure how much output will return, use Freeflow first. Bound the producer before using native tools; do not rely on trimming the output after a broad command runs.
 
 ## `freeflow_search`: Existing Data
 
@@ -137,10 +137,10 @@ Child outputs remain in `details.result.steps`; exact child run output remains r
 Use native tools when direct behavior is the point:
 
 - `read`: known whole file or exact direct file content is intended.
-- `bash`: expected-small exact shell behavior or host access is intentionally needed.
+- `bash`: expected-small exact shell behavior, host access, or bounded producer behavior is intentionally needed.
 - `edit` / `write`: mutations.
 
-Do not run broad native commands just to see what comes back. Likely-large native commands include repo-wide `rg`, `grep -R`, `find`, package scans, generated-artifact scans, logs, broad `git diff/log`, full tests/builds/lints/typechecks, and one-off scripts with unknown output size.
+Do not run broad native commands just to see what comes back. `head`, `tail`, `wc`, or similar output caps bound visible text, not producer scope or relevance. Likely-large native commands include repo-wide `rg`, `grep -R`, `find`, package scans, generated-artifact scans, logs, broad `git diff/log`, full tests/builds/lints/typechecks, and one-off scripts with unknown output size.
 
 If native read/bash safety net is enabled, large/noisy native output may be replaced with labeled Freeflow-routed output. It must include an `outputId` and recovery instructions. If safety-net routing fails, native output passes through with a warning.
 

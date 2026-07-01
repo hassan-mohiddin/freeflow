@@ -25,8 +25,10 @@ The router ships explicit tools and Pi observed routing:
 Native tools still matter:
 
 - use native `read` for known whole files,
-- use native `bash` for small/direct raw shell behavior,
+- use native `bash` for small/direct raw shell behavior when the producer is bounded before execution,
 - use native `edit`/`write` for mutations.
+
+Do not treat `head`, `tail`, `wc`, or similar output caps as proof that a broad command is small. Use Freeflow first for repo-wide `rg`/`find`, broad `git log`/`diff`, generated-artifact scans, package scans, tests, builds, logs, and other exploratory or unknown-size producers.
 
 ## Tiny Map
 
@@ -71,14 +73,14 @@ flowchart LR
 | Retrieve exact known repo/vault lines | `freeflow_search action=retrieve` with `lineRange` |
 | Widen previous evidence | `freeflow_search action=expand` |
 | Explain a previous routed decision/output | `freeflow_search action=explain` |
-| Run noisy/large command output | `freeflow_run` with `command` |
+| Run noisy/large command output, broad search/history, or unknown-size producer output | `freeflow_run` with `command` |
 | Run code as a sandboxed base producer | `freeflow_run` with `script` |
 | Use enabled Pi MCP/web/fetch/code-search output | Call the host tool directly; observed routing runs after the tool result |
 | Transform repo/vault sources or compute deterministic subsets/stats from vaulted output | `freeflow_search action=transform` |
 | Inspect script-transform disabled/unavailable state | `freeflow_status` |
 | Inspect effective config, observed routing, script transform, vault/index state, or migration recommendations | `freeflow_status` |
 | Read a known whole file | native `read` |
-| Run small exact command | native `bash` |
+| Run small exact command with bounded producer scope/output | native `bash` |
 
 ## `freeflow_search`
 

@@ -4,6 +4,18 @@
 
 - Nothing yet.
 
+## 0.3.0 - 2026-06-28
+
+- Adds plugin-bundled runtime context loading for mode-contract, workflow, interview-gate, discovery-light, and output-router, including Pi every-turn context injection.
+- Enforces the conversation-mode boundary so mutating or consequential work requires workflow or strict-workflow mode.
+- Adds the direct `/output-router` route and exposes the Freeflow search/run/batch/status evidence surface in Pi.
+- Expands Output Router with observed routing, vault-wide indexing, deterministic transform/reducer routing, storage-policy dedupe, and exact recovery guidance.
+- Adds proof-gated sandboxed script producers/transforms for JavaScript, Python, and jq behind explicit `scriptTransform` opt-in, with no unsandboxed fallback.
+- Adds processing reducers for access logs, tests, diagnostics, build output, tables, MCP tools, browser snapshots, git logs, and query-aware JSON facts.
+- Records Context Mode comparison evidence, storage-policy evidence, script-sandbox proof evidence, observed-routing evidence, and updated output-router release evidence.
+- Simplifies runtime skill context, tightens output-router safety-policy docs, and refreshes public README/plugin docs with the workflow map and current positioning.
+- Fixes Pi runtime context loading on every turn and makes the discover skill description YAML-safe.
+
 ## 0.2.0 - 2026-06-19
 
 - Adds Freeflow output-router tooling for routed repo/vault evidence, noisy command routing, and exact raw-output recovery.
