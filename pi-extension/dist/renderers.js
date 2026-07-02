@@ -16,6 +16,10 @@ function retrieveSourceLabel(source) {
     if (!source || source.kind === "repo") {
         return `repo ${shortenMiddle(source?.path ?? ".", 80)}`;
     }
+    if (source.kind === "local") {
+        const path = source.path ? `:${source.path}` : "";
+        return `local ${shortenMiddle(source.root ?? ".", 60)}${shortenMiddle(path, 50)}`;
+    }
     if (source.kind === "vault") {
         const stream = source.stream ? `:${source.stream}` : "";
         return `vault ${shortenMiddle(source.outputId ?? "...", 48)}${stream}`;
@@ -27,7 +31,7 @@ function evidenceLabel(evidence) {
         return "no evidence";
     }
     const source = evidence.source;
-    const path = evidence.path ?? (source?.kind === "repo" ? source.path : source?.kind === "vault" ? source.outputId : "evidence");
+    const path = evidence.path ?? (source?.kind === "repo" ? source.path : source?.kind === "local" ? source.path : source?.kind === "vault" ? source.outputId : "evidence");
     const lines = evidence.lines ? `:${evidence.lines}` : "";
     return `${shortenMiddle(path, 90)}${lines}`;
 }
@@ -51,6 +55,10 @@ function evidenceSourceSummary(source) {
     }
     if (source.kind === "repo") {
         return `repo ${source.path ?? "."}`;
+    }
+    if (source.kind === "local") {
+        const path = source.path ? `:${source.path}` : "";
+        return `local ${source.root ?? "."}${path}`;
     }
     if (source.kind === "vault") {
         const stream = source.stream ? `:${source.stream}` : "";
@@ -154,6 +162,10 @@ function exactRetrieveHintFromEvidence(packet) {
     const source = packet.source;
     if (source?.kind === "vault" && source.outputId) {
         return `action=retrieve source.kind=vault lineRange=${packet.lines} stream=${source.stream ?? "raw"} outputId=${source.outputId}`;
+    }
+    if (source?.kind === "local") {
+        const path = packet.path ?? source.path;
+        return path ? `action=retrieve source.kind=local lineRange=${packet.lines} root=${source.root} path=${path}` : "";
     }
     const path = packet.path ?? (source?.kind === "repo" ? source.path : undefined);
     if (path && source?.kind !== "vault") {

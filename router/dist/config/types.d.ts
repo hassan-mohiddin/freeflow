@@ -47,12 +47,17 @@ export interface VaultSourceRef {
     outputId: string;
     stream?: OutputStream;
 }
+export interface LocalSourceRef {
+    kind: "local";
+    root: string;
+    path: string;
+}
 export interface NativeToolSourceRef {
     kind: "native";
     tool: string;
     outputId: string;
 }
-export type SourceRef = RepoSourceRef | VaultSourceRef | NativeToolSourceRef;
+export type SourceRef = RepoSourceRef | VaultSourceRef | LocalSourceRef | NativeToolSourceRef;
 export interface ProducerDescriptor {
     kind: ProducerKind;
     adapter?: string;

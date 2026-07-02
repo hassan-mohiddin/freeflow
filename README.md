@@ -80,10 +80,10 @@ smallest sufficient evidence in context
 
 | Need | Use |
 | --- | --- |
-| Search repo or previous routed output | `freeflow_search` |
+| Search repo, explicit local sources, or previous routed output | `freeflow_search` |
 | Run noisy tests, builds, typechecks, logs, or diagnostics | `freeflow_run` |
 | Run independent searches/checks and aggregate facts | `freeflow_batch` |
-| Compute subsets/stats from repo or vaulted output | `freeflow_search action=transform` |
+| Compute subsets/stats from repo, explicit local, or vaulted output | `freeflow_search action=transform` |
 | Inspect router config, vault, observed routing, or script adapters | `freeflow_status` |
 | Read a known whole file, edit files, or run tiny exact shell commands | Native tools |
 

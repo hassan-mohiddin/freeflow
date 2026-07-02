@@ -73,6 +73,20 @@ async function normalizeSearchEvidenceParams(params, ctx, providedRouterConfigRe
             },
         };
     }
+    if (source.kind === "local") {
+        if (!source.root) {
+            throw new Error("freeflow_search source.kind=local requires an explicit absolute source.root.");
+        }
+        return {
+            ...params,
+            generatedPathGlobs: routerConfigResult.config.hints?.generatedPathGlobs,
+            source: {
+                kind: "local",
+                root: source.root,
+                ...(source.path ? { path: source.path } : {}),
+            },
+        };
+    }
     if (source.kind === "vault") {
         if (!source.outputId && params.action !== "query" && params.action !== "locate" && params.action !== "get") {
             throw new Error("freeflow_search source.kind=vault requires source.outputId for retrieve, expand, and explain.");
@@ -104,6 +118,34 @@ async function normalizeSearchTransformProcessingParams(params, ctx, routerConfi
         }
         return {
             source: { kind: "repo-file", root: ctx.cwd, path: source.path },
+            options: {
+                sessionId: getRouterSessionId(ctx),
+                vaultRoot: routerConfigResult.config.vault.root,
+                vaultRetention: routerConfigResult.config.vault.retention,
+                goal: params.goal,
+                limits: params.limits,
+                script: params.script,
+                scriptTransform: routerConfigResult.freeflowConfig.scriptTransform,
+                localConfig: routerConfigResult.localConfig,
+                scriptSandboxAdapters: params.script
+                    ? [
+                        ...(await discoverQuickJsWasiSandboxAdaptersFromEnv()),
+                        ...(await discoverJqWasmSandboxAdaptersFromEnv()),
+                        ...(await discoverEryxPythonSandboxAdaptersFromEnv()),
+                    ]
+                    : [],
+            },
+        };
+    }
+    if (source.kind === "local") {
+        if (!source.root) {
+            throw new Error("freeflow_search action=transform source.kind=local requires an explicit absolute source.root.");
+        }
+        if (!source.path) {
+            throw new Error("freeflow_search action=transform source.kind=local requires source.path for an explicit local file.");
+        }
+        return {
+            source: { kind: "local-file", root: source.root, path: source.path },
             options: {
                 sessionId: getRouterSessionId(ctx),
                 vaultRoot: routerConfigResult.config.vault.root,
@@ -300,10 +342,10 @@ export function registerRouterTools(pi) {
     pi.registerTool({
         name: "freeflow_search",
         label: "Freeflow Search",
-        description: "Search, retrieve, expand, explain, or transform repo and vaulted Freeflow evidence. Returns compact facts with recoverable source pointers.",
-        promptSnippet: "Search repo/vault evidence or transform file/output sources with compact recoverable results.",
+        description: "Search, retrieve, expand, explain, or transform repo, explicit local, and vaulted Freeflow evidence. Returns compact facts with recoverable source pointers.",
+        promptSnippet: "Search repo/local/vault evidence or transform file/output sources with compact recoverable results.",
         promptGuidelines: [
-            "Use freeflow_search for targeted repo or vault evidence before reading whole files or dumping captured output.",
+            "Use freeflow_search for targeted repo, explicit local, or vault evidence before reading whole files or dumping captured output.",
             "Use freeflow_search with source.kind=vault and an outputId to recover exact output from freeflow_run.",
             "Use freeflow_search action=transform for file/output processing through deterministic reducers or explicit scripts.",
         ],

@@ -361,6 +361,9 @@ function sourceKey(source) {
     if (source.kind === "vault") {
         return `vault:${source.outputId}:${source.stream ?? ""}`;
     }
+    if (source.kind === "local") {
+        return `local:${source.root}:${source.path}`;
+    }
     return `native:${source.tool}:${source.outputId}`;
 }
 function tokenizeQuery(query) {

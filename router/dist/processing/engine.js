@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { relative } from "node:path";
+import { resolveLocalPath } from "../local/local-traversal.js";
 import { resolveRepoPath } from "../repo/repo-traversal.js";
 import { renderProcessingResult, classifyProcessingRecovery } from "./renderers.js";
 import { selectProcessingReducer } from "./reducers.js";
@@ -18,6 +19,8 @@ export async function loadProcessingSource(source, options = {}) {
             return loadRepoFileSource(source, options, limits);
         case "vault-output":
             return loadVaultOutputSource(source, options, limits);
+        case "local-file":
+            return loadLocalFileSource(source, limits);
         case "command-output":
             return loadCapturedCommandOutputSource(source, limits);
     }
@@ -165,6 +168,43 @@ async function loadRepoFileSource(source, options, limits) {
         text,
         stats,
         ...(lineage !== undefined ? { lineage } : {}),
+    };
+}
+async function loadLocalFileSource(source, limits) {
+    const descriptor = localSourceDescriptor(source.root, source.path);
+    let resolved;
+    try {
+        resolved = await resolveLocalPath(source.root, source.path);
+    }
+    catch (error) {
+        const message = errorMessage(error);
+        const blocked = message.includes("escapes root") || message.includes("absolute path") || message.includes("too broad") || message.includes("source.root");
+        return blocked
+            ? { status: "blocked", source: descriptor, policy: "repo_containment", reason: message }
+            : { status: "unavailable", source: descriptor, reason: message };
+    }
+    const resolvedDescriptor = localSourceDescriptor(resolved.root, resolved.relativePath || ".");
+    const fileStat = await stat(resolved.absolutePath);
+    if (!fileStat.isFile()) {
+        return { status: "unavailable", source: resolvedDescriptor, reason: `Local source is not a file: ${resolved.relativePath || "."}` };
+    }
+    if (fileStat.size > limits.maxSourceBytes) {
+        return {
+            status: "blocked",
+            source: resolvedDescriptor,
+            policy: "source_limit",
+            reason: `Local source ${resolved.relativePath} is ${fileStat.size} bytes, above maxSourceBytes=${limits.maxSourceBytes}.`,
+            stats: { bytes: fileStat.size },
+        };
+    }
+    const text = await readFile(resolved.absolutePath, "utf8");
+    const stats = textStats(text);
+    return {
+        status: "ok",
+        source: resolvedDescriptor,
+        text,
+        stats,
+        recovery: { how: `Recover source with freeflow_search action=retrieve source.kind=local root=${resolved.root} path=${resolved.relativePath}.` },
     };
 }
 async function loadVaultOutputSource(source, options, limits) {
@@ -398,6 +438,13 @@ function repoSourceDescriptor(displayPath) {
     return {
         kind: "repo-file",
         ref: { kind: "repo", path: displayPath },
+        displayPath,
+    };
+}
+function localSourceDescriptor(root, displayPath) {
+    return {
+        kind: "local-file",
+        ref: { kind: "local", root, path: displayPath },
         displayPath,
     };
 }

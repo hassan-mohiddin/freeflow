@@ -18,7 +18,12 @@ export interface VaultSearchSourceInput {
     recordKind?: VaultRecord["kind"];
     recoverability?: EvidencePersistence["recoverability"];
 }
-export type SearchSourceInput = RepoSearchSourceInput | VaultSearchSourceInput;
+export interface LocalSearchSourceInput {
+    kind: "local";
+    root: string;
+    path?: string;
+}
+export type SearchSourceInput = RepoSearchSourceInput | VaultSearchSourceInput | LocalSearchSourceInput;
 export declare const FREEFLOW_SEARCH_ACTIONS: readonly ["query", "locate", "get", "retrieve", "expand", "explain", "transform"];
 export type FreeflowSearchAction = (typeof FREEFLOW_SEARCH_ACTIONS)[number];
 export declare function searchActionForRetrievalAction(action: RetrievalAction): FreeflowSearchAction;

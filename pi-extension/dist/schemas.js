@@ -46,13 +46,14 @@ export const FREEFLOW_SEARCH_PARAMETERS = {
     type: "object",
     additionalProperties: false,
     properties: {
-        action: { ...SEARCH_ACTION_SCHEMA, description: "Search/retrieval action to perform, or transform to process a repo/vault source." },
+        action: { ...SEARCH_ACTION_SCHEMA, description: "Search/retrieval action to perform, or transform to process a repo/local/vault source." },
         source: {
             type: "object",
             additionalProperties: false,
             properties: {
-                kind: { type: "string", enum: ["repo", "vault"] },
-                path: { ...STRING_SCHEMA, description: "Repo path for source.kind=repo." },
+                kind: { type: "string", enum: ["repo", "local", "vault"] },
+                root: { ...STRING_SCHEMA, description: "Absolute local root for source.kind=local." },
+                path: { ...STRING_SCHEMA, description: "Repo path for source.kind=repo, or relative local path for source.kind=local." },
                 outputId: { ...STRING_SCHEMA, description: "Vault output id for source.kind=vault. Optional for vault query/locate." },
                 stream: { ...STREAM_SCHEMA, description: "Vault stream to read or filter." },
                 producerKind: { type: "string", enum: ["command", "script", "native", "repo", "web", "fetch", "code_search", "mcp", "transform", "other"], description: "Vault index producer-kind filter for source.kind=vault query/locate." },
@@ -63,7 +64,7 @@ export const FREEFLOW_SEARCH_PARAMETERS = {
                 recoverability: { type: "string", enum: ["exact", "redacted", "metadata_only", "none"], description: "Vault recoverability filter for source.kind=vault query/locate." },
             },
             required: ["kind"],
-            description: "Source to search, retrieve, or transform. Repo root and vault session are supplied by Freeflow/Pi.",
+            description: "Source to search, retrieve, or transform. Repo root and vault session are supplied by Freeflow/Pi; local sources require an explicit absolute root per call.",
         },
         query: { ...STRING_SCHEMA, description: "Text query for query/locate actions." },
         goal: { ...STRING_SCHEMA, description: "Goal for action=transform, such as log analysis, CSV summary, or test output processing." },
@@ -148,7 +149,7 @@ export const FREEFLOW_SEARCH_PARAMETERS = {
         },
         expansion: { ...EXPANSION_SCHEMA, description: "Expansion breadth for expand action." },
         maxFullBytes: { type: "number", description: "Cap for preserve=full before exact chunks are returned." },
-        topK: { type: "number", description: "Number of ranked repo or vault candidates for query/locate. Defaults: query=1, locate=5; max 10." },
+        topK: { type: "number", description: "Number of ranked repo, local, or vault candidates for query/locate. Defaults: query=1, locate=5; max 10." },
         lineRange: {
             type: "object",
             additionalProperties: false,

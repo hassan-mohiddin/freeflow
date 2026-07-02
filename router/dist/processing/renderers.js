@@ -131,6 +131,9 @@ function sourceRefLabel(source, displayPath, stream) {
         const selectedStream = stream ?? source.stream;
         return `vault ${shortenMiddle(source.outputId, 48)}${selectedStream ? `:${selectedStream}` : ""}`;
     }
+    if (source.kind === "local") {
+        return `local ${shortenMiddle(`${source.root}:${source.path || displayPath}`, 90)}`;
+    }
     return `${source.tool} ${shortenMiddle(source.outputId || displayPath, 64)}${stream ? `:${stream}` : ""}`;
 }
 function formatBytes(bytes) {

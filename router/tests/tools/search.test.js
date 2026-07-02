@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { join, parse, relative } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
 
@@ -1554,6 +1554,111 @@ test("locating repo evidence returns candidate locations without broad evidence"
     assert.ok(!candidate.excerpt.includes("filler line 1"));
     assert.ok(result.recovery?.how.includes("retrieve"));
   });
+});
+
+test("querying explicit local roots returns bounded local evidence and recovery coordinates", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-local-docs-"));
+  try {
+    await mkdir(join(root, "docs"), { recursive: true });
+    await writeFile(
+      join(root, "docs", "pi-docs.md"),
+      [
+        "# Pi Docs",
+        "",
+        "The local source search should find EXTERNAL_LOCAL_DOCS_MARKER without native rg.",
+        "Use retrieve and expand with the same explicit local root.",
+      ].join("\n"),
+      "utf8",
+    );
+    const rootRealPath = await realpath(root);
+
+    const result = await freeflowSearch({
+      action: "query",
+      source: { kind: "local", root },
+      query: "EXTERNAL_LOCAL_DOCS_MARKER",
+      preserve: "important",
+    });
+
+    assert.equal(result.toolStatus, "ok");
+    assert.equal(result.routing.status, "routed");
+    assert.equal(result.source?.kind, "local");
+    assert.equal(result.source?.root, rootRealPath);
+    assert.equal(result.evidence?.length, 1);
+    const evidence = result.evidence[0];
+    assert.equal(evidence.source.kind, "local");
+    assert.equal(evidence.source.root, rootRealPath);
+    assert.equal(evidence.path, "docs/pi-docs.md");
+    assert.match(evidence.excerpt, /EXTERNAL_LOCAL_DOCS_MARKER/);
+    assert.match(result.recovery?.how ?? "", /source.kind=local/);
+
+    const [start, end] = evidence.lines.split("-").map(Number);
+    const retrieved = await freeflowSearch({
+      action: "retrieve",
+      source: { kind: "local", root, path: evidence.path },
+      lineRange: { start, end },
+      preserve: "full",
+    });
+    assert.equal(retrieved.toolStatus, "ok");
+    assert.equal(retrieved.source?.kind, "local");
+    assert.match(retrieved.evidence?.[0]?.excerpt ?? "", /EXTERNAL_LOCAL_DOCS_MARKER/);
+
+    const expanded = await freeflowSearch({
+      action: "expand",
+      source: { kind: "local", root },
+      evidence,
+      expansion: "lines_30",
+      preserve: "important",
+    });
+    assert.equal(expanded.toolStatus, "ok");
+    assert.equal(expanded.source?.kind, "local");
+    assert.match(expanded.evidence?.[0]?.excerpt ?? "", /Use retrieve and expand/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("local source rejects path traversal and symlink escapes without reading outside content", async () => {
+  const root = await mkdtemp(join(tmpdir(), "freeflow-router-local-containment-"));
+  const outside = await mkdtemp(join(tmpdir(), "freeflow-router-local-outside-"));
+  try {
+    await mkdir(join(root, "docs"), { recursive: true });
+    await writeFile(join(outside, "secret.txt"), "OUTSIDE_LOCAL_SECRET_TOKEN\n", "utf8");
+    await symlink(join(outside, "secret.txt"), join(root, "docs", "secret-link.txt"));
+
+    const parentEscape = await freeflowSearch({
+      action: "retrieve",
+      source: { kind: "local", root, path: relative(root, join(outside, "secret.txt")) },
+      preserve: "important",
+    });
+    assert.equal(parentEscape.toolStatus, "error");
+    assert.match(parentEscape.routing.reason, /escapes root/);
+    assert.doesNotMatch(JSON.stringify(parentEscape), /OUTSIDE_LOCAL_SECRET_TOKEN/);
+
+    const symlinkEscape = await freeflowSearch({
+      action: "retrieve",
+      source: { kind: "local", root, path: "docs/secret-link.txt" },
+      preserve: "important",
+    });
+    assert.equal(symlinkEscape.toolStatus, "error");
+    assert.match(symlinkEscape.routing.reason, /escapes root/);
+    assert.doesNotMatch(JSON.stringify(symlinkEscape), /OUTSIDE_LOCAL_SECRET_TOKEN/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test("local source rejects broad filesystem roots before scanning", async () => {
+  const broadRoot = parse(process.cwd()).root;
+  const result = await freeflowSearch({
+    action: "query",
+    source: { kind: "local", root: broadRoot },
+    query: "SHOULD_NOT_SCAN_BROAD_ROOT",
+    preserve: "important",
+  });
+
+  assert.equal(result.toolStatus, "error");
+  assert.match(result.routing.reason, /too broad|Filesystem root/);
 });
 
 test("explaining a repo retrieval returns the prior route and recovery guidance", async () => {

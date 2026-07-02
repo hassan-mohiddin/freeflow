@@ -1,6 +1,6 @@
 ---
 name: output-router
-description: Use after the workflow, interview-gate, discovery-light, or full Discover route is clear when choosing between native tools and Freeflow routed tools, retrieving repo/vault evidence, transforming bounded evidence, handling unknown-size or broad output, running likely-large/noisy commands, recovering vaulted output, configuring outputRouter/observedRouting/scriptTransform, or handling optional native read/bash safety-net routing.
+description: Use after the workflow, interview-gate, discovery-light, or full Discover route is clear when choosing between native tools and Freeflow routed tools, retrieving repo/local/vault evidence, transforming bounded evidence, handling unknown-size or broad output, running likely-large/noisy commands, recovering vaulted output, configuring outputRouter/observedRouting/scriptTransform, or handling optional native read/bash safety-net routing.
 ---
 
 # Output Router
@@ -17,7 +17,7 @@ In delegated work, child transcripts are recoverable evidence, not the handoff. 
 
 Ask what kind of data you need:
 
-- Existing repo/vault data: use `freeflow_search`.
+- Existing repo, explicit local, or vault data: use `freeflow_search`.
 - New command or script-produced output: use `freeflow_run`.
 - Several independent Freeflow operations: use `freeflow_batch`.
 - Config/status/vault/script-adapter facts: use `freeflow_status`.
@@ -28,7 +28,7 @@ When unsure how much output will return, use Freeflow first. Bound the producer 
 
 ## `freeflow_search`: Existing Data
 
-Use `freeflow_search` for repo files and vaulted output that already exists.
+Use `freeflow_search` for repo files, explicit external local files, and vaulted output that already exists.
 
 Actions:
 
@@ -38,9 +38,9 @@ Actions:
 - `retrieve`: you already know the path/outputId and line range. Return those exact lines. Do not use this as search.
 - `expand`: widen a previous evidence packet.
 - `explain`: explain a previous routed decision or vault output/recoverability.
-- `transform`: compute facts or deterministic subsets from repo/vault/file/output data.
+- `transform`: compute facts or deterministic subsets from repo/local/vault/file/output data.
 
-Use `source.kind="repo"` for the current checkout. Use `source.kind="vault"` for previous Freeflow outputs.
+Use `source.kind="repo"` for the current checkout. Use `source.kind="local"` for external local docs/files with an explicit absolute `root` and optional relative `path`; do not put local roots in shared config. Use `source.kind="vault"` for previous Freeflow outputs.
 
 Vault search patterns:
 
@@ -70,7 +70,7 @@ Prefer deterministic operations when enough:
 Use scripts only when deterministic operations cannot express the fact:
 
 - `operation.kind="script"` runs a sandboxed transform over vault sources.
-- `script` without `operation` runs the processing-engine script path over repo/vault sources.
+- `script` without `operation` runs the processing-engine script path over repo/local/vault sources.
 - Sandboxed scripts require `scriptTransform.enabled=true` and a proof-backed adapter.
 - Raw script code is not persisted; metadata stores hashes/labels/limits.
 - No sandboxed script path may silently fall back to host shell execution.
@@ -123,7 +123,7 @@ Good batch cases:
 
 - run several bounded searches in parallel,
 - run independent checks and ask `queries[]` to extract facts from child evidence,
-- gather multiple repo/vault facts without injecting every child result.
+- gather multiple repo/local/vault facts without injecting every child result.
 
 Do not use batch for:
 

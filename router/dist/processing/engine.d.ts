@@ -30,6 +30,11 @@ export interface VaultOutputProcessingSource {
     stream?: OutputStream;
     vaultRoot?: string;
 }
+export interface LocalFileProcessingSource {
+    kind: "local-file";
+    root: string;
+    path: string;
+}
 export interface CapturedCommandOutputProcessingSource {
     kind: "command-output";
     stdout?: string;
@@ -38,7 +43,7 @@ export interface CapturedCommandOutputProcessingSource {
     stream?: Exclude<OutputStream, "raw">;
     outputId?: string;
 }
-export type ProcessingSourceInput = RepoFileProcessingSource | VaultOutputProcessingSource | CapturedCommandOutputProcessingSource;
+export type ProcessingSourceInput = RepoFileProcessingSource | VaultOutputProcessingSource | LocalFileProcessingSource | CapturedCommandOutputProcessingSource;
 export interface ProcessingSourceStats {
     bytes: number;
     lines: number;

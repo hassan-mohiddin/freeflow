@@ -114,13 +114,19 @@ function validateSourceRef(value: unknown, path: string, issues: MutableIssues) 
     return;
   }
 
+  if (value.kind === "local") {
+    requireString(value, "root", path, issues);
+    requireString(value, "path", path, issues);
+    return;
+  }
+
   if (value.kind === "native") {
     requireString(value, "tool", path, issues);
     requireString(value, "outputId", path, issues);
     return;
   }
 
-  issues.push({ path: `${path}.kind`, message: "Expected source kind repo, vault, or native." });
+  issues.push({ path: `${path}.kind`, message: "Expected source kind repo, vault, local, or native." });
 }
 
 function validateProducerDescriptor(value: unknown, path: string, issues: MutableIssues, required = false) {

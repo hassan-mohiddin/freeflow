@@ -9,6 +9,7 @@ import {
   type EvidenceSearchCandidate,
 } from "../evidence/evidence-search.js";
 import { resolveExactLineRange } from "../evidence/line-ranges.js";
+import { collectLocalTextFileRefs, resolveLocalPath, type LocalTextFileRef } from "../local/local-traversal.js";
 import { collectRepoTextFileRefs, resolveRepoPath, type RepoTextFileRef } from "../repo/repo-traversal.js";
 import { createLocalVaultIndex, type VaultIndexMatch, type VaultIndexQueryFilters } from "../vault/vault-index.js";
 import { createVault, readOutputText, readVaultRecord } from "../vault/vault.js";
@@ -44,7 +45,13 @@ export interface VaultSearchSourceInput {
   recoverability?: EvidencePersistence["recoverability"];
 }
 
-export type SearchSourceInput = RepoSearchSourceInput | VaultSearchSourceInput;
+export interface LocalSearchSourceInput {
+  kind: "local";
+  root: string;
+  path?: string;
+}
+
+export type SearchSourceInput = RepoSearchSourceInput | VaultSearchSourceInput | LocalSearchSourceInput;
 
 export const FREEFLOW_SEARCH_ACTIONS = ["query", "locate", "get", "retrieve", "expand", "explain", "transform"] as const;
 export type FreeflowSearchAction = (typeof FREEFLOW_SEARCH_ACTIONS)[number];
@@ -77,9 +84,15 @@ export interface FreeflowSearchOptions {
 
 type RepoSearchOptions = FreeflowSearchOptions & { source: RepoSearchSourceInput };
 type VaultSearchOptions = FreeflowSearchOptions & { source: VaultSearchSourceInput };
+type LocalSearchOptions = FreeflowSearchOptions & { source: LocalSearchSourceInput };
 type VaultOutputSearchOptions = VaultSearchOptions & { source: VaultSearchSourceInput & { outputId: string } };
+type FileSearchOptions = RepoSearchOptions | LocalSearchOptions;
 
-interface RepoTextFile {
+type SearchFileKind = "repo" | "local";
+
+interface SearchTextFile {
+  sourceKind: SearchFileKind;
+  root: string;
   path: string;
   absolutePath: string;
   text: string;
@@ -117,30 +130,56 @@ export async function freeflowSearch(options: FreeflowSearchOptions): Promise<Re
       return await retrieveVault(options as VaultSearchOptions, preserve);
     }
 
+    if (options.source.kind === "local") {
+      if (options.action === "query") {
+        return await queryFileSource(options.source.root, options as LocalSearchOptions, preserve);
+      }
+
+      if (options.action === "locate") {
+        return await locateFileSource(options.source.root, options as LocalSearchOptions, preserve);
+      }
+
+      if (options.action === "get") {
+        return await getFileSource(options.source.root, options as LocalSearchOptions, preserve);
+      }
+
+      if (options.action === "expand") {
+        return await expandFileEvidence(options.source.root, options as LocalSearchOptions, preserve);
+      }
+
+      if (options.action === "retrieve") {
+        return await retrieveFilePath(options.source.root, options as LocalSearchOptions, preserve);
+      }
+
+      if (options.action === "explain") {
+        return explainFileDecision(options, preserve);
+      }
+    }
+
     const root = resolve(options.source.root);
 
     if (options.action === "query") {
-      return await queryRepo(root, options as RepoSearchOptions, preserve);
+      return await queryFileSource(root, options as RepoSearchOptions, preserve);
     }
 
     if (options.action === "locate") {
-      return await locateRepo(root, options as RepoSearchOptions, preserve);
+      return await locateFileSource(root, options as RepoSearchOptions, preserve);
     }
 
     if (options.action === "get") {
-      return await getRepo(root, options as RepoSearchOptions, preserve);
+      return await getFileSource(root, options as RepoSearchOptions, preserve);
     }
 
     if (options.action === "expand") {
-      return await expandRepoEvidence(root, options as RepoSearchOptions, preserve);
+      return await expandFileEvidence(root, options as RepoSearchOptions, preserve);
     }
 
     if (options.action === "retrieve") {
-      return await retrieveRepoPath(root, options as RepoSearchOptions, preserve);
+      return await retrieveFilePath(root, options as RepoSearchOptions, preserve);
     }
 
     if (options.action === "explain") {
-      return explainRepoDecision(options, preserve);
+      return explainFileDecision(options, preserve);
     }
 
     return errorResult(preserve, `Retrieval action ${options.action} is not implemented yet.`);
@@ -776,13 +815,15 @@ function vaultRecordRecovery(
   };
 }
 
-async function queryRepo(
+async function queryFileSource(
   root: string,
-  options: RepoSearchOptions,
+  options: FileSearchOptions,
   preserve: PreserveMode,
 ): Promise<RetrievalRoutedResult> {
+  const sourceKind = options.source.kind;
+  const sourceLabel = sourceKindLabel(sourceKind);
   if (!options.query?.trim()) {
-    return errorResult(preserve, "Repo query requires a non-empty query string.");
+    return errorResult(preserve, `${sourceLabel} query requires a non-empty query string.`);
   }
 
   const query = options.query.trim();
@@ -791,7 +832,7 @@ async function queryRepo(
     return errorResult(preserve, topK);
   }
 
-  const files = await readRepoTextFiles(root, options.source.path, options.generatedPathGlobs);
+  const files = await readSearchTextFiles(sourceKind, root, options.source.path, options.generatedPathGlobs);
   const candidates = searchRepoEvidenceCandidates({
     files,
     query,
@@ -803,13 +844,13 @@ async function queryRepo(
   if (candidates.length === 0) {
     return {
       toolStatus: "ok",
-      decisionId: decisionId("repo-query", query, root, "none"),
+      decisionId: decisionId(`${sourceKind}-query`, query, root, "none"),
       preserve,
-      source: { kind: "repo", path: options.source.path ?? "." },
+      source: sourceRefForOptions(options.source, options.source.path ?? "."),
       routing: {
         status: "routed",
         route: "retrieve",
-        reason: "Deterministic lexical retrieval found no matching repo evidence.",
+        reason: `Deterministic lexical retrieval found no matching ${sourceKind} evidence.`,
       },
       evidence: [],
       recovery: {
@@ -822,38 +863,40 @@ async function queryRepo(
   const first = evidence[0];
   const firstCandidate = candidates[0];
   if (!first || !firstCandidate) {
-    return errorResult(preserve, "Repo query produced no usable candidate evidence.");
+    return errorResult(preserve, `${sourceLabel} query produced no usable candidate evidence.`);
   }
 
   return {
     toolStatus: "ok",
-    decisionId: decisionId("repo-query", query, String(topK), evidence.map((packet) => `${packet.path}:${packet.lines ?? ""}`).join("|")),
+    decisionId: decisionId(`${sourceKind}-query`, query, String(topK), evidence.map((packet) => `${packet.path}:${packet.lines ?? ""}`).join("|")),
     preserve,
-    source: { kind: "repo", path: firstCandidate.file.path },
+    source: fileSourceRef(firstCandidate.file),
     routing: {
       status: "routed",
       route: "retrieve",
-      reason: `Deterministic repo retrieval selected ${evidence.length} candidate(s); top result ${firstCandidate.file.path}:${first.lines} (${firstCandidate.reason}).`,
+      reason: `Deterministic ${sourceKind} retrieval selected ${evidence.length} candidate(s); top result ${firstCandidate.file.path}:${first.lines} (${firstCandidate.reason}).`,
     },
     evidence,
     recovery: {
-      how: `Use freeflow_search action=expand with evidenceId=${first.id} for more surrounding context, action=locate for candidate paths, or action=retrieve with path=${firstCandidate.file.path} for an explicit span.`,
+      how: recoveryHowForFile(firstCandidate.file, `Use freeflow_search action=expand with evidenceId=${first.id} for more surrounding context, action=locate for candidate paths, or action=retrieve`),
       evidenceId: first.id,
     },
   };
 }
 
-async function getRepo(
+async function getFileSource(
   root: string,
-  options: RepoSearchOptions,
+  options: FileSearchOptions,
   preserve: PreserveMode,
 ): Promise<RetrievalRoutedResult> {
+  const sourceKind = options.source.kind;
+  const sourceLabel = sourceKindLabel(sourceKind);
   if (!options.query?.trim()) {
-    return errorResult(preserve, "Repo get requires a non-empty query string.");
+    return errorResult(preserve, `${sourceLabel} get requires a non-empty query string.`);
   }
 
   const query = options.query.trim();
-  const files = await readRepoTextFiles(root, options.source.path, options.generatedPathGlobs);
+  const files = await readSearchTextFiles(sourceKind, root, options.source.path, options.generatedPathGlobs);
   const candidates = searchRepoEvidenceCandidates({
     files,
     query,
@@ -866,13 +909,13 @@ async function getRepo(
   if (!candidate) {
     return {
       toolStatus: "ok",
-      decisionId: decisionId("repo-get", query, root, "none"),
+      decisionId: decisionId(`${sourceKind}-get`, query, root, "none"),
       preserve,
-      source: { kind: "repo", path: options.source.path ?? "." },
+      source: sourceRefForOptions(options.source, options.source.path ?? "."),
       routing: {
         status: "routed",
         route: "retrieve",
-        reason: "Freeflow search get found no matching repo evidence.",
+        reason: `Freeflow search get found no matching ${sourceKind} evidence.`,
       },
       evidence: [],
       recovery: {
@@ -883,34 +926,36 @@ async function getRepo(
 
   const match = matchMetadataForCandidate(candidate);
   const evidence = evidenceFromCandidate(candidate, query);
-  evidence.why = `Best repo get match; matchType=${match.type} confidence=${match.confidence.toFixed(2)}. ${evidence.why}`;
+  evidence.why = `Best ${sourceKind} get match; matchType=${match.type} confidence=${match.confidence.toFixed(2)}. ${evidence.why}`;
   evidence.match = match;
 
   return {
     toolStatus: "ok",
-    decisionId: decisionId("repo-get", query, evidence.path ?? candidate.file.path, evidence.lines ?? ""),
+    decisionId: decisionId(`${sourceKind}-get`, query, evidence.path ?? candidate.file.path, evidence.lines ?? ""),
     preserve,
-    source: { kind: "repo", path: candidate.file.path },
+    source: fileSourceRef(candidate.file),
     routing: {
       status: "routed",
       route: "retrieve",
-      reason: `Freeflow search get selected best repo match ${candidate.file.path}:${evidence.lines}; matchType=${match.type} confidence=${match.confidence.toFixed(2)} (${candidate.reason}).`,
+      reason: `Freeflow search get selected best ${sourceKind} match ${candidate.file.path}:${evidence.lines}; matchType=${match.type} confidence=${match.confidence.toFixed(2)} (${candidate.reason}).`,
     },
     evidence: [evidence],
     recovery: {
-      how: `Use freeflow_search action=retrieve with path=${candidate.file.path} and lineRange=${evidence.lines} for exact recovery, or action=expand with evidenceId=${evidence.id}.`,
+      how: recoveryHowForFile(candidate.file, `Use freeflow_search action=retrieve with lineRange=${evidence.lines} for exact recovery, or action=expand with evidenceId=${evidence.id}`),
       evidenceId: evidence.id,
     },
   };
 }
 
-async function locateRepo(
+async function locateFileSource(
   root: string,
-  options: RepoSearchOptions,
+  options: FileSearchOptions,
   preserve: PreserveMode,
 ): Promise<RetrievalRoutedResult> {
+  const sourceKind = options.source.kind;
+  const sourceLabel = sourceKindLabel(sourceKind);
   if (!options.query?.trim()) {
-    return errorResult(preserve, "Repo locate requires a non-empty query string.");
+    return errorResult(preserve, `${sourceLabel} locate requires a non-empty query string.`);
   }
 
   const query = options.query.trim();
@@ -919,7 +964,7 @@ async function locateRepo(
     return errorResult(preserve, topK);
   }
 
-  const files = await readRepoTextFiles(root, options.source.path, options.generatedPathGlobs);
+  const files = await readSearchTextFiles(sourceKind, root, options.source.path, options.generatedPathGlobs);
   const candidates = searchRepoEvidenceCandidates({
     files,
     query,
@@ -930,9 +975,9 @@ async function locateRepo(
   if (candidates.length === 0) {
     return {
       toolStatus: "ok",
-      decisionId: decisionId("repo-locate", query, root, "none"),
+      decisionId: decisionId(`${sourceKind}-locate`, query, root, "none"),
       preserve,
-      source: { kind: "repo", path: options.source.path ?? "." },
+      source: sourceRefForOptions(options.source, options.source.path ?? "."),
       routing: {
         status: "routed",
         route: "retrieve",
@@ -948,10 +993,10 @@ async function locateRepo(
   const evidence = candidates.map((candidate) => {
     const line = candidate.lineIndex + 1;
     return evidenceFromRange({
-      id: evidenceIdFor(candidate.file.path, `${line}-${line}`, query),
+      id: evidenceIdFor(fileEvidenceKey(candidate.file), `${line}-${line}`, query),
       file: candidate.file,
       lines: { start: line, end: line },
-      why: `Candidate location from deterministic repo scoring.`,
+      why: `Candidate location from deterministic ${sourceKind} scoring.`,
       window: "small",
       expandable: true,
     });
@@ -959,14 +1004,14 @@ async function locateRepo(
   const first = evidence[0];
   const firstCandidate = candidates[0];
   if (!first || !firstCandidate) {
-    return errorResult(preserve, "Repo locate produced no usable candidate evidence.");
+    return errorResult(preserve, `${sourceLabel} locate produced no usable candidate evidence.`);
   }
 
   return {
     toolStatus: "ok",
-    decisionId: decisionId("repo-locate", query, String(topK), evidence.map((packet) => `${packet.path}:${packet.lines ?? ""}`).join("|")),
+    decisionId: decisionId(`${sourceKind}-locate`, query, String(topK), evidence.map((packet) => `${packet.path}:${packet.lines ?? ""}`).join("|")),
     preserve,
-    source: { kind: "repo", path: firstCandidate.file.path },
+    source: fileSourceRef(firstCandidate.file),
     routing: {
       status: "routed",
       route: "retrieve",
@@ -974,20 +1019,22 @@ async function locateRepo(
     },
     evidence,
     recovery: {
-      how: `Use freeflow_search action=retrieve with path=${firstCandidate.file.path} for an explicit span, or action=expand with evidenceId=${first.id}.`,
+      how: recoveryHowForFile(firstCandidate.file, `Use freeflow_search action=retrieve for an explicit span, or action=expand with evidenceId=${first.id}`),
       evidenceId: first.id,
     },
   };
 }
 
-async function expandRepoEvidence(
+async function expandFileEvidence(
   root: string,
-  options: RepoSearchOptions,
+  options: FileSearchOptions,
   preserve: PreserveMode,
 ): Promise<RetrievalRoutedResult> {
+  const sourceKind = options.source.kind;
+  const sourceLabel = sourceKindLabel(sourceKind);
   const evidence = options.evidence;
   if (!evidence?.path || !evidence.lines) {
-    return errorResult(preserve, "Repo expansion requires a previous repo evidence packet with path and lines.");
+    return errorResult(preserve, `${sourceLabel} expansion requires a previous ${sourceKind} evidence packet with path and lines.`);
   }
 
   const expansion = options.expansion ?? "lines_30";
@@ -996,58 +1043,60 @@ async function expandRepoEvidence(
     return errorResult(preserve, `Cannot expand unsupported evidence line range ${evidence.lines}.`);
   }
 
-  const file = await readRepoTextFile(root, evidence.path);
+  const file = await readSearchTextFile(sourceKind, root, evidence.path);
   const expandedRange = expandLineRange(originalRange, file.lines.length, expansion);
   const expandedLines = `${expandedRange.start}-${expandedRange.end}`;
   const expandedExcerpt = file.lines.slice(expandedRange.start - 1, expandedRange.end).join("\n");
   if (expansion === "full" && byteLength(expandedExcerpt) > EXACT_LINE_RANGE_MAX_BYTES) {
-    return expandRepoEvidenceOverCap(file, evidence, expandedRange, preserve, byteLength(expandedExcerpt));
+    return expandFileEvidenceOverCap(file, evidence, expandedRange, preserve, byteLength(expandedExcerpt));
   }
 
   const expandedEvidence = evidenceFromRange({
     id: evidence.id,
     file,
     lines: expandedRange,
-    why: `Expanded deterministic repo evidence from ${evidence.lines} to ${expandedLines}.`,
+    why: `Expanded deterministic ${sourceKind} evidence from ${evidence.lines} to ${expandedLines}.`,
     window: windowForExpansion(expansion),
     expandable: expansion !== "full",
   });
 
   return {
     toolStatus: "ok",
-    decisionId: decisionId("repo-expand", evidence.id, expandedEvidence.lines ?? expandedLines),
+    decisionId: decisionId(`${sourceKind}-expand`, evidence.id, expandedEvidence.lines ?? expandedLines),
     preserve,
-    source: { kind: "repo", path: evidence.path },
+    source: fileSourceRef(file),
     routing: {
       status: "routed",
       route: "retrieve",
-      reason: `Expanded repo evidence ${evidence.id} to ${evidence.path}:${expandedEvidence.lines ?? expandedLines}.`,
+      reason: `Expanded ${sourceKind} evidence ${evidence.id} to ${evidence.path}:${expandedEvidence.lines ?? expandedLines}.`,
     },
     evidence: [expandedEvidence],
     recovery: {
       how:
         expansion === "full"
-          ? `Use native read for direct whole-file behavior if needed for ${evidence.path}.`
-          : `Use freeflow_search action=expand with expansion=lines_80 or full for more context from ${evidence.path}.`,
+          ? `Use native read for direct whole-file behavior if needed for ${file.path}.`
+          : `Use freeflow_search action=expand with expansion=lines_80 or full for more context from ${file.path}.`,
       evidenceId: evidence.id,
     },
   };
 }
 
-async function retrieveRepoPath(
+async function retrieveFilePath(
   root: string,
-  options: RepoSearchOptions,
+  options: FileSearchOptions,
   preserve: PreserveMode,
 ): Promise<RetrievalRoutedResult> {
+  const sourceKind = options.source.kind;
+  const sourceLabel = sourceKindLabel(sourceKind);
   if (!options.source.path) {
-    return errorResult(preserve, "Repo retrieve requires source.path.");
+    return errorResult(preserve, `${sourceLabel} retrieve requires source.path.`);
   }
 
-  const file = await readRepoTextFile(root, options.source.path);
+  const file = await readSearchTextFile(sourceKind, root, options.source.path);
   const maxFullBytes = options.maxFullBytes ?? 64_000;
 
   if (options.lineRange) {
-    return retrieveRepoLineRange(file, options.lineRange, preserve);
+    return retrieveFileLineRange(file, options.lineRange, preserve);
   }
 
   if (preserve === "full") {
@@ -1056,23 +1105,23 @@ async function retrieveRepoPath(
 
   const end = Math.min(file.lines.length, 10);
   const evidence = evidenceFromRange({
-    id: evidenceIdFor(file.path, `1-${end}`, "retrieve"),
+    id: evidenceIdFor(fileEvidenceKey(file), `1-${end}`, "retrieve"),
     file,
     lines: { start: 1, end },
-    why: `Retrieved explicit repo span ${file.path}:1-${end}.`,
+    why: `Retrieved explicit ${file.sourceKind} span ${file.path}:1-${end}.`,
     window: "small",
     expandable: true,
   });
 
   return {
     toolStatus: "ok",
-    decisionId: decisionId("repo-retrieve", file.path, evidence.lines ?? ""),
+    decisionId: decisionId(`${file.sourceKind}-retrieve`, file.path, evidence.lines ?? ""),
     preserve,
-    source: { kind: "repo", path: file.path },
+    source: fileSourceRef(file),
     routing: {
       status: "routed",
       route: "retrieve",
-      reason: `Retrieved explicit repo span ${file.path}:${evidence.lines}.`,
+      reason: `Retrieved explicit ${file.sourceKind} span ${file.path}:${evidence.lines}.`,
     },
     evidence: [evidence],
     recovery: {
@@ -1082,27 +1131,27 @@ async function retrieveRepoPath(
   };
 }
 
-function expandRepoEvidenceOverCap(
-  file: RepoTextFile,
+function expandFileEvidenceOverCap(
+  file: SearchTextFile,
   evidence: EvidencePacket,
   expandedRange: LineRange,
   preserve: PreserveMode,
   expandedBytes: number,
 ): RetrievalRoutedResult {
   const chunks = buildBoundedEdgeChunks({ lines: file.lines, range: expandedRange, caps: BOUNDED_EVIDENCE_CAPS }).map((chunk, index) =>
-    repoEvidenceForBoundedExactChunk(file, chunk, index),
+    fileEvidenceForBoundedExactChunk(file, chunk, index),
   );
   const expandedLines = `${expandedRange.start}-${expandedRange.end}`;
 
   return {
     toolStatus: "ok",
-    decisionId: decisionId("repo-expand-over-cap", evidence.id, expandedLines, String(expandedBytes)),
+    decisionId: decisionId(`${file.sourceKind}-expand-over-cap`, evidence.id, expandedLines, String(expandedBytes)),
     preserve,
-    source: { kind: "repo", path: file.path },
+    source: fileSourceRef(file),
     routing: {
       status: "partial",
       route: "retrieve",
-      reason: `Expanded repo evidence ${evidence.id} to ${file.path}:${expandedLines}, but ${expandedBytes} bytes exceeds cap ${EXACT_LINE_RANGE_MAX_BYTES}; returned bounded edge chunks with recovery guidance.`,
+      reason: `Expanded ${file.sourceKind} evidence ${evidence.id} to ${file.path}:${expandedLines}, but ${expandedBytes} bytes exceeds cap ${EXACT_LINE_RANGE_MAX_BYTES}; returned bounded edge chunks with recovery guidance.`,
     },
     evidence: chunks,
     recovery: {
@@ -1112,16 +1161,16 @@ function expandRepoEvidenceOverCap(
   };
 }
 
-function retrieveRepoLineRange(
-  file: RepoTextFile,
+function retrieveFileLineRange(
+  file: SearchTextFile,
   lineRange: SearchLineRangeInput,
   preserve: PreserveMode,
 ): RetrievalRoutedResult {
   const resolvedRange = resolveExactLineRange({
     requested: lineRange,
     lineCount: file.lines.length,
-    availableLabel: "available repo lines",
-    invalidReason: "Repo retrieve requires a valid 1-based lineRange.",
+    availableLabel: `available ${file.sourceKind} lines`,
+    invalidReason: `${sourceKindLabel(file.sourceKind)} retrieve requires a valid 1-based lineRange.`,
   });
   if (!resolvedRange.ok) {
     return errorResult(preserve, resolvedRange.reason);
@@ -1130,27 +1179,27 @@ function retrieveRepoLineRange(
   const evidenceLines = `${start}-${end}`;
   const excerpt = file.lines.slice(start - 1, end).join("\n");
   if (byteLength(excerpt) > EXACT_LINE_RANGE_MAX_BYTES) {
-    return retrieveRepoLineRangeOverCap(file, { start, end }, preserve, byteLength(excerpt));
+    return retrieveFileLineRangeOverCap(file, { start, end }, preserve, byteLength(excerpt));
   }
 
   const evidence = evidenceFromRange({
-    id: evidenceIdFor(file.path, evidenceLines, "retrieve"),
+    id: evidenceIdFor(fileEvidenceKey(file), evidenceLines, "retrieve"),
     file,
     lines: { start, end },
-    why: `Retrieved exact repo lines ${file.path}:${evidenceLines}.`,
+    why: `Retrieved exact ${file.sourceKind} lines ${file.path}:${evidenceLines}.`,
     window: "exact",
     expandable: true,
   });
 
   return {
     toolStatus: "ok",
-    decisionId: decisionId("repo-retrieve-lines", file.path, evidenceLines),
+    decisionId: decisionId(`${file.sourceKind}-retrieve-lines`, file.path, evidenceLines),
     preserve,
-    source: { kind: "repo", path: file.path },
+    source: fileSourceRef(file),
     routing: {
       status: "routed",
       route: "retrieve",
-      reason: `Retrieved exact repo lines ${file.path}:${evidenceLines}.`,
+      reason: `Retrieved exact ${file.sourceKind} lines ${file.path}:${evidenceLines}.`,
     },
     evidence: [evidence],
     recovery: {
@@ -1160,30 +1209,30 @@ function retrieveRepoLineRange(
   };
 }
 
-function retrieveRepoLineRangeOverCap(
-  file: RepoTextFile,
+function retrieveFileLineRangeOverCap(
+  file: SearchTextFile,
   requestedRange: LineRange,
   preserve: PreserveMode,
   requestedBytes: number,
 ): RetrievalRoutedResult {
   const evidence = buildBoundedEdgeChunks({ lines: file.lines, range: requestedRange, caps: BOUNDED_EVIDENCE_CAPS }).map((chunk, index) =>
-    repoEvidenceForBoundedExactChunk(file, chunk, index),
+    fileEvidenceForBoundedExactChunk(file, chunk, index),
   );
 
   return {
     toolStatus: "ok",
     decisionId: decisionId(
-      "repo-retrieve-lines-over-cap",
+      `${file.sourceKind}-retrieve-lines-over-cap`,
       file.path,
       `${requestedRange.start}-${requestedRange.end}`,
       String(requestedBytes),
     ),
     preserve,
-    source: { kind: "repo", path: file.path },
+    source: fileSourceRef(file),
     routing: {
       status: "partial",
       route: "retrieve",
-      reason: `Requested repo lines ${file.path}:${requestedRange.start}-${requestedRange.end} are ${requestedBytes} bytes and exceed cap ${EXACT_LINE_RANGE_MAX_BYTES}; returned bounded edge previews with recovery guidance.`,
+      reason: `Requested ${file.sourceKind} lines ${file.path}:${requestedRange.start}-${requestedRange.end} are ${requestedBytes} bytes and exceed cap ${EXACT_LINE_RANGE_MAX_BYTES}; returned bounded edge previews with recovery guidance.`,
     },
     evidence,
     recovery: {
@@ -1192,26 +1241,26 @@ function retrieveRepoLineRangeOverCap(
   };
 }
 
-function repoEvidenceForBoundedExactChunk(file: RepoTextFile, chunk: BoundedEdgeChunk, index: number): EvidencePacket {
+function fileEvidenceForBoundedExactChunk(file: SearchTextFile, chunk: BoundedEdgeChunk, index: number): EvidencePacket {
   const evidenceLines = chunk.linesLabel;
   return {
-    id: evidenceIdFor(file.path, evidenceLines, `retrieve-over-cap-${index}`),
-    source: { kind: "repo", path: file.path },
+    id: evidenceIdFor(fileEvidenceKey(file), evidenceLines, `retrieve-over-cap-${index}`),
+    source: fileSourceRef(file),
     path: file.path,
     lines: evidenceLines,
     excerpt: chunk.excerpt,
-    why: `Bounded recoverable ${chunk.edge} preview for repo line range over cap ${EXACT_LINE_RANGE_MAX_BYTES}.`,
+    why: `Bounded recoverable ${chunk.edge} preview for ${file.sourceKind} line range over cap ${EXACT_LINE_RANGE_MAX_BYTES}.`,
     window: "small",
     expandable: true,
   };
 }
 
-function retrieveFullFile(file: RepoTextFile, maxFullBytes: number): RetrievalRoutedResult {
+function retrieveFullFile(file: SearchTextFile, maxFullBytes: number): RetrievalRoutedResult {
   const fullBytes = byteLength(file.text);
 
   if (fullBytes <= maxFullBytes) {
     const evidence = evidenceFromRange({
-      id: evidenceIdFor(file.path, `1-${file.lines.length}`, "full"),
+      id: evidenceIdFor(fileEvidenceKey(file), `1-${file.lines.length}`, "full"),
       file,
       lines: { start: 1, end: file.lines.length },
       why: `Returned full exact content because ${file.path} is under the full-context cap.`,
@@ -1221,9 +1270,9 @@ function retrieveFullFile(file: RepoTextFile, maxFullBytes: number): RetrievalRo
 
     return {
       toolStatus: "ok",
-      decisionId: decisionId("repo-full", file.path, String(fullBytes)),
+      decisionId: decisionId(`${file.sourceKind}-full`, file.path, String(fullBytes)),
       preserve: "full",
-      source: { kind: "repo", path: file.path },
+      source: fileSourceRef(file),
       routing: {
         status: "routed",
         route: "retrieve",
@@ -1241,13 +1290,13 @@ function retrieveFullFile(file: RepoTextFile, maxFullBytes: number): RetrievalRo
     lines: file.lines,
     range: { start: 1, end: file.lines.length },
     caps: BOUNDED_EVIDENCE_CAPS,
-  }).map((chunk, index) => repoEvidenceForBoundedExactChunk(file, chunk, index));
+  }).map((chunk, index) => fileEvidenceForBoundedExactChunk(file, chunk, index));
 
   return {
     toolStatus: "ok",
-    decisionId: decisionId("repo-full-over-cap", file.path, String(fullBytes), String(maxFullBytes)),
+    decisionId: decisionId(`${file.sourceKind}-full-over-cap`, file.path, String(fullBytes), String(maxFullBytes)),
     preserve: "full",
-    source: { kind: "repo", path: file.path },
+    source: fileSourceRef(file),
     routing: {
       status: "partial",
       route: "retrieve",
@@ -1255,24 +1304,24 @@ function retrieveFullFile(file: RepoTextFile, maxFullBytes: number): RetrievalRo
     },
     evidence,
     recovery: {
-      how: `Use freeflow_search action=retrieve with path=${file.path} and an explicit span to recover exact content, or native read for direct whole-file output.`,
+      how: recoveryHowForFile(file, "Use freeflow_search action=retrieve with an explicit span to recover exact content, or native read for direct whole-file output"),
     },
   };
 }
 
-function explainRepoDecision(
+function explainFileDecision(
   options: FreeflowSearchOptions,
   preserve: PreserveMode,
 ): RetrievalRoutedResult {
   const decision = options.decision;
   if (!decision) {
-    return errorResult(preserve, "Repo explain requires a previous routed result decision.");
+    return errorResult(preserve, "File-source explain requires a previous routed result decision.");
   }
 
   const recovery = {
     how:
       decision.recovery?.how ??
-      "Use freeflow_search action=expand with a returned evidence id, or action=retrieve for an explicit repo span.",
+      "Use freeflow_search action=expand with a returned evidence id, or action=retrieve for an explicit file-source span.",
   };
   if (decision.recovery?.outputId !== undefined) {
     Object.assign(recovery, { outputId: decision.recovery.outputId });
@@ -1283,7 +1332,7 @@ function explainRepoDecision(
 
   const result: RetrievalRoutedResult = {
     toolStatus: "ok",
-    decisionId: decisionId("repo-explain", decision.decisionId),
+    decisionId: decisionId("file-explain", decision.decisionId),
     preserve: decision.preserve,
     routing: {
       status: "routed",
@@ -1299,19 +1348,30 @@ function explainRepoDecision(
   return result;
 }
 
-async function readRepoTextFiles(root: string, requestedPath?: string, generatedPathGlobs: readonly string[] = []): Promise<RepoTextFile[]> {
+async function readSearchTextFiles(sourceKind: SearchFileKind, root: string, requestedPath?: string, generatedPathGlobs: readonly string[] = []): Promise<SearchTextFile[]> {
+  if (sourceKind === "local") {
+    const options: { root: string; requestedPath?: string; generatedPathGlobs: readonly string[] } = { root, generatedPathGlobs };
+    if (requestedPath !== undefined) {
+      options.requestedPath = requestedPath;
+    }
+    const fileRefs = await collectLocalTextFileRefs(options);
+    return readSearchTextFileRefs("local", fileRefs);
+  }
+
   const options: { root: string; requestedPath?: string; generatedPathGlobs: readonly string[] } = { root, generatedPathGlobs };
   if (requestedPath !== undefined) {
     options.requestedPath = requestedPath;
   }
   const fileRefs = await collectRepoTextFileRefs(options);
-  return readRepoTextFileRefs(fileRefs);
+  return readSearchTextFileRefs("repo", fileRefs);
 }
 
-async function readRepoTextFile(root: string, path: string): Promise<RepoTextFile> {
-  const resolved = await resolveRepoPath(root, path);
+async function readSearchTextFile(sourceKind: SearchFileKind, root: string, path: string): Promise<SearchTextFile> {
+  const resolved = sourceKind === "local" ? await resolveLocalPath(root, path) : await resolveRepoPath(root, path);
   const text = await readFile(resolved.absolutePath, "utf8");
   return {
+    sourceKind,
+    root: resolved.root,
     path: resolved.relativePath,
     absolutePath: resolved.absolutePath,
     text,
@@ -1319,8 +1379,8 @@ async function readRepoTextFile(root: string, path: string): Promise<RepoTextFil
   };
 }
 
-async function readRepoTextFileRefs(fileRefs: readonly RepoTextFileRef[]): Promise<RepoTextFile[]> {
-  const files: Array<RepoTextFile | undefined> = new Array(fileRefs.length);
+async function readSearchTextFileRefs(sourceKind: SearchFileKind, fileRefs: readonly (RepoTextFileRef | LocalTextFileRef)[]): Promise<SearchTextFile[]> {
+  const files: Array<SearchTextFile | undefined> = new Array(fileRefs.length);
   let nextIndex = 0;
 
   async function worker() {
@@ -1337,13 +1397,42 @@ async function readRepoTextFileRefs(fileRefs: readonly RepoTextFileRef[]): Promi
         continue;
       }
 
-      files[currentIndex] = { path: ref.path, absolutePath: ref.absolutePath, text, lines: splitLines(text) };
+      files[currentIndex] = { sourceKind, root: "root" in ref ? ref.root : "", path: ref.path, absolutePath: ref.absolutePath, text, lines: splitLines(text) };
     }
   }
 
   const workerCount = Math.min(CONCURRENT_REPO_FILE_READS, fileRefs.length);
   await Promise.all(Array.from({ length: workerCount }, () => worker()));
-  return files.filter((file): file is RepoTextFile => Boolean(file));
+  return files.filter((file): file is SearchTextFile => Boolean(file));
+}
+
+function sourceKindLabel(sourceKind: SearchFileKind): string {
+  return sourceKind === "local" ? "Local" : "Repo";
+}
+
+function sourceRefForOptions(source: FileSearchOptions["source"], path: string): EvidencePacket["source"] {
+  if (source.kind === "local") {
+    return { kind: "local", root: source.root, path };
+  }
+  return { kind: "repo", path };
+}
+
+function fileSourceRef(file: SearchTextFile): EvidencePacket["source"] {
+  if (file.sourceKind === "local") {
+    return { kind: "local", root: file.root, path: file.path };
+  }
+  return { kind: "repo", path: file.path };
+}
+
+function fileEvidenceKey(file: SearchTextFile): string {
+  return file.sourceKind === "local" ? `local:${file.root}:${file.path}` : `repo:${file.path}`;
+}
+
+function recoveryHowForFile(file: SearchTextFile, prefix: string): string {
+  if (file.sourceKind === "local") {
+    return `${prefix} with source.kind=local root=${file.root} path=${file.path}.`;
+  }
+  return `${prefix} with path=${file.path}.`;
 }
 
 function parseTopK(value: number | undefined, defaultValue: number): number | string {
@@ -1358,7 +1447,7 @@ function parseTopK(value: number | undefined, defaultValue: number): number | st
   return value;
 }
 
-function matchMetadataForCandidate(candidate: EvidenceSearchCandidate<RepoTextFile>): NonNullable<EvidencePacket["match"]> {
+function matchMetadataForCandidate(candidate: EvidenceSearchCandidate<SearchTextFile>): NonNullable<EvidencePacket["match"]> {
   return {
     type: candidate.exactNormalizedPhrase ? "exact_phrase" : "lexical",
     confidence: candidate.exactNormalizedPhrase ? 0.95 : scoreConfidence(candidate.score),
@@ -1386,12 +1475,12 @@ function normalizeComparableText(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9_.$/-]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
-function evidenceFromCandidate(candidate: EvidenceSearchCandidate<RepoTextFile>, query: string): EvidencePacket {
+function evidenceFromCandidate(candidate: EvidenceSearchCandidate<SearchTextFile>, query: string): EvidencePacket {
   const defaultStart = Math.max(0, candidate.lineIndex - DEFAULT_CONTEXT_LINES);
   const defaultEnd = Math.min(candidate.file.lines.length - 1, candidate.lineIndex + DEFAULT_CONTEXT_LINES);
   const lines = candidate.range ?? { start: defaultStart + 1, end: defaultEnd + 1 };
   return evidenceFromRange({
-    id: evidenceIdFor(candidate.file.path, `${lines.start}-${lines.end}`, query),
+    id: evidenceIdFor(fileEvidenceKey(candidate.file), `${lines.start}-${lines.end}`, query),
     file: candidate.file,
     lines,
     why: `${candidate.reason} near ${candidate.file.path}:${candidate.lineIndex + 1}.`,
@@ -1403,7 +1492,7 @@ function evidenceFromCandidate(candidate: EvidenceSearchCandidate<RepoTextFile>,
 
 interface EvidenceRangeOptions {
   id: string;
-  file: RepoTextFile;
+  file: SearchTextFile;
   lines: LineRange;
   why: string;
   window: EvidenceWindow;
@@ -1425,7 +1514,7 @@ function evidenceFromRange(options: EvidenceRangeOptions): EvidencePacket {
     : options.why;
   return {
     id: options.id,
-    source: { kind: "repo", path: options.file.path },
+    source: fileSourceRef(options.file),
     path: options.file.path,
     lines,
     excerpt: bounded.excerpt,

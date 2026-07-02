@@ -16,7 +16,7 @@ smallest sufficient evidence in context
 
 The router ships explicit tools and Pi observed routing:
 
-- `freeflow_search`: search/retrieve repo or vault evidence, and transform file/output sources through `action="transform"`.
+- `freeflow_search`: search/retrieve repo, explicit local, or vault evidence, and transform file/output sources through `action="transform"`.
 - `freeflow_run`: run shell commands or sandboxed script producers, apply the run storage policy, and return compact evidence with recovery guidance.
 - `freeflow_batch`: run independent `run`/`search` steps and optionally aggregate query answers.
 - Pi observed routing: route enabled MCP/web/fetch/code-search outputs after direct host tool calls.
@@ -38,6 +38,7 @@ flowchart LR
   Search[freeflow_search]
   Run[freeflow_run]
   Repo[repo files]
+  Local[explicit local files]
   Vault[Freeflow vault]
   Observed[Pi observed routing]
   Transform[freeflow_search action=transform]
@@ -53,7 +54,10 @@ flowchart LR
   Agent -->|inspect config/status| Status
   Agent -->|direct/raw known output| Native
   Search --> Repo --> Evidence
+  Search --> Local --> Evidence
   Search --> Vault --> Evidence
+  Transform --> Repo
+  Transform --> Local
   Transform --> Vault
   Transform --> Evidence
   Run --> Vault
@@ -67,16 +71,16 @@ flowchart LR
 
 | Need | Use |
 | --- | --- |
-| Find repo evidence before reading files | `freeflow_search action=query` |
+| Find repo or explicit local evidence before reading files | `freeflow_search action=query` |
 | Get candidate paths first | `freeflow_search action=locate` |
 | Find where exact-ish text/code exists | `freeflow_search action=get` |
-| Retrieve exact known repo/vault lines | `freeflow_search action=retrieve` with `lineRange` |
+| Retrieve exact known repo/local/vault lines | `freeflow_search action=retrieve` with `lineRange` |
 | Widen previous evidence | `freeflow_search action=expand` |
 | Explain a previous routed decision/output | `freeflow_search action=explain` |
 | Run noisy/large command output, broad search/history, or unknown-size producer output | `freeflow_run` with `command` |
 | Run code as a sandboxed base producer | `freeflow_run` with `script` |
 | Use enabled Pi MCP/web/fetch/code-search output | Call the host tool directly; observed routing runs after the tool result |
-| Transform repo/vault sources or compute deterministic subsets/stats from vaulted output | `freeflow_search action=transform` |
+| Transform repo/local/vault sources or compute deterministic subsets/stats from vaulted output | `freeflow_search action=transform` |
 | Inspect script-transform disabled/unavailable state | `freeflow_status` |
 | Inspect effective config, observed routing, script transform, vault/index state, or migration recommendations | `freeflow_status` |
 | Read a known whole file | native `read` |
@@ -86,7 +90,8 @@ flowchart LR
 
 Sources:
 
-- `repo`: local repo files.
+- `repo`: local repo files from the current checkout.
+- `local`: explicit external local docs/files. Requires an absolute per-call `root`; optional `path` is relative to that root. Broad roots such as `/`, `$HOME`, `/Users`, `/tmp`, and system directories are rejected.
 - `vault`: previous routed command/native/observed/transformed output, either by known `outputId` or vault-wide index query.
 
 Actions:
@@ -129,6 +134,8 @@ Evidence packets include:
 - expansion/recovery guidance.
 
 Repo retrieval uses deterministic scanner ranking by default. Broad scans skip generated/dependency/cache paths such as `graphify-out/**`, but explicit path retrieval remains available.
+
+Local retrieval is for external local sources that are not the current repo, such as installed Pi docs. It realpath-normalizes `root`, keeps `path` relative, rejects traversal and symlink escapes, skips sensitive/generated/cache paths during broad traversal, and labels recovery as local rather than repo. Do not persist local absolute roots in shared config.
 
 Vault-wide retrieval uses the vault index sidecar. Exact records return source output ids, streams, and line ranges for recovery; metadata-only records can be found by metadata but do not expose raw recovery. Use `filters` for producer/server/tool/hostToolName/stream/record-kind/recoverability narrowing. Use `source.outputId` with `retrieve`, `expand`, or `explain` when the exact vaulted output is known.
 
@@ -186,7 +193,7 @@ Mutating MCP/tools remain direct host calls after explicit user intent. Freeflow
 
 ## `freeflow_search action=transform`
 
-`freeflow_search action=transform` transforms existing vaulted output. Current deterministic operations do not execute arbitrary code.
+`freeflow_search action=transform` transforms existing explicit repo/local files or vaulted output. Current deterministic operations do not execute arbitrary code and remain focused on vaulted output.
 
 `operation.kind="script"` is the sandboxed transform branch under the same tool. `freeflow_run` also exposes the same sandbox engine as a base `script` producer. Both are disabled by default, have no unsandboxed fallback, and do not persist raw script text. Transform scripts vault successful stdout as transformed text with source lineage. Run script producers capture stdout/stderr/combined as run output with `producer.kind="script"`; failures and output-limit overflows return structured no-recovery results.
 

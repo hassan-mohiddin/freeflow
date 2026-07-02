@@ -188,6 +188,10 @@ function appendRecoveryRow(lines, recovery, evidence, fallbackOutputId) {
     lines.push(row("rec", "repo", `${first.path ?? first.source.path}:${first.lines}`));
     return;
   }
+  if (first?.source?.kind === "local" && (first.path || first.source.path) && first.lines) {
+    lines.push(row("rec", "local", `${first.path ?? first.source.path}:${first.lines}`));
+    return;
+  }
   const outputId = recovery?.outputId ?? fallbackOutputId;
   if (outputId) {
     lines.push(row("rec", "vault", outputId));
@@ -298,6 +302,10 @@ function compactSourceLabel(source) {
   }
   if (source.kind === "repo") {
     return `repo ${shortenMiddle(source.path ?? ".", 80)}`;
+  }
+  if (source.kind === "local") {
+    const path = source.path ? `:${source.path}` : "";
+    return `local ${shortenMiddle(source.root ?? ".", 60)}${shortenMiddle(path, 50)}`;
   }
   if (source.kind === "vault") {
     const stream = source.stream ? `:${source.stream}` : "";

@@ -194,7 +194,7 @@ test("Pi extension registers public freeflow_search with deterministic operation
   assert.ok(search, "freeflow_search should be registered");
   assert.equal(tools.has("freeflow_script_transform"), false);
   assert.deepEqual(search.parameters.required, ["action"]);
-  assert.deepEqual(search.parameters.properties.source.properties.kind.enum, ["repo", "vault"]);
+  assert.deepEqual(search.parameters.properties.source.properties.kind.enum, ["repo", "local", "vault"]);
   assert.match(search.description, /Search|transform/i);
   assert.match(search.promptGuidelines.join("\n"), /action=transform/i);
   assert.deepEqual(collectSchemaKeys(search.parameters, ["oneOf", "anyOf", "allOf", "not", "const"]), []);
@@ -221,6 +221,8 @@ test("Pi extension freeflow_search schema stays Pi-compatible while rejecting in
   const schema = search.parameters;
   const source = { kind: "vault", outputId: "ffout_source" };
 
+  assertSchemaAccepts(schema, { action: "query", source: { kind: "local", root: "/absolute/local/docs" }, query: "docs marker" });
+  assertSchemaAccepts(schema, { action: "retrieve", source: { kind: "local", root: "/absolute/local/docs", path: "README.md" }, lineRange: { start: 1, end: 3 } });
   assertSchemaAccepts(schema, { action: "transform", source, operation: { kind: "jsonExtract", pointer: "" } });
   assertSchemaAccepts(schema, { action: "transform", source, operation: { kind: "jsonExtract", pointer: "/suite/failures/0/message" } });
   assertSchemaAccepts(schema, { action: "transform", source, operation: { kind: "jsonExtract", pointer: "/escaped~0tilde/~1slash" } });
@@ -398,6 +400,54 @@ test("Pi extension public freeflow_search action=transform processes repo files"
     assert.equal(routed.reducer.selected.name, "test-output");
   } finally {
     await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi extension public freeflow_search action=transform processes explicit local files", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-search-transform-local-cwd-"));
+  const localRoot = await mkdtemp(join(tmpdir(), "freeflow-pi-search-transform-local-source-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow" }), "utf8");
+    await writeFile(
+      join(localRoot, "test-output.txt"),
+      [
+        " RUN  v2.1.8 /external-docs",
+        " ✗ docs/LocalDocs.test.ts (1 test) 42ms",
+        " Test Files  1 failed | 0 passed (1)",
+        " Tests       1 failed | 0 passed (1)",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const { tools } = registerMockPi();
+    const search = tools.get("freeflow_search");
+    const result = await search.execute(
+      "search-transform-local",
+      {
+        action: "transform",
+        source: { kind: "local", root: localRoot, path: "test-output.txt" },
+        goal: "test output summary",
+      },
+      undefined,
+      undefined,
+      mockCtx(cwd, "pi-extension-search-transform-local-test"),
+    );
+
+    const visibleText = result.content[0].text;
+    const routed = result.details.result;
+    assert.match(visibleText, /freeflow_search\|ok\|transform\|local-file:test-output\.txt/);
+    assert.match(visibleText, /1 failed/);
+    assert.equal(routed.status, "ok");
+    assert.equal(routed.implementation, "processing-engine-skeleton-v1");
+    assert.equal(routed.source.kind, "local-file");
+    assert.equal(routed.source.ref.kind, "local");
+    assert.equal(routed.source.displayPath, "test-output.txt");
+    assert.equal(routed.reducer.status, "selected");
+    assert.equal(routed.reducer.selected.name, "test-output");
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+    await rm(localRoot, { recursive: true, force: true });
   }
 });
 
