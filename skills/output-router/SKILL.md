@@ -7,11 +7,11 @@ description: Use after the workflow, interview-gate, discovery-light, or full Di
 
 Choose how evidence moves into context.
 
-Freeflow tools are the safe first choice for unknown-size, exploratory, repo-wide, generated/log-adjacent, structured, or likely noisy output. Native tools stay direct for known-small, exact, intentionally raw, or mutating work. A post-hoc cap such as `head`, `tail`, or `wc` does not make a broad producer known-small.
+Freeflow tools are the safe first choice for unknown-size, exploratory, repo-wide, generated/log-adjacent, structured, or likely noisy output, including broad `rg`/`find`/`git`/help/docs scans. Native tools stay direct for known-small, exact, intentionally raw, or mutating work. A post-hoc cap such as `head`, `sed -n`, `tail`, or `wc` does not make a broad producer known-small.
 
 Output Router does not classify the task. Workflow, Interview Gate, discovery-light, or full Discover decide whether to answer, ask, discover, plan, or stop. Output Router starts after that route is clear.
 
-In delegated work, child transcripts are recoverable evidence, not the handoff. Child results and parent reports should carry compact summaries plus recoverable paths or output IDs.
+In delegated work, child/scout/reviewer/verifier panes should use routed evidence first for broad repo/search/test/log/doc evidence. Child transcripts are recoverable evidence, not the handoff. Child results and parent reports should carry compact summaries plus recoverable paths or output IDs.
 
 ## First Decision
 
@@ -22,7 +22,7 @@ Ask what kind of data you need:
 - Several independent Freeflow operations: use `freeflow_batch`.
 - Config/status/vault/script-adapter facts: use `freeflow_status`.
 - Enabled MCP/web/fetch/code-search output: call the host tool directly; Pi observed routing runs after the host result when configured.
-- Known whole file, intentionally exact shell behavior, or edits: use native `read`, `bash`, `edit`, or `write`.
+- Known whole file, intentionally exact shell behavior, cmux/Pi control probes, explicit fallback after a routed-source limitation, or edits: use native `read`, `bash`, `edit`, or `write`.
 
 When unsure how much output will return, use Freeflow first. Bound the producer before using native tools; do not rely on trimming the output after a broad command runs.
 
@@ -139,10 +139,12 @@ Child outputs remain in `details.result.steps`; exact child run output remains r
 Use native tools when direct behavior is the point:
 
 - `read`: known whole file or exact direct file content is intended.
-- `bash`: expected-small exact shell behavior, host access, or bounded producer behavior is intentionally needed.
+- `bash`: expected-small exact shell behavior, host access, cmux/Pi control probes, or bounded producer behavior is intentionally needed.
 - `edit` / `write`: mutations.
 
-Do not run broad native commands just to see what comes back. `head`, `tail`, `wc`, or similar output caps bound visible text, not producer scope or relevance. Likely-large native commands include repo-wide `rg`, `grep -R`, `find`, package scans, generated-artifact scans, logs, broad `git diff/log`, full tests/builds/lints/typechecks, and one-off scripts with unknown output size.
+Native `bash`/`read` remain valid for known-small exact checks, cmux/Pi control probes, exact file reads, or explicit fallback after a routed-source limitation; name the limitation and keep the fallback narrow.
+
+Do not run broad native commands just to see what comes back. `head`, `sed -n`, `tail`, `wc`, or similar output caps bound visible text, not producer scope or relevance. Likely-large native commands include repo-wide `rg`, `grep -R`, `find`, package scans, generated-artifact scans, docs/help scans, logs, broad `git diff/log`, full tests/builds/lints/typechecks, and one-off scripts with unknown output size.
 
 If native read/bash safety net is enabled, large/noisy native output may be replaced with labeled Freeflow-routed output. It must include an `outputId` and recovery instructions. If safety-net routing fails, native output passes through with a warning.
 

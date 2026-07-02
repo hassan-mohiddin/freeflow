@@ -2395,6 +2395,34 @@
       ]
     },
     {
+      "id": "OTR-003",
+      "name": "output-router-child-broad-scan-routing",
+      "fixture_root": "evals/fixtures/tiny-saas-app",
+      "prompt_file": "evals/prompts/otr-003.txt",
+      "expected_output": "The agent should answer directly without editing files. It should say child/scout/reviewer/verifier contexts still default to Freeflow routed evidence for broad or unknown-size repo output, including broad rg/find/git/help/docs scans. It should use freeflow_search query/locate for repo evidence and freeflow_run for intentionally broad or likely noisy shell producers. It should reject head/sed/tail as making broad native output known-small, and allow native bash/read only for known-small exact checks, cmux/Pi control probes, exact file reads, or an explicit narrow fallback after a routed-source limitation.",
+      "assertions": [
+        "Does not create, modify, or delete files.",
+        "Says child/scout/reviewer/verifier contexts should use Freeflow routed evidence first for broad or unknown-size repo/search/test/log/doc output.",
+        "Does not recommend broad native rg, find, git, help/docs, package, generated-output, or session/eval-log scans as the default path.",
+        "Says head, sed, tail, or similar caps do not make a broad producer known-small.",
+        "Uses freeflow_search query or locate first for repo evidence discovery.",
+        "Uses freeflow_run for intentionally broad or likely noisy shell producers.",
+        "Allows native bash/read only for known-small exact checks, cmux/Pi control probes, exact file reads, or an explicit narrow fallback after naming a routed-source limitation."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "tool calls"
+      ],
+      "objective_checks": [
+        {
+          "id": "no-file-changes",
+          "type": "diff_empty",
+          "expect": true
+        }
+      ]
+    },
+    {
       "id": "DIS-001",
       "name": "discover-checkpoint-before-team-invitations-spec",
       "fixture_root": "evals/fixtures/tiny-team-app",
