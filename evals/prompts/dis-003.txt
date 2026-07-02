@@ -1,0 +1,10 @@
+We have been discussing the Freeflow delegation harness as a context-locality system.
+
+Current thread:
+- Delegation exists because doing planning, spec, implementation, reviews, verification, and commits in one long chat causes repeated compactions and context bloat.
+- The orchestrator should preserve global continuity without loading every detail.
+- Phase parents and children should receive only the context needed for their work.
+- Specs, plans, reviews, and handoffs act as promoted context/memory.
+- Raw transcripts and run logs should stay recoverable but not loaded by default.
+
+I agree with that framing. What do you think / where should we go next?

@@ -1,0 +1,1 @@
+We already approved the spec and implementation plan for a delegated task. During execution, should the execution parent ask me before every slice and every commit checkpoint? Who owns planned intermediate commits, and who owns final commit/push/closeout?

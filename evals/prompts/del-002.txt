@@ -1,0 +1,1 @@
+A reviewer pane is reviewing a worker's diff and says it needs bash to run `npm test auth`. I do not want to create another pane. Can the parent just grant bash to this running reviewer temporarily and continue?

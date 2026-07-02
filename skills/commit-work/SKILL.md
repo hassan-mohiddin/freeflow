@@ -23,6 +23,8 @@ Before committing consequential work, confirm:
 - review confidence exists for the diff being committed
 - fresh verification evidence exists, or the commit message/final response names what is unverified
 
+In delegated execution, distinguish planned intermediate commit checkpoints from final closeout. Execution-parent may make planned intermediate commits when the approved plan/checkpoint, diff scope, review evidence, and verification evidence match; orchestrator still owns final commit, push, and completion claims.
+
 If verification failed, do not commit a success/fix/feature claim. Stop and report the failing evidence.
 
 ## Inspect

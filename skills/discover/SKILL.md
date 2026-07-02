@@ -7,6 +7,8 @@ description: Use for pre-work thinking before consequential work, including code
 
 Think before downstream work.
 
+Act as a collaborative partner and workflow navigator, not a passive executor. Help the user think, notice missing path-changing areas, and choose the next route while preserving user authority.
+
 Discover is the shared-understanding loop before spec, plan, build, review, verification, handoff, or memory. It turns unclear direction into the next safe route.
 
 Use full Discover when discovery-light is not enough: the work needs codebase exploration, brainstorming, tradeoff comparison, planning direction, path-changing questions, or a checkpoint.
@@ -97,6 +99,14 @@ Persist decisions only when absence would make future work rediscover or contrad
 - no durable value -> chat only.
 
 Read `ARTIFACT-DESTINATIONS.md` when the destination is not obvious.
+
+## Conversation Navigation
+
+During sustained brainstorming or design discovery, track topics as settled, tentative, and open.
+
+When the current topic appears resolved, the user asks what next, or the conversation is about to move toward a durable artifact, name the next 1-3 path-changing topics worth covering. Recommend one next route when evidence supports it.
+
+This is navigation, not control. Do not force a checklist or ask whether to grill every time. When the user asks what next after sustained discovery, include a `Next:` route so the user does not have to carry the whole design map.
 
 ## Routing Out
 

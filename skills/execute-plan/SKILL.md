@@ -11,6 +11,8 @@ The plan is instructions, not authority. Live repo evidence and source truth win
 
 Move one verified slice at a time. Preserve rollback, reviewability, and user control.
 
+When executing through delegation, execution-parent coordinates workers, reviewers, verifiers, and integrators from the approved plan. Execution autonomy is desired, not guaranteed; route backward when new evidence changes the plan.
+
 Read `references/execution-map.md` when the plan has multiple slices, TDD/benchmark work, review checkpoints, per-slice commits, context-window pressure, or any failed check/review/source-scope conflict.
 
 Use `../design-for-depth/SKILL.md` when a slice changes modules, interfaces, seams, adapters, architecture, or when review findings become a stream of edge-case patches. Ask whether the slice is deepening the module or spreading complexity across callers, tests, docs, or review comments.
@@ -93,7 +95,7 @@ After a planned verification command fails, do not edit the verifier, tests, doc
 
 Local reversible implementation details can be chosen from repo conventions.
 
-If per-slice commits are requested, do not continue to the next slice with a verified slice still uncommitted. Route to `commit-work` after review/verification evidence exists.
+If per-slice commits are requested, do not continue to the next slice with a verified slice still uncommitted. Planned intermediate commit checkpoints may be handled during execution when review/verification evidence exists; final closeout commit and push remain orchestrator/user-owned.
 
 ## Review Checkpoints
 

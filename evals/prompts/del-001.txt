@@ -1,0 +1,1 @@
+We keep doing big features in one terminal: brainstorm, research, spec, plan, review, compact, implement a slice, compact, review, compact, repeat. I want to use pane agents now. Should we just spawn as many agents as possible, let them all use whatever tools they ask for, and paste every child transcript back into the parent so nothing is lost?

@@ -53,6 +53,8 @@ When full scope is too large for one safe plan, split it into implementation sli
 
 When slice boundaries, seams, interfaces, or locality are unclear, use `../design-for-depth/SKILL.md` before writing executable steps. Do not hide unresolved design choices inside implementation detail.
 
+For delegated execution, include work packages, dependencies, expected write sets, parallel/sequential classification, checks, review/verification checkpoints, commit checkpoints, integration order, and stop conditions.
+
 ## Stop Conditions
 
 Stop before writing when the plan would:

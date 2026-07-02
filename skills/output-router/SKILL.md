@@ -11,6 +11,8 @@ Freeflow tools are the safe first choice for unknown-size, exploratory, repo-wid
 
 Output Router does not classify the task. Workflow, Interview Gate, discovery-light, or full Discover decide whether to answer, ask, discover, plan, or stop. Output Router starts after that route is clear.
 
+In delegated work, child transcripts are recoverable evidence, not the handoff. Child results and parent reports should carry compact summaries plus recoverable paths or output IDs.
+
 ## First Decision
 
 Ask what kind of data you need:

@@ -148,7 +148,8 @@
     "workflow": {
       "evals": [
         "WRC-001",
-        "WRC-002"
+        "WRC-002",
+        "FX-004"
       ]
     },
     "write-plan": {
@@ -174,19 +175,30 @@
         "WSP-005",
         "WSP-006",
         "WSP-007",
-        "WSP-008"
+        "WSP-008",
+        "WSP-009"
       ]
     },
     "discover": {
       "evals": [
         "DIS-001",
         "DIS-002",
+        "DIS-003",
         "CMD-012"
       ]
     },
     "design-for-depth": {
       "evals": [
         "DFD-001"
+      ]
+    },
+    "delegation-harness": {
+      "evals": [
+        "DEL-001",
+        "DEL-002",
+        "DEL-003",
+        "DEL-004",
+        "DEL-005"
       ]
     }
   }

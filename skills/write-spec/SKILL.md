@@ -11,6 +11,14 @@ Write only from source-backed context. A polished spec can change source of trut
 
 If the user asks a question about a spec, answer the question. Do not create or edit the spec unless asked.
 
+When the user asks whether to write a spec, says the discussion is ready, or asks to turn brainstorming into a durable artifact, run a pre-spec readiness gate before saying yes or writing.
+
+Classify readiness:
+
+- Green: source-backed decisions are stable enough; write when asked.
+- Yellow: remaining ambiguity will not change scope, behavior, acceptance, public API, architecture, security, privacy, billing, data loss, compatibility, or artifact destination; write with explicit assumptions/open questions when asked.
+- Red: unresolved path-changing topics remain; do not write or say yes. Name the topics and recommend a brief grilling/discovery pass.
+
 Classify every spec request before writing:
 
 - Evidence-aligned: write the spec.
