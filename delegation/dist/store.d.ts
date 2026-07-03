@@ -22,6 +22,11 @@ export interface RegisterAgentInput {
     allowedCommands?: string[];
     state?: DelegationState;
     createdAt?: string;
+    paneRef?: string;
+    surfaceRef?: string;
+    workspaceRef?: string;
+    windowRef?: string;
+    launchCommand?: string;
 }
 export interface AppendEventInput {
     type: string;
@@ -41,6 +46,7 @@ export declare class DelegationStore {
     registerAgent(input: RegisterAgentInput): Promise<AgentManifest>;
     readRegistry(taskId: string): Promise<DelegationRegistry>;
     readAgentManifest(taskId: string, agentId: string): Promise<AgentManifest>;
+    updateAgentManifest(taskId: string, agentId: string, patch: Partial<AgentManifest>): Promise<AgentManifest>;
     writeAgentStatus(taskId: string, agentId: string, status: Omit<AgentStatus, "taskId" | "agentId" | "updatedAt">): Promise<AgentStatus>;
     readAgentStatus(taskId: string, agentId: string): Promise<AgentStatus>;
     appendTaskEvent(taskId: string, input: AppendEventInput): Promise<DelegationEvent>;
@@ -51,6 +57,7 @@ export declare class DelegationStore {
         rawPath: string;
         jsonPath: string;
     }>;
+    appendAgentTextLog(taskId: string, agentId: string, logName: "screen" | "transcript", text: string): Promise<string>;
     recordTaskReport(taskId: string, reportName: "planning-report" | "execution-kickoff" | "execution-report", rawText: string, parsedReport: unknown): Promise<{
         rawPath: string;
         jsonPath: string;

@@ -49,6 +49,11 @@ export interface RegisterAgentInput {
   allowedCommands?: string[];
   state?: DelegationState;
   createdAt?: string;
+  paneRef?: string;
+  surfaceRef?: string;
+  workspaceRef?: string;
+  windowRef?: string;
+  launchCommand?: string;
 }
 
 export interface AppendEventInput {
@@ -168,6 +173,21 @@ export class DelegationStore {
     if (input.allowedCommands !== undefined) {
       manifest.allowedCommands = [...input.allowedCommands];
     }
+    if (input.paneRef !== undefined) {
+      manifest.paneRef = input.paneRef;
+    }
+    if (input.surfaceRef !== undefined) {
+      manifest.surfaceRef = input.surfaceRef;
+    }
+    if (input.workspaceRef !== undefined) {
+      manifest.workspaceRef = input.workspaceRef;
+    }
+    if (input.windowRef !== undefined) {
+      manifest.windowRef = input.windowRef;
+    }
+    if (input.launchCommand !== undefined) {
+      manifest.launchCommand = input.launchCommand;
+    }
 
     const state = input.state ?? "created";
     const status: AgentStatus = { taskId, agentId, state, updatedAt: this.now() };
@@ -197,6 +217,21 @@ export class DelegationStore {
 
   async readAgentManifest(taskId: string, agentId: string): Promise<AgentManifest> {
     return readJson<AgentManifest>(agentPaths(this.root, taskId, agentId).manifestJson);
+  }
+
+  async updateAgentManifest(taskId: string, agentId: string, patch: Partial<AgentManifest>): Promise<AgentManifest> {
+    const current = await this.readAgentManifest(taskId, agentId);
+    const updated: AgentManifest = { ...current, updatedAt: this.now() };
+    for (const [key, value] of Object.entries(patch)) {
+      if (key === "taskId" || key === "agentId" || key === "createdAt" || key === "updatedAt") {
+        continue;
+      }
+      if (value !== undefined) {
+        (updated as unknown as Record<string, unknown>)[key] = value;
+      }
+    }
+    await writeJson(agentPaths(this.root, taskId, agentId).manifestJson, updated);
+    return updated;
   }
 
   async writeAgentStatus(taskId: string, agentId: string, status: Omit<AgentStatus, "taskId" | "agentId" | "updatedAt">): Promise<AgentStatus> {
@@ -256,6 +291,14 @@ export class DelegationStore {
     await writeText(paths.resultRaw, rawText);
     await writeJson(paths.resultJson, parsedResult);
     return { rawPath: paths.resultRaw, jsonPath: paths.resultJson };
+  }
+
+  async appendAgentTextLog(taskId: string, agentId: string, logName: "screen" | "transcript", text: string): Promise<string> {
+    const paths = agentPaths(this.root, taskId, agentId);
+    const target = logName === "screen" ? paths.screenLog : paths.transcriptLog;
+    await mkdir(parentDirectory(target), { recursive: true });
+    await appendFile(target, text, "utf8");
+    return target;
   }
 
   async recordTaskReport(taskId: string, reportName: "planning-report" | "execution-kickoff" | "execution-report", rawText: string, parsedReport: unknown): Promise<{ rawPath: string; jsonPath: string }> {

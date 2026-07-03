@@ -1,9 +1,12 @@
 import { handleNativeToolSafetyNet } from "./native-safety-net.js";
 import { handleObservedToolRouting } from "./observed-tool-routing.js";
 import { registerRouterTools } from "./router-tools.js";
+import { registerDelegation } from "./delegation/index.js";
+import { appendDelegatedRuntimeContext, handleDelegatedAssistantMessageEnd, handleDelegatedToolCall, handleDelegationSessionStart, } from "./delegation/runtime.js";
 import { CONTRIBUTOR_COMMANDS, WORKFLOW_COMMANDS, getRuntimeContext, handleWorkflowCommand, readModeState, readOutputRouterConfig, refreshRuntimeContext, restoreModeOverride, runtimeContext, setModeStatus, skillPrompt, notifyRouterConfigWarnings, } from "./runtime-context.js";
 export default function freeflow(pi) {
     registerRouterTools(pi);
+    registerDelegation(pi);
     pi.on("session_start", async (_event, ctx) => {
         restoreModeOverride(ctx);
         const [modeState, routerConfigResult] = await Promise.all([
@@ -13,6 +16,7 @@ export default function freeflow(pi) {
         ]);
         setModeStatus(ctx, modeState);
         notifyRouterConfigWarnings(ctx, routerConfigResult);
+        await handleDelegationSessionStart(pi, ctx);
     });
     pi.on("session_compact", async (_event, ctx) => {
         const [modeState, routerConfigResult] = await Promise.all([
@@ -22,6 +26,7 @@ export default function freeflow(pi) {
         ]);
         setModeStatus(ctx, modeState);
         notifyRouterConfigWarnings(ctx, routerConfigResult);
+        await handleDelegationSessionStart(pi, ctx);
     });
     pi.on("before_agent_start", async (event, ctx) => {
         const [modeState, freeflowContext, routerConfigResult] = await Promise.all([
@@ -31,11 +36,18 @@ export default function freeflow(pi) {
         ]);
         setModeStatus(ctx, modeState);
         notifyRouterConfigWarnings(ctx, routerConfigResult);
+        const systemPrompt = event.systemPrompt +
+            "\n\n" +
+            runtimeContext(modeState, freeflowContext, routerConfigResult);
         return {
-            systemPrompt: event.systemPrompt +
-                "\n\n" +
-                runtimeContext(modeState, freeflowContext, routerConfigResult),
+            systemPrompt: await appendDelegatedRuntimeContext(pi, event, ctx, systemPrompt),
         };
+    });
+    pi.on("tool_call", async (event, ctx) => {
+        return handleDelegatedToolCall(event, ctx, pi);
+    });
+    pi.on("message_end", async (event, ctx) => {
+        return handleDelegatedAssistantMessageEnd(event, ctx);
     });
     pi.on("tool_result", async (event, ctx) => {
         const observed = await handleObservedToolRouting(event, ctx);

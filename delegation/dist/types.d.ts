@@ -59,6 +59,11 @@ export interface AgentManifest {
     cwd?: string;
     writeScope?: string;
     allowedCommands?: string[];
+    paneRef?: string;
+    surfaceRef?: string;
+    workspaceRef?: string;
+    windowRef?: string;
+    launchCommand?: string;
 }
 export interface AgentStatus {
     taskId: string;

@@ -5,3 +5,4 @@ export * from "./protocol.js";
 export * from "./profiles.js";
 export * from "./policy.js";
 export * from "./packet.js";
+export * from "./cmux.js";

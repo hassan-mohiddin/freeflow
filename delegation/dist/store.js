@@ -101,6 +101,21 @@ export class DelegationStore {
         if (input.allowedCommands !== undefined) {
             manifest.allowedCommands = [...input.allowedCommands];
         }
+        if (input.paneRef !== undefined) {
+            manifest.paneRef = input.paneRef;
+        }
+        if (input.surfaceRef !== undefined) {
+            manifest.surfaceRef = input.surfaceRef;
+        }
+        if (input.workspaceRef !== undefined) {
+            manifest.workspaceRef = input.workspaceRef;
+        }
+        if (input.windowRef !== undefined) {
+            manifest.windowRef = input.windowRef;
+        }
+        if (input.launchCommand !== undefined) {
+            manifest.launchCommand = input.launchCommand;
+        }
         const state = input.state ?? "created";
         const status = { taskId, agentId, state, updatedAt: this.now() };
         await writeJson(paths.manifestJson, manifest);
@@ -127,6 +142,20 @@ export class DelegationStore {
     }
     async readAgentManifest(taskId, agentId) {
         return readJson(agentPaths(this.root, taskId, agentId).manifestJson);
+    }
+    async updateAgentManifest(taskId, agentId, patch) {
+        const current = await this.readAgentManifest(taskId, agentId);
+        const updated = { ...current, updatedAt: this.now() };
+        for (const [key, value] of Object.entries(patch)) {
+            if (key === "taskId" || key === "agentId" || key === "createdAt" || key === "updatedAt") {
+                continue;
+            }
+            if (value !== undefined) {
+                updated[key] = value;
+            }
+        }
+        await writeJson(agentPaths(this.root, taskId, agentId).manifestJson, updated);
+        return updated;
     }
     async writeAgentStatus(taskId, agentId, status) {
         const ids = { taskId: validateSafeId(taskId, "task id"), agentId: validateSafeId(agentId, "agent id") };
@@ -179,6 +208,13 @@ export class DelegationStore {
         await writeText(paths.resultRaw, rawText);
         await writeJson(paths.resultJson, parsedResult);
         return { rawPath: paths.resultRaw, jsonPath: paths.resultJson };
+    }
+    async appendAgentTextLog(taskId, agentId, logName, text) {
+        const paths = agentPaths(this.root, taskId, agentId);
+        const target = logName === "screen" ? paths.screenLog : paths.transcriptLog;
+        await mkdir(parentDirectory(target), { recursive: true });
+        await appendFile(target, text, "utf8");
+        return target;
     }
     async recordTaskReport(taskId, reportName, rawText, parsedReport) {
         const paths = taskPaths(this.root, taskId);
