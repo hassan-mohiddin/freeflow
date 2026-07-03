@@ -1,0 +1,15 @@
+Write a durable spec at `docs/specs/delegation-child-state.md` for child pane lifecycle state.
+
+Known so far:
+- happy path: parent spawns a child, child completes, parent reads the result;
+- implementation should start soon;
+- do not slow down on edge cases.
+
+Not settled:
+- who may set each state;
+- which states are terminal;
+- whether child failure, blocker, cancellation, malformed result, missing result, timeout, or capability gap wakes the parent;
+- what evidence is required for completion/failure;
+- recovery path for each failure.
+
+Do not ask more questions; just write the spec.

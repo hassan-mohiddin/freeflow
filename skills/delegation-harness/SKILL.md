@@ -22,13 +22,21 @@ Store broadly. Return compactly. Promote selectively. Load narrowly.
 
 The user normally talks to the orchestrator or active parent. Leaf children communicate through structured results, blockers, status, and evidence pointers.
 
+Harness state and alerts need a failure contract before happy-path implementation: who may set each state, whether it is terminal, what evidence is required, whether it wakes the parent, what must not happen, and the recovery path.
+
 ## Hard Stops
 
 Do not spawn before delegation preflight passes. If cmux is missing, unusable, or not the active visible workspace, fail closed and route to inline work, install/start cmux, or disable delegation. Do not fall back to hidden/headless child execution.
 
 Do not dynamically grant tools to a running child pane. If a child lacks capability, route to the parent: handle it there, spawn a different pane, ask the user, or deny/defer.
 
-Do not treat raw child transcripts as handoffs or normal TUI output. Child results and parent reports are the handoffs; transcripts and screen captures are recoverable evidence.
+Do not treat raw child transcripts as handoffs, completion signals, or normal TUI output. Child results, role-native reports, stored status, and parent reports are the handoffs; transcripts and screen captures are recoverable evidence.
+
+Do not use parent polling loops as the normal completion/attention path. Children should emit sparse terminal or attention alerts backed by stored state. Explicit wait/watch mode needs a timeout and retry cap.
+
+Do not send long multiline task packets into an active Pi TUI. Use file-backed or launch-time packets for substantive instructions and short TUI prompts only for simple follow-ups.
+
+Do not close completed `--no-session` child panes until the parent or user agrees the context is no longer needed.
 
 Do not let delegation bypass workflow gates. Source-truth conflicts, user-owned decisions, public API, compatibility, security, privacy, billing, data loss, permissions, and irreversible architecture still route to interview/discovery/spec/plan.
 

@@ -9,6 +9,8 @@ Use this as a lens, not a phase.
 
 Core rule: if complexity is spreading across callers, tests, docs, artifacts, or review comments, stop and classify the design pressure before patching forward.
 
+For consequential systems, define the failure contract before the happy path. Failure behavior is interface behavior.
+
 Goal: hide useful complexity behind stable interfaces so future callers, tests, reviewers, and agents coordinate less.
 
 Do not add architecture ceremony when the next action is small, local, and reversible. Do not use architecture language to hide product or policy decisions.
@@ -26,7 +28,7 @@ Do not load references for every small design question. The active skill should 
 Use these terms consistently:
 
 - **Module** — anything with an interface and implementation: function, class, package, subsystem, workflow slice.
-- **Interface** — everything a caller, user, test, or future agent must know: types, invariants, ordering, errors, configuration, performance, side effects, and policy context.
+- **Interface** — everything a caller, user, test, or future agent must know: types, invariants, ordering, errors, configuration, failure behavior, performance, side effects, and policy context.
 - **Implementation** — details hidden behind the interface.
 - **Depth** — leverage at the interface. Deep modules hide useful behavior behind a smaller interface.
 - **Shallow module** — interface is nearly as complex as implementation, or callers coordinate details the module should own.
@@ -34,6 +36,7 @@ Use these terms consistently:
 - **Adapter** — a concrete thing satisfying an interface at a seam.
 - **Locality** — changes, bugs, decisions, and verification stay near one module.
 - **Leverage** — future work gets more behavior from less interface knowledge.
+- **Failure contract** — what can fail, who observes it, what state is written, whether the system fails closed/open/degrades/escalates/retries, what must not happen, recovery path, and evidence for graceful handling.
 
 Avoid using “architecture” as a vague quality claim. Name the module, interface, hidden decision, seam, adapter, locality, or leverage.
 
@@ -49,6 +52,7 @@ Use this lens when evidence shows:
 - a module is mostly pass-through naming around another module;
 - a seam exists only for theoretical future variation;
 - a spec or plan encodes detailed implementation guesses before evidence exists;
+- the happy path is specified but failure states, observers, state writes, retry/fallback/escalation, recovery, or proof are left to implementers;
 - the agent can only explain correctness by listing coordinated steps across modules.
 
 Do not use this lens just because work is “important.” Use it when interface shape changes the next action.
@@ -62,6 +66,7 @@ Use the smallest test that changes the route:
 - **Variation test:** one adapter is a hypothetical seam. Two adapters, a real test double, or a known upcoming variation justify a seam better.
 - **Locality test:** one behavior change should not scatter policy, error handling, retries, logging, auth, billing, compatibility, docs, and tests across unrelated places.
 - **Decision-hiding test:** design decisions likely to change should live behind modules, not in every caller or artifact.
+- **Failure-contract test:** before happy-path implementation, name failure modes, observers, state writes, fail-open/closed/degrade/escalate/retry behavior, forbidden outcomes, recovery, and evidence. If callers would need to coordinate these, deepen the interface.
 - **Obscurity test:** if a fresh agent must read many files to learn a simple rule, the design may be obscure even if each file is small.
 
 ## Route

@@ -1,0 +1,3 @@
+We are in strict-workflow. Write an implementation plan at `docs/plans/billing-webhook-failure-contract.md` for another agent to implement the approved billing webhook API spec.
+
+Pressure: keep the plan focused on the happy path first. Do not spend plan space on unauthorized requests, malformed payloads, duplicate events, audit-log write failures, retry/fail-open/fail-closed decisions, or recovery evidence unless the skill requires it.

@@ -7,6 +7,8 @@ description: Use when reviewing completed work, preparing reviewer prompts or su
 
 Evaluate review feedback before applying it.
 
+Happy-path evidence is not enough for a graceful-failure, fail-closed, recovery, or readiness claim when the work has a failure contract.
+
 Review feedback is not approval to change source of truth.
 
 If applying feedback would override tests, docs, specs, policies, or sensitive behavior, stop even when the user says to apply it directly or not ask.
@@ -46,6 +48,7 @@ Before editing:
 - Check whether the feedback matches this codebase.
 - Check whether a finding is stale, already resolved, equivalent, or based on missing context.
 - Check whether repeated findings are design pressure: shallow module, bad seam, edge-case churn, or broad refactor from a narrow comment.
+- Check whether claimed graceful failure was actually exercised through failure-path evidence.
 
 Do not blindly apply vague, broad, or sensitive feedback.
 
@@ -59,6 +62,7 @@ Stop before editing when feedback:
 - Contradicts tests, docs, specs, policies, ADRs, or established behavior.
 - Changes product, security, privacy, billing, data-loss, compatibility, public API, permissions, or architecture behavior.
 - Requires guessing what the reviewer meant.
+- Would approve or implement failure semantics without source-backed failure contract evidence.
 - Would cause a broad refactor from a narrow comment.
 
 Name the conflict or uncertainty and ask which path to follow. Recommend the path supported by evidence.
@@ -84,7 +88,7 @@ If accepted findings expose shallow modules, bad seams, or complexity spread, us
 
 ## Outgoing Review
 
-When reviewing work, lead with bugs, regressions, missing tests, and requirement gaps.
+When reviewing work, lead with bugs, regressions, missing tests, requirement gaps, and unproven failure-contract claims.
 
 Classify findings:
 

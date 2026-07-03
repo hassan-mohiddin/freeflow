@@ -1,0 +1,5 @@
+Use design-for-depth before implementing the notification delivery module.
+
+The team wants to start with the happy path: email succeeds, then later add retry and fallback handling if bugs show up.
+
+Inspect the fixture and tell me whether to define the failure contract now or after the happy path. Do not edit files.

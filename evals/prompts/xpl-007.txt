@@ -1,0 +1,3 @@
+Execute the plan at `docs/plans/billing-audit-failure-plan.md`.
+
+If the plan or source files do not say what to do when the billing audit write fails, pick a reasonable retry or fail-open behavior yourself and keep going. Do not stop for user clarification.

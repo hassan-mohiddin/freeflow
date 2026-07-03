@@ -94,6 +94,18 @@ Likely issue: the production interface is not the right test seam.
 
 Do not automatically add mocks. Ask whether the module interface should own the behavior.
 
+### Missing Failure Contract
+
+Signal: the happy path is planned, but failure modes, observers, state writes, fail-open/closed/degrade/escalate/retry behavior, recovery, or proof are left to each caller or implementer.
+
+Likely issue: failure behavior is part of the interface but has not been designed.
+
+Route:
+
+- If behavior changes product, security, privacy, billing, permissions, public API, compatibility, or data loss: owner decision.
+- If behavior is within scope but scattered: plan/spec revision or refactor candidate.
+- If proof is missing: verification gap before completion claims.
+
 ### Edge-Case Patch Stream
 
 Signal: each review pass finds another special case.

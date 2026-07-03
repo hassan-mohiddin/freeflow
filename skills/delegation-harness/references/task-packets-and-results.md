@@ -2,6 +2,8 @@
 
 Task packets are child assignments. Results and reports are context compression points.
 
+Use file-backed packets for substantive launch or follow-up instructions. Do not paste long multiline packets into an active Pi TUI.
+
 Use a compact pipe-delimited row protocol, aligned with Output Router compact tool output. This is not CSV. Each line is one record: `TAG|field|field`. Escape literal `|` as `¦`; collapse newlines inside fields to spaces. Keep fields short and use evidence paths/output IDs for raw detail.
 
 ## Task Packet
@@ -27,7 +29,9 @@ The task packet is the child’s world. If it is not in the packet or recoverabl
 
 ## Result Block
 
-Leaf agents return compact parseable text:
+Leaf agents return role-native compact text.
+
+Workers can use:
 
 ```text
 FFRESULT
@@ -43,7 +47,9 @@ RECOMMENDATION|...
 END_FFRESULT
 ```
 
-The harness stores raw text and parsed JSON. Parent agents usually consume the parsed compact result.
+Reviewers return findings grouped by blocking/non-blocking/questions. Artifact reviewers use artifact-review shape. Verifiers return checks run, pass/fail evidence, output IDs, unverified areas, and whether a completion claim is supported.
+
+The harness stores raw text and parsed JSON. Parent agents usually consume the parsed compact result or role-specific report.
 
 ## Blockers And Capability Gaps
 
@@ -61,6 +67,8 @@ policy_denied
 
 Capability gaps do not grant tools to the same running child. The parent routes the need to itself, another pane, the user, or defers it.
 
+Terminal, blocker, failure, cancellation, malformed-result, missing-result, timeout, and capability-gap states should emit at most one sparse attention alert to the direct parent, backed by stored state. Routine progress stays store-only unless explicit watch mode is active.
+
 ## Parent Reports
 
 Parent reports are handoffs:
@@ -74,3 +82,5 @@ Reports should name only what changes the next route. Raw details stay recoverab
 ## Parsing Discipline
 
 Missing required result at terminal state is failure. Malformed required output is failure or attention according to state. Unknown status is failure. Evidence fields are required when the role claims findings, verification, or completion.
+
+Every state and alert needs a failure contract: who may set it, whether it is terminal, required evidence, parent wake behavior, forbidden side effects, and recovery path.

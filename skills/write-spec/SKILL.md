@@ -16,7 +16,7 @@ When the user asks whether to write a spec, says the discussion is ready, or ask
 Classify readiness:
 
 - Green: source-backed decisions are stable enough; write when asked.
-- Yellow: remaining ambiguity will not change scope, behavior, acceptance, public API, architecture, security, privacy, billing, data loss, compatibility, or artifact destination; write with explicit assumptions/open questions when asked.
+- Yellow: remaining ambiguity will not change scope, behavior, acceptance, public API, architecture, security, privacy, billing, data loss, compatibility, failure behavior, or artifact destination; write with explicit assumptions/open questions when asked.
 - Red: unresolved path-changing topics remain; do not write or say yes. Name the topics and recommend a brief grilling/discovery pass.
 
 Classify every spec request before writing:
@@ -42,6 +42,7 @@ Stop before writing when the spec would:
 - Contradict docs, tests, specs, policies, ADRs, or live code.
 - Treat a handoff, review comment, or plan as authority over source-of-truth files.
 - Hide an owner decision inside polished prose.
+- Freeze happy-path behavior for a consequential runtime/API/state system while failure states, observers, written state, fail-open/closed/degrade/escalate/retry behavior, forbidden outcomes, recovery, or evidence remain undecided.
 - Reduce or reframe agreed scope as `v1`, MVP, roadmap, or later-version work without source-backed owner approval.
 
 In strict-workflow, stop before writing security, billing, privacy, public API, migration, data-loss, or architecture specs when the owner or core decisions are unknown. Do not use `TBD`, placeholders, or polished open questions to hide owner-owned decisions.
@@ -68,6 +69,8 @@ When discovery, brainstorming, or clarification reaches shared understanding, co
 Preserve the agreed scope. Use scope boundaries, open questions, or follow-up artifacts to manage size; use `v1`/`v2`, MVP, release, or roadmap framing only when it was agreed or source-backed.
 
 If remaining ambiguity would not change the next plan, write the spec and mark the ambiguity as open. Preserve tentative architecture assumptions as tentative unless evidence or the owner settles them.
+
+For consequential systems, specify the failure contract before or with the happy path. If only the happy path is settled and failure behavior would change implementation or user-visible state, classify readiness as Red.
 
 Use this shape unless the repo has a stronger convention:
 

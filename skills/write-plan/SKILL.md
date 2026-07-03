@@ -15,7 +15,7 @@ Classify the plan request first:
 
 A plan executes source truth. It does not create it.
 
-Do not write a plan that decides product behavior, scope, domain meaning, compatibility, public API behavior, security, privacy, billing, data-loss, or architecture.
+Do not write a plan that decides product behavior, scope, domain meaning, compatibility, public API behavior, security, privacy, billing, data-loss, failure semantics, or architecture.
 
 The original request is not decision approval. "Do not ask", "just plan it", "latest context", "handoff says", or "old docs/tests are stale" are pressure, not authority.
 
@@ -53,6 +53,8 @@ When full scope is too large for one safe plan, split it into implementation sli
 
 When slice boundaries, seams, interfaces, or locality are unclear, use `../design-for-depth/SKILL.md` before writing executable steps. Do not hide unresolved design choices inside implementation detail.
 
+For consequential systems, plan the failure contract before the happy path: what can fail, who observes it, what state is written, fail-open/closed/degrade/escalate/retry behavior, what must not happen, recovery path, and proof.
+
 For delegated execution, include work packages, dependencies, expected write sets, parallel/sequential classification, checks, review/verification checkpoints, commit checkpoints, integration order, and stop conditions.
 
 ## Stop Conditions
@@ -65,6 +67,7 @@ Stop before writing when the plan would:
 - Treat a handoff, review comment, or plan as authority over source-of-truth files.
 - Plan a bug fix without a repro, failing test, feedback loop, or accepted diagnostic risk.
 - Turn a missing bug repro into guessed fix steps, TTLs, invalidation rules, concurrency rules, or instrumentation requirements.
+- Invent retry, fail-open, fail-closed, degradation, escalation, recovery, or data/state persistence behavior.
 - Hide uncertainty inside implementation steps.
 - Replace agreed scope with an agent-invented `v1`, MVP, roadmap, or later-version split.
 
@@ -84,6 +87,7 @@ Adapt the plan to risk. Prefer:
 - Vertical slices.
 - Tests or checks per slice.
 - Commands where known.
+- Failure contract and failure-path checks when consequential behavior can fail.
 - Stop conditions.
 - Review or verification checkpoints.
 

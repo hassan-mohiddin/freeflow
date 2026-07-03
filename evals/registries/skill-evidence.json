@@ -65,7 +65,8 @@
         "XPL-003",
         "XPL-004",
         "XPL-005",
-        "XPL-006"
+        "XPL-006",
+        "XPL-007"
       ]
     },
     "handoff": {
@@ -120,7 +121,8 @@
         "REV-003",
         "REV-004",
         "REV-005",
-        "REV-006"
+        "REV-006",
+        "REV-007"
       ]
     },
     "setup-freeflow": {
@@ -143,7 +145,8 @@
         "CMD-005",
         "VFY-001",
         "VFY-002",
-        "VFY-003"
+        "VFY-003",
+        "VFY-004"
       ]
     },
     "workflow": {
@@ -159,7 +162,8 @@
         "WPL-002",
         "WPL-003",
         "WPL-004",
-        "WPL-005"
+        "WPL-005",
+        "WPL-006"
       ]
     },
     "write-skill": {
@@ -177,7 +181,8 @@
         "WSP-006",
         "WSP-007",
         "WSP-008",
-        "WSP-009"
+        "WSP-009",
+        "WSP-010"
       ]
     },
     "discover": {
@@ -190,7 +195,8 @@
     },
     "design-for-depth": {
       "evals": [
-        "DFD-001"
+        "DFD-001",
+        "DFD-002"
       ]
     },
     "delegation-harness": {
@@ -199,7 +205,8 @@
         "DEL-002",
         "DEL-003",
         "DEL-004",
-        "DEL-005"
+        "DEL-005",
+        "DEL-006"
       ]
     }
   }

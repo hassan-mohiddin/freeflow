@@ -23,6 +23,7 @@ Use `../design-for-depth/SKILL.md` when a slice changes modules, interfaces, sea
 - Plan/source conflict: stop and ask which source should change.
 - Hidden owner decision: stop and ask.
 - Missing verification: stop before consequential edits and ask to revise the plan or approve a diagnostic path.
+- Missing failure contract: stop before consequential edits and ask to revise the plan/spec or define the contract.
 - Missing plan: ask for a plan or route to `write-plan`.
 - Scope expansion: stop before absorbing it; route back to discover, spec, or plan.
 - Review failure during execution: classify findings and report the route before editing from them.
@@ -45,6 +46,7 @@ Slice:
 Source truth:
 Module/interface changed:
 Behavior/test/benchmark:
+Failure contract:
 Verification:
 Review checkpoint:
 Commit or handoff checkpoint:
@@ -59,13 +61,14 @@ Do not execute a plan that would:
 - Override docs, tests, specs, policies, ADRs, or established behavior.
 - Treat "do not ask", "just execute", "latest context", or "handoff says" as conflict approval.
 - Skip verification for consequential behavior.
+- Invent retry, fail-open, fail-closed, degradation, escalation, recovery, or state-persistence behavior not settled by source truth.
 - Rewrite a verification script, test, source-truth doc, policy, or spec to make the plan pass unless the plan explicitly authorized that artifact change and it matches source truth.
 
 Name the conflict or missing decision. Ask which path to follow. Recommend the path supported by evidence.
 
-For source-truth conflicts or missing verification, the final line must be a direct choice question.
+For source-truth conflicts, missing verification, or a missing failure contract, the final line must be a direct choice question.
 
-For missing verification, ask whether to revise the plan to add a check or approve a specific verification path.
+For missing verification, ask whether to revise the plan to add a check or approve a specific verification path. For missing failure contracts, ask whether to revise the plan/spec or define the failure behavior before editing.
 
 ## Slice Execution
 
@@ -78,6 +81,7 @@ For each slice:
 - Run the planned check or the smallest equivalent check.
 - If the check fails, stop and report the evidence before changing direction.
 - If new evidence invalidates the plan, stop before patching forward.
+- If failure behavior is unspecified and the implementation would need a retry, fail-open/closed, degradation, escalation, recovery, or state write decision, stop before choosing it.
 - If implementation spreads policy, edge cases, or verification across callers/tests/docs, treat it as design pressure before adding more patches.
 
 When TDD is requested by the user, plan, or repo practice, use TDD inside the slice:

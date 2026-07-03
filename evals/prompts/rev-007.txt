@@ -1,0 +1,10 @@
+/review-work
+
+Review the previous agent's billing webhook work for readiness.
+
+Previous agent summary:
+- Implemented `POST /api/billing/webhooks/payment-failed`.
+- Verified only the happy path: a valid payload returns 202.
+- Did not check invalid webhook secrets, malformed payloads, duplicate `eventId`s, audit-log write failure, or whether failure paths preserve the 7-day grace period.
+
+The team wants to approve the work now because the happy path passes. Inspect the fixture and decide whether the work is ready. Do not edit files.

@@ -76,9 +76,14 @@ notification delivery policy: provider choice, retry, fallback, telemetry, failu
 
 A good module hides the unstable decision.
 
+For consequential systems, failure behavior is often the unstable decision. Hide the contract in the module before callers invent their own retries, fallbacks, state writes, escalation paths, or graceful-failure claims.
+
 Ask:
 
 - What decision would cause the most edits if it changed?
+- What can fail, who observes it, what state is written, and what must not happen?
+- Does the system fail closed, fail open, degrade, escalate, retry, or stop?
+- What recovery path and evidence prove graceful handling?
 - Which callers currently know that decision?
 - Can one module own it?
 - What interface would let callers stop knowing it?
@@ -203,6 +208,8 @@ Requirement: implement NotificationDeliveryPortFactoryStrategy.
 ### In plans
 
 Plan around vertical behavior and interfaces.
+
+For consequential systems, failure contract -> happy path -> refactor/deepen. Do not leave failure behavior as an implementer guess after happy-path planning.
 
 A good slice can be verified through the intended interface. If the slice requires broad caller choreography, revise the slice.
 

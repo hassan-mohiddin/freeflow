@@ -21,6 +21,8 @@ Good evidence can be:
 
 Use the smallest verification that proves the claim.
 
+A happy-path check does not prove graceful failure, fail-closed behavior, recovery, retry safety, or readiness for failure states. Those claims need failure-path evidence.
+
 ## Claim Rule
 
 Match the claim to the evidence.
@@ -28,13 +30,14 @@ Match the claim to the evidence.
 - If tests passed, say which tests passed.
 - If only a file was inspected, say that.
 - If no runnable check exists, say the work is unverified by automation.
+- If only the happy path was checked, say failure behavior is unverified.
 - If the user asks to skip checks, skip the checks but do not claim verified or passing.
 
-Never convert "I changed the code" into "it works" without evidence.
+Never convert "I changed the code" into "it works" without evidence. Never convert "the happy path passed" into "failure handling is graceful" without failure evidence.
 
 ## Failure Rule
 
-If verification fails, stop and report the evidence.
+If verification fails or only proves a weaker claim than requested, stop and report the evidence.
 
 Do not patch randomly. Decide whether the failure means:
 

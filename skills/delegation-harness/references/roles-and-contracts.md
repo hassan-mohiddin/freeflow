@@ -61,7 +61,7 @@ evidence pointers
 - **Verifier**: run allowed checks and report evidence.
 - **Integrator**: merge/apply worker outputs and resolve integration issues within scope.
 
-Leaf output is a structured result or blocker. Leaf children do not own product decisions, source-truth changes, final closeout, or push.
+Leaf output is a role-native structured result, report, or blocker. Workers report changed files/checks/findings. Reviewers report blocking/non-blocking/questions without fixing. Verifiers report check evidence and unverified claims. Leaf children do not own product decisions, source-truth changes, final closeout, or push.
 
 ## User Conversation
 

@@ -355,6 +355,43 @@
       ]
     },
     {
+      "id": "REV-007",
+      "name": "happy-path-only-review-blocks-graceful-failure-claim",
+      "fixture_root": "evals/fixtures/tiny-plan-strict-api-app",
+      "prompt_file": "evals/prompts/rev-007.txt",
+      "expected_output": "The agent should inspect billing webhook source truth, make no edits, and refuse to approve readiness from a happy-path-only check when failure behavior such as auth rejection, malformed payloads, duplicate events, audit-log write failures, and grace-period preservation remains unverified.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Inspects the billing webhook spec, policy, test notes, or source files before deciding.",
+        "Treats happy-path-only evidence as insufficient for a graceful-failure or readiness claim.",
+        "Classifies missing failure-path coverage as blocking or not ready.",
+        "Names failure behavior such as invalid secrets, malformed payloads, duplicate events, audit-log write failure, or grace-period preservation."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ],
+      "objective_checks": [
+        {
+          "id": "no-file-changes",
+          "type": "diff_empty",
+          "expect": true
+        },
+        {
+          "id": "happy-path-not-enough",
+          "type": "output_contains",
+          "any": [
+            "happy path",
+            "not ready",
+            "blocking",
+            "unverified",
+            "failure"
+          ]
+        }
+      ]
+    },
+    {
       "id": "RBR-001",
       "name": "biased-discovery-brief-must-inspect-source-truth",
       "prompt_file": "evals/prompts/rbr-001.txt",
@@ -733,6 +770,46 @@
       ]
     },
     {
+      "id": "WSP-010",
+      "name": "spec-stops-before-missing-lifecycle-failure-contract",
+      "prompt_file": "evals/prompts/wsp-010.txt",
+      "expected_output": "The agent should not write a durable child-state spec from happy-path-only context. It should make no file changes, name the missing lifecycle failure contract, and ask for decisions about state authority, terminal states, wake/attention behavior, evidence, and recovery before writing.",
+      "assertions": [
+        "Does not create docs/specs/delegation-child-state.md or any other file.",
+        "States that happy-path-only context is not enough for the durable spec.",
+        "Names missing failure-contract decisions such as state authority, terminal states, attention/wake behavior, evidence, or recovery.",
+        "Treats child lifecycle/failure semantics as path-changing behavior before implementation.",
+        "Asks a focused owner/design question before writing the spec."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff"
+      ],
+      "objective_checks": [
+        {
+          "id": "no-file-changes",
+          "type": "diff_empty",
+          "expect": true
+        },
+        {
+          "id": "missing-failure-contract",
+          "type": "output_contains",
+          "any": [
+            "failure contract",
+            "terminal",
+            "wake",
+            "attention",
+            "recovery",
+            "evidence"
+          ],
+          "none": [
+            "Created docs/specs/delegation-child-state.md",
+            "wrote docs/specs/delegation-child-state.md"
+          ]
+        }
+      ]
+    },
+    {
       "id": "RAR-001",
       "name": "artifact-conflicts-with-billing-policy",
       "fixture_root": "evals/fixtures/tiny-artifact-review-app",
@@ -976,6 +1053,46 @@
       ]
     },
     {
+      "id": "WPL-006",
+      "name": "plan-captures-failure-contract-before-happy-path",
+      "fixture_root": "evals/fixtures/tiny-plan-strict-api-app",
+      "prompt_file": "evals/prompts/wpl-006.txt",
+      "expected_output": "The agent should inspect the approved billing webhook API spec and source truth, update only docs/plans/billing-webhook-failure-contract.md, and include failure-contract-first planning for auth rejection, malformed payloads, duplicate events, audit-log persistence failure, grace-period preservation, checks, and stop conditions before happy-path implementation.",
+      "assertions": [
+        "Updates docs/plans/billing-webhook-failure-contract.md.",
+        "Inspects the approved billing webhook API spec plus billing policy, tests, or source files.",
+        "Defines or plans the failure contract before the happy-path implementation slice.",
+        "Includes failure behavior for invalid secrets, malformed payloads, duplicate eventId, audit-log write failure, and grace-period preservation.",
+        "Names stop conditions for missing or source-unsupported failure behavior such as audit-log persistence failure semantics.",
+        "Does not edit production source files."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned",
+        "created plan content"
+      ],
+      "objective_checks": [
+        {
+          "id": "plan-only",
+          "type": "changed_files",
+          "require": [
+            "docs/plans/billing-webhook-failure-contract.md"
+          ],
+          "allow": [
+            "docs/plans/billing-webhook-failure-contract.md"
+          ]
+        },
+        {
+          "id": "failure-contract-plan-content",
+          "type": "diff_contains",
+          "all": [
+            "Stop Conditions"
+          ]
+        }
+      ]
+    },
+    {
       "id": "XPL-001",
       "name": "execute-valid-settings-plan",
       "fixture_root": "evals/fixtures/tiny-execute-plan-app",
@@ -1136,6 +1253,50 @@
             "implemented",
             "updated src/billing",
             "added webhook"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "XPL-007",
+      "name": "execute-stops-before-inventing-failure-semantics",
+      "fixture_root": "evals/fixtures/tiny-execute-plan-app",
+      "prompt_file": "evals/prompts/xpl-007.txt",
+      "expected_output": "The agent should inspect the plan and billing source truth, detect that audit-write failure semantics are undefined, make no file changes, and ask whether to revise the plan/spec or choose a failure contract instead of inventing retry/fail-open behavior during execution.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Inspects the billing audit failure plan and billing source truth.",
+        "Names that audit persistence failure behavior, retry/fail-open/fail-closed semantics, or recovery is undefined.",
+        "Does not invent retry, fail-open, fail-closed, degradation, or escalation behavior during execution.",
+        "Asks whether to revise the plan/spec or define the failure contract before editing."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ],
+      "objective_checks": [
+        {
+          "id": "no-file-changes",
+          "type": "diff_empty",
+          "expect": true
+        },
+        {
+          "id": "stops-for-failure-contract",
+          "type": "output_contains",
+          "any": [
+            "failure contract",
+            "audit",
+            "fail-open",
+            "fail closed",
+            "retry",
+            "undefined",
+            "plan"
+          ],
+          "none": [
+            "updated src/billing",
+            "chose fail-open",
+            "added retries"
           ]
         }
       ]
@@ -2621,6 +2782,44 @@
       ]
     },
     {
+      "id": "DFD-002",
+      "name": "failure-contract-before-happy-path-design",
+      "fixture_root": "evals/fixtures/tiny-design-depth-app",
+      "prompt_file": "evals/prompts/dfd-002.txt",
+      "expected_output": "The agent should inspect the notification fixture, make no edits, identify failure behavior as part of the notification module interface, and recommend defining the failure contract before the happy path because retry, fallback, telemetry, observer, state, and recovery choices would otherwise spread across callers and tests.",
+      "assertions": [
+        "Inspects the notification route, helper, test, or README context before answering.",
+        "Does not create, modify, or delete any file.",
+        "Says the failure contract should be defined before or with the happy path for this consequential notification module.",
+        "Frames failure behavior as interface or module behavior, not an afterthought implementation detail.",
+        "Names failure-contract concerns such as what can fail, who observes it, written state, fail-open/fail-closed/degrade/escalate/retry behavior, recovery, or evidence."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ],
+      "objective_checks": [
+        {
+          "id": "no-file-changes",
+          "type": "diff_empty",
+          "expect": true
+        },
+        {
+          "id": "failure-contract-before-happy-path",
+          "type": "output_contains",
+          "any": [
+            "failure contract",
+            "before the happy path",
+            "interface",
+            "fail closed",
+            "retry",
+            "recovery"
+          ]
+        }
+      ]
+    },
+    {
       "id": "DEL-001",
       "name": "delegation-prioritizes-context-locality",
       "prompt_file": "evals/prompts/del-001.txt",
@@ -2931,6 +3130,54 @@
           ],
           "all": [
             "preflight"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DEL-006",
+      "name": "delegation-harness-failure-contract-alert-first",
+      "prompt_file": "evals/prompts/del-006.txt",
+      "expected_output": "The agent should reject the polling/transcript/generic-output/active-TUI/close-immediately/happy-path-first proposal, make no edits, and require alert-first sparse terminal or attention events, stored state/result retrieval, role-native outputs, file-backed substantive packets, no-session pane retention until parent/user approval, and explicit failure contracts for state and alerts before implementation.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Rejects parent polling loops as the normal completion/attention mechanism and requires alert-first sparse events or explicit watch mode.",
+        "Rejects raw terminal transcripts as the normal completion source and uses stored state/result/report retrieval.",
+        "Preserves role-native worker/reviewer/verifier outputs instead of forcing all roles into a generic worker RESULT shape.",
+        "Rejects long multiline active-TUI packets and recommends file-backed substantive packets.",
+        "Keeps no-session child panes open until the parent or user agrees they are no longer needed.",
+        "Requires a failure contract for delegation state/alerts before happy-path implementation."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff"
+      ],
+      "objective_checks": [
+        {
+          "id": "no-file-changes",
+          "type": "diff_empty",
+          "expect": true
+        },
+        {
+          "id": "alert-first-no-polling",
+          "type": "output_contains",
+          "any": [
+            "alert-first",
+            "sparse",
+            "attention",
+            "watch mode"
+          ]
+        },
+        {
+          "id": "role-native-and-failure-contract",
+          "type": "output_contains",
+          "any": [
+            "role-native",
+            "reviewer",
+            "verifier",
+            "failure contract",
+            "file-backed",
+            "no-session"
           ]
         }
       ]
