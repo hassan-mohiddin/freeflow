@@ -45,10 +45,15 @@ export function renderDelegationResult(toolName: string, result: any, { expanded
   if (payload.snapshot?.screenPath) {
     lines.push(themeFg(theme, "accent", `screen snapshot saved: ${shortenMiddle(payload.snapshot.screenPath, 100)}`));
   }
-  if (payload.code === "not_implemented_until_P4" || status === "lifecycle_pending") {
-    lines.push(themeFg(theme, "warning", "lifecycle pending until P4; no pane action was attempted"));
+  if (Array.isArray(payload.unreadParentAlerts) && payload.unreadParentAlerts.length > 0) {
+    lines.push(themeFg(theme, "warning", `${payload.unreadParentAlerts.length} unread parent alert(s)`));
   }
-
+  if (payload.heartbeat?.state) {
+    lines.push(themeFg(theme, "muted", `heartbeat: ${payload.heartbeat.state}${payload.route ? ` • ${payload.route}` : ""}`));
+  }
+  if (payload.result?.results?.[0]?.summary) {
+    lines.push(themeFg(theme, "accent", truncateText(payload.result.results[0].summary, 180)));
+  }
   if (!expanded) {
     lines.push(themeFg(theme, "dim", "ctrl+o to expand delegation details and evidence pointers"));
     return textComponent(lines.join("\n"));
@@ -97,6 +102,41 @@ export function renderDelegationResult(toolName: string, result: any, { expanded
     lines.push(`  ${themeFg(theme, "dim", "raw screen is stored in screen.log; normal renderer does not dump it")}`);
   }
 
+  if (payload.heartbeat) {
+    lines.push("", themeFg(theme, "toolTitle", "Wait heartbeat"));
+    pushField(lines, theme, "state", payload.heartbeat.state);
+    pushField(lines, theme, "message", payload.heartbeat.message);
+    pushField(lines, theme, "updated", payload.heartbeat.updatedAt);
+    pushField(lines, theme, "route", payload.route);
+  }
+
+  if (payload.result) {
+    lines.push("", themeFg(theme, "toolTitle", "Parsed result"));
+    pushField(lines, theme, "ok", String(Boolean(payload.result.ok)));
+    pushField(lines, theme, "status", payload.result.status);
+    const first = payload.result.results?.[0];
+    if (first) {
+      pushField(lines, theme, "summary", first.summary);
+      pushField(lines, theme, "files changed", listText(first.filesChanged));
+      pushField(lines, theme, "checks", Array.isArray(first.checks) ? `${first.checks.length} row(s)` : undefined);
+      pushField(lines, theme, "blockers", Array.isArray(first.blockers) ? `${first.blockers.length} blocker(s)` : undefined);
+      pushField(lines, theme, "recommendation", first.recommendation);
+    }
+    if (Array.isArray(payload.result.errors) && payload.result.errors.length > 0) {
+      pushField(lines, theme, "errors", payload.result.errors.map((error: any) => error.message).join("; "));
+    }
+  }
+
+  if (Array.isArray(payload.reports)) {
+    lines.push("", themeFg(theme, "toolTitle", "Reports"));
+    for (const report of payload.reports) {
+      lines.push(`  ${themeFg(theme, report.exists ? "accent" : "muted", report.reportName)} ${themeFg(theme, "muted", report.status)}${report.report?.status ? ` — ${report.report.status}` : ""}`);
+      if (report.paths?.json) {
+        lines.push(`    ${themeFg(theme, "muted", "json:")} ${themeFg(theme, "accent", shortenMiddle(report.paths.json, 110))}`);
+      }
+    }
+  }
+
   if (payload.preflight) {
     lines.push("", themeFg(theme, payload.preflight.ok ? "toolTitle" : "warning", payload.preflight.ok ? "Preflight" : "Delegation unavailable"));
     pushField(lines, theme, "status", payload.preflight.status);
@@ -136,8 +176,21 @@ export function renderDelegationResult(toolName: string, result: any, { expanded
   }
 
   if (payload.unreadParentAlerts) {
-    lines.push("", themeFg(theme, "toolTitle", "Deferred lifecycle"));
-    pushField(lines, theme, "alerts", `${payload.unreadParentAlerts.status} (${payload.unreadParentAlerts.code})`);
+    lines.push("", themeFg(theme, "toolTitle", "Parent alerts"));
+    if (Array.isArray(payload.unreadParentAlerts)) {
+      if (payload.unreadParentAlerts.length === 0) {
+        pushField(lines, theme, "unread", "none");
+      } else {
+        for (const alert of payload.unreadParentAlerts.slice(0, 10)) {
+          lines.push(`  ${themeFg(theme, "warning", alert.outcome ?? "alert")} ${themeFg(theme, "muted", alert.agentId ?? alert.taskId ?? "task")} — ${truncateText(alert.message ?? alert.state ?? "", 160)}`);
+          if (alert.evidence?.jsonPath) {
+            lines.push(`    ${themeFg(theme, "muted", "json:")} ${themeFg(theme, "accent", shortenMiddle(alert.evidence.jsonPath, 110))}`);
+          }
+        }
+      }
+    } else {
+      pushField(lines, theme, "alerts", `${payload.unreadParentAlerts.status} (${payload.unreadParentAlerts.code})`);
+    }
   }
 
   lines.push("", themeFg(theme, "dim", "No raw transcript or full screen dump is rendered here; use evidence paths for recovery."));

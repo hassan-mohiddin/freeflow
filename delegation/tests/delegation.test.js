@@ -85,10 +85,53 @@ test("store appends task and agent events as JSONL", async () => {
     assert.equal(taskEvents.length, 1);
     assert.equal(taskEvents[0].scope, "task");
     assert.equal(taskEvents[0].message, "ready");
+    assert.ok(taskEvents[0].eventId);
     assert.equal(agentEvents.length, 1);
     assert.equal(agentEvents[0].scope, "agent");
     assert.equal(agentEvents[0].state, "running");
+    assert.ok(agentEvents[0].eventId);
     assert.deepEqual(agentEvents[0].data, { pane: "p7" });
+  });
+});
+
+test("store queues sparse parent alerts and coalesces duplicate unread lifecycle events", async () => {
+  await withTempStore(async (root) => {
+    const store = createDelegationStore({ root, now: fixedNow });
+    await store.registerAgent({ taskId: "TASK-ALERT", agentId: "worker-1", role: "worker", parentAgentId: "parent-1" });
+
+    const first = await store.queueParentAlert("TASK-ALERT", { agentId: "worker-1", outcome: "completed", state: "completed", eventType: "agent-result", sourceEventId: "evt-1", message: "done" });
+    const duplicate = await store.queueParentAlert("TASK-ALERT", { agentId: "worker-1", outcome: "completed", state: "completed", eventType: "agent-result", sourceEventId: "evt-1", message: "done again" });
+    const second = await store.queueParentAlert("TASK-ALERT", { agentId: "worker-1", outcome: "failed", state: "failed", eventType: "agent-result", sourceEventId: "evt-2", message: "failed" });
+
+    assert.equal(first.queued, true);
+    assert.equal(duplicate.queued, false);
+    assert.equal(second.queued, true);
+    const unread = await store.readParentAlerts("TASK-ALERT", { unreadOnly: true });
+    assert.equal(unread.length, 2);
+    assert.equal(unread[0].parentAgentId, "parent-1");
+    assert.equal(unread[0].message, "done again");
+    assert.deepEqual(unread.map((alert) => alert.outcome), ["completed", "failed"]);
+
+    await store.markParentAlertsRead("TASK-ALERT", [unread[0].alertId]);
+    const remaining = await store.readParentAlerts("TASK-ALERT", { unreadOnly: true });
+    assert.deepEqual(remaining.map((alert) => alert.outcome), ["failed"]);
+  });
+});
+
+test("store tracks consecutive bounded wait attempts per scope", async () => {
+  await withTempStore(async (root) => {
+    const store = createDelegationStore({ root, now: fixedNow });
+    await store.initTask({ taskId: "TASK-WAIT" });
+
+    assert.equal((await store.incrementWaitScope("TASK-WAIT", "agent:TASK-WAIT:worker-1")).consecutiveWaits, 1);
+    assert.equal((await store.incrementWaitScope("TASK-WAIT", "agent:TASK-WAIT:worker-1")).consecutiveWaits, 2);
+    assert.equal((await store.incrementWaitScope("TASK-WAIT", "agent:TASK-WAIT:worker-1")).consecutiveWaits, 3);
+    assert.equal((await store.incrementWaitScope("TASK-WAIT", "agent:TASK-WAIT:worker-1")).consecutiveWaits, 4);
+
+    await store.resetWaitScope("TASK-WAIT", "agent:TASK-WAIT:worker-1", "completed");
+    const waitState = await store.readWaitState("TASK-WAIT");
+    assert.equal(waitState.scopes[0].consecutiveWaits, 0);
+    assert.equal(waitState.scopes[0].lastStatus, "completed");
   });
 });
 

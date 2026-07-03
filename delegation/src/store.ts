@@ -21,7 +21,14 @@ import type {
   DelegationRole,
   DelegationState,
   DelegationTaskMetadata,
+  DelegationWaitState,
   JsonValue,
+  ParentAlert,
+  ParentAlertEvidence,
+  ParentAlertOutcome,
+  ParentAlertQueue,
+  ParentReportName,
+  WaitScopeEntry,
 } from "./types.js";
 
 export interface DelegationStoreOptions {
@@ -62,6 +69,41 @@ export interface AppendEventInput {
   message?: string;
   data?: JsonValue;
   timestamp?: string;
+  eventId?: string;
+}
+
+export interface QueueParentAlertInput {
+  outcome: ParentAlertOutcome;
+  state?: DelegationState;
+  agentId?: string;
+  parentAgentId?: string;
+  status?: string;
+  eventType?: string;
+  sourceEventId?: string;
+  message?: string;
+  evidence?: ParentAlertEvidence;
+  data?: JsonValue;
+  dedupeKey?: string;
+}
+
+export interface ReadParentAlertsOptions {
+  unreadOnly?: boolean;
+  agentId?: string;
+  parentAgentId?: string;
+}
+
+export interface AgentResultRecord {
+  exists: boolean;
+  rawPath: string;
+  jsonPath: string;
+  parsed?: unknown;
+}
+
+export interface TaskReportRecord {
+  exists: boolean;
+  rawPath: string;
+  jsonPath: string;
+  parsed?: unknown;
 }
 
 export class DelegationStore {
@@ -125,6 +167,14 @@ export class DelegationStore {
     }
     await ensureTextFile(paths.eventsJsonl, "");
     await ensureTextFile(paths.decisionsMd, "");
+    if (!(await fileExists(paths.parentAlertsJson))) {
+      const queue: ParentAlertQueue = { version: 1, taskId, alerts: [], updatedAt: this.now() };
+      await writeJson(paths.parentAlertsJson, queue);
+    }
+    if (!(await fileExists(paths.waitStateJson))) {
+      const waitState: DelegationWaitState = { version: 1, taskId, scopes: [], updatedAt: this.now() };
+      await writeJson(paths.waitStateJson, waitState);
+    }
     await this.upsertIndexEntry(task, paths.taskDir);
     return task;
   }
@@ -301,7 +351,7 @@ export class DelegationStore {
     return target;
   }
 
-  async recordTaskReport(taskId: string, reportName: "planning-report" | "execution-kickoff" | "execution-report", rawText: string, parsedReport: unknown): Promise<{ rawPath: string; jsonPath: string }> {
+  async recordTaskReport(taskId: string, reportName: ParentReportName, rawText: string, parsedReport: unknown): Promise<{ rawPath: string; jsonPath: string }> {
     const paths = taskPaths(this.root, taskId);
     const rawByName = {
       "planning-report": paths.planningReportRaw,
@@ -320,6 +370,147 @@ export class DelegationStore {
     return { rawPath, jsonPath };
   }
 
+  async readAgentResult(taskId: string, agentId: string): Promise<AgentResultRecord> {
+    const paths = agentPaths(this.root, taskId, agentId);
+    if (!(await fileExists(paths.resultJson))) {
+      return { exists: false, rawPath: paths.resultRaw, jsonPath: paths.resultJson };
+    }
+    return {
+      exists: true,
+      rawPath: paths.resultRaw,
+      jsonPath: paths.resultJson,
+      parsed: await readJson<unknown>(paths.resultJson),
+    };
+  }
+
+  async readTaskReport(taskId: string, reportName: ParentReportName): Promise<TaskReportRecord> {
+    const paths = taskPaths(this.root, taskId);
+    const rawByName = {
+      "planning-report": paths.planningReportRaw,
+      "execution-kickoff": paths.executionKickoffRaw,
+      "execution-report": paths.executionReportRaw,
+    } as const;
+    const jsonByName = {
+      "planning-report": paths.planningReportJson,
+      "execution-kickoff": paths.executionKickoffJson,
+      "execution-report": paths.executionReportJson,
+    } as const;
+    const rawPath = rawByName[reportName];
+    const jsonPath = jsonByName[reportName];
+    if (!(await fileExists(jsonPath))) {
+      return { exists: false, rawPath, jsonPath };
+    }
+    return { exists: true, rawPath, jsonPath, parsed: await readJson<unknown>(jsonPath) };
+  }
+
+  async queueParentAlert(taskId: string, input: QueueParentAlertInput): Promise<{ alert: ParentAlert; queued: boolean }> {
+    const safeTaskId = validateSafeId(taskId, "task id");
+    const queue = await this.readParentAlertQueue(safeTaskId);
+    const timestamp = this.now();
+    const state = input.state ?? stateForAlertOutcome(input.outcome);
+    const agentId = input.agentId !== undefined ? validateSafeId(input.agentId, "agent id") : undefined;
+    let parentAgentId = input.parentAgentId !== undefined ? validateSafeId(input.parentAgentId, "parent agent id") : undefined;
+    if (parentAgentId === undefined && agentId !== undefined) {
+      parentAgentId = await this.parentAgentIdFor(safeTaskId, agentId);
+    }
+    const dedupeKey = input.dedupeKey ?? alertDedupeKey({ taskId: safeTaskId, agentId, parentAgentId, outcome: input.outcome, state, status: input.status, eventType: input.eventType, sourceEventId: input.sourceEventId, message: input.message });
+    const existing = queue.alerts.find((alert) => alert.dedupeKey === dedupeKey && alert.readAt === undefined);
+    if (existing !== undefined) {
+      existing.updatedAt = timestamp;
+      if (input.message !== undefined) existing.message = input.message;
+      if (input.evidence !== undefined) existing.evidence = stripUndefined(input.evidence as Record<string, unknown>) as ParentAlertEvidence;
+      if (input.data !== undefined) existing.data = input.data;
+      await this.writeParentAlertQueue(safeTaskId, { ...queue, updatedAt: timestamp });
+      return { alert: existing, queued: false };
+    }
+
+    const alert: ParentAlert = {
+      alertId: alertIdFromParts(timestamp, safeTaskId, agentId, input.outcome, queue.alerts.length + 1),
+      dedupeKey,
+      taskId: safeTaskId,
+      outcome: input.outcome,
+      state,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    if (agentId !== undefined) alert.agentId = agentId;
+    if (parentAgentId !== undefined) alert.parentAgentId = parentAgentId;
+    if (input.status !== undefined) alert.status = input.status;
+    if (input.eventType !== undefined) alert.eventType = input.eventType;
+    if (input.message !== undefined) alert.message = input.message;
+    if (input.evidence !== undefined) alert.evidence = stripUndefined(input.evidence as Record<string, unknown>) as ParentAlertEvidence;
+    if (input.data !== undefined) alert.data = input.data;
+    queue.alerts.push(alert);
+    await this.writeParentAlertQueue(safeTaskId, { ...queue, updatedAt: timestamp });
+    return { alert, queued: true };
+  }
+
+  async readParentAlerts(taskId: string, options: ReadParentAlertsOptions = {}): Promise<ParentAlert[]> {
+    const queue = await this.readParentAlertQueue(taskId);
+    return queue.alerts.filter((alert) => {
+      if (options.unreadOnly === true && alert.readAt !== undefined) return false;
+      if (options.agentId !== undefined && alert.agentId !== options.agentId) return false;
+      if (options.parentAgentId !== undefined && alert.parentAgentId !== options.parentAgentId) return false;
+      return true;
+    });
+  }
+
+  async markParentAlertsRead(taskId: string, alertIds: readonly string[] = []): Promise<ParentAlert[]> {
+    const safeTaskId = validateSafeId(taskId, "task id");
+    const queue = await this.readParentAlertQueue(safeTaskId);
+    const timestamp = this.now();
+    const ids = new Set(alertIds);
+    const readAlerts: ParentAlert[] = [];
+    for (const alert of queue.alerts) {
+      if (alert.readAt !== undefined) continue;
+      if (ids.size > 0 && !ids.has(alert.alertId)) continue;
+      alert.readAt = timestamp;
+      alert.updatedAt = timestamp;
+      readAlerts.push(alert);
+    }
+    await this.writeParentAlertQueue(safeTaskId, { ...queue, updatedAt: timestamp });
+    return readAlerts;
+  }
+
+  async incrementWaitScope(taskId: string, scopeKey: string): Promise<WaitScopeEntry> {
+    const safeTaskId = validateSafeId(taskId, "task id");
+    const safeScopeKey = validateScopeKey(scopeKey);
+    const waitState = await this.readWaitState(safeTaskId);
+    const timestamp = this.now();
+    const existing = waitState.scopes.find((scope) => scope.scopeKey === safeScopeKey);
+    if (existing !== undefined) {
+      existing.consecutiveWaits += 1;
+      existing.updatedAt = timestamp;
+      await this.writeWaitState(safeTaskId, { ...waitState, updatedAt: timestamp });
+      return existing;
+    }
+    const entry: WaitScopeEntry = { scopeKey: safeScopeKey, consecutiveWaits: 1, updatedAt: timestamp };
+    waitState.scopes.push(entry);
+    await this.writeWaitState(safeTaskId, { ...waitState, updatedAt: timestamp });
+    return entry;
+  }
+
+  async resetWaitScope(taskId: string, scopeKey: string, status?: string): Promise<void> {
+    const safeTaskId = validateSafeId(taskId, "task id");
+    const safeScopeKey = validateScopeKey(scopeKey);
+    const waitState = await this.readWaitState(safeTaskId);
+    const timestamp = this.now();
+    const scopes = waitState.scopes.filter((scope) => scope.scopeKey !== safeScopeKey);
+    if (status !== undefined) {
+      scopes.push({ scopeKey: safeScopeKey, consecutiveWaits: 0, updatedAt: timestamp, lastStatus: status });
+    }
+    await this.writeWaitState(safeTaskId, { version: 1, taskId: safeTaskId, scopes, updatedAt: timestamp });
+  }
+
+  async readWaitState(taskId: string): Promise<DelegationWaitState> {
+    const safeTaskId = validateSafeId(taskId, "task id");
+    const paths = taskPaths(this.root, safeTaskId);
+    if (!(await fileExists(paths.waitStateJson))) {
+      return { version: 1, taskId: safeTaskId, scopes: [], updatedAt: this.now() };
+    }
+    return readJson<DelegationWaitState>(paths.waitStateJson);
+  }
+
   pathsForTask(taskId: string) {
     return taskPaths(this.root, taskId);
   }
@@ -328,13 +519,40 @@ export class DelegationStore {
     return agentPaths(this.root, taskId, agentId);
   }
 
+  private async readParentAlertQueue(taskId: string): Promise<ParentAlertQueue> {
+    const safeTaskId = validateSafeId(taskId, "task id");
+    const paths = taskPaths(this.root, safeTaskId);
+    if (!(await fileExists(paths.parentAlertsJson))) {
+      return { version: 1, taskId: safeTaskId, alerts: [], updatedAt: this.now() };
+    }
+    return readJson<ParentAlertQueue>(paths.parentAlertsJson);
+  }
+
+  private async writeParentAlertQueue(taskId: string, queue: ParentAlertQueue): Promise<void> {
+    await writeJson(taskPaths(this.root, taskId).parentAlertsJson, queue);
+  }
+
+  private async writeWaitState(taskId: string, waitState: DelegationWaitState): Promise<void> {
+    await writeJson(taskPaths(this.root, taskId).waitStateJson, waitState);
+  }
+
+  private async parentAgentIdFor(taskId: string, agentId: string): Promise<string | undefined> {
+    try {
+      return (await this.readAgentManifest(taskId, agentId)).parentAgentId;
+    } catch {
+      return undefined;
+    }
+  }
+
   private indexPath(): string {
     return resolve(this.root, "index.json");
   }
 
   private buildEvent(taskId: string, scope: "task" | "agent", input: AppendEventInput, agentId?: string): DelegationEvent {
+    const timestamp = input.timestamp ?? this.now();
     const event: DelegationEvent = {
-      timestamp: input.timestamp ?? this.now(),
+      eventId: input.eventId ?? eventIdFromParts(timestamp, taskId, scope, agentId, input.type),
+      timestamp,
       taskId,
       type: input.type,
       scope,
@@ -435,4 +653,69 @@ async function ensureTextFile(path: string, text: string): Promise<void> {
 async function appendJsonLine(path: string, value: unknown): Promise<void> {
   await mkdir(parentDirectory(path), { recursive: true });
   await appendFile(path, `${JSON.stringify(value)}\n`, "utf8");
+}
+
+function stateForAlertOutcome(outcome: ParentAlertOutcome): DelegationState {
+  if (outcome === "completed_with_risks") return "completed";
+  if (outcome === "capability_gap") return "blocked";
+  return outcome;
+}
+
+function eventIdFromParts(timestamp: string, taskId: string, scope: string, agentId: string | undefined, type: string): string {
+  return stableId("evt", [timestamp, taskId, scope, agentId ?? "task", type]);
+}
+
+function alertIdFromParts(timestamp: string, taskId: string, agentId: string | undefined, outcome: ParentAlertOutcome, ordinal: number): string {
+  return stableId("alert", [timestamp, taskId, agentId ?? "task", outcome, String(ordinal)]);
+}
+
+function alertDedupeKey(input: {
+  taskId: string;
+  agentId: string | undefined;
+  parentAgentId: string | undefined;
+  outcome: ParentAlertOutcome;
+  state: DelegationState;
+  status: string | undefined;
+  eventType: string | undefined;
+  sourceEventId: string | undefined;
+  message: string | undefined;
+}): string {
+  if (input.sourceEventId !== undefined) {
+    return ["event", input.taskId, input.agentId ?? "task", input.outcome, input.state, input.sourceEventId].join(":");
+  }
+  return [
+    "state",
+    input.taskId,
+    input.parentAgentId ?? "parent",
+    input.agentId ?? "task",
+    input.outcome,
+    input.state,
+    input.status ?? "",
+    input.eventType ?? "",
+    input.message ?? "",
+  ].join(":");
+}
+
+function stableId(prefix: string, parts: readonly string[]): string {
+  const source = parts.join("|");
+  let hash = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    hash = (hash * 31 + source.charCodeAt(index)) >>> 0;
+  }
+  return `${prefix}_${hash.toString(36)}`;
+}
+
+function validateScopeKey(scopeKey: string): string {
+  if (scopeKey.trim().length === 0 || scopeKey.includes("\0")) {
+    throw new Error("wait scope key must be non-empty and must not contain NUL bytes");
+  }
+  return scopeKey;
+}
+
+function stripUndefined(value: Record<string, unknown>): Record<string, unknown> {
+  const output: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (child !== undefined) output[key] = child;
+  }
+  return output;
 }

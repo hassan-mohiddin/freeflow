@@ -216,8 +216,7 @@ export async function handleDelegatedAssistantMessageEnd(event: any, ctx: any) {
   await recordParsedResults(store, setup, parsed, resultPaths);
 
   if (isFinal && hasMissingRequiredTerminalOutput(setup, parsed)) {
-    const state = message.stopReason === "length" || message.stopReason === "error" ? "failed" : "attention";
-    await recordMissingRequiredOutput(store, setup, parsed, resultPaths, state);
+    await recordMissingRequiredOutput(store, setup, parsed, resultPaths, "failed", message.stopReason);
   }
 
   return undefined;
@@ -505,13 +504,24 @@ async function recordStatusSignals(store: any, setup: any, parsed: any, resultPa
       continue;
     }
 
-    await store.appendAgentEvent(setup.detection.taskId, setup.detection.agentId, {
+    const eventInput = {
       type: "agent-status",
       ...(state !== undefined ? { state } : {}),
       message: signal.message ?? signal.state ?? "status",
       data: { rawPath: resultPaths.rawPath, lineNumber: signal.lineNumber, fields: signal.fields, attributes: signal.attributes },
-    });
-    if (state !== undefined && state !== "completed" && state !== "blocked" && state !== "failed" && state !== "cancelled" && state !== "closed") {
+      taskEvent: state !== undefined && shouldParentSeeState(state),
+    };
+    if (eventInput.taskEvent) {
+      await appendStoreEvents(store, setup.detection.taskId, setup.detection.agentId, eventInput);
+    } else {
+      await store.appendAgentEvent(setup.detection.taskId, setup.detection.agentId, {
+        type: eventInput.type,
+        ...(state !== undefined ? { state } : {}),
+        message: eventInput.message,
+        data: eventInput.data,
+      });
+    }
+    if (state !== undefined) {
       await writeAgentStatusIfPossible(store, setup.detection.taskId, setup.detection.agentId, {
         state,
         message: signal.message ?? signal.state ?? "status",
@@ -530,7 +540,7 @@ async function recordAttentionSignals(store: any, setup: any, parsed: any, resul
       data: { rawPath: resultPaths.rawPath, lineNumber: signal.lineNumber, fields: signal.fields, attributes: signal.attributes },
       taskEvent: true,
     });
-    await writeAgentStatusIfPossible(store, setup.detection.taskId, setup.detection.agentId, { state: "attention", message });
+    await writeAgentStatusIfPossible(store, setup.detection.taskId, setup.detection.agentId, { state: "waiting_for_parent", message });
   }
 }
 
@@ -604,33 +614,48 @@ async function recordMalformedAssistantOutput(store: any, setup: any, parsed: an
   await writeAgentStatusIfPossible(store, setup.detection.taskId, setup.detection.agentId, { state, message, reason: "malformed delegated output" });
 }
 
-async function recordMissingRequiredOutput(store: any, setup: any, parsed: any, resultPaths: any, state: "failed" | "attention"): Promise<void> {
+async function recordMissingRequiredOutput(store: any, setup: any, parsed: any, resultPaths: any, state: "failed" | "attention", stopReason?: string): Promise<void> {
   const expected = expectedTerminalOutput(setup);
   const message = `required delegated terminal output was not found: ${expected.join(" or ")}`;
   await appendStoreEvents(store, setup.detection.taskId, setup.detection.agentId, {
     type: "agent-required-output-missing",
     state,
     message,
-    data: { rawPath: resultPaths.rawPath, jsonPath: resultPaths.jsonPath, expected, stopReason: parsed.stopReason },
+    data: { rawPath: resultPaths.rawPath, jsonPath: resultPaths.jsonPath, expected, stopReason },
     taskEvent: true,
   });
   await writeAgentStatusIfPossible(store, setup.detection.taskId, setup.detection.agentId, { state, message, reason: "missing required delegated output" });
 }
 
 async function appendStoreEvents(store: any, taskId: string, agentId: string, input: any): Promise<void> {
-  await store.appendAgentEvent(taskId, agentId, {
+  const agentEvent = await store.appendAgentEvent(taskId, agentId, {
     type: input.type,
     state: input.state,
     message: input.message,
     data: input.data,
   });
   if (input.taskEvent) {
-    await store.appendTaskEvent(taskId, {
+    const taskEvent = await store.appendTaskEvent(taskId, {
       type: input.type,
       state: input.state,
       message: input.message,
       data: { ...input.data, agentId },
     });
+    const outcome = parentAlertOutcomeForEvent(input.state, input.data);
+    if (outcome !== undefined) {
+      await store.queueParentAlert(taskId, {
+        agentId,
+        outcome,
+        state: input.state,
+        status: input.data?.resultStatus ?? input.data?.status,
+        eventType: input.type,
+        sourceEventId: taskEvent.eventId ?? agentEvent.eventId,
+        dedupeKey: ["runtime", taskId, agentId, outcome, input.state ?? "", input.data?.resultStatus ?? input.data?.status ?? "", input.type, input.message ?? ""].join(":"),
+        message: input.message,
+        evidence: evidenceForAlert(input.data),
+        data: alertData(input.data),
+      });
+    }
   }
 }
 
@@ -774,6 +799,46 @@ function stringInput(value: unknown): string {
 
 function canAddressAgentStore(detection: any): boolean {
   return Boolean(detection?.storeRoot && detection?.taskId && detection?.agentId);
+}
+
+function shouldParentSeeState(state: string): boolean {
+  return state === "completed" || state === "blocked" || state === "failed" || state === "cancelled" || state === "attention" || state === "waiting_for_parent";
+}
+
+function parentAlertOutcomeForEvent(state: string | undefined, data: any): any {
+  if (hasCapabilityGap(data)) return "capability_gap";
+  const status = data?.resultStatus ?? data?.status;
+  if (status === "completed_with_risks" || status === "ready_with_open_questions") return "completed_with_risks";
+  if (state === "completed") return "completed";
+  if (state === "blocked") return "blocked";
+  if (state === "failed") return "failed";
+  if (state === "cancelled") return "cancelled";
+  if (state === "attention" || state === "waiting_for_parent") return "attention";
+  return undefined;
+}
+
+function hasCapabilityGap(data: any): boolean {
+  const blockers = Array.isArray(data?.blockers) ? data.blockers : [];
+  const requests = Array.isArray(data?.requests) ? data.requests : [];
+  return blockers.some((blocker: any) => blocker?.kind === "capability_gap")
+    || requests.some((request: any) => request?.attributes?.kind === "capability_gap" || request?.action === "capability_gap")
+    || data?.code === "capability_gap";
+}
+
+function evidenceForAlert(data: any): any {
+  const evidence: any = {};
+  if (typeof data?.rawPath === "string") evidence.rawPath = data.rawPath;
+  if (typeof data?.jsonPath === "string") evidence.jsonPath = data.jsonPath;
+  return Object.keys(evidence).length > 0 ? evidence : undefined;
+}
+
+function alertData(data: any): any {
+  if (!data || typeof data !== "object") return undefined;
+  const output: any = {};
+  for (const key of ["resultStatus", "status", "reportName", "filesChanged", "blockers", "requests", "errors", "code", "suggestedReroute"]) {
+    if (data[key] !== undefined) output[key] = data[key];
+  }
+  return Object.keys(output).length > 0 ? output : undefined;
 }
 
 function asDelegationState(value: string | undefined): any {

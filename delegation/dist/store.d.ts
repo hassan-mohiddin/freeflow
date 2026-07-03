@@ -1,4 +1,4 @@
-import type { AgentManifest, AgentStatus, DelegationEvent, DelegationIndex, DelegationProfile, DelegationRegistry, DelegationRole, DelegationState, DelegationTaskMetadata, JsonValue } from "./types.js";
+import type { AgentManifest, AgentStatus, DelegationEvent, DelegationIndex, DelegationProfile, DelegationRegistry, DelegationRole, DelegationState, DelegationTaskMetadata, DelegationWaitState, JsonValue, ParentAlert, ParentAlertEvidence, ParentAlertOutcome, ParentReportName, WaitScopeEntry } from "./types.js";
 export interface DelegationStoreOptions {
     root?: string;
     repoRoot?: string;
@@ -34,6 +34,37 @@ export interface AppendEventInput {
     message?: string;
     data?: JsonValue;
     timestamp?: string;
+    eventId?: string;
+}
+export interface QueueParentAlertInput {
+    outcome: ParentAlertOutcome;
+    state?: DelegationState;
+    agentId?: string;
+    parentAgentId?: string;
+    status?: string;
+    eventType?: string;
+    sourceEventId?: string;
+    message?: string;
+    evidence?: ParentAlertEvidence;
+    data?: JsonValue;
+    dedupeKey?: string;
+}
+export interface ReadParentAlertsOptions {
+    unreadOnly?: boolean;
+    agentId?: string;
+    parentAgentId?: string;
+}
+export interface AgentResultRecord {
+    exists: boolean;
+    rawPath: string;
+    jsonPath: string;
+    parsed?: unknown;
+}
+export interface TaskReportRecord {
+    exists: boolean;
+    rawPath: string;
+    jsonPath: string;
+    parsed?: unknown;
 }
 export declare class DelegationStore {
     readonly root: string;
@@ -58,12 +89,27 @@ export declare class DelegationStore {
         jsonPath: string;
     }>;
     appendAgentTextLog(taskId: string, agentId: string, logName: "screen" | "transcript", text: string): Promise<string>;
-    recordTaskReport(taskId: string, reportName: "planning-report" | "execution-kickoff" | "execution-report", rawText: string, parsedReport: unknown): Promise<{
+    recordTaskReport(taskId: string, reportName: ParentReportName, rawText: string, parsedReport: unknown): Promise<{
         rawPath: string;
         jsonPath: string;
     }>;
+    readAgentResult(taskId: string, agentId: string): Promise<AgentResultRecord>;
+    readTaskReport(taskId: string, reportName: ParentReportName): Promise<TaskReportRecord>;
+    queueParentAlert(taskId: string, input: QueueParentAlertInput): Promise<{
+        alert: ParentAlert;
+        queued: boolean;
+    }>;
+    readParentAlerts(taskId: string, options?: ReadParentAlertsOptions): Promise<ParentAlert[]>;
+    markParentAlertsRead(taskId: string, alertIds?: readonly string[]): Promise<ParentAlert[]>;
+    incrementWaitScope(taskId: string, scopeKey: string): Promise<WaitScopeEntry>;
+    resetWaitScope(taskId: string, scopeKey: string, status?: string): Promise<void>;
+    readWaitState(taskId: string): Promise<DelegationWaitState>;
     pathsForTask(taskId: string): import("./paths.js").DelegationTaskPaths;
     pathsForAgent(taskId: string, agentId: string): import("./paths.js").DelegationAgentPaths;
+    private readParentAlertQueue;
+    private writeParentAlertQueue;
+    private writeWaitState;
+    private parentAgentIdFor;
     private indexPath;
     private buildEvent;
     private upsertIndexEntry;

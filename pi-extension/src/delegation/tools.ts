@@ -1,5 +1,6 @@
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 
 import {
   CmuxAdapter,
@@ -7,6 +8,7 @@ import {
   compileTaskPacket,
   createDelegationStore,
   delegationRootForRepo,
+  parseModelText,
   resolveProfileForRole,
   shellQuote,
   validateSafeId,
@@ -94,6 +96,17 @@ const TARGET_PARAMETERS = {
   required: ["taskId"],
 };
 
+const WAIT_PARAMETERS = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    taskId: NON_EMPTY_STRING_SCHEMA,
+    agentId: STRING_SCHEMA,
+    timeoutMs: { type: "integer", minimum: 1, maximum: 600000 },
+  },
+  required: ["taskId", "timeoutMs"],
+};
+
 const STATUS_PARAMETERS = {
   type: "object",
   additionalProperties: false,
@@ -155,13 +168,13 @@ export function registerDelegationTools(pi: any): void {
     delegationTool("delegate_task_init", "Delegate Task Init", "Create repo-local delegation task state for an orchestrator or parent.", TASK_INIT_PARAMETERS, executeTaskInit),
     delegationTool("delegate_spawn", "Delegate Spawn", "Open a visible cmux pane and start a delegated Pi child after fail-closed preflight.", SPAWN_PARAMETERS, (params: any, signal: AbortSignal | undefined, ctx: any) => executeSpawn(pi, params, signal, ctx)),
     delegationTool("delegate_status", "Delegate Status", "Return compact delegation task/agent/preflight status with no raw transcript dump.", STATUS_PARAMETERS, (params: any, signal: AbortSignal | undefined, ctx: any) => executeStatus(pi, params, signal, ctx)),
-    delegationTool("delegate_wait", "Delegate Wait", "P4 lifecycle surface placeholder for explicit bounded watch mode.", TARGET_PARAMETERS, (params: any, _signal: AbortSignal | undefined, ctx: any) => lifecyclePending("delegate_wait", params, ctx, "P4 owns bounded watch mode, timeout heartbeat, and retry caps.")),
-    delegationTool("delegate_result", "Delegate Result", "P4 lifecycle surface placeholder for compact parsed result retrieval.", TARGET_PARAMETERS, (params: any, _signal: AbortSignal | undefined, ctx: any) => lifecyclePending("delegate_result", params, ctx, "P4 owns result/report retrieval lifecycle beyond stored pointers.")),
+    delegationTool("delegate_wait", "Delegate Wait", "Explicit bounded watch mode for terminal/attention lifecycle changes; timeout is required.", WAIT_PARAMETERS, (params: any, signal: AbortSignal | undefined, ctx: any) => executeWait(params, signal, ctx)),
+    delegationTool("delegate_result", "Delegate Result", "Return compact parsed result/report pointers without raw transcript injection.", TARGET_PARAMETERS, (params: any, _signal: AbortSignal | undefined, ctx: any) => executeResult(params, ctx)),
     delegationTool("delegate_send", "Delegate Send", "Send a bounded note or file-backed follow-up/fix packet to a delegated pane.", SEND_PARAMETERS, (params: any, signal: AbortSignal | undefined, ctx: any) => executeSend(pi, params, signal, ctx)),
     delegationTool("delegate_capture", "Delegate Capture", "Capture a bounded cmux screen snapshot and store it as evidence without dumping raw screens.", CAPTURE_PARAMETERS, (params: any, signal: AbortSignal | undefined, ctx: any) => executeCapture(pi, params, signal, ctx)),
-    delegationTool("delegate_cancel", "Delegate Cancel", "P4 lifecycle surface placeholder for cancellation semantics.", CLOSE_PARAMETERS, (params: any, _signal: AbortSignal | undefined, ctx: any) => lifecyclePending("delegate_cancel", params, ctx, "P4 owns complete cancellation semantics; no pane action was attempted.")),
+    delegationTool("delegate_cancel", "Delegate Cancel", "Cancel a valid delegated target without deleting evidence.", CLOSE_PARAMETERS, (params: any, signal: AbortSignal | undefined, ctx: any) => executeCancel(pi, params, signal, ctx)),
     delegationTool("delegate_close", "Delegate Close", "Close a valid delegated cmux surface while preserving delegation evidence.", CLOSE_PARAMETERS, (params: any, signal: AbortSignal | undefined, ctx: any) => executeClose(pi, params, signal, ctx)),
-    delegationTool("delegate_record_report", "Delegate Record Report", "P4 lifecycle surface placeholder for parent report recording.", REPORT_PARAMETERS, (params: any, _signal: AbortSignal | undefined, ctx: any) => lifecyclePending("delegate_record_report", params, ctx, "P4 owns parent report lifecycle and alerting.")),
+    delegationTool("delegate_record_report", "Delegate Record Report", "Record planning/execution reports and kickoff blocks with deterministic parser evidence.", REPORT_PARAMETERS, (params: any, _signal: AbortSignal | undefined, ctx: any) => executeRecordReport(params, ctx)),
   ];
 
   for (const definition of toolDefinitions) {
@@ -218,7 +231,7 @@ async function executeSpawn(pi: any, params: any, signal: AbortSignal | undefine
   const agentId = validateSafeId(requireString(params.agentId, "agentId"), "agent id");
   const role = requireString(params.role, "role");
   const profile = stringOrUndefined(params.profile) ?? role;
-  const parentAgentId = validateSafeId(stringOrUndefined(params.parentAgentId) ?? "orchestrator", "parent agent id");
+  const parentAgentId = validateSafeId(stringOrUndefined(params.parentAgentId) ?? defaultParentAgentId(), "parent agent id");
   const profileDefinition = resolveProfileForRole(role as any, profile as any);
   const store = createStore(ctx);
   const paths = store.pathsForAgent(taskId, agentId);
@@ -344,7 +357,7 @@ async function executeStatus(pi: any, params: any, signal: AbortSignal | undefin
     status: "ok",
     taskId,
     agentId,
-    unreadParentAlerts: { status: "lifecycle_pending", code: "not_implemented_until_P4" },
+    unreadParentAlerts: [],
   };
 
   if (params.includePreflight === true) {
@@ -353,10 +366,13 @@ async function executeStatus(pi: any, params: any, signal: AbortSignal | undefin
 
   if (taskId === undefined) {
     result.tasks = await readIndexTasks(store.root);
+    result.unreadParentAlerts = await unreadAlertsForIndex(store, result.tasks);
     return result;
   }
 
-  result.paths = { task: store.pathsForTask(taskId).taskJson, registry: store.pathsForTask(taskId).registryJson, events: store.pathsForTask(taskId).eventsJsonl };
+  result.unreadParentAlerts = await store.readParentAlerts(taskId, { unreadOnly: true, ...(agentId !== undefined ? { agentId } : {}) });
+
+  result.paths = { task: store.pathsForTask(taskId).taskJson, registry: store.pathsForTask(taskId).registryJson, events: store.pathsForTask(taskId).eventsJsonl, alerts: store.pathsForTask(taskId).parentAlertsJson };
   try {
     result.task = await store.readTask(taskId);
     result.registry = await store.readRegistry(taskId);
@@ -374,6 +390,141 @@ async function executeStatus(pi: any, params: any, signal: AbortSignal | undefin
     }
   }
   return result;
+}
+
+async function executeWait(params: any, signal: AbortSignal | undefined, ctx: any) {
+  const taskId = validateSafeId(requireString(params.taskId, "taskId"), "task id");
+  const agentId = stringOrUndefined(params.agentId);
+  const timeoutMs = requireTimeoutMs(params.timeoutMs);
+  const store = createStore(ctx);
+  const scopeKey = waitScopeKey(taskId, agentId);
+
+  const target = await readWaitTarget(store, taskId, agentId);
+  if (!target.ok) return target.result;
+
+  const waitEntry = await store.incrementWaitScope(taskId, scopeKey);
+  if (waitEntry.consecutiveWaits > 3) {
+    await store.appendTaskEvent(taskId, { type: "delegate-wait-cap-exceeded", state: target.state, message: `wait retry cap exceeded for ${scopeKey}`, data: { scopeKey, consecutiveWaits: waitEntry.consecutiveWaits } });
+    return {
+      toolStatus: "ok",
+      operation: "delegate_wait",
+      status: "alert_only",
+      code: "wait_retry_cap_exceeded",
+      taskId,
+      agentId,
+      heartbeat: target,
+      route: "stop_polling_use_delegate_status_or_unread_parent_alerts",
+      unreadParentAlerts: await store.readParentAlerts(taskId, { unreadOnly: true, ...(agentId !== undefined ? { agentId } : {}) }),
+      paths: waitPaths(store, taskId, agentId),
+    };
+  }
+
+  const immediate = await waitStopResult(store, taskId, agentId, target, "initial_state");
+  if (immediate !== undefined) {
+    await store.resetWaitScope(taskId, scopeKey, immediate.status);
+    return immediate;
+  }
+
+  const deadline = Date.now() + timeoutMs;
+  let latest = target;
+  while (Date.now() < deadline) {
+    if (signal?.aborted) {
+      return {
+        toolStatus: "ok",
+        operation: "delegate_wait",
+        status: "cancelled",
+        code: "wait_cancelled_by_caller",
+        taskId,
+        agentId,
+        heartbeat: latest,
+        route: "caller_cancelled_watch_check_delegate_status_for_current_state",
+        paths: waitPaths(store, taskId, agentId),
+      };
+    }
+    await sleep(Math.min(250, Math.max(10, deadline - Date.now())), undefined, { signal }).catch(() => undefined);
+    const next = await readWaitTarget(store, taskId, agentId);
+    if (!next.ok) return next.result;
+    latest = next;
+    const stop = await waitStopResult(store, taskId, agentId, latest, "state_change");
+    if (stop !== undefined) {
+      await store.resetWaitScope(taskId, scopeKey, stop.status);
+      return stop;
+    }
+  }
+
+  await store.appendTaskEvent(taskId, { type: "delegate-wait-timeout", state: latest.state, message: `wait timed out after ${timeoutMs}ms`, data: { scopeKey, consecutiveWaits: waitEntry.consecutiveWaits } });
+  return {
+    toolStatus: "ok",
+    operation: "delegate_wait",
+    status: "timeout",
+    code: "wait_timeout_heartbeat",
+    taskId,
+    agentId,
+    timeoutMs,
+    heartbeat: latest,
+    route: "alert_only_or_repeat_wait_only_if_user_explicitly_requests",
+    unreadParentAlerts: await store.readParentAlerts(taskId, { unreadOnly: true, ...(agentId !== undefined ? { agentId } : {}) }),
+    paths: waitPaths(store, taskId, agentId),
+  };
+}
+
+async function executeResult(params: any, ctx: any) {
+  const taskId = validateSafeId(requireString(params.taskId, "taskId"), "task id");
+  const agentId = stringOrUndefined(params.agentId);
+  const store = createStore(ctx);
+
+  if (agentId !== undefined) {
+    const target = await readWaitTarget(store, taskId, agentId, "delegate_result");
+    if (!target.ok) return target.result;
+    const record = await store.readAgentResult(taskId, agentId);
+    if (!record.exists) {
+      return {
+        toolStatus: "ok",
+        operation: "delegate_result",
+        status: isTerminalState(target.state) ? "missing" : "pending",
+        code: isTerminalState(target.state) ? "result_missing" : "result_pending",
+        taskId,
+        agentId,
+        agentStatus: target,
+        paths: evidencePaths(store, taskId, agentId),
+      };
+    }
+    const compact = compactParsedAgentResult(record.parsed);
+    const semantic = parsedAgentResultSemantic(compact, target);
+    return {
+      toolStatus: "ok",
+      operation: "delegate_result",
+      status: semantic.status,
+      code: semantic.code,
+      reason: semantic.reason,
+      taskId,
+      agentId,
+      agentStatus: target,
+      result: compact,
+      paths: evidencePaths(store, taskId, agentId),
+    };
+  }
+
+  try {
+    const task = await store.readTask(taskId);
+    const registry = await store.readRegistry(taskId);
+    const reports = await readTaskReports(store, taskId);
+    const hasAnyReport = reports.some((report: any) => report.exists);
+    return {
+      toolStatus: "ok",
+      operation: "delegate_result",
+      status: hasAnyReport ? "ok" : "missing",
+      code: hasAnyReport ? undefined : "task_reports_missing",
+      taskId,
+      task,
+      agents: registry.agents.map((agent: any) => ({ agentId: agent.agentId, role: agent.role, profile: agent.profile, state: agent.state, updatedAt: agent.updatedAt })),
+      reports,
+      unreadParentAlerts: await store.readParentAlerts(taskId, { unreadOnly: true }),
+      paths: { task: store.pathsForTask(taskId).taskJson, registry: store.pathsForTask(taskId).registryJson, alerts: store.pathsForTask(taskId).parentAlertsJson },
+    };
+  } catch (error) {
+    return typedError("delegate_result", "task_not_found", messageFrom(error), { taskId, paths: { task: store.pathsForTask(taskId).taskJson } });
+  }
 }
 
 async function executeSend(pi: any, params: any, signal: AbortSignal | undefined, ctx: any) {
@@ -422,6 +573,9 @@ async function executeCapture(pi: any, params: any, signal: AbortSignal | undefi
   const store = createStore(ctx);
   const target = await resolveValidTarget(store, taskId, agentId, "delegate_capture");
   if (!target.ok) return target.result;
+  if (target.status.state === "closed") {
+    return typedError("delegate_capture", "target_closed", "target pane is already closed; no screen capture attempted", { taskId, agentId, paths: evidencePaths(store, taskId, agentId) });
+  }
 
   const lines = clampInteger(params.lines, 80, 1, 500);
   const cmux = new CmuxAdapter(createPiCmuxRunner(pi, signal), { cwd: target.manifest.cwd ?? ctx.cwd, timeoutMs: 10_000 });
@@ -430,8 +584,10 @@ async function executeCapture(pi: any, params: any, signal: AbortSignal | undefi
     const outcome = await cmux.readScreen({ surfaceRef: target.manifest.surfaceRef, lines, scrollback: params.scrollback === true, workspaceRef: target.manifest.workspaceRef, windowRef: target.manifest.windowRef });
     captured = outcome.result.stdout;
   } catch (error) {
-    await store.appendAgentEvent(taskId, agentId, { type: "agent-capture-failed", state: target.status.state, message: messageFrom(error) });
-    return typedError("delegate_capture", "cmux_read_screen_failed", messageFrom(error), { taskId, agentId, paths: evidencePaths(store, taskId, agentId) });
+    await store.appendAgentEvent(taskId, agentId, { type: "agent-capture-failed", state: "blocked", message: messageFrom(error), data: { previousState: target.status.state } });
+    await store.appendTaskEvent(taskId, { type: "agent-capture-failed", state: "blocked", message: `${agentId} capture failed`, data: { agentId, previousState: target.status.state, error: messageFrom(error) } });
+    await store.queueParentAlert(taskId, { agentId, outcome: "blocked", state: "blocked", eventType: "agent-capture-failed", message: `${agentId} capture failed`, data: { error: messageFrom(error) } });
+    return typedError("delegate_capture", "cmux_read_screen_failed", messageFrom(error), { status: "blocked", taskId, agentId, paths: evidencePaths(store, taskId, agentId) });
   }
 
   const snapshotAt = new Date().toISOString();
@@ -456,6 +612,123 @@ async function executeCapture(pi: any, params: any, signal: AbortSignal | undefi
   };
 }
 
+async function executeCancel(pi: any, params: any, signal: AbortSignal | undefined, ctx: any) {
+  const taskId = validateSafeId(requireString(params.taskId, "taskId"), "task id");
+  const agentId = validateSafeId(requireString(params.agentId, "agentId"), "agent id");
+  const store = createStore(ctx);
+  const target = await resolveValidTarget(store, taskId, agentId, "delegate_cancel");
+  if (!target.ok) return target.result;
+
+  if (target.status.state === "closed") {
+    return {
+      toolStatus: "ok",
+      operation: "delegate_cancel",
+      status: "closed",
+      code: "already_closed",
+      taskId,
+      agentId,
+      actionTaken: "no_pane_action_attempted_target_already_closed",
+      paths: evidencePaths(store, taskId, agentId),
+    };
+  }
+  if (target.status.state === "cancelled") {
+    return {
+      toolStatus: "ok",
+      operation: "delegate_cancel",
+      status: "cancelled",
+      code: "already_cancelled",
+      taskId,
+      agentId,
+      actionTaken: "no_pane_action_attempted_target_already_cancelled",
+      paths: evidencePaths(store, taskId, agentId),
+    };
+  }
+
+  const cmux = new CmuxAdapter(createPiCmuxRunner(pi, signal), { cwd: target.manifest.cwd ?? ctx.cwd, timeoutMs: 10_000 });
+  try {
+    await cmux.sendKey({ surfaceRef: target.manifest.surfaceRef, text: "", key: "ctrl-c", workspaceRef: target.manifest.workspaceRef, windowRef: target.manifest.windowRef });
+  } catch (error) {
+    await store.appendAgentEvent(taskId, agentId, { type: "agent-cancel-failed", state: "blocked", message: messageFrom(error), data: { previousState: target.status.state } });
+    await store.appendTaskEvent(taskId, { type: "agent-cancel-failed", state: "blocked", message: `${agentId} cancel failed`, data: { agentId, previousState: target.status.state, error: messageFrom(error) } });
+    await store.queueParentAlert(taskId, { agentId, outcome: "blocked", state: "blocked", eventType: "agent-cancel-failed", message: `${agentId} cancel failed`, data: { error: messageFrom(error) } });
+    return typedError("delegate_cancel", "cmux_cancel_failed", messageFrom(error), { status: "blocked", taskId, agentId, paths: evidencePaths(store, taskId, agentId) });
+  }
+
+  const status = await store.writeAgentStatus(taskId, agentId, { state: "cancelled", message: "cancel requested; evidence preserved" });
+  const event = await store.appendAgentEvent(taskId, agentId, { type: "agent-cancelled", state: "cancelled", message: "cancel requested; evidence preserved", data: { previousState: target.status.state, surfaceRef: target.manifest.surfaceRef } });
+  await store.appendTaskEvent(taskId, { type: "agent-cancelled", state: "cancelled", message: `${agentId} cancelled`, data: { agentId, previousState: target.status.state, surfaceRef: target.manifest.surfaceRef } });
+  const alert = await store.queueParentAlert(taskId, { agentId, outcome: "cancelled", state: "cancelled", eventType: "agent-cancelled", sourceEventId: event.eventId, message: `${agentId} cancelled`, evidence: { jsonPath: store.pathsForAgent(taskId, agentId).statusJson } });
+  return {
+    toolStatus: "ok",
+    operation: "delegate_cancel",
+    status: status.state,
+    taskId,
+    agentId,
+    actionTaken: "cmux_ctrl_c_sent_cancelled_state_recorded_evidence_preserved",
+    alert: compactAlert(alert.alert),
+    cmux: { surfaceRef: target.manifest.surfaceRef, paneRef: target.manifest.paneRef, workspaceRef: target.manifest.workspaceRef, windowRef: target.manifest.windowRef },
+    paths: evidencePaths(store, taskId, agentId),
+  };
+}
+
+async function executeRecordReport(params: any, ctx: any) {
+  const taskId = validateSafeId(requireString(params.taskId, "taskId"), "task id");
+  const reportName = requireString(params.reportName, "reportName");
+  const rawText = stringOrUndefined(params.rawText) ?? "";
+  if (!["planning-report", "execution-kickoff", "execution-report"].includes(reportName)) {
+    return typedError("delegate_record_report", "invalid_report_name", `unsupported report name: ${reportName}`, { taskId });
+  }
+  const store = createStore(ctx);
+  await store.initTask({ taskId });
+  const parsed = parseModelText(rawText);
+  const reportsByName: any = {
+    "planning-report": parsed.planningReports,
+    "execution-kickoff": parsed.executionKickoffs,
+    "execution-report": parsed.executionReports,
+  };
+  const report = reportsByName[reportName]?.[0];
+  if (!parsed.ok || report === undefined) {
+    const errors = compactErrors(report === undefined ? [{ lineNumber: 1, message: `${reportName} block was not found` }, ...parsed.errors] : parsed.errors);
+    const failureRecord = {
+      ok: false,
+      reportName,
+      errors,
+    };
+    const paths = await store.recordTaskReport(taskId, reportName as any, rawText, failureRecord);
+    const state = reportName === "execution-kickoff" ? "attention" : "failed";
+    const event = await store.appendTaskEvent(taskId, { type: "task-report-malformed", state: state as any, message: `${reportName} malformed`, data: { reportName, rawPath: paths.rawPath, jsonPath: paths.jsonPath, errors } });
+    const alert = await store.queueParentAlert(taskId, { outcome: (state === "failed" ? "failed" : "attention") as any, state: state as any, eventType: "task-report-malformed", sourceEventId: event.eventId, message: `${reportName} malformed`, evidence: { rawPath: paths.rawPath, jsonPath: paths.jsonPath } });
+    return {
+      toolStatus: "ok",
+      operation: "delegate_record_report",
+      status: state,
+      code: "report_malformed",
+      taskId,
+      reportName,
+      errors: failureRecord.errors,
+      alert: compactAlert(alert.alert),
+      paths: { raw: paths.rawPath, json: paths.jsonPath, alerts: store.pathsForTask(taskId).parentAlertsJson },
+    };
+  }
+
+  const paths = await store.recordTaskReport(taskId, reportName as any, report.rawText, report);
+  const reportStatus = report.status;
+  const state = stateForRecordedReport(reportName, reportStatus);
+  const outcome = alertOutcomeForRecordedReport(reportName, reportStatus, state);
+  const event = await store.appendTaskEvent(taskId, { type: `task-${reportName}`, state: state as any, message: `${reportName} recorded${reportStatus ? `: ${reportStatus}` : ""}`, data: { reportName, status: reportStatus, rawPath: paths.rawPath, jsonPath: paths.jsonPath } });
+  const alert = outcome === undefined ? undefined : await store.queueParentAlert(taskId, { outcome: outcome as any, state: state as any, status: reportStatus, eventType: `task-${reportName}`, sourceEventId: event.eventId, message: `${reportName} recorded${reportStatus ? `: ${reportStatus}` : ""}`, evidence: { rawPath: paths.rawPath, jsonPath: paths.jsonPath } });
+  return {
+    toolStatus: "ok",
+    operation: "delegate_record_report",
+    status: state,
+    reportStatus,
+    taskId,
+    reportName,
+    alert: alert ? compactAlert(alert.alert) : undefined,
+    paths: { raw: paths.rawPath, json: paths.jsonPath, alerts: store.pathsForTask(taskId).parentAlertsJson },
+  };
+}
+
 async function executeClose(pi: any, params: any, signal: AbortSignal | undefined, ctx: any) {
   const taskId = validateSafeId(requireString(params.taskId, "taskId"), "task id");
   const agentId = validateSafeId(requireString(params.agentId, "agentId"), "agent id");
@@ -463,12 +736,27 @@ async function executeClose(pi: any, params: any, signal: AbortSignal | undefine
   const target = await resolveValidTarget(store, taskId, agentId, "delegate_close");
   if (!target.ok) return target.result;
 
+  if (target.status.state === "closed") {
+    return {
+      toolStatus: "ok",
+      operation: "delegate_close",
+      status: "closed",
+      code: "already_closed",
+      taskId,
+      agentId,
+      actionTaken: "no_pane_action_attempted_target_already_closed",
+      paths: evidencePaths(store, taskId, agentId),
+    };
+  }
+
   const cmux = new CmuxAdapter(createPiCmuxRunner(pi, signal), { cwd: target.manifest.cwd ?? ctx.cwd, timeoutMs: 10_000 });
   try {
     await cmux.closeSurface({ surfaceRef: target.manifest.surfaceRef, workspaceRef: target.manifest.workspaceRef, windowRef: target.manifest.windowRef });
   } catch (error) {
-    await store.appendAgentEvent(taskId, agentId, { type: "agent-close-failed", state: target.status.state, message: messageFrom(error) });
-    return typedError("delegate_close", "cmux_close_surface_failed", messageFrom(error), { taskId, agentId, paths: evidencePaths(store, taskId, agentId) });
+    await store.appendAgentEvent(taskId, agentId, { type: "agent-close-failed", state: "blocked", message: messageFrom(error), data: { previousState: target.status.state } });
+    await store.appendTaskEvent(taskId, { type: "agent-close-failed", state: "blocked", message: `${agentId} close failed`, data: { agentId, previousState: target.status.state, error: messageFrom(error) } });
+    await store.queueParentAlert(taskId, { agentId, outcome: "blocked", state: "blocked", eventType: "agent-close-failed", message: `${agentId} close failed`, data: { error: messageFrom(error) } });
+    return typedError("delegate_close", "cmux_close_surface_failed", messageFrom(error), { status: "blocked", taskId, agentId, paths: evidencePaths(store, taskId, agentId) });
   }
 
   const status = await store.writeAgentStatus(taskId, agentId, { state: "closed", message: "cmux surface closed; evidence preserved" });
@@ -480,28 +768,304 @@ async function executeClose(pi: any, params: any, signal: AbortSignal | undefine
     status: status.state,
     taskId,
     agentId,
-    actionTaken: "cmux_close_surface_called_evidence_preserved",
+    actionTaken: target.status.state === "cancelled" ? "cmux_close_surface_called_for_cancelled_target_evidence_preserved" : "cmux_close_surface_called_evidence_preserved",
+    previousState: target.status.state,
     cmux: { surfaceRef: target.manifest.surfaceRef, paneRef: target.manifest.paneRef, workspaceRef: target.manifest.workspaceRef, windowRef: target.manifest.windowRef },
-    lifecycle: { status: "minimal_p3_transition", deferred: "P4 owns full cancel/close lifecycle and parent alert semantics." },
     paths: evidencePaths(store, taskId, agentId),
   };
 }
 
-async function lifecyclePending(operation: string, params: any, ctx: any, reason: string) {
-  const store = createStore(ctx);
-  const taskId = stringOrUndefined(params.taskId);
-  const agentId = stringOrUndefined(params.agentId);
+async function readWaitTarget(store: any, taskId: string, agentId: string | undefined, operation = "delegate_wait"): Promise<any> {
+  try {
+    if (agentId !== undefined) {
+      const status = await store.readAgentStatus(taskId, agentId);
+      return {
+        ok: true,
+        taskId,
+        agentId,
+        state: status.state,
+        message: status.message,
+        reason: status.reason,
+        updatedAt: status.updatedAt,
+      };
+    }
+    const task = await store.readTask(taskId);
+    const registry = await store.readRegistry(taskId);
+    return {
+      ok: true,
+      taskId,
+      state: task.state,
+      message: task.goal,
+      updatedAt: task.updatedAt,
+      agents: registry.agents.map((agent: any) => ({ agentId: agent.agentId, role: agent.role, profile: agent.profile, state: agent.state, updatedAt: agent.updatedAt })),
+    };
+  } catch (error) {
+    return { ok: false, result: typedError(operation, agentId === undefined ? "task_not_found" : "agent_not_found", messageFrom(error), { taskId, agentId }) };
+  }
+}
+
+async function waitStopResult(store: any, taskId: string, agentId: string | undefined, target: any, reason: string): Promise<any | undefined> {
+  const alerts = await store.readParentAlerts(taskId, { unreadOnly: true, ...(agentId !== undefined ? { agentId } : {}) });
+  const terminalAlert = alerts.find((alert: any) => isTerminalAlertOutcome(alert.outcome));
+  if (terminalAlert !== undefined) {
+    return {
+      toolStatus: "ok",
+      operation: "delegate_wait",
+      status: terminalAlert.outcome,
+      code: "terminal_alert",
+      taskId,
+      agentId,
+      reason,
+      heartbeat: target,
+      unreadParentAlerts: alerts,
+      route: terminalAlert.outcome === "completed" || terminalAlert.outcome === "completed_with_risks" ? "read_delegate_result" : "inspect_delegate_result_or_status",
+      paths: waitPaths(store, taskId, agentId),
+    };
+  }
+
+  const terminalChild = agentId === undefined ? terminalAgentFromTarget(target) : undefined;
+  if (terminalChild !== undefined) {
+    return {
+      toolStatus: "ok",
+      operation: "delegate_wait",
+      status: terminalChild.state,
+      code: "terminal_child_state",
+      taskId,
+      agentId,
+      reason,
+      heartbeat: target,
+      terminalAgent: terminalChild,
+      unreadParentAlerts: alerts,
+      route: terminalChild.state === "completed" ? "read_delegate_result" : "inspect_delegate_result_or_status",
+      paths: waitPaths(store, taskId, agentId),
+    };
+  }
+
+  const attentionAlert = alerts.find((alert: any) => alert.outcome === "attention" || alert.outcome === "capability_gap");
+  const attentionChild = agentId === undefined ? attentionAgentFromTarget(target) : undefined;
+  if (attentionAlert !== undefined || target.state === "attention" || target.state === "waiting_for_parent" || attentionChild !== undefined) {
+    return {
+      toolStatus: "ok",
+      operation: "delegate_wait",
+      status: attentionAlert?.outcome ?? "attention",
+      code: attentionAlert?.outcome === "capability_gap" ? "capability_gap" : "attention_required",
+      taskId,
+      agentId,
+      reason,
+      heartbeat: target,
+      attentionAgent: attentionChild,
+      unreadParentAlerts: alerts,
+      route: "inspect_delegate_result_or_send_bounded_steer",
+      paths: waitPaths(store, taskId, agentId),
+    };
+  }
+  if (isTerminalState(target.state)) {
+    return {
+      toolStatus: "ok",
+      operation: "delegate_wait",
+      status: target.state,
+      code: "terminal_state",
+      taskId,
+      agentId,
+      reason,
+      heartbeat: target,
+      unreadParentAlerts: alerts,
+      route: target.state === "completed" ? "read_delegate_result" : "inspect_delegate_result_or_status",
+      paths: waitPaths(store, taskId, agentId),
+    };
+  }
+  return undefined;
+}
+
+function waitPaths(store: any, taskId: string, agentId: string | undefined) {
+  if (agentId !== undefined) {
+    return evidencePaths(store, taskId, agentId);
+  }
+  return { task: store.pathsForTask(taskId).taskJson, registry: store.pathsForTask(taskId).registryJson, alerts: store.pathsForTask(taskId).parentAlertsJson, waitState: store.pathsForTask(taskId).waitStateJson };
+}
+
+async function readTaskReports(store: any, taskId: string): Promise<any[]> {
+  const names = ["planning-report", "execution-kickoff", "execution-report"];
+  const reports = [];
+  for (const name of names) {
+    const record = await store.readTaskReport(taskId, name);
+    reports.push({
+      reportName: name,
+      exists: record.exists,
+      status: record.exists ? "ok" : "missing",
+      report: record.exists ? compactParsedReport(record.parsed) : undefined,
+      paths: { raw: record.rawPath, json: record.jsonPath },
+    });
+  }
+  return reports;
+}
+
+async function unreadAlertsForIndex(store: any, tasks: any[]): Promise<any[]> {
+  const alerts: any[] = [];
+  for (const task of tasks) {
+    try {
+      alerts.push(...await store.readParentAlerts(task.taskId, { unreadOnly: true }));
+    } catch {
+      // Ignore stale/corrupt task entries in compact status output.
+    }
+  }
+  return alerts;
+}
+
+function compactParsedAgentResult(parsed: any) {
+  const results = Array.isArray(parsed?.results) ? parsed.results.map(compactFFResult) : [];
   return {
-    toolStatus: "ok",
-    operation,
-    status: "lifecycle_pending",
-    code: "not_implemented_until_P4",
-    reason,
-    actionTaken: "no_pane_action_attempted",
-    taskId,
-    agentId,
-    paths: taskId && agentId ? evidencePaths(store, taskId, agentId) : taskId ? { task: store.pathsForTask(taskId).taskJson, registry: store.pathsForTask(taskId).registryJson } : { store: store.root },
+    ok: Boolean(parsed?.ok),
+    status: results[0]?.status ?? (parsed?.ok === false ? "malformed" : "pending"),
+    results,
+    statuses: compactSignals(parsed?.statuses),
+    attentions: compactSignals(parsed?.attentions),
+    errors: compactErrors(parsed?.errors),
+    reports: {
+      planning: Array.isArray(parsed?.planningReports) ? parsed.planningReports.map(compactParsedReport) : [],
+      executionKickoff: Array.isArray(parsed?.executionKickoffs) ? parsed.executionKickoffs.map(compactParsedReport) : [],
+      execution: Array.isArray(parsed?.executionReports) ? parsed.executionReports.map(compactParsedReport) : [],
+    },
   };
+}
+
+function parsedAgentResultSemantic(compact: any, target: any): { status: string; code?: string; reason?: string } {
+  if (compact.ok === false) {
+    return { status: "malformed", code: "result_malformed", reason: firstErrorMessage(compact) ?? target.reason ?? target.message };
+  }
+  if (hasUsableParsedTerminalOutput(compact)) {
+    return { status: "ok" };
+  }
+  if (String(target.reason ?? "").includes("malformed") || String(target.message ?? "").includes("malformed")) {
+    return { status: "malformed", code: "result_malformed", reason: target.reason ?? target.message };
+  }
+  if (String(target.reason ?? "").includes("missing required") || String(target.message ?? "").includes("required delegated terminal output was not found")) {
+    return { status: "missing", code: "required_output_missing", reason: target.reason ?? target.message };
+  }
+  if (isTerminalState(target.state)) {
+    return { status: "missing", code: "terminal_result_missing", reason: target.reason ?? target.message };
+  }
+  if (target.state === "attention" || target.state === "waiting_for_parent") {
+    return { status: "missing", code: "attention_without_parsed_result", reason: target.reason ?? target.message };
+  }
+  return { status: "pending", code: "result_pending" };
+}
+
+function hasUsableParsedTerminalOutput(compact: any): boolean {
+  if (Array.isArray(compact.results) && compact.results.length > 0) return true;
+  const reports = compact.reports ?? {};
+  return [reports.planning, reports.executionKickoff, reports.execution].some((items) => Array.isArray(items) && items.length > 0);
+}
+
+function firstErrorMessage(compact: any): string | undefined {
+  return Array.isArray(compact.errors) ? compact.errors.find((error: any) => typeof error?.message === "string")?.message : undefined;
+}
+
+function compactParsedReport(report: any) {
+  if (!report || typeof report !== "object") return undefined;
+  return {
+    kind: report.kind,
+    status: report.status,
+    startLine: report.startLine,
+    endLine: report.endLine,
+    fields: compactFieldMap(report.fields),
+  };
+}
+
+function compactFFResult(result: any) {
+  return {
+    status: result.status,
+    summary: result.summary,
+    filesChanged: result.filesChanged,
+    filesRead: result.filesRead,
+    toolsUsed: result.toolsUsed,
+    checks: compactRows(result.checks),
+    evidence: compactRows(result.evidence),
+    blockers: result.blockers,
+    requests: result.requests,
+    uncertainty: result.uncertainty,
+    recommendation: result.recommendation,
+  };
+}
+
+function compactRows(rows: any): any[] {
+  return Array.isArray(rows) ? rows.map((row: any) => ({ tag: row.tag, fields: row.fields, lineNumber: row.lineNumber })) : [];
+}
+
+function compactSignals(signals: any): any[] {
+  return Array.isArray(signals) ? signals.map((signal: any) => ({ kind: signal.kind, state: signal.state, message: signal.message, lineNumber: signal.lineNumber, attributes: signal.attributes })) : [];
+}
+
+function compactErrors(errors: any): any[] {
+  return Array.isArray(errors) ? errors.map((error: any) => ({ lineNumber: error.lineNumber, message: error.message, blockKind: error.blockKind })) : [];
+}
+
+function compactFieldMap(fields: any): any {
+  if (!fields || typeof fields !== "object") return undefined;
+  const output: any = {};
+  for (const [key, rows] of Object.entries(fields)) {
+    output[key] = Array.isArray(rows) ? rows.slice(0, 5) : rows;
+  }
+  return output;
+}
+
+function compactAlert(alert: any): any {
+  if (!alert) return undefined;
+  return {
+    alertId: alert.alertId,
+    taskId: alert.taskId,
+    agentId: alert.agentId,
+    parentAgentId: alert.parentAgentId,
+    outcome: alert.outcome,
+    state: alert.state,
+    status: alert.status,
+    message: alert.message,
+    evidence: alert.evidence,
+    createdAt: alert.createdAt,
+  };
+}
+
+function stateForRecordedReport(reportName: string, status: string | undefined): string {
+  if (reportName === "execution-kickoff") return "running";
+  if (status === "blocked") return "blocked";
+  if (status === "failed") return "failed";
+  return "completed";
+}
+
+function alertOutcomeForRecordedReport(reportName: string, status: string | undefined, state: string): string | undefined {
+  if (reportName === "execution-kickoff") return undefined;
+  if (status === "completed_with_risks" || status === "ready_with_open_questions") return "completed_with_risks";
+  if (state === "completed") return "completed";
+  if (state === "blocked" || state === "failed") return state;
+  return undefined;
+}
+
+function isTerminalState(state: string | undefined): boolean {
+  return state === "completed" || state === "blocked" || state === "failed" || state === "cancelled" || state === "closed";
+}
+
+function isTerminalAlertOutcome(outcome: string | undefined): boolean {
+  return outcome === "completed" || outcome === "completed_with_risks" || outcome === "blocked" || outcome === "failed" || outcome === "cancelled";
+}
+
+function terminalAgentFromTarget(target: any): any | undefined {
+  return Array.isArray(target?.agents) ? target.agents.find((agent: any) => isTerminalState(agent.state)) : undefined;
+}
+
+function attentionAgentFromTarget(target: any): any | undefined {
+  return Array.isArray(target?.agents) ? target.agents.find((agent: any) => agent.state === "attention" || agent.state === "waiting_for_parent") : undefined;
+}
+
+function waitScopeKey(taskId: string, agentId: string | undefined): string {
+  return agentId === undefined ? `task:${taskId}` : `agent:${taskId}:${agentId}`;
+}
+
+function requireTimeoutMs(value: unknown): number {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    throw new Error("timeoutMs is required and must be a positive integer");
+  }
+  return Math.floor(numeric);
 }
 
 function createPiCmuxRunner(pi: any, signal: AbortSignal | undefined) {
@@ -542,6 +1106,10 @@ async function resolveValidTarget(store: any, taskId: string, agentId: string, o
   }
 }
 
+function defaultParentAgentId(): string {
+  return stringOrUndefined(process.env.FREEFLOW_DELEGATION_AGENT_ID) ?? "orchestrator";
+}
+
 function buildChildPiLaunchCommand(input: { cwd: string; storeRoot: string; taskId: string; agentId: string; parentAgentId: string; role: string; profile: string; packetPath: string; noSession: boolean }): string {
   const env = [
     ["FREEFLOW_DELEGATION_STORE", input.storeRoot],
@@ -557,8 +1125,9 @@ function buildChildPiLaunchCommand(input: { cwd: string; storeRoot: string; task
 
 async function markAgentFailed(store: any, taskId: string, agentId: string, message: string, error: unknown): Promise<void> {
   await store.writeAgentStatus(taskId, agentId, { state: "failed", message, reason: messageFrom(error) });
-  await store.appendAgentEvent(taskId, agentId, { type: "agent-start-failed", state: "failed", message, data: { error: messageFrom(error) } });
+  const event = await store.appendAgentEvent(taskId, agentId, { type: "agent-start-failed", state: "failed", message, data: { error: messageFrom(error) } });
   await store.appendTaskEvent(taskId, { type: "agent-start-failed", state: "failed", message: `${agentId}: ${message}`, data: { agentId, error: messageFrom(error) } });
+  await store.queueParentAlert(taskId, { agentId, outcome: "failed", state: "failed", eventType: "agent-start-failed", sourceEventId: event.eventId, message: `${agentId}: ${message}`, data: { error: messageFrom(error) } });
 }
 
 function createStore(ctx: any) {
@@ -643,6 +1212,8 @@ function evidencePaths(store: any, taskId: string, agentId: string) {
     transcript: paths.transcriptLog,
     screen: paths.screenLog,
     events: paths.eventsJsonl,
+    alerts: store.pathsForTask(taskId).parentAlertsJson,
+    waitState: store.pathsForTask(taskId).waitStateJson,
   };
 }
 

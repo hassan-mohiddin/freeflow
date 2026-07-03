@@ -323,6 +323,62 @@ test("assistant FFRESULT is parsed, raw text is preserved, and terminal events a
       const taskEvents = await readJsonLines(store.pathsForTask("TASK-P2").eventsJsonl);
       assert.ok(agentEvents.some((event) => event.type === "agent-result" && event.state === "completed"));
       assert.ok(taskEvents.some((event) => event.type === "agent-result" && event.data.agentId === "worker-1"));
+      const alerts = await store.readParentAlerts("TASK-P2", { unreadOnly: true });
+      assert.equal(alerts.length, 1);
+      assert.equal(alerts[0].outcome, "completed");
+      assert.equal(alerts[0].agentId, "worker-1");
+      assert.match(alerts[0].evidence.jsonPath, /result\.json$/);
+    });
+  });
+});
+
+test("final worker message without required FFRESULT fails and delegate_result is non-ok", async () => {
+  await withTempRepo(async (repoRoot) => {
+    const store = await createWorkerStore(repoRoot);
+    await withDelegationEnv(envFor(store), async () => {
+      const { handlers, tools } = loadExtension();
+      const raw = "I finished the task, but forgot the required result block.";
+
+      await handlers.get("message_end")(
+        { message: { role: "assistant", content: [{ type: "text", text: raw }], stopReason: "stop" } },
+        context(repoRoot),
+      );
+
+      const status = await readJson(store.pathsForAgent("TASK-P2", "worker-1").statusJson);
+      assert.equal(status.state, "failed");
+      assert.equal(status.reason, "missing required delegated output");
+      const alerts = await store.readParentAlerts("TASK-P2", { unreadOnly: true });
+      assert.equal(alerts.length, 1);
+      assert.equal(alerts[0].outcome, "failed");
+
+      const resultTool = tools.find((tool) => tool.name === "delegate_result");
+      const result = await resultTool.execute("result-missing", { taskId: "TASK-P2", agentId: "worker-1" }, undefined, undefined, context(repoRoot));
+      assert.equal(result.details.result.status, "missing");
+      assert.equal(result.details.result.code, "required_output_missing");
+      assert.equal(result.details.result.result.status, "pending");
+      assert.doesNotMatch(result.content[0].text, /forgot the required result block/);
+    });
+  });
+});
+
+test("FFATTENTION queues one parent alert and pauses the child waiting for parent", async () => {
+  await withTempRepo(async (repoRoot) => {
+    const store = await createWorkerStore(repoRoot);
+    await withDelegationEnv(envFor(store), async () => {
+      const { handlers } = loadExtension();
+
+      await handlers.get("message_end")(
+        { message: { role: "assistant", content: [{ type: "text", text: "FFATTENTION|needs_parent|Need scope decision|route=parent" }], stopReason: "toolUse" } },
+        context(repoRoot),
+      );
+
+      const status = await readJson(store.pathsForAgent("TASK-P2", "worker-1").statusJson);
+      assert.equal(status.state, "waiting_for_parent");
+      assert.equal(status.message, "Need scope decision");
+      const alerts = await store.readParentAlerts("TASK-P2", { unreadOnly: true });
+      assert.equal(alerts.length, 1);
+      assert.equal(alerts[0].outcome, "attention");
+      assert.equal(alerts[0].message, "Need scope decision");
     });
   });
 });
@@ -343,6 +399,7 @@ test("routine FFSTATUS stays agent-store-only while malformed status and termina
       let taskEvents = await readJsonLines(store.pathsForTask("TASK-P2").eventsJsonl);
       assert.ok(agentEvents.some((event) => event.type === "agent-status"));
       assert.equal(taskEvents.some((event) => event.type === "agent-status"), false);
+      assert.equal((await store.readParentAlerts("TASK-P2", { unreadOnly: true })).length, 0);
 
       await handlers.get("message_end")(
         { message: { role: "assistant", content: [{ type: "text", text: "FFSTATUS|mystery|Unknown status typo|step=2" }], stopReason: "toolUse" } },
@@ -360,6 +417,9 @@ test("routine FFSTATUS stays agent-store-only while malformed status and termina
       assert.match(malformedStatus.data.rawPath, /assistant-[a-f0-9]{16}\.raw\.txt$/);
       assert.equal(malformedStatus.data.lineNumber, 1);
       assert.ok(taskEvents.some((event) => event.type === "agent-status-malformed" && event.state === "attention"));
+      let alerts = await store.readParentAlerts("TASK-P2", { unreadOnly: true });
+      assert.equal(alerts.length, 1);
+      assert.equal(alerts[0].outcome, "attention");
 
       const malformed = [
         "FFRESULT",
@@ -381,6 +441,8 @@ test("routine FFSTATUS stays agent-store-only while malformed status and termina
       assert.ok(malformedEvent);
       assert.match(malformedEvent.data.rawPath, /assistant-[a-f0-9]{16}\.raw\.txt$/);
       assert.ok(taskEvents.some((event) => event.type === "agent-output-malformed"));
+      alerts = await store.readParentAlerts("TASK-P2", { unreadOnly: true });
+      assert.ok(alerts.some((alert) => alert.outcome === "failed"));
     });
   });
 });

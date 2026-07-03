@@ -58,6 +58,14 @@ export class DelegationStore {
         }
         await ensureTextFile(paths.eventsJsonl, "");
         await ensureTextFile(paths.decisionsMd, "");
+        if (!(await fileExists(paths.parentAlertsJson))) {
+            const queue = { version: 1, taskId, alerts: [], updatedAt: this.now() };
+            await writeJson(paths.parentAlertsJson, queue);
+        }
+        if (!(await fileExists(paths.waitStateJson))) {
+            const waitState = { version: 1, taskId, scopes: [], updatedAt: this.now() };
+            await writeJson(paths.waitStateJson, waitState);
+        }
         await this.upsertIndexEntry(task, paths.taskDir);
         return task;
     }
@@ -234,18 +242,189 @@ export class DelegationStore {
         await writeJson(jsonPath, parsedReport);
         return { rawPath, jsonPath };
     }
+    async readAgentResult(taskId, agentId) {
+        const paths = agentPaths(this.root, taskId, agentId);
+        if (!(await fileExists(paths.resultJson))) {
+            return { exists: false, rawPath: paths.resultRaw, jsonPath: paths.resultJson };
+        }
+        return {
+            exists: true,
+            rawPath: paths.resultRaw,
+            jsonPath: paths.resultJson,
+            parsed: await readJson(paths.resultJson),
+        };
+    }
+    async readTaskReport(taskId, reportName) {
+        const paths = taskPaths(this.root, taskId);
+        const rawByName = {
+            "planning-report": paths.planningReportRaw,
+            "execution-kickoff": paths.executionKickoffRaw,
+            "execution-report": paths.executionReportRaw,
+        };
+        const jsonByName = {
+            "planning-report": paths.planningReportJson,
+            "execution-kickoff": paths.executionKickoffJson,
+            "execution-report": paths.executionReportJson,
+        };
+        const rawPath = rawByName[reportName];
+        const jsonPath = jsonByName[reportName];
+        if (!(await fileExists(jsonPath))) {
+            return { exists: false, rawPath, jsonPath };
+        }
+        return { exists: true, rawPath, jsonPath, parsed: await readJson(jsonPath) };
+    }
+    async queueParentAlert(taskId, input) {
+        const safeTaskId = validateSafeId(taskId, "task id");
+        const queue = await this.readParentAlertQueue(safeTaskId);
+        const timestamp = this.now();
+        const state = input.state ?? stateForAlertOutcome(input.outcome);
+        const agentId = input.agentId !== undefined ? validateSafeId(input.agentId, "agent id") : undefined;
+        let parentAgentId = input.parentAgentId !== undefined ? validateSafeId(input.parentAgentId, "parent agent id") : undefined;
+        if (parentAgentId === undefined && agentId !== undefined) {
+            parentAgentId = await this.parentAgentIdFor(safeTaskId, agentId);
+        }
+        const dedupeKey = input.dedupeKey ?? alertDedupeKey({ taskId: safeTaskId, agentId, parentAgentId, outcome: input.outcome, state, status: input.status, eventType: input.eventType, sourceEventId: input.sourceEventId, message: input.message });
+        const existing = queue.alerts.find((alert) => alert.dedupeKey === dedupeKey && alert.readAt === undefined);
+        if (existing !== undefined) {
+            existing.updatedAt = timestamp;
+            if (input.message !== undefined)
+                existing.message = input.message;
+            if (input.evidence !== undefined)
+                existing.evidence = stripUndefined(input.evidence);
+            if (input.data !== undefined)
+                existing.data = input.data;
+            await this.writeParentAlertQueue(safeTaskId, { ...queue, updatedAt: timestamp });
+            return { alert: existing, queued: false };
+        }
+        const alert = {
+            alertId: alertIdFromParts(timestamp, safeTaskId, agentId, input.outcome, queue.alerts.length + 1),
+            dedupeKey,
+            taskId: safeTaskId,
+            outcome: input.outcome,
+            state,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+        };
+        if (agentId !== undefined)
+            alert.agentId = agentId;
+        if (parentAgentId !== undefined)
+            alert.parentAgentId = parentAgentId;
+        if (input.status !== undefined)
+            alert.status = input.status;
+        if (input.eventType !== undefined)
+            alert.eventType = input.eventType;
+        if (input.message !== undefined)
+            alert.message = input.message;
+        if (input.evidence !== undefined)
+            alert.evidence = stripUndefined(input.evidence);
+        if (input.data !== undefined)
+            alert.data = input.data;
+        queue.alerts.push(alert);
+        await this.writeParentAlertQueue(safeTaskId, { ...queue, updatedAt: timestamp });
+        return { alert, queued: true };
+    }
+    async readParentAlerts(taskId, options = {}) {
+        const queue = await this.readParentAlertQueue(taskId);
+        return queue.alerts.filter((alert) => {
+            if (options.unreadOnly === true && alert.readAt !== undefined)
+                return false;
+            if (options.agentId !== undefined && alert.agentId !== options.agentId)
+                return false;
+            if (options.parentAgentId !== undefined && alert.parentAgentId !== options.parentAgentId)
+                return false;
+            return true;
+        });
+    }
+    async markParentAlertsRead(taskId, alertIds = []) {
+        const safeTaskId = validateSafeId(taskId, "task id");
+        const queue = await this.readParentAlertQueue(safeTaskId);
+        const timestamp = this.now();
+        const ids = new Set(alertIds);
+        const readAlerts = [];
+        for (const alert of queue.alerts) {
+            if (alert.readAt !== undefined)
+                continue;
+            if (ids.size > 0 && !ids.has(alert.alertId))
+                continue;
+            alert.readAt = timestamp;
+            alert.updatedAt = timestamp;
+            readAlerts.push(alert);
+        }
+        await this.writeParentAlertQueue(safeTaskId, { ...queue, updatedAt: timestamp });
+        return readAlerts;
+    }
+    async incrementWaitScope(taskId, scopeKey) {
+        const safeTaskId = validateSafeId(taskId, "task id");
+        const safeScopeKey = validateScopeKey(scopeKey);
+        const waitState = await this.readWaitState(safeTaskId);
+        const timestamp = this.now();
+        const existing = waitState.scopes.find((scope) => scope.scopeKey === safeScopeKey);
+        if (existing !== undefined) {
+            existing.consecutiveWaits += 1;
+            existing.updatedAt = timestamp;
+            await this.writeWaitState(safeTaskId, { ...waitState, updatedAt: timestamp });
+            return existing;
+        }
+        const entry = { scopeKey: safeScopeKey, consecutiveWaits: 1, updatedAt: timestamp };
+        waitState.scopes.push(entry);
+        await this.writeWaitState(safeTaskId, { ...waitState, updatedAt: timestamp });
+        return entry;
+    }
+    async resetWaitScope(taskId, scopeKey, status) {
+        const safeTaskId = validateSafeId(taskId, "task id");
+        const safeScopeKey = validateScopeKey(scopeKey);
+        const waitState = await this.readWaitState(safeTaskId);
+        const timestamp = this.now();
+        const scopes = waitState.scopes.filter((scope) => scope.scopeKey !== safeScopeKey);
+        if (status !== undefined) {
+            scopes.push({ scopeKey: safeScopeKey, consecutiveWaits: 0, updatedAt: timestamp, lastStatus: status });
+        }
+        await this.writeWaitState(safeTaskId, { version: 1, taskId: safeTaskId, scopes, updatedAt: timestamp });
+    }
+    async readWaitState(taskId) {
+        const safeTaskId = validateSafeId(taskId, "task id");
+        const paths = taskPaths(this.root, safeTaskId);
+        if (!(await fileExists(paths.waitStateJson))) {
+            return { version: 1, taskId: safeTaskId, scopes: [], updatedAt: this.now() };
+        }
+        return readJson(paths.waitStateJson);
+    }
     pathsForTask(taskId) {
         return taskPaths(this.root, taskId);
     }
     pathsForAgent(taskId, agentId) {
         return agentPaths(this.root, taskId, agentId);
     }
+    async readParentAlertQueue(taskId) {
+        const safeTaskId = validateSafeId(taskId, "task id");
+        const paths = taskPaths(this.root, safeTaskId);
+        if (!(await fileExists(paths.parentAlertsJson))) {
+            return { version: 1, taskId: safeTaskId, alerts: [], updatedAt: this.now() };
+        }
+        return readJson(paths.parentAlertsJson);
+    }
+    async writeParentAlertQueue(taskId, queue) {
+        await writeJson(taskPaths(this.root, taskId).parentAlertsJson, queue);
+    }
+    async writeWaitState(taskId, waitState) {
+        await writeJson(taskPaths(this.root, taskId).waitStateJson, waitState);
+    }
+    async parentAgentIdFor(taskId, agentId) {
+        try {
+            return (await this.readAgentManifest(taskId, agentId)).parentAgentId;
+        }
+        catch {
+            return undefined;
+        }
+    }
     indexPath() {
         return resolve(this.root, "index.json");
     }
     buildEvent(taskId, scope, input, agentId) {
+        const timestamp = input.timestamp ?? this.now();
         const event = {
-            timestamp: input.timestamp ?? this.now(),
+            eventId: input.eventId ?? eventIdFromParts(timestamp, taskId, scope, agentId, input.type),
+            timestamp,
             taskId,
             type: input.type,
             scope,
@@ -336,4 +515,55 @@ async function ensureTextFile(path, text) {
 async function appendJsonLine(path, value) {
     await mkdir(parentDirectory(path), { recursive: true });
     await appendFile(path, `${JSON.stringify(value)}\n`, "utf8");
+}
+function stateForAlertOutcome(outcome) {
+    if (outcome === "completed_with_risks")
+        return "completed";
+    if (outcome === "capability_gap")
+        return "blocked";
+    return outcome;
+}
+function eventIdFromParts(timestamp, taskId, scope, agentId, type) {
+    return stableId("evt", [timestamp, taskId, scope, agentId ?? "task", type]);
+}
+function alertIdFromParts(timestamp, taskId, agentId, outcome, ordinal) {
+    return stableId("alert", [timestamp, taskId, agentId ?? "task", outcome, String(ordinal)]);
+}
+function alertDedupeKey(input) {
+    if (input.sourceEventId !== undefined) {
+        return ["event", input.taskId, input.agentId ?? "task", input.outcome, input.state, input.sourceEventId].join(":");
+    }
+    return [
+        "state",
+        input.taskId,
+        input.parentAgentId ?? "parent",
+        input.agentId ?? "task",
+        input.outcome,
+        input.state,
+        input.status ?? "",
+        input.eventType ?? "",
+        input.message ?? "",
+    ].join(":");
+}
+function stableId(prefix, parts) {
+    const source = parts.join("|");
+    let hash = 0;
+    for (let index = 0; index < source.length; index += 1) {
+        hash = (hash * 31 + source.charCodeAt(index)) >>> 0;
+    }
+    return `${prefix}_${hash.toString(36)}`;
+}
+function validateScopeKey(scopeKey) {
+    if (scopeKey.trim().length === 0 || scopeKey.includes("\0")) {
+        throw new Error("wait scope key must be non-empty and must not contain NUL bytes");
+    }
+    return scopeKey;
+}
+function stripUndefined(value) {
+    const output = {};
+    for (const [key, child] of Object.entries(value)) {
+        if (child !== undefined)
+            output[key] = child;
+    }
+    return output;
 }

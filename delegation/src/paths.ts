@@ -9,6 +9,8 @@ export interface DelegationTaskPaths {
   taskJson: string;
   registryJson: string;
   eventsJsonl: string;
+  parentAlertsJson: string;
+  waitStateJson: string;
   decisionsMd: string;
   modelDir: string;
   agentsDir: string;
@@ -115,6 +117,8 @@ export function taskPaths(root: string, taskId: string): DelegationTaskPaths {
     taskJson: join(taskDir, "task.json"),
     registryJson: join(taskDir, "registry.json"),
     eventsJsonl: join(taskDir, "events.jsonl"),
+    parentAlertsJson: join(taskDir, "parent-alerts.json"),
+    waitStateJson: join(taskDir, "wait-state.json"),
     decisionsMd: join(taskDir, "decisions.md"),
     modelDir,
     agentsDir: join(taskDir, "agents"),

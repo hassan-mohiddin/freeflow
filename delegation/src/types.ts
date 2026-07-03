@@ -30,6 +30,64 @@ export type DelegationState =
 
 export type ResultStatus = "completed" | "completed_with_risks" | "blocked" | "failed" | "cancelled";
 
+export type ParentReportName = "planning-report" | "execution-kickoff" | "execution-report";
+
+export type ParentAlertOutcome =
+  | "completed"
+  | "completed_with_risks"
+  | "blocked"
+  | "failed"
+  | "cancelled"
+  | "attention"
+  | "capability_gap";
+
+export interface ParentAlertEvidence {
+  rawPath?: string;
+  jsonPath?: string;
+  transcriptPath?: string;
+  screenPath?: string;
+  outputId?: string;
+}
+
+export interface ParentAlert {
+  alertId: string;
+  dedupeKey: string;
+  taskId: string;
+  outcome: ParentAlertOutcome;
+  state: DelegationState;
+  createdAt: string;
+  updatedAt: string;
+  agentId?: string;
+  parentAgentId?: string;
+  status?: string;
+  eventType?: string;
+  message?: string;
+  evidence?: ParentAlertEvidence;
+  data?: JsonValue;
+  readAt?: string;
+}
+
+export interface ParentAlertQueue {
+  version: 1;
+  taskId: string;
+  alerts: ParentAlert[];
+  updatedAt: string;
+}
+
+export interface WaitScopeEntry {
+  scopeKey: string;
+  consecutiveWaits: number;
+  updatedAt: string;
+  lastStatus?: string;
+}
+
+export interface DelegationWaitState {
+  version: 1;
+  taskId: string;
+  scopes: WaitScopeEntry[];
+  updatedAt: string;
+}
+
 export type ProtocolBlockKind = "FFRESULT" | "PLANNING_REPORT" | "EXECUTION_KICKOFF" | "EXECUTION_REPORT";
 
 export interface DelegationIndexTaskEntry {
@@ -105,6 +163,7 @@ export interface AgentStatus {
 }
 
 export interface DelegationEvent {
+  eventId: string;
   timestamp: string;
   taskId: string;
   type: string;
