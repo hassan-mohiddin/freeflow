@@ -13,6 +13,14 @@ Core rule:
 Store broadly. Return compactly. Promote selectively. Load narrowly.
 ```
 
+## Harness-First Rule
+
+When Pi delegation tools are available, use `delegate_*` tools for pane delegation. Do not manually run cmux for normal child management.
+
+Manual cmux is only for bootstrapping a parent pane, recovering/debugging the harness itself, or notification/cleanup when the delegation tool surface is unavailable.
+
+Tiny clear work stays inline. Do not create delegation state, specs, plans, or panes when one agent can safely inspect, edit, verify, and close out.
+
 ## Model
 
 - **Orchestrator**: root continuity, user-facing routing, final closeout, final commit/push decision.
@@ -30,11 +38,11 @@ Do not spawn before delegation preflight passes. If cmux is missing, unusable, o
 
 Do not dynamically grant tools to a running child pane. If a child lacks capability, route to the parent: handle it there, spawn a different pane, ask the user, or deny/defer.
 
-Do not treat raw child transcripts as handoffs, completion signals, or normal TUI output. Child results, role-native reports, stored status, and parent reports are the handoffs; transcripts and screen captures are recoverable evidence.
+Do not treat raw child transcripts as handoffs, completion signals, or normal TUI output. Child results, role-native reports, stored status, parent alerts, and parent reports are the handoffs; transcripts and screen captures are recoverable evidence.
 
-Do not use parent polling loops as the normal completion/attention path. Children should emit sparse terminal or attention alerts backed by stored state. Explicit wait/watch mode needs a timeout and retry cap.
+Do not use parent polling loops as the normal completion/attention path. Children should emit sparse terminal or attention alerts backed by stored state. `delegate_wait` is explicit watch mode only; use a timeout and retry cap.
 
-Do not send long multiline task packets into an active Pi TUI. Use file-backed or launch-time packets for substantive instructions and short TUI prompts only for simple follow-ups.
+Do not send long multiline task packets into an active Pi TUI. Use `delegate_spawn` launch-time packets or `delegate_send` file-backed follow-ups/fixes. Short TUI prompts are only for simple follow-ups.
 
 Do not close completed `--no-session` child panes until the parent or user agrees the context is no longer needed.
 
@@ -42,7 +50,42 @@ Do not let delegation bypass workflow gates. Source-truth conflicts, user-owned 
 
 Do not parallelize implementation unless independence is explicit and writers are isolated. One writer per checkout.
 
-Do not use delegation for tiny local tasks where one agent can safely inspect, edit, verify, and commit/close out without context pressure. Delegation is a shape for large context boundaries, not a required workflow phase.
+## Tool Map
+
+- `delegate_status`: inspect preflight, task/agent state, unread parent alerts, and compact execution-map metadata.
+- `delegate_task_init`: create repo-local task state under gitignored `.freeflow/delegation/`.
+- `delegate_spawn`: preflight, write the task packet, open a visible cmux pane, and start a delegated Pi child.
+- `delegate_send`: send a bounded note or file-backed follow-up/fix packet to an existing child.
+- `delegate_wait`: bounded watch for terminal/attention state; not a polling loop.
+- `delegate_result`: read compact parsed results/reports and evidence pointers; no raw transcript injection.
+- `delegate_capture`: save a bounded screen snapshot as evidence without dumping raw screen text.
+- `delegate_cancel`: interrupt a valid child while preserving evidence.
+- `delegate_close`: close a valid child surface after result/capture is consumed.
+- `delegate_record_report`: store planning/execution reports and malformed-report evidence.
+
+## Normal Tool Flow
+
+1. Decide delegation is warranted; otherwise stay inline.
+2. `delegate_status` with preflight when availability matters.
+3. `delegate_task_init` for the task.
+4. `delegate_spawn` with role/profile, cwd, objective, source pointers, in/out-of-scope, allowed commands, write scope, evidence pointers, and stop conditions.
+5. Let child terminal or attention alerts wake the parent. Use `delegate_wait` only for explicit bounded watch.
+6. Use `delegate_result`, role-native report tools, or `delegate_status` to consume compact state.
+7. Use `delegate_send` for bounded fixes/follow-ups when needed.
+8. Use `delegate_capture` only for bounded evidence snapshots.
+9. Use `delegate_close` only after the parent/user has consumed needed evidence.
+10. Promote durable decisions to tracked docs only when workflow requires it; do not commit `.freeflow/delegation/` runtime state.
+
+## Result Protocol
+
+Model-visible delegation packets and results use pipe-delimited rows.
+
+- Literal `|` inside task-packet fields is escaped as `¦`.
+- Child terminal `FFRESULT`, `PLANNING_REPORT`, and `EXECUTION_REPORT` rows must use normal ASCII `|` separators.
+- Terminal blocks must include their closing marker, such as `END_FFRESULT`.
+- Workers normally return `FFRESULT`.
+- Reviewers and verifiers may use role-native findings or verification evidence when that is clearer; the parent consumes/adjudicates them into canonical state.
+- Include output-router evidence pointers (`outputId`, path, or lines) instead of raw command output.
 
 ## When To Delegate
 
@@ -56,7 +99,7 @@ Delegate when work has real context boundaries:
 
 Keep small, reversible, single-file work inline.
 
-## Normal Flow
+## Phase Flow
 
 1. Orchestrator and user settle the goal and rough scope.
 2. Planning-parent owns deep planning and writes/reviews artifacts.

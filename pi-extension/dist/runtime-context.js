@@ -27,13 +27,14 @@ let runtimeContextCache = null;
 let currentModeOverride = null;
 let lastRouterConfigWarningKey = null;
 async function loadRuntimeContext() {
-    const [modeContractSkill, workflowSkill, interviewGateSkill, outputRouterSkill] = await Promise.all([
+    const [modeContractSkill, workflowSkill, interviewGateSkill, outputRouterSkill, delegationHarnessSkill] = await Promise.all([
         readFile(new URL("../../skills/mode-contract/SKILL.md", import.meta.url), "utf8"),
         readFile(new URL("../../skills/workflow/SKILL.md", import.meta.url), "utf8"),
         readFile(new URL("../../skills/interview-gate/SKILL.md", import.meta.url), "utf8"),
         readFile(new URL("../../skills/output-router/SKILL.md", import.meta.url), "utf8"),
+        readFile(new URL("../../skills/delegation-harness/SKILL.md", import.meta.url), "utf8"),
     ]);
-    return { modeContractSkill, workflowSkill, interviewGateSkill, outputRouterSkill };
+    return { modeContractSkill, workflowSkill, interviewGateSkill, outputRouterSkill, delegationHarnessSkill };
 }
 export async function refreshRuntimeContext() {
     runtimeContextCache = await loadRuntimeContext();
@@ -155,7 +156,8 @@ Priority order for matched non-mode workflow skills:
 1. Workflow classifies conversation versus consequential work.
 2. Interview Gate stops silent decisions, user-owned decisions, source-truth conflicts, and question-to-action mistakes.
 3. Discovery-light handles context-building after no immediate stop condition remains. Use it before first repo/code exploration or design answers for consequential product/API/tool/runtime hypotheses.
-4. Output Router chooses evidence transport after the workflow/interview/discovery route is clear.`;
+4. Output Router chooses evidence transport after the workflow/interview/discovery route is clear.
+5. Delegation Harness coordinates visible Pi/cmux pane delegation when context locality or work-package boundaries warrant it; tiny work stays inline.`;
 }
 function discoveryLightContext() {
     return `## Discovery-light
@@ -206,7 +208,13 @@ ${freeflowContext.interviewGateSkill.trim()}
 
 ${discoveryLightContext()}
 
-${routerText ? `${routerText.trimStart()}\n\n` : ""}This Pi extension loads core runtime context before every agent turn and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.`;
+${routerText ? `${routerText.trimStart()}\n\n` : ""}## Loaded Delegation Harness Skill
+
+\`\`\`md
+${freeflowContext.delegationHarnessSkill.trim()}
+\`\`\`
+
+This Pi extension loads core runtime context before every agent turn and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.`;
 }
 export async function handleWorkflowCommand(args, ctx, pi) {
     const arg = args?.trim();

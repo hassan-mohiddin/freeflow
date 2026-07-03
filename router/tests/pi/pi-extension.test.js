@@ -90,6 +90,11 @@ test("Pi before_agent_start injects core Freeflow and output-router context", as
   assert.match(result.systemPrompt, /## Loaded Output Router Skill/);
   assert.match(result.systemPrompt, /name: output-router/);
   assert.match(result.systemPrompt, /freeflow_search/);
+  assert.match(result.systemPrompt, /## Loaded Delegation Harness Skill/);
+  assert.match(result.systemPrompt, /name: delegation-harness/);
+  assert.match(result.systemPrompt, /delegate_spawn/);
+  assert.match(result.systemPrompt, /Child terminal `FFRESULT`/);
+  assert.doesNotMatch(result.systemPrompt, /# Context Locality/);
   assert.match(result.systemPrompt, /freeflow_run/);
   assert.doesNotMatch(result.systemPrompt, /freeflow_capture/);
   assert.match(result.systemPrompt, /freeflow_search action=transform/);
@@ -120,6 +125,9 @@ test("Pi before_agent_start injects core Freeflow context on every turn", async 
     assert.match(result.systemPrompt, /## Loaded Output Router Skill/);
     assert.match(result.systemPrompt, /name: output-router/);
     assert.match(result.systemPrompt, /freeflow_search action=transform/);
+    assert.match(result.systemPrompt, /## Loaded Delegation Harness Skill/);
+    assert.match(result.systemPrompt, /name: delegation-harness/);
+    assert.match(result.systemPrompt, /delegate_result/);
     assert.doesNotMatch(result.systemPrompt, /## Freeflow Output Router Reminder/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Map/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Safety Policy/);
@@ -144,12 +152,14 @@ test("Pi session_start and session_compact keep full Freeflow context on later t
   assert.match(afterCompact.systemPrompt, /## Loaded Mode Contract Skill/);
   assert.match(afterCompact.systemPrompt, /## Loaded Workflow Skill/);
   assert.match(afterCompact.systemPrompt, /## Loaded Output Router Skill/);
+  assert.match(afterCompact.systemPrompt, /## Loaded Delegation Harness Skill/);
 
   await sessionStart({ reason: "resume" }, context());
   const afterResume = await beforeAgentStart({ systemPrompt: "base prompt" }, context());
   assert.match(afterResume.systemPrompt, /## Loaded Mode Contract Skill/);
   assert.match(afterResume.systemPrompt, /## Loaded Workflow Skill/);
   assert.match(afterResume.systemPrompt, /## Loaded Output Router Skill/);
+  assert.match(afterResume.systemPrompt, /## Loaded Delegation Harness Skill/);
 });
 
 test("Pi freeflow_status reports effective defaults without writing config", async () => {

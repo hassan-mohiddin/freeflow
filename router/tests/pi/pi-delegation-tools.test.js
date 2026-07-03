@@ -369,6 +369,7 @@ test("delegate_result returns pending or compact parsed result pointers without 
       "SUMMARY|Implemented P4 with one residual risk.",
       "FILES_CHANGED|delegation/src/store.ts,pi-extension/src/delegation/tools.ts",
       "CHECK|npm run build|pass|outputId=ffout_build",
+      "EVIDENCE|ffout_build|routed output evidence",
       "RECOMMENDATION|Run final smoke later.",
       "END_FFRESULT",
     ].join("\n");
@@ -379,6 +380,7 @@ test("delegate_result returns pending or compact parsed result pointers without 
     assert.equal(parsed.details.result.status, "ok");
     assert.equal(parsed.details.result.result.status, "completed_with_risks");
     assert.equal(parsed.details.result.result.results[0].summary, "Implemented P4 with one residual risk.");
+    assert.deepEqual(parsed.details.result.result.results[0].evidence[0].fields, ["ffout_build", "routed output evidence"]);
     assert.equal(parsed.details.result.result.rawText, undefined);
     assert.doesNotMatch(parsed.content[0].text, /FFRESULT/);
   });
