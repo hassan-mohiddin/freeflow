@@ -39,7 +39,7 @@ Do not add a separate execution-parent pane yet. Multiple children are acceptabl
 - Child-to-orchestrator direct text injection is deferred to the harness. Do not use `cmux send` into the orchestrator editor as a communication channel.
 - Manual children should be `--no-session` by default. The harness state, not child Pi session history, should become the durable state later.
 
-### Child context and tools during manual dogfood
+### Child context, tools, and pane lifetime during manual dogfood
 
 - Manual children should behave like normal Pi sessions with normal repo context/skills/extensions unless a task-specific reason says otherwise.
 - Do not strip all skills; the no-skills child became inefficient and bloated context.
@@ -50,6 +50,8 @@ Do not add a separate execution-parent pane yet. Multiple children are acceptabl
   - no stage/commit/push unless explicitly assigned;
   - normal text plus compact `RESULT` footer.
 - Guidance and user monitoring are the manual guardrails. Hard enforcement belongs in the harness for secrets, writes outside scope, destructive commands, push, etc.
+- Do not close a completed `--no-session` child until the parent/user decides it will not be reused. A closed no-session pane loses its working context forever.
+- Keep proposal/scout panes open when their context may become implementation context. Close only after result consumption, follow-up/fix chance is done, work is committed/pushed or explicitly parked, and the parent/user agrees it is safe.
 
 ### Manual review/fix loop
 
