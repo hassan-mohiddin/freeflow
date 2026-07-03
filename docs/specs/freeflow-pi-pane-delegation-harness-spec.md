@@ -116,6 +116,22 @@ The harness owns:
 
 The model outputs compact text blocks. The extension parses and stores canonical state.
 
+### Failure Contracts Before Happy Paths
+
+For consequential harness behavior, define the failure contract before implementing the successful path.
+
+For each state, tool, parser, alert, send path, wait mode, and close/cancel path, the harness should define:
+
+- what can fail;
+- who observes the failure;
+- what state/event is written;
+- whether the path fails closed, fails open, degrades, escalates, or retries;
+- what must not happen;
+- how the parent/user recovers;
+- what evidence proves the failure was handled.
+
+Ambiguous states are product bugs. A child or parent should not have to guess between two states such as `failed` and `cancelled`.
+
 ### Empowerment With Guardrails
 
 Do not cripple child agents by removing every useful tool. Give each role enough tools to do its assigned job efficiently. Enforce boundaries with:
@@ -485,9 +501,11 @@ The task packet is the child’s world. If context is not in the packet or recov
 
 ## Result And Blocker Protocol
 
-Leaf agents return compact text blocks that the extension parses into JSON.
+Leaf agents return compact role-native text that the extension parses into JSON.
 
-Terminal statuses:
+Workers use `FFRESULT`. Reviewers and verifiers may use role-native findings/assessment or verification-evidence formats when that is clearer than worker-shaped `FFRESULT`; the parent/orchestrator consumes and adjudicates those reports into canonical state. Do not flatten every role into the same output shape just for parser convenience.
+
+Generic worker/result terminal statuses:
 
 - `completed`
 - `completed_with_risks`
@@ -530,49 +548,52 @@ Parsing rules:
 - `capability_gap` reroutes, never grants a tool to the same running child;
 - required evidence/check fields are validated by role/profile expectations.
 
-## Status, Attention, Wait, And User Steering
+## Status, Attention, Alerts, And User Steering
 
-Child communication is structured, not open group chat.
+Child communication is structured alert/state, not open group chat.
 
-Children communicate through:
+Normal flow is alert-first, not poll-first:
 
-- status updates;
-- attention events;
-- blocked results;
-- capability requests;
-- final results.
+1. Parent spawns a child and can end its turn.
+2. Child works independently.
+3. Child writes a sparse canonical state/result/report to the delegation store.
+4. Child or the child extension emits an alert to the direct parent when a terminal or attention state is reached.
+5. Parent wakes or notices the queued alert, then pulls details with `delegate_status`, `delegate_result`, or role-specific report tools.
 
-States:
+Do not wake the parent model for every progress update, tool call, or check. Store/transcript logs may preserve low-level details, but parent-visible orchestration events should be sparse.
 
-```text
-created
-starting
-running
-waiting_for_parent
-attention
-blocked
-completed
-failed
-cancelled
-closed
-```
+Parent-waking outcomes:
 
-`attention` means the child is not terminal but parent should inspect. `blocked` means the child cannot continue safely.
+| Outcome | Terminal | Meaning | Set by | Parent wake |
+| --- | --- | --- | --- | --- |
+| `completed` | yes | Assigned work finished and supports the requested claim. | child/parser/harness | yes |
+| `completed_with_risks` | yes | Assigned work finished, but named risks, gaps, or unverified areas remain. Store state may still be `completed`; preserve the risk status in result/report JSON. | child/parser/harness | yes |
+| `blocked` | yes | Child is healthy but cannot proceed without parent/user decision, missing authority, or source-truth clarification. | child/parser/harness | yes |
+| `failed` | yes | Child or harness attempted the task and hit an unrecoverable error, malformed required output, crash, or impossible command path. | parser/harness/child | yes |
+| `cancelled` | yes | Parent/user/harness intentionally stopped obsolete or unsafe work before normal completion. It is not a child failure. | parent/harness | yes |
+| `attention` | no | Child is paused or needs parent inspection/guidance, but may continue after steer/fix/cancel. | child/parser/harness | yes |
+| `capability_gap` | no or terminal via `blocked` | Child lacks an allowed capability. It requests reroute; the same running child is not granted tools dynamically. Preserve this as blocker/request metadata and use `blocked` if the child cannot continue. | child/parser/harness | yes |
 
-Parents should use bounded waits, not long blocking waits:
+Internal/non-waking states:
 
-```text
-delegate_wait mode=attention_or_terminal timeout=5-15s
-```
+| State | Meaning |
+| --- | --- |
+| `created` | State exists but no child work has started. |
+| `starting` | Spawn/preflight/startup is in progress. |
+| `running` | Child is working. Do not wake parent for routine progress. |
+| `waiting_for_parent` | Child has already produced an attention/blocker/capability event and is paused until parent steer/cancel/reroute. Do not repeatedly wake for the same wait. |
+| `closed` | Pane/session is closed; evidence remains. |
+
+`delegate_wait` is explicit watch mode, not the default background strategy. It is useful for user-requested watching, short smoke checks, or a parent that intentionally wants to stay in the same turn. It must have a timeout, must not retry indefinitely, and must enforce a consecutive wait cap, e.g. three waits for the same scope before switching to alert-only mode.
 
 Wait returns on:
 
 - terminal state;
-- attention;
-- blocker;
-- failure;
-- cancel;
-- timeout heartbeat.
+- attention/capability gap;
+- timeout heartbeat;
+- cancellation/close.
+
+On timeout, the parent should not autonomously poll forever. It should report the timeout and either wait for an alert, ask the user to continue watching, or take a bounded diagnostic action.
 
 The user may talk to orchestrator at any time and to the active parent during its phase. Parent/orchestrator classifies user input as:
 
@@ -1004,7 +1025,9 @@ Mechanical smoke checks:
 - invalid/missing result becomes failed state under defined conditions;
 - profile tool activation works;
 - policy guards block forbidden writes/commands;
-- bounded waits return heartbeat and preserve parent responsiveness;
+- terminal/attention child events wake or queue alerts for the direct parent without requiring user mediation;
+- progress/tool/check noise does not wake the parent model by default;
+- bounded waits return heartbeat, enforce retry caps, and preserve parent responsiveness;
 - cancel/close preserves evidence and updates state;
 - collapsed and expanded TUI renderers show compact state, details, and evidence pointers without dumping raw transcripts/screens.
 
@@ -1033,6 +1056,7 @@ Context locality checks:
 - What is the exact profile-context injection hook and payload shape?
 - What matcher syntax should policy guards use for allowed commands, denied commands, and write scopes?
 - How frequently should transcripts/screens be captured for long-running panes?
+- What exact parent alert mechanism should be used for model wake-up, unread queue surfacing, coalescing, and rate limits?
 - How should degraded profiles be reported when optional tools like web search are unavailable?
 - Should parent panes ever use saved Pi sessions, or should harness state remain the only default persistence outside orchestrator?
 
@@ -1052,6 +1076,9 @@ Context locality checks:
 - No separate scout role; planning-parent handles basic scouting and launches researcher for deep/broad/specialized evidence.
 - Execution-parent owns planned intermediate commit checkpoints.
 - Orchestrator owns final closeout and push decisions.
+- Use alert-first child completion/attention handling, not polling-first supervision.
+- Parent-visible child events are sparse terminal/attention/capability states, not every progress or tool event.
+- `delegate_wait` is explicit watch mode with timeout and retry caps, not an autonomous polling loop.
 - Store local runtime state under gitignored `.freeflow/delegation/`.
 - Keep model-visible protocols compact text and internal state JSON/JSONL.
 - Render delegation tools compactly by default; expanded TUI shows details and evidence pointers, not raw transcript dumps.

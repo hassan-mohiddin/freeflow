@@ -324,7 +324,9 @@ Tasks:
   - allowed commands for verifier/reviewer/researcher;
   - destructive shell patterns;
   - product-code writes from planning-parent unless explicitly scoped.
-- Parse assistant output on `message_end` through the delegation core protocol parser and write status/result/report events through the core store.
+- Parse assistant output on `message_end` through the delegation core protocol parser and write sparse terminal/attention/result/report events through the core store.
+- Keep progress/tool/check noise out of parent-waking events by default.
+- Define state/outcome failure contracts for delegated runtime output: malformed required output, unknown state/status, capability gap, blocked, failed, cancelled, and attention.
 
 Checks:
 
@@ -332,7 +334,9 @@ Checks:
 - focused tests for normal session context unchanged;
 - delegated session context contains compact delegated profile guidance;
 - active tools differ by profile;
-- `tool_call` guard blocks representative forbidden calls.
+- `tool_call` guard blocks representative forbidden calls;
+- malformed required output writes a deterministic failed/attention event with raw text pointer;
+- routine progress/status does not create parent-waking alerts.
 
 Review checkpoint:
 
@@ -368,8 +372,9 @@ Tasks:
   - start Pi with env vars and `--no-session` by default;
   - store pane/surface refs;
   - mark state running after startup succeeds.
-- Define `delegate_status` output shape for task, tree, single-agent status, and preflight availability.
+- Define `delegate_status` output shape for task, tree, single-agent status, preflight availability, and unread parent alerts.
 - Define `delegate_send` behavior for steer, follow-up, and note delivery, including event logging and parent visibility.
+- Make substantive follow-up/fix packets file-backed or extension-injected. Do not rely on simulated multiline `cmux send` into an active child TUI for task packets.
 - Implement Pi TUI `renderCall`/`renderResult` behavior for delegation tools:
   - collapsed one-line status for spawn/status/wait/result/send/capture/cancel/close/report;
   - expanded details with task id, role/profile, state transitions, pane refs, scope, tool policy, result fields, and evidence paths/output IDs;
@@ -386,7 +391,8 @@ Checks:
 - unavailable-path tests proving `delegate_spawn` does not call `cmux new-pane` or child Pi when preflight fails;
 - status output tests for task tree, single-agent, and preflight views;
 - renderer snapshot/string tests for collapsed and expanded outputs without raw transcript/screen dumps;
-- send behavior tests for event logging and target validation.
+- send behavior tests for event logging, target validation, and file-backed follow-up delivery;
+- tests proving task/fix packets do not require multiline TUI typing.
 
 Review checkpoint:
 
@@ -396,44 +402,56 @@ Commit checkpoint:
 
 - Commit after P2/P3 integration passes focused tests.
 
-### Package P4: Wait, Monitor, Reports, Cancel, And Close
+### Package P4: Alerts, Monitor, Reports, Cancel, And Close
 
-Purpose: make parent monitoring deterministic and responsive.
+Purpose: make parent monitoring deterministic, alert-first, and responsive without polling loops.
 
 Tasks:
 
-- Implement state transitions:
+- Implement state/outcome transitions and definitions:
   - created;
   - starting;
   - running;
-  - waiting_for_parent;
+  - waiting_for_parent as a paused state after an attention/blocker/capability event, without repeated wake-ups for the same event;
   - attention;
   - blocked;
   - completed;
+  - completed_with_risks as result/report status with completed store state;
   - failed;
   - cancelled;
-  - closed.
-- Implement `delegate_wait` modes:
-  - terminal;
-  - attention_or_terminal;
-  - all_terminal;
-  - first_terminal.
-- Treat timeout as heartbeat, not failure.
+  - closed;
+  - capability_gap as blocker/request metadata, terminal via blocked when work cannot continue.
+- Implement a sparse parent-alert queue for terminal/attention outcomes only:
+  - completed / completed_with_risks;
+  - blocked;
+  - failed;
+  - cancelled;
+  - attention;
+  - capability gap.
+- Do not wake the parent model for routine progress, tool calls, check starts/passes, or every child status update.
+- Add parent wake-up behavior only through a coalesced, rate-limited alert path. If the parent Pi session is unavailable or closed, keep unread alerts in the store for startup/status recovery.
+- Implement `delegate_wait` as explicit watch mode, not normal background supervision:
+  - timeout required;
+  - no autonomous retry loop;
+  - hard cap of three consecutive waits for the same scope before switching to alert-only mode;
+  - timeout returns heartbeat and recommended next route, not failure.
 - Implement `delegate_result` with compact summary and evidence pointers.
 - Ensure parent-facing results can cite output-router `outputId`s without injecting raw child transcripts by default.
 - Implement `delegate_capture` using cmux read-screen and store `screen.log` snapshots; return compact snapshot metadata and optional bounded excerpt, not full screen dumps by default.
-- Implement `delegate_cancel` and `delegate_close` without deleting run evidence.
+- Implement `delegate_cancel` and `delegate_close` without deleting run evidence and with clear failure contracts.
 - Implement `delegate_record_report` for planning/execution reports and kickoffs.
 
 Checks:
 
 - `npm run build`
-- lifecycle tests for wait modes, timeout heartbeat, cancel, close, report parse/store;
-- result retrieval tests proving compact output/evidence pointers are returned without raw transcript injection by default.
+- lifecycle tests for alert queue, terminal/attention wake events, timeout heartbeat, wait retry cap, cancel, close, report parse/store;
+- tests proving progress/check/tool noise does not wake the parent by default;
+- result retrieval tests proving compact output/evidence pointers are returned without raw transcript injection by default;
+- restart/recovery-style test that unread alerts remain discoverable after a parent session is unavailable.
 
 Review checkpoint:
 
-- Review state machine and wait semantics before execution helpers.
+- Review state machine, alert semantics, and wait failure contracts before execution helpers.
 
 Commit checkpoint:
 
@@ -492,7 +510,9 @@ Tasks:
   - task packet compile;
   - result parse;
   - policy guards;
-  - wait timeout heartbeat;
+  - terminal/attention alert queue and parent wake/coalescing;
+  - progress events do not wake the parent by default;
+  - wait timeout heartbeat and retry cap;
   - cancel/close state;
   - profile tool registration;
   - output-router evidence pointer in a child result;
@@ -520,8 +540,9 @@ Checks:
   - confirm collapsed/expanded TUI explains the safe routes.
 - live cmux smoke:
   - spawn a small child Pi pane;
-  - auto-deliver task packet;
+  - auto-deliver task packet without multiline TUI typing;
   - parse result;
+  - child terminal/attention result alerts the direct parent without user mediation;
   - include a routed output evidence pointer when a check is run;
   - close pane preserving evidence.
 

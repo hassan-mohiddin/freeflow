@@ -64,11 +64,39 @@ The better manual delegation loop is:
 
 Do not let the orchestrator/parent reflexively become the implementer, reviewer, fixer, and verifier for child work. That can be expedient, but it weakens the dogfood signal for the harness. Parent self-fix is acceptable only for tiny integration glue, urgent unblockers, or explicitly chosen bypasses; record that as a deviation.
 
+### Role-specific child output
+
+Do not force every child role into the same generic `RESULT` shape.
+
+- Workers should end with a compact `RESULT` footer: status, summary, files changed, commands run, findings, blockers, recommendation.
+- Work reviewers should use the `review-work` output shape: findings grouped by Blocking / Non-blocking / Questions, then an Assessment with ready-to-proceed status and residual risk.
+- Artifact reviewers should use the `review-artifact` shape and lenses: pass/blocking/non-blocking/question, with focus on whether a spec, plan, handoff, decision note, or other artifact is fit to guide future work.
+- Verifiers should use a concise verification evidence format: checks run, pass/fail result, evidence/output IDs, unverified areas, and whether a completion claim is supported.
+
+The parent/orchestrator consumes those role-native outputs, adjudicates findings, and records compact canonical state. The future harness may parse role-specific report types rather than flattening reviewers and verifiers into worker-style `RESULT` blocks.
+
+### Harness implications from dogfood
+
+Treat manual dogfood failures as harness design pressure, not just operator tips:
+
+- Substantive task and fix packets should be file-backed or extension-injected, not typed into an active TUI with simulated multiline input.
+- The harness should model communication as structured alert/state, not open chat or duplex conversation:
+  - parent/orchestrator to child: initial task packet plus explicit `delegate_send` follow-up/steer/note events when needed;
+  - child to parent/orchestrator: sparse terminal/attention alerts backed by stored result/status/report state;
+  - parent consumes state through `delegate_status`, `delegate_result`, role-specific report retrieval, and explicit watch-mode `delegate_wait`, not raw notifications or transcript dumps.
+- `cmux notify` is only a manual user-visible bridge. It is not model-visible parent communication.
+- The normal harness path should not poll. Child completion, blocker, failure, cancellation, attention, and capability-gap outcomes should alert the direct parent once, with coalescing/rate limits; routine progress/tool/check events should stay store-only.
+- `delegate_wait` should be explicit watch mode with timeout and retry cap, not an autonomous polling loop.
+- Role-native reviewer/verifier outputs should become first-class parse/store/report types where useful, not worker-shaped `RESULT` everywhere.
+- Every state and alert should have a failure contract: who may set it, whether it is terminal, what evidence is required, whether it wakes the parent, and what recovery path applies.
+
 ### Prompt/input transport lessons
 
 - Bad: start Pi TUI, then raw `cmux send` a multiline prompt with literal newlines. Pi split it into multiple user messages/ghost inputs.
 - Bad: bracketed paste (`\e[200~...\e[201~`) through `cmux send`; Pi showed artifacts and still split oddly.
-- Works for follow-ups: send each line and use `shift+enter` between lines, then final `enter`.
+- Risky: long active-TUI follow-ups via `cmux send` plus `shift+enter`, especially after a child has completed and when the prompt contains code/probe snippets. In P1, this split into queued/steering prompts instead of one clean follow-up.
+- Works only for short/simple follow-ups: send each line and use `shift+enter` between lines, then final `enter`.
+- Better for substantive follow-ups/fix packets: write the follow-up to a temp or repo-local task file, then send one short prompt telling the child to read and execute that file.
 - Works for initial task: launch interactive Pi with the initial prompt as a command argument. This kept one logical first user message while preserving visible interactive progress.
 - Bad for visible children: `pi -p` one-shot. It is visible as a process but silent until completion and not good for monitoring.
 
@@ -78,15 +106,15 @@ Recommended manual startup pattern:
 pi --no-session --name child-name "$(cat prompt-file)"
 ```
 
-Recommended manual follow-up pattern:
+Recommended manual follow-up pattern for substantive packets:
 
-```text
-cmux send line 1
-cmux send-key shift+enter
-cmux send line 2
-cmux send-key shift+enter
-cmux send-key enter
+```sh
+# parent writes /tmp/freeflow-child-followup.md or a gitignored task-packet file
+cmux send --surface surface:N 'Read and execute /tmp/freeflow-child-followup.md exactly. Do not stage, commit, push, or spawn children. Notify when done.'
+cmux send-key --surface surface:N enter
 ```
+
+Short follow-ups may still use `shift+enter`, but avoid that path for long packets, reviewer probes, code blocks, or post-result fix instructions.
 
 ### Layout
 
@@ -152,12 +180,14 @@ Primary artifacts to reopen:
 - `evals/reports/by-skill/delegation-harness-1-report.md`
 - `evals/reports/by-skill/workflow-2-report.md`
 
-Current manual child panes at the time this handoff was last updated:
+Completed manual child panes from this dogfood run:
 
-- Child A: `surface:22`, task: Output Router guidance/eval update. Reported completed and changed Output Router skill/eval/report files.
-- Child B: `surface:21`, task: local-source implementation slice. Reported completed with no blockers.
+- Child A: Output Router guidance/eval update. Completed, reviewed, committed, and pushed.
+- Child B: local-source implementation slice. Completed, reviewed, committed, and pushed.
+- P1 worker/reviewer: delegation store/protocol foundation. Completed review/fix loop and committed as `6325301 Add delegation store and protocol foundation`.
+- Failure-contract skill scout: proposal-only/read-only. Completed with recommendation to add evals first, then update existing skills rather than create a new skill.
 
-Important: Child A and Child B both edited files. Run `git status --short` before any commit or further edits.
+Important: run `git status --short` before any commit or further edits. Treat pane summaries as memory; live repo evidence wins.
 
 Child A reported changed files:
 
@@ -192,14 +222,20 @@ Parent verification after Child B finished:
 
 ## Next Focus
 
-1. Finish reviewing the live diff for Child A and Child B changes; do not blindly trust child reports.
-2. Decide whether Child A and Child B changes belong in one commit or separate commits. Prefer separate commits if implementation code and skill/eval guidance are separable.
-3. Run final focused checks for the accepted combined diff, including Output Router eval metadata (`jq`, `skill-evidence`) and the local-source build/tests.
-4. Commit or deliberately park Output Router/local-source work.
-5. After local-source work is committed or parked, resume delegation harness implementation from P1:
-   - store/types/paths/protocol;
-   - `.freeflow/delegation/` gitignore;
-   - tests for safe IDs, raw text preservation, result parsing, pipe escaping/newline collapse.
+Current repo state after P1 checkpoint:
+
+1. Commit or deliberately park this handoff/spec/plan documentation update.
+2. Push `6325301` and the documentation update when accepted.
+3. If updating skills for failure-contract-first design, follow `evaluate-skill`: add/update eval artifacts first, then make minimal wording changes.
+4. Recommended skill-eval follow-up from the scout:
+   - main home: `design-for-depth`;
+   - also small phase-specific updates to `delegation-harness`, `write-spec`, `write-plan`, `execute-plan`, `review-work`, and `verify-work`;
+   - optional one routing sentence in `workflow`;
+   - no new skill unless later eval evidence shows a distinct trigger/job/failure mode.
+5. Resume delegation harness implementation at P2/P3 only after docs are accepted:
+   - P2: delegated runtime profiles, sparse terminal/attention events, failure contracts, policy guards;
+   - P3: tools/cmux adapter, file-backed send/follow-up, preflight, TUI renderers;
+   - P4 later owns alert queue, parent wake/coalescing, explicit watch-mode `delegate_wait`, cancel/close/report lifecycle.
 
 ## Stop Conditions
 
@@ -220,8 +256,9 @@ Stop and ask before:
 
 - Superseded manual pattern: raw multiline `cmux send` into an open Pi TUI.
 - Superseded manual pattern: `pi -p` for visible child work.
-- Deferred harness feature: true child-to-orchestrator event bridge. For now, user-mediated `cmux notify` is the bridge.
+- Deferred harness feature: alert-first parent notification bridge: child terminal/attention outcomes write store state and alert the direct parent without user mediation.
 - Deferred harness feature: configurable layouts.
 - Deferred harness feature: first-class review/fix loop state: child result -> reviewer -> parent adjudication -> original child fix -> repeat until pass/loop cap.
 - Deferred local-source scope: deterministic operation transforms and script-local sources for `source.kind="local"`.
 - Deferred enforcement: hard command/tool policy for broad native output. Guidance-first wording/evals are the current approach; hard guards remain for high-risk boundaries.
+- Deferred skill work: failure-contract-first philosophy should be integrated through eval-backed updates, not direct wording edits first.
