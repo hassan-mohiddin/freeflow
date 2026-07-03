@@ -79,6 +79,7 @@ export function taskPaths(root, taskId) {
         eventsJsonl: join(taskDir, "events.jsonl"),
         parentAlertsJson: join(taskDir, "parent-alerts.json"),
         waitStateJson: join(taskDir, "wait-state.json"),
+        executionMapJson: join(taskDir, "execution-map.json"),
         decisionsMd: join(taskDir, "decisions.md"),
         modelDir,
         agentsDir: join(taskDir, "agents"),

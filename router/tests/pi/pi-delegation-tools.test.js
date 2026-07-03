@@ -321,6 +321,37 @@ test("task-scope delegate_wait returns terminal child alerts instead of timing o
   });
 });
 
+test("delegate_status exposes compact execution map metadata when present", async () => {
+  await withTempRepo(async (repoRoot) => {
+    const store = createDelegationStore({ root: join(repoRoot, ".freeflow", "delegation") });
+    await store.initTask({ taskId: "TASK-P5", goal: "P5 execution helpers" });
+    await store.upsertWorkPackage("TASK-P5", {
+      packageId: "P5A",
+      role: "worker",
+      agentId: "worker-1",
+      dependencies: [],
+      expectedWriteScopes: [join(repoRoot, "delegation", "src")],
+      checkoutPath: join(repoRoot, "../freeflow-p5a"),
+      allowedCommands: ["npm run build"],
+      state: "completed",
+      review: { required: true, status: "passed", evidencePaths: [".freeflow/delegation/review.json"] },
+      verification: { required: true, status: "passed", outputIds: ["ffout_checks"] },
+      commitCheckpoints: [{ checkpointId: "P5A-checkpoint", packageId: "P5A", planned: true, status: "planned", intendedFiles: ["delegation/src/types.ts"] }],
+      integrationOrder: 0,
+    });
+    const { tools } = loadExtension(() => ok());
+    const status = tools.get("delegate_status");
+
+    const result = await status.execute("status-p5", { taskId: "TASK-P5" }, undefined, undefined, ctx(repoRoot));
+
+    assert.equal(result.details.result.status, "ok");
+    assert.deepEqual(result.details.result.executionMap.integrationOrder, ["P5A"]);
+    assert.equal(result.details.result.executionMap.packages[0].packageId, "P5A");
+    assert.equal(result.details.result.executionMap.packages[0].commitCheckpoints[0].checkpointId, "P5A-checkpoint");
+    assert.match(result.content[0].text, /execution_map\|.*execution-map\.json/);
+  });
+});
+
 test("delegate_result returns pending or compact parsed result pointers without raw transcript injection", async () => {
   await withTempRepo(async (repoRoot) => {
     const store = createDelegationStore({ root: join(repoRoot, ".freeflow", "delegation") });

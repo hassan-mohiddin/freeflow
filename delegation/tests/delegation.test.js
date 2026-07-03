@@ -6,8 +6,11 @@ import test from "node:test";
 
 import {
   DELEGATION_TOOL_NAMES,
+  buildWorktreeBranchName,
+  commitCheckpointApprovalFromDecision,
   compileTaskPacket,
   createDelegationStore,
+  createWorktreeMetadata,
   escapeProtocolField,
   evaluatePolicy,
   formatProtocolRow,
@@ -19,7 +22,10 @@ import {
   resolveProfileForRole,
   resolveUnderRoot,
   taskPaths,
+  validateCommitCheckpoint,
+  validateIntegrationOrder,
   validateSafeId,
+  validateWorkPackageReady,
 } from "../dist/index.js";
 
 async function withTempStore(fn) {
@@ -36,6 +42,34 @@ async function readJson(path) {
 }
 
 const fixedNow = () => "2026-07-02T00:00:00.000Z";
+
+function packageMetadata(overrides = {}) {
+  const packageId = overrides.packageId ?? "P5A";
+  return {
+    packageId,
+    role: "worker",
+    agentId: `${packageId}-worker`,
+    dependencies: [],
+    expectedWriteScopes: ["/repo/src"],
+    checkoutPath: "/repo-worktrees/p5a",
+    allowedCommands: ["npm run build"],
+    state: "completed",
+    review: { required: true, status: "passed", evidencePaths: [".freeflow/delegation/reviews/p5a.json"] },
+    verification: { required: true, status: "passed", outputIds: ["ffout_checks"] },
+    commitCheckpoints: [
+      {
+        checkpointId: "P5A-checkpoint",
+        packageId,
+        planned: true,
+        status: "planned",
+        intendedFiles: ["delegation/src/types.ts", "delegation/src/store.ts"],
+        reviewRequired: true,
+        verificationRequired: true,
+      },
+    ],
+    ...overrides,
+  };
+}
 
 test("safe ids reject empty, traversal, separators, absolute paths, and unsafe names", () => {
   for (const value of ["", " ", ".", "..", "../task", "task/child", "task\\child", "/abs", "task name", "task:1", ".hidden", "hidden.", "task|pipe", "task..id"]) {
@@ -133,6 +167,141 @@ test("store tracks consecutive bounded wait attempts per scope", async () => {
     assert.equal(waitState.scopes[0].consecutiveWaits, 0);
     assert.equal(waitState.scopes[0].lastStatus, "completed");
   });
+});
+
+test("store persists execution map work package metadata and blocks duplicate writer checkouts without side effects", async () => {
+  await withTempStore(async (root) => {
+    const store = createDelegationStore({ root, now: fixedNow });
+    await store.initTask({ taskId: "TASK-P5" });
+
+    const first = await store.upsertWorkPackage("TASK-P5", packageMetadata());
+    assert.equal(first.decision.allowed, true, first.decision.reason);
+    assert.equal(first.package.packageId, "P5A");
+    assert.equal(first.executionMap.packages.length, 1);
+    assert.equal(first.executionMap.integrationOrder.length, 0);
+    assert.match(store.pathsForTask("TASK-P5").executionMapJson, /execution-map\.json$/);
+
+    const duplicate = await store.upsertWorkPackage("TASK-P5", packageMetadata({ packageId: "P5B", checkoutPath: "/repo-worktrees/p5a", expectedWriteScopes: ["/repo/other"] }));
+    assert.equal(duplicate.decision.allowed, false);
+    assert.equal(duplicate.decision.code, "one_writer_violation");
+
+    const stored = await store.readExecutionMap("TASK-P5");
+    assert.deepEqual(stored.packages.map((pkg) => pkg.packageId), ["P5A"]);
+  });
+});
+
+test("store persists declared integration order instead of upsert insertion order", async () => {
+  await withTempStore(async (root) => {
+    const store = createDelegationStore({ root, now: fixedNow });
+    await store.initTask({ taskId: "TASK-P5-ORDER" });
+
+    const second = await store.upsertWorkPackage("TASK-P5-ORDER", packageMetadata({ packageId: "P5B", checkoutPath: "/repo-worktrees/p5b", integrationOrder: 1 }));
+    assert.equal(second.decision.allowed, true, second.decision.reason);
+    assert.deepEqual((await store.readExecutionMap("TASK-P5-ORDER")).integrationOrder, ["P5B"]);
+
+    const first = await store.upsertWorkPackage("TASK-P5-ORDER", packageMetadata({ packageId: "P5A", checkoutPath: "/repo-worktrees/p5a", integrationOrder: 0 }));
+    assert.equal(first.decision.allowed, true, first.decision.reason);
+
+    const stored = await store.readExecutionMap("TASK-P5-ORDER");
+    assert.deepEqual(stored.integrationOrder, ["P5A", "P5B"]);
+  });
+});
+
+test("worktree branch helpers validate safe ids and preserve branch metadata without git side effects", () => {
+  assert.equal(buildWorktreeBranchName({ taskId: "TASK-P5", packageId: "P5A" }), "freeflow/TASK-P5/P5A");
+  const metadata = createWorktreeMetadata({ taskId: "TASK-P5", packageId: "P5A", path: "/repo-worktrees/p5a", baseBranch: "main", baseCommit: "2fa33ea" });
+  assert.deepEqual(metadata, {
+    path: "/repo-worktrees/p5a",
+    branchName: "freeflow/TASK-P5/P5A",
+    baseBranch: "main",
+    baseCommit: "2fa33ea",
+  });
+  assert.throws(() => buildWorktreeBranchName({ taskId: "../TASK", packageId: "P5A" }), /task id/);
+  assert.throws(() => createWorktreeMetadata({ taskId: "TASK-P5", packageId: "P5A", path: "relative-worktree" }), /worktree path must be an absolute path/);
+});
+
+test("execution helpers block unsatisfied dependencies and integration order conflicts", () => {
+  const executionMap = {
+    version: 1,
+    taskId: "TASK-P5",
+    updatedAt: fixedNow(),
+    integrationOrder: ["P5A", "P5B"],
+    packages: [
+      packageMetadata({ packageId: "P5A", state: "completed", checkoutPath: "/repo-worktrees/p5a" }),
+      packageMetadata({ packageId: "P5B", dependencies: ["P5A"], state: "completed", checkoutPath: "/repo-worktrees/p5b" }),
+    ],
+  };
+
+  const ready = validateWorkPackageReady({ executionMap, packageId: "P5B" });
+  assert.equal(ready.allowed, true, ready.reason);
+
+  const sequencing = validateIntegrationOrder({ executionMap, packageId: "P5B" });
+  assert.equal(sequencing.allowed, false);
+  assert.equal(sequencing.code, "sequencing_violation");
+
+  executionMap.packages[0].state = "integrated";
+  assert.equal(validateIntegrationOrder({ executionMap, packageId: "P5B" }).allowed, true);
+
+  executionMap.packages[0].state = "running";
+  const dependency = validateWorkPackageReady({ executionMap, packageId: "P5B" });
+  assert.equal(dependency.allowed, false);
+  assert.equal(dependency.code, "dependency_violation");
+});
+
+test("commit checkpoint validation allows only planned reviewed verified explicit intermediate commits", () => {
+  const executionMap = {
+    version: 1,
+    taskId: "TASK-P5",
+    updatedAt: fixedNow(),
+    integrationOrder: ["P5A"],
+    packages: [packageMetadata()],
+  };
+
+  const allowed = validateCommitCheckpoint({
+    executionMap,
+    packageId: "P5A",
+    checkpointId: "P5A-checkpoint",
+    role: "execution-parent",
+    changedFiles: [{ path: "delegation/src/types.ts" }, { path: "delegation/src/store.ts" }],
+    stagingCommand: "git add delegation/src/types.ts delegation/src/store.ts",
+    commitCommand: "git commit -m 'P5 checkpoint'",
+  });
+  assert.equal(allowed.allowed, true, allowed.reason);
+  assert.deepEqual(commitCheckpointApprovalFromDecision(allowed), {
+    validatedBy: "validateCommitCheckpoint",
+    packageId: "P5A",
+    checkpointId: "P5A-checkpoint",
+    reason: allowed.reason,
+  });
+
+  for (const status of ["blocked", "committed", "allowed"]) {
+    const nonPlanned = structuredClone(executionMap);
+    nonPlanned.packages[0].commitCheckpoints[0].status = status;
+    const decision = validateCommitCheckpoint({ executionMap: nonPlanned, packageId: "P5A", checkpointId: "P5A-checkpoint", role: "execution-parent", changedFiles: [] });
+    assert.equal(decision.allowed, false);
+    assert.equal(decision.code, "checkpoint_status_not_planned");
+  }
+
+  assert.equal(validateCommitCheckpoint({ executionMap, packageId: "P5A", checkpointId: "missing", role: "execution-parent", changedFiles: [] }).code, "not_found");
+  assert.equal(validateCommitCheckpoint({ executionMap, packageId: "P5A", checkpointId: "P5A-checkpoint", role: "worker", changedFiles: [] }).code, "worker_commit_blocked");
+  assert.equal(validateCommitCheckpoint({ executionMap, packageId: "P5A", checkpointId: "P5A-checkpoint", role: "execution-parent", changedFiles: [], stagingCommand: "git add ." }).code, "broad_staging_denied");
+  assert.equal(validateCommitCheckpoint({ executionMap, packageId: "P5A", checkpointId: "P5A-checkpoint", role: "execution-parent", changedFiles: [], commitCommand: "git push origin main" }).code, "push_denied");
+  assert.equal(validateCommitCheckpoint({ executionMap, packageId: "P5A", checkpointId: "P5A-checkpoint", role: "execution-parent", changedFiles: [], stagingCommand: "git worktree add ../wt branch" }).code, "git_operation_unsupported");
+  assert.equal(validateCommitCheckpoint({ executionMap, packageId: "P5A", checkpointId: "P5A-checkpoint", role: "execution-parent", changedFiles: [{ path: "delegation/dist/index.js", generated: true }] }).code, "unexpected_generated_file");
+  assert.equal(validateCommitCheckpoint({ executionMap, packageId: "P5A", checkpointId: "P5A-checkpoint", role: "execution-parent", changedFiles: [{ path: "notes/private.md", userOwned: true }] }).code, "unexpected_user_owned_file");
+  assert.equal(validateCommitCheckpoint({ executionMap, packageId: "P5A", checkpointId: "P5A-checkpoint", role: "execution-parent", changedFiles: [{ path: ".env", sensitive: true }] }).code, "unexpected_sensitive_file");
+
+  const missingReview = structuredClone(executionMap);
+  missingReview.packages[0].review = { required: true, status: "pending" };
+  assert.equal(validateCommitCheckpoint({ executionMap: missingReview, packageId: "P5A", checkpointId: "P5A-checkpoint", role: "execution-parent", changedFiles: [] }).code, "review_missing");
+
+  const missingVerification = structuredClone(executionMap);
+  missingVerification.packages[0].verification = { required: true, status: "pending" };
+  assert.equal(validateCommitCheckpoint({ executionMap: missingVerification, packageId: "P5A", checkpointId: "P5A-checkpoint", role: "execution-parent", changedFiles: [] }).code, "verification_missing");
+
+  const noFiles = structuredClone(executionMap);
+  noFiles.packages[0].commitCheckpoints[0].intendedFiles = [];
+  assert.equal(validateCommitCheckpoint({ executionMap: noFiles, packageId: "P5A", checkpointId: "P5A-checkpoint", role: "execution-parent", changedFiles: [] }).code, "intended_files_missing");
 });
 
 test("store preserves raw model result text before writing parsed JSON", async () => {
@@ -389,8 +558,46 @@ test("policy evaluator blocks forbidden commands and allows explicit safe except
     evaluatePolicy({ role: "execution-parent", intent: { kind: "command", command: "git commit -m checkpoint" } }),
     "unplanned_commit",
   );
-  assertAllowed(
+  assertBlocked(
     evaluatePolicy({ role: "execution-parent", intent: { kind: "command", command: "git commit -m checkpoint" }, taskPolicy: { plannedCommit: true } }),
+    "unplanned_commit",
+  );
+  assertBlocked(
+    evaluatePolicy({ role: "execution-parent", intent: { kind: "command", command: "git commit -m checkpoint" }, taskPolicy: { allowCommits: true } }),
+    "unplanned_commit",
+  );
+  assertBlocked(
+    evaluatePolicy({ role: "integrator", intent: { kind: "command", command: "git commit -m checkpoint" }, taskPolicy: { plannedCommit: true, allowedCommands: ["git commit -m checkpoint"] } }),
+    "unplanned_commit",
+  );
+  assertAllowed(
+    evaluatePolicy({
+      role: "execution-parent",
+      intent: { kind: "command", command: "git commit -m checkpoint" },
+      taskPolicy: {
+        commitCheckpointApproval: commitCheckpointApprovalFromDecision({ allowed: true, status: "allowed", code: "allowed", reason: "validated checkpoint", packageId: "P5A", checkpointId: "P5A-checkpoint" }),
+      },
+    }),
+  );
+  assertBlocked(
+    evaluatePolicy({ role: "worker", intent: { kind: "command", command: "git commit -m checkpoint" }, taskPolicy: { commitCheckpointApproval: commitCheckpointApprovalFromDecision({ allowed: true, status: "allowed", code: "allowed", reason: "validated checkpoint", packageId: "P5A", checkpointId: "P5A-checkpoint" }) } }),
+    "unplanned_commit",
+  );
+  assertBlocked(
+    evaluatePolicy({ role: "execution-parent", intent: { kind: "command", command: "git add ." }, taskPolicy: { plannedCommit: true } }),
+    "broad_staging_denied",
+  );
+  assertBlocked(
+    evaluatePolicy({ role: "execution-parent", intent: { kind: "command", command: "git worktree add ../worker branch" }, taskPolicy: { allowedCommands: ["git worktree add ../worker branch"] } }),
+    "git_operation_unsupported",
+  );
+  assertBlocked(
+    evaluatePolicy({ role: "execution-parent", intent: { kind: "command", command: "git worktree lock ../worker" }, taskPolicy: { allowedCommands: ["git worktree lock ../worker"] } }),
+    "git_operation_unsupported",
+  );
+  assertBlocked(
+    evaluatePolicy({ role: "execution-parent", intent: { kind: "command", command: "git worktree unlock ../worker" }, taskPolicy: { allowedCommands: ["git worktree unlock ../worker"] } }),
+    "git_operation_unsupported",
   );
 
   assertBlocked(

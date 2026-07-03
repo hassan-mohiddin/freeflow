@@ -255,10 +255,11 @@ export interface DelegationTaskPolicy {
     explicitUserConfirmation?: boolean;
     allowCommits?: boolean;
     plannedCommit?: boolean;
+    commitCheckpointApproval?: CommitCheckpointPolicyApproval;
     allowPublishDeploy?: boolean;
     allowDestructiveCommands?: boolean;
 }
-export type PolicyBlockCode = "unknown_role" | "unknown_profile" | "role_profile_mismatch" | "capability_gap" | "delegation_tool_for_leaf" | "secret_path" | "write_scope_violation" | "missing_write_scope" | "product_code_write_requires_scope" | "git_push_denied" | "unplanned_commit" | "destructive_command" | "credential_env_dump" | "publish_deploy_denied" | "command_not_allowed" | "malformed_intent";
+export type PolicyBlockCode = "unknown_role" | "unknown_profile" | "role_profile_mismatch" | "capability_gap" | "delegation_tool_for_leaf" | "secret_path" | "write_scope_violation" | "missing_write_scope" | "product_code_write_requires_scope" | "git_push_denied" | "unplanned_commit" | "broad_staging_denied" | "git_operation_unsupported" | "destructive_command" | "credential_env_dump" | "publish_deploy_denied" | "command_not_allowed" | "malformed_intent";
 export interface PolicyAllowDecision {
     allowed: true;
     status: "allowed";
@@ -328,4 +329,97 @@ export interface CompiledTaskPacket {
     tools: string[];
     writeScopes: string[];
     allowedCommands: string[];
+}
+export type WorkPackageState = "planned" | "ready" | "running" | "blocked" | "completed" | "integrated" | "cancelled";
+export type PackageCheckpointStatus = "not_required" | "pending" | "passed" | "failed" | "skipped";
+export interface PackageCheckpointState {
+    required: boolean;
+    status: PackageCheckpointStatus;
+    evidencePaths?: string[];
+    outputIds?: string[];
+    notes?: string;
+}
+export type CommitCheckpointStatus = "planned" | "allowed" | "blocked" | "committed";
+export interface CommitCheckpointMetadata {
+    checkpointId: string;
+    packageId: string;
+    planned: true;
+    status: CommitCheckpointStatus;
+    intendedFiles: string[];
+    message?: string;
+    reviewRequired?: boolean;
+    verificationRequired?: boolean;
+    evidencePaths?: string[];
+    outputIds?: string[];
+}
+export interface WorktreeMetadata {
+    path: string;
+    branchName: string;
+    baseBranch?: string;
+    baseCommit?: string;
+    cleanup?: "preserve" | "remove_after_integration";
+}
+export interface WorkPackageMetadata {
+    packageId: string;
+    role: DelegationRole;
+    agentId?: string;
+    dependencies: string[];
+    expectedWriteScopes: string[];
+    checkoutPath: string;
+    worktree?: WorktreeMetadata;
+    allowedCommands: string[];
+    state: WorkPackageState;
+    review: PackageCheckpointState;
+    verification: PackageCheckpointState;
+    commitCheckpoints: CommitCheckpointMetadata[];
+    integrationOrder?: number;
+}
+export interface ExecutionMapMetadata {
+    version: 1;
+    taskId: string;
+    packages: WorkPackageMetadata[];
+    integrationOrder: string[];
+    updatedAt: string;
+}
+export interface ChangedFileMetadata {
+    path: string;
+    generated?: boolean;
+    sensitive?: boolean;
+    userOwned?: boolean;
+}
+export interface CommitCheckpointPolicyApproval {
+    validatedBy: "validateCommitCheckpoint";
+    packageId: string;
+    checkpointId: string;
+    reason: string;
+}
+export type ExecutionPolicyReroute = "execution-parent" | "orchestrator" | "verifier" | "planning-parent" | "defer";
+export type ExecutionDecisionCode = "allowed" | "not_found" | "invalid_metadata" | "one_writer_violation" | "dependency_violation" | "sequencing_violation" | "package_incomplete" | "checkpoint_status_not_planned" | "review_missing" | "verification_missing" | "intended_files_missing" | "unexpected_file" | "unexpected_sensitive_file" | "unexpected_generated_file" | "unexpected_user_owned_file" | "broad_staging_denied" | "push_denied" | "worker_commit_blocked" | "role_not_allowed" | "git_operation_unsupported";
+export interface ExecutionAllowDecision {
+    allowed: true;
+    status: "allowed";
+    code: "allowed";
+    reason: string;
+    packageId?: string;
+    checkpointId?: string;
+}
+export interface ExecutionBlockDecision {
+    allowed: false;
+    status: "blocked" | "unsupported";
+    code: Exclude<ExecutionDecisionCode, "allowed">;
+    reason: string;
+    reroute: ExecutionPolicyReroute;
+    packageId?: string;
+    checkpointId?: string;
+    filePath?: string;
+}
+export type ExecutionDecision = ExecutionAllowDecision | ExecutionBlockDecision;
+export interface CommitCheckpointValidationInput {
+    executionMap: ExecutionMapMetadata;
+    packageId: string;
+    checkpointId: string;
+    role: DelegationRole;
+    changedFiles: ChangedFileMetadata[];
+    stagingCommand?: string;
+    commitCommand?: string;
 }

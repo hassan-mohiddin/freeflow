@@ -6,6 +6,7 @@ export interface DelegationTaskPaths {
     eventsJsonl: string;
     parentAlertsJson: string;
     waitStateJson: string;
+    executionMapJson: string;
     decisionsMd: string;
     modelDir: string;
     agentsDir: string;

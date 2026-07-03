@@ -8,3 +8,4 @@ export declare function isPublishOrDeployCommand(command: string): boolean;
 export declare function isGitPushCommand(command: string): boolean;
 export declare function isGitCommitCommand(command: string): boolean;
 export declare function isBroadGitStageCommand(command: string): boolean;
+export declare function isGitWorktreeMutationCommand(command: string): boolean;

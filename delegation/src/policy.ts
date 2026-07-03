@@ -167,6 +167,10 @@ export function isBroadGitStageCommand(command: string): boolean {
   return commandInspectionStrings(command).some((candidate) => /(?:^|[;&|]\s*)git\s+add\s+(?:\.|-A|--all)(?:\s|$)/.test(candidate));
 }
 
+export function isGitWorktreeMutationCommand(command: string): boolean {
+  return commandInspectionStrings(command).some((candidate) => /(?:^|[;&|]\s*)git\s+worktree\s+(?:add|remove|move|prune|repair|lock|unlock)\b/.test(candidate));
+}
+
 function evaluateWrite(
   path: string,
   taskPolicy: DelegationTaskPolicy | undefined,
@@ -209,11 +213,19 @@ function evaluateCommand(
     return block("git_push_denied", "git push is blocked unless orchestrator has explicit user confirmation", role, profile, "orchestrator");
   }
 
-  if (isGitCommitCommand(command) || isBroadGitStageCommand(command)) {
-    if ((taskPolicy?.allowCommits === true || taskPolicy?.plannedCommit === true) && role !== "worker" && role !== "reviewer" && role !== "verifier" && role !== "researcher") {
-      return { allowed: true, status: "allowed", role, profile, reason: "planned commit command is allowed for this role" };
+  if (isBroadGitStageCommand(command)) {
+    return block("broad_staging_denied", "broad staging is denied; stage explicit intended files only", role, profile, definition.defaultPolicy.suggestedReroute);
+  }
+
+  if (isGitWorktreeMutationCommand(command)) {
+    return block("git_operation_unsupported", "actual git worktree mutation is unsupported by delegation policy helpers", role, profile, definition.defaultPolicy.suggestedReroute);
+  }
+
+  if (isGitCommitCommand(command)) {
+    if (hasValidatedCommitCheckpointApproval(taskPolicy) && (role === "execution-parent" || role === "integrator")) {
+      return { allowed: true, status: "allowed", role, profile, reason: `validated commit checkpoint approval is present for ${taskPolicy.commitCheckpointApproval.packageId}/${taskPolicy.commitCheckpointApproval.checkpointId}` };
     }
-    return block("unplanned_commit", "commit or broad staging command is blocked without a planned checkpoint", role, profile, definition.defaultPolicy.suggestedReroute);
+    return block("unplanned_commit", "commit command is blocked without validated commit checkpoint approval", role, profile, definition.defaultPolicy.suggestedReroute);
   }
 
   if (!definition.defaultPolicy.allowDestructiveCommands && taskPolicy?.allowDestructiveCommands !== true && isCommandBlockedAsDestructive(command)) {
@@ -245,6 +257,15 @@ function evaluateCommand(
   }
 
   return { allowed: true, status: "allowed", role, profile, reason: "command passed policy guards" };
+}
+
+function hasValidatedCommitCheckpointApproval(taskPolicy: DelegationTaskPolicy | undefined): taskPolicy is DelegationTaskPolicy & { commitCheckpointApproval: NonNullable<DelegationTaskPolicy["commitCheckpointApproval"]> } {
+  const approval = taskPolicy?.commitCheckpointApproval;
+  return approval?.validatedBy === "validateCommitCheckpoint"
+    && typeof approval.packageId === "string"
+    && approval.packageId.trim().length > 0
+    && typeof approval.checkpointId === "string"
+    && approval.checkpointId.trim().length > 0;
 }
 
 function inferToolName(intent: PolicyIntent, definition: DelegationProfileDefinition): string | undefined {

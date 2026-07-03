@@ -1,6 +1,7 @@
 import { access, appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { agentPaths, delegationRootForRepo, parentDirectory, safeModelFilePath, taskPaths, validateSafeId, } from "./paths.js";
+import { emptyExecutionMap, normalizeExecutionMap, normalizeWorkPackageMetadata, validateExecutionMap, } from "./execution.js";
 export class DelegationStore {
     root;
     now;
@@ -65,6 +66,9 @@ export class DelegationStore {
         if (!(await fileExists(paths.waitStateJson))) {
             const waitState = { version: 1, taskId, scopes: [], updatedAt: this.now() };
             await writeJson(paths.waitStateJson, waitState);
+        }
+        if (!(await fileExists(paths.executionMapJson))) {
+            await writeJson(paths.executionMapJson, emptyExecutionMap(taskId, this.now()));
         }
         await this.upsertIndexEntry(task, paths.taskDir);
         return task;
@@ -388,6 +392,50 @@ export class DelegationStore {
             return { version: 1, taskId: safeTaskId, scopes: [], updatedAt: this.now() };
         }
         return readJson(paths.waitStateJson);
+    }
+    async readExecutionMap(taskId) {
+        const safeTaskId = validateSafeId(taskId, "task id");
+        const paths = taskPaths(this.root, safeTaskId);
+        if (!(await fileExists(paths.executionMapJson))) {
+            return emptyExecutionMap(safeTaskId, this.now());
+        }
+        return normalizeExecutionMap(await readJson(paths.executionMapJson));
+    }
+    async writeExecutionMap(taskId, executionMap) {
+        const safeTaskId = validateSafeId(taskId, "task id");
+        await this.initTask({ taskId: safeTaskId });
+        const normalized = normalizeExecutionMap({ ...executionMap, taskId: safeTaskId, updatedAt: this.now() }, this.now());
+        const decision = validateExecutionMap(normalized);
+        if (!decision.allowed) {
+            throw new Error(`cannot write invalid execution map: ${decision.reason}`);
+        }
+        await writeJson(taskPaths(this.root, safeTaskId).executionMapJson, normalized);
+        return normalized;
+    }
+    async upsertWorkPackage(taskId, workPackage) {
+        const safeTaskId = validateSafeId(taskId, "task id");
+        const normalizedPackage = normalizeWorkPackageMetadata(workPackage);
+        const current = await this.readExecutionMap(safeTaskId);
+        const packages = current.packages.filter((pkg) => pkg.packageId !== normalizedPackage.packageId);
+        packages.push(normalizedPackage);
+        packages.sort((left, right) => left.packageId.localeCompare(right.packageId));
+        const integrationOrder = packages
+            .filter((pkg) => pkg.integrationOrder !== undefined)
+            .sort((left, right) => (left.integrationOrder ?? 0) - (right.integrationOrder ?? 0) || left.packageId.localeCompare(right.packageId))
+            .map((pkg) => pkg.packageId);
+        const candidate = normalizeExecutionMap({ version: 1, taskId: safeTaskId, packages, integrationOrder, updatedAt: this.now() }, this.now());
+        const decision = validateExecutionMap(candidate);
+        if (!decision.allowed) {
+            return { decision };
+        }
+        const written = await this.writeExecutionMap(safeTaskId, candidate);
+        await this.appendTaskEvent(safeTaskId, {
+            type: "work-package-upserted",
+            state: "running",
+            message: `work package ${normalizedPackage.packageId} metadata stored`,
+            data: { packageId: normalizedPackage.packageId, role: normalizedPackage.role, checkoutPath: normalizedPackage.checkoutPath },
+        });
+        return { decision, package: normalizedPackage, executionMap: written };
     }
     pathsForTask(taskId) {
         return taskPaths(this.root, taskId);

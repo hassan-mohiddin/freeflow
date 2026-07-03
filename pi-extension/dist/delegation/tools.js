@@ -334,10 +334,11 @@ async function executeStatus(pi, params, signal, ctx) {
         return result;
     }
     result.unreadParentAlerts = await store.readParentAlerts(taskId, { unreadOnly: true, ...(agentId !== undefined ? { agentId } : {}) });
-    result.paths = { task: store.pathsForTask(taskId).taskJson, registry: store.pathsForTask(taskId).registryJson, events: store.pathsForTask(taskId).eventsJsonl, alerts: store.pathsForTask(taskId).parentAlertsJson };
+    result.paths = { task: store.pathsForTask(taskId).taskJson, registry: store.pathsForTask(taskId).registryJson, executionMap: store.pathsForTask(taskId).executionMapJson, events: store.pathsForTask(taskId).eventsJsonl, alerts: store.pathsForTask(taskId).parentAlertsJson };
     try {
         result.task = await store.readTask(taskId);
         result.registry = await store.readRegistry(taskId);
+        result.executionMap = compactExecutionMap(await store.readExecutionMap(taskId));
     }
     catch (error) {
         return typedError("delegate_status", "task_not_found", messageFrom(error), { taskId, paths: result.paths, preflight: result.preflight });
@@ -476,8 +477,9 @@ async function executeResult(params, ctx) {
             task,
             agents: registry.agents.map((agent) => ({ agentId: agent.agentId, role: agent.role, profile: agent.profile, state: agent.state, updatedAt: agent.updatedAt })),
             reports,
+            executionMap: compactExecutionMap(await store.readExecutionMap(taskId)),
             unreadParentAlerts: await store.readParentAlerts(taskId, { unreadOnly: true }),
-            paths: { task: store.pathsForTask(taskId).taskJson, registry: store.pathsForTask(taskId).registryJson, alerts: store.pathsForTask(taskId).parentAlertsJson },
+            paths: { task: store.pathsForTask(taskId).taskJson, registry: store.pathsForTask(taskId).registryJson, executionMap: store.pathsForTask(taskId).executionMapJson, alerts: store.pathsForTask(taskId).parentAlertsJson },
         };
     }
     catch (error) {
@@ -855,6 +857,32 @@ async function unreadAlertsForIndex(store, tasks) {
     }
     return alerts;
 }
+function compactExecutionMap(executionMap) {
+    if (!executionMap || typeof executionMap !== "object")
+        return undefined;
+    return {
+        version: executionMap.version,
+        taskId: executionMap.taskId,
+        updatedAt: executionMap.updatedAt,
+        integrationOrder: Array.isArray(executionMap.integrationOrder) ? executionMap.integrationOrder : [],
+        packages: Array.isArray(executionMap.packages)
+            ? executionMap.packages.map((pkg) => ({
+                packageId: pkg.packageId,
+                role: pkg.role,
+                agentId: pkg.agentId,
+                state: pkg.state,
+                dependencies: pkg.dependencies,
+                checkoutPath: pkg.checkoutPath,
+                worktree: pkg.worktree ? { path: pkg.worktree.path, branchName: pkg.worktree.branchName } : undefined,
+                expectedWriteScopes: pkg.expectedWriteScopes,
+                allowedCommands: pkg.allowedCommands,
+                review: pkg.review ? { required: pkg.review.required, status: pkg.review.status, evidenceCount: (pkg.review.evidencePaths?.length ?? 0) + (pkg.review.outputIds?.length ?? 0) } : undefined,
+                verification: pkg.verification ? { required: pkg.verification.required, status: pkg.verification.status, evidenceCount: (pkg.verification.evidencePaths?.length ?? 0) + (pkg.verification.outputIds?.length ?? 0) } : undefined,
+                commitCheckpoints: Array.isArray(pkg.commitCheckpoints) ? pkg.commitCheckpoints.map((checkpoint) => ({ checkpointId: checkpoint.checkpointId, status: checkpoint.status, intendedFiles: checkpoint.intendedFiles })) : [],
+            }))
+            : [],
+    };
+}
 function compactParsedAgentResult(parsed) {
     const results = Array.isArray(parsed?.results) ? parsed.results.map(compactFFResult) : [];
     return {
@@ -1126,6 +1154,8 @@ function compactDelegationToolText(toolName, result) {
         lines.push(row("screen", result.snapshot.screenPath, `lines=${result.snapshot.capturedLines ?? 0}`, `bytes=${result.snapshot.bytes ?? 0}`));
     if (result?.paths?.taskPacket)
         lines.push(row("packet", result.paths.taskPacket));
+    if (result?.paths?.executionMap)
+        lines.push(row("execution_map", result.paths.executionMap));
     if (result?.paths?.status)
         lines.push(row("status", result.paths.status));
     if (Array.isArray(result?.safeRoutes))
@@ -1141,6 +1171,7 @@ function evidencePaths(store, taskId, agentId) {
     return {
         task: store.pathsForTask(taskId).taskJson,
         registry: store.pathsForTask(taskId).registryJson,
+        executionMap: store.pathsForTask(taskId).executionMapJson,
         manifest: paths.manifestJson,
         status: paths.statusJson,
         taskPacket: paths.taskPacketRaw,

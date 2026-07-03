@@ -1,4 +1,4 @@
-import type { AgentManifest, AgentStatus, DelegationEvent, DelegationIndex, DelegationProfile, DelegationRegistry, DelegationRole, DelegationState, DelegationTaskMetadata, DelegationWaitState, JsonValue, ParentAlert, ParentAlertEvidence, ParentAlertOutcome, ParentReportName, WaitScopeEntry } from "./types.js";
+import type { AgentManifest, AgentStatus, DelegationEvent, DelegationIndex, DelegationProfile, DelegationRegistry, DelegationRole, DelegationState, DelegationTaskMetadata, DelegationWaitState, ExecutionDecision, ExecutionMapMetadata, JsonValue, ParentAlert, ParentAlertEvidence, ParentAlertOutcome, ParentReportName, WaitScopeEntry, WorkPackageMetadata } from "./types.js";
 export interface DelegationStoreOptions {
     root?: string;
     repoRoot?: string;
@@ -66,6 +66,11 @@ export interface TaskReportRecord {
     jsonPath: string;
     parsed?: unknown;
 }
+export interface WorkPackageUpsertResult {
+    decision: ExecutionDecision;
+    package?: WorkPackageMetadata;
+    executionMap?: ExecutionMapMetadata;
+}
 export declare class DelegationStore {
     readonly root: string;
     private readonly now;
@@ -104,6 +109,9 @@ export declare class DelegationStore {
     incrementWaitScope(taskId: string, scopeKey: string): Promise<WaitScopeEntry>;
     resetWaitScope(taskId: string, scopeKey: string, status?: string): Promise<void>;
     readWaitState(taskId: string): Promise<DelegationWaitState>;
+    readExecutionMap(taskId: string): Promise<ExecutionMapMetadata>;
+    writeExecutionMap(taskId: string, executionMap: ExecutionMapMetadata): Promise<ExecutionMapMetadata>;
+    upsertWorkPackage(taskId: string, workPackage: WorkPackageMetadata): Promise<WorkPackageUpsertResult>;
     pathsForTask(taskId: string): import("./paths.js").DelegationTaskPaths;
     pathsForAgent(taskId: string, agentId: string): import("./paths.js").DelegationAgentPaths;
     private readParentAlertQueue;

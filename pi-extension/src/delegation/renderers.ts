@@ -137,6 +137,20 @@ export function renderDelegationResult(toolName: string, result: any, { expanded
     }
   }
 
+  if (payload.executionMap) {
+    lines.push("", themeFg(theme, "toolTitle", "Execution map"));
+    pushField(lines, theme, "integration order", listText(payload.executionMap.integrationOrder));
+    if (Array.isArray(payload.executionMap.packages)) {
+      for (const pkg of payload.executionMap.packages.slice(0, 12)) {
+        lines.push(`  ${themeFg(theme, "accent", pkg.packageId)} ${themeFg(theme, "muted", `${pkg.role}/${pkg.state}`)}${pkg.agentId ? ` • ${pkg.agentId}` : ""}`);
+        if (pkg.checkoutPath) lines.push(`    ${themeFg(theme, "muted", "checkout:")} ${themeFg(theme, "accent", shortenMiddle(pkg.checkoutPath, 110))}`);
+        if (Array.isArray(pkg.commitCheckpoints) && pkg.commitCheckpoints.length > 0) {
+          lines.push(`    ${themeFg(theme, "muted", "commit checkpoints:")} ${pkg.commitCheckpoints.map((checkpoint: any) => `${checkpoint.checkpointId}:${checkpoint.status}`).join(", ")}`);
+        }
+      }
+    }
+  }
+
   if (payload.preflight) {
     lines.push("", themeFg(theme, payload.preflight.ok ? "toolTitle" : "warning", payload.preflight.ok ? "Preflight" : "Delegation unavailable"));
     pushField(lines, theme, "status", payload.preflight.status);
