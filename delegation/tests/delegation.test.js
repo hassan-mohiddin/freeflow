@@ -5,11 +5,18 @@ import { tmpdir } from "node:os";
 import test from "node:test";
 
 import {
+  DELEGATION_TOOL_NAMES,
+  compileTaskPacket,
   createDelegationStore,
   escapeProtocolField,
+  evaluatePolicy,
   formatProtocolRow,
+  getProfileDefinition,
+  isDelegationTool,
+  listProfileDefinitions,
   parseModelText,
   parseProtocolRow,
+  resolveProfileForRole,
   resolveUnderRoot,
   taskPaths,
   validateSafeId,
@@ -247,3 +254,238 @@ test("protocol row formatting collapses field newlines to spaces", () => {
   assert.equal(row, "SUMMARY|alpha beta gamma");
   assert.deepEqual(parseProtocolRow(row).fields, ["alpha beta gamma"]);
 });
+
+test("profile registry gives delegation tools only to orchestrator and parent profiles", () => {
+  const definitions = listProfileDefinitions();
+  const leafProfiles = definitions.filter((definition) => definition.kind === "leaf");
+  const parentProfiles = ["orchestrator", "planning-parent", "execution-parent"];
+
+  for (const definition of leafProfiles) {
+    assert.equal(definition.activeTools.some(isDelegationTool), false, `${definition.profile} must not include delegation tools`);
+    assert.equal(definition.skills.hardGated, false);
+  }
+
+  for (const profile of parentProfiles) {
+    const definition = getProfileDefinition(profile);
+    assert.equal(DELEGATION_TOOL_NAMES.every((tool) => definition.activeTools.includes(tool)), true, `${profile} must include delegation tools`);
+  }
+
+  assert.equal(resolveProfileForRole("worker", "write-scoped").profile, "write-scoped");
+  assert.throws(() => resolveProfileForRole("worker", "reviewer"), /cannot be used for role worker/);
+});
+
+test("policy evaluator allows safe representative reads and scoped writes", () => {
+  const readDecision = evaluatePolicy({
+    role: "worker",
+    intent: { kind: "read", path: "/repo/src/index.ts" },
+    taskPolicy: { cwd: "/repo", writeScopes: ["/repo/src"] },
+  });
+  assertAllowed(readDecision);
+
+  const writeDecision = evaluatePolicy({
+    role: "worker",
+    intent: { kind: "write", path: "/repo/src/index.ts", toolName: "edit" },
+    taskPolicy: { cwd: "/repo", writeScopes: ["/repo/src"] },
+  });
+  assertAllowed(writeDecision);
+});
+
+test("policy evaluator blocks secret paths, writes outside scope, and capability gaps", () => {
+  assertBlocked(
+    evaluatePolicy({ role: "researcher", intent: { kind: "read", path: "/repo/.env" } }),
+    "secret_path",
+  );
+
+  assertBlocked(
+    evaluatePolicy({
+      role: "worker",
+      intent: { kind: "write", path: "/repo/docs/spec.md" },
+      taskPolicy: { cwd: "/repo", writeScopes: ["/repo/src"] },
+    }),
+    "write_scope_violation",
+  );
+
+  const reviewerWrite = evaluatePolicy({ role: "reviewer", intent: { kind: "write", path: "/repo/src/index.ts" } });
+  assertBlocked(reviewerWrite, "capability_gap");
+  assert.equal(reviewerWrite.suggestedReroute, "verifier");
+
+  assertBlocked(
+    evaluatePolicy({ role: "worker", intent: { kind: "tool", toolName: "delegate_spawn" } }),
+    "delegation_tool_for_leaf",
+  );
+});
+
+test("policy evaluator blocks forbidden commands and allows explicit safe exceptions", () => {
+  assertAllowed(
+    evaluatePolicy({
+      role: "verifier",
+      intent: { kind: "command", command: "npm run test:delegation" },
+      taskPolicy: { allowedCommands: ["npm run test:delegation"] },
+    }),
+  );
+
+  assertBlocked(
+    evaluatePolicy({
+      role: "verifier",
+      intent: { kind: "command", command: "npm run build" },
+      taskPolicy: { allowedCommands: ["npm run test:delegation"] },
+    }),
+    "command_not_allowed",
+  );
+
+  assertBlocked(
+    evaluatePolicy({ role: "worker", intent: { kind: "command", command: "git push origin main" }, taskPolicy: { allowedCommands: ["git push origin main"] } }),
+    "git_push_denied",
+  );
+  assertBlocked(
+    evaluatePolicy({ role: "worker", intent: { kind: "command", command: "bash -lc \"git push origin main\"" }, taskPolicy: { allowedCommands: ["bash -lc \"git push origin main\""] } }),
+    "git_push_denied",
+  );
+
+  assertBlocked(
+    evaluatePolicy({ role: "execution-parent", intent: { kind: "command", command: "git commit -m checkpoint" } }),
+    "unplanned_commit",
+  );
+  assertAllowed(
+    evaluatePolicy({ role: "execution-parent", intent: { kind: "command", command: "git commit -m checkpoint" }, taskPolicy: { plannedCommit: true } }),
+  );
+
+  assertBlocked(
+    evaluatePolicy({ role: "worker", intent: { kind: "command", command: "rm -rf ." }, taskPolicy: { allowedCommands: ["rm -rf ."] } }),
+    "destructive_command",
+  );
+  assertBlocked(
+    evaluatePolicy({ role: "worker", intent: { kind: "command", command: "rm -fr ." }, taskPolicy: { allowedCommands: ["rm -fr ."] } }),
+    "destructive_command",
+  );
+  assertBlocked(
+    evaluatePolicy({ role: "worker", intent: { kind: "command", command: "rm -Rf ." }, taskPolicy: { allowedCommands: ["rm -Rf ."] } }),
+    "destructive_command",
+  );
+  assertBlocked(
+    evaluatePolicy({ role: "worker", intent: { kind: "command", command: "sh -c 'rm -fr .'" }, taskPolicy: { allowedCommands: ["sh -c 'rm -fr .'"] } }),
+    "destructive_command",
+  );
+  assertBlocked(
+    evaluatePolicy({ role: "worker", intent: { kind: "command", command: "env | sort" }, taskPolicy: { allowedCommands: ["env | sort"] } }),
+    "credential_env_dump",
+  );
+  assertBlocked(
+    evaluatePolicy({ role: "worker", intent: { kind: "command", command: "bash -lc \"printenv\"" }, taskPolicy: { allowedCommands: ["bash -lc \"printenv\""] } }),
+    "credential_env_dump",
+  );
+  assertBlocked(
+    evaluatePolicy({ role: "execution-parent", intent: { kind: "command", command: "npm publish" } }),
+    "publish_deploy_denied",
+  );
+  assertBlocked(
+    evaluatePolicy({ role: "execution-parent", intent: { kind: "command", command: "bash -lc \"npm publish\"" } }),
+    "publish_deploy_denied",
+  );
+  assertAllowed(
+    evaluatePolicy({ role: "execution-parent", intent: { kind: "command", command: "npm publish" }, taskPolicy: { allowPublishDeploy: true } }),
+  );
+  assertAllowed(
+    evaluatePolicy({ role: "orchestrator", intent: { kind: "command", command: "git push origin main" }, taskPolicy: { allowGitPush: true, explicitUserConfirmation: true } }),
+  );
+});
+
+test("policy evaluator fails closed for unknown role/profile and role/profile mismatch", () => {
+  assertBlocked(
+    evaluatePolicy({ role: "ghost", intent: { kind: "read", path: "/repo/src/index.ts" } }),
+    "unknown_role",
+  );
+  assertBlocked(
+    evaluatePolicy({ role: "worker", profile: "ghost", intent: { kind: "read", path: "/repo/src/index.ts" } }),
+    "unknown_profile",
+  );
+  assertBlocked(
+    evaluatePolicy({ role: "worker", profile: "reviewer", intent: { kind: "read", path: "/repo/src/index.ts" } }),
+    "role_profile_mismatch",
+  );
+});
+
+test("task packet compiler emits required compact rows with escaping, evidence, and return protocol", () => {
+  const packet = compileTaskPacket({
+    taskId: "TASK-9",
+    agentId: "worker-9",
+    parentAgentId: "execution-parent-1",
+    role: "worker",
+    cwd: "/repo",
+    objective: "Implement P2|P3\ncore interface foundation.",
+    sourcePointers: [
+      { kind: "spec", path: "docs/specs/freeflow-pi-pane-delegation-harness-spec.md", note: "Task packet requirements" },
+      { kind: "plan", path: "docs/plans/2026-07-01-freeflow-pi-pane-delegation-harness-implementation-plan.md" },
+    ],
+    inScope: ["profiles|policy", "packet compiler"],
+    outOfScope: ["cmux\nadapter", "Pi runtime"],
+    writeScope: ["/repo/delegation/src", "/repo/delegation/tests"],
+    allowedCommands: ["npm run test:delegation", "npm run build"],
+    evidence: [
+      { label: "handoff", path: "docs/handoffs/2026-07-02-manual-cmux-delegation-harness-dogfood.md", note: "Manual P2|P3 lessons\nonly" },
+      { label: "prior-check", outputId: "ffout_123", lines: "1-5", note: "prior verification pointer" },
+    ],
+    stopConditions: ["Spec conflict", "Need out-of-scope cmux work"],
+    tracePath: ".freeflow/delegation/tasks/TASK-9/agents/worker-9/transcript.log",
+    resultPath: ".freeflow/delegation/tasks/TASK-9/agents/worker-9/result.json",
+  });
+
+  assert.equal(packet.role, "worker");
+  assert.equal(packet.profile, "worker");
+  assert.equal(packet.tools.some(isDelegationTool), false);
+  assert.match(packet.text, /^FREEFLOW_TASK_PACKET\n/);
+  assert.match(packet.text, /END_FREEFLOW_TASK_PACKET\n$/);
+  assert.ok(packet.text.includes("IDENTITY|task=TASK-9|agent=worker-9|role=worker|parent=execution-parent-1|profile=worker"));
+  assert.ok(packet.text.includes("CWD|/repo"));
+  assert.ok(packet.text.includes("OBJECTIVE|Implement P2¦P3 core interface foundation."));
+  assert.ok(packet.text.includes("SOURCE|spec|docs/specs/freeflow-pi-pane-delegation-harness-spec.md|Task packet requirements"));
+  assert.ok(packet.text.includes("IN_SCOPE|profiles¦policy"));
+  assert.ok(packet.text.includes("OUT_OF_SCOPE|cmux adapter"));
+  assert.ok(packet.text.includes("TOOLS|"));
+  assert.ok(packet.text.includes("DENY|"));
+  assert.ok(packet.text.includes("POLICY|commands_require_ALLOWED_COMMAND_rows"));
+  assert.ok(packet.text.includes("WRITE_SCOPE|/repo/delegation/src"));
+  assert.ok(packet.text.includes("ALLOWED_COMMAND|npm run test:delegation"));
+  assert.ok(packet.text.includes("EVIDENCE|handoff|path=docs/handoffs/2026-07-02-manual-cmux-delegation-harness-dogfood.md|Manual P2¦P3 lessons only"));
+  assert.ok(packet.text.includes("EVIDENCE|prior-check|outputId=ffout_123|lines=1-5|prior verification pointer"));
+  assert.ok(packet.text.includes("STOP|Spec conflict"));
+  assert.ok(packet.text.includes("RETURN|FFRESULT_REQUIRED"));
+  assert.ok(packet.text.includes("RETURN_FIELDS|summary,files_changed,checks_run,tests_status,uncertainty,recommendation"));
+  assert.ok(packet.text.includes("TRACE_PATH|.freeflow/delegation/tasks/TASK-9/agents/worker-9/transcript.log"));
+  assert.ok(packet.text.includes("RESULT_PATH|.freeflow/delegation/tasks/TASK-9/agents/worker-9/result.json"));
+});
+
+test("task packet compiler rejects malformed required input without side effects", () => {
+  const base = {
+    taskId: "TASK-10",
+    agentId: "worker-10",
+    role: "worker",
+    cwd: "/repo",
+    objective: "Implement bounded slice.",
+    writeScope: "/repo/delegation",
+    tracePath: ".freeflow/delegation/tasks/TASK-10/agents/worker-10/transcript.log",
+    resultPath: ".freeflow/delegation/tasks/TASK-10/agents/worker-10/result.json",
+  };
+
+  assert.throws(() => compileTaskPacket({ ...base, taskId: "" }), /task id/);
+  assert.throws(() => compileTaskPacket({ ...base, objective: "" }), /objective/);
+  assert.throws(() => compileTaskPacket({ ...base, cwd: "repo" }), /cwd must be an absolute path/);
+  assert.throws(() => compileTaskPacket({ ...base, profile: "reviewer" }), /cannot be used for role worker/);
+  assert.throws(() => compileTaskPacket({ ...base, writeScope: undefined }), /requires at least one write scope/);
+  assert.throws(() => compileTaskPacket({ ...base, tracePath: undefined }), /trace path is required/);
+  assert.throws(() => compileTaskPacket({ ...base, resultPath: undefined }), /result path is required/);
+  assert.throws(() => compileTaskPacket({ ...base, allowedCommands: ["npm run build\nnpm test"] }), /allowed command 1 must not contain newlines/);
+  assert.throws(() => compileTaskPacket({ ...base, evidence: [{ label: "raw dump" }] }), /must reference a path or outputId/);
+  assert.throws(() => compileTaskPacket({ ...base, tools: ["read", "delegate_spawn"] }), /not active for profile worker|cannot receive delegation/);
+});
+
+function assertAllowed(decision) {
+  assert.equal(decision.allowed, true, decision.reason);
+  assert.equal(decision.status, "allowed");
+}
+
+function assertBlocked(decision, code) {
+  assert.equal(decision.allowed, false, decision.reason);
+  assert.equal(decision.status, "blocked");
+  assert.equal(decision.code, code);
+}

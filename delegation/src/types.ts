@@ -196,3 +196,165 @@ export interface ProtocolParseResult {
 export interface ParseProtocolOptions {
   requireResult?: boolean;
 }
+
+export type DelegationProfileKind = "orchestrator" | "parent" | "leaf";
+
+export type DelegationCommandPolicy = "guarded" | "allowed-list" | "none";
+
+export type DelegationPolicyReroute = "parent" | "orchestrator" | "verifier" | "execution-parent" | "planning-parent";
+
+export interface DelegationDefaultPolicy {
+  denySecretPaths: boolean;
+  requireWriteScope: boolean;
+  productCodeWritesRequireScope: boolean;
+  commandPolicy: DelegationCommandPolicy;
+  allowGitPush: boolean;
+  allowCommits: boolean;
+  allowPublishDeploy: boolean;
+  allowDestructiveCommands: boolean;
+  denyCredentialEnvDumping: boolean;
+  suggestedReroute: DelegationPolicyReroute;
+}
+
+export interface DelegationProfileDefinition {
+  profile: DelegationProfile;
+  displayName: string;
+  kind: DelegationProfileKind;
+  allowedRoles: DelegationRole[];
+  activeTools: string[];
+  contextEmphasis: string[];
+  defaultPolicy: DelegationDefaultPolicy;
+  skills: {
+    hardGated: false;
+    note: string;
+  };
+}
+
+export type PolicyIntentKind = "tool" | "read" | "write" | "command";
+
+export interface ToolPolicyIntent {
+  kind: "tool";
+  toolName: string;
+}
+
+export interface PathPolicyIntent {
+  kind: "read" | "write";
+  path: string;
+  toolName?: string;
+}
+
+export interface CommandPolicyIntent {
+  kind: "command";
+  command: string;
+  toolName?: string;
+}
+
+export type PolicyIntent = ToolPolicyIntent | PathPolicyIntent | CommandPolicyIntent;
+
+export interface DelegationTaskPolicy {
+  cwd?: string;
+  writeScopes?: string[];
+  allowedCommands?: string[];
+  allowGitPush?: boolean;
+  explicitUserConfirmation?: boolean;
+  allowCommits?: boolean;
+  plannedCommit?: boolean;
+  allowPublishDeploy?: boolean;
+  allowDestructiveCommands?: boolean;
+}
+
+export type PolicyBlockCode =
+  | "unknown_role"
+  | "unknown_profile"
+  | "role_profile_mismatch"
+  | "capability_gap"
+  | "delegation_tool_for_leaf"
+  | "secret_path"
+  | "write_scope_violation"
+  | "missing_write_scope"
+  | "product_code_write_requires_scope"
+  | "git_push_denied"
+  | "unplanned_commit"
+  | "destructive_command"
+  | "credential_env_dump"
+  | "publish_deploy_denied"
+  | "command_not_allowed"
+  | "malformed_intent";
+
+export interface PolicyAllowDecision {
+  allowed: true;
+  status: "allowed";
+  role: DelegationRole;
+  profile: DelegationProfile;
+  reason: string;
+}
+
+export interface PolicyBlockDecision {
+  allowed: false;
+  status: "blocked";
+  code: PolicyBlockCode;
+  reason: string;
+  role?: DelegationRole;
+  profile?: DelegationProfile;
+  suggestedReroute?: DelegationPolicyReroute;
+  request?: {
+    kind: "capability_gap" | "policy_block";
+    detail: string;
+  };
+}
+
+export type PolicyDecision = PolicyAllowDecision | PolicyBlockDecision;
+
+export interface EvaluatePolicyInput {
+  role: DelegationRole;
+  profile?: DelegationProfile;
+  intent: PolicyIntent;
+  taskPolicy?: DelegationTaskPolicy;
+}
+
+export interface TaskPacketSourcePointer {
+  kind: string;
+  path: string;
+  note?: string;
+}
+
+export interface TaskPacketEvidencePointer {
+  label: string;
+  path?: string;
+  outputId?: string;
+  note?: string;
+  lines?: string;
+}
+
+export interface CompileTaskPacketInput {
+  taskId: string;
+  agentId: string;
+  parentAgentId?: string;
+  role: DelegationRole;
+  profile?: DelegationProfile;
+  cwd: string;
+  objective: string;
+  sourcePointers?: TaskPacketSourcePointer[];
+  inScope?: string[];
+  outOfScope?: string[];
+  tools?: string[];
+  deny?: string[];
+  policySummary?: string[];
+  writeScope?: string | string[];
+  allowedCommands?: string[];
+  evidence?: TaskPacketEvidencePointer[];
+  stopConditions?: string[];
+  returnProtocol?: string[];
+  returnFields?: string[];
+  tracePath?: string;
+  resultPath?: string;
+}
+
+export interface CompiledTaskPacket {
+  text: string;
+  role: DelegationRole;
+  profile: DelegationProfile;
+  tools: string[];
+  writeScopes: string[];
+  allowedCommands: string[];
+}
