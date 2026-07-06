@@ -464,6 +464,25 @@ Minimum post-push/reload checks:
 
 - live cmux smoke evidence
 
+### P11: Compact Delegation Tool Envelopes
+
+Purpose: make delegation tool output sufficient for normal parent decisions without reading `.json` files.
+
+Tasks:
+
+- Extend the model-visible compact pipe-row formatter for `delegate_status`, `delegate_wait`, `delegate_result`, `delegate_send`, inbox/ack, and lifecycle outputs.
+- Include state, route, alert summaries, result summaries, changed files, checks/output IDs, evidence pointers, blockers/requests/findings, recommendations/residual risk, retention action, and recovery paths.
+- Keep canonical JSON/JSONL as recovery evidence only; do not dump raw transcripts, screens, full parsed rows, or full JSON into normal tool output.
+- Keep row counts bounded with `*_more` summaries.
+- Update docs/skill references to say JSON reads are exceptional.
+
+Checks:
+
+- unit tests asserting `delegate_status`, `delegate_wait`, and `delegate_result` content includes enough decision facts without reading JSON;
+- no raw `FFRESULT` or transcript dump in compact content;
+- build and router tests pass;
+- focused smoke with a fresh runtime if output behavior is user-visible enough to warrant it.
+
 ## Review Checkpoints
 
 Use harness reviewers, not hidden/native subagents, when delegation is available.

@@ -2081,14 +2081,212 @@ function compactDelegationToolText(toolName: string, result: any): string {
   const lines = [row(...head)];
   if (result?.reason) lines.push(row("reason", truncateLine(result.reason, 220)));
   if (result?.actionTaken) lines.push(row("action", result.actionTaken));
+
+  appendDecisionRows(lines, result);
+  if (toolName === "delegate_status") appendStatusRows(lines, result);
+  if (toolName === "delegate_wait") appendWaitRows(lines, result);
+  if (toolName === "delegate_result") appendResultRows(lines, result);
+  if (toolName === "delegate_send") appendSendRows(lines, result);
+  if (toolName === "delegate_inbox" || toolName === "delegate_ack_alert" || toolName === "delegate_ack_all") appendAlertRows(lines, result?.alerts, "alert");
+  if (result?.alert) appendAlertRows(lines, [result.alert], "alert");
+
   if (result?.delivery?.fileBacked) lines.push(row("delivery", "file_backed", result.delivery.packetPath ?? ""));
+  else if (result?.delivery) lines.push(row("delivery", "inline"));
   if (result?.snapshot?.screenPath) lines.push(row("screen", result.snapshot.screenPath, `lines=${result.snapshot.capturedLines ?? 0}`, `bytes=${result.snapshot.bytes ?? 0}`));
-  if (result?.paths?.taskPacket) lines.push(row("packet", result.paths.taskPacket));
-  if (result?.paths?.executionMap) lines.push(row("execution_map", result.paths.executionMap));
-  if (result?.paths?.status) lines.push(row("status", result.paths.status));
+  appendPathRows(lines, result?.paths);
   if (Array.isArray(result?.safeRoutes)) lines.push(row("routes", result.safeRoutes.join(",")));
   lines.push(row("details", "details.result"));
   return lines.join("\n");
+}
+
+function appendDecisionRows(lines: string[], result: any): void {
+  if (result?.message) lines.push(row("message", truncateLine(result.message, 220)));
+  if (result?.route) lines.push(row("route", result.route));
+  if (result?.resultStatus) lines.push(row("result_status", result.resultStatus));
+  if (result?.reportName || result?.reportStatus) lines.push(row("report", result.reportName, result.reportStatus));
+  if (result?.agentState) lines.push(row("agent_state", result.agentState));
+}
+
+function appendStatusRows(lines: string[], result: any): void {
+  if (result?.preflight) lines.push(row("preflight", result.preflight.ok === true ? "ok" : "blocked", result.preflight.code ?? result.preflight.reason));
+  if (result?.task) lines.push(row("task_state", result.task.state, truncateLine(result.task.goal ?? result.task.message ?? "", 180)));
+  appendAgentStateRow(lines, result?.agentStatus);
+  if (result?.agent) lines.push(row("agent", result.agent.agentId, `role=${result.agent.role ?? ""}`, `profile=${result.agent.profile ?? ""}`, result.agent.parentAgentId ? `parent=${result.agent.parentAgentId}` : undefined));
+  appendRegistryRows(lines, result?.registry?.agents ?? result?.tasks);
+  appendExecutionMapRows(lines, result?.executionMap);
+  appendAlertRows(lines, result?.unreadParentAlerts, "unread_alert");
+}
+
+function appendWaitRows(lines: string[], result: any): void {
+  appendAgentStateRow(lines, result?.heartbeat, "heartbeat");
+  if (result?.terminalAgent) lines.push(row("terminal_agent", result.terminalAgent.agentId, result.terminalAgent.state, truncateLine(result.terminalAgent.message ?? "", 160)));
+  if (result?.attentionAgent) lines.push(row("attention_agent", result.attentionAgent.agentId, result.attentionAgent.state, truncateLine(result.attentionAgent.message ?? "", 160)));
+  appendAlertRows(lines, result?.unreadParentAlerts, "unread_alert");
+}
+
+function appendResultRows(lines: string[], result: any): void {
+  appendAgentStateRow(lines, result?.agentStatus);
+  if (result?.retention?.action) lines.push(row("retention", result.retention.action, result.retention.reason));
+  appendParsedResultRows(lines, result?.result);
+  appendTaskReportsRows(lines, result?.reports);
+  appendRegistryRows(lines, result?.agents);
+  appendExecutionMapRows(lines, result?.executionMap);
+  appendAlertRows(lines, result?.unreadParentAlerts, "unread_alert");
+}
+
+function appendSendRows(lines: string[], result: any): void {
+  if (result?.state) lines.push(row("target_state", result.state));
+  if (result?.delivery?.packetPath) lines.push(row("follow_up", result.delivery.kind, result.delivery.packetPath));
+}
+
+function appendParsedResultRows(lines: string[], result: any): void {
+  if (!result || typeof result !== "object") return;
+  lines.push(row("parsed_result", result.status, result.transport ? `transport=${result.transport}` : undefined));
+  const direct = result.direct;
+  const primary = Array.isArray(result.results) ? result.results[0] : undefined;
+  const summary = direct?.summary ?? primary?.summary;
+  if (summary) lines.push(row("summary", truncateLine(summary, 260)));
+  if (direct?.assessment) lines.push(row("assessment", truncateLine(direct.assessment, 260)));
+  appendFileRows(lines, "file_changed", direct?.filesChanged ?? primary?.filesChanged);
+  appendCheckRows(lines, direct?.checks ?? primary?.checks);
+  appendEvidenceRows(lines, direct?.evidence ?? primary?.evidence);
+  appendFindingRows(lines, direct?.findings);
+  appendCompactItems(lines, "blocking", primary?.blockers);
+  appendCompactItems(lines, "request", primary?.requests);
+  if (direct?.residualRisk ?? primary?.uncertainty) lines.push(row("residual_risk", truncateLine(direct?.residualRisk ?? primary?.uncertainty, 260)));
+  if (direct?.recommendation ?? primary?.recommendation) lines.push(row("recommendation", truncateLine(direct?.recommendation ?? primary?.recommendation, 260)));
+  appendCompactReportGroup(lines, "planning", result.reports?.planning);
+  appendCompactReportGroup(lines, "execution_kickoff", result.reports?.executionKickoff);
+  appendCompactReportGroup(lines, "execution", result.reports?.execution);
+  appendCompactItems(lines, "status_signal", result.statuses);
+  appendCompactItems(lines, "attention", result.attentions);
+  appendCompactItems(lines, "parse_error", result.errors);
+}
+
+function appendTaskReportsRows(lines: string[], reports: any): void {
+  if (!Array.isArray(reports)) return;
+  for (const report of reports.slice(0, 5)) {
+    lines.push(row("report", report.reportName, report.exists ? "exists" : "missing", report.report?.status));
+  }
+  if (reports.length > 5) lines.push(row("reports_more", reports.length - 5));
+}
+
+function appendAgentStateRow(lines: string[], status: any, label = "agent_state"): void {
+  if (!status) return;
+  lines.push(row(label, status.state, status.agentId ? `agent=${status.agentId}` : undefined, truncateLine(status.message ?? status.reason ?? "", 180)));
+}
+
+function appendRegistryRows(lines: string[], agents: any): void {
+  if (!Array.isArray(agents)) return;
+  const counts = countBy(agents, (agent: any) => agent.state ?? "unknown");
+  lines.push(row("agents", `total=${agents.length}`, ...Object.entries(counts).map(([state, count]) => `${state}=${count}`)));
+  for (const agent of agents.slice(0, 6)) {
+    lines.push(row("agent", agent.agentId ?? agent.taskId, agent.role, agent.profile, agent.state));
+  }
+  if (agents.length > 6) lines.push(row("agents_more", agents.length - 6));
+}
+
+function appendExecutionMapRows(lines: string[], executionMap: any): void {
+  const packages = executionMap?.packages;
+  if (!Array.isArray(packages)) return;
+  const counts = countBy(packages, (pkg: any) => pkg.state ?? "unknown");
+  lines.push(row("packages", `total=${packages.length}`, ...Object.entries(counts).map(([state, count]) => `${state}=${count}`)));
+  for (const pkg of packages.slice(0, 5)) {
+    lines.push(row("package", pkg.packageId, pkg.role, pkg.agentId ? `agent=${pkg.agentId}` : undefined, pkg.state));
+  }
+  if (packages.length > 5) lines.push(row("packages_more", packages.length - 5));
+}
+
+function appendAlertRows(lines: string[], alerts: any, label: string): void {
+  if (!Array.isArray(alerts)) return;
+  lines.push(row(`${label}s`, `count=${alerts.length}`));
+  for (const alert of alerts.slice(0, 5)) {
+    lines.push(row(label, alert.outcome ?? alert.status ?? alert.state, alert.agentId ? `agent=${alert.agentId}` : undefined, alert.alertId ? `id=${alert.alertId}` : undefined, truncateLine(alert.message ?? "", 220)));
+  }
+  if (alerts.length > 5) lines.push(row(`${label}s_more`, alerts.length - 5));
+}
+
+function appendFileRows(lines: string[], label: string, files: any): void {
+  if (!Array.isArray(files)) return;
+  const countLabel = label === "file_changed" ? "files_changed" : `${label}s`;
+  lines.push(row(countLabel, `count=${files.length}`));
+  for (const file of files.slice(0, 5)) lines.push(row(label, file));
+  if (files.length > 5) lines.push(row(`${countLabel}_more`, files.length - 5));
+}
+
+function appendCheckRows(lines: string[], checks: any): void {
+  if (!Array.isArray(checks)) return;
+  lines.push(row("checks", `count=${checks.length}`));
+  for (const check of checks.slice(0, 6)) lines.push(row("check", ...compactCheckFields(check)));
+  if (checks.length > 6) lines.push(row("checks_more", checks.length - 6));
+}
+
+function compactCheckFields(check: any): string[] {
+  if (Array.isArray(check?.fields)) return check.fields.map((field: any) => truncateLine(String(field), 180));
+  const outputId = check?.outputId ? `outputId=${check.outputId}` : undefined;
+  return [check?.name, check?.status, outputId, check?.evidence ?? check?.notes].filter(Boolean).map((field: any) => truncateLine(String(field), 180));
+}
+
+function appendEvidenceRows(lines: string[], evidence: any): void {
+  if (!Array.isArray(evidence)) return;
+  lines.push(row("evidence_items", `count=${evidence.length}`));
+  for (const item of evidence.slice(0, 5)) lines.push(row("evidence", ...compactEvidenceFields(item)));
+  if (evidence.length > 5) lines.push(row("evidence_more", evidence.length - 5));
+}
+
+function compactEvidenceFields(item: any): string[] {
+  if (Array.isArray(item?.fields)) return item.fields.map((field: any) => truncateLine(String(field), 180));
+  return [item?.label, item?.outputId ? `outputId=${item.outputId}` : item?.path ? `path=${item.path}` : undefined, item?.lines ? `lines=${item.lines}` : undefined, item?.note].filter(Boolean).map((field: any) => truncateLine(String(field), 180));
+}
+
+function appendFindingRows(lines: string[], findings: any): void {
+  if (!Array.isArray(findings)) return;
+  const blocking = findings.filter((finding: any) => String(finding?.severity ?? "").includes("block"));
+  lines.push(row("findings", `count=${findings.length}`, blocking.length > 0 ? `blocking=${blocking.length}` : undefined));
+  for (const finding of findings.slice(0, 5)) {
+    lines.push(row("finding", finding.severity, finding.location, truncateLine(finding.problem ?? finding.recommendation ?? "", 220)));
+  }
+  if (findings.length > 5) lines.push(row("findings_more", findings.length - 5));
+}
+
+function appendCompactReportGroup(lines: string[], label: string, reports: any): void {
+  if (!Array.isArray(reports) || reports.length === 0) return;
+  for (const report of reports.slice(0, 3)) lines.push(row("report", label, report.status, report.kind));
+  if (reports.length > 3) lines.push(row("reports_more", label, reports.length - 3));
+}
+
+function appendCompactItems(lines: string[], label: string, items: any): void {
+  if (!Array.isArray(items) || items.length === 0) return;
+  lines.push(row(`${label}s`, `count=${items.length}`));
+  for (const item of items.slice(0, 4)) lines.push(row(label, compactItemText(item)));
+  if (items.length > 4) lines.push(row(`${label}s_more`, items.length - 4));
+}
+
+function compactItemText(item: any): string {
+  if (Array.isArray(item?.fields)) return item.fields.map((field: any) => String(field)).join("|");
+  if (item?.message) return truncateLine(String(item.message), 220);
+  if (item?.problem) return truncateLine(String(item.problem), 220);
+  if (item?.summary) return truncateLine(String(item.summary), 220);
+  if (item?.kind || item?.state) return truncateLine([item.kind, item.state].filter(Boolean).join(" "), 220);
+  return truncateLine(String(item), 220);
+}
+
+function appendPathRows(lines: string[], paths: any): void {
+  if (!paths || typeof paths !== "object") return;
+  if (paths.taskPacket) lines.push(row("packet", paths.taskPacket));
+  if (paths.executionMap) lines.push(row("execution_map", paths.executionMap));
+  if (paths.status) lines.push(row("status", paths.status));
+  if (paths.resultJson) lines.push(row("result", paths.resultJson));
+  if (paths.alerts) lines.push(row("alerts", paths.alerts));
+}
+
+function countBy(items: any[], keyFn: (item: any) => string): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const item of items) {
+    const key = keyFn(item);
+    counts[key] = (counts[key] ?? 0) + 1;
+  }
+  return counts;
 }
 
 function row(...fields: unknown[]): string {

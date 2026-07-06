@@ -434,22 +434,33 @@ Rules:
 
 Parent agents should normally end their turn or continue other work after spawning children. They should not repeatedly wait unless the user explicitly requested watch mode or the work is a short smoke check.
 
-## Result Consumption
+## Parent-Facing Compact Envelopes
 
-`delegate_result` should return a compact result envelope by default, not raw JSON and not a transcript.
+Delegation tool output must be enough for normal parent decisions without reading canonical JSON. JSON/JSONL remains the recovery source, not the routine model-visible interface.
 
-It should be useful enough for the common happy path:
+Model-visible tool output uses compact pipe rows and should include only decision-shaping facts:
+
+- `delegate_status`: task/agent state, state message, agent summary, unread alert count/list, execution package summary, and recovery paths.
+- `delegate_wait`: heartbeat state, terminal/attention route, alert summary, and recovery paths.
+- `delegate_result`: parsed status, summary, changed files, checks with output IDs, evidence pointers, blocking/request/finding counts or first items, recommendation/residual risk, retention action, and recovery paths.
+- `delegate_send`: sent/rejected state, terminal-new-attempt guidance when rejected, delivery file path when file-backed.
+- inbox/ack/lifecycle tools: compact alert/result/report state and recovery paths.
+
+Example:
 
 ```text
-delegate_result|completed|agent=worker-p1|files=1|checks=1 pass|result=...
-SUMMARY|Added parent packet return protocol test.
-FILE|delegation/tests/delegation.test.js
-CHECK|node --test delegation/tests/*.test.js|pass|outputId=ffout_...
+delegate_result|ok|task=...|agent=worker-p1
+agent_state|completed|done
+summary|Added parent packet return protocol test.
+file_changed|delegation/tests/delegation.test.js
+check|node --test delegation/tests/*.test.js|pass|outputId=ffout_...
+evidence|build|outputId=ffout_...
+recommendation|Run final smoke later.
+result|.freeflow/delegation/tasks/.../result.json
+details|details.result
 ```
 
-Detailed mode can expose parsed rows, report fields, and evidence pointers.
-
-Raw transcripts/screens require explicit capture/retrieve paths.
+Detailed JSON reads are exceptional: malformed or ambiguous output, harness debugging, exact evidence recovery, or user-requested detail. Raw transcripts/screens require explicit capture/retrieve paths.
 
 ## Freeflow Batch Expansion
 

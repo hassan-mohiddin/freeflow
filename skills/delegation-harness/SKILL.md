@@ -91,7 +91,7 @@ Do not parallelize implementation unless independence is explicit and writers ar
 3. `delegate_task_init` for the task.
 4. `delegate_spawn` with role/profile, cwd, objective, source pointers, in/out-of-scope, allowed commands, write scope, evidence pointers, and stop conditions.
 5. Let child terminal or attention alerts wake the parent. Use `delegate_wait` only for explicit bounded watch.
-6. Use `delegate_result`, role-native report tools, or `delegate_status` to consume compact state.
+6. Use `delegate_result`, role-native report tools, or `delegate_status` to consume compact state from the tool output first; read canonical JSON only when the compact envelope is malformed, ambiguous, or insufficient for exact evidence recovery.
 7. Use `delegate_send` for bounded fixes/follow-ups when needed.
 8. Use `delegate_capture` only for bounded evidence snapshots.
 9. Use `delegate_close` only after the parent/user has consumed needed evidence.
@@ -102,7 +102,7 @@ Do not parallelize implementation unless independence is explicit and writers ar
 Use the right representation for the interface.
 
 - Child task prompts are readable Markdown by default.
-- Tool outputs, alerts, and compact parent-facing envelopes use pipe-style rows.
+- Tool outputs, alerts, and compact parent-facing envelopes use pipe-style rows that are sufficient for normal parent decisions without reading JSON.
 - `delegate_finish`, `delegate_attention`, and role-native result tools are preferred when active.
 - Legacy `FFRESULT`, `PLANNING_REPORT`, and `EXECUTION_REPORT` rows are fallback chat protocol; they must use normal ASCII `|` separators and include their closing marker, such as `END_FFRESULT`.
 - Do not tell a child to use `delegate_finish` unless that tool is actually active for the child.

@@ -408,6 +408,8 @@ test("delegate_wait returns terminal and attention states without treating timeo
     assert.equal(terminal.details.result.status, "completed");
     assert.equal(terminal.details.result.code, "terminal_alert");
     assert.equal(terminal.details.result.unreadParentAlerts[0].outcome, "completed");
+    assert.match(terminal.content[0].text, /route\|read_delegate_result/);
+    assert.match(terminal.content[0].text, /unread_alert\|completed\|agent=worker-1\|.*done/);
   });
 });
 
@@ -444,6 +446,8 @@ test("delegate_status defaults to current task and direct-parent unread alerts w
       const result = await status.execute("status-current", {}, undefined, undefined, ctx(repoRoot));
       assert.equal(result.details.result.taskId, "TASK-CURRENT");
       assert.deepEqual(result.details.result.unreadParentAlerts.map((alert) => alert.message), ["current"]);
+      assert.match(result.content[0].text, /agents\|total=2\|completed=2/);
+      assert.match(result.content[0].text, /unread_alert\|completed\|agent=worker-1\|.*current/);
     });
   });
 });
@@ -539,6 +543,9 @@ test("delegate_result returns pending or compact parsed result pointers without 
     assert.equal(parsed.details.result.result.results[0].summary, "Implemented P4 with one residual risk.");
     assert.deepEqual(parsed.details.result.result.results[0].evidence[0].fields, ["ffout_build", "routed output evidence"]);
     assert.equal(parsed.details.result.result.rawText, undefined);
+    assert.match(parsed.content[0].text, /summary\|Implemented P4 with one residual risk\./);
+    assert.match(parsed.content[0].text, /check\|npm run build\|pass\|outputId=ffout_build/);
+    assert.match(parsed.content[0].text, /evidence\|ffout_build\|routed output evidence/);
     assert.doesNotMatch(parsed.content[0].text, /FFRESULT/);
   });
 });
@@ -563,7 +570,7 @@ test("delegate_finish stores direct results, queues inbox alerts, and ack tools 
     }, undefined, undefined, ctx(repoRoot));
 
     assert.equal(finished.details.result.status, "stored");
-    assert.doesNotMatch(finished.content[0].text, /Implemented focused worker slice/);
+    assert.match(finished.content[0].text, /alert\|completed\|agent=worker-1\|.*Implemented focused worker slice\./);
     assert.equal((await store.readAgentStatus("TASK-FINISH", "worker-1")).state, "completed");
     const stored = JSON.parse(await readFile(store.pathsForAgent("TASK-FINISH", "worker-1").resultJson, "utf8"));
     assert.equal(stored.transport, "delegate_finish");
@@ -572,6 +579,9 @@ test("delegate_finish stores direct results, queues inbox alerts, and ack tools 
     const parsed = await resultTool.execute("result-finish", { taskId: "TASK-FINISH", agentId: "worker-1" }, undefined, undefined, ctx(repoRoot));
     assert.equal(parsed.details.result.status, "ok");
     assert.equal(parsed.details.result.result.direct.summary, "Implemented focused worker slice.");
+    assert.match(parsed.content[0].text, /summary\|Implemented focused worker slice\./);
+    assert.match(parsed.content[0].text, /file_changed\|delegation\/src\/store\.ts/);
+    assert.match(parsed.content[0].text, /check\|npm run build\|pass\|outputId=ffout_build/);
 
     const unread = await inbox.execute("inbox", { taskId: "TASK-FINISH" }, undefined, undefined, ctx(repoRoot));
     assert.equal(unread.details.result.count, 1);

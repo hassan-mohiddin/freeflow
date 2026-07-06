@@ -72,7 +72,9 @@ END_FFRESULT
 
 Reviewers return findings grouped by blocking/non-blocking/questions. Artifact reviewers use artifact-review shape. Verifiers return checks run, pass/fail evidence, output IDs, unverified areas, and whether a completion claim is supported.
 
-The harness stores raw text and parsed/canonical JSON. Parent agents usually consume the parsed compact result, direct lifecycle result, or role-specific report.
+The harness stores raw text and parsed/canonical JSON. Parent agents usually consume the parsed compact result, direct lifecycle result, or role-specific report through the tool's model-visible compact envelope.
+
+Normal parent decisions should not require reading `.json` files. `delegate_status`, `delegate_wait`, `delegate_result`, inbox/ack, and lifecycle tools should inline bounded state, alerts, summaries, checks, blockers, recommendations, and evidence pointers as compact rows. Read canonical JSON only for malformed/ambiguous output, harness debugging, exact evidence recovery, or user-requested detail.
 
 ## Blockers And Capability Gaps
 
@@ -102,7 +104,7 @@ Parent reports are handoffs:
 
 Parents may submit reports through the dedicated report tool or through `delegate_finish` when parent report support is active. Either way, the harness must store canonical task report JSON and a compact direct-parent alert.
 
-Reports should name only what changes the next route. Raw details stay recoverable through event logs, transcripts, result paths, and output IDs.
+Reports should name only what changes the next route. Tool output should surface the report status and route-shaping summary; raw details stay recoverable through event logs, transcripts, result paths, and output IDs.
 
 ## Parsing Discipline
 
