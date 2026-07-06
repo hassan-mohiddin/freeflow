@@ -50,6 +50,12 @@ Observed issues:
 - `sourcePointers` did not accept output IDs, causing confusion about where evidence handles belong.
 - Completed reviewer/verifier panes stayed open and cluttered the UI.
 - A source-truth conflict was found: parent `RETURN_FIELDS` in task packets are shorter than parser/docs-required parent report fields.
+- Execution-parent could treat a small first slice as permission to self-implement a broad multi-slice plan instead of assigning a worker stream.
+- Closing/cancelling a parent before reconciling descendants could orphan active reviewer/verifier panes.
+- A child prompt could mention `delegate_finish` even when the tool was not actually active, letting a child print “stored with delegate_finish” while canonical result/status stayed pending.
+- Alert counts included stale and duplicate historical alerts, making current task attention look noisier than it was.
+- A prose or combined write-scope string could pass spawn-time input but fail later as `write_scope_violation` because policy treats it as one path scope.
+- Sending follow-up work to a terminal child could leave `delegate_wait` pinned to the old completed state, making the follow-up invisible to normal watch semantics.
 
 ## Design Principle
 
@@ -129,6 +135,12 @@ For broad execution, the agent should stop before doing it inline and route:
 ```text
 This crosses the delegation threshold. Use the harness, narrow the task, or explicitly bypass.
 ```
+
+Execution-parent routing must be package/global, not slice-local. If the approved execution has multiple slices, review/fix loops, integration risk, or sustained context, the execution-parent coordinates and assigns implementation to a worker stream. It must not self-implement just because the current slice is small.
+
+A worker may own multiple sequential slices when context remains useful and the write scope stays coherent. Spawn a fresh worker only for a real context boundary, parallelism, changed capability/write scope, stale context, or isolation need.
+
+Execution-parent inline edits are limited to coordination, reporting, or mechanical integration. If the parent edits product/runtime files, it must record why the edit is not worker-owned.
 
 ## Task Packet Prompt Rendering
 
@@ -213,6 +225,8 @@ Use two tool classes:
 
 Researcher/reviewer/verifier/worker profiles should not receive parent-control tools. They may receive child lifecycle tools scoped to their own `taskId` and `agentId`.
 
+Runtime task packets must match actual active tools. If Pi cannot apply scoped profile tools or child lifecycle tools, the harness must fail closed, omit unavailable tool instructions, or clearly route to the legacy fallback before the child starts. Do not tell a child to use `delegate_finish` unless `delegate_finish` is actually available to that child.
+
 ### `delegate_finish` behavior
 
 A `delegate_finish` call must:
@@ -234,11 +248,13 @@ delegate_finish|stored|parent_alerted|task=...|agent=...
 
 It must not echo the full submitted result.
 
+A sentence such as “Review stored with delegate_finish” is not a result. `delegate_finish` counts only when canonical result/report JSON, terminal status, events, and the direct-parent alert were written. If a child claims storage without those records, `delegate_result` must report pending or malformed state with recovery pointers, not success.
+
 ### Chat parser fallback
 
 Legacy `FFRESULT`, `PLANNING_REPORT`, and `EXECUTION_REPORT` parsing from assistant chat may remain as a fallback.
 
-Fallback parser output must be treated as less preferred than direct tool submission.
+Fallback parser output must be treated as less preferred than direct tool submission. Direct tool submission and fallback parsing must not create duplicate terminal alerts for the same canonical result.
 
 ## Evented Parent Inbox And Alerts
 
@@ -249,7 +265,7 @@ Use an evented mailbox, not duplex freeform chat and not polling-first supervisi
 Normal communication:
 
 ```text
-parent -> task/fix packet -> child
+parent -> task/fix packet -> running child
 child -> delegate_finish/delegate_attention -> harness store
 harness -> compact alert envelope -> direct parent inbox
 parent -> consumes alert and decides next action
@@ -310,7 +326,9 @@ Add alert tools or status options:
 
 Default status should not dump old alerts. It should show current task, direct-parent unread alerts, and compact counts.
 
-Historical alerts remain recoverable.
+Unread counts must be scoped to the current task/direct parent by default. Historical alerts remain recoverable, but closed/completed old tasks must not inflate the normal unread count unless the caller explicitly asks for historical/global status.
+
+A single terminal child result must produce one parent-facing unread alert. If the same result is observed through both `delegate_finish` and legacy parser fallback, dedupe by task, agent, result status, result path/content hash, and event type before surfacing it.
 
 ## User Attention And Desktop Notifications
 
@@ -393,6 +411,12 @@ Final verification passed. See task dogfood-e2e-delegation-20260704.
 - Require ack or state change before repeating.
 - Coalesce multiple child alerts into one parent summary when possible.
 - Allow user-level notification preferences.
+
+## Follow-ups And Attempts
+
+`delegate_send` may send bounded notes, fixes, or follow-ups only to non-terminal children. Once a child is completed, blocked terminal, failed, cancelled, or closed, follow-up work must either spawn a new child or create an explicit new attempt with its own state/result identity. The harness must not silently send work into a terminal pane while `delegate_wait` and `delegate_result` continue to observe the old terminal state.
+
+Until explicit attempts exist, sending to a terminal child should fail closed with a clear reroute.
 
 ## `delegate_wait`
 
@@ -621,6 +645,8 @@ Recommended policy:
 - parent: close only after report consumed and orchestrator/user agrees;
 - failed/blocked/attention panes: keep open for inspection.
 
+Closing or cancelling a parent must reconcile descendants first. The harness should block the close, warn, or require an explicit close/cancel/adopt decision for active children; completed child results should be consumed or explicitly parked before the parent disappears. No parent close path should silently orphan active child panes.
+
 Support retention modes:
 
 ```text
@@ -654,16 +680,19 @@ The update should preserve portability: in hosts without the Freeflow delegation
 
 Add eval coverage for prompts such as "review this spec with a fresh reviewer" so the expected route is harness delegation when available, not hidden/native subagents.
 
-## Source Pointers And Evidence Handles
+## Source Pointers, Evidence Handles, And Write Scopes
 
 Clarify input fields:
 
 - `sourcePointers`: file/path/source-truth pointers.
 - `evidence`: output IDs, prior run IDs, result paths, and check evidence.
+- `writeScope`: path or glob scopes only, not prose policy text.
 
 If possible, allow output IDs in a first-class evidence field and render them clearly in task prompts.
 
 Do not force users or agents to encode output IDs as fake paths.
+
+Write-scope input must either support multiple explicit scopes or fail fast when a prose/combined scope is provided. A spawn call should not accept text such as “may touch delegation/**, pi-extension/**, router/**” and later fail because policy interpreted the entire sentence as one path.
 
 ## Out Of Scope
 
@@ -689,15 +718,17 @@ This spec does not require:
 ### Result submission
 
 - A child can complete via `delegate_finish` without printing a full `FFRESULT` in chat.
+- Task packets mention `delegate_finish` only when the tool is actually active for that child.
+- A claimed `delegate_finish` without canonical result/status/event/alert records is treated as pending or malformed, not successful.
 - The direct parent receives a compact alert envelope with result pointers.
 - Canonical result JSON is stored.
-- Chat parser fallback still works for legacy children.
+- Chat parser fallback still works for legacy children without creating duplicate terminal alerts.
 
 ### Alerts and user notifications
 
 - Child terminal/attention events enqueue direct-parent alerts without `delegate_wait`.
 - Parent/orchestrator user-attention events can trigger TUI/desktop notification through the harness.
-- Alerts are deduped, ackable, and not dumped from old tasks by default.
+- Alerts are deduped, ackable, scoped to current task/direct parent by default, and not dumped from old tasks by default.
 
 ### Status robustness
 
@@ -723,16 +754,29 @@ This spec does not require:
 - Skills that ask for fresh reviewers, researchers, workers, verifiers, or subagents reference that route instead of hardcoding host-native subagents.
 - Eval coverage proves harness delegation is preferred when available and healthy.
 
+### Live runtime smoke
+
+- Live cmux smoke exercises the installed/reloaded Freeflow runtime, not a stale already-loaded session.
+- If the current host cannot load WIP extension changes, live smoke happens after commit, push, and local update/reload.
+- Completion is not claimed until post-reload smoke passes, or smoke failure is reported with a follow-up fix route.
+
 ### Layout and retention
 
 - Default role-aware layout groups parents and children predictably.
 - Passed reviewer/verifier panes can auto-close after parent consumption while preserving evidence.
+- Parent close/cancel paths reconcile active descendants by requiring close, cancel, adopt, or park decisions before the parent disappears.
+- Follow-ups to terminal children are rejected or represented as explicit new attempts so wait/result semantics do not observe stale terminal state.
 - Debug mode can keep panes open for observation.
 
 ### Parent report fields
 
 - Planning/execution parent task return contracts match parser/docs-required report fields.
 - Tests cover parent report field alignment.
+
+### Write scopes
+
+- `delegate_spawn` either accepts multiple explicit write scopes or rejects prose/combined write scopes before launch with a clear expected format.
+- Policy decisions and task packet rendering show the normalized scopes the child actually received.
 
 ## Open Questions
 

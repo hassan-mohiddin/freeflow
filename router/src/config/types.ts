@@ -16,7 +16,7 @@ export type RoutingStatus = (typeof ROUTING_STATUSES)[number];
 export const ROUTE_KINDS = ["retrieve", "run", "transform", "batch", "observed", "safety-net", "pass-through"] as const;
 export type RouteKind = (typeof ROUTE_KINDS)[number];
 
-export const BATCH_STEP_KINDS = ["run", "search"] as const;
+export const BATCH_STEP_KINDS = ["run", "search", "delegate_status", "delegate_inbox", "delegate_result", "delegate_capture", "delegate_close", "delegate_ack_alert"] as const;
 export type BatchStepKind = (typeof BATCH_STEP_KINDS)[number];
 
 export const PRODUCER_KINDS = ["command", "script", "native", "repo", "web", "fetch", "code_search", "mcp", "transform", "other"] as const;

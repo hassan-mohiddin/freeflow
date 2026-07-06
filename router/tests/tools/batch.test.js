@@ -104,7 +104,7 @@ test("freeflowBatch rejects legacy retrieve/transform step kinds", async () => {
 
   assert.equal(result.toolStatus, "error");
   assert.match(result.routing.reason, /steps\[0\]\.kind/);
-  assert.match(result.routing.reason, /Expected step kind run or search/);
+  assert.match(result.routing.reason, /Expected step kind run, search, delegate_status/);
 });
 
 test("freeflowBatch supports mixed run and search steps", async () => {
@@ -248,6 +248,43 @@ test("freeflowBatch validates query input", async () => {
 
   assert.equal(result.toolStatus, "error");
   assert.match(result.routing.reason, /queries\[0\]/);
+});
+
+test("freeflowBatch runs delegation read steps through a host executor and gates mutating steps", async () => {
+  const calls = [];
+  const delegationExecutor = async (step) => {
+    calls.push(step);
+    return { toolStatus: "ok", status: "ok", operation: step.kind, taskId: step.input.taskId };
+  };
+
+  const readResult = await freeflowBatch({
+    sessionId: "batch-delegation-read",
+    steps: [
+      { id: "status", kind: "delegate_status", input: { taskId: "TASK-BATCH" } },
+      { id: "inbox", kind: "delegate_inbox", input: { taskId: "TASK-BATCH" } },
+    ],
+    delegationExecutor,
+  }, { async run() { throw new Error("runner should not be used"); } });
+
+  assert.equal(readResult.toolStatus, "ok");
+  assert.equal(readResult.okCount, 2);
+  assert.deepEqual(calls.map((call) => call.kind), ["delegate_status", "delegate_inbox"]);
+
+  const blockedMutation = await freeflowBatch({
+    sessionId: "batch-delegation-mutation-blocked",
+    steps: [{ id: "ack", kind: "delegate_ack_alert", input: { taskId: "TASK-BATCH", alertId: "alert-1" } }],
+    delegationExecutor,
+  }, { async run() { throw new Error("runner should not be used"); } });
+  assert.equal(blockedMutation.toolStatus, "error");
+  assert.match(blockedMutation.routing.reason, /confirmMutation=true/);
+
+  const allowedMutation = await freeflowBatch({
+    sessionId: "batch-delegation-mutation-allowed",
+    steps: [{ id: "ack", kind: "delegate_ack_alert", input: { taskId: "TASK-BATCH", alertId: "alert-1", confirmMutation: true } }],
+    delegationExecutor,
+  }, { async run() { throw new Error("runner should not be used"); } });
+  assert.equal(allowedMutation.toolStatus, "ok");
+  assert.equal(allowedMutation.steps[0].kind, "delegate_ack_alert");
 });
 
 test("freeflowBatch reports a failing step without hiding other child results", async () => {

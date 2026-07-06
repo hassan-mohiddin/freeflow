@@ -1,5 +1,5 @@
 import { isAbsolute, relative, resolve } from "node:path";
-import { isDelegationTool, resolveProfileForRole, } from "./profiles.js";
+import { isParentControlDelegationTool, resolveProfileForRole, } from "./profiles.js";
 const SECRET_PATH_PATTERNS = [
     /(^|[\\/])\.env(?:$|[.\\/-])/i,
     /(^|[\\/])\.ssh(?:$|[\\/])/i,
@@ -33,8 +33,8 @@ export function evaluatePolicy(input) {
     if (!isValidIntentShape(intent)) {
         return block("malformed_intent", "policy intent is malformed", role, profile, definition.defaultPolicy.suggestedReroute);
     }
-    if (intent.kind === "tool" && isDelegationTool(intent.toolName) && definition.kind === "leaf") {
-        return block("delegation_tool_for_leaf", `leaf profile ${profile} cannot use delegation tool ${intent.toolName}`, role, profile, "parent", { kind: "capability_gap", detail: "leaf agents cannot spawn or manage delegated panes" });
+    if (intent.kind === "tool" && isParentControlDelegationTool(intent.toolName) && definition.kind === "leaf") {
+        return block("delegation_tool_for_leaf", `leaf profile ${profile} cannot use parent-control delegation tool ${intent.toolName}`, role, profile, "parent", { kind: "capability_gap", detail: "leaf agents cannot spawn or manage delegated panes" });
     }
     if ((intent.kind === "read" || intent.kind === "write") && definition.defaultPolicy.denySecretPaths && isSecretPath(intent.path)) {
         return block("secret_path", `access to secret or credential path is blocked: ${intent.path}`, role, profile, definition.defaultPolicy.suggestedReroute);

@@ -107,8 +107,13 @@ export class DelegationStore {
         if (input.cwd !== undefined) {
             manifest.cwd = input.cwd;
         }
-        if (input.writeScope !== undefined) {
-            manifest.writeScope = input.writeScope;
+        const writeScopes = normalizeManifestWriteScopes(input.writeScope);
+        const firstWriteScope = writeScopes[0];
+        if (writeScopes.length === 1 && firstWriteScope !== undefined) {
+            manifest.writeScope = firstWriteScope;
+        }
+        if (writeScopes.length > 0) {
+            manifest.writeScopes = writeScopes;
         }
         if (input.allowedCommands !== undefined) {
             manifest.allowedCommands = [...input.allowedCommands];
@@ -127,6 +132,12 @@ export class DelegationStore {
         }
         if (input.launchCommand !== undefined) {
             manifest.launchCommand = input.launchCommand;
+        }
+        if (input.retention !== undefined) {
+            manifest.retention = input.retention;
+        }
+        if (input.layoutPolicy !== undefined) {
+            manifest.layoutPolicy = input.layoutPolicy;
         }
         const state = input.state ?? "created";
         const status = { taskId, agentId, state, updatedAt: this.now() };
@@ -569,6 +580,8 @@ function stateForAlertOutcome(outcome) {
         return "completed";
     if (outcome === "capability_gap")
         return "blocked";
+    if (outcome === "user_attention")
+        return "attention";
     return outcome;
 }
 function eventIdFromParts(timestamp, taskId, scope, agentId, type) {
@@ -614,4 +627,10 @@ function stripUndefined(value) {
             output[key] = child;
     }
     return output;
+}
+function normalizeManifestWriteScopes(value) {
+    if (value === undefined) {
+        return [];
+    }
+    return Array.isArray(value) ? [...value] : [value];
 }

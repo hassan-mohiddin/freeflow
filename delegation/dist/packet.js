@@ -1,6 +1,6 @@
 import { isAbsolute } from "node:path";
 import { formatProtocolRow } from "./protocol.js";
-import { defaultDenySummaryForProfile, defaultReturnProtocolForRole, isDelegationTool, resolveProfileForRole, } from "./profiles.js";
+import { defaultDenySummaryForProfile, defaultReturnProtocolForRole, isDelegationTool, resolveProfileForRole, returnProtocolForActiveTools, } from "./profiles.js";
 import { validateSafeId } from "./paths.js";
 const MAX_PACKET_FIELD_CHARS = 2_000;
 const DEFAULT_STOP_CONDITIONS = [
@@ -10,6 +10,172 @@ const DEFAULT_STOP_CONDITIONS = [
     "Checks fail after bounded diagnosis within assigned scope.",
 ];
 export function compileTaskPacket(input) {
+    const packet = normalizeTaskPacket(input);
+    return {
+        text: renderTaskPacketMarkdown(packet),
+        role: packet.role,
+        profile: packet.profile,
+        tools: packet.tools,
+        writeScopes: packet.writeScopes,
+        allowedCommands: packet.allowedCommands,
+    };
+}
+export const compileFreeflowTaskPacket = compileTaskPacket;
+export function renderTaskPacketMarkdown(packet) {
+    const lines = [];
+    lines.push(`# Delegated task: ${packet.agentId}`, "");
+    lines.push("## Identity");
+    lines.push(`- task: ${packet.taskId}`);
+    lines.push(`- agent: ${packet.agentId}`);
+    lines.push(`- role/profile: ${packet.role} / ${packet.profile}`);
+    lines.push(`- parent: ${packet.parentAgentId ?? "none"}`);
+    lines.push(`- cwd: ${packet.cwd}`, "");
+    lines.push("## Objective", packet.objective, "");
+    lines.push("## Source pointers");
+    if (packet.sourcePointers.length === 0) {
+        lines.push("- none");
+    }
+    else {
+        for (const source of packet.sourcePointers) {
+            lines.push(`- ${source.kind}: ${source.path}${source.note ? ` — ${source.note}` : ""}`);
+        }
+    }
+    lines.push("");
+    lines.push("## Scope", "In:");
+    for (const item of packet.inScope)
+        lines.push(`- ${item}`);
+    lines.push("", "Out:");
+    for (const item of packet.outOfScope)
+        lines.push(`- ${item}`);
+    lines.push("");
+    lines.push("## Tools and policy", "Allowed tools:");
+    for (const tool of packet.tools)
+        lines.push(`- ${tool}`);
+    lines.push("", "Denied / constrained:");
+    for (const item of packet.deny)
+        lines.push(`- ${item}`);
+    lines.push("", "Policy notes:");
+    for (const item of packet.policySummary)
+        lines.push(`- ${item}`);
+    lines.push("", "Write scope:");
+    if (packet.writeScopes.length === 0)
+        lines.push("- none");
+    else
+        for (const scope of packet.writeScopes)
+            lines.push(`- ${scope}`);
+    lines.push("", "Allowed commands:");
+    if (packet.allowedCommands.length === 0)
+        lines.push("- none");
+    else
+        for (const command of packet.allowedCommands)
+            lines.push(`- ${command}`);
+    lines.push("");
+    lines.push("## Evidence handles");
+    if (packet.evidence.length === 0) {
+        lines.push("- none");
+    }
+    else {
+        for (const pointer of packet.evidence) {
+            const handle = pointer.outputId !== undefined ? `outputId=${pointer.outputId}` : `path=${pointer.path ?? ""}`;
+            const suffix = [pointer.lines ? `lines=${pointer.lines}` : undefined, pointer.note].filter(Boolean).join(" — ");
+            lines.push(`- ${pointer.label}: ${handle}${suffix.length > 0 ? ` — ${suffix}` : ""}`);
+        }
+    }
+    lines.push("");
+    lines.push("## Stop conditions");
+    for (const condition of packet.stopConditions)
+        lines.push(`- ${condition}`);
+    lines.push("");
+    lines.push("## Return");
+    for (const protocol of packet.returnProtocol)
+        lines.push(`- ${protocol}`);
+    lines.push("", "Return fields:");
+    for (const field of packet.returnFields)
+        lines.push(`- ${field}`);
+    if (packet.tools.includes("delegate_finish")) {
+        lines.push("", "Use `delegate_finish` when complete. It stores the result and alerts the direct parent without echoing the full result in chat.");
+    }
+    if (packet.tools.includes("delegate_attention")) {
+        lines.push("Use `delegate_attention` when blocked or parent input is needed.");
+    }
+    if (packet.tools.includes("delegate_progress")) {
+        lines.push("Use `delegate_progress` only for store-only progress that should not wake the parent.");
+    }
+    lines.push("", "Legacy fallback (only if lifecycle tools are unavailable):");
+    lines.push("```text");
+    lines.push("FFRESULT");
+    lines.push("STATUS|completed");
+    lines.push("SUMMARY|One-line result summary.");
+    lines.push("END_FFRESULT");
+    lines.push("```");
+    lines.push("");
+    lines.push("## Evidence storage");
+    lines.push(`- transcript: ${packet.tracePath}`);
+    lines.push(`- result: ${packet.resultPath}`);
+    lines.push("");
+    lines.push("Do not stage, commit, push, spawn children, or use tools outside this packet unless the parent explicitly sends a new packet.");
+    return `${lines.join("\n")}\n`;
+}
+export function renderTaskPacketRows(input) {
+    const packet = normalizeTaskPacket(input);
+    const rows = ["FREEFLOW_TASK_PACKET"];
+    addRow(rows, "IDENTITY", [
+        `task=${packet.taskId}`,
+        `agent=${packet.agentId}`,
+        `role=${packet.role}`,
+        `parent=${packet.parentAgentId ?? "none"}`,
+        `profile=${packet.profile}`,
+    ]);
+    addRow(rows, "CWD", [packet.cwd]);
+    addRow(rows, "OBJECTIVE", [packet.objective]);
+    if (packet.sourcePointers.length === 0) {
+        addRow(rows, "SOURCE", ["none"]);
+    }
+    else {
+        for (const source of packet.sourcePointers) {
+            const fields = [source.kind, source.path];
+            if (source.note !== undefined)
+                fields.push(source.note);
+            addRow(rows, "SOURCE", fields);
+        }
+    }
+    for (const item of packet.inScope)
+        addRow(rows, "IN_SCOPE", [item]);
+    for (const item of packet.outOfScope)
+        addRow(rows, "OUT_OF_SCOPE", [item]);
+    addRow(rows, "TOOLS", [packet.tools.join(",")]);
+    addRow(rows, "DENY", [packet.deny.join(",")]);
+    for (const item of packet.policySummary)
+        addRow(rows, "POLICY", [item]);
+    for (const scope of packet.writeScopes.length === 0 ? ["none"] : packet.writeScopes)
+        addRow(rows, "WRITE_SCOPE", [scope]);
+    for (const command of packet.allowedCommands.length === 0 ? ["none"] : packet.allowedCommands)
+        addRow(rows, "ALLOWED_COMMAND", [command]);
+    if (packet.evidence.length === 0) {
+        addRow(rows, "EVIDENCE", ["none"]);
+    }
+    else {
+        for (const pointer of packet.evidence) {
+            const ref = pointer.outputId !== undefined ? `outputId=${pointer.outputId}` : `path=${pointer.path ?? ""}`;
+            const fields = [pointer.label, ref];
+            if (pointer.lines !== undefined)
+                fields.push(`lines=${pointer.lines}`);
+            if (pointer.note !== undefined)
+                fields.push(pointer.note);
+            addRow(rows, "EVIDENCE", fields);
+        }
+    }
+    for (const condition of packet.stopConditions)
+        addRow(rows, "STOP", [condition]);
+    for (const protocol of packet.returnProtocol)
+        addRow(rows, "RETURN", [protocol]);
+    addRow(rows, "RETURN_FIELDS", [packet.returnFields.join(",")]);
+    addRow(rows, "TRACE_PATH", [packet.tracePath]);
+    addRow(rows, "RESULT_PATH", [packet.resultPath]);
+    rows.push("END_FREEFLOW_TASK_PACKET");
+    return `${rows.join("\n")}\n`;
+}
+function normalizeTaskPacket(input) {
     const taskId = validateRequiredSafeId(input.taskId, "task id");
     const agentId = validateRequiredSafeId(input.agentId, "agent id");
     const role = input.role;
@@ -26,104 +192,32 @@ export function compileTaskPacket(input) {
     if (profileDefinition.defaultPolicy.requireWriteScope && profileDefinition.activeTools.some((tool) => tool === "edit" || tool === "write") && writeScopes.length === 0) {
         throw new Error(`profile ${profile} requires at least one write scope`);
     }
-    const allowedCommands = normalizeAllowedCommands(input.allowedCommands ?? []);
-    const sourcePointers = normalizeSourcePointers(input.sourcePointers ?? []);
-    const inScope = normalizePacketList(input.inScope ?? ["Use the assigned objective and source pointers only."], "in scope");
-    const outOfScope = normalizePacketList(input.outOfScope ?? ["Anything not named in this packet."], "out of scope");
-    const deny = normalizePacketList(input.deny ?? defaultDenySummaryForProfile(profile), "deny");
-    const policySummary = normalizePacketList(input.policySummary ?? defaultPolicySummary(profile, profileDefinition.defaultPolicy.commandPolicy), "policy summary");
-    const evidence = normalizeEvidencePointers(input.evidence ?? []);
-    const stopConditions = normalizePacketList(input.stopConditions ?? DEFAULT_STOP_CONDITIONS, "stop condition");
-    const defaultReturn = defaultReturnProtocolForRole(role);
-    const returnProtocol = normalizePacketList(input.returnProtocol ?? defaultReturn.returnProtocol, "return protocol");
-    const returnFields = normalizePacketList(input.returnFields ?? defaultReturn.returnFields, "return fields");
-    const tracePath = validateRequiredPath(input.tracePath, "trace path");
-    const resultPath = validateRequiredPath(input.resultPath, "result path");
-    const rows = ["FREEFLOW_TASK_PACKET"];
-    addRow(rows, "IDENTITY", [
-        `task=${taskId}`,
-        `agent=${agentId}`,
-        `role=${role}`,
-        `parent=${parentAgentId ?? "none"}`,
-        `profile=${profile}`,
-    ]);
-    addRow(rows, "CWD", [cwd]);
-    addRow(rows, "OBJECTIVE", [objective]);
-    if (sourcePointers.length === 0) {
-        addRow(rows, "SOURCE", ["none"]);
-    }
-    else {
-        for (const source of sourcePointers) {
-            const fields = [source.kind, source.path];
-            if (source.note !== undefined) {
-                fields.push(source.note);
-            }
-            addRow(rows, "SOURCE", fields);
-        }
-    }
-    for (const item of inScope) {
-        addRow(rows, "IN_SCOPE", [item]);
-    }
-    for (const item of outOfScope) {
-        addRow(rows, "OUT_OF_SCOPE", [item]);
-    }
-    addRow(rows, "TOOLS", [tools.join(",")]);
-    addRow(rows, "DENY", [deny.join(",")]);
-    for (const item of policySummary) {
-        addRow(rows, "POLICY", [item]);
-    }
-    if (writeScopes.length === 0) {
-        addRow(rows, "WRITE_SCOPE", ["none"]);
-    }
-    else {
-        for (const scope of writeScopes) {
-            addRow(rows, "WRITE_SCOPE", [scope]);
-        }
-    }
-    if (allowedCommands.length === 0) {
-        addRow(rows, "ALLOWED_COMMAND", ["none"]);
-    }
-    else {
-        for (const command of allowedCommands) {
-            addRow(rows, "ALLOWED_COMMAND", [command]);
-        }
-    }
-    if (evidence.length === 0) {
-        addRow(rows, "EVIDENCE", ["none"]);
-    }
-    else {
-        for (const pointer of evidence) {
-            const ref = pointer.outputId !== undefined ? `outputId=${pointer.outputId}` : `path=${pointer.path ?? ""}`;
-            const fields = [pointer.label, ref];
-            if (pointer.lines !== undefined) {
-                fields.push(`lines=${pointer.lines}`);
-            }
-            if (pointer.note !== undefined) {
-                fields.push(pointer.note);
-            }
-            addRow(rows, "EVIDENCE", fields);
-        }
-    }
-    for (const condition of stopConditions) {
-        addRow(rows, "STOP", [condition]);
-    }
-    for (const protocol of returnProtocol) {
-        addRow(rows, "RETURN", [protocol]);
-    }
-    addRow(rows, "RETURN_FIELDS", [returnFields.join(",")]);
-    addRow(rows, "TRACE_PATH", [tracePath]);
-    addRow(rows, "RESULT_PATH", [resultPath]);
-    rows.push("END_FREEFLOW_TASK_PACKET");
+    const defaultReturnSpec = defaultReturnProtocolForRole(role);
+    const returnProtocol = normalizeReturnProtocol(input.returnProtocol, defaultReturnSpec.returnProtocol, role, tools);
     return {
-        text: `${rows.join("\n")}\n`,
+        taskId,
+        agentId,
+        ...(parentAgentId !== undefined ? { parentAgentId } : {}),
         role,
         profile,
+        cwd,
+        objective,
         tools,
         writeScopes,
-        allowedCommands,
+        allowedCommands: normalizeAllowedCommands(input.allowedCommands ?? []),
+        sourcePointers: normalizeSourcePointers(input.sourcePointers ?? []),
+        inScope: normalizePacketList(input.inScope ?? ["Use the assigned objective and source pointers only."], "in scope"),
+        outOfScope: normalizePacketList(input.outOfScope ?? ["Anything not named in this packet."], "out of scope"),
+        deny: normalizePacketList(input.deny ?? defaultDenySummaryForProfile(profile), "deny"),
+        policySummary: normalizePacketList(input.policySummary ?? defaultPolicySummary(profile, profileDefinition.defaultPolicy.commandPolicy), "policy summary"),
+        evidence: normalizeEvidencePointers(input.evidence ?? []),
+        stopConditions: normalizePacketList(input.stopConditions ?? DEFAULT_STOP_CONDITIONS, "stop condition"),
+        returnProtocol,
+        returnFields: normalizePacketList(input.returnFields ?? defaultReturnSpec.returnFields, "return fields"),
+        tracePath: validateRequiredPath(input.tracePath, "trace path"),
+        resultPath: validateRequiredPath(input.resultPath, "result path"),
     };
 }
-export const compileFreeflowTaskPacket = compileTaskPacket;
 function addRow(rows, tag, fields) {
     rows.push(formatProtocolRow(tag, fields));
 }
@@ -160,7 +254,19 @@ function normalizeWriteScopes(value) {
         return [];
     }
     const scopes = Array.isArray(value) ? value : [value];
-    return scopes.map((scope, index) => validatePathLike(scope, `write scope ${index + 1}`));
+    return [...new Set(scopes.map((scope, index) => validateWriteScope(scope, `write scope ${index + 1}`)))];
+}
+function normalizeReturnProtocol(input, defaultProtocol, role, tools) {
+    const protocol = input === undefined
+        ? returnProtocolForActiveTools(role, tools)
+        : normalizePacketList(input, "return protocol");
+    if (!tools.includes("delegate_finish") && protocol.some((item) => item.includes("DELEGATE_FINISH"))) {
+        throw new Error("return protocol must not mention delegate_finish unless delegate_finish is active for this packet");
+    }
+    if (input === undefined && protocol.length === 0) {
+        return [...defaultProtocol];
+    }
+    return protocol;
 }
 function normalizeAllowedCommands(commands) {
     return commands.map((command, index) => validateCommand(command, `allowed command ${index + 1}`));
@@ -229,6 +335,13 @@ function validateRequiredPath(value, label) {
         throw new Error(`${label} is required`);
     }
     return validatePathLike(value, label);
+}
+function validateWriteScope(value, label) {
+    const scope = validatePathLike(value, label);
+    if (/[,;|]/.test(scope) || /\s/.test(scope)) {
+        throw new Error(`${label} must be a path or glob scope only; pass multiple scopes as an array, not prose or comma-separated text`);
+    }
+    return scope;
 }
 function validatePathLike(value, label) {
     const path = validatePacketField(value, label);

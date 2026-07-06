@@ -6,6 +6,8 @@ import test from "node:test";
 
 import {
   DELEGATION_TOOL_NAMES,
+  PARENT_CONTROL_TOOL_NAMES,
+  CHILD_LIFECYCLE_TOOL_NAMES,
   buildWorktreeBranchName,
   commitCheckpointApprovalFromDecision,
   compileTaskPacket,
@@ -467,13 +469,14 @@ test("protocol row formatting collapses field newlines to spaces", () => {
   assert.deepEqual(parseProtocolRow(row).fields, ["alpha beta gamma"]);
 });
 
-test("profile registry gives delegation tools only to orchestrator and parent profiles", () => {
+test("profile registry gives parent-control tools only to orchestrator and parent profiles", () => {
   const definitions = listProfileDefinitions();
   const leafProfiles = definitions.filter((definition) => definition.kind === "leaf");
   const parentProfiles = ["orchestrator", "planning-parent", "execution-parent"];
 
   for (const definition of leafProfiles) {
-    assert.equal(definition.activeTools.some(isDelegationTool), false, `${definition.profile} must not include delegation tools`);
+    assert.equal(definition.activeTools.some((tool) => PARENT_CONTROL_TOOL_NAMES.includes(tool)), false, `${definition.profile} must not include parent-control delegation tools`);
+    assert.equal(CHILD_LIFECYCLE_TOOL_NAMES.every((tool) => definition.activeTools.includes(tool)), true, `${definition.profile} should include scoped lifecycle tools`);
     assert.equal(definition.skills.hardGated, false);
   }
 
@@ -655,7 +658,7 @@ test("policy evaluator fails closed for unknown role/profile and role/profile mi
   );
 });
 
-test("task packet compiler emits required compact rows with escaping, evidence, and return protocol", () => {
+test("task packet compiler renders readable Markdown with scoped lifecycle return guidance", () => {
   const packet = compileTaskPacket({
     taskId: "TASK-9",
     agentId: "worker-9",
@@ -682,27 +685,45 @@ test("task packet compiler emits required compact rows with escaping, evidence, 
 
   assert.equal(packet.role, "worker");
   assert.equal(packet.profile, "worker");
-  assert.equal(packet.tools.some(isDelegationTool), false);
-  assert.match(packet.text, /^FREEFLOW_TASK_PACKET\n/);
-  assert.match(packet.text, /END_FREEFLOW_TASK_PACKET\n$/);
-  assert.ok(packet.text.includes("IDENTITY|task=TASK-9|agent=worker-9|role=worker|parent=execution-parent-1|profile=worker"));
-  assert.ok(packet.text.includes("CWD|/repo"));
-  assert.ok(packet.text.includes("OBJECTIVE|Implement P2¦P3 core interface foundation."));
-  assert.ok(packet.text.includes("SOURCE|spec|docs/specs/freeflow-pi-pane-delegation-harness-spec.md|Task packet requirements"));
-  assert.ok(packet.text.includes("IN_SCOPE|profiles¦policy"));
-  assert.ok(packet.text.includes("OUT_OF_SCOPE|cmux adapter"));
-  assert.ok(packet.text.includes("TOOLS|"));
-  assert.ok(packet.text.includes("DENY|"));
-  assert.ok(packet.text.includes("POLICY|commands_require_ALLOWED_COMMAND_rows"));
-  assert.ok(packet.text.includes("WRITE_SCOPE|/repo/delegation/src"));
-  assert.ok(packet.text.includes("ALLOWED_COMMAND|npm run test:delegation"));
-  assert.ok(packet.text.includes("EVIDENCE|handoff|path=docs/handoffs/2026-07-02-manual-cmux-delegation-harness-dogfood.md|Manual P2¦P3 lessons only"));
-  assert.ok(packet.text.includes("EVIDENCE|prior-check|outputId=ffout_123|lines=1-5|prior verification pointer"));
-  assert.ok(packet.text.includes("STOP|Spec conflict"));
-  assert.ok(packet.text.includes("RETURN|FFRESULT_REQUIRED"));
-  assert.ok(packet.text.includes("RETURN_FIELDS|summary,files_changed,checks_run,tests_status,uncertainty,recommendation"));
-  assert.ok(packet.text.includes("TRACE_PATH|.freeflow/delegation/tasks/TASK-9/agents/worker-9/transcript.log"));
-  assert.ok(packet.text.includes("RESULT_PATH|.freeflow/delegation/tasks/TASK-9/agents/worker-9/result.json"));
+  assert.equal(packet.tools.some((tool) => PARENT_CONTROL_TOOL_NAMES.includes(tool)), false);
+  assert.equal(packet.tools.includes("delegate_finish"), true);
+  assert.match(packet.text, /^# Delegated task: worker-9\n/);
+  assert.doesNotMatch(packet.text, /^FREEFLOW_TASK_PACKET/m);
+  assert.ok(packet.text.includes("- task: TASK-9"));
+  assert.ok(packet.text.includes("- role/profile: worker / worker"));
+  assert.ok(packet.text.includes("Implement P2|P3\ncore interface foundation."));
+  assert.ok(packet.text.includes("- spec: docs/specs/freeflow-pi-pane-delegation-harness-spec.md — Task packet requirements"));
+  assert.ok(packet.text.includes("- profiles|policy"));
+  assert.ok(packet.text.includes("- cmux\nadapter"));
+  assert.ok(packet.text.includes("- delegate_finish"));
+  assert.ok(packet.text.includes("- commands_require_ALLOWED_COMMAND_rows"));
+  assert.ok(packet.text.includes("- /repo/delegation/src"));
+  assert.ok(packet.text.includes("- npm run test:delegation"));
+  assert.ok(packet.text.includes("- handoff: path=docs/handoffs/2026-07-02-manual-cmux-delegation-harness-dogfood.md — Manual P2|P3 lessons\nonly"));
+  assert.ok(packet.text.includes("- prior-check: outputId=ffout_123 — lines=1-5 — prior verification pointer"));
+  assert.ok(packet.text.includes("- Spec conflict"));
+  assert.ok(packet.text.includes("- DELEGATE_FINISH_REQUIRED"));
+  assert.ok(packet.text.includes("Use `delegate_finish` when complete."));
+  assert.ok(packet.text.includes("- transcript: .freeflow/delegation/tasks/TASK-9/agents/worker-9/transcript.log"));
+  assert.ok(packet.text.includes("- result: .freeflow/delegation/tasks/TASK-9/agents/worker-9/result.json"));
+});
+
+test("task packet compiler falls back to legacy return instructions when lifecycle tools are unavailable", () => {
+  const packet = compileTaskPacket({
+    taskId: "TASK-10A",
+    agentId: "worker-10A",
+    role: "worker",
+    cwd: "/repo",
+    objective: "Implement bounded slice.",
+    tools: ["read", "edit", "write", "freeflow_run"],
+    writeScope: "/repo/delegation",
+    tracePath: ".freeflow/delegation/tasks/TASK-10A/agents/worker-10A/transcript.log",
+    resultPath: ".freeflow/delegation/tasks/TASK-10A/agents/worker-10A/result.json",
+  });
+
+  assert.equal(packet.tools.includes("delegate_finish"), false);
+  assert.ok(packet.text.includes("- FFRESULT_REQUIRED"));
+  assert.doesNotMatch(packet.text, /Use `delegate_finish` when complete/);
 });
 
 test("task packet compiler rejects malformed required input without side effects", () => {
@@ -722,6 +743,9 @@ test("task packet compiler rejects malformed required input without side effects
   assert.throws(() => compileTaskPacket({ ...base, cwd: "repo" }), /cwd must be an absolute path/);
   assert.throws(() => compileTaskPacket({ ...base, profile: "reviewer" }), /cannot be used for role worker/);
   assert.throws(() => compileTaskPacket({ ...base, writeScope: undefined }), /requires at least one write scope/);
+  assert.throws(() => compileTaskPacket({ ...base, writeScope: "may touch delegation\/\*\*, pi-extension\/\*\*" }), /path or glob scope only/);
+  assert.throws(() => compileTaskPacket({ ...base, writeScope: "delegation\/\*\*,pi-extension\/\*\*" }), /path or glob scope only/);
+  assert.throws(() => compileTaskPacket({ ...base, tools: ["read", "edit", "write"], returnProtocol: ["DELEGATE_FINISH_REQUIRED"] }), /delegate_finish.*active/);
   assert.throws(() => compileTaskPacket({ ...base, tracePath: undefined }), /trace path is required/);
   assert.throws(() => compileTaskPacket({ ...base, resultPath: undefined }), /result path is required/);
   assert.throws(() => compileTaskPacket({ ...base, allowedCommands: ["npm run build\nnpm test"] }), /allowed command 1 must not contain newlines/);

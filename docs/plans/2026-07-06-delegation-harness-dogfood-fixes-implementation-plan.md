@@ -152,6 +152,14 @@ Find existing test/build patterns before adding new test files.
 | P9 | Broaden `freeflow_batch` to safe delegation operations | P5/P6 | No | `router/src/tools/batch.ts`, `pi-extension/src/router-tools.ts`, tests | batch tests | After P9 | mutating parallel operations are unsafe/ungated |
 | P10 | Final smoke, docs/evidence, and local update verification | P8/P9 | No | tests/docs/release evidence only if ready | build, focused tests, live cmux smoke | Final | no alert-driven dogfood proof |
 
+## Execution-Parent Routing Rule
+
+Execution-parent routing is package/global, not slice-local.
+
+For this multi-slice runtime implementation, execution-parent should coordinate and assign implementation to a worker stream instead of self-implementing because the next slice looks small. A single worker may carry multiple sequential slices while context remains useful and the write scope stays coherent.
+
+Spawn a fresh worker only for a real context boundary, parallelism, changed capability/write scope, stale context, or isolation need. Parent inline edits are limited to coordination, reporting, or mechanical integration; product/runtime edits by the parent require an explicit note explaining why they are not worker-owned.
+
 ## Slice Details
 
 ### P0: Accepted Skill/Eval And Planning Checkpoint
@@ -206,8 +214,13 @@ Tasks:
   - read/recovery: result, own status, evidence pointers when scoped.
 - Update profile active tools so leaf roles do not receive parent-control tools.
 - Permit leaf roles to use child lifecycle tools scoped to their own task/agent.
+- Ensure runtime task packets match actual active tools; if Pi cannot apply scoped profile tools or lifecycle tools, fail closed or route to explicit fallback before child launch.
+- Do not advertise `delegate_finish`, `delegate_attention`, or `delegate_progress` in a child prompt unless the tool is actually active for that child.
+- Validate write scopes at spawn/packet compile time: support multiple explicit scopes or reject prose/combined scope strings with a clear expected format.
+- Update execution-parent profile/task guidance so broad or multi-slice implementation is assigned to a worker stream, not self-implemented slice by slice.
+- Update worker guidance so one worker may own multiple sequential slices when context remains useful; do not spawn a fresh worker per slice by default.
 - Update policy guards so lifecycle tools cannot target other agents/tasks.
-- Add tests for allowed/blocked role-tool combinations.
+- Add tests for allowed/blocked role-tool combinations, active-tool mismatch fail-closed behavior, write-scope normalization/rejection, and execution-parent routing guidance.
 
 Checks:
 
@@ -228,6 +241,8 @@ Tasks:
   - update status;
   - enqueue direct-parent alert;
   - return tiny confirmation to child.
+- Treat natural-language claims such as “stored with delegate_finish” as non-results unless canonical result/report JSON, terminal status, event, and parent alert exist.
+- Make `delegate_result` report pending/malformed with recovery pointers when a child claims completion but no canonical result exists.
 - Implement `delegate_attention`:
   - validate blocker/attention shape;
   - write status/event;
@@ -235,6 +250,7 @@ Tasks:
   - support terminal and non-terminal attention where needed.
 - Implement optional `delegate_progress` as store-only/no-wake.
 - Keep legacy chat parser fallback, but mark it as fallback.
+- Dedupe direct lifecycle submission and legacy parser fallback so one terminal result creates one parent alert.
 - Ensure tool output is compact pipe rows, not full JSON.
 - Add renderer tests proving no full result echo.
 
@@ -273,12 +289,14 @@ Tasks:
 
 - Add direct-parent inbox state and unread alert queries.
 - Add `delegate_inbox`, `delegate_ack_alert`, and `delegate_ack_all`.
-- Update `delegate_status` to default to compact counts/current unread alerts, not stale dumps.
+- Update `delegate_status` to default to compact counts/current task/direct-parent unread alerts, not stale dumps or global historical counts.
+- Keep historical/global alerts recoverable only through explicit status/inbox options.
+- Dedupe terminal result alerts by task, agent, result status, result path/content hash, and event type.
 - Add `delegate_user_attention` or equivalent harness-owned user-attention tool.
 - Default channel: cmux notification/attention marker plus TUI badge/inbox.
 - Optional channel: desktop notification when configured.
 - Notify user only for user-attention states or configured task completion, not routine leaf completion.
-- Deduplicate/coalesce user attention.
+- Deduplicate/coalesce user attention and child completion summaries.
 
 Decision checkpoints before implementing notification defaults:
 
@@ -288,8 +306,9 @@ Decision checkpoints before implementing notification defaults:
 Checks:
 
 - alert enqueue tests;
+- duplicate terminal-result dedupe tests;
 - ack tests;
-- status unread/stale tests;
+- status unread/stale/current-task scoping tests;
 - cmux notification fake adapter tests.
 
 ### P6: Canonical State And Status Robustness
@@ -356,6 +375,9 @@ Tasks:
 - Treat reviewer results with blocking, question, or needs-evidence findings as non-passing even when the process status is `completed`; keep those panes open through adjudication, fix, and re-review unless the parent/user explicitly closes them.
 - Keep failed/blocked/attention panes open.
 - Keep worker panes through review/fix loop, then close when package accepted or parked.
+- Before closing or cancelling a parent, detect active descendants and require an explicit close, cancel, adopt, or park decision for each descendant.
+- Completed descendant results should be consumed/acked or explicitly parked before parent close; active descendants must not be silently orphaned.
+- Reject `delegate_send` follow-ups to terminal children unless the harness creates an explicit new attempt with its own state/result identity.
 - Add role-aware layout policy:
   - orchestrator left;
   - planning parent/children grouped;
@@ -371,7 +393,10 @@ Checks:
 
 - fake cmux close tests;
 - retention policy tests;
+- parent-close descendant reconciliation tests;
+- terminal-child `delegate_send` rejection or explicit-attempt tests;
 - layout target selection tests;
+- execution-parent dogfood smoke: broad/multi-slice work is assigned to a worker stream rather than parent self-implementation;
 - live smoke if cmux supports needed operations.
 
 ### P9: `freeflow_batch` Delegation Operations
@@ -408,25 +433,35 @@ Checks:
 
 Purpose: prove the fixes change harness behavior.
 
+Runtime-load rule: live cmux smoke must exercise the installed/reloaded Freeflow runtime, not the current already-loaded session. If the current session cannot load the WIP runtime, live smoke moves after commit, push, and local runtime update/reload. Do not claim final completion until that post-push smoke passes or its failure is reported with a follow-up fix route.
+
 Tasks:
 
-- Run focused automated tests for touched modules.
-- Run unavailable cmux/preflight smoke if relevant code changed.
-- Run live cmux dogfood smoke:
+- Run focused automated tests for touched modules before commit.
+- Commit/push only after review and automated checks pass, using explicit staging and existing user push confirmation.
+- Update/reload local Freeflow from the pushed source.
+- Run live cmux dogfood smoke after reload:
   - spawn a child with Markdown prompt;
+  - child prompt lists only tools actually active for that child;
   - child uses `delegate_finish` without full chat result;
-  - parent receives inbox alert without `delegate_wait`;
+  - natural-language fake finish without canonical result is reported pending/malformed, not successful;
+  - parent receives one deduped inbox alert without `delegate_wait`;
   - parent acks/consumes compact result;
   - successful verifier/reviewer pane auto-closes under policy;
+  - parent close/cancel refuses or explicitly reconciles active descendants;
+  - follow-up to a terminal child is rejected or represented as an explicit new attempt, not a stale wait state;
   - final user attention uses cmux/TUI notification channel when configured.
 - Save or update runtime evidence only when useful and accepted.
 
-Minimum final checks:
+Minimum pre-push checks:
 
 - `npm run build`
 - focused delegation tests
 - relevant Pi adapter tests
 - `git diff --check`
+
+Minimum post-push/reload checks:
+
 - live cmux smoke evidence
 
 ## Review Checkpoints
@@ -439,8 +474,9 @@ Use harness reviewers, not hidden/native subagents, when delegation is available
 - Review P4 prompt rendering separately for UX/context impact.
 - Review P5/P6 together because alerts/status/state share store contracts.
 - Review P7 role schemas before relying on verifier outputs.
-- Review P8/P9 before final smoke because they affect user-visible behavior and operation batching.
-- Final review after P10 smoke.
+- Review P8/P9 before commit/push because they affect user-visible behavior and operation batching.
+- Final code review before commit/push after automated checks pass.
+- Final smoke review after post-push/reload P10 smoke.
 
 Reviewer findings are evidence. Parent/execution-parent adjudicates before fixes. When a review returns blocking, question, or needs-evidence findings, keep that reviewer pane open for the narrowed re-review unless the parent/user explicitly chooses to close it.
 
@@ -449,9 +485,10 @@ Reviewer findings are evidence. Parent/execution-parent adjudicates before fixes
 Stop and route back before editing or continuing if:
 
 - source docs/specs/tests conflict with intended behavior;
-- Pi extension APIs cannot support child lifecycle tools or scoped tool policy;
+- Pi extension APIs cannot support child lifecycle tools or scoped tool policy, and the fallback would advertise unavailable tools or misrepresent enforcement;
+- write-scope input cannot be made explicit enough to avoid prose/combined scope ambiguity;
 - alerts cannot be surfaced without polling and no acceptable degraded path exists;
-- cmux cannot support the needed notification/layout/close behavior;
+- cmux cannot support the needed notification/layout/close behavior after reload;
 - status robustness requires hiding malformed canonical state instead of reporting it;
 - result submission would require raw result injection into parent context;
 - batch delegation operations cannot be made concurrency-safe;
@@ -462,9 +499,9 @@ Stop and route back before editing or continuing if:
 
 Before claiming complete:
 
-- report committed/pushed revision and local update evidence;
-- report automated checks;
-- report live cmux smoke outcome;
+- report committed/pushed revision and local update/reload evidence;
+- report automated pre-push checks;
+- report post-push live cmux smoke outcome;
 - report verified alert/inbox behavior without normal `delegate_wait` supervision;
 - report any remaining open questions or deferred optional channels;
 - name any panes/tasks left open and cleanup status.

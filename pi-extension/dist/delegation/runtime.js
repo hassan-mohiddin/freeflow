@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { isAbsolute, resolve } from "node:path";
-import { createDelegationStore, defaultDenySummaryForProfile, defaultReturnProtocolForRole, evaluatePolicy, isDelegationTool, parseModelText, resolveProfileForRole, validateSafeId, } from "../../../delegation/dist/index.js";
+import { createDelegationStore, defaultDenySummaryForProfile, defaultReturnProtocolForRole, evaluatePolicy, isChildLifecycleDelegationTool, isDelegationTool, isParentControlDelegationTool, isReadRecoveryDelegationTool, parseModelText, resolveProfileForRole, returnProtocolForActiveTools, validateSafeId, } from "../../../delegation/dist/index.js";
 const DELEGATION_ENV_KEYS = [
     "FREEFLOW_DELEGATION_STORE",
     "FREEFLOW_DELEGATION_TASK_ID",
@@ -128,6 +128,11 @@ export async function handleDelegatedToolCall(event, ctx, pi) {
         });
         return { block: true, reason: formatPolicyDeniedReason({ code: "delegated_runtime_unavailable", reason, suggestedReroute: "parent" }) };
     }
+    const scopedDelegationDecision = validateScopedDelegationToolCall(setup, event);
+    if (scopedDelegationDecision !== undefined) {
+        await recordPolicyBlockedToolCall(setup, event, scopedDelegationDecision);
+        return { block: true, reason: formatPolicyDeniedReason(scopedDelegationDecision) };
+    }
     const intent = toolCallToPolicyIntent(event);
     const taskPolicy = await loadTaskPolicy(setup, ctx);
     const decision = evaluatePolicy({
@@ -141,6 +146,47 @@ export async function handleDelegatedToolCall(event, ctx, pi) {
     }
     await recordPolicyBlockedToolCall(setup, event, decision);
     return { block: true, reason: formatPolicyDeniedReason(decision) };
+}
+function validateScopedDelegationToolCall(setup, event) {
+    if (setup.detection.mode !== "delegated")
+        return undefined;
+    const toolName = typeof event?.toolName === "string" ? event.toolName : "";
+    const profileKind = setup.detection.profileDefinition?.kind;
+    if (!isDelegationTool(toolName))
+        return undefined;
+    if (profileKind !== "leaf")
+        return undefined;
+    const input = event?.input && typeof event.input === "object" ? event.input : {};
+    const requestedTaskId = stringInput(input.taskId) || setup.detection.taskId;
+    const requestedAgentId = stringInput(input.agentId) || setup.detection.agentId;
+    if (isParentControlDelegationTool(toolName))
+        return undefined;
+    if (isChildLifecycleDelegationTool(toolName)) {
+        if (requestedTaskId !== setup.detection.taskId || requestedAgentId !== setup.detection.agentId) {
+            return scopedBlock(toolName, `lifecycle tool can only target current agent ${setup.detection.taskId}/${setup.detection.agentId}`);
+        }
+        return undefined;
+    }
+    if (isReadRecoveryDelegationTool(toolName)) {
+        if (toolName === "delegate_status" || toolName === "delegate_result") {
+            if (requestedTaskId !== setup.detection.taskId || requestedAgentId !== setup.detection.agentId || !stringInput(input.agentId)) {
+                return scopedBlock(toolName, `leaf read/recovery tool must include its own taskId and agentId (${setup.detection.taskId}/${setup.detection.agentId})`);
+            }
+            return undefined;
+        }
+        return scopedBlock(toolName, `leaf profile cannot use ${toolName}; ask the parent to read or ack inbox state`);
+    }
+    return undefined;
+}
+function scopedBlock(toolName, reason) {
+    return {
+        allowed: false,
+        status: "blocked",
+        code: "capability_gap",
+        reason,
+        suggestedReroute: "parent",
+        request: { kind: "capability_gap", detail: `reroute ${toolName} to parent or respawn with a scoped packet` },
+    };
 }
 export async function handleDelegatedAssistantMessageEnd(event, ctx) {
     const setup = await prepareDelegatedRuntime(undefined, ctx, { applyActiveTools: false });
@@ -161,6 +207,15 @@ export async function handleDelegatedAssistantMessageEnd(event, ctx) {
         return undefined;
     }
     const store = createDelegationStore({ root: setup.detection.storeRoot });
+    if (await hasStoredDelegateFinishResult(store, setup.detection.taskId, setup.detection.agentId)) {
+        const rawSnapshotPath = await store.writeAgentModelText(setup.detection.taskId, setup.detection.agentId, assistantRawFileName(rawText), rawText);
+        await store.appendAgentEvent(setup.detection.taskId, setup.detection.agentId, {
+            type: "assistant-message-after-delegate-finish",
+            message: "assistant message preserved after delegate_finish; canonical result unchanged",
+            data: { rawPath: rawSnapshotPath, hadProtocolLikeText: hasProtocolLikeText, final: isFinal },
+        });
+        return undefined;
+    }
     const rawSnapshotPath = await store.writeAgentModelText(setup.detection.taskId, setup.detection.agentId, assistantRawFileName(rawText), rawText);
     const parsed = parseModelTextSafely(rawText);
     const latestResultPaths = await store.recordAgentResult(setup.detection.taskId, setup.detection.agentId, rawText, parsed);
@@ -284,9 +339,15 @@ async function loadTaskPolicy(setup, ctx) {
     }
     return {
         cwd: manifest?.cwd ?? ctx?.cwd,
-        writeScopes: manifest?.writeScope ? [manifest.writeScope] : [],
+        writeScopes: manifestWriteScopes(manifest),
         allowedCommands: Array.isArray(manifest?.allowedCommands) ? manifest.allowedCommands : [],
     };
+}
+function manifestWriteScopes(manifest) {
+    if (Array.isArray(manifest?.writeScopes)) {
+        return manifest.writeScopes.filter((scope) => typeof scope === "string" && scope.length > 0);
+    }
+    return typeof manifest?.writeScope === "string" && manifest.writeScope.length > 0 ? [manifest.writeScope] : [];
 }
 function delegatedRuntimePrompt(setup) {
     if (setup.detection.mode === "blocked" || setup.blockers.length > 0) {
@@ -294,12 +355,15 @@ function delegatedRuntimePrompt(setup) {
     }
     const detection = setup.detection;
     const profile = detection.profileDefinition;
-    const returnSpec = defaultReturnProtocolForRole(detection.role);
-    const writeScope = setup.manifest?.writeScope ?? "none recorded; write/command policy may fail closed";
+    const activeToolList = setup.activeTools.length > 0 ? setup.activeTools : profile.activeTools;
+    const defaultReturnSpec = defaultReturnProtocolForRole(detection.role);
+    const returnSpec = { ...defaultReturnSpec, returnProtocol: returnProtocolForActiveTools(detection.role, activeToolList) };
+    const writeScopes = manifestWriteScopes(setup.manifest);
+    const writeScope = writeScopes.length > 0 ? writeScopes.join(", ") : "none recorded; write/command policy may fail closed";
     const allowedCommands = Array.isArray(setup.manifest?.allowedCommands) && setup.manifest.allowedCommands.length > 0
         ? setup.manifest.allowedCommands.join(", ")
         : "none recorded";
-    const activeTools = setup.activeTools.length > 0 ? setup.activeTools.join(", ") : profile.activeTools.join(", ");
+    const activeTools = activeToolList.join(", ");
     const warnings = setup.warnings.length > 0 ? `\nWarnings:\n${setup.warnings.map((warning) => `- ${warning}`).join("\n")}` : "";
     return `# Freeflow Delegated Runtime Context
 
@@ -627,6 +691,19 @@ function expectedTerminalOutput(setup) {
         return ["role-native report", "FFRESULT blocked/failed"];
     }
     return ["FFRESULT"];
+}
+async function hasStoredDelegateFinishResult(store, taskId, agentId) {
+    try {
+        const record = await store.readAgentResult(taskId, agentId);
+        const direct = record.parsed?.direct;
+        return record.exists === true
+            && record.parsed?.transport === "delegate_finish"
+            && typeof direct?.status === "string"
+            && typeof direct?.summary === "string";
+    }
+    catch {
+        return false;
+    }
 }
 function assistantRawFileName(rawText) {
     const hash = createHash("sha256").update(rawText).digest("hex").slice(0, 16);

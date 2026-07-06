@@ -1,4 +1,4 @@
-import type { AgentManifest, AgentStatus, DelegationEvent, DelegationIndex, DelegationProfile, DelegationRegistry, DelegationRole, DelegationState, DelegationTaskMetadata, DelegationWaitState, ExecutionDecision, ExecutionMapMetadata, JsonValue, ParentAlert, ParentAlertEvidence, ParentAlertOutcome, ParentReportName, WaitScopeEntry, WorkPackageMetadata } from "./types.js";
+import type { AgentManifest, AgentStatus, DelegationEvent, DelegationIndex, DelegationLayoutPolicy, DelegationProfile, DelegationRegistry, DelegationRetentionMode, DelegationRole, DelegationState, DelegationTaskMetadata, DelegationWaitState, ExecutionDecision, ExecutionMapMetadata, JsonValue, ParentAlert, ParentAlertEvidence, ParentAlertOutcome, ParentReportName, WaitScopeEntry, WorkPackageMetadata } from "./types.js";
 export interface DelegationStoreOptions {
     root?: string;
     repoRoot?: string;
@@ -18,7 +18,7 @@ export interface RegisterAgentInput {
     profile?: DelegationProfile;
     parentAgentId?: string;
     cwd?: string;
-    writeScope?: string;
+    writeScope?: string | string[];
     allowedCommands?: string[];
     state?: DelegationState;
     createdAt?: string;
@@ -27,6 +27,8 @@ export interface RegisterAgentInput {
     workspaceRef?: string;
     windowRef?: string;
     launchCommand?: string;
+    retention?: DelegationRetentionMode;
+    layoutPolicy?: DelegationLayoutPolicy;
 }
 export interface AppendEventInput {
     type: string;

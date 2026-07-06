@@ -30,6 +30,16 @@ export type DelegationState =
 
 export type ResultStatus = "completed" | "completed_with_risks" | "blocked" | "failed" | "cancelled";
 
+export type CheckStatus = "pass" | "fail" | "skipped" | "not_run";
+
+export type ReviewerFindingSeverity = "blocking" | "non_blocking" | "question" | "needs_evidence";
+
+export type DelegationToolClass = "parent-control" | "child-lifecycle" | "read-recovery";
+
+export type DelegationRetentionMode = "auto" | "keep-open" | "debug";
+
+export type DelegationLayoutPolicy = "auto" | "manual" | "orchestrator" | "planning" | "execution" | "review-dock";
+
 export type ParentReportName = "planning-report" | "execution-kickoff" | "execution-report";
 
 export type ParentAlertOutcome =
@@ -39,8 +49,8 @@ export type ParentAlertOutcome =
   | "failed"
   | "cancelled"
   | "attention"
-  | "capability_gap";
-
+  | "capability_gap"
+  | "user_attention";
 export interface ParentAlertEvidence {
   rawPath?: string;
   jsonPath?: string;
@@ -145,12 +155,15 @@ export interface AgentManifest {
   parentAgentId?: string;
   cwd?: string;
   writeScope?: string;
+  writeScopes?: string[];
   allowedCommands?: string[];
   paneRef?: string;
   surfaceRef?: string;
   workspaceRef?: string;
   windowRef?: string;
   launchCommand?: string;
+  retention?: DelegationRetentionMode;
+  layoutPolicy?: DelegationLayoutPolicy;
 }
 
 export interface AgentStatus {
@@ -233,6 +246,45 @@ export interface ParsedFFResult extends ParsedProtocolBlock {
 export interface ParsedParentReport extends ParsedProtocolBlock {
   kind: "PLANNING_REPORT" | "EXECUTION_KICKOFF" | "EXECUTION_REPORT";
   status?: string;
+}
+
+export interface DelegateFinishCheck {
+  name: string;
+  status: CheckStatus;
+  outputId?: string;
+  evidence?: string;
+  notes?: string;
+}
+
+export interface DelegateFinishFinding {
+  severity: ReviewerFindingSeverity;
+  location?: string;
+  problem: string;
+  recommendation?: string;
+  evidence?: string;
+}
+
+export interface DelegateFinishPayload {
+  transport: "delegate_finish";
+  taskId: string;
+  agentId: string;
+  role: DelegationRole;
+  status: ResultStatus;
+  summary: string;
+  submittedAt: string;
+  filesChanged?: string[];
+  filesRead?: string[];
+  toolsUsed?: string[];
+  checks?: DelegateFinishCheck[];
+  evidence?: TaskPacketEvidencePointer[];
+  findings?: DelegateFinishFinding[];
+  assessment?: string;
+  residualRisk?: string;
+  recommendation?: string;
+  uncertainty?: string;
+  unverifiedAreas?: string[];
+  completionClaimSupported?: boolean;
+  data?: JsonValue;
 }
 
 export interface ParsedProtocolSignal {

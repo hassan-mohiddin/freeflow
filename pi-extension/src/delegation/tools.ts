@@ -73,7 +73,13 @@ const SPAWN_PARAMETERS = {
     direction: { type: "string", enum: ["left", "right", "up", "down"] },
     focus: { type: "boolean" },
     noSession: { type: "boolean", description: "Defaults to true for delegated panes." },
-    writeScope: STRING_SCHEMA,
+    writeScope: {
+      oneOf: [
+        NON_EMPTY_STRING_SCHEMA,
+        { type: "array", minItems: 1, items: NON_EMPTY_STRING_SCHEMA },
+      ],
+      description: "One or more explicit path/glob write scopes. Use an array for multiple scopes; prose or comma-separated scopes are rejected.",
+    },
     allowedCommands: { type: "array", items: NON_EMPTY_STRING_SCHEMA },
     sourcePointers: { type: "array", items: SOURCE_POINTER_SCHEMA },
     inScope: { type: "array", items: NON_EMPTY_STRING_SCHEMA },
@@ -82,6 +88,8 @@ const SPAWN_PARAMETERS = {
     stopConditions: { type: "array", items: NON_EMPTY_STRING_SCHEMA },
     windowRef: STRING_SCHEMA,
     workspaceRef: STRING_SCHEMA,
+    retention: { type: "string", enum: ["auto", "keep-open", "debug"] },
+    layoutPolicy: { type: "string", enum: ["auto", "manual", "orchestrator", "planning", "execution", "review-dock"] },
   },
   required: ["taskId", "agentId", "role", "cwd", "objective"],
 };
@@ -162,19 +170,186 @@ const REPORT_PARAMETERS = {
   required: ["taskId", "reportName"],
 };
 
+const CHECK_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    name: NON_EMPTY_STRING_SCHEMA,
+    status: { type: "string", enum: ["pass", "fail", "skipped", "not_run"] },
+    outputId: STRING_SCHEMA,
+    evidence: STRING_SCHEMA,
+    notes: STRING_SCHEMA,
+  },
+  required: ["name", "status"],
+};
+
+const FINDING_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    severity: { type: "string", enum: ["blocking", "non_blocking", "question", "needs_evidence"] },
+    location: STRING_SCHEMA,
+    problem: NON_EMPTY_STRING_SCHEMA,
+    recommendation: STRING_SCHEMA,
+    evidence: STRING_SCHEMA,
+  },
+  required: ["severity", "problem"],
+};
+
+const REPORT_FIELD_SCHEMA = {
+  anyOf: [
+    STRING_SCHEMA,
+    { type: "array", items: STRING_SCHEMA },
+  ],
+};
+
+const FINISH_PARAMETERS = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    taskId: STRING_SCHEMA,
+    agentId: STRING_SCHEMA,
+    status: { type: "string", enum: ["completed", "completed_with_risks", "blocked", "failed", "cancelled"] },
+    summary: NON_EMPTY_STRING_SCHEMA,
+    reportStatus: STRING_SCHEMA,
+    goal: REPORT_FIELD_SCHEMA,
+    artifactPaths: REPORT_FIELD_SCHEMA,
+    reviewStatus: REPORT_FIELD_SCHEMA,
+    settledDecisions: REPORT_FIELD_SCHEMA,
+    openQuestions: REPORT_FIELD_SCHEMA,
+    executionAutonomy: REPORT_FIELD_SCHEMA,
+    userCheckpoints: REPORT_FIELD_SCHEMA,
+    executionGuidance: REPORT_FIELD_SCHEMA,
+    risks: REPORT_FIELD_SCHEMA,
+    sourceReferences: REPORT_FIELD_SCHEMA,
+    workPackages: REPORT_FIELD_SCHEMA,
+    commits: REPORT_FIELD_SCHEMA,
+    reviews: REPORT_FIELD_SCHEMA,
+    planDeviations: REPORT_FIELD_SCHEMA,
+    stopConditionsHit: REPORT_FIELD_SCHEMA,
+    finalRecommendation: REPORT_FIELD_SCHEMA,
+    filesChanged: { type: "array", items: NON_EMPTY_STRING_SCHEMA },
+    filesRead: { type: "array", items: NON_EMPTY_STRING_SCHEMA },
+    toolsUsed: { type: "array", items: NON_EMPTY_STRING_SCHEMA },
+    checks: { type: "array", items: CHECK_SCHEMA },
+    evidence: { type: "array", items: EVIDENCE_POINTER_SCHEMA },
+    findings: { type: "array", items: FINDING_SCHEMA },
+    assessment: STRING_SCHEMA,
+    residualRisk: STRING_SCHEMA,
+    recommendation: STRING_SCHEMA,
+    uncertainty: STRING_SCHEMA,
+    unverifiedAreas: { type: "array", items: NON_EMPTY_STRING_SCHEMA },
+    completionClaimSupported: { type: "boolean" },
+    data: { type: "object", additionalProperties: true },
+  },
+  required: ["status", "summary"],
+};
+
+const ATTENTION_PARAMETERS = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    taskId: STRING_SCHEMA,
+    agentId: STRING_SCHEMA,
+    level: { type: "string", enum: ["attention", "needs_parent", "capability_gap", "blocked", "failed"] },
+    message: NON_EMPTY_STRING_SCHEMA,
+    terminal: { type: "boolean" },
+    data: { type: "object", additionalProperties: true },
+  },
+  required: ["message"],
+};
+
+const PROGRESS_PARAMETERS = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    taskId: STRING_SCHEMA,
+    agentId: STRING_SCHEMA,
+    message: NON_EMPTY_STRING_SCHEMA,
+    data: { type: "object", additionalProperties: true },
+  },
+  required: ["message"],
+};
+
+const INBOX_PARAMETERS = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    taskId: NON_EMPTY_STRING_SCHEMA,
+    unreadOnly: { type: "boolean" },
+    agentId: STRING_SCHEMA,
+    parentAgentId: STRING_SCHEMA,
+    global: { type: "boolean", description: "When true, read alerts across all parents for this task. Defaults to the current delegated parent when env is present." },
+  },
+  required: ["taskId"],
+};
+
+const ACK_ALERT_PARAMETERS = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    taskId: NON_EMPTY_STRING_SCHEMA,
+    alertId: NON_EMPTY_STRING_SCHEMA,
+  },
+  required: ["taskId", "alertId"],
+};
+
+const ACK_ALL_PARAMETERS = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    taskId: NON_EMPTY_STRING_SCHEMA,
+    agentId: STRING_SCHEMA,
+    parentAgentId: STRING_SCHEMA,
+    global: { type: "boolean", description: "When true, ack alerts across all parents for this task. Defaults to the current delegated parent when env is present." },
+  },
+  required: ["taskId"],
+};
+
+const USER_ATTENTION_PARAMETERS = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    taskId: NON_EMPTY_STRING_SCHEMA,
+    agentId: STRING_SCHEMA,
+    level: { type: "string", enum: ["info", "needs_review", "needs_decision", "blocked", "completed"] },
+    summary: NON_EMPTY_STRING_SCHEMA,
+    notify: { type: "boolean" },
+  },
+  required: ["taskId", "summary"],
+};
+
+const UPDATE_EXECUTION_MAP_PARAMETERS = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    taskId: NON_EMPTY_STRING_SCHEMA,
+    package: { type: "object", additionalProperties: true },
+  },
+  required: ["taskId", "package"],
+};
+
 export function registerDelegationTools(pi: any): void {
   assertLeafProfilesDoNotIncludeDelegationTools();
   const toolDefinitions = [
-    delegationTool("delegate_task_init", "Delegate Task Init", "Create repo-local delegation task state for an orchestrator or parent.", TASK_INIT_PARAMETERS, executeTaskInit),
-    delegationTool("delegate_spawn", "Delegate Spawn", "Open a visible cmux pane and start a delegated Pi child after fail-closed preflight.", SPAWN_PARAMETERS, (params: any, signal: AbortSignal | undefined, ctx: any) => executeSpawn(pi, params, signal, ctx)),
-    delegationTool("delegate_status", "Delegate Status", "Return compact delegation task/agent/preflight status with no raw transcript dump.", STATUS_PARAMETERS, (params: any, signal: AbortSignal | undefined, ctx: any) => executeStatus(pi, params, signal, ctx)),
-    delegationTool("delegate_wait", "Delegate Wait", "Explicit bounded watch mode for terminal/attention lifecycle changes; timeout is required.", WAIT_PARAMETERS, (params: any, signal: AbortSignal | undefined, ctx: any) => executeWait(params, signal, ctx)),
-    delegationTool("delegate_result", "Delegate Result", "Return compact parsed result/report pointers without raw transcript injection.", TARGET_PARAMETERS, (params: any, _signal: AbortSignal | undefined, ctx: any) => executeResult(params, ctx)),
-    delegationTool("delegate_send", "Delegate Send", "Send a bounded note or file-backed follow-up/fix packet to a delegated pane.", SEND_PARAMETERS, (params: any, signal: AbortSignal | undefined, ctx: any) => executeSend(pi, params, signal, ctx)),
-    delegationTool("delegate_capture", "Delegate Capture", "Capture a bounded cmux screen snapshot and store it as evidence without dumping raw screens.", CAPTURE_PARAMETERS, (params: any, signal: AbortSignal | undefined, ctx: any) => executeCapture(pi, params, signal, ctx)),
-    delegationTool("delegate_cancel", "Delegate Cancel", "Cancel a valid delegated target without deleting evidence.", CLOSE_PARAMETERS, (params: any, signal: AbortSignal | undefined, ctx: any) => executeCancel(pi, params, signal, ctx)),
-    delegationTool("delegate_close", "Delegate Close", "Close a valid delegated cmux surface while preserving delegation evidence.", CLOSE_PARAMETERS, (params: any, signal: AbortSignal | undefined, ctx: any) => executeClose(pi, params, signal, ctx)),
-    delegationTool("delegate_record_report", "Delegate Record Report", "Record planning/execution reports and kickoff blocks with deterministic parser evidence.", REPORT_PARAMETERS, (params: any, _signal: AbortSignal | undefined, ctx: any) => executeRecordReport(params, ctx)),
+    delegationTool("delegate_task_init", "Delegate Task Init", "Create repo-local delegation task state for an orchestrator or parent.", TASK_INIT_PARAMETERS, executeTaskInit, "parent-control"),
+    delegationTool("delegate_spawn", "Delegate Spawn", "Open a visible cmux pane and start a delegated Pi child after fail-closed preflight.", SPAWN_PARAMETERS, (params: any, signal: AbortSignal | undefined, ctx: any) => executeSpawn(pi, params, signal, ctx), "parent-control"),
+    delegationTool("delegate_status", "Delegate Status", "Return compact delegation task/agent/preflight status with no raw transcript dump.", STATUS_PARAMETERS, (params: any, signal: AbortSignal | undefined, ctx: any) => executeStatus(pi, params, signal, ctx), "read-recovery"),
+    delegationTool("delegate_wait", "Delegate Wait", "Explicit bounded watch mode for terminal/attention lifecycle changes; timeout is required.", WAIT_PARAMETERS, (params: any, signal: AbortSignal | undefined, ctx: any) => executeWait(params, signal, ctx), "parent-control"),
+    delegationTool("delegate_result", "Delegate Result", "Return compact parsed result/report pointers without raw transcript injection.", TARGET_PARAMETERS, (params: any, signal: AbortSignal | undefined, ctx: any) => executeResult(pi, params, signal, ctx), "read-recovery"),
+    delegationTool("delegate_send", "Delegate Send", "Send a bounded note or file-backed follow-up/fix packet to a delegated pane.", SEND_PARAMETERS, (params: any, signal: AbortSignal | undefined, ctx: any) => executeSend(pi, params, signal, ctx), "parent-control"),
+    delegationTool("delegate_capture", "Delegate Capture", "Capture a bounded cmux screen snapshot and store it as evidence without dumping raw screens.", CAPTURE_PARAMETERS, (params: any, signal: AbortSignal | undefined, ctx: any) => executeCapture(pi, params, signal, ctx), "parent-control"),
+    delegationTool("delegate_cancel", "Delegate Cancel", "Cancel a valid delegated target without deleting evidence.", CLOSE_PARAMETERS, (params: any, signal: AbortSignal | undefined, ctx: any) => executeCancel(pi, params, signal, ctx), "parent-control"),
+    delegationTool("delegate_close", "Delegate Close", "Close a valid delegated cmux surface while preserving delegation evidence.", CLOSE_PARAMETERS, (params: any, signal: AbortSignal | undefined, ctx: any) => executeClose(pi, params, signal, ctx), "parent-control"),
+    delegationTool("delegate_record_report", "Delegate Record Report", "Record planning/execution reports and kickoff blocks with deterministic parser evidence.", REPORT_PARAMETERS, (params: any, _signal: AbortSignal | undefined, ctx: any) => executeRecordReport(params, ctx), "parent-control"),
+    delegationTool("delegate_finish", "Delegate Finish", "Store a structured delegated result/report for the current agent and alert the direct parent without echoing full JSON.", FINISH_PARAMETERS, (params: any, _signal: AbortSignal | undefined, ctx: any) => executeFinish(params, ctx), "child-lifecycle"),
+    delegationTool("delegate_attention", "Delegate Attention", "Request parent attention or record a blocker for the current delegated agent.", ATTENTION_PARAMETERS, (params: any, _signal: AbortSignal | undefined, ctx: any) => executeAttention(params, ctx), "child-lifecycle"),
+    delegationTool("delegate_progress", "Delegate Progress", "Record store-only delegated progress without waking the parent by default.", PROGRESS_PARAMETERS, (params: any, _signal: AbortSignal | undefined, ctx: any) => executeProgress(params, ctx), "child-lifecycle"),
+    delegationTool("delegate_inbox", "Delegate Inbox", "Read compact parent inbox alerts for a delegation task.", INBOX_PARAMETERS, (params: any, _signal: AbortSignal | undefined, ctx: any) => executeInbox(params, ctx), "read-recovery"),
+    delegationTool("delegate_ack_alert", "Delegate Ack Alert", "Mark one parent inbox alert as read.", ACK_ALERT_PARAMETERS, (params: any, _signal: AbortSignal | undefined, ctx: any) => executeAckAlert(params, ctx), "read-recovery"),
+    delegationTool("delegate_ack_all", "Delegate Ack All", "Mark all parent inbox alerts for a task as read.", ACK_ALL_PARAMETERS, (params: any, _signal: AbortSignal | undefined, ctx: any) => executeAckAll(params, ctx), "read-recovery"),
+    delegationTool("delegate_user_attention", "Delegate User Attention", "Request harness-owned user attention through configured Pi/TUI notification channels.", USER_ATTENTION_PARAMETERS, (params: any, _signal: AbortSignal | undefined, ctx: any) => executeUserAttention(params, ctx), "read-recovery"),
+    delegationTool("delegate_update_execution_map", "Delegate Update Execution Map", "Upsert one work package into the canonical execution map through harness validation.", UPDATE_EXECUTION_MAP_PARAMETERS, (params: any, _signal: AbortSignal | undefined, ctx: any) => executeUpdateExecutionMap(params, ctx), "parent-control"),
   ];
 
   for (const definition of toolDefinitions) {
@@ -182,14 +357,32 @@ export function registerDelegationTools(pi: any): void {
   }
 }
 
-function delegationTool(name: string, label: string, description: string, parameters: any, handler: (params: any, signal: AbortSignal | undefined, ctx: any) => Promise<any>) {
+export async function executeDelegationOperation(pi: any, operation: string, params: any, signal: AbortSignal | undefined, ctx: any): Promise<any> {
+  switch (operation) {
+    case "delegate_status": return executeStatus(pi, params, signal, ctx);
+    case "delegate_inbox": return executeInbox(params, ctx);
+    case "delegate_result": return executeResult(pi, params, signal, ctx);
+    case "delegate_capture": return executeCapture(pi, params, signal, ctx);
+    case "delegate_close": return executeClose(pi, params, signal, ctx);
+    case "delegate_ack_alert": return executeAckAlert(params, ctx);
+    case "delegate_ack_all": return executeAckAll(params, ctx);
+    default: return typedError(operation, "unsupported_delegation_batch_operation", `unsupported delegation operation for batch: ${operation}`);
+  }
+}
+
+function delegationTool(name: string, label: string, description: string, parameters: any, handler: (params: any, signal: AbortSignal | undefined, ctx: any) => Promise<any>, toolClass: "parent-control" | "child-lifecycle" | "read-recovery") {
+  const classGuidance = toolClass === "parent-control"
+    ? "Use only from orchestrator or parent delegation profiles; leaf profiles must not call parent-control tools."
+    : toolClass === "child-lifecycle"
+      ? "Use from the current delegated agent only; it cannot target other tasks or agents."
+      : "Use with scoped task/agent ids; leaf profiles may read only their own scoped state.";
   return {
     name,
     label,
     description,
-    promptSnippet: `${description} Use only from orchestrator or parent delegation profiles; leaf profiles must not call delegation tools.`,
+    promptSnippet: `${description} ${classGuidance}`,
     promptGuidelines: [
-      `Use ${name} only for orchestrator/parent delegation control, not for tiny inline work.`,
+      classGuidance,
       `${name} returns compact state and evidence pointers; do not expect raw child transcripts or raw screen dumps.`,
     ],
     parameters,
@@ -233,6 +426,12 @@ async function executeSpawn(pi: any, params: any, signal: AbortSignal | undefine
   const profile = stringOrUndefined(params.profile) ?? role;
   const parentAgentId = validateSafeId(stringOrUndefined(params.parentAgentId) ?? defaultParentAgentId(), "parent agent id");
   const profileDefinition = resolveProfileForRole(role as any, profile as any);
+  const activeToolGating = activeToolsForSpawn(pi, profileDefinition.activeTools);
+  if (activeToolGating.ok === false) {
+    return typedError("delegate_spawn", "active_tools_unavailable", activeToolGating.reason, { taskId, agentId, actionTaken: "no_pane_opened_no_child_pi_started" });
+  }
+  const packetTools = activeToolGating.tools;
+  const writeScope = normalizeWriteScopeParam(params.writeScope);
   const store = createStore(ctx);
   const paths = store.pathsForAgent(taskId, agentId);
 
@@ -247,7 +446,8 @@ async function executeSpawn(pi: any, params: any, signal: AbortSignal | undefine
     sourcePointers: arrayOrUndefined(params.sourcePointers),
     inScope: arrayOrUndefined(params.inScope),
     outOfScope: arrayOrUndefined(params.outOfScope),
-    writeScope: stringOrUndefined(params.writeScope),
+    tools: packetTools,
+    writeScope,
     allowedCommands: arrayOrUndefined(params.allowedCommands) ?? [],
     evidence: arrayOrUndefined(params.evidence),
     stopConditions: arrayOrUndefined(params.stopConditions),
@@ -272,9 +472,11 @@ async function executeSpawn(pi: any, params: any, signal: AbortSignal | undefine
     profile: profile as any,
     parentAgentId,
     cwd,
-    writeScope: stringOrUndefined(params.writeScope),
+    writeScope: compiled.writeScopes,
     allowedCommands: compiled.allowedCommands,
     state: "starting",
+    retention: normalizeRetention(params.retention) as any,
+    layoutPolicy: normalizeLayoutPolicy(params.layoutPolicy, role) as any,
   });
   const packetPath = await store.writeAgentModelText(taskId, agentId, "task-packet.txt", compiled.text);
   await store.appendAgentEvent(taskId, agentId, { type: "agent-starting", state: "starting", message: "preflight passed; opening cmux pane", data: { packetPath } });
@@ -283,7 +485,7 @@ async function executeSpawn(pi: any, params: any, signal: AbortSignal | undefine
   const cmux = new CmuxAdapter(runner, { cwd, timeoutMs: 10_000 });
   let pane;
   try {
-    pane = await cmux.newPane({ direction: params.direction ?? "right", focus: params.focus ?? true, workspaceRef: stringOrUndefined(params.workspaceRef), windowRef: stringOrUndefined(params.windowRef) });
+    pane = await cmux.newPane({ direction: params.direction ?? directionForRole(role), focus: params.focus ?? true, workspaceRef: stringOrUndefined(params.workspaceRef), windowRef: stringOrUndefined(params.windowRef) });
   } catch (error) {
     await markAgentFailed(store, taskId, agentId, "cmux new-pane failed", error);
     return typedError("delegate_spawn", "cmux_new_pane_failed", messageFrom(error), { taskId, agentId, preflight, paths: evidencePaths(store, taskId, agentId) });
@@ -336,6 +538,8 @@ async function executeSpawn(pi: any, params: any, signal: AbortSignal | undefine
     profile,
     profileKind: profileDefinition.kind,
     cmux: pane.refs,
+    layout: { policy: normalizeLayoutPolicy(params.layoutPolicy, role), direction: params.direction ?? directionForRole(role), manualOverride: params.direction !== undefined },
+    retention: normalizeRetention(params.retention),
     policy: {
       writeScope: compiled.writeScopes,
       allowedCommands: compiled.allowedCommands,
@@ -349,8 +553,12 @@ async function executeSpawn(pi: any, params: any, signal: AbortSignal | undefine
 
 async function executeStatus(pi: any, params: any, signal: AbortSignal | undefined, ctx: any) {
   const store = createStore(ctx);
-  const taskId = stringOrUndefined(params.taskId);
+  const requestedTaskId = stringOrUndefined(params.taskId);
+  const envTaskId = stringOrUndefined(process.env.FREEFLOW_DELEGATION_TASK_ID);
+  const envAgentId = stringOrUndefined(process.env.FREEFLOW_DELEGATION_AGENT_ID);
+  const taskId = requestedTaskId ?? envTaskId;
   const agentId = stringOrUndefined(params.agentId);
+  const parentAlertScope = defaultParentAlertScope(taskId, agentId, envTaskId, envAgentId);
   const result: any = {
     toolStatus: "ok",
     operation: "delegate_status",
@@ -370,15 +578,27 @@ async function executeStatus(pi: any, params: any, signal: AbortSignal | undefin
     return result;
   }
 
-  result.unreadParentAlerts = await store.readParentAlerts(taskId, { unreadOnly: true, ...(agentId !== undefined ? { agentId } : {}) });
+  result.unreadParentAlerts = await store.readParentAlerts(taskId, parentAlertScope);
 
   result.paths = { task: store.pathsForTask(taskId).taskJson, registry: store.pathsForTask(taskId).registryJson, executionMap: store.pathsForTask(taskId).executionMapJson, events: store.pathsForTask(taskId).eventsJsonl, alerts: store.pathsForTask(taskId).parentAlertsJson };
   try {
     result.task = await store.readTask(taskId);
-    result.registry = await store.readRegistry(taskId);
-    result.executionMap = compactExecutionMap(await store.readExecutionMap(taskId));
   } catch (error) {
     return typedError("delegate_status", "task_not_found", messageFrom(error), { taskId, paths: result.paths, preflight: result.preflight });
+  }
+  try {
+    result.registry = await store.readRegistry(taskId);
+  } catch (error) {
+    result.status = "degraded";
+    result.degraded = appendDegraded(result.degraded, "registry_invalid", messageFrom(error), store.pathsForTask(taskId).registryJson);
+    result.registry = { taskId, agents: [], degraded: true };
+  }
+  try {
+    result.executionMap = compactExecutionMap(await store.readExecutionMap(taskId));
+  } catch (error) {
+    result.status = "degraded";
+    result.degraded = appendDegraded(result.degraded, "execution_map_invalid", messageFrom(error), store.pathsForTask(taskId).executionMapJson);
+    result.executionMap = { status: "degraded", packages: [], integrationOrder: [], reason: messageFrom(error) };
   }
 
   if (agentId !== undefined) {
@@ -469,7 +689,7 @@ async function executeWait(params: any, signal: AbortSignal | undefined, ctx: an
   };
 }
 
-async function executeResult(params: any, ctx: any) {
+async function executeResult(pi: any, params: any, signal: AbortSignal | undefined, ctx: any) {
   const taskId = validateSafeId(requireString(params.taskId, "taskId"), "task id");
   const agentId = stringOrUndefined(params.agentId);
   const store = createStore(ctx);
@@ -492,6 +712,7 @@ async function executeResult(params: any, ctx: any) {
     }
     const compact = compactParsedAgentResult(record.parsed);
     const semantic = parsedAgentResultSemantic(compact, target);
+    const retention = await maybeAutoCloseAfterResultRead(pi, signal, ctx, store, taskId, agentId, target, compact, semantic);
     return {
       toolStatus: "ok",
       operation: "delegate_result",
@@ -502,6 +723,7 @@ async function executeResult(params: any, ctx: any) {
       agentId,
       agentStatus: target,
       result: compact,
+      retention,
       paths: evidencePaths(store, taskId, agentId),
     };
   }
@@ -529,6 +751,328 @@ async function executeResult(params: any, ctx: any) {
   }
 }
 
+async function executeFinish(params: any, ctx: any) {
+  const store = createStore(ctx);
+  const target = await lifecycleTarget(params, ctx, store, "delegate_finish");
+  if (!target.ok) return target.result;
+  const role = target.manifest.role;
+  const validation = validateFinishPayload(params, role);
+  if (!validation.ok) {
+    return typedError("delegate_finish", "result_schema_invalid", validation.reason, { taskId: target.taskId, agentId: target.agentId, hint: validation.hint, paths: evidencePaths(store, target.taskId, target.agentId) });
+  }
+  if (role === "planning-parent" || role === "execution-parent") {
+    return finishParentReport(params, validation, target, store, role);
+  }
+
+  const submittedAt = new Date().toISOString();
+  const payload: any = {
+    transport: "delegate_finish",
+    taskId: target.taskId,
+    agentId: target.agentId,
+    role,
+    status: validation.status,
+    summary: validation.summary,
+    submittedAt,
+  };
+  for (const key of ["filesChanged", "filesRead", "toolsUsed", "checks", "evidence", "findings", "assessment", "residualRisk", "recommendation", "uncertainty", "unverifiedAreas", "completionClaimSupported", "data"]) {
+    if (params[key] !== undefined) payload[key] = params[key];
+  }
+  const parsed = directResultRecord(payload);
+  const paths = await store.recordAgentResult(target.taskId, target.agentId, "", parsed);
+  const state = stateForResultStatus(validation.status);
+  const status = await store.writeAgentStatus(target.taskId, target.agentId, { state: state as any, message: validation.summary, reason: validation.status === "blocked" || validation.status === "failed" ? validation.summary : undefined });
+  const event = await store.appendAgentEvent(target.taskId, target.agentId, { type: "agent-result", state: state as any, message: validation.summary, data: { resultStatus: validation.status, jsonPath: paths.jsonPath, filesChanged: payload.filesChanged, findings: payload.findings, checks: payload.checks } });
+  await store.appendTaskEvent(target.taskId, { type: "agent-result", state: state as any, message: validation.summary, data: { agentId: target.agentId, resultStatus: validation.status, jsonPath: paths.jsonPath, filesChanged: payload.filesChanged, findings: payload.findings, checks: payload.checks } });
+  const alert = await store.queueParentAlert(target.taskId, { agentId: target.agentId, outcome: alertOutcomeForResultStatus(validation.status) as any, state: state as any, status: validation.status, eventType: "agent-result", sourceEventId: event.eventId, message: validation.summary, evidence: { jsonPath: paths.jsonPath }, data: { resultStatus: validation.status, filesChanged: payload.filesChanged, findings: payload.findings, checks: payload.checks } });
+  return {
+    toolStatus: "ok",
+    operation: "delegate_finish",
+    status: "stored",
+    taskId: target.taskId,
+    agentId: target.agentId,
+    resultStatus: validation.status,
+    agentState: status.state,
+    alert: compactAlert(alert.alert),
+    actionTaken: "result_stored_parent_alerted",
+    paths: { raw: paths.rawPath, json: paths.jsonPath, alerts: store.pathsForTask(target.taskId).parentAlertsJson },
+  };
+}
+
+async function finishParentReport(params: any, validation: any, target: any, store: any, role: string) {
+  const reportName = role === "planning-parent" ? "planning-report" : "execution-report";
+  const built = buildParentReportText(params, validation, role);
+  if (!built.ok) {
+    return typedError("delegate_finish", "result_schema_invalid", built.reason, { taskId: target.taskId, agentId: target.agentId, hint: built.hint, paths: evidencePaths(store, target.taskId, target.agentId) });
+  }
+  const parsed = parseModelText(built.rawText);
+  const report = role === "planning-parent" ? parsed.planningReports[0] : parsed.executionReports[0];
+  if (!parsed.ok || report === undefined) {
+    return typedError("delegate_finish", "report_schema_invalid", compactErrors(parsed.errors)[0]?.message ?? `${reportName} could not be parsed`, { taskId: target.taskId, agentId: target.agentId, paths: evidencePaths(store, target.taskId, target.agentId) });
+  }
+
+  const reportPaths = await store.recordTaskReport(target.taskId, reportName, report.rawText, report);
+  const submittedAt = new Date().toISOString();
+  const payload = {
+    transport: "delegate_finish",
+    taskId: target.taskId,
+    agentId: target.agentId,
+    role,
+    status: validation.status,
+    summary: validation.summary,
+    reportName,
+    reportStatus: report.status,
+    submittedAt,
+    data: params.data,
+  };
+  const agentParsed = directResultRecord({ ...payload, evidence: params.evidence, recommendation: params.recommendation });
+  if (role === "planning-parent") agentParsed.planningReports = [report];
+  else agentParsed.executionReports = [report];
+  const resultPaths = await store.recordAgentResult(target.taskId, target.agentId, "", agentParsed);
+  const state = stateForRecordedReport(reportName, report.status);
+  const status = await store.writeAgentStatus(target.taskId, target.agentId, { state: state as any, message: validation.summary, reason: state === "blocked" || state === "failed" ? validation.summary : undefined });
+  const event = await store.appendAgentEvent(target.taskId, target.agentId, { type: `task-${reportName}`, state: state as any, message: `${reportName} recorded via delegate_finish${report.status ? `: ${report.status}` : ""}`, data: { reportName, status: report.status, rawPath: reportPaths.rawPath, jsonPath: reportPaths.jsonPath, resultJsonPath: resultPaths.jsonPath } });
+  await store.appendTaskEvent(target.taskId, { type: `task-${reportName}`, state: state as any, message: `${reportName} recorded via delegate_finish${report.status ? `: ${report.status}` : ""}`, data: { agentId: target.agentId, reportName, status: report.status, rawPath: reportPaths.rawPath, jsonPath: reportPaths.jsonPath, resultJsonPath: resultPaths.jsonPath } });
+  const outcome = alertOutcomeForRecordedReport(reportName, report.status, state);
+  const alert = outcome === undefined ? undefined : await store.queueParentAlert(target.taskId, { agentId: target.agentId, outcome: outcome as any, state: state as any, status: report.status, eventType: `task-${reportName}`, sourceEventId: event.eventId, message: validation.summary, evidence: { rawPath: reportPaths.rawPath, jsonPath: reportPaths.jsonPath }, data: { reportName, resultStatus: validation.status, reportStatus: report.status } });
+  return {
+    toolStatus: "ok",
+    operation: "delegate_finish",
+    status: "stored",
+    taskId: target.taskId,
+    agentId: target.agentId,
+    resultStatus: validation.status,
+    reportName,
+    reportStatus: report.status,
+    agentState: status.state,
+    alert: alert ? compactAlert(alert.alert) : undefined,
+    actionTaken: "report_stored_parent_alerted",
+    paths: { raw: reportPaths.rawPath, json: reportPaths.jsonPath, resultJson: resultPaths.jsonPath, alerts: store.pathsForTask(target.taskId).parentAlertsJson },
+  };
+}
+
+function buildParentReportText(params: any, validation: any, role: string): any {
+  if (role === "planning-parent") return buildPlanningReportText(params, validation);
+  return buildExecutionReportText(params, validation);
+}
+
+function buildPlanningReportText(params: any, validation: any): any {
+  const reportStatus = stringOrUndefined(params.reportStatus) ?? (validation.status === "completed_with_risks" ? "ready_with_open_questions" : validation.status === "blocked" || validation.status === "failed" ? "blocked" : "ready");
+  const rows: Array<[string, string | undefined]> = [
+    ["STATUS", reportStatus],
+    ["GOAL", reportField(params, "goal")],
+    ["ARTIFACT_PATHS", reportField(params, "artifactPaths")],
+    ["REVIEW_STATUS", reportField(params, "reviewStatus")],
+    ["SETTLED_DECISIONS", reportField(params, "settledDecisions")],
+    ["OPEN_QUESTIONS", reportField(params, "openQuestions")],
+    ["EXECUTION_AUTONOMY", reportField(params, "executionAutonomy")],
+    ["USER_CHECKPOINTS", reportField(params, "userCheckpoints")],
+    ["EXECUTION_GUIDANCE", reportField(params, "executionGuidance")],
+    ["RISKS", reportField(params, "risks")],
+    ["EVIDENCE", reportField(params, "evidence")],
+  ];
+  return buildReportBlock("PLANNING_REPORT", rows);
+}
+
+function buildExecutionReportText(params: any, validation: any): any {
+  const reportStatus = stringOrUndefined(params.reportStatus) ?? validation.status;
+  const rows: Array<[string, string | undefined]> = [
+    ["STATUS", reportStatus],
+    ["SUMMARY", validation.summary],
+    ["SOURCE_REFERENCES", reportField(params, "sourceReferences")],
+    ["WORK_PACKAGES", reportField(params, "workPackages")],
+    ["COMMITS", reportField(params, "commits")],
+    ["REVIEWS", reportField(params, "reviews")],
+    ["CHECKS", reportField(params, "checks")],
+    ["FILES_CHANGED", reportField(params, "filesChanged")],
+    ["PLAN_DEVIATIONS", reportField(params, "planDeviations")],
+    ["STOP_CONDITIONS_HIT", reportField(params, "stopConditionsHit")],
+    ["OPEN_QUESTIONS", reportField(params, "openQuestions")],
+    ["RISKS", reportField(params, "risks")],
+    ["FINAL_RECOMMENDATION", reportField(params, "finalRecommendation") ?? validation.summary],
+    ["EVIDENCE", reportField(params, "evidence")],
+  ];
+  return buildReportBlock("EXECUTION_REPORT", rows);
+}
+
+function buildReportBlock(kind: string, rows: Array<[string, string | undefined]>): any {
+  const missing = rows.filter(([, value]) => value === undefined || value.trim().length === 0).map(([tag]) => tag);
+  if (missing.length > 0) {
+    return { ok: false, reason: `${kind} delegate_finish is missing required report field(s): ${missing.join(", ")}`, hint: "Provide parent report fields as top-level camelCase parameters or under data." };
+  }
+  return { ok: true, rawText: [kind, ...rows.map(([tag, value]) => formatReportRow(tag, value ?? "")), `END_${kind}`].join("\n") };
+}
+
+function reportField(params: any, key: string): string | undefined {
+  const value = params[key] ?? params.data?.[key];
+  if (value === undefined || value === null) return undefined;
+  if (Array.isArray(value)) {
+    const parts = value.map((item) => reportValuePart(item)).filter((item) => item.length > 0);
+    return parts.length > 0 ? parts.join(", ") : undefined;
+  }
+  return reportValuePart(value) || undefined;
+}
+
+function reportValuePart(value: any): string {
+  if (value === undefined || value === null) return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "object") {
+    if (typeof value.label === "string") {
+      const ref = typeof value.outputId === "string" ? `outputId=${value.outputId}` : typeof value.path === "string" ? `path=${value.path}` : "";
+      return [value.label, ref, value.note].filter((item) => typeof item === "string" && item.length > 0).join(" ");
+    }
+    if (typeof value.name === "string" && typeof value.status === "string") {
+      return [value.name, value.status, value.outputId ? `outputId=${value.outputId}` : undefined, value.evidence ?? value.notes].filter(Boolean).join(" ");
+    }
+    return JSON.stringify(value);
+  }
+  return String(value).trim();
+}
+
+function formatReportRow(tag: string, value: string): string {
+  return `${tag}|${String(value).replace(/\r\n|\r|\n/g, " ").replace(/\|/g, "¦")}`;
+}
+
+async function executeAttention(params: any, ctx: any) {
+  const store = createStore(ctx);
+  const target = await lifecycleTarget(params, ctx, store, "delegate_attention");
+  if (!target.ok) return target.result;
+  const message = requireString(params.message, "message");
+  const level = stringOrUndefined(params.level) ?? "attention";
+  const terminal = params.terminal === true || level === "blocked" || level === "failed" || level === "capability_gap";
+  const state = level === "blocked" || level === "capability_gap" ? "blocked" : level === "failed" ? "failed" : terminal ? "attention" : "waiting_for_parent";
+  const outcome = level === "capability_gap" ? "capability_gap" : state === "blocked" ? "blocked" : state === "failed" ? "failed" : "attention";
+  const status = await store.writeAgentStatus(target.taskId, target.agentId, { state: state as any, message, reason: terminal ? message : undefined });
+  const event = await store.appendAgentEvent(target.taskId, target.agentId, { type: "agent-attention", state: state as any, message, data: params.data });
+  await store.appendTaskEvent(target.taskId, { type: "agent-attention", state: state as any, message, data: { agentId: target.agentId, level, ...(params.data ?? {}) } });
+  const alert = await store.queueParentAlert(target.taskId, { agentId: target.agentId, outcome: outcome as any, state: state as any, eventType: "agent-attention", sourceEventId: event.eventId, message, data: params.data });
+  return {
+    toolStatus: "ok",
+    operation: "delegate_attention",
+    status: status.state,
+    taskId: target.taskId,
+    agentId: target.agentId,
+    alert: compactAlert(alert.alert),
+    actionTaken: "attention_stored_parent_alerted",
+    paths: evidencePaths(store, target.taskId, target.agentId),
+  };
+}
+
+async function executeProgress(params: any, ctx: any) {
+  const store = createStore(ctx);
+  const target = await lifecycleTarget(params, ctx, store, "delegate_progress");
+  if (!target.ok) return target.result;
+  const message = requireString(params.message, "message");
+  const event = await store.appendAgentEvent(target.taskId, target.agentId, { type: "agent-progress", state: "running", message, data: params.data });
+  return {
+    toolStatus: "ok",
+    operation: "delegate_progress",
+    status: "stored",
+    taskId: target.taskId,
+    agentId: target.agentId,
+    eventId: event.eventId,
+    actionTaken: "progress_stored_no_parent_wake",
+    paths: evidencePaths(store, target.taskId, target.agentId),
+  };
+}
+
+async function executeInbox(params: any, ctx: any) {
+  const taskId = validateSafeId(requireString(params.taskId, "taskId"), "task id");
+  const store = createStore(ctx);
+  const scope = parentAlertScopeFromParams(params, taskId, "delegate_inbox", params.unreadOnly !== false);
+  if (!scope.ok) return scope.result;
+  const alerts = await store.readParentAlerts(taskId, scope.options);
+  return {
+    toolStatus: "ok",
+    operation: "delegate_inbox",
+    status: "ok",
+    taskId,
+    unreadOnly: params.unreadOnly !== false,
+    scope: scope.label,
+    count: alerts.length,
+    alerts: alerts.slice(0, 25).map(compactAlert),
+    paths: { alerts: store.pathsForTask(taskId).parentAlertsJson, task: store.pathsForTask(taskId).taskJson },
+  };
+}
+
+async function executeAckAlert(params: any, ctx: any) {
+  const taskId = validateSafeId(requireString(params.taskId, "taskId"), "task id");
+  const alertId = requireString(params.alertId, "alertId");
+  const store = createStore(ctx);
+  const read = await store.markParentAlertsRead(taskId, [alertId]);
+  return {
+    toolStatus: "ok",
+    operation: "delegate_ack_alert",
+    status: read.length > 0 ? "acked" : "missing",
+    taskId,
+    alertId,
+    count: read.length,
+    alerts: read.map(compactAlert),
+    paths: { alerts: store.pathsForTask(taskId).parentAlertsJson },
+  };
+}
+
+async function executeAckAll(params: any, ctx: any) {
+  const taskId = validateSafeId(requireString(params.taskId, "taskId"), "task id");
+  const store = createStore(ctx);
+  const scope = parentAlertScopeFromParams(params, taskId, "delegate_ack_all", true);
+  if (!scope.ok) return scope.result;
+  const candidates = await store.readParentAlerts(taskId, scope.options);
+  const read = await store.markParentAlertsRead(taskId, candidates.map((alert: any) => alert.alertId));
+  return {
+    toolStatus: "ok",
+    operation: "delegate_ack_all",
+    status: "acked",
+    taskId,
+    scope: scope.label,
+    count: read.length,
+    alerts: read.slice(0, 25).map(compactAlert),
+    paths: { alerts: store.pathsForTask(taskId).parentAlertsJson },
+  };
+}
+
+async function executeUserAttention(params: any, ctx: any) {
+  const taskId = validateSafeId(requireString(params.taskId, "taskId"), "task id");
+  const summary = requireString(params.summary, "summary");
+  const level = stringOrUndefined(params.level) ?? "needs_review";
+  const store = createStore(ctx);
+  const agentId = stringOrUndefined(params.agentId);
+  const alert = await store.queueParentAlert(taskId, { agentId, outcome: "user_attention" as any, state: "attention", eventType: "user-attention", message: summary, dedupeKey: ["user", taskId, agentId ?? "task", level, summary].join(":"), data: { level } });
+  if (params.notify !== false) {
+    ctx?.ui?.notify?.(`Freeflow: ${summary}`, level === "blocked" || level === "needs_decision" ? "warning" : "info");
+  }
+  return {
+    toolStatus: "ok",
+    operation: "delegate_user_attention",
+    status: "notified",
+    taskId,
+    agentId,
+    level,
+    alert: compactAlert(alert.alert),
+    actionTaken: params.notify === false ? "user_attention_stored_without_notification" : "user_attention_stored_and_notified",
+    paths: { alerts: store.pathsForTask(taskId).parentAlertsJson },
+  };
+}
+
+async function executeUpdateExecutionMap(params: any, ctx: any) {
+  const taskId = validateSafeId(requireString(params.taskId, "taskId"), "task id");
+  const workPackage = params.package;
+  if (!workPackage || typeof workPackage !== "object" || Array.isArray(workPackage)) {
+    return typedError("delegate_update_execution_map", "invalid_package", "package must be an object", { taskId });
+  }
+  const store = createStore(ctx);
+  const result = await store.upsertWorkPackage(taskId, workPackage);
+  return {
+    toolStatus: result.decision.allowed ? "ok" : "error",
+    operation: "delegate_update_execution_map",
+    status: result.decision.allowed ? "stored" : "blocked",
+    taskId,
+    decision: result.decision,
+    package: result.package ? { packageId: result.package.packageId, role: result.package.role, state: result.package.state } : undefined,
+    executionMap: result.executionMap ? compactExecutionMap(result.executionMap) : undefined,
+    paths: { executionMap: store.pathsForTask(taskId).executionMapJson, events: store.pathsForTask(taskId).eventsJsonl },
+  };
+}
+
 async function executeSend(pi: any, params: any, signal: AbortSignal | undefined, ctx: any) {
   const taskId = validateSafeId(requireString(params.taskId, "taskId"), "task id");
   const agentId = validateSafeId(requireString(params.agentId, "agentId"), "agent id");
@@ -537,6 +1081,9 @@ async function executeSend(pi: any, params: any, signal: AbortSignal | undefined
   const store = createStore(ctx);
   const target = await resolveValidTarget(store, taskId, agentId, "delegate_send");
   if (!target.ok) return target.result;
+  if (isTerminalState(target.status.state)) {
+    return typedError("delegate_send", "target_terminal_requires_new_attempt", "cannot send a follow-up to a terminal agent; spawn a new child or create an explicit new attempt", { taskId, agentId, state: target.status.state, paths: evidencePaths(store, taskId, agentId) });
+  }
 
   const fileBacked = shouldUseFileBackedSend(kind, message);
   let deliveredText = boundedSingleLine(message, 240);
@@ -646,6 +1193,9 @@ async function executeCancel(pi: any, params: any, signal: AbortSignal | undefin
     };
   }
 
+  const reconciliation = await parentDescendantReconciliationBlock(store, taskId, agentId, target.manifest, "delegate_cancel");
+  if (reconciliation !== undefined) return reconciliation;
+
   const cmux = new CmuxAdapter(createPiCmuxRunner(pi, signal), { cwd: target.manifest.cwd ?? ctx.cwd, timeoutMs: 10_000 });
   try {
     await cmux.sendKey({ surfaceRef: target.manifest.surfaceRef, text: "", key: "ctrl-c", workspaceRef: target.manifest.workspaceRef, windowRef: target.manifest.windowRef });
@@ -750,6 +1300,9 @@ async function executeClose(pi: any, params: any, signal: AbortSignal | undefine
       paths: evidencePaths(store, taskId, agentId),
     };
   }
+
+  const reconciliation = await parentDescendantReconciliationBlock(store, taskId, agentId, target.manifest, "delegate_close");
+  if (reconciliation !== undefined) return reconciliation;
 
   const cmux = new CmuxAdapter(createPiCmuxRunner(pi, signal), { cwd: target.manifest.cwd ?? ctx.cwd, timeoutMs: 10_000 });
   try {
@@ -886,6 +1439,49 @@ function waitPaths(store: any, taskId: string, agentId: string | undefined) {
   return { task: store.pathsForTask(taskId).taskJson, registry: store.pathsForTask(taskId).registryJson, alerts: store.pathsForTask(taskId).parentAlertsJson, waitState: store.pathsForTask(taskId).waitStateJson };
 }
 
+function defaultParentAlertScope(taskId: string | undefined, agentId: string | undefined, envTaskId: string | undefined, envAgentId: string | undefined): any {
+  const scope: any = { unreadOnly: true };
+  if (agentId !== undefined) {
+    scope.agentId = agentId;
+    return scope;
+  }
+  if (taskId !== undefined && envTaskId !== undefined && taskId === envTaskId && envAgentId !== undefined) {
+    scope.parentAgentId = envAgentId;
+  }
+  return scope;
+}
+
+function parentAlertScopeFromParams(params: any, taskId: string, operation: string, unreadOnly: boolean): any {
+  const explicitAgentId = stringOrUndefined(params.agentId);
+  const explicitParentAgentId = stringOrUndefined(params.parentAgentId);
+  const currentParentAgentId = currentDelegatedParentAgentIdForTask(taskId);
+  const global = params.global === true;
+  if (!global && currentParentAgentId !== undefined && explicitParentAgentId !== undefined && explicitParentAgentId !== currentParentAgentId) {
+    return {
+      ok: false,
+      result: typedError(operation, "global_alert_scope_required", "cross-parent alert access requires global=true", { taskId, requestedParentAgentId: explicitParentAgentId, currentParentAgentId }),
+    };
+  }
+  const options: any = { unreadOnly };
+  if (explicitAgentId !== undefined) options.agentId = explicitAgentId;
+  if (explicitParentAgentId !== undefined) options.parentAgentId = explicitParentAgentId;
+  if (!global && currentParentAgentId !== undefined && options.parentAgentId === undefined) {
+    options.parentAgentId = currentParentAgentId;
+  }
+  const label = options.parentAgentId !== undefined
+    ? `parent:${options.parentAgentId}`
+    : global
+      ? "global"
+      : "task";
+  return { ok: true, options, label };
+}
+
+function currentDelegatedParentAgentIdForTask(taskId: string): string | undefined {
+  const envTaskId = stringOrUndefined(process.env.FREEFLOW_DELEGATION_TASK_ID);
+  const envAgentId = stringOrUndefined(process.env.FREEFLOW_DELEGATION_AGENT_ID);
+  return envTaskId === taskId ? envAgentId : undefined;
+}
+
 async function readTaskReports(store: any, taskId: string): Promise<any[]> {
   const names = ["planning-report", "execution-kickoff", "execution-report"];
   const reports = [];
@@ -944,8 +1540,10 @@ function compactParsedAgentResult(parsed: any) {
   const results = Array.isArray(parsed?.results) ? parsed.results.map(compactFFResult) : [];
   return {
     ok: Boolean(parsed?.ok),
+    transport: parsed?.transport,
     status: results[0]?.status ?? (parsed?.ok === false ? "malformed" : "pending"),
     results,
+    direct: parsed?.direct ? compactDirectResult(parsed.direct) : undefined,
     statuses: compactSignals(parsed?.statuses),
     attentions: compactSignals(parsed?.attentions),
     errors: compactErrors(parsed?.errors),
@@ -954,6 +1552,54 @@ function compactParsedAgentResult(parsed: any) {
       executionKickoff: Array.isArray(parsed?.executionKickoffs) ? parsed.executionKickoffs.map(compactParsedReport) : [],
       execution: Array.isArray(parsed?.executionReports) ? parsed.executionReports.map(compactParsedReport) : [],
     },
+  };
+}
+
+function compactDirectResult(direct: any) {
+  if (!direct || typeof direct !== "object") return undefined;
+  return {
+    role: direct.role,
+    status: direct.status,
+    summary: direct.summary,
+    filesChanged: direct.filesChanged,
+    filesRead: direct.filesRead,
+    checks: direct.checks,
+    findings: direct.findings,
+    assessment: direct.assessment,
+    residualRisk: direct.residualRisk,
+    recommendation: direct.recommendation,
+    unverifiedAreas: direct.unverifiedAreas,
+    completionClaimSupported: direct.completionClaimSupported,
+    submittedAt: direct.submittedAt,
+  };
+}
+
+function directResultRecord(payload: any) {
+  return {
+    ok: true,
+    rawText: "",
+    transport: "delegate_finish",
+    direct: payload,
+    results: [{
+      kind: "FFRESULT",
+      status: payload.status,
+      summary: payload.summary,
+      filesChanged: Array.isArray(payload.filesChanged) ? payload.filesChanged : [],
+      filesRead: Array.isArray(payload.filesRead) ? payload.filesRead : [],
+      toolsUsed: Array.isArray(payload.toolsUsed) ? payload.toolsUsed : [],
+      checks: Array.isArray(payload.checks) ? payload.checks.map((check: any, index: number) => ({ tag: "CHECK", fields: [check.name, check.status, check.outputId ? `outputId=${check.outputId}` : "", check.evidence ?? check.notes ?? ""].filter(Boolean), lineNumber: index + 1 })) : [],
+      evidence: Array.isArray(payload.evidence) ? payload.evidence.map((item: any, index: number) => ({ tag: "EVIDENCE", fields: [item.label, item.outputId ? `outputId=${item.outputId}` : `path=${item.path ?? ""}`, item.lines ? `lines=${item.lines}` : "", item.note ?? ""].filter(Boolean), lineNumber: index + 1 })) : [],
+      blockers: [],
+      requests: [],
+      uncertainty: payload.uncertainty,
+      recommendation: payload.recommendation,
+    }],
+    planningReports: [],
+    executionKickoffs: [],
+    executionReports: [],
+    statuses: [],
+    attentions: [],
+    errors: [],
   };
 }
 
@@ -1053,6 +1699,73 @@ function compactAlert(alert: any): any {
   };
 }
 
+async function lifecycleTarget(params: any, ctx: any, store: any, operation: string): Promise<any> {
+  const envTask = stringOrUndefined(process.env.FREEFLOW_DELEGATION_TASK_ID);
+  const envAgent = stringOrUndefined(process.env.FREEFLOW_DELEGATION_AGENT_ID);
+  const rawTaskId = stringOrUndefined(params.taskId) ?? envTask;
+  const rawAgentId = stringOrUndefined(params.agentId) ?? envAgent;
+  if (rawTaskId === undefined || rawAgentId === undefined) {
+    return { ok: false, result: typedError(operation, "missing_lifecycle_identity", "taskId/agentId are required when FREEFLOW_DELEGATION_* env is absent") };
+  }
+  const taskId = validateSafeId(rawTaskId, "task id");
+  const agentId = validateSafeId(rawAgentId, "agent id");
+  if (envTask !== undefined && taskId !== envTask) {
+    return { ok: false, result: typedError(operation, "lifecycle_scope_violation", `lifecycle tool can only target current task ${envTask}`, { taskId, agentId }) };
+  }
+  if (envAgent !== undefined && agentId !== envAgent) {
+    return { ok: false, result: typedError(operation, "lifecycle_scope_violation", `lifecycle tool can only target current agent ${envAgent}`, { taskId, agentId }) };
+  }
+  try {
+    const manifest = await store.readAgentManifest(taskId, agentId);
+    const status = await store.readAgentStatus(taskId, agentId);
+    return { ok: true, taskId, agentId, manifest, status };
+  } catch (error) {
+    return { ok: false, result: typedError(operation, "target_not_found", messageFrom(error), { taskId, agentId }) };
+  }
+}
+
+function validateFinishPayload(params: any, role: string): any {
+  const status = stringOrUndefined(params.status);
+  if (!["completed", "completed_with_risks", "blocked", "failed", "cancelled"].includes(status ?? "")) {
+    return { ok: false, reason: `top-level status must be one of completed, completed_with_risks, blocked, failed, cancelled; got ${status ?? "missing"}`, hint: "Verifier check statuses such as pass/fail belong inside checks[].status, not status." };
+  }
+  const summary = stringOrUndefined(params.summary);
+  if (summary === undefined) {
+    return { ok: false, reason: "summary is required", hint: "Provide a short result summary." };
+  }
+  if (role === "reviewer") {
+    if (params.findings !== undefined && !Array.isArray(params.findings)) {
+      return { ok: false, reason: "reviewer findings must be an array", hint: "Use findings[].severity blocking|non_blocking|question|needs_evidence." };
+    }
+    for (const finding of params.findings ?? []) {
+      if (!finding || typeof finding !== "object" || !["blocking", "non_blocking", "question", "needs_evidence"].includes(finding.severity) || typeof finding.problem !== "string" || finding.problem.trim().length === 0) {
+        return { ok: false, reason: "reviewer finding is malformed", hint: "Each finding needs severity and problem." };
+      }
+    }
+  }
+  if (role === "verifier") {
+    if (!Array.isArray(params.checks) || params.checks.length === 0) {
+      return { ok: false, reason: "verifier checks[] is required", hint: "Use checks[].status pass|fail|skipped|not_run. Top-level status remains completed/completed_with_risks/blocked/failed/cancelled." };
+    }
+    for (const check of params.checks) {
+      if (!check || typeof check !== "object" || typeof check.name !== "string" || !["pass", "fail", "skipped", "not_run"].includes(check.status)) {
+        return { ok: false, reason: "verifier check is malformed", hint: "Each check needs name and status pass|fail|skipped|not_run." };
+      }
+    }
+  }
+  return { ok: true, status, summary };
+}
+
+function stateForResultStatus(status: string): string {
+  if (status === "completed" || status === "completed_with_risks") return "completed";
+  return status;
+}
+
+function alertOutcomeForResultStatus(status: string): string {
+  if (status === "completed_with_risks") return "completed_with_risks";
+  return stateForResultStatus(status);
+}
+
 function stateForRecordedReport(reportName: string, status: string | undefined): string {
   if (reportName === "execution-kickoff") return "running";
   if (status === "blocked") return "blocked";
@@ -1088,6 +1801,109 @@ function waitScopeKey(taskId: string, agentId: string | undefined): string {
   return agentId === undefined ? `task:${taskId}` : `agent:${taskId}:${agentId}`;
 }
 
+async function maybeAutoCloseAfterResultRead(pi: any, signal: AbortSignal | undefined, ctx: any, store: any, taskId: string, agentId: string, target: any, compact: any, semantic: any): Promise<any> {
+  let manifest;
+  try {
+    manifest = await store.readAgentManifest(taskId, agentId);
+  } catch (error) {
+    return { mode: "unknown", action: "not_closed", reason: messageFrom(error) };
+  }
+  const mode = manifest.retention ?? "auto";
+  if (mode !== "auto") return { mode, action: "kept_open" };
+  if (!shouldAutoCloseRoleResult(manifest.role, compact, semantic, target)) {
+    return { mode, action: "kept_open", reason: "retention_policy_keeps_role_or_nonpassing_result" };
+  }
+  if (!manifest.surfaceRef || target.state === "closed") {
+    return { mode, action: "not_closed", reason: "surface_missing_or_already_closed" };
+  }
+  const cmux = new CmuxAdapter(createPiCmuxRunner(pi, signal), { cwd: manifest.cwd ?? ctx.cwd, timeoutMs: 10_000 });
+  try {
+    await cmux.closeSurface({ surfaceRef: manifest.surfaceRef, workspaceRef: manifest.workspaceRef, windowRef: manifest.windowRef });
+    await store.writeAgentStatus(taskId, agentId, { state: "closed", message: "auto-closed after parent consumed passing result; evidence preserved" });
+    await store.appendAgentEvent(taskId, agentId, { type: "agent-auto-closed", state: "closed", message: "auto-closed after result consumption", data: { previousState: target.state, role: manifest.role } });
+    await store.appendTaskEvent(taskId, { type: "agent-auto-closed", state: "closed", message: `${agentId} auto-closed after result consumption`, data: { agentId, role: manifest.role } });
+    return { mode, action: "closed", reason: "passing_short_lived_role_result_consumed" };
+  } catch (error) {
+    await store.appendAgentEvent(taskId, agentId, { type: "agent-auto-close-failed", state: "attention", message: messageFrom(error), data: { previousState: target.state } });
+    return { mode, action: "close_failed", reason: messageFrom(error) };
+  }
+}
+
+function shouldAutoCloseRoleResult(role: string, compact: any, semantic: any, target: any): boolean {
+  if (semantic.status !== "ok" || target.state !== "completed") return false;
+  if (role === "researcher") return true;
+  if (role === "verifier") return verifierResultPassing(compact);
+  if (role === "reviewer") return reviewerResultPassing(compact);
+  return false;
+}
+
+function reviewerResultPassing(compact: any): boolean {
+  const findings = compact?.direct?.findings;
+  if (Array.isArray(findings)) {
+    return findings.every((finding: any) => finding?.severity === "non_blocking");
+  }
+  const first = compact?.results?.[0];
+  return first?.status === "completed" && (!Array.isArray(first?.blockers) || first.blockers.length === 0);
+}
+
+function verifierResultPassing(compact: any): boolean {
+  const direct = compact?.direct;
+  if (direct?.completionClaimSupported === false) return false;
+  const checks = Array.isArray(direct?.checks) ? direct.checks : [];
+  if (checks.length > 0) return checks.every((check: any) => check?.status === "pass" || check?.status === "skipped");
+  const first = compact?.results?.[0];
+  return first?.status === "completed";
+}
+
+function appendDegraded(existing: any[] | undefined, code: string, reason: string, path: string): any[] {
+  return [...(Array.isArray(existing) ? existing : []), { code, reason, path, recovery: "inspect the JSON file or regenerate through harness tools" }];
+}
+
+function activeToolsForSpawn(pi: any, requestedTools: readonly string[]): { ok: true; tools: string[] } | { ok: false; reason: string } {
+  if (typeof pi?.setActiveTools !== "function") {
+    return { ok: false, reason: "Pi active-tool API unavailable; delegated child would not have scoped tool enforcement" };
+  }
+  if (typeof pi?.getAllTools !== "function") {
+    return { ok: true, tools: [...requestedTools] };
+  }
+  const allTools = pi.getAllTools();
+  if (!Array.isArray(allTools)) {
+    return { ok: true, tools: [...requestedTools] };
+  }
+  const available = new Set(allTools.map((tool: any) => tool?.name).filter((name: unknown): name is string => typeof name === "string"));
+  return { ok: true, tools: requestedTools.filter((tool) => available.has(tool)) };
+}
+
+function normalizeWriteScopeParam(value: unknown): string | string[] | undefined {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (typeof item !== "string") {
+        throw new Error("writeScope entries must be strings");
+      }
+    }
+    return [...value];
+  }
+  return stringOrUndefined(value);
+}
+
+function normalizeRetention(value: unknown): string {
+  return value === "keep-open" || value === "debug" ? value : "auto";
+}
+
+function normalizeLayoutPolicy(value: unknown, role: string): string {
+  if (["manual", "orchestrator", "planning", "execution", "review-dock"].includes(String(value))) return String(value);
+  if (role === "orchestrator") return "orchestrator";
+  if (role === "planning-parent" || role === "researcher") return "planning";
+  if (role === "reviewer" || role === "verifier") return "review-dock";
+  return "execution";
+}
+
+function directionForRole(role: string): "left" | "right" | "up" | "down" {
+  if (role === "orchestrator") return "left";
+  if (role === "reviewer" || role === "verifier") return "down";
+  return "right";
+}
+
 function requireTimeoutMs(value: unknown): number {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) {
@@ -1119,6 +1935,57 @@ function createPiCmuxRunner(pi: any, signal: AbortSignal | undefined) {
       };
     },
   };
+}
+
+async function parentDescendantReconciliationBlock(store: any, taskId: string, agentId: string, manifest: any, operation: string): Promise<any | undefined> {
+  if (!["orchestrator", "planning-parent", "execution-parent"].includes(manifest.role)) {
+    return undefined;
+  }
+  let registry;
+  try {
+    registry = await store.readRegistry(taskId);
+  } catch (error) {
+    return typedError(operation, "descendant_registry_unavailable", messageFrom(error), { taskId, agentId, paths: evidencePaths(store, taskId, agentId) });
+  }
+  const descendants = descendantAgents(registry.agents ?? [], agentId);
+  if (descendants.length === 0) {
+    return undefined;
+  }
+  const unread = await store.readParentAlerts(taskId, { unreadOnly: true, parentAgentId: agentId });
+  const activeDescendants = descendants.filter((descendant: any) => !["closed", "cancelled", "completed"].includes(descendant.state));
+  const unconsumedCompleted = descendants.filter((descendant: any) => descendant.state === "completed" && unread.some((alert: any) => alert.agentId === descendant.agentId));
+  if (activeDescendants.length === 0 && unconsumedCompleted.length === 0) {
+    return undefined;
+  }
+  return typedError(operation, "descendant_reconciliation_required", "parent close/cancel requires descendant close, cancel, adopt, or park decisions before the parent pane disappears", {
+    status: "blocked",
+    taskId,
+    agentId,
+    activeDescendants: activeDescendants.map(compactRegistryAgent),
+    unconsumedCompleted: unconsumedCompleted.map(compactRegistryAgent),
+    unreadAlertIds: unread.filter((alert: any) => descendants.some((descendant: any) => descendant.agentId === alert.agentId)).map((alert: any) => alert.alertId),
+    route: "consume_or_ack_completed_results_then_close_cancel_adopt_or_park_descendants",
+    paths: evidencePaths(store, taskId, agentId),
+  });
+}
+
+function descendantAgents(agents: readonly any[], parentAgentId: string): any[] {
+  const output: any[] = [];
+  const queue = [parentAgentId];
+  for (let index = 0; index < queue.length; index += 1) {
+    const currentParent = queue[index];
+    for (const agent of agents) {
+      if (agent.parentAgentId === currentParent && !output.some((item) => item.agentId === agent.agentId)) {
+        output.push(agent);
+        queue.push(agent.agentId);
+      }
+    }
+  }
+  return output;
+}
+
+function compactRegistryAgent(agent: any): any {
+  return { agentId: agent.agentId, role: agent.role, profile: agent.profile, state: agent.state, parentAgentId: agent.parentAgentId };
 }
 
 async function resolveValidTarget(store: any, taskId: string, agentId: string, operation: string): Promise<any> {

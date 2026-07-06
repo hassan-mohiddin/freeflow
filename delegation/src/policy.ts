@@ -2,7 +2,7 @@ import { isAbsolute, relative, resolve } from "node:path";
 
 import {
   getProfileDefinition,
-  isDelegationTool,
+  isParentControlDelegationTool,
   resolveProfileForRole,
 } from "./profiles.js";
 import type {
@@ -55,10 +55,10 @@ export function evaluatePolicy(input: EvaluatePolicyInput): PolicyDecision {
     return block("malformed_intent", "policy intent is malformed", role, profile, definition.defaultPolicy.suggestedReroute);
   }
 
-  if (intent.kind === "tool" && isDelegationTool(intent.toolName) && definition.kind === "leaf") {
+  if (intent.kind === "tool" && isParentControlDelegationTool(intent.toolName) && definition.kind === "leaf") {
     return block(
       "delegation_tool_for_leaf",
-      `leaf profile ${profile} cannot use delegation tool ${intent.toolName}`,
+      `leaf profile ${profile} cannot use parent-control delegation tool ${intent.toolName}`,
       role,
       profile,
       "parent",

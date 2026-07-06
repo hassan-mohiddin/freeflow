@@ -4,7 +4,17 @@ import { freeflowRun } from "./run.js";
 const DEFAULT_BATCH_CONCURRENCY = 4;
 const MAX_BATCH_CONCURRENCY = 16;
 const MAX_BATCH_STEPS = 50;
-const BATCH_STEP_KINDS = new Set(["run", "search"]);
+const BATCH_STEP_KINDS = new Set(["run", "search", "delegate_status", "delegate_inbox", "delegate_result", "delegate_capture", "delegate_close", "delegate_ack_alert"]);
+const DELEGATION_BATCH_STEP_KINDS = new Set(["delegate_status", "delegate_inbox", "delegate_result", "delegate_capture", "delegate_close", "delegate_ack_alert"]);
+const DELEGATION_BATCH_MUTATING_KINDS = new Set(["delegate_close", "delegate_ack_alert"]);
+export const DELEGATION_BATCH_OPERATION_METADATA = {
+    delegate_status: { readsHarnessState: true, writesEvidence: false, mutatesHarnessState: false, mutatesRepoState: false, parallelSafety: "safe" },
+    delegate_inbox: { readsHarnessState: true, writesEvidence: false, mutatesHarnessState: false, mutatesRepoState: false, parallelSafety: "safe" },
+    delegate_result: { readsHarnessState: true, writesEvidence: false, mutatesHarnessState: false, mutatesRepoState: false, parallelSafety: "safe" },
+    delegate_capture: { readsHarnessState: true, writesEvidence: true, mutatesHarnessState: false, mutatesRepoState: false, parallelSafety: "conditional" },
+    delegate_close: { readsHarnessState: true, writesEvidence: false, mutatesHarnessState: true, mutatesRepoState: false, parallelSafety: "conditional" },
+    delegate_ack_alert: { readsHarnessState: true, writesEvidence: false, mutatesHarnessState: true, mutatesRepoState: false, parallelSafety: "conditional" },
+};
 const MAX_BATCH_QUERIES = 10;
 const MAX_BATCH_QUERY_LENGTH = 500;
 const MAX_QUERY_MATCHES = 3;
@@ -82,7 +92,7 @@ function validateBatchInput(value) {
                 return;
             }
             if (typeof step.kind !== "string" || !BATCH_STEP_KINDS.has(step.kind)) {
-                issues.push({ path: `$.steps[${index}].kind`, message: "Expected step kind run or search." });
+                issues.push({ path: `$.steps[${index}].kind`, message: "Expected step kind run, search, delegate_status, delegate_inbox, delegate_result, delegate_capture, delegate_close, or delegate_ack_alert." });
             }
             if (step.id !== undefined && (typeof step.id !== "string" || step.id.length === 0)) {
                 issues.push({ path: `$.steps[${index}].id`, message: "Expected non-empty string id when present." });
@@ -91,6 +101,12 @@ function validateBatchInput(value) {
                 issues.push({ path: `$.steps[${index}].input`, message: "Expected step input object." });
             }
             if (typeof step.kind === "string" && BATCH_STEP_KINDS.has(step.kind) && isRecord(step.input)) {
+                if (DELEGATION_BATCH_STEP_KINDS.has(step.kind) && typeof value.delegationExecutor !== "function") {
+                    issues.push({ path: `$.steps[${index}].kind`, message: `Delegation batch step ${step.kind} requires a host delegation executor.` });
+                }
+                if (DELEGATION_BATCH_MUTATING_KINDS.has(step.kind) && step.input.confirmMutation !== true) {
+                    issues.push({ path: `$.steps[${index}].input.confirmMutation`, message: `${step.kind} mutates harness state and requires confirmMutation=true.` });
+                }
                 normalizedSteps.push({
                     id: typeof step.id === "string" && step.id.length > 0 ? step.id : `${step.kind}-${index + 1}`,
                     kind: step.kind,
@@ -148,7 +164,7 @@ function normalizeBatchQueries(value, issues) {
 async function executeBatchStep(options) {
     const startedAt = Date.now();
     try {
-        const result = await executeStepResult(options.step, options.options, options.runner);
+        const result = await executeStepResult(options.step, options.index, options.options, options.runner);
         return {
             id: options.step.id,
             index: options.index,
@@ -170,7 +186,13 @@ async function executeBatchStep(options) {
         };
     }
 }
-async function executeStepResult(step, options, runner) {
+async function executeStepResult(step, index, options, runner) {
+    if (DELEGATION_BATCH_STEP_KINDS.has(step.kind)) {
+        if (typeof options.delegationExecutor !== "function") {
+            throw new Error(`delegation batch step ${step.kind} requires a host delegation executor`);
+        }
+        return await options.delegationExecutor({ kind: step.kind, input: step.input, id: step.id, index });
+    }
     if (step.kind === "run") {
         return freeflowRun({
             ...step.input,
@@ -190,6 +212,10 @@ async function executeStepResult(step, options, runner) {
     });
 }
 function isFailedChildResult(result, kind) {
+    if (DELEGATION_BATCH_STEP_KINDS.has(kind)) {
+        const status = result.status;
+        return result.toolStatus === "error" || status === "error" || status === "blocked";
+    }
     if (result.toolStatus === "error" || result.routing?.status === "failed") {
         return true;
     }

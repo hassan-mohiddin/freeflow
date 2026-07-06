@@ -2,6 +2,7 @@ import { discoverEryxPythonSandboxAdaptersFromEnv, discoverJqWasmSandboxAdapters
 import { buildFreeflowStatusReport } from "./status.js";
 import { renderFreeflowBatchCall, renderFreeflowBatchResult, renderFreeflowSearchCall, renderFreeflowSearchResult, renderFreeflowRunCall, renderFreeflowRunResult, renderFreeflowStatusCall, renderFreeflowStatusResult, } from "./renderers.js";
 import { readOutputRouterConfig, notifyRouterConfigWarnings } from "./runtime-context.js";
+import { executeDelegationOperation } from "./delegation/tools.js";
 import { FREEFLOW_BATCH_PARAMETERS, FREEFLOW_RUN_PARAMETERS, FREEFLOW_SEARCH_PARAMETERS, FREEFLOW_STATUS_PARAMETERS } from "./schemas.js";
 import { compactBatchToolText, compactRunToolText, compactSearchToolText, getRouterSessionId, routedToolText } from "./utils.js";
 function normalizeTransformOperation(operation) {
@@ -263,6 +264,14 @@ async function normalizeBatchParams(params, ctx, routerConfigResult) {
             });
             continue;
         }
+        if (["delegate_status", "delegate_inbox", "delegate_result", "delegate_capture", "delegate_close", "delegate_ack_alert"].includes(step.kind)) {
+            steps.push({
+                id: step.id,
+                kind: step.kind,
+                input,
+            });
+            continue;
+        }
         throw new Error(`Unsupported freeflow_batch step kind: ${step.kind}`);
     }
     return {
@@ -430,9 +439,10 @@ export function registerRouterTools(pi) {
         description: "Run independent Freeflow-owned operations in parallel and return one compact summary while preserving full child results in details.result.steps.",
         promptSnippet: "Batch independent Freeflow run/search operations with compact model-visible output.",
         promptGuidelines: [
-            "Use freeflow_batch when several independent Freeflow-owned run/search operations can run in parallel.",
+            "Use freeflow_batch when several independent Freeflow-owned run/search/delegation operations can run in parallel.",
             "Use queries[] when the batch should answer deterministic fact requests from completed child evidence handles.",
-            "Do not use freeflow_batch for sequenced workflows, arbitrary external tool orchestration, or mutating batch work in v1.",
+            "Delegation batch steps are safety-contract gated; mutating steps such as close/ack require confirmMutation=true.",
+            "Do not use freeflow_batch for sequenced workflows, arbitrary external tool orchestration, or unsafe parallel writer behavior.",
             "Intermediate child outputs are suppressed unless needed for query answers; inspect details.result.steps or child recovery ids when needed.",
         ],
         parameters: FREEFLOW_BATCH_PARAMETERS,
@@ -457,6 +467,7 @@ export function registerRouterTools(pi) {
                 storagePolicy: routerConfigResult.config.storagePolicy,
                 scriptTransform: routerConfigResult.freeflowConfig.scriptTransform,
                 scriptSandboxAdapters,
+                delegationExecutor: async (step) => executeDelegationOperation(pi, step.kind, step.input, signal, ctx),
             }, {
                 async run(request) {
                     if (signal?.aborted) {

@@ -4,32 +4,55 @@ Task packets are child assignments. Results and reports are context compression 
 
 Use file-backed packets for substantive launch or follow-up instructions. Do not paste long multiline packets into an active Pi TUI.
 
-Use a compact pipe-delimited row protocol, aligned with Output Router compact tool output. This is not CSV. Each line is one record: `TAG|field|field`. Escape literal `|` as `¦`; collapse newlines inside fields to spaces. Keep fields short and use evidence paths/output IDs for raw detail.
+Use the right representation for the interface:
+
+- Child task prompts are readable Markdown by default.
+- Tool outputs, alerts, compact parent-facing envelopes, and legacy fallback result blocks use compact pipe-style rows.
+- Canonical state is JSON/JSONL.
+- Raw transcripts and screens are recoverable evidence, not normal handoff content.
+
+Pipe rows are not CSV. Each row is one record: `TAG|field|field`. Escape literal `|` as `¦`; collapse newlines inside fields to spaces. Keep fields short and use evidence paths/output IDs for raw detail.
 
 ## Task Packet
 
-A child should receive a bounded packet:
+A child should receive a bounded Markdown packet:
 
-```text
-identity: task, agent, parent, role, profile, cwd/worktree
-objective
-in scope / out of scope
-source pointers: spec, plan, parent report, diff, evidence paths
-authority boundaries
-tool policy summary
-allowed commands
-write scope
-selected evidence
-stop conditions
-expected return protocol
-trace/result paths
+```md
+# Delegated task: worker-p1
+
+## Objective
+Implement the assigned work package.
+
+## Scope
+In:
+- named files or work package
+
+Out:
+- commits and pushes
+- unrelated files
+
+## Tools and policy
+Allowed tools:
+- read
+- edit/write inside scope
+
+## Return
+Use `delegate_finish` when active. Otherwise use the legacy `FFRESULT` fallback.
 ```
+
+The packet should still carry identity, role/profile, cwd/worktree, source pointers, authority boundaries, tool policy summary, allowed commands, write scope, selected evidence, stop conditions, expected return protocol, and trace/result paths. It should do that in readable Markdown, not pipe-heavy rows.
 
 The task packet is the child’s world. If it is not in the packet or recoverable through allowed tools, the child should not assume it.
 
 ## Result Block
 
-Leaf agents return role-native compact text.
+Leaf agents prefer role-native lifecycle tools when active:
+
+- `delegate_finish` stores a terminal result/report and alerts the direct parent.
+- `delegate_attention` records a blocker or parent-attention request.
+- `delegate_progress` records store-only progress.
+
+Do not tell a child to use lifecycle tools unless they are actually active in its task packet. If lifecycle tools are unavailable, leaf agents return legacy role-native compact text.
 
 Workers can use:
 
@@ -49,7 +72,7 @@ END_FFRESULT
 
 Reviewers return findings grouped by blocking/non-blocking/questions. Artifact reviewers use artifact-review shape. Verifiers return checks run, pass/fail evidence, output IDs, unverified areas, and whether a completion claim is supported.
 
-The harness stores raw text and parsed JSON. Parent agents usually consume the parsed compact result or role-specific report.
+The harness stores raw text and parsed/canonical JSON. Parent agents usually consume the parsed compact result, direct lifecycle result, or role-specific report.
 
 ## Blockers And Capability Gaps
 
@@ -76,6 +99,8 @@ Parent reports are handoffs:
 - `PLANNING_REPORT`: planning output to orchestrator.
 - `EXECUTION_KICKOFF`: orchestrator authorization packet to execution-parent.
 - `EXECUTION_REPORT`: execution-parent output to orchestrator.
+
+Parents may submit reports through the dedicated report tool or through `delegate_finish` when parent report support is active. Either way, the harness must store canonical task report JSON and a compact direct-parent alert.
 
 Reports should name only what changes the next route. Raw details stay recoverable through event logs, transcripts, result paths, and output IDs.
 

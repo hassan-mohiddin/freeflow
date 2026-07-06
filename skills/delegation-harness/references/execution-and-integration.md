@@ -22,6 +22,16 @@ stop conditions
 
 A work package may contain one slice or several related slices.
 
+## Worker Ownership
+
+Decide worker delegation from the whole execution shape, not from the next slice alone.
+
+For broad or multi-slice implementation, execution-parent coordinates and a worker owns the implementation stream. Do not let the parent become the main implementer because each individual slice looks small.
+
+One worker may own multiple sequential slices when context remains useful and the write scope stays coherent. Spawn a new worker only for a real context boundary, parallelism, different write scope or capability, stale context, or isolation need.
+
+Execution-parent inline edits are for coordination, reporting, or mechanical integration. If the parent edits product/runtime files, it must state why the edit is not worker-owned.
+
 ## Parallelism
 
 Default to sequential unless independence is explicit.

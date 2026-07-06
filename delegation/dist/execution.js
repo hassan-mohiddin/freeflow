@@ -50,7 +50,13 @@ export function normalizeWorkPackageMetadata(input) {
 }
 export function normalizeExecutionMap(input, updatedAt = input.updatedAt) {
     const taskId = validateSafeId(input.taskId, "task id");
-    const packages = (input.packages ?? []).map(normalizeWorkPackageMetadata);
+    if (!Array.isArray(input.packages)) {
+        throw new Error("execution map packages must be an array");
+    }
+    if (!Array.isArray(input.integrationOrder)) {
+        throw new Error("execution map integrationOrder must be an array");
+    }
+    const packages = input.packages.map(normalizeWorkPackageMetadata);
     const packageIds = new Set(packages.map((pkg) => pkg.packageId));
     const integrationOrder = input.integrationOrder.length > 0
         ? input.integrationOrder.map((packageId) => validateSafeId(packageId, "integration package id"))

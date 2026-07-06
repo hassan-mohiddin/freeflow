@@ -235,12 +235,12 @@ export const FREEFLOW_BATCH_PARAMETERS = {
                 additionalProperties: false,
                 properties: {
                     id: { ...NON_EMPTY_STRING_SCHEMA, description: "Optional stable step id for matching results." },
-                    kind: { type: "string", enum: ["run", "search"], description: "Freeflow-owned public operation kind. Steps are independent and run in parallel." },
-                    input: { type: "object", additionalProperties: true, description: "Input for the selected Freeflow operation. Uses the same shape as freeflow_run or freeflow_search." },
+                    kind: { type: "string", enum: ["run", "search", "delegate_status", "delegate_inbox", "delegate_result", "delegate_capture", "delegate_close", "delegate_ack_alert"], description: "Freeflow-owned public operation kind. Steps are independent and run in parallel when their safety contracts allow it." },
+                    input: { type: "object", additionalProperties: true, description: "Input for the selected Freeflow operation. Uses the same shape as freeflow_run, freeflow_search, or the selected safe delegation operation. Mutating delegation steps require confirmMutation=true." },
                 },
                 required: ["kind", "input"],
             },
-            description: "Independent Freeflow-owned steps to run in parallel. No sequencing or external tool orchestration in v1.",
+            description: "Independent Freeflow-owned steps to run in parallel. No sequencing, arbitrary external tool orchestration, or unsafe parallel writer behavior.",
         },
         queries: {
             type: "array",

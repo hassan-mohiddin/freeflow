@@ -93,7 +93,7 @@ test("Pi before_agent_start injects core Freeflow and output-router context", as
   assert.match(result.systemPrompt, /## Loaded Delegation Harness Skill/);
   assert.match(result.systemPrompt, /name: delegation-harness/);
   assert.match(result.systemPrompt, /delegate_spawn/);
-  assert.match(result.systemPrompt, /Child terminal `FFRESULT`/);
+  assert.match(result.systemPrompt, /Legacy `FFRESULT`/);
   assert.doesNotMatch(result.systemPrompt, /# Context Locality/);
   assert.match(result.systemPrompt, /freeflow_run/);
   assert.doesNotMatch(result.systemPrompt, /freeflow_capture/);

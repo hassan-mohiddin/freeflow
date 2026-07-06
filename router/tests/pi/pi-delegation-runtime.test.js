@@ -189,13 +189,15 @@ test("delegated worker context is compact and applies active tool profile", asyn
       assert.ok(activeTools.includes("edit"));
       assert.ok(activeTools.includes("freeflow_run"));
       assert.equal(activeTools.includes("delegate_spawn"), false);
+      assert.equal(activeTools.includes("delegate_finish"), true);
+      assert.equal(activeTools.includes("delegate_attention"), true);
       assert.equal(activeTools.includes("web_search"), false);
       assert.match(result.systemPrompt, /# Freeflow Delegated Runtime Context/);
       assert.match(result.systemPrompt, /role\/profile: worker \/ worker/);
       assert.match(result.systemPrompt, /store: .*\.freeflow\/delegation/);
       assert.match(result.systemPrompt, /Skills remain available through normal Pi discovery/);
       assert.match(result.systemPrompt, /Use Freeflow routed tools for broad\/noisy\/unknown-size output/);
-      assert.match(result.systemPrompt, /return protocol: FFRESULT_REQUIRED/);
+      assert.match(result.systemPrompt, /return protocol: DELEGATE_FINISH_REQUIRED, LEGACY_FFRESULT_FALLBACK/);
       assert.ok(ctx.statuses.some((status) => status.name === "freeflow-delegation" && /worker\/worker/.test(status.value)));
     });
   });
@@ -337,7 +339,7 @@ test("final worker message without required FFRESULT fails and delegate_result i
     const store = await createWorkerStore(repoRoot);
     await withDelegationEnv(envFor(store), async () => {
       const { handlers, tools } = loadExtension();
-      const raw = "I finished the task, but forgot the required result block.";
+      const raw = "I stored this with delegate_finish and finished the task, but no canonical lifecycle tool result exists.";
 
       await handlers.get("message_end")(
         { message: { role: "assistant", content: [{ type: "text", text: raw }], stopReason: "stop" } },
@@ -356,7 +358,70 @@ test("final worker message without required FFRESULT fails and delegate_result i
       assert.equal(result.details.result.status, "missing");
       assert.equal(result.details.result.code, "required_output_missing");
       assert.equal(result.details.result.result.status, "pending");
-      assert.doesNotMatch(result.content[0].text, /forgot the required result block/);
+      assert.doesNotMatch(result.content[0].text, /canonical lifecycle tool result/);
+    });
+  });
+});
+
+test("final reviewer fake delegate_finish claim stays pending without canonical lifecycle records", async () => {
+  await withTempRepo(async (repoRoot) => {
+    const store = await createWorkerStore(repoRoot, { agentId: "reviewer-1", role: "reviewer", profile: "reviewer", writeScope: undefined });
+    await withDelegationEnv(envFor(store, {
+      FREEFLOW_DELEGATION_AGENT_ID: "reviewer-1",
+      FREEFLOW_AGENT_ROLE: "reviewer",
+      FREEFLOW_CONTEXT_PROFILE: "reviewer",
+    }), async () => {
+      const { handlers, tools } = loadExtension();
+      const raw = "Review stored with delegate_finish. All clear.";
+
+      await handlers.get("message_end")(
+        { message: { role: "assistant", content: [{ type: "text", text: raw }], stopReason: "stop" } },
+        context(repoRoot),
+      );
+
+      const status = await readJson(store.pathsForAgent("TASK-P2", "reviewer-1").statusJson);
+      assert.equal(status.state, "running");
+      const alerts = await store.readParentAlerts("TASK-P2", { unreadOnly: true });
+      assert.equal(alerts.length, 0);
+
+      const resultTool = tools.find((tool) => tool.name === "delegate_result");
+      const result = await resultTool.execute("result-reviewer-fake-finish", { taskId: "TASK-P2", agentId: "reviewer-1" }, undefined, undefined, context(repoRoot));
+      assert.equal(result.details.result.status, "pending");
+      assert.equal(result.details.result.code, "result_pending");
+      assert.equal(result.details.result.result.status, "pending");
+      assert.doesNotMatch(result.content[0].text, /All clear/);
+    });
+  });
+});
+
+test("final prose after delegate_finish does not overwrite the canonical direct result", async () => {
+  await withTempRepo(async (repoRoot) => {
+    const store = await createWorkerStore(repoRoot);
+    await withDelegationEnv(envFor(store), async () => {
+      const { handlers, tools } = loadExtension();
+      const finish = tools.find((tool) => tool.name === "delegate_finish");
+      assert.ok(finish);
+
+      await finish.execute("finish-direct", {
+        status: "completed",
+        summary: "Stored through lifecycle tool.",
+        filesChanged: ["pi-extension/src/delegation/runtime.ts"],
+      }, undefined, undefined, context(repoRoot));
+
+      await handlers.get("message_end")(
+        { message: { role: "assistant", content: [{ type: "text", text: "Done — result already stored with delegate_finish." }], stopReason: "stop" } },
+        context(repoRoot),
+      );
+
+      const resultJson = await readJson(store.pathsForAgent("TASK-P2", "worker-1").resultJson);
+      assert.equal(resultJson.transport, "delegate_finish");
+      assert.equal(resultJson.direct.summary, "Stored through lifecycle tool.");
+      assert.equal((await readJson(store.pathsForAgent("TASK-P2", "worker-1").statusJson)).state, "completed");
+      const alerts = await store.readParentAlerts("TASK-P2", { unreadOnly: true });
+      assert.equal(alerts.length, 1);
+      assert.equal(alerts[0].outcome, "completed");
+      const agentEvents = await readJsonLines(store.pathsForAgent("TASK-P2", "worker-1").eventsJsonl);
+      assert.ok(agentEvents.some((event) => event.type === "assistant-message-after-delegate-finish"));
     });
   });
 });
