@@ -83,7 +83,8 @@
         "IVG-001",
         "IVG-002",
         "IVG-003",
-        "IVG-004"
+        "IVG-004",
+        "IVG-005"
       ]
     },
     "mode-contract": {
@@ -153,7 +154,8 @@
       "evals": [
         "WRC-001",
         "WRC-002",
-        "FX-004"
+        "FX-004",
+        "IVG-005"
       ]
     },
     "write-plan": {
@@ -190,13 +192,16 @@
         "DIS-001",
         "DIS-002",
         "DIS-003",
-        "CMD-012"
+        "DIS-004",
+        "CMD-012",
+        "IVG-005"
       ]
     },
     "design-for-depth": {
       "evals": [
         "DFD-001",
-        "DFD-002"
+        "DFD-002",
+        "DFD-003"
       ]
     },
     "delegation-harness": {
@@ -206,7 +211,8 @@
         "DEL-003",
         "DEL-004",
         "DEL-005",
-        "DEL-006"
+        "DEL-006",
+        "DEL-007"
       ]
     }
   }

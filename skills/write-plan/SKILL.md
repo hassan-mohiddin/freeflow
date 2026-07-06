@@ -12,6 +12,7 @@ Classify the plan request first:
 - Hidden owner decision or source conflict: name it and do not write the plan.
 - Context-backed: say a spec is preferred, then write a lightweight plan.
 - Missing source context: ask for context or route to `discover`.
+- Unresolved shaping, design, routing, interface, state, or context-boundary choices: route to `discover` or `design-for-depth` before planning.
 
 A plan executes source truth. It does not create it.
 
@@ -51,11 +52,11 @@ Slices are execution boundaries, not scope reductions. Do not recast agreed scop
 
 When full scope is too large for one safe plan, split it into implementation slices, implementation phases, checklists, or multiple plan artifacts. Ask before changing the user's scope or adopting versioned shipping.
 
-When slice boundaries, seams, interfaces, or locality are unclear, use `../design-for-depth/SKILL.md` before writing executable steps. Do not hide unresolved design choices inside implementation detail.
+When slice boundaries, seams, interfaces, state machines, tool protocols, role ownership, delegation/context boundaries, or locality are unclear, use `../design-for-depth/SKILL.md` before writing executable steps. Do not hide unresolved design choices inside implementation detail.
 
 For consequential systems, plan the failure contract before the happy path: what can fail, who observes it, what state is written, fail-open/closed/degrade/escalate/retry behavior, what must not happen, recovery path, and proof.
 
-For delegated execution, include work packages, dependencies, expected write sets, parallel/sequential classification, checks, review/verification checkpoints, commit checkpoints, integration order, and stop conditions.
+For delegated execution, use `../delegation-harness/SKILL.md` for subagent routing and include work packages, dependencies, expected write sets, parallel/sequential classification, checks, review/verification checkpoints, commit checkpoints, integration order, and stop conditions.
 
 ## Stop Conditions
 

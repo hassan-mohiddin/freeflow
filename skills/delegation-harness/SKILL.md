@@ -1,6 +1,6 @@
 ---
 name: delegation-harness
-description: Use when coordinating Freeflow Pi/cmux pane delegation, orchestrator/planning-parent/execution-parent workflows, task packets, child results, context locality, capability reroutes, multi-agent execution, work packages, worktrees, or when the user asks to spawn/manage visible pane agents.
+description: Use when coordinating Freeflow Pi/cmux pane delegation, orchestrator/planning-parent/execution-parent workflows, task packets, child results, context locality, capability reroutes, multi-agent execution, work packages, worktrees, routing fresh-reviewer/subagent requests, or when the user asks to spawn/manage visible pane agents.
 ---
 
 # Delegation Harness
@@ -13,11 +13,21 @@ Core rule:
 Store broadly. Return compactly. Promote selectively. Load narrowly.
 ```
 
-## Harness-First Rule
+## Subagent Routing Contract
 
-When Pi delegation tools are available, use `delegate_*` tools for pane delegation. Do not manually run cmux for normal child management.
+Treat “subagent” as any separate agent context: Freeflow pane, host-native child, reviewer, researcher, worker, verifier, integrator, planning-parent, execution-parent, or future role-specific agent.
 
-Manual cmux is only for bootstrapping a parent pane, recovering/debugging the harness itself, or notification/cleanup when the delegation tool surface is unavailable.
+When a task warrants separate context, route in this order:
+
+1. Use the Freeflow delegation harness when `delegate_*` tools are available, healthy, and appropriate for the task.
+2. Otherwise use the host's native subagent mechanism when available.
+3. Otherwise work inline and report that delegation was unavailable or not worth the overhead.
+
+This applies when other skills ask for a fresh reviewer, researcher, verifier, worker, subagent, or independent context. Do not choose a host-native subagent before checking the harness route.
+
+If the harness route is unavailable or inappropriate, name that and the fallback before presenting the work as independently reviewed or delegated.
+
+Do not manually run cmux for normal child management. Manual cmux is only for bootstrapping a parent pane, recovering/debugging the harness itself, or notification/cleanup when the delegation tool surface is unavailable.
 
 Tiny clear work stays inline. Do not create delegation state, specs, plans, or panes when one agent can safely inspect, edit, verify, and close out.
 

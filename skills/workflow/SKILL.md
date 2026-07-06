@@ -11,6 +11,10 @@ Move forward when context is sufficient. Re-enter clarification when new ambigui
 
 Question means answer. Do not turn a question into a file edit, report, plan, or implementation.
 
+Mixed approval-plus-question prompts still route to the question first. Do not continue into the action in that response unless the user explicitly orders action first and answer later.
+
+Use discovery-light only for direct bounded factual answers. Conceptual, design, routing, workflow/tool-interface, state, or context-boundary questions route to Discover; use design-for-depth when interface, seam, role, or failure-contract choices matter.
+
 ```text
 Clarify / Discover
 -> Decision / Spec
@@ -28,6 +32,8 @@ For a clear tiny task, the whole workflow may be: inspect enough -> execute -> v
 Method skills and lenses such as TDD, diagnosis, execute-plan, design-for-depth, or delegation-harness run inside the current workflow phase. Workflow owns routing, source-truth conflicts, user-owned decisions, review, verification, and handoff boundaries.
 
 For large multi-phase work, delegation can preserve context locality. Use it as a workflow execution shape, not a replacement for workflow gates.
+
+When a workflow route calls for a subagent, fresh reviewer, researcher, worker, verifier, integrator, parent, or other separate agent context, use `../delegation-harness/SKILL.md` for the routing contract instead of choosing a host-native subagent directly.
 
 Read `references/workflow-map.md` when the user asks for the full pipeline, public docs need a diagram, or the next workflow entry point is unclear.
 

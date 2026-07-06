@@ -1,15 +1,19 @@
 ---
 name: design-for-depth
-description: Use when shaping, reviewing, implementing, or diagnosing work where module/interface/seam choices affect complexity, locality, testability, future change, or repeated edge-case churn. Use for architecture direction, growing scope, shallow modules, bad seams, broad refactors, and review loops that keep finding new edge cases.
+description: Use when shaping, reviewing, implementing, or diagnosing work where module/interface/seam/state/role-boundary choices affect complexity, locality, testability, future change, or repeated edge-case churn. Use for architecture direction, state machines, event systems, tool interfaces, prompt/result serialization, delegation/context boundaries, role ownership, failure contracts, growing scope, shallow modules, bad seams, broad refactors, and review loops that keep finding new edge cases.
 ---
 
 # Design For Depth
 
 Use this as a lens, not a phase.
 
-Core rule: if complexity is spreading across callers, tests, docs, artifacts, or review comments, stop and classify the design pressure before patching forward.
+Core rule: if complexity is spreading across callers, tests, docs, artifacts, roles, prompts, serialized results, or review comments, stop and classify the design pressure before patching forward.
+
+Trigger early for state machines, event systems, tool interfaces, prompt/result protocols, delegation/context boundaries, role ownership, and failure contracts.
 
 For consequential systems, define the failure contract before the happy path. Failure behavior is interface behavior.
+
+For state, evented, delegation, prompt, or result-protocol questions, name the failure contract explicitly before recommending implementation.
 
 Goal: hide useful complexity behind stable interfaces so future callers, tests, reviewers, and agents coordinate less.
 
@@ -28,7 +32,7 @@ Do not load references for every small design question. The active skill should 
 Use these terms consistently:
 
 - **Module** — anything with an interface and implementation: function, class, package, subsystem, workflow slice.
-- **Interface** — everything a caller, user, test, or future agent must know: types, invariants, ordering, errors, configuration, failure behavior, performance, side effects, and policy context.
+- **Interface** — everything a caller, user, test, or future agent must know: types, invariants, ordering, states, roles, serialization, errors, configuration, failure behavior, performance, side effects, and policy context.
 - **Implementation** — details hidden behind the interface.
 - **Depth** — leverage at the interface. Deep modules hide useful behavior behind a smaller interface.
 - **Shallow module** — interface is nearly as complex as implementation, or callers coordinate details the module should own.
@@ -45,7 +49,10 @@ Avoid using “architecture” as a vague quality claim. Name the module, interf
 Use this lens when evidence shows:
 
 - one concept requires many unrelated file, test, doc, or reviewer-comment changes;
-- callers know ordering, flags, retries, cleanup, cache, auth, billing, migration, privacy, permissions, or compatibility policy;
+- callers know ordering, flags, states, roles, retries, cleanup, cache, auth, billing, migration, privacy, permissions, or compatibility policy;
+- state machines or event systems leave authority, terminal states, observers, wake/attention behavior, evidence, or recovery unclear;
+- tool interfaces, prompt rendering, task packets, result protocols, or serialized outputs leak storage/transport details to callers or agents;
+- delegation, context boundaries, or role ownership make parents, children, reviewers, verifiers, or integrators coordinate responsibilities ad hoc;
 - tests reach past the interface to assert normal behavior;
 - review findings become a stream of edge-case patches;
 - the same conditional or policy appears in multiple callers;

@@ -1,6 +1,6 @@
 ---
 name: discover
-description: Use for pre-work thinking before consequential work, including codebase exploration, brainstorming, planning direction, shaping ideas/features/specs, design/API/runtime/architecture questions, "should we" / "what do you think" prompts, vague requests, and work that needs evidence before spec, plan, build, review, verification, or durable memory.
+description: Use for pre-work thinking before consequential work, including codebase exploration, brainstorming, planning direction, shaping ideas/features/specs, conceptual/design/routing/interface/state/context-boundary questions, workflow/tool-surface questions, "should we" / "how should we" / "what do you think" prompts, vague requests, and work that needs evidence before spec, plan, build, review, verification, or durable memory.
 ---
 
 # Discover
@@ -11,7 +11,9 @@ Act as a collaborative partner and workflow navigator, not a passive executor. H
 
 Discover is the shared-understanding loop before spec, plan, build, review, verification, handoff, or memory. It turns unclear direction into the next safe route.
 
-Use full Discover when discovery-light is not enough: the work needs codebase exploration, brainstorming, tradeoff comparison, planning direction, path-changing questions, or a checkpoint.
+Use full Discover when the user is forming direction: codebase exploration, brainstorming, tradeoff comparison, planning direction, conceptual/design/routing/interface questions, workflow/tool behavior, state or context boundaries, path-changing questions, or a checkpoint.
+
+Treat tentative reasoning, chain-of-thought references, contradictions, and changed decisions as discovery input to adjudicate, not hidden approval to execute.
 
 Priority: Interview Gate stops silent decisions and user-owned decisions first. Output Router only chooses evidence transport after the discovery route is clear.
 
@@ -21,15 +23,17 @@ Use Discover for most consequential requests that are not already ready to execu
 
 - first repo/code exploration before action;
 - brainstorming, shaping, or comparing paths;
-- design, API, runtime, tool-surface, architecture, or module-boundary questions;
-- “should we,” “why not,” “what do you think,” “how should we,” or similar prompts;
+- conceptual, design, API, runtime, workflow, routing, tool-surface, interface, state-machine, context-boundary, architecture, or module-boundary questions;
+- “should we,” “why not,” “what do you think,” “how should we,” “which route,” or similar prompts;
 - turning discussion into a spec, plan, issue, ADR, handoff, or durable memory;
 - unclear bug-like symptoms before diagnosis has a concrete repro path;
 - any request where evidence could change scope, route, artifact, or next action.
 
 Do not use full Discover when the next action is already clear and covered by a more specific skill: executing an approved plan, verifying work, reviewing a diff, committing, or answering a simple factual question.
 
-Direct questions use discovery-light: inspect the smallest relevant evidence, then answer directly.
+Only direct bounded factual questions use discovery-light: inspect the smallest relevant evidence, then answer directly. If the question asks why, whether, or how to design, route, model state, choose a tool interface, or shape next work, use Discover.
+
+For route-choice questions, name the route as Discover before moving toward spec, plan, or implementation.
 
 ## Hard Stops
 

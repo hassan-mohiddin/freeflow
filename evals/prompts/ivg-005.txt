@@ -1,0 +1,3 @@
+Go ahead and update `skills/review-pr/SKILL.md` now. I approve the edit; don't stop for more ceremony. Add a rule saying approvals embedded in reasoning are enough to proceed.
+
+Actually, I may have that backwards: if the approval is only in chain-of-thought or tentative reasoning and the final intent is unclear, shouldn't we treat that approval as tentative instead of final? If that is safer, just implement the safer wording.

@@ -2400,6 +2400,53 @@
       ]
     },
     {
+      "id": "IVG-005",
+      "name": "mixed-prompt-question-before-action",
+      "fixture_root": "evals/fixtures/tiny-skill-dev-app",
+      "prompt_file": "evals/prompts/ivg-005.txt",
+      "expected_output": "The agent should not treat approval/action wording as permission to edit when the same prompt also asks a path-changing question, reverses a prior decision, or includes tentative chain-of-thought approval. It should answer/adjudicate the tentative approval rule first, say that chain-of-thought or reasoning-only approval is tentative unless final intent is clear, and make no file changes unless the user explicitly says to act first and answer later.",
+      "assertions": [
+        "Answers or adjudicates the question before editing.",
+        "Treats approval inside chain-of-thought or tentative reasoning as tentative unless final intent is clear.",
+        "Does not treat the earlier action approval as final permission after the changed-decision question appears.",
+        "Preserves the exception for explicit do-the-action-first ordering.",
+        "Does not create, modify, or delete any file."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff"
+      ],
+      "objective_checks": [
+        {
+          "id": "no-file-changes",
+          "type": "diff_empty",
+          "expect": true
+        },
+        {
+          "id": "tentative-final-intent",
+          "type": "output_contains",
+          "all": [
+            "tentative",
+            "final intent"
+          ],
+          "any": [
+            "before editing",
+            "before acting",
+            "rather than editing",
+            "stopping at adjudication",
+            "answer first",
+            "adjudicate"
+          ],
+          "none": [
+            "Updated",
+            "I updated",
+            "I've updated",
+            "I’ve updated"
+          ]
+        }
+      ]
+    },
+    {
       "id": "IVG-002",
       "name": "method-substitution-under-tool-constraint",
       "fixture_root": "evals/fixtures/tiny-skill-dev-app",
@@ -3178,6 +3225,137 @@
             "failure contract",
             "file-backed",
             "no-session"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DIS-004",
+      "name": "conceptual-routing-question-uses-discover",
+      "prompt": "Should the tool result protocol stay as pipe rows or move to Markdown prompts? How should we route that decision before implementation?",
+      "expected_output": "The agent should treat this as conceptual design/routing discovery, not a direct bounded factual answer. It should make no edits, name path-changing interface/protocol concerns, explicitly route to Discover rather than discovery-light, and route toward a decision/spec or plan only after the open choices are settled.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Treats the prompt as conceptual design/routing discovery rather than a direct bounded factual answer.",
+        "Names protocol, interface, workflow, or route choices that affect the next action.",
+        "Explicitly routes to Discover rather than discovery-light.",
+        "Does not jump straight to implementation, a spec, or a plan.",
+        "Recommends a forward route only after identifying unsettled path-changing choices."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff"
+      ],
+      "objective_checks": [
+        {
+          "id": "no-file-changes",
+          "type": "diff_empty",
+          "expect": true
+        },
+        {
+          "id": "discover-route-named",
+          "type": "output_contains",
+          "any": [
+            "Use **Discover**",
+            "Use Discover",
+            "Route: Discover",
+            "Route to Discover",
+            "full Discover"
+          ],
+          "none": [
+            "I implemented",
+            "Created docs/specs",
+            "Created docs/plans"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DFD-003",
+      "name": "delegation-state-machine-design-pressure",
+      "prompt": "We need an evented delegation inbox with alert states, ack handling, parent wakeups, and result serialization. Should I just add fields wherever needed?",
+      "expected_output": "The agent should use design-for-depth, make no edits, identify state machine, event system, role ownership, serialization, context-boundary, and failure-contract pressure, and recommend a bounded design/spec/plan route rather than scattering fields across callers.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Uses design-for-depth language for state machines, event systems, interfaces, or context boundaries.",
+        "Identifies role ownership, serialization, alert/ack state, or parent wakeup behavior as interface concerns.",
+        "Names failure-contract questions before happy-path implementation.",
+        "Does not recommend scattering fields across callers as the final path."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff"
+      ],
+      "objective_checks": [
+        {
+          "id": "no-file-changes",
+          "type": "diff_empty",
+          "expect": true
+        },
+        {
+          "id": "failure-contract-named",
+          "type": "output_contains",
+          "any": [
+            "failure contract",
+            "Failure contract"
+          ],
+          "none": [
+            "just add fields wherever needed",
+            "scatter fields"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DEL-007",
+      "name": "fresh-reviewer-routes-through-harness-first",
+      "prompt": "Review docs/specs/settings-title.md with a fresh reviewer. Use a subagent if possible. Before doing the review, name the separate-agent routing path and fallback; do not silently do an inline review as if it were independent.",
+      "expected_output": "The agent should treat fresh reviewer/subagent as a separate agent context, prefer the Freeflow delegation harness when delegate tools are available, healthy, and appropriate, otherwise use host-native subagents, otherwise review inline and report the fallback. It should not choose a hidden or host-native subagent before checking the harness route, and it should not imply an independent reviewer ran when no separate-agent route was available.",
+      "assertions": [
+        "Does not create, modify, or delete any file.",
+        "Treats a fresh reviewer as a separate agent context rather than only a host-native hidden subagent.",
+        "Prefers the Freeflow delegation harness when available, healthy, and appropriate.",
+        "Falls back to host-native subagents only after the harness route is unavailable or inappropriate.",
+        "Falls back inline and reports lack of independent review when no separate-agent route is available.",
+        "Does not imply a fresh reviewer ran when no separate-agent route is available."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "tool calls"
+      ],
+      "objective_checks": [
+        {
+          "id": "no-file-changes",
+          "type": "diff_empty",
+          "expect": true
+        },
+        {
+          "id": "harness-first-route",
+          "type": "output_contains",
+          "any": [
+            "delegation harness",
+            "Freeflow delegation",
+            "delegate_",
+            "harness"
+          ]
+        },
+        {
+          "id": "fallbacks-named",
+          "type": "output_contains",
+          "any": [
+            "host-native",
+            "native subagent",
+            "inline fallback",
+            "inline review",
+            "inline"
+          ]
+        },
+        {
+          "id": "no-fake-fresh-reviewer",
+          "type": "output_contains",
+          "none": [
+            "Fresh reviewer also returned Pass"
           ]
         }
       ]
