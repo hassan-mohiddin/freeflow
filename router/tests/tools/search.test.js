@@ -540,7 +540,7 @@ test("metadata-only vault records explain recovery without promising raw content
   await withTempVault(async (vault) => {
     const record = await storeRepoFileReference(vault, {
       sessionId: "vault-metadata-session",
-      path: "docs/specs/freeflow-output-router-design.md",
+      path: "docs/specs/output-router/freeflow-output-router-design.md",
       hashSha256: "abc123",
       createdAt: "2026-06-16T00:00:00.000Z",
     });

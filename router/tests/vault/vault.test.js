@@ -361,7 +361,7 @@ test("repo file references write metadata only by default", async () => {
   await withTempVault(async (vault) => {
     const record = await storeRepoFileReference(vault, {
       sessionId: "session-repo",
-      path: "docs/specs/freeflow-output-router-design.md",
+      path: "docs/specs/output-router/freeflow-output-router-design.md",
       hashSha256: "abc123",
       decisionIds: ["ffdec_repo"],
       createdAt: "2026-06-16T00:00:00.000Z",
@@ -371,7 +371,7 @@ test("repo file references write metadata only by default", async () => {
     assert.match(record.recordId, /^ffrec_/);
     assert.equal(record.producer.kind, "repo");
     assert.deepEqual(record.persistence, { status: "metadata_only", recoverability: "metadata_only" });
-    assert.equal(record.path, "docs/specs/freeflow-output-router-design.md");
+    assert.equal(record.path, "docs/specs/output-router/freeflow-output-router-design.md");
     const pathQuery = await createLocalVaultIndex(vault).queryVault("freeflow-output-router-design", { sessionId: "session-repo" });
     assert.equal(pathQuery.matches[0]?.outputId, record.outputId);
     assert.equal(pathQuery.matches[0]?.metadataOnly, true);

@@ -8,7 +8,7 @@ Updated `review-artifact` for parent adjudication of reviewer findings and repea
 
 Source issue:
 
-- `docs/issues/2026-06-16-artifact-review-loop-adjudication.md`
+- `docs/issues/output-router/2026-06-16-artifact-review-loop-adjudication.md`
 
 ## Skill Changes
 

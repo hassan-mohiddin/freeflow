@@ -33,7 +33,7 @@ test("router benchmark harness compares internal modes and gates improved retrie
   const sandbox = report.fixtures.find((fixture) => fixture.id === "generated-artifact-decoy");
   assert.ok(sandbox);
   const sandboxImproved = sandbox.results.find((result) => result.mode === "improved-freeflow-router");
-  assert.equal(sandboxImproved.actualPath, "docs/codex-cli-agent-harness/2026-06-12-pass-3-sandboxing-and-permissions.md");
+  assert.equal(sandboxImproved.actualPath, "docs/codex-cli-agent-harness/passes/2026-06-12-pass-3-sandboxing-and-permissions.md");
   assert.equal(sandboxImproved.correctness.generatedFalsePositive, false);
   assert.ok(sandboxImproved.byteReductionPercent > 99);
   assert.match(sandboxImproved.recovery.detail, /Verified/);

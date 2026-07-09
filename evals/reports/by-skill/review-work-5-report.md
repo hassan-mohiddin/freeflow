@@ -8,7 +8,7 @@ Updated `review-work` for repeated review loops, parent adjudication, and non-bl
 
 Related source issue:
 
-- `docs/issues/2026-06-16-artifact-review-loop-adjudication.md`
+- `docs/issues/output-router/2026-06-16-artifact-review-loop-adjudication.md`
 
 ## Skill Changes
 

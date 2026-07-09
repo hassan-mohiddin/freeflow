@@ -15,7 +15,7 @@ Owned paths:
 
 Related documentation change:
 
-- `docs/designs/freeflow-output-router-architecture.md`
+- `docs/designs/output-router/freeflow-output-router-architecture.md`
 
 ## Behavior Gap
 

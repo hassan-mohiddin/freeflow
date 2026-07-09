@@ -4,7 +4,7 @@ Freeflow Output Router keeps agent context focused while preserving exact eviden
 
 Use it when broad repo exploration, generated artifacts, large logs, or noisy command output would otherwise flood the model.
 
-For the full architecture, see [`docs/designs/freeflow-output-router-architecture.md`](../docs/designs/freeflow-output-router-architecture.md).
+For the full architecture, see [`docs/designs/output-router/freeflow-output-router-architecture.md`](../docs/designs/output-router/freeflow-output-router-architecture.md).
 
 ## Core Idea
 

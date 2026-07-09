@@ -667,15 +667,15 @@ test("task packet compiler renders readable Markdown with scoped lifecycle retur
     cwd: "/repo",
     objective: "Implement P2|P3\ncore interface foundation.",
     sourcePointers: [
-      { kind: "spec", path: "docs/specs/freeflow-pi-pane-delegation-harness-spec.md", note: "Task packet requirements" },
-      { kind: "plan", path: "docs/plans/2026-07-01-freeflow-pi-pane-delegation-harness-implementation-plan.md" },
+      { kind: "spec", path: "docs/specs/delegation/freeflow-pi-pane-delegation-harness-spec.md", note: "Task packet requirements" },
+      { kind: "plan", path: "docs/plans/delegation/2026-07-01-freeflow-pi-pane-delegation-harness-implementation-plan.md" },
     ],
     inScope: ["profiles|policy", "packet compiler"],
     outOfScope: ["cmux\nadapter", "Pi runtime"],
     writeScope: ["/repo/delegation/src", "/repo/delegation/tests"],
     allowedCommands: ["npm run test:delegation", "npm run build"],
     evidence: [
-      { label: "handoff", path: "docs/handoffs/2026-07-02-manual-cmux-delegation-harness-dogfood.md", note: "Manual P2|P3 lessons\nonly" },
+      { label: "handoff", path: "docs/handoffs/delegation/2026-07-02-manual-cmux-delegation-harness-dogfood.md", note: "Manual P2|P3 lessons\nonly" },
       { label: "prior-check", outputId: "ffout_123", lines: "1-5", note: "prior verification pointer" },
     ],
     stopConditions: ["Spec conflict", "Need out-of-scope cmux work"],
@@ -692,14 +692,14 @@ test("task packet compiler renders readable Markdown with scoped lifecycle retur
   assert.ok(packet.text.includes("- task: TASK-9"));
   assert.ok(packet.text.includes("- role/profile: worker / worker"));
   assert.ok(packet.text.includes("Implement P2|P3\ncore interface foundation."));
-  assert.ok(packet.text.includes("- spec: docs/specs/freeflow-pi-pane-delegation-harness-spec.md — Task packet requirements"));
+  assert.ok(packet.text.includes("- spec: docs/specs/delegation/freeflow-pi-pane-delegation-harness-spec.md — Task packet requirements"));
   assert.ok(packet.text.includes("- profiles|policy"));
   assert.ok(packet.text.includes("- cmux\nadapter"));
   assert.ok(packet.text.includes("- delegate_finish"));
   assert.ok(packet.text.includes("- commands_require_ALLOWED_COMMAND_rows"));
   assert.ok(packet.text.includes("- /repo/delegation/src"));
   assert.ok(packet.text.includes("- npm run test:delegation"));
-  assert.ok(packet.text.includes("- handoff: path=docs/handoffs/2026-07-02-manual-cmux-delegation-harness-dogfood.md — Manual P2|P3 lessons\nonly"));
+  assert.ok(packet.text.includes("- handoff: path=docs/handoffs/delegation/2026-07-02-manual-cmux-delegation-harness-dogfood.md — Manual P2|P3 lessons\nonly"));
   assert.ok(packet.text.includes("- prior-check: outputId=ffout_123 — lines=1-5 — prior verification pointer"));
   assert.ok(packet.text.includes("- Spec conflict"));
   assert.ok(packet.text.includes("- DELEGATE_FINISH_REQUIRED"));

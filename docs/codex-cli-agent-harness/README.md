@@ -76,26 +76,26 @@ flowchart TD
 If you are new to the study:
 
 1. Read this README.
-2. Read [Pass 0 - Repo Map](2026-06-12-pass-0-repo-map.md).
+2. Read [Pass 0 - Repo Map](passes/2026-06-12-pass-0-repo-map.md).
 3. Read the `If You Only Read 10 Minutes` or `Core Idea` sections in Passes 1-7.
 4. Read the Pass 8 synthesis for comparison findings and the first harness direction.
 
 If you want to understand how a real agent harness works:
 
-1. [Pass 1 - Turn Loop](2026-06-12-pass-1-turn-loop.md)
-2. [Pass 2 - Tool System](2026-06-12-pass-2-tool-system.md)
-3. [Pass 3 - Sandboxing And Permissions](2026-06-12-pass-3-sandboxing-and-permissions.md)
-4. [Pass 6 - Memory And Context](2026-06-12-pass-6-memory-and-context.md)
-5. [Pass 7 - Config And Extensibility](2026-06-12-pass-7-config-and-extensibility.md)
+1. [Pass 1 - Turn Loop](passes/2026-06-12-pass-1-turn-loop.md)
+2. [Pass 2 - Tool System](passes/2026-06-12-pass-2-tool-system.md)
+3. [Pass 3 - Sandboxing And Permissions](passes/2026-06-12-pass-3-sandboxing-and-permissions.md)
+4. [Pass 6 - Memory And Context](passes/2026-06-12-pass-6-memory-and-context.md)
+5. [Pass 7 - Config And Extensibility](passes/2026-06-12-pass-7-config-and-extensibility.md)
 
 If you want the most visual explanation, use the `Diagram Map` sections in Passes 0-7.
 
 If you are designing Freeflow's local delegation harness:
 
-1. [Pass 3 - Sandboxing And Permissions](2026-06-12-pass-3-sandboxing-and-permissions.md)
-2. [Pass 6 - Memory And Context](2026-06-12-pass-6-memory-and-context.md)
-3. [Pass 7 - Config And Extensibility](2026-06-12-pass-7-config-and-extensibility.md)
-4. [Pass 8 - Agent Harness Comparisons](2026-06-13-pass-8-agent-harness-comparisons.md)
+1. [Pass 3 - Sandboxing And Permissions](passes/2026-06-12-pass-3-sandboxing-and-permissions.md)
+2. [Pass 6 - Memory And Context](passes/2026-06-12-pass-6-memory-and-context.md)
+3. [Pass 7 - Config And Extensibility](passes/2026-06-12-pass-7-config-and-extensibility.md)
+4. [Pass 8 - Agent Harness Comparisons](passes/2026-06-13-pass-8-agent-harness-comparisons.md)
 
 Also read Pass 1 for the loop, Pass 4 for child-run boundaries, and Pass 5 for provider/runtime adapter choices.
 
@@ -104,21 +104,21 @@ If you are reviewing future implementation work:
 1. Read the source evidence appendix in the relevant pass.
 2. Refresh the upstream source before treating any finding as current.
 3. Treat Freeflow runtime source under the repo root as the live source of truth.
-4. Treat `docs/designs/local-delegation-harness-design.md` as the current design draft, not shipped runtime behavior.
+4. Treat `docs/designs/delegation/local-delegation-harness-design.md` as the current design draft, not shipped runtime behavior.
 
 ## Pass Index
 
 | Pass | Artifact | State | What It Covers |
 | --- | --- | --- | --- |
-| 0 | [Repo Map](2026-06-12-pass-0-repo-map.md) | Draft; audited in cleanup | High-level `openai/codex` map, `codex-rs/` map, core crate orientation, and where the harness lives. |
-| 1 | [Turn Loop](2026-06-12-pass-1-turn-loop.md) | Draft; audited | How a prompt becomes repeated model calls, tool calls, tool outputs, history updates, context-window handling, and final response. |
-| 2 | [Tool System](2026-06-12-pass-2-tool-system.md) | Draft; audited | Tool specs, registry, router, handlers, output shaping, deferred tools, MCP/native tools, lifecycle, and execution boundaries. |
-| 3 | [Sandboxing And Permissions](2026-06-12-pass-3-sandboxing-and-permissions.md) | Draft; audited in cleanup | Filesystem policy, network policy, approvals, command execution, patching, permission grants, sandbox retry, and safety tests. |
-| 4 | [Subagents And Delegation](2026-06-12-pass-4-subagents-and-delegation.md) | Audited draft | Spawn/list/wait/message/follow-up/interrupt, child thread identity, roles, mailboxes, traces, and parent authority. |
-| 5 | [Model Providers And Runtime Adapters](2026-06-12-pass-5-model-providers-runtime-adapters.md) | Source-audited 2026-06-14 | Provider abstraction, model metadata, event normalization, local server adapters, MLX-first implications, and model-agnostic runtime shape. |
-| 6 | [Memory And Context](2026-06-12-pass-6-memory-and-context.md) | Draft; diagram-audited | Context assembly, history normalization, compaction, AGENTS.md loading, memory read/write pipeline, memory citations, trace-vs-prompt split, and packet-first local harness shape. |
-| 7 | [Config And Extensibility](2026-06-12-pass-7-config-and-extensibility.md) | Draft; source-audited 2026-06-14 | Config layering, profiles, feature flags, MCP, skills, plugins, apps, hooks, roles, extension points, runtime config refresh, and config-to-turn-loop integration. |
-| 8 | [Agent Harness Comparisons](2026-06-13-pass-8-agent-harness-comparisons.md) | Complete; Pi addendum 2026-06-15 | Comparison map plus OpenHands, Goose, Aider, smolagents, PydanticAI, LangGraph, Hermes, Pi, and synthesis for the first Freeflow local harness. |
+| 0 | [Repo Map](passes/2026-06-12-pass-0-repo-map.md) | Draft; audited in cleanup | High-level `openai/codex` map, `codex-rs/` map, core crate orientation, and where the harness lives. |
+| 1 | [Turn Loop](passes/2026-06-12-pass-1-turn-loop.md) | Draft; audited | How a prompt becomes repeated model calls, tool calls, tool outputs, history updates, context-window handling, and final response. |
+| 2 | [Tool System](passes/2026-06-12-pass-2-tool-system.md) | Draft; audited | Tool specs, registry, router, handlers, output shaping, deferred tools, MCP/native tools, lifecycle, and execution boundaries. |
+| 3 | [Sandboxing And Permissions](passes/2026-06-12-pass-3-sandboxing-and-permissions.md) | Draft; audited in cleanup | Filesystem policy, network policy, approvals, command execution, patching, permission grants, sandbox retry, and safety tests. |
+| 4 | [Subagents And Delegation](passes/2026-06-12-pass-4-subagents-and-delegation.md) | Audited draft | Spawn/list/wait/message/follow-up/interrupt, child thread identity, roles, mailboxes, traces, and parent authority. |
+| 5 | [Model Providers And Runtime Adapters](passes/2026-06-12-pass-5-model-providers-runtime-adapters.md) | Source-audited 2026-06-14 | Provider abstraction, model metadata, event normalization, local server adapters, MLX-first implications, and model-agnostic runtime shape. |
+| 6 | [Memory And Context](passes/2026-06-12-pass-6-memory-and-context.md) | Draft; diagram-audited | Context assembly, history normalization, compaction, AGENTS.md loading, memory read/write pipeline, memory citations, trace-vs-prompt split, and packet-first local harness shape. |
+| 7 | [Config And Extensibility](passes/2026-06-12-pass-7-config-and-extensibility.md) | Draft; source-audited 2026-06-14 | Config layering, profiles, feature flags, MCP, skills, plugins, apps, hooks, roles, extension points, runtime config refresh, and config-to-turn-loop integration. |
+| 8 | [Agent Harness Comparisons](passes/2026-06-13-pass-8-agent-harness-comparisons.md) | Complete; Pi addendum 2026-06-15 | Comparison map plus OpenHands, Goose, Aider, smolagents, PydanticAI, LangGraph, Hermes, Pi, and synthesis for the first Freeflow local harness. |
 
 ## Current Study State
 

@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { performance } from "node:perf_hooks";
 import { approximateTokens, defaultJsonRunReportPath, escapeMarkdownTableCell as escapeTable, formatPercent, latencySummary, normalizeIterations, parseBenchmarkCliArgs, reductionPercent, writeBenchmarkReportPair, } from "./benchmark-harness.js";
 import { freeflowSearch } from "../tools/search.js";
-const SANDBOX_DOC_PATH = "docs/codex-cli-agent-harness/2026-06-12-pass-3-sandboxing-and-permissions.md";
+const SANDBOX_DOC_PATH = "docs/codex-cli-agent-harness/passes/2026-06-12-pass-3-sandboxing-and-permissions.md";
 const GENERATED_GRAPH_PATH = "graphify-out/graph.html";
 const SANDBOX_QUESTION = "Find the Sandbox Permissions section, report file/lines, and explain UseDefault, RequireEscalated, and WithAdditionalPermissions.";
 const SANDBOX_QUERY = "Sandbox Permissions SandboxPermissions UseDefault RequireEscalated WithAdditionalPermissions Plain-language meaning";

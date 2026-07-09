@@ -132,7 +132,7 @@ interface CodexQaObservation {
   notes: string[];
 }
 
-const SANDBOX_DOC_PATH = "docs/codex-cli-agent-harness/2026-06-12-pass-3-sandboxing-and-permissions.md";
+const SANDBOX_DOC_PATH = "docs/codex-cli-agent-harness/passes/2026-06-12-pass-3-sandboxing-and-permissions.md";
 const GENERATED_GRAPH_PATH = "graphify-out/graph.html";
 
 const SANDBOX_QUESTION = "Find the Sandbox Permissions section, report file/lines, and explain UseDefault, RequireEscalated, and WithAdditionalPermissions.";
