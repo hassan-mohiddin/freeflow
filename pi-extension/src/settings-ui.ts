@@ -22,18 +22,19 @@ const SCRIPT_LANGUAGES = ["javascript", "python", "jq"] as const;
 const DEFAULT_FREEFLOW_ENABLED = true;
 const DEFAULT_SKILLS_ENABLED = true;
 
-type SettingKind = "boolean" | "enum" | "integer" | "string" | "list" | "json";
+type SettingKind = "boolean" | "enum" | "integer" | "string" | "list" | "json" | "group";
 
 type SettingsItem = {
   id: string;
   label: string;
   description: string;
-  path: string[];
+  path?: string[];
   kind: SettingKind;
   value: unknown;
   defaultValue?: unknown;
   values?: string[];
   inactive?: boolean;
+  children?: SettingsItem[];
   parse?: (text: string) => unknown;
   format?: (value: unknown) => string;
 };
@@ -104,6 +105,9 @@ function isEmptyValue(value: unknown): boolean {
 }
 
 function setConfigValue(config: Record<string, unknown>, item: SettingsItem, value: unknown) {
+  if (!item.path?.length) {
+    throw new Error(`${item.label} is a settings group, not a writable setting.`);
+  }
   if (item.defaultValue !== undefined && valuesEqual(value, item.defaultValue)) {
     deletePath(config, item.path);
     return;
@@ -405,6 +409,11 @@ function freeflowItems(rawConfig: Record<string, unknown>): SettingsItem[] {
   const skillsEnabled = !isRecord(skillsConfig) || skillsConfig.enabled !== false;
   const rawDefaultMode = rawConfig.defaultMode;
   const defaultMode = typeof rawDefaultMode === "string" && VALID_MODES.has(rawDefaultMode) ? rawDefaultMode : "workflow";
+  const routerItems = outputRouterItems(rawConfig, freeflowInactive);
+  const routerEnabled = routerItems.find((item) => item.id === "outputRouter.enabled")?.value === true;
+  const delegationItems = delegationHarnessItems(rawConfig, freeflowInactive);
+  const delegationEnabled = delegationItems.find((item) => item.id === "delegationHarness.enabled")?.value === true;
+
   return [
     {
       id: "freeflow.enabled",
@@ -435,8 +444,24 @@ function freeflowItems(rawConfig: Record<string, unknown>): SettingsItem[] {
       values: [...VALID_MODES],
       inactive: freeflowInactive,
     },
-    ...outputRouterItems(rawConfig, freeflowInactive),
-    ...delegationHarnessItems(rawConfig, freeflowInactive),
+    {
+      id: "outputRouter.group",
+      label: "Output Router",
+      description: "Open grouped settings for routed evidence tools, native output safety net, vault storage, script transforms, and observed tool routing.",
+      kind: "group",
+      value: routerEnabled,
+      inactive: freeflowInactive,
+      children: routerItems,
+    },
+    {
+      id: "delegationHarness.group",
+      label: "Delegation Harness",
+      description: "Open grouped settings for the Freeflow cmux delegation harness tools, hooks, and runtime guidance.",
+      kind: "group",
+      value: delegationEnabled,
+      inactive: freeflowInactive,
+      children: delegationItems,
+    },
   ];
 }
 
@@ -549,6 +574,11 @@ async function updateConfig(cwd: string, item: SettingsItem, value: unknown) {
 
 function valueForDisplay(item: SettingsItem): string {
   if (item.kind === "boolean") return booleanValue(item.value);
+  if (item.kind === "group") {
+    const status = typeof item.value === "boolean" ? booleanValue(item.value) : String(item.value ?? "");
+    const count = item.children?.length ?? 0;
+    return count > 0 ? `${status} (${count})` : status;
+  }
   if (item.format) return item.format(item.value);
   return String(item.value ?? "");
 }
@@ -607,8 +637,30 @@ function matchesKeybinding(
   return fallback(data);
 }
 
+type SettingsFrame = {
+  title: string;
+  items: SettingsItem[];
+  selected: number;
+};
+
+function walkSettingsItems(items: SettingsItem[], visitor: (item: SettingsItem) => void) {
+  for (const item of items) {
+    visitor(item);
+    if (item.children) walkSettingsItems(item.children, visitor);
+  }
+}
+
+function findSettingsItem(items: SettingsItem[], id: string): SettingsItem | undefined {
+  for (const item of items) {
+    if (item.id === id) return item;
+    const child = item.children ? findSettingsItem(item.children, id) : undefined;
+    if (child) return child;
+  }
+  return undefined;
+}
+
 class FreeflowSettingsComponent {
-  private selected = 0;
+  private readonly frames: SettingsFrame[];
   private editItem: SettingsItem | null = null;
   private editBuffer = "";
   private message = "";
@@ -621,34 +673,49 @@ class FreeflowSettingsComponent {
     private readonly requestRender: () => void,
     private readonly theme: any,
     private readonly keybindings?: Keybindings,
-  ) {}
+  ) {
+    this.frames = [{ title: options.title, items: options.items, selected: 0 }];
+  }
 
   render(width: number): string[] {
     const lines: string[] = [];
-    lines.push(this.theme.fg?.("accent", this.theme.bold?.(this.options.title) ?? this.options.title) ?? this.options.title);
-    lines.push(truncate("↑↓ navigate • Enter/Space change • Esc save & close", width));
+    const title = this.frames.map((frame) => frame.title).join(" › ");
+    const titleText = this.theme.fg?.("accent", this.theme.bold?.(title) ?? title) ?? title;
+    const hint = this.frames.length > 1
+      ? "↑↓ navigate • Enter/Space change/open • Esc back"
+      : "↑↓ navigate • Enter/Space change/open • Esc save & close";
+
+    lines.push(titleText);
+    lines.push(truncate(hint, width));
     lines.push("");
 
-    const items = this.options.items;
+    const frame = this.currentFrame();
+    const items = frame.items;
+    if (items.length === 0) {
+      lines.push(this.theme.fg?.("dim", "  No settings available") ?? "  No settings available");
+      return lines;
+    }
+
     const maxLabel = Math.min(34, Math.max(...items.map((item) => item.label.length), 12));
     const visible = Math.min(items.length, 18);
-    const start = Math.max(0, Math.min(this.selected - Math.floor(visible / 2), Math.max(0, items.length - visible)));
+    const start = Math.max(0, Math.min(frame.selected - Math.floor(visible / 2), Math.max(0, items.length - visible)));
     const end = Math.min(items.length, start + visible);
     for (let index = start; index < end; index++) {
       const item = items[index]!;
-      const selected = index === this.selected;
+      const selected = index === frame.selected;
       const prefix = selected ? "› " : "  ";
       const label = item.label.padEnd(maxLabel);
       const value = this.editItem?.id === item.id ? `[${this.editBuffer}]` : valueForDisplay(item);
+      const groupMarker = item.children?.length ? " ›" : "";
       const inactive = item.inactive ? " inactive" : "";
-      const line = `${prefix}${label}  ${value}${inactive}`;
-      lines.push(truncate(selected ? this.theme.fg?.("accent", line) ?? line : line, width));
+      const line = truncate(`${prefix}${label}  ${value}${groupMarker}${inactive}`, width);
+      lines.push(this.styleLine(line, item, selected));
     }
     if (items.length > visible) {
-      lines.push(truncate(`  (${this.selected + 1}/${items.length})`, width));
+      lines.push(truncate(`  (${frame.selected + 1}/${items.length})`, width));
     }
 
-    const selectedItem = items[this.selected];
+    const selectedItem = items[frame.selected];
     if (selectedItem) {
       lines.push("");
       lines.push(...wrapPlain(selectedItem.description, Math.max(20, width - 2)).map((line) => truncate(`  ${line}`, width)));
@@ -657,7 +724,7 @@ class FreeflowSettingsComponent {
       lines.push("");
       lines.push(truncate(`  ${this.message}`, width));
     }
-    return lines.map((line) => truncate(line, width));
+    return lines;
   }
 
   invalidate() {}
@@ -668,15 +735,22 @@ class FreeflowSettingsComponent {
       this.requestRender();
       return;
     }
+
+    const frame = this.currentFrame();
     if (this.matches(data, "tui.select.up", isUp)) {
-      this.selected = this.selected === 0 ? this.options.items.length - 1 : this.selected - 1;
+      if (frame.items.length > 0) frame.selected = frame.selected === 0 ? frame.items.length - 1 : frame.selected - 1;
     } else if (this.matches(data, "tui.select.down", isDown)) {
-      this.selected = this.selected === this.options.items.length - 1 ? 0 : this.selected + 1;
+      if (frame.items.length > 0) frame.selected = frame.selected === frame.items.length - 1 ? 0 : frame.selected + 1;
     } else if (this.matches(data, "tui.select.confirm", isEnter) || data === " ") {
       this.activateSelected();
     } else if (this.matches(data, "tui.select.cancel", isEscape)) {
-      this.close();
-      return;
+      if (this.frames.length > 1) {
+        this.frames.pop();
+        this.message = "";
+      } else {
+        this.close();
+        return;
+      }
     }
     this.requestRender();
   }
@@ -685,16 +759,30 @@ class FreeflowSettingsComponent {
     await this.pending;
   }
 
+  private currentFrame(): SettingsFrame {
+    return this.frames[this.frames.length - 1]!;
+  }
+
   private matches(data: string, keybinding: string, fallback: (data: string) => boolean): boolean {
     return matchesKeybinding(this.keybindings, data, keybinding, fallback);
   }
 
+  private styleLine(line: string, item: SettingsItem, selected: boolean): string {
+    if (item.inactive) return this.theme.fg?.("dim", line) ?? line;
+    if (selected) return this.theme.fg?.("accent", line) ?? line;
+    return line;
+  }
+
   private activateSelected() {
-    const item = this.options.items[this.selected];
+    const item = this.currentFrame().items[this.currentFrame().selected];
     if (!item) return;
     this.message = "";
     if (item.inactive) {
-      this.message = `${item.label} is inactive until its parent Freeflow setting is enabled.`;
+      this.message = `${item.label} is inactive. Enable its parent Freeflow setting first.`;
+      return;
+    }
+    if (item.children?.length) {
+      this.frames.push({ title: item.label, items: item.children, selected: 0 });
       return;
     }
     if (item.kind === "boolean" || item.kind === "enum") {
@@ -737,25 +825,44 @@ class FreeflowSettingsComponent {
 
   private applyValue(item: SettingsItem, value: unknown) {
     item.value = value;
-    if (item.id === "freeflow.enabled") {
-      const freeflowInactive = value !== true;
-      const routerEnabled = this.options.items.find((candidate) => candidate.id === "outputRouter.enabled")?.value === true;
-      for (const candidate of this.options.items) {
-        if (candidate.id === "freeflow.enabled") continue;
-        candidate.inactive = freeflowInactive || (candidate.id.startsWith("outputRouter.") && candidate.id !== "outputRouter.enabled" && !routerEnabled);
-      }
-    }
-    if (item.id === "outputRouter.enabled") {
-      const inactive = value !== true;
-      for (const candidate of this.options.items) {
-        if (candidate.id !== "outputRouter.enabled" && candidate.id.startsWith("outputRouter.")) candidate.inactive = inactive;
-      }
-    }
+    this.refreshDerivedState();
     this.changed = true;
     this.message = `${item.label} = ${valueForDisplay(item)}`;
     this.pending = this.pending.then(() => this.options.onChange(item, value)).catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
       this.message = `Write failed: ${message}`;
+    });
+  }
+
+  private refreshDerivedState() {
+    const freeflowItem = findSettingsItem(this.options.items, "freeflow.enabled");
+    const freeflowInactive = freeflowItem ? freeflowItem.value !== true : false;
+    const routerEnabled = findSettingsItem(this.options.items, "outputRouter.enabled")?.value === true;
+    const delegationEnabled = findSettingsItem(this.options.items, "delegationHarness.enabled")?.value === true;
+    const routerGroup = findSettingsItem(this.options.items, "outputRouter.group");
+    const delegationGroup = findSettingsItem(this.options.items, "delegationHarness.group");
+
+    if (routerGroup) {
+      routerGroup.value = routerEnabled;
+      routerGroup.inactive = freeflowInactive;
+    }
+    if (delegationGroup) {
+      delegationGroup.value = delegationEnabled;
+      delegationGroup.inactive = freeflowInactive;
+    }
+
+    walkSettingsItems(this.options.items, (candidate) => {
+      if (candidate.id === "freeflow.enabled") {
+        candidate.inactive = false;
+      } else if (candidate.id === "outputRouter.group" || candidate.id === "delegationHarness.group") {
+        candidate.inactive = freeflowInactive;
+      } else if (candidate.id === "outputRouter.enabled" || candidate.id === "delegationHarness.enabled") {
+        candidate.inactive = freeflowInactive;
+      } else if (candidate.id.startsWith("outputRouter.")) {
+        candidate.inactive = freeflowInactive || !routerEnabled;
+      } else {
+        candidate.inactive = freeflowInactive;
+      }
     });
   }
 

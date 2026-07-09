@@ -225,10 +225,21 @@ test("Pi /freeflow command toggles master switch and blocks inactive settings ro
     settingsCtx.ui.custom = async (factory, options) => {
       assert.equal(options, undefined);
       let result;
-      const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
+      const dimTheme = {
+        ...testTheme,
+        fg(color, text) {
+          return color === "dim" ? `[dim]${text}[/dim]` : text;
+        },
+      };
+      const component = factory({ requestRender() {} }, dimTheme, {}, (value) => {
         result = value;
       });
-      assert.match(renderText(component), /Freeflow Settings/);
+      const rootText = renderText(component);
+      assert.match(rootText, /Freeflow Settings/);
+      assert.match(rootText, /Output Router\s+enabled \(22\) › inactive/);
+      assert.match(rootText, /\[dim\]\s+Skills/);
+      assert.match(rootText, /\[dim\].*Output Router/);
+      assert.doesNotMatch(rootText, /Native safety net/);
       component.handleInput("\u001b[B"); // Skills row is inactive while Freeflow is off.
       component.handleInput("\r");
       component.handleInput("\u001b");
@@ -247,6 +258,47 @@ test("Pi /freeflow command toggles master switch and blocks inactive settings ro
     assert.equal(afterEnable.defaultMode, "workflow");
     assert.equal(afterEnable.outputRouter.enabled, true);
     assert.equal(enableCtx.reloads.length, 1);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi /freeflow settings groups capability settings", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-freeflow-grouped-settings-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow", outputRouter: { enabled: true } }, null, 2), "utf8");
+
+    const { commands } = loadExtension();
+    const freeflowCommand = commands.find((command) => command.name === "freeflow");
+    assert.ok(freeflowCommand);
+
+    const settingsCtx = context(cwd);
+    settingsCtx.ui.custom = async (factory) => {
+      let result;
+      const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
+        result = value;
+      });
+      const rootText = renderText(component);
+      assert.match(rootText, /Output Router\s+enabled \(22\) ›/);
+      assert.match(rootText, /Delegation Harness\s+disabled \(1\) ›/);
+      assert.doesNotMatch(rootText, /Native safety net/);
+
+      for (let index = 0; index < 3; index++) {
+        component.handleInput("\u001b[B");
+      }
+      component.handleInput("\r");
+      const routerText = renderText(component);
+      assert.match(routerText, /Freeflow Settings › Output Router/);
+      assert.match(routerText, /Native safety net/);
+      component.handleInput("\u001b");
+      assert.match(renderText(component), /Delegation Harness\s+disabled \(1\) ›/);
+      component.handleInput("\u001b");
+      return result;
+    };
+
+    await freeflowCommand.definition.handler("settings", settingsCtx);
+    assert.equal(settingsCtx.reloads.length, 0);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
