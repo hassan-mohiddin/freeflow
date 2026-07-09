@@ -10,18 +10,20 @@ Native slash handlers are still disabled:
 { "nativeSlashHandlers": false }
 ```
 
-Commands are model-routed in Codex/Claude. In Pi, the extension registers direct command handlers that send the equivalent skill prompt. A command selects a mode or skill segment; it does not bypass that segment's gates.
+Commands are model-routed in Codex/Claude. In Pi, the extension registers direct command handlers for skill prompts plus native settings commands for capability configuration. A command selects a mode, skill segment, or settings surface; it does not bypass that segment's gates.
 
 Current registry:
 
 - 4 mode commands
-- 12 direct skill calls
+- 11 direct skill calls
 - 3 developer skill calls
+- 2 Pi native settings commands
 
 Current direct command eval coverage:
 
 - Mode command coverage: yes, via `MODE-001` through `MODE-006`.
-- Direct skill command coverage: 12 of 12 have `CMD-*` eval definitions; `/discover` uses `CMD-012`.
+- Direct skill command coverage: 11 of 11 have `CMD-*` eval definitions; `/discover` uses `CMD-012`.
+- Pi native settings command coverage: extension tests cover `/output-router` and `/delegation-harness` settings/status behavior.
 - Developer command coverage: yes, via setup evals plus `CMD-014` and `CMD-015`.
 
 `evals/scripts/audit-command-surface.sh` passes and checks registry shape, docs mentions, skill targets, Pi command registration, manifest consistency, and `nativeSlashHandlers=false`.
@@ -50,7 +52,13 @@ Current direct command eval coverage:
 | `/commit-work` | `commit-work` | No | `CMD-002` | `CMT-001` through `CMT-004` | Covered |
 | `/handoff` | `handoff` | No | `CMD-006` | `HOF-001` through `HOF-005` | Covered |
 | `/bypass` | `bypass` | No | `CMD-007` | `BYP-001`, `BYP-002` | Covered |
-| `/output-router` | `output-router` | No | `CMD-016` | `OTR-001`, `OTR-002` | Covered |
+
+## Pi Native Settings Commands
+
+| Command | Handler | Codex/Claude Native Handler | Test Coverage | Status |
+|---|---|---:|---|---|
+| `/output-router` | Output Router settings/status | No | `pi-extension/tests/pi-extension.test.js` | Covered |
+| `/delegation-harness` | Delegation Harness settings/status | No | `pi-extension/tests/pi-extension.test.js` | Covered |
 
 ## Developer Commands
 
@@ -75,9 +83,8 @@ The highest-risk direct commands now have command-surface evals:
 - `/review-artifact`
 - `/diagnose-failure`
 - `/discover`
-- `/output-router`
 
-All direct skill commands and developer commands have command-surface or setup eval definitions for the current registry. `/discover` is the discovery command; `CMD-012` was rerun in the workflow-depth eval pass.
+All direct skill commands, developer commands, and Pi native settings commands have command-surface, setup, or extension-test coverage for the current registry. `/discover` is the discovery command; `CMD-012` was rerun in the workflow-depth eval pass.
 
 Recommended next validation target:
 

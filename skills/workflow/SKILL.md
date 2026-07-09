@@ -29,11 +29,11 @@ This is a guide, not ceremony. Small reversible work can skip spec/plan artifact
 
 For a clear tiny task, the whole workflow may be: inspect enough -> execute -> verify -> commit/closeout. Do not add spec, plan, delegation, or handoff phases just because the full map contains them.
 
-Method skills and lenses such as TDD, diagnosis, execute-plan, design-for-depth, or delegation-harness run inside the current workflow phase. Workflow owns routing, source-truth conflicts, user-owned decisions, review, verification, and handoff boundaries.
+Method skills and lenses such as TDD, diagnosis, execute-plan, or design-for-depth run inside the current workflow phase. Workflow owns routing, source-truth conflicts, user-owned decisions, review, verification, and handoff boundaries.
 
 For large multi-phase work, delegation can preserve context locality. Use it as a workflow execution shape, not a replacement for workflow gates.
 
-When a workflow route calls for a subagent, fresh reviewer, researcher, worker, verifier, integrator, parent, or other separate agent context, use `../delegation-harness/SKILL.md` for the routing contract instead of choosing a host-native subagent directly.
+When a workflow route calls for a separate agent context, use the active delegation mechanism for this environment. If none is enabled or appropriate, work inline and report the limitation.
 
 Read `references/workflow-map.md` when the user asks for the full pipeline, public docs need a diagram, or the next workflow entry point is unclear.
 

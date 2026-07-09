@@ -11,7 +11,7 @@ The plan is instructions, not authority. Live repo evidence and source truth win
 
 Move one verified slice at a time. Preserve rollback, reviewability, and user control.
 
-When executing through delegation, use `../delegation-harness/SKILL.md` for subagent routing. Execution-parent coordinates workers, reviewers, verifiers, and integrators from the approved plan. Execution autonomy is desired, not guaranteed; route backward when new evidence changes the plan.
+When executing through a separate-agent workflow, use the active delegation mechanism for this environment. A coordinating execution role may assign workers, reviewers, verifiers, and integrators from the approved plan. Execution autonomy is desired, not guaranteed; route backward when new evidence changes the plan.
 
 Use delegation when execution crosses real context boundaries: multiple work packages or slices, reviewer/verifier loops, independent roles, context pressure, expected parallelism or worktree isolation, planned intermediate commits, or integration risk. Tiny clear slices stay inline.
 

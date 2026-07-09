@@ -1,6 +1,6 @@
 ---
 name: setup-freeflow
-description: Use when setting up, installing, enabling, initializing, or configuring Freeflow in a repo, choosing Codex/Claude/multi-agent activation, creating `.freeflow/config.json`, changing the repo default mode during setup, or opting into output-router/observed-routing/script-transform setup.
+description: Use when setting up, installing, enabling, initializing, or configuring Freeflow in a repo, choosing Codex/Claude/multi-agent activation, creating `.freeflow/config.json`, changing the repo default mode during setup, or opting into Output Router, observed-routing, script-transform, or Delegation Harness setup.
 ---
 
 # Setup Freeflow
@@ -11,7 +11,7 @@ Read `references/activation-contract.md` before rendering activation text or con
 
 Read `references/host-setup.md` when choosing Codex, Claude, both hosts, setup profile, hooks/trust guidance, or default mode shape.
 
-Read `references/output-router-setup.md` only when the user asks for output-router/observed-routing/script-transform config or accepts the optional evidence-routing branch.
+Read `references/output-router-setup.md` only when the user asks for Output Router, observed-routing, script-transform, native safety-net, generated-path, threshold, vault, or Delegation Harness config, or accepts the optional capabilities branch.
 
 ## Stop Before Editing
 
@@ -65,19 +65,19 @@ Minimal setup writes only:
 
 Persist `conversation` or `strict-workflow` only when the user explicitly asks to make that valid mode the repo default. Do not infer `strict-workflow` from team setup, “strict gates,” “careful,” or high-risk examples.
 
-Do not add current mode, task, phase, file inventory, plans, version metadata, activation paths, unrequested router keys, empty optional sections, repo-local hooks, docs inventories, state files, handoffs, skill inventories, setup-output-router skills, or empty `CONTEXT.md`.
+Do not add current mode, task, phase, file inventory, plans, version metadata, activation paths, unrequested capability/router keys, empty optional sections, repo-local hooks, docs inventories, state files, handoffs, skill inventories, setup-output-router skills, or empty `CONTEXT.md`.
 
 Do not list the whole workflow, every mode, or full `interview-gate`/`discover` skills in always-loaded text. Plugin runtime loads runtime context.
 
-## Optional Evidence Routing Branch
+## Optional Capabilities Branch
 
-After minimal host/config setup, ask one optional capabilities question: whether to configure evidence routing, observed routing, or script transform adapters beyond built-in defaults.
+After minimal host/config setup, ask one optional capabilities question: whether to enable Output Router, configure Output Router subfeatures, or enable Delegation Harness during setup.
 
 If declined, keep minimal setup.
 
-If accepted or explicitly requested, read `references/output-router-setup.md`. Ask only path-changing follow-ups, write only explicit decisions/overrides, and verify with `freeflow_status` when available.
+If accepted or explicitly requested, read `references/output-router-setup.md`. Ask only path-changing follow-ups, write the selected capability config directly, and verify with `freeflow_status` when available. Do not require a second slash command after the user chooses setup capabilities.
 
-Never enable observed routing, native safety-net routing, or script transform by default.
+Output Router and Delegation Harness are disabled by default. Enable them only when the user opts in during setup or explicitly requested them. Never enable observed routing, native safety-net routing, Delegation Harness, or script transform by default.
 
 Script transform adapter install requires explicit consent and successful sandbox proof probing. Install adapters globally, not repo-locally, using the command documented in `references/output-router-setup.md`. Report probe failures instead of claiming a language is enabled.
 
@@ -87,14 +87,14 @@ Before claiming setup is complete, check:
 
 - config JSON parses;
 - minimal config contains only `defaultMode` unless optional capabilities were accepted or explicitly requested;
-- optional `outputRouter`, `observedRouting`, and `scriptTransform` config contains only requested valid keys;
-- observed routing, native safety-net routing, and script transform are off unless explicitly requested and supported;
+- optional `outputRouter`, nested `outputRouter.observedRouting`, nested `outputRouter.scriptTransform`, and `delegationHarness` config contains only requested valid keys;
+- Output Router, Delegation Harness, observed routing, native safety-net routing, and script transform are off unless explicitly requested and supported;
 - every enabled observed-routing producer/server has user-chosen persistence: `exact`, `metadata-only`, or `none`; setup does not offer or write `redacted`;
 - Codex setup has exactly one `## Freeflow` block in `AGENTS.md`;
 - Claude setup has exactly one `CLAUDE.md` import and one `.claude/rules/freeflow-core.md` core file;
 - `.codex/rules` was not created or changed for Freeflow behavior;
 - no unrelated files changed.
 
-After successful setup verification, read `../mode-contract/SKILL.md`, `../workflow/SKILL.md`, `../interview-gate/SKILL.md`, and `../output-router/SKILL.md` before the final response. Treat discovery-light as loaded with the runtime rule: inspect the smallest relevant evidence, answer directly, and ask only path-changing questions. Only say mode-contract, workflow, interview-gate, discovery-light, and output-router context is loaded for this session if all four files were read successfully.
+After successful setup verification, read `../mode-contract/SKILL.md`, `../workflow/SKILL.md`, and `../interview-gate/SKILL.md` before the final response. Read `../output-router/SKILL.md` only when Output Router was enabled during setup. Treat discovery-light as loaded with the runtime rule: inspect the smallest relevant evidence, answer directly, and ask only path-changing questions. Only say mode-contract, workflow, interview-gate, and discovery-light context is loaded for this session if the three core files were read successfully; add output-router context only if Output Router is enabled and that file was read successfully.
 
 If verification cannot run, say what remains unverified.

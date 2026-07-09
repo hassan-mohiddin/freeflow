@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import freeflow from "../../../pi-extension/dist/index.js";
-import { createVault, readOutputText, storeCommandOutput } from "../../dist/index.js";
+import freeflow from "../dist/index.js";
+import { createVault, readOutputText, storeCommandOutput } from "../../router/dist/index.js";
 
 function registerMockPi() {
   const tools = new Map();
@@ -273,7 +273,7 @@ test("Pi extension public freeflow_search returns structured disabled result for
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-transform-script-disabled-"));
   try {
     await mkdir(join(cwd, ".freeflow"));
-    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow" }), "utf8");
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow", outputRouter: { enabled: true } }), "utf8");
 
     const { tools } = registerMockPi();
     const search = tools.get("freeflow_search");
@@ -306,7 +306,7 @@ test("Pi extension public freeflow_search returns structured failures for operat
     await mkdir(join(cwd, ".freeflow"));
     await writeFile(
       join(cwd, ".freeflow/config.json"),
-      JSON.stringify({ defaultMode: "workflow", outputRouter: { vaultRoot } }),
+      JSON.stringify({ defaultMode: "workflow", outputRouter: { enabled: true, vaultRoot } }),
       "utf8",
     );
 
@@ -363,7 +363,7 @@ test("Pi extension public freeflow_search action=transform processes repo files"
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-search-transform-repo-"));
   try {
     await mkdir(join(cwd, ".freeflow"));
-    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow" }), "utf8");
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow", outputRouter: { enabled: true } }), "utf8");
     await writeFile(
       join(cwd, "test-output.txt"),
       [
@@ -408,7 +408,7 @@ test("Pi extension public freeflow_search action=transform processes explicit lo
   const localRoot = await mkdtemp(join(tmpdir(), "freeflow-pi-search-transform-local-source-"));
   try {
     await mkdir(join(cwd, ".freeflow"));
-    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow" }), "utf8");
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow", outputRouter: { enabled: true } }), "utf8");
     await writeFile(
       join(localRoot, "test-output.txt"),
       [
@@ -459,7 +459,7 @@ test("Pi extension public freeflow_search executes against vaulted output", asyn
     await mkdir(join(cwd, ".freeflow"));
     await writeFile(
       join(cwd, ".freeflow/config.json"),
-      JSON.stringify({ defaultMode: "workflow", outputRouter: { vaultRoot } }),
+      JSON.stringify({ defaultMode: "workflow", outputRouter: { enabled: true, vaultRoot } }),
       "utf8",
     );
 

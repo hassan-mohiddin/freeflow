@@ -127,11 +127,14 @@ async function writeObservedConfig(cwd, vaultRoot, observedRouting) {
       {
         defaultMode: "workflow",
         outputRouter: {
-          largeOutputLines: 4,
-          largeOutputBytes: 520,
-          vaultRoot,
+          enabled: true,
+          thresholds: {
+            largeOutputLines: 4,
+            largeOutputBytes: 520,
+          },
+          vault: { root: vaultRoot },
+          observedRouting,
         },
-        observedRouting,
       },
       null,
       2,
@@ -225,10 +228,13 @@ async function runStatusFixture(tmpRoot) {
     JSON.stringify(
       {
         defaultMode: "workflow",
-        observedRouting: {
+        outputRouter: {
           enabled: true,
-          mcp: { servers: { github: { enabled: true, persistence: "exact" } } },
-          web: { enabled: true, persistence: "exact" },
+          observedRouting: {
+            enabled: true,
+            mcp: { servers: { github: { enabled: true, persistence: "exact" } } },
+            web: { enabled: true, persistence: "exact" },
+          },
         },
       },
       null,
@@ -399,7 +405,7 @@ async function main() {
         "Intro noise ".repeat(80),
         "## Configure",
         "```json",
-        "{ \"observedRouting\": { \"enabled\": true } }",
+        "{ \"outputRouter\": { \"enabled\": true, \"observedRouting\": { \"enabled\": true } } }",
         "```",
         "## Recover",
         "```sh",

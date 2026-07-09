@@ -15,7 +15,7 @@ Use full Discover when the user is forming direction: codebase exploration, brai
 
 Treat tentative reasoning, chain-of-thought references, contradictions, and changed decisions as discovery input to adjudicate, not hidden approval to execute.
 
-Priority: Interview Gate stops silent decisions and user-owned decisions first. Output Router only chooses evidence transport after the discovery route is clear.
+Priority: Interview Gate stops silent decisions and user-owned decisions first. Evidence transport choices happen only after the discovery route is clear.
 
 ## Default Trigger
 

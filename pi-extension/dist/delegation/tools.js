@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { CmuxAdapter, assertLeafProfilesDoNotIncludeDelegationTools, compileTaskPacket, createDelegationStore, delegationRootForRepo, parseModelText, resolveProfileForRole, shellQuote, validateSafeId, } from "../../../delegation/dist/index.js";
 import { renderDelegationCall, renderDelegationResult } from "./renderers.js";
+import { readCapabilityState } from "../runtime-context.js";
 const STRING_SCHEMA = { type: "string" };
 const NON_EMPTY_STRING_SCHEMA = { type: "string", minLength: 1 };
 const ROLE_SCHEMA = {
@@ -323,6 +324,10 @@ export function registerDelegationTools(pi) {
     }
 }
 export async function executeDelegationOperation(pi, operation, params, signal, ctx) {
+    const disabled = await disabledByConfigResult(operation, ctx);
+    if (disabled) {
+        return disabled;
+    }
     switch (operation) {
         case "delegate_status": return executeStatus(pi, params, signal, ctx);
         case "delegate_inbox": return executeInbox(params, ctx);
@@ -352,6 +357,10 @@ function delegationTool(name, label, description, parameters, handler, toolClass
         parameters,
         async execute(_toolCallId, params, signal, _onUpdate, ctx) {
             try {
+                const disabled = await disabledByConfigResult(name, ctx);
+                if (disabled) {
+                    return toToolResult(name, disabled);
+                }
                 const result = await handler(params ?? {}, signal, ctx);
                 return toToolResult(name, result);
             }
@@ -1942,6 +1951,22 @@ async function markAgentFailed(store, taskId, agentId, message, error) {
 }
 function createStore(ctx) {
     return createDelegationStore({ root: delegationRootForRepo(ctx.cwd) });
+}
+async function disabledByConfigResult(operation, ctx) {
+    const state = await readCapabilityState(ctx?.cwd ?? process.cwd());
+    if (state.delegationHarness.enabled) {
+        return null;
+    }
+    return {
+        toolStatus: "disabled_by_config",
+        operation,
+        status: "disabled_by_config",
+        code: "disabled_by_config",
+        capability: "delegation-harness",
+        route: "/delegation-harness settings",
+        reason: `${operation} is disabled by Freeflow config. Configure delegation-harness with /delegation-harness settings.`,
+        actionTaken: "no_delegation_state_or_cmux_action_attempted",
+    };
 }
 function unavailableResult(operation, params, preflight) {
     return {

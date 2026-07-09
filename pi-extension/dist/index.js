@@ -1,52 +1,121 @@
 import { handleNativeToolSafetyNet } from "./native-safety-net.js";
 import { handleObservedToolRouting } from "./observed-tool-routing.js";
 import { registerRouterTools } from "./router-tools.js";
+import { handleDelegationHarnessCommand, handleOutputRouterCommand } from "./settings-ui.js";
 import { registerDelegation } from "./delegation/index.js";
 import { appendDelegatedRuntimeContext, handleDelegatedAssistantMessageEnd, handleDelegatedToolCall, handleDelegationSessionStart, } from "./delegation/runtime.js";
-import { CONTRIBUTOR_COMMANDS, WORKFLOW_COMMANDS, getRuntimeContext, handleWorkflowCommand, readModeState, readOutputRouterConfig, refreshRuntimeContext, restoreModeOverride, runtimeContext, setModeStatus, skillPrompt, notifyRouterConfigWarnings, } from "./runtime-context.js";
+import { CONTRIBUTOR_COMMANDS, WORKFLOW_COMMANDS, getRuntimeContext, handleWorkflowCommand, OUTPUT_ROUTER_TOOL_NAMES, readCapabilityState, readModeState, readOutputRouterConfig, refreshRuntimeContext, restoreModeOverride, runtimeContext, setModeStatus, skillPrompt, notifyRouterConfigWarnings, } from "./runtime-context.js";
+function isDelegationToolName(name) {
+    return name.startsWith("delegate_");
+}
+function isOutputRouterToolName(name) {
+    return OUTPUT_ROUTER_TOOL_NAMES.includes(name);
+}
+async function applyCapabilityToolVisibility(pi, ctx, capabilityState = undefined) {
+    if (typeof pi?.setActiveTools !== "function" || typeof pi?.getAllTools !== "function") {
+        return;
+    }
+    const state = capabilityState ?? await readCapabilityState(ctx.cwd);
+    const allToolNames = pi.getAllTools().map((tool) => tool?.name).filter(Boolean);
+    const allToolNameSet = new Set(allToolNames);
+    const currentActive = typeof pi.getActiveTools === "function" ? pi.getActiveTools() : undefined;
+    const active = new Set((Array.isArray(currentActive) ? currentActive : allToolNames).filter((name) => allToolNameSet.has(name)));
+    for (const toolName of OUTPUT_ROUTER_TOOL_NAMES) {
+        if (!allToolNameSet.has(toolName))
+            continue;
+        if (state.outputRouter.enabled)
+            active.add(toolName);
+        else
+            active.delete(toolName);
+    }
+    for (const toolName of allToolNames.filter(isDelegationToolName)) {
+        if (state.delegationHarness.enabled)
+            active.add(toolName);
+        else
+            active.delete(toolName);
+    }
+    pi.setActiveTools([...active]);
+}
+function disabledToolCall(toolName, capability) {
+    return {
+        block: true,
+        reason: `${toolName} is disabled by Freeflow config. Configure ${capability} with /${capability} settings.`,
+    };
+}
+function capabilityCompletions(prefix) {
+    const query = prefix ?? "";
+    return ["settings", "status", "enable", "disable"].filter((value) => value.startsWith(query)).map((value) => ({ value, label: value }));
+}
 export default function freeflow(pi) {
     registerRouterTools(pi);
     registerDelegation(pi);
     pi.on("session_start", async (_event, ctx) => {
         restoreModeOverride(ctx);
-        const [modeState, routerConfigResult] = await Promise.all([
+        const [modeState, routerConfigResult, capabilityState] = await Promise.all([
             readModeState(ctx.cwd),
             readOutputRouterConfig(ctx.cwd),
-            refreshRuntimeContext(),
+            readCapabilityState(ctx.cwd),
         ]);
+        await refreshRuntimeContext(capabilityState);
         setModeStatus(ctx, modeState);
         notifyRouterConfigWarnings(ctx, routerConfigResult);
-        await handleDelegationSessionStart(pi, ctx);
+        await applyCapabilityToolVisibility(pi, ctx, capabilityState);
+        if (capabilityState.delegationHarness.enabled) {
+            await handleDelegationSessionStart(pi, ctx);
+        }
     });
     pi.on("session_compact", async (_event, ctx) => {
-        const [modeState, routerConfigResult] = await Promise.all([
+        const [modeState, routerConfigResult, capabilityState] = await Promise.all([
             readModeState(ctx.cwd),
             readOutputRouterConfig(ctx.cwd),
-            refreshRuntimeContext(),
+            readCapabilityState(ctx.cwd),
         ]);
+        await refreshRuntimeContext(capabilityState);
         setModeStatus(ctx, modeState);
         notifyRouterConfigWarnings(ctx, routerConfigResult);
-        await handleDelegationSessionStart(pi, ctx);
+        await applyCapabilityToolVisibility(pi, ctx, capabilityState);
+        if (capabilityState.delegationHarness.enabled) {
+            await handleDelegationSessionStart(pi, ctx);
+        }
     });
     pi.on("before_agent_start", async (event, ctx) => {
-        const [modeState, freeflowContext, routerConfigResult] = await Promise.all([
+        const [modeState, routerConfigResult, capabilityState] = await Promise.all([
             readModeState(ctx.cwd),
-            getRuntimeContext(),
             readOutputRouterConfig(ctx.cwd),
+            readCapabilityState(ctx.cwd),
         ]);
+        const freeflowContext = await getRuntimeContext(capabilityState);
         setModeStatus(ctx, modeState);
         notifyRouterConfigWarnings(ctx, routerConfigResult);
+        await applyCapabilityToolVisibility(pi, ctx, capabilityState);
         const systemPrompt = event.systemPrompt +
             "\n\n" +
-            runtimeContext(modeState, freeflowContext, routerConfigResult);
+            runtimeContext(modeState, freeflowContext, routerConfigResult, capabilityState);
         return {
-            systemPrompt: await appendDelegatedRuntimeContext(pi, event, ctx, systemPrompt),
+            systemPrompt: capabilityState.delegationHarness.enabled
+                ? await appendDelegatedRuntimeContext(pi, event, ctx, systemPrompt)
+                : systemPrompt,
         };
     });
     pi.on("tool_call", async (event, ctx) => {
-        return handleDelegatedToolCall(event, ctx, pi);
+        const capabilityState = await readCapabilityState(ctx.cwd);
+        const toolName = typeof event?.toolName === "string" ? event.toolName : "";
+        if (!capabilityState.outputRouter.enabled && isOutputRouterToolName(toolName)) {
+            return disabledToolCall(toolName, "output-router");
+        }
+        if (!capabilityState.delegationHarness.enabled && isDelegationToolName(toolName)) {
+            return disabledToolCall(toolName, "delegation-harness");
+        }
+        if (capabilityState.delegationHarness.enabled) {
+            return handleDelegatedToolCall(event, ctx, pi);
+        }
+        return undefined;
     });
     pi.on("message_end", async (event, ctx) => {
+        const capabilityState = await readCapabilityState(ctx.cwd);
+        if (!capabilityState.delegationHarness.enabled) {
+            return undefined;
+        }
         return handleDelegatedAssistantMessageEnd(event, ctx);
     });
     pi.on("tool_result", async (event, ctx) => {
@@ -72,6 +141,30 @@ export default function freeflow(pi) {
             },
         });
     }
+    pi.registerCommand("output-router", {
+        description: "Open Freeflow Output Router settings or print compact status",
+        getArgumentCompletions: capabilityCompletions,
+        handler: async (args, ctx) => {
+            const result = await handleOutputRouterCommand(args, ctx, async () => {
+                await applyCapabilityToolVisibility(pi, ctx);
+            });
+            if (result.changed && !result.reloaded) {
+                await applyCapabilityToolVisibility(pi, ctx);
+            }
+        },
+    });
+    pi.registerCommand("delegation-harness", {
+        description: "Open Freeflow Delegation Harness settings or print compact status",
+        getArgumentCompletions: capabilityCompletions,
+        handler: async (args, ctx) => {
+            const result = await handleDelegationHarnessCommand(args, ctx, async () => {
+                await applyCapabilityToolVisibility(pi, ctx);
+            });
+            if (result.changed && !result.reloaded) {
+                await applyCapabilityToolVisibility(pi, ctx);
+            }
+        },
+    });
     pi.registerCommand("workflow", {
         description: "Set or inspect the current Freeflow session mode",
         getArgumentCompletions: (prefix) => {

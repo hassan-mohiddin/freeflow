@@ -18,7 +18,22 @@ fail() {
 
 pi_workflow_commands="$(mktemp)"
 pi_contributor_commands="$(mktemp)"
-trap 'rm -f "$pi_workflow_commands" "$pi_contributor_commands"' EXIT
+pi_native_commands="$(mktemp)"
+trap 'rm -f "$pi_workflow_commands" "$pi_contributor_commands" "$pi_native_commands"' EXIT
+
+extract_pi_native_commands() {
+  local output_file="$1"
+
+  node - "$plugin_root/pi-extension/src/index.ts" >"$output_file" <<'NODE'
+const fs = require('fs');
+const path = process.argv[2];
+const source = fs.readFileSync(path, 'utf8');
+const pattern = /pi\.registerCommand\("([^"]+)"/g;
+for (const item of source.matchAll(pattern)) {
+  console.log(`/${item[1]}`);
+}
+NODE
+}
 
 extract_pi_commands() {
   local constant_name="$1"
@@ -73,6 +88,7 @@ jq empty "$manifest"
 
 extract_pi_commands WORKFLOW_COMMANDS "$pi_workflow_commands"
 extract_pi_commands CONTRIBUTOR_COMMANDS "$pi_contributor_commands"
+extract_pi_native_commands "$pi_native_commands"
 
 if [ "$(jq -r '.nativeSlashHandlers' "$registry")" != "false" ]; then
   fail "nativeSlashHandlers should remain false until host-level slash handlers exist"
@@ -150,11 +166,30 @@ while IFS=$'\t' read -r command skill; do
   fi
 done < <(jq -r '.modeCommands[] | [.command, .routesTo] | @tsv' "$registry")
 
+while IFS=$'\t' read -r command handler kind; do
+  if [[ "$command" != /* ]]; then
+    fail "Pi native command does not start with slash: $command"
+  fi
+
+  if ! command_exists "$pi_native_commands" "$command"; then
+    fail "$command is missing from Pi native command registration"
+  fi
+
+  if ! rg -Fq "$command" "$command_docs"; then
+    fail "$command is missing from command-surface matrix"
+  fi
+
+  if [ -z "$handler" ] || [ -z "$kind" ]; then
+    fail "$command Pi native command must declare handler and kind"
+  fi
+done < <(jq -r '.piNativeCommands[]? | [.command, .handler, .kind] | @tsv' "$registry")
+
 if [ "$failures" -gt 0 ]; then
   exit 1
 fi
 
-printf 'Command surface audit passed: %s direct skill calls, %s developer skill calls, %s mode commands, native slash handlers disabled.\n' \
+printf 'Command surface audit passed: %s direct skill calls, %s developer skill calls, %s mode commands, %s Pi native commands, native slash handlers disabled.\n' \
   "$(jq '.directSkillCalls | length' "$registry")" \
   "$(jq '.developerSkillCalls | length' "$registry")" \
-  "$(jq '.modeCommands | length' "$registry")"
+  "$(jq '.modeCommands | length' "$registry")" \
+  "$(jq '.piNativeCommands // [] | length' "$registry")"

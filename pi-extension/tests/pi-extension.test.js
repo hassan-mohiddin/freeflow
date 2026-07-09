@@ -4,13 +4,14 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
 
-import freeflowExtension from "../../../pi-extension/dist/index.js";
-import { createVault, storeTextOutput } from "../../dist/index.js";
+import freeflowExtension from "../dist/index.js";
+import { createVault, storeTextOutput } from "../../router/dist/index.js";
 
 function loadExtension() {
   const handlers = new Map();
   const tools = [];
   const commands = [];
+  let activeToolNames;
   const pi = {
     registerTool(tool) {
       tools.push(tool);
@@ -23,15 +24,31 @@ function loadExtension() {
     },
     appendEntry() {},
     sendUserMessage() {},
+    getAllTools() {
+      return tools.map((tool) => ({ name: tool.name, sourceInfo: { source: "extension" } }));
+    },
+    getActiveTools() {
+      return activeToolNames ?? tools.map((tool) => tool.name);
+    },
+    setActiveTools(names) {
+      activeToolNames = [...names];
+    },
   };
 
   freeflowExtension(pi);
-  return { handlers, tools, commands };
+  return { handlers, tools, commands, activeToolNames: () => activeToolNames ?? tools.map((tool) => tool.name) };
 }
 
 function context(cwd = process.cwd()) {
+  const notifications = [];
+  const reloads = [];
   return {
     cwd,
+    notifications,
+    reloads,
+    async reload() {
+      reloads.push(true);
+    },
     sessionManager: {
       getEntries() {
         return [];
@@ -39,7 +56,9 @@ function context(cwd = process.cwd()) {
     },
     ui: {
       setStatus() {},
-      notify() {},
+      notify(message, level) {
+        notifications.push({ message, level });
+      },
     },
   };
 }
@@ -60,23 +79,26 @@ function renderText(component, width = 120) {
   return component.render(width).join("\n");
 }
 
-test("Pi registers output-router as a direct command and no public capture tool", () => {
+test("Pi registers capability commands and no public capture tool", () => {
   const { commands, tools } = loadExtension();
   const commandNames = commands.map((command) => command.name);
   const toolNames = tools.map((tool) => tool.name);
 
   assert.ok(commandNames.includes("output-router"));
+  assert.ok(commandNames.includes("delegation-harness"));
   assert.ok(toolNames.includes("freeflow_status"));
   assert.ok(toolNames.includes("freeflow_search"));
   assert.ok(toolNames.includes("freeflow_run"));
   assert.ok(toolNames.includes("freeflow_batch"));
+  assert.ok(toolNames.includes("delegate_spawn"));
+  assert.ok(toolNames.includes("delegate_result"));
   assert.ok(!toolNames.includes("freeflow_retrieve"));
   assert.ok(!toolNames.includes("freeflow_search action=transform"));
   assert.ok(!toolNames.includes("freeflow_capture"));
 });
 
-test("Pi before_agent_start injects core Freeflow and output-router context", async () => {
-  const { handlers } = loadExtension();
+test("Pi before_agent_start keeps output-router disabled by default", async () => {
+  const { handlers, activeToolNames } = loadExtension();
   const beforeAgentStart = handlers.get("before_agent_start");
   assert.ok(beforeAgentStart);
 
@@ -87,23 +109,30 @@ test("Pi before_agent_start injects core Freeflow and output-router context", as
   assert.match(result.systemPrompt, /## Loaded Interview Gate Skill/);
   assert.match(result.systemPrompt, /## Discovery-light/);
   assert.doesNotMatch(result.systemPrompt, /## Loaded Discover Skill/);
-  assert.match(result.systemPrompt, /## Loaded Output Router Skill/);
-  assert.match(result.systemPrompt, /name: output-router/);
-  assert.match(result.systemPrompt, /freeflow_search/);
-  assert.match(result.systemPrompt, /## Loaded Delegation Harness Skill/);
-  assert.match(result.systemPrompt, /name: delegation-harness/);
-  assert.match(result.systemPrompt, /delegate_spawn/);
-  assert.match(result.systemPrompt, /Legacy `FFRESULT`/);
+  assert.match(result.systemPrompt, /Output router: disabled/);
+  assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Skill/);
+  assert.doesNotMatch(result.systemPrompt, /freeflow_search/);
+  assert.doesNotMatch(result.systemPrompt, /## Loaded Delegation Harness Skill/);
+  assert.doesNotMatch(result.systemPrompt, /name: delegation-harness/);
+  assert.doesNotMatch(result.systemPrompt, /\.\.\/delegation-harness\/SKILL\.md/);
+  assert.doesNotMatch(result.systemPrompt, /delegation-harness run inside the current workflow phase/);
+  assert.doesNotMatch(result.systemPrompt, /delegate_spawn/);
+  assert.doesNotMatch(result.systemPrompt, /Legacy `FFRESULT`/);
   assert.doesNotMatch(result.systemPrompt, /# Context Locality/);
-  assert.match(result.systemPrompt, /freeflow_run/);
+  assert.doesNotMatch(result.systemPrompt, /freeflow_run/);
   assert.doesNotMatch(result.systemPrompt, /freeflow_capture/);
-  assert.match(result.systemPrompt, /freeflow_search action=transform/);
-  assert.match(result.systemPrompt, /Native tools stay direct/);
+  assert.doesNotMatch(result.systemPrompt, /freeflow_search action=transform/);
+  assert.doesNotMatch(result.systemPrompt, /Native tools stay direct/);
   assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Map/);
   assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Safety Policy/);
   assert.doesNotMatch(result.systemPrompt, /Do not silently summarize or compress exactness-sensitive output/);
   assert.doesNotMatch(result.systemPrompt, /large native read\/bash outputs may be vaulted/);
   assert.doesNotMatch(result.systemPrompt, /Output-router config note/);
+  assert.ok(!activeToolNames().includes("freeflow_search"));
+  assert.ok(!activeToolNames().includes("freeflow_run"));
+  assert.ok(!activeToolNames().includes("freeflow_batch"));
+  assert.ok(!activeToolNames().includes("delegate_spawn"));
+  assert.ok(!activeToolNames().includes("delegate_result"));
 });
 
 test("Pi before_agent_start injects core Freeflow context on every turn", async () => {
@@ -122,12 +151,13 @@ test("Pi before_agent_start injects core Freeflow context on every turn", async 
     assert.match(result.systemPrompt, /## Loaded Interview Gate Skill/);
     assert.match(result.systemPrompt, /## Discovery-light/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Discover Skill/);
-    assert.match(result.systemPrompt, /## Loaded Output Router Skill/);
-    assert.match(result.systemPrompt, /name: output-router/);
-    assert.match(result.systemPrompt, /freeflow_search action=transform/);
-    assert.match(result.systemPrompt, /## Loaded Delegation Harness Skill/);
-    assert.match(result.systemPrompt, /name: delegation-harness/);
-    assert.match(result.systemPrompt, /delegate_result/);
+    assert.match(result.systemPrompt, /Output router: disabled/);
+    assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Skill/);
+    assert.doesNotMatch(result.systemPrompt, /freeflow_search action=transform/);
+    assert.doesNotMatch(result.systemPrompt, /## Loaded Delegation Harness Skill/);
+    assert.doesNotMatch(result.systemPrompt, /name: delegation-harness/);
+    assert.doesNotMatch(result.systemPrompt, /\.\.\/delegation-harness\/SKILL\.md/);
+    assert.doesNotMatch(result.systemPrompt, /delegate_result/);
     assert.doesNotMatch(result.systemPrompt, /## Freeflow Output Router Reminder/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Map/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Safety Policy/);
@@ -151,15 +181,215 @@ test("Pi session_start and session_compact keep full Freeflow context on later t
   const afterCompact = await beforeAgentStart({ systemPrompt: "base prompt" }, context());
   assert.match(afterCompact.systemPrompt, /## Loaded Mode Contract Skill/);
   assert.match(afterCompact.systemPrompt, /## Loaded Workflow Skill/);
-  assert.match(afterCompact.systemPrompt, /## Loaded Output Router Skill/);
-  assert.match(afterCompact.systemPrompt, /## Loaded Delegation Harness Skill/);
+  assert.doesNotMatch(afterCompact.systemPrompt, /## Loaded Output Router Skill/);
+  assert.doesNotMatch(afterCompact.systemPrompt, /## Loaded Delegation Harness Skill/);
 
   await sessionStart({ reason: "resume" }, context());
   const afterResume = await beforeAgentStart({ systemPrompt: "base prompt" }, context());
   assert.match(afterResume.systemPrompt, /## Loaded Mode Contract Skill/);
   assert.match(afterResume.systemPrompt, /## Loaded Workflow Skill/);
-  assert.match(afterResume.systemPrompt, /## Loaded Output Router Skill/);
-  assert.match(afterResume.systemPrompt, /## Loaded Delegation Harness Skill/);
+  assert.doesNotMatch(afterResume.systemPrompt, /## Loaded Output Router Skill/);
+  assert.doesNotMatch(afterResume.systemPrompt, /## Loaded Delegation Harness Skill/);
+});
+
+test("Pi capability config disables output-router context, active tools, and execution", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-output-router-disabled-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow", outputRouter: { enabled: false } }, null, 2), "utf8");
+
+    const { handlers, tools, activeToolNames } = loadExtension();
+    const beforeAgentStart = handlers.get("before_agent_start");
+    assert.ok(beforeAgentStart);
+
+    const result = await beforeAgentStart({ systemPrompt: "base prompt" }, context(cwd));
+    assert.match(result.systemPrompt, /Output router: disabled/);
+    assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Skill/);
+    assert.ok(!activeToolNames().includes("freeflow_search"));
+    assert.ok(!activeToolNames().includes("freeflow_run"));
+    assert.ok(!activeToolNames().includes("freeflow_batch"));
+
+    const searchTool = tools.find((tool) => tool.name === "freeflow_search");
+    assert.ok(searchTool);
+    const disabled = await searchTool.execute("search-disabled", { action: "locate", query: "x" }, undefined, undefined, context(cwd));
+    assert.match(disabled.content[0].text, /freeflow_search\|disabled_by_config/);
+
+    const guard = handlers.get("tool_call");
+    const blocked = await guard({ toolName: "freeflow_search" }, context(cwd));
+    assert.equal(blocked.block, true);
+    assert.match(blocked.reason, /disabled by Freeflow config/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi capability config blocks delegation tool calls while disabled", async () => {
+  const { handlers } = loadExtension();
+  const guard = handlers.get("tool_call");
+  assert.ok(guard);
+
+  const blocked = await guard({ toolName: "delegate_spawn" }, context());
+  assert.equal(blocked.block, true);
+  assert.match(blocked.reason, /delegate_spawn is disabled by Freeflow config/);
+});
+
+test("Pi capability config enables delegation harness context and active tools", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-delegation-enabled-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow", delegationHarness: { enabled: true } }, null, 2), "utf8");
+
+    const { handlers, activeToolNames } = loadExtension();
+    const beforeAgentStart = handlers.get("before_agent_start");
+    assert.ok(beforeAgentStart);
+
+    const result = await beforeAgentStart({ systemPrompt: "base prompt" }, context(cwd));
+    assert.match(result.systemPrompt, /Delegation harness: enabled/);
+    assert.match(result.systemPrompt, /## Loaded Delegation Harness Skill/);
+    assert.match(result.systemPrompt, /name: delegation-harness/);
+    assert.ok(activeToolNames().includes("delegate_spawn"));
+    assert.ok(activeToolNames().includes("delegate_result"));
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi capability commands update config and reload", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-capability-command-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({}, null, 2), "utf8");
+
+    const { commands } = loadExtension();
+    const outputRouterCommand = commands.find((command) => command.name === "output-router");
+    const delegationCommand = commands.find((command) => command.name === "delegation-harness");
+    assert.ok(outputRouterCommand);
+    assert.ok(delegationCommand);
+
+    const outputCtx = context(cwd);
+    await outputRouterCommand.definition.handler("enable", outputCtx);
+    const afterOutput = JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8"));
+    assert.equal(afterOutput.outputRouter.enabled, true);
+    assert.equal(outputCtx.reloads.length, 1);
+
+    const delegationCtx = context(cwd);
+    await delegationCommand.definition.handler("enable", delegationCtx);
+    const afterDelegation = JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8"));
+    assert.equal(afterDelegation.delegationHarness.enabled, true);
+    assert.equal(delegationCtx.reloads.length, 1);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi output-router settings UI toggles multiple config values and reloads once", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-output-router-settings-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({ defaultMode: "workflow", outputRouter: { generatedPaths: ["graphify-out/**"] } }, null, 2),
+      "utf8",
+    );
+
+    const { commands } = loadExtension();
+    const outputRouterCommand = commands.find((command) => command.name === "output-router");
+    assert.ok(outputRouterCommand);
+
+    const ctx = context(cwd);
+    ctx.ui.custom = async (factory) => {
+      let result;
+      const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
+        result = value;
+      });
+      assert.match(renderText(component), /Output Router Settings/);
+      component.handleInput("\r"); // Output Router enabled
+      for (let index = 0; index < 9; index++) {
+        component.handleInput("\u001b[B");
+      }
+      component.handleInput("\r"); // Script transform enabled
+      component.handleInput("\u001b");
+      return result;
+    };
+
+    await outputRouterCommand.definition.handler("", ctx);
+
+    const after = JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8"));
+    assert.equal(after.outputRouter.enabled, true);
+    assert.deepEqual(after.outputRouter.hints.generatedPathGlobs, ["graphify-out/**"]);
+    assert.equal(after.outputRouter.generatedPaths, undefined);
+    assert.equal(after.outputRouter.scriptTransform.enabled, true);
+    assert.equal(ctx.reloads.length, 1);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi output-router status summarizes master and subfeature state", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-output-router-status-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({
+        defaultMode: "workflow",
+        outputRouter: {
+          enabled: true,
+          postToolRouting: "safety-net",
+          scriptTransform: { enabled: true },
+          observedRouting: { enabled: true },
+        },
+      }, null, 2),
+      "utf8",
+    );
+
+    const { commands } = loadExtension();
+    const outputRouterCommand = commands.find((command) => command.name === "output-router");
+    assert.ok(outputRouterCommand);
+
+    const ctx = context(cwd);
+    await outputRouterCommand.definition.handler("status", ctx);
+
+    assert.equal(ctx.notifications.length, 1);
+    assert.match(ctx.notifications[0].message, /Output Router: enabled/);
+    assert.match(ctx.notifications[0].message, /script transform: enabled/);
+    assert.match(ctx.notifications[0].message, /observed routing: enabled/);
+    assert.match(ctx.notifications[0].message, /native safety net: safety-net/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi delegation-harness settings UI toggles config and reloads once", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-delegation-settings-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow" }, null, 2), "utf8");
+
+    const { commands } = loadExtension();
+    const delegationCommand = commands.find((command) => command.name === "delegation-harness");
+    assert.ok(delegationCommand);
+
+    const ctx = context(cwd);
+    ctx.ui.custom = async (factory) => {
+      let result;
+      const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
+        result = value;
+      });
+      assert.match(renderText(component), /Delegation Harness Settings/);
+      component.handleInput("\r");
+      component.handleInput("\u001b");
+      return result;
+    };
+
+    await delegationCommand.definition.handler("settings", ctx);
+
+    const after = JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8"));
+    assert.equal(after.delegationHarness.enabled, true);
+    assert.equal(ctx.reloads.length, 1);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
 });
 
 test("Pi freeflow_status reports effective defaults without writing config", async () => {
@@ -180,14 +410,14 @@ test("Pi freeflow_status reports effective defaults without writing config", asy
     assert.equal(report.toolStatus, "ok");
     assert.equal(report.action, "doctor");
     assert.equal(report.mode.defaultMode, "workflow");
-    assert.equal(report.effectiveConfig.outputRouter.enabled, true);
+    assert.equal(report.effectiveConfig.outputRouter.enabled, false);
     assert.equal(report.effectiveConfig.outputRouter.profile, "standard");
     assert.equal(report.effectiveConfig.outputRouter.postToolRouting, "off");
     assert.equal("capture" in report.effectiveConfig, false);
     assert.equal("providers" in report.effectiveConfig, false);
-    assert.equal(report.effectiveConfig.observedRouting.enabled, false);
-    assert.deepEqual(report.effectiveConfig.observedRouting.mcp.servers, {});
-    assert.equal(report.effectiveConfig.scriptTransform.enabled, false);
+    assert.equal(report.effectiveConfig.outputRouter.observedRouting.enabled, false);
+    assert.deepEqual(report.effectiveConfig.outputRouter.observedRouting.mcp.servers, {});
+    assert.equal(report.effectiveConfig.outputRouter.scriptTransform.enabled, false);
     assert.equal(report.effectiveLocalConfig.processing.unsafeUnsandboxed.enabled, false);
     assert.equal(report.processing.unsafeUnsandboxed.enabled, false);
     assert.equal(report.processing.unsafeUnsandboxed.status, "disabled");
@@ -250,7 +480,7 @@ test("Pi freeflow_status reports vault writability without creating directories"
     await writeFile(fileVault, "not a directory", "utf8");
     await writeFile(
       join(cwd, ".freeflow/config.json"),
-      JSON.stringify({ defaultMode: "workflow", outputRouter: { vaultRoot: fileVault } }),
+      JSON.stringify({ defaultMode: "workflow", outputRouter: { enabled: true, vaultRoot: fileVault } }),
       "utf8",
     );
     const fileResult = await statusTool.execute("status-vault-file", { action: "doctor" }, undefined, undefined, context(cwd));
@@ -319,23 +549,26 @@ test("Pi freeflow_status reports configured observed routing", async () => {
       join(cwd, ".freeflow/config.json"),
       JSON.stringify({
         defaultMode: "workflow",
-        observedRouting: {
+        outputRouter: {
           enabled: true,
-          onRoutingFailure: "fail-open",
-          mcp: {
-            servers: {
-              github: { enabled: true, persistence: "exact" },
-              gmail: { enabled: true, persistence: "metadata-only" },
+          observedRouting: {
+            enabled: true,
+            onRoutingFailure: "fail-open",
+            mcp: {
+              servers: {
+                github: { enabled: true, persistence: "exact" },
+                gmail: { enabled: true, persistence: "metadata-only" },
+              },
             },
+            web: { enabled: true, persistence: "exact" },
+            fetch: { enabled: false },
+            codeSearch: { enabled: true, persistence: "none" },
           },
-          web: { enabled: true, persistence: "exact" },
-          fetch: { enabled: false },
-          codeSearch: { enabled: true, persistence: "none" },
-        },
-        scriptTransform: {
-          enabled: true,
-          languages: ["python"],
-          limits: { timeoutMs: 1000, maxInputBytes: 2048, maxOutputBytes: 4096 },
+          scriptTransform: {
+            enabled: true,
+            languages: ["python"],
+            limits: { timeoutMs: 1000, maxInputBytes: 2048, maxOutputBytes: 4096 },
+          },
         },
       }),
       "utf8",
@@ -346,17 +579,17 @@ test("Pi freeflow_status reports configured observed routing", async () => {
     const result = await statusTool.execute("status-observed", { action: "doctor" }, undefined, undefined, context(cwd));
     const report = JSON.parse(result.content[0].text);
 
-    assert.equal(report.effectiveConfig.observedRouting.enabled, true);
-    assert.equal(report.effectiveConfig.observedRouting.onRoutingFailure, "fail-open");
-    assert.deepEqual(report.effectiveConfig.observedRouting.mcp.servers.github, { enabled: true, persistence: "exact" });
-    assert.deepEqual(report.effectiveConfig.observedRouting.mcp.servers.gmail, { enabled: true, persistence: "metadata-only" });
-    assert.deepEqual(report.effectiveConfig.observedRouting.web, { enabled: true, persistence: "exact" });
-    assert.deepEqual(report.effectiveConfig.observedRouting.fetch, { enabled: false, persistence: "none" });
-    assert.deepEqual(report.effectiveConfig.observedRouting.codeSearch, { enabled: true, persistence: "none" });
+    assert.equal(report.effectiveConfig.outputRouter.observedRouting.enabled, true);
+    assert.equal(report.effectiveConfig.outputRouter.observedRouting.onRoutingFailure, "fail-open");
+    assert.deepEqual(report.effectiveConfig.outputRouter.observedRouting.mcp.servers.github, { enabled: true, persistence: "exact" });
+    assert.deepEqual(report.effectiveConfig.outputRouter.observedRouting.mcp.servers.gmail, { enabled: true, persistence: "metadata-only" });
+    assert.deepEqual(report.effectiveConfig.outputRouter.observedRouting.web, { enabled: true, persistence: "exact" });
+    assert.deepEqual(report.effectiveConfig.outputRouter.observedRouting.fetch, { enabled: false, persistence: "none" });
+    assert.deepEqual(report.effectiveConfig.outputRouter.observedRouting.codeSearch, { enabled: true, persistence: "none" });
     assert.equal(report.observedRouting.enabled, true);
     assert.equal(report.observedRouting.mcp.configuredServerCount, 2);
-    assert.equal(report.effectiveConfig.scriptTransform.enabled, true);
-    assert.deepEqual(report.effectiveConfig.scriptTransform.languages, ["python"]);
+    assert.equal(report.effectiveConfig.outputRouter.scriptTransform.enabled, true);
+    assert.deepEqual(report.effectiveConfig.outputRouter.scriptTransform.languages, ["python"]);
     assert.equal(report.scriptTransform.enabled, true);
     assert.ok(["available", "adapter_unavailable"].includes(report.scriptTransform.executionStatus));
     assert.equal(typeof report.scriptTransform.adapterAvailable, "boolean");
@@ -378,15 +611,18 @@ test("Pi freeflow_status reports invalid config warnings and safe fallbacks", as
       join(cwd, ".freeflow/config.json"),
       JSON.stringify({
         defaultMode: "workflow",
-        outputRouter: { enabled: "yes", profile: "future" },
+        outputRouter: {
+          enabled: "yes",
+          profile: "future",
+          scriptTransform: { enabled: "yes", sandbox: "none", languages: ["ruby"], network: "on" },
+          observedRouting: {
+            enabled: "yes",
+            mcp: { servers: { github: { enabled: true, persistence: "redacted" } } },
+            web: { enabled: true },
+          },
+        },
         capture: { freeflowMediated: "metadata-only", directHostTools: "raw" },
         providers: { enabled: [{ id: "serena", mode: "write" }] },
-        scriptTransform: { enabled: "yes", sandbox: "none", languages: ["ruby"], network: "on" },
-        observedRouting: {
-          enabled: "yes",
-          mcp: { servers: { github: { enabled: true, persistence: "redacted" } } },
-          web: { enabled: true },
-        },
       }),
       "utf8",
     );
@@ -396,24 +632,24 @@ test("Pi freeflow_status reports invalid config warnings and safe fallbacks", as
     const result = await statusTool.execute("status-invalid", { action: "doctor" }, undefined, undefined, context(cwd));
     const report = JSON.parse(result.content[0].text);
 
-    assert.equal(report.effectiveConfig.outputRouter.enabled, true);
+    assert.equal(report.effectiveConfig.outputRouter.enabled, false);
     assert.equal(report.effectiveConfig.outputRouter.profile, "standard");
     assert.equal("capture" in report.effectiveConfig, false);
     assert.equal("providers" in report.effectiveConfig, false);
-    assert.equal(report.effectiveConfig.observedRouting.enabled, false);
-    assert.equal(report.effectiveConfig.scriptTransform.enabled, false);
-    assert.deepEqual(report.effectiveConfig.scriptTransform.languages, ["javascript", "python", "jq"]);
-    assert.equal(report.effectiveConfig.observedRouting.mcp.servers.github.persistence, "metadata-only");
-    assert.equal(report.effectiveConfig.observedRouting.web.persistence, "metadata-only");
+    assert.equal(report.effectiveConfig.outputRouter.observedRouting.enabled, false);
+    assert.equal(report.effectiveConfig.outputRouter.scriptTransform.enabled, false);
+    assert.deepEqual(report.effectiveConfig.outputRouter.scriptTransform.languages, ["javascript", "python", "jq"]);
+    assert.equal(report.effectiveConfig.outputRouter.observedRouting.mcp.servers.github.persistence, "metadata-only");
+    assert.equal(report.effectiveConfig.outputRouter.observedRouting.web.persistence, "metadata-only");
     assert.ok(report.configWarnings.some((warning) => warning.includes("outputRouter.enabled")));
     assert.ok(report.configWarnings.some((warning) => warning.includes("outputRouter.profile")));
-    assert.ok(report.configWarnings.some((warning) => warning.includes("scriptTransform.enabled")));
-    assert.ok(report.configWarnings.some((warning) => warning.includes("scriptTransform.sandbox")));
-    assert.ok(report.configWarnings.some((warning) => warning.includes("scriptTransform.languages")));
-    assert.ok(report.configWarnings.some((warning) => warning.includes("scriptTransform.network")));
-    assert.ok(report.configWarnings.some((warning) => warning.includes("observedRouting.enabled")));
-    assert.ok(report.configWarnings.some((warning) => warning.includes("observedRouting.mcp.servers.github.persistence") && warning.includes("redacted")));
-    assert.ok(report.configWarnings.some((warning) => warning.includes("observedRouting.web.persistence")));
+    assert.ok(report.configWarnings.some((warning) => warning.includes("outputRouter.scriptTransform.enabled")));
+    assert.ok(report.configWarnings.some((warning) => warning.includes("outputRouter.scriptTransform.sandbox")));
+    assert.ok(report.configWarnings.some((warning) => warning.includes("outputRouter.scriptTransform.languages")));
+    assert.ok(report.configWarnings.some((warning) => warning.includes("outputRouter.scriptTransform.network")));
+    assert.ok(report.configWarnings.some((warning) => warning.includes("outputRouter.observedRouting.enabled")));
+    assert.ok(report.configWarnings.some((warning) => warning.includes("outputRouter.observedRouting.mcp.servers.github.persistence") && warning.includes("redacted")));
+    assert.ok(report.configWarnings.some((warning) => warning.includes("outputRouter.observedRouting.web.persistence")));
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -505,7 +741,7 @@ test("Pi output-router context mentions native safety net only when config enabl
       join(cwd, ".freeflow/config.json"),
       JSON.stringify({
         defaultMode: "workflow",
-        outputRouter: { postToolRouting: "safety-net" },
+        outputRouter: { enabled: true, postToolRouting: "safety-net" },
       }),
       "utf8",
     );
@@ -534,7 +770,7 @@ test("Pi freeflow_search renders compact and expanded routed evidence UI", () =>
     searchTool.renderCall(
       {
         action: "query",
-        source: { kind: "repo", path: "docs/codex-cli-agent-harness/2026-06-12-pass-3-sandboxing-and-permissions.md" },
+        source: { kind: "repo", path: "docs/codex-cli-agent-harness/passes/2026-06-12-pass-3-sandboxing-and-permissions.md" },
         query: "SandboxPermissions Plain-language meaning",
       },
       testTheme,
@@ -722,6 +958,8 @@ test("Pi freeflow_run renders compact and expanded status, evidence, and vault U
 test("Pi freeflow_run returns compact model-visible text with full structured details", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-run-compact-text-"));
   try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow", outputRouter: { enabled: true } }), "utf8");
     const tools = [];
     const pi = {
       registerTool(tool) {
@@ -778,6 +1016,8 @@ test("Pi freeflow_run returns compact model-visible text with full structured de
 test("Pi freeflow_run forwards script producer and does not call host exec when sandbox is disabled", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-run-script-producer-"));
   try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow", outputRouter: { enabled: true } }), "utf8");
     let execCalls = 0;
     const tools = [];
     const pi = {
@@ -824,7 +1064,7 @@ test("Pi freeflow_batch returns compact summary and preserves child details", as
     await mkdir(join(cwd, ".freeflow"));
     await writeFile(
       join(cwd, ".freeflow/config.json"),
-      JSON.stringify({ defaultMode: "workflow", outputRouter: { vaultRoot: join(cwd, "vault") } }),
+      JSON.stringify({ defaultMode: "workflow", outputRouter: { enabled: true, vaultRoot: join(cwd, "vault") } }),
       "utf8",
     );
 
@@ -906,7 +1146,7 @@ test("Pi freeflow_batch accepts queries and renders compact answers", async () =
     await mkdir(join(cwd, ".freeflow"));
     await writeFile(
       join(cwd, ".freeflow/config.json"),
-      JSON.stringify({ defaultMode: "workflow", outputRouter: { vaultRoot: join(cwd, "vault") } }),
+      JSON.stringify({ defaultMode: "workflow", outputRouter: { enabled: true, vaultRoot: join(cwd, "vault") } }),
       "utf8",
     );
 
@@ -970,6 +1210,7 @@ test("Pi freeflow_run uses outputRouter thresholds and vault root from repo conf
       JSON.stringify({
         defaultMode: "workflow",
         outputRouter: {
+          enabled: true,
           largeOutputLines: 1,
           largeOutputBytes: 10_000,
           vaultRoot: join(cwd, "vault"),
@@ -1026,7 +1267,7 @@ test("Pi freeflow_search applies configured generated path hints", async () => {
       join(cwd, ".freeflow/config.json"),
       JSON.stringify({
         defaultMode: "workflow",
-        outputRouter: { generatedPaths: ["custom-generated/**"] },
+        outputRouter: { enabled: true, generatedPaths: ["custom-generated/**"] },
       }),
       "utf8",
     );
@@ -1085,7 +1326,7 @@ test("Pi freeflow_search supports vault-wide query without outputId", async () =
     const vaultRoot = join(cwd, "vault");
     await writeFile(
       join(cwd, ".freeflow/config.json"),
-      JSON.stringify({ defaultMode: "workflow", outputRouter: { vaultRoot } }),
+      JSON.stringify({ defaultMode: "workflow", outputRouter: { enabled: true, vaultRoot } }),
       "utf8",
     );
 
@@ -1163,10 +1404,13 @@ test("Pi observed routing vaults and labels configured MCP output before native 
       join(cwd, ".freeflow/config.json"),
       JSON.stringify({
         defaultMode: "workflow",
-        outputRouter: { vaultRoot: join(cwd, "vault") },
-        observedRouting: {
+        outputRouter: {
           enabled: true,
-          mcp: { servers: { github: { enabled: true, persistence: "exact" } } },
+          vaultRoot: join(cwd, "vault"),
+          observedRouting: {
+            enabled: true,
+            mcp: { servers: { github: { enabled: true, persistence: "exact" } } },
+          },
         },
       }),
       "utf8",
@@ -1220,9 +1464,12 @@ test("Pi observed routing leaves disabled MCP producer result unchanged", async 
       join(cwd, ".freeflow/config.json"),
       JSON.stringify({
         defaultMode: "workflow",
-        observedRouting: {
+        outputRouter: {
           enabled: true,
-          mcp: { servers: { github: { enabled: false } } },
+          observedRouting: {
+            enabled: true,
+            mcp: { servers: { github: { enabled: false } } },
+          },
         },
       }),
       "utf8",
@@ -1258,10 +1505,13 @@ test("Pi observed routing fails open without losing MCP output", async () => {
       join(cwd, ".freeflow/config.json"),
       JSON.stringify({
         defaultMode: "workflow",
-        outputRouter: { vaultRoot: fileVault },
-        observedRouting: {
+        outputRouter: {
           enabled: true,
-          mcp: { servers: { github: { enabled: true, persistence: "exact" } } },
+          vaultRoot: fileVault,
+          observedRouting: {
+            enabled: true,
+            mcp: { servers: { github: { enabled: true, persistence: "exact" } } },
+          },
         },
       }),
       "utf8",
@@ -1321,6 +1571,7 @@ test("Pi post-tool safety net vaults and labels large native bash output when en
       JSON.stringify({
         defaultMode: "workflow",
         outputRouter: {
+          enabled: true,
           postToolRouting: "safety-net",
           largeOutputLines: 3,
           largeOutputBytes: 100_000,
@@ -1383,6 +1634,7 @@ test("Pi post-tool safety net notes exact duplicate native output", async () => 
       JSON.stringify({
         defaultMode: "workflow",
         outputRouter: {
+          enabled: true,
           postToolRouting: "safety-net",
           largeOutputLines: 3,
           largeOutputBytes: 100_000,
@@ -1440,6 +1692,7 @@ test("Pi post-tool safety net leaves small native output alone when enabled", as
       JSON.stringify({
         defaultMode: "workflow",
         outputRouter: {
+          enabled: true,
           postToolRouting: "safety-net",
           largeOutputLines: 100,
           largeOutputBytes: 10_000,
@@ -1479,6 +1732,7 @@ test("Pi post-tool safety net fails open without losing native output", async ()
       JSON.stringify({
         defaultMode: "workflow",
         outputRouter: {
+          enabled: true,
           postToolRouting: "safety-net",
           largeOutputLines: 1,
           largeOutputBytes: 1,
@@ -1512,15 +1766,19 @@ test("Pi post-tool safety net fails open without losing native output", async ()
 });
 
 test("Pi already-activated core context still receives runtime context", async () => {
-  const { handlers } = loadExtension();
-  const beforeAgentStart = handlers.get("before_agent_start");
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-already-core-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow", outputRouter: { enabled: true } }), "utf8");
+    const { handlers } = loadExtension();
+    const beforeAgentStart = handlers.get("before_agent_start");
 
-  const existingPrompt = [
-    "## Loaded Mode Contract Skill",
-    "## Loaded Workflow Skill",
-    "## Loaded Interview Gate Skill",
-  ].join("\n");
-  const result = await beforeAgentStart({ systemPrompt: existingPrompt }, context());
+    const existingPrompt = [
+      "## Loaded Mode Contract Skill",
+      "## Loaded Workflow Skill",
+      "## Loaded Interview Gate Skill",
+    ].join("\n");
+    const result = await beforeAgentStart({ systemPrompt: existingPrompt }, context(cwd));
 
   assert.match(result.systemPrompt, /## Loaded Mode Contract Skill/);
   assert.match(result.systemPrompt, /## Loaded Workflow Skill/);
@@ -1533,20 +1791,27 @@ test("Pi already-activated core context still receives runtime context", async (
   assert.match(result.systemPrompt, /freeflow_search action=transform/);
   assert.doesNotMatch(result.systemPrompt, /## Freeflow Output Router Reminder/);
   assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Safety Policy/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
 });
 
 test("Pi already-activated full context is refreshed with runtime context", async () => {
-  const { handlers } = loadExtension();
-  const beforeAgentStart = handlers.get("before_agent_start");
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-already-full-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow", outputRouter: { enabled: true } }), "utf8");
+    const { handlers } = loadExtension();
+    const beforeAgentStart = handlers.get("before_agent_start");
 
-  const existingPrompt = [
-    "## Loaded Mode Contract Skill",
-    "## Loaded Workflow Skill",
-    "## Loaded Interview Gate Skill",
-    "## Discovery-light",
-    "## Loaded Output Router Skill",
-  ].join("\n");
-  const result = await beforeAgentStart({ systemPrompt: existingPrompt }, context());
+    const existingPrompt = [
+      "## Loaded Mode Contract Skill",
+      "## Loaded Workflow Skill",
+      "## Loaded Interview Gate Skill",
+      "## Discovery-light",
+      "## Loaded Output Router Skill",
+    ].join("\n");
+    const result = await beforeAgentStart({ systemPrompt: existingPrompt }, context(cwd));
 
   assert.match(result.systemPrompt, /## Loaded Mode Contract Skill/);
   assert.match(result.systemPrompt, /## Loaded Workflow Skill/);
@@ -1558,4 +1823,7 @@ test("Pi already-activated full context is refreshed with runtime context", asyn
   assert.doesNotMatch(result.systemPrompt, /## Freeflow Output Router Reminder/);
   assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Safety Policy/);
   assert.doesNotMatch(result.systemPrompt, /Capture raw evidence before transformation/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
 });

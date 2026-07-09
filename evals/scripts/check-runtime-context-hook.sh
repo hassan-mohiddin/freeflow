@@ -54,12 +54,15 @@ require_contains "Claude SessionStart output" "$claude_session_output" "Loaded M
 require_contains "Claude SessionStart output" "$claude_session_output" "Loaded Workflow Skill"
 require_contains "Claude SessionStart output" "$claude_session_output" "Loaded Interview Gate Skill"
 require_contains "Claude SessionStart output" "$claude_session_output" "Discovery-light"
-require_contains "Claude SessionStart output" "$claude_session_output" "Loaded Output Router Skill"
+require_contains "Claude SessionStart output" "$claude_session_output" "Output router: disabled"
+if [[ "$claude_session_output" == *"Loaded Output Router Skill" ]]; then
+  fail "Claude SessionStart output should not load output-router context while the capability is disabled."
+fi
 require_contains "Claude SessionStart output" "$claude_session_output" "Use exactly three modes."
 require_contains "Claude SessionStart output" "$claude_session_output" "Question means answer. Do not turn a question into a file edit"
 require_contains "Claude SessionStart output" "$claude_session_output" "Stop before silent decisions."
 require_contains "Claude SessionStart output" "$claude_session_output" "ask only path-changing questions"
-require_contains "Claude SessionStart output" "$claude_session_output" "Output Router chooses evidence transport after the workflow/interview/discovery route is clear."
+require_contains "Claude SessionStart output" "$claude_session_output" "Enabled Freeflow capabilities add their own runtime guidance below."
 
 codex_session_output="$(
   printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s","model":"gpt-test"}' "$workspace" |
@@ -73,7 +76,10 @@ require_contains "Codex SessionStart output" "$codex_session_output" "Loaded Mod
 require_contains "Codex SessionStart output" "$codex_session_output" "Loaded Workflow Skill"
 require_contains "Codex SessionStart output" "$codex_session_output" "Loaded Interview Gate Skill"
 require_contains "Codex SessionStart output" "$codex_session_output" "Discovery-light"
-require_contains "Codex SessionStart output" "$codex_session_output" "Loaded Output Router Skill"
+require_contains "Codex SessionStart output" "$codex_session_output" "Output router: disabled"
+if [[ "$codex_session_output" == *"Loaded Output Router Skill" ]]; then
+  fail "Codex SessionStart output should not load output-router context while the capability is disabled."
+fi
 if [[ "$codex_session_output" == *"hookSpecificOutput"* ]]; then
   fail "Codex SessionStart output should be plain context, not Claude hook JSON."
 fi
@@ -110,9 +116,9 @@ cat >"$workspace/.freeflow/config.json" <<'JSON'
 {
   "defaultMode": "workflow",
   "outputRouter": {
-    "postToolRouting": "off",
-    "largeOutputLines": 2000,
-    "generatedPaths": ["graphify-out/**", "dist/**"]
+    "enabled": true,
+    "thresholds": { "largeOutputLines": 2000 },
+    "hints": { "generatedPathGlobs": ["graphify-out/**", "dist/**"] }
   }
 }
 JSON
@@ -124,6 +130,8 @@ router_configured_output="$(
 
 require_contains "Output-router configured SessionStart output" "$router_configured_output" "Setup status: configured for Codex AGENTS.md with defaultMode \`workflow\`."
 require_contains "Output-router configured SessionStart output" "$router_configured_output" "Current Freeflow default mode: \`workflow\`."
+require_contains "Output-router configured SessionStart output" "$router_configured_output" "Output router: enabled"
+require_contains "Output-router configured SessionStart output" "$router_configured_output" "Loaded Output Router Skill"
 if [[ "$router_configured_output" == *"partial setup"* || "$router_configured_output" == *"invalid \`.freeflow/config.json\`"* ]]; then
   fail "Output-router config should not make setup partial or invalid."
 fi
@@ -131,16 +139,19 @@ fi
 cat >"$workspace/.freeflow/config.json" <<'JSON'
 {
   "defaultMode": "workflow",
-  "observedRouting": {
+  "outputRouter": {
     "enabled": true,
-    "mcp": {
-      "servers": {
-        "github": { "enabled": true, "persistence": "metadata-only" }
+    "observedRouting": {
+      "enabled": true,
+      "mcp": {
+        "servers": {
+          "github": { "enabled": true, "persistence": "metadata-only" }
+        }
       }
+    },
+    "scriptTransform": {
+      "enabled": false
     }
-  },
-  "scriptTransform": {
-    "enabled": false
   }
 }
 JSON
@@ -154,6 +165,21 @@ require_contains "Observed-routing configured SessionStart output" "$observed_ro
 if [[ "$observed_routing_configured_output" == *"partial setup"* || "$observed_routing_configured_output" == *"invalid \`.freeflow/config.json\`"* ]]; then
   fail "observedRouting/scriptTransform config should not make setup partial or invalid."
 fi
+
+cat >"$workspace/.freeflow/config.json" <<'JSON'
+{
+  "defaultMode": "workflow",
+  "delegationHarness": { "enabled": true }
+}
+JSON
+
+delegation_configured_output="$(
+  printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s","model":"gpt-test"}' "$workspace" |
+    PLUGIN_ROOT="$plugin_root" CLAUDE_PLUGIN_ROOT="$plugin_root" node "$hook_script" SessionStart
+)"
+
+require_contains "Delegation configured SessionStart output" "$delegation_configured_output" "Delegation harness: enabled"
+require_contains "Delegation configured SessionStart output" "$delegation_configured_output" "Loaded Delegation Harness Skill"
 
 cat >"$workspace/.freeflow/config.json" <<'JSON'
 {
@@ -180,4 +206,4 @@ if [ "$failures" -gt 0 ]; then
   exit 1
 fi
 
-printf 'Runtime context hook check passed: hook config parses, startup injects mode-contract, workflow, interview-gate, discovery-light, and output-router context, disable env suppresses output, and PostToolUse stays disabled.\n'
+printf 'Runtime context hook check passed: hook config parses, startup injects mode-contract, workflow, interview-gate, discovery-light, enabled capability context, disable env suppresses output, and PostToolUse stays disabled.\n'

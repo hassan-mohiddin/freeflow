@@ -62,10 +62,18 @@
     {
       "command": "/bypass",
       "skill": "bypass"
-    },
+    }
+  ],
+  "piNativeCommands": [
     {
       "command": "/output-router",
-      "skill": "output-router"
+      "handler": "output-router",
+      "kind": "settings"
+    },
+    {
+      "command": "/delegation-harness",
+      "handler": "delegation-harness",
+      "kind": "settings"
     }
   ],
   "developerSkillCalls": [

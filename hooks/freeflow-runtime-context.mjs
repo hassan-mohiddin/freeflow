@@ -46,19 +46,32 @@ function findWorkspaceRoot(cwd) {
   }
 }
 
-function loadRuntimeContext() {
+function loadRuntimeContext(options = {}) {
+  const includeOutputRouter = options.outputRouter === true;
+  const includeDelegationHarness = options.delegationHarness === true;
   const modeContractSkill = readText(path.join(PLUGIN_ROOT, "skills", "mode-contract", "SKILL.md"));
   const workflowSkill = readText(path.join(PLUGIN_ROOT, "skills", "workflow", "SKILL.md"));
   const interviewGateSkill = readText(
     path.join(PLUGIN_ROOT, "skills", "interview-gate", "SKILL.md")
   );
-  const outputRouterSkill = readText(path.join(PLUGIN_ROOT, "skills", "output-router", "SKILL.md"));
+  const outputRouterSkill = includeOutputRouter
+    ? readText(path.join(PLUGIN_ROOT, "skills", "output-router", "SKILL.md"))
+    : null;
+  const delegationHarnessSkill = includeDelegationHarness
+    ? readText(path.join(PLUGIN_ROOT, "skills", "delegation-harness", "SKILL.md"))
+    : null;
 
-  if (!modeContractSkill || !workflowSkill || !interviewGateSkill || !outputRouterSkill) {
+  if (
+    !modeContractSkill ||
+    !workflowSkill ||
+    !interviewGateSkill ||
+    (includeOutputRouter && !outputRouterSkill) ||
+    (includeDelegationHarness && !delegationHarnessSkill)
+  ) {
     throw new Error("Freeflow runtime context files are missing.");
   }
 
-  return { modeContractSkill, workflowSkill, interviewGateSkill, outputRouterSkill };
+  return { modeContractSkill, workflowSkill, interviewGateSkill, outputRouterSkill, delegationHarnessSkill };
 }
 
 function readConfig(root) {
@@ -71,7 +84,13 @@ function readConfig(root) {
   try {
     const parsed = JSON.parse(body);
     const valid = isValidSetupConfig(parsed);
-    return { exists: true, valid, defaultMode: parsed?.defaultMode ?? null };
+    return {
+      exists: true,
+      valid,
+      defaultMode: parsed?.defaultMode ?? null,
+      outputRouterEnabled: valid && parsed?.outputRouter?.enabled === true,
+      delegationHarnessEnabled: valid && parsed?.delegationHarness?.enabled === true,
+    };
   } catch {
     return { exists: true, valid: false, defaultMode: null };
   }
@@ -82,7 +101,7 @@ function isValidSetupConfig(value) {
     return false;
   }
 
-  const allowedKeys = new Set(["defaultMode", "outputRouter", "observedRouting", "scriptTransform"]);
+  const allowedKeys = new Set(["defaultMode", "outputRouter", "delegationHarness", "observedRouting", "scriptTransform"]);
   if (!Object.keys(value).every((key) => allowedKeys.has(key))) {
     return false;
   }
@@ -105,6 +124,12 @@ function isValidSetupConfig(value) {
 
   if (Object.prototype.hasOwnProperty.call(value, "scriptTransform")) {
     if (!Boolean(value.scriptTransform) || typeof value.scriptTransform !== "object" || Array.isArray(value.scriptTransform)) {
+      return false;
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(value, "delegationHarness")) {
+    if (!Boolean(value.delegationHarness) || typeof value.delegationHarness !== "object" || Array.isArray(value.delegationHarness)) {
       return false;
     }
   }
@@ -206,9 +231,42 @@ function discoveryLightContext() {
   ];
 }
 
+function capabilityStatus(config) {
+  return [
+    "## Freeflow Capabilities",
+    "",
+    `- Output router: ${config.outputRouterEnabled ? "enabled" : "disabled"}.`,
+    `- Delegation harness: ${config.delegationHarnessEnabled ? "enabled" : "disabled"}.`,
+    "",
+    "Capability-specific instructions are active only while that capability is enabled."
+  ];
+}
+
 function buildContext(input) {
   const root = findWorkspaceRoot(input.cwd || process.cwd());
-  const { modeContractSkill, workflowSkill, interviewGateSkill, outputRouterSkill } = loadRuntimeContext();
+  const setup = inspectSetup(root);
+  const { modeContractSkill, workflowSkill, interviewGateSkill, outputRouterSkill, delegationHarnessSkill } = loadRuntimeContext({
+    outputRouter: setup.config.outputRouterEnabled,
+    delegationHarness: setup.config.delegationHarnessEnabled,
+  });
+  const outputRouterSection = setup.config.outputRouterEnabled
+    ? [
+        "",
+        "## Loaded Output Router Skill",
+        "```md",
+        outputRouterSkill.trim(),
+        "```"
+      ]
+    : [];
+  const delegationHarnessSection = setup.config.delegationHarnessEnabled
+    ? [
+        "",
+        "## Loaded Delegation Harness Skill",
+        "```md",
+        delegationHarnessSkill.trim(),
+        "```"
+      ]
+    : [];
 
   return [
     "# Freeflow Runtime Context",
@@ -227,8 +285,9 @@ function buildContext(input) {
     "1. Workflow classifies conversation versus consequential work.",
     "2. Interview Gate stops silent decisions, user-owned decisions, source-truth conflicts, and question-to-action mistakes.",
     "3. Discovery-light handles context-building after no immediate stop condition remains. Use it before first repo/code exploration or design answers for consequential product/API/tool/runtime hypotheses.",
-    "4. Output Router chooses evidence transport after the workflow/interview/discovery route is clear.",
+    "4. Enabled Freeflow capabilities add their own runtime guidance below.",
     "",
+    ...capabilityStatus(setup.config),
     "## Loaded Mode Contract Skill",
     "```md",
     modeContractSkill.trim(),
@@ -245,11 +304,8 @@ function buildContext(input) {
     "```",
     "",
     ...discoveryLightContext(),
-    "",
-    "## Loaded Output Router Skill",
-    "```md",
-    outputRouterSkill.trim(),
-    "```"
+    ...outputRouterSection,
+    ...delegationHarnessSection
   ].join("\n");
 }
 

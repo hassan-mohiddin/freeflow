@@ -11,7 +11,6 @@ import {
   renderFreeflowStatusResult,
 } from "./renderers.js";
 import { readOutputRouterConfig, notifyRouterConfigWarnings } from "./runtime-context.js";
-import { executeDelegationOperation } from "./delegation/tools.js";
 import { FREEFLOW_BATCH_PARAMETERS, FREEFLOW_RUN_PARAMETERS, FREEFLOW_SEARCH_PARAMETERS, FREEFLOW_STATUS_PARAMETERS } from "./schemas.js";
 import { compactBatchToolText, compactRunToolText, compactSearchToolText, getRouterSessionId, routedToolText } from "./utils.js";
 
@@ -289,14 +288,6 @@ async function normalizeBatchParams(params, ctx, routerConfigResult) {
       });
       continue;
     }
-    if (["delegate_status", "delegate_inbox", "delegate_result", "delegate_capture", "delegate_close", "delegate_ack_alert"].includes(step.kind)) {
-      steps.push({
-        id: step.id,
-        kind: step.kind,
-        input,
-      });
-      continue;
-    }
     throw new Error(`Unsupported freeflow_batch step kind: ${step.kind}`);
   }
   return {
@@ -324,6 +315,23 @@ function batchNeedsScriptAdapters(params) {
     }
     return false;
   });
+}
+
+function disabledByConfigToolResult(toolName) {
+  return {
+    content: [{
+      type: "text",
+      text: `${toolName}|disabled_by_config\ncapability|output-router\nroute|configure with /output-router settings`,
+    }],
+    details: {
+      result: {
+        toolStatus: "disabled_by_config",
+        toolName,
+        capability: "output-router",
+        route: "/output-router settings",
+      },
+    },
+  };
 }
 
 function createPiCommandRunner(pi, signal) {
@@ -393,6 +401,9 @@ export function registerRouterTools(pi) {
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const routerConfigResult = await readOutputRouterConfig(ctx.cwd);
       notifyRouterConfigWarnings(ctx, routerConfigResult);
+      if (!routerConfigResult.config.enabled) {
+        return disabledByConfigToolResult("freeflow_search");
+      }
       const result = await executeSearch(params, ctx, routerConfigResult);
       return {
         content: [{ type: "text", text: compactSearchToolText(result) }],
@@ -422,6 +433,9 @@ export function registerRouterTools(pi) {
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const routerConfigResult = await readOutputRouterConfig(ctx.cwd);
       notifyRouterConfigWarnings(ctx, routerConfigResult);
+      if (!routerConfigResult.config.enabled) {
+        return disabledByConfigToolResult("freeflow_run");
+      }
       const runner = createPiCommandRunner(pi, signal);
       const scriptSandboxAdapters = params.script || params.scriptFilter
         ? [
@@ -474,12 +488,11 @@ export function registerRouterTools(pi) {
     name: "freeflow_batch",
     label: "Freeflow Batch",
     description:
-      "Run independent Freeflow-owned operations in parallel and return one compact summary while preserving full child results in details.result.steps.",
+      "Run independent Freeflow-owned run/search operations in parallel and return one compact summary while preserving full child results in details.result.steps.",
     promptSnippet: "Batch independent Freeflow run/search operations with compact model-visible output.",
     promptGuidelines: [
-      "Use freeflow_batch when several independent Freeflow-owned run/search/delegation operations can run in parallel.",
+      "Use freeflow_batch when several independent Freeflow run/search operations can run in parallel.",
       "Use queries[] when the batch should answer deterministic fact requests from completed child evidence handles.",
-      "Delegation batch steps are safety-contract gated; mutating steps such as close/ack require confirmMutation=true.",
       "Do not use freeflow_batch for sequenced workflows, arbitrary external tool orchestration, or unsafe parallel writer behavior.",
       "Intermediate child outputs are suppressed unless needed for query answers; inspect details.result.steps or child recovery ids when needed.",
     ],
@@ -487,6 +500,9 @@ export function registerRouterTools(pi) {
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       const routerConfigResult = await readOutputRouterConfig(ctx.cwd);
       notifyRouterConfigWarnings(ctx, routerConfigResult);
+      if (!routerConfigResult.config.enabled) {
+        return disabledByConfigToolResult("freeflow_batch");
+      }
       const normalized = await normalizeBatchParams(params, ctx, routerConfigResult);
       const runner = createPiCommandRunner(pi, signal);
       const scriptSandboxAdapters = batchNeedsScriptAdapters(params)
@@ -506,7 +522,6 @@ export function registerRouterTools(pi) {
           storagePolicy: routerConfigResult.config.storagePolicy,
           scriptTransform: routerConfigResult.freeflowConfig.scriptTransform,
           scriptSandboxAdapters,
-          delegationExecutor: async (step) => executeDelegationOperation(pi, step.kind, step.input, signal, ctx),
         },
         {
           async run(request) {

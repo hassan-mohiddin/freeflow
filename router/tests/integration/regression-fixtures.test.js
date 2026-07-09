@@ -886,6 +886,7 @@ test("regression fixture: Pi safety net labels native output and recovers exact 
       JSON.stringify({
         defaultMode: "workflow",
         outputRouter: {
+          enabled: true,
           postToolRouting: "safety-net",
           largeOutputLines: 10,
           largeOutputBytes: 100_000,

@@ -25,7 +25,7 @@ The turn that receives a non-passing review ends with adjudication and route onl
 
 Hard stop: if the work has already had three review passes, do not edit any files or request another review. Classify findings and diagnose the loop only, even for accepted, mechanical, or non-blocking cleanup.
 
-Read `references/reviewer-prompt.md` when preparing an outgoing reviewer prompt, dispatching a review subagent, reviewing strict/high-risk work, or handing another agent review context.
+Read `references/reviewer-prompt.md` when preparing an outgoing reviewer prompt, dispatching a separate-agent review, reviewing strict/high-risk work, or handing another agent review context.
 
 ## Review Loop Budget
 
@@ -98,10 +98,10 @@ Classify findings:
 
 Review can pass. Do not invent issues to justify the review.
 
-When a fresh reviewer or review subagent is warranted, route separate-agent selection through `../delegation-harness/SKILL.md` instead of choosing a host-native subagent directly.
+When a fresh reviewer or separate-agent review is warranted, use the active delegation mechanism for this environment. If none is enabled or appropriate, review inline and report the limitation.
 
 When asking another agent to review, give it source truth, changed files, risk lenses, and pass/fail criteria. Do not hand it only the previous agent's summary or your chat history.
 
-For timeout-capable review subagents, set timeouts above 10 minutes; default to 15 minutes (`timeoutMs: 900000`). If a review times out, do not reduce review depth to dodge the timeout. Increase the timeout or ask before narrowing scope.
+For timeout-capable reviewers, set timeouts above 10 minutes; default to 15 minutes. If a review times out, do not reduce review depth to dodge the timeout. Increase the timeout or ask before narrowing scope.
 
 For second and later review iterations, update the prompt with prior findings, owner clarifications, accepted/rejected findings, changed files, and remaining risk. Do not rerun the same broad prompt after the situation narrows.

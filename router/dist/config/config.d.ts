@@ -2,7 +2,7 @@ import type { FreeflowConfig, ObservedRoutingConfig, LocalFreeflowConfig, Router
 export declare const OUTPUT_ROUTER_SKILL_PATH = "skills/output-router/SKILL.md";
 export declare const DEFAULT_VAULT_ROOT = "~/.cache/freeflow-router/vault";
 export declare const DEFAULT_POST_TOOL_ROUTING = "off";
-export declare const DEFAULT_OUTPUT_ROUTER_ENABLED = true;
+export declare const DEFAULT_OUTPUT_ROUTER_ENABLED = false;
 export declare const DEFAULT_OUTPUT_ROUTER_PROFILE = "standard";
 export declare const DEFAULT_STORAGE_POLICY: "hybrid-dedupe";
 export declare const DEFAULT_VAULT_RETENTION: {

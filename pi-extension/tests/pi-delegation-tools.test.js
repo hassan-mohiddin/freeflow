@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import freeflow from "../../../pi-extension/dist/index.js";
-import { createDelegationStore, parseModelText } from "../../../delegation/dist/index.js";
+import freeflow from "../dist/index.js";
+import { createDelegationStore, parseModelText } from "../../delegation/dist/index.js";
 
 const DELEGATION_TOOLS = [
   "delegate_task_init",
@@ -75,6 +75,9 @@ function loadExtension(execHandler = undefined, options = {}) {
   };
   if (options.activeTools !== false) {
     pi.setActiveTools = (names) => activeToolCalls.push([...names]);
+  }
+  if (options.delegationEnv !== false) {
+    process.env.FREEFLOW_DELEGATION_HARNESS_ENABLED = "1";
   }
   freeflow(pi);
   return { tools, handlers, calls, activeToolCalls };
@@ -147,6 +150,32 @@ test("Pi registers delegation tools alongside router tools", () => {
     assert.ok(tools.has(name), `${name} should be registered`);
   }
   assert.ok(tools.has("freeflow_search"));
+});
+
+test("delegation tool direct execute is disabled by config before side effects", async () => {
+  await withTempRepo(async (repoRoot) => {
+    await withProcessEnv({ FREEFLOW_DELEGATION_HARNESS_ENABLED: undefined }, async () => {
+      const { tools } = loadExtension(() => {
+        throw new Error("no command should run while delegation is disabled");
+      }, { delegationEnv: false });
+      const init = tools.get("delegate_task_init");
+      const spawn = tools.get("delegate_spawn");
+
+      const initResult = await init.execute("init-disabled", { taskId: "TASK-DISABLED" }, undefined, undefined, ctx(repoRoot));
+      const spawnResult = await spawn.execute("spawn-disabled", {
+        taskId: "TASK-DISABLED",
+        agentId: "worker-1",
+        role: "worker",
+        cwd: repoRoot,
+        objective: "Should not spawn.",
+      }, undefined, undefined, ctx(repoRoot));
+
+      assert.equal(initResult.details.result.toolStatus, "disabled_by_config");
+      assert.equal(spawnResult.details.result.toolStatus, "disabled_by_config");
+      assert.match(initResult.content[0].text, /delegate_task_init\|disabled_by_config\|disabled_by_config/);
+      await assert.rejects(readFile(join(repoRoot, ".freeflow/delegation/tasks/TASK-DISABLED/task.json"), "utf8"));
+    });
+  });
 });
 
 test("delegate_spawn unavailable preflight returns typed result without pane or child startup", async () => {
@@ -775,7 +804,7 @@ test("delegate_record_report stores parsed reports and malformed report evidence
       "EXECUTION_REPORT",
       "STATUS|completed_with_risks",
       "SUMMARY|P4 complete with deferred live smoke.",
-      "SOURCE_REFERENCES|docs/specs/freeflow-pi-pane-delegation-harness-spec.md",
+      "SOURCE_REFERENCES|docs/specs/delegation-harness/freeflow-pi-pane-delegation-harness-spec.md",
       "WORK_PACKAGES|P4",
       "COMMITS|none",
       "REVIEWS|not run",

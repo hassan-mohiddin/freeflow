@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import freeflow from "../../../pi-extension/dist/index.js";
-import { createDelegationStore } from "../../../delegation/dist/index.js";
+import freeflow from "../dist/index.js";
+import { createDelegationStore } from "../../delegation/dist/index.js";
 
 const DELEGATION_ENV_KEYS = [
   "FREEFLOW_DELEGATION_STORE",
@@ -58,6 +58,11 @@ function loadExtension(options = {}) {
     };
   }
 
+  if (options.delegationHarness === false) {
+    delete process.env.FREEFLOW_DELEGATION_HARNESS_ENABLED;
+  } else {
+    process.env.FREEFLOW_DELEGATION_HARNESS_ENABLED = "1";
+  }
   freeflow(pi);
   return { handlers, tools, commands, activeToolCalls };
 }
@@ -122,6 +127,7 @@ async function withTempRepo(fn) {
 }
 
 async function createWorkerStore(repoRoot, overrides = {}) {
+  await writeFile(join(repoRoot, ".freeflow", "config.json"), JSON.stringify({ defaultMode: "workflow", outputRouter: { enabled: true } }), "utf8");
   const store = createDelegationStore({ root: join(repoRoot, ".freeflow", "delegation"), now: () => "2026-07-03T00:00:00.000Z" });
   await store.registerAgent({
     taskId: "TASK-P2",
@@ -161,7 +167,7 @@ async function readJsonLines(path) {
 
 test("delegation runtime leaves normal non-delegated sessions unchanged", async () => {
   await withDelegationEnv({}, async () => {
-    const { handlers, activeToolCalls } = loadExtension();
+    const { handlers, activeToolCalls } = loadExtension({ delegationHarness: false });
     const beforeAgentStart = handlers.get("before_agent_start");
     assert.ok(beforeAgentStart);
 
@@ -169,7 +175,8 @@ test("delegation runtime leaves normal non-delegated sessions unchanged", async 
 
     assert.match(result.systemPrompt, /# Freeflow Runtime Context/);
     assert.doesNotMatch(result.systemPrompt, /# Freeflow Delegated Runtime Context/);
-    assert.equal(activeToolCalls.length, 0);
+    assert.equal(activeToolCalls.length, 1);
+    assert.ok(!activeToolCalls.at(-1).includes("delegate_spawn"));
     assert.equal(await handlers.get("tool_call")({ toolName: "edit", input: { path: "src/a.ts" } }, context()), undefined);
   });
 });

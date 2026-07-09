@@ -1,27 +1,30 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { normalizeFreeflowConfig } from "../../dist/index.js";
+import { normalizeFreeflowConfig } from "../../router/dist/index.js";
 import {
   classifyObservedProducerRisk,
   resolvePiObservedRoutingDecision,
-} from "../../../pi-extension/dist/host-producer-identification.js";
+} from "../dist/host-producer-identification.js";
 
 function observedConfig(overrides = {}) {
   return normalizeFreeflowConfig({
-    observedRouting: {
+    outputRouter: {
       enabled: true,
-      mcp: {
-        servers: {
-          github: { enabled: true, persistence: "exact" },
-          gmail: { enabled: true, persistence: "metadata-only" },
-          disabled: { enabled: false },
+      observedRouting: {
+        enabled: true,
+        mcp: {
+          servers: {
+            github: { enabled: true, persistence: "exact" },
+            gmail: { enabled: true, persistence: "metadata-only" },
+            disabled: { enabled: false },
+          },
         },
+        web: { enabled: true, persistence: "exact" },
+        fetch: { enabled: true, persistence: "exact" },
+        codeSearch: { enabled: true, persistence: "exact" },
+        ...overrides,
       },
-      web: { enabled: true, persistence: "exact" },
-      fetch: { enabled: true, persistence: "exact" },
-      codeSearch: { enabled: true, persistence: "exact" },
-      ...overrides,
     },
   }).config.observedRouting;
 }

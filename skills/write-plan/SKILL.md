@@ -56,7 +56,7 @@ When slice boundaries, seams, interfaces, state machines, tool protocols, role o
 
 For consequential systems, plan the failure contract before the happy path: what can fail, who observes it, what state is written, fail-open/closed/degrade/escalate/retry behavior, what must not happen, recovery path, and proof.
 
-For delegated execution, use `../delegation-harness/SKILL.md` for subagent routing and include work packages, dependencies, expected write sets, parallel/sequential classification, checks, review/verification checkpoints, commit checkpoints, integration order, and stop conditions.
+For separate-agent execution, include work packages, dependencies, expected write sets, parallel/sequential classification, checks, review/verification checkpoints, commit checkpoints, integration order, and stop conditions.
 
 ## Stop Conditions
 

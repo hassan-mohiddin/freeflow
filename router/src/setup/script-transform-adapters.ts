@@ -144,16 +144,26 @@ async function probeInstalledAdapters(languages: readonly ScriptTransformAdapter
   });
 }
 
-async function enableScriptTransformConfig(configPath: string, languages: readonly ScriptTransformLanguage[]): Promise<void> {
+export async function enableScriptTransformConfig(configPath: string, languages: readonly ScriptTransformLanguage[]): Promise<void> {
   await mkdir(dirname(configPath), { recursive: true });
   const parsed = await readJsonObject(configPath);
   if (parsed.defaultMode === undefined) {
     parsed.defaultMode = "workflow";
   }
-  parsed.scriptTransform = {
+  const outputRouter = isRecord(parsed.outputRouter) ? { ...parsed.outputRouter } : {};
+  const existingScriptTransform = isRecord(outputRouter.scriptTransform)
+    ? outputRouter.scriptTransform
+    : isRecord(parsed.scriptTransform)
+      ? parsed.scriptTransform
+      : {};
+  outputRouter.enabled = true;
+  outputRouter.scriptTransform = {
+    ...existingScriptTransform,
     enabled: true,
     languages: [...languages],
   };
+  parsed.outputRouter = outputRouter;
+  delete parsed.scriptTransform;
   await writeFile(configPath, JSON.stringify(parsed, null, 2) + "\n", "utf8");
 }
 

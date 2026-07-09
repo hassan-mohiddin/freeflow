@@ -14,6 +14,7 @@ import {
   validateSafeId,
 } from "../../../delegation/dist/index.js";
 import { renderDelegationCall, renderDelegationResult } from "./renderers.js";
+import { readCapabilityState } from "../runtime-context.js";
 
 const STRING_SCHEMA = { type: "string" };
 const NON_EMPTY_STRING_SCHEMA = { type: "string", minLength: 1 };
@@ -358,6 +359,10 @@ export function registerDelegationTools(pi: any): void {
 }
 
 export async function executeDelegationOperation(pi: any, operation: string, params: any, signal: AbortSignal | undefined, ctx: any): Promise<any> {
+  const disabled = await disabledByConfigResult(operation, ctx);
+  if (disabled) {
+    return disabled;
+  }
   switch (operation) {
     case "delegate_status": return executeStatus(pi, params, signal, ctx);
     case "delegate_inbox": return executeInbox(params, ctx);
@@ -388,6 +393,10 @@ function delegationTool(name: string, label: string, description: string, parame
     parameters,
     async execute(_toolCallId: string, params: any, signal: AbortSignal | undefined, _onUpdate: unknown, ctx: any) {
       try {
+        const disabled = await disabledByConfigResult(name, ctx);
+        if (disabled) {
+          return toToolResult(name, disabled);
+        }
         const result = await handler(params ?? {}, signal, ctx);
         return toToolResult(name, result);
       } catch (error) {
@@ -2027,6 +2036,23 @@ async function markAgentFailed(store: any, taskId: string, agentId: string, mess
 
 function createStore(ctx: any) {
   return createDelegationStore({ root: delegationRootForRepo(ctx.cwd) });
+}
+
+async function disabledByConfigResult(operation: string, ctx: any) {
+  const state = await readCapabilityState(ctx?.cwd ?? process.cwd());
+  if (state.delegationHarness.enabled) {
+    return null;
+  }
+  return {
+    toolStatus: "disabled_by_config",
+    operation,
+    status: "disabled_by_config",
+    code: "disabled_by_config",
+    capability: "delegation-harness",
+    route: "/delegation-harness settings",
+    reason: `${operation} is disabled by Freeflow config. Configure delegation-harness with /delegation-harness settings.`,
+    actionTaken: "no_delegation_state_or_cmux_action_attempted",
+  };
 }
 
 function unavailableResult(operation: string, params: any, preflight: any) {

@@ -25,4 +25,5 @@ interface InstallReport {
     notes: string[];
 }
 export declare function installOrInspect(options: InstallerOptions): Promise<InstallReport>;
+export declare function enableScriptTransformConfig(configPath: string, languages: readonly ScriptTransformLanguage[]): Promise<void>;
 export {};

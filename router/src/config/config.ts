@@ -26,7 +26,7 @@ export const DEFAULT_VAULT_ROOT = "~/.cache/freeflow-router/vault";
 
 export const DEFAULT_POST_TOOL_ROUTING = "off";
 
-export const DEFAULT_OUTPUT_ROUTER_ENABLED = true;
+export const DEFAULT_OUTPUT_ROUTER_ENABLED = false;
 
 export const DEFAULT_OUTPUT_ROUTER_PROFILE = "standard";
 
@@ -148,11 +148,9 @@ export function normalizeRouterConfig(input: unknown): NormalizeRouterConfigResu
   applyRouterProfile(config, warnings, input.profile);
   applyPostToolRouting(config, warnings, input.postToolRouting);
   applyStringEnum(config, warnings, input.storagePolicy, "storagePolicy", "outputRouter.storagePolicy", STORAGE_POLICY_MODES, DEFAULT_STORAGE_POLICY);
-  applyPositiveInteger(config.thresholds, warnings, input.largeOutputBytes, "largeOutputBytes");
-  applyPositiveInteger(config.thresholds, warnings, input.largeOutputLines, "largeOutputLines");
-  applyVaultRoot(config, warnings, input.vaultRoot);
-  applyVaultRetention(config, warnings, input.vaultRetentionDays);
-  applyHints(config, warnings, input.generatedPaths, input.noisyCommandHints);
+  applyRouterThresholds(config, warnings, input);
+  applyRouterVault(config, warnings, input);
+  applyRouterHints(config, warnings, input);
 
   return { config, warnings };
 }
@@ -287,17 +285,40 @@ export function normalizeFreeflowConfig(input: unknown): NormalizeFreeflowConfig
   if (source.processing !== undefined) {
     warnings.push(".freeflow/config.json processing config is ignored; unsafe unsandboxed processing must be enabled in local-only .freeflow/local.json.");
   }
-  const router = normalizeRouterConfig(source.outputRouter);
-  const observedRouting = normalizeObservedRoutingConfig(source.observedRouting);
-  const scriptTransform = normalizeScriptTransformConfig(source.scriptTransform);
+  const routerSource = source.outputRouter;
+  const routerSourceRecord = isRecord(routerSource) ? routerSource : {};
+  const router = normalizeRouterConfig(routerSource);
 
-  warnings.push(...router.warnings, ...observedRouting.warnings, ...scriptTransform.warnings);
+  const observedRoutingSource = routerSourceRecord.observedRouting !== undefined
+    ? routerSourceRecord.observedRouting
+    : source.observedRouting;
+  const observedRouting = normalizeObservedRoutingConfig(observedRoutingSource);
+  const observedRoutingWarnings = routerSourceRecord.observedRouting !== undefined
+    ? prefixConfigWarnings(observedRouting.warnings, "observedRouting", "outputRouter.observedRouting")
+    : observedRouting.warnings;
+
+  const scriptTransformSource = routerSourceRecord.scriptTransform !== undefined
+    ? routerSourceRecord.scriptTransform
+    : source.scriptTransform;
+  const scriptTransform = normalizeScriptTransformConfig(scriptTransformSource);
+  const scriptTransformWarnings = routerSourceRecord.scriptTransform !== undefined
+    ? prefixConfigWarnings(scriptTransform.warnings, "scriptTransform", "outputRouter.scriptTransform")
+    : scriptTransform.warnings;
+
+  const effectiveObservedRouting = router.config.enabled
+    ? observedRouting.config
+    : { ...observedRouting.config, enabled: false };
+  const effectiveScriptTransform = router.config.enabled
+    ? scriptTransform.config
+    : { ...scriptTransform.config, enabled: false };
+
+  warnings.push(...router.warnings, ...observedRoutingWarnings, ...scriptTransformWarnings);
 
   return {
     config: {
       outputRouter: router.config,
-      observedRouting: observedRouting.config,
-      scriptTransform: scriptTransform.config,
+      observedRouting: effectiveObservedRouting,
+      scriptTransform: effectiveScriptTransform,
     },
     warnings,
   };
@@ -305,6 +326,10 @@ export function normalizeFreeflowConfig(input: unknown): NormalizeFreeflowConfig
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function prefixConfigWarnings(warnings: string[], from: string, to: string): string[] {
+  return warnings.map((warning) => warning.replaceAll(from, to));
 }
 
 function applyRouterEnabled(config: RouterConfig, warnings: string[], value: unknown) {
@@ -346,25 +371,76 @@ function applyPostToolRouting(config: RouterConfig, warnings: string[], value: u
   warnings.push(`Invalid outputRouter.postToolRouting=${JSON.stringify(value)}; using ${DEFAULT_POST_TOOL_ROUTING}.`);
 }
 
+function applyRouterThresholds(config: RouterConfig, warnings: string[], input: Record<string, unknown>) {
+  const thresholds = input.thresholds;
+  const thresholdRecord = isRecord(thresholds) ? thresholds : {};
+  if (thresholds !== undefined && !isRecord(thresholds)) {
+    warnings.push("Invalid outputRouter.thresholds; expected an object with positive integer thresholds.");
+  }
+
+  applyPositiveInteger(
+    config.thresholds,
+    warnings,
+    thresholdRecord.largeOutputBytes ?? input.largeOutputBytes,
+    "largeOutputBytes",
+    thresholdRecord.largeOutputBytes !== undefined ? "outputRouter.thresholds.largeOutputBytes" : "outputRouter.largeOutputBytes",
+  );
+  applyPositiveInteger(
+    config.thresholds,
+    warnings,
+    thresholdRecord.largeOutputLines ?? input.largeOutputLines,
+    "largeOutputLines",
+    thresholdRecord.largeOutputLines !== undefined ? "outputRouter.thresholds.largeOutputLines" : "outputRouter.largeOutputLines",
+  );
+}
+
 function applyPositiveInteger(
   thresholds: RouterThresholds,
   warnings: string[],
   value: unknown,
   key: keyof RouterThresholds,
+  path: string,
 ) {
   if (value === undefined) {
     return;
   }
 
-  if (validatePositiveIntegerThreshold(value, `outputRouter.${key}`).length === 0) {
+  if (validatePositiveIntegerThreshold(value, path).length === 0) {
     thresholds[key] = value as number;
     return;
   }
 
-  warnings.push(`Invalid outputRouter.${key}=${JSON.stringify(value)}; using ${DEFAULT_ROUTER_THRESHOLDS[key]}.`);
+  warnings.push(`Invalid ${path}=${JSON.stringify(value)}; using ${DEFAULT_ROUTER_THRESHOLDS[key]}.`);
 }
 
-function applyVaultRoot(config: RouterConfig, warnings: string[], value: unknown) {
+function applyRouterVault(config: RouterConfig, warnings: string[], input: Record<string, unknown>) {
+  const vault = input.vault;
+  const vaultRecord = isRecord(vault) ? vault : {};
+  if (vault !== undefined && !isRecord(vault)) {
+    warnings.push("Invalid outputRouter.vault; expected an object with root and retention.");
+  }
+
+  applyVaultRoot(
+    config,
+    warnings,
+    vaultRecord.root ?? input.vaultRoot,
+    vaultRecord.root !== undefined ? "outputRouter.vault.root" : "outputRouter.vaultRoot",
+  );
+
+  const retention = vaultRecord.retention;
+  if (retention !== undefined) {
+    applyVaultRetentionPolicy(config, warnings, retention);
+  } else {
+    applyVaultRetentionDays(
+      config,
+      warnings,
+      vaultRecord.retentionDays ?? input.vaultRetentionDays,
+      vaultRecord.retentionDays !== undefined ? "outputRouter.vault.retentionDays" : "outputRouter.vaultRetentionDays",
+    );
+  }
+}
+
+function applyVaultRoot(config: RouterConfig, warnings: string[], value: unknown, path: string) {
   if (value === undefined) {
     return;
   }
@@ -374,41 +450,66 @@ function applyVaultRoot(config: RouterConfig, warnings: string[], value: unknown
     return;
   }
 
-  warnings.push(`Invalid outputRouter.vaultRoot=${JSON.stringify(value)}; using ${DEFAULT_VAULT_ROOT}.`);
+  warnings.push(`Invalid ${path}=${JSON.stringify(value)}; using ${DEFAULT_VAULT_ROOT}.`);
 }
 
-function applyVaultRetention(config: RouterConfig, warnings: string[], value: unknown) {
+function applyVaultRetentionPolicy(config: RouterConfig, warnings: string[], value: unknown) {
+  if (!isRecord(value)) {
+    warnings.push("Invalid outputRouter.vault.retention; expected { strategy: 'ttl', ttlDays } or { strategy: 'manual' }.");
+    return;
+  }
+  if (value.strategy === "manual") {
+    config.vault.retention = { strategy: "manual" };
+    return;
+  }
+  if (value.strategy === undefined || value.strategy === "ttl") {
+    applyVaultRetentionDays(config, warnings, value.ttlDays, "outputRouter.vault.retention.ttlDays");
+    return;
+  }
+  warnings.push(`Invalid outputRouter.vault.retention.strategy=${JSON.stringify(value.strategy)}; using ${DEFAULT_VAULT_RETENTION.strategy}.`);
+}
+
+function applyVaultRetentionDays(config: RouterConfig, warnings: string[], value: unknown, path: string) {
   if (value === undefined) {
     return;
   }
 
-  if (validatePositiveIntegerThreshold(value, "outputRouter.vaultRetentionDays").length === 0) {
+  if (validatePositiveIntegerThreshold(value, path).length === 0) {
     config.vault.retention = { strategy: "ttl", ttlDays: value as number };
     return;
   }
 
-  warnings.push(
-    `Invalid outputRouter.vaultRetentionDays=${JSON.stringify(value)}; using ${DEFAULT_VAULT_RETENTION.ttlDays}.`,
-  );
+  warnings.push(`Invalid ${path}=${JSON.stringify(value)}; using ${DEFAULT_VAULT_RETENTION.ttlDays}.`);
 }
 
-function applyHints(
-  config: RouterConfig,
-  warnings: string[],
-  generatedPaths: unknown,
-  noisyCommandHints: unknown,
-) {
+function applyRouterHints(config: RouterConfig, warnings: string[], input: Record<string, unknown>) {
+  const hintsInput = input.hints;
+  const hintsRecord = isRecord(hintsInput) ? hintsInput : {};
+  if (hintsInput !== undefined && !isRecord(hintsInput)) {
+    warnings.push("Invalid outputRouter.hints; expected an object with generatedPathGlobs/noisyCommandPatterns arrays.");
+  }
+
+  const generatedPaths = hintsRecord.generatedPathGlobs ?? input.generatedPaths;
+  const noisyCommandHints = hintsRecord.noisyCommandPatterns ?? input.noisyCommandHints;
   const hints: RouterHints = {};
 
   if (generatedPaths !== undefined) {
-    const parsed = parseStringArray(generatedPaths, "generatedPaths", warnings);
+    const parsed = parseStringArray(
+      generatedPaths,
+      hintsRecord.generatedPathGlobs !== undefined ? "outputRouter.hints.generatedPathGlobs" : "outputRouter.generatedPaths",
+      warnings,
+    );
     if (parsed) {
       hints.generatedPathGlobs = parsed;
     }
   }
 
   if (noisyCommandHints !== undefined) {
-    const parsed = parseStringArray(noisyCommandHints, "noisyCommandHints", warnings);
+    const parsed = parseStringArray(
+      noisyCommandHints,
+      hintsRecord.noisyCommandPatterns !== undefined ? "outputRouter.hints.noisyCommandPatterns" : "outputRouter.noisyCommandHints",
+      warnings,
+    );
     if (parsed) {
       hints.noisyCommandPatterns = parsed;
     }
@@ -618,14 +719,14 @@ function isStringIn<TValue extends string>(value: unknown, allowed: readonly TVa
   return typeof value === "string" && (allowed as readonly string[]).includes(value);
 }
 
-function parseStringArray(value: unknown, key: string, warnings: string[]): string[] | undefined {
+function parseStringArray(value: unknown, path: string, warnings: string[]): string[] | undefined {
   if (!Array.isArray(value)) {
-    warnings.push(`Invalid outputRouter.${key}; expected an array of strings.`);
+    warnings.push(`Invalid ${path}; expected an array of strings.`);
     return undefined;
   }
 
   if (!value.every((item) => typeof item === "string")) {
-    warnings.push(`Invalid outputRouter.${key}; expected an array of strings.`);
+    warnings.push(`Invalid ${path}; expected an array of strings.`);
     return undefined;
   }
 

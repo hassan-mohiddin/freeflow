@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { DEFAULT_OBSERVED_ROUTING_CONFIG, DEFAULT_OUTPUT_ROUTER_ENABLED, DEFAULT_OUTPUT_ROUTER_PROFILE, DEFAULT_POST_TOOL_ROUTING, DEFAULT_ROUTER_THRESHOLDS, DEFAULT_SCRIPT_TRANSFORM_CONFIG, DEFAULT_STORAGE_POLICY, OBSERVED_ROUTING_PERSISTENCE_MODES, RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES, DEFAULT_VAULT_RETENTION, DEFAULT_VAULT_ROOT, defaultScriptTransformAdaptersHome, createLocalVaultIndex, createVault, discoverEryxPythonSandboxAdaptersFromEnv, discoverJqWasmSandboxAdaptersFromEnv, discoverQuickJsWasiSandboxAdaptersFromEnv, normalizeFreeflowConfig, normalizeLocalFreeflowConfig, probeScriptSandboxAdapters, } from "../../router/dist/index.js";
 import { VALID_MODES, readModeState } from "./runtime-context.js";
 const STATUS_ACTIONS = new Set(["status", "doctor", "migration"]);
-const TOP_LEVEL_CONFIG_KEYS = new Set(["defaultMode", "outputRouter", "observedRouting", "scriptTransform"]);
+const TOP_LEVEL_CONFIG_KEYS = new Set(["defaultMode", "outputRouter", "delegationHarness", "observedRouting", "scriptTransform"]);
 const OUTPUT_ROUTER_CONFIG_KEYS = new Set([
     "enabled",
     "profile",
@@ -12,10 +12,15 @@ const OUTPUT_ROUTER_CONFIG_KEYS = new Set([
     "storagePolicy",
     "largeOutputBytes",
     "largeOutputLines",
+    "thresholds",
     "vaultRoot",
     "vaultRetentionDays",
+    "vault",
     "generatedPaths",
     "noisyCommandHints",
+    "hints",
+    "observedRouting",
+    "scriptTransform",
 ]);
 const OBSERVED_ROUTING_CONFIG_KEYS = new Set(["enabled", "onRoutingFailure", "mcp", "web", "fetch", "codeSearch"]);
 const OBSERVED_ROUTING_PRODUCER_KEYS = new Set(["enabled", "persistence"]);
@@ -72,9 +77,9 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
                 thresholds: normalized.config.outputRouter.thresholds,
                 vault: normalized.config.outputRouter.vault,
                 hints: normalized.config.outputRouter.hints ?? {},
+                observedRouting: normalized.config.observedRouting,
+                scriptTransform: normalized.config.scriptTransform,
             },
-            observedRouting: normalized.config.observedRouting,
-            scriptTransform: normalized.config.scriptTransform,
         },
         effectiveLocalConfig: localNormalized.config,
         effectiveDefaults: {
@@ -86,9 +91,9 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
                 thresholds: DEFAULT_ROUTER_THRESHOLDS,
                 vaultRoot: DEFAULT_VAULT_ROOT,
                 vaultRetention: DEFAULT_VAULT_RETENTION,
+                observedRouting: DEFAULT_OBSERVED_ROUTING_CONFIG,
+                scriptTransform: DEFAULT_SCRIPT_TRANSFORM_CONFIG,
             },
-            observedRouting: DEFAULT_OBSERVED_ROUTING_CONFIG,
-            scriptTransform: DEFAULT_SCRIPT_TRANSFORM_CONFIG,
         },
         vault: {
             root: vault.root,
@@ -250,7 +255,7 @@ function scriptTransformStatus(config, sandboxReport) {
         adapterHome,
         setupCommand: "node <plugin-root>/router/dist/setup/script-transform-adapters.js install --config .freeflow/config.json",
         notes: [
-            "Script transform is disabled until setup/user config opts in with scriptTransform.enabled=true.",
+            "Script transform is disabled until setup/user config opts in with outputRouter.scriptTransform.enabled=true.",
             "Setup can install proof-backed adapters into a user-global Freeflow cache and enable only languages that pass sandbox probes.",
             "No unsandboxed fallback is allowed; script code is not executed without an approved sandbox adapter.",
             "Raw script text is not persisted by default.",
@@ -302,7 +307,7 @@ function observedRoutingStatus(config) {
         persistenceModes: [...OBSERVED_ROUTING_PERSISTENCE_MODES],
         unsupportedPersistenceModes: [...RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES],
         notes: [
-            "Observed routing is off unless observedRouting.enabled and the individual producer/server are enabled.",
+            "Observed routing is off unless outputRouter.enabled, outputRouter.observedRouting.enabled, and the individual producer/server are enabled.",
             "redacted persistence is reserved for future work; unsupported redacted config falls back to metadata-only.",
         ],
     };
@@ -329,8 +334,14 @@ function collectMigrationRecommendations(rawConfig) {
         }
     }
     collectOutputRouterRecommendations(rawConfig.outputRouter, recommendations);
-    collectObservedRoutingRecommendations(rawConfig.observedRouting, recommendations);
-    collectScriptTransformRecommendations(rawConfig.scriptTransform, recommendations);
+    if (rawConfig.observedRouting !== undefined) {
+        recommendations.push(recommendation("observedRouting", "move", "Move top-level observedRouting under outputRouter.observedRouting."));
+        collectObservedRoutingRecommendations(rawConfig.observedRouting, recommendations, "observedRouting");
+    }
+    if (rawConfig.scriptTransform !== undefined) {
+        recommendations.push(recommendation("scriptTransform", "move", "Move top-level scriptTransform under outputRouter.scriptTransform."));
+        collectScriptTransformRecommendations(rawConfig.scriptTransform, recommendations, "scriptTransform");
+    }
     return recommendations;
 }
 function collectOutputRouterRecommendations(value, recommendations) {
@@ -350,73 +361,112 @@ function collectOutputRouterRecommendations(value, recommendations) {
     addDefaultRecommendation(recommendations, "outputRouter.profile", value.profile, DEFAULT_OUTPUT_ROUTER_PROFILE);
     addDefaultRecommendation(recommendations, "outputRouter.postToolRouting", value.postToolRouting, DEFAULT_POST_TOOL_ROUTING);
     addDefaultRecommendation(recommendations, "outputRouter.storagePolicy", value.storagePolicy, DEFAULT_STORAGE_POLICY);
-    addDefaultRecommendation(recommendations, "outputRouter.largeOutputBytes", value.largeOutputBytes, DEFAULT_ROUTER_THRESHOLDS.largeOutputBytes);
-    addDefaultRecommendation(recommendations, "outputRouter.largeOutputLines", value.largeOutputLines, DEFAULT_ROUTER_THRESHOLDS.largeOutputLines);
-    addDefaultRecommendation(recommendations, "outputRouter.vaultRoot", value.vaultRoot, DEFAULT_VAULT_ROOT);
-    addDefaultRecommendation(recommendations, "outputRouter.vaultRetentionDays", value.vaultRetentionDays, DEFAULT_VAULT_RETENTION.ttlDays);
+    collectThresholdRecommendations(value.thresholds, recommendations);
+    collectVaultRecommendations(value.vault, recommendations);
+    collectHintsRecommendations(value.hints, recommendations);
+    addLegacyMoveOrDefaultRecommendation(recommendations, "outputRouter.largeOutputBytes", value.largeOutputBytes, DEFAULT_ROUTER_THRESHOLDS.largeOutputBytes, "outputRouter.thresholds.largeOutputBytes");
+    addLegacyMoveOrDefaultRecommendation(recommendations, "outputRouter.largeOutputLines", value.largeOutputLines, DEFAULT_ROUTER_THRESHOLDS.largeOutputLines, "outputRouter.thresholds.largeOutputLines");
+    addLegacyMoveOrDefaultRecommendation(recommendations, "outputRouter.vaultRoot", value.vaultRoot, DEFAULT_VAULT_ROOT, "outputRouter.vault.root");
+    addLegacyMoveOrDefaultRecommendation(recommendations, "outputRouter.vaultRetentionDays", value.vaultRetentionDays, DEFAULT_VAULT_RETENTION.ttlDays, "outputRouter.vault.retention.ttlDays");
+    collectObservedRoutingRecommendations(value.observedRouting, recommendations, "outputRouter.observedRouting");
+    collectScriptTransformRecommendations(value.scriptTransform, recommendations, "outputRouter.scriptTransform");
     if (Object.keys(value).length === 0) {
         recommendations.push(recommendation("outputRouter", "remove", "Empty outputRouter object can be removed; built-in defaults apply."));
     }
 }
-function collectScriptTransformRecommendations(value, recommendations) {
+function collectThresholdRecommendations(value, recommendations) {
+    if (value === undefined)
+        return;
+    if (!isRecord(value)) {
+        recommendations.push(recommendation("outputRouter.thresholds", "fix", "Expected object with largeOutputBytes and largeOutputLines."));
+        return;
+    }
+    addDefaultRecommendation(recommendations, "outputRouter.thresholds.largeOutputBytes", value.largeOutputBytes, DEFAULT_ROUTER_THRESHOLDS.largeOutputBytes);
+    addDefaultRecommendation(recommendations, "outputRouter.thresholds.largeOutputLines", value.largeOutputLines, DEFAULT_ROUTER_THRESHOLDS.largeOutputLines);
+}
+function collectVaultRecommendations(value, recommendations) {
+    if (value === undefined)
+        return;
+    if (!isRecord(value)) {
+        recommendations.push(recommendation("outputRouter.vault", "fix", "Expected object with root and retention."));
+        return;
+    }
+    addDefaultRecommendation(recommendations, "outputRouter.vault.root", value.root, DEFAULT_VAULT_ROOT);
+    const retention = value.retention;
+    if (isRecord(retention)) {
+        addDefaultRecommendation(recommendations, "outputRouter.vault.retention.strategy", retention.strategy, DEFAULT_VAULT_RETENTION.strategy);
+        addDefaultRecommendation(recommendations, "outputRouter.vault.retention.ttlDays", retention.ttlDays, DEFAULT_VAULT_RETENTION.ttlDays);
+    }
+    else if (retention !== undefined) {
+        recommendations.push(recommendation("outputRouter.vault.retention", "fix", "Expected retention object."));
+    }
+}
+function collectHintsRecommendations(value, recommendations) {
+    if (value === undefined)
+        return;
+    if (!isRecord(value)) {
+        recommendations.push(recommendation("outputRouter.hints", "fix", "Expected object with generatedPathGlobs/noisyCommandPatterns arrays."));
+    }
+}
+function collectScriptTransformRecommendations(value, recommendations, path) {
     if (value === undefined) {
         return;
     }
     if (!isRecord(value)) {
-        recommendations.push(recommendation("scriptTransform", "fix", "Expected object; remove or rewrite invalid scriptTransform config."));
+        recommendations.push(recommendation(path, "fix", `Expected object; remove or rewrite invalid ${path} config.`));
         return;
     }
     for (const key of Object.keys(value)) {
         if (!SCRIPT_TRANSFORM_CONFIG_KEYS.has(key)) {
-            recommendations.push(recommendation(`scriptTransform.${key}`, "review", "Unrecognized scriptTransform key; review before migrating."));
+            recommendations.push(recommendation(`${path}.${key}`, "review", "Unrecognized scriptTransform key; review before migrating."));
         }
     }
-    addDefaultRecommendation(recommendations, "scriptTransform.enabled", value.enabled, DEFAULT_SCRIPT_TRANSFORM_CONFIG.enabled);
-    addDefaultRecommendation(recommendations, "scriptTransform.sandbox", value.sandbox, DEFAULT_SCRIPT_TRANSFORM_CONFIG.sandbox);
-    addDefaultRecommendation(recommendations, "scriptTransform.network", value.network, DEFAULT_SCRIPT_TRANSFORM_CONFIG.network);
-    addDefaultRecommendation(recommendations, "scriptTransform.rawScriptPersistence", value.rawScriptPersistence, DEFAULT_SCRIPT_TRANSFORM_CONFIG.rawScriptPersistence);
+    addDefaultRecommendation(recommendations, `${path}.enabled`, value.enabled, DEFAULT_SCRIPT_TRANSFORM_CONFIG.enabled);
+    addDefaultRecommendation(recommendations, `${path}.sandbox`, value.sandbox, DEFAULT_SCRIPT_TRANSFORM_CONFIG.sandbox);
+    addDefaultRecommendation(recommendations, `${path}.network`, value.network, DEFAULT_SCRIPT_TRANSFORM_CONFIG.network);
+    addDefaultRecommendation(recommendations, `${path}.rawScriptPersistence`, value.rawScriptPersistence, DEFAULT_SCRIPT_TRANSFORM_CONFIG.rawScriptPersistence);
     if (Object.keys(value).length === 0) {
-        recommendations.push(recommendation("scriptTransform", "remove", "Empty scriptTransform object can be removed; script transform is disabled by default."));
+        recommendations.push(recommendation(path, "remove", "Empty scriptTransform object can be removed; script transform is disabled by default."));
     }
 }
-function collectObservedRoutingRecommendations(value, recommendations) {
+function collectObservedRoutingRecommendations(value, recommendations, path) {
     if (value === undefined) {
         return;
     }
     if (!isRecord(value)) {
-        recommendations.push(recommendation("observedRouting", "fix", "Expected object; remove or rewrite invalid observedRouting config."));
+        recommendations.push(recommendation(path, "fix", `Expected object; remove or rewrite invalid ${path} config.`));
         return;
     }
     for (const key of Object.keys(value)) {
         if (!OBSERVED_ROUTING_CONFIG_KEYS.has(key)) {
-            recommendations.push(recommendation(`observedRouting.${key}`, "review", "Unrecognized observedRouting key; review before migrating."));
+            recommendations.push(recommendation(`${path}.${key}`, "review", "Unrecognized observedRouting key; review before migrating."));
         }
     }
-    addDefaultRecommendation(recommendations, "observedRouting.enabled", value.enabled, DEFAULT_OBSERVED_ROUTING_CONFIG.enabled);
-    addDefaultRecommendation(recommendations, "observedRouting.onRoutingFailure", value.onRoutingFailure, DEFAULT_OBSERVED_ROUTING_CONFIG.onRoutingFailure);
-    collectObservedMcpRecommendations(value.mcp, recommendations);
-    collectObservedProducerRecommendations(value.web, "observedRouting.web", recommendations);
-    collectObservedProducerRecommendations(value.fetch, "observedRouting.fetch", recommendations);
-    collectObservedProducerRecommendations(value.codeSearch, "observedRouting.codeSearch", recommendations);
+    addDefaultRecommendation(recommendations, `${path}.enabled`, value.enabled, DEFAULT_OBSERVED_ROUTING_CONFIG.enabled);
+    addDefaultRecommendation(recommendations, `${path}.onRoutingFailure`, value.onRoutingFailure, DEFAULT_OBSERVED_ROUTING_CONFIG.onRoutingFailure);
+    collectObservedMcpRecommendations(value.mcp, recommendations, `${path}.mcp`);
+    collectObservedProducerRecommendations(value.web, `${path}.web`, recommendations);
+    collectObservedProducerRecommendations(value.fetch, `${path}.fetch`, recommendations);
+    collectObservedProducerRecommendations(value.codeSearch, `${path}.codeSearch`, recommendations);
     if (Object.keys(value).length === 0) {
-        recommendations.push(recommendation("observedRouting", "remove", "Empty observedRouting object can be removed; observed routing is off by default."));
+        recommendations.push(recommendation(path, "remove", "Empty observedRouting object can be removed; observed routing is off by default."));
     }
 }
-function collectObservedMcpRecommendations(value, recommendations) {
+function collectObservedMcpRecommendations(value, recommendations, path) {
     if (value === undefined) {
         return;
     }
     if (!isRecord(value)) {
-        recommendations.push(recommendation("observedRouting.mcp", "fix", "Expected object with explicit servers."));
+        recommendations.push(recommendation(path, "fix", "Expected object with explicit servers."));
         return;
     }
     for (const key of Object.keys(value)) {
         if (!OBSERVED_ROUTING_MCP_KEYS.has(key)) {
-            recommendations.push(recommendation(`observedRouting.mcp.${key}`, "review", "Unrecognized observedRouting.mcp key; review before migrating."));
+            recommendations.push(recommendation(`${path}.${key}`, "review", "Unrecognized observedRouting.mcp key; review before migrating."));
         }
     }
     if (value.servers !== undefined && !isRecord(value.servers)) {
-        recommendations.push(recommendation("observedRouting.mcp.servers", "fix", "Expected object keyed by MCP server id."));
+        recommendations.push(recommendation(`${path}.servers`, "fix", "Expected object keyed by MCP server id."));
     }
 }
 function collectObservedProducerRecommendations(value, path, recommendations) {
@@ -440,6 +490,16 @@ function addDefaultRecommendation(recommendations, path, value, defaultValue) {
     if (JSON.stringify(value) === JSON.stringify(defaultValue)) {
         recommendations.push(recommendation(path, "remove", `Explicit default value ${JSON.stringify(defaultValue)} can be removed unless it records an intentional override.`));
     }
+}
+function addLegacyMoveOrDefaultRecommendation(recommendations, path, value, defaultValue, targetPath) {
+    if (value === undefined) {
+        return;
+    }
+    if (JSON.stringify(value) === JSON.stringify(defaultValue)) {
+        addDefaultRecommendation(recommendations, path, value, defaultValue);
+        return;
+    }
+    recommendations.push(recommendation(path, "move", `Move legacy ${path} to ${targetPath}.`));
 }
 function recommendation(path, action, message) {
     return { path, action, message };
