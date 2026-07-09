@@ -103,6 +103,7 @@ async function withTempRepo(fn) {
   const repoRoot = await mkdtemp(join(tmpdir(), "freeflow-pi-delegation-tools-"));
   try {
     await mkdir(join(repoRoot, ".freeflow"), { recursive: true });
+    await writeFile(join(repoRoot, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow" }, null, 2), "utf8");
     return await fn(repoRoot);
   } finally {
     await rm(repoRoot, { recursive: true, force: true });

@@ -167,7 +167,7 @@ For local development from this checkout:
 pi install .
 ```
 
-The Pi package exposes Freeflow skills and a small extension that registers direct Freeflow commands and loads mode-contract, workflow, interview-gate, discovery-light, and output-router context before agent turns.
+The Pi package exposes a small extension that registers direct Freeflow commands, dynamically exposes model skills after repo setup, and loads only effective runtime context before agent turns. Use `/freeflow` for unified settings/status; top-level `enabled: false` makes Freeflow inert while preserving nested settings.
 
 ### Required Step 1: Run Setup
 
@@ -179,7 +179,7 @@ Run this in every repo after installing Freeflow:
 
 Setup creates the repo activation file and `.freeflow/config.json`. It does not create repo-local hooks, docs inventories, state files, handoffs, or `.codex/rules` behavior files.
 
-After successful setup, the setup skill reads the mode-contract, workflow, interview-gate, and output-router skills and applies the discovery-light runtime rule before its final response so the current session can continue with Freeflow loaded.
+After successful setup, the setup skill reads the base workflow skills and any enabled capability skills, then applies the discovery-light runtime rule before its final response so the current session can continue with Freeflow loaded.
 
 ### Required Step 2: Enable Hooks
 
@@ -191,9 +191,9 @@ In Codex, open the hooks screen and trust the Freeflow `SessionStart` hook:
 
 Press `t` to trust/enable the hook when Codex marks it as needing review.
 
-Once enabled, the hook loads Freeflow mode-contract, workflow, interview-gate, discovery-light, and output-router context at session start, resume, clear, and compact.
+Once enabled, the hook stays inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape, then loads Freeflow mode-contract, workflow, interview-gate, discovery-light, and enabled capability context at session start, resume, clear, and compact. Top-level `enabled: false` disables hook context.
 
-In Pi, Freeflow's package extension provides the context-loading hook through Pi lifecycle events. It refreshes workflow context on session start and compact, then injects it before agent turns. If you install it project-locally, trust the project when Pi prompts for project-local package resources.
+In Pi, Freeflow's package extension provides the context-loading hook through Pi lifecycle events. It refreshes effective workflow/capability context on session start and compact, then injects it before agent turns. If you install it project-locally, trust the project when Pi prompts for project-local package resources.
 
 These hooks do not run after every edit, block tools, grant permissions, or enforce workflow policy.
 
@@ -214,7 +214,7 @@ Create a discovery checkpoint.
 Use the output router for the test output.
 ```
 
-Slash-style prompts are model-routed in Codex and Claude:
+Slash-style workflow and skill prompts are model-routed in Codex and Claude:
 
 ```text
 /workflow conversation
@@ -232,7 +232,14 @@ Slash-style prompts are model-routed in Codex and Claude:
 /commit-work
 /handoff
 /bypass
+```
+
+Pi-native settings commands:
+
+```text
+/freeflow
 /output-router
+/delegation-harness
 ```
 
 Contributor/developer routes:
@@ -243,7 +250,7 @@ Contributor/developer routes:
 /evaluate-skill
 ```
 
-For Codex and Claude, these commands work as skill-routing language. In Pi, the package extension registers native command handlers for Freeflow commands. Pi `/workflow` mode changes are session-scoped and update the footer; `.freeflow/config.json` remains the repo default only.
+For Codex and Claude, workflow/skill commands work as skill-routing language. In Pi, the package extension registers native command handlers for Freeflow commands and settings. Pi `/workflow` mode changes are session-scoped and update the footer; `.freeflow/config.json` remains the repo default only.
 
 ## Modes
 

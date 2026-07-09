@@ -66,6 +66,11 @@
   ],
   "piNativeCommands": [
     {
+      "command": "/freeflow",
+      "handler": "freeflow",
+      "kind": "settings"
+    },
+    {
       "command": "/output-router",
       "handler": "output-router",
       "kind": "settings"

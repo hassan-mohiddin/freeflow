@@ -94,10 +94,10 @@ The root `.claude-plugin/marketplace.json` points at `.` for manual Claude insta
 
 The root `package.json` exposes the repo as a Pi package:
 
-- `pi.skills`: `skills`
-- `pi.extensions`: `pi-extension/dist/index.js`
+- `pi.skills`: `[]` (skill exposure is dynamic)
+- `pi.extensions`: `pi-extension/freeflow/index.js`
 
-The Pi extension registers direct Freeflow commands, keeps `/workflow` mode changes session-scoped, loads mode-contract, workflow, interview-gate, discovery-light, and output-router context on session start and compact, and injects core runtime context before every agent turn. It does not enforce policy, block tools, grant permissions, or create repo-local hooks.
+The Pi extension registers direct Freeflow commands, keeps `/workflow` mode changes session-scoped, exposes setup/model skills dynamically after repo setup, loads only effective runtime context on session start and compact, and injects that context before every agent turn. It stays inert until `.freeflow/config.json` exists, and top-level `enabled: false` suppresses Freeflow context, tools, routing, and delegation. It does not enforce policy, grant permissions, or create repo-local hooks.
 
 ## README Shape
 

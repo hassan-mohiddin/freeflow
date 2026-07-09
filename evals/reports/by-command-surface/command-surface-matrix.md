@@ -17,13 +17,13 @@ Current registry:
 - 4 mode commands
 - 11 direct skill calls
 - 3 developer skill calls
-- 2 Pi native settings commands
+- 3 Pi native settings commands
 
 Current direct command eval coverage:
 
 - Mode command coverage: yes, via `MODE-001` through `MODE-006`.
 - Direct skill command coverage: 11 of 11 have `CMD-*` eval definitions; `/discover` uses `CMD-012`.
-- Pi native settings command coverage: extension tests cover `/output-router` and `/delegation-harness` settings/status behavior.
+- Pi native settings command coverage: extension tests cover `/freeflow`, `/output-router`, and `/delegation-harness` settings/status behavior.
 - Developer command coverage: yes, via setup evals plus `CMD-014` and `CMD-015`.
 
 `evals/scripts/audit-command-surface.sh` passes and checks registry shape, docs mentions, skill targets, Pi command registration, manifest consistency, and `nativeSlashHandlers=false`.
@@ -57,6 +57,7 @@ Current direct command eval coverage:
 
 | Command | Handler | Codex/Claude Native Handler | Test Coverage | Status |
 |---|---|---:|---|---|
+| `/freeflow` | Unified Freeflow settings/status | No | `pi-extension/tests/pi-extension.test.js` | Covered |
 | `/output-router` | Output Router settings/status | No | `pi-extension/tests/pi-extension.test.js` | Covered |
 | `/delegation-harness` | Delegation Harness settings/status | No | `pi-extension/tests/pi-extension.test.js` | Covered |
 

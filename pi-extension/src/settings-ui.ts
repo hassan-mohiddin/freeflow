@@ -12,13 +12,15 @@ import {
   DEFAULT_VAULT_ROOT,
   normalizeFreeflowConfig,
 } from "../../router/dist/index.js";
-import { readFreeflowConfig, readCapabilityState } from "./runtime-context.js";
+import { readFreeflowConfig, readFreeflowConfigState, readCapabilityState, VALID_MODES } from "./runtime-context.js";
 
 const BOOLEAN_VALUES = ["enabled", "disabled"] as const;
 const POST_TOOL_ROUTING_VALUES = ["off", "safety-net", "strict"] as const;
 const STORAGE_POLICY_VALUES = ["hybrid-dedupe", "store-everything"] as const;
 const OBSERVED_PERSISTENCE_VALUES = ["none", "metadata-only", "exact"] as const;
 const SCRIPT_LANGUAGES = ["javascript", "python", "jq"] as const;
+const DEFAULT_FREEFLOW_ENABLED = true;
+const DEFAULT_SKILLS_ENABLED = true;
 
 type SettingKind = "boolean" | "enum" | "integer" | "string" | "list" | "json";
 
@@ -165,13 +167,13 @@ function rawValue(rawConfig: Record<string, unknown>, path: string[], fallback: 
   return value === undefined ? fallback : value;
 }
 
-function outputRouterItems(rawConfig: Record<string, unknown>): SettingsItem[] {
+function outputRouterItems(rawConfig: Record<string, unknown>, freeflowInactive = false): SettingsItem[] {
   const effective = normalizedSettingsConfig(rawConfig);
   const routerEnabled = normalizeFreeflowConfig(rawConfig).config.outputRouter.enabled;
   const router = effective.outputRouter;
   const scriptTransform = effective.scriptTransform;
   const observedRouting = effective.observedRouting;
-  const inactive = !routerEnabled;
+  const inactive = freeflowInactive || !routerEnabled;
 
   return [
     {
@@ -182,6 +184,7 @@ function outputRouterItems(rawConfig: Record<string, unknown>): SettingsItem[] {
       kind: "boolean",
       value: routerEnabled,
       defaultValue: DEFAULT_OUTPUT_ROUTER_ENABLED,
+      inactive: freeflowInactive,
     },
     {
       id: "outputRouter.postToolRouting",
@@ -379,7 +382,7 @@ function observedProducerItems(id: "web" | "fetch" | "codeSearch", label: string
   ];
 }
 
-function delegationHarnessItems(rawConfig: Record<string, unknown>): SettingsItem[] {
+function delegationHarnessItems(rawConfig: Record<string, unknown>, freeflowInactive = false): SettingsItem[] {
   const configEnabled = getPath(rawConfig, ["delegationHarness", "enabled"]) === true;
   return [
     {
@@ -390,7 +393,50 @@ function delegationHarnessItems(rawConfig: Record<string, unknown>): SettingsIte
       kind: "boolean",
       value: configEnabled,
       defaultValue: false,
+      inactive: freeflowInactive,
     },
+  ];
+}
+
+function freeflowItems(rawConfig: Record<string, unknown>): SettingsItem[] {
+  const freeflowEnabled = getPath(rawConfig, ["enabled"]) !== false;
+  const freeflowInactive = !freeflowEnabled;
+  const skillsConfig = getPath(rawConfig, ["skills"]);
+  const skillsEnabled = !isRecord(skillsConfig) || skillsConfig.enabled !== false;
+  const rawDefaultMode = rawConfig.defaultMode;
+  const defaultMode = typeof rawDefaultMode === "string" && VALID_MODES.has(rawDefaultMode) ? rawDefaultMode : "workflow";
+  return [
+    {
+      id: "freeflow.enabled",
+      label: "Freeflow",
+      description: "Master switch for Freeflow skills, runtime context, output routing, delegation, and observed/native routing in this repo.",
+      path: ["enabled"],
+      kind: "boolean",
+      value: freeflowEnabled,
+      defaultValue: DEFAULT_FREEFLOW_ENABLED,
+    },
+    {
+      id: "freeflow.skills.enabled",
+      label: "Skills",
+      description: "Expose Freeflow workflow skills to the model and inject mode-contract, workflow, interview-gate, and discovery-light runtime context.",
+      path: ["skills", "enabled"],
+      kind: "boolean",
+      value: skillsEnabled,
+      defaultValue: DEFAULT_SKILLS_ENABLED,
+      inactive: freeflowInactive,
+    },
+    {
+      id: "freeflow.defaultMode",
+      label: "Default mode",
+      description: "Repo default Freeflow mode used when no session override exists.",
+      path: ["defaultMode"],
+      kind: "enum",
+      value: defaultMode,
+      values: [...VALID_MODES],
+      inactive: freeflowInactive,
+    },
+    ...outputRouterItems(rawConfig, freeflowInactive),
+    ...delegationHarnessItems(rawConfig, freeflowInactive),
   ];
 }
 
@@ -445,6 +491,8 @@ function migrateLegacyRouterConfig(config: Record<string, unknown>) {
 
 function pruneKnownDefaults(config: Record<string, unknown>) {
   const defaultPaths: Array<{ path: string[]; value: unknown }> = [
+    { path: ["enabled"], value: DEFAULT_FREEFLOW_ENABLED },
+    { path: ["skills", "enabled"], value: DEFAULT_SKILLS_ENABLED },
     { path: ["outputRouter", "enabled"], value: DEFAULT_OUTPUT_ROUTER_ENABLED },
     { path: ["outputRouter", "postToolRouting"], value: DEFAULT_POST_TOOL_ROUTING },
     { path: ["outputRouter", "storagePolicy"], value: DEFAULT_STORAGE_POLICY },
@@ -622,6 +670,10 @@ class FreeflowSettingsComponent {
     const item = this.options.items[this.selected];
     if (!item) return;
     this.message = "";
+    if (item.inactive) {
+      this.message = `${item.label} is inactive until its parent Freeflow setting is enabled.`;
+      return;
+    }
     if (item.kind === "boolean" || item.kind === "enum") {
       this.applyValue(item, nextEnumValue(item));
       return;
@@ -662,10 +714,18 @@ class FreeflowSettingsComponent {
 
   private applyValue(item: SettingsItem, value: unknown) {
     item.value = value;
+    if (item.id === "freeflow.enabled") {
+      const freeflowInactive = value !== true;
+      const routerEnabled = this.options.items.find((candidate) => candidate.id === "outputRouter.enabled")?.value === true;
+      for (const candidate of this.options.items) {
+        if (candidate.id === "freeflow.enabled") continue;
+        candidate.inactive = freeflowInactive || (candidate.id.startsWith("outputRouter.") && candidate.id !== "outputRouter.enabled" && !routerEnabled);
+      }
+    }
     if (item.id === "outputRouter.enabled") {
       const inactive = value !== true;
       for (const candidate of this.options.items) {
-        if (candidate.id !== "outputRouter.enabled") candidate.inactive = inactive;
+        if (candidate.id !== "outputRouter.enabled" && candidate.id.startsWith("outputRouter.")) candidate.inactive = inactive;
       }
     }
     this.changed = true;
@@ -719,34 +779,133 @@ async function openSettings(options: OpenSettingsOptions): Promise<boolean> {
 function outputRouterStatusText(rawConfig: Record<string, unknown>): string {
   const settingsConfig = normalizedSettingsConfig(rawConfig);
   const actual = normalizeFreeflowConfig(rawConfig).config;
+  const freeflowEnabled = rawConfig.enabled !== false;
   const router = actual.outputRouter;
   const configured = settingsConfig;
   const generatedPaths = router.hints?.generatedPathGlobs?.length ?? 0;
   const noisyHints = router.hints?.noisyCommandPatterns?.length ?? 0;
   return [
-    `Output Router: ${router.enabled ? "enabled" : "disabled"}`,
-    `script transform: ${configured.scriptTransform.enabled ? "enabled" : "disabled"}${router.enabled ? "" : " (inactive)"}`,
-    `observed routing: ${configured.observedRouting.enabled ? "enabled" : "disabled"}${router.enabled ? "" : " (inactive)"}`,
-    `native safety net: ${router.postToolRouting}`,
+    `Output Router: ${freeflowEnabled && router.enabled ? "enabled" : "disabled"}${freeflowEnabled ? "" : " (inactive: Freeflow off)"}`,
+    `script transform: ${freeflowEnabled && configured.scriptTransform.enabled ? "enabled" : "disabled"}${freeflowEnabled && router.enabled ? "" : " (inactive)"}`,
+    `observed routing: ${freeflowEnabled && configured.observedRouting.enabled ? "enabled" : "disabled"}${freeflowEnabled && router.enabled ? "" : " (inactive)"}`,
+    `native safety net: ${freeflowEnabled ? router.postToolRouting : "off"}`,
     `storage: ${router.storagePolicy}`,
     `generated paths: ${generatedPaths}`,
     `noisy command hints: ${noisyHints}`,
   ].join("; ");
 }
 
+function freeflowStatusText(state: Awaited<ReturnType<typeof readCapabilityState>>): string {
+  if (!state.configured) {
+    return state.configExists
+      ? `Freeflow: inactive (invalid config: ${state.parseError ?? "unknown parse error"}); run /setup-freeflow or fix .freeflow/config.json`
+      : "Freeflow: inactive (repo not set up); run /setup-freeflow";
+  }
+  return [
+    `Freeflow: ${state.enabled ? "enabled" : "disabled"}`,
+    `skills: ${state.skills.effective ? "enabled" : "disabled"}`,
+    `output router: ${state.outputRouter.enabled ? "enabled" : "disabled"}`,
+    `delegation harness: ${state.delegationHarness.enabled ? "enabled" : "disabled"}`,
+  ].join("; ");
+}
+
 function delegationHarnessStatusText(state: Awaited<ReturnType<typeof readCapabilityState>>): string {
+  if (!state.configured) {
+    return state.configExists
+      ? `Delegation Harness: inactive (invalid Freeflow config: ${state.parseError ?? "unknown parse error"})`
+      : "Delegation Harness: inactive (repo not set up; run /setup-freeflow)";
+  }
   const details = state.delegationHarness.envEnabled && !state.delegationHarness.configEnabled
     ? " (enabled by FREEFLOW_DELEGATION_HARNESS_ENABLED)"
     : "";
-  return `Delegation Harness: ${state.delegationHarness.enabled ? "enabled" : "disabled"}${details}`;
+  const inactive = !state.enabled ? " (inactive: Freeflow off)" : "";
+  return `Delegation Harness: ${state.delegationHarness.enabled ? "enabled" : "disabled"}${details}${inactive}`;
+}
+
+function actionIsMutation(action: string): boolean {
+  return action === "" || action === "settings" || ["enable", "on", "true", "disable", "off", "false"].includes(action);
+}
+
+async function maybeBlockLayerMutation(action: string, ctx: any, layerName: string) {
+  if (!actionIsMutation(action)) return false;
+  const state = await readCapabilityState(ctx.cwd);
+  if (!state.configured) {
+    ctx.ui.notify(`Freeflow is installed but this repo is not set up. Run /setup-freeflow before configuring ${layerName}.`, "warning");
+    return true;
+  }
+  if (!state.enabled) {
+    ctx.ui.notify(`Freeflow is disabled for this repo. Use /freeflow enable before configuring ${layerName}.`, "warning");
+    return true;
+  }
+  return false;
+}
+
+export async function handleFreeflowCommand(args: string | undefined, ctx: any, afterChange: (changed: boolean) => Promise<void> | void) {
+  const action = (args ?? "settings").trim().toLowerCase() || "settings";
+  const configState = await readFreeflowConfigState(ctx.cwd);
+  const raw = configState.valid ? await readFreeflowConfig(ctx.cwd) : {};
+  const state = await readCapabilityState(ctx.cwd);
+
+  if (action === "status") {
+    ctx.ui.notify(freeflowStatusText(state), "info");
+    return { changed: false, reloaded: false };
+  }
+
+  if (!configState.valid) {
+    ctx.ui.notify(freeflowStatusText(state), "warning");
+    return { changed: false, reloaded: false, error: "not_configured" };
+  }
+
+  if (["enable", "on", "true", "disable", "off", "false"].includes(action)) {
+    const enabled = ["enable", "on", "true"].includes(action);
+    const item = freeflowItems(raw).find((candidate) => candidate.id === "freeflow.enabled")!;
+    await updateConfig(ctx.cwd, item, enabled);
+    ctx.ui.notify(`Freeflow ${enabled ? "enabled" : "disabled"}. Reloading Freeflow runtime...`, "info");
+    if (typeof ctx.reload === "function") {
+      await ctx.reload();
+      return { changed: true, reloaded: true };
+    }
+    await afterChange(true);
+    ctx.ui.notify("Run /reload for Freeflow changes to fully apply.", "warning");
+    return { changed: true, reloaded: false };
+  }
+
+  if (action && action !== "settings") {
+    ctx.ui.notify("Usage: /freeflow, /freeflow settings, /freeflow status, /freeflow enable, or /freeflow disable", "warning");
+    return { changed: false, reloaded: false, error: "invalid_action" };
+  }
+
+  const changed = await openSettings({
+    title: "Freeflow Settings",
+    items: freeflowItems(raw),
+    ctx,
+    onChange: (item, value) => updateConfig(ctx.cwd, item, value),
+    onClose: async (settingsChanged) => {
+      if (!settingsChanged) return;
+      ctx.ui.notify("Freeflow settings saved. Reloading Freeflow runtime...", "info");
+      if (typeof ctx.reload === "function") {
+        await ctx.reload();
+      } else {
+        await afterChange(true);
+        ctx.ui.notify("Run /reload for Freeflow changes to fully apply.", "warning");
+      }
+    },
+  });
+  return { changed, reloaded: changed && typeof ctx.reload === "function" };
 }
 
 export async function handleOutputRouterCommand(args: string | undefined, ctx: any, afterChange: (changed: boolean) => Promise<void> | void) {
   const action = (args ?? "").trim().toLowerCase();
   const raw = await readFreeflowConfig(ctx.cwd);
 
+  if (await maybeBlockLayerMutation(action, ctx, "Output Router")) {
+    return { changed: false, reloaded: false, error: "freeflow_inactive" };
+  }
+
   if (action === "status") {
-    ctx.ui.notify(outputRouterStatusText(raw), "info");
+    const state = await readCapabilityState(ctx.cwd);
+    const prefix = !state.configured || !state.enabled ? `${freeflowStatusText(state)}; ` : "";
+    ctx.ui.notify(`${prefix}${outputRouterStatusText(raw)}`, !state.configured || !state.enabled ? "warning" : "info");
     return { changed: false, reloaded: false };
   }
 
@@ -791,6 +950,10 @@ export async function handleOutputRouterCommand(args: string | undefined, ctx: a
 export async function handleDelegationHarnessCommand(args: string | undefined, ctx: any, afterChange: (changed: boolean) => Promise<void> | void) {
   const action = (args ?? "").trim().toLowerCase();
   const raw = await readFreeflowConfig(ctx.cwd);
+
+  if (await maybeBlockLayerMutation(action, ctx, "Delegation Harness")) {
+    return { changed: false, reloaded: false, error: "freeflow_inactive" };
+  }
 
   if (action === "status") {
     const state = await readCapabilityState(ctx.cwd);

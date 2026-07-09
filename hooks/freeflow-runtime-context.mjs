@@ -47,13 +47,14 @@ function findWorkspaceRoot(cwd) {
 }
 
 function loadRuntimeContext(options = {}) {
+  const includeSkills = options.skills === true;
   const includeOutputRouter = options.outputRouter === true;
   const includeDelegationHarness = options.delegationHarness === true;
-  const modeContractSkill = readText(path.join(PLUGIN_ROOT, "skills", "mode-contract", "SKILL.md"));
-  const workflowSkill = readText(path.join(PLUGIN_ROOT, "skills", "workflow", "SKILL.md"));
-  const interviewGateSkill = readText(
-    path.join(PLUGIN_ROOT, "skills", "interview-gate", "SKILL.md")
-  );
+  const modeContractSkill = includeSkills ? readText(path.join(PLUGIN_ROOT, "skills", "mode-contract", "SKILL.md")) : null;
+  const workflowSkill = includeSkills ? readText(path.join(PLUGIN_ROOT, "skills", "workflow", "SKILL.md")) : null;
+  const interviewGateSkill = includeSkills
+    ? readText(path.join(PLUGIN_ROOT, "skills", "interview-gate", "SKILL.md"))
+    : null;
   const outputRouterSkill = includeOutputRouter
     ? readText(path.join(PLUGIN_ROOT, "skills", "output-router", "SKILL.md"))
     : null;
@@ -62,9 +63,7 @@ function loadRuntimeContext(options = {}) {
     : null;
 
   if (
-    !modeContractSkill ||
-    !workflowSkill ||
-    !interviewGateSkill ||
+    (includeSkills && (!modeContractSkill || !workflowSkill || !interviewGateSkill)) ||
     (includeOutputRouter && !outputRouterSkill) ||
     (includeDelegationHarness && !delegationHarnessSkill)
   ) {
@@ -78,21 +77,25 @@ function readConfig(root) {
   const configPath = path.join(root, ".freeflow", "config.json");
   const body = readText(configPath);
   if (!body) {
-    return { exists: false, valid: false, defaultMode: null };
+    return { exists: false, valid: false, configured: false, enabled: false, skillsEnabled: false, defaultMode: null, outputRouterEnabled: false, delegationHarnessEnabled: false };
   }
 
   try {
     const parsed = JSON.parse(body);
     const valid = isValidSetupConfig(parsed);
+    const enabled = valid && parsed?.enabled !== false;
     return {
       exists: true,
       valid,
-      defaultMode: parsed?.defaultMode ?? null,
-      outputRouterEnabled: valid && parsed?.outputRouter?.enabled === true,
-      delegationHarnessEnabled: valid && parsed?.delegationHarness?.enabled === true,
+      configured: valid,
+      enabled,
+      skillsEnabled: enabled && parsed?.skills?.enabled !== false,
+      defaultMode: VALID_MODES.has(parsed?.defaultMode) ? parsed.defaultMode : "workflow",
+      outputRouterEnabled: enabled && parsed?.outputRouter?.enabled === true,
+      delegationHarnessEnabled: enabled && parsed?.delegationHarness?.enabled === true,
     };
   } catch {
-    return { exists: true, valid: false, defaultMode: null };
+    return { exists: true, valid: false, configured: false, enabled: false, skillsEnabled: false, defaultMode: null, outputRouterEnabled: false, delegationHarnessEnabled: false };
   }
 }
 
@@ -101,13 +104,26 @@ function isValidSetupConfig(value) {
     return false;
   }
 
-  const allowedKeys = new Set(["defaultMode", "outputRouter", "delegationHarness", "observedRouting", "scriptTransform"]);
+  const allowedKeys = new Set(["enabled", "defaultMode", "skills", "outputRouter", "delegationHarness", "observedRouting", "scriptTransform"]);
   if (!Object.keys(value).every((key) => allowedKeys.has(key))) {
     return false;
   }
 
-  if (!Object.prototype.hasOwnProperty.call(value, "defaultMode") || !VALID_MODES.has(value.defaultMode)) {
+  if (Object.prototype.hasOwnProperty.call(value, "defaultMode") && !VALID_MODES.has(value.defaultMode)) {
     return false;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(value, "enabled") && typeof value.enabled !== "boolean") {
+    return false;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(value, "skills")) {
+    if (!Boolean(value.skills) || typeof value.skills !== "object" || Array.isArray(value.skills)) {
+      return false;
+    }
+    if (Object.prototype.hasOwnProperty.call(value.skills, "enabled") && typeof value.skills.enabled !== "boolean") {
+      return false;
+    }
   }
 
   if (Object.prototype.hasOwnProperty.call(value, "outputRouter")) {
@@ -235,6 +251,7 @@ function capabilityStatus(config) {
   return [
     "## Freeflow Capabilities",
     "",
+    `- Skills: ${config.skillsEnabled ? "enabled" : "disabled"}.`,
     `- Output router: ${config.outputRouterEnabled ? "enabled" : "disabled"}.`,
     `- Delegation harness: ${config.delegationHarnessEnabled ? "enabled" : "disabled"}.`,
     "",
@@ -245,10 +262,65 @@ function capabilityStatus(config) {
 function buildContext(input) {
   const root = findWorkspaceRoot(input.cwd || process.cwd());
   const setup = inspectSetup(root);
+
+  if (!setup.config.valid) {
+    return "";
+  }
+
+  if (!setup.config.enabled) {
+    return [
+      "# Freeflow Disabled",
+      "",
+      "Freeflow is installed and configured for this repo, but `.freeflow/config.json` has `enabled: false`.",
+      "Do not inject Freeflow workflow skills, output routing, delegation guidance, or setup pressure while disabled.",
+      "Re-enable only if the user asks: set `.freeflow/config.json` `enabled` to true, or use `/freeflow enable` in Pi."
+    ].join("\n");
+  }
+
   const { modeContractSkill, workflowSkill, interviewGateSkill, outputRouterSkill, delegationHarnessSkill } = loadRuntimeContext({
+    skills: setup.config.skillsEnabled,
     outputRouter: setup.config.outputRouterEnabled,
     delegationHarness: setup.config.delegationHarnessEnabled,
   });
+  const prioritySection = setup.config.skillsEnabled
+    ? [
+        "## Freeflow Runtime Priority",
+        "Mode Contract handles mode setting, mode interpretation, and mode mismatch before task routing when mode is at issue.",
+        "",
+        "Priority order for matched non-mode workflow skills:",
+        "",
+        "1. Workflow classifies conversation versus consequential work.",
+        "2. Interview Gate stops silent decisions, user-owned decisions, source-truth conflicts, and question-to-action mistakes.",
+        "3. Discovery-light handles context-building after no immediate stop condition remains. Use it before first repo/code exploration or design answers for consequential product/API/tool/runtime hypotheses.",
+        "4. Enabled Freeflow capabilities add their own runtime guidance below.",
+        ""
+      ]
+    : [
+        "## Freeflow Runtime Priority",
+        "Skills are disabled in `.freeflow/config.json`, so do not load mode-contract, workflow, interview-gate, or Discovery-light runtime guidance.",
+        "Enabled Freeflow capabilities may still add their own runtime guidance below.",
+        ""
+      ];
+  const skillSections = setup.config.skillsEnabled
+    ? [
+        "## Loaded Mode Contract Skill",
+        "```md",
+        modeContractSkill.trim(),
+        "```",
+        "",
+        "## Loaded Workflow Skill",
+        "```md",
+        workflowSkill.trim(),
+        "```",
+        "",
+        "## Loaded Interview Gate Skill",
+        "```md",
+        interviewGateSkill.trim(),
+        "```",
+        "",
+        ...discoveryLightContext(),
+      ]
+    : [];
   const outputRouterSection = setup.config.outputRouterEnabled
     ? [
         "",
@@ -277,33 +349,9 @@ function buildContext(input) {
     "## Repo Setup",
     buildSetupStatus(root),
     "",
-    "## Freeflow Runtime Priority",
-    "Mode Contract handles mode setting, mode interpretation, and mode mismatch before task routing when mode is at issue.",
-    "",
-    "Priority order for matched non-mode workflow skills:",
-    "",
-    "1. Workflow classifies conversation versus consequential work.",
-    "2. Interview Gate stops silent decisions, user-owned decisions, source-truth conflicts, and question-to-action mistakes.",
-    "3. Discovery-light handles context-building after no immediate stop condition remains. Use it before first repo/code exploration or design answers for consequential product/API/tool/runtime hypotheses.",
-    "4. Enabled Freeflow capabilities add their own runtime guidance below.",
-    "",
+    ...prioritySection,
     ...capabilityStatus(setup.config),
-    "## Loaded Mode Contract Skill",
-    "```md",
-    modeContractSkill.trim(),
-    "```",
-    "",
-    "## Loaded Workflow Skill",
-    "```md",
-    workflowSkill.trim(),
-    "```",
-    "",
-    "## Loaded Interview Gate Skill",
-    "```md",
-    interviewGateSkill.trim(),
-    "```",
-    "",
-    ...discoveryLightContext(),
+    ...skillSections,
     ...outputRouterSection,
     ...delegationHarnessSection
   ].join("\n");
@@ -341,7 +389,11 @@ function main() {
     return;
   }
 
-  emitAdditionalContext(eventName, input, buildContext(input));
+  const additionalContext = buildContext(input);
+  if (!additionalContext.trim()) {
+    return;
+  }
+  emitAdditionalContext(eventName, input, additionalContext);
 }
 
 try {

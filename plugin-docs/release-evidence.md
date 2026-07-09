@@ -20,16 +20,17 @@ High-signal behaviors covered:
 The development registry covers:
 
 - 4 mode commands.
-- 12 direct skill calls.
+- 11 direct skill calls.
 - 3 developer skill calls.
+- 3 Pi native settings commands.
 
-Codex/Claude native slash handlers are not shipped in this release. In those hosts, commands are model-routed through natural language and skill activation. Pi registers direct Freeflow commands through its extension, including `/output-router`.
+Codex/Claude native slash handlers are not shipped in this release. In those hosts, commands are model-routed through natural language and skill activation. Pi registers direct Freeflow commands through its extension, including unified `/freeflow`, plus compatibility `/output-router` and `/delegation-harness` settings commands.
 
 ## Runtime Context
 
-Freeflow ships plugin-bundled context hooks that load the existing `mode-contract`, `workflow`, `interview-gate`, and `output-router` skills plus discovery-light guidance at session start. The Pi extension injects that core runtime context before every agent turn so later turns keep the same behavioral guardrails. The full `discover` skill, workflow-map reference, and output-router safety-policy reference remain available on demand but are not injected wholesale by default. Runtime context states the priority order: mode-contract handles mode issues first, workflow classifies, interview-gate stops silent decisions, discovery-light handles context-building, and output-router chooses evidence transport. These hooks do not run after edit/write tools, enforce behavior, block tools, or create repo-local hook files.
+Freeflow ships plugin-bundled context hooks that stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape. When configured and enabled, they load the existing `mode-contract`, `workflow`, and `interview-gate` skills plus discovery-light guidance and enabled capability context at session start. The Pi extension injects effective runtime context before every agent turn so later turns keep the same behavioral guardrails. Top-level `enabled: false` suppresses Freeflow context/tools/routing/delegation; `skills.enabled: false` suppresses base workflow skill exposure and context while leaving enabled capabilities available. The full `discover` skill, workflow-map reference, and output-router safety-policy reference remain available on demand when skills are effective but are not injected wholesale by default. These hooks do not run after edit/write tools, enforce behavior, block tools, or create repo-local hook files.
 
-For the same session that runs setup, `setup-freeflow` reads the mode-contract, workflow, interview-gate, and output-router skills and applies discovery-light after successful setup verification before saying that context is loaded.
+For the same session that runs setup, `setup-freeflow` reads the base workflow skills and enabled capability skills and applies discovery-light after successful setup verification before saying that context is loaded.
 
 Host trust prompts for plugin hooks are expected host behavior. Local metadata validation checks hook packaging and deterministic output, not end-to-end host trust UI.
 

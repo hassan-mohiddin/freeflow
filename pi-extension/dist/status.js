@@ -2,9 +2,9 @@ import { constants as fsConstants } from "node:fs";
 import { access, readFile, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { DEFAULT_OBSERVED_ROUTING_CONFIG, DEFAULT_OUTPUT_ROUTER_ENABLED, DEFAULT_OUTPUT_ROUTER_PROFILE, DEFAULT_POST_TOOL_ROUTING, DEFAULT_ROUTER_THRESHOLDS, DEFAULT_SCRIPT_TRANSFORM_CONFIG, DEFAULT_STORAGE_POLICY, OBSERVED_ROUTING_PERSISTENCE_MODES, RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES, DEFAULT_VAULT_RETENTION, DEFAULT_VAULT_ROOT, defaultScriptTransformAdaptersHome, createLocalVaultIndex, createVault, discoverEryxPythonSandboxAdaptersFromEnv, discoverJqWasmSandboxAdaptersFromEnv, discoverQuickJsWasiSandboxAdaptersFromEnv, normalizeFreeflowConfig, normalizeLocalFreeflowConfig, probeScriptSandboxAdapters, } from "../../router/dist/index.js";
-import { VALID_MODES, readModeState } from "./runtime-context.js";
+import { VALID_MODES, readCapabilityState, readModeState } from "./runtime-context.js";
 const STATUS_ACTIONS = new Set(["status", "doctor", "migration"]);
-const TOP_LEVEL_CONFIG_KEYS = new Set(["defaultMode", "outputRouter", "delegationHarness", "observedRouting", "scriptTransform"]);
+const TOP_LEVEL_CONFIG_KEYS = new Set(["enabled", "defaultMode", "skills", "outputRouter", "delegationHarness", "observedRouting", "scriptTransform"]);
 const OUTPUT_ROUTER_CONFIG_KEYS = new Set([
     "enabled",
     "profile",
@@ -32,10 +32,18 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
     const localConfigFile = await readLocalConfigFile(ctx.cwd);
     const normalized = normalizeFreeflowConfig(configFile.parsed);
     const localNormalized = normalizeLocalFreeflowConfig(localConfigFile.parsed);
-    const modeState = await readModeState(ctx.cwd);
+    const [modeState, runtimeState] = await Promise.all([readModeState(ctx.cwd), readCapabilityState(ctx.cwd)]);
+    const effectiveFreeflowConfig = runtimeState.enabled
+        ? normalized.config
+        : {
+            ...normalized.config,
+            outputRouter: { ...normalized.config.outputRouter, enabled: false },
+            observedRouting: { ...normalized.config.observedRouting, enabled: false },
+            scriptTransform: { ...normalized.config.scriptTransform, enabled: false },
+        };
     const vault = createVault({
-        root: normalized.config.outputRouter.vault.root,
-        retention: normalized.config.outputRouter.vault.retention,
+        root: effectiveFreeflowConfig.outputRouter.vault.root,
+        retention: effectiveFreeflowConfig.outputRouter.vault.retention,
     });
     const configWarnings = [...normalized.warnings];
     const localConfigWarnings = [...localNormalized.warnings];
@@ -56,7 +64,7 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
     const [vaultWritability, vaultIndex, scriptSandbox] = await Promise.all([
         inspectVaultWritability(vault.root),
         inspectVaultIndex(vault),
-        probeScriptSandboxAdapters({ config: normalized.config.scriptTransform, adapters: scriptSandboxAdapters }),
+        probeScriptSandboxAdapters({ config: effectiveFreeflowConfig.scriptTransform, adapters: scriptSandboxAdapters }),
     ]);
     const migration = migrationReport(configFile.parsed);
     return {
@@ -69,20 +77,26 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
         localConfigExists: localConfigFile.exists,
         mode: modeState,
         effectiveConfig: {
+            configured: runtimeState.configured,
+            enabled: runtimeState.enabled,
+            skills: runtimeState.skills,
+            delegationHarness: runtimeState.delegationHarness,
             outputRouter: {
-                enabled: normalized.config.outputRouter.enabled,
-                profile: normalized.config.outputRouter.profile,
-                postToolRouting: normalized.config.outputRouter.postToolRouting,
-                storagePolicy: normalized.config.outputRouter.storagePolicy,
-                thresholds: normalized.config.outputRouter.thresholds,
-                vault: normalized.config.outputRouter.vault,
-                hints: normalized.config.outputRouter.hints ?? {},
-                observedRouting: normalized.config.observedRouting,
-                scriptTransform: normalized.config.scriptTransform,
+                enabled: effectiveFreeflowConfig.outputRouter.enabled,
+                profile: effectiveFreeflowConfig.outputRouter.profile,
+                postToolRouting: effectiveFreeflowConfig.outputRouter.postToolRouting,
+                storagePolicy: effectiveFreeflowConfig.outputRouter.storagePolicy,
+                thresholds: effectiveFreeflowConfig.outputRouter.thresholds,
+                vault: effectiveFreeflowConfig.outputRouter.vault,
+                hints: effectiveFreeflowConfig.outputRouter.hints ?? {},
+                observedRouting: effectiveFreeflowConfig.observedRouting,
+                scriptTransform: effectiveFreeflowConfig.scriptTransform,
             },
         },
         effectiveLocalConfig: localNormalized.config,
         effectiveDefaults: {
+            enabled: true,
+            skills: { enabled: true },
             outputRouter: {
                 enabled: DEFAULT_OUTPUT_ROUTER_ENABLED,
                 profile: DEFAULT_OUTPUT_ROUTER_PROFILE,
@@ -97,13 +111,13 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
         },
         vault: {
             root: vault.root,
-            configuredRoot: normalized.config.outputRouter.vault.root,
-            retention: normalized.config.outputRouter.vault.retention,
+            configuredRoot: effectiveFreeflowConfig.outputRouter.vault.root,
+            retention: effectiveFreeflowConfig.outputRouter.vault.retention,
             writability: vaultWritability,
         },
         vaultIndex,
-        observedRouting: observedRoutingStatus(normalized.config.observedRouting),
-        scriptTransform: scriptTransformStatus(normalized.config.scriptTransform, scriptSandbox),
+        observedRouting: observedRoutingStatus(effectiveFreeflowConfig.observedRouting),
+        scriptTransform: scriptTransformStatus(effectiveFreeflowConfig.scriptTransform, scriptSandbox),
         processing: processingStatus(localNormalized.config),
         recoverabilityDefaults: {
             freeflowRun: "hybrid-dedupe command capture: exact when exactness-sensitive or duplicate recovery points to a prior exact outputId; small non-sensitive successes may be metadata-only",

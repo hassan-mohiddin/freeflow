@@ -10,6 +10,18 @@ Freeflow is a workflow layer, not a new agent. It helps the agent choose the rig
 
 Use strict-workflow for security, privacy, billing, public APIs, migrations, data loss, compatibility, permissions, deployment, or irreversible architecture.
 
+## Activation and toggles
+
+Freeflow is repo-local. A global install stays inactive until `/setup-freeflow` creates a `.freeflow/config.json` that parses and matches the supported setup config shape.
+
+Pi users can run `/freeflow` for one settings surface:
+
+- `enabled: false` turns the full Freeflow runtime off and makes nested settings inactive.
+- `skills.enabled: false` hides model workflow skills and suppresses mode-contract, workflow, interview-gate, and discovery-light runtime context.
+- `outputRouter.enabled` and `delegationHarness.enabled` remain layer toggles, but only take effect while top-level Freeflow is enabled.
+
+`/freeflow enable` remains available while Freeflow is disabled.
+
 ## Map
 
 ```mermaid

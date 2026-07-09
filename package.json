@@ -46,11 +46,7 @@
     "pi"
   ],
   "pi": {
-    "skills": [
-      "skills",
-      "!skills/output-router/**",
-      "!skills/delegation-harness/**"
-    ],
+    "skills": [],
     "extensions": [
       "pi-extension/freeflow/index.js"
     ],

@@ -61,7 +61,7 @@ with:
 
 Minimal setup should not add any other config fields.
 
-Optional evidence-routing config (`outputRouter`, `observedRouting`, `scriptTransform`) may be added only after the setup evidence-routing/script-execution decision point or an explicit request for generated-path hints, output thresholds, vault settings, native safety-net routing, observed MCP/web/fetch/code-search routing, or script-transform adapters. Missing optional sections means built-in defaults, not a warning. Native safety-net routing remains off unless explicitly requested and supported; observed routing handles configured MCP/web/fetch/code-search output after host execution.
+Optional repo runtime toggles (`enabled`, `skills.enabled`) and evidence-routing config (`outputRouter`, `observedRouting`, `scriptTransform`) may be added only after the setup evidence-routing/script-execution decision point, a `/freeflow` settings change, or an explicit request for generated-path hints, output thresholds, vault settings, native safety-net routing, observed MCP/web/fetch/code-search routing, or script-transform adapters. Missing `enabled` and `skills.enabled` means enabled only after this config file exists, parses, and matches the supported setup config shape. Missing optional routing sections means built-in defaults, not a warning. Native safety-net routing remains off unless explicitly requested and supported; observed routing handles configured MCP/web/fetch/code-search output after host execution.
 
 Do not store:
 
@@ -107,7 +107,7 @@ The always-on text should stay compact because users often keep agent instructio
 
 Do not list the whole workflow or every mode in the activation block.
 
-The full mode-contract, workflow, interview-gate, and output-router skills plus discovery-light guidance are loaded by plugin-bundled context hooks, not by setup copying full skills into repo memory.
+The full mode-contract, workflow, interview-gate, discovery-light guidance, and enabled capability context are loaded by plugin-bundled context hooks or the Pi extension, not by setup copying full skills into repo memory.
 
 Placement matters:
 
@@ -129,18 +129,19 @@ ADRs remain reserved for hard-to-reverse, surprising, tradeoff-driven decisions.
 
 ## Runtime Context Hooks
 
-Freeflow may ship plugin-bundled hooks that load existing mode-contract, workflow, interview-gate, discovery-light, and output-router context. These hooks belong to the installed plugin, not the target repo.
+Freeflow may ship plugin-bundled hooks that load existing mode-contract, workflow, interview-gate, discovery-light, and enabled capability context. These hooks belong to the installed plugin, not the target repo.
 
 They should:
 
-- load `skills/mode-contract/SKILL.md`
-- load `skills/workflow/SKILL.md`
-- load `skills/interview-gate/SKILL.md`
-- load discovery-light guidance instead of the full Discover skill
-- load `skills/output-router/SKILL.md`
-- state the runtime priority: mode-contract handles mode issues first, workflow classifies, interview-gate stops silent decisions, discovery-light handles context-building, output-router chooses evidence transport
+- stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape
+- suppress all Freeflow runtime context when top-level `enabled: false`
+- load `skills/mode-contract/SKILL.md`, `skills/workflow/SKILL.md`, and `skills/interview-gate/SKILL.md` only when `skills.enabled` is effective
+- load discovery-light guidance instead of the full Discover skill only when `skills.enabled` is effective
+- load `skills/output-router/SKILL.md` only when output-router is effective
+- load `skills/delegation-harness/SKILL.md` only when delegation harness is effective
+- state the runtime priority for whichever layers are active
 - run on session start for startup, resume, clear, and compact
-- report whether setup appears complete, partial, or missing
+- report whether setup appears complete or partial once config activates the runtime
 
 They should not:
 
@@ -151,7 +152,7 @@ They should not:
 - create repo-local hook files
 - replace setup activation in `AGENTS.md` or `CLAUDE.md`
 
-Setup itself should read the mode-contract, workflow, interview-gate, and output-router skills and apply discovery-light after successful verification, before its final response, so the current session has the runtime context loaded without a post-tool hook.
+Setup itself should read the base workflow skills and enabled capability skills and apply discovery-light after successful verification, before its final response, so the current session has the runtime context loaded without a post-tool hook.
 
 ## Existing Rule Conflicts
 
@@ -365,7 +366,7 @@ Current evidence:
 - `setup-freeflow` has focused setup evals for Codex and Claude activation shapes.
 - `write-skill` has behavior and direct command evals showing that production-ready pressure must not overbuild skill folders.
 - `evaluate-skill` has behavior and direct command evals showing that shortcut wording must not skip creating or updating an eval artifact before skill edits.
-- Command-surface coverage is being updated for the discover migration. The current registry has 4 mode commands, 12 direct skill calls, and 3 developer skill calls. See `evals/reports/by-command-surface/command-surface-matrix.md`.
+- Command-surface coverage is current for the direct Freeflow routes. The current registry has 4 mode commands, 11 direct skill calls, 3 developer skill calls, and 3 Pi native settings commands. See `evals/reports/by-command-surface/command-surface-matrix.md`.
 - The fixture harness supports Codex by default and Claude through `FREEFLOW_FIXTURE_AGENT=claude`; live Claude runs still require local Claude auth and are not active release blockers for Hassan's local Codex-first testing.
 
 ## Current Pack Readiness
@@ -381,8 +382,8 @@ Current packaging shape:
 - Every `SKILL.md` is under the 100-line project budget.
 - Extra reference files exist only where targeted evals or complexity justified progressive disclosure.
 - Native slash handlers remain disabled; commands are model-routed through skill activation.
-- Context-loading hooks are shipped to load mode-contract, workflow, interview-gate, discovery-light, and output-router context at session start.
-- Setup reads mode-contract, workflow, interview-gate, and output-router context and applies discovery-light after successful setup verification for same-session use.
+- Context-loading hooks and the Pi extension stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape, then load enabled mode-contract, workflow, interview-gate, discovery-light, and capability context at session start.
+- Setup reads base workflow context and enabled capability context, then applies discovery-light after successful setup verification for same-session use.
 - Enforcement hooks remain deferred until skill behavior and evals prove mechanical enforcement is needed.
 
 Reference-file additions from the reference-stack pass have landed. Do not add more references, scripts, examples, or assets merely because a skill is broad. Add them only when they keep the active `SKILL.md` short, reduce repeated deterministic work, or prevent a measured behavior failure.

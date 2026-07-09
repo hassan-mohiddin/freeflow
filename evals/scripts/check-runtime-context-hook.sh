@@ -43,46 +43,14 @@ claude_session_output="$(
     PLUGIN_ROOT="$plugin_root" CLAUDE_PLUGIN_ROOT="$plugin_root" node "$hook_script" SessionStart
 )"
 
-require_contains "Claude SessionStart output" "$claude_session_output" "hookSpecificOutput"
-require_contains "Claude SessionStart output" "$claude_session_output" "additionalContext"
-require_contains "Claude SessionStart output" "$claude_session_output" "Freeflow Runtime Context"
-require_contains "Claude SessionStart output" "$claude_session_output" "Setup status: this repo does not appear to be set up for Freeflow yet."
-require_contains "Claude SessionStart output" "$claude_session_output" "Repo default mode: missing \`.freeflow/config.json\`; effective default mode falls back to \`workflow\`."
-require_contains "Claude SessionStart output" "$claude_session_output" "Required user-facing notice: in the next assistant reply, tell the user Freeflow is installed but this repo is not set up yet, and recommend \`/setup-freeflow\`."
-require_contains "Claude SessionStart output" "$claude_session_output" "Freeflow Runtime Priority"
-require_contains "Claude SessionStart output" "$claude_session_output" "Loaded Mode Contract Skill"
-require_contains "Claude SessionStart output" "$claude_session_output" "Loaded Workflow Skill"
-require_contains "Claude SessionStart output" "$claude_session_output" "Loaded Interview Gate Skill"
-require_contains "Claude SessionStart output" "$claude_session_output" "Discovery-light"
-require_contains "Claude SessionStart output" "$claude_session_output" "Output router: disabled"
-if [[ "$claude_session_output" == *"Loaded Output Router Skill" ]]; then
-  fail "Claude SessionStart output should not load output-router context while the capability is disabled."
-fi
-require_contains "Claude SessionStart output" "$claude_session_output" "Use exactly three modes."
-require_contains "Claude SessionStart output" "$claude_session_output" "Question means answer. Do not turn a question into a file edit"
-require_contains "Claude SessionStart output" "$claude_session_output" "Stop before silent decisions."
-require_contains "Claude SessionStart output" "$claude_session_output" "ask only path-changing questions"
-require_contains "Claude SessionStart output" "$claude_session_output" "Enabled Freeflow capabilities add their own runtime guidance below."
+[ -z "$claude_session_output" ] || fail "Claude SessionStart should stay inert before .freeflow/config.json exists."
 
 codex_session_output="$(
   printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s","model":"gpt-test"}' "$workspace" |
     PLUGIN_ROOT="$plugin_root" CLAUDE_PLUGIN_ROOT="$plugin_root" node "$hook_script" SessionStart
 )"
 
-require_contains "Codex SessionStart output" "$codex_session_output" "Freeflow Runtime Context"
-require_contains "Codex SessionStart output" "$codex_session_output" "effective default mode falls back to \`workflow\`"
-require_contains "Codex SessionStart output" "$codex_session_output" "Do this even if the user's prompt is casual, such as a greeting."
-require_contains "Codex SessionStart output" "$codex_session_output" "Loaded Mode Contract Skill"
-require_contains "Codex SessionStart output" "$codex_session_output" "Loaded Workflow Skill"
-require_contains "Codex SessionStart output" "$codex_session_output" "Loaded Interview Gate Skill"
-require_contains "Codex SessionStart output" "$codex_session_output" "Discovery-light"
-require_contains "Codex SessionStart output" "$codex_session_output" "Output router: disabled"
-if [[ "$codex_session_output" == *"Loaded Output Router Skill" ]]; then
-  fail "Codex SessionStart output should not load output-router context while the capability is disabled."
-fi
-if [[ "$codex_session_output" == *"hookSpecificOutput"* ]]; then
-  fail "Codex SessionStart output should be plain context, not Claude hook JSON."
-fi
+[ -z "$codex_session_output" ] || fail "Codex SessionStart should stay inert before .freeflow/config.json exists."
 
 disabled_output="$(
   printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s","model":"gpt-test"}' "$workspace" |
@@ -111,6 +79,45 @@ configured_output="$(
 require_contains "Configured SessionStart output" "$configured_output" "Setup status: configured for Codex AGENTS.md with defaultMode \`strict-workflow\`."
 require_contains "Configured SessionStart output" "$configured_output" "Current Freeflow default mode: \`strict-workflow\`."
 require_contains "Configured SessionStart output" "$configured_output" "For mode changes or mode interpretation, use \`mode-contract\`."
+
+cat >"$workspace/.freeflow/config.json" <<'JSON'
+{
+  "enabled": false,
+  "defaultMode": "workflow",
+  "skills": { "enabled": true },
+  "outputRouter": { "enabled": true },
+  "delegationHarness": { "enabled": true }
+}
+JSON
+
+freeflow_disabled_output="$(
+  printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s","model":"gpt-test"}' "$workspace" |
+    PLUGIN_ROOT="$plugin_root" CLAUDE_PLUGIN_ROOT="$plugin_root" node "$hook_script" SessionStart
+)"
+
+require_contains "Disabled Freeflow SessionStart output" "$freeflow_disabled_output" "Freeflow Disabled"
+if [[ "$freeflow_disabled_output" == *"Loaded Workflow Skill"* || "$freeflow_disabled_output" == *"Loaded Output Router Skill"* || "$freeflow_disabled_output" == *"Loaded Delegation Harness Skill"* ]]; then
+  fail "Freeflow enabled=false should suppress all skill and capability context."
+fi
+
+cat >"$workspace/.freeflow/config.json" <<'JSON'
+{
+  "defaultMode": "workflow",
+  "skills": { "enabled": false },
+  "outputRouter": { "enabled": true }
+}
+JSON
+
+skills_disabled_output="$(
+  printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s","model":"gpt-test"}' "$workspace" |
+    PLUGIN_ROOT="$plugin_root" CLAUDE_PLUGIN_ROOT="$plugin_root" node "$hook_script" SessionStart
+)"
+
+require_contains "Skills-disabled SessionStart output" "$skills_disabled_output" "Skills: disabled"
+require_contains "Skills-disabled SessionStart output" "$skills_disabled_output" "Loaded Output Router Skill"
+if [[ "$skills_disabled_output" == *"Loaded Workflow Skill"* || "$skills_disabled_output" == *"Loaded Interview Gate Skill"* || "$skills_disabled_output" == *"## Discovery-light"* ]]; then
+  fail "skills.enabled=false should suppress base Freeflow skill context."
+fi
 
 cat >"$workspace/.freeflow/config.json" <<'JSON'
 {
@@ -206,4 +213,4 @@ if [ "$failures" -gt 0 ]; then
   exit 1
 fi
 
-printf 'Runtime context hook check passed: hook config parses, startup injects mode-contract, workflow, interview-gate, discovery-light, enabled capability context, disable env suppresses output, and PostToolUse stays disabled.\n'
+printf 'Runtime context hook check passed: missing setup stays inert, configured startup injects enabled context, top-level/skills toggles gate context, disable env suppresses output, and PostToolUse stays disabled.\n'

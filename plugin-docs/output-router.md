@@ -14,7 +14,7 @@ smallest sufficient evidence in context
 + no surprise native tool semantics
 ```
 
-The router ships explicit tools and Pi observed routing:
+The router ships explicit tools and Pi observed routing. In Pi, these are active only when `.freeflow/config.json` exists, top-level Freeflow is enabled, and `outputRouter.enabled` is effective:
 
 - `freeflow_search`: search/retrieve repo, explicit local, or vault evidence, and transform file/output sources through `action="transform"`.
 - `freeflow_run`: run shell commands or sandboxed script producers, apply the run storage policy, and return compact evidence with recovery guidance.
@@ -314,13 +314,15 @@ Default vault root:
 
 ## Config
 
-The router works with built-in defaults. Minimal `/setup-freeflow` writes only `defaultMode`.
+The router works with built-in defaults after repo setup. Minimal `/setup-freeflow` writes `defaultMode`; a missing `.freeflow/config.json` keeps Freeflow inactive.
 
-Optional repo config lives in `.freeflow/config.json` only after the setup evidence-routing decision point or an explicit request:
+Optional repo config lives in `.freeflow/config.json` only after the setup evidence-routing decision point, `/freeflow` settings, or an explicit request:
 
 ```json
 {
+  "enabled": true,
   "defaultMode": "workflow",
+  "skills": { "enabled": true },
   "outputRouter": {
     "enabled": true,
     "profile": "standard",
@@ -351,6 +353,8 @@ Optional repo config lives in `.freeflow/config.json` only after the setup evide
 
 Rules:
 
+- Top-level `enabled: false` disables Freeflow and makes output-router settings ineffective until re-enabled.
+- `skills.enabled` controls base workflow skill exposure, not router tools.
 - `postToolRouting` defaults to `off`.
 - `storagePolicy` defaults to `hybrid-dedupe` for `freeflow_run` command/script capture. `store-everything` is the compatibility/diagnostic override.
 - Small non-sensitive successful command output may be metadata-only; failures, verification/diagnosis/build/test output, `preserve=full`, filters/script filters, script producers, and large/noisy output stay exact.

@@ -1,10 +1,10 @@
 import { handleNativeToolSafetyNet } from "./native-safety-net.js";
 import { handleObservedToolRouting } from "./observed-tool-routing.js";
 import { registerRouterTools } from "./router-tools.js";
-import { handleDelegationHarnessCommand, handleOutputRouterCommand } from "./settings-ui.js";
+import { handleDelegationHarnessCommand, handleFreeflowCommand, handleOutputRouterCommand } from "./settings-ui.js";
 import { registerDelegation } from "./delegation/index.js";
 import { appendDelegatedRuntimeContext, handleDelegatedAssistantMessageEnd, handleDelegatedToolCall, handleDelegationSessionStart, } from "./delegation/runtime.js";
-import { CONTRIBUTOR_COMMANDS, WORKFLOW_COMMANDS, getRuntimeContext, handleWorkflowCommand, OUTPUT_ROUTER_TOOL_NAMES, readCapabilityState, readModeState, readOutputRouterConfig, refreshRuntimeContext, restoreModeOverride, runtimeContext, setModeStatus, skillPrompt, notifyRouterConfigWarnings, } from "./runtime-context.js";
+import { CONTRIBUTOR_COMMANDS, WORKFLOW_COMMANDS, FREEFLOW_STATUS_TOOL_NAME, freeflowModelSkillPaths, freeflowSkillPath, getRuntimeContext, handleWorkflowCommand, OUTPUT_ROUTER_TOOL_NAMES, readCapabilityState, readModeState, readOutputRouterConfig, refreshRuntimeContext, restoreModeOverride, runtimeContext, setModeStatus, skillPrompt, notifyRouterConfigWarnings, } from "./runtime-context.js";
 function isDelegationToolName(name) {
     return name.startsWith("delegate_");
 }
@@ -20,6 +20,12 @@ async function applyCapabilityToolVisibility(pi, ctx, capabilityState = undefine
     const allToolNameSet = new Set(allToolNames);
     const currentActive = typeof pi.getActiveTools === "function" ? pi.getActiveTools() : undefined;
     const active = new Set((Array.isArray(currentActive) ? currentActive : allToolNames).filter((name) => allToolNameSet.has(name)));
+    if (allToolNameSet.has(FREEFLOW_STATUS_TOOL_NAME)) {
+        if (state.configured && state.enabled)
+            active.add(FREEFLOW_STATUS_TOOL_NAME);
+        else
+            active.delete(FREEFLOW_STATUS_TOOL_NAME);
+    }
     for (const toolName of OUTPUT_ROUTER_TOOL_NAMES) {
         if (!allToolNameSet.has(toolName))
             continue;
@@ -37,18 +43,50 @@ async function applyCapabilityToolVisibility(pi, ctx, capabilityState = undefine
     pi.setActiveTools([...active]);
 }
 function disabledToolCall(toolName, capability) {
+    const command = capability === "freeflow" ? "/freeflow settings" : `/${capability} settings`;
     return {
         block: true,
-        reason: `${toolName} is disabled by Freeflow config. Configure ${capability} with /${capability} settings.`,
+        reason: `${toolName} is disabled by Freeflow config. Configure ${capability} with ${command}.`,
     };
 }
 function capabilityCompletions(prefix) {
     const query = prefix ?? "";
     return ["settings", "status", "enable", "disable"].filter((value) => value.startsWith(query)).map((value) => ({ value, label: value }));
 }
+async function sendSkillCommand(pi, ctx, skill, args) {
+    const state = await readCapabilityState(ctx.cwd);
+    if (skill === "setup-freeflow" && !state.configured) {
+        await pi.sendUserMessage(skillPrompt(skill, args));
+        return;
+    }
+    if (!state.configured) {
+        ctx.ui.notify("Freeflow is installed but this repo is not set up. Run /setup-freeflow first.", "warning");
+        return;
+    }
+    if (!state.enabled) {
+        ctx.ui.notify("Freeflow is disabled for this repo. Use /freeflow enable or /freeflow settings to re-enable it.", "warning");
+        return;
+    }
+    if (!state.skills.effective) {
+        ctx.ui.notify("Freeflow skills are disabled. Use /freeflow settings to enable skills.", "warning");
+        return;
+    }
+    await pi.sendUserMessage(skillPrompt(skill, args));
+}
 export default function freeflow(pi) {
     registerRouterTools(pi);
     registerDelegation(pi);
+    pi.on("resources_discover", async (event, ctx) => {
+        const cwd = ctx?.cwd ?? event?.cwd ?? process.cwd();
+        const state = await readCapabilityState(cwd);
+        if (!state.configured) {
+            return { skillPaths: [freeflowSkillPath("setup-freeflow")] };
+        }
+        if (!state.enabled || !state.skills.effective) {
+            return { skillPaths: [] };
+        }
+        return { skillPaths: freeflowModelSkillPaths() };
+    });
     pi.on("session_start", async (_event, ctx) => {
         restoreModeOverride(ctx);
         const [modeState, routerConfigResult, capabilityState] = await Promise.all([
@@ -57,7 +95,7 @@ export default function freeflow(pi) {
             readCapabilityState(ctx.cwd),
         ]);
         await refreshRuntimeContext(capabilityState);
-        setModeStatus(ctx, modeState);
+        setModeStatus(ctx, modeState, capabilityState);
         notifyRouterConfigWarnings(ctx, routerConfigResult);
         await applyCapabilityToolVisibility(pi, ctx, capabilityState);
         if (capabilityState.delegationHarness.enabled) {
@@ -71,7 +109,7 @@ export default function freeflow(pi) {
             readCapabilityState(ctx.cwd),
         ]);
         await refreshRuntimeContext(capabilityState);
-        setModeStatus(ctx, modeState);
+        setModeStatus(ctx, modeState, capabilityState);
         notifyRouterConfigWarnings(ctx, routerConfigResult);
         await applyCapabilityToolVisibility(pi, ctx, capabilityState);
         if (capabilityState.delegationHarness.enabled) {
@@ -85,12 +123,13 @@ export default function freeflow(pi) {
             readCapabilityState(ctx.cwd),
         ]);
         const freeflowContext = await getRuntimeContext(capabilityState);
-        setModeStatus(ctx, modeState);
+        setModeStatus(ctx, modeState, capabilityState);
         notifyRouterConfigWarnings(ctx, routerConfigResult);
         await applyCapabilityToolVisibility(pi, ctx, capabilityState);
-        const systemPrompt = event.systemPrompt +
-            "\n\n" +
-            runtimeContext(modeState, freeflowContext, routerConfigResult, capabilityState);
+        const freeflowRuntimeContext = runtimeContext(modeState, freeflowContext, routerConfigResult, capabilityState);
+        const systemPrompt = freeflowRuntimeContext
+            ? `${event.systemPrompt}\n\n${freeflowRuntimeContext}`
+            : event.systemPrompt;
         return {
             systemPrompt: capabilityState.delegationHarness.enabled
                 ? await appendDelegatedRuntimeContext(pi, event, ctx, systemPrompt)
@@ -100,6 +139,9 @@ export default function freeflow(pi) {
     pi.on("tool_call", async (event, ctx) => {
         const capabilityState = await readCapabilityState(ctx.cwd);
         const toolName = typeof event?.toolName === "string" ? event.toolName : "";
+        if ((!capabilityState.configured || !capabilityState.enabled) && toolName === FREEFLOW_STATUS_TOOL_NAME) {
+            return disabledToolCall(toolName, "freeflow");
+        }
         if (!capabilityState.outputRouter.enabled && isOutputRouterToolName(toolName)) {
             return disabledToolCall(toolName, "output-router");
         }
@@ -119,6 +161,10 @@ export default function freeflow(pi) {
         return handleDelegatedAssistantMessageEnd(event, ctx);
     });
     pi.on("tool_result", async (event, ctx) => {
+        const capabilityState = await readCapabilityState(ctx.cwd);
+        if (!capabilityState.outputRouter.enabled) {
+            return undefined;
+        }
         const observed = await handleObservedToolRouting(event, ctx);
         if (observed) {
             return observed;
@@ -128,19 +174,31 @@ export default function freeflow(pi) {
     for (const { command, skill } of WORKFLOW_COMMANDS) {
         pi.registerCommand(command, {
             description: command === skill ? `Run Freeflow ${skill}` : `Run Freeflow ${skill} via ${command}`,
-            handler: async (args) => {
-                await pi.sendUserMessage(skillPrompt(skill, args));
+            handler: async (args, ctx) => {
+                await sendSkillCommand(pi, ctx, skill, args);
             },
         });
     }
     for (const skill of CONTRIBUTOR_COMMANDS) {
         pi.registerCommand(skill, {
             description: `Run Freeflow ${skill}`,
-            handler: async (args) => {
-                await pi.sendUserMessage(skillPrompt(skill, args));
+            handler: async (args, ctx) => {
+                await sendSkillCommand(pi, ctx, skill, args);
             },
         });
     }
+    pi.registerCommand("freeflow", {
+        description: "Open unified Freeflow settings or print compact status",
+        getArgumentCompletions: capabilityCompletions,
+        handler: async (args, ctx) => {
+            const result = await handleFreeflowCommand(args, ctx, async () => {
+                await applyCapabilityToolVisibility(pi, ctx);
+            });
+            if (result.changed && !result.reloaded) {
+                await applyCapabilityToolVisibility(pi, ctx);
+            }
+        },
+    });
     pi.registerCommand("output-router", {
         description: "Open Freeflow Output Router settings or print compact status",
         getArgumentCompletions: capabilityCompletions,

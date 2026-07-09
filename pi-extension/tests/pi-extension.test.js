@@ -84,6 +84,7 @@ test("Pi registers capability commands and no public capture tool", () => {
   const commandNames = commands.map((command) => command.name);
   const toolNames = tools.map((tool) => tool.name);
 
+  assert.ok(commandNames.includes("freeflow"));
   assert.ok(commandNames.includes("output-router"));
   assert.ok(commandNames.includes("delegation-harness"));
   assert.ok(toolNames.includes("freeflow_status"));
@@ -95,6 +96,159 @@ test("Pi registers capability commands and no public capture tool", () => {
   assert.ok(!toolNames.includes("freeflow_retrieve"));
   assert.ok(!toolNames.includes("freeflow_search action=transform"));
   assert.ok(!toolNames.includes("freeflow_capture"));
+});
+
+test("Pi keeps Freeflow inactive until setup config exists", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-missing-setup-"));
+  try {
+    const { handlers, activeToolNames } = loadExtension();
+    const resourcesDiscover = handlers.get("resources_discover");
+    const beforeAgentStart = handlers.get("before_agent_start");
+    assert.ok(resourcesDiscover);
+    assert.ok(beforeAgentStart);
+
+    const resources = await resourcesDiscover({ cwd }, context(cwd));
+    assert.equal(resources.skillPaths.length, 1);
+    assert.match(resources.skillPaths[0], /setup-freeflow\/SKILL\.md$/);
+
+    const result = await beforeAgentStart({ systemPrompt: "base prompt" }, context(cwd));
+    assert.equal(result.systemPrompt, "base prompt");
+    assert.ok(!activeToolNames().includes("freeflow_status"));
+    assert.ok(!activeToolNames().includes("freeflow_search"));
+    assert.ok(!activeToolNames().includes("freeflow_run"));
+    assert.ok(!activeToolNames().includes("freeflow_batch"));
+    assert.ok(!activeToolNames().includes("delegate_spawn"));
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi treats invalid Freeflow setup config as inactive", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-invalid-setup-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({ defaultMode: "workflow", enabled: "false", skills: { enabled: "no" }, outputRouter: { enabled: true }, delegationHarness: { enabled: true } }, null, 2),
+      "utf8",
+    );
+
+    const { handlers, commands, activeToolNames } = loadExtension();
+    const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
+    assert.equal(resources.skillPaths.length, 1);
+    assert.match(resources.skillPaths[0], /setup-freeflow\/SKILL\.md$/);
+
+    const result = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, context(cwd));
+    assert.equal(result.systemPrompt, "base prompt");
+    assert.ok(!activeToolNames().includes("freeflow_status"));
+    assert.ok(!activeToolNames().includes("freeflow_search"));
+    assert.ok(!activeToolNames().includes("delegate_spawn"));
+
+    const freeflowCommand = commands.find((command) => command.name === "freeflow");
+    const statusCtx = context(cwd);
+    await freeflowCommand.definition.handler("status", statusCtx);
+    assert.match(statusCtx.notifications.at(-1).message, /invalid config/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi master Freeflow toggle disables skills, capabilities, and routing", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-master-disabled-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({ enabled: false, defaultMode: "workflow", skills: { enabled: true }, outputRouter: { enabled: true, postToolRouting: "safety-net" }, delegationHarness: { enabled: true } }, null, 2),
+      "utf8",
+    );
+
+    const { handlers, activeToolNames } = loadExtension();
+    const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
+    assert.deepEqual(resources.skillPaths, []);
+
+    const result = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, context(cwd));
+    assert.match(result.systemPrompt, /# Freeflow Disabled/);
+    assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);
+    assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Skill/);
+    assert.doesNotMatch(result.systemPrompt, /## Loaded Delegation Harness Skill/);
+    assert.ok(!activeToolNames().includes("freeflow_status"));
+    assert.ok(!activeToolNames().includes("freeflow_search"));
+    assert.ok(!activeToolNames().includes("delegate_spawn"));
+
+    const routed = await handlers.get("tool_result")(
+      { toolName: "read", input: { path: "large.txt" }, content: [{ type: "text", text: "line 1\nline 2" }], isError: false },
+      context(cwd),
+    );
+    assert.equal(routed, undefined);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi skills toggle suppresses workflow skills while allowing enabled router tools", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-skills-disabled-router-on-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow", skills: { enabled: false }, outputRouter: { enabled: true } }, null, 2), "utf8");
+
+    const { handlers, activeToolNames } = loadExtension();
+    const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
+    assert.deepEqual(resources.skillPaths, []);
+
+    const result = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, context(cwd));
+    assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);
+    assert.doesNotMatch(result.systemPrompt, /## Loaded Interview Gate Skill/);
+    assert.doesNotMatch(result.systemPrompt, /## Discovery-light/);
+    assert.match(result.systemPrompt, /Skills: disabled/);
+    assert.match(result.systemPrompt, /## Loaded Output Router Skill/);
+    assert.ok(activeToolNames().includes("freeflow_status"));
+    assert.ok(activeToolNames().includes("freeflow_search"));
+    assert.ok(activeToolNames().includes("freeflow_run"));
+    assert.ok(activeToolNames().includes("freeflow_batch"));
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi /freeflow command toggles master switch and blocks inactive settings rows", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-freeflow-settings-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ enabled: false, defaultMode: "workflow", outputRouter: { enabled: true } }, null, 2), "utf8");
+
+    const { commands } = loadExtension();
+    const freeflowCommand = commands.find((command) => command.name === "freeflow");
+    assert.ok(freeflowCommand);
+
+    const settingsCtx = context(cwd);
+    settingsCtx.ui.custom = async (factory) => {
+      let result;
+      const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
+        result = value;
+      });
+      assert.match(renderText(component), /Freeflow Settings/);
+      component.handleInput("\u001b[B"); // Skills row is inactive while Freeflow is off.
+      component.handleInput("\r");
+      component.handleInput("\u001b");
+      return result;
+    };
+
+    await freeflowCommand.definition.handler("settings", settingsCtx);
+    const afterInactiveEdit = JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8"));
+    assert.deepEqual(afterInactiveEdit, { enabled: false, defaultMode: "workflow", outputRouter: { enabled: true } });
+    assert.equal(settingsCtx.reloads.length, 0);
+
+    const enableCtx = context(cwd);
+    await freeflowCommand.definition.handler("enable", enableCtx);
+    const afterEnable = JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8"));
+    assert.equal(afterEnable.enabled, undefined);
+    assert.equal(afterEnable.defaultMode, "workflow");
+    assert.equal(afterEnable.outputRouter.enabled, true);
+    assert.equal(enableCtx.reloads.length, 1);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
 });
 
 test("Pi before_agent_start keeps output-router disabled by default", async () => {

@@ -25,7 +25,7 @@ Freeflow is a portable workflow skill pack for coding agents.
 - Setup/config evidence: `setup-freeflow` keeps minimal setup to `defaultMode` and adds optional router/observed-routing/script-transform config only after explicit setup branch/request.
 - Prepublish verification: passed on 2026-05-26 for v0.1, refreshed during v0.2 release prep, and covered by the current release-metadata validation script for v0.3 package metadata and release-boundary docs.
 - Native slash handlers: not shipped for Codex/Claude in the current release; Pi exposes direct Freeflow commands through its extension.
-- Runtime context loading: shipped through Codex/Claude plugin-bundled hooks and the Pi extension; the Pi extension injects mode-contract, workflow, interview-gate, discovery-light, and output-router context before every agent turn.
+- Runtime context loading: shipped through Codex/Claude plugin-bundled hooks and the Pi extension; global installs stay inert until `.freeflow/config.json` exists, and Pi injects only effective runtime layers before each agent turn.
 - Active discovery skill: `discover`; deprecated `research-brief`, `grill-context`, and `capture-decisions` live under root `deprecated/skills/` outside the runtime surface.
 - Router runtime source is organized by responsibility under `router/src/` (`tools/`, `transform/`, `evidence/`, `vault/`, `repo/`, `routing/`, `sandbox/`, `config/`, `benchmarks/`, `experiments/`); deprecated router references live under `deprecated/router/`.
 - npm Trusted Publisher: configured for GitHub Actions workflow `.github/workflows/release.yml` with environment `npm`.

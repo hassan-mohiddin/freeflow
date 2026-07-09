@@ -16,7 +16,7 @@ In Codex, open the hooks screen after install:
 /hooks
 ```
 
-Press `t` to trust/enable the Freeflow `SessionStart` hook when Codex marks it as needing review. Once enabled, plugin-bundled hooks load mode-contract, workflow, interview-gate, discovery-light, and output-router context at session start, resume, clear, and compact.
+Press `t` to trust/enable the Freeflow `SessionStart` hook when Codex marks it as needing review. Once enabled, plugin-bundled hooks stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape, then load mode-contract, workflow, interview-gate, discovery-light, and enabled capability context at session start, resume, clear, and compact.
 
 In Pi, install Freeflow as a Pi package from npm:
 
@@ -30,7 +30,7 @@ Or install directly from GitHub:
 pi install git:github.com/hassan-mohiddin/freeflow
 ```
 
-The package exposes `skills/` and the built Pi extension at `pi-extension/dist/index.js`. Pi extension source lives in `pi-extension/src/`. The Pi extension registers direct Freeflow commands, keeps `/workflow` mode changes scoped to the Pi session, refreshes mode-contract, workflow, interview-gate, and output-router skill context plus discovery-light on session start and compact, and injects that core runtime context before every agent turn. The safety-policy reference remains available to the output-router skill but is not injected wholesale by default. The extension does not enforce policy, block tools, grant permissions, or create repo-local hooks.
+The package exposes the built Pi extension at `pi-extension/dist/index.js`. Pi extension source lives in `pi-extension/src/`. The Pi extension dynamically exposes Freeflow model skills only after repo setup, keeps `/workflow` mode changes scoped to the Pi session, refreshes enabled runtime context on session start and compact, and injects that context before every agent turn. Use `/freeflow` for the unified settings/status UI; when Freeflow is off, nested skill, output-router, and delegation settings are inactive until re-enabled. The safety-policy reference remains available to the output-router skill but is not injected wholesale by default. The extension does not enforce policy, grant permissions, or create repo-local hooks.
 
 - [Workflow](workflow.md): modes, entry points, loops, and the compact workflow map.
 - [Skills](skills.md): shipped skills and what each one is for.

@@ -10,7 +10,7 @@ Setup renders this reference. Do not copy full skills, workflow maps, or runtime
 - Minimal config has exactly one field: `defaultMode`.
 - Valid defaults are exactly `conversation`, `workflow`, and `strict-workflow`.
 - Default mode is `workflow` unless the user explicitly persists another valid mode.
-- Optional `outputRouter`, nested `outputRouter.observedRouting`, nested `outputRouter.scriptTransform`, and `delegationHarness` config is allowed only after the capabilities decision point or an explicit request.
+- Optional top-level `enabled`, `skills.enabled`, `outputRouter`, nested `outputRouter.observedRouting`, nested `outputRouter.scriptTransform`, and `delegationHarness` config is allowed only after the capabilities decision point, `/freeflow` settings, or an explicit request.
 - Removed `capture` and `providers` config is not written by setup.
 - Codex activation writes `AGENTS.md`, not `.codex/rules`.
 - Claude activation writes a `CLAUDE.md` import plus one `.claude/rules/freeflow-core.md` file.
@@ -18,8 +18,8 @@ Setup renders this reference. Do not copy full skills, workflow maps, or runtime
 - Existing repo instructions remain source truth.
 - Setup hard-stops before unresolved host ambiguity or repo-rule conflict.
 - Setup does not create repo-local hooks, docs inventories, state files, handoffs, empty `CONTEXT.md`, skill inventories, `setup-output-router` skills, version metadata, activation path, current task, or current phase.
-- Plugin-bundled context hooks may load mode-contract, workflow, interview-gate, discovery-light, and enabled capability context at session start, but they are package runtime, not setup output.
-- After successful setup verification, setup reads the mode-contract, workflow, and interview-gate skills before its final response, conditionally reads output-router only when Output Router is enabled, and applies the discovery-light runtime rule so the current session is immediately usable.
+- Plugin-bundled context hooks and the Pi extension stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape; after that, they may load mode-contract, workflow, interview-gate, discovery-light, and enabled capability context at session start, but they are package runtime, not setup output.
+- After successful setup verification, setup reads the mode-contract, workflow, and interview-gate skills before its final response, conditionally reads capability skills only when their layers are enabled, and applies the discovery-light runtime rule so the current session is immediately usable.
 
 ## Host Adapters
 
@@ -40,8 +40,9 @@ Config:
 - Create or update `.freeflow/config.json`.
 - For minimal setup, write exactly `{ "defaultMode": "<mode>" }`.
 - Use `workflow` unless the user explicitly asks to persist `conversation` or `strict-workflow`.
-- Add optional config only after the capabilities decision point or an explicit request, using `output-router-setup.md`.
+- Add optional config only after the capabilities decision point, `/freeflow` settings, or an explicit request, using `output-router-setup.md` where router config is involved.
 - Missing optional sections mean built-in defaults, not setup failure.
+- Missing top-level `enabled` and `skills.enabled` means enabled after setup; writing `enabled: false` disables the full Freeflow runtime while preserving nested settings.
 - Output Router and Delegation Harness are disabled by default.
 - Never enable Output Router, Delegation Harness, observed routing, native safety-net routing, or script transform by default.
 - Observed routing requires explicit producer/server entries and user-chosen persistence: `exact`, `metadata-only`, or `none`. Do not offer or write `redacted`.

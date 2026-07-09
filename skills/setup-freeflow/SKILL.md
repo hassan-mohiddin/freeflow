@@ -87,7 +87,7 @@ Before claiming setup is complete, check:
 
 - config JSON parses;
 - minimal config contains only `defaultMode` unless optional capabilities were accepted or explicitly requested;
-- optional `outputRouter`, nested `outputRouter.observedRouting`, nested `outputRouter.scriptTransform`, and `delegationHarness` config contains only requested valid keys;
+- optional top-level `enabled`, `skills.enabled`, `outputRouter`, nested `outputRouter.observedRouting`, nested `outputRouter.scriptTransform`, and `delegationHarness` config contains only requested valid keys;
 - Output Router, Delegation Harness, observed routing, native safety-net routing, and script transform are off unless explicitly requested and supported;
 - every enabled observed-routing producer/server has user-chosen persistence: `exact`, `metadata-only`, or `none`; setup does not offer or write `redacted`;
 - Codex setup has exactly one `## Freeflow` block in `AGENTS.md`;
@@ -95,6 +95,6 @@ Before claiming setup is complete, check:
 - `.codex/rules` was not created or changed for Freeflow behavior;
 - no unrelated files changed.
 
-After successful setup verification, read `../mode-contract/SKILL.md`, `../workflow/SKILL.md`, and `../interview-gate/SKILL.md` before the final response. Read `../output-router/SKILL.md` only when Output Router was enabled during setup. Treat discovery-light as loaded with the runtime rule: inspect the smallest relevant evidence, answer directly, and ask only path-changing questions. Only say mode-contract, workflow, interview-gate, and discovery-light context is loaded for this session if the three core files were read successfully; add output-router context only if Output Router is enabled and that file was read successfully.
+After successful setup verification, read `../mode-contract/SKILL.md`, `../workflow/SKILL.md`, and `../interview-gate/SKILL.md` before the final response. Read `../output-router/SKILL.md` or other capability skills only when that layer was enabled during setup. Treat discovery-light as loaded with the runtime rule: inspect the smallest relevant evidence, answer directly, and ask only path-changing questions. Only say mode-contract, workflow, interview-gate, and discovery-light context is loaded for this session if the three core files were read successfully; add capability context only for enabled layers whose files were read successfully.
 
 If verification cannot run, say what remains unverified.
