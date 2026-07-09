@@ -235,6 +235,8 @@ test("Pi /freeflow command toggles master switch and blocks inactive settings ro
         result = value;
       });
       const rootText = renderText(component);
+      assert.match(rootText, /^─+/);
+      assert.match(rootText, /> █/);
       assert.match(rootText, /Freeflow Settings/);
       assert.match(rootText, /Output Router\s+enabled \(22\) › inactive/);
       assert.match(rootText, /\[dim\]\s+Skills/);
@@ -280,6 +282,8 @@ test("Pi /freeflow settings groups capability settings", async () => {
         result = value;
       });
       const rootText = renderText(component);
+      assert.match(rootText, /^─+/);
+      assert.match(rootText, /> █/);
       assert.match(rootText, /Output Router\s+enabled \(22\) ›/);
       assert.match(rootText, /Delegation Harness\s+disabled \(1\) ›/);
       assert.doesNotMatch(rootText, /Native safety net/);

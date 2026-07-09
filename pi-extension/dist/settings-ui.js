@@ -594,25 +594,35 @@ class FreeflowSettingsComponent {
         this.requestRender = requestRender;
         this.theme = theme;
         this.keybindings = keybindings;
-        this.frames = [{ title: options.title, items: options.items, selected: 0 }];
+        this.frames = [{ title: options.title, items: options.items, selected: 0, search: "" }];
     }
     render(width) {
         const lines = [];
-        const title = this.frames.map((frame) => frame.title).join(" › ");
+        const frame = this.currentFrame();
+        const items = this.displayItems(frame);
+        const title = this.frames.map((candidate) => candidate.title).join(" › ");
         const titleText = this.theme.fg?.("accent", this.theme.bold?.(title) ?? title) ?? title;
         const hint = this.frames.length > 1
-            ? "↑↓ navigate • Enter/Space change/open • Esc back"
-            : "↑↓ navigate • Enter/Space change/open • Esc save & close";
+            ? "  Type to search · Enter/Space to change/open · Esc back"
+            : "  Type to search · Enter/Space to change/open · Esc save & close";
+        this.clampSelection(frame, items.length);
+        lines.push(this.border(width));
         lines.push(titleText);
-        lines.push(truncate(hint, width));
+        lines.push(this.searchLine(frame, width));
         lines.push("");
-        const frame = this.currentFrame();
-        const items = frame.items;
-        if (items.length === 0) {
+        if (frame.items.length === 0) {
             lines.push(this.theme.fg?.("dim", "  No settings available") ?? "  No settings available");
+            lines.push(this.border(width));
             return lines;
         }
-        const maxLabel = Math.min(34, Math.max(...items.map((item) => item.label.length), 12));
+        if (items.length === 0) {
+            lines.push(this.theme.fg?.("dim", "  No matching settings") ?? "  No matching settings");
+            lines.push("");
+            lines.push(truncate(this.theme.fg?.("dim", hint) ?? hint, width));
+            lines.push(this.border(width));
+            return lines;
+        }
+        const maxLabel = Math.min(34, Math.max(...frame.items.map((item) => item.label.length), 12));
         const visible = Math.min(items.length, 18);
         const start = Math.max(0, Math.min(frame.selected - Math.floor(visible / 2), Math.max(0, items.length - visible)));
         const end = Math.min(items.length, start + visible);
@@ -639,6 +649,9 @@ class FreeflowSettingsComponent {
             lines.push("");
             lines.push(truncate(`  ${this.message}`, width));
         }
+        lines.push("");
+        lines.push(truncate(this.theme.fg?.("dim", hint) ?? hint, width));
+        lines.push(this.border(width));
         return lines;
     }
     invalidate() { }
@@ -649,13 +662,24 @@ class FreeflowSettingsComponent {
             return;
         }
         const frame = this.currentFrame();
-        if (this.matches(data, "tui.select.up", isUp)) {
-            if (frame.items.length > 0)
-                frame.selected = frame.selected === 0 ? frame.items.length - 1 : frame.selected - 1;
+        const items = this.displayItems(frame);
+        this.clampSelection(frame, items.length);
+        if (this.matches(data, "tui.editor.deleteCharBackward", isBackspace) && frame.search) {
+            frame.search = frame.search.slice(0, -1);
+            frame.selected = 0;
+        }
+        else if (this.isSearchInput(data)) {
+            frame.search += data;
+            frame.selected = 0;
+            this.message = "";
+        }
+        else if (this.matches(data, "tui.select.up", isUp)) {
+            if (items.length > 0)
+                frame.selected = frame.selected === 0 ? items.length - 1 : frame.selected - 1;
         }
         else if (this.matches(data, "tui.select.down", isDown)) {
-            if (frame.items.length > 0)
-                frame.selected = frame.selected === frame.items.length - 1 ? 0 : frame.selected + 1;
+            if (items.length > 0)
+                frame.selected = frame.selected === items.length - 1 ? 0 : frame.selected + 1;
         }
         else if (this.matches(data, "tui.select.confirm", isEnter) || data === " ") {
             this.activateSelected();
@@ -681,6 +705,27 @@ class FreeflowSettingsComponent {
     matches(data, keybinding, fallback) {
         return matchesKeybinding(this.keybindings, data, keybinding, fallback);
     }
+    border(width) {
+        return this.theme.fg?.("border", "─".repeat(Math.max(1, width))) ?? "─".repeat(Math.max(1, width));
+    }
+    searchLine(frame, width) {
+        const cursor = this.theme.fg?.("accent", "█") ?? "█";
+        return truncate(`> ${frame.search}${cursor}`, width);
+    }
+    displayItems(frame) {
+        const query = frame.search.trim().toLowerCase();
+        if (!query)
+            return frame.items;
+        return frame.items.filter((item) => {
+            return [item.label, item.description, valueForDisplay(item)].some((text) => text.toLowerCase().includes(query));
+        });
+    }
+    clampSelection(frame, itemCount) {
+        frame.selected = Math.max(0, Math.min(frame.selected, Math.max(0, itemCount - 1)));
+    }
+    isSearchInput(data) {
+        return data.length === 1 && data > " " && data !== "\u007f";
+    }
     styleLine(line, item, selected) {
         if (item.inactive)
             return this.theme.fg?.("dim", line) ?? line;
@@ -689,7 +734,8 @@ class FreeflowSettingsComponent {
         return line;
     }
     activateSelected() {
-        const item = this.currentFrame().items[this.currentFrame().selected];
+        const frame = this.currentFrame();
+        const item = this.displayItems(frame)[frame.selected];
         if (!item)
             return;
         this.message = "";
@@ -698,7 +744,7 @@ class FreeflowSettingsComponent {
             return;
         }
         if (item.children?.length) {
-            this.frames.push({ title: item.label, items: item.children, selected: 0 });
+            this.frames.push({ title: item.label, items: item.children, selected: 0, search: "" });
             return;
         }
         if (item.kind === "boolean" || item.kind === "enum") {
