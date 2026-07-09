@@ -943,12 +943,12 @@ export async function handleFreeflowCommand(args, ctx, afterChange) {
         const enabled = ["enable", "on", "true"].includes(action);
         const item = freeflowItems(raw).find((candidate) => candidate.id === "freeflow.enabled");
         await updateConfig(ctx.cwd, item, enabled);
+        await afterChange(true);
         ctx.ui.notify(`Freeflow ${enabled ? "enabled" : "disabled"}. Reloading Freeflow runtime...`, "info");
         if (typeof ctx.reload === "function") {
             await ctx.reload();
             return { changed: true, reloaded: true };
         }
-        await afterChange(true);
         ctx.ui.notify("Run /reload for Freeflow changes to fully apply.", "warning");
         return { changed: true, reloaded: false };
     }
@@ -964,12 +964,12 @@ export async function handleFreeflowCommand(args, ctx, afterChange) {
         onClose: async (settingsChanged) => {
             if (!settingsChanged)
                 return;
+            await afterChange(true);
             ctx.ui.notify("Freeflow settings saved. Reloading Freeflow runtime...", "info");
             if (typeof ctx.reload === "function") {
                 await ctx.reload();
             }
             else {
-                await afterChange(true);
                 ctx.ui.notify("Run /reload for Freeflow changes to fully apply.", "warning");
             }
         },
@@ -992,12 +992,12 @@ export async function handleOutputRouterCommand(args, ctx, afterChange) {
         const enabled = ["enable", "on", "true"].includes(action);
         const item = outputRouterItems(raw).find((candidate) => candidate.id === "outputRouter.enabled");
         await updateConfig(ctx.cwd, item, enabled);
+        await afterChange(true);
         ctx.ui.notify(`Output Router ${enabled ? "enabled" : "disabled"}. Reloading Freeflow runtime...`, "info");
         if (typeof ctx.reload === "function") {
             await ctx.reload();
             return { changed: true, reloaded: true };
         }
-        await afterChange(true);
         ctx.ui.notify("Run /reload for Output Router changes to fully apply.", "warning");
         return { changed: true, reloaded: false };
     }
@@ -1013,12 +1013,12 @@ export async function handleOutputRouterCommand(args, ctx, afterChange) {
         onClose: async (settingsChanged) => {
             if (!settingsChanged)
                 return;
+            await afterChange(true);
             ctx.ui.notify("Output Router settings saved. Reloading Freeflow runtime...", "info");
             if (typeof ctx.reload === "function") {
                 await ctx.reload();
             }
             else {
-                await afterChange(true);
                 ctx.ui.notify("Run /reload for Output Router changes to fully apply.", "warning");
             }
         },
@@ -1040,12 +1040,12 @@ export async function handleDelegationHarnessCommand(args, ctx, afterChange) {
         const enabled = ["enable", "on", "true"].includes(action);
         const item = delegationHarnessItems(raw)[0];
         await updateConfig(ctx.cwd, item, enabled);
+        await afterChange(true);
         ctx.ui.notify(`Delegation Harness ${enabled ? "enabled" : "disabled"}. Reloading Freeflow runtime...`, "info");
         if (typeof ctx.reload === "function") {
             await ctx.reload();
             return { changed: true, reloaded: true };
         }
-        await afterChange(true);
         ctx.ui.notify("Run /reload for Delegation Harness changes to fully apply.", "warning");
         return { changed: true, reloaded: false };
     }
@@ -1061,12 +1061,12 @@ export async function handleDelegationHarnessCommand(args, ctx, afterChange) {
         onClose: async (settingsChanged) => {
             if (!settingsChanged)
                 return;
+            await afterChange(true);
             ctx.ui.notify("Delegation Harness settings saved. Reloading Freeflow runtime...", "info");
             if (typeof ctx.reload === "function") {
                 await ctx.reload();
             }
             else {
-                await afterChange(true);
                 ctx.ui.notify("Run /reload for Delegation Harness changes to fully apply.", "warning");
             }
         },

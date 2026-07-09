@@ -42,6 +42,15 @@ async function applyCapabilityToolVisibility(pi, ctx, capabilityState = undefine
     }
     pi.setActiveTools([...active]);
 }
+async function applyLiveCapabilityState(pi, ctx) {
+    const [modeState, capabilityState] = await Promise.all([
+        readModeState(ctx.cwd),
+        readCapabilityState(ctx.cwd),
+    ]);
+    await refreshRuntimeContext(capabilityState);
+    setModeStatus(ctx, modeState, capabilityState);
+    await applyCapabilityToolVisibility(pi, ctx, capabilityState);
+}
 function disabledToolCall(toolName, capability) {
     const command = capability === "freeflow" ? "/freeflow settings" : `/${capability} settings`;
     return {
@@ -192,10 +201,10 @@ export default function freeflow(pi) {
         getArgumentCompletions: capabilityCompletions,
         handler: async (args, ctx) => {
             const result = await handleFreeflowCommand(args, ctx, async () => {
-                await applyCapabilityToolVisibility(pi, ctx);
+                await applyLiveCapabilityState(pi, ctx);
             });
             if (result.changed && !result.reloaded) {
-                await applyCapabilityToolVisibility(pi, ctx);
+                await applyLiveCapabilityState(pi, ctx);
             }
         },
     });
@@ -204,10 +213,10 @@ export default function freeflow(pi) {
         getArgumentCompletions: capabilityCompletions,
         handler: async (args, ctx) => {
             const result = await handleOutputRouterCommand(args, ctx, async () => {
-                await applyCapabilityToolVisibility(pi, ctx);
+                await applyLiveCapabilityState(pi, ctx);
             });
             if (result.changed && !result.reloaded) {
-                await applyCapabilityToolVisibility(pi, ctx);
+                await applyLiveCapabilityState(pi, ctx);
             }
         },
     });
@@ -216,10 +225,10 @@ export default function freeflow(pi) {
         getArgumentCompletions: capabilityCompletions,
         handler: async (args, ctx) => {
             const result = await handleDelegationHarnessCommand(args, ctx, async () => {
-                await applyCapabilityToolVisibility(pi, ctx);
+                await applyLiveCapabilityState(pi, ctx);
             });
             if (result.changed && !result.reloaded) {
-                await applyCapabilityToolVisibility(pi, ctx);
+                await applyLiveCapabilityState(pi, ctx);
             }
         },
     });

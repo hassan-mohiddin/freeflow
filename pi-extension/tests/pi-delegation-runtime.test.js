@@ -120,6 +120,7 @@ async function withTempRepo(fn) {
   const repoRoot = await mkdtemp(join(tmpdir(), "freeflow-pi-delegation-runtime-"));
   try {
     await mkdir(join(repoRoot, ".freeflow"), { recursive: true });
+    await writeFile(join(repoRoot, ".freeflow", "config.json"), JSON.stringify({ defaultMode: "workflow" }), "utf8");
     return await fn(repoRoot);
   } finally {
     await rm(repoRoot, { recursive: true, force: true });
@@ -166,18 +167,21 @@ async function readJsonLines(path) {
 }
 
 test("delegation runtime leaves normal non-delegated sessions unchanged", async () => {
-  await withDelegationEnv({}, async () => {
-    const { handlers, activeToolCalls } = loadExtension({ delegationHarness: false });
-    const beforeAgentStart = handlers.get("before_agent_start");
-    assert.ok(beforeAgentStart);
+  await withTempRepo(async (repoRoot) => {
+    await withDelegationEnv({}, async () => {
+      const { handlers, activeToolCalls } = loadExtension({ delegationHarness: false });
+      const beforeAgentStart = handlers.get("before_agent_start");
+      assert.ok(beforeAgentStart);
+      const ctx = context(repoRoot);
 
-    const result = await beforeAgentStart({ systemPrompt: "base prompt" }, context());
+      const result = await beforeAgentStart({ systemPrompt: "base prompt" }, ctx);
 
-    assert.match(result.systemPrompt, /# Freeflow Runtime Context/);
-    assert.doesNotMatch(result.systemPrompt, /# Freeflow Delegated Runtime Context/);
-    assert.equal(activeToolCalls.length, 1);
-    assert.ok(!activeToolCalls.at(-1).includes("delegate_spawn"));
-    assert.equal(await handlers.get("tool_call")({ toolName: "edit", input: { path: "src/a.ts" } }, context()), undefined);
+      assert.match(result.systemPrompt, /# Freeflow Runtime Context/);
+      assert.doesNotMatch(result.systemPrompt, /# Freeflow Delegated Runtime Context/);
+      assert.equal(activeToolCalls.length, 1);
+      assert.ok(!activeToolCalls.at(-1).includes("delegate_spawn"));
+      assert.equal(await handlers.get("tool_call")({ toolName: "edit", input: { path: "src/a.ts" } }, ctx), undefined);
+    });
   });
 });
 
@@ -211,14 +215,16 @@ test("delegated worker context is compact and applies active tool profile", asyn
 });
 
 test("malformed delegated env fails closed and strips active tools", async () => {
-  await withDelegationEnv({ FREEFLOW_AGENT_ROLE: "worker", FREEFLOW_CONTEXT_PROFILE: "worker" }, async () => {
-    const { handlers, activeToolCalls } = loadExtension();
-    const result = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, context());
+  await withTempRepo(async (repoRoot) => {
+    await withDelegationEnv({ FREEFLOW_AGENT_ROLE: "worker", FREEFLOW_CONTEXT_PROFILE: "worker" }, async () => {
+      const { handlers, activeToolCalls } = loadExtension();
+      const result = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, context(repoRoot));
 
-    assert.deepEqual(activeToolCalls.at(-1), []);
-    assert.match(result.systemPrompt, /Status: blocked/);
-    assert.match(result.systemPrompt, /FREEFLOW_DELEGATION_STORE is required/);
-    assert.match(result.systemPrompt, /Do not proceed as a normal unrestricted Pi session/);
+      assert.deepEqual(activeToolCalls.at(-1), []);
+      assert.match(result.systemPrompt, /Status: blocked/);
+      assert.match(result.systemPrompt, /FREEFLOW_DELEGATION_STORE is required/);
+      assert.match(result.systemPrompt, /Do not proceed as a normal unrestricted Pi session/);
+    });
   });
 });
 

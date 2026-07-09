@@ -265,6 +265,36 @@ test("Pi /freeflow command toggles master switch and blocks inactive settings ro
   }
 });
 
+test("Pi /freeflow disable applies live gates before reload completes", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-disable-live-gates-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({ defaultMode: "workflow", outputRouter: { enabled: true }, delegationHarness: { enabled: true } }, null, 2),
+      "utf8",
+    );
+
+    const { commands, activeToolNames } = loadExtension();
+    const freeflowCommand = commands.find((command) => command.name === "freeflow");
+    assert.ok(freeflowCommand);
+    assert.ok(activeToolNames().includes("freeflow_search"));
+    assert.ok(activeToolNames().includes("delegate_spawn"));
+
+    const ctx = context(cwd);
+    await freeflowCommand.definition.handler("disable", ctx);
+
+    assert.equal(ctx.reloads.length, 1);
+    assert.ok(!activeToolNames().includes("freeflow_status"));
+    assert.ok(!activeToolNames().includes("freeflow_search"));
+    assert.ok(!activeToolNames().includes("freeflow_run"));
+    assert.ok(!activeToolNames().includes("freeflow_batch"));
+    assert.ok(!activeToolNames().includes("delegate_spawn"));
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 test("Pi /freeflow settings groups capability settings", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-freeflow-grouped-settings-"));
   try {
@@ -309,54 +339,17 @@ test("Pi /freeflow settings groups capability settings", async () => {
 });
 
 test("Pi before_agent_start keeps output-router disabled by default", async () => {
-  const { handlers, activeToolNames } = loadExtension();
-  const beforeAgentStart = handlers.get("before_agent_start");
-  assert.ok(beforeAgentStart);
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-router-default-disabled-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow" }, null, 2), "utf8");
 
-  const result = await beforeAgentStart({ systemPrompt: "base prompt" }, context());
+    const { handlers, activeToolNames } = loadExtension();
+    const beforeAgentStart = handlers.get("before_agent_start");
+    assert.ok(beforeAgentStart);
 
-  assert.match(result.systemPrompt, /## Loaded Mode Contract Skill/);
-  assert.match(result.systemPrompt, /## Loaded Workflow Skill/);
-  assert.match(result.systemPrompt, /## Loaded Interview Gate Skill/);
-  assert.match(result.systemPrompt, /## Discovery-light/);
-  assert.doesNotMatch(result.systemPrompt, /## Loaded Discover Skill/);
-  assert.match(result.systemPrompt, /Output router: disabled/);
-  assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Skill/);
-  assert.doesNotMatch(result.systemPrompt, /freeflow_search/);
-  assert.doesNotMatch(result.systemPrompt, /## Loaded Delegation Harness Skill/);
-  assert.doesNotMatch(result.systemPrompt, /name: delegation-harness/);
-  assert.doesNotMatch(result.systemPrompt, /\.\.\/delegation-harness\/SKILL\.md/);
-  assert.doesNotMatch(result.systemPrompt, /delegation-harness run inside the current workflow phase/);
-  assert.doesNotMatch(result.systemPrompt, /delegate_spawn/);
-  assert.doesNotMatch(result.systemPrompt, /Legacy `FFRESULT`/);
-  assert.doesNotMatch(result.systemPrompt, /# Context Locality/);
-  assert.doesNotMatch(result.systemPrompt, /freeflow_run/);
-  assert.doesNotMatch(result.systemPrompt, /freeflow_capture/);
-  assert.doesNotMatch(result.systemPrompt, /freeflow_search action=transform/);
-  assert.doesNotMatch(result.systemPrompt, /Native tools stay direct/);
-  assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Map/);
-  assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Safety Policy/);
-  assert.doesNotMatch(result.systemPrompt, /Do not silently summarize or compress exactness-sensitive output/);
-  assert.doesNotMatch(result.systemPrompt, /large native read\/bash outputs may be vaulted/);
-  assert.doesNotMatch(result.systemPrompt, /Output-router config note/);
-  assert.ok(!activeToolNames().includes("freeflow_search"));
-  assert.ok(!activeToolNames().includes("freeflow_run"));
-  assert.ok(!activeToolNames().includes("freeflow_batch"));
-  assert.ok(!activeToolNames().includes("delegate_spawn"));
-  assert.ok(!activeToolNames().includes("delegate_result"));
-});
+    const result = await beforeAgentStart({ systemPrompt: "base prompt" }, context(cwd));
 
-test("Pi before_agent_start injects core Freeflow context on every turn", async () => {
-  const { handlers } = loadExtension();
-  const beforeAgentStart = handlers.get("before_agent_start");
-  assert.ok(beforeAgentStart);
-
-  const first = await beforeAgentStart({ systemPrompt: "base prompt" }, context());
-  const second = await beforeAgentStart({ systemPrompt: "base prompt" }, context());
-
-  for (const result of [first, second]) {
-    assert.match(result.systemPrompt, /# Freeflow Runtime Context/);
-    assert.match(result.systemPrompt, /## Freeflow Runtime Priority/);
     assert.match(result.systemPrompt, /## Loaded Mode Contract Skill/);
     assert.match(result.systemPrompt, /## Loaded Workflow Skill/);
     assert.match(result.systemPrompt, /## Loaded Interview Gate Skill/);
@@ -364,43 +357,104 @@ test("Pi before_agent_start injects core Freeflow context on every turn", async 
     assert.doesNotMatch(result.systemPrompt, /## Loaded Discover Skill/);
     assert.match(result.systemPrompt, /Output router: disabled/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Skill/);
-    assert.doesNotMatch(result.systemPrompt, /freeflow_search action=transform/);
+    assert.doesNotMatch(result.systemPrompt, /freeflow_search/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Delegation Harness Skill/);
     assert.doesNotMatch(result.systemPrompt, /name: delegation-harness/);
     assert.doesNotMatch(result.systemPrompt, /\.\.\/delegation-harness\/SKILL\.md/);
-    assert.doesNotMatch(result.systemPrompt, /delegate_result/);
-    assert.doesNotMatch(result.systemPrompt, /## Freeflow Output Router Reminder/);
+    assert.doesNotMatch(result.systemPrompt, /delegation-harness run inside the current workflow phase/);
+    assert.doesNotMatch(result.systemPrompt, /delegate_spawn/);
+    assert.doesNotMatch(result.systemPrompt, /Legacy `FFRESULT`/);
+    assert.doesNotMatch(result.systemPrompt, /# Context Locality/);
+    assert.doesNotMatch(result.systemPrompt, /freeflow_run/);
+    assert.doesNotMatch(result.systemPrompt, /freeflow_capture/);
+    assert.doesNotMatch(result.systemPrompt, /freeflow_search action=transform/);
+    assert.doesNotMatch(result.systemPrompt, /Native tools stay direct/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Map/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Safety Policy/);
+    assert.doesNotMatch(result.systemPrompt, /Do not silently summarize or compress exactness-sensitive output/);
+    assert.doesNotMatch(result.systemPrompt, /large native read\/bash outputs may be vaulted/);
+    assert.doesNotMatch(result.systemPrompt, /Output-router config note/);
+    assert.ok(!activeToolNames().includes("freeflow_search"));
+    assert.ok(!activeToolNames().includes("freeflow_run"));
+    assert.ok(!activeToolNames().includes("freeflow_batch"));
+    assert.ok(!activeToolNames().includes("delegate_spawn"));
+    assert.ok(!activeToolNames().includes("delegate_result"));
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi before_agent_start injects core Freeflow context on every turn", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-core-context-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow" }, null, 2), "utf8");
+
+    const { handlers } = loadExtension();
+    const beforeAgentStart = handlers.get("before_agent_start");
+    assert.ok(beforeAgentStart);
+
+    const first = await beforeAgentStart({ systemPrompt: "base prompt" }, context(cwd));
+    const second = await beforeAgentStart({ systemPrompt: "base prompt" }, context(cwd));
+
+    for (const result of [first, second]) {
+      assert.match(result.systemPrompt, /# Freeflow Runtime Context/);
+      assert.match(result.systemPrompt, /## Freeflow Runtime Priority/);
+      assert.match(result.systemPrompt, /## Loaded Mode Contract Skill/);
+      assert.match(result.systemPrompt, /## Loaded Workflow Skill/);
+      assert.match(result.systemPrompt, /## Loaded Interview Gate Skill/);
+      assert.match(result.systemPrompt, /## Discovery-light/);
+      assert.doesNotMatch(result.systemPrompt, /## Loaded Discover Skill/);
+      assert.match(result.systemPrompt, /Output router: disabled/);
+      assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Skill/);
+      assert.doesNotMatch(result.systemPrompt, /freeflow_search action=transform/);
+      assert.doesNotMatch(result.systemPrompt, /## Loaded Delegation Harness Skill/);
+      assert.doesNotMatch(result.systemPrompt, /name: delegation-harness/);
+      assert.doesNotMatch(result.systemPrompt, /\.\.\/delegation-harness\/SKILL\.md/);
+      assert.doesNotMatch(result.systemPrompt, /delegate_result/);
+      assert.doesNotMatch(result.systemPrompt, /## Freeflow Output Router Reminder/);
+      assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Map/);
+      assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Safety Policy/);
+    }
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
   }
 });
 
 test("Pi session_start and session_compact keep full Freeflow context on later turns", async () => {
-  const { handlers } = loadExtension();
-  const beforeAgentStart = handlers.get("before_agent_start");
-  const sessionStart = handlers.get("session_start");
-  const sessionCompact = handlers.get("session_compact");
-  assert.ok(beforeAgentStart);
-  assert.ok(sessionStart);
-  assert.ok(sessionCompact);
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-session-cache-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow" }, null, 2), "utf8");
 
-  await beforeAgentStart({ systemPrompt: "base prompt" }, context());
-  const afterFirst = await beforeAgentStart({ systemPrompt: "base prompt" }, context());
-  assert.match(afterFirst.systemPrompt, /## Loaded Workflow Skill/);
+    const { handlers } = loadExtension();
+    const beforeAgentStart = handlers.get("before_agent_start");
+    const sessionStart = handlers.get("session_start");
+    const sessionCompact = handlers.get("session_compact");
+    assert.ok(beforeAgentStart);
+    assert.ok(sessionStart);
+    assert.ok(sessionCompact);
 
-  await sessionCompact({ reason: "manual" }, context());
-  const afterCompact = await beforeAgentStart({ systemPrompt: "base prompt" }, context());
-  assert.match(afterCompact.systemPrompt, /## Loaded Mode Contract Skill/);
-  assert.match(afterCompact.systemPrompt, /## Loaded Workflow Skill/);
-  assert.doesNotMatch(afterCompact.systemPrompt, /## Loaded Output Router Skill/);
-  assert.doesNotMatch(afterCompact.systemPrompt, /## Loaded Delegation Harness Skill/);
+    await beforeAgentStart({ systemPrompt: "base prompt" }, context(cwd));
+    const afterFirst = await beforeAgentStart({ systemPrompt: "base prompt" }, context(cwd));
+    assert.match(afterFirst.systemPrompt, /## Loaded Workflow Skill/);
 
-  await sessionStart({ reason: "resume" }, context());
-  const afterResume = await beforeAgentStart({ systemPrompt: "base prompt" }, context());
-  assert.match(afterResume.systemPrompt, /## Loaded Mode Contract Skill/);
-  assert.match(afterResume.systemPrompt, /## Loaded Workflow Skill/);
-  assert.doesNotMatch(afterResume.systemPrompt, /## Loaded Output Router Skill/);
-  assert.doesNotMatch(afterResume.systemPrompt, /## Loaded Delegation Harness Skill/);
+    await sessionCompact({ reason: "manual" }, context(cwd));
+    const afterCompact = await beforeAgentStart({ systemPrompt: "base prompt" }, context(cwd));
+    assert.match(afterCompact.systemPrompt, /## Loaded Mode Contract Skill/);
+    assert.match(afterCompact.systemPrompt, /## Loaded Workflow Skill/);
+    assert.doesNotMatch(afterCompact.systemPrompt, /## Loaded Output Router Skill/);
+    assert.doesNotMatch(afterCompact.systemPrompt, /## Loaded Delegation Harness Skill/);
+
+    await sessionStart({ reason: "resume" }, context(cwd));
+    const afterResume = await beforeAgentStart({ systemPrompt: "base prompt" }, context(cwd));
+    assert.match(afterResume.systemPrompt, /## Loaded Mode Contract Skill/);
+    assert.match(afterResume.systemPrompt, /## Loaded Workflow Skill/);
+    assert.doesNotMatch(afterResume.systemPrompt, /## Loaded Output Router Skill/);
+    assert.doesNotMatch(afterResume.systemPrompt, /## Loaded Delegation Harness Skill/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
 });
 
 test("Pi capability config disables output-router context, active tools, and execution", async () => {
