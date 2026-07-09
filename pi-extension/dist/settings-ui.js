@@ -380,12 +380,13 @@ function freeflowItems(rawConfig) {
         {
             id: "freeflow.defaultMode",
             label: "Default mode",
-            description: "Repo default Freeflow mode used when no session override exists.",
+            description: "Repo default Freeflow mode used when Skills are enabled; inactive while Skills are disabled.",
             path: ["defaultMode"],
             kind: "enum",
             value: defaultMode,
             values: [...VALID_MODES],
             inactive: freeflowInactive,
+            displaySuffix: !freeflowInactive && !skillsEnabled ? "(inactive)" : undefined,
         },
         {
             id: "outputRouter.group",
@@ -507,16 +508,22 @@ async function updateConfig(cwd, item, value) {
     await writeFile(join(cwd, ".freeflow/config.json"), `${JSON.stringify(next, null, 2)}\n`, "utf8");
 }
 function valueForDisplay(item) {
-    if (item.kind === "boolean")
-        return booleanValue(item.value);
-    if (item.kind === "group") {
+    let value;
+    if (item.kind === "boolean") {
+        value = booleanValue(item.value);
+    }
+    else if (item.kind === "group") {
         const status = typeof item.value === "boolean" ? booleanValue(item.value) : String(item.value ?? "");
         const count = item.children?.length ?? 0;
-        return count > 0 ? `${status} (${count})` : status;
+        value = count > 0 ? `${status} (${count})` : status;
     }
-    if (item.format)
-        return item.format(item.value);
-    return String(item.value ?? "");
+    else if (item.format) {
+        value = item.format(item.value);
+    }
+    else {
+        value = String(item.value ?? "");
+    }
+    return item.displaySuffix ? `${value} ${item.displaySuffix}` : value;
 }
 function nextEnumValue(item) {
     if (item.kind === "boolean") {
@@ -798,10 +805,15 @@ class FreeflowSettingsComponent {
     refreshDerivedState() {
         const freeflowItem = findSettingsItem(this.options.items, "freeflow.enabled");
         const freeflowInactive = freeflowItem ? freeflowItem.value !== true : false;
+        const skillsEnabled = findSettingsItem(this.options.items, "freeflow.skills.enabled")?.value === true;
         const routerEnabled = findSettingsItem(this.options.items, "outputRouter.enabled")?.value === true;
         const delegationEnabled = findSettingsItem(this.options.items, "delegationHarness.enabled")?.value === true;
+        const defaultModeItem = findSettingsItem(this.options.items, "freeflow.defaultMode");
         const routerGroup = findSettingsItem(this.options.items, "outputRouter.group");
         const delegationGroup = findSettingsItem(this.options.items, "delegationHarness.group");
+        if (defaultModeItem) {
+            defaultModeItem.displaySuffix = !freeflowInactive && !skillsEnabled ? "(inactive)" : undefined;
+        }
         if (routerGroup) {
             routerGroup.value = routerEnabled;
             routerGroup.inactive = freeflowInactive;
@@ -892,7 +904,7 @@ function freeflowStatusText(state) {
     }
     return [
         `Freeflow: ${state.enabled ? "enabled" : "disabled"}`,
-        `skills: ${state.skills.effective ? "enabled" : "disabled"}`,
+        `skills: ${state.skills.effective ? "enabled" : "disabled (workflow modes inactive)"}`,
         `output router: ${state.outputRouter.enabled ? "enabled" : "disabled"}`,
         `delegation harness: ${state.delegationHarness.enabled ? "enabled" : "disabled"}`,
     ].join("; ");

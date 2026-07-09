@@ -42,10 +42,12 @@ function loadExtension() {
 function context(cwd = process.cwd()) {
   const notifications = [];
   const reloads = [];
+  const statuses = [];
   return {
     cwd,
     notifications,
     reloads,
+    statuses,
     async reload() {
       reloads.push(true);
     },
@@ -55,7 +57,9 @@ function context(cwd = process.cwd()) {
       },
     },
     ui: {
-      setStatus() {},
+      setStatus(name, value) {
+        statuses.push({ name, value });
+      },
       notify(message, level) {
         notifications.push({ message, level });
       },
@@ -196,16 +200,59 @@ test("Pi skills toggle suppresses workflow skills while allowing enabled router 
     const resources = await handlers.get("resources_discover")({ cwd }, context(cwd));
     assert.deepEqual(resources.skillPaths, []);
 
-    const result = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, context(cwd));
+    const ctx = context(cwd);
+    const result = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Interview Gate Skill/);
     assert.doesNotMatch(result.systemPrompt, /## Discovery-light/);
     assert.match(result.systemPrompt, /Skills: disabled/);
+    assert.match(result.systemPrompt, /Default mode: `workflow` \(inactive because Skills are disabled\)/);
+    assert.doesNotMatch(result.systemPrompt, /Effective Freeflow mode/);
     assert.match(result.systemPrompt, /## Loaded Output Router Skill/);
+    assert.equal(ctx.statuses.at(-1).value, "freeflow: skills off");
     assert.ok(activeToolNames().includes("freeflow_status"));
     assert.ok(activeToolNames().includes("freeflow_search"));
     assert.ok(activeToolNames().includes("freeflow_run"));
     assert.ok(activeToolNames().includes("freeflow_batch"));
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+// Regression for the "everything disabled except Freeflow control plane" state.
+// The model should know Freeflow exists and can be reconfigured, but should not receive workflow/router/delegation behavior.
+// `defaultMode` is dormant while Skills are off.
+test("Pi all-disabled capability state injects only Freeflow control-plane status", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-all-capabilities-disabled-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow", skills: { enabled: false } }, null, 2), "utf8");
+
+    const { handlers, commands, activeToolNames } = loadExtension();
+    const ctx = context(cwd);
+    const result = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
+
+    assert.match(result.systemPrompt, /# Freeflow Control Plane/);
+    assert.match(result.systemPrompt, /Freeflow is enabled for this repo, but no model-facing capabilities are enabled/);
+    assert.match(result.systemPrompt, /Default mode: `workflow` \(inactive because Skills are disabled\)/);
+    assert.doesNotMatch(result.systemPrompt, /# Freeflow Runtime Context/);
+    assert.doesNotMatch(result.systemPrompt, /Effective Freeflow mode/);
+    assert.doesNotMatch(result.systemPrompt, /## Loaded Mode Contract Skill/);
+    assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);
+    assert.doesNotMatch(result.systemPrompt, /## Loaded Interview Gate Skill/);
+    assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Skill/);
+    assert.doesNotMatch(result.systemPrompt, /## Loaded Delegation Harness Skill/);
+    assert.equal(ctx.statuses.at(-1).value, "freeflow: skills off");
+    assert.ok(activeToolNames().includes("freeflow_status"));
+    assert.ok(!activeToolNames().includes("freeflow_search"));
+    assert.ok(!activeToolNames().includes("delegate_spawn"));
+
+    const workflowCommand = commands.find((command) => command.name === "workflow");
+    assert.ok(workflowCommand);
+    const workflowCtx = context(cwd);
+    await workflowCommand.definition.handler("strict-workflow", workflowCtx);
+    assert.match(workflowCtx.notifications.at(-1).message, /Workflow modes are inactive because Freeflow Skills are disabled/);
+    assert.match(workflowCtx.notifications.at(-1).message, /Current default mode: workflow/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -290,6 +337,43 @@ test("Pi /freeflow disable applies live gates before reload completes", async ()
     assert.ok(!activeToolNames().includes("freeflow_run"));
     assert.ok(!activeToolNames().includes("freeflow_batch"));
     assert.ok(!activeToolNames().includes("delegate_spawn"));
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi /freeflow settings marks default mode dormant when Skills are disabled", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-settings-skills-off-mode-dormant-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow", skills: { enabled: false } }, null, 2), "utf8");
+
+    const { commands } = loadExtension();
+    const freeflowCommand = commands.find((command) => command.name === "freeflow");
+    assert.ok(freeflowCommand);
+
+    const settingsCtx = context(cwd);
+    settingsCtx.ui.custom = async (factory) => {
+      let result;
+      const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
+        result = value;
+      });
+      const rootText = renderText(component);
+      assert.match(rootText, /Skills\s+disabled/);
+      assert.match(rootText, /Default mode\s+workflow \(inactive\)/);
+
+      component.handleInput("\u001b[B");
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      component.handleInput("\u001b");
+      return result;
+    };
+
+    await freeflowCommand.definition.handler("settings", settingsCtx);
+    const after = JSON.parse(await readFile(join(cwd, ".freeflow/config.json"), "utf8"));
+    assert.equal(after.defaultMode, "strict-workflow");
+    assert.equal(after.skills.enabled, false);
+    assert.equal(settingsCtx.reloads.length, 1);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

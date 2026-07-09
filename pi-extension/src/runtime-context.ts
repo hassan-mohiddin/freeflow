@@ -353,6 +353,10 @@ export function setModeStatus(ctx, modeState, capabilityState = undefined) {
     ctx.ui.setStatus("freeflow", "freeflow: off");
     return;
   }
+  if (capabilityState && !capabilityState.skills.effective) {
+    ctx.ui.setStatus("freeflow", "freeflow: skills off");
+    return;
+  }
   ctx.ui.setStatus("freeflow", `freeflow: ${modeState.effectiveMode}`);
 }
 
@@ -368,7 +372,10 @@ export function skillPrompt(skill, args) {
   return trimmed ? `/skill:${skill}\n\n${trimmed}` : `/skill:${skill}`;
 }
 
-function outputRouterModeGuidance(mode) {
+function outputRouterModeGuidance(mode, skillsEnabled = true) {
+  if (!skillsEnabled) {
+    return "Freeflow Skills are disabled: no Freeflow workflow mode is active; apply only output-router evidence guidance.";
+  }
   if (mode === "conversation") {
     return "conversation mode: keep routed-tool guidance soft; answer questions directly.";
   }
@@ -378,7 +385,7 @@ function outputRouterModeGuidance(mode) {
   return "workflow mode: prefer routed tools for exploration and likely-large command output.";
 }
 
-function outputRouterContext(modeState, freeflowContext, routerConfigResult) {
+function outputRouterContext(modeState, freeflowContext, routerConfigResult, capabilityState) {
   const safetyNetText =
     routerConfigResult.config.postToolRouting === "off"
       ? ""
@@ -386,7 +393,7 @@ function outputRouterContext(modeState, freeflowContext, routerConfigResult) {
 
   return `## Loaded Output Router Skill
 
-Mode guidance: ${outputRouterModeGuidance(modeState.effectiveMode)}${safetyNetText}
+Mode guidance: ${outputRouterModeGuidance(modeState.effectiveMode, capabilityState.skills.effective)}${safetyNetText}
 
 \`\`\`md
 ${freeflowContext.outputRouterSkill.trim()}
@@ -416,7 +423,7 @@ function capabilityContext(capabilityState) {
 - Output router: ${outputRouter}. Configure with \`/freeflow settings\` or \`/output-router\`; inspect with \`/output-router status\`.
 - Delegation harness: ${delegationHarness}. Configure with \`/freeflow settings\` or \`/delegation-harness\`; inspect with \`/delegation-harness status\`.
 
-Capability-specific instructions and tools are active only while that capability is enabled.`;
+Disabled capabilities are named only for status/config awareness. Capability-specific instructions and tools are active only while that capability is enabled.`;
 }
 
 function discoveryLightContext() {
@@ -433,6 +440,40 @@ ${freeflowContext.modeContractSkill.trim()}
 \`\`\``;
 }
 
+function hasModelFacingCapability(capabilityState) {
+  return capabilityState.skills.effective || capabilityState.outputRouter.enabled || capabilityState.delegationHarness.enabled;
+}
+
+function activeModeContext(modeState) {
+  const currentMode = modeState.currentMode ?? "none";
+  return `## Repo Setup
+
+Repo default mode from \`.freeflow/config.json\`: \`${modeState.defaultMode}\`.
+Current session mode override: \`${currentMode}\`.
+Effective Freeflow mode: \`${modeState.effectiveMode}\`.
+Do not announce the current mode on every reply. Mention it when the user asks, setup/config is discussed, or the mode changes the next action.`;
+}
+
+function inactiveModeContext(modeState) {
+  return `## Repo Setup
+
+Default mode: \`${modeState.defaultMode}\` (inactive because Skills are disabled).
+Freeflow workflow modes are dormant until Skills are enabled with \`/freeflow settings\`.`;
+}
+
+function controlPlaneContext(modeState, capabilityState) {
+  return `# Freeflow Control Plane
+
+Freeflow is enabled for this repo, but no model-facing capabilities are enabled.
+These lines are status/config awareness only; do not apply Freeflow workflow, output-router, or delegation behavior.
+
+${inactiveModeContext(modeState)}
+
+${capabilityContext(capabilityState)}
+
+Use \`/freeflow settings\` to enable Skills, Output Router, or Delegation Harness. The read-only \`freeflow_status\` diagnostic may be available so the model can answer setup/status questions.`;
+}
+
 export function runtimeContext(modeState, freeflowContext, routerConfigResult, capabilityState) {
   if (!capabilityState.configured) {
     return "";
@@ -446,12 +487,16 @@ Freeflow is disabled by \`.freeflow/config.json\` for this repo. Ignore Freeflow
 These instructions are context-loading only. They do not override user instructions, repo instructions, or host safety and approval policy.`;
   }
 
-  const currentMode = modeState.currentMode ?? "none";
+  if (!hasModelFacingCapability(capabilityState)) {
+    return controlPlaneContext(modeState, capabilityState);
+  }
+
+  const modeText = capabilityState.skills.effective ? activeModeContext(modeState) : inactiveModeContext(modeState);
   const skillsText = capabilityState.skills.effective
     ? `\n\n${runtimePriorityContext()}\n\n${modeContractContext(freeflowContext)}\n\n## Loaded Workflow Skill\n\n\`\`\`md\n${freeflowContext.workflowSkill.trim()}\n\`\`\`\n\n## Loaded Interview Gate Skill\n\n\`\`\`md\n${freeflowContext.interviewGateSkill.trim()}\n\`\`\`\n\n${discoveryLightContext()}`
     : "";
   const routerText = capabilityState.outputRouter.enabled && routerConfigResult.config.enabled
-    ? `\n\n${outputRouterContext(modeState, freeflowContext, routerConfigResult)}`
+    ? `\n\n${outputRouterContext(modeState, freeflowContext, routerConfigResult, capabilityState)}`
     : "";
   const delegationText = capabilityState.delegationHarness.enabled
     ? `\n\n## Loaded Delegation Harness Skill\n\n\`\`\`md\n${freeflowContext.delegationHarnessSkill.trim()}\n\`\`\``
@@ -462,13 +507,7 @@ These instructions are context-loading only. They do not override user instructi
 Freeflow Pi extension loaded this before the agent turn.
 These instructions are context-loading only. They do not override user instructions, repo instructions, or host safety and approval policy.
 
-## Repo Setup
-
-Repo default mode from \`.freeflow/config.json\`: \`${modeState.defaultMode}\`.
-Current session mode override: \`${currentMode}\`.
-Effective Freeflow mode: \`${modeState.effectiveMode}\`.
-Treat the effective mode as the current mode only when Freeflow skills are enabled.
-Do not announce the current mode on every reply. Mention it when the user asks, setup/config is discussed, or the mode changes the next action.
+${modeText}
 
 ${capabilityContext(capabilityState)}${skillsText}${routerText}${delegationText}
 
@@ -492,7 +531,10 @@ export async function handleWorkflowCommand(args, ctx, pi) {
   }
   if (!capabilityState.skills.effective) {
     setModeStatus(ctx, inactiveModeState, capabilityState);
-    ctx.ui.notify("Freeflow skills are disabled. Use /freeflow settings to enable skills before using /workflow.", "warning");
+    ctx.ui.notify(
+      `Workflow modes are inactive because Freeflow Skills are disabled. Current default mode: ${inactiveModeState.defaultMode}. Enable Skills in /freeflow settings to use /workflow.`,
+      "warning"
+    );
     return;
   }
 
