@@ -769,6 +769,15 @@ async function openSettings(options: OpenSettingsOptions): Promise<boolean> {
   const changed = await options.ctx.ui.custom((tui: any, theme: any, _keybindings: any, done: (changed: boolean) => void) => {
     component = new FreeflowSettingsComponent(options, done, () => tui.requestRender(), theme ?? {});
     return component;
+  }, {
+    overlay: true,
+    overlayOptions: {
+      width: "80%",
+      minWidth: 72,
+      maxHeight: "85%",
+      anchor: "center",
+      margin: 1,
+    },
   });
 
   await component?.waitForWrites();
