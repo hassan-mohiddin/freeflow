@@ -589,6 +589,24 @@ function isBackspace(data: string): boolean {
   return data === "\u007f" || data === "\b";
 }
 
+type Keybindings = {
+  matches?: (data: string, keybinding: string) => boolean;
+};
+
+function matchesKeybinding(
+  keybindings: Keybindings | undefined,
+  data: string,
+  keybinding: string,
+  fallback: (data: string) => boolean,
+): boolean {
+  try {
+    if (keybindings?.matches?.(data, keybinding)) return true;
+  } catch {
+    // Fall through to raw escape fallback for tests and older Pi builds.
+  }
+  return fallback(data);
+}
+
 class FreeflowSettingsComponent {
   private selected = 0;
   private editItem: SettingsItem | null = null;
@@ -602,6 +620,7 @@ class FreeflowSettingsComponent {
     private readonly done: (changed: boolean) => void,
     private readonly requestRender: () => void,
     private readonly theme: any,
+    private readonly keybindings?: Keybindings,
   ) {}
 
   render(width: number): string[] {
@@ -649,13 +668,13 @@ class FreeflowSettingsComponent {
       this.requestRender();
       return;
     }
-    if (isUp(data)) {
+    if (this.matches(data, "tui.select.up", isUp)) {
       this.selected = this.selected === 0 ? this.options.items.length - 1 : this.selected - 1;
-    } else if (isDown(data)) {
+    } else if (this.matches(data, "tui.select.down", isDown)) {
       this.selected = this.selected === this.options.items.length - 1 ? 0 : this.selected + 1;
-    } else if (isEnter(data) || data === " ") {
+    } else if (this.matches(data, "tui.select.confirm", isEnter) || data === " ") {
       this.activateSelected();
-    } else if (isEscape(data)) {
+    } else if (this.matches(data, "tui.select.cancel", isEscape)) {
       this.close();
       return;
     }
@@ -664,6 +683,10 @@ class FreeflowSettingsComponent {
 
   async waitForWrites() {
     await this.pending;
+  }
+
+  private matches(data: string, keybinding: string, fallback: (data: string) => boolean): boolean {
+    return matchesKeybinding(this.keybindings, data, keybinding, fallback);
   }
 
   private activateSelected() {
@@ -684,13 +707,13 @@ class FreeflowSettingsComponent {
 
   private handleEditInput(data: string) {
     if (!this.editItem) return;
-    if (isEscape(data)) {
+    if (this.matches(data, "tui.select.cancel", isEscape)) {
       this.editItem = null;
       this.editBuffer = "";
       this.message = "Edit cancelled.";
       return;
     }
-    if (isEnter(data)) {
+    if (this.matches(data, "tui.input.submit", isEnter) || this.matches(data, "tui.select.confirm", isEnter)) {
       const item = this.editItem;
       try {
         const parsed = item.parse ? item.parse(this.editBuffer) : this.editBuffer;
@@ -703,7 +726,7 @@ class FreeflowSettingsComponent {
       }
       return;
     }
-    if (isBackspace(data)) {
+    if (this.matches(data, "tui.editor.deleteCharBackward", isBackspace)) {
       this.editBuffer = this.editBuffer.slice(0, -1);
       return;
     }
@@ -766,18 +789,9 @@ async function openSettings(options: OpenSettingsOptions): Promise<boolean> {
   }
 
   let component: FreeflowSettingsComponent | undefined;
-  const changed = await options.ctx.ui.custom((tui: any, theme: any, _keybindings: any, done: (changed: boolean) => void) => {
-    component = new FreeflowSettingsComponent(options, done, () => tui.requestRender(), theme ?? {});
+  const changed = await options.ctx.ui.custom((tui: any, theme: any, keybindings: Keybindings, done: (changed: boolean) => void) => {
+    component = new FreeflowSettingsComponent(options, done, () => tui.requestRender(), theme ?? {}, keybindings);
     return component;
-  }, {
-    overlay: true,
-    overlayOptions: {
-      width: "80%",
-      minWidth: 72,
-      maxHeight: "85%",
-      anchor: "center",
-      margin: 1,
-    },
   });
 
   await component?.waitForWrites();

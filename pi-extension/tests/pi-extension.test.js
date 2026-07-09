@@ -223,7 +223,7 @@ test("Pi /freeflow command toggles master switch and blocks inactive settings ro
 
     const settingsCtx = context(cwd);
     settingsCtx.ui.custom = async (factory, options) => {
-      assert.equal(options?.overlay, true);
+      assert.equal(options, undefined);
       let result;
       const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
         result = value;
