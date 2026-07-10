@@ -2,19 +2,19 @@
   "nativeSlashHandlers": false,
   "modeCommands": [
     {
-      "command": "/workflow conversation",
+      "command": "/freeflow mode conversation",
       "routesTo": "mode-contract"
     },
     {
-      "command": "/workflow workflow",
+      "command": "/freeflow mode workflow",
       "routesTo": "mode-contract"
     },
     {
-      "command": "/workflow strict-workflow",
+      "command": "/freeflow mode strict-workflow",
       "routesTo": "mode-contract"
     },
     {
-      "command": "/workflow reset",
+      "command": "/freeflow mode reset",
       "routesTo": "mode-contract"
     }
   ],

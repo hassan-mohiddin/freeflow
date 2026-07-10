@@ -117,13 +117,13 @@ Natural language is the default interface. Slash commands are precision controls
 Required mode commands:
 
 ```text
-/workflow conversation
-/workflow workflow
-/workflow strict-workflow
-/workflow reset
+/freeflow mode conversation
+/freeflow mode workflow
+/freeflow mode strict-workflow
+/freeflow mode reset
 ```
 
-There are three modes and four mode commands; `/workflow reset` clears the current override and returns to the default mode. Optional aliases may be added later, but the contract should not depend on aliases.
+There are three modes and one namespaced mode-control path; `/freeflow mode reset` clears the current override and returns to the default mode. Do not add `/workflow` or `/mode` aliases: multiple mutation paths make session state harder to understand.
 
 Direct skill calls should be possible for technical users:
 

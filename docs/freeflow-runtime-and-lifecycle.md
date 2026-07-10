@@ -181,9 +181,10 @@ Mode switches are task/conversation scoped by default.
 Examples:
 
 ```text
-/workflow conversation
-/workflow workflow
-/workflow strict-workflow
+/freeflow mode conversation
+/freeflow mode workflow
+/freeflow mode strict-workflow
+/freeflow mode reset
 ```
 
 These apply to the current task or conversation unless the user explicitly asks to persist them.

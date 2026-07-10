@@ -14,7 +14,7 @@ Use strict-workflow for security, privacy, billing, public APIs, migrations, dat
 
 Freeflow is repo-local. A global install stays inactive until `/setup-freeflow` creates a `.freeflow/config.json` that parses and matches the supported setup config shape.
 
-Pi users can run `/freeflow` for one settings surface:
+Pi users can run `/freeflow` for one control and settings surface. `/freeflow mode` opens the session-mode selector; `/freeflow mode conversation|workflow|strict-workflow|reset` changes or clears the temporary session override. The settings screen keeps Session mode separate from the persisted Default mode in `.freeflow/config.json`.
 
 - `enabled: false` turns the full Freeflow runtime off and makes nested settings inactive.
 - `skills.enabled: false` hides model workflow skills and suppresses mode-contract, workflow, interview-gate, and discovery-light runtime context.

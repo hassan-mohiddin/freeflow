@@ -149,8 +149,8 @@ while IFS=$'\t' read -r command skill; do
 done < <(jq -r '.developerSkillCalls[]? | [.command, .skill] | @tsv' "$registry")
 
 while IFS=$'\t' read -r command skill; do
-  if [[ "$command" != /workflow\ * ]]; then
-    fail "mode command should use /workflow prefix: $command"
+  if [[ "$command" != /freeflow\ mode\ * ]]; then
+    fail "mode command should use /freeflow mode prefix: $command"
   fi
 
   if [ "$skill" != "mode-contract" ]; then

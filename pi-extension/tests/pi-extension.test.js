@@ -11,6 +11,7 @@ function loadExtension() {
   const handlers = new Map();
   const tools = [];
   const commands = [];
+  const entries = [];
   let activeToolNames;
   const pi = {
     registerTool(tool) {
@@ -22,7 +23,9 @@ function loadExtension() {
     on(event, handler) {
       handlers.set(event, handler);
     },
-    appendEntry() {},
+    appendEntry(customType, data) {
+      entries.push({ customType, data });
+    },
     sendUserMessage() {},
     getAllTools() {
       return tools.map((tool) => ({ name: tool.name, sourceInfo: { source: "extension" } }));
@@ -36,7 +39,7 @@ function loadExtension() {
   };
 
   freeflowExtension(pi);
-  return { handlers, tools, commands, activeToolNames: () => activeToolNames ?? tools.map((tool) => tool.name) };
+  return { handlers, tools, commands, entries, activeToolNames: () => activeToolNames ?? tools.map((tool) => tool.name) };
 }
 
 function context(cwd = process.cwd()) {
@@ -91,6 +94,7 @@ test("Pi registers capability commands and no public capture tool", () => {
   assert.ok(commandNames.includes("freeflow"));
   assert.ok(commandNames.includes("output-router"));
   assert.ok(commandNames.includes("delegation-harness"));
+  assert.ok(!commandNames.includes("workflow"));
   assert.ok(toolNames.includes("freeflow_status"));
   assert.ok(toolNames.includes("freeflow_search"));
   assert.ok(toolNames.includes("freeflow_run"));
@@ -209,7 +213,7 @@ test("Pi skills toggle suppresses workflow skills while allowing enabled router 
     assert.match(result.systemPrompt, /Default mode: `workflow` \(inactive because Skills are disabled\)/);
     assert.doesNotMatch(result.systemPrompt, /Effective Freeflow mode/);
     assert.match(result.systemPrompt, /## Loaded Output Router Skill/);
-    assert.equal(ctx.statuses.at(-1).value, "freeflow: skills off");
+    assert.equal(ctx.statuses.at(-1).value, "freeflow: router");
     assert.ok(activeToolNames().includes("freeflow_status"));
     assert.ok(activeToolNames().includes("freeflow_search"));
     assert.ok(activeToolNames().includes("freeflow_run"));
@@ -242,17 +246,120 @@ test("Pi all-disabled capability state injects only Freeflow control-plane statu
     assert.doesNotMatch(result.systemPrompt, /## Loaded Interview Gate Skill/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Skill/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Delegation Harness Skill/);
-    assert.equal(ctx.statuses.at(-1).value, "freeflow: skills off");
+    assert.equal(ctx.statuses.at(-1).value, "freeflow: idle");
     assert.ok(activeToolNames().includes("freeflow_status"));
     assert.ok(!activeToolNames().includes("freeflow_search"));
     assert.ok(!activeToolNames().includes("delegate_spawn"));
 
-    const workflowCommand = commands.find((command) => command.name === "workflow");
-    assert.ok(workflowCommand);
-    const workflowCtx = context(cwd);
-    await workflowCommand.definition.handler("strict-workflow", workflowCtx);
-    assert.match(workflowCtx.notifications.at(-1).message, /Workflow modes are inactive because Freeflow Skills are disabled/);
-    assert.match(workflowCtx.notifications.at(-1).message, /Current default mode: workflow/);
+    const freeflowCommand = commands.find((command) => command.name === "freeflow");
+    assert.ok(freeflowCommand);
+    const modeCtx = context(cwd);
+    await freeflowCommand.definition.handler("mode strict-workflow", modeCtx);
+    assert.match(modeCtx.notifications.at(-1).message, /Freeflow modes are inactive because Skills are disabled/);
+    assert.match(modeCtx.notifications.at(-1).message, /Current default mode: workflow/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi /freeflow mode is the only mode command and opens a dedicated selector", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-mode-command-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    const configPath = join(cwd, ".freeflow/config.json");
+    const configText = JSON.stringify({ defaultMode: "workflow" }, null, 2);
+    await writeFile(configPath, configText, "utf8");
+
+    const { commands, entries } = loadExtension();
+    const freeflowCommand = commands.find((command) => command.name === "freeflow");
+    assert.ok(freeflowCommand);
+    assert.ok(!commands.some((command) => command.name === "workflow"));
+
+    const modeCtx = context(cwd);
+    modeCtx.ui.custom = async (factory) => {
+      let result;
+      const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
+        result = value;
+      });
+      const text = renderText(component);
+      assert.match(text, /Freeflow Mode/);
+      assert.match(text, /Use repo default\s+workflow/);
+      assert.match(text, /conversation\s+Discussion without workflow pressure/);
+      assert.match(text, /strict-workflow\s+Stronger gates for high-risk work/);
+
+      component.handleInput("\u001b[B");
+      component.handleInput("\u001b[B");
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      return result;
+    };
+
+    await freeflowCommand.definition.handler("mode", modeCtx);
+    assert.deepEqual(entries.at(-1), { customType: "freeflow-mode", data: { currentMode: "strict-workflow" } });
+    assert.equal(modeCtx.statuses.length, 1);
+    assert.equal(modeCtx.statuses.at(-1).value, "freeflow: strict-workflow (session)");
+    assert.equal(await readFile(configPath, "utf8"), configText);
+    assert.equal(modeCtx.reloads.length, 0);
+
+    const resetCtx = context(cwd);
+    await freeflowCommand.definition.handler("mode reset", resetCtx);
+    assert.deepEqual(entries.at(-1), { customType: "freeflow-mode", data: { currentMode: null } });
+    assert.equal(resetCtx.statuses.at(-1).value, "freeflow: workflow");
+    assert.match(resetCtx.notifications.at(-1).message, /reset to repo default: workflow/);
+
+    const nonTuiCtx = context(cwd);
+    await freeflowCommand.definition.handler("mode", nonTuiCtx);
+    assert.match(nonTuiCtx.notifications.at(-1).message, /Freeflow mode is workflow \(default workflow\)/);
+    assert.doesNotMatch(nonTuiCtx.notifications.at(-1).message, /requires Pi TUI/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi statusline reports only effective Freeflow runtime state", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-statusline-state-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    const configPath = join(cwd, ".freeflow/config.json");
+    const { handlers, commands } = loadExtension();
+    const beforeAgentStart = handlers.get("before_agent_start");
+    const sessionStart = handlers.get("session_start");
+    const freeflowCommand = commands.find((command) => command.name === "freeflow");
+    assert.ok(beforeAgentStart);
+    assert.ok(sessionStart);
+    assert.ok(freeflowCommand);
+
+    const statusFor = async (config) => {
+      if (config === null) {
+        await rm(configPath, { force: true });
+      } else if (typeof config === "string") {
+        await writeFile(configPath, config, "utf8");
+      } else {
+        await writeFile(configPath, JSON.stringify(config, null, 2), "utf8");
+      }
+      const ctx = context(cwd);
+      await sessionStart({ reason: "reload" }, ctx);
+      await beforeAgentStart({ systemPrompt: "base prompt" }, ctx);
+      return ctx.statuses.at(-1).value;
+    };
+
+    assert.equal(await statusFor(null), "freeflow: setup needed");
+    assert.equal(await statusFor("{ invalid"), "freeflow: config error");
+    assert.equal(await statusFor({ enabled: false, defaultMode: "workflow" }), "freeflow: off");
+    assert.equal(await statusFor({ defaultMode: "workflow", skills: { enabled: false } }), "freeflow: idle");
+    assert.equal(
+      await statusFor({ defaultMode: "workflow", skills: { enabled: false }, outputRouter: { enabled: true } }),
+      "freeflow: router",
+    );
+    assert.equal(
+      await statusFor({ defaultMode: "workflow", outputRouter: { enabled: true }, delegationHarness: { enabled: true } }),
+      "freeflow: workflow · router · delegation",
+    );
+
+    const modeCtx = context(cwd);
+    await freeflowCommand.definition.handler("mode conversation", modeCtx);
+    assert.equal(modeCtx.statuses.at(-1).value, "freeflow: conversation (session) · router · delegation");
+    await freeflowCommand.definition.handler("mode reset", context(cwd));
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }
@@ -360,9 +467,18 @@ test("Pi /freeflow settings marks default mode dormant when Skills are disabled"
       });
       const rootText = renderText(component);
       assert.match(rootText, /Skills\s+disabled/);
+      assert.match(rootText, /Session mode\s+default \(workflow\).*inactive/);
       assert.match(rootText, /Default mode\s+workflow \(inactive\)/);
 
       component.handleInput("\u001b[B");
+      component.handleInput("\u001b[B");
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      const choiceText = renderText(component);
+      assert.match(choiceText, /Freeflow Settings › Default mode/);
+      assert.match(choiceText, /conversation\s+Discussion without workflow pressure/);
+      assert.match(choiceText, /workflow\s+Default for consequential work/);
+      assert.match(choiceText, /strict-workflow\s+Stronger gates for high-risk work/);
       component.handleInput("\u001b[B");
       component.handleInput("\r");
       component.handleInput("\u001b");
@@ -402,7 +518,7 @@ test("Pi /freeflow settings groups capability settings", async () => {
       assert.match(rootText, /Delegation Harness\s+disabled \(1\) ›/);
       assert.doesNotMatch(rootText, /Native safety net/);
 
-      for (let index = 0; index < 3; index++) {
+      for (let index = 0; index < 4; index++) {
         component.handleInput("\u001b[B");
       }
       component.handleInput("\r");

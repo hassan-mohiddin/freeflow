@@ -32,10 +32,10 @@ Current direct command eval coverage:
 
 | Command | Routes To | Codex/Claude Native Handler | Direct Eval | Status |
 |---|---|---:|---|---|
-| `/workflow conversation` | `mode-contract` | No | `MODE-001` | Covered |
-| `/workflow workflow` | `mode-contract` | No | `MODE-*` mode suite | Covered |
-| `/workflow strict-workflow` | `mode-contract` | No | `MODE-002`, `MODE-005` | Covered |
-| `/workflow reset` | `mode-contract` | No | `MODE-006` | Covered |
+| `/freeflow mode conversation` | `mode-contract` | Pi: native `/freeflow`; Codex/Claude: model-routed | `MODE-001` | Covered |
+| `/freeflow mode workflow` | `mode-contract` | Pi: native `/freeflow`; Codex/Claude: model-routed | `MODE-*` mode suite | Covered |
+| `/freeflow mode strict-workflow` | `mode-contract` | Pi: native `/freeflow`; Codex/Claude: model-routed | `MODE-002`, `MODE-005` | Covered |
+| `/freeflow mode reset` | `mode-contract` | Pi: native `/freeflow`; Codex/Claude: model-routed | `MODE-006` | Covered |
 
 ## Direct Skill Commands
 

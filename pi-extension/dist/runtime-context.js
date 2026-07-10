@@ -306,18 +306,24 @@ export async function readModeState(cwd) {
 }
 export function setModeStatus(ctx, modeState, capabilityState = undefined) {
     if (capabilityState && !capabilityState.configured) {
-        ctx.ui.setStatus("freeflow", "freeflow: setup needed");
+        ctx.ui.setStatus("freeflow", capabilityState.configExists ? "freeflow: config error" : "freeflow: setup needed");
         return;
     }
     if (capabilityState && !capabilityState.enabled) {
         ctx.ui.setStatus("freeflow", "freeflow: off");
         return;
     }
-    if (capabilityState && !capabilityState.skills.effective) {
-        ctx.ui.setStatus("freeflow", "freeflow: skills off");
-        return;
+    const active = [];
+    if (capabilityState?.skills.effective) {
+        active.push(`${modeState.effectiveMode}${modeState.currentMode ? " (session)" : ""}`);
     }
-    ctx.ui.setStatus("freeflow", `freeflow: ${modeState.effectiveMode}`);
+    if (capabilityState?.outputRouter.enabled) {
+        active.push("router");
+    }
+    if (capabilityState?.delegationHarness.enabled) {
+        active.push("delegation");
+    }
+    ctx.ui.setStatus("freeflow", `freeflow: ${active.length > 0 ? active.join(" · ") : "idle"}`);
 }
 function describeModeState(modeState) {
     if (modeState.currentMode) {
@@ -454,42 +460,48 @@ ${capabilityContext(capabilityState)}${skillsText}${routerText}${delegationText}
 
 This Pi extension loads enabled runtime context before every agent turn and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.`;
 }
-export async function handleWorkflowCommand(args, ctx, pi) {
+export async function setSessionMode(mode, ctx, pi) {
+    const nextMode = mode === "default" || mode === "reset" || mode === null ? null : mode;
+    if (nextMode !== null && !VALID_MODES.has(nextMode)) {
+        throw new Error(`Invalid Freeflow mode: ${String(mode)}`);
+    }
+    currentModeOverride = nextMode;
+    pi?.appendEntry?.(MODE_STATE_ENTRY, { currentMode: nextMode });
+    return readModeState(ctx.cwd);
+}
+export async function handleModeCommand(args, ctx, pi) {
     const arg = args?.trim();
     const capabilityState = await readCapabilityState(ctx.cwd);
     const inactiveModeState = await readModeState(ctx.cwd);
     if (!capabilityState.configured) {
         setModeStatus(ctx, inactiveModeState, capabilityState);
-        ctx.ui.notify("Freeflow is installed but this repo is not set up. Run /setup-freeflow before using /workflow.", "warning");
-        return;
+        ctx.ui.notify("Freeflow is installed but this repo is not set up. Run /setup-freeflow before changing mode.", "warning");
+        return { changed: false, error: "not_configured" };
     }
     if (!capabilityState.enabled) {
         setModeStatus(ctx, inactiveModeState, capabilityState);
         ctx.ui.notify("Freeflow is disabled for this repo. Use /freeflow enable or /freeflow settings to re-enable it.", "warning");
-        return;
+        return { changed: false, error: "freeflow_disabled" };
     }
     if (!capabilityState.skills.effective) {
         setModeStatus(ctx, inactiveModeState, capabilityState);
-        ctx.ui.notify(`Workflow modes are inactive because Freeflow Skills are disabled. Current default mode: ${inactiveModeState.defaultMode}. Enable Skills in /freeflow settings to use /workflow.`, "warning");
-        return;
+        ctx.ui.notify(`Freeflow modes are inactive because Skills are disabled. Current default mode: ${inactiveModeState.defaultMode}. Enable Skills in /freeflow settings before changing mode.`, "warning");
+        return { changed: false, error: "skills_disabled" };
     }
     if (VALID_MODES.has(arg)) {
-        currentModeOverride = arg;
-        pi.appendEntry?.(MODE_STATE_ENTRY, { currentMode: arg });
-        const modeState = await readModeState(ctx.cwd);
+        const modeState = await setSessionMode(arg, ctx, pi);
         setModeStatus(ctx, modeState, capabilityState);
         ctx.ui.notify(`Freeflow mode is now ${modeState.effectiveMode} for this session. Repo default remains ${modeState.defaultMode}.`, "info");
-        return;
+        return { changed: true, modeState };
     }
-    if (RESET_MODE_ARGS.has(arg)) {
-        currentModeOverride = null;
-        pi.appendEntry?.(MODE_STATE_ENTRY, { currentMode: null });
-        const modeState = await readModeState(ctx.cwd);
+    if (RESET_MODE_ARGS.has(arg) || arg === "default") {
+        const modeState = await setSessionMode(null, ctx, pi);
         setModeStatus(ctx, modeState, capabilityState);
         ctx.ui.notify(`Freeflow mode reset to repo default: ${modeState.defaultMode}.`, "info");
-        return;
+        return { changed: true, modeState };
     }
     const modeState = await readModeState(ctx.cwd);
     setModeStatus(ctx, modeState, capabilityState);
-    ctx.ui.notify(`Freeflow mode is ${modeState.effectiveMode} (${describeModeState(modeState)}). Use /workflow conversation, /workflow workflow, /workflow strict-workflow, or /workflow reset.`, "info");
+    ctx.ui.notify(`Freeflow mode is ${modeState.effectiveMode} (${describeModeState(modeState)}). Use /freeflow mode conversation, /freeflow mode workflow, /freeflow mode strict-workflow, or /freeflow mode reset.`, "info");
+    return { changed: false, modeState, error: arg ? "invalid_mode" : undefined };
 }

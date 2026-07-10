@@ -214,13 +214,13 @@ Create a discovery checkpoint.
 Use the output router for the test output.
 ```
 
-Slash-style workflow and skill prompts are model-routed in Codex and Claude:
+Slash-style mode and skill prompts are model-routed in Codex and Claude:
 
 ```text
-/workflow conversation
-/workflow workflow
-/workflow strict-workflow
-/workflow reset
+/freeflow mode conversation
+/freeflow mode workflow
+/freeflow mode strict-workflow
+/freeflow mode reset
 /discover
 /write-spec
 /review-artifact
@@ -234,10 +234,12 @@ Slash-style workflow and skill prompts are model-routed in Codex and Claude:
 /bypass
 ```
 
-Pi-native settings commands:
+Pi-native control and settings commands:
 
 ```text
 /freeflow
+/freeflow mode
+/freeflow mode conversation|workflow|strict-workflow|reset
 /output-router
 /delegation-harness
 ```
@@ -250,7 +252,7 @@ Contributor/developer routes:
 /evaluate-skill
 ```
 
-For Codex and Claude, workflow/skill commands work as skill-routing language. In Pi, the package extension registers native command handlers for Freeflow commands and settings. Pi `/workflow` mode changes are session-scoped and update the footer; `.freeflow/config.json` remains the repo default only.
+For Codex and Claude, mode/skill commands work as skill-routing language. In Pi, the package extension registers native command handlers for Freeflow commands and settings. Pi `/freeflow mode` changes are session-scoped and update the footer; `.freeflow/config.json` remains the repo default only. `/freeflow` also exposes separate Session mode and Default mode rows so temporary state is not confused with persisted repo config.
 
 ## Modes
 

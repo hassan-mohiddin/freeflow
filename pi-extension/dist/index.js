@@ -4,7 +4,7 @@ import { registerRouterTools } from "./router-tools.js";
 import { handleDelegationHarnessCommand, handleFreeflowCommand, handleOutputRouterCommand } from "./settings-ui.js";
 import { registerDelegation } from "./delegation/index.js";
 import { appendDelegatedRuntimeContext, handleDelegatedAssistantMessageEnd, handleDelegatedToolCall, handleDelegationSessionStart, } from "./delegation/runtime.js";
-import { CONTRIBUTOR_COMMANDS, WORKFLOW_COMMANDS, FREEFLOW_STATUS_TOOL_NAME, freeflowModelSkillPaths, freeflowSkillPath, getRuntimeContext, handleWorkflowCommand, OUTPUT_ROUTER_TOOL_NAMES, readCapabilityState, readModeState, readOutputRouterConfig, refreshRuntimeContext, restoreModeOverride, runtimeContext, setModeStatus, skillPrompt, notifyRouterConfigWarnings, } from "./runtime-context.js";
+import { CONTRIBUTOR_COMMANDS, WORKFLOW_COMMANDS, FREEFLOW_STATUS_TOOL_NAME, freeflowModelSkillPaths, freeflowSkillPath, getRuntimeContext, OUTPUT_ROUTER_TOOL_NAMES, readCapabilityState, readModeState, readOutputRouterConfig, refreshRuntimeContext, restoreModeOverride, runtimeContext, setModeStatus, skillPrompt, notifyRouterConfigWarnings, } from "./runtime-context.js";
 function isDelegationToolName(name) {
     return name.startsWith("delegate_");
 }
@@ -61,6 +61,18 @@ function disabledToolCall(toolName, capability) {
 function capabilityCompletions(prefix) {
     const query = prefix ?? "";
     return ["settings", "status", "enable", "disable"].filter((value) => value.startsWith(query)).map((value) => ({ value, label: value }));
+}
+function freeflowCompletions(prefix) {
+    const query = prefix ?? "";
+    if (query.startsWith("mode ")) {
+        const modeQuery = query.slice("mode ".length);
+        return ["conversation", "workflow", "strict-workflow", "reset"]
+            .filter((value) => value.startsWith(modeQuery))
+            .map((value) => ({ value: `mode ${value}`, label: value }));
+    }
+    return ["settings", "status", "mode", "enable", "disable"]
+        .filter((value) => value.startsWith(query))
+        .map((value) => ({ value, label: value }));
 }
 async function sendSkillCommand(pi, ctx, skill, args) {
     const state = await readCapabilityState(ctx.cwd);
@@ -198,50 +210,29 @@ export default function freeflow(pi) {
     }
     pi.registerCommand("freeflow", {
         description: "Open unified Freeflow settings or print compact status",
-        getArgumentCompletions: capabilityCompletions,
+        getArgumentCompletions: freeflowCompletions,
         handler: async (args, ctx) => {
-            const result = await handleFreeflowCommand(args, ctx, async () => {
+            await handleFreeflowCommand(args, ctx, async () => {
                 await applyLiveCapabilityState(pi, ctx);
-            });
-            if (result.changed && !result.reloaded) {
-                await applyLiveCapabilityState(pi, ctx);
-            }
+            }, pi);
         },
     });
     pi.registerCommand("output-router", {
         description: "Open Freeflow Output Router settings or print compact status",
         getArgumentCompletions: capabilityCompletions,
         handler: async (args, ctx) => {
-            const result = await handleOutputRouterCommand(args, ctx, async () => {
+            await handleOutputRouterCommand(args, ctx, async () => {
                 await applyLiveCapabilityState(pi, ctx);
             });
-            if (result.changed && !result.reloaded) {
-                await applyLiveCapabilityState(pi, ctx);
-            }
         },
     });
     pi.registerCommand("delegation-harness", {
         description: "Open Freeflow Delegation Harness settings or print compact status",
         getArgumentCompletions: capabilityCompletions,
         handler: async (args, ctx) => {
-            const result = await handleDelegationHarnessCommand(args, ctx, async () => {
+            await handleDelegationHarnessCommand(args, ctx, async () => {
                 await applyLiveCapabilityState(pi, ctx);
             });
-            if (result.changed && !result.reloaded) {
-                await applyLiveCapabilityState(pi, ctx);
-            }
-        },
-    });
-    pi.registerCommand("workflow", {
-        description: "Set or inspect the current Freeflow session mode",
-        getArgumentCompletions: (prefix) => {
-            const query = prefix ?? "";
-            const values = ["conversation", "workflow", "strict-workflow", "reset"];
-            const filtered = values.filter((value) => value.startsWith(query));
-            return filtered.map((value) => ({ value, label: value }));
-        },
-        handler: async (args, ctx) => {
-            await handleWorkflowCommand(args, ctx, pi);
         },
     });
 }

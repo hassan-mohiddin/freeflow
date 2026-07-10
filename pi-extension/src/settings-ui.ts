@@ -12,7 +12,14 @@ import {
   DEFAULT_VAULT_ROOT,
   normalizeFreeflowConfig,
 } from "../../router/dist/index.js";
-import { readFreeflowConfig, readFreeflowConfigState, readCapabilityState, VALID_MODES } from "./runtime-context.js";
+import {
+  handleModeCommand,
+  readCapabilityState,
+  readFreeflowConfig,
+  readFreeflowConfigState,
+  readModeState,
+  VALID_MODES,
+} from "./runtime-context.js";
 
 const BOOLEAN_VALUES = ["enabled", "disabled"] as const;
 const POST_TOOL_ROUTING_VALUES = ["off", "safety-net", "strict"] as const;
@@ -21,6 +28,18 @@ const OBSERVED_PERSISTENCE_VALUES = ["none", "metadata-only", "exact"] as const;
 const SCRIPT_LANGUAGES = ["javascript", "python", "jq"] as const;
 const DEFAULT_FREEFLOW_ENABLED = true;
 const DEFAULT_SKILLS_ENABLED = true;
+const MODE_VALUES = ["conversation", "workflow", "strict-workflow"];
+const MODE_LABELS = {
+  default: "Use repo default",
+  conversation: "conversation",
+  workflow: "workflow",
+  "strict-workflow": "strict-workflow",
+};
+const MODE_DESCRIPTIONS = {
+  conversation: "Discussion without workflow pressure",
+  workflow: "Default for consequential work",
+  "strict-workflow": "Stronger gates for high-risk work",
+};
 
 type SettingKind = "boolean" | "enum" | "integer" | "string" | "list" | "json" | "group";
 
@@ -33,6 +52,8 @@ type SettingsItem = {
   value: unknown;
   defaultValue?: unknown;
   values?: string[];
+  valueLabels?: Record<string, string>;
+  valueDescriptions?: Record<string, string>;
   inactive?: boolean;
   displaySuffix?: string;
   children?: SettingsItem[];
@@ -46,6 +67,7 @@ type OpenSettingsOptions = {
   ctx: any;
   onChange: (item: SettingsItem, value: unknown) => Promise<void>;
   onClose?: (changed: boolean) => Promise<void> | void;
+  initialChoice?: SettingsItem;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -199,6 +221,11 @@ function outputRouterItems(rawConfig: Record<string, unknown>, freeflowInactive 
       kind: "enum",
       value: router.postToolRouting,
       values: [...POST_TOOL_ROUTING_VALUES],
+      valueDescriptions: {
+        off: "Leave native tool output unchanged",
+        "safety-net": "Route oversized or noisy native output",
+        strict: "Apply stronger native output routing",
+      },
       defaultValue: DEFAULT_POST_TOOL_ROUTING,
       inactive,
     },
@@ -381,6 +408,11 @@ function observedProducerItems(id: "web" | "fetch" | "codeSearch", label: string
       kind: "enum",
       value: value?.persistence ?? "none",
       values: [...OBSERVED_PERSISTENCE_VALUES],
+      valueDescriptions: {
+        none: "Do not persist observed output",
+        "metadata-only": "Persist metadata without raw output",
+        exact: "Persist exact recoverable output",
+      },
       defaultValue: value?.enabled === true ? undefined : "none",
       inactive,
     },
@@ -403,13 +435,14 @@ function delegationHarnessItems(rawConfig: Record<string, unknown>, freeflowInac
   ];
 }
 
-function freeflowItems(rawConfig: Record<string, unknown>): SettingsItem[] {
+function freeflowItems(rawConfig: Record<string, unknown>, modeState?: Awaited<ReturnType<typeof readModeState>>): SettingsItem[] {
   const freeflowEnabled = getPath(rawConfig, ["enabled"]) !== false;
   const freeflowInactive = !freeflowEnabled;
   const skillsConfig = getPath(rawConfig, ["skills"]);
   const skillsEnabled = !isRecord(skillsConfig) || skillsConfig.enabled !== false;
   const rawDefaultMode = rawConfig.defaultMode;
   const defaultMode = typeof rawDefaultMode === "string" && VALID_MODES.has(rawDefaultMode) ? rawDefaultMode : "workflow";
+  const sessionMode = modeState?.currentMode ?? "default";
   const routerItems = outputRouterItems(rawConfig, freeflowInactive);
   const routerEnabled = routerItems.find((item) => item.id === "outputRouter.enabled")?.value === true;
   const delegationItems = delegationHarnessItems(rawConfig, freeflowInactive);
@@ -436,13 +469,30 @@ function freeflowItems(rawConfig: Record<string, unknown>): SettingsItem[] {
       inactive: freeflowInactive,
     },
     {
+      id: "freeflow.sessionMode",
+      label: "Session mode",
+      description: "Temporary mode override for this Pi session. Use repo default clears the override without changing config.json.",
+      kind: "enum",
+      value: sessionMode,
+      values: ["default", ...MODE_VALUES],
+      valueLabels: MODE_LABELS,
+      valueDescriptions: {
+        default: defaultMode,
+        ...MODE_DESCRIPTIONS,
+      },
+      inactive: freeflowInactive || !skillsEnabled,
+      displaySuffix: sessionMode === "default" ? `(${defaultMode})` : undefined,
+    },
+    {
       id: "freeflow.defaultMode",
       label: "Default mode",
       description: "Repo default Freeflow mode used when Skills are enabled; inactive while Skills are disabled.",
       path: ["defaultMode"],
       kind: "enum",
       value: defaultMode,
-      values: [...VALID_MODES],
+      values: MODE_VALUES,
+      valueLabels: MODE_LABELS,
+      valueDescriptions: MODE_DESCRIPTIONS,
       inactive: freeflowInactive,
       displaySuffix: !freeflowInactive && !skillsEnabled ? "(inactive)" : undefined,
     },
@@ -649,6 +699,7 @@ type SettingsFrame = {
   items: SettingsItem[];
   selected: number;
   search: string;
+  choiceFor?: SettingsItem;
 };
 
 function walkSettingsItems(items: SettingsItem[], visitor: (item: SettingsItem) => void) {
@@ -682,22 +733,36 @@ class FreeflowSettingsComponent {
     private readonly theme: any,
     private readonly keybindings?: Keybindings,
   ) {
-    this.frames = [{ title: options.title, items: options.items, selected: 0, search: "" }];
+    const initialChoice = options.initialChoice;
+    this.frames = initialChoice
+      ? [{
+          title: options.title,
+          items: [],
+          selected: Math.max(0, initialChoice.values?.indexOf(String(initialChoice.value)) ?? 0),
+          search: "",
+          choiceFor: initialChoice,
+        }]
+      : [{ title: options.title, items: options.items, selected: 0, search: "" }];
   }
 
   render(width: number): string[] {
     const lines: string[] = [];
     const frame = this.currentFrame();
-    const items = this.displayItems(frame);
     const title = this.frames.map((candidate) => candidate.title).join(" › ");
     const titleText = this.theme.fg?.("accent", this.theme.bold?.(title) ?? title) ?? title;
+
+    lines.push(this.border(width));
+    lines.push(titleText);
+    if (frame.choiceFor) {
+      return this.renderChoiceFrame(lines, frame, width);
+    }
+
+    const items = this.displayItems(frame);
     const hint = this.frames.length > 1
       ? "  Type to search · Enter/Space to change/open · Esc back"
       : "  Type to search · Enter/Space to change/open · Esc save & close";
 
     this.clampSelection(frame, items.length);
-    lines.push(this.border(width));
-    lines.push(titleText);
     lines.push(this.searchLine(frame, width));
     lines.push("");
 
@@ -758,6 +823,11 @@ class FreeflowSettingsComponent {
     }
 
     const frame = this.currentFrame();
+    if (frame.choiceFor) {
+      this.handleChoiceInput(data, frame);
+      this.requestRender();
+      return;
+    }
     const items = this.displayItems(frame);
     this.clampSelection(frame, items.length);
 
@@ -807,6 +877,64 @@ class FreeflowSettingsComponent {
     return truncate(`> ${frame.search}${cursor}`, width);
   }
 
+  private renderChoiceFrame(lines: string[], frame: SettingsFrame, width: number): string[] {
+    const item = frame.choiceFor!;
+    const values = item.values ?? [];
+    this.clampSelection(frame, values.length);
+    lines.push("");
+    lines.push(...wrapPlain(item.description, Math.max(20, width - 2)).map((line) => truncate(`  ${line}`, width)));
+    lines.push("");
+
+    const labels = values.map((value) => item.valueLabels?.[value] ?? value);
+    const maxLabel = Math.min(34, Math.max(...labels.map((label) => label.length), 12));
+    for (let index = 0; index < values.length; index++) {
+      const value = values[index]!;
+      const selected = index === frame.selected;
+      const prefix = selected ? "› " : "  ";
+      const label = labels[index]!.padEnd(maxLabel);
+      const description = item.valueDescriptions?.[value] ?? "";
+      const line = truncate(`${prefix}${label}  ${description}`, width);
+      lines.push(selected ? (this.theme.fg?.("accent", line) ?? line) : line);
+    }
+
+    lines.push("");
+    lines.push(truncate(this.theme.fg?.("dim", "  Enter to select · Esc to go back") ?? "  Enter to select · Esc to go back", width));
+    lines.push(this.border(width));
+    return lines;
+  }
+
+  private handleChoiceInput(data: string, frame: SettingsFrame) {
+    const values = frame.choiceFor?.values ?? [];
+    if (this.matches(data, "tui.select.up", isUp)) {
+      if (values.length > 0) frame.selected = frame.selected === 0 ? values.length - 1 : frame.selected - 1;
+      return;
+    }
+    if (this.matches(data, "tui.select.down", isDown)) {
+      if (values.length > 0) frame.selected = frame.selected === values.length - 1 ? 0 : frame.selected + 1;
+      return;
+    }
+    if (this.matches(data, "tui.select.confirm", isEnter) || data === " ") {
+      const value = values[frame.selected];
+      if (value !== undefined && frame.choiceFor) {
+        const item = frame.choiceFor;
+        this.applyValue(item, value);
+        if (this.frames.length > 1) {
+          this.frames.pop();
+        } else {
+          this.close();
+        }
+      }
+      return;
+    }
+    if (this.matches(data, "tui.select.cancel", isEscape)) {
+      if (this.frames.length > 1) {
+        this.frames.pop();
+      } else {
+        this.close();
+      }
+    }
+  }
+
   private displayItems(frame: SettingsFrame): SettingsItem[] {
     const query = frame.search.trim().toLowerCase();
     if (!query) return frame.items;
@@ -842,8 +970,22 @@ class FreeflowSettingsComponent {
       this.frames.push({ title: item.label, items: item.children, selected: 0, search: "" });
       return;
     }
-    if (item.kind === "boolean" || item.kind === "enum") {
+    if (item.kind === "boolean") {
       this.applyValue(item, nextEnumValue(item));
+      return;
+    }
+    if (item.kind === "enum") {
+      if ((item.values?.length ?? 0) >= 3) {
+        this.frames.push({
+          title: item.label,
+          items: [],
+          selected: Math.max(0, item.values?.indexOf(String(item.value)) ?? 0),
+          search: "",
+          choiceFor: item,
+        });
+      } else {
+        this.applyValue(item, nextEnumValue(item));
+      }
       return;
     }
     this.editItem = item;
@@ -897,12 +1039,19 @@ class FreeflowSettingsComponent {
     const skillsEnabled = findSettingsItem(this.options.items, "freeflow.skills.enabled")?.value === true;
     const routerEnabled = findSettingsItem(this.options.items, "outputRouter.enabled")?.value === true;
     const delegationEnabled = findSettingsItem(this.options.items, "delegationHarness.enabled")?.value === true;
+    const sessionModeItem = findSettingsItem(this.options.items, "freeflow.sessionMode");
     const defaultModeItem = findSettingsItem(this.options.items, "freeflow.defaultMode");
     const routerGroup = findSettingsItem(this.options.items, "outputRouter.group");
     const delegationGroup = findSettingsItem(this.options.items, "delegationHarness.group");
 
     if (defaultModeItem) {
       defaultModeItem.displaySuffix = !freeflowInactive && !skillsEnabled ? "(inactive)" : undefined;
+    }
+    if (sessionModeItem) {
+      const defaultMode = String(defaultModeItem?.value ?? "workflow");
+      sessionModeItem.inactive = freeflowInactive || !skillsEnabled;
+      sessionModeItem.displaySuffix = sessionModeItem.value === "default" ? `(${defaultMode})` : undefined;
+      sessionModeItem.valueDescriptions = { default: defaultMode, ...MODE_DESCRIPTIONS };
     }
 
     if (routerGroup) {
@@ -917,6 +1066,8 @@ class FreeflowSettingsComponent {
     walkSettingsItems(this.options.items, (candidate) => {
       if (candidate.id === "freeflow.enabled") {
         candidate.inactive = false;
+      } else if (candidate.id === "freeflow.sessionMode") {
+        candidate.inactive = freeflowInactive || !skillsEnabled;
       } else if (candidate.id === "outputRouter.group" || candidate.id === "delegationHarness.group") {
         candidate.inactive = freeflowInactive;
       } else if (candidate.id === "outputRouter.enabled" || candidate.id === "delegationHarness.enabled") {
@@ -1033,11 +1184,18 @@ async function maybeBlockLayerMutation(action: string, ctx: any, layerName: stri
   return false;
 }
 
-export async function handleFreeflowCommand(args: string | undefined, ctx: any, afterChange: (changed: boolean) => Promise<void> | void) {
-  const action = (args ?? "settings").trim().toLowerCase() || "settings";
+export async function handleFreeflowCommand(
+  args: string | undefined,
+  ctx: any,
+  afterChange: (changed: boolean) => Promise<void> | void,
+  pi: any,
+) {
+  const input = (args ?? "settings").trim().toLowerCase() || "settings";
+  const [action, ...rest] = input.split(/\s+/);
+  const actionValue = rest.join(" ");
   const configState = await readFreeflowConfigState(ctx.cwd);
   const raw = configState.valid ? await readFreeflowConfig(ctx.cwd) : {};
-  const state = await readCapabilityState(ctx.cwd);
+  const [state, modeState] = await Promise.all([readCapabilityState(ctx.cwd), readModeState(ctx.cwd)]);
 
   if (action === "status") {
     ctx.ui.notify(freeflowStatusText(state), "info");
@@ -1049,9 +1207,39 @@ export async function handleFreeflowCommand(args: string | undefined, ctx: any, 
     return { changed: false, reloaded: false, error: "not_configured" };
   }
 
+  if (action === "mode") {
+    if (actionValue) {
+      const result = await handleModeCommand(actionValue, ctx, pi);
+      return { changed: result.changed, reloaded: false, error: result.error };
+    }
+    if (!state.enabled || !state.skills.effective) {
+      const result = await handleModeCommand(undefined, ctx, pi);
+      return { changed: false, reloaded: false, error: result.error };
+    }
+
+    if (typeof ctx?.ui?.custom !== "function") {
+      const result = await handleModeCommand(undefined, ctx, pi);
+      return { changed: false, reloaded: false, error: result.error };
+    }
+
+    const item = freeflowItems(raw, modeState).find((candidate) => candidate.id === "freeflow.sessionMode")!;
+    let modeChanged = false;
+    const changed = await openSettings({
+      title: "Freeflow Mode",
+      items: [item],
+      initialChoice: item,
+      ctx,
+      onChange: async (_item, value) => {
+        const result = await handleModeCommand(String(value), ctx, pi);
+        modeChanged ||= result.changed;
+      },
+    });
+    return { changed: changed && modeChanged, reloaded: false };
+  }
+
   if (["enable", "on", "true", "disable", "off", "false"].includes(action)) {
     const enabled = ["enable", "on", "true"].includes(action);
-    const item = freeflowItems(raw).find((candidate) => candidate.id === "freeflow.enabled")!;
+    const item = freeflowItems(raw, modeState).find((candidate) => candidate.id === "freeflow.enabled")!;
     await updateConfig(ctx.cwd, item, enabled);
     await afterChange(true);
     ctx.ui.notify(`Freeflow ${enabled ? "enabled" : "disabled"}. Reloading Freeflow runtime...`, "info");
@@ -1064,17 +1252,26 @@ export async function handleFreeflowCommand(args: string | undefined, ctx: any, 
   }
 
   if (action && action !== "settings") {
-    ctx.ui.notify("Usage: /freeflow, /freeflow settings, /freeflow status, /freeflow enable, or /freeflow disable", "warning");
+    ctx.ui.notify("Usage: /freeflow, /freeflow settings, /freeflow status, /freeflow mode [conversation|workflow|strict-workflow|reset], /freeflow enable, or /freeflow disable", "warning");
     return { changed: false, reloaded: false, error: "invalid_action" };
   }
 
+  let configChanged = false;
   const changed = await openSettings({
     title: "Freeflow Settings",
-    items: freeflowItems(raw),
+    items: freeflowItems(raw, modeState),
     ctx,
-    onChange: (item, value) => updateConfig(ctx.cwd, item, value),
+    onChange: async (item, value) => {
+      if (item.id === "freeflow.sessionMode") {
+        await handleModeCommand(String(value), ctx, pi);
+        return;
+      }
+      configChanged = true;
+      await updateConfig(ctx.cwd, item, value);
+    },
     onClose: async (settingsChanged) => {
       if (!settingsChanged) return;
+      if (!configChanged) return;
       await afterChange(true);
       ctx.ui.notify("Freeflow settings saved. Reloading Freeflow runtime...", "info");
       if (typeof ctx.reload === "function") {
@@ -1084,7 +1281,7 @@ export async function handleFreeflowCommand(args: string | undefined, ctx: any, 
       }
     },
   });
-  return { changed, reloaded: changed && typeof ctx.reload === "function" };
+  return { changed, reloaded: configChanged && typeof ctx.reload === "function" };
 }
 
 export async function handleOutputRouterCommand(args: string | undefined, ctx: any, afterChange: (changed: boolean) => Promise<void> | void) {
