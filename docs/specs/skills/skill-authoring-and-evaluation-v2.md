@@ -4,8 +4,8 @@
 > **Type:** Spec
 > **Status:** Draft
 > **Source:** Shared skill-pack review, live Freeflow skills/evals/docs, and current Pi/Codex/Claude CLI capability inspection
-> **Implementation:** Deferred until the full skill-pack comparison is complete and a master implementation plan is approved
-> **Review:** Deferred until cross-skill synthesis before implementation
+> **Implementation:** Planned through bootstrap acceptance after joint spec/plan review
+> **Review:** Bootstrap review completed 2026-07-10; repeat during final cross-skill synthesis
 
 # Skill Authoring And Evaluation V2
 
@@ -13,7 +13,9 @@
 
 This document preserves the current design direction for Freeflow's `write-skill` and `evaluate-skill` developer skills.
 
-It is design memory, not implementation authorization. Later skill reviews may change it. Before implementation, reconcile it with the other candidate skill-group specs, review the resulting system as a whole, then write an executable master plan or a small set of coordinated plans.
+This spec now authorizes implementation planning for the foundational bootstrap scope. Implementation starts only after this spec and its plan are reviewed together and blocking findings are adjudicated.
+
+Later skill reviews may change the broader design. After bootstrap acceptance, resume the skill-pack comparison and re-review this spec during final cross-skill synthesis before implementing deferred portability work.
 
 The current Freeflow eval harness is prior art and evidence only. It is not the baseline architecture defined here.
 
@@ -70,7 +72,6 @@ The active `SKILL.md` files remain compact. Conditional depth lives in bundled r
 - Do not make deterministic phrase checks the sole measure of semantic behavior.
 - Do not auto-install Node, agent CLIs, packages, or system dependencies.
 - Do not add cmux/delegation execution until a real full-fidelity eval requires it and the delegation contract is stable.
-- Do not implement or review this spec during the current skill-pack comparison phase.
 
 ## Settled Design Decisions
 
@@ -210,6 +211,7 @@ A developed project uses:
 │   ├── prompts/
 │   ├── fixtures/
 │   ├── reports/
+│   ├── tests/
 │   ├── runs/
 │   └── cache/
 ├── write-skill/
@@ -227,6 +229,7 @@ Version-controlled source evidence:
 - cases;
 - long prompts that do not fit cleanly in a case;
 - fixtures;
+- deterministic script tests;
 - selected durable reports.
 
 Ignored generated state:
@@ -312,6 +315,21 @@ Every run must name the question it answers:
 - full host/runtime behavior.
 
 Do not substitute one question for another and keep the same evidence label.
+
+### Evidence Classes
+
+A case must declare one or more evidence classes. The runner may support a claim only when it captures that class's required evidence:
+
+- `structure`: deterministic file, metadata, schema, or command evidence; no subject model required.
+- `explicit-instruction`: the exact skill snapshot is deliberately supplied or invoked, with prompt, events, final output, and usage retained. This can test active wording but cannot support an automatic-activation claim.
+- `native-activation`: the host discovers the skill through its native mechanism, and events prove the exact snapshot was read or activated. Description-boundary acceptance also needs a near-miss case showing no target-skill read or activation.
+- `artifact-outcome`: isolated before/after filesystem state, diff, status, command output, and exit evidence prove task effects.
+- `multi-turn`: a stateful session transcript proves the ordered turns and retained state. One-shot injection is not equivalent.
+- `cross-host`: the same case semantics and required evidence run through each named host adapter. One host cannot stand in for another.
+
+Semantic grading is a grading method, not an evidence class. A case may combine classes, such as `native-activation` plus `artifact-outcome`.
+
+`plan` must reject an acceptance job when a required class is unavailable. Iterate may run a labeled diagnostic only when it reports the changed question and makes no stronger claim.
 
 ### Iterate Profile
 
@@ -407,20 +425,23 @@ A polished response cannot override contradictory filesystem or command evidence
 
 ## Subject Isolation
 
-Directory placement is not a security boundary. The runner must prevent subject access to eval answers.
+Directory placement is not a security boundary. The runner must prevent subject access to eval answers through every tool it exposes.
 
 For each subject run:
 
-1. copy only the fixture into an isolated run directory;
-2. copy the target skill into a separate immutable snapshot;
+1. copy only the fixture into an isolated run directory outside the source workspace;
+2. copy the target skill into a separate immutable snapshot in that run directory;
 3. exclude `.skill-eval/` definitions, assertions, reports, controls, and candidate labels;
 4. start the subject inside the isolated fixture;
 5. expose only the natural user prompt, target skill, and allowed tools;
 6. keep grading criteria coordinator-side;
-7. restrict writable and readable roots where the host supports it;
-8. capture evidence after the subject settles.
+7. enforce readable roots for the fixture and selected skill snapshot and writable roots for the fixture only;
+8. resolve real paths and reject traversal and symlink escapes;
+9. capture evidence after the subject settles and verify the snapshot hash did not change.
 
 The subject must not see control output, expected outcomes, reports, or semantic grading rubrics.
+
+An adapter may claim strict tool isolation only when every exposed filesystem or command tool enforces the declared roots. For Pi bootstrap runs, load one explicit adapter-owned root guard, expose no unrestricted shell, and prove allowed and denied paths before paid model execution. Auto-discovered extensions remain disabled. If the guard cannot enforce the required roots, stop; copied-directory isolation alone is only a reduced-fidelity diagnostic and cannot satisfy bootstrap acceptance.
 
 ## Portable Host Architecture
 
@@ -517,35 +538,37 @@ It must not run the full cross-product by default.
 
 Requirements:
 
-- bounded configurable concurrency;
+- bounded configurable concurrency with queued overflow;
 - isolated run directories and config homes;
 - immutable skill snapshots during a wave;
-- control and candidate launched in the same wave when both are needed;
+- control and candidate launched from one resolved wave plan when both are needed;
 - no skill edit while related runs remain active;
-- provider-aware rate and budget limits;
+- explicit provider, model, and thinking selection before model calls;
+- a required model-call cap and optional spend cap;
+- provider-aware rate and budget limits where the host exposes the needed data;
 - optional fail-fast when evidence is decisive or infrastructure is broken.
 
-Parallelism reduces wall-clock time, not model tokens.
+Parallelism reduces wall-clock time, not model tokens. A missing cost metric cannot be treated as zero; use the model-call cap and report spend enforcement as unavailable.
 
 ### Adaptive Repeats
 
-Start with one run per side. Add repeats when results conflict, activation is unstable, or acceptance needs variance evidence. Do not require a fixed three-run rule for deterministic fixture behavior.
+Start with one run per side. When results conflict, activation is unstable, or acceptance needs variance evidence, the scheduler must add a bounded repeat or stop at the configured cap and report unresolved variance. Do not require a fixed three-run rule for deterministic fixture behavior.
 
 ### Control Cache
 
 A control is reusable only when its fingerprint matches all behavior-relevant inputs, including:
 
-- eval ID and case content;
+- eval ID, suite, case content, assertions, and grading policy;
 - prompt;
 - fixture;
 - skill snapshot;
-- host and version;
+- host, host version, provider, and stable backend model revision when available;
 - model and thinking level;
-- tools;
-- context and runtime-hook settings;
+- tools and root-isolation policy;
+- context, config-home, extension, and runtime-hook settings;
 - adapter version.
 
-Any relevant mismatch invalidates the control.
+Any relevant mismatch invalidates the control. When a provider does not expose a stable backend revision, record that limitation and apply an explicit cache-age policy rather than implying cross-time identity.
 
 ## Normalized Evidence
 
@@ -573,7 +596,7 @@ Metadata must identify:
 - model and thinking level;
 - tools and context controls;
 - command or invocation shape with secrets removed;
-- evidence class;
+- evidence classes and whether each required artifact was captured;
 - run fingerprint;
 - start/end time;
 - token usage, cache usage, and cost when available.
@@ -639,26 +662,49 @@ A valid existing eval may be reused unchanged. Do not mutate an eval merely to p
 
 If the user explicitly requests an unevaluated draft, provide it and label it. If the user requests a production-ready change while forbidding required evidence, name the conflict and ask which claim should change.
 
-## Acceptance Criteria
+## Bootstrap Entry Gate
 
-This design is ready for implementation planning only when the final cross-skill synthesis confirms it and the following remain true:
+Bootstrap implementation may begin after joint spec/plan review:
+
+- resolves every blocking contradiction;
+- confirms the approved write set and preserved v1 controls;
+- proves a feasible Pi root-isolation guard before subject model calls;
+- defines required bootstrap cases and pre-run criteria;
+- leaves provider, model, thinking, and budget selection as an explicit owner gate before paid calls.
+
+## Bootstrap Acceptance Criteria
+
+The Pi-first foundation is accepted for later skill rewrites only when saved evidence confirms:
 
 - Both skills are self-contained and have no runtime dependency on external skills.
 - Active `SKILL.md` files stay compact and route conditional depth to direct references.
 - Node scripts run without npm installation or a build step.
-- Project eval state is grouped under `.skill-eval/<skill-name>/`.
-- Subject agents cannot access eval definitions or expected outcomes in the normal isolated path.
-- `iterate` can run one fair control/candidate comparison through Pi without subagents.
-- `acceptance` can select broader evidence without forcing a full matrix.
-- Pi supports one-shot and RPC multi-turn evals.
-- Codex and Claude adapters report real capabilities and do not overclaim native activation.
-- Controls are fingerprinted before reuse.
-- Concurrency is bounded and every run is isolated.
+- Project eval source and generated state follow the `.skill-eval/<skill-name>/` ownership contract.
+- The Pi adapter enforces fixture/snapshot read roots and fixture-only write roots, including traversal and symlink checks, with no unrestricted shell.
+- All cases marked `required_for_bootstrap` have recorded results; this set includes draft/status behavior, eval reuse and user authority, old-versus-candidate pressure behavior, and positive native activation plus near-miss non-trigger evidence for both skills.
+- `iterate` runs one fair old/candidate comparison through Pi without subagents, and the resolved paired plan differs only by variant inputs.
+- Manual bootstrap and runner executions agree on invocation/evidence surfaces and fixed-rubric verdicts; stochastic text need not match exactly and observed variance is reported.
+- Every claimed evidence class has its required artifacts; unavailable classes are unsupported rather than substituted.
 - Mechanical evidence outranks contradictory prose.
-- Semantic grading uses a fresh, evidence-backed context and can be omitted when unnecessary.
-- Missing host capabilities produce reduced-fidelity or unsupported results, not silent substitution.
+- One fresh blinded semantic grade is evidenced and optional semantic grading can be omitted when objective evidence settles the case.
+- Adaptive-repeat scheduling adds a bounded repeat for conflict or reports unresolved variance at the cap.
+- Cache reuse succeeds only for a complete matching fingerprint and rejects every behavior-relevant mismatch.
+- Concurrency queues work above the configured bound, run state remains isolated, and model-call/budget caps stop excess work.
+- Pi usage and cost are captured when exposed; unavailable cost is not serialized as zero.
+- An independent fresh-context acceptance audit inspects frozen cases, raw evidence, graders, and the readiness claim; the parent adjudicates its findings.
 - No automatic Node or host installation occurs.
-- Legacy Freeflow eval migration remains explicit and deferred.
+- No external skill, parent subagent, legacy Freeflow eval harness, root build change, or installed hook/extension is required.
+- Pi RPC, Codex, Claude, legacy migration, and broader portability are labeled deferred.
+
+## Full Target Acceptance Criteria
+
+After final cross-skill synthesis, broader implementation acceptance additionally requires:
+
+- Pi RPC multi-turn evals with `multi-turn` evidence;
+- Codex and Claude adapters that report real capabilities and do not overclaim native activation;
+- acceptance profile selection across declared target hosts/models without forcing a full cross-product;
+- full capability, isolation, cache, and evidence conformance for every shipped adapter;
+- explicit, owner-approved legacy Freeflow eval migration if migration is still useful.
 
 ## Tentative And Evidence-Gated Decisions
 
@@ -677,14 +723,27 @@ Evidence-gated:
 - whether a future single binary is worth replacing the Node runtime requirement;
 - whether cmux/delegation adds value beyond Pi RPC for any eval not explicitly testing delegation.
 
-## Final Synthesis Requirement
+## Bootstrap And Final Synthesis
 
-Before implementation:
+Before bootstrap implementation:
 
-1. complete the remaining skill-group comparisons;
+1. write the bootstrap implementation plan;
+2. review this spec and the plan together with fresh, read-only reviewers using explicit rubrics rather than the current workflow skills;
+3. adjudicate blocking, non-blocking, question, and evidence-gap findings;
+4. revise the artifacts once from accepted findings;
+5. implement vertical, evidence-producing slices until bootstrap acceptance.
+
+After bootstrap acceptance:
+
+1. resume the remaining skill-group comparisons using the accepted Pi-first tooling where appropriate;
 2. read all candidate specs together;
 3. reconcile shared workflow, artifact, review, execution, and eval contracts;
 4. revise or supersede this draft where later evidence changes direction;
 5. perform one formal architecture/artifact review across the final set;
-6. write a master implementation plan or a small coordinated plan set;
-7. implement in vertical, evidence-producing slices.
+6. write a master implementation plan or coordinated plan set for deferred work;
+7. implement remaining portability and acceptance scope in vertical slices.
+
+## Change Log
+
+- 2026-07-10: Incorporated the bounded four-lens bootstrap review. Split bootstrap from full-target acceptance, defined evidence classes, required enforceable Pi tool-root isolation, tightened caching/repeats/budgets, and expanded independent bootstrap evidence.
+- 2026-07-10: Changed implementation timing after owner decision. Foundational bootstrap implementation now precedes the remaining skill-pack comparison; broader portability work remains subject to final cross-skill synthesis.
