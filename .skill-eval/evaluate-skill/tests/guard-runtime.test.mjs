@@ -32,12 +32,11 @@ test("guard observes provider requests and applies the hard per-process turn lim
   let aborts = 0;
   await handlers.before_provider_request();
   await handlers.turn_start({}, { abort() { aborts += 1; } });
-  await handlers.before_provider_request();
-  await handlers.turn_start({}, { abort() { aborts += 1; } });
+  await assert.rejects(() => handlers.before_provider_request(), /hard turn limit/i);
 
   const observed = JSON.parse(await readFile(counter, "utf8"));
-  assert.equal(observed.provider_requests, 2);
-  assert.equal(observed.turns_started, 2);
+  assert.equal(observed.provider_requests, 1);
+  assert.equal(observed.turns_started, 1);
   assert.equal(observed.hard_turn_limit_reached, true);
-  assert.equal(aborts, 1);
+  assert.equal(aborts, 0);
 });

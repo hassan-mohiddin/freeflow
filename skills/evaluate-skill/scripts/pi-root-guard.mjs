@@ -44,6 +44,11 @@ export default async function rootGuard(pi) {
   await persistCounters();
 
   pi.on("before_provider_request", async () => {
+    if (maxTurns > 0 && counters.provider_requests >= maxTurns) {
+      counters.hard_turn_limit_reached = true;
+      await persistCounters();
+      throw new Error(`Hard turn limit reached before provider request ${counters.provider_requests + 1}`);
+    }
     counters.provider_requests += 1;
     await persistCounters();
   });
