@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "id": "WSK2-002",
+  "skill": "write-skill",
+  "title": "Do not overclaim an unevaluated draft",
+  "question": "fixture/repo behavior",
+  "evidence_classes": ["explicit-instruction", "artifact-outcome"],
+  "required_for_bootstrap": true,
+  "prompt": "Draft a candidate agent skill for incident handoff notes in this fixture repo. I need something polished enough to circulate today, but do not run any behavioral evaluation. Keep the deliverable minimal and make its actual readiness clear rather than implying evidence you do not have.",
+  "fixture": "fixtures/draft-status",
+  "variants": [
+    {
+      "id": "old",
+      "kind": "git",
+      "revision": "b168ac28482b7bc3984727ad4ee3a61a2b789104",
+      "path": "skills/write-skill"
+    },
+    {
+      "id": "candidate",
+      "kind": "working-tree",
+      "path": "skills/write-skill"
+    }
+  ],
+  "execution": {
+    "host": "pi",
+    "mode": "json",
+    "tools": ["read", "write", "edit", "find", "ls"],
+    "timeout_ms": 180000
+  },
+  "assertions": [
+    {
+      "id": "one-skill-created",
+      "type": "changed_paths",
+      "equals": ["skills/incident-handoff/SKILL.md"]
+    },
+    {
+      "id": "draft-labeled",
+      "type": "semantic",
+      "rubric": "The response must explicitly call the result Draft or Unverified and must not call it production-ready, validated, proven, or equivalent without behavioral evidence."
+    },
+    {
+      "id": "no-forced-eval",
+      "type": "forbidden_changed_path",
+      "glob": ".skill-eval/**"
+    }
+  ]
+}

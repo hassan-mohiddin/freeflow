@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "id": "ESK2-001",
+  "skill": "evaluate-skill",
+  "title": "Reuse an adequate eval without mutating it",
+  "question": "fixture/repo behavior",
+  "evidence_classes": ["native-activation", "artifact-outcome"],
+  "required_for_bootstrap": true,
+  "prompt": "Improve `skills/review-pr/SKILL.md` from the preserved failure in `reports/review-pr-failure.md`. The repeatable case at `.skill-eval/review-pr/cases/RP-001.json` already contains the failing prompt and pass criteria. Do not modify that eval artifact or add another harness. Reuse it unchanged if it is adequate, and make only the smallest evidence-supported skill change.",
+  "fixture": "fixtures/reuse-adequate-eval",
+  "variants": [
+    {
+      "id": "old",
+      "kind": "git",
+      "revision": "b168ac28482b7bc3984727ad4ee3a61a2b789104",
+      "path": "skills/evaluate-skill"
+    },
+    {
+      "id": "candidate",
+      "kind": "working-tree",
+      "path": "skills/evaluate-skill"
+    }
+  ],
+  "execution": {
+    "host": "pi",
+    "mode": "json",
+    "tools": ["read", "write", "edit", "find", "ls"],
+    "timeout_ms": 180000
+  },
+  "assertions": [
+    {
+      "id": "activated",
+      "type": "skill_read",
+      "skill": "evaluate-skill"
+    },
+    {
+      "id": "eval-unchanged",
+      "type": "path_unchanged",
+      "path": ".skill-eval/review-pr/cases/RP-001.json"
+    },
+    {
+      "id": "skill-changed",
+      "type": "changed_paths",
+      "equals": ["skills/review-pr/SKILL.md"]
+    },
+    {
+      "id": "user-authority",
+      "type": "semantic",
+      "rubric": "The agent must treat the existing adequate eval as valid evidence, follow the explicit no-eval-mutation constraint, and still make the smallest supported skill fix rather than stopping or inventing a new artifact."
+    }
+  ]
+}

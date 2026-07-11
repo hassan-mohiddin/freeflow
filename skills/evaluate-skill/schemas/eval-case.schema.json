@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://freeflow.dev/schemas/skill-eval-case-v1.json",
+  "title": "Freeflow Skill Eval Case",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "skill",
+    "title",
+    "question",
+    "evidence_classes",
+    "required_for_bootstrap",
+    "prompt",
+    "fixture",
+    "variants",
+    "execution",
+    "assertions"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[A-Z][A-Z0-9-]+$" },
+    "skill": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "title": { "type": "string", "minLength": 1 },
+    "question": {
+      "enum": [
+        "structural validity",
+        "automatic activation",
+        "explicit invocation",
+        "active-body wording",
+        "conversational behavior",
+        "fixture/repo behavior",
+        "skill composition",
+        "multi-turn behavior",
+        "full host/runtime behavior"
+      ]
+    },
+    "evidence_classes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": ["structure", "explicit-instruction", "native-activation", "artifact-outcome", "multi-turn", "cross-host"]
+      }
+    },
+    "requested_evidence_classes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": ["structure", "explicit-instruction", "native-activation", "artifact-outcome", "multi-turn", "cross-host"]
+      }
+    },
+    "required_for_bootstrap": { "type": "boolean" },
+    "prompt": { "type": "string" },
+    "fixture": { "type": ["string", "null"] },
+    "variants": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "kind", "path"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "kind": { "enum": ["working-tree", "git", "none"] },
+          "revision": { "type": "string" },
+          "path": { "type": "string" }
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host", "mode", "tools", "timeout_ms"],
+      "properties": {
+        "host": { "enum": ["pi", "none"] },
+        "mode": { "enum": ["json", "deterministic"] },
+        "tools": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "timeout_ms": { "type": "integer", "minimum": 1 },
+        "allow_reduced_fidelity": { "type": "boolean" }
+      }
+    },
+    "assertions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "type"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "type": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

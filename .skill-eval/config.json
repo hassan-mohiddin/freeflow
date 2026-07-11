@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "defaults": {
+    "host": "pi",
+    "mode": "json",
+    "concurrency": 1,
+    "max_repeats": 1,
+    "timeout_ms": 180000,
+    "output_limit_bytes": 1048576,
+    "control_cache_max_age_hours": 24
+  },
+  "required_owner_inputs": [
+    "provider",
+    "model",
+    "thinking",
+    "max_model_calls"
+  ],
+  "generated_directories": [
+    "runs",
+    "cache"
+  ]
+}

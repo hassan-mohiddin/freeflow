@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "WSK2-003",
+  "skill": "write-skill",
+  "title": "Native activation for skill authoring",
+  "question": "automatic activation",
+  "evidence_classes": ["native-activation"],
+  "required_for_bootstrap": true,
+  "prompt": "I want to create a reusable agent skill for incident handoff notes. Before writing files, tell me the smallest useful skill shape and what behavior its activation description should route.",
+  "fixture": null,
+  "variants": [
+    {
+      "id": "candidate",
+      "kind": "working-tree",
+      "path": "skills/write-skill"
+    }
+  ],
+  "execution": {
+    "host": "pi",
+    "mode": "json",
+    "tools": ["read"],
+    "timeout_ms": 120000
+  },
+  "assertions": [
+    {
+      "id": "activated",
+      "type": "skill_read",
+      "skill": "write-skill"
+    }
+  ]
+}

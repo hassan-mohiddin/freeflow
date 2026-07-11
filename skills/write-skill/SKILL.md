@@ -1,88 +1,59 @@
 ---
 name: write-skill
-description: Use when creating, rewriting, tightening, or reviewing an agent skill's instructions, trigger description, structure, examples, or bundled resources.
+description: Create or revise agent skills. Use when defining a skill's trigger description, active instructions, stop conditions, structure, examples, references, scripts, or readiness status.
 ---
 
 # Write Skill
 
-Use Anthropic/Claude `skill-creator` guidance as the structure and progressive-disclosure authority when available. Do not copy it into this skill.
+> Status: Unverified v2 candidate
 
-Use concise, behavior-shaping wording. Prefer sharp rules, concrete triggers, and stop conditions over explanation or filler.
+Write the smallest agent-first skill that changes the target behavior.
 
-## Job
+## Before Writing
 
-Write the smallest skill that changes behavior.
+- Name the behavior, trigger, pressure, and failure the skill must handle.
+- Inspect live repo conventions and existing evidence before inventing structure.
+- Treat an explicit draft request as a draft. Do not force evaluation.
+- Treat production-ready as an evidence claim. If behavior is unevaluated, label it Draft or Unverified.
+- Follow user constraints. Permission to skip work is not pressure to ignore; a prohibition is a prohibition.
 
-Start with one `SKILL.md`. Add other files only when the skill would fail without them.
+## Authoring Rules
 
-Direct `/write-skill`, "production-ready", "complete", or "add examples/references/scripts if useful" does not override the smallest-skill default or the repo's skill-file rules.
+1. Start with one `SKILL.md`.
+2. Make the description state what the skill does and when it should activate.
+3. Write for the agent that will execute the skill, not for a human reading a manual.
+4. Put user authority, source truth, hard stops, and safety before normal workflow.
+5. Use direct rules that prevent a named failure. Remove explanation that does not route, constrain, stop, or guide behavior.
+6. Add references only for conditional depth. Add scripts only for repeated deterministic work that is risky or wasteful to retype.
+7. Link every resource directly from `SKILL.md` and state when to read or run it.
 
-Do not add references, examples, README files, changelogs, or metadata when a compact `SKILL.md` can hold the behavior.
+Do not add README files, changelogs, examples, references, or scripts merely because the user asks for something "complete." Each resource must earn its runtime and maintenance cost.
 
-Do not add helper scripts for commands the agent can run directly, such as `git log`, `git diff`, search, formatting, or line counts. Scripts are for repeated deterministic work that would be risky or wasteful to retype.
+## Activation Boundaries
 
-Treat the repo's line budget as a best practice, not a hard cap. If none exists, aim to keep `SKILL.md` under 100 lines for normal skills. Let deep skills exceed it when the active rules, examples, or structure clearly earn their place.
+Descriptions are routing contracts:
 
-## Description First
+- include the job and concrete trigger situations;
+- exclude generic helper language and quality claims;
+- cover true requests without hijacking nearby work;
+- test a positive trigger and a near-miss non-trigger before claiming production readiness.
 
-The description controls activation. Make it specific enough to route the skill without making it broad enough to hijack unrelated work.
+Read [activation boundaries](references/activation-boundaries.md) when the skill under-triggers, over-triggers, or overlaps another skill.
 
-Use:
+## Revision Loop
 
-- What the skill does.
-- When to use it.
-- Concrete trigger situations.
+- Preserve the failing situation or reuse an adequate existing eval unchanged.
+- Change one measured pressure point: description, wording, placement, stop condition, structure, or resource.
+- Re-run the failed candidate side first.
+- Keep unrelated text stable.
+- Report the evidence and remaining gaps; do not promote status from prose quality alone.
 
-Avoid:
+Read [agent-first instructions](references/agent-first-instructions.md) when wording or placement is the failure. Read [progressive disclosure](references/progressive-disclosure.md) before adding resources. Read [the development loop](references/development-loop.md) when moving from Draft to Production-Ready.
 
-- Generic helper language.
-- Marketing copy.
-- Long taxonomies.
-- Claims about quality.
+## Bundled Tool
 
-## Wording Discipline
+Use `node scripts/skill-author.mjs init|validate|inspect` for deterministic structure work. `validate` proves structural facts. `inspect` reports advisory signals only; neither proves behavior.
 
-Every sentence should either route, constrain, stop, or guide behavior.
+## Stop
 
-Prefer sharp rules over explanations. Prefer one good example over a paragraph.
-
-Small wording changes can alter agent behavior. Change one pressure point at a time when possible.
-
-Use direct verbs:
-
-- Inspect.
-- Stop.
-- Ask.
-- Do not edit.
-- Verify.
-- Report.
-
-Avoid vague verbs:
-
-- Consider.
-- Ensure.
-- Leverage.
-- Try to.
-- Be mindful.
-
-## Placement Discipline
-
-Order rules by behavioral priority, not topic neatness.
-
-Put hard stop conditions before normal workflow details.
-
-Put source-of-truth, user-owned decision, safety, and verification rules above convenience rules.
-
-Do not hide the real constraint in a later caveat.
-
-## Revision Rule
-
-Do not add prose because the skill "could be clearer." Add or move wording because an eval, user failure, or concrete pressure case showed a behavior gap.
-
-When improving a skill after a failure:
-
-1. Name the failed behavior.
-2. Find the sentence that should have prevented it.
-3. Tighten wording or placement.
-4. Keep unrelated sections still.
-5. Re-run the smallest relevant eval.
+Stop and ask when the requested public behavior, activation boundary, safety rule, or compatibility choice is owner-owned and unclear. If required production evidence is forbidden or unavailable, ask which claim should change.

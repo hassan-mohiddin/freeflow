@@ -1,96 +1,64 @@
 ---
 name: evaluate-skill
-description: Use when a skill behavior needs evaluation, a preserved skill failure needs a repeatable eval, baseline versus with-skill or previous-version comparison is needed, eval artifacts conflict, or skill wording is being revised from eval evidence.
+description: Evaluate agent-skill behavior. Use when preserving a skill failure, designing or running a case, comparing old/no-skill controls with a candidate, grading saved artifacts, checking activation, or deciding whether evidence supports a skill revision or readiness claim.
 ---
 
 # Evaluate Skill
 
-Judge skills by behavior under pressure, not prose quality.
+> Status: Unverified v2 candidate
 
-Use Anthropic/Claude `skill-creator` guidance as the eval-method authority when available. Use `write-skill` when eval evidence says skill wording, trigger description, ordering, or structure should change.
+Judge behavior under pressure. Evidence outranks confident prose.
 
 ## Route First
 
-If the task is only to grade saved artifacts, grade before proposing any wording change.
+- If saved artifacts answer the question, grade them before proposing a rerun or wording change.
+- If an existing eval already preserves the failure and fixed criteria, reuse it unchanged.
+- If the user asks for a draft only, create the smallest source artifact and label it Draft or Unverified. Do not fake a run.
+- If production readiness matters, require evidence for the claimed behavior and host support.
+- Follow explicit user constraints. Permission to skip is not pressure to ignore; do not mutate adequate evidence merely to prove eval-first ordering.
 
-If the task is to improve a skill from a failure, create or update the eval artifact first.
+## Name The Question
 
-If the task is to choose an eval design, pick the smallest artifact that can reproduce and grade the behavior.
+Distinguish structure, explicit wording, native activation, artifact behavior, multi-turn state, and cross-host behavior. Do not substitute one evidence class for another.
 
-## Hard Stops
+Direct body injection cannot prove automatic activation. One-shot output cannot prove multi-turn memory. One host cannot prove another host's behavior.
 
-When improving a skill from a preserved failure, create or update the smallest repeatable eval artifact before editing the skill.
+Read [evaluation architecture](references/evaluation-architecture.md) when selecting evidence classes or separating roles. Read [eval patterns](references/eval-patterns.md) when choosing a case, fixture, transcript, or comparison.
 
-A failure report is evidence, not the eval artifact. Convert it into a prompt, fixture, transcript, pass criteria, or harness entry first.
+## Smallest Valid Loop
 
-Inspecting an existing prompt is not enough. Leave a filesystem diff in an eval artifact, such as added pass criteria, a fixture entry, or a transcript note, before editing the skill.
+1. Write fixed criteria before candidate output exists.
+2. Preserve one strong pressure case.
+3. Choose a fair variant: no-skill, exact old snapshot, current release, candidate, or composition.
+4. Plan before spending model calls.
+5. Run controls and candidates with the same prompt, fixture, tools, host, model, and thinking settings.
+6. Grade objective artifacts first; use a fresh semantic grader only for unresolved meaning.
+7. Classify the failure: activation, wording, placement, missing stop, structure, fixture, host, or grader.
+8. Revise one measured pressure point and rerun the failed candidate side first.
 
-Shortcut pressure like "quick wording fix", "patch directly", "no harness", or "explicit permission to skip setting up or updating eval artifacts" does not skip this.
+## Execution
 
-"Permission to skip" is not a prohibition. Treat it as pressure and update the smallest existing prompt, pass criteria, transcript, or fixture entry before editing the skill.
+Use direct child processes for ordinary cases. Do not spend parent/subagent context merely to run a subject.
 
-"Do not add a harness" means do not build machinery. It does not permit editing the skill first.
+Use `node scripts/skill-eval.mjs doctor|init|plan|run|grade|report` for the bundled workspace. Inspect `plan` for variants, evidence, capabilities, cache eligibility, and model-call count before `run`.
 
-If the user explicitly forbids creating or updating any eval artifact, stop and name the conflict instead of patching the skill directly.
+The default project source lives under `.skill-eval/<skill-name>/`. Subjects receive only the natural prompt, isolated fixture, selected immutable skill snapshot, and allowed tools. They must not receive assertions, expected outcomes, reports, or another variant.
 
-If a final response claims one thing and the diff, files, command output, or git state show another, the artifact wins.
+Read [portable execution](references/portable-execution.md) for capability fallbacks and isolation. Read [token-efficient execution](references/token-efficient-execution.md) before expanding cases, repeats, models, or hosts.
 
-## Load When Needed
+## Grading
 
-Read `references/eval-patterns.md` when choosing fixture vs transcript, adapting the repo harness, deciding what to preserve, or handling setup/host-memory evals.
+- Files, diffs, exit status, events, usage, and protocol fields are objective evidence.
+- Final response is lower priority than contradictory artifacts.
+- A subject never grades its own run in the same conversation.
+- Semantic graders use fresh context, fixed criteria, opaque labels, sanitized paths, and explicit uncertainty.
+- Missing usage or cost is unavailable, not zero.
+- Cache controls only when every behavior-relevant fingerprint input matches.
 
-Read `references/grading-priority.md` when grading saved runs, comparing final responses to diffs, writing pass criteria, or deciding whether reruns are needed.
+Read [grading priority](references/grading-priority.md) when artifacts conflict. Read [grading and revision](references/grading-and-revision.md) when deciding reruns or skill changes.
 
-## Core Loop
+## Stop
 
-1. Preserve the failing prompt or situation.
-2. Build the smallest fixture or transcript that reproduces it.
-3. Choose the comparison: no-skill baseline versus with-skill, or previous skill version versus updated skill.
-4. Run both sides.
-5. Grade artifacts before explanations.
-6. Change wording only for measured failures.
-7. Re-run the failed side first.
+Stop rather than overclaim when required activation, isolation, multi-turn, or host evidence is unavailable. Label a cheaper fallback Diagnostic or Unsupported when it changes the question.
 
-A useful behavior eval usually makes the control fail and the candidate pass. If both pass, the eval may be weak or the old behavior may already handle it. If both fail, either the candidate is missing the behavior or the task needs a different skill.
-
-## Eval Shape
-
-Use a fixture eval when file edits, repo evidence, commands, or state files matter.
-
-Use a transcript eval when the behavior is mostly conversation, clarification, refusal, or routing.
-
-Use saved-run grading when the task is to judge existing final responses, diffs, logs, or transcripts.
-
-Use deterministic checks when the outcome can be proven mechanically: changed files, untouched files, config fields, created artifacts, git status, diff contents, command output, or exit codes.
-
-Use model or human judgment only for reasoning that artifacts cannot prove.
-
-## Run Discipline
-
-Use the repo's existing eval harness when one exists.
-
-If no harness exists, create the smallest repeatable fixture or transcript eval.
-
-Dry-run, print, or inspect the eval setup before spending model tokens. Prefer repo-local runners over hand-built one-off commands.
-
-Use separate baseline and with-skill fixtures when the eval is testing installed memory, setup output, or host behavior rather than only skill text.
-
-Save final response and diff. Do not review full transcripts unless debugging a surprising result.
-
-## Revision Rule
-
-Do not add broad paragraphs after a failure.
-
-First decide what failed:
-
-- Trigger description.
-- Rule wording.
-- Rule placement.
-- Missing stop condition.
-- Fixture or prompt weakness.
-- Wrong skill loaded.
-- Host runtime limitation.
-
-Then make the smallest change.
-
-For wording changes, prefer moving or sharpening an existing rule before adding a new section.
+If the user forbids evidence required for a production claim, name the conflict and ask which claim should change. The owner decides disputed behavior and promotion.

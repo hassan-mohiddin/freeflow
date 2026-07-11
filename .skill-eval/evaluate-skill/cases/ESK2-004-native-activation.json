@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "ESK2-004",
+  "skill": "evaluate-skill",
+  "title": "Native activation for skill behavior evaluation",
+  "question": "automatic activation",
+  "evidence_classes": ["native-activation"],
+  "required_for_bootstrap": true,
+  "prompt": "I have a preserved failure from an agent skill and a candidate rewrite. How should I compare the exact old version against the candidate without letting either subject see the pass criteria?",
+  "fixture": null,
+  "variants": [
+    {
+      "id": "candidate",
+      "kind": "working-tree",
+      "path": "skills/evaluate-skill"
+    }
+  ],
+  "execution": {
+    "host": "pi",
+    "mode": "json",
+    "tools": ["read"],
+    "timeout_ms": 120000
+  },
+  "assertions": [
+    {
+      "id": "activated",
+      "type": "skill_read",
+      "skill": "evaluate-skill"
+    }
+  ]
+}

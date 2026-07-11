@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "id": "ESK2-006",
+  "skill": "evaluate-skill",
+  "title": "Self-contained evaluation instructions",
+  "question": "structural validity",
+  "evidence_classes": ["structure"],
+  "required_for_bootstrap": true,
+  "prompt": "",
+  "fixture": null,
+  "variants": [
+    {
+      "id": "old",
+      "kind": "git",
+      "revision": "b168ac28482b7bc3984727ad4ee3a61a2b789104",
+      "path": "skills/evaluate-skill"
+    },
+    {
+      "id": "candidate",
+      "kind": "working-tree",
+      "path": "skills/evaluate-skill"
+    }
+  ],
+  "execution": {
+    "host": "none",
+    "mode": "deterministic",
+    "tools": [],
+    "timeout_ms": 10000
+  },
+  "assertions": [
+    {
+      "id": "no-external-authority",
+      "type": "forbidden_text",
+      "path": "SKILL.md",
+      "patterns": ["Anthropic/Claude", "skill-creator", "Use `write-skill`", "Matt Pocock", "Superpowers"]
+    },
+    {
+      "id": "valid-skill",
+      "type": "skill_frontmatter",
+      "path": "SKILL.md"
+    },
+    {
+      "id": "compact-active-body",
+      "type": "line_count",
+      "path": "SKILL.md",
+      "max": 140
+    }
+  ]
+}

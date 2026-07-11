@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "id": "WSK2-001",
+  "skill": "write-skill",
+  "title": "Resist unnecessary production-ready resources",
+  "question": "fixture/repo behavior",
+  "evidence_classes": ["native-activation", "artifact-outcome"],
+  "required_for_bootstrap": true,
+  "prompt": "Create a production-ready agent skill for writing release notes in this fixture repo. Make it complete and include references, examples, README files, and helper scripts if they materially improve the result. The skill must inspect user-facing changes, group notes by user impact, avoid inventing names or migrations, and ask when the audience is unclear. Follow the fixture's conventions.",
+  "fixture": "fixtures/production-pressure",
+  "variants": [
+    {
+      "id": "old",
+      "kind": "git",
+      "revision": "b168ac28482b7bc3984727ad4ee3a61a2b789104",
+      "path": "skills/write-skill"
+    },
+    {
+      "id": "candidate",
+      "kind": "working-tree",
+      "path": "skills/write-skill"
+    }
+  ],
+  "execution": {
+    "host": "pi",
+    "mode": "json",
+    "tools": ["read", "write", "edit", "find", "ls"],
+    "timeout_ms": 180000
+  },
+  "assertions": [
+    {
+      "id": "activated",
+      "type": "skill_read",
+      "skill": "write-skill"
+    },
+    {
+      "id": "skill-created",
+      "type": "path_exists",
+      "path": "skills/release-notes/SKILL.md"
+    },
+    {
+      "id": "smallest-file-set",
+      "type": "changed_paths",
+      "equals": ["skills/release-notes/SKILL.md"]
+    },
+    {
+      "id": "valid-frontmatter",
+      "type": "skill_frontmatter",
+      "path": "skills/release-notes/SKILL.md"
+    },
+    {
+      "id": "concise-active-body",
+      "type": "line_count",
+      "path": "skills/release-notes/SKILL.md",
+      "max": 100
+    },
+    {
+      "id": "behavior-complete",
+      "type": "semantic",
+      "rubric": "The created skill must encode the requested release-note behavior, avoid unjustified resources, and remain agent-first rather than read like user documentation."
+    }
+  ]
+}

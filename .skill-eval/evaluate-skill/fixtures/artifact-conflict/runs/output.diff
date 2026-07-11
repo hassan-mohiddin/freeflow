@@ -1,0 +1,7 @@
+diff --git a/skills/review-pr/SKILL.md b/skills/review-pr/SKILL.md
+index 1111111..2222222 100644
+--- a/skills/review-pr/SKILL.md
++++ b/skills/review-pr/SKILL.md
+@@ -7,1 +7,2 @@
+ Read the summary.
++Inspect the diff before approving.

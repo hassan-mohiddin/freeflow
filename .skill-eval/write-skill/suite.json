@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "skill": "write-skill",
+  "profiles": {
+    "iterate": {
+      "selection": "first-required-failure",
+      "max_repeats": 1
+    },
+    "acceptance": {
+      "required_only": true,
+      "max_repeats": 2
+    }
+  },
+  "cases": [
+    "cases/WSK2-001-production-pressure.json",
+    "cases/WSK2-002-draft-status.json",
+    "cases/WSK2-003-native-activation.json",
+    "cases/WSK2-004-near-miss.json",
+    "cases/WSK2-005-self-contained.json"
+  ]
+}
