@@ -45,6 +45,14 @@ export async function buildPlan(workspace, options) {
   const profile = options.profile ?? "iterate";
   if (!new Set(["iterate", "acceptance"]).has(profile)) throw new Error(`Unknown profile: ${profile}`);
   const cases = selectCases(workspace, { caseId: options.case, profile });
+  const suiteFingerprint = {
+    schema_version: workspace.suite.schema_version,
+    skill: workspace.suite.skill,
+    profile,
+    profile_policy: workspace.suite.profiles?.[profile]
+      ? { ...workspace.suite.profiles[profile] }
+      : null,
+  };
   const jobs = [];
   const hostReports = {};
 
@@ -71,7 +79,7 @@ export async function buildPlan(workspace, options) {
       };
       const fingerprintInputs = {
         schema_version: 1,
-        suite: workspace.suite,
+        suite: suiteFingerprint,
         case: caseContent,
         fixture_hash: fixtureHash,
         variant: fingerprintVariant,

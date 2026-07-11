@@ -392,7 +392,8 @@ Semantic grading must remain optional. It cannot repair failed objective evidenc
 
 - Contradictory final prose loses to diff evidence.
 - Cache hit requires identical behavior-relevant fingerprint.
-- Suite/case/assertion, prompt, fixture, skill snapshot, host/version, provider/backend revision when available, model/thinking, tools/root policy, context/config-home/extensions/hooks, grading policy, or adapter change invalidates cache.
+- Selected suite identity/active profile policy, selected case/assertion, prompt, fixture, skill snapshot, host/version, provider/backend revision when available, model/thinking, tools/root policy, context/config-home/extensions/hooks, grading policy, or adapter change invalidates cache.
+- For a directly selected case, unrelated suite membership and inactive profile-policy changes preserve the fingerprint.
 - A synthetic conflict schedules a bounded repeat; reaching the cap reports unresolved variance.
 - Jobs above the configured concurrency bound queue instead of exceeding it.
 - Crossing a soft request/spend cap lets active jobs settle, saves their evidence, and pauses before another job starts; unavailable cost never becomes zero.

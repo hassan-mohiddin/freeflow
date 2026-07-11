@@ -14,7 +14,13 @@ test("fingerprint inputs cover every behavior-relevant cache dimension", async (
   assert.equal(inputs.provider, "p");
   assert.equal(inputs.model, "m");
   assert.equal(inputs.thinking, "low");
-  assert.ok(inputs.suite);
+  assert.deepEqual(inputs.suite, {
+    schema_version: 1,
+    skill: "write-skill",
+    profile: "iterate",
+    profile_policy: workspace.suite.profiles.iterate,
+  });
+  assert.equal("cases" in inputs.suite, false);
   assert.ok(inputs.case.assertions);
   assert.ok(inputs.fixture_hash);
   assert.ok(inputs.variant.snapshot_hash);
@@ -30,7 +36,7 @@ test("fingerprint inputs cover every behavior-relevant cache dimension", async (
   assert.equal("source_path" in inputs.case, false);
 
   const dimensions = [
-    ["suite", { ...inputs.suite, schema_version: 2 }],
+    ["suite", { ...inputs.suite, profile_policy: { ...inputs.suite.profile_policy, max_repeats: 2 } }],
     ["case", { ...inputs.case, prompt: `${inputs.case.prompt} changed` }],
     ["fixture_hash", "b".repeat(64)],
     ["variant", { ...inputs.variant, snapshot_hash: "c".repeat(64) }],
@@ -49,4 +55,24 @@ test("fingerprint inputs cover every behavior-relevant cache dimension", async (
     const changed = { ...inputs, [key]: value };
     assert.notEqual(sha256(stableJson(changed)), plan.jobs[0].fingerprint, key);
   }
+});
+
+test("direct-case fingerprint ignores unrelated suite membership and policy", async () => {
+  const workspace = await loadSkillWorkspace(repoRoot, "write-skill");
+  const options = { case: "WSK2-003", profile: "iterate", provider: "p", model: "m", thinking: "low", max_model_requests: 3, max_turns_per_job: 4 };
+  const base = await buildPlan(workspace, options);
+  const unrelatedSuiteChange = {
+    ...workspace,
+    suite: {
+      ...workspace.suite,
+      profiles: {
+        ...workspace.suite.profiles,
+        acceptance: { ...workspace.suite.profiles.acceptance, max_repeats: 99 },
+      },
+      cases: [...workspace.suite.cases, "cases/UNRELATED.json"],
+    },
+  };
+  const changed = await buildPlan(unrelatedSuiteChange, options);
+
+  assert.equal(changed.jobs[0].fingerprint, base.jobs[0].fingerprint);
 });

@@ -571,7 +571,7 @@ Start with one run per side. When results conflict, activation is unstable, or a
 
 A control is reusable only when its fingerprint matches all behavior-relevant inputs, including:
 
-- eval ID, suite, case content, assertions, and grading policy;
+- eval ID, selected suite identity and active profile policy, selected case content, assertions, and grading policy;
 - prompt;
 - fixture;
 - skill snapshot;
@@ -581,7 +581,7 @@ A control is reusable only when its fingerprint matches all behavior-relevant in
 - context, config-home, extension, and runtime-hook settings;
 - adapter version.
 
-Any relevant mismatch invalidates the control. When a provider does not expose a stable backend revision, record that limitation and apply an explicit cache-age policy rather than implying cross-time identity.
+Any relevant mismatch invalidates the control. For a directly selected case, unrelated suite membership and inactive profile-policy changes are not behavior-relevant and must not invalidate otherwise matching evidence. When a provider does not expose a stable backend revision, record that limitation and apply an explicit cache-age policy rather than implying cross-time identity.
 
 ## Normalized Evidence
 
