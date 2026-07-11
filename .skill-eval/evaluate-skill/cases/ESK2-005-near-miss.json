@@ -4,7 +4,9 @@
   "skill": "evaluate-skill",
   "title": "Do not activate for ordinary code evaluation",
   "question": "automatic activation",
-  "evidence_classes": ["native-activation"],
+  "evidence_classes": [
+    "native-activation"
+  ],
   "required_for_bootstrap": true,
   "prompt": "Evaluate whether this JavaScript expression returns the expected value: `[1, 2, 3].map(x => x * 2)` should produce `[2, 4, 6]`.",
   "fixture": null,
@@ -12,14 +14,25 @@
     {
       "id": "candidate",
       "kind": "working-tree",
-      "path": "skills/evaluate-skill"
+      "path": "skills/evaluate-skill",
+      "role": "subject",
+      "resources": [
+        "SKILL.md",
+        "references/eval-patterns.md",
+        "references/evaluation-architecture.md",
+        "references/grading-and-revision.md",
+        "references/grading-priority.md",
+        "references/portable-execution.md",
+        "references/token-efficient-execution.md"
+      ]
     }
   ],
   "execution": {
     "host": "pi",
     "mode": "json",
-    "tools": ["read"],
-    "timeout_ms": 120000
+    "tools": [
+      "read"
+    ]
   },
   "assertions": [
     {
@@ -27,5 +40,7 @@
       "type": "skill_not_read",
       "skill": "evaluate-skill"
     }
-  ]
+  ],
+  "evaluation_kind": "single",
+  "unsupported_evidence": "block"
 }

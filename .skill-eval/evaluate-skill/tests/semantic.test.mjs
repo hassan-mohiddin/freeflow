@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { buildSemanticPrompt, validateSemanticResult } from "../../../skills/evaluate-skill/scripts/lib/semantic.mjs";
+import { buildSemanticPrompt, gradeSemanticRun, validateSemanticResult } from "../../../skills/evaluate-skill/scripts/lib/semantic.mjs";
 
 test("semantic prompt uses opaque identity and fixed criteria", async (t) => {
   const run = await mkdtemp(resolve(tmpdir(), "freeflow-semantic-test-"));
@@ -33,6 +33,43 @@ test("semantic protocol rejects extra, missing, duplicate, or inconsistent asser
   assert.throws(() => validateSemanticResult({ ...valid, assertions: [] }, ["quality"]), /do not match/);
   assert.throws(() => validateSemanticResult({ ...valid, assertions: [...valid.assertions, ...valid.assertions] }, ["quality"]), /duplicate/);
   assert.throws(() => validateSemanticResult({ ...valid, verdict: "fail" }, ["quality"]), /conflicts/);
+});
+
+test("semantic post-process and cleanup failures preserve settled execution", async (t) => {
+  const run = await mkdtemp(resolve(tmpdir(), "freeflow-semantic-outcome-"));
+  t.after(() => rm(run, { recursive: true, force: true }));
+  await mkdir(resolve(run, "inputs"), { recursive: true });
+  await mkdir(resolve(run, "artifacts", "workspace"), { recursive: true });
+  await writeFile(resolve(run, "metadata.json"), JSON.stringify({ variant: "subject", changed_paths: [] }));
+  await writeFile(resolve(run, "inputs", "case.json"), JSON.stringify({ prompt: "x", assertions: [{ id: "quality", type: "semantic", rubric: "x" }] }));
+  await writeFile(resolve(run, "objective-grade.json"), JSON.stringify({ objective_pass: true, assertions: [] }));
+  await writeFile(resolve(run, "final.md"), "answer");
+  await writeFile(resolve(run, "diff"), "");
+  const outcome = await gradeSemanticRun(run, {
+    provider: "p",
+    model: "m",
+    thinking: "low",
+    max_turns_per_process: 2,
+    timeout_ms: 1000,
+    output_limit_bytes: 1048576,
+  }, {
+    runSubject: async () => ({
+      process: { code: 0, signal: null, timed_out: false, output_limit_exceeded: false, stdout: "", stderr: "" },
+      parsed: {
+        parse_errors: [],
+        final_text: JSON.stringify({ verdict: "pass", assertions: [{ id: "quality", verdict: "pass", evidence: ["answer"] }], uncertainty: null }),
+        usage: { input: 3, output: 2, total_tokens: 5, cost: { total_usd: 0.2 } },
+      },
+      runtime_counters: { provider_requests: 1, turns_started: 1, tool_calls: 0, hard_turn_limit_reached: false },
+    }),
+    persistEvidence: async () => { throw new Error("semantic evidence write failed"); },
+    cleanup: async (path) => { await rm(path, { recursive: true, force: true }); throw new Error("semantic cleanup failed"); },
+  });
+  assert.equal(outcome.status, "incomplete");
+  assert.equal(outcome.execution.runtime_counters.provider_requests, 1);
+  assert.equal(outcome.execution.usage.cost.total_usd, 0.2);
+  assert.match(outcome.failure.primary, /evidence write failed/);
+  assert.match(outcome.failure.cleanup, /cleanup failed/);
 });
 
 test("semantic grading cannot repair objective failure", async (t) => {

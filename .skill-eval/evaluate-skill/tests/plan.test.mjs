@@ -1,50 +1,110 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { resolve } from "node:path";
-import { buildPlan } from "../../../skills/evaluate-skill/scripts/lib/plan.mjs";
+import { buildEvaluationPlan } from "../../../skills/evaluate-skill/scripts/lib/plan.mjs";
+import { sha256, stableJson } from "../../../skills/evaluate-skill/scripts/lib/hash.mjs";
 import { findRepoRoot, loadSkillWorkspace } from "../../../skills/evaluate-skill/scripts/lib/workspace.mjs";
 
 const repoRoot = await findRepoRoot(resolve(import.meta.dirname, "..", "..", ".."));
+const hardLimits = { timeout_ms: 120000, output_limit_bytes: 1048576 };
 
-test("iterate planning selects one case without requiring owner model inputs for structural work", async () => {
-  const workspace = await loadSkillWorkspace(repoRoot, "write-skill");
-  const plan = await buildPlan(workspace, { case: "WSK2-005", profile: "iterate" });
-  assert.deepEqual(plan.selected_cases, ["WSK2-005"]);
-  assert.equal(plan.expected_model_jobs.subject, 0);
-  assert.deepEqual(plan.unresolved_owner_inputs, []);
-  assert.equal(plan.runnable, true);
+async function plan(skill, caseId, options = {}) {
+  const workspace = await loadSkillWorkspace(repoRoot, skill);
+  return buildEvaluationPlan(workspace, { case: caseId, ...hardLimits, ...options });
+}
+
+test("host-free case preflights one case with zero Pi processes", async () => {
+  const result = await plan("write-skill", "WSK2-005", { owner_approved: true });
+  assert.equal(result.status, "ready");
+  assert.equal(result.summary.case, "WSK2-005");
+  assert.equal(result.summary.pi_processes.subject, 0);
+  assert.equal(result.summary.pi_processes.semantic_max, 0);
+  assert.equal(result.summary.worst_case_approved_turns, 0);
 });
 
-test("model planning exposes owner inputs and expected call count without executing", async () => {
-  const workspace = await loadSkillWorkspace(repoRoot, "evaluate-skill");
-  const plan = await buildPlan(workspace, { case: "ESK2-001", profile: "iterate" });
-  assert.ok(plan.expected_model_jobs.subject > 0);
-  assert.deepEqual(plan.unresolved_owner_inputs, ["provider", "model", "thinking", "max_model_requests", "max_turns_per_job"]);
-  assert.equal(plan.runnable, false);
-});
-
-test("acceptance planning selects every required case and honors call cap", async () => {
-  const workspace = await loadSkillWorkspace(repoRoot, "evaluate-skill");
-  const plan = await buildPlan(workspace, {
-    profile: "acceptance",
-    provider: "test-provider",
-    model: "test-model",
-    thinking: "off",
-    max_model_requests: 1,
-    max_turns_per_job: 4,
+test("model case without approval returns needs_approval without execution", async () => {
+  const result = await plan("evaluate-skill", "ESK2-001", {
+    provider: "p",
+    model: "m",
+    thinking: "low",
+    max_turns_per_process: 4,
   });
-  assert.deepEqual(plan.selected_cases, workspace.cases.map((item) => item.id));
-  assert.equal(plan.runnable, true);
-  assert.equal(plan.model_request_bounds.may_pause_before_completion, true);
-  assert.equal(plan.model_request_bounds.subject_max, plan.expected_model_jobs.subject * 4);
-  const unsupportedRequested = plan.jobs.find((job) => job.case_id === "ESK2-007").evidence.requested;
-  assert.equal(unsupportedRequested["multi-turn"], "unsupported");
+  assert.equal(result.status, "needs_approval");
+  assert.equal(result.summary.pi_processes.subject, 2);
+  assert.equal(result.summary.pi_processes.semantic_max, 2);
+  assert.equal(result.summary.worst_case_approved_turns, 16);
+  assert.match(result.summary.limitations.join("\n"), /provider requests.*observed/i);
 });
 
-test("fingerprints change with behavior-relevant model settings", async () => {
+test("plan-only returns planned and owner-approved execution returns ready", async () => {
+  const options = { provider: "p", model: "m", thinking: "low", max_turns_per_process: 4 };
+  assert.equal((await plan("evaluate-skill", "ESK2-001", { ...options, plan_only: true })).status, "planned");
+  assert.equal((await plan("evaluate-skill", "ESK2-001", { ...options, owner_approved: true })).status, "ready");
+});
+
+test("expected plan mismatch returns needs_approval", async () => {
+  const result = await plan("evaluate-skill", "ESK2-001", {
+    provider: "p",
+    model: "m",
+    thinking: "low",
+    max_turns_per_process: 4,
+    owner_approved: true,
+    expect_plan: "wrong",
+  });
+  assert.equal(result.status, "needs_approval");
+});
+
+test("unsupported evidence under explicit behavior test is a limitation, not a blocker", async () => {
+  const result = await plan("evaluate-skill", "ESK2-007", {
+    provider: "p",
+    model: "m",
+    thinking: "low",
+    max_turns_per_process: 4,
+    owner_approved: true,
+  });
+  assert.equal(result.status, "ready");
+  assert.equal(result.summary.evidence.requested["multi-turn"], "unsupported");
+});
+
+test("host-free case rejects model options", async () => {
+  await assert.rejects(
+    plan("write-skill", "WSK2-005", { provider: "p", owner_approved: true }),
+    /host-free.*model option/i,
+  );
+});
+
+test("fingerprint binds evaluator and semantic implementation identities", async () => {
+  const workspace = await loadSkillWorkspace(repoRoot, "evaluate-skill");
+  const result = await buildEvaluationPlan(workspace, {
+    case: "ESK2-001",
+    ...hardLimits,
+    provider: "p",
+    model: "m",
+    thinking: "low",
+    max_turns_per_process: 4,
+    plan_only: true,
+  });
+  assert.match(result.plan_inputs.identities.evaluator, /^[a-f0-9]{64}$/);
+  assert.match(result.plan_inputs.identities.semantic, /^[a-f0-9]{64}$/);
+  const changedEvaluator = { ...result.plan_inputs, identities: { ...result.plan_inputs.identities, evaluator: "0".repeat(64) } };
+  const changedSemantic = { ...result.plan_inputs, identities: { ...result.plan_inputs.identities, semantic: "1".repeat(64) } };
+  assert.notEqual(sha256(stableJson(changedEvaluator)), result.fingerprint);
+  assert.notEqual(sha256(stableJson(changedSemantic)), result.fingerprint);
+});
+
+test("preflight rejects a missing declared Git subject resource", async () => {
   const workspace = await loadSkillWorkspace(repoRoot, "write-skill");
-  const base = { case: "WSK2-003", profile: "iterate", provider: "p", model: "m", thinking: "low", max_model_requests: 4, max_turns_per_job: 4 };
-  const first = await buildPlan(workspace, base);
-  const second = await buildPlan(workspace, { ...base, thinking: "high" });
-  assert.notEqual(first.jobs[0].fingerprint, second.jobs[0].fingerprint);
+  const source = workspace.cases.find((item) => item.id === "WSK2-005");
+  const changedCase = {
+    ...source,
+    variants: source.variants.map((variant, index) => index === 0 ? { ...variant, resources: ["MISSING.md"] } : variant),
+  };
+  await assert.rejects(
+    buildEvaluationPlan({ ...workspace, cases: workspace.cases.map((item) => item.id === changedCase.id ? changedCase : item) }, {
+      case: "WSK2-005",
+      ...hardLimits,
+      plan_only: true,
+    }),
+    /missing git subject resource/i,
+  );
 });

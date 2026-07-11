@@ -1,19 +1,21 @@
 #!/usr/bin/env node
 
 import { homedir } from "node:os";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { mkdir, writeFile } from "node:fs/promises";
 import { parseArgs, integerOption } from "./lib/args.mjs";
 import { doctorReport } from "./lib/doctor.mjs";
-import { buildPlan } from "./lib/plan.mjs";
-import { gradeObjectiveRun } from "./lib/grade.mjs";
-import { collectRuns, createReport } from "./lib/report.mjs";
-import { runPlan } from "./lib/run.mjs";
-import { gradeSemanticRun } from "./lib/semantic.mjs";
-import { loadWave } from "./lib/wave.mjs";
-import { DEFAULT_OUTPUT_LIMIT_BYTES } from "./lib/constants.mjs";
-import { findRepoRoot, initSkillWorkspace, loadSkillWorkspace, readJson } from "./lib/workspace.mjs";
+import { buildEvaluationPlan } from "./lib/plan.mjs";
+import { findRepoRoot, initSkillWorkspace, loadSkillWorkspace } from "./lib/workspace.mjs";
+
+const COMMAND_OPTIONS = {
+  doctor: new Set(["root", "help"]),
+  init: new Set(["skill", "root", "help"]),
+  evaluate: new Set([
+    "skill", "case", "timeout_ms", "output_limit_bytes", "provider", "model", "thinking",
+    "max_turns_per_process", "max_usd", "plan_only", "owner_approved", "expect_plan", "root", "help",
+  ]),
+};
 
 function printJson(value) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
@@ -23,19 +25,38 @@ function usage() {
   return `skill-eval.mjs <command> [options]
 
 Commands:
-  doctor
-  init --skill <name> [--root <directory>]
-  plan --skill <name> [--case <id>] [--profile iterate|acceptance]
-  run --skill <name> ...
-  run --resume <wave-dir> --max-model-requests <higher-cap> [...]
-  grade --run <path> [--objective-only]
-  report --run <path>
+  doctor [--root <repo>]
+  init --skill <name> [--root <repo>]
+  evaluate --skill <name> --case <id> --timeout-ms <integer> --output-limit-bytes <integer> [model options] [--plan-only | --owner-approved]
 `;
 }
 
+function validateOptions(command, options) {
+  const allowed = COMMAND_OPTIONS[command];
+  if (!allowed) throw new Error(`Unknown command: ${command}`);
+  for (const key of Object.keys(options)) {
+    if (!allowed.has(key)) throw new Error(`Unknown option for ${command}: --${key.replaceAll("_", "-")}`);
+  }
+  for (const key of ["help", "plan_only", "owner_approved"]) {
+    if (options[key] !== undefined && options[key] !== true) throw new Error(`--${key.replaceAll("_", "-")} does not take a value`);
+  }
+}
+
+function outcomeForPlan(plan) {
+  const outcome = { status: plan.status, plan: plan.summary };
+  if (plan.summary.limitations.length > 0) outcome.limitations = plan.summary.limitations;
+  return outcome;
+}
+
 export async function main(argv = process.argv.slice(2)) {
-  const { command, options } = parseArgs(argv);
-  if (!command || options.help) {
+  if (argv.length === 0 || argv[0] === "--help" || argv[0] === "-h") {
+    process.stdout.write(usage());
+    return 0;
+  }
+  const { command, options, positionals } = parseArgs(argv);
+  validateOptions(command, options);
+  if (positionals.length > 0) throw new Error(`Unexpected positional arguments: ${positionals.join(" ")}`);
+  if (options.help) {
     process.stdout.write(usage());
     return 0;
   }
@@ -53,115 +74,38 @@ export async function main(argv = process.argv.slice(2)) {
     return 0;
   }
 
-  if (command === "plan" || command === "run") {
-    const repoRoot = await findRepoRoot(options.root ?? process.cwd());
-    const commonOptions = {
-      concurrency: options.concurrency === undefined ? undefined : integerOption(options, "concurrency"),
-      max_model_requests: options.max_model_requests === undefined ? undefined : integerOption(options, "max_model_requests"),
-      max_turns_per_job: options.max_turns_per_job === undefined ? undefined : integerOption(options, "max_turns_per_job"),
-      max_usd: options.max_usd,
-      output_limit_bytes: options.output_limit_bytes === undefined ? undefined : integerOption(options, "output_limit_bytes"),
-      no_cache: options.no_cache === true,
-      candidate_only: options.candidate_only === true,
-      retry_needs_attention: options.retry_needs_attention === true,
-      cache_max_age_hours: options.cache_max_age_hours === undefined ? 24 : Number(options.cache_max_age_hours),
-    };
+  if (typeof options.skill !== "string") throw new Error("evaluate requires --skill <name>");
+  if (typeof options.case !== "string") throw new Error("evaluate requires --case <id>");
+  if (options.timeout_ms === undefined) throw new Error("evaluate requires --timeout-ms <integer>");
+  if (options.output_limit_bytes === undefined) throw new Error("evaluate requires --output-limit-bytes <integer>");
+  if (options.plan_only && options.owner_approved) throw new Error("--plan-only and --owner-approved are mutually exclusive");
+  if (options.expect_plan !== undefined && !options.owner_approved) throw new Error("--expect-plan requires --owner-approved");
 
-    if (command === "run" && typeof options.resume === "string") {
-      const wave = await loadWave(options.resume);
-      const workspace = await loadSkillWorkspace(repoRoot, wave.skill);
-      const result = await runPlan(workspace, wave.plan, { ...commonOptions, wave });
-      printJson(result);
-      return 0;
-    }
+  const repoRoot = await findRepoRoot(options.root ?? process.cwd());
+  const workspace = await loadSkillWorkspace(repoRoot, options.skill);
+  const plan = await buildEvaluationPlan(workspace, {
+    case: options.case,
+    timeout_ms: integerOption(options, "timeout_ms"),
+    output_limit_bytes: integerOption(options, "output_limit_bytes"),
+    provider: options.provider,
+    model: options.model,
+    thinking: options.thinking,
+    max_turns_per_process: options.max_turns_per_process === undefined ? undefined : integerOption(options, "max_turns_per_process"),
+    max_usd: options.max_usd,
+    plan_only: options.plan_only === true,
+    owner_approved: options.owner_approved === true,
+    expect_plan: options.expect_plan,
+  });
 
-    if (typeof options.skill !== "string") throw new Error(`${command} requires --skill <name>`);
-    const workspace = await loadSkillWorkspace(repoRoot, options.skill);
-    const planOptions = {
-      case: options.case,
-      profile: options.profile,
-      provider: options.provider,
-      model: options.model,
-      thinking: options.thinking,
-      backend_model_revision: options.backend_model_revision,
-      max_model_requests: commonOptions.max_model_requests,
-      max_turns_per_job: commonOptions.max_turns_per_job,
-      output_limit_bytes: commonOptions.output_limit_bytes,
-    };
-    const plan = await buildPlan(workspace, planOptions);
-    if (command === "plan") {
-      printJson(plan);
-      return 0;
-    }
-    const result = await runPlan(workspace, plan, {
-      ...planOptions,
-      ...commonOptions,
-      concurrency: commonOptions.concurrency ?? 1,
-      output_limit_bytes: commonOptions.output_limit_bytes ?? DEFAULT_OUTPUT_LIMIT_BYTES,
-    });
-    printJson(result);
-    return 0;
+  if (plan.status !== "ready") {
+    printJson(outcomeForPlan(plan));
+    return plan.status === "blocked" ? 1 : 0;
   }
 
-  if (command === "grade") {
-    if (typeof options.run !== "string") throw new Error("grade requires --run <path>");
-    const runDir = resolve(options.run);
-    const objective = await gradeObjectiveRun(runDir);
-    await writeFile(resolve(runDir, "objective-grade.json"), `${JSON.stringify(objective, null, 2)}\n`);
-    if (options.objective_only === true || !objective.semantic_pending) {
-      printJson(objective);
-      return 0;
-    }
-    for (const key of ["provider", "model", "thinking", "max_model_requests", "max_turns_per_job"]) {
-      if (options[key] === undefined) throw new Error(`semantic grade requires --${key.replaceAll("_", "-")}`);
-    }
-    const semantic = await gradeSemanticRun(runDir, {
-      provider: options.provider,
-      model: options.model,
-      thinking: options.thinking,
-      max_model_requests: integerOption(options, "max_model_requests"),
-      max_turns_per_job: integerOption(options, "max_turns_per_job"),
-      max_usd: options.max_usd,
-      timeout_ms: options.timeout_ms,
-      output_limit_bytes: options.output_limit_bytes,
-    });
-    const combined = {
-      schema_version: 1,
-      objective,
-      semantic,
-      verdict: objective.objective_pass ? semantic.verdict : "fail",
-    };
-    await writeFile(resolve(runDir, "grade.json"), `${JSON.stringify(combined, null, 2)}\n`);
-    printJson(combined);
-    return 0;
-  }
-
-  if (command === "report") {
-    let runs;
-    let skill = options.skill;
-    if (typeof options.run === "string") {
-      const runDir = resolve(options.run);
-      const metadata = await readJson(resolve(runDir, "metadata.json"));
-      const objective = await readJson(resolve(runDir, "objective-grade.json"));
-      skill ??= metadata.skill;
-      runs = [{ root: runDir, metadata, objective }];
-    } else {
-      if (typeof skill !== "string") throw new Error("report requires --run <path> or --skill <name>");
-      const repoRoot = await findRepoRoot(options.root ?? process.cwd());
-      runs = await collectRuns(resolve(repoRoot, ".skill-eval", skill, "runs"));
-    }
-    const report = createReport(runs, { skill: skill ?? "skill" });
-    if (typeof options.output === "string") {
-      const output = resolve(options.output);
-      await mkdir(dirname(output), { recursive: true });
-      await writeFile(output.endsWith(".json") ? output : `${output}.json`, `${JSON.stringify(report.json, null, 2)}\n`);
-      await writeFile(output.endsWith(".md") ? output : `${output}.md`, report.markdown);
-    }
-    printJson(report);
-    return 0;
-  }
-
-  throw new Error(`Unknown command: ${command}`);
+  const { executeEvaluation } = await import("./lib/evaluate.mjs");
+  const outcome = await executeEvaluation(workspace, plan);
+  printJson(outcome);
+  return outcome.status === "complete" ? 0 : 1;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

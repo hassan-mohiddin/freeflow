@@ -36,9 +36,11 @@ test("workspace loader rejects fixture symlink escapes", async (t) => {
     question: "fixture/repo behavior",
     evidence_classes: ["artifact-outcome"],
     required_for_bootstrap: false,
+    evaluation_kind: "single",
+    unsupported_evidence: "block",
     prompt: "x",
     fixture: "fixtures/escape",
-    variants: [{ id: "candidate", kind: "working-tree", path: "skills/sample-skill" }],
+    variants: [{ id: "candidate", role: "subject", kind: "working-tree", path: "skills/sample-skill", resources: ["SKILL.md"] }],
     execution: { host: "pi", mode: "json", tools: ["read"], timeout_ms: 1 },
     assertions: [{ id: "x", type: "path_exists", path: "x" }],
   }));

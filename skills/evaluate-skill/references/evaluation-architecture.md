@@ -20,4 +20,4 @@ Separate these roles:
 
 A case may combine classes. Semantic judgment is a grading method, not a class.
 
-Acceptance must reject an unavailable required class. Iterate may run a cheaper diagnostic only with a changed-question label and no stronger claim.
+Preflight blocks an unavailable required class. Unsupported requested evidence may remain a limitation only when the case explicitly tests honest unsupported-capability behavior; it cannot silently satisfy another claim.

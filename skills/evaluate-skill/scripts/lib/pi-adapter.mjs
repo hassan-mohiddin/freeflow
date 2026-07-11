@@ -21,6 +21,11 @@ export async function prepareIsolatedPiConfig(configDir, env = process.env) {
     enableInstallTelemetry: false,
     enableUpdateCheck: false,
     quietStartup: true,
+    retry: {
+      enabled: false,
+      maxRetries: 0,
+      provider: { maxRetries: 0 },
+    },
   }, null, 2)}\n`);
   const authSource = resolve(sourceAgentDir(env), "auth.json");
   try {

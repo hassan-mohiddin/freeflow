@@ -4,7 +4,9 @@
   "skill": "write-skill",
   "title": "Do not activate for ordinary content writing",
   "question": "automatic activation",
-  "evidence_classes": ["native-activation"],
+  "evidence_classes": [
+    "native-activation"
+  ],
   "required_for_bootstrap": true,
   "prompt": "Write a short incident handoff note: checkout errors began at 14:05 UTC, mitigation was a rollback at 14:22, monitoring is stable, and the payments team owns follow-up.",
   "fixture": null,
@@ -12,14 +14,23 @@
     {
       "id": "candidate",
       "kind": "working-tree",
-      "path": "skills/write-skill"
+      "path": "skills/write-skill",
+      "role": "subject",
+      "resources": [
+        "SKILL.md",
+        "references/activation-boundaries.md",
+        "references/agent-first-instructions.md",
+        "references/development-loop.md",
+        "references/progressive-disclosure.md"
+      ]
     }
   ],
   "execution": {
     "host": "pi",
     "mode": "json",
-    "tools": ["read"],
-    "timeout_ms": 120000
+    "tools": [
+      "read"
+    ]
   },
   "assertions": [
     {
@@ -27,5 +38,7 @@
       "type": "skill_not_read",
       "skill": "write-skill"
     }
-  ]
+  ],
+  "evaluation_kind": "single",
+  "unsupported_evidence": "block"
 }

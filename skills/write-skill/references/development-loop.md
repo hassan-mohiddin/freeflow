@@ -13,7 +13,7 @@
 - Compare the exact old/no-skill control with the candidate under the same prompt, fixture, tools, host, and model settings.
 - Grade objective artifacts before prose.
 - Change one measured pressure point.
-- Re-run the candidate side first while the control fingerprint remains valid.
+- Re-run the whole fixed case after the measured change; bootstrap does not reuse partial control evidence.
 
 ## Production-Ready
 

@@ -13,6 +13,9 @@ export const EVIDENCE_CLASSES = new Set([
 ]);
 
 const VARIANT_KINDS = new Set(["working-tree", "git", "none"]);
+const EVALUATION_KINDS = new Set(["single", "comparison"]);
+const VARIANT_ROLES = new Set(["subject", "reference", "candidate"]);
+const UNSUPPORTED_EVIDENCE_POLICIES = new Set(["block", "behavior-under-test"]);
 const HOSTS = new Set(["pi", "none"]);
 const QUESTIONS = new Set([
   "structural validity",
@@ -99,6 +102,8 @@ export function validateCase(value, { path = "case" } = {}) {
   if (!QUESTIONS.has(value.question)) throw new Error(`${path} has unknown eval question: ${value.question}`);
   requireString(value.prompt, `${path}.prompt`, { allowEmpty: true });
   if (typeof value.required_for_bootstrap !== "boolean") throw new Error(`${path}.required_for_bootstrap must be boolean`);
+  if (!EVALUATION_KINDS.has(value.evaluation_kind)) throw new Error(`${path} has unknown evaluation_kind: ${value.evaluation_kind}`);
+  if (!UNSUPPORTED_EVIDENCE_POLICIES.has(value.unsupported_evidence)) throw new Error(`${path} has unknown unsupported_evidence policy: ${value.unsupported_evidence}`);
   validateEvidenceClasses(value.evidence_classes, `${path}.evidence_classes`);
   if (value.requested_evidence_classes !== undefined) validateEvidenceClasses(value.requested_evidence_classes, `${path}.requested_evidence_classes`);
   if (value.fixture !== null && typeof value.fixture !== "string") throw new Error(`${path}.fixture must be a string or null`);
@@ -109,15 +114,23 @@ export function validateCase(value, { path = "case" } = {}) {
     if (variantIds.has(variant.id)) throw new Error(`${path} has duplicate variant: ${variant.id}`);
     variantIds.add(variant.id);
     if (!VARIANT_KINDS.has(variant.kind)) throw new Error(`${path} has unknown variant kind: ${variant.kind}`);
+    if (!VARIANT_ROLES.has(variant.role)) throw new Error(`${path}.${variant.id} has unknown role: ${variant.role}`);
     requireString(variant.path, `${path}.${variant.id}.path`);
     if (variant.kind === "git") requireString(variant.revision, `${path}.${variant.id}.revision`);
+    if (!Array.isArray(variant.resources) || variant.resources.length === 0) throw new Error(`${path}.${variant.id}.resources must not be empty`);
+    if (new Set(variant.resources).size !== variant.resources.length) throw new Error(`${path}.${variant.id}.resources contains duplicates`);
+    for (const resource of variant.resources) resolveInside("/subject", resource, `${path}.${variant.id}.resource`);
+  }
+  const expectedRoles = value.evaluation_kind === "single" ? ["subject"] : ["reference", "candidate"];
+  const actualRoles = value.variants.map((variant) => variant.role);
+  if (JSON.stringify(actualRoles) !== JSON.stringify(expectedRoles)) {
+    throw new Error(`${path} ${value.evaluation_kind} variant roles must be ${expectedRoles.join(", ")}`);
   }
   if (!value.execution || !HOSTS.has(value.execution.host)) throw new Error(`${path} has unknown execution host`);
   if (value.execution.host === "pi" && value.execution.mode !== "json") throw new Error(`${path} Pi execution must use json mode`);
   if (value.execution.host === "none" && value.execution.mode !== "deterministic") throw new Error(`${path} deterministic execution must use none host`);
   if (!Array.isArray(value.execution.tools)) throw new Error(`${path}.execution.tools must be an array`);
   if (value.execution.tools.includes("bash")) throw new Error(`${path} cannot expose unrestricted bash`);
-  if (!Number.isInteger(value.execution.timeout_ms) || value.execution.timeout_ms < 1) throw new Error(`${path}.execution.timeout_ms must be positive`);
   if (!Array.isArray(value.assertions) || value.assertions.length === 0) throw new Error(`${path}.assertions must not be empty`);
   const assertionIds = new Set();
   for (const assertion of value.assertions) {
@@ -183,7 +196,6 @@ export async function initSkillWorkspace({ root, skill }) {
   const suite = {
     schema_version: 1,
     skill,
-    profiles: { iterate: { selection: "first-required-failure", max_repeats: 1 }, acceptance: { required_only: true, max_repeats: 2 } },
     cases: [caseRef],
   };
   const evalCase = {
@@ -194,10 +206,12 @@ export async function initSkillWorkspace({ root, skill }) {
     question: "conversational behavior",
     evidence_classes: ["explicit-instruction"],
     required_for_bootstrap: false,
+    evaluation_kind: "single",
+    unsupported_evidence: "block",
     prompt: "Replace with a natural pressure prompt.",
     fixture: null,
-    variants: [{ id: "candidate", kind: "working-tree", path: `skills/${skill}` }],
-    execution: { host: "pi", mode: "json", tools: ["read"], timeout_ms: 120000 },
+    variants: [{ id: "candidate", role: "subject", kind: "working-tree", path: `skills/${skill}`, resources: ["SKILL.md"] }],
+    execution: { host: "pi", mode: "json", tools: ["read"] },
     assertions: [{ id: "behavior", type: "semantic", rubric: "Replace with fixed pre-run criteria." }],
   };
 

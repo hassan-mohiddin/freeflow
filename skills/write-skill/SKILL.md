@@ -49,7 +49,7 @@ Read [activation boundaries](references/activation-boundaries.md) when the skill
 
 - Preserve the failing situation or reuse an adequate existing eval unchanged.
 - Change one measured pressure point: description, wording, placement, stop condition, structure, or resource.
-- Re-run the failed candidate side first.
+- Re-run the whole fixed case after a measured revision; do not reuse partial case evidence.
 - Keep unrelated text stable.
 - Report the evidence and remaining gaps; do not promote status from prose quality alone.
 

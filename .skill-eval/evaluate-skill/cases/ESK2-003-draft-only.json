@@ -4,7 +4,10 @@
   "skill": "evaluate-skill",
   "title": "Honor a draft-only eval request",
   "question": "fixture/repo behavior",
-  "evidence_classes": ["explicit-instruction", "artifact-outcome"],
+  "evidence_classes": [
+    "explicit-instruction",
+    "artifact-outcome"
+  ],
   "required_for_bootstrap": true,
   "prompt": "Draft one eval case for the skill in `skills/answer-question/SKILL.md`. Save it at `.skill-eval/answer-question/cases/AQ-001.json`. Do not run a subject or grader yet. Save only the smallest case source needed for later iteration and make its unevaluated status explicit.",
   "fixture": "fixtures/draft-only",
@@ -12,27 +15,48 @@
     {
       "id": "candidate",
       "kind": "working-tree",
-      "path": "skills/evaluate-skill"
+      "path": "skills/evaluate-skill",
+      "role": "subject",
+      "resources": [
+        "SKILL.md",
+        "references/eval-patterns.md",
+        "references/evaluation-architecture.md",
+        "references/grading-and-revision.md",
+        "references/grading-priority.md",
+        "references/portable-execution.md",
+        "references/token-efficient-execution.md"
+      ]
     }
   ],
   "execution": {
     "host": "pi",
     "mode": "json",
-    "tools": ["read", "write", "edit", "find", "ls"],
-    "timeout_ms": 180000
+    "tools": [
+      "read",
+      "write",
+      "edit",
+      "find",
+      "ls"
+    ]
   },
   "assertions": [
     {
       "id": "one-case-created",
       "type": "changed_paths",
-      "equals": [".skill-eval/answer-question/cases/AQ-001.json"]
+      "equals": [
+        ".skill-eval/answer-question/cases/AQ-001.json"
+      ]
     },
     {
       "id": "draft-status",
       "type": "json_field_in",
       "path": ".skill-eval/answer-question/cases/AQ-001.json",
       "field": "status",
-      "values": ["draft", "draft-unevaluated", "unverified"]
+      "values": [
+        "draft",
+        "draft-unevaluated",
+        "unverified"
+      ]
     },
     {
       "id": "no-run-state",
@@ -44,5 +68,7 @@
       "type": "semantic",
       "rubric": "The response must say the case is Draft or Unverified and must not imply a subject, grader, or acceptance run occurred."
     }
-  ]
+  ],
+  "evaluation_kind": "single",
+  "unsupported_evidence": "block"
 }

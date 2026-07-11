@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import rootGuard from "../../../skills/evaluate-skill/scripts/pi-root-guard.mjs";
 
-test("guard observes provider requests and applies only the hard per-job turn limit", async (t) => {
+test("guard observes provider requests and applies the hard per-process turn limit", async (t) => {
   const root = await mkdtemp(resolve(tmpdir(), "freeflow-guard-runtime-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const fixture = resolve(root, "fixture");

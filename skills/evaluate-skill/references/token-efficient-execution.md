@@ -1,30 +1,30 @@
 # Token-Efficient Execution
 
-Optimize provider model requests, not merely wall-clock time.
+Optimize provider work without adding caller-managed lifecycle machinery.
 
 ## Order
 
-1. Run structural checks without a model.
+1. Run deterministic preflight before any provider request.
 2. Start with one strong pressure case.
-3. Reuse a matching control fingerprint.
-4. Run objective graders before semantic graders.
-5. Inspect final output and diff before full transcripts.
-6. Rerun the failed candidate side first.
-7. Add repeats only for conflict, unstable activation, or required variance evidence.
-8. Expand hosts and models only when support claims require them.
+3. Run objective graders before semantic graders.
+4. Invoke semantic grading only for unresolved fixed assertions.
+5. Inspect result summaries before raw transcripts.
+6. Rerun the whole case only after a measured change or infrastructure diagnosis.
+7. Expand cases, models, or hosts only when the support claim requires them.
 
 ## Planning
 
-Before execution, print:
+Before execution, report:
 
-- selected cases and variants;
-- host/mode and evidence class;
-- model, thinking, tools, and isolation policy;
-- cache hits;
-- expected subject/grader jobs and bounded provider-request range;
-- concurrency, soft request/spend caps, and hard per-job limits;
-- unsupported or reduced-fidelity requirements.
+- one selected case and its ordered variants;
+- host, evidence classes, tools, and isolation policy;
+- model and thinking settings when applicable;
+- maximum subject and semantic Pi-process counts;
+- per-process turn, timeout, and output limits;
+- worst-case approved turns;
+- spend ceiling or unavailable-cost limitation;
+- unsupported or reduced-fidelity evidence.
 
-Parallelism saves elapsed time, not tokens. Keep concurrency bounded and provider-aware.
+Bootstrap runs variants serially. It has no cache, batching, concurrency, adaptive repeats, resume, or partial reuse. These mechanisms save work only by adding lifecycle state the caller or runtime must trust.
 
-When a soft wave cap is crossed, let active jobs settle, persist their evidence, and pause before the next job. Resume the same frozen wave only after owner-approved escalation. Hard timeout, output, or runaway-turn limits may stop one active job; preserve partial evidence for explicit retry.
+A hard-limit or infrastructure failure publishes diagnostics, not a gradeable result. After the cause and owner-approved limits are resolved, invoke the whole case again.

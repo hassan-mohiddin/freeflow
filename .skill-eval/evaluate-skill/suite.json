@@ -1,16 +1,6 @@
 {
   "schema_version": 1,
   "skill": "evaluate-skill",
-  "profiles": {
-    "iterate": {
-      "selection": "first-required-failure",
-      "max_repeats": 1
-    },
-    "acceptance": {
-      "required_only": true,
-      "max_repeats": 2
-    }
-  },
   "cases": [
     "cases/ESK2-001-reuse-adequate-eval.json",
     "cases/ESK2-002-artifact-conflict.json",

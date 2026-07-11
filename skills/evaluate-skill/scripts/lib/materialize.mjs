@@ -15,25 +15,40 @@ export async function copyDirectory(source, destination) {
 }
 
 export async function materializeSkillVariant(repoRoot, variant, destination) {
+  const resources = variant.resources ?? ["SKILL.md"];
+  await mkdir(destination, { recursive: true });
   if (variant.kind === "working-tree") {
-    await copyDirectory(resolve(repoRoot, variant.path), destination);
-  } else if (variant.kind === "git") {
-    await mkdir(destination, { recursive: true });
-    const raw = runGit(repoRoot, ["ls-tree", "-r", "-z", "--full-tree", variant.revision, "--", variant.path], { encoding: "buffer" });
-    const records = Buffer.from(raw).toString("utf8").split("\0").filter(Boolean);
-    for (const record of records) {
-      const [header, fullPath] = record.split("\t");
-      const [mode, type] = header.split(" ");
-      if (type !== "blob") continue;
-      const prefix = `${variant.path.replace(/\/$/, "")}/`;
-      if (!fullPath.startsWith(prefix)) throw new Error(`Unexpected git path outside variant: ${fullPath}`);
-      const relativePath = fullPath.slice(prefix.length);
-      const target = resolve(destination, relativePath);
+    const sourceRoot = resolve(repoRoot, variant.path);
+    for (const resource of resources) {
+      const source = resolve(sourceRoot, resource);
+      const rel = relative(sourceRoot, source);
+      if (rel === ".." || rel.startsWith(`..${sep}`)) throw new Error(`Subject resource escapes variant: ${resource}`);
+      const info = await lstat(source);
+      if (info.isSymbolicLink()) throw new Error(`Subject resources cannot be symlinks: ${resource}`);
+      const target = resolve(destination, resource);
       await mkdir(dirname(target), { recursive: true });
-      const content = spawnSync("git", ["show", `${variant.revision}:${fullPath}`], { cwd: repoRoot, encoding: null, maxBuffer: 16 * 1024 * 1024 });
-      if (content.status !== 0) throw new Error(`Unable to extract ${variant.revision}:${fullPath}`);
-      await writeFile(target, content.stdout);
-      await chmod(target, mode.endsWith("755") ? 0o755 : 0o644);
+      await cp(source, target, { recursive: info.isDirectory(), force: true, preserveTimestamps: true });
+    }
+  } else if (variant.kind === "git") {
+    const prefix = `${variant.path.replace(/\/$/, "")}/`;
+    for (const resource of resources) {
+      const fullResource = `${variant.path.replace(/\/$/, "")}/${resource}`;
+      const raw = runGit(repoRoot, ["ls-tree", "-r", "-z", "--full-tree", variant.revision, "--", fullResource], { encoding: "buffer" });
+      const records = Buffer.from(raw).toString("utf8").split("\0").filter(Boolean);
+      if (records.length === 0) throw new Error(`Missing git subject resource: ${variant.revision}:${fullResource}`);
+      for (const record of records) {
+        const [header, fullPath] = record.split("\t");
+        const [mode, type] = header.split(" ");
+        if (type !== "blob" || mode === "120000") throw new Error(`Unsupported git subject resource: ${mode} ${type} ${fullPath}`);
+        if (!fullPath.startsWith(prefix)) throw new Error(`Unexpected git path outside variant: ${fullPath}`);
+        const relativePath = fullPath.slice(prefix.length);
+        const target = resolve(destination, relativePath);
+        await mkdir(dirname(target), { recursive: true });
+        const content = spawnSync("git", ["show", `${variant.revision}:${fullPath}`], { cwd: repoRoot, encoding: null, maxBuffer: 16 * 1024 * 1024 });
+        if (content.status !== 0) throw new Error(`Unable to extract ${variant.revision}:${fullPath}`);
+        await writeFile(target, content.stdout);
+        await chmod(target, mode.endsWith("755") ? 0o755 : 0o644);
+      }
     }
   } else {
     throw new Error(`Cannot materialize variant kind: ${variant.kind}`);

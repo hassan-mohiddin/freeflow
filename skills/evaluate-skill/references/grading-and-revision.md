@@ -6,16 +6,11 @@ Use a fresh context with criteria fixed before the subject run. Hide meaningful 
 
 Return pass, fail, or uncertain with cited evidence. Uncertainty must remain visible.
 
-## Repeats
+## Reruns
 
-Start once per side. Repeat when:
+One invocation owns one complete case. Do not repeat one side, reuse a control, adopt partial evidence, or rerun merely to erase a saved failure.
 
-- the same variant produces conflicting verdicts;
-- activation is unstable;
-- infrastructure failure leaves the result inconclusive;
-- acceptance needs variance evidence.
-
-Stop at the configured cap and report unresolved variance. Do not rerun to erase a saved failure.
+After a measured skill revision, changed case criterion, or resolved infrastructure diagnosis, invoke the whole fixed case again. If variance evidence is genuinely required, represent each repetition as an independent whole-case invocation outside the bootstrap evaluator and keep every result visible.
 
 ## Revision
 
@@ -30,4 +25,4 @@ Classify the failure before editing:
 - host capability;
 - grader weakness.
 
-Change one measured pressure point. Keep criteria stable. Rerun the failed candidate side first while the control fingerprint remains valid.
+Change one measured pressure point. Keep criteria stable. Rerun the whole case; bootstrap does not preserve or reuse a prior variant result.

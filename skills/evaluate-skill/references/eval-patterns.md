@@ -18,7 +18,7 @@ Do not build a harness when one case source is enough. Do not leave an unnecessa
 - old versus new description with the same body for routing changes;
 - base stack versus base stack plus target for composition.
 
-Freeze the prompt, fixture, criteria, tools, host, model, and thinking settings across paired variants. Snapshot the skill before the wave.
+Freeze the prompt, fixture, criteria, tools, host, model, and thinking settings across paired variants. Snapshot declared subject resources before execution.
 
 ## Strong Cases
 

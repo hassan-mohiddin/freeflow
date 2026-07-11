@@ -5,7 +5,6 @@ import { randomBytes } from "node:crypto";
 import { readJson } from "./workspace.mjs";
 import { DEFAULT_OUTPUT_LIMIT_BYTES } from "./constants.mjs";
 import { runPiSubject } from "./pi-adapter.mjs";
-import { SoftWaveBudget } from "./scheduler.mjs";
 
 async function readOptional(path, max = 30000) {
   try {
@@ -85,16 +84,36 @@ export async function buildSemanticPrompt(runDir) {
   return { prompt, opaqueLabel, evidence, criterionIds: semanticAssertions.map((item) => item.id) };
 }
 
-export async function gradeSemanticRun(runDir, options) {
+async function persistSemanticEvidence(runDir, subject) {
+  await Promise.all([
+    writeFile(resolve(runDir, "semantic-events.jsonl"), subject.process.stdout),
+    writeFile(resolve(runDir, "semantic-final.md"), subject.parsed.final_text),
+    writeFile(resolve(runDir, "semantic-stderr.log"), subject.process.stderr),
+    writeFile(resolve(runDir, "semantic-usage.json"), `${JSON.stringify(subject.parsed.usage, null, 2)}\n`),
+    writeFile(resolve(runDir, "semantic-runtime-counters.json"), `${JSON.stringify(subject.runtime_counters, null, 2)}\n`),
+  ]);
+}
+
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export async function gradeSemanticRun(runDir, options, dependencies = {}) {
   const { prompt, opaqueLabel, criterionIds } = await buildSemanticPrompt(runDir);
+  const runSubject = dependencies.runSubject ?? runPiSubject;
+  const persistEvidence = dependencies.persistEvidence ?? persistSemanticEvidence;
+  const cleanup = dependencies.cleanup ?? ((path) => rm(path, { recursive: true, force: true }));
   const tempRoot = await mkdtemp(resolve(tmpdir(), "freeflow-semantic-grade-"));
   const workspace = resolve(tempRoot, "workspace");
   const configDir = resolve(tempRoot, "pi-config");
-  await mkdir(workspace, { recursive: true });
-  const budget = new SoftWaveBudget({ maxModelRequests: Number(options.max_model_requests), maxUsd: options.max_usd === undefined ? null : Number(options.max_usd) });
-  if (!budget.canStartJob()) throw new Error(`Semantic grader paused before start: ${budget.pauseReason()}`);
+  let execution = null;
+  let grade = null;
+  let primaryFailure = null;
+  let cleanupFailure = null;
+
   try {
-    const subject = await runPiSubject({
+    await mkdir(workspace, { recursive: true });
+    const subject = await runSubject({
       prompt,
       provider: options.provider,
       model: options.model,
@@ -107,32 +126,49 @@ export async function gradeSemanticRun(runDir, options) {
       writeRoots: [workspace],
       timeoutMs: Number(options.timeout_ms ?? 180000),
       outputLimitBytes: Number(options.output_limit_bytes ?? DEFAULT_OUTPUT_LIMIT_BYTES),
-      maxTurns: Number(options.max_turns_per_job),
+      maxTurns: Number(options.max_turns_per_process),
     });
-    budget.recordJob({ providerRequests: subject.runtime_counters.provider_requests, usage: subject.parsed.usage, costExpected: true });
-    if (subject.process.code !== 0 || subject.runtime_counters.hard_turn_limit_reached) {
-      throw new Error(`Semantic grader hit a hard limit or exited with ${subject.process.code}: ${subject.process.stderr.trim()}`);
+    execution = {
+      usage: subject.parsed.usage,
+      runtime_counters: subject.runtime_counters,
+      process: {
+        exit_code: subject.process.code,
+        signal: subject.process.signal,
+        timed_out: subject.process.timed_out,
+        output_limit_exceeded: subject.process.output_limit_exceeded,
+        parse_errors: subject.parsed.parse_errors,
+      },
+    };
+    await persistEvidence(runDir, subject);
+    if (subject.process.code !== 0 || subject.process.timed_out || subject.process.output_limit_exceeded || subject.runtime_counters.hard_turn_limit_reached || subject.parsed.parse_errors.length > 0) {
+      throw new Error(`Semantic grader produced unusable evidence or exited with ${subject.process.code}: ${subject.process.stderr.trim()}`);
     }
     const parsed = validateSemanticResult(parseJsonResponse(subject.parsed.final_text), criterionIds);
-    const result = {
+    grade = {
       schema_version: 1,
       opaque_label: opaqueLabel,
       verdict: parsed.verdict,
       assertions: parsed.assertions,
       uncertainty: parsed.uncertainty ?? null,
-      usage: subject.parsed.usage,
-      runtime_counters: subject.runtime_counters,
-      budget: budget.summary(),
       limitations: ["Opaque labels and sanitized coordinator paths do not prevent run content from revealing behavioral identity."],
     };
-    await Promise.all([
-      writeFile(resolve(runDir, "semantic-grade.json"), `${JSON.stringify(result, null, 2)}\n`),
-      writeFile(resolve(runDir, "semantic-events.jsonl"), subject.process.stdout),
-      writeFile(resolve(runDir, "semantic-final.md"), subject.parsed.final_text),
-      writeFile(resolve(runDir, "semantic-usage.json"), `${JSON.stringify(subject.parsed.usage, null, 2)}\n`),
-    ]);
-    return result;
+    await writeFile(resolve(runDir, "semantic-grade.json"), `${JSON.stringify(grade, null, 2)}\n`);
+  } catch (error) {
+    primaryFailure = errorMessage(error);
   } finally {
-    await rm(tempRoot, { recursive: true, force: true });
+    try {
+      await cleanup(tempRoot);
+    } catch (error) {
+      cleanupFailure = errorMessage(error);
+    }
   }
+
+  if (primaryFailure || cleanupFailure) {
+    return {
+      status: "incomplete",
+      execution,
+      failure: { primary: primaryFailure ?? cleanupFailure, cleanup: primaryFailure ? cleanupFailure : null },
+    };
+  }
+  return { status: "complete", execution, grade };
 }

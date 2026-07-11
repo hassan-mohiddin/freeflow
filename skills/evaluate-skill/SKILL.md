@@ -34,17 +34,17 @@ Read [evaluation architecture](references/evaluation-architecture.md) when selec
 5. Run controls and candidates with the same prompt, fixture, tools, host, model, and thinking settings.
 6. Grade objective artifacts first; use a fresh semantic grader only for unresolved meaning.
 7. Classify the failure: activation, wording, placement, missing stop, structure, fixture, host, or grader.
-8. Revise one measured pressure point and rerun the failed candidate side first.
+8. Revise one measured pressure point and rerun the whole case. Bootstrap does not reuse partial case evidence.
 
 ## Execution
 
 Use direct child processes for ordinary cases. Do not spend parent/subagent context merely to run a subject.
 
-Use `node scripts/skill-eval.mjs doctor|init|plan|run|grade|report` for the bundled workspace. Inspect `plan` for variants, evidence, capabilities, cache eligibility, model jobs, and model-request bounds before `run`.
+Use `node scripts/skill-eval.mjs doctor|init|evaluate` for the bundled workspace. `evaluate` owns deterministic preflight, serial subject execution, grading, decision assembly, and atomic publication for one case. Use `evaluate --plan-only` to inspect the exact plan before owner-approved model work.
 
-The default project source lives under `.skill-eval/<skill-name>/`. Subjects receive only the natural prompt, isolated fixture, selected immutable skill snapshot, and allowed tools. They must not receive assertions, expected outcomes, reports, or another variant.
+The default project source lives under `.skill-eval/<skill-name>/`. Subjects receive only the natural prompt, isolated fixture, explicitly declared immutable skill resources, and allowed tools. They must not receive assertions, expected outcomes, reports, or another variant.
 
-Read [portable execution](references/portable-execution.md) for capability fallbacks and isolation. Read [token-efficient execution](references/token-efficient-execution.md) before expanding cases, repeats, models, or hosts.
+Read [portable execution](references/portable-execution.md) for capability fallbacks and isolation. Read [token-efficient execution](references/token-efficient-execution.md) before expanding cases, models, or evidence scope.
 
 ## Grading
 
@@ -53,8 +53,8 @@ Read [portable execution](references/portable-execution.md) for capability fallb
 - A subject never grades its own run in the same conversation.
 - Semantic graders use fresh context, fixed criteria, opaque labels, sanitized paths, and explicit uncertainty.
 - Missing usage or cost is unavailable, not zero.
-- Cache controls only when every behavior-relevant fingerprint input matches.
-- Soft request/spend caps pause between jobs after active jobs settle. Resume only with owner-approved higher caps; keep completed evidence and frozen snapshots.
+- Turn, timeout, and output limits apply per Pi process; provider requests are observed rather than promised as a global hard cap.
+- Infrastructure failure publishes diagnostics only. Rerun the whole case; do not adopt or reuse partial evidence.
 
 Read [grading priority](references/grading-priority.md) when artifacts conflict. Read [grading and revision](references/grading-and-revision.md) when deciding reruns or skill changes.
 

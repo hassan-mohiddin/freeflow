@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { buildPiInvocation, parsePiJsonEvents, redactedInvocation } from "../../../skills/evaluate-skill/scripts/lib/pi-adapter.mjs";
+import { buildPiInvocation, parsePiJsonEvents, prepareIsolatedPiConfig, redactedInvocation } from "../../../skills/evaluate-skill/scripts/lib/pi-adapter.mjs";
 
 test("Pi invocation disables ambient resources and loads only explicit skill and guard", () => {
   const invocation = buildPiInvocation({
@@ -20,6 +22,16 @@ test("Pi invocation disables ambient resources and loads only explicit skill and
   const redacted = redactedInvocation(invocation);
   assert.equal(redacted.args.at(-1), "<natural-prompt>");
   assert.equal(redacted.args[redacted.args.indexOf("--skill") + 1], "<skill>");
+});
+
+test("isolated Pi config disables automatic retries", async (t) => {
+  const root = await mkdtemp(resolve(tmpdir(), "freeflow-pi-config-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await prepareIsolatedPiConfig(root, { PI_CODING_AGENT_DIR: resolve(root, "missing-source") });
+  const settings = JSON.parse(await readFile(resolve(root, "settings.json"), "utf8"));
+  assert.equal(settings.retry.enabled, false);
+  assert.equal(settings.retry.maxRetries, 0);
+  assert.equal(settings.retry.provider.maxRetries, 0);
 });
 
 test("Pi JSON parser captures final response, usage, cost, and skill read", () => {

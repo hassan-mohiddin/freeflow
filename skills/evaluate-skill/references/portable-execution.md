@@ -1,6 +1,6 @@
 # Portable Execution
 
-Use a host-neutral case, fingerprint, scheduler, evidence bundle, and grader. Keep adapters limited to capability probes, invocation construction, event parsing, usage extraction, and cleanup.
+Use one case fingerprint, one Pi-first executor, one evidence bundle, and fixed graders. Keep the concrete Pi boundary limited to capability probes, invocation construction, event parsing, usage extraction, and cleanup. Add another host only when a real supported host exists.
 
 ## Capability Rule
 
@@ -15,7 +15,7 @@ Choose the cheapest mode that preserves the eval question. If a fallback changes
 For each run:
 
 - copy only the fixture into an isolated temporary root;
-- copy one immutable skill snapshot separately;
+- copy only the variant's declared immutable subject resources separately;
 - keep cases, assertions, reports, controls, and labels coordinator-side;
 - allow reads only from fixture and snapshot;
 - allow writes only inside fixture;

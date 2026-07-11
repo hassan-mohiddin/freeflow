@@ -9,8 +9,15 @@ test("all bootstrap suites and cases parse with existing fixtures", async () => 
   for (const skill of ["write-skill", "evaluate-skill"]) {
     const workspace = await loadSkillWorkspace(repoRoot, skill);
     assert.ok(workspace.cases.length > 0);
-    assert.equal(workspace.cases.every((item) => item.required_for_bootstrap), true);
     assert.equal(new Set(workspace.cases.map((item) => item.id)).size, workspace.cases.length);
+    for (const evalCase of workspace.cases) {
+      assert.ok(new Set(["single", "comparison"]).has(evalCase.evaluation_kind));
+      assert.deepEqual(
+        evalCase.variants.map((variant) => variant.role),
+        evalCase.evaluation_kind === "single" ? ["subject"] : ["reference", "candidate"],
+      );
+      assert.equal(evalCase.variants.every((variant) => variant.resources.includes("SKILL.md")), true);
+    }
   }
 });
 
@@ -34,9 +41,11 @@ test("unknown evidence classes are rejected", () => {
     question: "conversational behavior",
     evidence_classes: ["made-up"],
     required_for_bootstrap: false,
+    evaluation_kind: "single",
+    unsupported_evidence: "block",
     prompt: "prompt",
     fixture: null,
-    variants: [{ id: "candidate", kind: "working-tree", path: "skills/bad-skill" }],
+    variants: [{ id: "candidate", role: "subject", kind: "working-tree", path: "skills/bad-skill", resources: ["SKILL.md"] }],
     execution: { host: "pi", mode: "json", tools: ["read"], timeout_ms: 1 },
     assertions: [{ id: "a", type: "semantic", rubric: "x" }],
   }), /unknown evidence class/);
