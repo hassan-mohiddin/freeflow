@@ -1,4 +1,4 @@
-import { access, lstat, mkdir, rename } from "node:fs/promises";
+import { lstat, mkdir, rename } from "node:fs/promises";
 import { dirname } from "node:path";
 import { completeOperation, failedPublication, incompleteOperation, publishedPath } from "./outcome.mjs";
 
@@ -7,7 +7,7 @@ function message(error) {
 }
 
 function fsOperations(overrides = {}) {
-  return { access, lstat, mkdir, rename, ...overrides };
+  return { lstat, mkdir, rename, ...overrides };
 }
 
 async function destinationExists(path, operations) {
@@ -38,7 +38,6 @@ export async function publishResult({ stagingDir, destinationDir, prepare, verif
     await verify(stagingDir);
     await fs.mkdir(dirname(destinationDir), { recursive: true });
     await fs.rename(stagingDir, destinationDir);
-    await fs.access(destinationDir);
     return publishedPath(destinationDir);
   } catch (error) {
     return failedPublication(message(error));
@@ -52,7 +51,6 @@ export async function publishDiagnostic({ stagingDir, destinationDir, writeDiagn
     await writeDiagnostic(stagingDir);
     await fs.mkdir(dirname(destinationDir), { recursive: true });
     await fs.rename(stagingDir, destinationDir);
-    await fs.access(destinationDir);
     return publishedPath(destinationDir);
   } catch (error) {
     return failedPublication(message(error));

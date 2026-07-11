@@ -81,12 +81,13 @@ export async function captureGitEvidence(workspace) {
   return { status, diff, changedPaths };
 }
 
-export async function createManifest(root) {
+export async function createManifest(root, { exclude = [] } = {}) {
   const files = {};
+  const excluded = new Set(exclude);
   async function visit(path) {
     const info = await lstat(path);
     const rel = relative(root, path).split(sep).join("/");
-    if (rel === ".git" || rel.startsWith(".git/")) return;
+    if (rel === ".git" || rel.startsWith(".git/") || excluded.has(rel)) return;
     if (info.isSymbolicLink()) {
       files[rel] = { type: "symlink", target: await readlink(path) };
       return;

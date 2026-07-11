@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { access, lstat, realpath } from "node:fs/promises";
 import { constants } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { capabilitiesFor, supportedEvidenceClasses } from "./capabilities.mjs";
 import { hashDirectory, hashFile, hashGitPath, sha256, stableJson } from "./hash.mjs";
@@ -22,6 +22,7 @@ const EVALUATOR_SOURCE_FILES = [
   "lib/grade.mjs",
   "lib/outcome.mjs",
   "lib/hash.mjs",
+  "lib/integrity.mjs",
   "lib/materialize.mjs",
   "lib/path-policy.mjs",
   "lib/pi-adapter.mjs",
@@ -179,8 +180,10 @@ export async function buildEvaluationPlan(workspace, options) {
   if (options.max_usd !== undefined && modelDriven) limitations.push("The spend ceiling is checked between Pi processes only when the host reports cost; unavailable cost remains unavailable.");
 
   const { source_path: _sourcePath, ...caseContent } = evalCase;
+  const caseSourcePath = relative(workspace.repoRoot, evalCase.source_path).split(sep).join("/");
   const identities = {
     case: sha256(stableJson(caseContent)),
+    case_source: { path: caseSourcePath, sha256: await hashFile(evalCase.source_path) },
     fixture: fixtureHash,
     subjects: Object.fromEntries(variants.map((variant) => [variant.role, variant.snapshot_hash])),
     evaluator: await sourceIdentity(EVALUATOR_SOURCE_FILES),

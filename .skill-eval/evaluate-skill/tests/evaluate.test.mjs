@@ -23,7 +23,7 @@ function successfulSubject(cost = 0) {
   };
 }
 
-async function fixture(t, { host = "none", comparison = false, semantic = false } = {}) {
+async function fixture(t, { host = "none", comparison = false, semantic = false, withFixture = false } = {}) {
   const root = await mkdtemp(resolve(tmpdir(), "freeflow-outcome-eval-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   await mkdir(resolve(root, "skills", "sample-skill"), { recursive: true });
@@ -31,6 +31,10 @@ async function fixture(t, { host = "none", comparison = false, semantic = false 
   await writeFile(resolve(root, "skills", "sample-skill", "UNDECLARED.md"), "must not reach subject\n");
   const skillRoot = resolve(root, ".skill-eval", "sample-skill");
   await mkdir(resolve(skillRoot, "cases"), { recursive: true });
+  if (withFixture) {
+    await mkdir(resolve(skillRoot, "fixtures", "input"), { recursive: true });
+    await writeFile(resolve(skillRoot, "fixtures", "input", "prompt.txt"), "approved fixture\n");
+  }
   await writeFile(resolve(skillRoot, "suite.json"), JSON.stringify({ schema_version: 1, skill: "sample-skill", cases: ["cases/SAMPLE-001.json"] }));
   const evalCase = {
     schema_version: 1,
@@ -43,7 +47,7 @@ async function fixture(t, { host = "none", comparison = false, semantic = false 
     evaluation_kind: comparison ? "comparison" : "single",
     unsupported_evidence: "block",
     prompt: "Inspect the sample.",
-    fixture: null,
+    fixture: withFixture ? "fixtures/input" : null,
     variants: comparison
       ? [
           { id: "old", role: "reference", kind: "working-tree", path: "skills/sample-skill", resources: ["SKILL.md"] },
@@ -71,6 +75,7 @@ test("host-free evaluation atomically publishes one complete result", async (t) 
   assert.equal(result.plan_fingerprint, plan.fingerprint);
   assert.match(result.identities.evaluator, /^[a-f0-9]{64}$/);
   assert.match(result.identities.semantic, /^[a-f0-9]{64}$/);
+  assert.deepEqual(result.identities.case_source, plan.summary.identities.case_source);
   assert.equal(result.variants[0].objective.verdict, "pass");
   assert.equal(result.variants[0].semantic, null);
   assert.deepEqual(result.evidence_support, plan.summary.evidence);
@@ -80,6 +85,37 @@ test("host-free evaluation atomically publishes one complete result", async (t) 
   const bundleRoot = resolve(root, outcome.result, "..");
   await assert.rejects(() => access(resolve(bundleRoot, "evidence", "subject", "inputs", "skill", "UNDECLARED.md")));
   assert.deepEqual(await readdir(resolve(workspace.skillRoot, "runs", "diagnostics")).catch(() => []), []);
+});
+
+test("successful result rename remains complete without a post-rename probe", async (t) => {
+  const { root, workspace } = await fixture(t);
+  const plan = await buildEvaluationPlan(workspace, { case: "SAMPLE-001", timeout_ms: 1000, output_limit_bytes: 1048576, owner_approved: true });
+  const outcome = await executeEvaluation(workspace, plan, {
+    publicationOperations: { access: async () => { throw new Error("post-rename probe failed"); } },
+  });
+  assert.equal(outcome.status, "complete");
+  await access(resolve(root, outcome.result));
+});
+
+test("fixture mutation after approval stops before the subject process", async (t) => {
+  const { workspace } = await fixture(t, { host: "pi", withFixture: true });
+  const plan = await buildEvaluationPlan(workspace, {
+    case: "SAMPLE-001",
+    timeout_ms: 1000,
+    output_limit_bytes: 1048576,
+    provider: "p",
+    model: "m",
+    thinking: "low",
+    max_turns_per_process: 2,
+    owner_approved: true,
+  });
+  await writeFile(resolve(workspace.skillRoot, "fixtures", "input", "prompt.txt"), "changed after approval\n");
+  let calls = 0;
+  const outcome = await executeEvaluation(workspace, plan, { runSubject: async () => { calls += 1; return successfulSubject(); } });
+  assert.equal(outcome.status, "incomplete");
+  assert.match(outcome.failure.primary, /fixture.*changed/i);
+  assert.equal(calls, 0);
+  assert.equal(outcome.usage.provider_requests, 0);
 });
 
 test("comparison variants execute serially in reference-candidate order", async (t) => {

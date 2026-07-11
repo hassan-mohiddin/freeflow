@@ -28,7 +28,7 @@ test("staging creation returns an outcome instead of throwing", async (t) => {
   assert.match(failed.failure.primary, /mkdir failed/);
 });
 
-test("result publication prepares, verifies, renames, and confirms destination", async (t) => {
+test("result publication treats successful rename as the commit point", async (t) => {
   const base = await root(t);
   const staging = resolve(base, "staging");
   const destination = resolve(base, "evaluations", "one");
@@ -39,6 +39,7 @@ test("result publication prepares, verifies, renames, and confirms destination",
     destinationDir: destination,
     prepare: async (path) => { order.push("prepare"); await writeFile(resolve(path, "result.json"), "{}\n"); },
     verify: async (path) => { order.push("verify"); await access(resolve(path, "result.json")); },
+    operations: { access: async () => { throw new Error("post-rename probe must not decide publication"); } },
   });
   assert.deepEqual(outcome, { status: "published", path: destination });
   assert.deepEqual(order, ["prepare", "verify"]);
@@ -82,8 +83,8 @@ test("rename failure never advertises a result path", async (t) => {
   await access(staging);
 });
 
-test("diagnostic write, mkdir, rename, and confirmation failures never manufacture paths", async (t) => {
-  for (const step of ["write", "mkdir", "rename", "confirm"]) {
+test("diagnostic write, mkdir, and rename failures never manufacture paths", async (t) => {
+  for (const step of ["write", "mkdir", "rename"]) {
     await t.test(step, async () => {
       const base = await mkdtemp(resolve(tmpdir(), `freeflow-diagnostic-${step}-`));
       t.after(() => rm(base, { recursive: true, force: true }));
@@ -95,13 +96,27 @@ test("diagnostic write, mkdir, rename, and confirmation failures never manufactu
       if (step === "write") writeDiagnostic = async () => { throw new Error("write failed"); };
       if (step === "mkdir") operations.mkdir = async () => { throw new Error("mkdir failed"); };
       if (step === "rename") operations.rename = async () => { throw new Error("rename failed"); };
-      if (step === "confirm") operations.access = async () => { throw new Error("confirm failed"); };
       const outcome = await publishDiagnostic({ stagingDir: staging, destinationDir: destination, writeDiagnostic, operations });
       assert.equal(outcome.status, "publication-failed");
       assert.equal("path" in outcome, false);
       assert.match(outcome.failure.primary, new RegExp(`${step} failed`));
     });
   }
+});
+
+test("diagnostic publication treats successful rename as the commit point", async (t) => {
+  const base = await root(t);
+  const staging = resolve(base, "staging");
+  const destination = resolve(base, "diagnostics", "one");
+  await mkdir(staging);
+  const outcome = await publishDiagnostic({
+    stagingDir: staging,
+    destinationDir: destination,
+    writeDiagnostic: async (path) => writeFile(resolve(path, "diagnostic.json"), "{}\n"),
+    operations: { access: async () => { throw new Error("post-rename probe must not decide publication"); } },
+  });
+  assert.deepEqual(outcome, { status: "published", path: destination });
+  await access(resolve(destination, "diagnostic.json"));
 });
 
 test("diagnostic publication cannot mutate caller failure or usage", async (t) => {

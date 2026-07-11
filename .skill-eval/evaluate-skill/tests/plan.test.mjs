@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { resolve } from "node:path";
 import { buildEvaluationPlan } from "../../../skills/evaluate-skill/scripts/lib/plan.mjs";
-import { sha256, stableJson } from "../../../skills/evaluate-skill/scripts/lib/hash.mjs";
+import { hashFile, sha256, stableJson } from "../../../skills/evaluate-skill/scripts/lib/hash.mjs";
 import { findRepoRoot, loadSkillWorkspace } from "../../../skills/evaluate-skill/scripts/lib/workspace.mjs";
 
 const repoRoot = await findRepoRoot(resolve(import.meta.dirname, "..", "..", ".."));
@@ -86,6 +86,10 @@ test("fingerprint binds evaluator and semantic implementation identities", async
   });
   assert.match(result.plan_inputs.identities.evaluator, /^[a-f0-9]{64}$/);
   assert.match(result.plan_inputs.identities.semantic, /^[a-f0-9]{64}$/);
+  assert.deepEqual(result.plan_inputs.identities.case_source, {
+    path: ".skill-eval/evaluate-skill/cases/ESK2-001-reuse-adequate-eval.json",
+    sha256: await hashFile(result.eval_case.source_path),
+  });
   const changedEvaluator = { ...result.plan_inputs, identities: { ...result.plan_inputs.identities, evaluator: "0".repeat(64) } };
   const changedSemantic = { ...result.plan_inputs, identities: { ...result.plan_inputs.identities, semantic: "1".repeat(64) } };
   assert.notEqual(sha256(stableJson(changedEvaluator)), result.fingerprint);

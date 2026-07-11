@@ -5,6 +5,7 @@ import { coordinateEvaluation } from "./coordinator.mjs";
 import { createManifest, captureGitEvidence, copyDirectory, initializeFixtureGit, makeWritable, materializeSkillVariant, removeWritableTree } from "./materialize.mjs";
 import { hashDirectory } from "./hash.mjs";
 import { gradeObjectiveRun } from "./grade.mjs";
+import { verifyBundleIntegrity, writeBundleIntegrity } from "./integrity.mjs";
 import { incompleteOperation } from "./outcome.mjs";
 import { PI_ADAPTER_VERSION, redactedInvocation, runPiSubject } from "./pi-adapter.mjs";
 import { createStagingDirectory, publishDiagnostic as publishDiagnosticBundle, publishResult as publishResultBundle } from "./publication.mjs";
@@ -66,6 +67,8 @@ async function executeVariant(workspace, plan, variant, evidenceDir, id, depende
     if (plan.fixture_path) {
       await copyDirectory(plan.fixture_path, fixtureRoot);
       await makeWritable(fixtureRoot);
+      const copiedFixtureHash = await hashDirectory(fixtureRoot);
+      if (copiedFixtureHash !== plan.summary.identities.fixture) throw new Error("Fixture changed after preflight approval");
     }
     await initializeFixtureGit(fixtureRoot);
     const beforeManifest = await createManifest(fixtureRoot);
@@ -340,12 +343,9 @@ export async function executeEvaluation(workspace, plan, dependencies = {}) {
         prepare: async () => {
           await writeFile(resolve(stagingDir, "result.json"), `${JSON.stringify(result, null, 2)}\n`);
           await writeFile(resolve(stagingDir, "report.md"), renderReport(plan, coordinated.decision, variants, coordinated.usage, plan.summary.limitations));
-          const inventory = await createManifest(stagingDir);
-          await writeFile(resolve(stagingDir, "integrity.json"), `${JSON.stringify({ schema_version: 1, inventory }, null, 2)}\n`);
+          await writeBundleIntegrity(stagingDir);
         },
-        verify: async () => {
-          await createManifest(stagingDir);
-        },
+        verify: async () => verifyBundleIntegrity(stagingDir),
       });
       return publication.status === "published"
         ? { status: "published", path: relativeRepoPath(workspace.repoRoot, resolve(finalDir, "result.json")) }
