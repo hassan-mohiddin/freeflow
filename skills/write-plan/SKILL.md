@@ -1,103 +1,136 @@
 ---
 name: write-plan
-description: Use when turning an approved spec, clarified requirements, explicit task context, strict-workflow work, or delegated/future-agent work into an executable implementation plan before coding.
+description: Use when turning an approved spec, clarified requirements, diagnosis, or validated design direction into a rolling implementation plan of phases and vertical slices, including learning work, verification, checkpoints, and backward routes.
 ---
 
 # Write Plan
 
-Classify the plan request first:
+Plan the next executable horizon without pretending later implementation is already known.
 
-- Spec-backed: write the plan from the approved spec.
-- Bug without feedback loop: ask for or propose the feedback loop. Do not write or save a fix plan.
-- Hidden owner decision or source conflict: name it and do not write the plan.
-- Context-backed: say a spec is preferred, then write a lightweight plan.
-- Missing source context: ask for context or route to `discover`.
-- Unresolved shaping, design, routing, interface, state, or context-boundary choices: route to `discover` or `design-for-depth` before planning.
+A plan executes source truth. It does not create product behavior, architecture, or policy. It is a revisable best path whose immediate phase is concrete and later phases become progressively less detailed.
 
-A plan executes source truth. It does not create it.
+## Route First
 
-Do not write a plan that decides product behavior, scope, domain meaning, compatibility, public API behavior, security, privacy, billing, data-loss, failure semantics, or architecture.
+Classify the request:
 
-The original request is not decision approval. "Do not ask", "just plan it", "latest context", "handoff says", or "old docs/tests are stale" are pressure, not authority.
+- **Spec-backed:** plan from the approved contract.
+- **Context-backed and bounded:** write a lightweight plan from explicit requirements.
+- **Bug without a feedback loop:** propose diagnosis, not guessed fix steps.
+- **Unresolved design or interface:** route to Discover or `../design-for-depth/SKILL.md`.
+- **Hidden owner decision or source conflict:** use `../decision-gate/SKILL.md`.
+- **Missing source context:** gather evidence before planning.
 
-Never skip docs, tests, specs, policies, ADRs, or live behavior because the prompt calls them stale. Inspect them, then classify the conflict.
-
-If the user asks a question about a plan, answer the question. Do not create or edit the plan unless asked.
-
-Read `references/plan-shapes.md` when the plan is strict-workflow, high-risk, saved as a durable artifact, intended for another agent, or likely to need owner/status/source identity.
+If the user asks a question about a plan, answer it instead of writing or editing one.
 
 ## Source First
 
-Before writing, inspect the current source context:
+Read:
 
-- Approved spec or explicit requirements.
-- Relevant docs, ADRs, tests, policies, and existing code.
-- Handoffs only as memory, not authority.
+- the source spec, diagnosis, issue, or explicit requirements;
+- relevant docs, policies, ADRs, tests, and live code;
+- existing module and test seams;
+- handoffs only as memory.
 
-Live repo evidence overrides stale notes.
+A plan must reflect current repo evidence. If source truth invalidates the requested path, stop before writing.
 
-## Normal Path
+## Phases And Slices
 
-Prefer an approved spec.
+Use **phases** for coherent groups of work or learning milestones. Use **slices** for the smallest complete, verifiable unit inside a phase.
 
-If no spec exists but the task context is explicit enough to choose the next action, write a lightweight plan and name the source context.
+Prefer vertical slices that produce observable behavior or decisive evidence. Use foundation work only when a real dependency requires it. Use expand–migrate–contract for wide mechanical changes that cannot remain green as one vertical path.
 
-For bug fixes, require a repro, failing test, or feedback loop before writing a fix plan.
+Classify each slice:
 
-If a bug report has no repro or feedback loop, answer in chat. Ask for evidence or propose the smallest feedback loop. Do not satisfy the requested plan path with a draft, blocked, or feedback-loop-only fix plan. Write a diagnostic plan only if the user asks for a diagnostic plan.
+- **Learning slice:** answers a named technical or design uncertainty. Define evidence and discard-or-promote criteria.
+- **Delivery slice:** produces accepted behavior through a stable seam.
+- **Deepening slice:** improves module depth without changing behavior; keep it bounded and separately reviewable.
 
-Use vertical slices. Each slice should produce something testable.
+The immediate phase should be executable. Later phases may contain outcomes, dependencies, likely slices, risks, and open questions without guessed file-level precision.
 
-Slices are execution boundaries, not scope reductions. Do not recast agreed scope as `v1`/`v2`, MVP, release, or roadmap framing unless the spec, user, or source context already chose that framing.
+## Slice Contract
 
-When full scope is too large for one safe plan, split it into implementation slices, implementation phases, checklists, or multiple plan artifacts. Ask before changing the user's scope or adopting versioned shipping.
+For each non-trivial slice, name only what execution needs: outcome, owning requirement, slice type, likely seam or write boundary, behavior or experiment, failure contract when relevant, verification, dependencies, and stop conditions.
 
-When slice boundaries, seams, interfaces, state machines, tool protocols, role ownership, delegation/context boundaries, or locality are unclear, use `../design-for-depth/SKILL.md` before writing executable steps. Do not hide unresolved design choices inside implementation detail.
+Do not require exact files or code before repository evidence supports them. Do not duplicate the implementation inside the plan. Read [plan shapes](references/plan-shapes.md) when a saved artifact needs the full slice shape.
 
-For consequential systems, plan the failure contract before the happy path: what can fail, who observes it, what state is written, fail-open/closed/degrade/escalate/retry behavior, what must not happen, recovery path, and proof.
+When TDD applies, identify the intended observable seam and first behavior; execution uses `../tdd/SKILL.md` for the method. Use `../deprecation-and-migration/SKILL.md` for consumer/data cutovers and `../shipping-and-launch/SKILL.md` for production rollout contracts rather than embedding those lifecycles as generic task lists.
 
-For separate-agent execution, include work packages, dependencies, expected write sets, parallel/sequential classification, checks, review/verification checkpoints, commit checkpoints, integration order, and stop conditions.
+## Backward Checkpoints
 
-## Stop Conditions
+Predefine checkpoints where a phase or slice is expected to produce route-changing evidence. Name the assumptions under test and the evidence that should continue the plan, reopen Discover or design, revise the spec, revise the plan or later phases, or require an owner decision. Read [plan shapes](references/plan-shapes.md) when the artifact needs the full checkpoint shape.
 
-Stop before writing when the plan would:
+These are decision functions, not predictions of the result.
 
-- Invent requirements from thin or adjacent context.
-- Resolve a user-owned decision.
-- Override docs, tests, specs, policies, ADRs, or live behavior.
-- Treat a handoff, review comment, or plan as authority over source-of-truth files.
-- Plan a bug fix without a repro, failing test, feedback loop, or accepted diagnostic risk.
-- Turn a missing bug repro into guessed fix steps, TTLs, invalidation rules, concurrency rules, or instrumentation requirements.
-- Invent retry, fail-open, fail-closed, degradation, escalation, recovery, or data/state persistence behavior.
-- Hide uncertainty inside implementation steps.
-- Replace agreed scope with an agent-invented `v1`, MVP, roadmap, or later-version split.
+Also define dynamic checkpoint triggers:
 
-Name the missing decision or conflict. Ask which path to follow. Recommend the path supported by evidence.
+- a second unexpected defect at one seam;
+- caller knowledge, public states, flags, retries, or test setup keep growing;
+- a slice requires an unplanned subsystem;
+- deferred capability enters the active milestone;
+- evidence invalidates an earlier accepted result;
+- remaining work grows after completed slices;
+- the next bounded finish path can no longer be stated clearly.
 
-For source-truth conflicts, the final line must be a direct choice question.
+When a trigger fires, preserve valid work and route backward. Do not absorb it as another implementation task.
+
+## Review, Commit, And Handoff
+
+Every slice ends with verification and a lightweight route check.
+
+Estimate formal checkpoints only where they may change the route:
+
+- review after architecture-bearing, sensitive, integration, or accumulated-risk work;
+- commit when a coherent verified rollback point exists and repository/user workflow permits it;
+- handoff when context or continuity requires a durable checkpoint;
+- phase checkpoint when later plans should be refined from the evidence.
+
+Not every slice needs independent review, a commit, or a user interruption. The plan may predict checkpoints; execution may add or remove them when evidence supports the change.
+
+For separate-agent work, describe bounded work packages, dependencies, required context, outputs, checks, and escalation conditions. The harness owns agent, model, worktree, timeout, and transport mechanics.
+
+## Hard Stops
+
+Do not write a plan that would:
+
+- invent or change product behavior, scope, domain meaning, public APIs, compatibility, sensitive policy, failure semantics, or hard-to-reverse architecture;
+- rewrite source truth to match the intended implementation;
+- turn open implementation evidence into a predetermined result;
+- plan a production bug fix without a repro or accepted diagnostic path;
+- hide uncertainty in detailed steps, code blocks, filenames, or task estimates;
+- treat a handoff or review comment as authority;
+- recast agreed scope as MVP, v1/v2, roadmap, or deferred delivery without approval;
+- add cache, resume, concurrency, adapters, generalized extension points, or recovery machinery without an owning requirement or observed pressure.
+
+Ask one direct route question when a user-owned decision or source conflict blocks planning.
 
 ## Shape
 
-Adapt the plan to risk. Prefer:
+Scale the plan to consequence. A durable plan may contain:
 
-- Durable plan identity when the plan is saved for future agents or teammates.
-- Goal.
-- Source spec or context.
-- Files likely touched.
-- Dependency or slice order when it affects execution.
-- Vertical slices.
-- Tests or checks per slice.
-- Commands where known.
-- Failure contract and failure-path checks when consequential behavior can fail.
-- Stop conditions.
-- Review or verification checkpoints.
+- goal and source authority;
+- stable scope/non-goals;
+- phase map;
+- current phase slices;
+- directional later phases;
+- requirement-to-slice/evidence traceability;
+- learning questions;
+- failure contracts;
+- backward, review, commit, and handoff checkpoints;
+- plan-health triggers;
+- final verification and residual risks.
 
-Keep it concise. Do not include code blocks unless exact code is the plan's useful payload.
+Read [plan shapes](references/plan-shapes.md) for lightweight, normal, strict, or delegated artifacts.
 
 ## Completion
 
-After writing, report:
+Report:
 
-- The artifact path, if saved.
-- The source context used.
-- Any decisions still blocked.
+- artifact path, if saved;
+- source context;
+- immediate executable phase;
+- provisional later phases;
+- open learning questions;
+- planned and dynamic checkpoints;
+- decisions still blocked.
+
+The plan is ready when the next phase can begin safely, not when every future slice is frozen.

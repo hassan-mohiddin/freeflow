@@ -4,11 +4,13 @@ Use this only for durable artifacts: specs, PRDs, decision artifacts, requiremen
 
 Do not apply this to chat answers, quick questions, tiny reversible work, or conversation mode unless the user explicitly asks for a file.
 
-## Header
+## Title And Compact Header
 
-For durable specs, start with a compact header:
+For durable specs, start with one clear H1 title, followed immediately by the compact document-information header:
 
 ```md
+# Team Invitations
+
 > **Doc ID:** SPEC-001-team-invitations
 > **Date:** 2026-05-26
 > **Owner:** Hassan Mohiddin
@@ -17,8 +19,13 @@ For durable specs, start with a compact header:
 > **Source:** User-provided decision session
 ```
 
+Do not put metadata, status text, or preamble before the title. The title identifies the artifact for readers; the compact header immediately establishes its durable identity and authority.
+
+Preserve repo-specific field names and required metadata that fit this order. If a required parser, frontmatter format, or artifact convention requires metadata first, name the conflict and use the Decision Gate rather than silently reversing the requested order.
+
 Rules:
 
+- `Title`: one concise human-readable H1 that names the specified behavior or system.
 - `Doc ID`: stable, readable, and unique enough for the repo. Prefer `SPEC-###-slug` when no convention exists.
 - `Date`: creation date.
 - `Owner`: use the named product/technical owner when known. In normal workflow, use `User` if the requester is the only known owner. In strict-workflow, ask when owner is unknown.

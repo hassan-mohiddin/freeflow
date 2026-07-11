@@ -1,6 +1,6 @@
 # Freeflow Command Surface Matrix
 
-Date: 2026-06-22
+Date: 2026-07-11
 
 ## Summary
 
@@ -15,14 +15,15 @@ Commands are model-routed in Codex/Claude. In Pi, the extension registers direct
 Current registry:
 
 - 4 mode commands
-- 11 direct skill calls
+- 16 direct skill calls
 - 3 developer skill calls
 - 3 Pi native settings commands
 
 Current direct command eval coverage:
 
 - Mode command coverage: yes, via `MODE-001` through `MODE-006`.
-- Direct skill command coverage: 11 of 11 have `CMD-*` eval definitions; `/discover` uses `CMD-012`.
+- Historical direct skill command coverage: 11 of 16 have `CMD-*` eval definitions; `/discover` uses `CMD-012`.
+- The five new optional direct calls are Unverified and intentionally have no grouped eval claims yet.
 - Pi native settings command coverage: extension tests cover `/freeflow`, `/output-router`, and `/delegation-harness` settings/status behavior.
 - Developer command coverage: yes, via setup evals plus `CMD-014` and `CMD-015`.
 
@@ -41,16 +42,21 @@ Current direct command eval coverage:
 
 | Command | Skill | Codex/Claude Native Handler | Direct Eval | Related Behavior Evals | Status |
 |---|---|---:|---|---|---|
-| `/discover` | `discover` | No | `CMD-012` | `DIS-001`, `DIS-002`, `DFD-001` | Covered |
-| `/write-spec` | `write-spec` | No | `CMD-003` | `WSP-001`, `WSP-002`, `WSP-003` | Covered |
-| `/review-artifact` | `review-artifact` | No | `CMD-010` | `RAR-001`, `RAR-002` | Covered |
-| `/write-plan` | `write-plan` | No | `CMD-004` | `WPL-001` through `WPL-004` | Covered |
-| `/execute-plan` | `execute-plan` | No | `CMD-001` | `XPL-001` through `XPL-004` | Covered |
-| `/diagnose-failure` | `diagnose-failure` | No | `CMD-011` | `DIA-001` | Covered |
-| `/verify-work` | `verify-work` | No | `CMD-005` | `VFY-001` through `VFY-003` | Covered |
-| `/review-work` | `review-work` | No | `CMD-009` | `REV-002`, `REV-003` | Covered |
-| `/commit-work` | `commit-work` | No | `CMD-002` | `CMT-001` through `CMT-004` | Covered |
-| `/handoff` | `handoff` | No | `CMD-006` | `HOF-001` through `HOF-005` | Covered |
+| `/discover` | `discover` | No | `CMD-012` | `DIS-001`, `DIS-002`, `DFD-001` | Historical coverage; revised skill Unverified |
+| `/write-spec` | `write-spec` | No | `CMD-003` | `WSP-001`, `WSP-002`, `WSP-003` | Historical coverage; revised skill Unverified |
+| `/review-artifact` | `review-artifact` | No | `CMD-010` | `RAR-001`, `RAR-002` | Historical coverage; revised skill Unverified |
+| `/write-plan` | `write-plan` | No | `CMD-004` | `WPL-001` through `WPL-004` | Historical coverage; revised skill Unverified |
+| `/execute-plan` | `execute-plan` | No | `CMD-001` | `XPL-001` through `XPL-004` | Historical coverage; revised skill Unverified |
+| `/simplify-code` | `simplify-code` | No | — | — | Unverified candidate |
+| `/deprecation-and-migration` | `deprecation-and-migration` | No | — | — | Unverified candidate |
+| `/diagnose-failure` | `diagnose-failure` | No | `CMD-011` | `DIA-001` | Historical coverage; revised skill Unverified |
+| `/verify-work` | `verify-work` | No | `CMD-005` | `VFY-001` through `VFY-003` | Historical coverage; revised skill Unverified |
+| `/review-work` | `review-work` | No | `CMD-009` | `REV-002`, `REV-003` | Historical coverage; revised skill Unverified |
+| `/commit-work` | `commit-work` | No | `CMD-002` | `CMT-001` through `CMT-004` | Historical coverage; revised skill Unverified |
+| `/handoff` | `handoff` | No | `CMD-006` | `HOF-001` through `HOF-005` | Historical coverage; revised skill Unverified |
+| `/finish-branch` | `finish-branch` | No | — | — | Unverified candidate |
+| `/release-work` | `release-work` | No | — | — | Unverified candidate |
+| `/shipping-and-launch` | `shipping-and-launch` | No | — | — | Unverified candidate |
 | `/bypass` | `bypass` | No | `CMD-007` | `BYP-001`, `BYP-002` | Covered |
 
 ## Pi Native Settings Commands
@@ -85,7 +91,7 @@ The highest-risk direct commands now have command-surface evals:
 - `/diagnose-failure`
 - `/discover`
 
-All direct skill commands, developer commands, and Pi native settings commands have command-surface, setup, or extension-test coverage for the current registry. `/discover` is the discovery command; `CMD-012` was rerun in the workflow-depth eval pass.
+All registry routes have a real skill target and matching Pi registration. Eleven direct calls retain historical command-surface eval coverage. The five optional additions are deliberately exposed as Unverified candidates rather than assigned synthetic evidence. `/discover` is the discovery command; `CMD-012` was rerun in the earlier workflow-depth eval pass.
 
 Recommended next validation target:
 
@@ -96,4 +102,4 @@ Recommended next validation target:
 
 Do not add Codex/Claude native slash-command runtime yet.
 
-Current evidence shows model-routed commands can shape behavior when the skill wording is strong enough. Pi registers direct command handlers through its extension. Several evals exposed wording/placement problems and were fixed without Codex/Claude slash-command runtime machinery.
+Historical evidence shows model-routed commands can shape behavior when skill wording is strong enough. Pi registers direct command handlers through its extension. The current adaptive revisions and candidate commands still require behavioral evaluation before readiness claims.

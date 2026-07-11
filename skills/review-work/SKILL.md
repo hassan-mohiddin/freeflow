@@ -15,6 +15,8 @@ Review is evidence, not verification. Passing review does not prove tests, build
 
 Prefer an independent reviewer with fresh context when novelty, risk, or author blind spots justify it. The mechanism may be another agent, a fresh run, an external reviewer, or any equivalent independent context. If independent review is unavailable or disproportionate, review inline and state that it was not independent.
 
+Use formal review where it can change confidence or route: architecture-bearing, sensitive, integration, accumulated-risk, or final work. Do not review every slice by habit. When individually valid slices interact or accumulate design pressure, review the combined behavior and interface rather than only the latest diff.
+
 Give the reviewer the work product and source truth, not only the author's summary or reasoning. Include:
 
 - the accepted outcome and relevant requirements;
@@ -37,11 +39,15 @@ Lead with:
 - failure behavior proved only by a happy-path check;
 - structural changes that spread complexity or exceed the accepted outcome.
 
+Read [the security risk lens](references/security-risk-lens.md) when work changes trust boundaries, authentication, authorization, permissions, untrusted input, secrets, sensitive data, dependencies, external integrations, or security-relevant failure behavior.
+
 Check minimality against the accepted outcome:
 
 - Does each new mechanism serve an accepted requirement or observed failure?
 - Did the change add speculative abstraction, compatibility, recovery, scale, or flexibility?
 - Do tests protect intended behavior, or merely legitimize machinery introduced by the change?
+- Have locally valid slices accumulated scope drift, caller coordination, or a shallow interface?
+- Is remaining work shrinking, and does the next bounded route still hold?
 - Would a smaller design preserve the required behavior and trust?
 
 Do not block because code differs from reviewer preference or leaves local reversible implementation details unspecified.
@@ -139,4 +145,4 @@ Lead with findings ordered by consequence, then state:
 - **Verification gaps:** claims review could not prove
 - **Route:** proceed, gather evidence, ask owner, apply accepted fixes later, or move backward
 
-If no findings remain, say the review passed and name residual assumptions or unverified behavior.
+If no findings remain, say the review passed and name residual assumptions or unverified behavior. A pass returns to the workflow route check; it is not automatic permission to continue.

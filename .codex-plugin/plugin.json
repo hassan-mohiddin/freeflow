@@ -21,7 +21,7 @@
   "interface": {
     "displayName": "Freeflow",
     "shortDescription": "Lightweight workflow for coding agents.",
-    "longDescription": "Freeflow guides coding agents through conversation, workflow, and strict-workflow modes with interview gates, source-truth checks, planning, execution, review, verification, commit discipline, handoffs, and durable decision capture.",
+    "longDescription": "Freeflow guides coding agents through conversation, workflow, and strict-workflow modes with decision gates, source-truth checks, planning, execution, review, verification, commit discipline, handoffs, and durable decision capture.",
     "developerName": "Hassan Mohiddin",
     "category": "Coding",
     "capabilities": [

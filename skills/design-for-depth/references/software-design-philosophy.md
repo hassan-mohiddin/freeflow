@@ -153,6 +153,28 @@ Do not over-apply ports/adapters:
 - a single stable library call may not need an adapter;
 - wrapping an SDK without hiding policy or provider quirks is often shallow.
 
+## Public Contract Cost
+
+Hyrum's Law applies beyond public HTTP APIs: every observable flag, path, state, ordering rule, filename, error, timing behavior, and fallback can become depended upon.
+
+Expose a fact only when the caller owns it or correct use requires it. Internal protocols may remain detailed and independently tested without becoming public seams.
+
+A useful split:
+
+- **Public:** caller-owned outcome, decisions, stable invariants, and observable failure semantics.
+- **Internal:** storage layout, provider mechanics, retries, cleanup, integrity publication, temporary states, and optimization machinery.
+
+Public flexibility has permanent coordination cost. One outcome-level operation is often deeper than a toolkit that lets callers reconstruct the module's lifecycle.
+
+## Maturity And Learning
+
+Classify mechanisms before adding them:
+
+- trust and safety can be bootstrap requirements;
+- efficiency, scale, and portability require observed pressure and approved scope.
+
+When the best interface cannot be known from source inspection, use a bounded learning slice. Name the question, competing designs, evidence, cost boundary, and discard-or-promote rule. Code can answer a design question without becoming the production design automatically.
+
 ## Refactoring Pressure
 
 Design pressure often appears as ordinary implementation pain:
@@ -207,7 +229,7 @@ Requirement: implement NotificationDeliveryPortFactoryStrategy.
 
 ### In plans
 
-Plan around vertical behavior and interfaces.
+Plan around vertical behavior and interfaces. Keep the immediate phase concrete and later phases provisional when implementation evidence may change them.
 
 For consequential systems, failure contract -> happy path -> refactor/deepen. Do not leave failure behavior as an implementer guess after happy-path planning.
 

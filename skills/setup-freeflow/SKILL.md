@@ -67,7 +67,7 @@ Persist `conversation` or `strict-workflow` only when the user explicitly asks t
 
 Do not add current mode, task, phase, file inventory, plans, version metadata, activation paths, unrequested capability/router keys, empty optional sections, repo-local hooks, docs inventories, state files, handoffs, skill inventories, setup-output-router skills, or empty `CONTEXT.md`.
 
-Do not list the whole workflow, every mode, or full `interview-gate`/`discover` skills in always-loaded text. Plugin runtime loads runtime context.
+Do not list the whole workflow, every mode, or full `decision-gate`/`discover` skills in always-loaded text. Plugin runtime loads runtime context.
 
 ## Optional Capabilities Branch
 
@@ -95,6 +95,6 @@ Before claiming setup is complete, check:
 - `.codex/rules` was not created or changed for Freeflow behavior;
 - no unrelated files changed.
 
-After successful setup verification, read `../mode-contract/SKILL.md`, `../workflow/SKILL.md`, and `../interview-gate/SKILL.md` before the final response. Read `../output-router/SKILL.md` or other capability skills only when that layer was enabled during setup. Treat discovery-light as loaded with the runtime rule: inspect the smallest relevant evidence, answer directly, and ask only path-changing questions. Only say mode-contract, workflow, interview-gate, and discovery-light context is loaded for this session if the three core files were read successfully; add capability context only for enabled layers whose files were read successfully.
+After successful setup verification, read `../mode-contract/SKILL.md`, `../workflow/SKILL.md`, and `../decision-gate/SKILL.md` before the final response. Read `../output-router/SKILL.md` or other capability skills only when that layer was enabled during setup. Treat discovery-light as loaded with the runtime rule: inspect the smallest relevant evidence, answer directly, and ask only path-changing questions. Only say mode-contract, workflow, decision-gate, and discovery-light context is loaded for this session if the three core files were read successfully; add capability context only for enabled layers whose files were read successfully.
 
 If verification cannot run, say what remains unverified.

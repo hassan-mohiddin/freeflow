@@ -356,23 +356,29 @@ check_docs_drift() {
     ok=0
   fi
 
-  contains_fixed "$release_evidence" "4 mode commands" || {
-    record_check "$check" "fail" "Release evidence no longer lists 4 mode commands."
+  local mode_count direct_count developer_count pi_native_count
+  mode_count="$(json_get "$command_surface" '.modeCommands | length')"
+  direct_count="$(json_get "$command_surface" '.directSkillCalls | length')"
+  developer_count="$(json_get "$command_surface" '.developerSkillCalls | length')"
+  pi_native_count="$(json_get "$command_surface" '.piNativeCommands | length')"
+
+  contains_fixed "$release_evidence" "$mode_count mode commands" || {
+    record_check "$check" "fail" "Release evidence no longer lists $mode_count mode commands."
     ok=0
   }
 
-  contains_fixed "$release_evidence" "11 direct skill calls" || {
-    record_check "$check" "fail" "Release evidence no longer lists 11 direct skill calls."
+  contains_fixed "$release_evidence" "$direct_count direct skill calls" || {
+    record_check "$check" "fail" "Release evidence no longer lists $direct_count direct skill calls."
     ok=0
   }
 
-  contains_fixed "$release_evidence" "3 developer skill calls" || {
-    record_check "$check" "fail" "Release evidence no longer lists 3 developer skill calls."
+  contains_fixed "$release_evidence" "$developer_count developer skill calls" || {
+    record_check "$check" "fail" "Release evidence no longer lists $developer_count developer skill calls."
     ok=0
   }
 
-  contains_fixed "$release_evidence" "3 Pi native settings commands" || {
-    record_check "$check" "fail" "Release evidence no longer lists 3 Pi native settings commands."
+  contains_fixed "$release_evidence" "$pi_native_count Pi native settings commands" || {
+    record_check "$check" "fail" "Release evidence no longer lists $pi_native_count Pi native settings commands."
     ok=0
   }
 

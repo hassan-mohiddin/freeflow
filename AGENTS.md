@@ -8,13 +8,13 @@ The plugin is not a new agent. It is a portable workflow layer for agents such a
 
 Use Freeflow for consequential work. Default mode: `.freeflow/config.json`.
 
-Move forward when context is sufficient. Re-enter clarification when new ambiguity would change the next action.
+Move forward when context is sufficient. After each meaningful slice, verify what it proved and route backward when new evidence changes the next safe action.
 
 Treat questions as questions and suggestions as hypotheses. Answer directly; do not infer correction, permission, or agreement.
 
 Ask before user-owned decisions: product behavior, scope, public APIs, security, privacy, billing, data loss, compatibility, permissions, or irreversible architecture.
 
-Treat live repo evidence and existing docs/tests as source truth. If the user request conflicts with them, stop and ask before changing behavior.
+Treat live repo evidence and existing docs/tests as source truth. If the user request conflicts with them, use the Decision Gate before changing behavior.
 
 Verify before completion claims. Capture only stable decisions, glossary terms, ADR-worthy tradeoffs, or useful handoff memory.
 
@@ -77,6 +77,7 @@ When reference skills conflict:
 - Do not hardcode volatile repo facts, directory inventories, or stack summaries into durable memory.
 - Treat handoffs as memory, not authority.
 - Let live repo evidence override stale handoff text.
+- Preserve valid work and route only invalidated decisions, specs, phases, or slices backward.
 - Do not let the agent silently decide product behavior, scope, domain meaning, compatibility, public API behavior, security, privacy, billing, data-loss, or irreversible architecture.
 - If a user-owned decision appears, ask before editing.
 - Verify before claiming work is complete.
@@ -97,7 +98,8 @@ The core workflow principle:
 
 ```text
 Move forward when context is sufficient.
-Re-enter clarification when new ambiguity would change the next action.
+Verify and check the route after each meaningful slice.
+Re-enter the narrowest owning activity when evidence changes the path.
 ```
 
 ## Implementation Pointers

@@ -66,6 +66,9 @@ For pass 2 or 3:
 - Security, privacy, billing, permissions, compatibility, public API, and data safety where relevant.
 - Complexity and abstractions are justified by the accepted outcome or an observed failure.
 - Tests protect intended behavior rather than machinery introduced by the implementation.
+- Individually valid slices have not accumulated scope drift, caller coordination, or a shallow interface.
+- Remaining work is shrinking and the claimed next route still fits the evidence.
+- For security-sensitive work, use `security-risk-lens.md` and applicable repo/domain policy rather than a generic checklist.
 
 For follow-up review, inspect accepted fixes and named residual risk. Do not restart broad review, reopen settled decisions, or re-raise rejected findings without contradictory live evidence.
 
@@ -115,4 +118,4 @@ Verification gaps: [unproved claims or none]
 
 Lead with the few findings that can change the route. A long list of low-consequence observations is weaker than one well-supported blocker.
 
-A reviewer verdict is evidence for parent adjudication, not authority to edit source truth or settle owner decisions. Use `Non-blocking` status only when findings are deferrable and no blocker, unresolved owner question, or required evidence gap prevents proceeding. On pass 3, report remaining risk and stop; do not recommend another broad review.
+A reviewer verdict is evidence for parent adjudication, not authority to edit source truth or settle owner decisions. Use `Non-blocking` status only when findings are deferrable and no blocker, unresolved owner question, or required evidence gap prevents proceeding. A passing review returns to the workflow route check; it does not authorize continuation by itself. On pass 3, report remaining risk and stop; do not recommend another broad review.

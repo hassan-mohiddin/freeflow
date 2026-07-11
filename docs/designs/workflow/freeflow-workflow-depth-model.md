@@ -1,7 +1,9 @@
 # Freeflow Workflow Depth Model
 
 Date: 2026-06-22
-Status: Direction accepted for implementation planning
+Status: Implemented; current adaptive revision remains Unverified
+
+2026-07-11 disposition: `discover` and `design-for-depth` are active, `/research` is not a compatibility alias, and the adaptive slice/route-check model is implemented. Behavioral evaluation of the revised snapshot remains pending; current plugin docs and live skills override this planning-era note.
 
 ## Purpose
 
@@ -17,7 +19,7 @@ This note comes from discussion and a focused research pass over:
   - `docs/freeflow-runtime-and-lifecycle.md`
   - `skills/workflow/SKILL.md`
   - `skills/discover/SKILL.md`
-  - `skills/interview-gate/SKILL.md`
+  - `skills/decision-gate/SKILL.md`
   - `skills/write-spec/SKILL.md`
   - `skills/write-plan/SKILL.md`
   - `skills/review-artifact/SKILL.md`
@@ -37,13 +39,10 @@ This note comes from discussion and a focused research pass over:
 Most modern agent workflow packs share a useful high-level lifecycle:
 
 ```text
-discover context
--> write spec/artifact
--> write plan
--> execute
--> review
--> verify
--> commit or handoff
+choose the narrowest useful entry
+-> execute a learning, delivery, or deepening slice
+-> verify + route check
+-> conditionally review, commit, hand off, integrate, release, or ship
 ```
 
 This is better than direct implementation from a thin prompt, but it still fails in predictable ways:
@@ -64,10 +63,11 @@ The missing model is not “more process.” It is a reusable depth lens and cle
 Freeflow should be a connected feedback-loop system:
 
 ```text
-discover / design loop
--> spec / plan artifacts
--> vertical slice execution
--> review + verify
+discover / design when needed
+-> conditional spec / rolling plan
+-> meaningful slice
+-> verify + route check
+-> conditional checkpoint or delivery
 -> backward edge whenever evidence invalidates the path
 ```
 
@@ -94,8 +94,8 @@ Use one owner per concept. Other skills should link to or briefly trigger the ow
 
 | Concern | Owner | Other skills should do |
 | --- | --- | --- |
-| Workflow spine, phase exits, backward edge | `workflow` | Route through it; do not restate the full lifecycle. |
-| User-owned decisions and source-truth/path conflicts | `interview-gate` | Trigger it when decisions or conflicts appear. |
+| Adaptive routing, slice exits, backward edge | `workflow` | Route through it; do not restate the full lifecycle. |
+| User-owned decisions and source-truth/path conflicts | `decision-gate` | Trigger it when decisions or conflicts appear. |
 | Discovery, brainstorming, evidence, decision ledger, checkpoints | `discover` | Own deeply; other skills consume its checkpoint. |
 | Deep/shallow modules, seams, adapters, locality, leverage | Proposed `design-for-depth` lens | Load/use it when design pressure appears. |
 | Spec writing | `write-spec` | Convert agreed context into source-backed requirements and boundaries. |
@@ -206,7 +206,7 @@ Update direction:
 
 - Make dependency and slice order explicit when it affects execution.
 - Use vertical slices that produce testable behavior.
-- Include checks, review checkpoints, commit/handoff checkpoints, and stop conditions per meaningful slice.
+- Include checks and route conditions per meaningful slice; mark review, commit, and handoff checkpoints only when their value or risk justifies them.
 - Allow some design decisions to be deferred until slice evidence exists.
 - Route to design-for-depth when slice boundaries, seams, interfaces, or locality are unclear.
 

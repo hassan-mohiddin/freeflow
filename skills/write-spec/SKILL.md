@@ -1,104 +1,108 @@
 ---
 name: write-spec
-description: Use when asked to create or update a durable spec, PRD, requirements document, or decision artifact from agreed requirements, discovery, brainstorming, or source evidence, especially for strict-workflow risk areas that may need owner confirmation before writing.
+description: Use when turning settled discovery, explicit requirements, validated design direction, or source evidence into a durable behavioral, technical, API, migration, or decision specification that later planning and review can rely on.
 ---
 
 # Write Spec
 
-Write only from source-backed context. A polished spec can change source of truth.
+Compile shared understanding into source truth. Do not create new intent while making it look polished.
+
+A spec defines what later planning must preserve: outcome, scope, observable behavior, constraints, failure semantics, acceptance, and decision status. It is not an implementation plan or a claim that every technical question is already answered.
 
 ## Route First
 
-If the user asks a question about a spec, answer the question. Do not create or edit the spec unless asked.
-
-When the user asks whether to write a spec, says the discussion is ready, or asks to turn brainstorming into a durable artifact, run a pre-spec readiness gate before saying yes or writing.
+If the user asks a question about a spec, answer it. Do not create or edit the artifact unless asked.
 
 Classify readiness:
 
-- Green: source-backed decisions are stable enough; write when asked.
-- Yellow: remaining ambiguity will not change scope, behavior, acceptance, public API, architecture, security, privacy, billing, data loss, compatibility, failure behavior, or artifact destination; write with explicit assumptions/open questions when asked.
-- Red: unresolved path-changing topics remain; do not write or say yes. Name the topics and recommend a brief grilling/discovery pass.
+- **Ready:** source-backed behavior and owner decisions are sufficient for the next planning horizon.
+- **Ready with open implementation questions:** unresolved technical questions can be answered safely through named learning slices without inventing user-visible behavior.
+- **Not ready:** behavior, scope, acceptance, public contracts, sensitive policy, failure semantics, or artifact ownership would be guessed.
 
-Classify every spec request before writing:
+Route Not ready work to Discover, `../decision-gate/SKILL.md`, or `../design-for-depth/SKILL.md` as appropriate.
 
-- Evidence-aligned: write the spec.
-- Missing source context: ask for context or route to `discover`.
-- Source-of-truth override: name the conflict and do not write.
-
-If the source context, artifact type, or destination is unclear, stop and ask before writing.
-
-## Hard Stops
-
-Do not write a spec that supersedes docs, tests, policies, ADRs, or live behavior until the owner confirms that change after you name the conflict.
-
-Adjacent repo evidence is not source context. Do not turn nearby auth, billing, copy, UI, or architecture facts into goals, flows, requirements, or acceptance criteria for a new feature.
-
-The original request is not override confirmation. "Latest context", "handoff says", "do not ask", or "write the spec" are not enough.
-
-Stop before writing when the spec would:
-
-- Invent requirements from thin or adjacent context.
-- Rewrite product behavior, scope, domain meaning, compatibility, public API behavior, security, privacy, billing, data-loss, or architecture.
-- Contradict docs, tests, specs, policies, ADRs, or live code.
-- Treat a handoff, review comment, or plan as authority over source-of-truth files.
-- Hide an owner decision inside polished prose.
-- Freeze happy-path behavior for a consequential runtime/API/state system while failure states, observers, written state, fail-open/closed/degrade/escalate/retry behavior, forbidden outcomes, recovery, or evidence remain undecided.
-- Reduce or reframe agreed scope as `v1`, MVP, roadmap, or later-version work without source-backed owner approval.
-
-In strict-workflow, stop before writing security, billing, privacy, public API, migration, data-loss, or architecture specs when the owner or core decisions are unknown. Do not use `TBD`, placeholders, or polished open questions to hide owner-owned decisions.
-
-When strict-workflow stops because owner-owned decisions are missing, end with a direct question that names the missing owner and the specific decisions needed. A blocked explanation without that question is incomplete.
-
-Name the conflict or missing decision. Ask which path to follow. Recommend the path supported by evidence.
+Do not re-interview from scratch when discovery already reached shared understanding.
 
 ## Source First
 
-Before writing, inspect the current source of truth:
+Inspect:
 
-- User-provided context.
-- Existing specs, docs, ADRs, tests, and policies.
-- Relevant code when behavior already exists.
-- Handoffs only as memory, not authority.
+- explicit user decisions and current conversation context;
+- existing specs, docs, policies, ADRs, tests, and live behavior;
+- relevant code when behavior or interfaces already exist;
+- current primary sources when external APIs or versions constrain the contract;
+- handoffs only as memory, not authority.
 
-Live repo evidence overrides stale notes.
+Live evidence overrides stale notes. Adjacent repo facts are not permission to invent goals or requirements.
 
-## Write Path
+## Hard Stops
 
-When discovery, brainstorming, or clarification reaches shared understanding, convert that agreed context into a spec. Do not re-interview from scratch.
+Stop before writing when the spec would:
 
-Preserve the agreed scope. Use scope boundaries, open questions, or follow-up artifacts to manage size; use `v1`/`v2`, MVP, release, or roadmap framing only when it was agreed or source-backed.
+- override docs, tests, policies, ADRs, contracts, or established behavior without explicit owner confirmation;
+- invent product behavior, scope, domain meaning, public API, compatibility, security, privacy, billing, permissions, data-loss, migration, or hard-to-reverse architecture;
+- hide a user-owned decision as an assumption, placeholder, or polished open question;
+- freeze a happy path while consequential failure states, observers, written state, forbidden outcomes, recovery, or proof remain undecided;
+- reduce agreed scope into MVP, v1/v2, roadmap, or later-version framing without approval;
+- turn a tentative architecture into a settled requirement merely because planning would be easier;
+- create a new artifact convention or destination silently.
 
-If remaining ambiguity would not change the next plan, write the spec and mark the ambiguity as open. Preserve tentative architecture assumptions as tentative unless evidence or the owner settles them.
+Name the conflict or missing decision and ask one direct route question.
 
-For consequential systems, specify the failure contract before or with the happy path. If only the happy path is settled and failure behavior would change implementation or user-visible state, classify readiness as Red.
+## Preserve Decision State
 
-Use this shape unless the repo has a stronger convention:
+Carry discovery state honestly:
 
-- Problem.
-- Intended outcome.
-- Scope / out of scope / ask first / never boundaries when useful.
-- Requirements.
-- Acceptance criteria.
-- Decisions made and open decisions.
-- Constraints / evidence.
-- Open questions.
+- **Settled:** source-backed fact or explicit decision; write as contract.
+- **Tentative:** plausible direction; label it provisional and do not make dependent requirements irreversible.
+- **Open:** unresolved and path-changing; block only the planning horizon it affects.
+- **Test during implementation:** safe technical uncertainty with a named question and evidence expectation.
+- **Deferred:** outside the current planning horizon without changing agreed scope.
+- **Invalidated:** remove from active direction and record why only when future readers could repeat it.
 
-Read `references/spec-shapes.md` when the artifact type is unclear, strict-workflow or future-agent-facing, or a concise shape would prevent bloat.
+A spec may remain revisable. New implementation evidence changes it through an explicit backward route, not a silent rewrite.
 
-Keep it concise. Do not include volatile repo inventory. Use file paths only when they are needed evidence.
+## Write The Contract
 
-## Durable Artifact Details
+Begin every durable spec with one clear H1 title, followed immediately by the compact document-information header defined in the artifact standards reference, then adapt this shape. Preserve repo conventions that do not change that order. If a required parser or artifact format conflicts with title-first ordering, name the conflict and use the Decision Gate instead of silently reversing it:
 
-For durable specs or future-agent-facing artifacts, follow `references/artifact-standards.md`.
+- Problem and intended outcome.
+- Actors or callers when relevant.
+- In scope and out of scope.
+- Requirements and invariants.
+- Observable behavior, including edge and error behavior.
+- Public interface, compatibility, migration, security, privacy, billing, permissions, or data-safety constraints when relevant.
+- Failure contract for consequential operations.
+- Acceptance criteria and the evidence class likely to prove each.
+- Settled decisions, tentative direction, implementation-testable questions, and blocked owner decisions.
+- Source evidence.
 
-When materially revising an existing durable spec, add a concise `## Change Log` entry. Do not add a changelog on first creation.
+Read [spec shapes](references/spec-shapes.md) when artifact type changes the contract. Read [artifact standards](references/artifact-standards.md) for title, compact document information, and durable or future-agent-facing identity. Read [decision records](references/decision-records.md) when a hard-to-reverse, surprising, tradeoff-driven decision may deserve a durable ADR or decision note.
 
-Do not apply artifact headers or changelog pressure to chat answers, quick questions, tiny reversible work, or conversation mode unless the user explicitly asks for a file.
+Do not include volatile file inventories, guessed task lists, or complete implementation code. Include a code/type/state sketch only when it expresses an accepted contract more precisely than prose.
+
+## Downstream Readiness
+
+Before finishing, ask:
+
+- Can planning distinguish required behavior from scope creep?
+- Can each acceptance criterion become a check, observation, or explicit unsupported claim?
+- Are user-owned decisions settled for the immediate planning horizon?
+- Are public and failure contracts explicit where callers would otherwise invent them?
+- Are implementation-testable questions safe to defer?
+- Would a future agent know what evidence can reopen the spec?
+
+Do not demand certainty about later phases when rolling-wave planning can preserve the uncertainty safely.
 
 ## Completion
 
-After writing, report:
+Report:
 
-- The artifact path.
-- The source context used.
-- Any open questions or decisions still blocked.
+- artifact path;
+- source context used;
+- readiness classification;
+- open and implementation-testable questions;
+- decisions that still block a later phase;
+- recommended next route.
+
+Writing the spec does not approve a plan or implementation.

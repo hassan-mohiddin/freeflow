@@ -12,11 +12,16 @@ export const WORKFLOW_COMMANDS = [
   { command: "review-artifact", skill: "review-artifact" },
   { command: "write-plan", skill: "write-plan" },
   { command: "execute-plan", skill: "execute-plan" },
+  { command: "simplify-code", skill: "simplify-code" },
+  { command: "deprecation-and-migration", skill: "deprecation-and-migration" },
   { command: "diagnose-failure", skill: "diagnose-failure" },
   { command: "verify-work", skill: "verify-work" },
   { command: "review-work", skill: "review-work" },
   { command: "commit-work", skill: "commit-work" },
   { command: "handoff", skill: "handoff" },
+  { command: "finish-branch", skill: "finish-branch" },
+  { command: "release-work", skill: "release-work" },
+  { command: "shipping-and-launch", skill: "shipping-and-launch" },
   { command: "bypass", skill: "bypass" },
 ];
 
@@ -29,17 +34,23 @@ export const CONTRIBUTOR_COMMANDS = [
 export const FREEFLOW_MODEL_SKILL_NAMES = [
   "bypass",
   "commit-work",
+  "decision-gate",
+  "deprecation-and-migration",
   "design-for-depth",
   "diagnose-failure",
   "discover",
   "evaluate-skill",
   "execute-plan",
+  "finish-branch",
   "handoff",
-  "interview-gate",
   "mode-contract",
+  "release-work",
   "review-artifact",
   "review-work",
   "setup-freeflow",
+  "shipping-and-launch",
+  "simplify-code",
+  "tdd",
   "verify-work",
   "workflow",
   "write-plan",
@@ -69,22 +80,22 @@ async function loadRuntimeContext(capabilityState = undefined) {
   const skillsEnabled = capabilityState?.skills?.effective === true;
   const outputRouterEnabled = capabilityState?.outputRouter?.enabled === true;
   const delegationHarnessEnabled = capabilityState?.delegationHarness?.enabled === true;
-  const [modeContractSkill, workflowSkill, interviewGateSkill, outputRouterSkill, delegationHarnessSkill] = await Promise.all([
+  const [modeContractSkill, workflowSkill, decisionGateSkill, outputRouterSkill, delegationHarnessSkill] = await Promise.all([
     skillsEnabled ? readFile(new URL("../../skills/mode-contract/SKILL.md", import.meta.url), "utf8") : Promise.resolve(null),
     skillsEnabled ? readFile(new URL("../../skills/workflow/SKILL.md", import.meta.url), "utf8") : Promise.resolve(null),
-    skillsEnabled ? readFile(new URL("../../skills/interview-gate/SKILL.md", import.meta.url), "utf8") : Promise.resolve(null),
+    skillsEnabled ? readFile(new URL("../../skills/decision-gate/SKILL.md", import.meta.url), "utf8") : Promise.resolve(null),
     outputRouterEnabled ? readFile(new URL("../../skills/output-router/SKILL.md", import.meta.url), "utf8") : Promise.resolve(null),
     delegationHarnessEnabled ? readFile(new URL("../../skills/delegation-harness/SKILL.md", import.meta.url), "utf8") : Promise.resolve(null),
   ]);
 
-  return { modeContractSkill, workflowSkill, interviewGateSkill, outputRouterSkill, delegationHarnessSkill };
+  return { modeContractSkill, workflowSkill, decisionGateSkill, outputRouterSkill, delegationHarnessSkill };
 }
 
 function runtimeContextCacheSatisfies(capabilityState) {
   if (!runtimeContextCache) {
     return false;
   }
-  if (capabilityState?.skills?.effective === true && (!runtimeContextCache.modeContractSkill || !runtimeContextCache.workflowSkill || !runtimeContextCache.interviewGateSkill)) {
+  if (capabilityState?.skills?.effective === true && (!runtimeContextCache.modeContractSkill || !runtimeContextCache.workflowSkill || !runtimeContextCache.decisionGateSkill)) {
     return false;
   }
   if (capabilityState?.outputRouter?.enabled === true && !runtimeContextCache.outputRouterSkill) {
@@ -415,7 +426,7 @@ Mode Contract handles mode setting, mode interpretation, and mode mismatch befor
 Priority order for matched non-mode workflow skills:
 
 1. Workflow classifies conversation versus consequential work.
-2. Interview Gate stops silent decisions, user-owned decisions, source-truth conflicts, and question-to-action mistakes.
+2. Decision Gate stops silent decisions, user-owned decisions, source-truth conflicts, and question-to-action mistakes.
 3. Discovery-light handles context-building after no immediate stop condition remains. Use it before first repo/code exploration or design answers for consequential product/API/tool/runtime hypotheses.
 4. Enabled Freeflow capabilities add their own runtime guidance below.`;
 }
@@ -500,7 +511,7 @@ These instructions are context-loading only. They do not override user instructi
 
   const modeText = capabilityState.skills.effective ? activeModeContext(modeState) : inactiveModeContext(modeState);
   const skillsText = capabilityState.skills.effective
-    ? `\n\n${runtimePriorityContext()}\n\n${modeContractContext(freeflowContext)}\n\n## Loaded Workflow Skill\n\n\`\`\`md\n${freeflowContext.workflowSkill.trim()}\n\`\`\`\n\n## Loaded Interview Gate Skill\n\n\`\`\`md\n${freeflowContext.interviewGateSkill.trim()}\n\`\`\`\n\n${discoveryLightContext()}`
+    ? `\n\n${runtimePriorityContext()}\n\n${modeContractContext(freeflowContext)}\n\n## Loaded Workflow Skill\n\n\`\`\`md\n${freeflowContext.workflowSkill.trim()}\n\`\`\`\n\n## Loaded Decision Gate Skill\n\n\`\`\`md\n${freeflowContext.decisionGateSkill.trim()}\n\`\`\`\n\n${discoveryLightContext()}`
     : "";
   const routerText = capabilityState.outputRouter.enabled && routerConfigResult.config.enabled
     ? `\n\n${outputRouterContext(modeState, freeflowContext, routerConfigResult, capabilityState)}`

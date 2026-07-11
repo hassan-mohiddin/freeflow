@@ -18,8 +18,8 @@ Setup renders this reference. Do not copy full skills, workflow maps, or runtime
 - Existing repo instructions remain source truth.
 - Setup hard-stops before unresolved host ambiguity or repo-rule conflict.
 - Setup does not create repo-local hooks, docs inventories, state files, handoffs, empty `CONTEXT.md`, skill inventories, `setup-output-router` skills, version metadata, activation path, current task, or current phase.
-- Plugin-bundled context hooks and the Pi extension stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape; after that, they may load mode-contract, workflow, interview-gate, discovery-light, and enabled capability context at session start, but they are package runtime, not setup output.
-- After successful setup verification, setup reads the mode-contract, workflow, and interview-gate skills before its final response, conditionally reads capability skills only when their layers are enabled, and applies the discovery-light runtime rule so the current session is immediately usable.
+- Plugin-bundled context hooks and the Pi extension stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape; after that, they may load mode-contract, workflow, decision-gate, discovery-light, and enabled capability context at session start, but they are package runtime, not setup output.
+- After successful setup verification, setup reads the mode-contract, workflow, and decision-gate skills before its final response, conditionally reads capability skills only when their layers are enabled, and applies the discovery-light runtime rule so the current session is immediately usable.
 
 ## Host Adapters
 

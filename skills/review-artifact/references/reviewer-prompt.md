@@ -59,6 +59,7 @@ For pass 2 or 3:
 - Implementation risk: omissions will not cause wrong work, hidden decisions, or an implementation dead end.
 - Design depth: interfaces and seams hide complexity rather than spreading caller coordination.
 - Scope and minimality: the artifact solves the accepted outcome without quietly generalizing the milestone.
+- Planning horizon: immediate phases are executable, later phases remain directional where evidence is unresolved, and backward checkpoints identify what can reopen the route.
 - Adversarial risk: stale assumptions or source-truth overrides cannot be smuggled into execution.
 
 For follow-up review, inspect accepted fixes and named residual risk. Do not restart broad review, reopen settled intent, or re-raise rejected findings without contradictory live evidence.
@@ -112,4 +113,4 @@ Recommendation: Proceed | Revise later | Gather evidence | Ask owner | Move back
 
 Only flag issues that could cause wrong work, blocked work, hidden decisions, unsafe behavior, stale authority, or an implementation dead end.
 
-Reviewer output is evidence for parent adjudication, not authority to rewrite source truth. Use `Non-blocking` status only when findings are deferrable and no blocker, unresolved owner question, or required evidence gap prevents the intended next step. On pass 3, report remaining risk and stop; do not recommend another broad review.
+Reviewer output is evidence for parent adjudication, not authority to rewrite source truth. Use `Non-blocking` status only when findings are deferrable and no blocker, unresolved owner question, or required evidence gap prevents the intended next step. A passing review returns to the workflow route check; it does not approve the next phase by itself. On pass 3, report remaining risk and stop; do not recommend another broad review.

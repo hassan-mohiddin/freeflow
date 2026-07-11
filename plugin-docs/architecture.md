@@ -11,8 +11,8 @@ Host runtimes still control tools, sandboxing, approvals, and permissions. Freef
 - how much clarification is needed
 - when artifacts are useful
 - when source-truth conflicts stop edits
-- when review and verification are required
-- when a handoff or durable decision is useful
+- how each meaningful slice is verified and rerouted from evidence
+- when independent review, commit, handoff, branch integration, release, or launch is useful
 
 ## Package Layout
 
@@ -70,7 +70,7 @@ Setup should not silently update both hosts or overwrite stronger repo-specific 
 
 The installed plugin owns `hooks/hooks.json`. Setup does not copy hook files into target repos.
 
-The hooks stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape. Once configured and enabled, they load the existing `mode-contract`, `workflow`, and `interview-gate` skills plus discovery-light runtime guidance, and any enabled capability context:
+The hooks stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape. Once configured and enabled, they load the existing `mode-contract`, `workflow`, and `decision-gate` skills plus discovery-light runtime guidance, and any enabled capability context:
 
 - at session start, including startup, resume, clear, and compact
 
@@ -86,4 +86,4 @@ Pi uses an extension instead of `hooks/hooks.json`. The built Pi extension regis
 
 Enforcement hooks and CLI checks are intentionally deferred. They are useful only after skill wording and evals prove a repeated behavior needs mechanical enforcement.
 
-For this release, commands are model-routed language such as `/write-spec` or `/verify-work`; they are not native registered slash handlers.
+For Codex and Claude, slash-style skill calls such as `/write-spec` or `/verify-work` are model-routed language rather than native registered handlers. The Pi extension registers the direct and developer calls declared in `command-surface.json`; natural language remains the preferred interface.

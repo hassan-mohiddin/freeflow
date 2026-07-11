@@ -1,36 +1,46 @@
 # Handoff Templates
 
-Use this only after destination is clear: temp handoff or memory handoff.
+Use these only after choosing temporary versus repo memory. Include only fields needed for the current continuation risk.
 
-Handoffs are memory, not authority. Keep them compact, evidence-linked, and easy for a fresh agent to verify.
+Handoffs are memory, not authority. Live repo evidence overrides stale handoff text.
 
-## Temp Handoff
+## Temporary Handoff
 
-Use for immediate continuation after compaction, pausing, or a fresh chat.
+Use for immediate continuation after pause, compaction, context pressure, or session change.
 
 ```md
-# Temp Handoff
+# Temporary Handoff
 
 Date: YYYY-MM-DD
 
-## Goal
+## Goal And Accepted Outcome
 
-## Current State
+## Current Route
+- Phase / slice:
+- Route: continue | review | verify | commit | diagnose | discover/design | revise spec/plan | decide | stop
 
-## Decisions Made
+## Completed And Verified
+
+## Current Worktree / Process Watchouts
+
+## Decisions And Source Authority
+
+## Invalidated Assumptions
+
+## Open Decisions Or Evidence
 
 ## Evidence To Reopen
 
-## Next Action
+## Next Executable Action
 
-## Watchouts
+## Stop Conditions
 ```
 
-Keep `Current State` focused on what the next agent needs before acting. Do not include a transcript, full file tree, or broad repo summary.
+Keep worktree details narrow: only paths or processes whose omission could cause loss, overwrite, duplicate work, or an unsafe claim.
 
-## Memory Handoff
+## Repo Memory Handoff
 
-Use for durable project memory under the repo's existing handoff location.
+Use for durable project continuation under the repo's established handoff location.
 
 ```md
 # Project Handoff
@@ -41,24 +51,59 @@ Date: YYYY-MM-DD
 
 ## Stable Context
 
-## Decisions Made
+## Decisions And Source Authority
 
-## Live Evidence
+## Evidence And Current Status
 
-## Next Focus
+## Current Executable Horizon
+
+## Directional Later Work
+
+## Invalidated, Superseded, Or Deferred
+
+## Open Decisions And Evidence Gaps
+
+## Next Route
 
 ## Stop Conditions
-
-## Superseded Or Deferred Work
 ```
 
-Use `Live Evidence` for paths, tests, specs, ADRs, or commands the next agent should inspect. Say explicitly that live repo evidence overrides stale handoff text.
+Do not freeze provisional later phases. Point to the owning spec, plan, decision, review, or verification artifact instead of copying it.
+
+## Learning-Slice Addendum
+
+Include when a prototype, benchmark, or experiment changed the route:
+
+```md
+Question:
+Competing hypotheses or designs:
+Evidence captured:
+Discard-or-promote result:
+Exploratory artifacts retained:
+Affected spec / plan / later phases:
+Next route:
+```
+
+## Review-Loop Addendum
+
+Include when review history must survive a context change:
+
+```md
+Review pass: 1 | 2 | 3
+Prior findings:
+Parent adjudication: accepted | rejected | question | needs evidence
+Owner clarifications:
+Changed areas:
+Residual risk:
+```
+
+A fresh reviewer continues this history; it does not restart at pass 1.
 
 ## Resume Checklist
 
-When resuming from either handoff:
-
-- Reopen linked live files before consequential edits.
-- Verify completion claims before repeating them.
-- Treat source-truth conflicts as interview-gate triggers.
-- Ask before changing product, policy, security, privacy, billing, data-loss, compatibility, public API, or hard-to-reverse architecture.
+- Reopen named source truth and live worktree state.
+- Verify completion, review, commit, and test claims.
+- Check whether assumptions, interfaces, scope, or later phases changed.
+- Preserve valid evidence; route only invalidated work backward.
+- Reconstruct the next slice contract before editing.
+- Use the decision gate for user-owned or source-truth conflicts.

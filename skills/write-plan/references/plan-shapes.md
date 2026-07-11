@@ -1,70 +1,128 @@
 # Plan Shapes
 
-Use this for strict-workflow, high-risk, durable, or delegated plans.
+Choose the smallest plan that lets the next execution horizon proceed safely. Plans are revisable paths, not frozen predictions.
+
+## Lightweight Plan
+
+Use for clear, low-risk, bounded work:
+
+```text
+Goal:
+Source context:
+Slice(s):
+Checks:
+Stop conditions:
+```
+
+No artifact identity, phase taxonomy, or checkpoint ceremony is required when one short slice is sufficient.
+
+## Rolling Plan
+
+Use for consequential multi-phase work:
+
+```text
+Goal and source authority:
+Scope / non-goals:
+
+Phase 1 — current executable horizon
+- Outcome
+- Assumptions under test
+- Learning and delivery slices
+- Verification
+- Backward checkpoint
+- Likely review / commit / handoff checkpoint
+
+Phase 2 — directional
+- Intended outcome
+- Dependencies
+- Likely slices
+- Questions to resolve from Phase 1 evidence
+
+Later phases — provisional
+- Outcomes and major constraints only
+
+Dynamic plan-health triggers:
+Final acceptance and residual risks:
+```
+
+Detail decreases with distance. Refine a later phase only when it becomes the next executable horizon.
+
+## Slice Shape
+
+```text
+Slice outcome:
+Source requirement / acceptance:
+Type: learning | delivery | deepening
+Likely module / interface / write set:
+Behavior, experiment, test, or benchmark:
+Failure contract when relevant:
+Verification:
+Dependencies:
+Stop conditions:
+```
+
+A slice is a proof-bearing unit, not a file list. It should be independently understandable and leave a clear route.
+
+## Learning Slice
+
+```text
+Question:
+Competing hypotheses or designs:
+Prototype / benchmark boundary:
+Evidence to capture:
+Time, request, or cost boundary:
+Discard-or-promote rule:
+Backward checkpoint:
+```
+
+A learning slice ends in evidence and a route decision. Production code is not its default output.
+
+## Backward Checkpoint
+
+```text
+Assumptions under test:
+Continue if:
+Re-enter Discover/design if:
+Revise spec if:
+Revise plan or later phases if:
+Owner decision if:
+```
+
+Use after architecture-bearing or uncertainty-reducing work. Do not require one after every mechanical slice.
 
 ## Durable Plan Identity
 
-When saving a plan that future agents or teammates will rely on, start with a compact header:
+When future agents or teammates will rely on the saved plan, use a compact header:
 
 ```md
 > **Doc ID:** PLAN-001-billing-webhook-api
-> **Date:** 2026-05-26
+> **Date:** 2026-07-11
 > **Owner:** Hassan Mohiddin
 > **Type:** Plan
 > **Status:** Ready
 > **Source:** docs/specs/billing-webhook-api.md
 ```
 
-Rules:
+Use `Draft` when the next horizon is not executable and `Ready` when it is. In strict-workflow, stop rather than guessing owner, source, or sensitive behavior.
 
-- `Doc ID`: stable and readable. Prefer `PLAN-###-slug` when no repo convention exists.
-- `Owner`: use the spec/product owner when known. In normal workflow, use `User` only when the requester is the only known owner.
-- `Status`: use `Draft` when decisions/checks are still incomplete; use `Ready` when the plan is executable.
-- `Source`: cite the approved spec, clarified context, issue, ADR, or docs used as authority.
+## Separate-Agent Guidance
 
-In strict-workflow for security, billing, privacy, public API, migration, data-loss, or architecture work, stop and ask if owner/status/source would be guessed.
+A work package should give an executing role:
 
-Do not add a changelog on first creation.
+- one slice outcome and source requirements;
+- relevant interfaces and constraints;
+- expected evidence and output;
+- write boundary;
+- stop/escalation conditions.
 
-## Lightweight Plans
+Do not prescribe harness-specific agents, models, worktrees, timeouts, or transport. The active harness owns those mechanics.
 
-Use for low-risk context-backed work:
+## Checkpoint Selection
 
-- goal
-- source context
-- files likely touched
-- short slices
-- checks
+- **Route check:** after every slice; normally internal and lightweight.
+- **Review:** architecture, sensitive behavior, integration risk, or accumulated change.
+- **Commit:** coherent verified rollback point when authorized.
+- **Handoff:** context or continuity boundary.
+- **Backward:** evidence invalidates assumptions, interface, scope, spec, or later plan.
 
-Mention that a spec is preferred when no approved spec exists, but do not add artifact pressure for tiny reversible work.
-
-## Normal Plans
-
-Use for spec-backed feature work:
-
-- goal
-- source context
-- non-goals if the spec has them
-- files likely touched
-- vertical slices, each with tests/checks
-- stop conditions
-- final verification
-
-Each slice should produce a reviewable state, not just a list of files to edit.
-
-## Strict Or Delegated Plans
-
-Use for high-risk work or work another agent will execute:
-
-- durable plan identity
-- goal and source authority
-- explicit assumptions from source truth
-- likely files/modules, with "find existing pattern first" when unknown
-- vertical slices with expected red/green checks
-- review checkpoints before risky behavior lands
-- stop conditions for source-truth conflicts or owner-owned decisions
-- final verification and handoff criteria
-
-Call out sensitive boundaries directly: auth, public API shape, billing behavior, privacy/security, data loss, migrations, compatibility, and rollback.
-
-Do not hide ambiguity as implementation detail. If endpoint shape, auth semantics, payload fields, billing behavior, or rollback expectations are missing, stop and ask before writing an executable plan.
+Checkpoint forecasts may change during execution. That is adaptation, not plan failure, when the evidence and route are reported.

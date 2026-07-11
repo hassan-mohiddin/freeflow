@@ -1,7 +1,7 @@
 # Freeflow Current State
 
-> **Doc ID:** STATE-2026-07-01-freeflow-current
-> **Date:** 2026-07-01
+> **Doc ID:** STATE-2026-07-11-freeflow-current
+> **Date:** 2026-07-11
 > **Owner:** Hassan Mohiddin
 > **Type:** Current State
 > **Status:** Current
@@ -20,10 +20,14 @@ Freeflow is a portable workflow skill pack for coding agents.
 - GitHub repo: published at `https://github.com/hassan-mohiddin/freeflow`.
 - npm package: published as `@hassangameryt/freeflow@0.3.0`.
 - Host targets: Codex, Claude Code, and Pi.
-- v0.1 local acceptance suite: passed after measured fixes and remains the release behavior baseline.
+- v0.1 local acceptance suite: passed after measured fixes and remains historical release evidence; it does not verify the current adaptive-workflow candidate.
 - Output-router evidence: passed for deterministic retrieval, command-output routing/recovery, observed routing, vault-wide indexing, transform/reducer routing, proof-backed script transform adapters, storage policy, Context Mode comparison, and Codex Structured Q&A coverage.
 - Setup/config evidence: `setup-freeflow` keeps minimal setup to `defaultMode` and adds optional router/observed-routing/script-transform config only after explicit setup branch/request.
 - Prepublish verification: passed on 2026-05-26 for v0.1, refreshed during v0.2 release prep, and covered by the current release-metadata validation script for v0.3 package metadata and release-boundary docs.
+- Candidate skill snapshot: 26 runtime/contributor skills. The adaptive revisions and new candidate skills remain Unverified pending behavioral evaluation.
+- Command surface: 4 mode commands, 16 direct skill calls, 3 developer/setup calls, and 3 Pi native settings commands.
+- Optional candidates: `deprecation-and-migration`, `finish-branch`, `release-work`, `shipping-and-launch`, and `simplify-code`; `tdd` is an optional execution method.
+- Decision authority: `decision-gate` is the active skill name and runtime path; legacy `IVG-*` IDs and historical reports remain historical evidence for the former `interview-gate` behavior.
 - Native slash handlers: not shipped for Codex/Claude in the current release; Pi exposes direct Freeflow commands through its extension.
 - Runtime context loading: shipped through Codex/Claude plugin-bundled hooks and the Pi extension; global installs stay inert until `.freeflow/config.json` exists, and Pi injects only effective runtime layers before each agent turn.
 - Active discovery skill: `discover`; deprecated `research-brief`, `grill-context`, and `capture-decisions` live under root `deprecated/skills/` outside the runtime surface.
@@ -53,7 +57,7 @@ The public repository excludes:
 
 Use `evals/README.md` for the eval directory guide.
 
-Current high-signal evidence:
+Current high-signal historical and runtime evidence (not behavioral verification of the adaptive candidate):
 
 - `evals/reports/acceptance/v0.1-acceptance-report.md`
 - `evals/reports/by-skill/discover-1-report.md`
@@ -78,11 +82,10 @@ Current high-signal evidence:
 
 ## Current Next Work
 
-1. Tag `v0.3.0` and create a GitHub release if the release should have a public GitHub anchor.
-2. Reinstall Freeflow from the GitHub package path and run install-smoke checks in Codex, Claude, and fresh Pi environments.
-3. Run live Claude smoke evals after Hassan confirms Claude testing is available again.
-4. Confirm Pi package-gallery indexing after npm refresh.
-5. Dogfood in one real repo before broader announcement.
-6. Submit or broaden public marketplace visibility only after required GitHub-install smoke tests pass.
+1. Freeze the structurally validated 26-skill adaptive snapshot as Unverified.
+2. Finish the evaluator architecture before running new skill evals.
+3. Add baseline-vs-with-skill behavioral coverage for revised and new skills, including activation and composition pressure cases.
+4. Reinstall from the GitHub package path and run Codex, Claude, and fresh Pi install-smoke checks when preparing the next release.
+5. Dogfood in one real repo before making readiness or comparative-superiority claims.
 
 Use this doc for current project status. Use research docs for historical reasoning.

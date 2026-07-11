@@ -52,8 +52,8 @@ function loadRuntimeContext(options = {}) {
   const includeDelegationHarness = options.delegationHarness === true;
   const modeContractSkill = includeSkills ? readText(path.join(PLUGIN_ROOT, "skills", "mode-contract", "SKILL.md")) : null;
   const workflowSkill = includeSkills ? readText(path.join(PLUGIN_ROOT, "skills", "workflow", "SKILL.md")) : null;
-  const interviewGateSkill = includeSkills
-    ? readText(path.join(PLUGIN_ROOT, "skills", "interview-gate", "SKILL.md"))
+  const decisionGateSkill = includeSkills
+    ? readText(path.join(PLUGIN_ROOT, "skills", "decision-gate", "SKILL.md"))
     : null;
   const outputRouterSkill = includeOutputRouter
     ? readText(path.join(PLUGIN_ROOT, "skills", "output-router", "SKILL.md"))
@@ -63,14 +63,14 @@ function loadRuntimeContext(options = {}) {
     : null;
 
   if (
-    (includeSkills && (!modeContractSkill || !workflowSkill || !interviewGateSkill)) ||
+    (includeSkills && (!modeContractSkill || !workflowSkill || !decisionGateSkill)) ||
     (includeOutputRouter && !outputRouterSkill) ||
     (includeDelegationHarness && !delegationHarnessSkill)
   ) {
     throw new Error("Freeflow runtime context files are missing.");
   }
 
-  return { modeContractSkill, workflowSkill, interviewGateSkill, outputRouterSkill, delegationHarnessSkill };
+  return { modeContractSkill, workflowSkill, decisionGateSkill, outputRouterSkill, delegationHarnessSkill };
 }
 
 function readConfig(root) {
@@ -277,7 +277,7 @@ function buildContext(input) {
     ].join("\n");
   }
 
-  const { modeContractSkill, workflowSkill, interviewGateSkill, outputRouterSkill, delegationHarnessSkill } = loadRuntimeContext({
+  const { modeContractSkill, workflowSkill, decisionGateSkill, outputRouterSkill, delegationHarnessSkill } = loadRuntimeContext({
     skills: setup.config.skillsEnabled,
     outputRouter: setup.config.outputRouterEnabled,
     delegationHarness: setup.config.delegationHarnessEnabled,
@@ -290,14 +290,14 @@ function buildContext(input) {
         "Priority order for matched non-mode workflow skills:",
         "",
         "1. Workflow classifies conversation versus consequential work.",
-        "2. Interview Gate stops silent decisions, user-owned decisions, source-truth conflicts, and question-to-action mistakes.",
+        "2. Decision Gate stops silent decisions, user-owned decisions, source-truth conflicts, and question-to-action mistakes.",
         "3. Discovery-light handles context-building after no immediate stop condition remains. Use it before first repo/code exploration or design answers for consequential product/API/tool/runtime hypotheses.",
         "4. Enabled Freeflow capabilities add their own runtime guidance below.",
         ""
       ]
     : [
         "## Freeflow Runtime Priority",
-        "Skills are disabled in `.freeflow/config.json`, so do not load mode-contract, workflow, interview-gate, or Discovery-light runtime guidance.",
+        "Skills are disabled in `.freeflow/config.json`, so do not load mode-contract, workflow, decision-gate, or Discovery-light runtime guidance.",
         "Enabled Freeflow capabilities may still add their own runtime guidance below.",
         ""
       ];
@@ -313,9 +313,9 @@ function buildContext(input) {
         workflowSkill.trim(),
         "```",
         "",
-        "## Loaded Interview Gate Skill",
+        "## Loaded Decision Gate Skill",
         "```md",
-        interviewGateSkill.trim(),
+        decisionGateSkill.trim(),
         "```",
         "",
         ...discoveryLightContext(),

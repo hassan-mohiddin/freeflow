@@ -61,6 +61,7 @@ Live repo evidence overrides stale artifacts.
 - **Implementation risk:** missing decisions, placeholders, or vague acceptance criteria will not send work down the wrong path.
 - **Design depth:** module, interface, seam, adapter, and slice choices hide useful complexity rather than spreading coordination.
 - **Scope and minimality:** the artifact solves the accepted outcome without quietly turning a bootstrap, fix, or bounded change into a generalized platform.
+- **Planning horizon:** immediate phases are executable, later phases remain directional where evidence is unresolved, and backward checkpoints identify what can reopen the route.
 - **Adversarial risk:** the artifact cannot smuggle stale assumptions, source-truth overrides, or owner decisions into execution.
 
 Treat missing artifact identity as blocking only when durability, ownership, strict-workflow risk, or implementation readiness makes it consequential.
@@ -148,4 +149,4 @@ Lead with:
 - evidence gaps and residual assumptions;
 - route: proceed, revise later, gather evidence, ask owner, or move backward.
 
-Save a separate review artifact only when the user asks, risk warrants durable evidence, or future handoff value is clear.
+Save a separate review artifact only when the user asks, risk warrants durable evidence, or future handoff value is clear. A passing artifact review returns to the workflow route check; it does not approve the next phase by itself.

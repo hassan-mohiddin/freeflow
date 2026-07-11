@@ -1,6 +1,6 @@
 ---
 name: output-router
-description: Use after the workflow, interview-gate, discovery-light, or full Discover route is clear when choosing between native tools and Freeflow routed tools, retrieving repo/local/vault evidence, transforming bounded evidence, handling unknown-size or broad output, running likely-large/noisy commands, recovering vaulted output, configuring outputRouter/observedRouting/scriptTransform, or handling optional native read/bash safety-net routing.
+description: Use after the workflow, decision-gate, discovery-light, or full Discover route is clear when choosing between native tools and Freeflow routed tools, retrieving repo/local/vault evidence, transforming bounded evidence, handling unknown-size or broad output, running likely-large/noisy commands, recovering vaulted output, configuring outputRouter/observedRouting/scriptTransform, or handling optional native read/bash safety-net routing.
 ---
 
 # Output Router
@@ -9,7 +9,7 @@ Choose how evidence moves into context.
 
 Freeflow tools are the safe first choice for unknown-size, exploratory, repo-wide, generated/log-adjacent, structured, or likely noisy output, including broad `rg`/`find`/`git`/help/docs scans. Native tools stay direct for known-small, exact, intentionally raw, or mutating work. A post-hoc cap such as `head`, `sed -n`, `tail`, or `wc` does not make a broad producer known-small.
 
-Output Router does not classify the task. Workflow, Interview Gate, discovery-light, or full Discover decide whether to answer, ask, discover, plan, or stop. Output Router starts after that route is clear.
+Output Router does not classify the task. Workflow, Decision Gate, discovery-light, or full Discover decide whether to answer, ask, discover, plan, or stop. Output Router starts after that route is clear.
 
 In delegated work, child/scout/reviewer/verifier panes should use routed evidence first for broad repo/search/test/log/doc evidence. Child transcripts are recoverable evidence, not the handoff. Child results and parent reports should carry compact summaries plus recoverable paths or output IDs.
 

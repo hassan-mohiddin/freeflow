@@ -2,7 +2,10 @@
 
 ## Unreleased
 
-- Nothing yet.
+- Renames the active `interview-gate` skill and runtime path to `decision-gate`; legacy `IVG-*` eval IDs and historical reports remain unchanged.
+- Reworks the workflow into adaptive verified slices with rolling plans, route checks, backward edges, conditional formal checkpoints, and bounded review loops.
+- Adds optional Unverified candidates for simplification, deprecation/migration, branch completion, release, and production launch, plus an optional TDD execution method.
+- Adds Pi/direct command routes for the five optional lifecycle candidates. The adaptive candidate remains Unverified pending behavioral evaluation.
 
 ## 0.3.0 - 2026-06-28
 

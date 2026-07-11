@@ -4,7 +4,7 @@
 
 Coding agents are good at editing. They are worse at knowing when not to edit.
 
-Freeflow gives them the missing layer: a lightweight workflow spine for consequential work and an output router that keeps noisy evidence out of context without losing exact recovery.
+Freeflow gives them the missing layer: an adaptive workflow loop for consequential work and an output router that keeps noisy evidence out of context without losing exact recovery.
 
 Use Freeflow when your agent needs to:
 
@@ -20,7 +20,7 @@ Use Freeflow when your agent needs to:
 | ---: | ---: | ---: | ---: | ---: |
 | retrieval context | command-output context | structured-Q&A context | source-truth conflict handling | acceptance fixtures |
 
-Those numbers come from Freeflow’s internal baseline-vs-Freeflow reports in [`evals/reports/`](evals/reports/). They are deterministic fixture results, not universal guarantees.
+Those numbers come from Freeflow’s internal baseline-vs-Freeflow reports in [`evals/reports/`](evals/reports/). They are deterministic fixture results, not universal guarantees. The workflow scores predate the current adaptive revisions and are historical evidence; the candidate remains Unverified.
 
 ## The Failure Mode
 
@@ -42,7 +42,7 @@ Freeflow is not about making every change bureaucratic. It is about applying jus
 
 The map is orienting, not mandatory. Freeflow’s core rule is:
 
-> Move forward when context is sufficient. Re-enter clarification when new ambiguity would change the next action.
+> Enter at the narrowest useful state. Verify and check the route after each meaningful slice; return only invalidated work to its owning activity.
 
 ## What Freeflow Changes
 
@@ -59,12 +59,14 @@ Freeflow ships short behavior-shaping skills for the moments where agents tend t
 
 | Family | Skills | Job |
 | --- | --- | --- |
-| Core workflow | [`workflow`](skills/workflow/SKILL.md), [`mode-contract`](skills/mode-contract/SKILL.md), [`interview-gate`](skills/interview-gate/SKILL.md), [`bypass`](skills/bypass/SKILL.md) | Route work, choose workflow pressure, stop silent decisions, skip only unnecessary ceremony. |
+| Core workflow | [`workflow`](skills/workflow/SKILL.md), [`mode-contract`](skills/mode-contract/SKILL.md), [`decision-gate`](skills/decision-gate/SKILL.md), [`bypass`](skills/bypass/SKILL.md) | Route work, choose workflow pressure, stop silent decisions, skip only unnecessary ceremony. |
 | Discovery and design | [`discover`](skills/discover/SKILL.md), [`design-for-depth`](skills/design-for-depth/SKILL.md) | Gather the smallest useful evidence, compare paths, and avoid shallow seams. |
 | Artifacts | [`write-spec`](skills/write-spec/SKILL.md), [`review-artifact`](skills/review-artifact/SKILL.md), [`write-plan`](skills/write-plan/SKILL.md) | Create or review only the specs/plans/notes that actually reduce risk or preserve decisions. |
-| Execution | [`execute-plan`](skills/execute-plan/SKILL.md), [`diagnose-failure`](skills/diagnose-failure/SKILL.md) | Implement approved slices, diagnose failures, and route backward when the plan breaks. |
-| Closeout | [`review-work`](skills/review-work/SKILL.md), [`verify-work`](skills/verify-work/SKILL.md), [`commit-work`](skills/commit-work/SKILL.md), [`handoff`](skills/handoff/SKILL.md) | Review, verify, commit intentionally, and preserve continuation context. |
-| Router and contributor | [`output-router`](skills/output-router/SKILL.md), [`setup-freeflow`](skills/setup-freeflow/SKILL.md), [`write-skill`](skills/write-skill/SKILL.md), [`evaluate-skill`](skills/evaluate-skill/SKILL.md) | Route evidence, install Freeflow, and improve/evaluate skill behavior. |
+| Execution | [`execute-plan`](skills/execute-plan/SKILL.md), [`tdd`](skills/tdd/SKILL.md), [`simplify-code`](skills/simplify-code/SKILL.md), [`deprecation-and-migration`](skills/deprecation-and-migration/SKILL.md), [`diagnose-failure`](skills/diagnose-failure/SKILL.md) | Implement approved slices, test first when useful, simplify safely, migrate consumers, diagnose failures, and route backward when evidence changes the plan. |
+| Closeout and delivery | [`review-work`](skills/review-work/SKILL.md), [`verify-work`](skills/verify-work/SKILL.md), [`commit-work`](skills/commit-work/SKILL.md), [`handoff`](skills/handoff/SKILL.md), [`finish-branch`](skills/finish-branch/SKILL.md), [`release-work`](skills/release-work/SKILL.md), [`shipping-and-launch`](skills/shipping-and-launch/SKILL.md) | Review, verify, checkpoint, integrate, release, deploy, and preserve continuation context deliberately. |
+| Capabilities and contributor | [`output-router`](skills/output-router/SKILL.md), [`delegation-harness`](skills/delegation-harness/SKILL.md), [`setup-freeflow`](skills/setup-freeflow/SKILL.md), [`write-skill`](skills/write-skill/SKILL.md), [`evaluate-skill`](skills/evaluate-skill/SKILL.md) | Route evidence and independent contexts, install Freeflow, and improve/evaluate skill behavior. |
+
+The current adaptive-workflow revisions are Unverified pending behavioral evaluation. Optional candidate skills are `deprecation-and-migration`, `finish-branch`, `release-work`, `shipping-and-launch`, and `simplify-code`; `tdd` is an optional execution method.
 
 ## Context Is For Decisions, Not Dumps
 
@@ -91,7 +93,7 @@ The router does not replace judgment. It decides how evidence moves into context
 
 ## Measured Evidence
 
-Freeflow’s claims are baseline-vs-Freeflow claims from reports in this repository. It does **not** claim superiority over other plugins.
+Freeflow’s claims are baseline-vs-Freeflow claims from reports in this repository. It does **not** claim superiority over other plugins. Workflow reports below predate the current adaptive-workflow revisions; they remain historical evidence, not verification of the Unverified candidate.
 
 ### Workflow Behavior
 
@@ -191,7 +193,7 @@ In Codex, open the hooks screen and trust the Freeflow `SessionStart` hook:
 
 Press `t` to trust/enable the hook when Codex marks it as needing review.
 
-Once enabled, the hook stays inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape, then loads Freeflow mode-contract, workflow, interview-gate, discovery-light, and enabled capability context at session start, resume, clear, and compact. Top-level `enabled: false` disables hook context.
+Once enabled, the hook stays inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape, then loads Freeflow mode-contract, workflow, decision-gate, discovery-light, and enabled capability context at session start, resume, clear, and compact. Top-level `enabled: false` disables hook context.
 
 In Pi, Freeflow's package extension provides the context-loading hook through Pi lifecycle events. It refreshes effective workflow/capability context on session start and compact, then injects it before agent turns. If you install it project-locally, trust the project when Pi prompts for project-local package resources.
 
@@ -226,11 +228,16 @@ Slash-style mode and skill prompts are model-routed in Codex and Claude:
 /review-artifact
 /write-plan
 /execute-plan
+/simplify-code
+/deprecation-and-migration
 /diagnose-failure
 /verify-work
 /review-work
 /commit-work
 /handoff
+/finish-branch
+/release-work
+/shipping-and-launch
 /bypass
 ```
 
@@ -259,7 +266,7 @@ For Codex and Claude, mode/skill commands work as skill-routing language. In Pi,
 | Mode | Use For | Guardrail |
 | --- | --- | --- |
 | `conversation` | Discussion, explanation, critique, and read-only exploration | No edits or state-changing work. |
-| `workflow` | Normal consequential work | Use the workflow spine and scale detail to risk. |
+| `workflow` | Normal consequential work | Use the adaptive loop and scale detail to risk. |
 | `strict-workflow` | High-risk or hard-to-reverse work | Stronger gates for security, privacy, billing, public APIs, migrations, data loss, compatibility, deployment, and irreversible architecture. |
 
 Mode commands switch the current task/session mode only. Persisting a repo default requires an explicit request such as “make strict-workflow the default for this repo.”

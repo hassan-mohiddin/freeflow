@@ -106,6 +106,43 @@ Route:
 - If behavior is within scope but scattered: plan/spec revision or refactor candidate.
 - If proof is missing: verification gap before completion claims.
 
+### Caller-Knowledge Growth
+
+Signal: each fix adds another flag, state, path, ordering rule, retry instruction, cleanup step, or recovery fact that callers and tests must know.
+
+Likely issue: the interface is growing with the implementation instead of hiding it.
+
+Route:
+
+- stop adding contract detail;
+- inventory caller knowledge;
+- design materially different outcome-level interfaces;
+- use a learning slice if evidence cannot choose between them.
+
+### Contract-Surface Explosion
+
+Signal: an internal lifecycle becomes a public protocol of attempts, manifests, orphan states, retry links, grade modes, cache identities, or integrity steps.
+
+Likely issue: caller-owned outcome and internal protocol have been confused.
+
+Ask whether one operation can own the complete success/failure unit and publish diagnostics without exposing recovery choreography.
+
+### Tests Legitimize Machinery
+
+Signal: test count grows quickly, but most new tests protect states and mechanisms introduced by recent patches rather than accepted behavior.
+
+Likely issue: passing tests are making accidental complexity look required.
+
+Every architecture-bearing test should name its accepted requirement or measured failure. If deleting the mechanism also deletes its tests without weakening acceptance, the tests do not justify it.
+
+### Scope And Remaining-Work Growth
+
+Signal: completed slices increase the estimated remaining work, pull deferred capabilities into scope, require an unplanned subsystem, or invalidate earlier evidence.
+
+Likely issue: the milestone or plan has been invalidated even if each local change remains technically in scope.
+
+Route to a backward checkpoint: keep, simplify, split, defer, revise plan/spec, or stop for owner direction.
+
 ### Edge-Case Patch Stream
 
 Signal: each review pass finds another special case.
@@ -240,7 +277,7 @@ Pressure:
 Better direction:
 
 ```text
-Stop at interview gate. Decide billing policy first. Then localize policy behind a billing-state transition module if implementation spreads.
+Stop at the decision gate. Decide billing policy first. Then localize policy behind a billing-state transition module if implementation spreads.
 ```
 
 ### Cache Freshness

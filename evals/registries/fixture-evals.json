@@ -642,13 +642,14 @@
     },
     {
       "id": "WSP-004",
-      "name": "durable-spec-includes-compact-header",
+      "name": "durable-spec-title-precedes-compact-header",
       "prompt_file": "evals/prompts/wsp-004.txt",
-      "expected_output": "The agent should treat the shared product decision context as sufficient, write docs/specs/team-invitations.md, include a compact durable artifact header with Doc ID, Date, Owner, Type, Status, and Source, and avoid adding a changelog on first creation.",
+      "expected_output": "The agent should treat the shared product decision context as sufficient, write docs/specs/team-invitations.md, start it with one clear H1 title followed immediately by a compact durable artifact header with Doc ID, Date, Owner, Type, Status, and Source, and avoid adding a changelog on first creation.",
       "assertions": [
         "Creates docs/specs/team-invitations.md.",
         "Uses the shared decision context as source context without re-interviewing.",
-        "Includes a compact header with Doc ID, Date, Owner, Type, Status, and Source.",
+        "Starts with one clear H1 title and places no metadata or preamble before it.",
+        "Places the compact header immediately after the title with Doc ID, Date, Owner, Type, Status, and Source.",
         "Sets Type to Spec or equivalent and Status to Draft unless a repo convention says otherwise.",
         "Does not add a Change Log section on first creation."
       ],
@@ -714,11 +715,11 @@
       "id": "WSP-008",
       "name": "new-unchanged-spec-does-not-add-changelog",
       "prompt_file": "evals/prompts/wsp-008.txt",
-      "expected_output": "The agent should write docs/specs/session-timeout-copy.md from the shared decision context with an appropriate compact header, but should not add a Change Log section because this is a newly created unchanged spec.",
+      "expected_output": "The agent should write docs/specs/session-timeout-copy.md from the shared decision context, start it with one clear H1 title followed immediately by the compact document-information header, and omit a Change Log section because this is a newly created unchanged spec.",
       "assertions": [
         "Creates docs/specs/session-timeout-copy.md.",
         "Uses the shared decision context as source context without re-interviewing.",
-        "Includes a compact durable artifact header.",
+        "Starts with one clear H1 title followed immediately by the compact durable artifact header.",
         "Does not add a Change Log section.",
         "Keeps the spec scoped to session timeout copy and does not change auth behavior."
       ],
@@ -1345,7 +1346,7 @@
       "name": "setup-conflicting-repo-instructions",
       "fixture_root": "evals/fixtures/tiny-setup-conflict-app",
       "prompt_file": "evals/prompts/stp-003.txt",
-      "expected_output": "The agent should detect repo instructions that conflict with Freeflow's interview and verification behavior, make no file changes, name the conflict, and ask whether to install as advisory, revise the rule, or skip setup.",
+      "expected_output": "The agent should detect repo instructions that conflict with Freeflow's decision-gate and verification behavior, make no file changes, name the conflict, and ask whether to install as advisory, revise the rule, or skip setup.",
       "assertions": [
         "Does not create, modify, or delete any file.",
         "Inspects AGENTS.md before editing.",
@@ -1426,7 +1427,7 @@
         "Creates .freeflow/config.json with exactly defaultMode set to workflow.",
         "Creates CLAUDE.md import to @.claude/rules/freeflow-core.md.",
         "Creates .claude/rules/freeflow-core.md with the compact core block.",
-        "Does not create freeflow-mode-contract.md, freeflow-interview-gate.md, freeflow.md, freeflow-capture-decisions.md, or similar split Freeflow rule files.",
+        "Does not create freeflow-mode-contract.md, freeflow-decision-gate.md, freeflow.md, freeflow-capture-decisions.md, or similar split Freeflow rule files.",
         "Mentions or follows the one compact core file recommendation instead of splitting rules."
       ],
       "grade_artifacts": [
@@ -1506,13 +1507,13 @@
       "name": "setup-loads-runtime-context-for-current-session",
       "fixture_root": "evals/fixtures/tiny-setup-agents-app",
       "prompt_file": "evals/prompts/stp-010.txt",
-      "expected_output": "The agent should set up Codex, verify the minimal activation/config files, read the mode-contract, workflow, and interview-gate skills before the final response, apply the discovery-light runtime rule, and say mode-contract, workflow, interview-gate, and discovery-light context is loaded for the current session only if the three core files were read. It should not claim output-router context is loaded for minimal setup because Output Router is disabled by default.",
+      "expected_output": "The agent should set up Codex, verify the minimal activation/config files, read the mode-contract, workflow, and decision-gate skills before the final response, apply the discovery-light runtime rule, and say mode-contract, workflow, decision-gate, and discovery-light context is loaded for the current session only if the three core files were read. It should not claim output-router context is loaded for minimal setup because Output Router is disabled by default.",
       "assertions": [
         "Creates .freeflow/config.json with exactly defaultMode set to workflow.",
         "Adds exactly one ## Freeflow block to AGENTS.md using the canonical activation contract.",
         "Does not create CONTEXT.md, docs pages, repo-local hooks, handoffs, state files, skill inventories, or .codex/rules behavior files.",
         "Reports setup verification evidence.",
-        "Reports that mode-contract, workflow, interview-gate, and discovery-light context is loaded for this session after reading the three core skills and applying the discovery-light runtime rule.",
+        "Reports that mode-contract, workflow, decision-gate, and discovery-light context is loaded for this session after reading the three core skills and applying the discovery-light runtime rule.",
         "Does not report output-router context loaded for minimal setup unless Output Router was explicitly enabled."
       ],
       "grade_artifacts": [
@@ -1542,12 +1543,12 @@
           "id": "runtime-loaded-output",
           "type": "output_contains",
           "all": [
-            "interview-gate",
+            "decision-gate",
             "discover"
           ],
           "any": [
             "loaded for this session",
-            "workflow, interview-gate, and discover context is loaded",
+            "workflow, decision-gate, and discover context is loaded",
             "runtime context loaded",
             "Runtime context loaded"
           ]

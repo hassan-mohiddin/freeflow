@@ -207,7 +207,7 @@ test("Pi skills toggle suppresses workflow skills while allowing enabled router 
     const ctx = context(cwd);
     const result = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);
-    assert.doesNotMatch(result.systemPrompt, /## Loaded Interview Gate Skill/);
+    assert.doesNotMatch(result.systemPrompt, /## Loaded Decision Gate Skill/);
     assert.doesNotMatch(result.systemPrompt, /## Discovery-light/);
     assert.match(result.systemPrompt, /Skills: disabled/);
     assert.match(result.systemPrompt, /Default mode: `workflow` \(inactive because Skills are disabled\)/);
@@ -243,7 +243,7 @@ test("Pi all-disabled capability state injects only Freeflow control-plane statu
     assert.doesNotMatch(result.systemPrompt, /Effective Freeflow mode/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Mode Contract Skill/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);
-    assert.doesNotMatch(result.systemPrompt, /## Loaded Interview Gate Skill/);
+    assert.doesNotMatch(result.systemPrompt, /## Loaded Decision Gate Skill/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Skill/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Delegation Harness Skill/);
     assert.equal(ctx.statuses.at(-1).value, "freeflow: idle");
@@ -552,7 +552,7 @@ test("Pi before_agent_start keeps output-router disabled by default", async () =
 
     assert.match(result.systemPrompt, /## Loaded Mode Contract Skill/);
     assert.match(result.systemPrompt, /## Loaded Workflow Skill/);
-    assert.match(result.systemPrompt, /## Loaded Interview Gate Skill/);
+    assert.match(result.systemPrompt, /## Loaded Decision Gate Skill/);
     assert.match(result.systemPrompt, /## Discovery-light/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Discover Skill/);
     assert.match(result.systemPrompt, /Output router: disabled/);
@@ -602,7 +602,7 @@ test("Pi before_agent_start injects core Freeflow context on every turn", async 
       assert.match(result.systemPrompt, /## Freeflow Runtime Priority/);
       assert.match(result.systemPrompt, /## Loaded Mode Contract Skill/);
       assert.match(result.systemPrompt, /## Loaded Workflow Skill/);
-      assert.match(result.systemPrompt, /## Loaded Interview Gate Skill/);
+      assert.match(result.systemPrompt, /## Loaded Decision Gate Skill/);
       assert.match(result.systemPrompt, /## Discovery-light/);
       assert.doesNotMatch(result.systemPrompt, /## Loaded Discover Skill/);
       assert.match(result.systemPrompt, /Output router: disabled/);
@@ -2241,13 +2241,13 @@ test("Pi already-activated core context still receives runtime context", async (
     const existingPrompt = [
       "## Loaded Mode Contract Skill",
       "## Loaded Workflow Skill",
-      "## Loaded Interview Gate Skill",
+      "## Loaded Decision Gate Skill",
     ].join("\n");
     const result = await beforeAgentStart({ systemPrompt: existingPrompt }, context(cwd));
 
   assert.match(result.systemPrompt, /## Loaded Mode Contract Skill/);
   assert.match(result.systemPrompt, /## Loaded Workflow Skill/);
-  assert.match(result.systemPrompt, /## Loaded Interview Gate Skill/);
+  assert.match(result.systemPrompt, /## Loaded Decision Gate Skill/);
   assert.match(result.systemPrompt, /## Discovery-light/);
   assert.doesNotMatch(result.systemPrompt, /## Loaded Discover Skill/);
   assert.match(result.systemPrompt, /## Loaded Output Router Skill/);
@@ -2272,7 +2272,7 @@ test("Pi already-activated full context is refreshed with runtime context", asyn
     const existingPrompt = [
       "## Loaded Mode Contract Skill",
       "## Loaded Workflow Skill",
-      "## Loaded Interview Gate Skill",
+      "## Loaded Decision Gate Skill",
       "## Discovery-light",
       "## Loaded Output Router Skill",
     ].join("\n");
@@ -2280,7 +2280,7 @@ test("Pi already-activated full context is refreshed with runtime context", asyn
 
   assert.match(result.systemPrompt, /## Loaded Mode Contract Skill/);
   assert.match(result.systemPrompt, /## Loaded Workflow Skill/);
-  assert.match(result.systemPrompt, /## Loaded Interview Gate Skill/);
+  assert.match(result.systemPrompt, /## Loaded Decision Gate Skill/);
   assert.match(result.systemPrompt, /## Discovery-light/);
   assert.doesNotMatch(result.systemPrompt, /## Loaded Discover Skill/);
   assert.match(result.systemPrompt, /## Loaded Output Router Skill/);

@@ -376,7 +376,7 @@ Use this table when deciding how output should move.
 | Route MCP/web/fetch/code-search output | Call host tool directly; Pi observed routing runs after the host result if configured. |
 | Inspect effective behavior/config/vault/script adapters | `freeflow_status`. |
 
-The output-router skill chooses evidence transport only. Workflow, interview-gate, and discover still decide whether the task should proceed, stop, or ask.
+The output-router skill chooses evidence transport only. Workflow, decision-gate, and discover still decide whether the task should proceed, stop, or ask.
 
 ## End-To-End Flow
 
@@ -1489,7 +1489,7 @@ Pi extension lifecycle:
 
 - `session_start`: restore mode override, refresh runtime context, read config, update UI status.
 - `session_compact`: refresh runtime context, read config, update UI status.
-- `before_agent_start`: inject full mode-contract/workflow/interview-gate/output-router skill context plus discovery-light before every agent turn.
+- `before_agent_start`: inject full mode-contract/workflow/decision-gate/output-router skill context plus discovery-light before every agent turn.
 - the full Discover skill, workflow-map reference, and full output-router safety-policy reference are not injected by default; the active skills carry compact rules and point to references for deeper cases.
 - `tool_result`: observed routing first, native safety net second.
 
@@ -1497,7 +1497,7 @@ Runtime priority stated to the model:
 
 1. Mode Contract handles mode setting, interpretation, and mismatch.
 2. Workflow classifies conversation vs consequential work.
-3. Interview Gate stops silent decisions and source-truth conflicts.
+3. Decision Gate stops silent decisions and source-truth conflicts.
 4. Discovery-light handles context-building.
 5. Output Router chooses evidence transport after the route is clear.
 

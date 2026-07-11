@@ -1,6 +1,6 @@
 # Release Evidence
 
-Freeflow v0.3.0 is based on the v0.1 local acceptance suite plus targeted runtime, setup, and output-router evidence from the development repository.
+Freeflow v0.3.0 is based on the v0.1 local acceptance suite plus targeted runtime, setup, and output-router evidence from the development repository. The current adaptive-workflow revisions and newly added candidate skills have not yet received behavioral evaluation; the workflow evidence below is historical and does not verify that candidate snapshot.
 
 ## Acceptance Summary
 
@@ -20,7 +20,7 @@ High-signal behaviors covered:
 The development registry covers:
 
 - 4 mode commands.
-- 11 direct skill calls.
+- 16 direct skill calls.
 - 3 developer skill calls.
 - 3 Pi native settings commands.
 
@@ -28,7 +28,7 @@ Codex/Claude native slash handlers are not shipped in this release. In those hos
 
 ## Runtime Context
 
-Freeflow ships plugin-bundled context hooks that stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape. When configured and enabled, they load the existing `mode-contract`, `workflow`, and `interview-gate` skills plus discovery-light guidance and enabled capability context at session start. The Pi extension injects effective runtime context before every agent turn so later turns keep the same behavioral guardrails. Top-level `enabled: false` suppresses Freeflow context/tools/routing/delegation; `skills.enabled: false` suppresses base workflow skill exposure and context while leaving enabled capabilities available. The full `discover` skill, workflow-map reference, and output-router safety-policy reference remain available on demand when skills are effective but are not injected wholesale by default. These hooks do not run after edit/write tools, enforce behavior, block tools, or create repo-local hook files.
+Freeflow ships plugin-bundled context hooks that stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape. When configured and enabled, they load the existing `mode-contract`, `workflow`, and `decision-gate` skills plus discovery-light guidance and enabled capability context at session start. The Pi extension injects effective runtime context before every agent turn so later turns keep the same behavioral guardrails. Top-level `enabled: false` suppresses Freeflow context/tools/routing/delegation; `skills.enabled: false` suppresses base workflow skill exposure and context while leaving enabled capabilities available. The full `discover` skill, workflow-map reference, and output-router safety-policy reference remain available on demand when skills are effective but are not injected wholesale by default. These hooks do not run after edit/write tools, enforce behavior, block tools, or create repo-local hook files.
 
 For the same session that runs setup, `setup-freeflow` reads the base workflow skills and enabled capability skills and applies discovery-light after successful setup verification before saying that context is loaded.
 

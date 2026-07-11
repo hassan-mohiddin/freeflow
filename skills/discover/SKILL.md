@@ -1,136 +1,139 @@
 ---
 name: discover
-description: Use for pre-work thinking before consequential work, including codebase exploration, brainstorming, planning direction, shaping ideas/features/specs, conceptual/design/routing/interface/state/context-boundary questions, workflow/tool-surface questions, "should we" / "how should we" / "what do you think" prompts, vague requests, and work that needs evidence before spec, plan, build, review, verification, or durable memory.
+description: Use for sustained collaborative exploration before or during consequential work: shaping an idea, comparing approaches, reopening assumptions, deciding architecture direction, investigating what to build, or using new implementation/review evidence to choose the next decision, experiment, slice, spec, or plan route.
 ---
 
 # Discover
 
-Think before downstream work.
+Explore breadth before committing to depth.
 
-Act as a collaborative partner and workflow navigator, not a passive executor. Help the user think, notice missing path-changing areas, and choose the next route while preserving user authority.
+Discover is a collaborative loop, not a questionnaire or one-time phase. It can begin work or be re-entered when implementation, review, or verification changes the landscape.
 
-Discover is the shared-understanding loop before spec, plan, build, review, verification, handoff, or memory. It turns unclear direction into the next safe route.
+The goal is not to settle the whole project. Converge only far enough to choose the next sound decision, experiment, slice, artifact, or route.
 
-Use full Discover when the user is forming direction: codebase exploration, brainstorming, tradeoff comparison, planning direction, conceptual/design/routing/interface questions, workflow/tool behavior, state or context boundaries, path-changing questions, or a checkpoint.
+`decision-gate` owns user-authority and source-conflict stops. Discover owns the broader shared-understanding loop after no immediate gate blocks progress.
 
-Treat tentative reasoning, chain-of-thought references, contradictions, and changed decisions as discovery input to adjudicate, not hidden approval to execute.
+## Use Full Discover
 
-Priority: Interview Gate stops silent decisions and user-owned decisions first. Evidence transport choices happen only after the discovery route is clear.
+Use full Discover when:
 
-## Default Trigger
+- the problem, outcome, scope, or route is still forming;
+- materially different product, technical, or architectural approaches exist;
+- conceptual, interface, state, workflow, or context-boundary questions need sustained exploration;
+- evidence gathering, brainstorming, and decisions need to interleave;
+- later work invalidates an assumption or exposes new option space;
+- a checkpoint must guide a spec, plan, learning slice, or future session.
 
-Use Discover for most consequential requests that are not already ready to execute:
+Do not use full Discover for a direct bounded factual answer or when an approved plan, review, verification, commit, or other specific skill already owns a clear next action.
 
-- first repo/code exploration before action;
-- brainstorming, shaping, or comparing paths;
-- conceptual, design, API, runtime, workflow, routing, tool-surface, interface, state-machine, context-boundary, architecture, or module-boundary questions;
-- “should we,” “why not,” “what do you think,” “how should we,” “which route,” or similar prompts;
-- turning discussion into a spec, plan, issue, ADR, handoff, or durable memory;
-- unclear bug-like symptoms before diagnosis has a concrete repro path;
-- any request where evidence could change scope, route, artifact, or next action.
+## Work At The Right Altitude
 
-Do not use full Discover when the next action is already clear and covered by a more specific skill: executing an approved plan, verifying work, reviewing a diff, committing, or answering a simple factual question.
+Before asking details, identify the highest unresolved parent question.
 
-Only direct bounded factual questions use discovery-light: inspect the smallest relevant evidence, then answer directly. If the question asks why, whether, or how to design, route, model state, choose a tool interface, or shape next work, use Discover.
+Do not decide leaf details whose relevance depends on unsettled purpose, actors, scope, system boundaries, or approach. Button color waits for product and visual direction; retry timing waits for failure semantics and ownership.
 
-For route-choice questions, name the route as Discover before moving toward spec, plan, or implementation.
+Inspect the smallest live evidence that can change the map:
 
-## Hard Stops
+- code, tests, docs, specs, policies, ADRs, issues, logs, traces, and repo state;
+- provided files, URLs, screenshots, transcripts, and user context;
+- current primary sources when external facts or versions matter.
 
-Stop and ask when discovery reveals:
+Facts are inspected. User-owned decisions go through `../decision-gate/SKILL.md`.
 
-- a user-owned decision: product behavior, scope, public API, security, privacy, billing, data loss, compatibility, permissions, or irreversible architecture;
-- a source-truth conflict with docs, tests, ADRs, specs, policies, or live repo evidence;
-- an ambiguous target, artifact destination, or path choice that would change the next action;
-- a material method substitution, such as replacing requested research with a guess.
+## Diverge
 
-Do not write implementation files from Discover.
+Build a compact breadth map before recommending a route:
 
-Do not create specs, plans, ADRs, handoffs, decision notes, or memory unless the user asks or the checkpoint must survive beyond chat.
+- desired outcome and actors;
+- current facts and constraints;
+- materially different approaches or hypotheses;
+- assumptions each approach depends on;
+- risks, dependencies, and unknowns;
+- questions answerable only through implementation or observation.
 
-## Evidence Before Questions
+Generate alternatives only when they are materially different. Do not manufacture three options around an obvious local choice.
 
-Inspect first when the answer is discoverable from:
+Do not rank every option immediately. Early recommendations anchor the discussion and turn collaboration into approval. First make the option space and tradeoffs legible.
 
-- code, tests, docs, ADRs, specs, policies, issues, logs, traces, or repo state;
-- provided files, URLs, screenshots, transcripts, or user context;
-- current external docs or web sources when framework/library facts or recent changes matter.
+## Deepen Selectively
 
-Ask before inspecting only when multiple targets would change the discovery path or access/scope is user-owned.
+Choose the uncertainty with the greatest effect on the next route, risk, or amount of future coordination.
+
+Use the method that can actually answer it:
+
+- discussion for intent and tradeoffs;
+- repo or source inspection for facts;
+- `../design-for-depth/SKILL.md` for modules, interfaces, seams, ownership, and failure contracts;
+- `../diagnose-failure/SKILL.md` for a concrete failure signal;
+- a bounded prototype, benchmark, or learning slice when evidence can only come from building.
+
+Discover may define a learning slice, but does not silently turn discussion into implementation. Name the question, evidence, discard-or-promote rule, and backward checkpoint, then route to execution when the user has requested or approved the experiment.
 
 ## Question Discipline
 
-Ask fewer, deeper questions.
+Ask only when the answer changes the next route and cannot be discovered from evidence.
 
-Before asking, run the deletion test:
+Ask one focused question at a time when a user-owned decision blocks progress. Do not walk the user through a prewritten tree or attach a preferred answer to every question.
 
-```text
-If I do not ask this, does downstream complexity spread?
-```
+Recommendations are calibrated:
 
-If no, skip it.
+- during divergence, explain tradeoffs without forcing a winner;
+- when evidence favors a path, give a provisional recommendation and what could disprove it;
+- at convergence, recommend the next route and name residual uncertainty;
+- for user-owned choices, never treat the recommendation as approval.
 
-Ask one or two path-changing questions at a time. Do not satisfy requests for “every question,” “grill me,” long questionnaires, or recommended answers for each question. Name the decision tree and ask the next question that matters.
+Treat challenges, counterexamples, criticism, and changed constraints as input that can reopen the map.
 
-Recommendations should clarify tradeoffs, not create an approval script. Give the recommendation for the current path-changing question, then wait when the choice is user-owned.
+## Track The Working State
 
-## Loop
+Track only what helps the conversation move:
 
-1. Identify the target: repo area, artifact, URL, product, model, package, paper, issue, symptom, or idea.
-2. Inspect the smallest evidence that can change the route.
-3. State the current understanding in plain language.
-4. Compare paths when direction is still forming; do not force a decision too early.
-5. Ask one path-changing question when the answer would change the next artifact or action.
-6. Treat user challenges, counter-questions, and new constraints as discovery input.
-7. Track decisions as settled, tentative, or open.
-8. Stop when remaining ambiguity would not change the next route.
+- **Settled:** supported fact or explicit decision.
+- **Tentative:** current hypothesis or provisional direction.
+- **Open:** unresolved and capable of changing the route.
+- **Test during implementation:** safe technical uncertainty assigned to a learning or delivery slice.
+- **Deferred:** real but irrelevant to the current phase.
+- **Invalidated:** prior assumption contradicted by new evidence.
 
-Discovery can loop through evidence, brainstorming, targeted questions, design, and checkpointing in any order. Do not force a fixed sequence.
+Keep this state in chat unless later work or another session needs it. Do not create memory for ceremony.
 
-## Scope And Decisions
+## Converge
 
-Preserve the user's intended scope. Do not silently turn a large idea into `v1`, `v2`, MVP, release, or roadmap framing.
+Converge when remaining ambiguity does not block the next sound action—not when every future question is answered.
 
-Use implementation slices, phases, checklists, or multiple artifacts to make large work executable without changing what the user asked for.
+A valid convergence may select:
 
-Persist decisions only when absence would make future work rediscover or contradict them:
+- one owner decision;
+- one research or design question;
+- one learning slice;
+- the next delivery phase;
+- a spec or plan route;
+- a backward revision;
+- an explicit defer or stop.
 
-- domain meaning -> existing glossary, `CONTEXT.md`, or domain doc;
-- feature behavior, scope, or acceptance -> spec;
-- future implementation path -> plan;
-- immediate continuation state -> handoff;
-- hard-to-reverse surprising tradeoff -> ADR;
-- no durable value -> chat only.
+Preserve open implementation questions when resolving them through bounded evidence is safer than guessing now.
 
-Read `ARTIFACT-DESTINATIONS.md` when the destination is not obvious.
+## Re-Entry
 
-## Conversation Navigation
+Do not restart discovery from zero when later work reveals new evidence.
 
-During sustained brainstorming or design discovery, track topics as settled, tentative, and open.
-
-When the current topic appears resolved, the user asks what next, or the conversation is about to move toward a durable artifact, name the next 1-3 path-changing topics worth covering. Recommend one next route when evidence supports it.
-
-This is navigation, not control. Do not force a checklist or ask whether to grill every time. When the user asks what next after sustained discovery, include a `Next:` route so the user does not have to carry the whole design map.
-
-## Routing Out
-
-Before routing from discovery to `write-spec`, run a final ambiguity sweep. Ask only remaining path-changing questions whose answers affect scope, behavior, acceptance, public API, architecture, security, privacy, billing, data loss, compatibility, or artifact destination.
-
-If no meaningful questions remain, say so and route forward. Do not silently jump to spec, plan, or build.
-
-Close consequential discovery with a checkpoint. Keep it in chat unless it must guide later work. Read `CHECKPOINTS.md` before saving a checkpoint.
-
-Checkpoint shape:
+State:
 
 ```text
-Question / goal: ...
-Evidence: ...
-Current understanding: ...
-Settled: ...
-Tentative: ...
-Open: ...
-Recommendation: ...
-Next: Forward | Backward | Branch | Stop — ...
+New evidence:
+Invalidated assumption:
+Still valid:
+Affected spec / plan / phases / slices:
+Available routes:
+Decision or experiment needed:
 ```
 
-`Next:` is routing, not permission to create the next artifact.
+Then update only the owning decisions and downstream work that the evidence invalidated.
+
+## Checkpoint
+
+Close consequential discovery with a checkpoint in chat. Save it only when it must guide later work. Read [checkpoints](references/checkpoints.md) before saving and [artifact destinations](references/artifact-destinations.md) when ownership is unclear.
+
+Before routing to a spec or plan, sweep only for remaining questions that would change behavior, scope, acceptance, public contracts, failure semantics, sensitive policy, architecture direction, or the next evidence path.
+
+`Next:` names the recommended forward, backward, branch, or stop route. It is not permission to take it.

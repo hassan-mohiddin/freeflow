@@ -16,7 +16,7 @@ In Codex, open the hooks screen after install:
 /hooks
 ```
 
-Press `t` to trust/enable the Freeflow `SessionStart` hook when Codex marks it as needing review. Once enabled, plugin-bundled hooks stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape, then load mode-contract, workflow, interview-gate, discovery-light, and enabled capability context at session start, resume, clear, and compact.
+Press `t` to trust/enable the Freeflow `SessionStart` hook when Codex marks it as needing review. Once enabled, plugin-bundled hooks stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape, then load mode-contract, workflow, decision-gate, discovery-light, and enabled capability context at session start, resume, clear, and compact.
 
 In Pi, install Freeflow as a Pi package from npm:
 

@@ -72,7 +72,7 @@ Before changing behavior:
 - For performance: capture baseline timing, slow input shape, profiler/query-plan evidence, or old-versus-new comparison before optimizing.
 - Prefer fixing the source over masking the symptom.
 
-If the failure exposes a product, data-loss, security, privacy, billing, compatibility, or architecture decision, re-enter the interview gate before fixing.
+If the failure exposes a product, data-loss, security, privacy, billing, compatibility, or architecture decision, re-enter the decision gate before fixing.
 
 For repeated workflow failures, classify the likely cause before fixing again: thin discovery, wrong scope, premature decisions, source-truth conflict, missing owner decision, bad plan slice, shallow module/interface, implementation bug, stale reviewer context, or inadequate verification loop. Recommend the next route: rediscover, revise spec, revise plan, use `../design-for-depth/SKILL.md`, fix implementation, adjust reviewer context, or stop.
 

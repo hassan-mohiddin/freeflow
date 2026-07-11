@@ -1,102 +1,117 @@
 ---
 name: design-for-depth
-description: Use when shaping, reviewing, implementing, or diagnosing work where module/interface/seam/state/role-boundary choices affect complexity, locality, testability, future change, or repeated edge-case churn. Use for architecture direction, state machines, event systems, tool interfaces, prompt/result serialization, delegation/context boundaries, role ownership, failure contracts, growing scope, shallow modules, bad seams, broad refactors, and review loops that keep finding new edge cases.
+description: Use when module, interface, seam, state, role, failure-contract, or test-boundary choices affect complexity and reversibility; when caller coordination is growing; or when implementation/review keeps producing edge-case patches, public states, flags, retries, or broad refactors.
 ---
 
 # Design For Depth
 
-Use this as a lens, not a phase.
+Use this as a lens, not a mandatory phase.
 
-Core rule: if complexity is spreading across callers, tests, docs, artifacts, roles, prompts, serialized results, or review comments, stop and classify the design pressure before patching forward.
+Design for less coordination: callers, tests, docs, reviewers, and future agents should ask for an outcome through a small stable interface while the module owns internal sequencing and policy.
 
-Trigger early for state machines, event systems, tool interfaces, prompt/result protocols, delegation/context boundaries, role ownership, and failure contracts.
+If each local fix increases caller knowledge, stop specifying or patching the current interface. Reconsider the module shape before adding another state, flag, retry, wrapper, or test.
 
-For consequential systems, define the failure contract before the happy path. Failure behavior is interface behavior.
+Do not use architecture language to hide product decisions or turn a local reversible change into ceremony.
 
-For state, evented, delegation, prompt, or result-protocol questions, name the failure contract explicitly before recommending implementation.
+## Core Terms
 
-Goal: hide useful complexity behind stable interfaces so future callers, tests, reviewers, and agents coordinate less.
+- **Module:** anything with an interface and implementation.
+- **Interface:** everything a caller must know: inputs, invariants, ordering, states, errors, configuration, side effects, performance, policy, and failure behavior.
+- **Depth:** useful behavior and hidden decisions per unit of interface knowledge.
+- **Seam:** where behavior or variation can change without surrounding edits.
+- **Adapter:** a concrete implementation at a seam.
+- **Locality:** change, bugs, decisions, and verification stay near one module.
+- **Failure contract:** failure modes, observers, written state, forbidden outcomes, fail-open/closed/degrade/escalate/retry behavior, recovery, and proof.
 
-Do not add architecture ceremony when the next action is small, local, and reversible. Do not use architecture language to hide product or policy decisions.
+Read [software design philosophy](references/software-design-philosophy.md) when shaping consequential architecture or explaining why a module is shallow. Read [design pressure signals](references/design-pressure-signals.md) when code, plans, tests, or reviews show complexity spread.
 
-## Load When Needed
+## Structural Pressure Loop
 
-Read `references/software-design-philosophy.md` when shaping architecture direction, reviewing a design-heavy artifact, or diagnosing repeated design failure.
+When pressure changes the route:
 
-Read `references/design-pressure-signals.md` when reviewing code/work for shallow modules, scattered policy, edge-case churn, or refactor candidates.
+1. **Name the outcome.** What complete result should the caller request?
+2. **Choose the failure unit.** What is atomic success, what may remain diagnostic, what is safe to restart, and what must never happen?
+3. **Inventory caller knowledge.** List the ordering, states, paths, roles, retries, cleanup, configuration, storage, errors, compatibility, cost, and recovery facts callers must coordinate.
+4. **Separate ownership.** Keep caller-owned decisions public; move internal protocol behind the module.
+5. **Classify maturity.** Is each proposed mechanism required for trust, safety, efficiency, scale, or portability?
+6. **Design it twice when structural.** Produce materially different interfaces before selecting one; do not generate cosmetic variants.
+7. **Compare.** Judge depth, locality, correct-use ergonomics, misuse risk, failure behavior, reversibility, maturity fit, and evidence cost.
+8. **Route.** Continue, define a learning slice, revise plan/spec, ask the owner, deepen through a bounded refactor, defer, or stop.
 
-Do not load references for every small design question. The active skill should be enough for routine routing.
+Read [the interface design loop](references/interface-design-loop.md) when caller knowledge is still growing, an interface is hard to reverse, or a bounded experiment is needed to choose between designs.
 
-## Language
+Do not patch the current interface before alternatives exist when every fix expands its contract surface.
 
-Use these terms consistently:
+## Contract Surface
 
-- **Module** — anything with an interface and implementation: function, class, package, subsystem, workflow slice.
-- **Interface** — everything a caller, user, test, or future agent must know: types, invariants, ordering, states, roles, serialization, errors, configuration, failure behavior, performance, side effects, and policy context.
-- **Implementation** — details hidden behind the interface.
-- **Depth** — leverage at the interface. Deep modules hide useful behavior behind a smaller interface.
-- **Shallow module** — interface is nearly as complex as implementation, or callers coordinate details the module should own.
-- **Seam** — where behavior, ownership, or variation can change without editing surrounding work.
-- **Adapter** — a concrete thing satisfying an interface at a seam.
-- **Locality** — changes, bugs, decisions, and verification stay near one module.
-- **Leverage** — future work gets more behavior from less interface knowledge.
-- **Failure contract** — what can fail, who observes it, what state is written, whether the system fails closed/open/degrades/escalates/retries, what must not happen, recovery path, and evidence for graceful handling.
+Every observable flag, path, filename, state, ordering rule, timing behavior, and error can become depended upon.
 
-Avoid using “architecture” as a vague quality claim. Name the module, interface, hidden decision, seam, adapter, locality, or leverage.
+Before exposing one, ask:
 
-## Signals
+- Does the caller own this choice?
+- Does exposure make correct use easier?
+- Is the behavior stable enough to become a contract?
+- Is it merely internal protocol?
+- Could one outcome-level operation hide it?
 
-Use this lens when evidence shows:
+Public interfaces expose caller-owned outcomes and decisions. Keep storage, retries, cleanup, integrity publication, provider mechanics, and internal lifecycle state private unless callers must control them.
 
-- one concept requires many unrelated file, test, doc, or reviewer-comment changes;
-- callers know ordering, flags, states, roles, retries, cleanup, cache, auth, billing, migration, privacy, permissions, or compatibility policy;
-- state machines or event systems leave authority, terminal states, observers, wake/attention behavior, evidence, or recovery unclear;
-- tool interfaces, prompt rendering, task packets, result protocols, or serialized outputs leak storage/transport details to callers or agents;
-- delegation, context boundaries, or role ownership make parents, children, reviewers, verifiers, or integrators coordinate responsibilities ad hoc;
-- tests reach past the interface to assert normal behavior;
-- review findings become a stream of edge-case patches;
-- the same conditional or policy appears in multiple callers;
-- a module is mostly pass-through naming around another module;
-- a seam exists only for theoretical future variation;
-- a spec or plan encodes detailed implementation guesses before evidence exists;
-- the happy path is specified but failure states, observers, state writes, retry/fallback/escalation, recovery, or proof are left to implementers;
-- the agent can only explain correctness by listing coordinated steps across modules.
+## Tests And Evidence
 
-Do not use this lens just because work is “important.” Use it when interface shape changes the next action.
+The interface is the normal test surface. If tests must bypass it, duplicate orchestration, or mock many owned internals, question the module shape before adding test helpers.
 
-## Tests
+Every architecture-bearing test should protect an accepted requirement, measured failure, or settled failure contract. Tests that disappear with an unnecessary mechanism do not justify that mechanism.
 
-Use the smallest test that changes the route:
+When source inspection cannot choose between designs, define a bounded learning slice:
 
-- **Deletion test:** if deleting the module makes complexity vanish, it may be pass-through ceremony. If complexity reappears across callers, tests, docs, or review comments, it was earning its keep.
-- **Interface test surface:** callers and tests should exercise normal behavior through the same interface. If tests bypass it, mock internals, or duplicate setup, the module shape may be wrong.
-- **Variation test:** one adapter is a hypothetical seam. Two adapters, a real test double, or a known upcoming variation justify a seam better.
-- **Locality test:** one behavior change should not scatter policy, error handling, retries, logging, auth, billing, compatibility, docs, and tests across unrelated places.
-- **Decision-hiding test:** design decisions likely to change should live behind modules, not in every caller or artifact.
-- **Failure-contract test:** before happy-path implementation, name failure modes, observers, state writes, fail-open/closed/degrade/escalate/retry behavior, forbidden outcomes, recovery, and evidence. If callers would need to coordinate these, deepen the interface.
-- **Obscurity test:** if a fresh agent must read many files to learn a simple rule, the design may be obscure even if each file is small.
+```text
+Question:
+Competing designs:
+Smallest experiment:
+Evidence required:
+Discard-or-promote rule:
+Backward checkpoint:
+```
+
+Code can produce design evidence. Exploratory code does not become production architecture without deliberate promotion, review, and verification.
+
+## Pressure Triggers
+
+Stop local patching when:
+
+- a second unexpected defect appears at the same seam;
+- fixes add caller knowledge, public states, flags, or recovery rules;
+- tests increasingly target lifecycle machinery introduced by earlier fixes;
+- a narrow slice requires an unplanned subsystem;
+- implementation invalidates earlier evidence;
+- remaining work grows after slices complete;
+- review produces an edge-case stream rather than isolated defects;
+- correctness can be explained only as coordinated steps across modules.
+
+These are checkpoint triggers, not automatic refactor permission.
 
 ## Route
 
-If the current direction spreads complexity, do not patch forward silently.
-
 Classify the pressure:
 
-- **Local fix:** same interface, complexity stays hidden; continue in the current phase.
-- **Plan defect:** slice boundary, check, or implementation path is wrong; revise the plan.
-- **Spec gap:** behavior, scope, or acceptance is unclear; revise the spec or return to discovery.
-- **Owner decision:** public API, compatibility, security, privacy, billing, data-loss, permissions, migration, or hard-to-reverse architecture changes; use the interview gate.
-- **Refactor candidate:** current behavior is valid but the module is shallow; propose a bounded deepening path before editing.
-- **Stop/defer:** design pressure is real but not worth solving in this scope; record or defer it explicitly.
+- **Continue/local fix:** the interface remains valid and complexity stays hidden.
+- **Learning slice:** evidence is needed before choosing a design.
+- **Plan defect:** slice boundary, order, checkpoint, or implementation path is wrong.
+- **Spec/Discover:** behavior, scope, acceptance, or option space is unsettled.
+- **Owner decision:** public API, compatibility, security, privacy, billing, data loss, permissions, migration, or hard-to-reverse architecture; use `../decision-gate/SKILL.md`.
+- **Bounded deepening:** behavior is settled but the module is shallow; propose scope before editing.
+- **Defer/stop:** pressure is real but not worth solving in the current scope.
+
+The deletion test diagnoses depth; it does not authorize deletion. Understand callers, tests, history, source truth, and why the module exists before removing it.
 
 ## Non-Goals
 
 Do not:
 
-- introduce abstractions for imagined future variation;
-- hide product or policy decisions inside architecture wording;
-- rewrite source truth to make a design cleaner;
-- turn every feature into upfront architecture design;
-- broaden a narrow fix into a refactor without user approval;
-- treat line count, file count, indirection, or pattern names as proof of quality;
-- claim a design is better without evidence from code, tests, review, usage, or an explicit owner decision.
+- introduce seams for imagined variation;
+- treat file or line count as architecture evidence;
+- require multiple designs for obvious local choices;
+- expose efficiency or scale machinery as public bootstrap contract without observed need;
+- freeze an architecture when a bounded experiment can answer the question more honestly;
+- broaden scope or change sensitive behavior without owner approval;
+- claim a design is deeper without evidence about caller knowledge, locality, tests, or change surface.

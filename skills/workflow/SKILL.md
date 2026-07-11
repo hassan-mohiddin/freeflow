@@ -1,107 +1,119 @@
 ---
 name: workflow
-description: Use when doing consequential work such as implementation, bug fixing, planning, discovery-for-action, review, verification, or handoff.
+description: Use for consequential work that may involve discovery, decisions, specification, planning, implementation, diagnosis, review, verification, commits, handoffs, or route changes from new evidence.
 ---
 
 # Workflow
 
-Follow a lightweight forward workflow. Scale process to task risk.
+Use an adaptive engineering loop, not a one-way checklist.
 
-Move forward when context is sufficient. Re-enter clarification when new ambiguity would change the next action.
+Move forward when context is sufficient. After each meaningful slice, verify what it proved and check whether the route still holds. Re-enter the narrowest earlier activity when evidence changes the path.
 
-Question means answer. Do not turn a question into a file edit, report, plan, or implementation.
+Questions request answers, not surprise artifacts or edits. Suggestions and criticism are hypotheses to evaluate, not automatic permission or correction.
 
-Mixed approval-plus-question prompts still route to the question first. Do not continue into the action in that response unless the user explicitly orders action first and answer later.
+## Choose The Entry Point
 
-Use discovery-light only for direct bounded factual answers. Conceptual, design, routing, workflow/tool-interface, state, or context-boundary questions route to Discover; use design-for-depth when interface, seam, role, or failure-contract choices matter.
+Enter where the current work actually is:
+
+- **Conversation:** direct answers, critique, and non-mutating exploration.
+- **Discover:** outcome, option space, evidence path, or architecture direction is still forming.
+- **Decision gate:** a user-owned decision, source conflict, or material path substitution blocks action.
+- **Spec:** behavior, scope, acceptance, public contract, or failure semantics need durable source truth.
+- **Plan:** the next executable horizon needs phases, slices, checks, and backward checkpoints.
+- **Execute:** an approved bounded slice is ready.
+- **TDD or simplify:** one accepted behavior needs test-first implementation, or working code needs behavior-preserving simplification.
+- **Migrate:** consumers, traffic, configuration, or data must move before an old path can be removed.
+- **Diagnose:** a concrete failure signal needs root-cause evidence.
+- **Review:** independent judgment may change confidence or route.
+- **Verify:** an implementation or completion claim needs proof.
+- **Commit or handoff:** a verified checkpoint needs rollback or continuity.
+- **Finish, release, or ship:** branch integration, versioned publication, or production rollout is the actual next job.
+
+Small reversible work may move directly from inspection to execution and verification. Do not manufacture specs, plans, reviews, commits, or handoffs merely because the full lifecycle contains them.
+
+Read [the workflow map](references/workflow-map.md) when the entry point is unclear, work spans multiple phases, or public documentation needs the complete lifecycle.
+
+## Adaptive Loop
 
 ```text
-Clarify / Discover
--> Decision / Spec
--> Plan
--> Execute
--> Review
+Orient
+-> Explore breadth when needed
+-> Converge enough for the next safe horizon
+-> Specify or plan only what must be durable
+-> Execute one learning / delivery / deepening slice
 -> Verify
--> Handoff
+-> Route check
+-> Continue, branch, move backward, or stop
 ```
 
-This is a guide, not ceremony. Small reversible work can skip spec/plan artifacts.
+Method skills such as TDD, simplification, diagnosis, migration, and design-for-depth run inside this loop. They do not override source truth, owner authority, or route checks.
 
-For a clear tiny task, the whole workflow may be: inspect enough -> execute -> verify -> commit/closeout. Do not add spec, plan, delegation, or handoff phases just because the full map contains them.
+Use relevant repo or domain skills for specialized engineering while Freeflow owns routing, decisions, evidence, and backward edges. Read [domain skill composition](references/domain-skill-composition.md) when frontend, accessibility, browser, security, performance, CI/CD, observability, cloud, migration, release, or deployment guidance must compose with the workflow.
 
-Method skills and lenses such as TDD, diagnosis, execute-plan, or design-for-depth run inside the current workflow phase. Workflow owns routing, source-truth conflicts, user-owned decisions, review, verification, and handoff boundaries.
+Plans are rolling. Detail the immediate executable phase; keep later phases directional until evidence resolves their assumptions.
 
-For large multi-phase work, delegation can preserve context locality. Use it as a workflow execution shape, not a replacement for workflow gates.
+## Decision And Source Boundaries
 
-When a workflow route calls for a separate agent context, use the active delegation mechanism for this environment. If none is enabled or appropriate, work inline and report the limitation.
+Use `../decision-gate/SKILL.md` before silently choosing:
 
-Read `references/workflow-map.md` when the user asks for the full pipeline, public docs need a diagram, or the next workflow entry point is unclear.
+- product behavior, scope, priority, or domain meaning;
+- public API, compatibility, permissions, security, privacy, billing, or data-loss behavior;
+- hard-to-reverse architecture or migration behavior;
+- a new source-of-truth direction that conflicts with docs, tests, specs, policies, ADRs, or established behavior;
+- a fallback that materially changes evidence quality, workflow shape, risk, scope, cost, persistence, or user-visible output.
 
-## Route Closeout
+Inspect factual questions first. Ask only for decisions that remain user-owned or path-changing.
 
-Use `Next:` to name a helpful next route for the user. It is general routing, not only a workflow-phase label.
+Handoffs are memory, not authority. Live evidence wins when they conflict.
 
-Do not add `Next:` to every reply. Questions get answers first; add `Next:` only when the answer leaves a concrete next action, choice, stop condition, or route worth naming.
+## Slice Discipline
 
-For completed consequential work or workflow phases, include `Next:` unless this is a direct question answer, mid-task status, clarification-only turn, or the final line must be a direct owner-decision question.
+Each meaningful slice should have:
 
-Choose one:
+- one outcome or learning question;
+- source requirement and stable seam;
+- smallest useful implementation or experiment;
+- verification that can disagree with the claim;
+- a route check against assumptions, interface, scope, and remaining work.
 
-- Forward: the next action or workflow entry point is clear.
-- Backward: new evidence requires clarification, discovery, or interview gate.
-- Branch: 2-3 valid next routes or actions exist.
-- Stop: no useful next action remains.
+Formal checkpoints are conditional:
 
-Recommend the route supported by evidence. Do not ask a vague "what next?" question.
+- review when architecture, sensitivity, integration, accumulated risk, or final confidence warrants independence;
+- commit when a coherent verified rollback point is useful and authorized;
+- handoff when context or continuity requires it;
+- owner checkpoint when a consequential decision remains.
 
-After completed discovery with decisions that must survive beyond chat, route to `write-spec`, an owning decision artifact, or handoff before `write-plan` or execution.
-
-`Next:` is routing, not permission to create the next artifact, continue into a new phase, or take the next action.
+When work uses separate contexts, describe bounded outcomes, dependencies, evidence, and escalation conditions. The harness owns agents, models, worktrees, parallelism, persistence, timeouts, and transport.
 
 ## Backward Edge
 
-If new evidence invalidates the current path, re-enter clarification.
+Route backward when new evidence changes the next safe action.
 
-```text
-Any state -> Clarify / Discover -> explicit next state
-```
+Examples:
 
-Do not silently substitute a different path, rewrite the spec, change the plan, or patch forward. State what changed, then decide whether to continue, revise spec, revise plan, diagnose, split scope, defer, or stop and ask.
+- implementation exposes new option space -> Discover;
+- caller coordination or edge-case patches grow -> design-for-depth;
+- behavior, scope, acceptance, public contract, or failure semantics change -> revise spec;
+- order, slice boundaries, checks, or later phases change -> revise plan;
+- a failure signal lacks root cause -> diagnose;
+- owner choice or source conflict appears -> decision gate;
+- no safe in-scope route remains -> defer or stop.
 
-If a requested, planned, or skill-required method cannot be followed and the fallback would change evidence quality, workflow shape, risk, scope, cost, persistence, or user-visible output, stop before using the fallback. Name both paths and ask which one to follow.
+Preserve valid work and revise only affected downstream decisions. Do not restart from zero, rewrite source truth silently, or patch forward because work has already begun.
 
-## Source-of-Truth Conflicts
+## Route Closeout
 
-When a requested implementation contradicts existing docs, tests, specs, policies, ADRs, handoffs, or established code behavior, pause before editing.
+After a consequential phase exit or completion, name the useful next route:
 
-Do not rewrite the source of truth to make the latest request pass.
+- **Forward:** the next bounded action is clear.
+- **Backward:** evidence invalidated the current path.
+- **Branch:** two or three valid routes remain.
+- **Stop:** no useful or safe next action remains.
 
-First state the conflict and ask whether the source of truth should change. Only edit docs/tests/policies/specs to match new behavior after the user explicitly confirms that decision.
+Use `Next:` only when it saves the user from having to ask what follows. Omit it for direct answers, mid-task status, clarification-only turns, direct owner-decision questions, or when no useful route needs naming.
 
-Treat handoffs as memory, not authority. If a handoff conflicts with live repo evidence, inspect the evidence and ask before following the handoff.
+`Next:` recommends a route. It is not permission to create the next artifact or continue into another phase.
 
-For billing, security, privacy, data loss, migrations, public APIs, compatibility, and permissions, recommend strict-workflow before changing behavior.
+## Completion
 
-## Artifact Rule
-
-Artifacts are memory, not proof of obedience.
-
-Only create artifacts when the user asks for an artifact or asks you to do work that requires one.
-
-Create them only when they preserve decisions, reduce risk, or help a future agent resume. Prefer short discovery notes, decision/spec notes, plans, verification notes, and handoffs.
-
-Do not write volatile repo inventories. Link to live files or commands instead.
-
-## Review Rule
-
-Review should improve work, not create an endless patch loop.
-
-Reviewer findings are evidence, not commands. Separate blocking, non-blocking, and question findings before editing from them.
-
-A non-passing review routes to adjudication before more implementation. Repeated review failure routes backward to diagnose, discover, spec, or plan; do not chase a fourth broad review pass.
-
-Review can pass. Save review artifacts only when risk, future memory value, or the user asks for them.
-
-## Completion Rule
-
-Do not claim completion without fresh evidence. Say what was verified and what remains unverified.
+Do not claim completion without fresh evidence. State what changed, what was verified, what remains unverified, and whether review, commit, handoff, or a backward route remains.

@@ -40,6 +40,14 @@
       "skill": "execute-plan"
     },
     {
+      "command": "/simplify-code",
+      "skill": "simplify-code"
+    },
+    {
+      "command": "/deprecation-and-migration",
+      "skill": "deprecation-and-migration"
+    },
+    {
       "command": "/diagnose-failure",
       "skill": "diagnose-failure"
     },
@@ -58,6 +66,18 @@
     {
       "command": "/handoff",
       "skill": "handoff"
+    },
+    {
+      "command": "/finish-branch",
+      "skill": "finish-branch"
+    },
+    {
+      "command": "/release-work",
+      "skill": "release-work"
+    },
+    {
+      "command": "/shipping-and-launch",
+      "skill": "shipping-and-launch"
     },
     {
       "command": "/bypass",

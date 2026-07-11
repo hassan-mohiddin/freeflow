@@ -76,7 +76,7 @@ Use `.codex-plugin/plugin.json` as the Codex manifest:
 - `skills`: `./skills/`
 - `interface.displayName`: `Freeflow`
 - `interface.shortDescription`: `Lightweight workflow for coding agents.`
-- `interface.longDescription`: describe conversation/workflow/strict-workflow, interview gates, verification-before-claiming, review, commit, handoff, and decision capture without overclaiming.
+- `interface.longDescription`: describe conversation/workflow/strict-workflow, decision gates, verification-before-claiming, review, commit, handoff, and decision capture without overclaiming.
 - `interface.category`: `Coding` or `Productivity`; prefer `Coding`.
 - no `commands` or `slashCommands` until native handlers are intentionally added.
 
@@ -118,28 +118,38 @@ Avoid long competitive comparisons, broad philosophy essays, or old Orchestra fe
 
 ## Release Boundary
 
-The active plugin runtime ships the current proven skill set:
+The active plugin runtime ships the current skill set:
 
 - `workflow`
 - `mode-contract`
-- `interview-gate`
+- `decision-gate`
 - `output-router`
+- `delegation-harness`
 - `discover`
+- `design-for-depth`
 - `write-spec`
 - `review-artifact`
 - `write-plan`
 - `execute-plan`
+- `tdd`
+- `simplify-code`
+- `deprecation-and-migration`
 - `diagnose-failure`
 - `verify-work`
 - `review-work`
 - `commit-work`
 - `handoff`
+- `finish-branch`
+- `release-work`
+- `shipping-and-launch`
 - `bypass`
 - `setup-freeflow`
 - `write-skill`
 - `evaluate-skill`
 
 The setup skill uses the public `setup-freeflow` name.
+
+The current adaptive-workflow revisions are an Unverified candidate pending behavioral evaluation. `deprecation-and-migration`, `finish-branch`, `release-work`, `shipping-and-launch`, and `simplify-code` are optional lifecycle skills; `tdd` is an optional execution method.
 
 ## Publishing Sequence
 

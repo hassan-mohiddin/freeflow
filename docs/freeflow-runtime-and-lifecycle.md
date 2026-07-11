@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document describes how Freeflow should behave after the first draft skill pack exists.
+This document describes Freeflow's current runtime boundary and adaptive lifecycle.
 
 It covers:
 
@@ -10,8 +10,8 @@ It covers:
 - first-run setup
 - mode persistence
 - planning and execution lifecycle
-- branching and re-entry
-- missing runtime skills
+- branching and backward routing
+- runtime context and capability boundaries
 
 This is architecture context, not an implementation plan.
 
@@ -43,7 +43,7 @@ Freeflow should not depend on host plan mode. It should work in Codex, Claude Co
 
 Freeflow needs a first-run setup flow.
 
-Setup should be fast by default and only interview the user when there is a real decision.
+Setup should be fast by default and ask the user only when there is a real decision.
 
 Default setup creates:
 
@@ -73,7 +73,7 @@ Do not store:
 - version metadata
 - activation file path
 
-Version and migration fields can be added when Freeflow is close to shipping.
+Do not add version or migration fields without an accepted config-migration requirement.
 
 ## Agent Instruction File
 
@@ -107,7 +107,7 @@ The always-on text should stay compact because users often keep agent instructio
 
 Do not list the whole workflow or every mode in the activation block.
 
-The full mode-contract, workflow, interview-gate, discovery-light guidance, and enabled capability context are loaded by plugin-bundled context hooks or the Pi extension, not by setup copying full skills into repo memory.
+The full mode-contract, workflow, decision-gate, discovery-light guidance, and enabled capability context are loaded by plugin-bundled context hooks or the Pi extension, not by setup copying full skills into repo memory.
 
 Placement matters:
 
@@ -129,13 +129,13 @@ ADRs remain reserved for hard-to-reverse, surprising, tradeoff-driven decisions.
 
 ## Runtime Context Hooks
 
-Freeflow may ship plugin-bundled hooks that load existing mode-contract, workflow, interview-gate, discovery-light, and enabled capability context. These hooks belong to the installed plugin, not the target repo.
+Freeflow may ship plugin-bundled hooks that load existing mode-contract, workflow, decision-gate, discovery-light, and enabled capability context. These hooks belong to the installed plugin, not the target repo.
 
 They should:
 
 - stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape
 - suppress all Freeflow runtime context when top-level `enabled: false`
-- load `skills/mode-contract/SKILL.md`, `skills/workflow/SKILL.md`, and `skills/interview-gate/SKILL.md` only when `skills.enabled` is effective
+- load `skills/mode-contract/SKILL.md`, `skills/workflow/SKILL.md`, and `skills/decision-gate/SKILL.md` only when `skills.enabled` is effective
 - load discovery-light guidance instead of the full Discover skill only when `skills.enabled` is effective
 - load `skills/output-router/SKILL.md` only when output-router is effective
 - load `skills/delegation-harness/SKILL.md` only when delegation harness is effective
@@ -166,7 +166,7 @@ Example conflict:
 Never ask questions. Always make a best guess and implement.
 ```
 
-That conflicts with the interview gate. Setup should not silently rewrite it or pretend Freeflow can fully operate under it.
+That conflicts with the decision gate. Setup should not silently rewrite it or pretend Freeflow can fully operate under it.
 
 The user decides whether to:
 
@@ -205,135 +205,72 @@ Then setup or mode handling may update:
 
 Do not write a persistent current-mode state file by default. That creates leakage risk: a strict mode chosen for one task can affect unrelated future work.
 
-## Planning Phase
+## Planning And Discovery
 
-Planning decides what to build and how to build it.
-
-It includes:
+Planning is conditional and rolling. Enter the narrowest activity that resolves the current uncertainty:
 
 ```text
-discover
-write-spec
-review-artifact
-write-plan
-review-artifact
+discover                 when the option space or intended outcome is unclear
+write-spec               when behavior or acceptance needs a durable contract
+review-artifact          when independent judgment would materially reduce risk
+write-plan               when execution needs ordered slices and checks
 ```
 
-Discovery is the larger context-shaping unit. It interleaves evidence gathering, codebase exploration, external-source checking, brainstorming, targeted questions, and decision checkpointing before spec, plan, build, or durable memory. `/discover` is the direct route.
+Discovery interleaves the smallest useful repo, provided-source, and current external evidence with option shaping and targeted questions. It ends in a checkpoint in chat or the narrowest durable artifact. Do not force every task through discovery.
 
-Discovery gathers evidence from the repo, provided sources, and current external sources when needed. It can be quick or deep. It ends in a checkpoint: chat for short-lived work, or the narrowest owning artifact when later work must rely on it.
+`write-spec` records agreed behavior, boundaries, failure semantics, and acceptance evidence. `write-plan` produces an executable current horizon while later phases remain directional. Later phases are refined from evidence rather than frozen prematurely.
 
-Branching is normal. A conversation may fork into deeper discovery, return with a checkpoint and handoff, then continue the original direction-setting thread.
+Artifact review is conditional. Findings are evidence for the parent to adjudicate, not instructions that automatically override source truth. Follow-up review should narrow to accepted fixes and stop after three total passes; unresolved disagreement then goes to the owner or is recorded as residual risk.
 
-After enough context exists, `write-spec` converts the conversation and evidence into a durable artifact describing what should be built, what decisions were made, what was rejected, and what constraints matter.
+## Execution And Routing
 
-`review-artifact` then checks whether the spec is fit to guide work. It should catch contradictions, missing owner decisions, unclear scope, or conflicts with live evidence.
-
-`write-plan` converts the approved spec into an implementation plan. The plan explains how the work will be built: slices, files, tests, verification, and checkpoints.
-
-Plans deserve review because they combine discovery, decisions, and specs into concrete execution. A bad plan can carry earlier cracks into implementation.
-
-If review finds a real issue, the agent should not blindly fix and re-review in a loop. It should classify the issue, inspect evidence, use `review-work` or a fresh reviewer when useful, and fire the interview gate when the correction requires a user-owned decision.
-
-Backward movement is expected:
+Execution advances one meaningful slice at a time:
 
 ```text
-plan review -> spec revision -> plan revision -> final review
+learning slice           answer one named uncertainty
+delivery slice           produce accepted observable behavior
+deepening slice          improve locality or interface leverage without behavior change
 ```
 
-The planning phase is complete when the plan is reviewed enough to guide execution.
+`execute-plan` owns lifecycle routing. `tdd` is an optional test-first method for observable behavior; `simplify-code` owns behavior-preserving complexity reduction; `deprecation-and-migration` owns consumer movement and removal proof; `diagnose-failure` owns reproduction and root cause.
 
-## Execution Phase
-
-Execution does the work and proves it.
-
-It includes:
+After every meaningful slice:
 
 ```text
-execute-plan
-review-work
-verify-work
-commit-work
-handoff
+slice -> fresh verification -> route check
 ```
 
-`execute-plan` should not rewrite the plan opportunistically. It should execute the fixed scope in vertical slices.
-
-When execution discovers a new gap, source-truth conflict, impossible step, or hidden scope, it should stop and re-enter the workflow:
-
-```text
-execution -> interview-gate -> revise spec/plan or continue
-```
-
-Most workflow failures show up during execution. Good planning reduces this, but cannot eliminate it.
+Continue when evidence supports the accepted route. If evidence invalidates an assumption, preserve valid work and return only the affected layer to discovery, design, spec, planning, execution, diagnosis, review, verification, or the Decision Gate. Do not silently rewrite accepted behavior or patch around an invalid plan.
 
 ## Review And Verification
 
-Review and verification are the execution closeout.
+Verification is universal per meaningful slice and proportionate to the claim. It may use tests, typechecks, lint, browser/runtime evidence, logs, screenshots, benchmarks, or other direct evidence. A completion claim must state what was actually proved and what remains unverified.
 
-They are different checks and both must pass for consequential work.
+Independent review is conditional on risk, uncertainty, public surface area, or the value of a fresh judgment. It asks whether the change matches intent, source truth, engineering quality, and risk constraints. Fresh review guidance is mechanism-neutral: use whatever independent context the host can provide without making agent, model, worktree, or parallelism choices part of the skill contract.
 
-`review-work` asks:
+Review and verification answer different questions. Either can pass while the other fails. Accepted findings route to the narrowest owning activity; disputed findings are adjudicated against evidence rather than applied performatively.
 
-> Does the diff match the intent and engineering quality?
+## Conditional Closeout And Delivery
 
-It checks scope, source truth, maintainability, architecture, risk, and whether the work actually matches the spec and plan.
+Closeout steps are selected rather than mandatory:
 
-`verify-work` asks:
+- `commit-work` creates an authorized, coherent rollback checkpoint without staging unrelated user changes.
+- `handoff` preserves evidence and route state when work pauses, compacts, or changes owner. Handoffs are memory, not authority; live repo evidence wins.
+- `finish-branch` handles merge, PR, keep, discard, and cleanup choices after the branch is complete and verified.
+- `release-work` prepares, publishes, and verifies an immutable versioned consumer artifact.
+- `shipping-and-launch` deploys or exposes behavior through an observable, recoverable production rollout.
 
-> What fresh evidence shows this works?
-
-It checks test output, typecheck output, lint output, browser checks, logs, screenshots, or other direct evidence.
-
-Either can pass while the other fails.
-
-Examples:
-
-- Tests pass, but review fails because the implementation hardcodes billing policy or violates architecture.
-- Review looks good, but verification fails because the test suite or browser check fails.
-
-Completion claims require both review confidence and verification evidence when the work is consequential.
-
-## Commit And Handoff
-
-After successful execution, review, and verification, the work should be committed.
-
-Freeflow has a first `commit-work` skill for the lightweight closeout guard.
-
-That skill should cover:
-
-- checking the staged/untracked diff
-- ensuring unrelated user changes are not included accidentally
-- writing useful commit messages
-- referencing specs, plans, or decisions when useful
-- respecting pre-commit/lint/test failures
-- keeping commits small enough to debug and roll back
-
-Orchestra had useful prior art around commit discipline and references, but Freeflow should avoid importing heavy machinery before behavior is proven.
-
-After commit, create a handoff when continuity matters.
-
-Handoff destination depends on use:
-
-- temp handoff: immediate continuation after compaction or fresh chat
-- memory handoff: durable project memory for future sessions
-
-Handoffs are memory, not authority. Live repo evidence overrides stale handoff text.
+Release and shipping are distinct. A replacement release may need to precede consumer migration; migration proof must precede a later removal or breaking release. A published release may still require a separately authorized deployment or rollout.
 
 ## Cross-Cutting Skills
 
-Some skills can fire in either planning or execution:
-
-- `interview-gate`: user-owned decisions, ambiguity, source-truth conflicts, path conflicts.
-- `diagnose-failure`: bugs, failing tests, regressions, unexpected behavior.
+- `decision-gate`: user-owned decisions, source-truth conflicts, and material path substitutions.
+- `design-for-depth`: spreading caller knowledge, states, edge cases, or coordination pressure.
+- `diagnose-failure`: bugs, failing tests, regressions, flaky or unclear behavior.
 - `bypass`: skip unnecessary ceremony without skipping judgment.
 - `mode-contract`: infer or discuss Freeflow modes.
 
-`diagnose-failure` can be part of planning when discovery reveals a bug-like unknown, and part of execution when implementation or verification fails.
-
-Discovery checkpoints record stable decisions only when they must survive beyond chat; session residue belongs in handoffs or plans.
-
-`bypass` defaults to one action and never bypasses user-owned decisions, source-truth conflicts, risky domains, or verification.
+Discovery checkpoints record stable decisions only when they must survive beyond chat; session residue belongs in handoffs or rolling plans. `bypass` defaults to one action and never bypasses user-owned decisions, source-truth conflicts, risky checks, or verification.
 
 ## Developer Meta Skills
 
@@ -362,40 +299,34 @@ Many real agent failures should become evals. When an agent skips a phase, silen
 
 These skills should not encourage end users to mutate core Freeflow skills casually. They are mainly for Freeflow contributors and developers creating their own skill packs.
 
-Current evidence:
+Current evidence inventory (historical behavior reports do not verify revised skills until rerun):
 
 - `setup-freeflow` has focused setup evals for Codex and Claude activation shapes.
 - `write-skill` has behavior and direct command evals showing that production-ready pressure must not overbuild skill folders.
 - `evaluate-skill` has behavior and direct command evals showing that shortcut wording must not skip creating or updating an eval artifact before skill edits.
-- Command-surface coverage is current for the direct Freeflow routes. The current registry has 4 mode commands, 11 direct skill calls, 3 developer skill calls, and 3 Pi native settings commands. See `evals/reports/by-command-surface/command-surface-matrix.md`.
+- Command-surface coverage is current for the direct Freeflow routes. The current registry has 4 mode commands, 16 direct skill calls, 3 developer skill calls, and 3 Pi native settings commands. See `evals/reports/by-command-surface/command-surface-matrix.md`.
 - The fixture harness supports Codex by default and Claude through `FREEFLOW_FIXTURE_AGENT=claude`; live Claude runs still require local Claude auth and are not active release blockers for Hassan's local Codex-first testing.
 
 ## Current Pack Readiness
 
-The current development plugin has enough local Codex fixture evidence to start dogfooding in Hassan's other repos.
-
-The local-only v0.1 acceptance suite passed after measured fixes in `evals/reports/acceptance/v0.1-acceptance-report.md`. The public marketplace repo now points both Codex and Claude at the single runtime under the repo root. Live Claude smoke evals and GitHub-install smoke tests are still deferred.
+The published workflow and runtime retain historical fixture and deterministic evidence. The current 26-skill adaptive snapshot is structurally integrated but remains Unverified pending behavioral evaluation. It may be dogfooded only with that limitation explicit.
 
 Current packaging shape:
 
-- 18 active skills under `skills/`; deprecated skills live under root `deprecated/skills/` and are not part of the runtime skill surface.
+- 26 active skills under `skills/`; deprecated skills live under root `deprecated/skills/` and are outside the runtime skill surface.
 - Single plugin runtime under the repo root, including skills, context hooks, manifests, evals, command-surface metadata, and refined plugin docs.
-- Every `SKILL.md` is under the 100-line project budget.
-- Extra reference files exist only where targeted evals or complexity justified progressive disclosure.
-- Native slash handlers remain disabled; commands are model-routed through skill activation.
-- Context-loading hooks and the Pi extension stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape, then load enabled mode-contract, workflow, interview-gate, discovery-light, and capability context at session start.
+- Active skill files stay behavior-focused; conditional depth lives in references where it prevents repetition or measured failure.
+- Codex and Claude slash-style calls remain model-routed. Pi registers the direct and developer calls in `command-surface.json` plus native settings commands.
+- Context-loading hooks and the Pi extension stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape, then load enabled mode-contract, workflow, decision-gate, discovery-light, and capability context.
 - Setup reads base workflow context and enabled capability context, then applies discovery-light after successful setup verification for same-session use.
 - Enforcement hooks remain deferred until skill behavior and evals prove mechanical enforcement is needed.
 
-Reference-file additions from the reference-stack pass have landed. Do not add more references, scripts, examples, or assets merely because a skill is broad. Add them only when they keep the active `SKILL.md` short, reduce repeated deterministic work, or prevent a measured behavior failure.
+Do not add more references, scripts, examples, or assets merely because a skill is broad. Add them only when they keep active guidance focused, reduce repeated deterministic work, or prevent a measured behavior failure.
 
 ## Open Implementation Work
 
-Deferred validation work:
+1. Finish the evaluator architecture.
+2. Run baseline-vs-with-skill evaluation for revised and new skills, including activation and composition pressure cases.
+3. Run deferred Claude and cross-host install smoke checks when preparing the next release.
 
-1. Run Claude paired smoke evals after local Claude auth is available.
-2. Add stronger coverage only where real skill failures appear.
-
-Do not add enforcement hooks yet.
-
-Enforcement hooks should come after skill behavior and evals show where mechanical enforcement is needed.
+Do not add enforcement hooks before measured behavior shows where mechanical enforcement is needed.

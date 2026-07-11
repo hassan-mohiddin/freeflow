@@ -17,16 +17,40 @@ A mode for discussion, explanation, critique, and exploration where no workflow 
 _Avoid_: casual mode, no-rules mode
 
 **Workflow Mode**:
-The default mode for consequential work. It follows a lightweight forward workflow and re-enters clarification when ambiguity would change the next action.
+The default mode for consequential work. It follows an adaptive engineering loop and routes backward when new evidence changes the next safe action.
 _Avoid_: auto mode, normal mode
 
 **Strict Workflow Mode**:
 A mode for high-risk work where gates, artifacts, and verification are stronger.
 _Avoid_: safe mode, locked mode
 
-**Interview Gate**:
-A clarification gate that fires when the agent would otherwise make a user-owned decision or proceed with context that could change the next action.
-_Avoid_: questionnaire, permission check
+**Decision Gate**:
+A stop that fires when the next action depends on a user-owned decision, source-truth conflict, or materially different path.
+_Avoid_: interview, questionnaire, permission check
+
+**Route Check**:
+The lightweight check after a meaningful slice that compares evidence with the accepted outcome, assumptions, interface, scope, and remaining path.
+_Avoid_: status update, mandatory user checkpoint
+
+**Backward Edge**:
+A deliberate return to the narrowest owning activity when new evidence invalidates the current path while preserving work and decisions that remain valid.
+_Avoid_: restart, failure, patch loop
+
+**Rolling Plan**:
+A plan whose current horizon is executable while later phases remain directional and are refined from evidence.
+_Avoid_: frozen task list, roadmap
+
+**Learning Slice**:
+A bounded experiment or prototype that answers one named uncertainty with evidence and a discard-or-promote rule.
+_Avoid_: speculative implementation, production shortcut
+
+**Delivery Slice**:
+A bounded vertical slice that produces accepted observable behavior and verification.
+_Avoid_: file batch, horizontal layer
+
+**Deepening Slice**:
+A bounded behavior-preserving slice that improves module depth, locality, or interface leverage.
+_Avoid_: cleanup while here, architecture rewrite
 
 **Discovery**:
 The discovery loop before spec, plan, build, or durable memory. It interleaves evidence gathering, codebase exploration, external-source checking, brainstorming, targeted questions, and decision checkpointing. `/discover` is the user-facing route.
@@ -47,6 +71,14 @@ _Avoid_: stale context, mismatch
 **Path Conflict**:
 A material difference between what the user asked for and what the agent is about to do next. The agent should name both paths and ask which one to follow.
 _Avoid_: preference, implementation detail
+
+**Release**:
+An immutable versioned consumer artifact, tag, or publication checkpoint. A release is not necessarily deployed.
+_Avoid_: deploy, rollout
+
+**Shipping / Launch**:
+Deploying or exposing behavior in production through an observable, recoverable rollout. Shipping may consume a release but is a separate decision.
+_Avoid_: commit, tag, package publication
 
 **Handoff**:
 A compact continuation artifact for a future agent or session. A handoff is memory, not authority.
@@ -118,7 +150,7 @@ _Avoid_: raw discovery notes, handoffs
 Use `handoff`, `temp handoff`, or `memory handoff` when the distinction matters. Generic "memory" is ambiguous because it can mean conversation context, repo docs, Codex memories, or durable handoff artifacts.
 
 **Workflow**:
-Use `workflow mode` for the plugin mode and `workflow spine` for the forward sequence of work. Do not use "workflow" when you mean a rigid state machine.
+Use `workflow mode` for the plugin mode and `adaptive workflow loop` for the recurring execution-and-learning path. Do not use "workflow" when you mean a rigid state machine or fixed forward sequence.
 
 **Authority**:
 Live repo evidence, explicit user decisions, and accepted ADRs can be authoritative. Handoffs are not authoritative unless later confirmed by live evidence or the user.
@@ -130,7 +162,7 @@ Use `Obra/Superpowers` when referring to the workflow reference plugin. Do not i
 
 Developer: "The handoff says to change billing behavior. Should I implement it?"
 
-Domain expert: "No. That is a source-of-truth conflict if the live policy or tests disagree. Use the interview gate before editing."
+Domain expert: "No. That is a source-of-truth conflict if the live policy or tests disagree. Use the Decision Gate before editing."
 
 Developer: "Should the agent ask every time it picks an implementation detail?"
 

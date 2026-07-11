@@ -1,51 +1,71 @@
 # Staging Decisions
 
-Use this for mixed staged sets, generated files, durable docs, or broad commit/push pressure.
+Use this when staged state is mixed, generated files or durable docs appear, broad commit/push language conflicts with the diff, or producing a narrow checkpoint may touch user-owned work.
 
 ## Evidence First
 
-Read staged, unstaged, and untracked state before deciding what to commit or push:
+Inspect:
 
 - `git status --short`
 - `git diff --cached`
 - `git diff`
 - `git ls-files --others --exclude-standard`
 
-Diff evidence beats "staged means ready", "commit everything", "push all changes", and "include all leftovers".
+Diff evidence beats “staged means ready,” “commit everything,” “push all changes,” and “include every leftover.”
 
-## Mixed Staged Sets
+## Classify Paths
 
-Staged changes can still be wrong.
+For each changed path, classify:
 
-Stop or make a narrow commit when the staged set mixes separable concerns, such as:
+- **Checkpoint:** directly implements or proves the intended slice.
+- **Required generated output:** repo convention or task requires it and its generator is known.
+- **Durable source truth:** spec, policy, ADR, plan, or handoff describing the same confirmed change.
+- **Related but separable:** useful work that should remain outside this checkpoint.
+- **Unrelated or user-owned:** not part of the current outcome.
+- **Sensitive or unsafe:** secrets, private data, debug output, destructive state, or unclear generated content.
 
-- release note or copy edits plus product behavior
-- source code plus local debug output
-- generated files plus hand edits
-- source-truth docs plus implementation changes that have not been confirmed
-- security, billing, permissions, privacy, migration, or public API behavior with unrelated work
+Do not infer ownership from staging state.
 
-If a sensitive staged change conflicts with docs, tests, policy, or contracts, do not commit it just because it is staged.
+## Narrow Checkpoint
 
-## Narrow Commit Rule
+A narrow commit is safe when:
 
-Make a narrow commit only when:
+- its outcome and source requirement are clear;
+- every included path belongs to that outcome;
+- verification supports the claim represented by the commit;
+- required review status is known;
+- excluded changes can remain untouched without loss;
+- the final report names remaining dirty state.
 
-- the intended scope is clear
-- the included files are all part of that scope
-- excluded changes can remain staged or dirty without being lost
-- the final response reports remaining staged/dirty/untracked work
+Stage explicit paths or hunks. If narrowing requires unstaging, rearranging, regenerating, or modifying user-owned work, stop unless the user or repo workflow already authorized that operation.
 
-If excluding files would require unstaging or rearranging user-owned work, ask first unless the repo clearly supports a safe path.
+## Mixed Concerns
+
+Separate changes when combining them harms review, diagnosis, or rollback, especially:
+
+- behavior plus unrelated refactoring;
+- source code plus local debug output;
+- generated artifacts plus unexplained hand edits;
+- durable source-truth changes plus implementation that has not been confirmed;
+- security, privacy, billing, permissions, migration, data-loss, compatibility, or public API behavior plus unrelated work;
+- learning-slice evidence plus production changes that have not passed promotion criteria.
+
+A single coherent behavior with its tests and matching docs may belong together.
 
 ## Generated Files
 
-Do not commit generated files, logs, snapshots, lockfiles, build outputs, or formatter churn unless the task or repo convention makes them part of the intended change.
+Commit generated files, snapshots, lockfiles, build outputs, or formatter changes only when the task or repo convention makes them part of the checkpoint.
 
-If generated output is required, name the generator or verification that produced it.
+Name the generator or command that produced required output. Do not hand-edit generated files unless the repo explicitly expects it.
 
-## Durable Docs
+## Durable Artifacts
 
-Durable specs, ADRs, policies, handoffs, and runbooks are source truth. Commit them with code only when they describe the same confirmed change.
+Specs, ADRs, policies, plans, and handoffs can carry authority or future memory. Include them with code only when they describe the same settled change.
 
-If a durable doc changes policy, status, ownership, public API behavior, billing, privacy, security, data loss, migration, or compatibility, treat that as a user-owned decision unless already confirmed.
+If a durable artifact changes behavior, ownership, status, policy, API, compatibility, security, privacy, billing, permissions, migration, or data-loss expectations, use the decision gate unless that change is already explicit.
+
+## Existing Staged State
+
+Existing staged changes may belong to another workflow. Inspect them, but do not silently unstage, amend, discard, or absorb them.
+
+When ownership remains ambiguous, present the smallest safe staging options and ask which checkpoint the user wants.

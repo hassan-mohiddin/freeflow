@@ -548,7 +548,7 @@ skills/output-router/SKILL.md
 skills/output-router/references/safety-policy.md
 ```
 
-Pi should load the `output-router` skill and its `references/safety-policy.md` reference into runtime context together, just like it loads `workflow` and `interview-gate` context. Other hosts can use the same skill and reference through their normal skill/plugin loading path.
+Pi should load the `output-router` skill and its `references/safety-policy.md` reference into runtime context together, just like it loads `workflow` and `decision-gate` context. Other hosts can use the same skill and reference through their normal skill/plugin loading path.
 
 The skill should include strong guidance, not hidden enforcement.
 

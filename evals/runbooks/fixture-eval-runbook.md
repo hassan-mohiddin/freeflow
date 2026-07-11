@@ -12,7 +12,7 @@ For each eval:
 
 1. Copy `evals/fixtures/tiny-saas-app` into an isolated run directory.
 2. Run a baseline agent with no freeflow skills.
-3. Run a with-skill agent with `mode-contract`, `workflow`, and `interview-gate`.
+3. Run a with-skill agent with `mode-contract`, `workflow`, and `decision-gate`.
 4. Capture:
    - final response
    - changed files
@@ -109,7 +109,7 @@ Run them against a saved fixture output:
 ```sh
 evals/scripts/grade-fixture-eval.sh \
   IVG-001 \
-  --output evals/runs/interview-gate-1/ivg-001-with-skill-output.md
+  --output evals/runs/decision-gate-1/ivg-001-with-skill-output.md
 ```
 
 Use JSON when a report or later script needs structured results:
@@ -117,7 +117,7 @@ Use JSON when a report or later script needs structured results:
 ```sh
 evals/scripts/grade-fixture-eval.sh \
   IVG-001 \
-  --output evals/runs/interview-gate-1/ivg-001-with-skill-output.md \
+  --output evals/runs/decision-gate-1/ivg-001-with-skill-output.md \
   --format json
 ```
 

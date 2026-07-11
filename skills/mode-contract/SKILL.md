@@ -81,4 +81,4 @@ Persist only explicit default requests, such as "make strict-workflow the defaul
 
 Use the requested valid mode. Do not add current mode, task, phase, version, or activation-path fields.
 
-Direct skill calls are manual state selection. If the user calls a workflow segment directly, operate in that segment while still using the interview gate for user-owned decisions.
+Direct skill calls are manual state selection. If the user calls a workflow segment directly, operate in that segment while still using the decision gate for user-owned decisions.

@@ -1,122 +1,154 @@
 # Execute Plan Map
 
-Use this when carrying out a multi-slice plan, resuming from handoff, combining TDD with execution, deciding whether to review/commit, or handling failed checks/reviews/scope changes.
+Use this for multi-slice execution, learning work, rolling-plan refinement, accumulated design pressure, or failed verification/review/source/scope conditions.
 
-The map is a control surface, not ceremony. Small reversible slices can use the compact map only.
+The map is adaptive. It preserves the accepted outcome while allowing evidence to change the path.
 
-## Compact Map
+## Compact Loop
 
 ```text
-Orient
--> Slice contract
--> Red / Green / Refactor when TDD applies
+Orient to current horizon
+-> Name slice contract
+-> Execute one learning / delivery / deepening slice
 -> Verify
--> Review checkpoint when needed
--> Commit or handoff checkpoint when needed
--> Next slice
-
-Any failed check, non-pass review, source conflict, or scope expansion
--> Classify evidence
--> Report route
--> Fix | Diagnose | Discover | Spec | Plan | Stop
+-> Route check
+   -> continue
+   -> formal review / commit / handoff when useful
+   -> bounded fix
+   -> diagnose
+   -> Discover / design
+   -> revise spec / plan
+   -> decision gate
+   -> stop or defer
+-> Refine only the next executable horizon
 ```
 
-## Contract Map
+Every meaningful slice gets verification and a route check. Formal checkpoints are conditional.
 
-Before a non-trivial slice, name:
+## Slice Contract
 
 ```text
-Slice: what part of the plan is active
-Source truth: spec/docs/tests/policies/code that own behavior
-Module/interface changed: outside contract affected by this slice
-Behavior/test/benchmark: observable behavior to prove
-Verification: command or check that proves this slice
-Review checkpoint: none | after this slice | after stack | final
-Commit or handoff checkpoint: when rollback/resume needs a snapshot
-Stop conditions: decisions/conflicts/failures that end the slice
+Slice outcome:
+Source requirement / acceptance:
+Type: learning | delivery | deepening
+Module / interface / seam:
+Behavior, experiment, test, or benchmark:
+Failure contract when relevant:
+Verification:
+Assumptions under test:
+Route-change triggers:
+Formal checkpoint if needed: review | commit | handoff | owner
 ```
 
-A slice contract prevents hidden broadening. If the contract changes materially, stop and route backward.
+A slice is a proof-bearing unit, not a file batch. If this contract changes materially during execution, stop and classify the new route.
 
-## Reference Map
+## Route Map
 
 ```mermaid
 flowchart TD
-  Start([Plan or handoff]) --> Orient[Orient<br/>read plan, source truth, live code]
-  Orient --> Contract[Slice contract<br/>boundary + interface + checks]
-  Contract --> Decision{Can execute safely?}
+  Start([Current plan horizon]) --> Orient[Orient<br/>source truth + live code + prior evidence]
+  Orient --> Contract[Slice contract<br/>outcome + seam + evidence + triggers]
+  Contract --> Safe{Safe bounded slice?}
 
-  Decision -->|yes| Build[Build slice<br/>TDD vertical loop if applicable]
-  Decision -->|missing plan/check/decision| Back[Backward route<br/>discover / spec / plan / owner]
+  Safe -->|yes| Build[Execute slice<br/>learning / delivery / deepening<br/>TDD when applicable]
+  Safe -->|no| Back[Backward route<br/>Discover / design / spec / plan / owner]
 
-  Build --> Verify[Verify planned check]
-  Verify -->|pass| ReviewGate{Review needed now?}
-  Verify -->|fail| Fail[Classify failure evidence]
+  Build --> Verify[Verify slice outcome]
+  Verify -->|evidence insufficient or failed| Classify[Classify evidence]
+  Verify -->|proved| RouteCheck[Route check<br/>assumptions + interface + remaining work]
 
-  ReviewGate -->|no| Checkpoint[Commit/handoff checkpoint if needed]
-  ReviewGate -->|yes| Review[Review checkpoint]
-  Review -->|pass| Checkpoint
-  Review -->|non-pass| ReviewFail[Classify findings<br/>accepted / rejected / question / needs evidence]
+  RouteCheck -->|route still holds| Formal{Formal checkpoint useful?}
+  RouteCheck -->|local defect| Fix[Bounded fix route]
+  RouteCheck -->|repeated or unclear failure| Diagnose[Diagnose failure or design pressure]
+  RouteCheck -->|path invalidated| Back
 
-  Checkpoint --> Next{Next slice?}
-  Next -->|yes| Orient
-  Next -->|no| Done([Complete / final verify / handoff])
+  Formal -->|review| Review[Independent review when warranted]
+  Formal -->|commit| Commit[Verified rollback checkpoint]
+  Formal -->|handoff| Handoff[Continuation checkpoint]
+  Formal -->|none| Horizon[Refine next horizon]
 
-  Fail --> Route{Route}
-  ReviewFail --> Route
-  Route -->|next bounded fix| Build
-  Route -->|unclear or repeated| Diagnose[Diagnose]
-  Route -->|source/scope decision| Back
+  Review -->|pass| Horizon
+  Review -->|non-pass| Adjudicate[Adjudicate findings<br/>accepted / rejected / question / needs evidence]
+  Adjudicate --> Classify
+  Commit --> Horizon
+  Handoff --> Stop([Pause])
+
+  Classify -->|implementation defect| Fix
+  Classify -->|needs evidence| Diagnose
+  Classify -->|source / scope / owner / design| Back
+  Fix --> Contract
   Diagnose --> Back
+
+  Horizon --> Next{More accepted work?}
+  Next -->|yes| Orient
+  Next -->|no| Done([Final evidence and route])
 ```
 
-## Entry Points
+## Route Check
 
-Use this map when the current task is:
+After verification, ask:
 
-- start or continue an approved plan;
-- execute the next planned slice;
-- resume from a handoff;
-- run a TDD or benchmark-backed implementation slice;
-- handle a planned verification failure;
-- handle review findings during execution;
-- decide whether to commit after a slice;
-- context is getting low before the next slice;
-- implementation reveals scope or source truth changed.
+- What did this slice prove?
+- Which assumption changed?
+- Does the module still hide complexity behind the intended interface?
+- Is remaining work shrinking?
+- Can the next bounded finish path be stated clearly?
+- Did a deferred capability or unplanned subsystem enter scope?
+- Did this slice invalidate earlier evidence or later phases?
+- Is independent review, a rollback checkpoint, or a handoff useful now?
 
-## Exits
+Choose one route:
 
-- **Forward** — slice verified; next slice boundary is clear.
-- **Bounded fix** — accepted finding/check failure is small, in-scope, and source-truth-supported.
-- **Commit checkpoint** — verified slice should be committed before continuing.
-- **Handoff checkpoint** — context is too low or continuation state must survive.
-- **Backward** — scope/source truth/review evidence invalidates the plan.
-- **Diagnose** — repeated failure or edge-case patching suggests a deeper problem.
-- **Stop** — blocked on owner decision or plan/spec/source change.
+- **Continue:** current outcome, scope, interface, and plan remain valid.
+- **Bounded fix:** one source-backed local defect; no scope or design change.
+- **Review:** independent judgment could change confidence or route.
+- **Commit:** coherent verified rollback point.
+- **Handoff:** context or continuity boundary.
+- **Diagnose:** failure signal or repeated loop needs root-cause evidence.
+- **Discover/design:** option space, ownership, failure unit, or interface reopened.
+- **Revise spec:** behavior, scope, acceptance, public contract, or failure semantics changed.
+- **Revise plan:** order, slices, mechanism, checks, or later phases changed.
+- **Decision gate:** owner choice or source/path conflict blocks progress.
+- **Stop/defer:** no safe in-scope continuation.
 
-## Review Failure Routing
+## Dynamic Backward Triggers
 
-A non-pass review is not an edit script.
+Route backward when:
 
-Classify before action:
+- a second unexpected defect appears at one seam;
+- caller knowledge, public states, flags, retries, or test setup keep growing;
+- a slice requires an unplanned subsystem;
+- deferred scope enters the active milestone;
+- implementation invalidates earlier evidence;
+- later phases depend on a changed interface or ordering;
+- remaining work grows after completed slices;
+- the bounded finish path is no longer clear;
+- review or verification repeatedly fails for different local reasons.
 
-- **Accepted** — valid, source-truth-supported, and in scope.
-- **Rejected** — stale, unsupported, already resolved, equivalent, or not important.
-- **Question** — needs owner/product/domain/security/API/etc. decision.
-- **Needs evidence** — inspect before deciding.
+These triggers do not authorize a refactor. Preserve valid evidence, name the affected layer, and choose the narrowest backward route.
 
-Route:
+## Rolling Horizon
 
-- Accepted + bounded + in scope -> recommend one fix pass next; do not perform it in the same turn that received the non-pass review.
-- Non-blocking -> defer or bundle only when safe.
-- Question -> ask; do not implement the answer silently.
-- Needs evidence -> inspect or diagnose before editing.
-- Third review pass -> diagnose; no fourth broad review.
+At phase boundaries:
 
-Repeated edge-case findings are a design signal. Ask whether the module/interface is too shallow, the plan slice is wrong, the spec is under-specified, or reviewer context is stale.
+1. preserve completed evidence and settled decisions;
+2. update invalidated assumptions;
+3. refine the next phase into executable slices;
+4. keep later phases directional;
+5. record new backward checkpoints and formal checkpoint forecasts;
+6. stop if refinement would silently change behavior or scope.
 
-## Context And Snapshot Discipline
+A changed plan is healthy adaptation when evidence and owner authority support it. Following an invalidated plan is not discipline.
 
-Do not start a slice if you cannot finish the edit, verification, and checkpoint in the current context window.
+## Separate Execution Contexts
 
-When per-slice commits are requested, a verified slice should route to `commit-work` before the next slice. When a commit is not appropriate, make a handoff if future execution depends on the slice state.
+When work is distributed, each work package should contain:
+
+- one bounded slice outcome;
+- source requirements and constraints;
+- relevant module/interface context;
+- expected output and evidence;
+- write boundary;
+- route-change and escalation conditions.
+
+The execution harness owns agents, models, worktrees, parallelism, persistence, timeouts, and transport.

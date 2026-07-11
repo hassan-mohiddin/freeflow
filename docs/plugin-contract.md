@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This contract defines the first implementation boundary for the agent workflow plugin.
+This contract defines the current behavior and implementation boundary for the agent workflow plugin.
 
 The plugin is a portable workflow layer for coding agents. It helps an agent clarify, research, specify, plan, execute, verify, review, and hand off work while preserving user control over consequential decisions.
 
@@ -14,7 +14,7 @@ The plugin is named Freeflow. The old Orchestra repo is prior art and failure ev
 
 The plugin should make disciplined work feel natural:
 
-> Use a lightweight forward workflow by default. When new ambiguity, missing context, or invalidated assumptions appear, re-enter clarification instead of silently patching forward.
+> Enter at the narrowest useful workflow state. Verify and route after each meaningful slice; when evidence invalidates the path, return to the owning activity instead of silently patching forward.
 
 ## Non-Goals
 
@@ -64,7 +64,7 @@ Examples:
 
 Behavior:
 
-- Treat the workflow spine as the default guide.
+- Use the adaptive workflow map and enter at the narrowest useful state.
 - Ask or investigate when ambiguity would change the next action.
 - Produce artifacts only when they reduce risk, preserve decisions, or enable handoff.
 - Verify before making completion claims.
@@ -96,9 +96,9 @@ Behavior:
 - Required artifacts where appropriate.
 - Explicit user confirmation for bypasses.
 - Verification and review are hard requirements.
-- Hooks may block risky actions.
+- Runtime context may strengthen model guidance, but the current plugin does not add enforcement hooks.
 
-Strict Workflow Mode must exist, but initial development should optimize Conversation Mode and Workflow Mode first.
+Strict Workflow Mode is the strongest form of the same adaptive workflow, not a separate system.
 
 ## Mode Principle
 
@@ -128,31 +128,37 @@ There are three modes and one namespaced mode-control path; `/freeflow mode rese
 Direct skill calls should be possible for technical users:
 
 ```text
-/research
+/discover
 /write-spec
 /review-artifact
 /write-plan
 /execute-plan
+/simplify-code
+/deprecation-and-migration
 /diagnose-failure
 /verify-work
 /review-work
 /commit-work
 /handoff
+/finish-branch
+/release-work
+/shipping-and-launch
 /bypass
 ```
 
-Direct skill calls are manual state selection. If the user calls `/execute-plan`, the agent should treat that as permission to operate in that workflow segment, while still firing the interview gate if a user-owned decision appears.
+Direct skill calls are manual state selection. If the user calls `/execute-plan`, the agent should treat that as permission to operate in that workflow segment, while still firing the decision gate if a user-owned decision appears.
 
-Developer skill calls are available when developing plugins or skills:
+Developer and setup skill calls are available when configuring Freeflow or developing plugins and skills:
 
 ```text
+/setup-freeflow
 /write-skill
 /evaluate-skill
 ```
 
 These are not workflow states. They should not be treated like normal user task segments.
 
-Current Freeflow packages route these through skill activation and model behavior rather than native host slash-command handlers. Do not assume a host command is registered until the host manifest or runtime proves it.
+Codex and Claude treat slash-style skill calls as model-routed language. Pi registers the direct and developer calls declared in `command-surface.json`. Do not assume a native host command exists unless the host manifest or runtime proves it.
 
 ## Situation Routing
 
@@ -160,7 +166,7 @@ Workflow instructions should use situation language, not hard dependency names.
 
 Examples:
 
-- Say "run an interview gate," not "use creator X's grilling skill."
+- Say "use the Decision Gate," not "use creator X's grilling skill."
 - Say "write an implementation plan," not "invoke a specific third-party planning skill."
 - Say "verify before completion," not "run a specific plugin's verification skill."
 
@@ -223,60 +229,38 @@ Bypass must not skip:
 
 Avoid indefinite bypass by default.
 
-## Workflow Spine
+## Adaptive Workflow
 
-Default forward flow:
+There is no mandatory forward pipeline. Enter at the narrowest useful state:
 
 ```text
-Clarify / Brainstorm
--> Research
--> Spec
--> Spec Review
--> Plan
--> Plan Review
--> Execute
--> Verify
--> Work Review
--> Commit / Handoff
+request -> choose entry
+entry -> conversation | discover | decide | spec | plan | execute | diagnose | review | verify | close
+meaningful slice -> fresh verification + route check
+route check -> continue | checkpoint | complete | backward edge
 ```
 
-The workflow is a guide, not a mandatory checklist for every task.
+Discovery, formal artifacts, independent review, commits, handoffs, branch integration, releases, and launches are conditional. Every meaningful learning, delivery, or deepening slice still gets verification proportionate to its claim and a route check.
 
-The agent should scale the amount of process to:
+Scale workflow pressure to:
 
-- Task risk.
-- Task ambiguity.
+- Task risk and ambiguity.
 - User preference.
-- Existing repo conventions.
-- Whether the work is reversible.
+- Existing repo conventions and source truth.
+- Reversibility and blast radius.
+- What evidence would change the next action.
 
 ## Backward Flow
 
 The universal backward edge is:
 
 ```text
-Any State -> Interview Gate / Brainstorm -> Explicit Re-entry Decision
+new evidence -> route check -> continue or return to the narrowest owning activity
 ```
 
-When new uncertainty appears, the agent should not silently choose a backward destination such as "rewrite spec" or "change plan."
+Do not restart valid work or patch around an invalidated assumption. Preserve what remains valid, state what changed, then route the affected part to discovery, design, spec, planning, execution, diagnosis, review, verification, an owner decision, defer, or stop.
 
-Instead:
-
-1. Re-enter clarification.
-2. Ask or inspect evidence.
-3. State what changed.
-4. Decide the re-entry destination explicitly.
-
-Possible re-entry destinations:
-
-- Continue.
-- Revise spec.
-- Revise plan.
-- Split scope.
-- Diagnose failure.
-- File a bug.
-- Defer.
-- Stop and ask user.
+Use the Decision Gate only when the route depends on a user-owned decision, a source-truth conflict, or a materially different path. Discoverable technical facts should be investigated rather than delegated to the user.
 
 ## Source-of-Truth Conflict Rule
 
@@ -295,9 +279,9 @@ Handoffs are memory, not authority. If a handoff conflicts with live repo eviden
 
 This rule is a frozen core behavior because adversarial evals showed that both baseline and early with-skill agents rewrote billing policy, tests, and code to satisfy the latest request. The revised skills passed after this rule was added.
 
-## Interview Gate
+## Decision Gate
 
-The interview gate can fire from any state.
+The decision gate can fire from any state.
 
 It fires when:
 
@@ -325,7 +309,7 @@ Question style:
 - Ask one question at a time.
 - Explain why the answer matters.
 - Provide a recommended answer when possible.
-- Stop when remaining ambiguity would not change the next forward action.
+- Stop when remaining ambiguity would not change the next safe action.
 
 ## User-Owned Decisions
 
@@ -349,7 +333,7 @@ The agent may decide:
 - Mechanical refactors.
 - Narrow verification command selection.
 
-This boundary should be encoded in the `interview-gate` skill.
+This boundary should be encoded in the `decision-gate` skill.
 
 ## Artifact Contract
 
@@ -523,35 +507,29 @@ Use concise Matt-style pressure with Obra-style phase awareness.
 
 ## Skill Set Boundary
 
-The initial implementation should start with the smallest skill set that can prove the workflow behavior:
+Freeflow now ships one adaptive workflow pack:
 
 ```text
-mode-contract
-workflow
-interview-gate
+mode-contract              workflow                  decision-gate
+bypass                     discover                  design-for-depth
+write-spec                 review-artifact           write-plan
+execute-plan               tdd                       diagnose-failure
+verify-work                review-work               commit-work
+handoff                    output-router             delegation-harness
+setup-freeflow             write-skill               evaluate-skill
 ```
 
-Add follow-on core skills only when the preceding behavior is useful under eval pressure:
+Optional candidate skills cover distinct lifecycle jobs:
 
 ```text
-verify-work
-handoff
+simplify-code
+deprecation-and-migration
+finish-branch
+release-work
+shipping-and-launch
 ```
 
-Candidate later skills:
-
-```text
-research
-write-spec
-review-artifact
-write-plan
-execute-plan
-diagnose-failure
-review-work
-bypass
-```
-
-Do not start by writing every skill. The useful test is whether the smallest active skill set changes behavior under pressure.
+The current adaptive revisions and new candidates remain Unverified until baseline-vs-with-skill evaluation shows that they change behavior under pressure. Skill presence, direct command exposure, and static review are not behavioral readiness claims.
 
 ## Evaluation Contract
 
@@ -590,53 +568,52 @@ Adversarial acceptance gates:
 
 These are stronger than smoke tests. Passing them requires baseline failure and with-skill success, or another clear material improvement.
 
-## Acceptance Criteria For First Implementation
+## Acceptance Criteria For The Adaptive Candidate
 
-The first implementation is useful when:
+The candidate is useful when:
 
-- The agent can infer Conversation Mode vs Workflow Mode correctly in common cases.
-- The agent asks before making user-owned decisions.
-- The agent inspects discoverable evidence before asking.
-- The agent can move backward from execution/review/verification into clarification.
-- The agent does not create unnecessary artifacts for simple work.
-- The agent uses artifacts as lightweight recoverable memory instead of asking the user to repaste context.
-- The agent communicates crisply without losing technical precision.
-- The agent verifies before claiming completion.
-- The agent refuses to rewrite source-of-truth artifacts merely to satisfy the latest request.
-- The user can manually call a workflow segment.
-- The user can bypass one unnecessary gate without disabling judgment.
+- The agent infers Conversation Mode versus Workflow Mode correctly in common cases.
+- It inspects discoverable evidence before asking and reserves the Decision Gate for user-owned decisions, source-truth conflicts, and material path substitutions.
+- Every meaningful slice gets proportionate fresh verification and a route check.
+- Invalidated work returns to the narrowest owning activity while valid work is preserved.
+- Formal artifacts, independent review, commits, handoffs, integration, releases, and launches remain conditional.
+- Artifacts preserve compact recoverable decisions rather than ceremony or transcript residue.
+- Source-truth artifacts are not rewritten merely to satisfy the latest request.
+- Direct skill calls select a workflow segment without bypassing its gates.
+- One-action bypass skips unnecessary ceremony without disabling judgment.
+
+These are candidate claims until baseline-vs-with-skill evaluation verifies the revised behavior.
 
 ## Frozen Decisions
 
-Frozen for initial development:
-
 - Exactly three modes: Conversation, Workflow, Strict Workflow.
-- Workflow Mode is the main/default work mode.
-- Conversation Mode disables workflow pressure.
-- Strict Workflow Mode exists but is not the first optimization target.
-- Universal backward edge goes through the interview gate.
-- Source-of-truth conflicts require pause and explicit user confirmation before edits.
+- Workflow Mode is the main/default work mode; Conversation Mode disables workflow pressure.
+- The workflow is adaptive and recurrent, not a fixed forward pipeline.
+- Verification and route checking follow every meaningful slice.
+- Backward edges return to the narrowest owning activity; the Decision Gate is only for user-owned decisions, source-truth conflicts, or material path substitutions.
+- Source-truth conflicts stop edits until the owning decision is resolved.
 - Handoffs are memory, not authority.
-- Bypass defaults to one-action.
-- Hooks come after core skill behavior and evals.
-- The first implementation starts with the smallest skill set that can prove behavior under eval pressure.
-- Do not copy old Orchestra files into Freeflow.
+- Review findings are evidence; follow-up loops narrow and stop after three total passes.
+- Bypass defaults to one action.
+- Skills own behavior; host runtimes and harnesses own execution mechanisms.
+- Enforcement hooks come only after behavior evals show a repeated need.
+- Do not copy old Orchestra files or restore old command compatibility.
 - Do not persist review artifacts by default.
-- Do not build `/teach`, `/violation`, hooks, or old command compatibility before behavior evidence exists.
 
 Not frozen:
 
-- Future package/repo layout after public release.
-- Exact command aliases.
+- Future packaging revisions.
+- Exact optional command aliases.
 - Exact artifact directory names.
-- Exact hook implementation.
+- Exact context-loading hook implementation.
 - Exact eval prompt wording.
 - Exact skill body wording.
 
 ## Companion Artifacts
 
-Use companion artifacts for current state instead of embedding it in this contract:
+Use companion artifacts for volatile current state instead of embedding it in this contract:
 
-- Current skill files live under the active plugin draft.
-- Current eval evidence lives in eval reports.
+- Current skill files live under `skills/`.
+- Current eval evidence and status live under `evals/`.
+- Current project status lives in `docs/freeflow-current-state.md`.
 - Current continuation state lives in handoffs.

@@ -37,4 +37,4 @@ Exactness-sensitive output includes:
 - This policy does not authorize model-assisted summarization inside the router runtime.
 - This policy does not authorize unsandboxed script execution.
 - This policy does not require Pi runtime context to inject the full reference every turn.
-- This policy does not replace host permissions, sandboxing, approvals, or workflow/interview gates.
+- This policy does not replace host permissions, sandboxing, approvals, or workflow/decision gates.

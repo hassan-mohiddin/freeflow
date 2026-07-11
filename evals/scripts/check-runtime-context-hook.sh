@@ -115,7 +115,7 @@ skills_disabled_output="$(
 
 require_contains "Skills-disabled SessionStart output" "$skills_disabled_output" "Skills: disabled"
 require_contains "Skills-disabled SessionStart output" "$skills_disabled_output" "Loaded Output Router Skill"
-if [[ "$skills_disabled_output" == *"Loaded Workflow Skill"* || "$skills_disabled_output" == *"Loaded Interview Gate Skill"* || "$skills_disabled_output" == *"## Discovery-light"* ]]; then
+if [[ "$skills_disabled_output" == *"Loaded Workflow Skill"* || "$skills_disabled_output" == *"Loaded Decision Gate Skill"* || "$skills_disabled_output" == *"## Discovery-light"* ]]; then
   fail "skills.enabled=false should suppress base Freeflow skill context."
 fi
 

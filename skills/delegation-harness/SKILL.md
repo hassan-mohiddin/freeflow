@@ -60,7 +60,7 @@ Do not send long multiline task packets into an active Pi TUI. Use `delegate_spa
 
 Do not close completed `--no-session` child panes until the parent or user agrees the context is no longer needed.
 
-Do not let delegation bypass workflow gates. Source-truth conflicts, user-owned decisions, public API, compatibility, security, privacy, billing, data loss, permissions, and irreversible architecture still route to interview/discovery/spec/plan.
+Do not let delegation bypass workflow gates. Source-truth conflicts and user-owned decisions route to Decision Gate; unsettled options, public contracts, sensitive behavior, and irreversible architecture route to Discover, design, spec, or plan as appropriate.
 
 Do not parallelize implementation unless independence is explicit and writers are isolated. One writer per checkout.
 
@@ -141,5 +141,7 @@ Read `references/roles-and-contracts.md` when deciding which pane owns a phase, 
 Read `references/task-packets-and-results.md` when spawning a child, shaping a task packet, handling blockers/capability gaps, or consuming child results.
 
 Read `references/execution-and-integration.md` when using workers, reviewers, verifiers, integrators, worktrees, execution maps, review loops, or commit checkpoints.
+
+Read `references/reviewer-profiles.md` when selecting requirements, code-quality, verification, security, performance, accessibility, or release/operations perspectives. Profiles define focus, not agent/model choice or authority.
 
 Read `references/tool-policy.md` when a child asks for tools, commands, writes, or capability escalation.

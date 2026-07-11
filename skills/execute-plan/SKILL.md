@@ -1,141 +1,131 @@
 ---
 name: execute-plan
-description: Use when implementing an approved plan, executing planned slices, resuming planned work, handling planned verification failures, adjudicating review findings during execution, or encountering scope/source conflicts while carrying out a plan.
+description: Use when implementing an approved plan, executing or resuming planned slices, refining a rolling plan from implementation evidence, handling failed checks or review findings during execution, or deciding whether the next route is forward, backward, branched, or stopped.
 ---
 
 # Execute Plan
 
-Execute the plan. Do not improve it silently.
+Execute the next approved horizon without treating the plan as permanent authority.
 
-The plan is instructions, not authority. Live repo evidence and source truth win.
+Live repo evidence and source truth win. Preserve the accepted outcome, but revise the implementation path when evidence invalidates it.
 
-Move one verified slice at a time. Preserve rollback, reviewability, and user control.
+Every meaningful slice ends with verification and a route check. Review, commit, handoff, and user checkpoints are conditional.
 
-When executing through a separate-agent workflow, use the active delegation mechanism for this environment. A coordinating execution role may assign workers, reviewers, verifiers, and integrators from the approved plan. Execution autonomy is desired, not guaranteed; route backward when new evidence changes the plan.
+Read [the execution map](references/execution-map.md) for multi-slice work, learning slices, TDD, rolling-plan refinement, accumulated design pressure, or any failed check, review, source, or scope condition.
 
-Use delegation when execution crosses real context boundaries: multiple work packages or slices, reviewer/verifier loops, independent roles, context pressure, expected parallelism or worktree isolation, planned intermediate commits, or integration risk. Tiny clear slices stay inline.
+## Orient
 
-Read `references/execution-map.md` when the plan has multiple slices, TDD/benchmark work, review checkpoints, per-slice commits, context-window pressure, or any failed check/review/source-scope conflict.
+Before editing, read:
 
-Use `../design-for-depth/SKILL.md` when a slice changes modules, interfaces, seams, adapters, architecture, or when review findings become a stream of edge-case patches. Ask whether the slice is deepening the module or spreading complexity across callers, tests, docs, or review comments.
+- the current plan phase and source requirements;
+- relevant specs, docs, tests, policies, ADRs, and live code;
+- prior phase evidence and handoffs as memory, not authority;
+- later phases only far enough to understand dependencies and assumptions.
 
-## Classify First
+Confirm that the immediate phase is executable. Later phases may remain directional.
 
-- Valid plan: inspect source context, execute the next slice, verify it.
-- Plan/source conflict: stop and ask which source should change.
-- Hidden owner decision: stop and ask.
-- Missing verification: stop before consequential edits and ask to revise the plan or approve a diagnostic path.
-- Missing failure contract: stop before consequential edits and ask to revise the plan/spec or define the contract.
-- Missing plan: ask for a plan or route to `write-plan`.
-- Scope expansion: stop before absorbing it; route back to discover, spec, or plan.
-- Review failure during execution: classify findings and report the route before editing from them.
+Classify the next route:
 
-## Before Editing
+- **Execute:** the next slice is bounded and supported by source truth.
+- **Discover or design:** the option space, interface, ownership, or failure unit is unsettled.
+- **Revise spec:** behavior, scope, acceptance, public contract, or failure semantics changed.
+- **Revise plan:** slice boundaries, order, mechanism, checks, or later phases changed.
+- **Decision gate:** a user-owned decision or source/path conflict blocks progress.
+- **Diagnose:** the next question is a concrete failure signal or repeated loop failure.
+- **Stop or defer:** no safe in-scope route remains.
 
-Read:
+Do not improve, broaden, or reinterpret the plan silently.
 
-- The plan.
-- The source spec or requirements the plan cites.
-- Relevant docs, tests, policies, ADRs, and code.
-- Handoffs only as memory.
+## Slice Contract
 
-Live repo evidence overrides stale plans and handoffs.
-
-Before each non-trivial slice, name the slice contract:
+Before each non-trivial slice, name:
 
 ```text
-Slice:
-Source truth:
-Module/interface changed:
-Behavior/test/benchmark:
-Failure contract:
+Slice outcome:
+Source requirement / acceptance:
+Type: learning | delivery | deepening
+Module / interface / seam:
+Behavior, experiment, test, or benchmark:
+Failure contract when relevant:
 Verification:
-Review checkpoint:
-Commit or handoff checkpoint:
-Stop conditions:
+Assumptions under test:
+Route-change triggers:
+Formal checkpoint if needed: review | commit | handoff | owner
 ```
 
-Do not start a slice if the remaining context is not enough to orient, edit, verify, and checkpoint it. Stop with a handoff route instead.
+Choose local reversible details from repo conventions. Stop when the slice requires behavior, policy, compatibility, public API, security, privacy, billing, permissions, data-loss, migration, or hard-to-reverse architecture that source truth has not settled.
 
-Do not execute a plan that would:
+If work is carried out through separate execution contexts, define bounded work packages, dependencies, source context, outputs, checks, and escalation conditions. The active harness owns agents, models, worktrees, parallelism, persistence, timeouts, and transport.
 
-- Invent or change product behavior, scope, domain meaning, compatibility, public API behavior, security, privacy, billing, data-loss, or architecture.
-- Override docs, tests, specs, policies, ADRs, or established behavior.
-- Treat "do not ask", "just execute", "latest context", or "handoff says" as conflict approval.
-- Skip verification for consequential behavior.
-- Invent retry, fail-open, fail-closed, degradation, escalation, recovery, or state-persistence behavior not settled by source truth.
-- Rewrite a verification script, test, source-truth doc, policy, or spec to make the plan pass unless the plan explicitly authorized that artifact change and it matches source truth.
+Do not start a slice when the remaining context is insufficient to orient, edit, verify, and record the route.
 
-Name the conflict or missing decision. Ask which path to follow. Recommend the path supported by evidence.
+## Execute The Slice
 
-For source-truth conflicts, missing verification, or a missing failure contract, the final line must be a direct choice question.
+Work vertically through one behavior or evidence path.
 
-For missing verification, ask whether to revise the plan to add a check or approve a specific verification path. For missing failure contracts, ask whether to revise the plan/spec or define the failure behavior before editing.
+- Make only the edits needed for the active slice.
+- Keep later slices out unless current evidence changes the plan explicitly.
+- For a learning slice, capture the named evidence and apply its discard-or-promote rule. Exploratory code does not become production code silently.
+- When test-first work applies, use `../tdd/SKILL.md` for one behavior-level RED/GREEN/REFACTOR loop.
+- Use `../design-for-depth/SKILL.md` when caller knowledge, states, flags, retries, test setup, or cross-module coordination starts growing.
+- Use `../diagnose-failure/SKILL.md` when a failed check needs root-cause evidence rather than another patch.
 
-## Slice Execution
+Do not rewrite a verifier, test, spec, policy, or other source-truth artifact merely to make implementation pass. A stale or incorrect check is evidence that the route may need revision, not permission to change the contract.
 
-Work in vertical slices.
+## Verify And Check The Route
 
-For each slice:
+After every meaningful slice:
 
-- Make only the edits needed for that slice.
-- Keep the slice boundary intact; do not blend future slices into the current one for convenience.
-- Run the planned check or the smallest equivalent check.
-- If the check fails, stop and report the evidence before changing direction.
-- If new evidence invalidates the plan, stop before patching forward.
-- If failure behavior is unspecified and the implementation would need a retry, fail-open/closed, degradation, escalation, recovery, or state write decision, stop before choosing it.
-- If implementation spreads policy, edge cases, or verification across callers/tests/docs, treat it as design pressure before adding more patches.
+1. Run the planned check or the smallest equivalent check that proves the slice outcome.
+2. State what the evidence proves and what remains unverified.
+3. Compare the result with the slice assumptions, interface, failure contract, and remaining plan.
+4. Check whether the next bounded finish path is still clear and remaining work is shrinking.
+5. Choose the next route before editing again.
 
-When TDD is requested by the user, plan, or repo practice, use TDD inside the slice:
+Continue only when the evidence preserves the current outcome, scope, interface, and plan health.
 
-```text
-one behavior test or benchmark
--> minimal implementation
--> refactor while green
--> verify the slice
-```
+Route backward when:
 
-Do not write all tests first and all implementation later. Do not anticipate future slices.
+- a second unexpected defect appears at the same seam;
+- fixes keep adding caller knowledge, public states, flags, retries, or test machinery;
+- a slice requires an unplanned subsystem or deferred capability;
+- implementation invalidates earlier evidence or acceptance;
+- later phases now depend on a different interface or ordering;
+- remaining work grows after completed slices;
+- the next bounded finish path can no longer be stated clearly;
+- verification or review exposes a source conflict, missing owner decision, or unsupported claim.
 
-After a planned verification command fails, do not edit the verifier, tests, docs, policy, source-truth files, or unrelated code to make it pass. This is true even when the verifier appears wrong and even when the user said to "fix whatever is needed". A bad verifier is a plan defect; stop, report the failing command and conflicting evidence, and ask whether to revise the plan or change the source truth.
+Preserve verified work and identify only the affected decisions, spec sections, phases, and slices. Do not restart from zero or patch forward because work has already begun.
 
-Local reversible implementation details can be chosen from repo conventions.
+## Formal Checkpoints
 
-If per-slice commits are requested, do not continue to the next slice with a verified slice still uncommitted. Planned intermediate commit checkpoints may be handled during execution when review/verification evidence exists; final closeout commit and push remain orchestrator/user-owned.
+Use formal checkpoints when they can change or preserve the route:
 
-## Review Checkpoints
+- **Review:** architecture-bearing, sensitive, integration, accumulated-risk, or final work; use `../review-work/SKILL.md`.
+- **Commit:** a coherent verified rollback point exists and repository/user workflow permits it; use `../commit-work/SKILL.md`.
+- **Handoff:** context, pause, or continuity requires durable continuation state; use `../handoff/SKILL.md`.
+- **Owner:** a consequential decision remains; use `../decision-gate/SKILL.md`.
 
-Use review where the plan, risk, or slice boundary calls for it. Do not review every slice by habit.
+Do not require every checkpoint after every slice by habit.
 
-A non-passing review is a phase exit, not an autonomous patch loop.
+A non-passing review is a phase exit. Adjudicate through `review-work` before editing from its findings. A failed verification is evidence to classify through `verify-work` or diagnosis before changing direction.
 
-When a review returns findings during execution:
+## Rolling Plan
 
-1. Inspect the relevant code, tests, docs, plan, and source truth.
-2. Classify each material finding: accepted, rejected, question, or needs evidence.
-3. Report the route before editing from that review batch.
+At a phase boundary, refine only the next executable horizon from current evidence. Keep later phases directional until their dependencies and assumptions are resolved.
 
-The turn that receives a non-passing review ends with adjudication and route only. Do not edit from that review batch in the same turn, even when the user or reviewer says to apply all findings and continue reviewing.
-
-Do not immediately apply findings and request another review in the same loop. Do not treat non-blocking findings or reviewer questions as automatic failure.
-
-If all accepted findings are small, in-scope, and supported by source truth, recommend a bounded fix pass as the next route. Do not perform that fix pass until the user or parent explicitly chooses it after seeing the adjudication. If findings change scope, behavior, source truth, public API, security, privacy, billing, data loss, compatibility, or architecture, route backward before editing.
-
-Three review passes is the hard cap for the same slice/work scope. At pass 3, stop, classify, and diagnose. Do not request a fourth broad review. Use a `diagnose-failure`-style loop to decide whether the issue is shallow discovery, weak spec, wrong plan slice, ambiguous policy, source-truth conflict, shallow module/interface, implementation bug, or stale reviewer context.
-
-## Backward Edge
-
-If implementation reveals that the plan is wrong, incomplete, or too narrow, re-enter discover/spec/plan before continuing.
-
-Do not absorb material scope expansion into execution. New behavior, API shape, security/privacy/billing/data-loss decisions, compatibility changes, or irreversible architecture usually need a revised spec or plan.
+If refinement changes accepted behavior or scope, revise the spec or ask the owner before continuing. If it changes only implementation order, slice boundaries, or checks, revise the plan and name why.
 
 ## Completion
 
 Report:
 
-- What changed.
-- What was verified.
-- Review status and any adjudicated findings.
-- Commit or handoff status when relevant.
-- What remains unverified.
-- Any blocked decisions or plan changes needed.
+- slices completed and evidence produced;
+- verification and review status;
+- assumptions confirmed or invalidated;
+- plan/spec changes or backward routes taken;
+- commit or handoff checkpoints when relevant;
+- remaining unverified behavior;
+- recommended next route.
+
+Implementation is complete only when the accepted outcome is proved, not when every original plan step was followed.

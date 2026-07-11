@@ -197,32 +197,38 @@ build_bundle() {
       '{id:$id, registry:$registry, fixture_root:$fixture, fixture_exists:$fixtureExists, prompt:$prompt, prompt_kind:$promptKind, prompt_exists:$promptExists, suites:$suites}' >> "$tmp_evals"
   done < <(jq -r --arg skill "$name" '.skills[$skill].evals[]?' "$metadata")
 
-  local evals_json routes_json reports
+  local evals_json routes_json reports evidence_status historical_evals
   evals_json="$(jq -s '.' "$tmp_evals")"
   routes_json="$(command_routes_json "$name")"
   reports="$(reports_json "$name")"
+  evidence_status="$(jq -r --arg skill "$name" '.skills[$skill].status // "evidenced"' "$metadata")"
+  historical_evals="$(jq -c --arg skill "$name" '.skills[$skill].historical_evals // []' "$metadata")"
 
   local bundle_json
   bundle_json="$(jq -n \
     --arg skill "$name" \
     --arg skillFile "skills/$name/SKILL.md" \
     --arg audience "$audience" \
+    --arg evidenceStatus "$evidence_status" \
     --arg runPolicy "generated runs are internal; this output does not include evals/runs bodies" \
     --argjson evals "$evals_json" \
+    --argjson historicalEvals "$historical_evals" \
     --argjson commands "$routes_json" \
     --argjson reports "$reports" \
     '{
       subject: {kind:"skill", name:$skill},
       skill_file:$skillFile,
+      evidence_status:$evidenceStatus,
       audience:$audience,
       command_routes:$commands,
       evals:$evals,
+      historical_evals:$historicalEvals,
       reports:$reports,
       run_policy:$runPolicy,
       gaps: (
         [
           (if ($commands | length) == 0 then "no command-surface route" else empty end),
-          (if ($evals | length) == 0 then "no grouped evals" else empty end),
+          (if ($evals | length) == 0 and $evidenceStatus == "unverified" then "unverified candidate: no grouped evals" elif ($evals | length) == 0 then "no grouped evals" else empty end),
           (if ($reports | length) == 0 then "no by-skill reports" else empty end)
         ]
         + [ $evals[]? | select(.error != null) | "eval " + .id + ": " + .error ]
@@ -248,6 +254,16 @@ validate_skill() {
     printf 'FAIL %s: missing skill-evidence metadata\n' "$name" >&2
     return 1
   fi
+
+  local evidence_state
+  evidence_state="$(jq -r --arg skill "$name" '.skills[$skill].status // "evidenced"' "$metadata")"
+  case "$evidence_state" in
+    evidenced|unverified) ;;
+    *)
+      printf 'FAIL %s: unsupported evidence status %s\n' "$name" "$evidence_state" >&2
+      return 1
+      ;;
+  esac
 
   local bundle
   bundle="$(build_bundle "$name")"
@@ -302,6 +318,8 @@ case "$format" in
     jq -r '
       "Skill: " + .subject.name,
       "Skill file: " + .skill_file,
+      "Evidence status: " + .evidence_status,
+      "Historical eval IDs: " + (if (.historical_evals | length) == 0 then "none" else (.historical_evals | join(", ")) end),
       "Commands:",
       (if (.command_routes | length) == 0 then "  - none" else (.command_routes[] | "  - " + .command + " -> " + .skill + " (" + .kind + ")") end),
       "Evals:",

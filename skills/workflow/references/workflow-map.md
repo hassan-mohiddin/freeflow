@@ -1,104 +1,193 @@
-# Freeflow Map
+# Freeflow Workflow Map
 
-Use this when the user asks how the whole workflow fits together, public docs need a diagram, or the next workflow entry point is unclear.
+Use this when work spans phases, the current entry point is unclear, or public documentation needs the complete lifecycle.
 
-This map is orienting, not mandatory. Small reversible work can skip unnecessary artifacts and gates. Re-enter clarification whenever new ambiguity would change the next action.
+This map is adaptive. It is not a mandatory sequence.
 
 ## Compact Map
 
-Use this compact version in public README-style docs.
-
 ```mermaid
 flowchart LR
-  Request{request}
-  Talk[conversation<br/>answer directly]
-  Discover[discover<br/>checkpoint]
-  Spec[spec]
-  Plan[plan]
-  Build[build<br/>execute / diagnose / TDD]
-  Check[review + verify]
-  Close[commit / handoff]
+  Request{Request}
+  Talk[Conversation<br/>answer directly]
+  Entry{Choose entry}
+  Discover[Discover<br/>when needed]
+  Durable[Decision / spec / rolling plan<br/>when needed]
+  Slice[Learning / delivery / deepening slice]
+  Verify[Verify + route check]
+  Formal[Review / commit / handoff<br/>when useful]
+  Delivery[Finish branch / release / ship<br/>when selected]
+  Done[Close]
 
-  Request -->|question| Talk
-  Request -->|work| Discover
-  Discover --> Spec --> Plan --> Build --> Check --> Close
-  Check -. new evidence or failed check .-> Discover
+  Request -->|question or critique| Talk
+  Request -->|consequential work| Entry
+  Entry -->|option space unclear| Discover
+  Entry -->|contract or plan needed| Durable
+  Entry -->|bounded work ready| Slice
+  Discover --> Durable
+  Discover -->|learning slice ready| Slice
+  Durable --> Slice
+  Slice --> Verify
+  Verify -->|continue without checkpoint| Slice
+  Verify -->|checkpoint useful| Formal
+  Verify -->|complete with no delivery step| Done
+  Verify -->|integration / release / launch remains| Delivery
+  Formal --> Slice
+  Formal -->|delivery remains| Delivery
+  Formal --> Done
+  Delivery --> Done
+  Verify -. evidence changes route .-> Entry
+  Delivery -. evidence changes route .-> Entry
 ```
+
+Small reversible work may use:
 
 ```text
-Use conversation mode for non-mutating questions, critique, read-only exploration, and planning in chat. Use workflow mode for edits, file creation, mutating commands, or other consequential work.
-Use strict-workflow for risky work; same spine, stronger gates.
-Loop back when new evidence, source conflicts, user-owned decisions, or failed checks change the path.
-Use `Next:` when a response leaves a useful next route. Completed consequential phases should close with forward, backward, branch, or stop unless the reply is only an answer, status update, clarification, or direct owner-decision question.
+inspect -> execute -> verify -> route closeout
 ```
 
-## Reference Map
-
-Use this fuller version when choosing an entry point or explaining the workflow lifecycle.
+## Adaptive Lifecycle
 
 ```mermaid
 flowchart TD
-  Request([User request]) --> Mode{Mode}
+  Request([Request]) --> Entry{Choose current entry}
 
-  Mode -->|question, critique, explanation| Conversation[conversation mode<br/>answer directly]
-  Conversation --> Done([done])
+  Entry --> Conversation[Conversation<br/>answer / critique / inspect]
+  Entry --> Discover[Discover<br/>facts + options + tradeoffs]
+  Entry --> Gate[Decision gate<br/>owner or source conflict]
+  Entry --> Spec[Spec<br/>behavior + acceptance + failure contract]
+  Entry --> Plan[Rolling plan<br/>current horizon + directional later phases]
+  Entry --> Execute[Execute slice<br/>learning / delivery / deepening]
+  Entry --> Diagnose[Diagnose<br/>reproduce + root cause]
+  Entry --> Review[Review<br/>independent judgment]
+  Entry --> Verify[Verify<br/>claim + evidence]
+  Entry --> Close[Commit / handoff<br/>rollback or continuity]
+  Entry --> Finish[Finish branch<br/>merge / PR / keep / discard]
+  Entry --> Release[Release<br/>versioned publication]
+  Entry --> Ship[Shipping<br/>production rollout]
 
-  Mode -->|consequential work| Workflow[workflow mode<br/>scale to risk]
-  Mode -->|high-risk or hard to reverse| Strict[strict-workflow mode<br/>stronger gates]
-
-  Workflow --> Entry{Choose entry point}
-  Strict --> Entry
-
-  Entry --> Discovery[Discovery<br/>discover<br/>interview-gate]
-  Entry --> Spec[Spec<br/>write-spec<br/>review-artifact]
-  Entry --> Plan[Plan<br/>write-plan<br/>review-artifact]
-  Entry --> Build[Build, diagnose, or TDD<br/>execute-plan<br/>diagnose-failure]
-  Entry --> Closeout[Closeout<br/>review-work<br/>verify-work<br/>commit-work]
-
-  Discovery --> Spec
+  Conversation --> Done([Done])
+  Gate -->|decision resolves route| Return[Return to owning state]
+  Discover -->|durable behavior needed| Spec
+  Discover -->|bounded evidence path| Plan
   Spec --> Plan
-  Plan --> Build
-  Build --> Closeout
-  Closeout --> Handoff[handoff<br/>durable checkpoint when needed]
-  Handoff --> Done
+  Plan --> Execute
+  Diagnose --> Execute
+  Execute --> Verify
+  Verify --> Route{Route check}
 
-  Reenter[Re-enter discovery<br/>new evidence, owner decision,<br/>source conflict, or failed check]
-  Spec -.-> Reenter
-  Plan -.-> Reenter
-  Build -.-> Reenter
-  Closeout -.-> Reenter
-  Handoff -.-> Reenter
-  Reenter --> Discovery
+  Route -->|continue| Formal{Formal checkpoint useful?}
+  Formal -->|review| Review
+  Formal -->|commit or handoff| Close
+  Formal -->|none| Horizon[Refine next executable horizon]
+  Review -->|pass| Horizon
+  Review -->|non-pass| Adjudicate[Adjudicate findings]
+  Adjudicate --> Backward
+  Close --> Horizon
+  Horizon -->|more accepted work| Execute
+  Horizon -->|complete with no delivery step| Done
+  Horizon -->|branch integration selected| Finish
+  Horizon -->|versioned release selected| Release
+  Horizon -->|production rollout selected| Ship
+  Finish -->|release selected| Release
+  Finish -->|complete| Done
+  Release -->|deployment selected| Ship
+  Release -->|complete| Done
+  Ship --> Done
 
-  Bypass[bypass<br/>skip ceremony, not judgment] -.-> Entry
+  Route -->|local defect| Execute
+  Route -->|failure unclear| Diagnose
+  Route -->|path invalidated| Backward[Backward route]
+
+  Backward -->|option space / architecture| Discover
+  Backward -->|behavior / scope / contract| Spec
+  Backward -->|slices / order / checks| Plan
+  Backward -->|owner or source conflict| Gate
+  Backward -->|no safe route| Stop([Stop or defer])
+
+  Return --> Discover
+  Return --> Spec
+  Return --> Plan
+  Return --> Execute
+  Return --> Diagnose
+  Return --> Review
+  Return --> Verify
+  Return --> Close
+  Return --> Finish
+  Return --> Release
+  Return --> Ship
 ```
 
-## Common Entry Points
+## Entry Points
 
-- Use `conversation mode` when the user asks a question, wants critique, or is doing non-mutating exploration or planning in chat. If the user asks to edit, create files, run mutating commands, commit, push, or otherwise change repo/system state, require `workflow` or `strict-workflow` before acting.
-- Use `discover` when repo, domain, evidence, current facts, brainstorming, targeted questions, or a decision checkpoint are needed before spec, plan, build, or durable memory.
-- Use `interview-gate` when direction is vague, source truth conflicts, or user-owned decisions are still open.
-- Use `write-spec` when requirements are agreed but not durable.
-- Use `review-artifact` when a spec, plan, handoff, or decision note must guide future work.
-- Use `write-plan` when an approved spec or explicit task context exists.
-- Use `execute-plan` when an approved plan exists; method skills like TDD run inside that build phase when requested or appropriate.
-- Use `diagnose-failure` when behavior is broken, failing, flaky, slow, or unclear.
-- Use `review-work` and `verify-work` before claiming consequential work is ready.
-- Use `commit-work` only after the intended diff is reviewed and verification evidence exists.
-- Use `handoff` when pausing, compacting, or transferring context.
-- Use `bypass` only to skip unnecessary ceremony. It cannot skip user-owned decisions, source-truth conflicts, risky checks, or verification claims.
+- **Conversation:** non-mutating answer, explanation, critique, or bounded read-only exploration.
+- **Discover:** problem, outcome, approaches, architecture direction, or evidence path is unsettled.
+- **Decision gate:** owner decision, source conflict, or material path substitution blocks action.
+- **Write spec:** accepted behavior, scope, contracts, or acceptance need durability.
+- **Review artifact:** a spec, plan, decision, or handoff must guide future work safely.
+- **Write plan:** immediate execution needs phases, slices, verification, and backward checkpoints.
+- **Execute plan:** an approved current horizon exists.
+- **TDD:** one accepted behavior should drive one test-first implementation loop.
+- **Simplify code:** working code needs behavior-preserving reduction of accidental complexity.
+- **Deprecation and migration:** consumers, traffic, configuration, or data must move before an old path can be removed.
+- **Diagnose failure:** a broken, flaky, slow, or repeated workflow signal needs root cause.
+- **Review work:** independent judgment may change confidence or route.
+- **Verify work:** a slice or completion claim needs fresh proof.
+- **Commit work:** a coherent verified rollback checkpoint is useful and authorized.
+- **Handoff:** context or continuity requires compact continuation state.
+- **Finish branch:** choose and verify merge, PR, keep, discard, or cleanup.
+- **Release work:** publish and verify an immutable versioned consumer artifact.
+- **Shipping and launch:** deploy or expose production behavior through an observable recoverable rollout.
+
+## Slice Loop
+
+```text
+Slice contract
+-> implement or experiment
+-> verify
+-> route check
+   -> continue
+   -> bounded fix
+   -> review
+   -> commit / handoff
+   -> diagnose
+   -> Discover / design
+   -> revise spec / plan
+   -> decision gate
+   -> stop
+```
+
+Verification and route check occur after every meaningful slice. Formal review, commit, handoff, and user checkpoints are selected by risk and route value.
+
+## Rolling Horizon
+
+A rolling plan separates:
+
+- **Current phase:** concrete slices, seams, checks, dependencies, and stop conditions.
+- **Next phase:** directional outcome, likely dependencies, and questions current evidence must resolve.
+- **Later phases:** provisional outcomes and major constraints only.
+
+At each phase boundary, preserve evidence and refine only the next executable horizon.
+
+## Backward Routing
+
+- New option space or invalidated assumptions -> Discover.
+- Growing caller knowledge, states, flags, retries, or test machinery -> design-for-depth.
+- Changed behavior, scope, acceptance, public contract, or failure semantics -> spec revision.
+- Changed implementation order, slices, checks, or later-phase assumptions -> plan revision.
+- Unclear root cause -> diagnosis.
+- Owner or source conflict -> decision gate.
+- No safe in-scope continuation -> defer or stop.
+
+Route only affected work backward. Preserve valid decisions, code, and evidence.
 
 ## Route Closeout
 
-Use `Next:` when naming the next route helps the user, not only when a workflow phase changes. Do not force it onto every reply.
+Use `Next:` when a consequential phase exit leaves a useful route:
 
-Completed consequential work and phase exits should include `Next:` unless the reply is only a direct answer, mid-task status, clarification-only turn, or direct owner-decision question.
+- **Forward:** next bounded action.
+- **Backward:** invalidated path and owning earlier activity.
+- **Branch:** two or three valid routes.
+- **Stop:** no useful safe continuation.
 
-- Forward: name the next action or entry point, such as `write-spec`, `write-plan`, `execute-plan`, `review-work`, `verify-work`, `commit-work`, or `handoff`.
-- Backward: return to `interview-gate`, `discover`, `diagnose-failure`, or plan/spec revision when evidence, failed checks, or repeated review findings change the path.
-- Branch: show 2-3 valid next routes or actions when more than one is reasonable.
-- Stop: say no useful next action remains.
-
-After completed discovery with decisions that must survive beyond chat, prefer `write-spec`, an owning decision artifact, or handoff before planning or execution.
-
-Do not create the next artifact or take the next action just because it is the next route.
+Do not use routing language as permission to take the next action.
