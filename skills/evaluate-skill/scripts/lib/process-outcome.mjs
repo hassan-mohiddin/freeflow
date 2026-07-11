@@ -18,6 +18,7 @@ function executionFromPi({ id, kind, role, result }) {
       signal: result.process.signal,
       timed_out: result.process.timed_out,
       output_limit_exceeded: result.process.output_limit_exceeded,
+      transport_limit_exceeded: result.process.transport_limit_exceeded ?? false,
       parse_errors: result.parsed.parse_errors,
     },
     runtime_counters: result.runtime_counters,
@@ -29,6 +30,7 @@ function failedProcess(result) {
   return result.process.code !== 0
     || result.process.timed_out
     || result.process.output_limit_exceeded
+    || result.process.transport_limit_exceeded
     || result.runtime_counters.hard_turn_limit_reached
     || result.parsed.parse_errors.length > 0;
 }

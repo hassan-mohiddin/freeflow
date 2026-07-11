@@ -24,7 +24,20 @@ test("internal transport safeguard still terminates unbounded raw output", async
     transportLimitBytes: 16 * 1024,
     stdoutLineTransform: () => "x",
   });
-  assert.equal(result.output_limit_exceeded, true);
+  assert.equal(result.output_limit_exceeded, false);
   assert.equal(result.transport_limit_exceeded, true);
   assert.ok(result.transport_bytes > 16 * 1024);
+  assert.equal(result.retained_output_bytes, Buffer.byteLength(result.stdout) + Buffer.byteLength(result.stderr));
+});
+
+test("retained byte accounting includes only evidence actually appended", async () => {
+  const script = "process.stdout.write('1234567890'); process.stderr.write('abcdefghij')";
+  const result = await runProcess(process.execPath, ["-e", script], {
+    outputLimitBytes: 15,
+    transportLimitBytes: 1024,
+  });
+  assert.equal(result.output_limit_exceeded, true);
+  assert.equal(result.transport_limit_exceeded, false);
+  assert.equal(result.retained_output_bytes, Buffer.byteLength(result.stdout) + Buffer.byteLength(result.stderr));
+  assert.ok(result.retained_output_bytes <= 15);
 });

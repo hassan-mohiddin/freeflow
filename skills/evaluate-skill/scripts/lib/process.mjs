@@ -42,13 +42,13 @@ export function runProcess(command, args, {
 
     function retain(target, value) {
       const buffer = Buffer.isBuffer(value) ? value : Buffer.from(value);
-      retainedOutputBytes += buffer.length;
-      if (retainedOutputBytes > outputLimitBytes) {
+      if (retainedOutputBytes + buffer.length > outputLimitBytes) {
         outputLimitExceeded = true;
         terminate();
         return false;
       }
       target.push(buffer);
+      retainedOutputBytes += buffer.length;
       return true;
     }
 
@@ -56,7 +56,6 @@ export function runProcess(command, args, {
       transportBytes += Buffer.byteLength(chunk);
       if (transportBytes > transportLimitBytes) {
         transportLimitExceeded = true;
-        outputLimitExceeded = true;
         terminate();
         return false;
       }
@@ -64,7 +63,7 @@ export function runProcess(command, args, {
     }
 
     function transformLine(line, terminated = true) {
-      if (transformError || outputLimitExceeded) return;
+      if (transformError || outputLimitExceeded || transportLimitExceeded) return;
       try {
         const transformed = stdoutLineTransform(line);
         if (transformed === null || transformed === undefined) return;

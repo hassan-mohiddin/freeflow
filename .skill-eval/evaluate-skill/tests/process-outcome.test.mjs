@@ -2,9 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { runPiProcessOutcome } from "../../../skills/evaluate-skill/scripts/lib/process-outcome.mjs";
 
-function piResult({ code = 0, cost = 0.2 } = {}) {
+function piResult({ code = 0, cost = 0.2, transportLimitExceeded = false } = {}) {
   return {
-    process: { code, signal: null, timed_out: false, output_limit_exceeded: false, stdout: "events", stderr: code ? "failed" : "" },
+    process: { code, signal: null, timed_out: false, output_limit_exceeded: false, transport_limit_exceeded: transportLimitExceeded, stdout: "events", stderr: code ? "failed" : "" },
     parsed: {
       parse_errors: [],
       final_text: "answer",
@@ -59,6 +59,19 @@ test("failed Pi process still attempts evidence persistence and returns usage", 
   assert.equal(outcome.status, "incomplete");
   assert.match(outcome.failure.primary, /exited with 1/i);
   assert.equal(outcome.execution.usage.cost.total_usd, 0.3);
+});
+
+test("raw transport safeguard failure is incomplete without claiming retained output overflow", async () => {
+  const outcome = await runPiProcessOutcome({
+    id: "subject-transport",
+    kind: "subject",
+    role: "subject",
+    run: async () => piResult({ transportLimitExceeded: true }),
+  });
+  assert.equal(outcome.status, "incomplete");
+  assert.equal(outcome.execution.process.output_limit_exceeded, false);
+  assert.equal(outcome.execution.process.transport_limit_exceeded, true);
+  assert.match(outcome.failure.primary, /unusable evidence/i);
 });
 
 test("successful process returns completed value after persistence", async () => {

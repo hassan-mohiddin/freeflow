@@ -159,7 +159,7 @@ export async function gradeSemanticRun(runDir, options, dependencies = {}) {
       },
     };
     await persistEvidence(runDir, subject);
-    if (subject.process.code !== 0 || subject.process.timed_out || subject.process.output_limit_exceeded || subject.runtime_counters.hard_turn_limit_reached || subject.parsed.parse_errors.length > 0) {
+    if (subject.process.code !== 0 || subject.process.timed_out || subject.process.output_limit_exceeded || subject.process.transport_limit_exceeded || subject.runtime_counters.hard_turn_limit_reached || subject.parsed.parse_errors.length > 0) {
       throw new Error(`Semantic grader produced unusable evidence or exited with ${subject.process.code}: ${subject.process.stderr.trim()}`);
     }
     const parsed = validateSemanticResult(parseJsonResponse(subject.parsed.final_text), criterionIds);
