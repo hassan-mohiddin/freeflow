@@ -16,10 +16,11 @@ Write the smallest agent-first skill that changes the target behavior.
 - Treat an explicit draft request as a draft. Do not force evaluation.
 - Treat production-ready as an evidence claim. If behavior is unevaluated, label it Draft or Unverified.
 - Follow user constraints. Permission to skip work is not pressure to ignore; a prohibition is a prohibition.
+- For a new skill, the first deliverable is one `SKILL.md`. "Add references, examples, or scripts if useful" is permission, not evidence that they are needed.
 
 ## Authoring Rules
 
-1. Start with one `SKILL.md`.
+1. Start with one `SKILL.md`. Add another file only when a live repo rule requires it or a measured failure cannot be fixed clearly in the active file. Hypothetical usefulness, completeness, polish, or examples do not qualify.
 2. Make the description state what the skill does and when it should activate.
 3. Write for the agent that will execute the skill, not for a human reading a manual.
 4. Put user authority, source truth, hard stops, and safety before normal workflow.
@@ -27,7 +28,7 @@ Write the smallest agent-first skill that changes the target behavior.
 6. Add references only for conditional depth. Add scripts only for repeated deterministic work that is risky or wasteful to retype.
 7. Link every resource directly from `SKILL.md` and state when to read or run it.
 
-Do not add README files, changelogs, examples, references, or scripts merely because the user asks for something "complete." Each resource must earn its runtime and maintenance cost.
+Do not add README files, changelogs, examples, references, or scripts merely because the user asks for something "complete" or says extras may materially improve it. Name the exact rule or measured failure that makes each resource necessary; otherwise keep one file.
 
 ## Activation Boundaries
 

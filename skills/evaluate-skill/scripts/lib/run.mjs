@@ -204,8 +204,15 @@ async function executeJob(workspace, job, options, repeat = 0) {
       model_driven: job.model_required,
       repeat,
     };
-    if (isControl && grade.objective_pass && !processFailed) {
-      await writeControlCache(cacheRoot, { fingerprint: job.fingerprint, created_at: new Date().toISOString(), run_dir: runDir, case_id: job.case_id, variant: job.variant.id });
+    if (isControl && !processFailed) {
+      await writeControlCache(cacheRoot, {
+        fingerprint: job.fingerprint,
+        created_at: new Date().toISOString(),
+        run_dir: runDir,
+        case_id: job.case_id,
+        variant: job.variant.id,
+        objective_verdict: grade.verdict,
+      });
     }
     return result;
   } finally {

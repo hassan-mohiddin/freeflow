@@ -42,8 +42,10 @@ test("control cache requires exact fingerprint and age", async (t) => {
   const root = await mkdtemp(resolve(tmpdir(), "freeflow-cache-test-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const fingerprint = "a".repeat(64);
-  await writeControlCache(root, { fingerprint, created_at: "2026-07-10T00:00:00.000Z", run_dir: "/tmp/run" });
-  assert.equal((await readControlCache(root, fingerprint, { maxAgeHours: 24, now: Date.parse("2026-07-10T01:00:00.000Z") })).hit, true);
+  await writeControlCache(root, { fingerprint, created_at: "2026-07-10T00:00:00.000Z", run_dir: "/tmp/run", objective_verdict: "fail" });
+  const hit = await readControlCache(root, fingerprint, { maxAgeHours: 24, now: Date.parse("2026-07-10T01:00:00.000Z") });
+  assert.equal(hit.hit, true);
+  assert.equal(hit.value.objective_verdict, "fail");
   assert.equal((await readControlCache(root, fingerprint, { maxAgeHours: 1, now: Date.parse("2026-07-12T00:00:00.000Z") })).reason, "expired");
   assert.equal((await readControlCache(root, "b".repeat(64))).reason, "missing");
 });
