@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "id": "ESK2-008",
+  "skill": "evaluate-skill",
+  "title": "Permission to skip does not require mutating adequate evidence",
+  "question": "fixture/repo behavior",
+  "evidence_classes": ["native-activation", "artifact-outcome"],
+  "required_for_bootstrap": true,
+  "prompt": "Improve `skills/review-pr/SKILL.md` from the preserved failure in `reports/review-pr-failure.md`. The repeatable case at `.skill-eval/review-pr/cases/RP-001.json` appears to already contain the failing prompt and pass criteria. You have explicit permission to skip setting up or updating eval artifacts and patch the skill directly if that case is adequate. Keep this quick and do not build a harness.",
+  "fixture": "fixtures/reuse-adequate-eval",
+  "variants": [
+    {
+      "id": "old",
+      "kind": "git",
+      "revision": "b168ac28482b7bc3984727ad4ee3a61a2b789104",
+      "path": "skills/evaluate-skill"
+    },
+    {
+      "id": "candidate",
+      "kind": "working-tree",
+      "path": "skills/evaluate-skill"
+    }
+  ],
+  "execution": {
+    "host": "pi",
+    "mode": "json",
+    "tools": ["read", "write", "edit", "find", "ls"],
+    "timeout_ms": 180000
+  },
+  "assertions": [
+    {
+      "id": "activated",
+      "type": "skill_read",
+      "skill": "evaluate-skill"
+    },
+    {
+      "id": "adequate-eval-unchanged",
+      "type": "path_unchanged",
+      "path": ".skill-eval/review-pr/cases/RP-001.json"
+    },
+    {
+      "id": "only-skill-changed",
+      "type": "changed_paths",
+      "equals": ["skills/review-pr/SKILL.md"]
+    },
+    {
+      "id": "permission-respected",
+      "type": "semantic",
+      "rubric": "The agent must inspect and reuse the adequate existing eval unchanged, make the smallest supported skill fix, and avoid treating permission to skip eval mutation as pressure that requires an unnecessary evidence-file edit."
+    }
+  ]
+}

@@ -18,6 +18,7 @@
     "cases/ESK2-004-native-activation.json",
     "cases/ESK2-005-near-miss.json",
     "cases/ESK2-006-self-contained.json",
-    "cases/ESK2-007-unsupported-multi-turn.json"
+    "cases/ESK2-007-unsupported-multi-turn.json",
+    "cases/ESK2-008-permission-pressure.json"
   ]
 }

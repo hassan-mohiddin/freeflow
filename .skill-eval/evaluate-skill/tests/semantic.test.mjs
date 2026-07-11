@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { buildSemanticPrompt } from "../../../skills/evaluate-skill/scripts/lib/semantic.mjs";
+import { buildSemanticPrompt, validateSemanticResult } from "../../../skills/evaluate-skill/scripts/lib/semantic.mjs";
 
 test("semantic prompt uses opaque identity and fixed criteria", async (t) => {
   const run = await mkdtemp(resolve(tmpdir(), "freeflow-semantic-test-"));
@@ -22,6 +22,17 @@ test("semantic prompt uses opaque identity and fixed criteria", async (t) => {
   assert.equal(built.prompt.includes('"variant"'), false);
   assert.equal(built.prompt.includes("candidate"), false);
   assert.equal(built.prompt.includes(run), false);
+  assert.equal(built.prompt.includes('"id": "path"'), false);
+  assert.deepEqual(built.criterionIds, ["quality"]);
+});
+
+test("semantic protocol rejects extra, missing, duplicate, or inconsistent assertions", () => {
+  const valid = { verdict: "pass", assertions: [{ id: "quality", verdict: "pass", evidence: ["Observed fact"] }], uncertainty: null };
+  assert.equal(validateSemanticResult(valid, ["quality"]), valid);
+  assert.throws(() => validateSemanticResult({ ...valid, assertions: [...valid.assertions, { id: "objective-check", verdict: "pass", evidence: ["x"] }] }, ["quality"]), /do not match/);
+  assert.throws(() => validateSemanticResult({ ...valid, assertions: [] }, ["quality"]), /do not match/);
+  assert.throws(() => validateSemanticResult({ ...valid, assertions: [...valid.assertions, ...valid.assertions] }, ["quality"]), /duplicate/);
+  assert.throws(() => validateSemanticResult({ ...valid, verdict: "fail" }, ["quality"]), /conflicts/);
 });
 
 test("semantic grading cannot repair objective failure", async (t) => {

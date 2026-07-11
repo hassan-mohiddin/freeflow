@@ -31,7 +31,7 @@
     {
       "id": "one-skill-created",
       "type": "changed_paths",
-      "equals": ["skills/incident-handoff/SKILL.md"]
+      "equals": ["skills/incident-handoff-notes/SKILL.md"]
     },
     {
       "id": "draft-labeled",
