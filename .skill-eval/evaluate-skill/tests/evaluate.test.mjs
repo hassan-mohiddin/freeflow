@@ -87,6 +87,18 @@ test("host-free evaluation atomically publishes one complete result", async (t) 
   assert.deepEqual(await readdir(resolve(workspace.skillRoot, "runs", "diagnostics")).catch(() => []), []);
 });
 
+test("plan identity covers declared subject resources and ignores undeclared files", async (t) => {
+  const { root, workspace } = await fixture(t);
+  const options = { case: "SAMPLE-001", timeout_ms: 1000, output_limit_bytes: 1048576, plan_only: true };
+  const initial = await buildEvaluationPlan(workspace, options);
+  await writeFile(resolve(root, "skills", "sample-skill", "UNDECLARED.md"), "changed but still undeclared\n");
+  const undeclaredChange = await buildEvaluationPlan(workspace, options);
+  assert.equal(undeclaredChange.fingerprint, initial.fingerprint);
+  await writeFile(resolve(root, "skills", "sample-skill", "SKILL.md"), "---\nname: sample-skill\ndescription: Changed.\n---\n");
+  const declaredChange = await buildEvaluationPlan(workspace, options);
+  assert.notEqual(declaredChange.fingerprint, initial.fingerprint);
+});
+
 test("successful result rename remains complete without a post-rename probe", async (t) => {
   const { root, workspace } = await fixture(t);
   const plan = await buildEvaluationPlan(workspace, { case: "SAMPLE-001", timeout_ms: 1000, output_limit_bytes: 1048576, owner_approved: true });

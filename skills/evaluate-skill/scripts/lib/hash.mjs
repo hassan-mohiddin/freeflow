@@ -19,7 +19,7 @@ export async function hashFile(path) {
   return sha256(await readFile(path));
 }
 
-export async function hashDirectory(root) {
+async function filesystemEntries(root, paths) {
   const absoluteRoot = resolve(root);
   const entries = [];
 
@@ -38,29 +38,37 @@ export async function hashDirectory(root) {
     if (info.isFile()) entries.push([rel, "file", sha256(await readFile(path))]);
   }
 
-  await visit(absoluteRoot);
-  return sha256(stableJson(entries));
+  for (const path of paths) await visit(resolve(absoluteRoot, path));
+  return entries.sort((left, right) => left[0].localeCompare(right[0]));
 }
 
-export function hashGitPath(repoRoot, revision, path) {
-  const result = spawnSync("git", ["ls-tree", "-r", "-z", "--full-tree", revision, "--", path], {
-    cwd: repoRoot,
-    encoding: "utf8",
-  });
-  if (result.status !== 0) {
-    throw new Error(`Unable to resolve git variant ${revision}:${path}: ${result.stderr.trim()}`);
+export async function hashDirectory(root) {
+  return sha256(stableJson(await filesystemEntries(root, ["."])));
+}
+
+export async function hashDeclaredResources(root, resources) {
+  return sha256(stableJson(await filesystemEntries(root, [...resources].sort())));
+}
+
+export function hashGitResources(repoRoot, revision, rootPath, resources) {
+  const root = rootPath.replace(/\/$/, "");
+  const entries = [];
+  for (const resource of [...resources].sort()) {
+    const fullResource = `${root}/${resource}`;
+    const result = spawnSync("git", ["ls-tree", "-r", "-z", "--full-tree", revision, "--", fullResource], { cwd: repoRoot, encoding: "utf8" });
+    if (result.status !== 0) throw new Error(`Unable to resolve git resource ${revision}:${fullResource}: ${result.stderr.trim()}`);
+    const records = result.stdout.split("\0").filter(Boolean);
+    if (records.length === 0) throw new Error(`Git subject resource is empty: ${revision}:${fullResource}`);
+    for (const record of records) {
+      const [header, fullPath] = record.split("\t");
+      const [mode, type] = header.split(" ");
+      if (type !== "blob" || mode === "120000") throw new Error(`Unsupported git subject resource: ${mode} ${type} ${fullPath}`);
+      if (fullPath !== fullResource && !fullPath.startsWith(`${fullResource}/`)) throw new Error(`Git subject resource escapes declaration: ${fullPath}`);
+      const content = spawnSync("git", ["show", `${revision}:${fullPath}`], { cwd: repoRoot, encoding: null, maxBuffer: 16 * 1024 * 1024 });
+      if (content.status !== 0) throw new Error(`Unable to read git subject resource: ${revision}:${fullPath}`);
+      entries.push([fullPath.slice(root.length + 1), "file", sha256(content.stdout)]);
+    }
   }
-  const records = result.stdout.split("\0").filter(Boolean);
-  if (records.length === 0) throw new Error(`Git variant path is empty: ${revision}:${path}`);
-  const prefix = `${path.replace(/\/$/, "")}/`;
-  const entries = records.map((record) => {
-    const [header, fullPath] = record.split("\t");
-    const [mode, type] = header.split(" ");
-    if (type !== "blob" || mode === "120000") throw new Error(`Unsupported git entry in skill variant: ${mode} ${type} ${fullPath}`);
-    if (!fullPath.startsWith(prefix)) throw new Error(`Git variant entry escapes path: ${fullPath}`);
-    const content = spawnSync("git", ["show", `${revision}:${fullPath}`], { cwd: repoRoot, encoding: null, maxBuffer: 16 * 1024 * 1024 });
-    if (content.status !== 0) throw new Error(`Unable to read git variant blob: ${revision}:${fullPath}`);
-    return [fullPath.slice(prefix.length), "file", sha256(content.stdout)];
-  });
+  entries.sort((left, right) => left[0].localeCompare(right[0]));
   return sha256(stableJson(entries));
 }

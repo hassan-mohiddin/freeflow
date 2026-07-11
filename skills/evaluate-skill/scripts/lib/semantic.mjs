@@ -1,8 +1,9 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { randomBytes } from "node:crypto";
-import { readJson } from "./workspace.mjs";
+import { isWithin } from "./path-policy.mjs";
+import { readJson, resolveInside } from "./workspace.mjs";
 import { DEFAULT_OUTPUT_LIMIT_BYTES } from "./constants.mjs";
 import { runPiSubject } from "./pi-adapter.mjs";
 
@@ -10,6 +11,19 @@ async function readOptional(path, max = 30000) {
   try {
     const text = await readFile(path, "utf8");
     return text.length > max ? `${text.slice(0, max)}\n[truncated]` : text;
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+async function readContainedOptional(root, candidate, max = 30000) {
+  const path = resolveInside(root, candidate, "changed evidence path");
+  try {
+    const info = await lstat(path);
+    if (info.isSymbolicLink()) throw new Error(`Changed evidence path is a symlink: ${candidate}`);
+    if (!isWithin(await realpath(root), await realpath(path))) throw new Error(`Changed evidence path escapes through symlink: ${candidate}`);
+    return readOptional(path, max);
   } catch (error) {
     if (error.code === "ENOENT") return null;
     throw error;
@@ -65,8 +79,9 @@ export async function buildSemanticPrompt(runDir) {
   const final = await readOptional(resolve(runDir, "final.md"));
   const diff = await readOptional(resolve(runDir, "diff"));
   const fileEvidence = [];
+  const artifactRoot = resolve(runDir, "artifacts", "workspace");
   for (const path of (metadata.changed_paths ?? []).slice(0, 20)) {
-    const content = await readOptional(resolve(runDir, "artifacts", "workspace", path), 12000);
+    const content = await readContainedOptional(artifactRoot, path, 12000);
     fileEvidence.push({ path: path.replaceAll("\\", "/"), content: content ?? "<deleted>" });
   }
   const evidence = {

@@ -1,7 +1,7 @@
 import { access, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
-import { isWithin } from "./path-policy.mjs";
+import { assertNoSymlinkTree, isWithin } from "./path-policy.mjs";
 
 export const EVIDENCE_CLASSES = new Set([
   "structure",
@@ -176,6 +176,7 @@ export async function loadSkillWorkspace(repoRoot, skill) {
       if (!isWithin(await realpath(skillRoot), await realpath(fixturePath))) {
         throw new Error(`Fixture path escapes through symlink: ${evalCase.fixture}`);
       }
+      await assertNoSymlinkTree(fixturePath, `${evalCase.id} fixture`);
     }
     for (const variant of evalCase.variants) resolveInside(repoRoot, variant.path, `${evalCase.id}.${variant.id}.path`);
     cases.push(Object.freeze({ ...evalCase, source_path: casePath }));

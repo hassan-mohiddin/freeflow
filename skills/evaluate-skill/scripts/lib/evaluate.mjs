@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { basename, relative, resolve, sep } from "node:path";
 import { coordinateEvaluation } from "./coordinator.mjs";
 import { createManifest, captureGitEvidence, copyDirectory, initializeFixtureGit, makeWritable, materializeSkillVariant, removeWritableTree } from "./materialize.mjs";
-import { hashDirectory } from "./hash.mjs";
+import { hashDeclaredResources, hashDirectory } from "./hash.mjs";
 import { gradeObjectiveRun } from "./grade.mjs";
 import { verifyBundleIntegrity, writeBundleIntegrity } from "./integrity.mjs";
 import { incompleteOperation } from "./outcome.mjs";
@@ -74,11 +74,12 @@ async function executeVariant(workspace, plan, variant, evidenceDir, id, depende
     const beforeManifest = await createManifest(fixtureRoot);
 
     if (variant.kind === "working-tree") {
-      const currentSourceHash = await hashDirectory(variant.absolute_path);
+      const currentSourceHash = await hashDeclaredResources(variant.absolute_path, variant.resources);
       if (currentSourceHash !== variant.snapshot_hash) throw new Error(`Subject source changed after preflight for ${variant.role}`);
     }
     await materializeSkillVariant(workspace.repoRoot, variant, snapshotRoot);
     const subjectHashBefore = await hashDirectory(snapshotRoot);
+    if (subjectHashBefore !== variant.snapshot_hash) throw new Error(`Materialized subject differs from approved resources for ${variant.role}`);
     const skillManifest = await createManifest(snapshotRoot);
 
     if (plan.eval_case.execution.host !== "none") {

@@ -4,8 +4,8 @@ import { constants } from "node:fs";
 import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { capabilitiesFor, supportedEvidenceClasses } from "./capabilities.mjs";
-import { hashDirectory, hashFile, hashGitPath, sha256, stableJson } from "./hash.mjs";
-import { isWithin } from "./path-policy.mjs";
+import { hashDeclaredResources, hashDirectory, hashFile, hashGitResources, sha256, stableJson } from "./hash.mjs";
+import { assertNoSymlinkTree, isWithin } from "./path-policy.mjs";
 import { resolveInside } from "./workspace.mjs";
 
 const ADAPTER_VERSION = "pi-outcome-v1";
@@ -61,6 +61,7 @@ async function validateWorkingTreeResources(repoRoot, variant) {
     const info = await lstat(path);
     if (info.isSymbolicLink()) throw new Error(`Subject resource cannot be a symlink: ${variant.path}/${resource}`);
     if (!isWithin(canonicalRoot, await realpath(path))) throw new Error(`Subject resource escapes through symlink: ${variant.path}/${resource}`);
+    await assertNoSymlinkTree(path, `Subject resource ${variant.path}/${resource}`);
   }
 }
 
@@ -87,11 +88,11 @@ async function resolveVariant(repoRoot, variant) {
   const absolutePath = resolveInside(repoRoot, variant.path, `${variant.id}.path`);
   if (variant.kind === "working-tree") {
     await validateWorkingTreeResources(repoRoot, variant);
-    return { ...variant, absolute_path: absolutePath, snapshot_hash: await hashDirectory(absolutePath) };
+    return { ...variant, absolute_path: absolutePath, snapshot_hash: await hashDeclaredResources(absolutePath, variant.resources) };
   }
   if (variant.kind === "git") {
     validateGitResources(repoRoot, variant);
-    return { ...variant, absolute_path: absolutePath, snapshot_hash: hashGitPath(repoRoot, variant.revision, variant.path) };
+    return { ...variant, absolute_path: absolutePath, snapshot_hash: hashGitResources(repoRoot, variant.revision, variant.path, variant.resources) };
   }
   throw new Error(`Unsupported variant kind: ${variant.kind}`);
 }

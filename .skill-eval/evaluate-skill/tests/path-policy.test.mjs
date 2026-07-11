@@ -49,6 +49,37 @@ test("workspace loader rejects fixture symlink escapes", async (t) => {
   await assert.rejects(() => loadSkillWorkspace(root, "sample-skill"), /symlink/);
 });
 
+test("workspace loader rejects nested fixture symlinks", async (t) => {
+  const root = await mkdtemp(resolve(tmpdir(), "freeflow-workspace-nested-symlink-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const skillRoot = resolve(root, ".skill-eval", "sample-skill");
+  const fixture = resolve(skillRoot, "fixtures", "input");
+  const outside = resolve(root, "outside.txt");
+  await mkdir(resolve(skillRoot, "cases"), { recursive: true });
+  await mkdir(fixture, { recursive: true });
+  await writeFile(outside, "outside\n");
+  await symlink(outside, resolve(fixture, "nested-escape"));
+  await writeFile(resolve(root, ".skill-eval", "config.json"), "{}\n");
+  await writeFile(resolve(skillRoot, "suite.json"), JSON.stringify({ schema_version: 1, skill: "sample-skill", cases: ["cases/SAMPLE-001.json"] }));
+  await writeFile(resolve(skillRoot, "cases", "SAMPLE-001.json"), JSON.stringify({
+    schema_version: 1,
+    id: "SAMPLE-001",
+    skill: "sample-skill",
+    title: "escape",
+    question: "fixture/repo behavior",
+    evidence_classes: ["artifact-outcome"],
+    required_for_bootstrap: false,
+    evaluation_kind: "single",
+    unsupported_evidence: "block",
+    prompt: "x",
+    fixture: "fixtures/input",
+    variants: [{ id: "candidate", role: "subject", kind: "working-tree", path: "skills/sample-skill", resources: ["SKILL.md"] }],
+    execution: { host: "pi", mode: "json", tools: ["read"] },
+    assertions: [{ id: "x", type: "path_exists", path: "x" }],
+  }));
+  await assert.rejects(() => loadSkillWorkspace(root, "sample-skill"), /nested-escape.*symlink|symlink.*nested-escape/i);
+});
+
 test("root policy blocks snapshot writes, traversal, and symlink escapes", async (t) => {
   const root = await mkdtemp(resolve(tmpdir(), "freeflow-path-test-"));
   t.after(() => rm(root, { recursive: true, force: true }));

@@ -1,4 +1,4 @@
-import { lstat, realpath } from "node:fs/promises";
+import { lstat, readdir, realpath } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
 function stripAtPrefix(value) {
@@ -8,6 +8,17 @@ function stripAtPrefix(value) {
 export function isWithin(root, target) {
   const rel = relative(root, target);
   return rel === "" || (!rel.startsWith(`..${sep}`) && rel !== ".." && !isAbsolute(rel));
+}
+
+export async function assertNoSymlinkTree(root, label = "tree") {
+  async function visit(path) {
+    const info = await lstat(path);
+    if (info.isSymbolicLink()) throw new Error(`${label} contains symlink: ${relative(root, path) || "."}`);
+    if (info.isDirectory()) {
+      for (const name of await readdir(path)) await visit(resolve(path, name));
+    }
+  }
+  await visit(resolve(root));
 }
 
 export function assertSafeOwnedRoot(candidate, { repoRoot, homeDir, label = "path" } = {}) {

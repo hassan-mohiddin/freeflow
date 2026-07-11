@@ -26,6 +26,20 @@ test("semantic prompt uses opaque identity and fixed criteria", async (t) => {
   assert.deepEqual(built.criterionIds, ["quality"]);
 });
 
+test("semantic evidence reads reject changed-path traversal", async (t) => {
+  const run = await mkdtemp(resolve(tmpdir(), "freeflow-semantic-traversal-"));
+  t.after(() => rm(run, { recursive: true, force: true }));
+  await mkdir(resolve(run, "inputs"), { recursive: true });
+  await mkdir(resolve(run, "artifacts", "workspace"), { recursive: true });
+  await writeFile(resolve(run, "metadata.json"), JSON.stringify({ variant: "subject", changed_paths: ["../secret.txt"] }));
+  await writeFile(resolve(run, "inputs", "case.json"), JSON.stringify({ prompt: "x", assertions: [{ id: "quality", type: "semantic", rubric: "x" }] }));
+  await writeFile(resolve(run, "objective-grade.json"), JSON.stringify({ objective_pass: true, assertions: [] }));
+  await writeFile(resolve(run, "final.md"), "answer");
+  await writeFile(resolve(run, "diff"), "");
+  await writeFile(resolve(run, "artifacts", "secret.txt"), "must not be read");
+  await assert.rejects(() => buildSemanticPrompt(run), /changed evidence path.*escapes/i);
+});
+
 test("semantic protocol rejects extra, missing, duplicate, or inconsistent assertions", () => {
   const valid = { verdict: "pass", assertions: [{ id: "quality", verdict: "pass", evidence: ["Observed fact"] }], uncertainty: null };
   assert.equal(validateSemanticResult(valid, ["quality"]), valid);

@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { chmod, cp, lstat, mkdir, readFile, readdir, readlink, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
 import { sha256, stableJson } from "./hash.mjs";
+import { assertNoSymlinkTree } from "./path-policy.mjs";
 
 function runGit(repoRoot, args, options = {}) {
   const result = spawnSync("git", args, { cwd: repoRoot, encoding: options.encoding ?? "utf8", maxBuffer: 16 * 1024 * 1024 });
@@ -25,6 +26,7 @@ export async function materializeSkillVariant(repoRoot, variant, destination) {
       if (rel === ".." || rel.startsWith(`..${sep}`)) throw new Error(`Subject resource escapes variant: ${resource}`);
       const info = await lstat(source);
       if (info.isSymbolicLink()) throw new Error(`Subject resources cannot be symlinks: ${resource}`);
+      await assertNoSymlinkTree(source, `Subject resource ${resource}`);
       const target = resolve(destination, resource);
       await mkdir(dirname(target), { recursive: true });
       await cp(source, target, { recursive: info.isDirectory(), force: true, preserveTimestamps: true });
