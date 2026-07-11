@@ -1,6 +1,6 @@
 # Release Evidence
 
-Freeflow v0.3.0 is based on the v0.1 local acceptance suite plus targeted runtime, setup, and output-router evidence from the development repository. The current adaptive-workflow revisions and newly added candidate skills have not yet received behavioral evaluation; the workflow evidence below is historical and does not verify that candidate snapshot.
+Freeflow v0.3.0 is based on the v0.1 local acceptance suite plus targeted runtime, setup, and output-router evidence from the development repository. The current adaptive-workflow revisions, config-only activation contract, compact runtime kernel, and newly added candidate skills have not yet received behavioral evaluation; the workflow and prior setup evidence below is historical and does not verify that candidate snapshot.
 
 ## Acceptance Summary
 
@@ -28,11 +28,11 @@ Codex/Claude native slash handlers are not shipped in this release. In those hos
 
 ## Runtime Context
 
-Freeflow ships plugin-bundled context hooks that stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape. When configured and enabled, they load the existing `mode-contract`, `workflow`, and `decision-gate` skills plus discovery-light guidance and enabled capability context at session start. The Pi extension injects effective runtime context before every agent turn so later turns keep the same behavioral guardrails. Top-level `enabled: false` suppresses Freeflow context/tools/routing/delegation; `skills.enabled: false` suppresses base workflow skill exposure and context while leaving enabled capabilities available. The full `discover` skill, workflow-map reference, and output-router safety-policy reference remain available on demand when skills are effective but are not injected wholesale by default. These hooks do not run after edit/write tools, enforce behavior, block tools, or create repo-local hook files.
+Freeflow ships plugin-bundled context hooks that stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape. When configured and enabled, they load one canonical compact runtime kernel plus independently enabled capability context at session start. The Pi extension appends effective runtime context to the existing system prompt before every agent turn. Top-level `enabled: false` suppresses Freeflow context/tools/routing/delegation; `skills.enabled: false` suppresses workflow skill exposure and the kernel while leaving enabled capabilities available. Full workflow skill bodies and deep references remain available on demand rather than being injected wholesale; enabled capability sections keep their existing runtime behavior. These hooks do not run after edit/write tools, enforce behavior, block tools, or create repo-local hook files.
 
-For the same session that runs setup, `setup-freeflow` reads the base workflow skills and enabled capability skills and applies discovery-light after successful setup verification before saying that context is loaded.
+For the same session that runs setup, `setup-freeflow` reads and applies the canonical kernel plus any capability skill effective after setup following successful verification before saying current-session context is loaded.
 
-Host trust prompts for plugin hooks are expected host behavior. Local metadata validation checks hook packaging and deterministic output, not end-to-end host trust UI.
+Host trust prompts for plugin hooks are expected host behavior. Setup reports runtime delivery as confirmed, unavailable, or unconfirmed. `STP-012` registers the untrusted-hook pressure case but remains Unverified. Local metadata validation checks hook packaging and deterministic output, not end-to-end host trust UI.
 
 ## Output Router Evidence
 
@@ -53,7 +53,7 @@ Verified in the development repo:
 - Context Mode real deep final benchmark: Freeflow improved from 17/28 correct and 76/92 facts to 35/36 correct and 124/124 facts, with weighted reduction improving from 76.28% to 95.76%. Freeflow beats Context Mode for covered reducers and batch aggregation on context size, but Context Mode still wins indexed repo/docs search compactness and latency. Evidence: `evals/reports/runtime/context-mode-real-deep-final-slice-11-report.md` and `evals/reports/runtime/context-mode-real-deep-final-slice-11-review.md`.
 - Codex Structured Q&A macro benchmark: improved router passed the first Sandbox Permissions Q&A fixture while the native broad-search proxy selected `graphify-out/graph.html`.
 - Large Codex scanner benchmark: scanner remains the retrieval backend; latest recorded report-refresh evidence kept scanner at 6/8 strict fixtures with bounded context.
-- Setup/config eval: `setup-freeflow` supports optional capabilities repo config (`outputRouter`, `observedRouting`, `scriptTransform`) only after an explicit setup branch/request; minimal setup still writes only `defaultMode`.
+- Historical setup/config eval: the predecessor setup flow proved optional capability config (`outputRouter`, `observedRouting`, `scriptTransform`) remained explicit while minimal config used only `defaultMode`; it does not verify the revised config-only activation flow.
 
 Adoption decisions:
 

@@ -22,14 +22,14 @@ Freeflow is a portable workflow skill pack for coding agents.
 - Host targets: Codex, Claude Code, and Pi.
 - v0.1 local acceptance suite: passed after measured fixes and remains historical release evidence; it does not verify the current adaptive-workflow candidate.
 - Output-router evidence: passed for deterministic retrieval, command-output routing/recovery, observed routing, vault-wide indexing, transform/reducer routing, proof-backed script transform adapters, storage policy, Context Mode comparison, and Codex Structured Q&A coverage.
-- Setup/config evidence: `setup-freeflow` keeps minimal setup to `defaultMode` and adds optional router/observed-routing/script-transform config only after explicit setup branch/request.
+- Setup/config contract: `.freeflow/config.json` is the sole repo activation boundary; setup preserves repo-owned host instructions and adds optional router/observed-routing/script-transform config only after an explicit setup branch/request. This revised setup behavior is Unverified pending behavioral evaluation.
 - Prepublish verification: passed on 2026-05-26 for v0.1, refreshed during v0.2 release prep, and covered by the current release-metadata validation script for v0.3 package metadata and release-boundary docs.
 - Candidate skill snapshot: 26 runtime/contributor skills. The adaptive revisions and new candidate skills remain Unverified pending behavioral evaluation.
 - Command surface: 4 mode commands, 16 direct skill calls, 3 developer/setup calls, and 3 Pi native settings commands.
 - Optional candidates: `deprecation-and-migration`, `finish-branch`, `release-work`, `shipping-and-launch`, and `simplify-code`; `tdd` is an optional execution method.
 - Decision authority: `decision-gate` is the active skill name and runtime path; legacy `IVG-*` IDs and historical reports remain historical evidence for the former `interview-gate` behavior.
 - Native slash handlers: not shipped for Codex/Claude in the current release; Pi exposes direct Freeflow commands through its extension.
-- Runtime context loading: shipped through Codex/Claude plugin-bundled hooks and the Pi extension; global installs stay inert until `.freeflow/config.json` exists, and Pi injects only effective runtime layers before each agent turn.
+- Runtime context loading: Codex/Claude plugin-bundled hooks and the Pi extension load one canonical compact kernel from `skills/decision-gate/references/runtime-kernel.md`; global installs stay inert until valid `.freeflow/config.json` exists, Pi appends only effective runtime layers before each agent turn, and full workflow skills remain on demand.
 - Active discovery skill: `discover`; deprecated `research-brief`, `grill-context`, and `capture-decisions` live under root `deprecated/skills/` outside the runtime surface.
 - Router runtime source is organized by responsibility under `router/src/` (`tools/`, `transform/`, `evidence/`, `vault/`, `repo/`, `routing/`, `sandbox/`, `config/`, `benchmarks/`, `experiments/`); deprecated router references live under `deprecated/router/`.
 - npm Trusted Publisher: configured for GitHub Actions workflow `.github/workflows/release.yml` with environment `npm`.
@@ -84,7 +84,7 @@ Current high-signal historical and runtime evidence (not behavioral verification
 
 1. Freeze the structurally validated 26-skill adaptive snapshot as Unverified.
 2. Finish the evaluator architecture before running new skill evals.
-3. Add baseline-vs-with-skill behavioral coverage for revised and new skills, including activation and composition pressure cases.
+3. Add baseline-vs-with-skill behavioral coverage for revised and new skills, including config-only activation, unavailable/untrusted runtime delivery, and composition pressure cases.
 4. Reinstall from the GitHub package path and run Codex, Claude, and fresh Pi install-smoke checks when preparing the next release.
 5. Dogfood in one real repo before making readiness or comparative-superiority claims.
 

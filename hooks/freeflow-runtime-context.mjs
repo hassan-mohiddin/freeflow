@@ -50,10 +50,8 @@ function loadRuntimeContext(options = {}) {
   const includeSkills = options.skills === true;
   const includeOutputRouter = options.outputRouter === true;
   const includeDelegationHarness = options.delegationHarness === true;
-  const modeContractSkill = includeSkills ? readText(path.join(PLUGIN_ROOT, "skills", "mode-contract", "SKILL.md")) : null;
-  const workflowSkill = includeSkills ? readText(path.join(PLUGIN_ROOT, "skills", "workflow", "SKILL.md")) : null;
-  const decisionGateSkill = includeSkills
-    ? readText(path.join(PLUGIN_ROOT, "skills", "decision-gate", "SKILL.md"))
+  const runtimeKernel = includeSkills
+    ? readText(path.join(PLUGIN_ROOT, "skills", "decision-gate", "references", "runtime-kernel.md"))
     : null;
   const outputRouterSkill = includeOutputRouter
     ? readText(path.join(PLUGIN_ROOT, "skills", "output-router", "SKILL.md"))
@@ -63,14 +61,14 @@ function loadRuntimeContext(options = {}) {
     : null;
 
   if (
-    (includeSkills && (!modeContractSkill || !workflowSkill || !decisionGateSkill)) ||
+    (includeSkills && !runtimeKernel) ||
     (includeOutputRouter && !outputRouterSkill) ||
     (includeDelegationHarness && !delegationHarnessSkill)
   ) {
     throw new Error("Freeflow runtime context files are missing.");
   }
 
-  return { modeContractSkill, workflowSkill, decisionGateSkill, outputRouterSkill, delegationHarnessSkill };
+  return { runtimeKernel, outputRouterSkill, delegationHarnessSkill };
 }
 
 function readConfig(root) {
@@ -154,22 +152,7 @@ function isValidSetupConfig(value) {
 }
 
 function inspectSetup(root) {
-  const config = readConfig(root);
-  const agents = readText(path.join(root, "AGENTS.md")) || "";
-  const claude = readText(path.join(root, "CLAUDE.md")) || "";
-  const claudeRule = readText(path.join(root, ".claude", "rules", "freeflow-core.md")) || "";
-
-  const codexActive =
-    agents.includes("## Freeflow") && agents.includes("Use Freeflow for consequential work");
-  const claudeActive =
-    claude.includes("@.claude/rules/freeflow-core.md") &&
-    claudeRule.includes("Use Freeflow for consequential work");
-  const activeHosts = [
-    codexActive ? "Codex AGENTS.md" : null,
-    claudeActive ? "Claude CLAUDE.md import" : null
-  ].filter(Boolean);
-
-  return { config, activeHosts };
+  return { config: readConfig(root) };
 }
 
 function configStatus(config) {
@@ -186,49 +169,26 @@ function modeGuidance(mode) {
   return [
     `Current Freeflow default mode: \`${mode}\`.`,
     "Treat this as the repo default at session start, resume, clear, and compact.",
+    "Mode behavior:",
+    "- `conversation`: answer, discuss, critique, and inspect read-only; switch modes before mutating state.",
+    "- `workflow`: use the adaptive workflow for normal consequential work.",
+    "- `strict-workflow`: strengthen user-owned decisions, review, and verification for high-risk or hard-to-reverse work.",
     "For mode changes or mode interpretation, use `mode-contract`.",
     "Do not announce the current mode on every reply. Mention it when the user asks, setup/config is discussed, or the mode changes the next action."
   ];
 }
 
 function buildSetupStatus(root) {
-  const setup = inspectSetup(root);
-  const parts = [];
-  const modeStatus = configStatus(setup.config);
-
-  if (setup.config.valid && setup.activeHosts.length > 0) {
-    parts.push(
-      `Setup status: configured for ${setup.activeHosts.join(" and ")} with ${modeStatus}.`
-    );
-    parts.push(...modeGuidance(setup.config.defaultMode));
-  } else if (setup.config.exists || setup.activeHosts.length > 0) {
-    const issues = [];
-    if (!setup.config.valid) {
-      issues.push("valid `.freeflow/config.json` is missing");
-    }
-    if (setup.activeHosts.length === 0) {
-      issues.push("no Freeflow activation block/import was found");
-    }
-    parts.push(`Setup status: partial setup; ${issues.join(" and ")}.`);
-    parts.push(`Repo default mode: ${modeStatus}.`);
-    parts.push(
-      "Required user-facing notice: in the next assistant reply, tell the user Freeflow setup is incomplete and recommend `/setup-freeflow` or completing the missing host/config setup. Do this even if the user's prompt is casual, such as a greeting."
-    );
-    parts.push(
-      "Before consequential work in this repo, complete setup or ask which host setup to complete unless the user explicitly bypasses setup."
-    );
-  } else {
-    parts.push("Setup status: this repo does not appear to be set up for Freeflow yet.");
-    parts.push(`Repo default mode: ${modeStatus}.`);
-    parts.push(
-      "Required user-facing notice: in the next assistant reply, tell the user Freeflow is installed but this repo is not set up yet, and recommend `/setup-freeflow`. Do this even if the user's prompt is casual, such as a greeting."
-    );
-    parts.push(
-      "Before consequential work in this repo, use `/setup-freeflow` or ask whether to set up Freeflow for Codex, Claude, or both. Do not start implementation solely because the plugin is installed."
-    );
+  const { config } = inspectSetup(root);
+  if (!config.valid) {
+    return "Setup status: Freeflow is not configured for this repo.";
   }
 
-  return parts.join("\n");
+  return [
+    `Setup status: configured by \`.freeflow/config.json\` with ${configStatus(config)}.`,
+    "Runtime delivery: confirmed for this lifecycle-hook invocation.",
+    ...modeGuidance(config.defaultMode)
+  ].join("\n");
 }
 
 function shouldInject(eventName) {
@@ -237,14 +197,6 @@ function shouldInject(eventName) {
   }
 
   return eventName === "SessionStart";
-}
-
-function discoveryLightContext() {
-  return [
-    "## Discovery-light",
-    "",
-    "For codebase exploration, brainstorming, planning direction, vague ideas, design/API/runtime questions, “should we” / “what do you think” prompts, or first steps before spec/plan/build, inspect the smallest relevant evidence, answer directly, and ask only path-changing questions. Do not create questionnaires or artifacts unless requested. Use full `discover` when sustained discovery, checkpointing, or routing from discovery is needed."
-  ];
 }
 
 function capabilityStatus(config) {
@@ -277,49 +229,13 @@ function buildContext(input) {
     ].join("\n");
   }
 
-  const { modeContractSkill, workflowSkill, decisionGateSkill, outputRouterSkill, delegationHarnessSkill } = loadRuntimeContext({
+  const { runtimeKernel, outputRouterSkill, delegationHarnessSkill } = loadRuntimeContext({
     skills: setup.config.skillsEnabled,
     outputRouter: setup.config.outputRouterEnabled,
     delegationHarness: setup.config.delegationHarnessEnabled,
   });
-  const prioritySection = setup.config.skillsEnabled
-    ? [
-        "## Freeflow Runtime Priority",
-        "Mode Contract handles mode setting, mode interpretation, and mode mismatch before task routing when mode is at issue.",
-        "",
-        "Priority order for matched non-mode workflow skills:",
-        "",
-        "1. Workflow classifies conversation versus consequential work.",
-        "2. Decision Gate stops silent decisions, user-owned decisions, source-truth conflicts, and question-to-action mistakes.",
-        "3. Discovery-light handles context-building after no immediate stop condition remains. Use it before first repo/code exploration or design answers for consequential product/API/tool/runtime hypotheses.",
-        "4. Enabled Freeflow capabilities add their own runtime guidance below.",
-        ""
-      ]
-    : [
-        "## Freeflow Runtime Priority",
-        "Skills are disabled in `.freeflow/config.json`, so do not load mode-contract, workflow, decision-gate, or Discovery-light runtime guidance.",
-        "Enabled Freeflow capabilities may still add their own runtime guidance below.",
-        ""
-      ];
   const skillSections = setup.config.skillsEnabled
-    ? [
-        "## Loaded Mode Contract Skill",
-        "```md",
-        modeContractSkill.trim(),
-        "```",
-        "",
-        "## Loaded Workflow Skill",
-        "```md",
-        workflowSkill.trim(),
-        "```",
-        "",
-        "## Loaded Decision Gate Skill",
-        "```md",
-        decisionGateSkill.trim(),
-        "```",
-        "",
-        ...discoveryLightContext(),
-      ]
+    ? ["", runtimeKernel.trim()]
     : [];
   const outputRouterSection = setup.config.outputRouterEnabled
     ? [
@@ -349,7 +265,6 @@ function buildContext(input) {
     "## Repo Setup",
     buildSetupStatus(root),
     "",
-    ...prioritySection,
     ...capabilityStatus(setup.config),
     ...skillSections,
     ...outputRouterSection,

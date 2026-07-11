@@ -184,16 +184,19 @@
         "STP-001",
         "STP-002",
         "STP-003",
-        "STP-004",
         "STP-005",
         "STP-006",
         "STP-007",
         "STP-008",
         "STP-009",
         "STP-010",
-        "STP-011"
+        "STP-011",
+        "STP-012"
       ],
-      "status": "unverified"
+      "status": "unverified",
+      "historical_evals": [
+        "STP-004"
+      ]
     },
     "shipping-and-launch": {
       "status": "unverified",

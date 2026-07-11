@@ -1,49 +1,43 @@
 # Host Setup
 
-Use this when setup needs a host target, profile, default mode, hooks/trust guidance, CLI boundary, or multi-agent shape.
+Host choice affects runtime delivery checks, not repository activation shape.
 
-Use `activation-contract.md` for canonical activation text, config invariants, and host adapter rules.
+## Shared Repo Shape
 
-## Host Targets
+Every host uses:
 
-Codex setup writes:
+```text
+.freeflow/config.json
+```
 
-- `AGENTS.md`
-- `.freeflow/config.json`
+Do not generate host-specific Freeflow instructions in `AGENTS.md`, `CLAUDE.md`, or `.claude/rules/freeflow-core.md`.
 
-Claude setup writes:
+## Pi
 
-- `CLAUDE.md`
-- `.claude/rules/freeflow-core.md`
-- `.freeflow/config.json`
+The Freeflow Pi extension reads valid repo config before each agent turn and appends the canonical runtime kernel to `event.systemPrompt`. It must preserve the existing prompt.
 
-Multi-agent setup updates both host surfaces only when the user asks for both or multi-agent setup. Render both hosts from `activation-contract.md` and mention duplicated activation drift risk.
+Confirm delivery through the extension status surface or a runtime-context test when available. A config written during setup takes effect on the next `before_agent_start` turn; read the kernel and any capability skill effective after setup directly for the remainder of the setup turn.
 
-Current runtime is not enough to choose a host when both `AGENTS.md` and `CLAUDE.md` exist.
+## Codex And Claude
 
-## Profiles
+The packaged lifecycle hook reads valid repo config and injects the same canonical kernel at session start, resume, clear, and compact lifecycle boundaries supported by the host.
 
-Solo setup is the default:
+After first-time setup, use the host's relevant reload/resume lifecycle before relying on automatic injection.
 
-- one host target,
-- compact activation,
-- `defaultMode: "workflow"`,
-- no extra docs or hooks.
+Treat runtime delivery as:
 
-Team setup still uses compact activation. Add both hosts only if requested. Do not add team standards, onboarding docs, owners, approvers, repo-local hooks, or CLI checks unless the user separately asks and the repo has a validated path.
+- **confirmed** when the installed hook registration and current host trust/enablement are evidenced;
+- **unavailable** when the hook/plugin is absent, disabled, denied, or unsupported;
+- **unconfirmed** when the host exposes no trustworthy way to verify registration or execution.
 
-Strict setup changes `.freeflow/config.json` to `strict-workflow` only when the user explicitly asks to make that the repo default. Otherwise recommend strict-workflow for high-risk work without persisting it.
+Surface unavailable or unconfirmed delivery in the setup result. Do not compensate by copying the kernel into repository instruction files.
 
-Capability setup is an opt-in branch inside normal setup, not a host profile. Use `output-router-setup.md`; keep minimal config unchanged unless the user accepts the capabilities decision point or explicitly asks for Output Router, observed-routing, script-transform, native safety-net, or Delegation Harness config.
+## Optional Capabilities
 
-Valid persisted defaults are exactly `conversation`, `workflow`, and `strict-workflow`.
+Capability setup remains an opt-in branch inside normal setup, not a host-specific activation shape. Use `output-router-setup.md`; keep minimal config unchanged unless the user accepts the capability decision point or explicitly asks for Output Router, observed routing, script transform, native safety-net routing, or Delegation Harness config.
 
-## Not Setup
+Do not install repo-local hooks, CLI commands, lint rules, global standards, docs inventories, or state files during setup.
 
-Do not install repo-local hooks, CLI commands, lint rules, global standards, docs inventories, setup-output-router skills, or state files during setup.
+## Conflicts
 
-Freeflow's plugin-bundled context hooks and Pi extension are package runtime. They stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape, then load mode-contract, workflow, decision-gate, discovery-light, and enabled capability context at session start, but setup should not copy hook files into the target repo.
-
-After successful setup verification, setup should read the mode-contract, workflow, and decision-gate skills before the final response, read capability skills only when their layers were enabled during setup, and apply the discovery-light runtime rule. If session-start runtime context does not load in later sessions, tell the user to review/trust the installed Freeflow plugin hooks or start a fresh/compacted session. Do not create repo-local hook files as a workaround.
-
-If the user asks for enforcement, say Freeflow setup is instruction-only for now and ask whether to handle enforcement as a separate task.
+Repo instructions can still conflict with Freeflow behavior even though they are not activation markers. Name the conflict and ask before enabling or changing behavior when it would alter the next action.

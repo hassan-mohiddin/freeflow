@@ -132,6 +132,18 @@ _Avoid_: circular dependency
 The installable Freeflow plugin at the repo root, including manifests, skills, references, public docs, evals, and command-surface metadata.
 _Avoid_: duplicate package copy, generated mirror
 
+**Activation Boundary**:
+A valid `.freeflow/config.json`; the only repo state that activates Freeflow.
+_Avoid_: AGENTS/CLAUDE activation block, generated rule file
+
+**Runtime Kernel**:
+The canonical compact always-loaded behavior contract shared by host adapters while full skills remain available on demand.
+_Avoid_: duplicated core skill bodies, host-file copy
+
+**Runtime Delivery**:
+Evidence that the current host adapter actually loaded the kernel; separate from repo activation.
+_Avoid_: config presence alone, assumed hook trust
+
 **Public Repo**:
 The repository root is the plugin root and also contains marketplace indexes, README, license, changelog, and repo memory.
 _Avoid_: separate generated package, nested runtime copy

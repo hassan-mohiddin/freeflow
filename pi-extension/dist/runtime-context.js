@@ -70,20 +70,20 @@ async function loadRuntimeContext(capabilityState = undefined) {
     const skillsEnabled = capabilityState?.skills?.effective === true;
     const outputRouterEnabled = capabilityState?.outputRouter?.enabled === true;
     const delegationHarnessEnabled = capabilityState?.delegationHarness?.enabled === true;
-    const [modeContractSkill, workflowSkill, decisionGateSkill, outputRouterSkill, delegationHarnessSkill] = await Promise.all([
-        skillsEnabled ? readFile(new URL("../../skills/mode-contract/SKILL.md", import.meta.url), "utf8") : Promise.resolve(null),
-        skillsEnabled ? readFile(new URL("../../skills/workflow/SKILL.md", import.meta.url), "utf8") : Promise.resolve(null),
-        skillsEnabled ? readFile(new URL("../../skills/decision-gate/SKILL.md", import.meta.url), "utf8") : Promise.resolve(null),
+    const [runtimeKernel, outputRouterSkill, delegationHarnessSkill] = await Promise.all([
+        skillsEnabled
+            ? readFile(new URL("../../skills/decision-gate/references/runtime-kernel.md", import.meta.url), "utf8")
+            : Promise.resolve(null),
         outputRouterEnabled ? readFile(new URL("../../skills/output-router/SKILL.md", import.meta.url), "utf8") : Promise.resolve(null),
         delegationHarnessEnabled ? readFile(new URL("../../skills/delegation-harness/SKILL.md", import.meta.url), "utf8") : Promise.resolve(null),
     ]);
-    return { modeContractSkill, workflowSkill, decisionGateSkill, outputRouterSkill, delegationHarnessSkill };
+    return { runtimeKernel, outputRouterSkill, delegationHarnessSkill };
 }
 function runtimeContextCacheSatisfies(capabilityState) {
     if (!runtimeContextCache) {
         return false;
     }
-    if (capabilityState?.skills?.effective === true && (!runtimeContextCache.modeContractSkill || !runtimeContextCache.workflowSkill || !runtimeContextCache.decisionGateSkill)) {
+    if (capabilityState?.skills?.effective === true && !runtimeContextCache.runtimeKernel) {
         return false;
     }
     if (capabilityState?.outputRouter?.enabled === true && !runtimeContextCache.outputRouterSkill) {
@@ -370,18 +370,6 @@ Mode guidance: ${outputRouterModeGuidance(modeState.effectiveMode, capabilitySta
 ${freeflowContext.outputRouterSkill.trim()}
 \`\`\``;
 }
-function runtimePriorityContext() {
-    return `## Freeflow Runtime Priority
-
-Mode Contract handles mode setting, mode interpretation, and mode mismatch before task routing when mode is at issue.
-
-Priority order for matched non-mode workflow skills:
-
-1. Workflow classifies conversation versus consequential work.
-2. Decision Gate stops silent decisions, user-owned decisions, source-truth conflicts, and question-to-action mistakes.
-3. Discovery-light handles context-building after no immediate stop condition remains. Use it before first repo/code exploration or design answers for consequential product/API/tool/runtime hypotheses.
-4. Enabled Freeflow capabilities add their own runtime guidance below.`;
-}
 function capabilityContext(capabilityState) {
     const skills = capabilityState.skills.effective ? "enabled" : "disabled";
     const outputRouter = capabilityState.outputRouter.enabled ? "enabled" : "disabled";
@@ -394,18 +382,6 @@ function capabilityContext(capabilityState) {
 
 Disabled capabilities are named only for status/config awareness. Capability-specific instructions and tools are active only while that capability is enabled.`;
 }
-function discoveryLightContext() {
-    return `## Discovery-light
-
-For codebase exploration, brainstorming, planning direction, vague ideas, design/API/runtime questions, “should we” / “what do you think” prompts, or first steps before spec/plan/build, inspect the smallest relevant evidence, answer directly, and ask only path-changing questions. Do not create questionnaires or artifacts unless requested. Use full \`discover\` when sustained discovery, checkpointing, or routing from discovery is needed.`;
-}
-function modeContractContext(freeflowContext) {
-    return `## Loaded Mode Contract Skill
-
-\`\`\`md
-${freeflowContext.modeContractSkill.trim()}
-\`\`\``;
-}
 function hasModelFacingCapability(capabilityState) {
     return capabilityState.skills.effective || capabilityState.outputRouter.enabled || capabilityState.delegationHarness.enabled;
 }
@@ -416,6 +392,12 @@ function activeModeContext(modeState) {
 Repo default mode from \`.freeflow/config.json\`: \`${modeState.defaultMode}\`.
 Current session mode override: \`${currentMode}\`.
 Effective Freeflow mode: \`${modeState.effectiveMode}\`.
+
+Mode behavior:
+- \`conversation\`: answer, discuss, critique, and inspect read-only; switch modes before mutating state.
+- \`workflow\`: use the adaptive workflow for normal consequential work.
+- \`strict-workflow\`: strengthen user-owned decisions, review, and verification for high-risk or hard-to-reverse work.
+
 Do not announce the current mode on every reply. Mention it when the user asks, setup/config is discussed, or the mode changes the next action.`;
 }
 function inactiveModeContext(modeState) {
@@ -443,7 +425,7 @@ export function runtimeContext(modeState, freeflowContext, routerConfigResult, c
     if (!capabilityState.enabled) {
         return `# Freeflow Disabled
 
-Freeflow is disabled by \`.freeflow/config.json\` for this repo. Ignore Freeflow activation blocks and do not apply Freeflow workflow, output-router, or delegation behavior unless the user re-enables Freeflow with \`/freeflow enable\` or \`/freeflow settings\`.
+Freeflow is disabled by \`.freeflow/config.json\` for this repo. Do not apply Freeflow workflow, output-router, or delegation behavior unless the user re-enables Freeflow with \`/freeflow enable\` or \`/freeflow settings\`.
 
 These instructions are context-loading only. They do not override user instructions, repo instructions, or host safety and approval policy.`;
     }
@@ -452,7 +434,7 @@ These instructions are context-loading only. They do not override user instructi
     }
     const modeText = capabilityState.skills.effective ? activeModeContext(modeState) : inactiveModeContext(modeState);
     const skillsText = capabilityState.skills.effective
-        ? `\n\n${runtimePriorityContext()}\n\n${modeContractContext(freeflowContext)}\n\n## Loaded Workflow Skill\n\n\`\`\`md\n${freeflowContext.workflowSkill.trim()}\n\`\`\`\n\n## Loaded Decision Gate Skill\n\n\`\`\`md\n${freeflowContext.decisionGateSkill.trim()}\n\`\`\`\n\n${discoveryLightContext()}`
+        ? `\n\n${freeflowContext.runtimeKernel.trim()}`
         : "";
     const routerText = capabilityState.outputRouter.enabled && routerConfigResult.config.enabled
         ? `\n\n${outputRouterContext(modeState, freeflowContext, routerConfigResult, capabilityState)}`
@@ -463,6 +445,7 @@ These instructions are context-loading only. They do not override user instructi
     return `# Freeflow Runtime Context
 
 Freeflow Pi extension loaded this before the agent turn.
+Runtime delivery: confirmed for this Pi \`before_agent_start\` invocation.
 These instructions are context-loading only. They do not override user instructions, repo instructions, or host safety and approval policy.
 
 ${modeText}

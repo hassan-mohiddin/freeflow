@@ -20,7 +20,7 @@ Use Freeflow when your agent needs to:
 | ---: | ---: | ---: | ---: | ---: |
 | retrieval context | command-output context | structured-Q&A context | source-truth conflict handling | acceptance fixtures |
 
-Those numbers come from Freeflow’s internal baseline-vs-Freeflow reports in [`evals/reports/`](evals/reports/). They are deterministic fixture results, not universal guarantees. The workflow scores predate the current adaptive revisions and are historical evidence; the candidate remains Unverified.
+Those numbers come from Freeflow’s internal baseline-vs-Freeflow reports in [`evals/reports/`](evals/reports/). They are deterministic fixture results, not universal guarantees. The workflow scores and prior setup reports predate the current adaptive and config-only runtime revisions; they are historical evidence, and the candidate remains Unverified.
 
 ## The Failure Mode
 
@@ -66,7 +66,7 @@ Freeflow ships short behavior-shaping skills for the moments where agents tend t
 | Closeout and delivery | [`review-work`](skills/review-work/SKILL.md), [`verify-work`](skills/verify-work/SKILL.md), [`commit-work`](skills/commit-work/SKILL.md), [`handoff`](skills/handoff/SKILL.md), [`finish-branch`](skills/finish-branch/SKILL.md), [`release-work`](skills/release-work/SKILL.md), [`shipping-and-launch`](skills/shipping-and-launch/SKILL.md) | Review, verify, checkpoint, integrate, release, deploy, and preserve continuation context deliberately. |
 | Capabilities and contributor | [`output-router`](skills/output-router/SKILL.md), [`delegation-harness`](skills/delegation-harness/SKILL.md), [`setup-freeflow`](skills/setup-freeflow/SKILL.md), [`write-skill`](skills/write-skill/SKILL.md), [`evaluate-skill`](skills/evaluate-skill/SKILL.md) | Route evidence and independent contexts, install Freeflow, and improve/evaluate skill behavior. |
 
-The current adaptive-workflow revisions are Unverified pending behavioral evaluation. Optional candidate skills are `deprecation-and-migration`, `finish-branch`, `release-work`, `shipping-and-launch`, and `simplify-code`; `tdd` is an optional execution method.
+The current adaptive-workflow, config-only activation, and compact-kernel revisions are Unverified pending behavioral evaluation. Optional candidate skills are `deprecation-and-migration`, `finish-branch`, `release-work`, `shipping-and-launch`, and `simplify-code`; `tdd` is an optional execution method.
 
 ## Context Is For Decisions, Not Dumps
 
@@ -93,14 +93,14 @@ The router does not replace judgment. It decides how evidence moves into context
 
 ## Measured Evidence
 
-Freeflow’s claims are baseline-vs-Freeflow claims from reports in this repository. It does **not** claim superiority over other plugins. Workflow reports below predate the current adaptive-workflow revisions; they remain historical evidence, not verification of the Unverified candidate.
+Freeflow’s claims are baseline-vs-Freeflow claims from reports in this repository. It does **not** claim superiority over other plugins. Workflow and prior setup reports below predate the current adaptive-workflow and config-only runtime revisions; they remain historical evidence, not verification of the Unverified candidate.
 
 ### Workflow Behavior
 
 | Report | Baseline | With Freeflow | What It Shows |
 | --- | ---: | ---: | --- |
 | [v0.1 acceptance suite](evals/reports/acceptance/v0.1-acceptance-report.md) | - | 15/15 pass | Required release behaviors passed after measured fixes. |
-| [Always-on source-truth conflict](evals/reports/runtime/always-on-runtime-1-report.md) | 2/10 | 10/10 | Freeflow stopped a pressured billing rewrite, made no edits, named the conflict, and asked for the policy decision. |
+| [Historical source-truth conflict](evals/reports/runtime/always-on-runtime-1-report.md) | 2/10 | 10/10 | Freeflow stopped a pressured billing rewrite, made no edits, named the conflict, and asked for the policy decision. |
 | [Write spec from stale handoff](evals/reports/by-skill/write-spec-1-report.md) | 4/10 | 10/10 | Freeflow refused to create a spec that superseded live billing policy from stale handoff text. |
 | [Write plan with hidden billing decision](evals/reports/by-skill/write-plan-1-report.md) | 4/10 | 10/10 | Freeflow created no plan, named the policy conflict, and asked which path to follow. |
 | [Discover](evals/reports/by-skill/discover-1-report.md) | fixture-gated | pass | Freeflow resisted long questionnaire pressure and used evidence-backed discovery checkpoints. |
@@ -179,9 +179,9 @@ Run this in every repo after installing Freeflow:
 /setup-freeflow
 ```
 
-Setup creates the repo activation file and `.freeflow/config.json`. It does not create repo-local hooks, docs inventories, state files, handoffs, or `.codex/rules` behavior files.
+Setup creates `.freeflow/config.json`, the sole repo activation boundary. It preserves `AGENTS.md`, `CLAUDE.md`, and host rule files; it does not generate replacement Freeflow instructions, repo-local hooks, docs inventories, state files, or handoffs.
 
-After successful setup, the setup skill reads the base workflow skills and any enabled capability skills, then applies the discovery-light runtime rule before its final response so the current session can continue with Freeflow loaded.
+After successful setup, the setup skill reads and applies the canonical compact runtime kernel plus any capability skill effective after setup for the current session. It reports repo activation separately from whether the current host adapter is confirmed, unavailable, or unconfirmed.
 
 ### Required Step 2: Enable Hooks
 
@@ -193,15 +193,17 @@ In Codex, open the hooks screen and trust the Freeflow `SessionStart` hook:
 
 Press `t` to trust/enable the hook when Codex marks it as needing review.
 
-Once enabled, the hook stays inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape, then loads Freeflow mode-contract, workflow, decision-gate, discovery-light, and enabled capability context at session start, resume, clear, and compact. Top-level `enabled: false` disables hook context.
+Once enabled, the hook stays inert until `.freeflow/config.json` is valid. It then loads one canonical compact runtime kernel plus independently enabled capability context at session start, resume, clear, and compact. Full workflow skills remain available on demand. Top-level `enabled: false` disables hook context.
 
-In Pi, Freeflow's package extension provides the context-loading hook through Pi lifecycle events. It refreshes effective workflow/capability context on session start and compact, then injects it before agent turns. If you install it project-locally, trust the project when Pi prompts for project-local package resources.
+If Codex or Claude marks the hook unavailable, disabled, denied, or untrusted, setup reports runtime delivery separately instead of treating config as proof that the hook ran. Use the host's hook/plugin status surface to resolve it; Freeflow does not copy the kernel into repo instructions as a fallback.
+
+In Pi, Freeflow's package extension provides the context-loading hook through Pi lifecycle events. It refreshes effective workflow/capability context on session start and compact, then appends it to the existing system prompt before agent turns. If you install it project-locally, trust the project when Pi prompts for project-local package resources.
 
 These hooks do not run after every edit, block tools, grant permissions, or enforce workflow policy.
 
 ### Other Agents
 
-Copy the `skills/` directory into the agent's skills/plugin system and make sure the agent can read `SKILL.md` files with bundled `references/`.
+Copy the `skills/` directory into the agent's skills/plugin system and make sure the agent can read `SKILL.md` files with bundled `references/`. Automatic Freeflow activation also requires a host adapter that checks valid `.freeflow/config.json` and appends the canonical runtime kernel; without one, skills remain on demand and runtime delivery is unconfirmed.
 
 ## Usage
 

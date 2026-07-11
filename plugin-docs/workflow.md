@@ -17,7 +17,7 @@ Freeflow is repo-local. A global install stays inactive until `/setup-freeflow` 
 Pi users can run `/freeflow` for one control and settings surface. `/freeflow mode` opens the session-mode selector; `/freeflow mode conversation|workflow|strict-workflow|reset` changes or clears the temporary session override. The settings screen keeps Session mode separate from the persisted Default mode in `.freeflow/config.json`.
 
 - `enabled: false` turns the full Freeflow runtime off and makes nested settings inactive.
-- `skills.enabled: false` hides model workflow skills and suppresses mode-contract, workflow, decision-gate, and discovery-light runtime context.
+- `skills.enabled: false` hides model workflow skills and suppresses the compact runtime kernel.
 - `outputRouter.enabled` and `delegationHarness.enabled` remain layer toggles, but only take effect while top-level Freeflow is enabled.
 
 `/freeflow enable` remains available while Freeflow is disabled.

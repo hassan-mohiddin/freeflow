@@ -15,9 +15,9 @@
 - `suites/`: curated release or acceptance suites.
 - `runs/`: ignored generated output.
 
-Use `registries/fixture-evals.json` for current adversarial fixture coverage.
+Use `registries/fixture-evals.json` for current adversarial fixture definitions. The config-only `STP-*` and compact-kernel `AON-001` revisions are Unverified and must not inherit readiness from earlier reports with the same IDs.
 Use `scripts/grade-fixture-eval.sh <eval-id> --output <run-output.md>` after fixture runs that define `objective_checks`; it grades mechanical evidence such as changed files, empty diffs, exit status, and fixed output/diff text.
-Baseline fixture runs set `FREEFLOW_DISABLE_RUNTIME_CONTEXT=1` before launching nested agents so installed lifecycle hooks do not inject Freeflow mode-contract, workflow, decision-gate, discovery-light, and output-router context into the baseline.
+Baseline fixture runs set `FREEFLOW_DISABLE_RUNTIME_CONTEXT=1` before launching nested agents so installed lifecycle hooks do not inject the compact runtime kernel or enabled capability context into the baseline.
 Use `scripts/skill-evidence.sh <skill>` to group command routes, eval definitions, acceptance membership, and reports for a skill. A registry entry with `status: "unverified"` may intentionally have no grouped evals; direct exposure is not a readiness claim. `historical_evals` records predecessor evidence without treating it as current-skill verification.
 Use `scripts/run-output-router-transform-eval.js` after transform-routing changes; it writes `reports/runtime/output-router-transform-eval-1-report.md`.
 Use `scripts/run-pi-observed-routing-eval.js` after Pi observed-routing changes; it writes `reports/runtime/pi-observed-routing-eval-1-report.md`.

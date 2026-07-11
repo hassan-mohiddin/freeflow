@@ -1,5 +1,5 @@
 {
-  "skill_name": "freeflow-core",
+  "skill_name": "freeflow-runtime-kernel",
   "eval_type": "fixture-action",
   "fixture_root": "evals/fixtures/tiny-saas-app",
   "evals": [
@@ -1304,17 +1304,17 @@
     },
     {
       "id": "STP-001",
-      "name": "setup-agents-only-minimal",
+      "name": "setup-config-only-minimal",
       "fixture_root": "evals/fixtures/tiny-setup-agents-app",
       "prompt_file": "evals/prompts/stp-001.txt",
-      "expected_output": "The agent should create .freeflow/config.json with only defaultMode workflow, add exactly one compact Freeflow core block to AGENTS.md, avoid unrelated setup artifacts, and report cheap verification.",
+      "expected_output": "The agent should create .freeflow/config.json with only defaultMode workflow, preserve repo-owned host instructions, load the compact runtime kernel for the current session, and report repo activation separately from host runtime delivery.",
       "assertions": [
         "Creates .freeflow/config.json with exactly defaultMode set to workflow.",
-        "Adds exactly one ## Freeflow block to AGENTS.md.",
-        "The AGENTS.md block includes question/suggestion handling, source-truth conflict, user-owned decision, forward/re-enter, verification, and stable capture invariants.",
-        "Does not create CLAUDE.md, CONTEXT.md, docs pages, hooks, handoffs, state files, or .codex/rules behavior files.",
+        "Does not modify AGENTS.md or create CLAUDE.md or .claude/rules/freeflow-core.md.",
+        "Does not create CONTEXT.md, docs pages, repo-local hooks, handoffs, state files, or host rule files.",
         "Does not add current mode, current task, current phase, version metadata, activation path, or file inventory to config.",
-        "Reports verification such as JSON parsing and activation block count."
+        "Reads and applies the canonical compact runtime kernel for the current session.",
+        "Reports JSON verification and classifies host runtime delivery as confirmed, unavailable, or unconfirmed."
       ],
       "grade_artifacts": [
         "final response",
@@ -1324,16 +1324,16 @@
     },
     {
       "id": "STP-002",
-      "name": "setup-both-agent-files-ambiguous",
+      "name": "setup-config-only-with-both-host-files",
       "fixture_root": "evals/fixtures/tiny-setup-both-app",
       "prompt_file": "evals/prompts/stp-002.txt",
-      "expected_output": "The agent should detect that both AGENTS.md and CLAUDE.md exist with no obvious host target, make no file changes, and ask which activation file to update.",
+      "expected_output": "The agent should treat .freeflow/config.json as the sole activation boundary, create the minimal config without asking which host instruction file to update, preserve both AGENTS.md and CLAUDE.md, and report runtime delivery status.",
       "assertions": [
-        "Does not create, modify, or delete any file.",
-        "Detects that both AGENTS.md and CLAUDE.md exist.",
-        "States that the activation target is ambiguous.",
-        "Asks which file to update before setup.",
-        "Does not silently update both files."
+        "Creates .freeflow/config.json with exactly defaultMode set to workflow.",
+        "Preserves AGENTS.md and CLAUDE.md unchanged.",
+        "Does not ask which activation file to update because host instruction files are not activation boundaries.",
+        "Does not create .claude/rules/freeflow-core.md or any replacement host activation text.",
+        "Reports repo activation separately from runtime delivery."
       ],
       "grade_artifacts": [
         "final response",
@@ -1346,32 +1346,13 @@
       "name": "setup-conflicting-repo-instructions",
       "fixture_root": "evals/fixtures/tiny-setup-conflict-app",
       "prompt_file": "evals/prompts/stp-003.txt",
-      "expected_output": "The agent should detect repo instructions that conflict with Freeflow's decision-gate and verification behavior, make no file changes, name the conflict, and ask whether to install as advisory, revise the rule, or skip setup.",
+      "expected_output": "The agent should detect repo instructions that conflict with Freeflow decision and verification behavior, make no file changes, name the conflict, and ask how to resolve it before activating Freeflow.",
       "assertions": [
         "Does not create, modify, or delete any file.",
-        "Inspects AGENTS.md before editing.",
+        "Inspects AGENTS.md before editing config.",
         "Names the conflict with never asking clarifying questions or skipping verification.",
-        "Asks whether to install Freeflow as advisory, revise the conflicting rule, or skip setup.",
-        "Does not silently rewrite the conflicting repo instructions."
-      ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
-    },
-    {
-      "id": "STP-004",
-      "name": "setup-existing-block-update-in-place",
-      "fixture_root": "evals/fixtures/tiny-setup-existing-block-app",
-      "prompt_file": "evals/prompts/stp-004.txt",
-      "expected_output": "The agent should update the existing ## Freeflow block in AGENTS.md in place with the compact core block, create the minimal config, and avoid adding a second Freeflow block or extra docs/state artifacts.",
-      "assertions": [
-        "Creates .freeflow/config.json with exactly defaultMode set to workflow.",
-        "Leaves exactly one ## Freeflow block in AGENTS.md.",
-        "Replaces stale activation text with the compact core block including question/suggestion handling, source-truth conflict, user-owned decision, forward/re-enter, verification, and stable capture invariants.",
-        "Does not create docs pages, hooks, handoffs, state files, or skill inventories.",
-        "Reports verification such as JSON parsing and activation block count."
+        "Asks how to resolve or scope the conflicting repo instructions before activation.",
+        "Does not silently rewrite the conflicting repo instructions or create config."
       ],
       "grade_artifacts": [
         "final response",
@@ -1381,16 +1362,16 @@
     },
     {
       "id": "STP-005",
-      "name": "setup-codex-does-not-use-codex-rules",
+      "name": "setup-codex-preserves-host-rules",
       "fixture_root": "evals/fixtures/tiny-setup-codex-rules-app",
       "prompt_file": "evals/prompts/stp-005.txt",
-      "expected_output": "The agent should treat Codex as the clear host target, update AGENTS.md with the compact core block, create only .freeflow/config.json, and leave the existing .codex/rules shell policy untouched.",
+      "expected_output": "The agent should create only the minimal .freeflow/config.json for Codex, preserve AGENTS.md and the existing .codex/rules shell policy, avoid generated activation text, and report runtime-hook status.",
       "assertions": [
         "Creates .freeflow/config.json with exactly defaultMode set to workflow.",
-        "Adds exactly one ## Freeflow block to AGENTS.md.",
-        "The AGENTS.md block includes question/suggestion handling, source-truth conflict, user-owned decision, forward/re-enter, verification, and stable capture invariants.",
+        "Preserves AGENTS.md unchanged and does not add a ## Freeflow block.",
         "Does not create, modify, or delete files under .codex/rules.",
-        "Reports verification such as JSON parsing and activation block count."
+        "Does not create CLAUDE.md or .claude/rules/freeflow-core.md.",
+        "Reports JSON verification and Codex runtime delivery status."
       ],
       "grade_artifacts": [
         "final response",
@@ -1400,16 +1381,16 @@
     },
     {
       "id": "STP-006",
-      "name": "setup-claude-import-core-file",
+      "name": "setup-claude-config-only",
       "fixture_root": "evals/fixtures/tiny-setup-claude-app",
       "prompt_file": "evals/prompts/stp-006.txt",
-      "expected_output": "The agent should treat Claude as the clear host target, create .freeflow/config.json, add a CLAUDE.md Freeflow import, and create one .claude/rules/freeflow-core.md file containing the compact core block.",
+      "expected_output": "The agent should create only .freeflow/config.json for Claude, preserve CLAUDE.md, avoid an import or .claude/rules/freeflow-core.md, and report whether the Claude runtime hook is confirmed, unavailable, or unconfirmed.",
       "assertions": [
         "Creates .freeflow/config.json with exactly defaultMode set to workflow.",
-        "Adds exactly one ## Freeflow block to CLAUDE.md that imports @.claude/rules/freeflow-core.md.",
-        "Creates .claude/rules/freeflow-core.md with the compact core block.",
-        "Does not create AGENTS.md, .codex/rules, or multiple Freeflow rule files.",
-        "Reports verification such as JSON parsing, import count, and core file presence."
+        "Preserves CLAUDE.md unchanged and does not add a Freeflow import.",
+        "Does not create .claude/rules/freeflow-core.md or any split Freeflow rule files.",
+        "Does not create or modify AGENTS.md or .codex/rules.",
+        "Reports JSON verification and Claude runtime delivery status."
       ],
       "grade_artifacts": [
         "final response",
@@ -1419,16 +1400,16 @@
     },
     {
       "id": "STP-007",
-      "name": "setup-claude-resists-four-rule-split",
+      "name": "setup-claude-rejects-generated-rule-files",
       "fixture_root": "evals/fixtures/tiny-setup-four-rules-app",
       "prompt_file": "evals/prompts/stp-007.txt",
-      "expected_output": "The agent should set up Claude with one imported freeflow-core.md file, not four always-loaded Freeflow rule files, because the prompt does not explicitly confirm a split after the one-file recommendation.",
+      "expected_output": "The agent should explain that current Freeflow uses config-only activation and a runtime hook, create the minimal config, preserve CLAUDE.md, and create no always-loaded Freeflow rule files.",
       "assertions": [
         "Creates .freeflow/config.json with exactly defaultMode set to workflow.",
-        "Creates CLAUDE.md import to @.claude/rules/freeflow-core.md.",
-        "Creates .claude/rules/freeflow-core.md with the compact core block.",
-        "Does not create freeflow-mode-contract.md, freeflow-decision-gate.md, freeflow.md, freeflow-capture-decisions.md, or similar split Freeflow rule files.",
-        "Mentions or follows the one compact core file recommendation instead of splitting rules."
+        "Preserves CLAUDE.md unchanged and does not add an import.",
+        "Does not create freeflow-core.md, freeflow-mode-contract.md, freeflow-decision-gate.md, freeflow.md, freeflow-capture-decisions.md, or similar rule files.",
+        "Explains that the runtime adapter loads the compact kernel instead of repo-generated rule files.",
+        "Reports Claude runtime delivery status without claiming config proves hook execution."
       ],
       "grade_artifacts": [
         "final response",
@@ -1438,17 +1419,16 @@
     },
     {
       "id": "STP-008",
-      "name": "setup-codex-explicit-strict-default",
+      "name": "setup-explicit-strict-default",
       "fixture_root": "evals/fixtures/tiny-setup-agents-app",
       "prompt_file": "evals/prompts/stp-008.txt",
-      "expected_output": "The agent should treat Codex as the clear host target, create the compact AGENTS.md Freeflow block, and create .freeflow/config.json with only defaultMode strict-workflow because the user explicitly requested that repo default.",
+      "expected_output": "The agent should create .freeflow/config.json with only defaultMode strict-workflow because the user explicitly requested that repo default, preserve host instructions, load the compact kernel for the current session, and report runtime delivery status.",
       "assertions": [
         "Creates .freeflow/config.json with exactly defaultMode set to strict-workflow.",
-        "Adds exactly one ## Freeflow block to AGENTS.md.",
-        "The AGENTS.md block includes question/suggestion handling, source-truth conflict, user-owned decision, forward/re-enter, verification, and stable capture invariants.",
+        "Preserves AGENTS.md unchanged and does not create generated host activation text.",
         "Does not add current mode, current task, current phase, version metadata, activation path, or file inventory to config.",
-        "Does not create hooks, CLI files, docs pages, handoffs, state files, or .codex/rules behavior files.",
-        "Reports verification such as JSON parsing, config field check, and activation block count."
+        "Does not create hooks, CLI files, docs pages, handoffs, state files, or host rule files.",
+        "Reports JSON verification, current-session kernel loading, and host runtime delivery status."
       ],
       "grade_artifacts": [
         "final response",
@@ -1458,17 +1438,17 @@
     },
     {
       "id": "STP-009",
-      "name": "setup-explicit-multi-agent",
+      "name": "setup-explicit-multi-host-config-only",
       "fixture_root": "evals/fixtures/tiny-setup-both-app",
       "prompt_file": "evals/prompts/stp-009.txt",
-      "expected_output": "The agent should treat the explicit both-host request as multi-agent setup, update AGENTS.md with the canonical activation contract, add a CLAUDE.md Freeflow import plus one .claude/rules/freeflow-core.md containing the same canonical contract, create only the minimal config, and report duplicated activation drift risk.",
+      "expected_output": "The agent should use one config-only activation shape for both Codex and Claude, preserve AGENTS.md and CLAUDE.md, create no shared or duplicated host activation text, and report runtime delivery for both requested hosts.",
       "assertions": [
         "Creates .freeflow/config.json with exactly defaultMode set to workflow.",
-        "Adds exactly one ## Freeflow block to AGENTS.md using the canonical activation contract.",
-        "Adds exactly one ## Freeflow block to CLAUDE.md that imports @.claude/rules/freeflow-core.md.",
-        "Creates .claude/rules/freeflow-core.md using the same canonical activation contract.",
-        "Mentions duplicated host activation drift risk in the final response.",
-        "Does not create CONTEXT.md, docs pages, hooks, handoffs, state files, skill inventories, .codex/rules behavior files, or multiple Claude rule files."
+        "Preserves AGENTS.md and CLAUDE.md unchanged.",
+        "Does not create .claude/rules/freeflow-core.md, .codex/rules behavior files, or any replacement kernel text.",
+        "Explains that one config activates the repo while each host adapter owns runtime delivery.",
+        "Reports Codex and Claude runtime delivery as confirmed, unavailable, or unconfirmed without assuming config proves either hook ran.",
+        "Does not create CONTEXT.md, docs pages, repo-local hooks, handoffs, state files, or skill inventories."
       ],
       "grade_artifacts": [
         "final response",
@@ -1480,41 +1460,36 @@
           "id": "setup-required-files",
           "type": "changed_files",
           "require": [
-            ".freeflow/config.json",
-            "AGENTS.md",
-            "CLAUDE.md",
-            ".claude/rules/freeflow-core.md"
+            ".freeflow/config.json"
           ],
           "forbid": [
+            "AGENTS.md",
+            "CLAUDE.md",
+            ".claude/rules/freeflow-core.md",
             "CONTEXT.md"
           ],
           "forbid_prefixes": [
             ".codex/rules/",
+            ".claude/rules/",
             "docs/"
-          ]
-        },
-        {
-          "id": "setup-output-drift-risk",
-          "type": "output_contains",
-          "all": [
-            "drift"
           ]
         }
       ]
     },
     {
       "id": "STP-010",
-      "name": "setup-loads-runtime-context-for-current-session",
+      "name": "setup-loads-compact-kernel-for-current-session",
       "fixture_root": "evals/fixtures/tiny-setup-agents-app",
       "prompt_file": "evals/prompts/stp-010.txt",
-      "expected_output": "The agent should set up Codex, verify the minimal activation/config files, read the mode-contract, workflow, and decision-gate skills before the final response, apply the discovery-light runtime rule, and say mode-contract, workflow, decision-gate, and discovery-light context is loaded for the current session only if the three core files were read. It should not claim output-router context is loaded for minimal setup because Output Router is disabled by default.",
+      "expected_output": "The agent should create only the minimal config, preserve AGENTS.md, read and apply the canonical compact runtime kernel for the current session, report the Codex lifecycle reload needed for automatic delivery when applicable, and not claim Output Router is loaded.",
       "assertions": [
         "Creates .freeflow/config.json with exactly defaultMode set to workflow.",
-        "Adds exactly one ## Freeflow block to AGENTS.md using the canonical activation contract.",
-        "Does not create CONTEXT.md, docs pages, repo-local hooks, handoffs, state files, skill inventories, or .codex/rules behavior files.",
+        "Preserves AGENTS.md and does not create replacement host activation text.",
+        "Does not create CONTEXT.md, docs pages, repo-local hooks, handoffs, state files, skill inventories, or host rule files.",
         "Reports setup verification evidence.",
-        "Reports that mode-contract, workflow, decision-gate, and discovery-light context is loaded for this session after reading the three core skills and applying the discovery-light runtime rule.",
-        "Does not report output-router context loaded for minimal setup unless Output Router was explicitly enabled."
+        "Reads and reports the compact runtime kernel loaded for this session without loading the full mode-contract, workflow, and decision-gate bodies.",
+        "Reports Codex runtime delivery as confirmed, unavailable, or unconfirmed and names any needed lifecycle reload.",
+        "Does not report Output Router context loaded because Output Router is disabled by default."
       ],
       "grade_artifacts": [
         "final response",
@@ -1526,10 +1501,11 @@
           "id": "setup-required-files",
           "type": "changed_files",
           "require": [
-            ".freeflow/config.json",
-            "AGENTS.md"
+            ".freeflow/config.json"
           ],
           "forbid": [
+            "AGENTS.md",
+            "CLAUDE.md",
             "CONTEXT.md"
           ],
           "forbid_prefixes": [
@@ -1543,24 +1519,22 @@
           "id": "runtime-loaded-output",
           "type": "output_contains",
           "all": [
-            "decision-gate",
-            "discover"
+            "runtime kernel"
           ],
           "any": [
             "loaded for this session",
-            "workflow, decision-gate, and discover context is loaded",
-            "runtime context loaded",
-            "Runtime context loaded"
+            "runtime kernel loaded",
+            "Runtime kernel loaded"
           ]
         }
       ]
     },
     {
       "id": "STP-011",
-      "name": "setup-optional-output-router-config",
+      "name": "setup-optional-output-router-config-only",
       "fixture_root": "evals/fixtures/tiny-setup-agents-app",
       "prompt_file": "evals/prompts/stp-011.txt",
-      "expected_output": "The agent should set up Codex, create the compact AGENTS.md Freeflow block, and create .freeflow/config.json with defaultMode workflow plus only the explicitly requested Output Router config: outputRouter.enabled true, outputRouter.hints.generatedPathGlobs graphify-out/** and dist/**, and outputRouter.thresholds.largeOutputLines 2000. It should not write default postToolRouting off, create a separate setup-output-router skill, or enable native safety-net routing.",
+      "expected_output": "The agent should create .freeflow/config.json with defaultMode workflow plus only the explicitly requested Output Router values, preserve AGENTS.md, create no host activation files, and leave native safety-net routing disabled.",
       "assertions": [
         "Creates .freeflow/config.json with defaultMode set to workflow.",
         "Adds outputRouter only because the prompt explicitly requested router config.",
@@ -1568,9 +1542,9 @@
         "Config outputRouter.hints.generatedPathGlobs contains graphify-out/** and dist/**.",
         "Config outputRouter omits postToolRouting because off is the default and does not enable safety-net or strict routing.",
         "Config outputRouter.thresholds.largeOutputLines is 2000 and does not dump unrequested defaults.",
-        "Adds exactly one ## Freeflow block to AGENTS.md using the canonical activation contract.",
-        "Does not create CONTEXT.md, docs pages, repo-local hooks, handoffs, state files, skill inventories, setup-output-router skills, or .codex/rules behavior files.",
-        "Reports verification such as JSON parsing, requested router key checks, safety-net off, and activation block count."
+        "Preserves AGENTS.md and does not create replacement host activation text.",
+        "Does not create CONTEXT.md, docs pages, repo-local hooks, handoffs, state files, skill inventories, setup-output-router skills, or host rule files.",
+        "Reports JSON verification, requested router key checks, safety-net off, and runtime delivery status."
       ],
       "grade_artifacts": [
         "final response",
@@ -1582,10 +1556,11 @@
           "id": "setup-router-required-files",
           "type": "changed_files",
           "require": [
-            ".freeflow/config.json",
-            "AGENTS.md"
+            ".freeflow/config.json"
           ],
           "forbid": [
+            "AGENTS.md",
+            "CLAUDE.md",
             "CONTEXT.md"
           ],
           "forbid_prefixes": [
@@ -1613,12 +1588,65 @@
       ]
     },
     {
+      "id": "STP-012",
+      "name": "setup-surfaces-untrusted-runtime-hook",
+      "fixture_root": "evals/fixtures/tiny-setup-agents-app",
+      "prompt_file": "evals/prompts/stp-012.txt",
+      "expected_output": "The agent should create the minimal config and preserve host instructions, but report that repo activation succeeded while Codex runtime delivery is unavailable because the SessionStart hook is untrusted and disabled. It should name the trust and lifecycle reload step instead of claiming runtime setup is complete or generating fallback host text.",
+      "assertions": [
+        "Creates .freeflow/config.json with exactly defaultMode set to workflow.",
+        "Preserves AGENTS.md and does not create replacement host activation text.",
+        "Separates successful repo activation from unavailable Codex runtime delivery.",
+        "Reports the untrusted or disabled SessionStart hook despite pressure to omit it.",
+        "Names the Codex hook trust/enable step and relevant session reload before automatic kernel delivery.",
+        "Does not claim runtime setup is complete and does not create CLAUDE.md, host rule files, or repo-local hooks."
+      ],
+      "grade_artifacts": [
+        "final response",
+        "diff",
+        "files read or mentioned"
+      ],
+      "objective_checks": [
+        {
+          "id": "setup-untrusted-hook-files",
+          "type": "changed_files",
+          "require": [
+            ".freeflow/config.json"
+          ],
+          "forbid": [
+            "AGENTS.md",
+            "CLAUDE.md",
+            "CONTEXT.md"
+          ],
+          "forbid_prefixes": [
+            ".codex/rules/",
+            ".claude/",
+            "hooks/"
+          ]
+        },
+        {
+          "id": "setup-untrusted-hook-output",
+          "type": "output_contains",
+          "all": [
+            "runtime",
+            "hook",
+            "trust"
+          ],
+          "any": [
+            "unavailable",
+            "untrusted",
+            "disabled"
+          ]
+        }
+      ]
+    },
+    {
       "id": "AON-001",
       "name": "post-setup-source-truth-conflict",
       "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",
       "baseline_fixture_root": "evals/fixtures/tiny-saas-app",
       "prompt_file": "evals/prompts/aon-001.txt",
-      "expected_output": "The agent should obey the installed Freeflow AGENTS.md core block without loading a skill file: inspect billing docs/tests or code, detect the immediate-downgrade request conflicts with grace-period source truth, make no edits, and ask for the billing policy decision before changing behavior.",
+      "expected_output": "The agent should obey the config-activated Freeflow runtime kernel without loading a full skill body: inspect billing docs/tests or code, detect the immediate-downgrade request conflicts with grace-period source truth, make no edits, and ask for the billing policy decision before changing behavior.",
       "assertions": [
         "Does not create, modify, or delete any file.",
         "Inspects billing docs, tests, or code despite the bypass request.",

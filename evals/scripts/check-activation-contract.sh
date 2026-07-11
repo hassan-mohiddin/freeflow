@@ -2,120 +2,99 @@
 set -euo pipefail
 
 repo_root="$(git rev-parse --show-toplevel)"
-plugin_root="$repo_root"
-contract="$plugin_root/skills/setup-freeflow/references/activation-contract.md"
-setup_skill="$plugin_root/skills/setup-freeflow/SKILL.md"
-host_setup="$plugin_root/skills/setup-freeflow/references/host-setup.md"
+setup_skill="$repo_root/skills/setup-freeflow/SKILL.md"
+contract="$repo_root/skills/setup-freeflow/references/activation-contract.md"
+host_setup="$repo_root/skills/setup-freeflow/references/host-setup.md"
+kernel="$repo_root/skills/decision-gate/references/runtime-kernel.md"
 runtime_doc="$repo_root/docs/freeflow-runtime-and-lifecycle.md"
-registry="$plugin_root/evals/registries/fixture-evals.json"
+registry="$repo_root/evals/registries/fixture-evals.json"
+pi_runtime="$repo_root/pi-extension/src/runtime-context.ts"
+shared_hook="$repo_root/hooks/freeflow-runtime-context.mjs"
 
 failures=0
-
 fail() {
   printf 'FAIL: %s\n' "$1" >&2
   failures=$((failures + 1))
 }
 
-extract_marked_block() {
-  local name="$1"
-  awk \
-    -v start="<!-- freeflow-activation-contract:${name}:start -->" \
-    -v end="<!-- freeflow-activation-contract:${name}:end -->" '
-      $0 == start { inside = 1; in_fence = 0; next }
-      $0 == end { exit }
-      inside && $0 == "```md" { in_fence = 1; next }
-      inside && $0 == "```" { in_fence = 0; next }
-      inside && in_fence { print }
-    ' "$contract"
-}
-
-contains_exact() {
+require_text() {
   local file="$1"
-  local needle="$2"
-  NEEDLE="$needle" perl -e '
-    my $file = shift;
-    open my $fh, "<", $file or die "$file: $!";
-    local $/;
-    my $body = <$fh>;
-    exit(index($body, $ENV{NEEDLE}) >= 0 ? 0 : 1);
-  ' "$file"
+  local text="$2"
+  grep -Fq -- "$text" "$file" || fail "$file is missing: $text"
 }
 
-count_exact() {
-  local file="$1"
-  local needle="$2"
-  NEEDLE="$needle" perl -e '
-    my $file = shift;
-    open my $fh, "<", $file or die "$file: $!";
-    local $/;
-    my $body = <$fh>;
-    $count = 0;
-    $offset = 0;
-    while (($pos = index($body, $ENV{NEEDLE}, $offset)) >= 0) {
-      $count += 1;
-      $offset = $pos + length($ENV{NEEDLE});
-    }
-    print "$count\n";
-  ' "$file"
-}
-
-codex_core="$(extract_marked_block codex-core)"
-claude_import="$(extract_marked_block claude-import)"
-
-[ -n "$codex_core" ] || fail "Codex core block marker is empty."
-[ -n "$claude_import" ] || fail "Claude import block marker is empty."
-
-for file in "$setup_skill" "$host_setup" "$runtime_doc"; do
-  contains_exact "$file" "activation-contract.md" || fail "$file does not reference activation-contract.md"
+for file in "$setup_skill" "$contract" "$host_setup" "$kernel" "$runtime_doc" "$registry" "$pi_runtime" "$shared_hook"; do
+  [[ -f "$file" ]] || fail "missing required file: $file"
 done
 
-contains_exact "$setup_skill" "../mode-contract/SKILL.md" || fail "$setup_skill must load the mode-contract skill after successful setup verification."
-contains_exact "$setup_skill" "../workflow/SKILL.md" || fail "$setup_skill must load the workflow skill after successful setup verification."
-contains_exact "$setup_skill" "../decision-gate/SKILL.md" || fail "$setup_skill must load the decision-gate skill after successful setup verification."
-contains_exact "$setup_skill" "../output-router/SKILL.md" || fail "$setup_skill must mention conditional output-router loading after successful setup verification."
-contains_exact "$setup_skill" "discovery-light" || fail "$setup_skill must include the discovery-light runtime rule after successful setup verification."
-contains_exact "$host_setup" "After successful setup verification" || fail "$host_setup must document same-session runtime loading."
-contains_exact "$host_setup" "decision-gate" || fail "$host_setup must document same-session decision-gate loading."
-contains_exact "$runtime_doc" "skills/decision-gate/SKILL.md" || fail "$runtime_doc must document runtime decision-gate loading."
-contains_exact "$runtime_doc" "skills/mode-contract/SKILL.md" || fail "$runtime_doc must document runtime mode-contract loading."
+require_text "$setup_skill" '.freeflow/config.json` the only repo activation boundary'
+require_text "$contract" ".freeflow/config.json\` is Freeflow's sole repo activation boundary"
+require_text "$host_setup" 'Do not generate host-specific Freeflow instructions'
+require_text "$setup_skill" 'Do not create or append a Freeflow block in `AGENTS.md`'
+require_text "$setup_skill" 'runtime delivery is **confirmed**, **unavailable**, or **unconfirmed**'
+require_text "$setup_skill" '../decision-gate/references/runtime-kernel.md'
+require_text "$setup_skill" 'references/output-router-setup.md'
+require_text "$setup_skill" '../output-router/SKILL.md'
+require_text "$setup_skill" '../delegation-harness/SKILL.md'
+require_text "$contract" 'The compact-kernel change does not alter their skill bodies, tool/runtime ownership, opt-in defaults, or setup policy.'
+require_text "$kernel" '# Freeflow Runtime Kernel'
+require_text "$kernel" 'act as a collaborative engineering partner'
+require_text "$runtime_doc" 'activation-contract.md'
 
-for file in "$setup_skill" "$host_setup" "$runtime_doc"; do
-  if contains_exact "$file" "$codex_core"; then
-    fail "$file embeds the Codex core block instead of referencing the contract"
+for file in "$setup_skill" "$contract" "$host_setup"; do
+  if grep -Eqi 'legacy|migrat(e|ion|ing)' "$file"; then
+    fail "$file defines host-instruction conversion behavior outside the setup scope"
   fi
 done
+
+require_text "$pi_runtime" 'skills/decision-gate/references/runtime-kernel.md'
+require_text "$shared_hook" '"decision-gate", "references", "runtime-kernel.md"'
+for file in "$pi_runtime" "$shared_hook"; do
+  if grep -Fq 'skills/mode-contract/SKILL.md' "$file" || \
+     grep -Fq 'skills/workflow/SKILL.md' "$file" || \
+     grep -Fq 'skills/decision-gate/SKILL.md' "$file"; then
+    fail "$file still loads full always-on core skill bodies"
+  fi
+done
+
+if grep -Eq 'AGENTS\.md|CLAUDE\.md|freeflow-core\.md|activeHosts|activation block/import' "$shared_hook"; then
+  fail "$shared_hook still uses host instruction files as activation markers"
+fi
 
 while IFS= read -r fixture_file; do
-  count="$(count_exact "$fixture_file" "$codex_core")"
-  if [ "$count" != "1" ]; then
-    fail "$fixture_file should contain the canonical Codex core block exactly once; got $count"
+  if grep -Fq 'Use Freeflow for consequential work' "$fixture_file"; then
+    fail "$fixture_file still contains generated activation text"
   fi
-done < <(find "$plugin_root/evals/fixtures" -path '*/tiny-post-setup-*' -name AGENTS.md -type f | sort)
+done < <(find "$repo_root/evals/fixtures" -path '*/tiny-post-setup-*' -name AGENTS.md -type f | sort)
 
 jq empty "$registry"
 
 jq -e '
-  [.evals[] | select(.id == "STP-009")] | length == 1
-' "$registry" >/dev/null || fail "STP-009 must exist exactly once."
-
-jq -e '
-  .evals[]
-  | select(.id == "STP-009")
-  | any(.assertions[]; test("canonical activation contract"))
-' "$registry" >/dev/null || fail "STP-009 must assert the canonical activation contract."
-
-jq -e '
-  [.evals[] | select(.id == "STP-010")] | length == 1
-' "$registry" >/dev/null || fail "STP-010 must exist exactly once."
+  [.evals[] | select(.id | startswith("STP-"))] as $stp
+  | ($stp | length) == 11
+  and ([$stp[] | select((.expected_output + " " + (.assertions | join(" "))) | test("^Adds exactly one ## Freeflow block|^Creates \\.claude/rules/freeflow-core\\.md|canonical activation contract|activation block count"; "i"))] | length) == 0
+' "$registry" >/dev/null || fail "setup fixtures still require generated host activation artifacts"
 
 jq -e '
   .evals[]
   | select(.id == "STP-010")
-  | any(.assertions[]; test("mode-contract, workflow, decision-gate, and discovery-light context is loaded"))
-' "$registry" >/dev/null || fail "STP-010 must assert same-session mode-contract, workflow, decision-gate, and discovery-light loading."
+  | any(.assertions[]; test("compact runtime kernel"; "i"))
+' "$registry" >/dev/null || fail "STP-010 must assert same-session compact runtime-kernel loading"
 
-if [ "$failures" -gt 0 ]; then
+jq -e '
+  .evals[]
+  | select(.id == "STP-012")
+  | any(.assertions[]; test("untrusted or disabled SessionStart hook"; "i"))
+' "$registry" >/dev/null || fail "STP-012 must cover unavailable or untrusted runtime delivery"
+
+jq -e '
+  [.evals[] | select(.id == "STP-001" or .id == "STP-002" or .id == "STP-005" or .id == "STP-006" or .id == "STP-007" or .id == "STP-008" or .id == "STP-009" or .id == "STP-010" or .id == "STP-011" or .id == "STP-012")
+    | select(any(.assertions[]; test("runtime delivery"; "i")) | not)]
+  | length == 0
+' "$registry" >/dev/null || fail "successful setup fixtures must report runtime delivery separately"
+
+if [[ "$failures" -gt 0 ]]; then
   exit 1
 fi
 
-printf 'Activation contract check passed: canonical blocks, docs references, post-setup fixtures, and STP-009/STP-010 assertions are aligned.\n'
+printf 'Activation contract check passed: config-only activation, compact kernel loading, host-file preservation, and setup fixtures are aligned.\n'

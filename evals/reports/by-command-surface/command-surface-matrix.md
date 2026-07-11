@@ -25,7 +25,7 @@ Current direct command eval coverage:
 - Historical direct skill command coverage: 11 of 16 have `CMD-*` eval definitions; `/discover` uses `CMD-012`.
 - The five new optional direct calls are Unverified and intentionally have no grouped eval claims yet.
 - Pi native settings command coverage: extension tests cover `/freeflow`, `/output-router`, and `/delegation-harness` settings/status behavior.
-- Developer command coverage: yes, via setup evals plus `CMD-014` and `CMD-015`.
+- Developer command definitions: config-only setup cases are registered but Unverified; `CMD-014` and `CMD-015` remain historical behavior coverage for write/evaluate skill routes.
 
 `evals/scripts/audit-command-surface.sh` passes and checks registry shape, docs mentions, skill targets, Pi command registration, manifest consistency, and `nativeSlashHandlers=false`.
 
@@ -71,7 +71,7 @@ Current direct command eval coverage:
 
 | Command | Skill | Codex/Claude Native Handler | Direct Eval | Related Behavior Evals | Status |
 |---|---|---:|---|---|---|
-| `/setup-freeflow` | `setup-freeflow` | No | `STP-*` setup suite | `STP-001` through `STP-011` | Covered |
+| `/setup-freeflow` | `setup-freeflow` | No | `STP-*` setup suite | 11 revised `STP-*` definitions, including `STP-012` | Unverified |
 | `/write-skill` | `write-skill` | No | `CMD-014` | `WSK-001` | Covered |
 | `/evaluate-skill` | `evaluate-skill` | No | `CMD-015` | `ESK-001` | Covered |
 

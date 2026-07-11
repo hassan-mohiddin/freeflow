@@ -1,216 +1,150 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_root="$(git rev-parse --show-toplevel)"
-plugin_root="$repo_root"
-hooks_json="$plugin_root/hooks/hooks.json"
-hook_script="$plugin_root/hooks/freeflow-runtime-context.mjs"
-
-failures=0
+ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
+HOOK_PATH="$ROOT_DIR/hooks/freeflow-runtime-context.mjs"
+HOOKS_JSON="$ROOT_DIR/hooks/hooks.json"
 
 fail() {
-  printf 'FAIL: %s\n' "$1" >&2
-  failures=$((failures + 1))
+  echo "runtime-context hook check failed: $*" >&2
+  exit 1
 }
 
-require_contains() {
-  local label="$1"
-  local haystack="$2"
-  local needle="$3"
-  if [[ "$haystack" != *"$needle"* ]]; then
-    fail "$label did not contain: $needle"
+assert_contains() {
+  local text="$1"
+  local expected="$2"
+  local label="$3"
+  grep -Fq -- "$expected" <<<"$text" || fail "$label missing '$expected'"
+}
+
+assert_not_contains() {
+  local text="$1"
+  local unexpected="$2"
+  local label="$3"
+  if grep -Fq -- "$unexpected" <<<"$text"; then
+    fail "$label unexpectedly contains '$unexpected'"
   fi
 }
 
-[ -f "$hooks_json" ] || fail "Missing hooks.json"
-[ -f "$hook_script" ] || fail "Missing runtime context hook script"
+[[ -f "$HOOK_PATH" ]] || fail "missing hook script"
+[[ -f "$HOOKS_JSON" ]] || fail "missing hooks manifest"
+node --check "$HOOK_PATH"
+node -e '
+const fs = require("fs");
+const hooks = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).hooks || {};
+if (!Array.isArray(hooks.SessionStart) || hooks.SessionStart.length === 0) process.exit(1);
+if (hooks.SessionStart[0]?.matcher !== "startup|resume|clear|compact") process.exit(1);
+' "$HOOKS_JSON" || fail "hooks.json does not register the expected SessionStart lifecycle matcher"
 
-if [ -f "$hooks_json" ]; then
-  jq empty "$hooks_json"
-  jq -e '.hooks.SessionStart[0].matcher == "startup|resume|clear|compact"' "$hooks_json" >/dev/null ||
-    fail "SessionStart hook must cover startup, resume, clear, and compact."
-  jq -e 'has("hooks") and (.hooks | has("PostToolUse") | not)' "$hooks_json" >/dev/null ||
-    fail "Runtime context hooks must not include PostToolUse."
-fi
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$tmp_dir"' EXIT
+mkdir -p "$tmp_dir/.freeflow"
+printf '{"defaultMode":"workflow"}\n' > "$tmp_dir/.freeflow/config.json"
 
-node --check "$hook_script"
+codex_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$tmp_dir" | node "$HOOK_PATH" SessionStart)"
+disabled_by_env="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$tmp_dir" | FREEFLOW_DISABLE_RUNTIME_CONTEXT=1 node "$HOOK_PATH" SessionStart)"
+[[ -z "$disabled_by_env" ]] || fail "FREEFLOW_DISABLE_RUNTIME_CONTEXT=1 should suppress injection"
 
-workspace="$(mktemp -d "${TMPDIR:-/tmp}/freeflow-runtime-hook.XXXXXX")"
-trap 'rm -rf "$workspace"' EXIT
+post_tool_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$tmp_dir" | node "$HOOK_PATH" PostToolUse)"
+[[ -z "$post_tool_output" ]] || fail "PostToolUse should not inject runtime context"
 
-claude_session_output="$(
-  printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s"}' "$workspace" |
-    PLUGIN_ROOT="$plugin_root" CLAUDE_PLUGIN_ROOT="$plugin_root" node "$hook_script" SessionStart
-)"
+for expected in \
+  "# Freeflow Runtime Context" \
+  'Setup status: configured by `.freeflow/config.json`' \
+  "Runtime delivery: confirmed for this lifecycle-hook invocation." \
+  "# Freeflow Runtime Kernel" \
+  "act as a collaborative engineering partner" \
+  'Current Freeflow default mode: `workflow`.' \
+  'Skills: enabled' \
+  'Output router: disabled' \
+  'Delegation harness: disabled'
+do
+  assert_contains "$codex_output" "$expected" "Codex config-only context"
+done
+for excluded_heading in \
+  "## Freeflow Runtime Priority" \
+  "## Loaded Mode Contract Skill" \
+  "## Loaded Workflow Skill" \
+  "## Loaded Decision Gate Skill" \
+  "## Discovery-light" \
+  "## Loaded Output Router Skill" \
+  "## Loaded Delegation Harness Skill"
+do
+  assert_not_contains "$codex_output" "$excluded_heading" "default context"
+done
 
-[ -z "$claude_session_output" ] || fail "Claude SessionStart should stay inert before .freeflow/config.json exists."
+claude_output="$(printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s"}\n' "$tmp_dir" | node "$HOOK_PATH" SessionStart)"
+assert_contains "$claude_output" '"hookEventName":"SessionStart"' "Claude wrapper"
+assert_contains "$claude_output" "# Freeflow Runtime Kernel" "Claude config-only context"
+assert_contains "$claude_output" "act as a collaborative engineering partner" "Claude config-only context"
 
-codex_session_output="$(
-  printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s","model":"gpt-test"}' "$workspace" |
-    PLUGIN_ROOT="$plugin_root" CLAUDE_PLUGIN_ROOT="$plugin_root" node "$hook_script" SessionStart
-)"
+for source in startup resume clear compact; do
+  event_output="$(printf '{"hook_event_name":"SessionStart","source":"%s","cwd":"%s","model":"gpt-5"}\n' "$source" "$tmp_dir" | node "$HOOK_PATH" SessionStart)"
+  assert_contains "$event_output" "# Freeflow Runtime Kernel" "$source SessionStart context"
+done
 
-[ -z "$codex_session_output" ] || fail "Codex SessionStart should stay inert before .freeflow/config.json exists."
+# Repo-owned host instructions are neither required for activation nor modified by the read-only hook.
+printf '# Repo agents\n\nKeep this guidance.\n' > "$tmp_dir/AGENTS.md"
+printf '# Repo Claude\n\nKeep this guidance too.\n' > "$tmp_dir/CLAUDE.md"
+cp "$tmp_dir/AGENTS.md" "$tmp_dir/AGENTS.before"
+cp "$tmp_dir/CLAUDE.md" "$tmp_dir/CLAUDE.before"
+host_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$tmp_dir" | node "$HOOK_PATH" SessionStart)"
+assert_contains "$host_output" "# Freeflow Runtime Kernel" "host-independent activation"
+cmp -s "$tmp_dir/AGENTS.before" "$tmp_dir/AGENTS.md" || fail "hook modified AGENTS.md"
+cmp -s "$tmp_dir/CLAUDE.before" "$tmp_dir/CLAUDE.md" || fail "hook modified CLAUDE.md"
 
-disabled_output="$(
-  printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s","model":"gpt-test"}' "$workspace" |
-    FREEFLOW_DISABLE_RUNTIME_CONTEXT=1 PLUGIN_ROOT="$plugin_root" CLAUDE_PLUGIN_ROOT="$plugin_root" node "$hook_script" SessionStart
-)"
+# Config remains the only activation boundary.
+missing_dir="$(mktemp -d)"
+invalid_dir="$(mktemp -d)"
+mkdir -p "$invalid_dir/.freeflow"
+printf '{invalid\n' > "$invalid_dir/.freeflow/config.json"
+missing_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$missing_dir" | node "$HOOK_PATH" SessionStart)"
+invalid_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$invalid_dir" | node "$HOOK_PATH" SessionStart)"
+[[ -z "$missing_output" ]] || fail "missing config should not activate runtime context"
+[[ -z "$invalid_output" ]] || fail "invalid config should not activate runtime context"
+rm -rf "$missing_dir" "$invalid_dir"
 
-[ -z "$disabled_output" ] || fail "FREEFLOW_DISABLE_RUNTIME_CONTEXT=1 should disable runtime context injection."
+disabled_dir="$(mktemp -d)"
+mkdir -p "$disabled_dir/.freeflow"
+printf '{"enabled":false,"defaultMode":"workflow"}\n' > "$disabled_dir/.freeflow/config.json"
+disabled_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$disabled_dir" | node "$HOOK_PATH" SessionStart)"
+assert_contains "$disabled_output" "# Freeflow Disabled" "disabled context"
+assert_not_contains "$disabled_output" "# Freeflow Runtime Kernel" "disabled context"
+rm -rf "$disabled_dir"
 
-mkdir -p "$workspace/.freeflow"
-cat >"$workspace/.freeflow/config.json" <<'JSON'
-{
-  "defaultMode": "strict-workflow"
-}
-JSON
-cat >"$workspace/AGENTS.md" <<'MD'
-## Freeflow
+router_dir="$(mktemp -d)"
+mkdir -p "$router_dir/.freeflow"
+printf '{"defaultMode":"workflow","skills":{"enabled":false},"outputRouter":{"enabled":true}}\n' > "$router_dir/.freeflow/config.json"
+router_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$router_dir" | node "$HOOK_PATH" SessionStart)"
+assert_contains "$router_output" "Skills: disabled" "router-only context"
+assert_contains "$router_output" "## Loaded Output Router Skill" "router-only context"
+assert_not_contains "$router_output" "# Freeflow Runtime Kernel" "router-only context"
+rm -rf "$router_dir"
 
-Use Freeflow for consequential work. Default mode: `.freeflow/config.json`.
-MD
+all_dir="$(mktemp -d)"
+mkdir -p "$all_dir/.freeflow"
+printf '{"defaultMode":"strict-workflow","outputRouter":{"enabled":true},"delegationHarness":{"enabled":true}}\n' > "$all_dir/.freeflow/config.json"
+all_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$all_dir" | node "$HOOK_PATH" SessionStart)"
+assert_contains "$all_output" "# Freeflow Runtime Kernel" "all-capabilities context"
+assert_contains "$all_output" "## Loaded Output Router Skill" "all-capabilities context"
+assert_contains "$all_output" "## Loaded Delegation Harness Skill" "all-capabilities context"
+assert_contains "$all_output" 'Current Freeflow default mode: `strict-workflow`.' "all-capabilities context"
+rm -rf "$all_dir"
 
-configured_output="$(
-  printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s","model":"gpt-test"}' "$workspace" |
-    PLUGIN_ROOT="$plugin_root" CLAUDE_PLUGIN_ROOT="$plugin_root" node "$hook_script" SessionStart
-)"
+conversation_dir="$(mktemp -d)"
+mkdir -p "$conversation_dir/.freeflow"
+printf '{"defaultMode":"conversation"}\n' > "$conversation_dir/.freeflow/config.json"
+conversation_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$conversation_dir" | node "$HOOK_PATH" SessionStart)"
+assert_contains "$conversation_output" 'Current Freeflow default mode: `conversation`.' "conversation context"
+assert_contains "$conversation_output" '`conversation`: answer, discuss, critique, and inspect read-only' "conversation context"
+rm -rf "$conversation_dir"
 
-require_contains "Configured SessionStart output" "$configured_output" "Setup status: configured for Codex AGENTS.md with defaultMode \`strict-workflow\`."
-require_contains "Configured SessionStart output" "$configured_output" "Current Freeflow default mode: \`strict-workflow\`."
-require_contains "Configured SessionStart output" "$configured_output" "For mode changes or mode interpretation, use \`mode-contract\`."
+observed_dir="$(mktemp -d)"
+mkdir -p "$observed_dir/.freeflow"
+printf '{"defaultMode":"workflow","outputRouter":{"enabled":true,"observedRouting":{"enabled":true}},"scriptTransform":{"enabled":false}}\n' > "$observed_dir/.freeflow/config.json"
+observed_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$observed_dir" | node "$HOOK_PATH" SessionStart)"
+assert_contains "$observed_output" "# Freeflow Runtime Kernel" "observed-routing config"
+assert_contains "$observed_output" "## Loaded Output Router Skill" "observed-routing config"
+rm -rf "$observed_dir"
 
-cat >"$workspace/.freeflow/config.json" <<'JSON'
-{
-  "enabled": false,
-  "defaultMode": "workflow",
-  "skills": { "enabled": true },
-  "outputRouter": { "enabled": true },
-  "delegationHarness": { "enabled": true }
-}
-JSON
-
-freeflow_disabled_output="$(
-  printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s","model":"gpt-test"}' "$workspace" |
-    PLUGIN_ROOT="$plugin_root" CLAUDE_PLUGIN_ROOT="$plugin_root" node "$hook_script" SessionStart
-)"
-
-require_contains "Disabled Freeflow SessionStart output" "$freeflow_disabled_output" "Freeflow Disabled"
-if [[ "$freeflow_disabled_output" == *"Loaded Workflow Skill"* || "$freeflow_disabled_output" == *"Loaded Output Router Skill"* || "$freeflow_disabled_output" == *"Loaded Delegation Harness Skill"* ]]; then
-  fail "Freeflow enabled=false should suppress all skill and capability context."
-fi
-
-cat >"$workspace/.freeflow/config.json" <<'JSON'
-{
-  "defaultMode": "workflow",
-  "skills": { "enabled": false },
-  "outputRouter": { "enabled": true }
-}
-JSON
-
-skills_disabled_output="$(
-  printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s","model":"gpt-test"}' "$workspace" |
-    PLUGIN_ROOT="$plugin_root" CLAUDE_PLUGIN_ROOT="$plugin_root" node "$hook_script" SessionStart
-)"
-
-require_contains "Skills-disabled SessionStart output" "$skills_disabled_output" "Skills: disabled"
-require_contains "Skills-disabled SessionStart output" "$skills_disabled_output" "Loaded Output Router Skill"
-if [[ "$skills_disabled_output" == *"Loaded Workflow Skill"* || "$skills_disabled_output" == *"Loaded Decision Gate Skill"* || "$skills_disabled_output" == *"## Discovery-light"* ]]; then
-  fail "skills.enabled=false should suppress base Freeflow skill context."
-fi
-
-cat >"$workspace/.freeflow/config.json" <<'JSON'
-{
-  "defaultMode": "workflow",
-  "outputRouter": {
-    "enabled": true,
-    "thresholds": { "largeOutputLines": 2000 },
-    "hints": { "generatedPathGlobs": ["graphify-out/**", "dist/**"] }
-  }
-}
-JSON
-
-router_configured_output="$(
-  printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s","model":"gpt-test"}' "$workspace" |
-    PLUGIN_ROOT="$plugin_root" CLAUDE_PLUGIN_ROOT="$plugin_root" node "$hook_script" SessionStart
-)"
-
-require_contains "Output-router configured SessionStart output" "$router_configured_output" "Setup status: configured for Codex AGENTS.md with defaultMode \`workflow\`."
-require_contains "Output-router configured SessionStart output" "$router_configured_output" "Current Freeflow default mode: \`workflow\`."
-require_contains "Output-router configured SessionStart output" "$router_configured_output" "Output router: enabled"
-require_contains "Output-router configured SessionStart output" "$router_configured_output" "Loaded Output Router Skill"
-if [[ "$router_configured_output" == *"partial setup"* || "$router_configured_output" == *"invalid \`.freeflow/config.json\`"* ]]; then
-  fail "Output-router config should not make setup partial or invalid."
-fi
-
-cat >"$workspace/.freeflow/config.json" <<'JSON'
-{
-  "defaultMode": "workflow",
-  "outputRouter": {
-    "enabled": true,
-    "observedRouting": {
-      "enabled": true,
-      "mcp": {
-        "servers": {
-          "github": { "enabled": true, "persistence": "metadata-only" }
-        }
-      }
-    },
-    "scriptTransform": {
-      "enabled": false
-    }
-  }
-}
-JSON
-
-observed_routing_configured_output="$(
-  printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s","model":"gpt-test"}' "$workspace" |
-    PLUGIN_ROOT="$plugin_root" CLAUDE_PLUGIN_ROOT="$plugin_root" node "$hook_script" SessionStart
-)"
-
-require_contains "Observed-routing configured SessionStart output" "$observed_routing_configured_output" "Setup status: configured for Codex AGENTS.md with defaultMode \`workflow\`."
-if [[ "$observed_routing_configured_output" == *"partial setup"* || "$observed_routing_configured_output" == *"invalid \`.freeflow/config.json\`"* ]]; then
-  fail "observedRouting/scriptTransform config should not make setup partial or invalid."
-fi
-
-cat >"$workspace/.freeflow/config.json" <<'JSON'
-{
-  "defaultMode": "workflow",
-  "delegationHarness": { "enabled": true }
-}
-JSON
-
-delegation_configured_output="$(
-  printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s","model":"gpt-test"}' "$workspace" |
-    PLUGIN_ROOT="$plugin_root" CLAUDE_PLUGIN_ROOT="$plugin_root" node "$hook_script" SessionStart
-)"
-
-require_contains "Delegation configured SessionStart output" "$delegation_configured_output" "Delegation harness: enabled"
-require_contains "Delegation configured SessionStart output" "$delegation_configured_output" "Loaded Delegation Harness Skill"
-
-cat >"$workspace/.freeflow/config.json" <<'JSON'
-{
-  "defaultMode": "conversation"
-}
-JSON
-
-conversation_output="$(
-  printf '{"hook_event_name":"SessionStart","source":"resume","cwd":"%s","model":"gpt-test"}' "$workspace" |
-    PLUGIN_ROOT="$plugin_root" CLAUDE_PLUGIN_ROOT="$plugin_root" node "$hook_script" SessionStart
-)"
-
-require_contains "Conversation SessionStart output" "$conversation_output" "Current Freeflow default mode: \`conversation\`."
-require_contains "Conversation SessionStart output" "$conversation_output" "Treat this as the repo default at session start, resume, clear, and compact."
-
-post_tool_output="$(
-  printf '{"hook_event_name":"PostToolUse","tool_name":"Write","cwd":"%s","tool_input":{"file_path":".freeflow/config.json"}}' "$workspace" |
-    PLUGIN_ROOT="$plugin_root" CLAUDE_PLUGIN_ROOT="$plugin_root" node "$hook_script" PostToolUse
-)"
-
-[ -z "$post_tool_output" ] || fail "PostToolUse should not inject runtime context."
-
-if [ "$failures" -gt 0 ]; then
-  exit 1
-fi
-
-printf 'Runtime context hook check passed: missing setup stays inert, configured startup injects enabled context, top-level/skills toggles gate context, disable env suppresses output, and PostToolUse stays disabled.\n'
+echo "runtime-context hook checks passed"

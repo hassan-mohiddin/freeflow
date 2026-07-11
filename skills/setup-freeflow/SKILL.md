@@ -1,100 +1,70 @@
 ---
 name: setup-freeflow
-description: Use when setting up, installing, enabling, initializing, or configuring Freeflow in a repo, choosing Codex/Claude/multi-agent activation, creating `.freeflow/config.json`, changing the repo default mode during setup, or opting into Output Router, observed-routing, script-transform, or Delegation Harness setup.
+description: Use when installing or configuring Freeflow in a repository, repairing `.freeflow/config.json`, changing the repo default mode during setup, opting into Output Router or Delegation Harness setup, or checking whether the current host can load Freeflow runtime context.
 ---
 
 # Setup Freeflow
 
-Set up the smallest durable activation that makes Freeflow available in this repo.
+Make `.freeflow/config.json` the only repo activation boundary. Runtime adapters load the compact kernel; setup does not copy Freeflow instructions into repo-owned host files.
 
-Read `references/activation-contract.md` before rendering activation text or config. It is the canonical source for host blocks, config invariants, and drift checks.
+Read [the activation contract](references/activation-contract.md) before changing setup state. Read [host setup](references/host-setup.md) when runtime delivery or host trust is in question.
 
-Read `references/host-setup.md` when choosing Codex, Claude, both hosts, setup profile, hooks/trust guidance, or default mode shape.
-
-Read `references/output-router-setup.md` only when the user asks for Output Router, observed-routing, script-transform, native safety-net, generated-path, threshold, vault, or Delegation Harness config, or accepts the optional capabilities branch.
-
-## Stop Before Editing
-
-Do not create config, activation blocks, imports, or rule files until the host target is clear and repo-rule conflicts are resolved.
-
-Hard stop before editing when:
-
-- both `AGENTS.md` and `CLAUDE.md` exist and the user did not choose a host or ask for multi-agent setup;
-- existing repo instructions conflict with asking before user-owned decisions;
-- existing repo instructions conflict with verification before completion claims;
-- Claude setup would create `.claude/rules/freeflow-core.md` but the user has not clearly chosen Claude or multi-agent setup.
-
-For a hard stop, name the blocker and ask one direct question.
+Read [output-router setup](references/output-router-setup.md) only when the user asks for Output Router, observed routing, script transform, native safety-net routing, generated-path hints, thresholds, vault config, or Delegation Harness config, or accepts the optional capabilities branch.
 
 ## Inspect
 
-Inspect `.freeflow/config.json`, `AGENTS.md`, `CLAUDE.md`, `.claude/rules/freeflow-core.md`, `.codex/rules/`, existing `## Freeflow` blocks, and relevant repo instructions.
+Before editing:
 
-Existing repo instructions are source truth. If they conflict with Freeflow's core behavior, ask whether to install Freeflow as advisory, revise the conflicting rule, or skip setup. Advisory install is a user decision, not the default.
+1. inspect `.freeflow/config.json`;
+2. inspect existing repo instructions only for source conflicts that would change setup behavior;
+3. identify the current/requested host when runtime verification depends on it;
+4. check whether that host's Freeflow adapter is available and trusted when the host exposes such evidence.
 
-## Choose Target
+A valid config means repo setup is present. Host instruction files do not activate Freeflow.
 
-- Codex target: `AGENTS.md`.
-- Claude target: `CLAUDE.md` plus `.claude/rules/freeflow-core.md`.
-- If only one host file exists, choose that host.
-- If both host files exist and the request names a host, update that host.
-- If both exist and the target is ambiguous, ask.
-- If neither exists, ask which host to create.
-- Update both only when the user asks for both or multi-agent setup. Mention duplicated host activation drift risk.
+Stop before replacing invalid config or resolving conflicting setup instructions. Those are source-truth decisions.
 
-Do not treat the current agent runtime as target approval.
+## Configure
 
-Update an existing `## Freeflow` block in place. Otherwise place it near existing agent/workflow instructions or append near the end. Never duplicate it.
-
-Never use `.codex/rules/*.rules` for Freeflow behavior. Codex rules are shell approval/security policy, not model memory.
-
-## Write Minimal Setup
-
-Render activation from `references/activation-contract.md`.
-
-- Codex: put the Codex core block in `AGENTS.md`.
-- Claude: put only the Claude import block in `CLAUDE.md`, then put the Codex core block text in `.claude/rules/freeflow-core.md`.
-
-Create or update `.freeflow/config.json` through the activation-contract config adapter.
-
-Minimal setup writes only:
+For a new default setup, write:
 
 ```json
-{ "defaultMode": "workflow" }
+{
+  "defaultMode": "workflow"
+}
 ```
 
-Persist `conversation` or `strict-workflow` only when the user explicitly asks to make that valid mode the repo default. Do not infer `strict-workflow` from team setup, “strict gates,” “careful,” or high-risk examples.
+Use `conversation` or `strict-workflow` only when explicitly requested as the repo default. Preserve valid existing capability settings unless the user asked to change them. Do not add unrequested config keys or empty optional sections.
 
-Do not add current mode, task, phase, file inventory, plans, version metadata, activation paths, unrequested capability/router keys, empty optional sections, repo-local hooks, docs inventories, state files, handoffs, skill inventories, setup-output-router skills, or empty `CONTEXT.md`.
-
-Do not list the whole workflow, every mode, or full `decision-gate`/`discover` skills in always-loaded text. Plugin runtime loads runtime context.
+Do not create or append a Freeflow block in `AGENTS.md`, an import in `CLAUDE.md`, or `.claude/rules/freeflow-core.md`.
 
 ## Optional Capabilities Branch
 
-After minimal host/config setup, ask one optional capabilities question: whether to enable Output Router, configure Output Router subfeatures, or enable Delegation Harness during setup.
+After minimal config setup, ask one optional capabilities question: whether to enable Output Router, configure its subfeatures, or enable Delegation Harness during setup.
 
-If declined, keep minimal setup.
+If declined, keep minimal config. If accepted or explicitly requested, use [output-router setup](references/output-router-setup.md), ask only path-changing follow-ups, and write only the selected capability config. Verify with `freeflow_status` when available. Do not require a second slash command after the user chooses setup capabilities.
 
-If accepted or explicitly requested, read `references/output-router-setup.md`. Ask only path-changing follow-ups, write the selected capability config directly, and verify with `freeflow_status` when available. Do not require a second slash command after the user chooses setup capabilities.
+Output Router and Delegation Harness remain disabled by default. Never enable observed routing, native safety-net routing, Delegation Harness, or script transform without explicit opt-in. Script-transform adapter installation requires explicit consent and successful sandbox proof probing; report probe failures instead of claiming a language is enabled.
 
-Output Router and Delegation Harness are disabled by default. Enable them only when the user opts in during setup or explicitly requested them. Never enable observed routing, native safety-net routing, Delegation Harness, or script transform by default.
+## Activate This Session
 
-Script transform adapter install requires explicit consent and successful sandbox proof probing. Install adapters globally, not repo-locally, using the command documented in `references/output-router-setup.md`. Report probe failures instead of claiming a language is enabled.
+After writing config, read `../decision-gate/references/runtime-kernel.md` and apply it for the rest of the current setup turn/session. Read `../output-router/SKILL.md` or `../delegation-harness/SKILL.md` when that capability is effective after setup, whether newly enabled or preserved from valid config. Do not paste runtime context into a host instruction file.
 
-## Verify
+If the host loads runtime context only at session lifecycle boundaries, tell the user to start, resume, clear, or compact as appropriate before relying on automatic injection. Report capability context as loaded only when its enabled skill body was read successfully.
 
-Before claiming setup is complete, check:
+## Verify And Report
 
-- config JSON parses;
-- minimal config contains only `defaultMode` unless optional capabilities were accepted or explicitly requested;
-- optional top-level `enabled`, `skills.enabled`, `outputRouter`, nested `outputRouter.observedRouting`, nested `outputRouter.scriptTransform`, and `delegationHarness` config contains only requested valid keys;
-- Output Router, Delegation Harness, observed routing, native safety-net routing, and script transform are off unless explicitly requested and supported;
-- every enabled observed-routing producer/server has user-chosen persistence: `exact`, `metadata-only`, or `none`; setup does not offer or write `redacted`;
-- Codex setup has exactly one `## Freeflow` block in `AGENTS.md`;
-- Claude setup has exactly one `CLAUDE.md` import and one `.claude/rules/freeflow-core.md` core file;
-- `.codex/rules` was not created or changed for Freeflow behavior;
-- no unrelated files changed.
+Verify:
 
-After successful setup verification, read `../mode-contract/SKILL.md`, `../workflow/SKILL.md`, and `../decision-gate/SKILL.md` before the final response. Read `../output-router/SKILL.md` or other capability skills only when that layer was enabled during setup. Treat discovery-light as loaded with the runtime rule: inspect the smallest relevant evidence, answer directly, and ask only path-changing questions. Only say mode-contract, workflow, decision-gate, and discovery-light context is loaded for this session if the three core files were read successfully; add capability context only for enabled layers whose files were read successfully.
+- `.freeflow/config.json` parses and has a valid `defaultMode`;
+- minimal config contains only `defaultMode` unless optional capabilities were accepted, explicitly requested, or already valid;
+- capability config contains only requested valid keys;
+- Output Router, Delegation Harness, observed routing, native safety-net routing, and script transform remain off unless explicitly requested and supported;
+- every enabled observed-routing producer has user-chosen persistence as required by [output-router setup](references/output-router-setup.md);
+- no setup step created or modified Freeflow instructions in repo-owned host files;
+- no unrelated files changed;
+- runtime delivery is **confirmed**, **unavailable**, or **unconfirmed** for the current/requested host.
 
-If verification cannot run, say what remains unverified.
+Report repo activation separately from runtime delivery. Never imply that a valid config proves a Codex or Claude hook ran.
+
+If the adapter is unavailable or its trust/registration cannot be verified, make that visible and name the host-specific reload, install, trust, or diagnostic step needed. Do not silently call setup complete at runtime.

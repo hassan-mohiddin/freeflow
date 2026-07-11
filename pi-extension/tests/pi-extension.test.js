@@ -177,6 +177,7 @@ test("Pi master Freeflow toggle disables skills, capabilities, and routing", asy
 
     const result = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, context(cwd));
     assert.match(result.systemPrompt, /# Freeflow Disabled/);
+    assert.doesNotMatch(result.systemPrompt, /# Freeflow Runtime Kernel/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Skill/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Delegation Harness Skill/);
@@ -206,6 +207,7 @@ test("Pi skills toggle suppresses workflow skills while allowing enabled router 
 
     const ctx = context(cwd);
     const result = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
+    assert.doesNotMatch(result.systemPrompt, /# Freeflow Runtime Kernel/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Decision Gate Skill/);
     assert.doesNotMatch(result.systemPrompt, /## Discovery-light/);
@@ -240,6 +242,7 @@ test("Pi all-disabled capability state injects only Freeflow control-plane statu
     assert.match(result.systemPrompt, /Freeflow is enabled for this repo, but no model-facing capabilities are enabled/);
     assert.match(result.systemPrompt, /Default mode: `workflow` \(inactive because Skills are disabled\)/);
     assert.doesNotMatch(result.systemPrompt, /# Freeflow Runtime Context/);
+    assert.doesNotMatch(result.systemPrompt, /# Freeflow Runtime Kernel/);
     assert.doesNotMatch(result.systemPrompt, /Effective Freeflow mode/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Mode Contract Skill/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);
@@ -550,11 +553,11 @@ test("Pi before_agent_start keeps output-router disabled by default", async () =
 
     const result = await beforeAgentStart({ systemPrompt: "base prompt" }, context(cwd));
 
-    assert.match(result.systemPrompt, /## Loaded Mode Contract Skill/);
-    assert.match(result.systemPrompt, /## Loaded Workflow Skill/);
-    assert.match(result.systemPrompt, /## Loaded Decision Gate Skill/);
-    assert.match(result.systemPrompt, /## Discovery-light/);
-    assert.doesNotMatch(result.systemPrompt, /## Loaded Discover Skill/);
+    assert.match(result.systemPrompt, /# Freeflow Runtime Kernel/);
+    assert.doesNotMatch(result.systemPrompt, /## Loaded Mode Contract Skill/);
+    assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);
+    assert.doesNotMatch(result.systemPrompt, /## Loaded Decision Gate Skill/);
+    assert.doesNotMatch(result.systemPrompt, /## Discovery-light/);
     assert.match(result.systemPrompt, /Output router: disabled/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Skill/);
     assert.doesNotMatch(result.systemPrompt, /freeflow_search/);
@@ -584,7 +587,31 @@ test("Pi before_agent_start keeps output-router disabled by default", async () =
   }
 });
 
-test("Pi before_agent_start injects core Freeflow context on every turn", async () => {
+test("Pi before_agent_start injects the compact runtime kernel instead of full workflow skills", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-runtime-kernel-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow" }, null, 2), "utf8");
+
+    const { handlers } = loadExtension();
+    const beforeAgentStart = handlers.get("before_agent_start");
+    assert.ok(beforeAgentStart);
+
+    const result = await beforeAgentStart({ systemPrompt: "base prompt" }, context(cwd));
+
+    assert.match(result.systemPrompt, /# Freeflow Runtime Kernel/);
+    assert.match(result.systemPrompt, /Runtime delivery: confirmed for this Pi `before_agent_start` invocation/);
+    assert.match(result.systemPrompt, /act as a collaborative engineering partner/i);
+    assert.doesNotMatch(result.systemPrompt, /## Loaded Mode Contract Skill/);
+    assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);
+    assert.doesNotMatch(result.systemPrompt, /## Loaded Decision Gate Skill/);
+    assert.doesNotMatch(result.systemPrompt, /## Discovery-light/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi before_agent_start injects the Freeflow runtime kernel on every turn", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-core-context-"));
   try {
     await mkdir(join(cwd, ".freeflow"));
@@ -599,12 +626,13 @@ test("Pi before_agent_start injects core Freeflow context on every turn", async 
 
     for (const result of [first, second]) {
       assert.match(result.systemPrompt, /# Freeflow Runtime Context/);
-      assert.match(result.systemPrompt, /## Freeflow Runtime Priority/);
-      assert.match(result.systemPrompt, /## Loaded Mode Contract Skill/);
-      assert.match(result.systemPrompt, /## Loaded Workflow Skill/);
-      assert.match(result.systemPrompt, /## Loaded Decision Gate Skill/);
-      assert.match(result.systemPrompt, /## Discovery-light/);
-      assert.doesNotMatch(result.systemPrompt, /## Loaded Discover Skill/);
+      assert.match(result.systemPrompt, /# Freeflow Runtime Kernel/);
+      assert.match(result.systemPrompt, /act as a collaborative engineering partner/i);
+      assert.doesNotMatch(result.systemPrompt, /## Freeflow Runtime Priority/);
+      assert.doesNotMatch(result.systemPrompt, /## Loaded Mode Contract Skill/);
+      assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);
+      assert.doesNotMatch(result.systemPrompt, /## Loaded Decision Gate Skill/);
+      assert.doesNotMatch(result.systemPrompt, /## Discovery-light/);
       assert.match(result.systemPrompt, /Output router: disabled/);
       assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Skill/);
       assert.doesNotMatch(result.systemPrompt, /freeflow_search action=transform/);
@@ -621,7 +649,7 @@ test("Pi before_agent_start injects core Freeflow context on every turn", async 
   }
 });
 
-test("Pi session_start and session_compact keep full Freeflow context on later turns", async () => {
+test("Pi session_start and session_compact keep the runtime kernel on later turns", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-session-cache-"));
   try {
     await mkdir(join(cwd, ".freeflow"));
@@ -637,19 +665,19 @@ test("Pi session_start and session_compact keep full Freeflow context on later t
 
     await beforeAgentStart({ systemPrompt: "base prompt" }, context(cwd));
     const afterFirst = await beforeAgentStart({ systemPrompt: "base prompt" }, context(cwd));
-    assert.match(afterFirst.systemPrompt, /## Loaded Workflow Skill/);
+    assert.match(afterFirst.systemPrompt, /# Freeflow Runtime Kernel/);
 
     await sessionCompact({ reason: "manual" }, context(cwd));
     const afterCompact = await beforeAgentStart({ systemPrompt: "base prompt" }, context(cwd));
-    assert.match(afterCompact.systemPrompt, /## Loaded Mode Contract Skill/);
-    assert.match(afterCompact.systemPrompt, /## Loaded Workflow Skill/);
+    assert.match(afterCompact.systemPrompt, /# Freeflow Runtime Kernel/);
+    assert.doesNotMatch(afterCompact.systemPrompt, /## Loaded Workflow Skill/);
     assert.doesNotMatch(afterCompact.systemPrompt, /## Loaded Output Router Skill/);
     assert.doesNotMatch(afterCompact.systemPrompt, /## Loaded Delegation Harness Skill/);
 
     await sessionStart({ reason: "resume" }, context(cwd));
     const afterResume = await beforeAgentStart({ systemPrompt: "base prompt" }, context(cwd));
-    assert.match(afterResume.systemPrompt, /## Loaded Mode Contract Skill/);
-    assert.match(afterResume.systemPrompt, /## Loaded Workflow Skill/);
+    assert.match(afterResume.systemPrompt, /# Freeflow Runtime Kernel/);
+    assert.doesNotMatch(afterResume.systemPrompt, /## Loaded Workflow Skill/);
     assert.doesNotMatch(afterResume.systemPrompt, /## Loaded Output Router Skill/);
     assert.doesNotMatch(afterResume.systemPrompt, /## Loaded Delegation Harness Skill/);
   } finally {
@@ -2230,7 +2258,7 @@ test("Pi post-tool safety net fails open without losing native output", async ()
   }
 });
 
-test("Pi already-activated core context still receives runtime context", async () => {
+test("Pi appends the runtime kernel after existing project context", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-already-core-"));
   try {
     await mkdir(join(cwd, ".freeflow"));
@@ -2238,18 +2266,13 @@ test("Pi already-activated core context still receives runtime context", async (
     const { handlers } = loadExtension();
     const beforeAgentStart = handlers.get("before_agent_start");
 
-    const existingPrompt = [
-      "## Loaded Mode Contract Skill",
-      "## Loaded Workflow Skill",
-      "## Loaded Decision Gate Skill",
-    ].join("\n");
+    const existingPrompt = "# Project Instructions\n\nKeep existing repo guidance.";
     const result = await beforeAgentStart({ systemPrompt: existingPrompt }, context(cwd));
 
-  assert.match(result.systemPrompt, /## Loaded Mode Contract Skill/);
-  assert.match(result.systemPrompt, /## Loaded Workflow Skill/);
-  assert.match(result.systemPrompt, /## Loaded Decision Gate Skill/);
-  assert.match(result.systemPrompt, /## Discovery-light/);
-  assert.doesNotMatch(result.systemPrompt, /## Loaded Discover Skill/);
+  assert.match(result.systemPrompt, /^# Project Instructions/);
+  assert.match(result.systemPrompt, /# Freeflow Runtime Kernel/);
+  assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);
+  assert.doesNotMatch(result.systemPrompt, /## Discovery-light/);
   assert.match(result.systemPrompt, /## Loaded Output Router Skill/);
   assert.match(result.systemPrompt, /freeflow_search/);
   assert.match(result.systemPrompt, /freeflow_run/);
@@ -2261,7 +2284,7 @@ test("Pi already-activated core context still receives runtime context", async (
   }
 });
 
-test("Pi already-activated full context is refreshed with runtime context", async () => {
+test("Pi keeps enabled capability context alongside the runtime kernel", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-already-full-"));
   try {
     await mkdir(join(cwd, ".freeflow"));
@@ -2269,20 +2292,11 @@ test("Pi already-activated full context is refreshed with runtime context", asyn
     const { handlers } = loadExtension();
     const beforeAgentStart = handlers.get("before_agent_start");
 
-    const existingPrompt = [
-      "## Loaded Mode Contract Skill",
-      "## Loaded Workflow Skill",
-      "## Loaded Decision Gate Skill",
-      "## Discovery-light",
-      "## Loaded Output Router Skill",
-    ].join("\n");
-    const result = await beforeAgentStart({ systemPrompt: existingPrompt }, context(cwd));
+    const result = await beforeAgentStart({ systemPrompt: "base prompt" }, context(cwd));
 
-  assert.match(result.systemPrompt, /## Loaded Mode Contract Skill/);
-  assert.match(result.systemPrompt, /## Loaded Workflow Skill/);
-  assert.match(result.systemPrompt, /## Loaded Decision Gate Skill/);
-  assert.match(result.systemPrompt, /## Discovery-light/);
-  assert.doesNotMatch(result.systemPrompt, /## Loaded Discover Skill/);
+  assert.match(result.systemPrompt, /# Freeflow Runtime Kernel/);
+  assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);
+  assert.doesNotMatch(result.systemPrompt, /## Discovery-light/);
   assert.match(result.systemPrompt, /## Loaded Output Router Skill/);
   assert.match(result.systemPrompt, /name: output-router/);
   assert.doesNotMatch(result.systemPrompt, /## Freeflow Output Router Reminder/);

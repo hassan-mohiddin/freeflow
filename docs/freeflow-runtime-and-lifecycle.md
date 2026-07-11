@@ -71,51 +71,20 @@ Do not store:
 - file inventories
 - active plans
 - version metadata
-- activation file path
 
-Do not add version or migration fields without an accepted config-migration requirement.
+Do not add version fields without an accepted compatibility requirement.
 
-## Agent Instruction File
+## Activation Boundary And Host Instructions
 
-Setup should add the compact always-on runtime contract from `skills/setup-freeflow/references/activation-contract.md` to the host agent's repo instruction file.
+`.freeflow/config.json` is the sole repo activation boundary. The canonical contract lives in `skills/setup-freeflow/references/activation-contract.md`.
 
-Target file rules:
+Setup does not create or modify Freeflow text in `AGENTS.md`, `CLAUDE.md`, `.claude/rules/`, or `.codex/rules/`. Those files remain repo-owned instructions, not activation markers.
 
-- If only `AGENTS.md` exists, update it.
-- If only `CLAUDE.md` exists, update `CLAUDE.md` and import `.claude/rules/freeflow-core.md`.
-- If both exist and the host target is obvious, update the host-relevant file.
-- If both exist and the target is ambiguous, ask.
-- If neither exists, ask which one to create.
-- Update both only when the user asks for multi-agent setup.
+A valid config proves repo activation. It does not prove runtime delivery. The current host must have an installed and trusted adapter that loads `skills/decision-gate/references/runtime-kernel.md` as system context.
 
-If the user wants both files updated, explain the tradeoff:
+Setup should report runtime delivery separately as confirmed, unavailable, or unconfirmed. For Codex and Claude, host trust and hook registration remain visible through host hook/plugin status. If the adapter is absent, disabled, denied, unsupported, or cannot be verified, say so rather than copying the kernel into repo instructions.
 
-- better activation across agents
-- more drift risk
-
-Codex setup should put Freeflow behavior in `AGENTS.md`, not `.codex/rules/*.rules`. Codex rules are shell approval/security policy, not model memory.
-
-Claude setup should use `CLAUDE.md` plus an explicit import:
-
-```md
-## Freeflow
-
-@.claude/rules/freeflow-core.md
-```
-
-The always-on text should stay compact because users often keep agent instruction files short and already have their own rules. Do not duplicate the full block in docs; use `activation-contract.md` as the source of truth and run `evals/scripts/check-activation-contract.sh` after changes.
-
-Do not list the whole workflow or every mode in the activation block.
-
-The full mode-contract, workflow, decision-gate, discovery-light guidance, and enabled capability context are loaded by plugin-bundled context hooks or the Pi extension, not by setup copying full skills into repo memory.
-
-Placement matters:
-
-- Update an existing `## Freeflow` block in place.
-- Otherwise place near existing agent skill/workflow sections when present.
-- Otherwise append near the end.
-- Do not place it above stronger repo-specific rules.
-- Do not duplicate it.
+Existing repo instructions are still source truth. Inspect them when they may conflict with Freeflow behavior, and ask before enabling a path that would silently contradict them.
 
 ## Context Files
 
@@ -129,19 +98,19 @@ ADRs remain reserved for hard-to-reverse, surprising, tradeoff-driven decisions.
 
 ## Runtime Context Hooks
 
-Freeflow may ship plugin-bundled hooks that load existing mode-contract, workflow, decision-gate, discovery-light, and enabled capability context. These hooks belong to the installed plugin, not the target repo.
+Freeflow ships one canonical compact runtime kernel through host adapters. Codex and Claude use the plugin-bundled lifecycle hook; Pi uses `before_agent_start` and appends to the existing system prompt.
 
-They should:
+Adapters should:
 
 - stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape
+- treat config as the only activation boundary
 - suppress all Freeflow runtime context when top-level `enabled: false`
-- load `skills/mode-contract/SKILL.md`, `skills/workflow/SKILL.md`, and `skills/decision-gate/SKILL.md` only when `skills.enabled` is effective
-- load discovery-light guidance instead of the full Discover skill only when `skills.enabled` is effective
-- load `skills/output-router/SKILL.md` only when output-router is effective
-- load `skills/delegation-harness/SKILL.md` only when delegation harness is effective
-- state the runtime priority for whichever layers are active
-- run on session start for startup, resume, clear, and compact
-- report whether setup appears complete or partial once config activates the runtime
+- load `skills/decision-gate/references/runtime-kernel.md` only when `skills.enabled` is effective
+- keep full `mode-contract`, `workflow`, `decision-gate`, `discover`, and other skills available on demand rather than injecting their bodies
+- load `skills/output-router/SKILL.md` only when Output Router is effective
+- load `skills/delegation-harness/SKILL.md` only when Delegation Harness is effective
+- run on session start for startup, resume, clear, and compact in Codex/Claude
+- refresh and append effective context before every Pi agent turn
 
 They should not:
 
@@ -150,9 +119,10 @@ They should not:
 - grant permissions
 - enforce mode policy
 - create repo-local hook files
-- replace setup activation in `AGENTS.md` or `CLAUDE.md`
+- read host instruction files as activation markers
+- replace or rewrite the existing system prompt
 
-Setup itself should read the base workflow skills and enabled capability skills and apply discovery-light after successful verification, before its final response, so the current session has the runtime context loaded without a post-tool hook.
+After successful verification, setup itself should read and apply the canonical kernel plus any capability skill effective in the resulting config so the current setup session can continue consistently. If automatic delivery begins only at a lifecycle boundary, setup should report the required reload and classify delivery as confirmed, unavailable, or unconfirmed.
 
 ## Existing Rule Conflicts
 
@@ -301,7 +271,7 @@ These skills should not encourage end users to mutate core Freeflow skills casua
 
 Current evidence inventory (historical behavior reports do not verify revised skills until rerun):
 
-- `setup-freeflow` has focused setup evals for Codex and Claude activation shapes.
+- `setup-freeflow` has registered config-only and runtime-delivery fixture definitions for Codex and Claude; they remain Unverified, and earlier host-file setup reports are historical.
 - `write-skill` has behavior and direct command evals showing that production-ready pressure must not overbuild skill folders.
 - `evaluate-skill` has behavior and direct command evals showing that shortcut wording must not skip creating or updating an eval artifact before skill edits.
 - Command-surface coverage is current for the direct Freeflow routes. The current registry has 4 mode commands, 16 direct skill calls, 3 developer skill calls, and 3 Pi native settings commands. See `evals/reports/by-command-surface/command-surface-matrix.md`.
@@ -317,8 +287,8 @@ Current packaging shape:
 - Single plugin runtime under the repo root, including skills, context hooks, manifests, evals, command-surface metadata, and refined plugin docs.
 - Active skill files stay behavior-focused; conditional depth lives in references where it prevents repetition or measured failure.
 - Codex and Claude slash-style calls remain model-routed. Pi registers the direct and developer calls in `command-surface.json` plus native settings commands.
-- Context-loading hooks and the Pi extension stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape, then load enabled mode-contract, workflow, decision-gate, discovery-light, and capability context.
-- Setup reads base workflow context and enabled capability context, then applies discovery-light after successful setup verification for same-session use.
+- Context-loading hooks and the Pi extension stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape, then load the canonical compact kernel and independently enabled capability context.
+- Setup reads and applies the canonical kernel plus any capability skill effective after setup for same-session use, while reporting host runtime delivery separately.
 - Enforcement hooks remain deferred until skill behavior and evals prove mechanical enforcement is needed.
 
 Do not add more references, scripts, examples, or assets merely because a skill is broad. Add them only when they keep active guidance focused, reduce repeated deterministic work, or prevent a measured behavior failure.
