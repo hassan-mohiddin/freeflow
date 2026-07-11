@@ -1,97 +1,118 @@
-# Reviewer Prompt
+# Work Reviewer Contract
 
-Use this when preparing an outgoing reviewer prompt or subagent review context.
+Use this to prepare a portable review context. It defines what the reviewer must know and how findings should be judged; it does not depend on a particular agent, model, or harness.
 
-The reviewer should get the work product and source truth, not your session memory.
+## Required Context
 
-## Include
+Provide:
 
-- What was implemented or changed.
-- The source authority: spec, plan, issue, ADR, policy, tests, or user-confirmed requirement.
-- Files or diff range to inspect. If no git range exists, list concrete files.
-- Claimed verification and what still needs independent checking.
-- Risk lenses relevant to the work.
-- Required output shape and severity labels.
-- Clear instruction not to edit files unless the review task explicitly includes fixes.
-- For review pass 2 or 3: prior findings, accepted/rejected/question/needs-evidence adjudication, owner clarifications, changed files, and narrowed remaining risk.
+- accepted outcome and requirements;
+- source truth: relevant specs, plans, tests, policies, ADRs, and established behavior;
+- changed files, diff range, or concrete work product;
+- claimed verification and known evidence gaps;
+- relevant risk lenses;
+- review pass number.
 
-Do not forward only a previous-agent summary. Summaries are useful context, not authority.
+For pass 2 or 3, also provide:
 
-For second and later review iterations, include prior findings, parent adjudication, owner clarifications, changed files, and the remaining risk. Do not rerun the same broad prompt after the situation narrows.
+- prior findings;
+- parent adjudication: accepted, rejected, question, or needs evidence;
+- owner clarifications;
+- changes made since the prior pass;
+- the narrow residual risk to inspect.
 
-## Risk Lenses
+Do not provide only the author's summary or ask the reviewer to validate the author's reasoning.
 
-Pick the lenses that fit the work:
-
-- Source-truth alignment: implementation matches spec, plan, docs, tests, and established behavior.
-- Regression risk: unrelated behavior changed or broad refactor from narrow work.
-- Security/privacy: auth, secrets, permissions, sensitive data, logging, data exposure.
-- Billing/product: pricing, downgrade/upgrade, access, entitlements, user-visible policy.
-- Public API: route, method, payload, response status/body, compatibility, error semantics.
-- Data safety: migrations, deletion, idempotency, rollback, duplicate processing.
-- Test gaps: claims rely on manual checks, stale notes, or missing executable coverage.
-- Reviewability: diff scope, generated files, hidden dependencies, unexplained deviations.
-
-For strict-workflow or high-risk work, call out owner-owned decisions and stop conditions directly.
-
-## Output Shape
-
-Ask the reviewer to lead with findings, ordered by severity:
+## Portable Prompt
 
 ```md
-## Findings
-
-### Blocking
-- [file:line] Title
-  - What is wrong:
-  - Why it matters:
-  - Minimal fix direction:
-
-### Non-blocking
-- ...
-
-### Questions
-- ...
-
-## Assessment
-
-Ready to proceed: Yes | No | With fixes
-Reasoning: ...
-```
-
-If review passes, the reviewer should say that clearly and name any residual test gaps or assumptions.
-
-If review does not pass, the reviewer should classify findings and stop. Do not tell the parent agent to apply all findings and send it back for another broad review.
-
-Do not ask reviewers to invent issues. A clean pass is valid.
-
-If this is review pass 3, ask for remaining accepted blocking risk only. Do not recommend a fourth broad review loop.
-
-## Minimal Template
-
-```md
-# Reviewer Prompt
+# Work Review
 
 Review the completed work. Do not edit files.
 
-## Work Summary
+## Accepted Outcome
 
-[What changed, from the implementer summary or observed files.]
+[What the work must accomplish and its explicit non-goals.]
 
 ## Source Truth
 
-- [spec/plan/policy/test paths]
+- [spec, plan, policy, ADR, tests, established behavior]
 
-## Files Or Range
+## Work Product
 
-- [changed files or git range]
+- [diff range, changed files, or artifact paths]
+
+## Claimed Verification
+
+- [commands or checks already run]
+- [known gaps]
+
+## Review Pass
+
+Pass: [1 | 2 | 3]
+
+For pass 2 or 3:
+- Prior findings: [summary]
+- Parent adjudication: [accepted | rejected | question | needs evidence]
+- Owner clarifications: [decisions or none]
+- Changed areas: [files or sections]
+- Residual risk: [narrow question]
 
 ## Check
 
-- [risk lenses and concrete requirements]
-- [if pass 2 or 3: prior findings, adjudication, owner clarifications, changed files, and narrowed remaining risk]
+- Correctness and alignment with accepted requirements.
+- Regressions, unsafe behavior, and missing failure handling.
+- Tests and verification support the claims being made.
+- Security, privacy, billing, permissions, compatibility, public API, and data safety where relevant.
+- Complexity and abstractions are justified by the accepted outcome or an observed failure.
+- Tests protect intended behavior rather than machinery introduced by the implementation.
+
+For follow-up review, inspect accepted fixes and named residual risk. Do not restart broad review, reopen settled decisions, or re-raise rejected findings without contradictory live evidence.
+
+## Finding Standard
+
+Classify findings as:
+
+- Blocking
+- Non-blocking
+- Question
+- Needs evidence
+
+A Blocking finding must include:
+
+1. exact file and line;
+2. violated accepted requirement or source truth;
+3. concrete consequence;
+4. why it cannot remain a local reversible implementation choice;
+5. smallest safe fix or backward route.
+
+Do not block on preference, style already enforced by tooling, hypothetical completeness, or unspecified local reversible details. Review can pass with non-blocking findings; do not invent findings.
 
 ## Output
 
-Lead with findings by severity. Include file:line, violated requirement, risk, and minimal fix direction. If there are no findings, say so and list residual risk/test gaps.
+### Findings
+
+#### Blocking
+- [file:line] [finding, violated requirement, consequence, and smallest safe route]
+
+#### Non-blocking
+- ...
+
+#### Questions
+- ...
+
+#### Needs evidence
+- ...
+
+### Assessment
+
+Status: Pass | Non-blocking | Blocking | Question | Needs evidence
+Reasoning: [concise evidence-backed assessment]
+Verification gaps: [unproved claims or none]
 ```
+
+## Calibration
+
+Lead with the few findings that can change the route. A long list of low-consequence observations is weaker than one well-supported blocker.
+
+A reviewer verdict is evidence for parent adjudication, not authority to edit source truth or settle owner decisions. Use `Non-blocking` status only when findings are deferrable and no blocker, unresolved owner question, or required evidence gap prevents proceeding. On pass 3, report remaining risk and stop; do not recommend another broad review.

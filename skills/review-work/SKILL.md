@@ -1,107 +1,142 @@
 ---
 name: review-work
-description: Use when reviewing completed work, preparing reviewer prompts or subagent review context, receiving review feedback, applying reviewer comments, deciding whether feedback is blocking, handling repeated review loops, or checking work before merge/handoff.
+description: Use when reviewing completed work, checking a change before merge or handoff, preparing review context, receiving or applying review feedback, running a follow-up review, deciding whether findings block progress, or handling a repeated review loop.
 ---
 
 # Review Work
 
-Evaluate review feedback before applying it.
+Review against accepted outcomes and live evidence, not reviewer preference or accumulated implementation machinery.
 
-Happy-path evidence is not enough for a graceful-failure, fail-closed, recovery, or readiness claim when the work has a failure contract.
+A review should find consequential defects, requirement gaps, regressions, unsafe behavior, and unjustified complexity. Issue count is not quality. A clean pass is valid.
 
-Review feedback is not approval to change source of truth.
+Review is evidence, not verification. Passing review does not prove tests, builds, failure behavior, or runtime claims that were not independently exercised.
 
-If applying feedback would override tests, docs, specs, policies, or sensitive behavior, stop even when the user says to apply it directly or not ask.
+## Review Context
 
-If you block any feedback item, end the final response with a direct choice question for that item. This still applies after fixing unrelated items.
+Prefer an independent reviewer with fresh context when novelty, risk, or author blind spots justify it. The mechanism may be another agent, a fresh run, an external reviewer, or any equivalent independent context. If independent review is unavailable or disproportionate, review inline and state that it was not independent.
 
-External review is evidence, not authority. Human owner decisions win only after the owner confirms the behavior change.
+Give the reviewer the work product and source truth, not only the author's summary or reasoning. Include:
 
-Classify each material feedback item before editing: accepted, rejected, question, or needs evidence.
+- the accepted outcome and relevant requirements;
+- the diff, changed files, or concrete work product;
+- applicable specs, plans, tests, policies, ADRs, and established behavior;
+- claimed verification and known gaps;
+- risk lenses that matter for this change.
 
-A non-passing review is a phase exit, not an autonomous patch loop. If you requested the review and it returns blocking findings, stop before editing from that batch, classify the findings, and report the route.
+Read [the reviewer prompt](references/reviewer-prompt.md) when preparing review context, reviewing strict or high-risk work, or running review pass 2 or 3.
 
-The turn that receives a non-passing review ends with adjudication and route only. Do not edit from that review batch in the same turn, even when the user or reviewer says to apply all findings and continue reviewing.
+## Review
 
-Hard stop: if the work has already had three review passes, do not edit any files or request another review. Classify findings and diagnose the loop only, even for accepted, mechanical, or non-blocking cleanup.
+Inspect source truth and tests before judging implementation choices.
 
-Read `references/reviewer-prompt.md` when preparing an outgoing reviewer prompt, dispatching a separate-agent review, reviewing strict/high-risk work, or handing another agent review context.
+Lead with:
 
-## Review Loop Budget
+- incorrect behavior, regressions, and missing requirements;
+- security, privacy, billing, permission, compatibility, API, or data-safety risk;
+- missing tests or claims unsupported by verification;
+- failure behavior proved only by a happy-path check;
+- structural changes that spread complexity or exceed the accepted outcome.
 
-Aim to finish by the second review pass: first review, adjudicate/fix, one confirmation.
+Check minimality against the accepted outcome:
 
-Three review passes is the hard cap for the same work and scope. Do not request a fourth review to chase a clean pass.
+- Does each new mechanism serve an accepted requirement or observed failure?
+- Did the change add speculative abstraction, compatibility, recovery, scale, or flexibility?
+- Do tests protect intended behavior, or merely legitimize machinery introduced by the change?
+- Would a smaller design preserve the required behavior and trust?
 
-At the third review, adjudicate before treating it as failure. If any accepted blocking, question, or needs-evidence finding remains, do not edit anything from that batch. Stop, report the adjudication, and zoom out to diagnose whether discovery, spec, plan, policies, source truth, module/interface design, implementation, or reviewer context is wrong or too thin.
+Do not block because code differs from reviewer preference or leaves local reversible implementation details unspecified.
 
-Non-blocking findings and reviewer questions do not fail the work by default. Classify them, then defer, ask, gather evidence, or accept.
+## Finding Contract
 
-## Incoming Feedback
+Classify every material finding:
 
-Before editing:
+- **Blocking:** proceeding would risk wrong behavior, violated source truth, hidden owner decisions, unsafe outcomes, or material maintainability damage.
+- **Non-blocking:** useful improvement that can be deferred without invalidating the work.
+- **Question:** an owner decision or missing requirement prevents a verdict.
+- **Needs evidence:** the claim may be valid, but available evidence cannot establish it.
 
-- Read the full feedback.
-- Inspect the relevant code, tests, docs, and prior decisions.
-- Restate unclear feedback as a technical requirement.
-- Separate blocking issues from suggestions.
-- Check whether the feedback matches this codebase.
-- Check whether a finding is stale, already resolved, equivalent, or based on missing context.
-- Check whether repeated findings are design pressure: shallow module, bad seam, edge-case churn, or broad refactor from a narrow comment.
-- Check whether claimed graceful failure was actually exercised through failure-path evidence.
+A review passes when no accepted blocker, unresolved owner question, or required evidence gap prevents proceeding. Non-blocking findings may remain on a passing review.
 
-Do not blindly apply vague, broad, or sensitive feedback.
+A blocking finding must name:
 
-Do not use performative agreement. State the technical finding or act.
+1. the exact location;
+2. the violated accepted requirement or source truth;
+3. the concrete consequence;
+4. why the issue cannot remain a local reversible choice;
+5. the smallest safe fix or backward route.
 
-## Stop Conditions
+Review can pass. Do not invent findings to justify the review.
 
-Stop before editing when feedback:
+## Adjudicate Feedback
 
-- Is ambiguous.
-- Contradicts tests, docs, specs, policies, ADRs, or established behavior.
-- Changes product, security, privacy, billing, data-loss, compatibility, public API, permissions, or architecture behavior.
-- Requires guessing what the reviewer meant.
-- Would approve or implement failure semantics without source-backed failure contract evidence.
-- Would cause a broad refactor from a narrow comment.
+Reviewer findings are evidence, not commands. Before editing, inspect the relevant code, tests, docs, and prior decisions, then classify each material item:
 
-Name the conflict or uncertainty and ask which path to follow. Recommend the path supported by evidence.
+- **Accepted:** valid and safe to apply without changing settled intent.
+- **Rejected:** stale, unsupported, already resolved, equivalent, preference-only, or based on a source-contract misread.
+- **Question:** requires owner direction.
+- **Needs evidence:** inspect or verify more before deciding.
 
-## Applying Feedback
+Do not use performative agreement. State the technical requirement, evidence, disagreement, or action.
 
-For multi-item review:
+A non-passing review is a phase exit, not an autonomous patch loop. When an accepted blocker, unresolved question, or required evidence gap prevents proceeding, the receiving turn ends with adjudication and route only. Do not edit from that review batch in the same turn, even when the reviewer or user says to apply everything and continue reviewing.
 
-- Apply independent clear items.
-- Stop blocked items.
-- If items interact, clarify before implementing the set.
+## Source-Truth Guard
 
-When feedback is clear and correct and the current route is an apply-fixes pass:
+Feedback is not approval to change source truth.
 
-- Apply one item at a time.
-- Keep the diff scoped to the review item.
-- Verify each fix.
-- Push back on incorrect feedback with code, tests, or docs.
+Stop before editing when a finding would:
 
-Do not apply a non-pass review batch and request another review in the same autonomous loop. Return the adjudication and next route first. A later explicit apply-fixes request can start a bounded fix pass for accepted, in-scope findings.
+- contradict tests, specs, policies, ADRs, or established behavior;
+- change product, security, privacy, billing, permissions, data loss, compatibility, public API, or irreversible architecture behavior;
+- guess what an ambiguous reviewer meant;
+- approve failure semantics without a source-backed failure contract;
+- turn a narrow comment into an unapproved broad refactor.
 
-If accepted findings expose shallow modules, bad seams, or complexity spread, use `../design-for-depth/SKILL.md` and route backward before broad refactoring.
+Name the conflict and ask which path to follow. When an owner decision blocks the route, end with a direct choice question.
 
-## Outgoing Review
+## Apply Accepted Findings
 
-When reviewing work, lead with bugs, regressions, missing tests, requirement gaps, and unproven failure-contract claims.
+On a later explicit fix pass:
 
-Classify findings:
+- apply independent, clear findings one at a time;
+- keep each change scoped to the accepted finding;
+- verify each fix;
+- stop blocked or interacting items before editing them;
+- push back on incorrect feedback with source evidence.
 
-- Blocking: must fix before proceeding.
-- Non-blocking: can defer.
-- Question: needs owner decision or more evidence.
+If accepted findings expose a shallow interface, bad seam, or repeated edge-case patching, route through `../design-for-depth/SKILL.md` before broad refactoring.
 
-Review can pass. Do not invent issues to justify the review.
+Do not apply a non-pass batch and request another review in one autonomous loop.
 
-When a fresh reviewer or separate-agent review is warranted, use the active delegation mechanism for this environment. If none is enabled or appropriate, review inline and report the limitation.
+## Follow-Up Reviews
 
-When asking another agent to review, give it source truth, changed files, risk lenses, and pass/fail criteria. Do not hand it only the previous agent's summary or your chat history.
+A follow-up review continues the same review history even when the reviewer is fresh.
 
-For timeout-capable reviewers, set timeouts above 10 minutes; default to 15 minutes. If a review times out, do not reduce review depth to dodge the timeout. Increase the timeout or ask before narrowing scope.
+Provide:
 
-For second and later review iterations, update the prompt with prior findings, owner clarifications, accepted/rejected findings, changed files, and remaining risk. Do not rerun the same broad prompt after the situation narrows.
+- review pass number;
+- prior findings and parent adjudication;
+- owner clarifications;
+- files or sections changed in response;
+- the narrow residual risk still requiring review.
+
+Inspect accepted fixes and named residual risk. Do not rerun the original broad review, reopen settled decisions, or re-raise rejected findings without contradictory live evidence.
+
+## Review Budget
+
+Aim to finish in two passes: initial review, then one confirmation after an explicit fix pass.
+
+Three review passes is the hard cap for the same work and scope. The third pass is terminal: classify the findings, do not edit from that batch, and do not request a fourth review.
+
+If accepted blocking, question, or needs-evidence findings remain after pass 3, diagnose whether the outcome, source contract, discovery, spec, plan, design, implementation, verification, scope, or reviewer calibration is wrong or too thin. Route backward instead of grinding forward.
+
+## Report
+
+Lead with findings ordered by consequence, then state:
+
+- **Status:** Pass | Non-blocking | Blocking | Question | Needs evidence
+- **Accepted/rejected adjudication:** when feedback is incoming
+- **Verification gaps:** claims review could not prove
+- **Route:** proceed, gather evidence, ask owner, apply accepted fixes later, or move backward
+
+If no findings remain, say the review passed and name residual assumptions or unverified behavior.

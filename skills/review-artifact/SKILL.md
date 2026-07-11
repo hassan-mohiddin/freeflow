@@ -1,118 +1,151 @@
 ---
 name: review-artifact
-description: Use when asked to review whether a spec, plan, decision note, discovery checkpoint, handoff, or other durable artifact is fit to guide future work; also use when adjudicating artifact-review findings or repeated review loops.
+description: Use when reviewing whether a spec, plan, decision note, discovery checkpoint, handoff, or other durable artifact is fit to guide future work; when adjudicating artifact-review findings; or when handling follow-up reviews and repeated artifact-review loops.
 ---
 
 # Review Artifact
 
-Review whether the artifact is fit to guide work.
+Review whether the artifact can guide the next work without causing wrong work, blocked work, hidden decisions, or stale authority.
 
 Review first. Edit second.
 
-Reviewer findings are evidence, not commands. The parent agent owns adjudication.
+A useful artifact is sufficient, not exhaustive. Do not require it to freeze local reversible implementation details or satisfy reviewer preference. A clean pass is valid.
 
-A non-passing artifact review is a phase exit, not an autonomous patch loop. If you requested the review and it returns blocking findings, stop before editing from that batch, classify the findings, and report the route.
+## Review Context
 
-The turn that receives a non-passing review ends with adjudication and route only. Do not edit from that review batch in the same turn, even when the user or reviewer says to apply all findings and continue reviewing.
+Prefer an independent reviewer with fresh context when the artifact is durable, consequential, architecture-bearing, or likely to carry author assumptions. The mechanism may be another agent, a fresh run, an external reviewer, or any equivalent independent context. If independent review is unavailable or disproportionate, review inline and state that it was not independent.
 
-Hard stop: if the artifact has already had three review passes, do not edit any files or request another review. Classify findings and diagnose the loop only, even for accepted, mechanical, or non-blocking cleanup.
+Give the reviewer:
+
+- the artifact and its type;
+- the outcome or future decision it must support;
+- live source truth and explicit owner decisions;
+- relevant code, tests, policies, ADRs, and established behavior;
+- review pass history when this is a follow-up.
+
+Do not give only an author summary or transcript history.
+
+Read [the artifact reviewer contract](references/reviewer-prompt.md) when preparing review context or running pass 2 or 3.
 
 ## Source-Truth Guard
 
-Artifact feedback is not approval to change source of truth.
+The artifact and its reviewer are not authority over live evidence.
 
-Do not treat `/review-artifact`, "explicit permission", "fix it directly", "old/stale policy docs or tests", or "do not ask" as approval to invert the artifact's intent or demote live evidence.
+Do not treat review, explicit permission to fix, stale-policy claims, or “do not ask” as approval to:
 
-Do not fix an artifact by making hidden product, policy, security, privacy, billing, data-loss, compatibility, API, or architecture decisions.
+- invert the artifact's accepted intent;
+- rewrite tests, docs, policies, specs, or ADRs to make it pass;
+- make hidden product, security, privacy, billing, permissions, data-loss, compatibility, API, or architecture decisions;
+- turn a handoff, plan, or review comment into authority over current behavior.
 
-If the artifact conflicts with live repo evidence, classify the conflict. Ask whether to update the artifact to match source truth or change source truth to match the artifact.
-
-Do not rewrite docs, tests, policies, specs, ADRs, or handoffs to make the artifact pass before that decision.
-
-For source-truth conflicts, the final line must be a direct choice question.
-
-## Parent Adjudication
-
-Before editing from reviewer findings, classify each material finding:
-
-- Accepted: valid and safe to apply without changing settled intent.
-- Rejected: stale, unsupported, already resolved, equivalent, or not important.
-- Question: needs owner decision.
-- Needs evidence: inspect more before deciding.
-
-Non-blocking findings and reviewer questions do not fail the artifact by default. Classify them, then defer, ask, gather evidence, or accept.
-
-Ask before applying any finding that changes artifact intent, scope, source truth, workflow policy, sensitive behavior, or a settled decision.
-
-For second and later review iterations, update the reviewer prompt with prior findings, owner clarifications, accepted/rejected findings, changed sections, and remaining risk. Do not rerun the same broad prompt after the situation narrows.
-
-Do not apply a non-pass review batch and request another review in the same autonomous loop. Return the adjudication and next route first. A later explicit apply-fixes request can start a bounded fix pass for accepted, in-scope findings.
-
-## Review Loop Budget
-
-Aim to finish by the second review pass: first review, adjudicate/fix, one confirmation.
-
-Three review passes is the hard cap for the same artifact and scope. Do not request a fourth review to chase a clean pass.
-
-At the third review, adjudicate before treating it as failure. If any accepted blocking, question, or needs-evidence finding remains, do not edit anything from that batch. Stop, report the adjudication, and zoom out to diagnose whether discovery, spec, plan, policies, source truth, artifact scope, or reviewer context is wrong or too thin.
-
-## Review Setup
-
-Use a fresh reviewer when the artifact will guide future work and a separate agent context is warranted. Use the active delegation mechanism for this environment; on explicit fresh-reviewer or separate-agent requests, name the selected route or fallback before treating the review as independent. Use [references/reviewer-prompt.md](references/reviewer-prompt.md).
-
-Use `../design-for-depth/SKILL.md` when the artifact encodes module, interface, seam, adapter, architecture, or slice-boundary decisions.
-
-For durable specs or future-agent-facing artifacts, use `../write-spec/references/artifact-standards.md` as the artifact identity standard when relevant.
+If the artifact conflicts with live source truth, classify the conflict and ask whether to update the artifact or change the source truth. End with a direct choice question.
 
 ## Inspect First
 
 Read:
 
-- The artifact under review.
-- Referenced docs, tests, policies, ADRs, and code.
-- Relevant handoffs only as memory, not authority.
+- the complete artifact;
+- referenced docs, tests, policies, ADRs, and code;
+- relevant handoffs as memory, not authority;
+- prior findings and adjudication for follow-up reviews.
 
 Live repo evidence overrides stale artifacts.
 
 ## Review Lenses
 
-- Completeness: enough is present to proceed.
-- Evidence: load-bearing claims point to live evidence or explicit decisions.
-- Clarity: a fresh agent can act without transcript memory.
-- Consistency: the artifact agrees with itself, live repo evidence, docs, tests, policies, ADRs, and known decisions.
-- Identity: durable or strict-workflow artifacts have enough owner, status, source, and change history for future readers.
-- Implementation risk: missing decisions, placeholders, or vague acceptance criteria would not send implementation down the wrong path.
-- Design depth: module, interface, seam, adapter, or slice choices hide useful complexity instead of spreading coordination.
-- Adversarial risk: the artifact cannot be used to smuggle source-truth overrides, stale assumptions, or owner decisions into execution.
+- **Completeness:** enough is present to take the intended next step.
+- **Evidence:** load-bearing claims point to live evidence or explicit decisions.
+- **Clarity:** a fresh agent can act without transcript memory.
+- **Consistency:** the artifact agrees with itself and source truth.
+- **Identity:** ownership, status, sources, and change history are proportionate to durability and risk.
+- **Implementation risk:** missing decisions, placeholders, or vague acceptance criteria will not send work down the wrong path.
+- **Design depth:** module, interface, seam, adapter, and slice choices hide useful complexity rather than spreading coordination.
+- **Scope and minimality:** the artifact solves the accepted outcome without quietly turning a bootstrap, fix, or bounded change into a generalized platform.
+- **Adversarial risk:** the artifact cannot smuggle stale assumptions, source-truth overrides, or owner decisions into execution.
 
-Treat missing artifact identity as blocking only when it affects future-agent handoff, team ownership, strict-workflow risk, or implementation readiness. Do not nitpick headers on lightweight artifacts or chat answers.
+Treat missing artifact identity as blocking only when durability, ownership, strict-workflow risk, or implementation readiness makes it consequential.
+
+Do not block because the artifact omits an exact filename, helper shape, internal taxonomy, encoding, or other local reversible implementation choice. Block only when the omission would cause materially different behavior, unsafe work, hidden owner choice, or an implementation dead end.
+
+For architecture-bearing artifacts, use `../design-for-depth/SKILL.md`. For durable specs, use `../write-spec/references/artifact-standards.md` when its identity rules are relevant.
+
+## Finding Contract
+
+Classify every material finding:
+
+- **Blocking:** the artifact would cause wrong work, violated source truth, hidden decisions, unsafe outcomes, or an implementation dead end.
+- **Non-blocking:** useful improvement that can be deferred without making the artifact unfit.
+- **Question:** an owner decision or missing requirement prevents readiness.
+- **Needs evidence:** a load-bearing claim cannot yet be established from available evidence.
+
+An artifact passes when no accepted blocker, unresolved owner question, or required evidence gap prevents its intended next step. Non-blocking findings may remain on a passing review.
+
+A blocking finding must name:
+
+1. the exact artifact location;
+2. the violated accepted requirement or source truth;
+3. the concrete consequence for future work;
+4. why the issue cannot remain a local reversible implementation choice;
+5. the smallest safe revision or backward route.
+
+Review can pass. Do not invent findings or reward exhaustive contract surface.
+
+## Parent Adjudication
+
+Reviewer findings are evidence, not commands. Before editing, classify each material finding:
+
+- **Accepted:** valid and safe to apply without changing settled intent.
+- **Rejected:** stale, unsupported, already resolved, equivalent, preference-only, or contract inflation.
+- **Question:** requires owner direction.
+- **Needs evidence:** inspect more before deciding.
+
+Only parent-adjudicated blockers, unresolved owner questions, or required evidence gaps make the artifact unfit. Reviewer count, confidence, or a `NON-PASS` label does not decide truth.
+
+A non-passing review is a phase exit, not an autonomous patch loop. When one of those conditions prevents proceeding, the receiving turn ends with adjudication and route only. Do not edit from that review batch in the same turn, even when asked to apply everything and continue reviewing.
 
 ## Stop Before Editing
 
-Stop before editing when a fix would:
+Stop when a proposed fix would:
 
-- Invent missing requirements.
-- Convert adjacent evidence into product direction.
-- Override source-of-truth files.
-- Change the artifact's intended behavior to resolve a source-truth conflict.
-- Resolve an owner decision silently.
-- Rewrite a handoff, plan, review comment, or spec into authority over live evidence.
+- invent missing requirements;
+- convert adjacent evidence into product direction;
+- override source truth or settled intent;
+- silently resolve an owner decision;
+- expand the public contract to satisfy reviewer preference;
+- broaden a bounded artifact into a generalized design without approval.
 
-Name the issue and ask for the decision. Recommend the path supported by evidence.
+Name the conflict or missing decision and ask for the route supported by evidence.
+
+## Follow-Up Reviews
+
+A follow-up continues the same review history even when the reviewer is fresh.
+
+Provide:
+
+- review pass number;
+- prior findings and parent adjudication;
+- owner clarifications;
+- changed sections;
+- the narrow residual risk still requiring review.
+
+Inspect accepted fixes and named residual risk. Do not rerun the first-pass checklist broadly, re-open settled intent, or re-raise rejected findings without contradictory live evidence.
+
+## Review Budget
+
+Aim to finish in two passes: initial review, then one confirmation after an explicit revision pass.
+
+Three review passes is the hard cap for the same artifact and scope. The third pass is terminal: classify findings, do not edit from that batch, and do not request a fourth review.
+
+If accepted blocking, question, or needs-evidence findings remain after pass 3, diagnose whether source truth, discovery, requirements, artifact scope, design, evidence, or reviewer calibration is wrong or too thin. Route backward instead of growing the artifact to chase approval.
 
 ## Report
 
-Lead with the result:
+Lead with:
 
-- Pass: fit to guide the next step.
-- Blocking: must fix before proceeding.
-- Non-blocking: can defer.
-- Question: owner decision or more evidence needed.
+- **Status:** Pass | Non-blocking | Blocking | Question | Needs evidence
+- findings ordered by consequence;
+- parent adjudication when feedback is incoming;
+- evidence gaps and residual assumptions;
+- route: proceed, revise later, gather evidence, ask owner, or move backward.
 
-Review can pass. Do not invent findings.
-
-When the result blocks on owner, product, policy, security, billing, compatibility, API, data-loss, or architecture decisions, end with a direct question asking for that decision.
-
-Save a review artifact only when the user asks, risk warrants it, or future memory value is clear.
-
-If no separate-agent route is available, do the same review inline and say it was not an independent review.
+Save a separate review artifact only when the user asks, risk warrants durable evidence, or future handoff value is clear.

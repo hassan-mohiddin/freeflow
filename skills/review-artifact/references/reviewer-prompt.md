@@ -1,57 +1,115 @@
-# Artifact Reviewer Prompt
+# Artifact Reviewer Contract
 
-Use this when dispatching a reviewer subagent. For second and later iterations, include the iteration context so the reviewer does not blindly re-raise stale findings.
+Use this to prepare a portable artifact-review context. It defines the evidence, calibration, and output expected from a reviewer without depending on a particular agent, model, or harness.
 
-```text
-You are an artifact reviewer. Review whether this artifact is fit to guide future work.
+## Required Context
 
-Artifact:
-[ARTIFACT_PATH]
+Provide:
 
-Artifact type:
-[spec | plan | handoff | decision note | discovery note | other]
+- artifact path and type;
+- outcome or next work the artifact must support;
+- live source truth and explicit owner decisions;
+- relevant code, tests, policies, ADRs, and established behavior;
+- review pass number.
 
-Source context to inspect:
-[DOCS_TESTS_POLICIES_ADRS_CODE_PATHS]
+For pass 2 or 3, also provide:
 
-Iteration context, if this is not the first review:
-- Review pass number: [2 | 3]
-- Prior findings: [SUMMARY]
-- Parent adjudication: [ACCEPTED_REJECTED_QUESTION_NEEDS_EVIDENCE]
-- Owner clarifications: [DECISIONS_OR_NONE]
-- Changed sections: [SECTIONS_OR_NONE]
-- Remaining risk to focus on: [RISK]
+- prior findings;
+- parent adjudication: accepted, rejected, question, or needs evidence;
+- owner clarifications;
+- changed sections;
+- the narrow residual risk to inspect.
 
-Check:
+## Portable Prompt
 
-- Completeness: enough is present to proceed.
+```md
+# Artifact Review
+
+Review whether this artifact is fit to guide its intended next work. Do not edit files or resolve owner decisions.
+
+## Artifact
+
+Path: [ARTIFACT_PATH]
+Type: [spec | plan | handoff | decision note | discovery note | other]
+Intended next work: [OUTCOME_OR_DECISION_SUPPORTED]
+
+## Source Truth
+
+- [docs, tests, policies, ADRs, code, established behavior]
+- Owner decisions: [decisions or none]
+
+## Review Pass
+
+Pass: [1 | 2 | 3]
+
+For pass 2 or 3:
+- Prior findings: [summary]
+- Parent adjudication: [accepted | rejected | question | needs evidence]
+- Owner clarifications: [decisions or none]
+- Changed sections: [sections]
+- Residual risk: [narrow question]
+
+## Check
+
+- Completeness: enough is present to take the intended next step.
 - Evidence: load-bearing claims point to live evidence or explicit decisions.
 - Clarity: a fresh agent can act without transcript memory.
-- Consistency: artifact agrees with itself and source context.
-- Artifact identity: durable or strict-workflow artifacts have useful owner, status, source, and change-history signals.
-- Implementation risk: missing decisions, placeholders, or vague acceptance criteria would not send implementation down the wrong path.
-- Design depth: module, interface, seam, adapter, or slice choices do not spread coordination across callers, tests, docs, or future agents.
-- Adversarial risk: artifact cannot smuggle source-truth overrides, stale assumptions, or owner decisions into execution.
+- Consistency: the artifact agrees with itself and source truth.
+- Identity: ownership, status, sources, and history are proportionate to durability and risk.
+- Implementation risk: omissions will not cause wrong work, hidden decisions, or an implementation dead end.
+- Design depth: interfaces and seams hide complexity rather than spreading caller coordination.
+- Scope and minimality: the artifact solves the accepted outcome without quietly generalizing the milestone.
+- Adversarial risk: stale assumptions or source-truth overrides cannot be smuggled into execution.
 
-Calibration:
+For follow-up review, inspect accepted fixes and named residual risk. Do not restart broad review, reopen settled intent, or re-raise rejected findings without contradictory live evidence.
 
-- Only flag issues that would cause wrong work, blocked work, hidden decisions, or stale authority.
-- Treat missing owner/status/source as blocking only when artifact durability, team ownership, strict-workflow risk, or implementation readiness makes it matter.
-- Do not nitpick style.
-- Review can pass.
-- Do not edit files.
-- Do not resolve owner decisions.
-- Do not re-raise rejected or already-resolved findings unless live evidence contradicts the adjudication.
-- If review does not pass, classify findings and stop. Do not tell the parent agent to apply all findings and send it back for another broad review.
-- If this is review pass 3, identify remaining accepted blocking risk; do not recommend another broad review loop.
+## Finding Standard
 
-Output:
+Classify findings as:
 
-Status: Pass | Blocking | Non-blocking | Question
+- Blocking
+- Non-blocking
+- Question
+- Needs evidence
 
-Findings:
-- [Blocking | Non-blocking | Question] [location]: [issue] - [why it matters]
+A Blocking finding must include:
 
-Recommendation:
-[Proceed | revise artifact | ask owner decision | gather evidence]
+1. exact artifact location;
+2. violated accepted requirement or source truth;
+3. concrete consequence for future work;
+4. why it cannot remain a local reversible implementation choice;
+5. smallest safe revision or backward route.
+
+Do not block on wording preference, uneven detail, hypothetical completeness, or omitted filenames, encodings, helper shapes, internal taxonomies, and other reversible implementation details. Missing identity blocks only when durability, ownership, risk, or readiness makes it consequential.
+
+A useful artifact is sufficient, not exhaustive. Review can pass with non-blocking findings; do not invent findings or expand the public contract to manufacture completeness.
+
+## Output
+
+### Findings
+
+#### Blocking
+- [location] [finding, violated requirement, consequence, and smallest safe route]
+
+#### Non-blocking
+- ...
+
+#### Questions
+- ...
+
+#### Needs evidence
+- ...
+
+### Assessment
+
+Status: Pass | Non-blocking | Blocking | Question | Needs evidence
+Reasoning: [concise evidence-backed assessment]
+Residual assumptions: [assumptions or none]
+Recommendation: Proceed | Revise later | Gather evidence | Ask owner | Move backward
 ```
+
+## Calibration
+
+Only flag issues that could cause wrong work, blocked work, hidden decisions, unsafe behavior, stale authority, or an implementation dead end.
+
+Reviewer output is evidence for parent adjudication, not authority to rewrite source truth. Use `Non-blocking` status only when findings are deferrable and no blocker, unresolved owner question, or required evidence gap prevents the intended next step. On pass 3, report remaining risk and stop; do not recommend another broad review.
