@@ -9,7 +9,7 @@ const repoRoot = await findRepoRoot(resolve(import.meta.dirname, "..", "..", "..
 
 test("fingerprint inputs cover every behavior-relevant cache dimension", async () => {
   const workspace = await loadSkillWorkspace(repoRoot, "write-skill");
-  const plan = await buildPlan(workspace, { case: "WSK2-003", profile: "iterate", provider: "p", model: "m", thinking: "low", max_model_calls: 3 });
+  const plan = await buildPlan(workspace, { case: "WSK2-003", profile: "iterate", provider: "p", model: "m", thinking: "low", max_model_requests: 3, max_turns_per_job: 4 });
   const inputs = plan.jobs[0].fingerprint_inputs;
   assert.equal(inputs.provider, "p");
   assert.equal(inputs.model, "m");
@@ -25,6 +25,7 @@ test("fingerprint inputs cover every behavior-relevant cache dimension", async (
   assert.equal(inputs.context.config_home_policy, "isolated-auth-only-v1");
   assert.deepEqual(inputs.context.runtime_hooks, []);
   assert.ok(inputs.context.explicit_extensions.length);
+  assert.equal(inputs.hard_limits.max_turns_per_job, 4);
   assert.ok(inputs.adapter_version);
   assert.equal("source_path" in inputs.case, false);
 
@@ -41,6 +42,7 @@ test("fingerprint inputs cover every behavior-relevant cache dimension", async (
     ["tools", ["read", "write"]],
     ["root_policy", "other-policy"],
     ["context", { ...inputs.context, runtime_hooks: ["hook"] }],
+    ["hard_limits", { ...inputs.hard_limits, max_turns_per_job: 8 }],
     ["adapter_version", "other-adapter"],
   ];
   for (const [key, value] of dimensions) {

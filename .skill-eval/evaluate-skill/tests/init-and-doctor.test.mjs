@@ -18,7 +18,7 @@ test("init creates only suite and first case source", async (t) => {
 
 test("doctor proves Pi guard without model calls", async () => {
   const report = await doctorReport();
-  assert.equal(report.model_calls, 0);
+  assert.equal(report.model_requests, 0);
   assert.equal(report.node.supported, true);
   assert.equal(report.pi.available, true);
   assert.equal(report.root_guard.available, true, JSON.stringify(report.root_guard));

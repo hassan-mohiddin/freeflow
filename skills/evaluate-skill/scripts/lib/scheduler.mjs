@@ -1,28 +1,43 @@
-export class ModelBudget {
-  constructor({ maxCalls, maxUsd = null }) {
-    if (!Number.isInteger(maxCalls) || maxCalls < 0) throw new Error("maxCalls must be a non-negative integer");
+export class SoftWaveBudget {
+  constructor({ maxModelRequests, maxUsd = null, usage = {} }) {
+    if (!Number.isInteger(maxModelRequests) || maxModelRequests < 1) throw new Error("maxModelRequests must be a positive integer");
     if (maxUsd !== null && (!(maxUsd >= 0) || !Number.isFinite(maxUsd))) throw new Error("maxUsd must be a non-negative number or null");
-    this.maxCalls = maxCalls;
+    this.maxModelRequests = maxModelRequests;
     this.maxUsd = maxUsd;
-    this.calls = 0;
-    this.spentUsd = 0;
-    this.costAvailable = true;
+    this.modelRequests = usage.model_requests ?? 0;
+    this.jobsCompleted = usage.jobs_completed ?? 0;
+    this.spentUsd = usage.spent_usd ?? 0;
+    this.costAvailable = usage.cost_available ?? true;
   }
 
-  reserveCall() {
-    if (this.calls >= this.maxCalls) throw new Error(`Model-call cap reached: ${this.maxCalls}`);
-    if (this.maxUsd !== null && this.costAvailable && this.spentUsd >= this.maxUsd) throw new Error(`Model-spend cap reached: ${this.maxUsd}`);
-    this.calls += 1;
+  pauseReason() {
+    if (this.modelRequests >= this.maxModelRequests) return `model-request cap reached: ${this.modelRequests}/${this.maxModelRequests}`;
+    if (this.maxUsd !== null && this.costAvailable && this.spentUsd >= this.maxUsd) return `model-spend cap reached: ${this.spentUsd}/${this.maxUsd}`;
+    return null;
   }
 
-  recordUsage(usage) {
+  canStartJob() {
+    return this.pauseReason() === null;
+  }
+
+  recordJob({ providerRequests = 0, usage = null, costExpected = false } = {}) {
+    this.jobsCompleted += 1;
+    this.modelRequests += providerRequests;
     const cost = usage?.cost?.total_usd;
     if (typeof cost === "number") this.spentUsd += cost;
-    else this.costAvailable = false;
+    else if (costExpected) this.costAvailable = false;
   }
 
   summary() {
-    return { calls: this.calls, max_calls: this.maxCalls, spent_usd: this.costAvailable ? this.spentUsd : null, max_usd: this.maxUsd, cost_available: this.costAvailable };
+    return {
+      jobs_completed: this.jobsCompleted,
+      model_requests: this.modelRequests,
+      max_model_requests: this.maxModelRequests,
+      spent_usd: this.costAvailable ? this.spentUsd : null,
+      max_usd: this.maxUsd,
+      cost_available: this.costAvailable,
+      pause_reason: this.pauseReason(),
+    };
   }
 }
 

@@ -1,6 +1,6 @@
 # Token-Efficient Execution
 
-Optimize model calls, not merely wall-clock time.
+Optimize provider model requests, not merely wall-clock time.
 
 ## Order
 
@@ -21,8 +21,10 @@ Before execution, print:
 - host/mode and evidence class;
 - model, thinking, tools, and isolation policy;
 - cache hits;
-- expected subject and semantic model calls;
-- concurrency and call/spend caps;
+- expected subject/grader jobs and bounded provider-request range;
+- concurrency, soft request/spend caps, and hard per-job limits;
 - unsupported or reduced-fidelity requirements.
 
 Parallelism saves elapsed time, not tokens. Keep concurrency bounded and provider-aware.
+
+When a soft wave cap is crossed, let active jobs settle, persist their evidence, and pause before the next job. Resume the same frozen wave only after owner-approved escalation. Hard timeout, output, or runaway-turn limits may stop one active job; preserve partial evidence for explicit retry.

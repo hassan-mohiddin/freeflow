@@ -43,13 +43,24 @@ export async function hashDirectory(root) {
 }
 
 export function hashGitPath(repoRoot, revision, path) {
-  const result = spawnSync("git", ["ls-tree", "-r", "--full-tree", revision, "--", path], {
+  const result = spawnSync("git", ["ls-tree", "-r", "-z", "--full-tree", revision, "--", path], {
     cwd: repoRoot,
     encoding: "utf8",
   });
   if (result.status !== 0) {
     throw new Error(`Unable to resolve git variant ${revision}:${path}: ${result.stderr.trim()}`);
   }
-  if (!result.stdout.trim()) throw new Error(`Git variant path is empty: ${revision}:${path}`);
-  return sha256(result.stdout);
+  const records = result.stdout.split("\0").filter(Boolean);
+  if (records.length === 0) throw new Error(`Git variant path is empty: ${revision}:${path}`);
+  const prefix = `${path.replace(/\/$/, "")}/`;
+  const entries = records.map((record) => {
+    const [header, fullPath] = record.split("\t");
+    const [mode, type] = header.split(" ");
+    if (type !== "blob" || mode === "120000") throw new Error(`Unsupported git entry in skill variant: ${mode} ${type} ${fullPath}`);
+    if (!fullPath.startsWith(prefix)) throw new Error(`Git variant entry escapes path: ${fullPath}`);
+    const content = spawnSync("git", ["show", `${revision}:${fullPath}`], { cwd: repoRoot, encoding: null, maxBuffer: 16 * 1024 * 1024 });
+    if (content.status !== 0) throw new Error(`Unable to read git variant blob: ${revision}:${fullPath}`);
+    return [fullPath.slice(prefix.length), "file", sha256(content.stdout)];
+  });
+  return sha256(stableJson(entries));
 }

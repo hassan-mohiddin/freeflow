@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { adaptiveRepeatDecision, ModelBudget, runBounded } from "../../../skills/evaluate-skill/scripts/lib/scheduler.mjs";
+import { adaptiveRepeatDecision, SoftWaveBudget, runBounded } from "../../../skills/evaluate-skill/scripts/lib/scheduler.mjs";
 import { readControlCache, writeControlCache } from "../../../skills/evaluate-skill/scripts/lib/cache.mjs";
 
 test("bounded scheduler queues overflow", async () => {
@@ -21,11 +21,13 @@ test("bounded scheduler queues overflow", async () => {
   assert.equal(observedPeak, 2);
 });
 
-test("model budget enforces call cap and labels unavailable cost", () => {
-  const budget = new ModelBudget({ maxCalls: 1, maxUsd: 1 });
-  budget.reserveCall();
-  budget.recordUsage({ cost: null });
-  assert.throws(() => budget.reserveCall(), /call cap/);
+test("soft wave budget pauses only between jobs and labels unavailable cost", () => {
+  const budget = new SoftWaveBudget({ maxModelRequests: 2, maxUsd: 1 });
+  assert.equal(budget.canStartJob(), true);
+  budget.recordJob({ providerRequests: 3, usage: { cost: null }, costExpected: true });
+  assert.equal(budget.canStartJob(), false);
+  assert.match(budget.pauseReason(), /model-request cap/);
+  assert.equal(budget.summary().model_requests, 3);
   assert.equal(budget.summary().spent_usd, null);
   assert.equal(budget.summary().cost_available, false);
 });

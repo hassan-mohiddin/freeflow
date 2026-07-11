@@ -82,7 +82,7 @@ export async function doctorReport() {
     node: { version: process.version, supported: Number(process.versions.node.split(".")[0]) >= 22 },
     pi,
     root_guard: rootGuard,
-    model_calls: 0,
+    model_requests: 0,
     ready_for_planning: Number(process.versions.node.split(".")[0]) >= 22 && pi.available && rootGuard.available,
   };
 }

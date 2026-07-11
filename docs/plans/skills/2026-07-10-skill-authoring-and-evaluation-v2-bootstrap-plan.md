@@ -174,7 +174,7 @@ Make implementation source-consistent and preserve exact v1 controls before chan
 - Confirm Node and Pi versions used for bootstrap evidence.
 - Prove Pi can load one explicit adapter-owned tool guard while auto-discovered extensions are disabled.
 - Prove the guard allows fixture/snapshot reads, allows fixture writes, and blocks eval-root reads, snapshot writes, traversal, and symlink escapes.
-- Before any paid model call, obtain explicit owner selection of provider, model, thinking level, maximum model calls, and optional spend cap.
+- Before any paid eval job, obtain explicit owner selection of provider, model, thinking level, soft model-request/spend caps, and hard per-job limits; notify the owner again immediately before execution.
 
 ### Checks
 
@@ -194,7 +194,7 @@ pi --version
 - Current skills cannot be recovered exactly from git for old-skill controls.
 - The approved write set would be exceeded.
 - Pi cannot enforce the declared roots through the explicit guard.
-- A model call would start before provider/model/thinking/caps are owner-approved.
+- A paid eval job would start before provider/model/thinking/caps are owner-approved and the owner has been notified.
 
 ## Slice 1: Clean Eval Source Layout And Bootstrap Cases
 
@@ -291,7 +291,7 @@ Under `skills/evaluate-skill/` add:
 - run directories;
 - expected evidence;
 - cache eligibility;
-- expected model-call count;
+- expected model jobs and bounded model-request range;
 - unsupported or reduced-fidelity requirements.
 
 ### Checks
@@ -380,7 +380,9 @@ Implement:
 - normalized JSON report and concise Markdown report;
 - fingerprinted control cache;
 - bounded configurable direct-process concurrency with queued overflow;
-- required maximum model-call cap and optional spend cap;
+- required soft model-request cap and optional soft spend cap checked between jobs;
+- hard per-job timeout, output, and runaway-turn limits;
+- persisted resumable wave state with frozen snapshots, completed evidence, pending jobs, usage, and pause reason;
 - bounded adaptive-repeat scheduling when conflict/instability is detected;
 - candidate-only rerun support when control fingerprint remains valid.
 
@@ -393,7 +395,9 @@ Semantic grading must remain optional. It cannot repair failed objective evidenc
 - Suite/case/assertion, prompt, fixture, skill snapshot, host/version, provider/backend revision when available, model/thinking, tools/root policy, context/config-home/extensions/hooks, grading policy, or adapter change invalidates cache.
 - A synthetic conflict schedules a bounded repeat; reaching the cap reports unresolved variance.
 - Jobs above the configured concurrency bound queue instead of exceeding it.
-- The model-call cap prevents an excess job; unavailable cost never becomes zero.
+- Crossing a soft request/spend cap lets active jobs settle, saves their evidence, and pauses before another job starts; unavailable cost never becomes zero.
+- Raising a cap and resuming reuses the same wave snapshots and completed jobs.
+- Hard timeout/output/runaway-turn limits preserve partial evidence for explicit retry.
 - Randomized opaque labels and sanitized paths keep meaningful variant identity out of the semantic grader input; residual content leakage is reported.
 - Standalone `grade` and `report` commands reproduce saved results without rerunning subjects.
 - Reports name unsupported and unverified claims.
@@ -405,7 +409,7 @@ Semantic grading must remain optional. It cannot repair failed objective evidenc
 - Semantic grader sees expected candidate identity.
 - Cache reuse cannot explain its fingerprint inputs.
 - Parallel jobs share mutable config, fixtures, or temporary skill files.
-- The scheduler exceeds its configured concurrency or call cap.
+- The scheduler starts another job after a soft cap, reruns completed work on resume, or loses the frozen wave state.
 - Conflict/instability is observed but no bounded repeat or unresolved-variance result follows.
 
 ## Slice 5: Skill Author CLI And `write-skill` Rewrite
@@ -523,7 +527,7 @@ Prove the foundation is trustworthy enough for later skill rewrites.
 - one candidate-only rerun works;
 - one synthetic conflict triggers a bounded repeat or an unresolved-variance result at the cap;
 - a wave above the configured concurrency bound queues excess jobs and preserves isolation;
-- model-call and optional spend caps stop excess work as supported;
+- actual provider requests are observed separately from jobs; soft request/spend caps pause after active jobs settle; hard per-job caps preserve partial evidence; owner escalation resumes the same wave;
 - Pi usage and cost are captured when exposed, and unavailable cost is labeled rather than substituted;
 - manual and v2-runner invocation/evidence surfaces and fixed-rubric verdicts agree while stochastic variation is recorded;
 - explicit guard evidence proves eval-root reads, snapshot writes, traversal, and symlink escapes are blocked;

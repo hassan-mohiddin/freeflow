@@ -122,14 +122,17 @@ export function parsePiJsonEvents(raw, { skillSnapshot } = {}) {
   };
 }
 
-export async function runPiSubject({ prompt, provider, model, thinking, tools, skillSnapshot, workspace, configDir, readRoots, writeRoots, timeoutMs, outputLimitBytes, signal }) {
+export async function runPiSubject({ prompt, provider, model, thinking, tools, skillSnapshot, workspace, configDir, readRoots, writeRoots, timeoutMs, outputLimitBytes, maxTurns, signal }) {
   await prepareIsolatedPiConfig(configDir);
   const invocation = buildPiInvocation({ prompt, provider, model, thinking, tools, skillSnapshot });
+  const counterPath = resolve(configDir, "runtime-counters.json");
   const env = {
     ...process.env,
     PI_CODING_AGENT_DIR: configDir,
     PI_TELEMETRY: "0",
     FREEFLOW_EVAL_ROOT_POLICY: JSON.stringify({ read_roots: readRoots, write_roots: writeRoots }),
+    FREEFLOW_EVAL_COUNTER_PATH: counterPath,
+    FREEFLOW_EVAL_MAX_TURNS: String(maxTurns ?? 0),
   };
   const processResult = await runProcess(invocation.command, invocation.args, {
     cwd: workspace,
@@ -139,7 +142,9 @@ export async function runPiSubject({ prompt, provider, model, thinking, tools, s
     signal,
   });
   const parsed = parsePiJsonEvents(processResult.stdout, { skillSnapshot });
-  return { invocation, process: processResult, parsed };
+  let runtimeCounters = { provider_requests: parsed.events.filter((event) => event.type === "turn_start").length, turns_started: parsed.events.filter((event) => event.type === "turn_start").length, tool_calls: parsed.tool_events.length, hard_turn_limit_reached: false };
+  try { runtimeCounters = JSON.parse(await readFile(counterPath, "utf8")); } catch {}
+  return { invocation, process: processResult, parsed, runtime_counters: runtimeCounters };
 }
 
 export function redactedInvocation(invocation) {

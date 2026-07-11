@@ -90,6 +90,11 @@ export async function buildPlan(workspace, options) {
           explicit_extensions: [`pi-root-guard@${ADAPTER_VERSION}`],
           runtime_hooks: [],
         },
+        hard_limits: {
+          timeout_ms: evalCase.execution.timeout_ms,
+          output_limit_bytes: Number(options.output_limit_bytes ?? 1048576),
+          max_turns_per_job: Number(options.max_turns_per_job ?? 0),
+        },
         adapter_version: ADAPTER_VERSION,
       };
       jobs.push({
@@ -111,12 +116,13 @@ export async function buildPlan(workspace, options) {
     }
   }
 
-  const subjectCalls = jobs.filter((job) => job.model_required).length;
-  const semanticCallsMax = jobs.reduce((sum, job) => sum + (job.semantic_assertions > 0 ? 1 : 0), 0);
-  const unresolvedOwnerInputs = subjectCalls === 0
+  const subjectJobs = jobs.filter((job) => job.model_required).length;
+  const semanticJobsMax = jobs.reduce((sum, job) => sum + (job.semantic_assertions > 0 ? 1 : 0), 0);
+  const unresolvedOwnerInputs = subjectJobs === 0
     ? []
-    : ["provider", "model", "thinking", "max_model_calls"].filter((key) => options[key] === undefined);
-  const maxModelCalls = options.max_model_calls === undefined ? null : Number(options.max_model_calls);
+    : ["provider", "model", "thinking", "max_model_requests", "max_turns_per_job"].filter((key) => options[key] === undefined);
+  const maxModelRequests = options.max_model_requests === undefined ? null : Number(options.max_model_requests);
+  const maxTurnsPerJob = options.max_turns_per_job === undefined ? null : Number(options.max_turns_per_job);
 
   return {
     schema_version: 1,
@@ -125,13 +131,18 @@ export async function buildPlan(workspace, options) {
     selected_cases: cases.map((item) => item.id),
     host_reports: hostReports,
     jobs,
-    expected_model_calls: {
-      subject: subjectCalls,
-      semantic_max: semanticCallsMax,
-      total_max: subjectCalls + semanticCallsMax,
-      configured_cap: maxModelCalls,
+    expected_model_jobs: {
+      subject: subjectJobs,
+      semantic_max: semanticJobsMax,
+      total_max: subjectJobs + semanticJobsMax,
     },
-    runnable: unresolvedOwnerInputs.length === 0 && (maxModelCalls === null || maxModelCalls >= subjectCalls),
+    model_request_bounds: {
+      subject_min: subjectJobs,
+      subject_max: maxTurnsPerJob === null ? null : subjectJobs * maxTurnsPerJob,
+      configured_soft_cap: maxModelRequests,
+      may_pause_before_completion: maxModelRequests !== null && maxModelRequests < subjectJobs,
+    },
+    runnable: unresolvedOwnerInputs.length === 0 && (subjectJobs === 0 || maxModelRequests > 0) && (subjectJobs === 0 || maxTurnsPerJob > 0),
     unresolved_owner_inputs: unresolvedOwnerInputs,
     limitations: options.backend_model_revision ? [] : ["Provider backend model revision is unavailable unless supplied; cache age policy must bound cross-time reuse."],
   };

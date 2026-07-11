@@ -30,7 +30,7 @@ Read [evaluation architecture](references/evaluation-architecture.md) when selec
 1. Write fixed criteria before candidate output exists.
 2. Preserve one strong pressure case.
 3. Choose a fair variant: no-skill, exact old snapshot, current release, candidate, or composition.
-4. Plan before spending model calls.
+4. Plan before spending model requests.
 5. Run controls and candidates with the same prompt, fixture, tools, host, model, and thinking settings.
 6. Grade objective artifacts first; use a fresh semantic grader only for unresolved meaning.
 7. Classify the failure: activation, wording, placement, missing stop, structure, fixture, host, or grader.
@@ -40,7 +40,7 @@ Read [evaluation architecture](references/evaluation-architecture.md) when selec
 
 Use direct child processes for ordinary cases. Do not spend parent/subagent context merely to run a subject.
 
-Use `node scripts/skill-eval.mjs doctor|init|plan|run|grade|report` for the bundled workspace. Inspect `plan` for variants, evidence, capabilities, cache eligibility, and model-call count before `run`.
+Use `node scripts/skill-eval.mjs doctor|init|plan|run|grade|report` for the bundled workspace. Inspect `plan` for variants, evidence, capabilities, cache eligibility, model jobs, and model-request bounds before `run`.
 
 The default project source lives under `.skill-eval/<skill-name>/`. Subjects receive only the natural prompt, isolated fixture, selected immutable skill snapshot, and allowed tools. They must not receive assertions, expected outcomes, reports, or another variant.
 
@@ -54,6 +54,7 @@ Read [portable execution](references/portable-execution.md) for capability fallb
 - Semantic graders use fresh context, fixed criteria, opaque labels, sanitized paths, and explicit uncertainty.
 - Missing usage or cost is unavailable, not zero.
 - Cache controls only when every behavior-relevant fingerprint input matches.
+- Soft request/spend caps pause between jobs after active jobs settle. Resume only with owner-approved higher caps; keep completed evidence and frozen snapshots.
 
 Read [grading priority](references/grading-priority.md) when artifacts conflict. Read [grading and revision](references/grading-and-revision.md) when deciding reruns or skill changes.
 

@@ -11,6 +11,7 @@ import { gradeObjectiveRun } from "./lib/grade.mjs";
 import { collectRuns, createReport } from "./lib/report.mjs";
 import { runPlan } from "./lib/run.mjs";
 import { gradeSemanticRun } from "./lib/semantic.mjs";
+import { loadWave } from "./lib/wave.mjs";
 import { findRepoRoot, initSkillWorkspace, loadSkillWorkspace, readJson } from "./lib/workspace.mjs";
 
 function printJson(value) {
@@ -25,6 +26,7 @@ Commands:
   init --skill <name> [--root <directory>]
   plan --skill <name> [--case <id>] [--profile iterate|acceptance]
   run --skill <name> ...
+  run --resume <wave-dir> --max-model-requests <higher-cap> [...]
   grade --run <path> [--objective-only]
   report --run <path>
 `;
@@ -51,8 +53,28 @@ export async function main(argv = process.argv.slice(2)) {
   }
 
   if (command === "plan" || command === "run") {
-    if (typeof options.skill !== "string") throw new Error(`${command} requires --skill <name>`);
     const repoRoot = await findRepoRoot(options.root ?? process.cwd());
+    const commonOptions = {
+      concurrency: options.concurrency === undefined ? undefined : integerOption(options, "concurrency"),
+      max_model_requests: options.max_model_requests === undefined ? undefined : integerOption(options, "max_model_requests"),
+      max_turns_per_job: options.max_turns_per_job === undefined ? undefined : integerOption(options, "max_turns_per_job"),
+      max_usd: options.max_usd,
+      output_limit_bytes: options.output_limit_bytes === undefined ? undefined : integerOption(options, "output_limit_bytes"),
+      no_cache: options.no_cache === true,
+      candidate_only: options.candidate_only === true,
+      retry_needs_attention: options.retry_needs_attention === true,
+      cache_max_age_hours: options.cache_max_age_hours === undefined ? 24 : Number(options.cache_max_age_hours),
+    };
+
+    if (command === "run" && typeof options.resume === "string") {
+      const wave = await loadWave(options.resume);
+      const workspace = await loadSkillWorkspace(repoRoot, wave.skill);
+      const result = await runPlan(workspace, wave.plan, { ...commonOptions, wave });
+      printJson(result);
+      return 0;
+    }
+
+    if (typeof options.skill !== "string") throw new Error(`${command} requires --skill <name>`);
     const workspace = await loadSkillWorkspace(repoRoot, options.skill);
     const planOptions = {
       case: options.case,
@@ -61,7 +83,9 @@ export async function main(argv = process.argv.slice(2)) {
       model: options.model,
       thinking: options.thinking,
       backend_model_revision: options.backend_model_revision,
-      max_model_calls: options.max_model_calls === undefined ? undefined : integerOption(options, "max_model_calls"),
+      max_model_requests: commonOptions.max_model_requests,
+      max_turns_per_job: commonOptions.max_turns_per_job,
+      output_limit_bytes: commonOptions.output_limit_bytes,
     };
     const plan = await buildPlan(workspace, planOptions);
     if (command === "plan") {
@@ -70,12 +94,9 @@ export async function main(argv = process.argv.slice(2)) {
     }
     const result = await runPlan(workspace, plan, {
       ...planOptions,
-      concurrency: options.concurrency === undefined ? 1 : integerOption(options, "concurrency"),
-      max_usd: options.max_usd,
-      no_cache: options.no_cache === true,
-      candidate_only: options.candidate_only === true,
-      cache_max_age_hours: options.cache_max_age_hours === undefined ? 24 : Number(options.cache_max_age_hours),
-      output_limit_bytes: options.output_limit_bytes === undefined ? 1048576 : integerOption(options, "output_limit_bytes"),
+      ...commonOptions,
+      concurrency: commonOptions.concurrency ?? 1,
+      output_limit_bytes: commonOptions.output_limit_bytes ?? 1048576,
     });
     printJson(result);
     return 0;
@@ -90,14 +111,15 @@ export async function main(argv = process.argv.slice(2)) {
       printJson(objective);
       return 0;
     }
-    for (const key of ["provider", "model", "thinking", "max_model_calls"]) {
+    for (const key of ["provider", "model", "thinking", "max_model_requests", "max_turns_per_job"]) {
       if (options[key] === undefined) throw new Error(`semantic grade requires --${key.replaceAll("_", "-")}`);
     }
     const semantic = await gradeSemanticRun(runDir, {
       provider: options.provider,
       model: options.model,
       thinking: options.thinking,
-      max_model_calls: integerOption(options, "max_model_calls"),
+      max_model_requests: integerOption(options, "max_model_requests"),
+      max_turns_per_job: integerOption(options, "max_turns_per_job"),
       max_usd: options.max_usd,
       timeout_ms: options.timeout_ms,
       output_limit_bytes: options.output_limit_bytes,

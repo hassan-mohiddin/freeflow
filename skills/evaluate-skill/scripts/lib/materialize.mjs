@@ -41,7 +41,7 @@ export async function materializeSkillVariant(repoRoot, variant, destination) {
   await makeReadOnly(destination);
 }
 
-async function makeReadOnly(path) {
+export async function makeReadOnly(path) {
   const info = await lstat(path);
   if (info.isSymbolicLink()) throw new Error(`Skill snapshots cannot contain symlinks: ${path}`);
   if (info.isDirectory()) {
@@ -94,19 +94,20 @@ export async function createManifest(root) {
   return { files, fingerprint: sha256(stableJson(files)) };
 }
 
+export async function makeWritable(path) {
+  const entry = await lstat(path);
+  if (entry.isDirectory()) {
+    await chmod(path, 0o755);
+    for (const name of await readdir(path)) await makeWritable(resolve(path, name));
+  } else if (!entry.isSymbolicLink()) {
+    await chmod(path, (entry.mode & 0o111) ? 0o755 : 0o644);
+  }
+}
+
 export async function removeWritableTree(path) {
   try {
     const info = await stat(path);
-    if (info.isDirectory()) {
-      async function unlock(cursor) {
-        const entry = await lstat(cursor);
-        if (entry.isDirectory()) {
-          await chmod(cursor, 0o755);
-          for (const name of await readdir(cursor)) await unlock(resolve(cursor, name));
-        } else if (!entry.isSymbolicLink()) await chmod(cursor, 0o644);
-      }
-      await unlock(path);
-    }
+    if (info.isDirectory()) await makeWritable(path);
   } catch {}
   await rm(path, { recursive: true, force: true });
 }

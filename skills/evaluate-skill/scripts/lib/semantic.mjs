@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import { readJson } from "./workspace.mjs";
 import { runPiSubject } from "./pi-adapter.mjs";
-import { ModelBudget } from "./scheduler.mjs";
+import { SoftWaveBudget } from "./scheduler.mjs";
 
 async function readOptional(path, max = 30000) {
   try {
@@ -67,8 +67,8 @@ export async function gradeSemanticRun(runDir, options) {
   const workspace = resolve(tempRoot, "workspace");
   const configDir = resolve(tempRoot, "pi-config");
   await mkdir(workspace, { recursive: true });
-  const budget = new ModelBudget({ maxCalls: Number(options.max_model_calls ?? 1), maxUsd: options.max_usd === undefined ? null : Number(options.max_usd) });
-  budget.reserveCall();
+  const budget = new SoftWaveBudget({ maxModelRequests: Number(options.max_model_requests), maxUsd: options.max_usd === undefined ? null : Number(options.max_usd) });
+  if (!budget.canStartJob()) throw new Error(`Semantic grader paused before start: ${budget.pauseReason()}`);
   try {
     const subject = await runPiSubject({
       prompt,
@@ -83,9 +83,12 @@ export async function gradeSemanticRun(runDir, options) {
       writeRoots: [workspace],
       timeoutMs: Number(options.timeout_ms ?? 180000),
       outputLimitBytes: Number(options.output_limit_bytes ?? 1048576),
+      maxTurns: Number(options.max_turns_per_job),
     });
-    budget.recordUsage(subject.parsed.usage);
-    if (subject.process.code !== 0) throw new Error(`Semantic grader process failed with exit ${subject.process.code}: ${subject.process.stderr.trim()}`);
+    budget.recordJob({ providerRequests: subject.runtime_counters.provider_requests, usage: subject.parsed.usage, costExpected: true });
+    if (subject.process.code !== 0 || subject.runtime_counters.hard_turn_limit_reached) {
+      throw new Error(`Semantic grader hit a hard limit or exited with ${subject.process.code}: ${subject.process.stderr.trim()}`);
+    }
     const parsed = parseJsonResponse(subject.parsed.final_text);
     if (!new Set(["pass", "fail", "uncertain"]).has(parsed.verdict)) throw new Error(`Invalid semantic verdict: ${parsed.verdict}`);
     const result = {
@@ -95,6 +98,7 @@ export async function gradeSemanticRun(runDir, options) {
       assertions: parsed.assertions,
       uncertainty: parsed.uncertainty ?? null,
       usage: subject.parsed.usage,
+      runtime_counters: subject.runtime_counters,
       budget: budget.summary(),
       limitations: ["Opaque labels and sanitized coordinator paths do not prevent run content from revealing behavioral identity."],
     };

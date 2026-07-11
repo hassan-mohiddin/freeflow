@@ -528,6 +528,13 @@ Pi RPC handles automated multi-turn cases. A future cmux/delegation backend is a
 
 ## Scheduling, Concurrency, And Cost
 
+Use precise terms:
+
+- **wave**: the selected set of case/variant jobs;
+- **job**: one case × one variant subject or grader execution;
+- **model request**: one provider request/turn inside a job;
+- **tool call**: one tool invocation inside a model turn.
+
 The deterministic scheduler may expand:
 
 ```text
@@ -543,12 +550,18 @@ Requirements:
 - immutable skill snapshots during a wave;
 - control and candidate launched from one resolved wave plan when both are needed;
 - no skill edit while related runs remain active;
-- explicit provider, model, and thinking selection before model calls;
-- a required model-call cap and optional spend cap;
+- explicit provider, model, and thinking selection before model requests;
+- a required soft model-request cap and optional soft spend cap for the wave;
+- hard per-job timeout, output, and runaway-turn limits;
+- resumable wave state with frozen snapshots, completed artifacts, pending jobs, observed usage, and pause reason;
 - provider-aware rate and budget limits where the host exposes the needed data;
 - optional fail-fast when evidence is decisive or infrastructure is broken.
 
-Parallelism reduces wall-clock time, not model tokens. A missing cost metric cannot be treated as zero; use the model-call cap and report spend enforcement as unavailable.
+Parallelism reduces wall-clock time, not model tokens. A missing cost metric cannot be treated as zero; use observed model requests and report spend enforcement as unavailable.
+
+Soft caps are checked at job boundaries. When reached during an active job, let that job settle and save its evidence, then pause the wave before another job starts. The owner may raise the cap and resume the same frozen wave without rerunning completed jobs. A job may overrun a soft cap because its final request count or cost is known only after it settles.
+
+Hard safety limits may terminate the active job. Preserve partial evidence and require explicit retry or escalation. Do not kill an active tool call merely because a soft wave budget was crossed.
 
 ### Adaptive Repeats
 
@@ -620,8 +633,8 @@ Expected behavior:
 
 - `doctor`: probe installed runtimes, hosts, auth viability, and capabilities without model calls unless an explicit smoke proof is requested.
 - `init`: create the smallest `.skill-eval/<skill-name>/` source structure required by the first case.
-- `plan`: resolve cases, variants, hosts, models, repeats, cache hits, evidence class, and expected model-call count without executing models.
-- `run`: freeze snapshots, create isolated workspaces, execute bounded jobs, capture evidence, and run objective grading.
+- `plan`: resolve cases, variants, hosts, models, repeats, cache hits, evidence class, expected model jobs, and model-request bounds without executing models.
+- `run`: freeze snapshots, create or resume a wave, execute bounded jobs, pause safely at soft caps, capture evidence, and run objective grading.
 - `grade`: grade saved evidence, using a semantic model only for unresolved assertions when requested.
 - `report`: summarize comparisons, token/cost deltas, variance, evidence quality, residual uncertainty, and production-readiness status.
 
@@ -689,7 +702,7 @@ The Pi-first foundation is accepted for later skill rewrites only when saved evi
 - One fresh blinded semantic grade is evidenced and optional semantic grading can be omitted when objective evidence settles the case.
 - Adaptive-repeat scheduling adds a bounded repeat for conflict or reports unresolved variance at the cap.
 - Cache reuse succeeds only for a complete matching fingerprint and rejects every behavior-relevant mismatch.
-- Concurrency queues work above the configured bound, run state remains isolated, and model-call/budget caps stop excess work.
+- Concurrency queues work above the configured bound; soft request/spend caps pause after active jobs settle; hard per-job caps preserve partial evidence; and owner-approved resume continues the same frozen wave without rerunning completed jobs.
 - Pi usage and cost are captured when exposed; unavailable cost is not serialized as zero.
 - An independent fresh-context acceptance audit inspects frozen cases, raw evidence, graders, and the readiness claim; the parent adjudicates its findings.
 - No automatic Node or host installation occurs.
@@ -745,5 +758,6 @@ After bootstrap acceptance:
 
 ## Change Log
 
+- 2026-07-11: Clarified wave/job/model-request/tool-call terminology. Soft request/spend caps now pause between jobs after active jobs settle; hard per-job limits preserve partial evidence; owner escalation resumes the same frozen wave.
 - 2026-07-10: Incorporated the bounded four-lens bootstrap review. Split bootstrap from full-target acceptance, defined evidence classes, required enforceable Pi tool-root isolation, tightened caching/repeats/budgets, and expanded independent bootstrap evidence.
 - 2026-07-10: Changed implementation timing after owner decision. Foundational bootstrap implementation now precedes the remaining skill-pack comparison; broader portability work remains subject to final cross-skill synthesis.
