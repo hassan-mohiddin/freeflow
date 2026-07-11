@@ -7,9 +7,9 @@ description: Use for consequential work that may involve discovery, decisions, s
 
 Use an adaptive engineering loop, not a one-way checklist.
 
-Move forward when context is sufficient. After each meaningful slice, verify what it proved and check whether the route still holds. Re-enter the narrowest earlier activity when evidence changes the path.
+The runtime kernel owns turn interpretation, user authority, mode routing, and universal completion constraints. This skill owns workflow entry points, slices, backward edges, and conditional lifecycle routes.
 
-Questions request answers, not surprise artifacts or edits. Suggestions and criticism are hypotheses to evaluate, not automatic permission or correction.
+Move forward when context is sufficient. After each meaningful slice, verify what it proved and check whether the route still holds. Re-enter the narrowest earlier activity when evidence changes the path.
 
 ## Choose The Entry Point
 
@@ -54,15 +54,7 @@ Plans are rolling. Detail the immediate executable phase; keep later phases dire
 
 ## Decision And Source Boundaries
 
-Use `../decision-gate/SKILL.md` before silently choosing:
-
-- product behavior, scope, priority, or domain meaning;
-- public API, compatibility, permissions, security, privacy, billing, or data-loss behavior;
-- hard-to-reverse architecture or migration behavior;
-- a new source-of-truth direction that conflicts with docs, tests, specs, policies, ADRs, or established behavior;
-- a fallback that materially changes evidence quality, workflow shape, risk, scope, cost, persistence, or user-visible output.
-
-Inspect factual questions first. Ask only for decisions that remain user-owned or path-changing.
+Use `../decision-gate/SKILL.md` when a runtime-kernel stop condition fires. Inspect factual questions first; ask only for decisions that remain user-owned or path-changing.
 
 Handoffs are memory, not authority. Live evidence wins when they conflict.
 
@@ -110,9 +102,7 @@ After a consequential phase exit or completion, name the useful next route:
 - **Branch:** two or three valid routes remain.
 - **Stop:** no useful or safe next action remains.
 
-Use `Next:` only when it saves the user from having to ask what follows. Omit it for direct answers, mid-task status, clarification-only turns, direct owner-decision questions, or when no useful route needs naming.
-
-`Next:` recommends a route. It is not permission to create the next artifact or continue into another phase.
+Apply the runtime kernel's `Next:` contract when naming the route. A route recommendation is not permission to create the next artifact or continue into another phase.
 
 ## Completion
 

@@ -21,7 +21,7 @@ Current registry:
 
 Current direct command eval coverage:
 
-- Mode command coverage: yes, via `MODE-001` through `MODE-006`.
+- Mode command definitions: `MODE-*` prompts now use the canonical `/freeflow mode` path; Pi handler behavior is deterministic-test covered, while revised model-routed behavior remains Unverified.
 - Historical direct skill command coverage: 11 of 16 have `CMD-*` eval definitions; `/discover` uses `CMD-012`.
 - The five new optional direct calls are Unverified and intentionally have no grouped eval claims yet.
 - Pi native settings command coverage: extension tests cover `/freeflow`, `/output-router`, and `/delegation-harness` settings/status behavior.
@@ -33,10 +33,10 @@ Current direct command eval coverage:
 
 | Command | Routes To | Codex/Claude Native Handler | Direct Eval | Status |
 |---|---|---:|---|---|
-| `/freeflow mode conversation` | `mode-contract` | Pi: native `/freeflow`; Codex/Claude: model-routed | `MODE-001` | Covered |
-| `/freeflow mode workflow` | `mode-contract` | Pi: native `/freeflow`; Codex/Claude: model-routed | `MODE-*` mode suite | Covered |
-| `/freeflow mode strict-workflow` | `mode-contract` | Pi: native `/freeflow`; Codex/Claude: model-routed | `MODE-002`, `MODE-005` | Covered |
-| `/freeflow mode reset` | `mode-contract` | Pi: native `/freeflow`; Codex/Claude: model-routed | `MODE-006` | Covered |
+| `/freeflow mode conversation` | `mode-contract` | Pi: native `/freeflow`; Codex/Claude: model-routed | `MODE-001` | Pi tested; model-routed Unverified |
+| `/freeflow mode workflow` | `mode-contract` | Pi: native `/freeflow`; Codex/Claude: model-routed | `MODE-*` mode suite | Pi tested; model-routed Unverified |
+| `/freeflow mode strict-workflow` | `mode-contract` | Pi: native `/freeflow`; Codex/Claude: model-routed | `MODE-002`, `MODE-005` | Pi tested; model-routed Unverified |
+| `/freeflow mode reset` | `mode-contract` | Pi: native `/freeflow`; Codex/Claude: model-routed | `MODE-006` | Pi tested; model-routed Unverified |
 
 ## Direct Skill Commands
 

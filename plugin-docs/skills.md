@@ -46,7 +46,7 @@ The current adaptive-workflow revisions are Unverified pending behavioral evalua
 
 | Skill | Use When |
 | --- | --- |
-| `setup-freeflow` | Creating config-only repo activation and verifying host runtime-kernel delivery. |
+| `setup-freeflow` | Creating config-only repo activation and verifying kernel, Workflow-bootstrap, and capability delivery. |
 | `write-skill` | Creating or revising concise behavior-shaping skills. |
 | `evaluate-skill` | Turning failures into baseline-vs-with-skill evals and revising from evidence. |
 

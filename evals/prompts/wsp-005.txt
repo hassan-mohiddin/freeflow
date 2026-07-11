@@ -1,4 +1,4 @@
-/workflow conversation
+/freeflow mode conversation
 
 Quick question: for a tiny copy-only change, should a spec include acceptance criteria?
 

@@ -1,4 +1,4 @@
-/workflow strict-workflow
+/freeflow mode strict-workflow
 
 Write a billing public API spec at `docs/specs/billing-webhook-api.md`.
 

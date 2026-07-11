@@ -4,20 +4,6 @@ This repo develops `freeflow`, a plugin/skill pack for guiding coding agents thr
 
 The plugin is not a new agent. It is a portable workflow layer for agents such as Codex, Claude Code, Pi, and similar coding environments.
 
-## Freeflow
-
-Use Freeflow for consequential work. Default mode: `.freeflow/config.json`.
-
-Move forward when context is sufficient. After each meaningful slice, verify what it proved and route backward when new evidence changes the next safe action.
-
-Treat questions as questions and suggestions as hypotheses. Answer directly; do not infer correction, permission, or agreement.
-
-Ask before user-owned decisions: product behavior, scope, public APIs, security, privacy, billing, data loss, compatibility, permissions, or irreversible architecture.
-
-Treat live repo evidence and existing docs/tests as source truth. If the user request conflicts with them, use the Decision Gate before changing behavior.
-
-Verify before completion claims. Capture only stable decisions, glossary terms, ADR-worthy tradeoffs, or useful handoff memory.
-
 ## Read First
 
 For the project docs map, read `docs/README.md`.
@@ -69,22 +55,15 @@ When reference skills conflict:
 
 ## Working Rules
 
-- Questions get answers, not surprise artifacts. If answering reveals missing work, report it; do not create files unless asked.
-- If the user asks for X and the agent is about to do materially different Y, name the mismatch and ask which path to follow.
 - Keep skill files short, behavior-shaping, and pressure-tested.
 - Use `CONTEXT.md` for project language. Do not turn it into a spec or implementation summary.
 - Use ADRs sparingly for hard-to-reverse, surprising, tradeoff-driven decisions.
 - Do not hardcode volatile repo facts, directory inventories, or stack summaries into durable memory.
-- Treat handoffs as memory, not authority.
-- Let live repo evidence override stale handoff text.
-- Preserve valid work and route only invalidated decisions, specs, phases, or slices backward.
-- Do not let the agent silently decide product behavior, scope, domain meaning, compatibility, public API behavior, security, privacy, billing, data-loss, or irreversible architecture.
-- If a user-owned decision appears, ask before editing.
-- Verify before claiming work is complete.
+- Treat handoffs as memory, not authority; live repo evidence wins when they conflict.
 - Use evals that compare baseline vs with-skill behavior. A useful eval usually makes baseline fail and with-skill pass.
 - Prefer adversarial fixture evals with saved diffs over clean prompts or subjective self-assessment.
 - Add a new skill only when it has a distinct job, trigger, and failure mode. Update an existing skill when the behavior belongs to an existing job. Use `evaluate-skill` and `write-skill` for meaningful skill changes.
-- Do not add hooks until skill wording and evals prove the behavior needs enforcement.
+- Do not add enforcement hooks until skill wording and evals prove the behavior needs mechanical enforcement.
 
 ## Current Product Shape
 
@@ -104,13 +83,9 @@ Re-enter the narrowest owning activity when evidence changes the path.
 
 ## Implementation Pointers
 
-Plugin runtime lives under the repo root. This is the single source of truth for runtime skills, plugin docs, evals, and command-surface metadata.
+The repo root is the single source of truth for runtime skills, plugin docs, evals, and command-surface metadata. The npm tarball contains only runtime-required files; GitHub retains docs and evidence.
 
 For the current skill set, inspect `skills/`.
-
-For current eval status, read `evals/README.md`, then the latest relevant report in `evals/reports/`.
-
-For active continuation context, read the latest relevant file in `docs/handoffs/`.
 
 ## Style
 

@@ -57,13 +57,13 @@ Keep two scopes separate:
 Recognize only:
 
 ```text
-/workflow conversation
-/workflow workflow
-/workflow strict-workflow
-/workflow reset
+/freeflow mode conversation
+/freeflow mode workflow
+/freeflow mode strict-workflow
+/freeflow mode reset
 ```
 
-The three mode-setting commands switch mode for the current task, conversation, or host session only. `/workflow reset` clears the current override and returns to `defaultMode`; it is a command, not a fourth mode.
+The three mode-setting commands switch mode for the current task, conversation, or host session only. `/freeflow mode reset` clears the current override and returns to `defaultMode`; it is a command, not a fourth mode.
 
 Do not persist current mode, create repo state files, or edit config unless the user explicitly asks to change the repo default.
 
@@ -71,7 +71,7 @@ Phrases like "from now on", "until I say otherwise", or "for this repo" still do
 
 When the repo default matters, read `.freeflow/config.json`. If it is missing or invalid, fall back to `workflow` and report the config issue when relevant.
 
-Persist only explicit default requests, such as "make strict-workflow the default for this repo." Update `.freeflow/config.json` with only:
+Persist only explicit default requests, such as "make strict-workflow the default for this repo." Update only `defaultMode` while preserving valid existing capability settings. If config does not exist, create the minimal shape:
 
 ```json
 {
@@ -79,6 +79,6 @@ Persist only explicit default requests, such as "make strict-workflow the defaul
 }
 ```
 
-Use the requested valid mode. Do not add current mode, task, phase, version, or activation-path fields.
+Do not replace invalid config without resolving that source-truth conflict. Use the requested valid mode. Do not add current mode, task, phase, version, or activation-path fields.
 
 Direct skill calls are manual state selection. If the user calls a workflow segment directly, operate in that segment while still using the decision gate for user-owned decisions.

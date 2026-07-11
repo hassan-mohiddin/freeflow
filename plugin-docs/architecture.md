@@ -37,7 +37,7 @@ freeflow/
   skills/
 ```
 
-The repository root is the plugin root. Codex uses `.agents/plugins/marketplace.json`; Claude uses `.claude-plugin/marketplace.json`. Both point at `.`. Pi uses the root `package.json` `pi` manifest to load the built extension at `pi-extension/dist/index.js`; TypeScript source lives under `pi-extension/src/`. Pi model skill exposure is dynamic and owned by the extension.
+The repository root is the plugin root. Codex uses `.agents/plugins/marketplace.json` with local source `.`, while Claude uses `.claude-plugin/marketplace.json` with host-valid local source `./`. Pi uses the root `package.json` `pi` manifest to load `pi-extension/freeflow/index.js`, which re-exports the built extension from `pi-extension/dist/index.js`; TypeScript source lives under `pi-extension/src/`. Pi model skill exposure is dynamic and owned by the extension.
 
 The repo root is the single source of truth. Skill edits, bundled references, eval metadata, public docs, and command-surface metadata live there to avoid generated package drift. Public plugin docs live under `plugin-docs/`; eval definitions and evidence live under `evals/`. They ship through GitHub but are excluded from the npm runtime tarball. Project-development memory lives under `docs/` and is not part of the runtime surface.
 

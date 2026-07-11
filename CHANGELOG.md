@@ -9,6 +9,8 @@
 - Makes `.freeflow/config.json` the sole repo activation boundary and replaces duplicated always-on core skill bodies with one canonical compact runtime kernel across Pi, Codex, and Claude; setup preserves host instruction files and reports runtime delivery separately.
 - Loads the full Workflow skill once on the first session turn, keeps the compact kernel in per-turn system context, and routes mode questions or changes to Mode Contract on demand.
 - Excludes GitHub-only plugin docs and eval evidence from the npm runtime tarball; README evidence/docs links now target GitHub.
+- Removes activation-like kernel duplication from `AGENTS.md`, narrows Workflow to routing ownership, and aligns Mode Contract plus current eval prompts with `/freeflow mode` while preserving existing capability config.
+- Uses Claude's host-valid `./` marketplace source and validates host-specific marketplace paths plus the packaged Pi entrypoint.
 
 ## 0.3.0 - 2026-06-28
 

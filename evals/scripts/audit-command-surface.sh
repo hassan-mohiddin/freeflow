@@ -7,6 +7,7 @@ registry="$plugin_root/command-surface.json"
 manifest="$plugin_root/.codex-plugin/plugin.json"
 command_docs="$plugin_root/evals/reports/by-command-surface/command-surface-matrix.md"
 skills_dir="$plugin_root/skills"
+mode_skill="$skills_dir/mode-contract/SKILL.md"
 pi_extension="$plugin_root/pi-extension/src/runtime-context.ts"
 
 failures=0
@@ -164,7 +165,15 @@ while IFS=$'\t' read -r command skill; do
   if ! rg -Fq "$command" "$command_docs"; then
     fail "$command is missing from command-surface matrix"
   fi
+
+  if ! rg -Fq "$command" "$mode_skill"; then
+    fail "$command is missing from mode-contract"
+  fi
 done < <(jq -r '.modeCommands[] | [.command, .routesTo] | @tsv' "$registry")
+
+if rg -n '^/workflow (conversation|workflow|strict-workflow|reset)$' "$mode_skill" "$plugin_root"/evals/prompts/*.txt >/dev/null; then
+  fail "stale /workflow mode alias remains in active mode skill or eval prompts"
+fi
 
 while IFS=$'\t' read -r command handler kind; do
   if [[ "$command" != /* ]]; then

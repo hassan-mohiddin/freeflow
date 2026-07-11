@@ -185,12 +185,12 @@ check_marketplace_locality() {
   claude_source="$(json_get "$claude_marketplace" '.plugins[0].source')"
 
   same_value "$check" "Codex marketplace source path" "." "$codex_path" || ok=0
-  same_value "$check" "Claude marketplace source" "." "$claude_source" || ok=0
+  same_value "$check" "Claude marketplace source" "./" "$claude_source" || ok=0
   same_value "$check" "Codex marketplace plugin name" "freeflow" "$(json_get "$codex_marketplace" '.plugins[0].name')" || ok=0
   same_value "$check" "Claude marketplace plugin name" "freeflow" "$(json_get "$claude_marketplace" '.plugins[0].name')" || ok=0
 
   if [ "$ok" = "1" ]; then
-    record_check "$check" "pass" "Root marketplace files point at ."
+    record_check "$check" "pass" "Root marketplace files use host-valid local source paths."
   fi
 }
 
@@ -294,6 +294,7 @@ check_release_boundary() {
 check_package_cleanliness() {
   local check="package-cleanliness"
   local ok=1
+  local pack_manifest=""
 
   contains_fixed "$gitignore" "evals/runs/" || {
     record_check "$check" "fail" ".gitignore does not ignore generated eval runs."
@@ -343,6 +344,20 @@ check_package_cleanliness() {
     ok=0
   fi
 
+  if ! pack_manifest="$(cd "$plugin_root" && npm pack --dry-run --json 2>/dev/null)"; then
+    record_check "$check" "fail" "npm pack dry-run failed."
+    ok=0
+  elif ! jq -e '
+    .[0] as $pack
+    | ([$pack.files[].path | select(startswith("plugin-docs/") or startswith("evals/"))] | length) == 0
+      and ([$pack.files[].path | select(. == "skills/workflow/SKILL.md")] | length) == 1
+      and ([$pack.files[].path | select(. == "skills/decision-gate/references/runtime-kernel.md")] | length) == 1
+      and ([$pack.files[].path | select(. == "pi-extension/freeflow/index.js")] | length) == 1
+  ' <<<"$pack_manifest" >/dev/null; then
+    record_check "$check" "fail" "npm pack contents do not match the runtime boundary."
+    ok=0
+  fi
+
   if [ "$ok" = "1" ]; then
     record_check "$check" "pass" "Generated runs are ignored, GitHub-only docs/evals are excluded from npm, no duplicate manifests were found, and old command compatibility is absent."
   fi
@@ -366,6 +381,21 @@ check_docs_drift() {
     record_check "$check" "fail" "Claude manifest declares command handlers while nativeSlashHandlers=false."
     ok=0
   fi
+
+  contains_fixed "$architecture_doc" 'local source `.`, while Claude' || {
+    record_check "$check" "fail" "Architecture docs do not preserve the Codex local source path."
+    ok=0
+  }
+
+  contains_fixed "$architecture_doc" 'host-valid local source `./`' || {
+    record_check "$check" "fail" "Architecture docs do not preserve the Claude local source path."
+    ok=0
+  }
+
+  contains_fixed "$architecture_doc" '`pi-extension/freeflow/index.js`' || {
+    record_check "$check" "fail" "Architecture docs do not name the Pi manifest entrypoint."
+    ok=0
+  }
 
   local mode_count direct_count developer_count pi_native_count
   mode_count="$(json_get "$command_surface" '.modeCommands | length')"

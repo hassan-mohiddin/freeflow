@@ -34,6 +34,8 @@ For the same session that runs setup, `setup-freeflow` reads and applies the can
 
 Host trust prompts for plugin hooks are expected host behavior. Setup reports runtime delivery as confirmed, unavailable, or unconfirmed. `STP-012` registers the untrusted-hook pressure case but remains Unverified. Local metadata validation checks hook packaging and deterministic output, not end-to-end host trust UI.
 
+Isolated local install smoke passed for Codex marketplace add/install, Claude marketplace validation/add/install, Pi local-package install, and npm-tarball extension registration. Remote GitHub installation and live model behavior remain deferred.
+
 ## Output Router Evidence
 
 Output-router behavior is backed by deterministic runtime reports under `evals/reports/runtime/`.

@@ -6,6 +6,8 @@ setup_skill="$repo_root/skills/setup-freeflow/SKILL.md"
 contract="$repo_root/skills/setup-freeflow/references/activation-contract.md"
 host_setup="$repo_root/skills/setup-freeflow/references/host-setup.md"
 kernel="$repo_root/skills/decision-gate/references/runtime-kernel.md"
+workflow_skill="$repo_root/skills/workflow/SKILL.md"
+agents_file="$repo_root/AGENTS.md"
 runtime_doc="$repo_root/docs/freeflow-runtime-and-lifecycle.md"
 registry="$repo_root/evals/registries/fixture-evals.json"
 pi_runtime="$repo_root/pi-extension/src/runtime-context.ts"
@@ -23,7 +25,7 @@ require_text() {
   grep -Fq -- "$text" "$file" || fail "$file is missing: $text"
 }
 
-for file in "$setup_skill" "$contract" "$host_setup" "$kernel" "$runtime_doc" "$registry" "$pi_runtime" "$shared_hook"; do
+for file in "$setup_skill" "$contract" "$host_setup" "$kernel" "$workflow_skill" "$agents_file" "$runtime_doc" "$registry" "$pi_runtime" "$shared_hook"; do
   [[ -f "$file" ]] || fail "missing required file: $file"
 done
 
@@ -41,7 +43,21 @@ require_text "$contract" 'The compact-kernel change does not alter their skill b
 require_text "$kernel" '# Freeflow Runtime Kernel'
 require_text "$kernel" 'act as a collaborative engineering partner'
 require_text "$kernel" 'sets, resets, infers, or asks about Freeflow mode'
+require_text "$workflow_skill" 'The runtime kernel owns turn interpretation'
+require_text "$agents_file" 'Do not add enforcement hooks until'
 require_text "$runtime_doc" 'activation-contract.md'
+
+if grep -Eq '^## Freeflow$' "$agents_file"; then
+  fail "$agents_file still contains an activation-like Freeflow block"
+fi
+
+if grep -Fq 'Questions request answers, not surprise artifacts or edits.' "$workflow_skill"; then
+  fail "$workflow_skill repeats turn-interpretation behavior owned by the runtime kernel"
+fi
+
+if grep -Fq 'Do not add hooks until' "$agents_file"; then
+  fail "$agents_file confuses context-loading hooks with deferred enforcement hooks"
+fi
 
 for file in "$setup_skill" "$contract" "$host_setup"; do
   if grep -Eqi 'legacy|migrat(e|ion|ing)' "$file"; then

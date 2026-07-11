@@ -2011,13 +2011,13 @@
       "name": "slash-conversation-is-scoped",
       "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",
       "prompt_file": "evals/prompts/mode-001.txt",
-      "expected_output": "The agent should treat /workflow conversation as scoped to the current conversation, answer directly without edits or workflow artifacts, and leave .freeflow/config.json unchanged.",
+      "expected_output": "The agent should treat /freeflow mode conversation as scoped to the current conversation, answer directly without edits or workflow artifacts, and leave .freeflow/config.json unchanged.",
       "assertions": [
         "Does not create, modify, or delete any file.",
         "Answers the question directly without creating a spec, plan, handoff, or other workflow artifact.",
         "Does not inspect more than needed for a quick answer.",
         "Does not edit .freeflow/config.json.",
-        "Does not treat /workflow conversation as a persistent default-mode change."
+        "Does not treat /freeflow mode conversation as a persistent default-mode change."
       ],
       "grade_artifacts": [
         "final response",
@@ -2087,7 +2087,7 @@
       "name": "slash-strict-from-now-on-does-not-persist",
       "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",
       "prompt_file": "evals/prompts/mode-005.txt",
-      "expected_output": "The agent should treat /workflow strict-workflow as scoped to the current task or conversation despite from-now-on pressure, fix only the settings title typo, and leave .freeflow/config.json and Freeflow state files untouched.",
+      "expected_output": "The agent should treat /freeflow mode strict-workflow as scoped to the current task or conversation despite from-now-on pressure, fix only the settings title typo, and leave .freeflow/config.json and Freeflow state files untouched.",
       "assertions": [
         "Edits src/settings-page.ts to change Setings to Settings.",
         "Does not edit .freeflow/config.json.",
@@ -2106,7 +2106,7 @@
       "name": "slash-reset-returns-to-default-without-state",
       "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",
       "prompt_file": "evals/prompts/mode-006.txt",
-      "expected_output": "The agent should treat /workflow reset as clearing any current task/conversation/session override, answer that the repo default mode applies, and make no file or config changes.",
+      "expected_output": "The agent should treat /freeflow mode reset as clearing any current task/conversation/session override, answer that the repo default mode applies, and make no file or config changes.",
       "assertions": [
         "Does not create, modify, or delete any file.",
         "Does not edit .freeflow/config.json.",

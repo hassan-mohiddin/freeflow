@@ -42,7 +42,7 @@ function loadExtension() {
   return { handlers, tools, commands, entries, activeToolNames: () => activeToolNames ?? tools.map((tool) => tool.name) };
 }
 
-function context(cwd = process.cwd(), sessionEntries = []) {
+function context(cwd = process.cwd(), sessionEntries = [], activeSessionEntries = sessionEntries) {
   const notifications = [];
   const reloads = [];
   const statuses = [];
@@ -59,7 +59,7 @@ function context(cwd = process.cwd(), sessionEntries = []) {
         return sessionEntries;
       },
       buildContextEntries() {
-        return sessionEntries;
+        return activeSessionEntries;
       },
     },
     ui: {
@@ -652,7 +652,7 @@ test("Pi loads the full Workflow skill as one persistent first-turn message", as
     assert.equal(later.message, undefined);
     assert.match(later.systemPrompt, /# Freeflow Runtime Kernel/);
 
-    const compactedContext = context(cwd, []);
+    const compactedContext = context(cwd, sessionEntries, []);
     const afterCompaction = await beforeAgentStart({ prompt: "continue", systemPrompt: "base prompt" }, compactedContext);
     assert.equal(afterCompaction.message.customType, "freeflow-workflow-bootstrap");
   } finally {
