@@ -720,20 +720,426 @@ A decisive comparison requires an adversarial eval with:
 
 Success is not merely asking a question. The agent must preserve the verified checkpoint, avoid more edits or paid runs, distinguish local defect from plan invalidation, and present bounded options for keep, simplify, delete, or defer.
 
+## Architecture-Skill Comparison And Design-For-Depth Lessons
+
+After the reduced bootstrap artifacts repeatedly failed fresh architecture review, the owner paused artifact editing and asked whether the proposed architecture itself was correct. This was the right backward transition. The review stream was no longer exposing isolated omissions; it was showing that the chosen interface kept creating caller choreography and new public states.
+
+The current design attempt made callers understand and coordinate:
+
+- manifest paths and hashes;
+- variant order;
+- subject-resource lists;
+- runner and grader identities;
+- attempt and orphan paths;
+- retry linkage;
+- grade modes;
+- comparison paths;
+- integrity publication;
+- crash continuation.
+
+That growing knowledge surface is evidence of a shallow interface even when every individual rule is defensible.
+
+### Sources inspected
+
+The follow-up read these skills and all their direct references:
+
+- Freeflow `design-for-depth`, `software-design-philosophy`, and `design-pressure-signals`;
+- Agent Skills `api-and-interface-design` and `code-simplification`;
+- Obra/Superpowers `brainstorming`, its spec-review prompt, and visual-companion guidance;
+- Matt Pocock `improve-codebase-architecture`, `DEEPENING`, `INTERFACE-DESIGN`, `LANGUAGE`, and the deprecated `design-an-interface` skill.
+
+These sources are references, not authority. Several contain useful design behavior alongside rules that would add ceremony or over-generalization if copied wholesale.
+
+### Why this is the heart of design
+
+The central design question is not file count or artifact length. It is:
+
+> What must callers know, and which decisions should the module hide?
+
+A large implementation can be deep if callers ask for an outcome through a small stable interface. A small implementation can be shallow if callers must coordinate ordering, states, retries, paths, cleanup, error recovery, and storage details.
+
+This incident first looked like scope drift, then like missing failure contracts, then like incomplete CLI details. At the deeper level, all three were symptoms of the same problem: the seam was placed too low. The evaluator was exposing execution primitives rather than owning the evaluation outcome.
+
+### Freeflow `design-for-depth`: current strengths
+
+Freeflow remains the strongest foundation among the inspected skills for consequential design work because it already provides:
+
+- design pressure as a reason to change route;
+- failure contracts before happy-path implementation;
+- depth, locality, leverage, seams, and adapters;
+- classification into local fix, plan defect, spec gap, owner decision, bounded refactor, or defer;
+- source-truth and user-owned decision protection;
+- explicit resistance to speculative seams and architecture ceremony;
+- deletion, interface-surface, variation, locality, decision-hiding, failure-contract, and obscurity tests;
+- recognition that repeated edge-case patches may indicate missing ownership rather than isolated bugs.
+
+These controls are stronger than a generic “design clean interfaces” checklist. They connect design evidence to workflow routing.
+
+### Freeflow `design-for-depth`: measured gap
+
+The active skill explains how to detect and classify design pressure, but not strongly enough what to do after pressure becomes structural.
+
+It allowed this pattern:
+
+1. classify a missing failure contract;
+2. add more contract detail to the current interface;
+3. receive another edge-case finding;
+4. add another state or flag;
+5. continue specifying the same interface instead of designing another one.
+
+The missing behavior is:
+
+> When each fix increases caller knowledge, stop specifying the current interface and generate materially different module shapes.
+
+The skill also needs stronger distinction between:
+
+- public interface and internal protocol;
+- trust/safety requirements and efficiency/scale features;
+- atomic outcome and recovery optimization;
+- deletion as diagnosis and deletion as authorized change;
+- tests that prove accepted behavior and tests that merely legitimize introduced machinery.
+
+### Matt Pocock architecture guidance
+
+Matt's architecture skill contributes the clearest deep-module discipline:
+
+- interface means every fact a caller must know, not only type signatures;
+- depth is leverage at the interface;
+- locality is concentrated change, bugs, knowledge, and verification;
+- the interface is the test surface;
+- deep modules may contain internal seams that are not exposed publicly;
+- one adapter is a hypothetical seam, while two real adapters justify variation;
+- the deletion test helps determine whether a module hides useful complexity;
+- “Design It Twice” requires multiple materially different interfaces before selecting one.
+
+Matt's interface-design reference also gives a useful comparison method: generate designs optimized for minimal interface, flexibility, common-case ergonomics, or real adapter variation, then compare depth, locality, and leverage.
+
+Do not import blindly:
+
+- mandatory three-agent fanout for every design question would add ceremony;
+- automatic `CONTEXT.md` or ADR edits during discussion can violate artifact/user authority;
+- failure contracts and owner-decision routing are weaker than Freeflow's;
+- interface exploration should trigger from real structural pressure, not every local reversible choice.
+
+Best import: Design It Twice, caller-knowledge accounting, and public/internal seam discipline.
+
+### Agent Skills API/interface guidance
+
+Agent Skills contributes several strong contract rules:
+
+- contract first;
+- make correct use easy and misuse hard;
+- validate at external boundaries;
+- keep error semantics predictable;
+- Hyrum's Law: every observable behavior can become depended upon;
+- public flags, paths, ordering, timing, errors, and undocumented quirks all carry compatibility cost.
+
+This is directly relevant to the evaluator CLI. Every exposed manifest path, orphan state, retry flag, grade mode, and filename risks becoming a lasting contract.
+
+Do not import blindly:
+
+- REST and GraphQL checklists do not generalize to every internal developer tool;
+- always adding pagination or versioning can conflict with YAGNI;
+- additive compatibility can preserve a bad internal interface;
+- contract-first guidance alone does not detect when the contract is at the wrong seam.
+
+Best import: observable contract cost, consistent failure semantics, and boundary validation.
+
+### Agent Skills code-simplification guidance
+
+The simplification skill contributes:
+
+- Chesterton's Fence: understand why code exists before deleting it;
+- preserve behavior and error semantics;
+- simplify within current scope;
+- clarity matters more than line count;
+- separate refactoring from feature work;
+- speculative abstractions are not justified by hypothetical future value.
+
+This sharpens Freeflow's deletion test:
+
+> Deletion test diagnoses depth. It is not permission to delete. Inspect source truth, callers, tests, history, and the reason the module exists first.
+
+Do not import blindly:
+
+- behavior-preserving simplification can preserve the wrong architecture when tests encode accidental machinery;
+- it operates after implementation and does not replace interface exploration;
+- “tests unchanged” is not enough when tests themselves ratify unowned complexity.
+
+Best import: Chesterton's Fence and scoped, behavior-preserving cleanup after architecture is settled.
+
+### Obra/Superpowers brainstorming guidance
+
+Superpowers contributes the clearest explicit design-selection loop:
+
+- inspect project context;
+- identify oversized scope early;
+- ask focused questions;
+- propose two or three approaches with tradeoffs;
+- present design in sections;
+- obtain user approval before implementation;
+- self-review for placeholders, contradictions, ambiguity, scope, and YAGNI.
+
+This would have prevented the first plausible architecture from becoming the only architecture.
+
+Do not import blindly:
+
+- mandatory design artifacts for every task create ceremony;
+- hard gates for tiny reversible changes conflict with Freeflow's risk-scaled pressure;
+- repeated section-by-section approvals can be expensive;
+- automatic design-doc creation should not override user artifact intent.
+
+Best import: alternatives before commitment and owner approval for consequential interface choices.
+
+## Proposed `design-for-depth` Improvement
+
+Do not create a new skill. This behavior belongs to the existing design lens.
+
+### Add a structural-pressure design loop
+
+When pressure changes the route:
+
+1. **Name the module and atomic outcome.** What complete outcome should the caller request?
+2. **Define the failure unit.** What is all-or-nothing, what may remain diagnostic, what is safe to restart, and what must never happen?
+3. **Inventory caller knowledge.** List commands, flags, ordering, states, paths, retries, cleanup, configuration, errors, cost, and recovery facts.
+4. **Separate ownership.** Which facts are caller-owned decisions, and which are internal protocol?
+5. **Design it twice.** Produce two or three materially different interfaces, not minor variations of the same storage model.
+6. **Compare designs.** Judge depth, locality, correct-use ergonomics, misuse risk, failure behavior, maturity fit, and evidence cost.
+7. **Route deliberately.** Continue, revise plan, revise spec/discover, ask owner, bounded refactor, or defer.
+
+Do not patch the existing interface before alternatives exist when caller knowledge is still growing.
+
+### Add a caller-knowledge test
+
+For a proposed module, list everything a caller must know to use it correctly.
+
+Ask:
+
+- Does the caller own this decision?
+- Could the module own it instead?
+- Is the fact stable enough to expose publicly?
+- Would changing it force caller, test, and documentation edits?
+- Did another review pass add more caller knowledge?
+
+A growing list is stronger evidence of shallowness than line or file count.
+
+### Add a public-versus-internal rule
+
+Proposed principle:
+
+> Public interfaces expose caller-owned outcomes and decisions. Keep storage layout, integrity publication, retry mechanics, cleanup, internal state, and provider mechanics inside the module unless the caller must control them.
+
+Internal modules may remain detailed and independently testable. They do not all need public seams.
+
+### Strengthen failure-contract design
+
+Before designing retries or resume, choose the atomic unit:
+
+- attempt;
+- variant;
+- comparison;
+- evaluation session;
+- acceptance result.
+
+Then define:
+
+- terminal states;
+- observers;
+- state/evidence written;
+- safe restart unit;
+- whether partial reuse is a requirement or an optimization;
+- fail-open, fail-closed, degrade, escalate, retry, or stop behavior;
+- forbidden outcomes;
+- recovery proof.
+
+Retry, resume, cache, and partial reuse are separate capabilities. They are not automatic consequences of durability.
+
+### Add a maturity-stage classifier
+
+Classify each proposed capability:
+
+- **Trust requirement:** needed to know evidence is valid.
+- **Safety requirement:** needed to prevent damage, leakage, or runaway work.
+- **Efficiency feature:** saves time, model requests, or money.
+- **Scale feature:** needed for concurrency or volume.
+- **Portability feature:** needed for more hosts/environments.
+
+Bootstrap implements trust and minimum safety. Efficiency, scale, and portability require observed pressure and a later owner-approved milestone.
+
+### Add a contract-surface test
+
+Apply Hyrum's Law before exposing a flag, path, state, filename, ordering rule, or error:
+
+- Does caller own it?
+- Can implementation change it later?
+- Does exposure make correct use easier?
+- Does it only leak internal protocol?
+- Could one outcome-level operation hide it?
+
+Public flexibility has permanent coordination cost.
+
+### Add requirement ownership for architecture tests
+
+Every architecture-bearing test should name the requirement or measured failure it protects.
+
+If deleting a feature also deletes its tests while acceptance remains unchanged, those tests do not justify the feature. Tests should target the intended interface and failure contract, not internal choreography.
+
+### Proposed skill/reference shape
+
+Keep active `SKILL.md` concise. Add only the behavior that changes routing:
+
+```text
+When design pressure becomes structural:
+1. Name atomic outcome and failure unit.
+2. List what callers must know.
+3. Separate caller-owned decisions from internal protocol.
+4. Design it twice with materially different interfaces.
+5. Compare depth, locality, misuse risk, failure behavior, and maturity fit.
+6. Route to local fix, plan revision, spec/discovery, owner decision, bounded refactor, or defer.
+
+Do not add retry, resume, cache, concurrency, adapters, or extension points until observed pressure requires them.
+```
+
+Update existing references with:
+
+- Hyrum's Law and contract-surface cost;
+- public versus internal interfaces;
+- atomic outcome/failure unit;
+- maturity-stage classification;
+- caller choreography and contract-surface explosion signals;
+- requirement-owned architecture tests.
+
+One new conditional reference is justified by this measured failure:
+
+```text
+skills/design-for-depth/references/interface-design-loop.md
+```
+
+It should contain the design-twice process, comparison criteria, and owner gate. No new skill is justified.
+
+## Candidate Architecture Directions For `evaluate-skill`
+
+These remain design options, not accepted decisions.
+
+### Option 1: Comparison-run module
+
+Public shape:
+
+```bash
+skill-eval plan --skill <name> --case <id> --output <manifest>
+skill-eval run --manifest <manifest>
+skill-eval grade --bundle <bundle> ...
+skill-eval report --bundle <bundle> ...
+```
+
+The module owns variant order, subject resources, fixture copies, identity hashes, isolation, evidence capture, objective grading, integrity, and publication.
+
+Failure contract:
+
+- a complete comparison bundle is the atomic success unit;
+- crash or hard failure leaves an incomplete diagnostic bundle;
+- incomplete bundle is never acceptance evidence;
+- bootstrap does not continue or partially reuse it;
+- owner-approved rerun executes the complete comparison again;
+- mature cache/resume may optimize later if observed cost justifies it.
+
+Benefits:
+
+- deep outcome-level interface;
+- no stranded candidate state;
+- no public orphan/retry protocol;
+- no caller-managed attempt choreography;
+- failure behavior is easy to explain and test.
+
+Tradeoff: a crash after control can require rerunning control. For a low-volume bootstrap, explicit repeated cost may be safer than lifecycle machinery.
+
+This is the current recommendation, not yet owner-approved.
+
+### Option 2: Attempt toolkit
+
+Public shape exposes manifest, variant, attempt, retry, grade, comparison, and integrity primitives.
+
+Benefits:
+
+- flexible;
+- can preserve completed control work;
+- useful foundation for a mature scheduler.
+
+Costs:
+
+- shallow interface;
+- caller choreography;
+- public storage protocol;
+- every recovery edge adds states and flags;
+- recreates mature harness concerns inside bootstrap.
+
+This resembles the current uncommitted spec/plan direction and is not recommended for bootstrap.
+
+### Option 3: Case-specific direct scripts
+
+Each important case owns a small direct Pi script rather than one generic evaluator.
+
+Benefits:
+
+- smallest individual implementation;
+- no generalized lifecycle;
+- easy local reasoning.
+
+Costs:
+
+- duplicated isolation and evidence logic;
+- weaker locality across cases;
+- drift between scripts;
+- poor foundation for later Freeflow skill development.
+
+This is likely too narrow for the intended dogfooding foundation.
+
+## Design-For-Depth Evals Needed
+
+### Patch-stream eval
+
+An approved plan repeatedly exposes lifecycle edge cases. Baseline keeps adding states and flags. Desired behavior identifies growing caller knowledge, freezes edits, and generates different interfaces.
+
+### Caller-choreography eval
+
+A CLI requires callers to coordinate manifests, paths, retries, grades, and integrity. Desired behavior identifies a shallow interface and proposes an outcome-level module.
+
+### Bootstrap-versus-scale eval
+
+The task asks for one trustworthy result, while implementation starts adding cache, resume, concurrency, and adaptive repeats. Desired behavior classifies them as efficiency/scale and defers them.
+
+### Failure-unit eval
+
+A happy path exists and a retry edge appears. Desired behavior chooses atomic outcome and safe restart unit before specifying retry semantics.
+
+### Near-miss eval
+
+A small local reversible function change should not trigger interface fanout, architecture artifacts, or reviewer ceremony.
+
+Useful evidence compares baseline versus with-skill behavior and should make baseline patch forward while the candidate stops, designs alternatives, preserves owner control, and avoids file edits until direction is approved.
+
+## Current Artifact Implication
+
+The current spec and plan were revised toward an attempt-toolkit interface and remain modified but uncommitted. Fresh reviews continued finding lifecycle edge cases because the interface requires callers and artifacts to coordinate low-level protocol.
+
+Do not keep patching those artifacts yet. First decide which evaluator module/interface should own the outcome. If the comparison-run module is selected, rewrite the artifacts around that deep interface and simpler failure contract rather than preserving the current attempt-level CLI.
+
+This is now the central owner decision before any evaluator code work.
+
 ## Unresolved Owner Decisions
 
 Review and discuss before editing:
 
-1. What is the minimum trustworthy bootstrap outcome?
-2. Should current implementation be treated as a prototype, candidate, or near-complete product?
-3. Which scale features stay in bootstrap: cache, waves, concurrency, budgets, adaptive repeats?
-4. Should fingerprints cover full packages, reachable resources, or explicit case manifests?
-5. Can pre-fix runs be reconciled, or must exact current fingerprints exist?
-6. What objective scope/complexity thresholds should force re-entry?
-7. Should acceptance proceed on current architecture before simplification?
-8. Which Freeflow skills should own detection, re-entry, artifact revision, and review?
-9. Should these changes update existing skills only, or does a distinct job/failure mode justify anything new?
-10. How should fresh reviewer checkpoints be bounded so they catch route-changing evidence without becoming mandatory ceremony?
+1. Which evaluator module/interface should own the outcome: comparison-run module, attempt toolkit, case-specific scripts, or another materially different design?
+2. What is the atomic success and failure unit: attempt, variant, comparison bundle, or evaluation session?
+3. Is rerunning a complete comparison after interruption acceptable for the low-volume bootstrap?
+4. Should prototype runs remain documentary evidence only, rather than enter the new runtime's integrity and comparison path?
+5. What is the minimum trustworthy bootstrap outcome after the interface choice?
+6. Should `design-for-depth` be strengthened and evaluated before evaluator implementation resumes, or should its lessons first guide the evaluator artifacts?
+7. Should the current modified spec/plan be discarded and rewritten around the chosen deep interface, or selectively revised?
+8. What objective scope/complexity signals should force re-entry without becoming arbitrary numeric targets?
+9. Which existing Freeflow skills should own design-pressure detection, interface exploration, artifact revision, and implementation re-entry?
+10. How should fresh reviewer and design-alternative fanout be bounded so it catches route-changing evidence without becoming mandatory ceremony?
 
 ## Do Not Do Next
 
@@ -742,6 +1148,7 @@ Until review and owner discussion:
 - do not run more paid model evals;
 - do not finish pending semantic grades automatically;
 - do not patch host-free fingerprinting;
+- do not keep patching or commit the current attempt-toolkit spec/plan before selecting the evaluator interface;
 - do not add more modules, schemas, reports, or cases;
 - do not write `bootstrap-acceptance.md` as if current architecture is already accepted;
 - do not delete current code based only on concern about size;
@@ -751,18 +1158,19 @@ Until review and owner discussion:
 ## Recommended Resume Sequence
 
 1. Read this handoff and reopen live spec, plan, code, tests, and latest run evidence.
-2. Reconfirm branch, worktree, active processes, spend evidence, and `.freeflow/config.json` diff hash.
-3. Keep paid evals paused.
-4. Read applicable Pi subagent instructions fully.
-5. Launch the four read-only reviewer lenses in fresh contexts.
-6. Synthesize findings into keep/simplify/delete/defer and owner-decision groups.
-7. Discuss the smallest credible bootstrap boundary with the owner.
-8. Update spec and plan only after that decision.
-9. Review revised artifacts once in fresh contexts.
-10. Implement only the approved bounded slices.
-11. Run only evidence genuinely required by the revised acceptance contract.
-12. Write acceptance report, run one final read-only audit, adjudicate, and stop.
-13. Resume Agent Skills comparison using this incident as a workflow failure case.
+2. Reconfirm branch, worktree, active processes, spend evidence, and committed `.freeflow/config.json` state.
+3. Keep paid evals and evaluator code changes paused.
+4. Frame the evaluator problem around callers, atomic outcome, failure unit, hidden decisions, and observed constraints.
+5. Use a bounded Pi fresh-context Design It Twice fanout to produce materially different interfaces.
+6. Compare designs by depth, locality, caller knowledge, misuse risk, failure contract, maturity fit, and evidence cost.
+7. Obtain owner selection of the evaluator interface and bootstrap failure contract.
+8. Decide whether to update/evaluate `design-for-depth` before or after the evaluator artifact rewrite.
+9. Rewrite or selectively revise the current uncommitted spec/plan around the chosen interface.
+10. Run one fresh artifact review with calibrated blockers; adjudicate once.
+11. Implement only approved bounded slices.
+12. Run only evidence required by the revised acceptance contract.
+13. Write acceptance report, run final read-only audit, adjudicate, and stop.
+14. Resume the wider Agent Skills comparison using this incident as a workflow and design-pressure eval source.
 
 ## Live Evidence To Reopen
 
