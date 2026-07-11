@@ -50,7 +50,7 @@ export function buildPiInvocation({ prompt, provider, model, thinking, tools, sk
   if (tools.length === 0) args.push("--no-tools");
   else args.push("--tools", tools.join(","));
   if (skillSnapshot) args.push("--skill", skillSnapshot);
-  args.push("--", prompt);
+  args.push(prompt.startsWith("-") ? ` ${prompt}` : prompt);
   return { command: "pi", args };
 }
 
@@ -149,8 +149,7 @@ export async function runPiSubject({ prompt, provider, model, thinking, tools, s
 
 export function redactedInvocation(invocation) {
   const args = [...invocation.args];
-  const separator = args.indexOf("--");
-  if (separator >= 0 && separator + 1 < args.length) args[separator + 1] = "<natural-prompt>";
+  if (args.length > 0) args[args.length - 1] = "<natural-prompt>";
   for (const flag of ["--extension", "--skill"]) {
     const index = args.indexOf(flag);
     if (index >= 0 && index + 1 < args.length) args[index + 1] = `<${flag.slice(2)}>`;

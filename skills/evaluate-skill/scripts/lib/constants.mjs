@@ -1,0 +1,1 @@
+export const DEFAULT_OUTPUT_LIMIT_BYTES = 32 * 1024 * 1024;

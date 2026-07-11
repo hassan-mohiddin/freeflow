@@ -1,7 +1,8 @@
 import { mkdir, readFile, realpath, rename, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import { copyDirectory, makeReadOnly, materializeSkillVariant } from "./materialize.mjs";
-import { hashDirectory } from "./hash.mjs";
+import { hashDirectory, sha256, stableJson } from "./hash.mjs";
+import { DEFAULT_OUTPUT_LIMIT_BYTES } from "./constants.mjs";
 import { isWithin } from "./path-policy.mjs";
 
 function createWaveId(skill) {
@@ -66,7 +67,7 @@ export async function createWave(workspace, plan, options) {
       max_model_requests: Number(options.max_model_requests ?? 1),
       max_usd: options.max_usd === undefined ? null : Number(options.max_usd),
       max_turns_per_job: Number(options.max_turns_per_job ?? 1),
-      output_limit_bytes: Number(options.output_limit_bytes ?? 1048576),
+      output_limit_bytes: Number(options.output_limit_bytes ?? DEFAULT_OUTPUT_LIMIT_BYTES),
     },
     usage: {
       jobs_completed: 0,
@@ -128,6 +129,8 @@ function raisedNumber(previous, next, label) {
 }
 
 export function applyEscalation(wave, options) {
+  const previousTurns = wave.policy.max_turns_per_job;
+  const previousOutput = wave.policy.output_limit_bytes;
   wave.policy.max_model_requests = raisedNumber(wave.policy.max_model_requests, options.max_model_requests, "max_model_requests");
   wave.policy.max_turns_per_job = raisedNumber(wave.policy.max_turns_per_job, options.max_turns_per_job, "max_turns_per_job");
   wave.policy.output_limit_bytes = raisedNumber(wave.policy.output_limit_bytes, options.output_limit_bytes, "output_limit_bytes");
@@ -138,6 +141,26 @@ export function applyEscalation(wave, options) {
     wave.policy.max_usd = next;
   }
   if (options.concurrency !== undefined) wave.policy.concurrency = Number(options.concurrency);
+
+  if (previousTurns !== wave.policy.max_turns_per_job || previousOutput !== wave.policy.output_limit_bytes) {
+    for (const state of wave.jobs.filter((item) => item.status !== "complete")) {
+      const job = wave.plan.jobs[state.index];
+      job.fingerprint_inputs.hard_limits.max_turns_per_job = wave.policy.max_turns_per_job;
+      job.fingerprint_inputs.hard_limits.output_limit_bytes = wave.policy.output_limit_bytes;
+      job.fingerprint = sha256(stableJson(job.fingerprint_inputs));
+      state.verdicts = [];
+      state.configuration_escalations ??= [];
+      state.configuration_escalations.push({
+        at: new Date().toISOString(),
+        max_turns_per_job: wave.policy.max_turns_per_job,
+        output_limit_bytes: wave.policy.output_limit_bytes,
+        fingerprint: job.fingerprint,
+      });
+    }
+    const subjectJobs = wave.plan.expected_model_jobs?.subject ?? 0;
+    if (wave.plan.model_request_bounds) wave.plan.model_request_bounds.subject_max = subjectJobs * wave.policy.max_turns_per_job;
+  }
+
   wave.pause_reason = null;
   return wave;
 }

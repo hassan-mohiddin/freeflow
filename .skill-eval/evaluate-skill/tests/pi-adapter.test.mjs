@@ -15,7 +15,8 @@ test("Pi invocation disables ambient resources and loads only explicit skill and
   for (const flag of ["--no-session", "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files", "--no-approve", "--offline"]) {
     assert.ok(invocation.args.includes(flag), flag);
   }
-  assert.deepEqual(invocation.args.slice(-2), ["--", "natural prompt"]);
+  assert.equal(invocation.args.at(-1), "natural prompt");
+  assert.equal(invocation.args.includes("--"), false);
   const redacted = redactedInvocation(invocation);
   assert.equal(redacted.args.at(-1), "<natural-prompt>");
   assert.equal(redacted.args[redacted.args.indexOf("--skill") + 1], "<skill>");

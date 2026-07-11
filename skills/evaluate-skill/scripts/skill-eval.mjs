@@ -12,6 +12,7 @@ import { collectRuns, createReport } from "./lib/report.mjs";
 import { runPlan } from "./lib/run.mjs";
 import { gradeSemanticRun } from "./lib/semantic.mjs";
 import { loadWave } from "./lib/wave.mjs";
+import { DEFAULT_OUTPUT_LIMIT_BYTES } from "./lib/constants.mjs";
 import { findRepoRoot, initSkillWorkspace, loadSkillWorkspace, readJson } from "./lib/workspace.mjs";
 
 function printJson(value) {
@@ -96,7 +97,7 @@ export async function main(argv = process.argv.slice(2)) {
       ...planOptions,
       ...commonOptions,
       concurrency: commonOptions.concurrency ?? 1,
-      output_limit_bytes: commonOptions.output_limit_bytes ?? 1048576,
+      output_limit_bytes: commonOptions.output_limit_bytes ?? DEFAULT_OUTPUT_LIMIT_BYTES,
     });
     printJson(result);
     return 0;

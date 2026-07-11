@@ -194,6 +194,11 @@ async function executeJob(workspace, job, options, repeat = 0) {
       fingerprint: job.fingerprint,
       grade,
       runtime_verdict: runtimeVerdict,
+      retryable_infrastructure: processFailed
+        && metadata.process.exit_code !== 0
+        && !metadata.process.timed_out
+        && !metadata.process.output_limit_exceeded
+        && !metadata.process.hard_turn_limit_reached,
       provider_requests: counters.provider_requests,
       usage: metadata.usage,
       model_driven: job.model_required,
@@ -289,7 +294,9 @@ export async function runPlan(workspace, plan, options = {}) {
         state.runtime_verdict = result.runtime_verdict;
         state.verdicts ??= [];
         state.verdicts.push(result.runtime_verdict);
-        const repeat = adaptiveRepeatDecision({ verdicts: state.verdicts, repeatsUsed: state.attempts - 1, maxRepeats: repeatLimit });
+        const repeat = result.runtime_verdict === "infrastructure-error" && !result.retryable_infrastructure
+          ? { action: "stop", reason: "hard-limit-needs-attention" }
+          : adaptiveRepeatDecision({ verdicts: state.verdicts, repeatsUsed: state.attempts - 1, maxRepeats: repeatLimit });
         if (repeat.action === "repeat") state.status = "pending";
         else {
           state.status = result.runtime_verdict === "infrastructure-error" ? "needs-attention" : "complete";

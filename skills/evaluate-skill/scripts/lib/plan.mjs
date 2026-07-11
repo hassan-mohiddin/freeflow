@@ -2,6 +2,7 @@ import { access } from "node:fs/promises";
 import { constants } from "node:fs";
 import { resolve } from "node:path";
 import { capabilitiesFor, supportedEvidenceClasses } from "./capabilities.mjs";
+import { DEFAULT_OUTPUT_LIMIT_BYTES } from "./constants.mjs";
 import { hashDirectory, hashGitPath, sha256, stableJson } from "./hash.mjs";
 import { resolveInside } from "./workspace.mjs";
 
@@ -92,7 +93,7 @@ export async function buildPlan(workspace, options) {
         },
         hard_limits: {
           timeout_ms: evalCase.execution.timeout_ms,
-          output_limit_bytes: Number(options.output_limit_bytes ?? 1048576),
+          output_limit_bytes: Number(options.output_limit_bytes ?? DEFAULT_OUTPUT_LIMIT_BYTES),
           max_turns_per_job: Number(options.max_turns_per_job ?? 0),
         },
         adapter_version: ADAPTER_VERSION,

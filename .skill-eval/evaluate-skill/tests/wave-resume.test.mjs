@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 import { hashDirectory } from "../../../skills/evaluate-skill/scripts/lib/hash.mjs";
 import { makeWritable } from "../../../skills/evaluate-skill/scripts/lib/materialize.mjs";
 import { runPlan } from "../../../skills/evaluate-skill/scripts/lib/run.mjs";
-import { loadWave } from "../../../skills/evaluate-skill/scripts/lib/wave.mjs";
+import { applyEscalation, loadWave } from "../../../skills/evaluate-skill/scripts/lib/wave.mjs";
 
 function fakePlan() {
   const baseJob = (caseId) => ({
@@ -95,7 +95,7 @@ test("hard-limit job requires explicit retry on resume", async (t) => {
   t.after(() => rm(root, { recursive: true, force: true }));
   const skillRoot = resolve(root, ".skill-eval", "sample-skill");
   await mkdir(skillRoot, { recursive: true });
-  const workspace = { repoRoot: root, skillRoot, suite: { skill: "sample-skill", profiles: { iterate: { max_repeats: 0 } } } };
+  const workspace = { repoRoot: root, skillRoot, suite: { skill: "sample-skill", profiles: { iterate: { max_repeats: 1 } } } };
   const plan = { ...fakePlan(), jobs: [fakePlan().jobs[0]] };
   let attempt = 0;
   const execute_job = async () => {
@@ -115,6 +115,21 @@ test("hard-limit job requires explicit retry on resume", async (t) => {
   const second = await runPlan(workspace, wave.plan, { wave, retry_needs_attention: true, execute_job });
   assert.equal(second.status, "complete");
   assert.equal(attempt, 2);
+});
+
+test("raising a hard limit gives pending work a new fingerprint", () => {
+  const inputs = { hard_limits: { max_turns_per_job: 2, output_limit_bytes: 1024 }, case: { id: "X" } };
+  const wave = {
+    policy: { max_model_requests: 4, max_turns_per_job: 2, output_limit_bytes: 1024, max_usd: 1, concurrency: 1 },
+    plan: { jobs: [{ fingerprint_inputs: inputs, fingerprint: "old" }], expected_model_jobs: { subject: 1 }, model_request_bounds: { subject_max: 2 } },
+    jobs: [{ index: 0, status: "needs-attention", verdicts: ["infrastructure-error"] }],
+    pause_reason: "hard limit",
+  };
+  applyEscalation(wave, { output_limit_bytes: 2048 });
+  assert.notEqual(wave.plan.jobs[0].fingerprint, "old");
+  assert.equal(wave.plan.jobs[0].fingerprint_inputs.hard_limits.output_limit_bytes, 2048);
+  assert.deepEqual(wave.jobs[0].verdicts, []);
+  assert.equal(wave.jobs[0].configuration_escalations.length, 1);
 });
 
 test("resume refuses cap reduction", async (t) => {

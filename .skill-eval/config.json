@@ -6,7 +6,7 @@
     "concurrency": 1,
     "max_repeats": 1,
     "timeout_ms": 180000,
-    "output_limit_bytes": 1048576,
+    "output_limit_bytes": 33554432,
     "control_cache_max_age_hours": 24
   },
   "required_owner_inputs": [

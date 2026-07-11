@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
+import { DEFAULT_OUTPUT_LIMIT_BYTES } from "./constants.mjs";
 
-export function runProcess(command, args, { cwd, env, timeoutMs = 180000, outputLimitBytes = 1048576, signal } = {}) {
+export function runProcess(command, args, { cwd, env, timeoutMs = 180000, outputLimitBytes = DEFAULT_OUTPUT_LIMIT_BYTES, signal } = {}) {
   return new Promise((resolve, reject) => {
     const startedAt = new Date();
     const child = spawn(command, args, {

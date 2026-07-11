@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import { readJson } from "./workspace.mjs";
+import { DEFAULT_OUTPUT_LIMIT_BYTES } from "./constants.mjs";
 import { runPiSubject } from "./pi-adapter.mjs";
 import { SoftWaveBudget } from "./scheduler.mjs";
 
@@ -82,7 +83,7 @@ export async function gradeSemanticRun(runDir, options) {
       readRoots: [workspace],
       writeRoots: [workspace],
       timeoutMs: Number(options.timeout_ms ?? 180000),
-      outputLimitBytes: Number(options.output_limit_bytes ?? 1048576),
+      outputLimitBytes: Number(options.output_limit_bytes ?? DEFAULT_OUTPUT_LIMIT_BYTES),
       maxTurns: Number(options.max_turns_per_job),
     });
     budget.recordJob({ providerRequests: subject.runtime_counters.provider_requests, usage: subject.parsed.usage, costExpected: true });
