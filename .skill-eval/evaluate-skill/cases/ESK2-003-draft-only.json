@@ -29,10 +29,10 @@
     },
     {
       "id": "draft-status",
-      "type": "json_field",
+      "type": "json_field_in",
       "path": ".skill-eval/answer-question/cases/AQ-001.json",
       "field": "status",
-      "equals": "draft"
+      "values": ["draft", "draft-unevaluated", "unverified"]
     },
     {
       "id": "no-run-state",

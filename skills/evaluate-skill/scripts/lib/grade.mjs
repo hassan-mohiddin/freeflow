@@ -110,6 +110,14 @@ export async function gradeObjectiveRun(runDir) {
         evidence = { actual, expected: assertion.equals };
         break;
       }
+      case "json_field_in": {
+        const text = await readOptional(resolve(assertionRoot, assertion.path));
+        let actual = null;
+        try { actual = getField(JSON.parse(text), assertion.field); } catch {}
+        state = assertion.values.includes(actual) ? "pass" : "fail";
+        evidence = { actual, expected_one_of: assertion.values };
+        break;
+      }
       case "unsupported_evidence_class": {
         const actual = metadata.evidence_classes?.requested?.[assertion.evidence_class];
         state = actual === "unsupported" ? "pass" : "fail";

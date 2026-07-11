@@ -37,6 +37,7 @@ const ASSERTION_TYPES = new Set([
   "path_unchanged",
   "file_contains",
   "json_field",
+  "json_field_in",
   "forbidden_text",
   "unsupported_evidence_class",
 ]);
@@ -126,12 +127,13 @@ export function validateCase(value, { path = "case" } = {}) {
     if (assertionIds.has(assertion.id)) throw new Error(`${path} has duplicate assertion: ${assertion.id}`);
     assertionIds.add(assertion.id);
     if (assertion.type === "semantic") requireString(assertion.rubric, `${path}.${assertion.id}.rubric`);
-    if (new Set(["path_exists", "skill_frontmatter", "line_count", "path_unchanged", "file_contains", "json_field", "forbidden_text"]).has(assertion.type)) {
+    if (new Set(["path_exists", "skill_frontmatter", "line_count", "path_unchanged", "file_contains", "json_field", "json_field_in", "forbidden_text"]).has(assertion.type)) {
       requireString(assertion.path, `${path}.${assertion.id}.path`);
       resolveInside("/owned", assertion.path, `${path}.${assertion.id}.path`);
     }
     if (assertion.type === "changed_paths" && !Array.isArray(assertion.equals)) throw new Error(`${path}.${assertion.id}.equals must be an array`);
     if (assertion.type === "line_count" && (!Number.isInteger(assertion.max) || assertion.max < 1)) throw new Error(`${path}.${assertion.id}.max must be positive`);
+    if (assertion.type === "json_field_in" && (!Array.isArray(assertion.values) || assertion.values.length === 0)) throw new Error(`${path}.${assertion.id}.values must be a non-empty array`);
   }
   return value;
 }
