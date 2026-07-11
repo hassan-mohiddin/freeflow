@@ -47,6 +47,8 @@ disabled_by_env="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$tmp_dir" | FREEFLOW
 
 post_tool_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$tmp_dir" | node "$HOOK_PATH" PostToolUse)"
 [[ -z "$post_tool_output" ]] || fail "PostToolUse should not inject runtime context"
+user_prompt_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$tmp_dir" | node "$HOOK_PATH" UserPromptSubmit)"
+[[ -z "$user_prompt_output" ]] || fail "UserPromptSubmit should not duplicate session-start runtime context"
 
 for expected in \
   "# Freeflow Runtime Context" \
@@ -54,6 +56,9 @@ for expected in \
   "Runtime delivery: confirmed for this lifecycle-hook invocation." \
   "# Freeflow Runtime Kernel" \
   "act as a collaborative engineering partner" \
+  'sets, resets, infers, or asks about Freeflow mode, load `mode-contract`' \
+  "# Freeflow Workflow Bootstrap" \
+  "Use an adaptive engineering loop, not a one-way checklist" \
   'Current Freeflow default mode: `workflow`.' \
   'Skills: enabled' \
   'Output router: disabled' \
@@ -72,10 +77,13 @@ for excluded_heading in \
 do
   assert_not_contains "$codex_output" "$excluded_heading" "default context"
 done
+workflow_bootstrap_count="$(grep -Fo '# Freeflow Workflow Bootstrap' <<<"$codex_output" | wc -l | tr -d ' ')"
+[[ "$workflow_bootstrap_count" == "1" ]] || fail "Codex SessionStart should load Workflow exactly once"
 
 claude_output="$(printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s"}\n' "$tmp_dir" | node "$HOOK_PATH" SessionStart)"
 assert_contains "$claude_output" '"hookEventName":"SessionStart"' "Claude wrapper"
 assert_contains "$claude_output" "# Freeflow Runtime Kernel" "Claude config-only context"
+assert_contains "$claude_output" "# Freeflow Workflow Bootstrap" "Claude first-turn context"
 assert_contains "$claude_output" "act as a collaborative engineering partner" "Claude config-only context"
 
 for source in startup resume clear compact; do
@@ -119,6 +127,7 @@ router_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$router_dir" | node "$
 assert_contains "$router_output" "Skills: disabled" "router-only context"
 assert_contains "$router_output" "## Loaded Output Router Skill" "router-only context"
 assert_not_contains "$router_output" "# Freeflow Runtime Kernel" "router-only context"
+assert_not_contains "$router_output" "# Freeflow Workflow Bootstrap" "router-only context"
 rm -rf "$router_dir"
 
 all_dir="$(mktemp -d)"

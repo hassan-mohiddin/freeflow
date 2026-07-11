@@ -72,6 +72,7 @@ const RESET_MODE_ARGS = new Set(["reset"]);
 export const FREEFLOW_STATUS_TOOL_NAME = "freeflow_status";
 export const OUTPUT_ROUTER_TOOL_NAMES = ["freeflow_search", "freeflow_run", "freeflow_batch"];
 export const DELEGATION_HARNESS_ENV_FLAG = "FREEFLOW_DELEGATION_HARNESS_ENABLED";
+export const WORKFLOW_BOOTSTRAP_MESSAGE_TYPE = "freeflow-workflow-bootstrap";
 
 let runtimeContextCache = null;
 let currentModeOverride = null;
@@ -80,22 +81,23 @@ async function loadRuntimeContext(capabilityState = undefined) {
   const skillsEnabled = capabilityState?.skills?.effective === true;
   const outputRouterEnabled = capabilityState?.outputRouter?.enabled === true;
   const delegationHarnessEnabled = capabilityState?.delegationHarness?.enabled === true;
-  const [runtimeKernel, outputRouterSkill, delegationHarnessSkill] = await Promise.all([
+  const [runtimeKernel, workflowSkill, outputRouterSkill, delegationHarnessSkill] = await Promise.all([
     skillsEnabled
       ? readFile(new URL("../../skills/decision-gate/references/runtime-kernel.md", import.meta.url), "utf8")
       : Promise.resolve(null),
+    skillsEnabled ? readFile(new URL("../../skills/workflow/SKILL.md", import.meta.url), "utf8") : Promise.resolve(null),
     outputRouterEnabled ? readFile(new URL("../../skills/output-router/SKILL.md", import.meta.url), "utf8") : Promise.resolve(null),
     delegationHarnessEnabled ? readFile(new URL("../../skills/delegation-harness/SKILL.md", import.meta.url), "utf8") : Promise.resolve(null),
   ]);
 
-  return { runtimeKernel, outputRouterSkill, delegationHarnessSkill };
+  return { runtimeKernel, workflowSkill, outputRouterSkill, delegationHarnessSkill };
 }
 
 function runtimeContextCacheSatisfies(capabilityState) {
   if (!runtimeContextCache) {
     return false;
   }
-  if (capabilityState?.skills?.effective === true && !runtimeContextCache.runtimeKernel) {
+  if (capabilityState?.skills?.effective === true && (!runtimeContextCache.runtimeKernel || !runtimeContextCache.workflowSkill)) {
     return false;
   }
   if (capabilityState?.outputRouter?.enabled === true && !runtimeContextCache.outputRouterSkill) {
@@ -117,6 +119,46 @@ export async function getRuntimeContext(capabilityState = undefined) {
     return runtimeContextCache;
   }
   return refreshRuntimeContext(capabilityState);
+}
+
+function activeSessionEntries(sessionManager) {
+  try {
+    if (typeof sessionManager?.buildContextEntries === "function") {
+      const entries = sessionManager.buildContextEntries();
+      if (Array.isArray(entries)) {
+        return entries;
+      }
+    }
+    if (typeof sessionManager?.getEntries === "function") {
+      const entries = sessionManager.getEntries();
+      if (Array.isArray(entries)) {
+        return entries;
+      }
+    }
+  } catch {
+    // A missing session snapshot should reload useful context rather than suppress it.
+  }
+  return [];
+}
+
+export function workflowBootstrapMessage(freeflowContext, capabilityState, sessionManager) {
+  if (capabilityState?.skills?.effective !== true || !freeflowContext?.workflowSkill) {
+    return undefined;
+  }
+
+  const alreadyLoaded = activeSessionEntries(sessionManager).some(
+    (entry) => entry?.type === "custom_message" && entry?.customType === WORKFLOW_BOOTSTRAP_MESSAGE_TYPE,
+  );
+  if (alreadyLoaded) {
+    return undefined;
+  }
+
+  return {
+    customType: WORKFLOW_BOOTSTRAP_MESSAGE_TYPE,
+    content: `# Freeflow Workflow Bootstrap\n\n${freeflowContext.workflowSkill.trim()}`,
+    display: false,
+    details: { skill: "workflow", source: "first-turn-bootstrap" },
+  };
 }
 
 function isRecord(value) {

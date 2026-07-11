@@ -48,7 +48,7 @@ Output Router and Delegation Harness remain disabled by default. Never enable ob
 
 ## Activate This Session
 
-After writing config, read `../decision-gate/references/runtime-kernel.md` and apply it for the rest of the current setup turn/session. Read `../output-router/SKILL.md` or `../delegation-harness/SKILL.md` when that capability is effective after setup, whether newly enabled or preserved from valid config. Do not paste runtime context into a host instruction file.
+After writing config, read `../decision-gate/references/runtime-kernel.md` and `../workflow/SKILL.md` and apply them for the rest of the current setup turn/session. Read `../output-router/SKILL.md` or `../delegation-harness/SKILL.md` when that capability is effective after setup, whether newly enabled or preserved from valid config. Do not paste runtime context into a host instruction file.
 
 If the host loads runtime context only at session lifecycle boundaries, tell the user to start, resume, clear, or compact as appropriate before relying on automatic injection. Report capability context as loaded only when its enabled skill body was read successfully.
 

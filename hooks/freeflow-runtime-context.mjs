@@ -53,6 +53,9 @@ function loadRuntimeContext(options = {}) {
   const runtimeKernel = includeSkills
     ? readText(path.join(PLUGIN_ROOT, "skills", "decision-gate", "references", "runtime-kernel.md"))
     : null;
+  const workflowSkill = includeSkills
+    ? readText(path.join(PLUGIN_ROOT, "skills", "workflow", "SKILL.md"))
+    : null;
   const outputRouterSkill = includeOutputRouter
     ? readText(path.join(PLUGIN_ROOT, "skills", "output-router", "SKILL.md"))
     : null;
@@ -61,14 +64,14 @@ function loadRuntimeContext(options = {}) {
     : null;
 
   if (
-    (includeSkills && !runtimeKernel) ||
+    (includeSkills && (!runtimeKernel || !workflowSkill)) ||
     (includeOutputRouter && !outputRouterSkill) ||
     (includeDelegationHarness && !delegationHarnessSkill)
   ) {
     throw new Error("Freeflow runtime context files are missing.");
   }
 
-  return { runtimeKernel, outputRouterSkill, delegationHarnessSkill };
+  return { runtimeKernel, workflowSkill, outputRouterSkill, delegationHarnessSkill };
 }
 
 function readConfig(root) {
@@ -173,7 +176,6 @@ function modeGuidance(mode) {
     "- `conversation`: answer, discuss, critique, and inspect read-only; switch modes before mutating state.",
     "- `workflow`: use the adaptive workflow for normal consequential work.",
     "- `strict-workflow`: strengthen user-owned decisions, review, and verification for high-risk or hard-to-reverse work.",
-    "For mode changes or mode interpretation, use `mode-contract`.",
     "Do not announce the current mode on every reply. Mention it when the user asks, setup/config is discussed, or the mode changes the next action."
   ];
 }
@@ -229,13 +231,20 @@ function buildContext(input) {
     ].join("\n");
   }
 
-  const { runtimeKernel, outputRouterSkill, delegationHarnessSkill } = loadRuntimeContext({
+  const { runtimeKernel, workflowSkill, outputRouterSkill, delegationHarnessSkill } = loadRuntimeContext({
     skills: setup.config.skillsEnabled,
     outputRouter: setup.config.outputRouterEnabled,
     delegationHarness: setup.config.delegationHarnessEnabled,
   });
   const skillSections = setup.config.skillsEnabled
-    ? ["", runtimeKernel.trim()]
+    ? [
+        "",
+        runtimeKernel.trim(),
+        "",
+        "# Freeflow Workflow Bootstrap",
+        "",
+        workflowSkill.trim(),
+      ]
     : [];
   const outputRouterSection = setup.config.outputRouterEnabled
     ? [

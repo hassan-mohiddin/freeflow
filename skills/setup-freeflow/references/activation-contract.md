@@ -31,9 +31,9 @@ Missing or invalid config means Freeflow is not active for the repo. `"enabled":
 Activation and delivery are separate facts:
 
 - **Repo activation:** valid `.freeflow/config.json`.
-- **Runtime delivery:** the current host's installed, trusted adapter injects the canonical compact kernel.
+- **Runtime delivery:** the current host's installed, trusted adapter injects the canonical compact kernel and loads the full Workflow skill once into session context.
 
-Pi uses the extension's `before_agent_start` path and appends to the existing system prompt. Codex and Claude use the packaged lifecycle hook. Adapters load `skills/decision-gate/references/runtime-kernel.md`; they do not inject full always-on `mode-contract`, `workflow`, or `decision-gate` bodies.
+Pi uses the extension's `before_agent_start` path, appends the kernel to the existing system prompt, and stores Workflow as a hidden persistent custom message. Codex and Claude use the packaged lifecycle hook. Adapters load `skills/decision-gate/references/runtime-kernel.md` and bootstrap the full `skills/workflow/SKILL.md`; full `mode-contract` and `decision-gate` bodies remain on demand.
 
 Output Router and Delegation Harness remain independent capability sections controlled by config. The compact-kernel change does not alter their skill bodies, tool/runtime ownership, opt-in defaults, or setup policy.
 
@@ -58,4 +58,4 @@ Setup must be:
 - non-mutating toward user-owned host instructions;
 - free of generated replacement kernels;
 - explicit about runtime-hook evidence;
-- compatible with same-session kernel loading and conditional enabled-capability loading without claiming lifecycle injection already occurred.
+- compatible with same-session kernel, Workflow, and conditional enabled-capability loading without claiming lifecycle injection already occurred.

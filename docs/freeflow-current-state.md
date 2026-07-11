@@ -12,7 +12,7 @@ Freeflow is a portable workflow skill pack for coding agents.
 ## Current Status
 
 - Product name: Freeflow.
-- Plugin runtime: the repo root, the single source of truth for manifests, skills, references, evals, command-surface metadata, and refined plugin docs.
+- Source tree: the repo root is the single source of truth for manifests, skills, references, evals, command-surface metadata, and refined plugin docs; the npm tarball includes only runtime-required files.
 - Marketplace repo root: contains GitHub README, license, changelog, `plugin-docs/`, `docs/`, Codex marketplace index, Claude marketplace index, and Pi package manifest.
 - Current package version: `0.3.0`.
 - License target: MIT.
@@ -29,7 +29,7 @@ Freeflow is a portable workflow skill pack for coding agents.
 - Optional candidates: `deprecation-and-migration`, `finish-branch`, `release-work`, `shipping-and-launch`, and `simplify-code`; `tdd` is an optional execution method.
 - Decision authority: `decision-gate` is the active skill name and runtime path; legacy `IVG-*` IDs and historical reports remain historical evidence for the former `interview-gate` behavior.
 - Native slash handlers: not shipped for Codex/Claude in the current release; Pi exposes direct Freeflow commands through its extension.
-- Runtime context loading: Codex/Claude plugin-bundled hooks and the Pi extension load one canonical compact kernel from `skills/decision-gate/references/runtime-kernel.md`; global installs stay inert until valid `.freeflow/config.json` exists, Pi appends only effective runtime layers before each agent turn, and full workflow skills remain on demand.
+- Runtime context loading: Codex/Claude plugin-bundled hooks and the Pi extension load one canonical compact kernel from `skills/decision-gate/references/runtime-kernel.md`; global installs stay inert until valid `.freeflow/config.json` exists. The full Workflow skill loads once on the first turn, while Mode Contract and other workflow skills remain on demand. Pi keeps the kernel in every system prompt and Workflow in one hidden persistent session message, suppressing that message while Skills are disabled. Deterministic runtime tests cover injection and deduplication; behavioral effectiveness remains Unverified.
 - Active discovery skill: `discover`; deprecated `research-brief`, `grill-context`, and `capture-decisions` live under root `deprecated/skills/` outside the runtime surface.
 - Router runtime source is organized by responsibility under `router/src/` (`tools/`, `transform/`, `evidence/`, `vault/`, `repo/`, `routing/`, `sandbox/`, `config/`, `benchmarks/`, `experiments/`); deprecated router references live under `deprecated/router/`.
 - npm Trusted Publisher: configured for GitHub Actions workflow `.github/workflows/release.yml` with environment `npm`.
@@ -47,6 +47,8 @@ The public repository includes:
 - Active runtime skills, bundled references, eval definitions, eval reports, and command-surface metadata.
 - Refined user-facing plugin docs under `plugin-docs/`.
 - Project-development docs under `docs/` for planning, current state, research, and handoffs.
+
+The npm runtime tarball excludes root `evals/`, `plugin-docs/`, and project-development docs; those remain GitHub evidence and documentation surfaces.
 
 The public repository excludes:
 

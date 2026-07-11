@@ -64,7 +64,7 @@ freeflow/
   skills/
 ```
 
-`plugin-docs/` contains public plugin docs. `docs/` contains project-development memory. Generated eval run output stays ignored under `evals/runs/`.
+`plugin-docs/` contains public plugin docs. `evals/` contains development definitions and evidence. `docs/` contains project-development memory. These remain in the GitHub repository; `plugin-docs/`, root `evals/`, and project docs are excluded from the npm runtime tarball. Generated eval run output stays ignored under `evals/runs/`.
 
 ## Codex Manifest
 
@@ -97,7 +97,7 @@ The root `package.json` exposes the repo as a Pi package:
 - `pi.skills`: `[]` (skill exposure is dynamic)
 - `pi.extensions`: `pi-extension/freeflow/index.js`
 
-The Pi extension registers direct Freeflow commands, keeps `/freeflow mode` changes session-scoped, distinguishes temporary Session mode from persisted Default mode in `/freeflow`, exposes setup/model skills dynamically after repo setup, loads the canonical compact kernel plus independently enabled capability context on session start and compact, and appends that context to the existing system prompt before every agent turn. It stays inert until valid `.freeflow/config.json` exists, and top-level `enabled: false` suppresses Freeflow context, tools, routing, and delegation. It does not enforce policy, grant permissions, or create repo-local hooks.
+The Pi extension registers direct Freeflow commands, keeps `/freeflow mode` changes session-scoped, distinguishes temporary Session mode from persisted Default mode in `/freeflow`, exposes setup/model skills dynamically after repo setup, loads the canonical compact kernel plus independently enabled capability context on session start and compact, appends system context to the existing prompt before every agent turn, and loads the full Workflow skill once as a hidden persistent first-turn message. It stays inert until valid `.freeflow/config.json` exists, and top-level `enabled: false` suppresses Freeflow context, tools, routing, and delegation. It does not enforce policy, grant permissions, or create repo-local hooks.
 
 ## README Shape
 

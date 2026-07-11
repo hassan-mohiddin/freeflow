@@ -12,6 +12,7 @@ import {
 import {
   CONTRIBUTOR_COMMANDS,
   WORKFLOW_COMMANDS,
+  WORKFLOW_BOOTSTRAP_MESSAGE_TYPE,
   FREEFLOW_STATUS_TOOL_NAME,
   freeflowModelSkillPaths,
   freeflowSkillPath,
@@ -23,6 +24,7 @@ import {
   refreshRuntimeContext,
   restoreModeOverride,
   runtimeContext,
+  workflowBootstrapMessage,
   setModeStatus,
   skillPrompt,
   notifyRouterConfigWarnings,
@@ -181,14 +183,28 @@ export default function freeflow(pi) {
     notifyRouterConfigWarnings(ctx, routerConfigResult);
     await applyCapabilityToolVisibility(pi, ctx, capabilityState);
     const freeflowRuntimeContext = runtimeContext(modeState, freeflowContext, routerConfigResult, capabilityState);
+    const workflowMessage = workflowBootstrapMessage(freeflowContext, capabilityState, ctx.sessionManager);
     const systemPrompt = freeflowRuntimeContext
       ? `${event.systemPrompt}\n\n${freeflowRuntimeContext}`
       : event.systemPrompt;
     return {
+      message: workflowMessage,
       systemPrompt: capabilityState.delegationHarness.enabled
         ? await appendDelegatedRuntimeContext(pi, event, ctx, systemPrompt)
         : systemPrompt,
     };
+  });
+
+  pi.on("context", async (event, ctx) => {
+    const capabilityState = await readCapabilityState(ctx.cwd);
+    if (capabilityState.skills.effective) {
+      return undefined;
+    }
+
+    const messages = event.messages.filter(
+      (message) => !(message?.role === "custom" && message?.customType === WORKFLOW_BOOTSTRAP_MESSAGE_TYPE),
+    );
+    return messages.length === event.messages.length ? undefined : { messages };
   });
 
   pi.on("tool_call", async (event, ctx) => {

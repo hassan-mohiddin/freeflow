@@ -12,7 +12,7 @@ For each eval:
 
 1. Copy `evals/fixtures/tiny-saas-app` into an isolated run directory.
 2. Run a baseline agent with no freeflow skills.
-3. Run a with-skill agent with the canonical runtime kernel plus the specific skill bodies required by the eval.
+3. Run a with-skill agent with the canonical runtime kernel, the full first-turn Workflow bootstrap, and the specific additional skill bodies required by the eval.
 4. Capture:
    - final response
    - changed files

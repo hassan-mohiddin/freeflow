@@ -66,6 +66,7 @@ claude_marketplace="$repo_root/.claude-plugin/marketplace.json"
 codex_manifest="$plugin_root/.codex-plugin/plugin.json"
 claude_manifest="$plugin_root/.claude-plugin/plugin.json"
 command_surface="$plugin_root/command-surface.json"
+package_json="$plugin_root/package.json"
 command_audit="$plugin_root/evals/scripts/audit-command-surface.sh"
 runtime_hooks_json="$plugin_root/hooks/hooks.json"
 runtime_hook_script="$plugin_root/hooks/freeflow-runtime-context.mjs"
@@ -160,7 +161,7 @@ contains_fixed() {
 check_json_shape() {
   local check="json-shape"
   local ok=1
-  for file in "$codex_marketplace" "$claude_marketplace" "$codex_manifest" "$claude_manifest" "$command_surface" "$runtime_hooks_json"; do
+  for file in "$codex_marketplace" "$claude_marketplace" "$codex_manifest" "$claude_manifest" "$command_surface" "$runtime_hooks_json" "$package_json"; do
     require_file "$check" "$file" || ok=0
     if [ -f "$file" ]; then
       if ! jq empty "$file" >/dev/null; then
@@ -250,13 +251,13 @@ check_release_boundary() {
     require_file "$check" "$file" || ok=0
   done
 
-  contains_fixed "$release_boundary_adr" "one plugin runtime under the repo root" || {
-    record_check "$check" "fail" "ADR 0003 no longer states the single runtime boundary."
+  contains_fixed "$release_boundary_adr" "The npm tarball is the installable runtime artifact" || {
+    record_check "$check" "fail" "ADR 0003 no longer states the npm runtime boundary."
     ok=0
   }
 
-  contains_fixed "$release_boundary_adr" "runtime excludes generated eval run output" || {
-    record_check "$check" "fail" "ADR 0003 no longer excludes generated eval run output."
+  contains_fixed "$release_boundary_adr" 'It excludes GitHub-only `plugin-docs/`, root `evals/`' || {
+    record_check "$check" "fail" "ADR 0003 no longer excludes GitHub-only docs and eval evidence from npm."
     ok=0
   }
 
@@ -332,8 +333,18 @@ check_package_cleanliness() {
     ok=0
   fi
 
+  if jq -e '.files[] | select(startswith("plugin-docs/") or startswith("evals/"))' "$package_json" >/dev/null; then
+    record_check "$check" "fail" "The npm runtime package includes GitHub-only plugin docs or eval evidence."
+    ok=0
+  fi
+
+  if rg -n '\]\((plugin-docs|evals)/' "$plugin_root/README.md" >/dev/null; then
+    record_check "$check" "fail" "README contains relative links to files excluded from the npm tarball."
+    ok=0
+  fi
+
   if [ "$ok" = "1" ]; then
-    record_check "$check" "pass" "Generated runs are ignored, no duplicate manifests were found, and old command compatibility is absent."
+    record_check "$check" "pass" "Generated runs are ignored, GitHub-only docs/evals are excluded from npm, no duplicate manifests were found, and old command compatibility is absent."
   fi
 }
 

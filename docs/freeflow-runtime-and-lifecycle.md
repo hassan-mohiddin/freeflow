@@ -80,7 +80,7 @@ Do not add version fields without an accepted compatibility requirement.
 
 Setup does not create or modify Freeflow text in `AGENTS.md`, `CLAUDE.md`, `.claude/rules/`, or `.codex/rules/`. Those files remain repo-owned instructions, not activation markers.
 
-A valid config proves repo activation. It does not prove runtime delivery. The current host must have an installed and trusted adapter that loads `skills/decision-gate/references/runtime-kernel.md` as system context.
+A valid config proves repo activation. It does not prove runtime delivery. The current host must have an installed and trusted adapter that loads `skills/decision-gate/references/runtime-kernel.md` as system context and the full `skills/workflow/SKILL.md` once into session context.
 
 Setup should report runtime delivery separately as confirmed, unavailable, or unconfirmed. For Codex and Claude, host trust and hook registration remain visible through host hook/plugin status. If the adapter is absent, disabled, denied, unsupported, or cannot be verified, say so rather than copying the kernel into repo instructions.
 
@@ -98,7 +98,7 @@ ADRs remain reserved for hard-to-reverse, surprising, tradeoff-driven decisions.
 
 ## Runtime Context Hooks
 
-Freeflow ships one canonical compact runtime kernel through host adapters. Codex and Claude use the plugin-bundled lifecycle hook; Pi uses `before_agent_start` and appends to the existing system prompt.
+Freeflow ships one canonical compact runtime kernel plus a first-turn Workflow bootstrap through host adapters. The kernel routes mode-setting, reset, inference, or discussion to the full Mode Contract on demand. Codex and Claude use the plugin-bundled lifecycle hook; Pi uses `before_agent_start`, appends the kernel to the existing system prompt, and stores Workflow as a hidden persistent custom message.
 
 Adapters should:
 
@@ -106,11 +106,14 @@ Adapters should:
 - treat config as the only activation boundary
 - suppress all Freeflow runtime context when top-level `enabled: false`
 - load `skills/decision-gate/references/runtime-kernel.md` only when `skills.enabled` is effective
-- keep full `mode-contract`, `workflow`, `decision-gate`, `discover`, and other skills available on demand rather than injecting their bodies
+- load the full `skills/workflow/SKILL.md` on the first turn, including a conversational greeting
+- avoid duplicating Workflow while its stable bootstrap marker remains in active session context
+- allow later Workflow reads through normal progressive disclosure
+- keep full `mode-contract`, `decision-gate`, `discover`, and other skills available on demand
 - load `skills/output-router/SKILL.md` only when Output Router is effective
 - load `skills/delegation-harness/SKILL.md` only when Delegation Harness is effective
 - run on session start for startup, resume, clear, and compact in Codex/Claude
-- refresh and append effective context before every Pi agent turn
+- refresh and append effective system context before every Pi agent turn while keeping the full Workflow body in persistent session context
 
 They should not:
 
@@ -122,7 +125,7 @@ They should not:
 - read host instruction files as activation markers
 - replace or rewrite the existing system prompt
 
-After successful verification, setup itself should read and apply the canonical kernel plus any capability skill effective in the resulting config so the current setup session can continue consistently. If automatic delivery begins only at a lifecycle boundary, setup should report the required reload and classify delivery as confirmed, unavailable, or unconfirmed.
+After successful verification, setup itself should read and apply the canonical kernel, full Workflow skill, and any capability skill effective in the resulting config so the current setup session can continue consistently. If automatic delivery begins only at a lifecycle boundary, setup should report the required reload and classify delivery as confirmed, unavailable, or unconfirmed.
 
 ## Existing Rule Conflicts
 

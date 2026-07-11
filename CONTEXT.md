@@ -129,7 +129,7 @@ The bootstrapping problem where Freeflow cannot be the main process for building
 _Avoid_: circular dependency
 
 **Plugin Runtime**:
-The installable Freeflow plugin at the repo root, including manifests, skills, references, public docs, evals, and command-surface metadata.
+The installable Freeflow skills, hooks, manifests, built routing/delegation code, and Pi extension sourced from the repo root. GitHub also contains public docs and eval evidence that are excluded from npm.
 _Avoid_: duplicate package copy, generated mirror
 
 **Activation Boundary**:
@@ -137,8 +137,12 @@ A valid `.freeflow/config.json`; the only repo state that activates Freeflow.
 _Avoid_: AGENTS/CLAUDE activation block, generated rule file
 
 **Runtime Kernel**:
-The canonical compact always-loaded behavior contract shared by host adapters while full skills remain available on demand.
+The canonical compact system-level behavior contract shared by host adapters on every turn.
 _Avoid_: duplicated core skill bodies, host-file copy
+
+**Workflow Bootstrap**:
+The full Workflow skill loaded once on the first turn into persistent session context; it is separate from the per-turn kernel.
+_Avoid_: repeated Workflow messages, one-turn-only system injection
 
 **Runtime Delivery**:
 Evidence that the current host adapter actually loaded the kernel; separate from repo activation.

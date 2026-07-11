@@ -1,12 +1,12 @@
 # Skills
 
-Freeflow ships a small workflow skill pack. Natural language is the preferred interface. In Codex/Claude, slash-style phrases work as model-routed skill hints; in Pi, the extension registers the direct calls declared in `command-surface.json` and exposes model skills only after `/setup-freeflow` creates `.freeflow/config.json` and skills are enabled. Cross-cutting skills such as `decision-gate`, `design-for-depth`, and `tdd` remain model-routed unless explicitly listed as direct calls.
+Freeflow ships a small workflow skill pack. Natural language is the preferred interface. In Codex/Claude, slash-style phrases work as model-routed skill hints; in Pi, the extension registers the direct calls declared in `command-surface.json` and exposes model skills only after `/setup-freeflow` creates `.freeflow/config.json` and skills are enabled. The full `workflow` skill loads once on the first turn; later reads remain available through progressive disclosure. Cross-cutting skills such as `mode-contract`, `decision-gate`, `design-for-depth`, and `tdd` remain model-routed unless explicitly listed as direct calls.
 
 ## Core
 
 | Skill | Use When |
 | --- | --- |
-| `workflow` | Choosing the next workflow entry point or explaining the full flow. |
+| `workflow` | Loaded on the first turn to establish routing; read again later when deeper workflow detail is useful. |
 | `mode-contract` | Inferring or switching `conversation`, `workflow`, or `strict-workflow`. |
 | `decision-gate` | A user-owned decision, source conflict, or material path substitution would change the next action. |
 | `output-router` | Choosing routed tools for large/noisy output, vault recovery, or output-router configuration. |

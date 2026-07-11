@@ -14,13 +14,13 @@ Do not generate host-specific Freeflow instructions in `AGENTS.md`, `CLAUDE.md`,
 
 ## Pi
 
-The Freeflow Pi extension reads valid repo config before each agent turn and appends the canonical runtime kernel to `event.systemPrompt`. It must preserve the existing prompt.
+The Freeflow Pi extension reads valid repo config before each agent turn, appends the canonical runtime kernel to `event.systemPrompt`, and loads the full Workflow skill as a hidden persistent custom message on the first turn. It must preserve the existing prompt and avoid duplicate Workflow messages while the stable marker remains active.
 
-Confirm delivery through the extension status surface or a runtime-context test when available. A config written during setup takes effect on the next `before_agent_start` turn; read the kernel and any capability skill effective after setup directly for the remainder of the setup turn.
+Confirm delivery through the extension status surface or a runtime-context test when available. A config written during setup takes effect on the next `before_agent_start` turn; read the kernel, Workflow, and any capability skill effective after setup directly for the remainder of the setup turn.
 
 ## Codex And Claude
 
-The packaged lifecycle hook reads valid repo config and injects the same canonical kernel at session start, resume, clear, and compact lifecycle boundaries supported by the host.
+The packaged lifecycle hook reads valid repo config and injects the same canonical kernel plus one full Workflow bootstrap at session start, resume, clear, and compact lifecycle boundaries supported by the host.
 
 After first-time setup, use the host's relevant reload/resume lifecycle before relying on automatic injection.
 

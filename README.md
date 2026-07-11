@@ -20,7 +20,7 @@ Use Freeflow when your agent needs to:
 | ---: | ---: | ---: | ---: | ---: |
 | retrieval context | command-output context | structured-Q&A context | source-truth conflict handling | acceptance fixtures |
 
-Those numbers come from Freeflow’s internal baseline-vs-Freeflow reports in [`evals/reports/`](evals/reports/). They are deterministic fixture results, not universal guarantees. The workflow scores and prior setup reports predate the current adaptive and config-only runtime revisions; they are historical evidence, and the candidate remains Unverified.
+Those numbers come from Freeflow’s internal baseline-vs-Freeflow reports in [`evals/reports/`](https://github.com/hassan-mohiddin/freeflow/tree/main/evals/reports). They are deterministic fixture results, not universal guarantees. The workflow scores and prior setup reports predate the current adaptive and config-only runtime revisions; they are historical evidence, and the candidate remains Unverified.
 
 ## The Failure Mode
 
@@ -66,7 +66,7 @@ Freeflow ships short behavior-shaping skills for the moments where agents tend t
 | Closeout and delivery | [`review-work`](skills/review-work/SKILL.md), [`verify-work`](skills/verify-work/SKILL.md), [`commit-work`](skills/commit-work/SKILL.md), [`handoff`](skills/handoff/SKILL.md), [`finish-branch`](skills/finish-branch/SKILL.md), [`release-work`](skills/release-work/SKILL.md), [`shipping-and-launch`](skills/shipping-and-launch/SKILL.md) | Review, verify, checkpoint, integrate, release, deploy, and preserve continuation context deliberately. |
 | Capabilities and contributor | [`output-router`](skills/output-router/SKILL.md), [`delegation-harness`](skills/delegation-harness/SKILL.md), [`setup-freeflow`](skills/setup-freeflow/SKILL.md), [`write-skill`](skills/write-skill/SKILL.md), [`evaluate-skill`](skills/evaluate-skill/SKILL.md) | Route evidence and independent contexts, install Freeflow, and improve/evaluate skill behavior. |
 
-The current adaptive-workflow, config-only activation, and compact-kernel revisions are Unverified pending behavioral evaluation. Optional candidate skills are `deprecation-and-migration`, `finish-branch`, `release-work`, `shipping-and-launch`, and `simplify-code`; `tdd` is an optional execution method.
+The current adaptive-workflow, config-only activation, compact-kernel, and first-turn Workflow-bootstrap revisions are Unverified pending behavioral evaluation. Optional candidate skills are `deprecation-and-migration`, `finish-branch`, `release-work`, `shipping-and-launch`, and `simplify-code`; `tdd` is an optional execution method.
 
 ## Context Is For Decisions, Not Dumps
 
@@ -99,21 +99,21 @@ Freeflow’s claims are baseline-vs-Freeflow claims from reports in this reposit
 
 | Report | Baseline | With Freeflow | What It Shows |
 | --- | ---: | ---: | --- |
-| [v0.1 acceptance suite](evals/reports/acceptance/v0.1-acceptance-report.md) | - | 15/15 pass | Required release behaviors passed after measured fixes. |
-| [Historical source-truth conflict](evals/reports/runtime/always-on-runtime-1-report.md) | 2/10 | 10/10 | Freeflow stopped a pressured billing rewrite, made no edits, named the conflict, and asked for the policy decision. |
-| [Write spec from stale handoff](evals/reports/by-skill/write-spec-1-report.md) | 4/10 | 10/10 | Freeflow refused to create a spec that superseded live billing policy from stale handoff text. |
-| [Write plan with hidden billing decision](evals/reports/by-skill/write-plan-1-report.md) | 4/10 | 10/10 | Freeflow created no plan, named the policy conflict, and asked which path to follow. |
-| [Discover](evals/reports/by-skill/discover-1-report.md) | fixture-gated | pass | Freeflow resisted long questionnaire pressure and used evidence-backed discovery checkpoints. |
+| [v0.1 acceptance suite](https://github.com/hassan-mohiddin/freeflow/blob/main/evals/reports/acceptance/v0.1-acceptance-report.md) | - | 15/15 pass | Required release behaviors passed after measured fixes. |
+| [Historical source-truth conflict](https://github.com/hassan-mohiddin/freeflow/blob/main/evals/reports/runtime/always-on-runtime-1-report.md) | 2/10 | 10/10 | Freeflow stopped a pressured billing rewrite, made no edits, named the conflict, and asked for the policy decision. |
+| [Write spec from stale handoff](https://github.com/hassan-mohiddin/freeflow/blob/main/evals/reports/by-skill/write-spec-1-report.md) | 4/10 | 10/10 | Freeflow refused to create a spec that superseded live billing policy from stale handoff text. |
+| [Write plan with hidden billing decision](https://github.com/hassan-mohiddin/freeflow/blob/main/evals/reports/by-skill/write-plan-1-report.md) | 4/10 | 10/10 | Freeflow created no plan, named the policy conflict, and asked which path to follow. |
+| [Discover](https://github.com/hassan-mohiddin/freeflow/blob/main/evals/reports/by-skill/discover-1-report.md) | fixture-gated | pass | Freeflow resisted long questionnaire pressure and used evidence-backed discovery checkpoints. |
 
 ### Output Router
 
 | Report | Result | Context/Token Effect |
 | --- | --- | --- |
-| [Retrieval benchmark](evals/reports/runtime/output-router-benchmark-1-report.md) | 7/7 gated fixtures passed; 0/7 generated false positives | `511,618` raw bytes to `7,473` routed bytes — **98.54%** weighted reduction. |
-| [Command-output benchmark](evals/reports/runtime/output-router-command-benchmark-1-report.md) | 8/8 fixtures passed; exact fact preservation 8/8; raw recovery 8/8 | `71,893` raw bytes to `10,760` routed bytes — **85.03%** weighted reduction. |
-| [Codex structured Q&A benchmark](evals/reports/runtime/output-router-codex-qa-benchmark-1-report.md) | 1/1 gated fixture passed; generated decoy avoided | `580,499` raw bytes to `2,892` context bytes — **99.50%** weighted reduction. |
-| [Pi observed-routing eval](evals/reports/runtime/pi-observed-routing-eval-1-report.md) | 28/28 objective gates passed | **82.2%** overall byte reduction across configured MCP/web/fetch/code-search fixtures. |
-| [Storage-policy benchmark](evals/reports/runtime/storage-policy-benchmark-1-report.md) | Hybrid exactness + duplicate dedupe preserved exact-sensitive recovery 8/8 | **74.96%** storage/token-surface reduction in benchmark policy fixtures. |
+| [Retrieval benchmark](https://github.com/hassan-mohiddin/freeflow/blob/main/evals/reports/runtime/output-router-benchmark-1-report.md) | 7/7 gated fixtures passed; 0/7 generated false positives | `511,618` raw bytes to `7,473` routed bytes — **98.54%** weighted reduction. |
+| [Command-output benchmark](https://github.com/hassan-mohiddin/freeflow/blob/main/evals/reports/runtime/output-router-command-benchmark-1-report.md) | 8/8 fixtures passed; exact fact preservation 8/8; raw recovery 8/8 | `71,893` raw bytes to `10,760` routed bytes — **85.03%** weighted reduction. |
+| [Codex structured Q&A benchmark](https://github.com/hassan-mohiddin/freeflow/blob/main/evals/reports/runtime/output-router-codex-qa-benchmark-1-report.md) | 1/1 gated fixture passed; generated decoy avoided | `580,499` raw bytes to `2,892` context bytes — **99.50%** weighted reduction. |
+| [Pi observed-routing eval](https://github.com/hassan-mohiddin/freeflow/blob/main/evals/reports/runtime/pi-observed-routing-eval-1-report.md) | 28/28 objective gates passed | **82.2%** overall byte reduction across configured MCP/web/fetch/code-search fixtures. |
+| [Storage-policy benchmark](https://github.com/hassan-mohiddin/freeflow/blob/main/evals/reports/runtime/storage-policy-benchmark-1-report.md) | Hybrid exactness + duplicate dedupe preserved exact-sensitive recovery 8/8 | **74.96%** storage/token-surface reduction in benchmark policy fixtures. |
 
 These are deterministic fixtures, not universal cost guarantees. They are meant to make regressions visible and keep claims reproducible.
 
@@ -181,7 +181,7 @@ Run this in every repo after installing Freeflow:
 
 Setup creates `.freeflow/config.json`, the sole repo activation boundary. It preserves `AGENTS.md`, `CLAUDE.md`, and host rule files; it does not generate replacement Freeflow instructions, repo-local hooks, docs inventories, state files, or handoffs.
 
-After successful setup, the setup skill reads and applies the canonical compact runtime kernel plus any capability skill effective after setup for the current session. It reports repo activation separately from whether the current host adapter is confirmed, unavailable, or unconfirmed.
+After successful setup, the setup skill reads and applies the canonical compact runtime kernel, full Workflow skill, and any capability skill effective after setup for the current session. It reports repo activation separately from whether the current host adapter is confirmed, unavailable, or unconfirmed.
 
 ### Required Step 2: Enable Hooks
 
@@ -193,17 +193,17 @@ In Codex, open the hooks screen and trust the Freeflow `SessionStart` hook:
 
 Press `t` to trust/enable the hook when Codex marks it as needing review.
 
-Once enabled, the hook stays inert until `.freeflow/config.json` is valid. It then loads one canonical compact runtime kernel plus independently enabled capability context at session start, resume, clear, and compact. Full workflow skills remain available on demand. Top-level `enabled: false` disables hook context.
+Once enabled, the hook stays inert until `.freeflow/config.json` is valid. It then loads one canonical compact runtime kernel, one full first-turn Workflow bootstrap, and independently enabled capability context at session start, resume, clear, and compact. Mode Contract and other workflow skills remain available on demand. Top-level `enabled: false` disables hook context.
 
 If Codex or Claude marks the hook unavailable, disabled, denied, or untrusted, setup reports runtime delivery separately instead of treating config as proof that the hook ran. Use the host's hook/plugin status surface to resolve it; Freeflow does not copy the kernel into repo instructions as a fallback.
 
-In Pi, Freeflow's package extension provides the context-loading hook through Pi lifecycle events. It refreshes effective workflow/capability context on session start and compact, then appends it to the existing system prompt before agent turns. If you install it project-locally, trust the project when Pi prompts for project-local package resources.
+In Pi, Freeflow's package extension provides the context-loading hook through Pi lifecycle events. It refreshes effective workflow/capability context on session start and compact, appends the compact kernel to the existing system prompt before agent turns, and stores full Workflow as one hidden persistent first-turn message. If you install it project-locally, trust the project when Pi prompts for project-local package resources.
 
 These hooks do not run after every edit, block tools, grant permissions, or enforce workflow policy.
 
 ### Other Agents
 
-Copy the `skills/` directory into the agent's skills/plugin system and make sure the agent can read `SKILL.md` files with bundled `references/`. Automatic Freeflow activation also requires a host adapter that checks valid `.freeflow/config.json` and appends the canonical runtime kernel; without one, skills remain on demand and runtime delivery is unconfirmed.
+Copy the `skills/` directory into the agent's skills/plugin system and make sure the agent can read `SKILL.md` files with bundled `references/`. Automatic Freeflow activation also requires a host adapter that checks valid `.freeflow/config.json`, appends the canonical runtime kernel, and bootstraps full Workflow once; without one, skills remain on demand and runtime delivery is unconfirmed.
 
 ## Usage
 
@@ -275,13 +275,15 @@ Mode commands switch the current task/session mode only. Persisting a repo defau
 
 ## Docs
 
-- [Docs index](plugin-docs/README.md)
-- [Workflow](plugin-docs/workflow.md)
-- [Skills](plugin-docs/skills.md)
-- [Output Router](plugin-docs/output-router.md)
-- [Architecture](plugin-docs/architecture.md)
-- [Release evidence](plugin-docs/release-evidence.md)
-- [ADRs](plugin-docs/adr/README.md)
+Public docs and eval evidence live on GitHub and are intentionally excluded from the npm runtime tarball.
+
+- [Docs index](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/README.md)
+- [Workflow](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/workflow.md)
+- [Skills](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/skills.md)
+- [Output Router](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/output-router.md)
+- [Architecture](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/architecture.md)
+- [Release evidence](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/release-evidence.md)
+- [ADRs](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/adr/README.md)
 
 ## What Freeflow Is Not
 

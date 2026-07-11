@@ -42,7 +42,7 @@ function loadExtension() {
   return { handlers, tools, commands, entries, activeToolNames: () => activeToolNames ?? tools.map((tool) => tool.name) };
 }
 
-function context(cwd = process.cwd()) {
+function context(cwd = process.cwd(), sessionEntries = []) {
   const notifications = [];
   const reloads = [];
   const statuses = [];
@@ -56,7 +56,10 @@ function context(cwd = process.cwd()) {
     },
     sessionManager: {
       getEntries() {
-        return [];
+        return sessionEntries;
+      },
+      buildContextEntries() {
+        return sessionEntries;
       },
     },
     ui: {
@@ -207,6 +210,7 @@ test("Pi skills toggle suppresses workflow skills while allowing enabled router 
 
     const ctx = context(cwd);
     const result = await handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
+    assert.equal(result.message, undefined);
     assert.doesNotMatch(result.systemPrompt, /# Freeflow Runtime Kernel/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Decision Gate Skill/);
@@ -587,7 +591,7 @@ test("Pi before_agent_start keeps output-router disabled by default", async () =
   }
 });
 
-test("Pi before_agent_start injects the compact runtime kernel instead of full workflow skills", async () => {
+test("Pi before_agent_start keeps the per-turn system context to the compact runtime kernel", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-runtime-kernel-"));
   try {
     await mkdir(join(cwd, ".freeflow"));
@@ -602,10 +606,85 @@ test("Pi before_agent_start injects the compact runtime kernel instead of full w
     assert.match(result.systemPrompt, /# Freeflow Runtime Kernel/);
     assert.match(result.systemPrompt, /Runtime delivery: confirmed for this Pi `before_agent_start` invocation/);
     assert.match(result.systemPrompt, /act as a collaborative engineering partner/i);
+    assert.match(result.systemPrompt, /sets, resets, infers, or asks about Freeflow mode.*load `mode-contract`/i);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Mode Contract Skill/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Decision Gate Skill/);
     assert.doesNotMatch(result.systemPrompt, /## Discovery-light/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi loads the full Workflow skill as one persistent first-turn message", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-workflow-bootstrap-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow" }, null, 2), "utf8");
+
+    const { handlers } = loadExtension();
+    const beforeAgentStart = handlers.get("before_agent_start");
+    assert.ok(beforeAgentStart);
+
+    const sessionEntries = [];
+    const ctx = context(cwd, sessionEntries);
+    const first = await beforeAgentStart({ prompt: "hi", systemPrompt: "base prompt" }, ctx);
+
+    assert.equal(first.message.customType, "freeflow-workflow-bootstrap");
+    assert.equal(first.message.display, false);
+    assert.match(first.message.content, /^# Freeflow Workflow Bootstrap/);
+    assert.match(first.message.content, /# Workflow/);
+    assert.match(first.message.content, /Use an adaptive engineering loop, not a one-way checklist/);
+    assert.doesNotMatch(first.systemPrompt, /# Freeflow Workflow Bootstrap/);
+
+    sessionEntries.push({
+      type: "custom_message",
+      id: "workflow-bootstrap-entry",
+      parentId: null,
+      timestamp: new Date().toISOString(),
+      customType: first.message.customType,
+      content: first.message.content,
+      display: first.message.display,
+      details: first.message.details,
+    });
+    const later = await beforeAgentStart({ prompt: "implement the feature", systemPrompt: "base prompt" }, ctx);
+
+    assert.equal(later.message, undefined);
+    assert.match(later.systemPrompt, /# Freeflow Runtime Kernel/);
+
+    const compactedContext = context(cwd, []);
+    const afterCompaction = await beforeAgentStart({ prompt: "continue", systemPrompt: "base prompt" }, compactedContext);
+    assert.equal(afterCompaction.message.customType, "freeflow-workflow-bootstrap");
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi suppresses persisted Workflow context while Skills are disabled", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-workflow-bootstrap-disabled-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    const configPath = join(cwd, ".freeflow/config.json");
+    await writeFile(configPath, JSON.stringify({ defaultMode: "workflow", skills: { enabled: false } }, null, 2), "utf8");
+
+    const { handlers } = loadExtension();
+    const contextHandler = handlers.get("context");
+    assert.ok(contextHandler);
+
+    const workflowMessage = {
+      role: "custom",
+      customType: "freeflow-workflow-bootstrap",
+      content: "# Freeflow Workflow Bootstrap",
+      display: false,
+      timestamp: Date.now(),
+    };
+    const userMessage = { role: "user", content: "hello", timestamp: Date.now() };
+    const disabled = await contextHandler({ messages: [workflowMessage, userMessage] }, context(cwd));
+    assert.deepEqual(disabled.messages, [userMessage]);
+
+    await writeFile(configPath, JSON.stringify({ defaultMode: "workflow" }, null, 2), "utf8");
+    const enabled = await contextHandler({ messages: [workflowMessage, userMessage] }, context(cwd));
+    assert.equal(enabled, undefined);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

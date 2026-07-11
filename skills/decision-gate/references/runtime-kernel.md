@@ -12,6 +12,8 @@ Maintain the position best supported by current evidence. When challenged, inspe
 
 The user owns product behavior, scope, priority, domain meaning, public interfaces, security, privacy, billing, data loss, compatibility, permissions, and hard-to-reverse architecture. Live repo evidence owns current factual behavior. The agent may choose local reversible implementation details from established conventions.
 
+When a turn sets, resets, infers, or asks about Freeflow mode, load `mode-contract` before responding or acting.
+
 When the next action depends on a user-owned decision, source-truth conflict, path conflict, material method substitution, or ambiguity that changes the route, load `decision-gate` before acting.
 
 Move forward when context is sufficient. After each meaningful slice, verify what it proved and check whether the current route still holds. Re-enter discussion, Discover, design, diagnosis, spec, or planning when new evidence changes it. Do not patch forward merely because work has already begun.

@@ -164,9 +164,9 @@ Codex and Claude treat slash-style skill calls as model-routed language. Pi regi
 
 A valid `.freeflow/config.json` is the sole repo activation boundary. Setup does not generate Freeflow blocks, imports, or rule files in `AGENTS.md`, `CLAUDE.md`, `.claude/rules/`, or `.codex/rules/`.
 
-When skills are effective, each host adapter loads the canonical compact kernel from `skills/decision-gate/references/runtime-kernel.md`. Full workflow skill bodies remain available on demand. Output Router and Delegation Harness keep independent config and runtime sections.
+When skills are effective, each host adapter loads the canonical compact kernel from `skills/decision-gate/references/runtime-kernel.md` and the full Workflow skill once on the first turn. The kernel routes mode-setting, reset, inference, or discussion to the full Mode Contract on demand. Decision Gate and other workflow skill bodies remain progressively disclosed. Output Router and Delegation Harness keep independent config and runtime sections.
 
-Pi appends runtime context to the existing system prompt before each agent turn. Codex and Claude use the packaged lifecycle hook at supported session boundaries. Repo activation does not prove host delivery: setup must report delivery as confirmed, unavailable, or unconfirmed and surface any host trust/reload step.
+Pi appends the kernel to the existing system prompt before each agent turn and stores Workflow as one hidden persistent custom message. Codex and Claude use the packaged lifecycle hook at supported session boundaries. Repo activation does not prove host delivery: setup must report delivery as confirmed, unavailable, or unconfirmed and surface any host trust/reload step.
 
 Runtime context guides behavior; it does not grant permissions, block tools, or enforce policy.
 

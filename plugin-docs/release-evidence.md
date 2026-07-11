@@ -1,6 +1,6 @@
 # Release Evidence
 
-Freeflow v0.3.0 is based on the v0.1 local acceptance suite plus targeted runtime, setup, and output-router evidence from the development repository. The current adaptive-workflow revisions, config-only activation contract, compact runtime kernel, and newly added candidate skills have not yet received behavioral evaluation; the workflow and prior setup evidence below is historical and does not verify that candidate snapshot.
+Freeflow v0.3.0 is based on the v0.1 local acceptance suite plus targeted runtime, setup, and output-router evidence from the development repository. The current adaptive-workflow revisions, config-only activation contract, compact runtime kernel, first-turn Workflow bootstrap, and newly added candidate skills have not yet received behavioral evaluation; the workflow and prior setup evidence below is historical and does not verify that candidate snapshot.
 
 ## Acceptance Summary
 
@@ -28,9 +28,9 @@ Codex/Claude native slash handlers are not shipped in this release. In those hos
 
 ## Runtime Context
 
-Freeflow ships plugin-bundled context hooks that stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape. When configured and enabled, they load one canonical compact runtime kernel plus independently enabled capability context at session start. The Pi extension appends effective runtime context to the existing system prompt before every agent turn. Top-level `enabled: false` suppresses Freeflow context/tools/routing/delegation; `skills.enabled: false` suppresses workflow skill exposure and the kernel while leaving enabled capabilities available. Full workflow skill bodies and deep references remain available on demand rather than being injected wholesale; enabled capability sections keep their existing runtime behavior. These hooks do not run after edit/write tools, enforce behavior, block tools, or create repo-local hook files.
+Freeflow ships plugin-bundled context hooks that stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape. When configured and enabled, they load one canonical compact runtime kernel, the full Workflow skill once on the first turn, and independently enabled capability context at session start. The Pi extension appends effective system context before every agent turn and stores Workflow as one hidden persistent custom message. Top-level `enabled: false` suppresses Freeflow context/tools/routing/delegation; `skills.enabled: false` suppresses workflow skill exposure, the kernel, and the Workflow bootstrap while leaving enabled capabilities available. Mode Contract, Decision Gate, other workflow skill bodies, and deep references remain available on demand; enabled capability sections keep their existing runtime behavior. These hooks do not run after edit/write tools, enforce behavior, block tools, or create repo-local hook files.
 
-For the same session that runs setup, `setup-freeflow` reads and applies the canonical kernel plus any capability skill effective after setup following successful verification before saying current-session context is loaded.
+For the same session that runs setup, `setup-freeflow` reads and applies the canonical kernel, full Workflow skill, and any capability skill effective after setup following successful verification before saying current-session context is loaded.
 
 Host trust prompts for plugin hooks are expected host behavior. Setup reports runtime delivery as confirmed, unavailable, or unconfirmed. `STP-012` registers the untrusted-hook pressure case but remains Unverified. Local metadata validation checks hook packaging and deterministic output, not end-to-end host trust UI.
 
@@ -64,7 +64,7 @@ Adoption decisions:
 
 ## Release Metadata
 
-Run `evals/scripts/validate-release-metadata.sh` for local prepublish checks across marketplace metadata, host manifests, command-surface routing, release-boundary docs, package cleanliness, and deferred install-smoke status.
+Run `evals/scripts/validate-release-metadata.sh` for local prepublish checks across marketplace metadata, host manifests, command-surface routing, release-boundary docs, package cleanliness, and deferred install-smoke status. The npm runtime tarball excludes GitHub-only `plugin-docs/` and root `evals/` content.
 
 Run `evals/scripts/check-runtime-context-hook.sh` after changing lifecycle context hooks.
 

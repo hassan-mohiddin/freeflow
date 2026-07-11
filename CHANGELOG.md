@@ -7,6 +7,8 @@
 - Adds optional Unverified candidates for simplification, deprecation/migration, branch completion, release, and production launch, plus an optional TDD execution method.
 - Adds Pi/direct command routes for the five optional lifecycle candidates. The adaptive candidate remains Unverified pending behavioral evaluation.
 - Makes `.freeflow/config.json` the sole repo activation boundary and replaces duplicated always-on core skill bodies with one canonical compact runtime kernel across Pi, Codex, and Claude; setup preserves host instruction files and reports runtime delivery separately.
+- Loads the full Workflow skill once on the first session turn, keeps the compact kernel in per-turn system context, and routes mode questions or changes to Mode Contract on demand.
+- Excludes GitHub-only plugin docs and eval evidence from the npm runtime tarball; README evidence/docs links now target GitHub.
 
 ## 0.3.0 - 2026-06-28
 

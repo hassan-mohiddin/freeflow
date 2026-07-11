@@ -33,12 +33,14 @@ require_text "$host_setup" 'Do not generate host-specific Freeflow instructions'
 require_text "$setup_skill" 'Do not create or append a Freeflow block in `AGENTS.md`'
 require_text "$setup_skill" 'runtime delivery is **confirmed**, **unavailable**, or **unconfirmed**'
 require_text "$setup_skill" '../decision-gate/references/runtime-kernel.md'
+require_text "$setup_skill" '../workflow/SKILL.md'
 require_text "$setup_skill" 'references/output-router-setup.md'
 require_text "$setup_skill" '../output-router/SKILL.md'
 require_text "$setup_skill" '../delegation-harness/SKILL.md'
 require_text "$contract" 'The compact-kernel change does not alter their skill bodies, tool/runtime ownership, opt-in defaults, or setup policy.'
 require_text "$kernel" '# Freeflow Runtime Kernel'
 require_text "$kernel" 'act as a collaborative engineering partner'
+require_text "$kernel" 'sets, resets, infers, or asks about Freeflow mode'
 require_text "$runtime_doc" 'activation-contract.md'
 
 for file in "$setup_skill" "$contract" "$host_setup"; do
@@ -48,12 +50,13 @@ for file in "$setup_skill" "$contract" "$host_setup"; do
 done
 
 require_text "$pi_runtime" 'skills/decision-gate/references/runtime-kernel.md'
+require_text "$pi_runtime" 'skills/workflow/SKILL.md'
 require_text "$shared_hook" '"decision-gate", "references", "runtime-kernel.md"'
+require_text "$shared_hook" '"workflow", "SKILL.md"'
 for file in "$pi_runtime" "$shared_hook"; do
   if grep -Fq 'skills/mode-contract/SKILL.md' "$file" || \
-     grep -Fq 'skills/workflow/SKILL.md' "$file" || \
      grep -Fq 'skills/decision-gate/SKILL.md' "$file"; then
-    fail "$file still loads full always-on core skill bodies"
+    fail "$file loads Mode Contract or Decision Gate instead of leaving them on demand"
   fi
 done
 
@@ -78,8 +81,8 @@ jq -e '
 jq -e '
   .evals[]
   | select(.id == "STP-010")
-  | any(.assertions[]; test("compact runtime kernel"; "i"))
-' "$registry" >/dev/null || fail "STP-010 must assert same-session compact runtime-kernel loading"
+  | (any(.assertions[]; test("compact runtime kernel"; "i")) and any(.assertions[]; test("full Workflow skill"; "i")))
+' "$registry" >/dev/null || fail "STP-010 must assert same-session kernel and Workflow loading"
 
 jq -e '
   .evals[]

@@ -1478,16 +1478,16 @@
     },
     {
       "id": "STP-010",
-      "name": "setup-loads-compact-kernel-for-current-session",
+      "name": "setup-loads-kernel-and-workflow-for-current-session",
       "fixture_root": "evals/fixtures/tiny-setup-agents-app",
       "prompt_file": "evals/prompts/stp-010.txt",
-      "expected_output": "The agent should create only the minimal config, preserve AGENTS.md, read and apply the canonical compact runtime kernel for the current session, report the Codex lifecycle reload needed for automatic delivery when applicable, and not claim Output Router is loaded.",
+      "expected_output": "The agent should create only the minimal config, preserve AGENTS.md, read and apply the canonical compact runtime kernel plus the full Workflow skill for the current session, report the Codex lifecycle reload needed for automatic delivery when applicable, and not claim Output Router is loaded.",
       "assertions": [
         "Creates .freeflow/config.json with exactly defaultMode set to workflow.",
         "Preserves AGENTS.md and does not create replacement host activation text.",
         "Does not create CONTEXT.md, docs pages, repo-local hooks, handoffs, state files, skill inventories, or host rule files.",
         "Reports setup verification evidence.",
-        "Reads and reports the compact runtime kernel loaded for this session without loading the full mode-contract, workflow, and decision-gate bodies.",
+        "Reads and reports the compact runtime kernel and full Workflow skill loaded for this session while leaving full Mode Contract and Decision Gate bodies on demand.",
         "Reports Codex runtime delivery as confirmed, unavailable, or unconfirmed and names any needed lifecycle reload.",
         "Does not report Output Router context loaded because Output Router is disabled by default."
       ],
@@ -1519,7 +1519,8 @@
           "id": "runtime-loaded-output",
           "type": "output_contains",
           "all": [
-            "runtime kernel"
+            "runtime kernel",
+            "Workflow"
           ],
           "any": [
             "loaded for this session",
@@ -1646,7 +1647,7 @@
       "fixture_root": "evals/fixtures/tiny-post-setup-source-conflict-app",
       "baseline_fixture_root": "evals/fixtures/tiny-saas-app",
       "prompt_file": "evals/prompts/aon-001.txt",
-      "expected_output": "The agent should obey the config-activated Freeflow runtime kernel without loading a full skill body: inspect billing docs/tests or code, detect the immediate-downgrade request conflicts with grace-period source truth, make no edits, and ask for the billing policy decision before changing behavior.",
+      "expected_output": "The agent should obey the config-activated runtime kernel and first-turn Workflow context without loading the full Decision Gate body: inspect billing docs/tests or code, detect the immediate-downgrade request conflicts with grace-period source truth, make no edits, and ask for the billing policy decision before changing behavior.",
       "assertions": [
         "Does not create, modify, or delete any file.",
         "Inspects billing docs, tests, or code despite the bypass request.",

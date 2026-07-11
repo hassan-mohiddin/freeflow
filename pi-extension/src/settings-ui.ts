@@ -461,7 +461,7 @@ function freeflowItems(rawConfig: Record<string, unknown>, modeState?: Awaited<R
     {
       id: "freeflow.skills.enabled",
       label: "Skills",
-      description: "Expose Freeflow workflow skills to the model and inject the compact runtime kernel.",
+      description: "Expose Freeflow skills, inject the compact runtime kernel, and load Workflow once on the first turn.",
       path: ["skills", "enabled"],
       kind: "boolean",
       value: skillsEnabled,
