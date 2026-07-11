@@ -66,7 +66,8 @@ Final wording and token usage varied, as expected. Both responses gave the same 
 The Pi one-shot adapter is accepted for further bootstrap cases with:
 
 - no `--` separator before the prompt;
-- a 32 MiB raw JSONL hard cap;
 - hard-limit failures requiring explicit retry rather than automatic identical repeats;
 - soft request/spend caps still checked between jobs;
 - frozen wave resume preserving completed evidence and changing the fingerprint when hard limits change.
+
+Follow-up evidence from the multi-tool `WSK2-001` pressure case showed that 32 MiB was still too small for Pi JSON message-update events under `gpt-5.5/high`: a healthy five-request job reached the cap before writing its artifact. The default raw stream cap is therefore 128 MiB. This remains a protocol-stream safety bound, not a model-token budget.

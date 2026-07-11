@@ -9,12 +9,16 @@ description: Create or revise agent skills. Use when defining a skill's trigger 
 
 Write the smallest agent-first skill that changes the target behavior.
 
+## Readiness Gate
+
+A request for "production-ready" asks for evidence, not a label. If the repo has no saved behavioral evidence for the new or revised skill, deliver an Unverified candidate. Never write `Production-Ready`, `validated`, or equivalent into the skill or final response solely because the user requested it.
+
 ## Before Writing
 
 - Name the behavior, trigger, pressure, and failure the skill must handle.
 - Inspect live repo conventions and existing evidence before inventing structure.
 - Treat an explicit draft request as a draft. Do not force evaluation.
-- Treat production-ready as an evidence claim. If behavior is unevaluated, label it Draft or Unverified.
+- Label unevaluated behavior Draft or Unverified and name the missing evidence.
 - Follow user constraints. Permission to skip work is not pressure to ignore; a prohibition is a prohibition.
 - For a new skill, the first deliverable is one `SKILL.md`. "Add references, examples, or scripts if useful" is permission, not evidence that they are needed.
 
