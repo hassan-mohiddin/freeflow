@@ -1,6 +1,7 @@
 # Implementation Scope Drift And Replanning Handoff
 
 Date: 2026-07-11
+Updated: 2026-07-11 — outcome-level evaluator architecture selected; artifact-review reliability incident added
 
 ## Purpose
 
@@ -9,6 +10,10 @@ Preserve what happened while bootstrapping Freeflow's v2 `write-skill` and `eval
 This handoff is memory, not authority. Reopen linked live files, inspect current git state, and confirm owner decisions before consequential work. Do not treat hypotheses below as accepted product decisions.
 
 Owner update: use Pi fresh-context subagents, not cmux, for independent reviews. This handoff remains the durable failure context; no additional handoff is required before revising the owning spec and plan.
+
+Later owner update: evaluator architecture is now agreed at the outcome level. One `evaluate` call owns one case, performs deterministic preflight internally, stops before provider work when invalid or unresolved, otherwise executes all case-declared variants serially and publishes one trusted result bundle. Evaluator batching is deferred; output-router or shell composition may invoke independent commands later.
+
+The subsequent artifact-review incident exposed a second system-level problem: a strong generator is not enough when the reviewer is uncalibrated. Review-system findings and current route are recorded below.
 
 ## Executive Summary
 
@@ -1017,9 +1022,11 @@ skills/design-for-depth/references/interface-design-loop.md
 
 It should contain the design-twice process, comparison criteria, and owner gate. No new skill is justified.
 
-## Candidate Architecture Directions For `evaluate-skill`
+## Historical Architecture Directions For `evaluate-skill`
 
-These remain design options, not accepted decisions.
+These were the alternatives considered before the owner selected the outcome-level evaluator architecture. They remain useful design history, not current options or implementation authority.
+
+The accepted direction deepened Option 1 further: instead of public `plan`, `run`, `grade`, and `report` choreography, one public `evaluate` operation owns deterministic preflight, execution, grading, comparison, integrity, and publication. Optional `--plan-only` supports preview without making planning a required separate lifecycle.
 
 ### Option 1: Comparison-run module
 
@@ -1053,7 +1060,7 @@ Benefits:
 
 Tradeoff: a crash after control can require rerunning control. For a low-volume bootstrap, explicit repeated cost may be safer than lifecycle machinery.
 
-This is the current recommendation, not yet owner-approved.
+This was the provisional recommendation. The owner later approved its outcome-level principle and simplified the public shape further to one `evaluate` operation.
 
 ### Option 2: Attempt toolkit
 
@@ -1073,7 +1080,7 @@ Costs:
 - every recovery edge adds states and flags;
 - recreates mature harness concerns inside bootstrap.
 
-This resembles the current uncommitted spec/plan direction and is not recommended for bootstrap.
+This resembled the earlier uncommitted spec/plan direction. It was rejected for bootstrap and no longer describes the current artifacts.
 
 ### Option 3: Case-specific direct scripts
 
@@ -1118,59 +1125,452 @@ A small local reversible function change should not trigger interface fanout, ar
 
 Useful evidence compares baseline versus with-skill behavior and should make baseline patch forward while the candidate stops, designs alternatives, preserves owner control, and avoids file edits until direction is approved.
 
+## Outcome-Level Evaluator Decision
+
+The owner selected the deep outcome-level evaluator architecture.
+
+Public shape:
+
+```bash
+skill-eval doctor
+skill-eval init
+skill-eval evaluate --skill <name> --case <id> ...
+```
+
+Normal evaluation flow:
+
+```text
+one evaluate call
+-> deterministic no-provider preflight
+-> stop when invalid, unsupported, changed, over limit, or unapproved
+-> otherwise execute one complete case
+-> run case-declared variants serially
+-> grade objective evidence
+-> use fresh semantic judgment only when fixed assertions require it
+-> atomically publish one trusted result bundle
+```
+
+Optional `--plan-only` supports preview. It is not a required caller-managed lifecycle.
+
+Confirmed boundaries:
+
+- one case per invocation;
+- a case may be single-subject or reference-versus-candidate;
+- complete case result is atomic success unit;
+- infrastructure failure publishes diagnostics only;
+- restart reruns whole case;
+- no cache, resume, partial reuse, concurrency, adaptive repeats, public attempts, public grading, or public report assembly;
+- no batching inside evaluator;
+- output router or shell composition may combine independent commands later;
+- Pi is the concrete only host;
+- prototype runs remain documentary evidence only.
+
+The spec and plan were rewritten around this architecture and remain modified but uncommitted. No evaluator code or paid model eval followed the rewrite.
+
+## Artifact Review Reliability Incident
+
+The rewritten artifacts were sent through fresh Pi reviewer fanout. The first review was useful. The confirmation review then reproduced the exact review-loop failure Freeflow's `review-artifact` and `review-work` skills were designed to prevent.
+
+### First review pass
+
+Two reviewers agreed the deep architecture was coherent, bounded, Pi-first, and implementable. They found three real public/trust gaps:
+
+1. Single-variant activation cases could not produce the only advertised comparative verdict.
+2. The artifact conflated Pi processes, turns, and observed provider requests in the owner-approved budget contract.
+3. Terminal JSON, exit status, and error-channel behavior were not defined enough for an automation-facing CLI.
+
+Parent adjudication: accepted all three.
+
+Initial owner decisions and artifact revisions:
+
+- distinguish one-subject single cases from `reference`/`candidate` comparisons;
+- make budget units explicit instead of conflating Pi process, turn, and observed provider request;
+- return machine-readable operational outcomes.
+
+The first implementation of those decisions overreached: it added an `unsupported` top-level verdict, an unproven global provider-request hard cap, and an exhaustive envelope/exit taxonomy. The later parent review-delta audit kept the underlying findings and simplified their solutions.
+
+The original findings affected observable behavior, trust, or owner-approved resource limits. They were legitimate; their first fixes were not automatically optimal.
+
+### Confirmation review
+
+A second fresh parallel review was intended to confirm those fixes. One reviewer exceeded its turn budget after broad inspection. The other returned `NON-PASS` with four new alleged blockers:
+
+- exact case JSON keys, types, assertion encoding, and suite lookup were not exhaustively specified;
+- timeout/output limit scope was ambiguous across serial Pi processes;
+- every machine `code` and phase pairing was not enumerated;
+- evaluator root discovery was not explicitly specified.
+
+A related feasibility question also remained: whether the Pi guard can reliably reject the request that would exceed the global provider cap before dispatch.
+
+### Why confirmation quality degraded
+
+The problem was not fresh context by itself. It was reviewer contract and orchestration.
+
+The builtin Pi reviewer:
+
+- did not inherit Freeflow skills;
+- used a generic plan/solution/code-review role;
+- defaulted to reading root `plan.md` and `progress.md`, which do not exist here;
+- received a binary `PASS|NON-PASS` request instead of Freeflow's finding taxonomy;
+- was asked whether the artifacts formed a “total public contract without implementation invention.”
+
+That last phrase was the largest prompt defect. Every implementation requires local reversible choices. Freeflow's actual standard is narrower: block only issues that would cause wrong work, blocked work, hidden owner decisions, or stale authority.
+
+The second prompt also broadened after the situation had narrowed. It asked for general implementation readiness, CLI grammar, and error-channel completeness instead of confirming only the three previously accepted findings and any residual trust risk. This invited new issue generation rather than convergence.
+
+Binary pass/fail then converted every possible omission into artifact failure. It erased the distinction between:
+
+- a blocking owner/public contract gap;
+- a non-blocking implementation detail;
+- a question;
+- a claim needing evidence;
+- reviewer noise.
+
+## Parent Adjudication Of Review Findings
+
+Reviewer output is evidence, not authority.
+
+Current adjudication:
+
+| Finding | Classification | Reason |
+| --- | --- | --- |
+| Single/comparison verdict was not total | Accepted | Implementer would invent observable result semantics. |
+| Provider request/process/turn budget was conflated | Accepted, solution simplified | The ambiguity was real, but the first fix overreached by promising a global provider-request hard cap. Pi exposes enforceable turn aborts and observed provider-request events. The revised contract uses per-process hard turn/timeout/output limits, disables automatic retries, and reports provider requests honestly. |
+| Terminal status/exit/error envelope was absent | Accepted, solution simplified | Concise machine-readable outcomes are useful, but exhaustive phases, machine codes, mandatory null fields, and six numeric exit classes were review-induced contract inflation. |
+| Exact case-source JSON representation must be frozen in the spec | Rejected / contract inflation | Version-controlled case encoding is a local implementation contract constrained by live cases, tests, and `init`; it is not another public lifecycle. |
+| Every machine code must be enumerated before implementation | Rejected / noise | A concise status/result/diagnostic shape is enough for bootstrap; exact code taxonomy can remain local until a real consumer needs it. |
+| Root discovery needs another owner architecture decision | Rejected / local choice | Preserve current cwd/`--root` convention; no settled product behavior changes. |
+| Timeout/output scope is ambiguous | Resolved | Live runner behavior and owner approval establish per-Pi-process timeout and output limits. Preflight reports maximum process count and worst-case approved turns. |
+| Pi can reject before an over-cap provider request is dispatched | Resolved by narrowing claim | `before_provider_request` can inspect/replace payload but is not documented as a cancellation hook. The bootstrap no longer promises a global provider-request hard cap; it enforces turns before provider calls and observes requests. |
+
+The architecture did not acquire four new blockers. The review process lost calibration, and the parent audit removed the resulting contract inflation.
+
+## Generator, Reviewer, Adjudicator, Verifier
+
+The owner compared the system to a generative adversarial network: artifact quality depends on both generator and reviewer quality. This is useful, but the operational model needs four roles:
+
+```text
+generator -> reviewer -> adjudicator -> verifier
+```
+
+- **Generator** creates the smallest artifact that can guide work.
+- **Reviewer** tries to falsify consequential claims against the artifact and source contract.
+- **Adjudicator** classifies findings and preserves owner authority.
+- **Verifier** grounds final claims in tests, live source truth, reproducible behavior, or explicit human judgment.
+
+The reviewer is not an oracle. A two-role generator/reviewer loop can collapse in either direction.
+
+False-negative collapse:
+
+```text
+shallow or contradictory artifact
+-> reviewer rubber-stamps it
+-> implementation inherits hidden decisions
+```
+
+False-positive collapse:
+
+```text
+reviewer treats every omission as blocker
+-> generator adds more contract detail
+-> larger contract exposes more possible omissions
+-> reviewer finds more blockers
+-> artifact grows without becoming more useful
+```
+
+The second pattern is a specification arms race. The generator optimizes for reviewer approval instead of outcome clarity. The reviewer rewards exhaustive surface area, which can make interfaces shallower and implementation harder.
+
+If generator and reviewer share the same model, prompt framing, or assumptions, errors may also be correlated. Cross-model review can diversify blind spots but does not replace source truth, adjudication, or executable evidence.
+
+## Review Reference-Stack Findings
+
+### Freeflow
+
+Freeflow already has the strongest review control model:
+
+- findings are evidence, not commands;
+- parent owns adjudication;
+- findings are classified as accepted, rejected, question, or needs evidence;
+- non-blocking findings and questions do not fail work by default;
+- a non-pass is a phase exit, not an autonomous patch loop;
+- the receiving turn reports adjudication and route before edits;
+- second and later prompts include prior findings, owner clarifications, adjudication, changed sections, and narrowed remaining risk;
+- aim to finish by two passes;
+- three passes is a hard cap for the same artifact/scope;
+- review can pass and must not invent findings.
+
+This exact class of failure was previously documented and evaluated:
+
+- `docs/issues/output-router/2026-06-16-artifact-review-loop-adjudication.md`
+- `evals/reports/by-skill/review-artifact-2-report.md`
+- `evals/reports/by-skill/review-artifact-4-report.md`
+- `evals/reports/by-skill/review-artifact-5-report.md`
+- `evals/reports/by-skill/review-work-5-report.md`
+- `evals/reports/by-skill/review-work-6-report.md`
+
+`RAR-002` protects the clean pass path. `RAR-004` and `REV-005` protect parent adjudication and the three-pass cap. `RAR-005` and `REV-006` protect the rule that non-pass ends the phase before edits.
+
+Freeflow Skills were disabled during this architecture work, so the generic Pi reviewer did not apply those skills automatically. The lesson is not to ignore the disabled control plane. It is that reviewer dispatch must still use a calibrated reviewer contract when independent review is explicitly requested.
+
+### Obra/Superpowers
+
+Superpowers contributes:
+
+- pass requirements and exact work, not session history;
+- review early enough that corrections remain cheap;
+- receive external feedback skeptically;
+- verify against the actual codebase;
+- push back with technical evidence when reviewer is wrong;
+- approve a spec unless serious gaps would cause a flawed plan;
+- do not treat wording, style, or uneven detail as blockers.
+
+Its spec reviewer is better calibrated than the generic confirmation prompt used here. Its main gap is weaker explicit review-loop termination.
+
+### Agent Skills
+
+`code-review-and-quality` contributes broad correctness, readability, architecture, security, performance, and verification lenses. Its approval standard is improvement, not perfection; reviewer preference is not a blocker and a human makes the final call.
+
+`doubt-driven-development` contributes the clearest adversarial-review reconciliation:
+
+1. contract misread;
+2. valid and actionable;
+3. valid trade-off;
+4. noise caused by missing context.
+
+It explicitly says fresh reviewer output is data, not verdict, and caps doubt cycles at three.
+
+### Matt Pocock
+
+The inspected Matt collection has no equivalent dedicated artifact-review skill. Its related guidance still supports calibrated review:
+
+- build a deterministic feedback loop before hypothesizing;
+- reproduce the claimed failure, not a nearby one;
+- present architecture candidates and let the owner choose what to explore;
+- use domain language and live ADRs;
+- record durable rejection reasons so later architecture passes do not repeatedly suggest the same rejected change;
+- prefer a few high-leverage findings over exhaustive ceremony.
+
+Matt's approach treats critique as decision support, not authority to expand scope.
+
+## Controlled Cmux Reviewer Calibration
+
+The owner replaced generic Pi subagent review for this phase with a directly controlled reviewer process in a focus-neutral cmux helper pane.
+
+Execution controls:
+
+- caller workspace identified explicitly;
+- one right-side helper pane created without focus change;
+- raw `pi --mode json --no-session` process;
+- `openai-codex/gpt-5.6-sol`, `xhigh` thinking;
+- no project approval, context files, extensions, skills, prompt templates, or themes;
+- read-only `read,grep,find,ls` tools;
+- exact calibrated artifact-review system prompt;
+- raw events, stderr, final JSON, and usage stored under a temporary directory outside the repo;
+- no repository edits.
+
+Initial three fixtures:
+
+| Fixture | Expected | Reviewer | Adjudication |
+| --- | --- | --- | --- |
+| Existing “clean” grace-period spec | Pass | Blocking | Reviewer found a real ambiguity: seven-day grace and third-failure downgrade had no timing relationship. Existing clean-pass ground truth was too weak. |
+| Immediate-downgrade source conflict | Blocking | Blocking | Correctly cited billing policy and tests; no implementation-detail inflation. |
+| Explicitly delegated local implementation details | Pass | Pass | Correctly left helper names, module placement, private signatures, and internal error enum to implementation. |
+
+The existing clean fixture was clarified in temporary calibration evidence so the third and final retry occurs at day-seven grace expiry and downgrade requires both elapsed time and three failures. One owner-approved confirmation call returned a clean pass.
+
+Recorded reviewer calibration usage:
+
+```text
+4 calls
+$0.098105 recorded cost
+```
+
+The reviewer therefore demonstrated clean-pass, source-conflict, and local-detail discrimination under the controlled prompt. This did not make it authoritative. It made it suitable for one narrow artifact confirmation followed by parent adjudication.
+
+The final narrow confirmation reviewed only the parent-audited changes and settled decisions. It returned one blocking finding: the plan's unqualified statement that “unsupported evidence cannot become pass” contradicted the spec and required `ESK2-007` behavior, where a case may pass by proving that the subject honestly reports a capability as unsupported.
+
+Parent adjudication accepted that finding. The plan was corrected to distinguish unsupported evaluator evidence from a behavioral assertion about honest unsupported-capability reporting. No further review was requested.
+
+Final confirmation usage:
+
+```text
+1 call
+$0.373372 recorded cost
+```
+
+Total controlled reviewer usage for calibration plus confirmation:
+
+```text
+5 calls
+$0.471477 recorded cost
+```
+
+The calibration also exposed an eval lesson: a surprising reviewer result can reveal broken expected ground truth rather than a broken reviewer. Fixture, reviewer, and adjudicator must all remain challengeable.
+
+## Reviewer Quality Contract
+
+A useful artifact reviewer should receive:
+
+- the artifact;
+- artifact type;
+- source truth and explicit owner decisions;
+- current review pass number;
+- prior findings and parent adjudication;
+- changed sections;
+- one narrowed remaining risk on later passes;
+- a burden of proof for blocking findings.
+
+A blocking finding should name:
+
+```text
+location
+violated accepted requirement or source truth
+concrete wrong-work/trust consequence
+why the issue cannot remain a local reversible implementation decision
+smallest safe route
+```
+
+Reviewer output should separate:
+
+```text
+Pass
+Blocking
+Non-blocking
+Question
+Needs evidence
+```
+
+The reviewer may recommend. It may not silently settle owner decisions or convert its own preferred implementation detail into source truth.
+
+The parent then classifies every material finding:
+
+```text
+Accepted
+Rejected
+Question
+Needs evidence
+```
+
+Only accepted blockers stop the phase. A reviewer `NON-PASS` string alone is not a gate result.
+
+For confirmation reviews:
+
+- do not rerun a broad first-pass prompt;
+- do not re-raise rejected findings without contradictory live evidence;
+- inspect only accepted fixes and named residual risk;
+- allow a clean pass;
+- stop after the review budget instead of chasing unanimous approval.
+
+## Reviewer Evals Needed
+
+Review quality needs precision and recall, not issue count.
+
+Recommended adversarial fixtures:
+
+### Clean artifact
+
+Artifact is sufficient and consistent. Desired result: pass without invented findings or owner questions.
+
+### Real blocker
+
+Artifact contradicts live policy, tests, or a settled public contract. Desired result: blocking with exact evidence and no edit.
+
+### Local implementation omission
+
+Artifact leaves a reversible encoding, helper shape, filename, or internal taxonomy unspecified. Desired result: no blocker.
+
+### Owner decision
+
+Artifact genuinely leaves product, public behavior, security, compatibility, spend, or architecture unresolved. Desired result: question, not invented resolution.
+
+### Stale reviewer assumption
+
+Reviewer context includes an older design that the owner superseded. Desired result: reject stale framing unless live source truth contradicts the new decision.
+
+### Narrow confirmation
+
+Prior blockers were adjudicated and fixed. Desired result: inspect only changed sections and residual risk; do not generate a new broad checklist.
+
+### Third-pass cap
+
+Substantive findings remain after three passes. Desired result: stop, classify, and diagnose generator, reviewer, source contract, scope, or evidence rather than request another broad review.
+
+### Reviewer disagreement
+
+Two reviewers disagree. Desired result: parent compares evidence and accepted contract; reviewer count or confidence language does not decide truth.
+
+Useful measures:
+
+```text
+blocker precision
+known-blocker recall
+false-block rate on clean artifacts
+owner-decision leakage
+stale-finding recurrence
+review rounds to convergence
+accepted-blocker rate by reviewer
+```
+
+A reviewer that flags every possible omission may have high recall and unusable precision. A reviewer that always passes may have high precision on clean artifacts and unusable recall. Both are broken.
+
 ## Current Artifact Implication
 
-The current spec and plan were revised toward an attempt-toolkit interface and remain modified but uncommitted. Fresh reviews continued finding lifecycle edge cases because the interface requires callers and artifacts to coordinate low-level protocol.
+The evaluator architecture is agreed. The current spec and plan encode the outcome-level design and remain modified but uncommitted.
 
-Do not keep patching those artifacts yet. First decide which evaluator module/interface should own the outcome. If the comparison-run module is selected, rewrite the artifacts around that deep interface and simpler failure contract rather than preserving the current attempt-level CLI.
+Do not revert to attempt-toolkit design. Do not keep adding public contract detail merely to satisfy a generic reviewer.
 
-This is now the central owner decision before any evaluator code work.
+Current review state:
+
+- first review found three real public/trust gaps;
+- parent audit retained the single/comparison distinction but simplified unsupported semantics;
+- parent audit replaced the unproven global provider-request hard cap with enforceable per-process limits and honest request observation;
+- parent audit reduced the oversized outcome/error protocol to concise operational JSON;
+- second-review demands for exact case JSON, exhaustive machine-code registry, and new root architecture remain rejected;
+- timeout/output scope is resolved as per Pi process;
+- controlled cmux reviewer calibration passed clean, blocker, and local-detail discrimination;
+- one narrow confirmation found a real unsupported-evidence contradiction in the plan;
+- parent accepted and corrected that single finding;
+- no further artifact review should run.
+
+The artifacts now need deterministic consistency checks and commit. Reviewer output remains evidence for parent adjudication, not authority.
 
 ## Unresolved Owner Decisions
 
-Review and discuss before editing:
+No evaluator-architecture decision remains open.
 
-1. Which evaluator module/interface should own the outcome: comparison-run module, attempt toolkit, case-specific scripts, or another materially different design?
-2. What is the atomic success and failure unit: attempt, variant, comparison bundle, or evaluation session?
-3. Is rerunning a complete comparison after interruption acceptable for the low-volume bootstrap?
-4. Should prototype runs remain documentary evidence only, rather than enter the new runtime's integrity and comparison path?
-5. What is the minimum trustworthy bootstrap outcome after the interface choice?
-6. Should `design-for-depth` be strengthened and evaluated before evaluator implementation resumes, or should its lessons first guide the evaluator artifacts?
-7. Should the current modified spec/plan be discarded and rewritten around the chosen deep interface, or selectively revised?
-8. What objective scope/complexity signals should force re-entry without becoming arbitrary numeric targets?
-9. Which existing Freeflow skills should own design-pressure detection, interface exploration, artifact revision, and implementation re-entry?
-10. How should fresh reviewer and design-alternative fanout be bounded so it catches route-changing evidence without becoming mandatory ceremony?
+Later review-system work still needs separate scoping if promoted beyond this bootstrap:
+
+1. whether controlled artifact-review dispatch should become a durable tool, skill integration, or project reviewer definition;
+2. whether the same controlled route should cover implementation review;
+3. which long-term precision/recall thresholds should gate reviewer promotion.
+
+These do not block the current artifact confirmation.
 
 ## Do Not Do Next
 
-Until review and owner discussion:
-
-- do not run more paid model evals;
+- do not run another broad artifact review;
+- do not patch the spec with every reviewer suggestion;
+- do not treat reviewer count, confidence, or `NON-PASS` as authority;
+- do not enumerate a mature case schema or error registry merely for reviewer satisfaction;
+- do not start evaluator code changes or paid subject/semantic evals before artifact confirmation and commit;
 - do not finish pending semantic grades automatically;
 - do not patch host-free fingerprinting;
-- do not keep patching or commit the current attempt-toolkit spec/plan before selecting the evaluator interface;
-- do not add more modules, schemas, reports, or cases;
-- do not write `bootstrap-acceptance.md` as if current architecture is already accepted;
-- do not delete current code based only on concern about size;
-- do not continue into Pi RPC, Codex, Claude, legacy migration, or other skill rewrites;
+- do not add batching, cache, resume, concurrency, adapters, or output-router coupling;
+- do not write `bootstrap-acceptance.md` as if implementation exists;
 - do not modify `.freeflow/config.json`.
 
 ## Recommended Resume Sequence
 
-1. Read this handoff and reopen live spec, plan, code, tests, and latest run evidence.
-2. Reconfirm branch, worktree, active processes, spend evidence, and committed `.freeflow/config.json` state.
-3. Keep paid evals and evaluator code changes paused.
-4. Frame the evaluator problem around callers, atomic outcome, failure unit, hidden decisions, and observed constraints.
-5. Use a bounded Pi fresh-context Design It Twice fanout to produce materially different interfaces.
-6. Compare designs by depth, locality, caller knowledge, misuse risk, failure contract, maturity fit, and evidence cost.
-7. Obtain owner selection of the evaluator interface and bootstrap failure contract.
-8. Decide whether to update/evaluate `design-for-depth` before or after the evaluator artifact rewrite.
-9. Rewrite or selectively revise the current uncommitted spec/plan around the chosen interface.
-10. Run one fresh artifact review with calibrated blockers; adjudicate once.
-11. Implement only approved bounded slices.
-12. Run only evidence required by the revised acceptance contract.
-13. Write acceptance report, run final read-only audit, adjudicate, and stop.
-14. Resume the wider Agent Skills comparison using this incident as a workflow and design-pressure eval source.
+1. Read this handoff, the live spec/plan, Freeflow review skills, and latest relevant review eval reports.
+2. Reconfirm branch, worktree, active processes, and `.freeflow/config.json` state.
+3. Keep evaluator code and paid subject/semantic evals paused.
+4. Run deterministic diff, terminology, and cross-artifact consistency checks on the simplified spec/plan.
+5. Treat the completed narrow calibrated confirmation and parent adjudication as the final artifact review pass.
+6. Do not run a fourth or broader artifact review.
+7. Commit accepted artifacts and report before code.
+8. Implement evaluator through bounded slices with fresh deterministic evidence before any paid subject/semantic run.
+9. Keep generator, reviewer, adjudicator, and verifier roles distinct through cutover and acceptance.
+10. Resume wider Agent Skills comparison using both the scope-drift incident and review-reliability incident as eval sources.
 
 ## Live Evidence To Reopen
 
@@ -1197,6 +1597,20 @@ Current implementation pressure points:
 - `.skill-eval/evaluate-skill/tests/fingerprint.test.mjs`
 - `.skill-eval/evaluate-skill/tests/wave-resume.test.mjs`
 
+Review-system evidence:
+
+- `skills/review-artifact/SKILL.md`
+- `skills/review-artifact/references/reviewer-prompt.md`
+- `skills/review-work/SKILL.md`
+- `skills/review-work/references/reviewer-prompt.md`
+- `skills/verify-work/SKILL.md`
+- `docs/issues/output-router/2026-06-16-artifact-review-loop-adjudication.md`
+- `evals/reports/by-skill/review-artifact-2-report.md`
+- `evals/reports/by-skill/review-artifact-4-report.md`
+- `evals/reports/by-skill/review-artifact-5-report.md`
+- `evals/reports/by-skill/review-work-5-report.md`
+- `evals/reports/by-skill/review-work-6-report.md`
+
 Project context:
 
 - `AGENTS.md`
@@ -1207,7 +1621,7 @@ Project context:
 - `plugin-docs/workflow.md`
 - `plugin-docs/architecture.md`
 - `evals/README.md`
-- `docs/handoffs/workflow-and-skills/2026-06-21-agent-skills-comparison-handoff.md`
+- `docs/handoffs/workflow-and-skills/2026-06-21-agent-skills-comparison-handoff.md`},{
 
 Generated evidence is under:
 
@@ -1218,10 +1632,14 @@ Generated evidence is under:
 
 Generated runs are evidence, not source authority. Prefer frozen case definitions, raw artifacts, and current code over summary prose.
 
-## Closing Principle
+## Closing Principles
 
-The lesson is not “agents should never adapt during implementation.” The lesson is:
+The implementation lesson is not “agents should never adapt.” It is:
 
 > Adapt locally while evidence supports the plan. When evidence challenges the plan or milestone boundary, stop adapting locally and reconsider globally.
 
-A trustworthy coding agent needs both forward momentum and a reliable way to recognize when forward momentum has become uncontrolled production.
+The review lesson is not “reviewers should find more issues.” It is:
+
+> Review against accepted outcomes and live evidence. Treat findings as hypotheses, adjudicate them, and stop when critique becomes contract inflation rather than risk reduction.
+
+A trustworthy coding system needs a capable generator, a calibrated reviewer, an accountable adjudicator, and independent verification. Forward momentum without review becomes uncontrolled production. Review without adjudication becomes uncontrolled specification.

@@ -1,765 +1,804 @@
 > **Doc ID:** SPEC-2026-07-10-skill-authoring-evaluation-v2
 > **Date:** 2026-07-10
+> **Revised:** 2026-07-11
 > **Owner:** Hassan Mohiddin
 > **Type:** Spec
-> **Status:** Draft
-> **Source:** Shared skill-pack review, live Freeflow skills/evals/docs, and current Pi/Codex/Claude CLI capability inspection
-> **Implementation:** Planned through bootstrap acceptance after joint spec/plan review
-> **Review:** Bootstrap review completed 2026-07-10; repeat during final cross-skill synthesis
+> **Status:** Ready for commit — calibrated confirmation adjudicated
+> **Source:** Live prototype, saved evidence, `docs/handoffs/workflow-and-skills/2026-07-11-implementation-scope-drift-and-replanning.md`, architecture-skill comparison, bounded Pi Design It Twice review, parent review-delta audit, and controlled cmux reviewer calibration
+> **Implementation:** Frozen until this spec and plan are committed and the pre-code report is delivered
 
 # Skill Authoring And Evaluation V2
 
 ## Status And Authority
 
-This document preserves the current design direction for Freeflow's `write-skill` and `evaluate-skill` developer skills.
+This document defines the proposed reduced bootstrap for Freeflow's `write-skill` and `evaluate-skill` developer skills.
 
-This spec now authorizes implementation planning for the foundational bootstrap scope. Implementation starts only after this spec and its plan are reviewed together and blocking findings are adjudicated.
+The previous design exposed manifests, attempts, retries, grades, comparisons, waves, cache, budgets, and reporting as caller-managed operations. Repeated review kept finding lifecycle edge cases because the public seam was too low.
 
-Later skill reviews may change the broader design. After bootstrap acceptance, resume the skill-pack comparison and re-review this spec during final cross-skill synthesis before implementing deferred portability work.
+The owner selected a deeper outcome-level design:
 
-The current Freeflow eval harness is prior art and evidence only. It is not the baseline architecture defined here.
+> One command evaluates one case. It performs deterministic preflight internally, stops before provider execution when unsafe or unresolved, otherwise runs the complete case and publishes one trusted result bundle.
+
+The parent review-delta audit and narrow calibrated confirmation are complete. One accepted contradiction was corrected in the plan. This revision becomes implementation authority only after the spec, plan, and updated handoff are committed. Until then:
+
+- no runtime or skill code changes;
+- no paid subject or semantic evals;
+- no bootstrap acceptance claim;
+- current v2 skills remain Unverified candidates.
+
+The durable failure and design context lives in:
+
+- `docs/handoffs/workflow-and-skills/2026-07-11-implementation-scope-drift-and-replanning.md`
+- commits `21f33e1` through `84a44f6`
+- saved `.skill-eval/` runs and reports.
+
+Handoffs and prototype artifacts are evidence, not current implementation authority.
 
 ## Problem
 
-Current `write-skill` and `evaluate-skill` capture useful rules but do not form a complete, portable skill-development system.
+Freeflow needs a self-contained way to author and evaluate later skill changes without depending on external skill packs or the legacy eval harness.
 
-A user installing only these two skills cannot reliably:
+The bootstrap must prove one trustworthy Pi-first evaluation without becoming a mature evaluation platform.
 
-- design agent-first skill instructions;
-- distinguish a draft skill from a production-ready skill;
-- create a portable eval workspace;
-- choose the cheapest eval that preserves behavioral accuracy;
-- run fair controls and candidates across Pi, Codex, or Claude;
-- isolate subject agents from eval answers and grading criteria;
-- capture normalized evidence, token usage, and cost;
-- combine deterministic and model-based grading safely;
-- revise wording, placement, structure, or activation from measured failures;
-- run multi-turn conversational evals without using parent-agent delegation;
-- know when stronger acceptance evidence is required.
+The prototype overexposed internal protocol and mixed trust with operational efficiency:
 
-The current skills also depend conceptually on external authoring references. The replacement must be self-contained and must not require Anthropic `skill-creator`, Matt Pocock skills, Obra/Superpowers, or another installed skill at runtime.
+- cache and candidate-only reuse;
+- resumable waves;
+- concurrency;
+- adaptive repeats;
+- cross-job request/spend scheduling;
+- caller-managed attempts and retries;
+- mutable grading and aggregate reporting;
+- broad fingerprint and schema machinery.
 
-## Intended Outcome
+Most features were artifact-approved, not random implementation drift. Partial implementation showed that the artifact boundary itself was wrong.
 
-Ship two self-contained developer skills that behave as one skill-development system:
+## Fixed Outcome
 
-- `write-skill` creates the smallest agent-first skill candidate and defines its behavioral contract.
-- `evaluate-skill` creates and runs the smallest accurate eval, grades evidence, diagnoses failures, and determines whether a production-ready claim is supported.
+Deliver two self-contained Unverified developer skills and a minimal Pi-first evaluator suitable for constrained dogfooding.
 
-The active `SKILL.md` files remain compact. Conditional depth lives in bundled references. Deterministic, repeated operations live in bundled scripts. Project-specific eval definitions and evidence live under one repo-local `.skill-eval/` workspace.
+`write-skill` must:
 
-## Goals
+- create the smallest agent-first skill candidate;
+- define trigger and non-trigger behavior;
+- preserve user authority and source truth;
+- distinguish Draft, Unverified, and Production-Ready;
+- use bundled deterministic structure tooling;
+- route measured behavior questions into evaluation.
 
-- Teach agents to write instructions for model behavior, not human-facing manuals.
-- Make wording, ordering, trigger descriptions, stop conditions, examples, and progressive disclosure explicit design variables.
-- Make eval-first iteration practical without forcing a large harness for every skill.
-- Reduce model usage by stripping irrelevant context, reusing valid controls, grading mechanically where possible, and escalating only when cheaper evidence is inconclusive.
-- Preserve realistic activation and host behavior when those are the eval question.
-- Support multiple skills, variants, hosts, models, and repeats through bounded direct-process concurrency.
-- Keep subject, grader, analyzer, and author roles distinct.
-- Make evidence quality and fallback limitations visible.
-- Keep the architecture portable across Pi, Codex, and Claude without reducing all hosts to their lowest common denominator.
+`evaluate-skill` must:
+
+- evaluate exactly one case per invocation;
+- preflight deterministically before any provider request;
+- require explicit approved execution settings for model-driven work;
+- run all variants declared by the case serially;
+- isolate subject inputs and writable fixtures;
+- capture objective evidence and usage;
+- grade objective evidence before semantic judgment;
+- use a fresh semantic context only when fixed assertions require it;
+- publish one complete, immutable result bundle or no accepted result;
+- report unsupported claims and residual uncertainty honestly.
+
+Bootstrap acceptance means:
+
+> Tooling accepted for constrained Pi-first dogfooding. Both skills remain Unverified v2 candidates.
+
+It does not prove Production-Ready behavior, batching, cache, resume, concurrency, multi-turn, cross-host, or portability.
+
+## Design Principles
+
+### Outcome-level public interface
+
+Caller asks for one case result. Caller does not coordinate variants, attempts, retries, grades, comparison assembly, integrity, or storage protocol.
+
+### Internal deterministic preflight
+
+Every execution begins with a no-provider phase. Invalid, unsafe, unsupported, over-budget, changed, or owner-unresolved work stops before provider execution.
+
+### Whole-case atomicity
+
+Complete case result is atomic success unit. Partial control/candidate work is diagnostic only.
+
+### Restart instead of continuation
+
+Bootstrap reruns the whole case after infrastructure failure. Partial reuse, resume, and cache are deferred efficiency features.
+
+### Concrete Pi implementation
+
+Pi is only host. Use concrete Pi behavior. Do not create host registries or generalized adapter architecture before second real host exists.
+
+### Internal seams
+
+Security, process execution, evidence capture, objective grading, semantic adjudication, and publication may remain separate internal modules. They are not separate public lifecycle operations.
+
+### External composition
+
+Evaluator does not batch cases. Future output-router or shell composition may invoke multiple independent evaluations. Evaluator remains standalone and owns no batch semantics.
 
 ## Non-Goals
 
-- Do not merge the two skills into one skill.
-- Do not create a broad engineering encyclopedia.
-- Do not copy external skill-authoring manuals into Freeflow.
-- Do not use the current Freeflow `evals/` registry or runner as the new baseline.
-- Do not migrate legacy Freeflow evals in the first implementation.
-- Do not require subagents for ordinary eval execution or grading.
-- Do not require every eval to run across every host, model, or repeat count.
-- Do not make deterministic phrase checks the sole measure of semantic behavior.
-- Do not auto-install Node, agent CLIs, packages, or system dependencies.
-- Do not add cmux/delegation execution until a real full-fidelity eval requires it and the delegation contract is stable.
+Bootstrap does not provide:
 
-## Settled Design Decisions
+- multi-case batching;
+- suite scheduling;
+- output-router integration or dependency;
+- cache or control reuse;
+- resume or partial continuation;
+- public attempt/retry/orphan operations;
+- concurrency;
+- adaptive repeats;
+- provider rate scheduling;
+- cross-job soft budget scheduling;
+- public manifest, grade, comparison, or report commands;
+- arbitrary historical-run import;
+- runtime schema framework;
+- Pi RPC or multi-turn execution;
+- Codex or Claude adapters;
+- cross-host acceptance;
+- legacy eval migration;
+- delegation or cmux execution;
+- npm dependencies, build step, or automatic dependency installation.
 
-### Runtime
+## Terms
+
+**Case**: versioned source containing one natural prompt, fixture, evaluation kind, variants, explicit subject resources, execution requirements, evidence classes, objective assertions, and optional semantic rubrics.
+
+**Single case**: one `subject` variant evaluated against fixed assertions without a comparative claim.
+
+**Comparison case**: exactly two variants, `reference` then `candidate`, evaluated against the same fixed assertion IDs.
+
+**Variant**: one subject configuration declared by the case. Variant roles are case-owned, not caller-selected at runtime.
+
+**Preflight**: deterministic no-model phase that validates, resolves, freezes, bounds, and reports one case execution.
+
+**Plan fingerprint**: stable identity of resolved case, variants, sources, execution settings, evidence requirements, and evaluator implementation used to detect change after `--plan-only`.
+
+**Evaluation**: one invocation covering one case and all declared variants.
+
+**Result bundle**: immutable published evidence and decision record for one complete evaluation.
+
+**Diagnostic bundle**: incomplete infrastructure evidence that cannot support acceptance.
+
+**Pi process**: one isolated subject or semantic invocation. One Pi process may contain multiple turns.
+
+**Pi turn**: one model response plus resulting tool calls. The root guard can abort before a turn's provider call, making turns the bootstrap's enforceable model-work unit.
+
+**Provider request**: one observed `before_provider_request` event from Pi. It is recorded as usage evidence, not promised as an independently enforceable global cap.
+
+**Tool call**: one subject tool invocation. Tool calls are neither turns nor provider requests.
+
+## Ownership
+
+Human owner owns:
+
+- public behavior and milestone scope;
+- disputed semantic judgments;
+- provider, model, thinking, per-process turn, timeout, output, and spend choices;
+- acceptance and Production-Ready promotion.
+
+Case owns:
+
+- natural prompt;
+- fixture;
+- variants and their roles;
+- subject resources;
+- tools;
+- evidence classes;
+- objective assertions;
+- semantic rubrics;
+- unsupported-claim effects.
+
+Evaluator owns:
+
+- source and case validation;
+- deterministic preflight;
+- plan fingerprint;
+- serial variant order;
+- isolated fixture and subject materialization;
+- concrete Pi invocation;
+- raw evidence capture;
+- objective grading;
+- optional fresh semantic adjudication;
+- usage accounting;
+- single-case or comparison decision and readiness limitations;
+- integrity and atomic publication.
+
+Caller owns only:
+
+- skill and case selection;
+- approved model/execution limits;
+- optional preview request;
+- whether to invoke another independent case later.
+
+## Runtime Constraints
 
 Bundled tooling uses:
 
 - Node.js 22 or newer;
-- plain ECMAScript modules (`.mjs`);
-- JSDoc where contracts need type clarity;
-- Node standard-library APIs only by default;
+- plain ECMAScript modules;
+- Node standard-library APIs only;
+- no npm install;
 - no build step;
-- no npm dependencies.
+- argument-array process spawning, never shell interpolation.
 
-If Node is missing or unsupported, the skill or `doctor` command reports the requirement and presents installation options. It does not install Node automatically.
+Missing tools or capabilities are reported. Nothing installs automatically.
 
-### Ownership
+## Public Interface
 
-`write-skill` owns:
-
-- skill purpose and behavioral contract;
-- trigger and non-trigger boundaries;
-- instruction wording and priority;
-- stop and exit conditions;
-- degrees of freedom;
-- progressive disclosure;
-- reference, script, and asset decisions;
-- draft versus production-ready status;
-- the handoff into evaluation.
-
-`evaluate-skill` owns:
-
-- eval question classification;
-- eval workspace creation;
-- case, prompt, fixture, and variant design;
-- host capability detection and execution mode selection;
-- control and candidate execution;
-- isolation, evidence capture, usage, and cost;
-- deterministic and semantic grading;
-- variance and repeat policy;
-- failure classification;
-- the measured revision handoff back to `write-skill`;
-- acceptance evidence and residual uncertainty.
-
-### Public Eval Profiles
-
-Expose two user-facing profiles only:
-
-- `iterate`: cheapest accurate feedback for the current failure or candidate.
-- `acceptance`: broader evidence required before a production-ready or release claim.
-
-Internal scheduling may have multiple steps. Users do not manage a generation taxonomy.
-
-### Eval Workspace
-
-All project-specific skill eval state lives under:
+The evaluator exposes only:
 
 ```text
-.skill-eval/
+skill-eval doctor
+skill-eval init
+skill-eval evaluate
 ```
 
-Each skill owns one direct child directory:
+Old public `plan`, `run`, `grade`, `report`, `resume`, cache, candidate-only, concurrency, and wave operations are removed.
+
+### `doctor`
+
+```bash
+skill-eval doctor [--root <repo>]
+```
+
+Runs deterministic environment, Pi capability, and root-policy checks. Makes no provider request.
+
+### `init`
+
+```bash
+skill-eval init --skill <name> [--root <repo>]
+```
+
+Creates smallest case-source workspace and refuses conflicting destinations.
+
+### `evaluate`
+
+```bash
+skill-eval evaluate \
+  --skill <name> \
+  --case <case-id> \
+  --timeout-ms <integer> \
+  --output-limit-bytes <integer> \
+  [--provider <id> \
+   --model <id> \
+   --thinking <level> \
+   --max-turns-per-process <integer> \
+   --max-usd <number>] \
+  [--plan-only] \
+  [--owner-approved] \
+  [--expect-plan <fingerprint>] \
+  [--root <repo>]
+```
+
+Rules:
+
+- `skill`, `case`, `timeout-ms`, and `output-limit-bytes` are always required.
+- Timeout and output limits apply independently to each Pi process.
+- Pi model-driven cases require `provider`, `model`, `thinking`, and `max-turns-per-process`.
+- `max-usd` is optional because cost may be unavailable; missing cost is reported as unavailable, not zero.
+- Host-free cases reject every model option and run zero Pi processes.
+- `plan-only` and `owner-approved` are mutually exclusive.
+- `expect-plan` is allowed only with `owner-approved`.
+- Model-driven execution without `owner-approved` performs preflight, returns `needs_approval`, and makes zero provider requests.
+- One-call execution uses `owner-approved`; preflight and execution occur in one evaluator process.
+- A prior preview may bind execution with `expect-plan`; mismatch returns `needs_approval` and makes zero provider requests.
+- `root` preserves existing CLI behavior: use the explicit root, otherwise discover from the current working directory.
+- Unknown or old lifecycle flags fail before provider execution.
+
+The runtime cannot prove conversational approval. `owner-approved` is an explicit caller attestation. `evaluate-skill` instructions must obtain real owner approval before invoking it.
+
+## Preflight
+
+Preflight always runs first and makes zero provider requests.
+
+It:
+
+1. validates case source and required fields;
+2. validates evaluation kind, variant roles, sources, and explicit subject resources;
+3. rejects traversal, symlinks, missing files, and undeclared resources;
+4. validates fixture tree and source immutability;
+5. checks Pi version and required one-shot capabilities;
+6. checks evidence-class support;
+7. resolves exact tools and isolation policy;
+8. resolves variant count and serial order;
+9. calculates required subject and potential semantic Pi-process count;
+10. verifies positive per-process turn, timeout, and output limits;
+11. calculates worst-case approved turns as potential Pi processes multiplied by `max-turns-per-process`;
+12. records spend ceiling and that provider requests are observed rather than globally hard-capped;
+13. resolves source, case, fixture, subject, evaluator, and semantic identities;
+14. returns plan summary and fingerprint.
+
+Preflight statuses:
+
+- `ready`: all required inputs supported and approved;
+- `planned`: `--plan-only` requested;
+- `needs_approval`: model work lacks approval, preview fingerprint changed, or a new owner decision appears;
+- `blocked`: required evidence/capability unavailable;
+- `invalid`: malformed, unsafe, missing, or contradictory input.
+
+Only `ready` continues into execution.
+
+A plan summary includes:
+
+- skill and case;
+- variants;
+- provider/model/thinking when applicable;
+- subject and potential semantic Pi-process count;
+- per-process turn, timeout, and output limits;
+- worst-case approved turn count;
+- spend ceiling or cost limitation;
+- provider-request accounting limitation;
+- evidence support and unsupported claims;
+- plan fingerprint;
+- exact rerun command when approval is needed.
+
+## Public Outcome Contract
+
+Valid operational outcomes write one concise JSON object to stdout:
+
+```json
+{
+  "status": "complete|planned|needs_approval|blocked|incomplete",
+  "plan": {},
+  "decision": {},
+  "result": ".skill-eval/.../result.json",
+  "diagnostic": ".skill-eval/.../diagnostic.json",
+  "usage": {},
+  "limitations": []
+}
+```
+
+Only applicable fields appear.
+
+Rules:
+
+- `ready` is internal and never terminal: approved ready work continues into execution.
+- `complete`, `planned`, and `needs_approval` are valid outcomes and exit successfully.
+- `blocked`, `incomplete`, invalid CLI input, and internal failure exit nonzero.
+- Invalid command syntax may use concise stderr rather than a structured taxonomy.
+- Subject stdout/stderr is captured inside evidence or diagnostics, never mixed with command stdout.
+- Behavioral assertion failure may still return `complete` because evidence is trustworthy.
+- `result` appears only for `complete`.
+- `diagnostic` appears only for `incomplete` when diagnostic publication succeeded.
+- `planned` and `needs_approval` include the deterministic plan summary.
+
+Bootstrap does not freeze exhaustive machine error codes, phases, mandatory null fields, or distinct numeric exit codes before a real consumer requires them.
+
+## Case Contract
+
+Every case declares:
+
+- case ID and target skill;
+- evaluation kind `single` or `comparison`;
+- natural prompt;
+- fixture path or null;
+- variants in required serial order;
+- explicit ordered subject resources for each variant, defaulting to `SKILL.md`;
+- tools;
+- host `pi` or `none`;
+- evidence classes;
+- objective assertions;
+- optional fixed semantic assertions;
+- whether unsupported evidence blocks the case or becomes a limitation.
+
+A `single` case has exactly one variant with role `subject`.
+
+A `comparison` case has exactly two variants in order: `reference`, then `candidate`. Both use the same required assertion IDs. More than two variants are deferred.
+
+The evaluator materializes only declared subject resources. No automatic reference discovery occurs.
+
+Case criteria are fixed before candidate output exists. Adding or changing required assertions after execution invalidates that evidence.
+
+## Internal Evaluation Flow
+
+When preflight is `ready`, evaluator:
+
+1. creates unique internal staging directory;
+2. freezes case, fixture, variant, and subject inputs;
+3. writes internal plan record;
+4. runs variants serially in case order;
+5. gives each variant a fresh writable fixture copy and read-only subject resources;
+6. captures final response, events, tool events, diff, status, exit, usage, and runtime counters;
+7. grades objective assertions;
+8. invokes fresh semantic adjudication only for unresolved fixed assertions, as a fresh Pi process under the same approved per-process limits;
+9. combines per-variant results into one case result;
+10. renders concise report;
+11. inventories and hashes complete bundle;
+12. atomically publishes final result.
+
+Internal plan, variant evidence, semantic packets, comparison assembly, integrity inventory, and publication details are not public lifecycle interfaces.
+
+## Atomic Success And Failure Contract
+
+Atomic success unit is one complete case result.
+
+### Valid behavioral failure
+
+A subject that completes normally but fails assertions produces valid evidence and may publish a complete result. Candidate failure is not evaluator failure.
+
+### Before first provider request
+
+Invalid source, unsafe path, unsupported required evidence, unavailable Pi capability, approval gap, or invalid hard limit stops with no provider request and no result bundle.
+
+### During execution
+
+If the reference or an earlier variant has infrastructure failure, later variants do not start.
+
+If any variant times out, exceeds hard limits, fails process startup, produces unusable evidence, or breaks isolation/integrity:
+
+- no result bundle is published;
+- available partial artifacts remain diagnostic only;
+- result status is `incomplete`;
+- observed usage and unavailable fields are reported;
+- caller reruns whole evaluation after owner decision.
+
+### Semantic adjudication
+
+Objective failure cannot be repaired semantically.
+
+Malformed, missing, hard-limited, or infrastructure-failed required semantic adjudication makes evaluation incomplete. Valid `uncertain` judgment may publish an inconclusive complete result.
+
+### Crash and publication
+
+Crash before atomic publication leaves diagnostic staging only. It is never acceptance evidence, resumed, adopted, or reused.
+
+Crash after atomic publication leaves complete result valid.
+
+Restart means invoke `evaluate` again for whole case. There is no public retry, resume, orphan, or partial-reuse mechanism.
+
+This may repeat completed reference work. Low-volume bootstrap accepts that cost to avoid lifecycle machinery.
+
+## Decision Contract
+
+Every gradeable fixed assertion resolves to `pass`, `fail`, or `inconclusive`.
+
+Unsupported required evaluator evidence blocks in preflight unless the case explicitly treats unsupported capability as the behavior being tested. For example, a case can pass when it proves that a subject honestly reports multi-turn evidence as unsupported. Unsupported evidence is otherwise a limitation, not a top-level case verdict.
+
+For a `single` case, `result.json` contains `evaluation_kind: "single"` and exactly one `case_verdict`:
+
+- `fail` when any required assertion fails;
+- otherwise `inconclusive` when any required assertion is inconclusive;
+- otherwise `pass`.
+
+For a `comparison` case, `result.json` contains `evaluation_kind: "comparison"` and exactly one `comparison_verdict`. Required assertion IDs are paired between `reference` and `candidate`:
+
+- `fail -> pass` is an improvement;
+- `pass -> fail` is a regression;
+- equal determinate outcomes are unchanged;
+- any pair containing `inconclusive` is unresolved.
+
+Aggregate comparison verdict:
+
+- `improved`: at least one improvement and no regression or unresolved pair;
+- `regressed`: at least one regression and no improvement or unresolved pair;
+- `same`: every pair is unchanged;
+- `inconclusive`: mixed improvement/regression or any unresolved pair.
+
+There is no comparative verdict for a single case and no single-case verdict for a comparison case.
+
+## Result And Diagnostic Bundles
+
+Successful single-case evaluation returns:
+
+```json
+{
+  "status": "complete",
+  "decision": {
+    "evaluation_kind": "single",
+    "case_verdict": "pass"
+  },
+  "result": ".skill-eval/<skill>/runs/evaluations/<id>/result.json",
+  "usage": {
+    "turns": 0,
+    "provider_requests": 0,
+    "cost_usd": null
+  },
+  "limitations": []
+}
+```
+
+A comparison result instead contains `evaluation_kind: "comparison"` and `comparison_verdict: "improved|regressed|same|inconclusive"` in `decision`.
+
+Published bundle:
 
 ```text
-.skill-eval/<skill-name>/
+<evaluation-id>/
+├── plan.json
+├── evidence/
+│   └── <variant>/
+│       ├── metadata.json
+│       ├── final.md
+│       ├── events.jsonl
+│       ├── tool-events.json
+│       ├── diff
+│       ├── git-status.txt
+│       ├── exit-status.txt
+│       ├── usage.json
+│       └── objective-grade.json
+├── semantic/
+│   └── <variant>.json
+├── result.json
+├── report.md
+└── integrity.json
 ```
 
-Target skill directories contain only runtime instructions and resources. They do not contain eval prompts, expected outcomes, fixtures, reports, or generated run evidence.
+`result.json` is sole structured decision record. It includes:
 
-### Legacy Boundary
+- plan fingerprint;
+- case and source identities;
+- evaluator and semantic identities;
+- variant identities;
+- objective and semantic verdicts;
+- final per-variant assertion results;
+- evaluation kind and exactly one kind-specific verdict;
+- evidence-class support;
+- provider requests, tokens, and cost when available;
+- unavailable fields;
+- limitations and unsupported claims;
+- residual uncertainty;
+- readiness effects.
 
-The existing Freeflow `evals/` tree remains legacy evidence during this redesign. New tooling does not silently discover, adopt, mutate, or migrate it.
+Diagnostic bundles live under generated incomplete/diagnostic storage and are never accepted by `result.json`, report, or future evaluation.
 
-If `.skill-eval/` does not exist, `evaluate-skill` may create it after an explicit init or eval request. If a conflicting destination exists, stop and ask rather than merging conventions.
+Historical prototype runs remain documentary evidence only. They are not imported, regraded, sealed, or compared through reduced runtime.
 
-## Skill Package Shape
+## Isolation And Security
 
-The target package shape is:
+Each variant receives only:
 
-```text
-skills/
-├── write-skill/
-│   ├── SKILL.md
-│   ├── references/
-│   │   ├── agent-first-instructions.md
-│   │   ├── activation-and-boundaries.md
-│   │   ├── structure-and-progressive-disclosure.md
-│   │   └── skill-development-loop.md
-│   ├── scripts/
-│   │   └── skill-author.mjs
-│   └── assets/
-│       └── minimal-skill.md
-│
-└── evaluate-skill/
-    ├── SKILL.md
-    ├── references/
-    │   ├── evaluation-architecture.md
-    │   ├── eval-design-and-variants.md
-    │   ├── portable-execution.md
-    │   ├── token-efficient-evals.md
-    │   └── grading-and-revision.md
-    ├── scripts/
-    │   ├── skill-eval.mjs
-    │   └── lib/
-    │       ├── case-loader.mjs
-    │       ├── capability-resolver.mjs
-    │       ├── planner.mjs
-    │       ├── scheduler.mjs
-    │       ├── fingerprint.mjs
-    │       ├── evidence.mjs
-    │       ├── grader.mjs
-    │       ├── process-runner.mjs
-    │       └── adapters/
-    │           ├── pi.mjs
-    │           ├── codex.mjs
-    │           └── claude.mjs
-    ├── schemas/
-    │   ├── eval-case.schema.json
-    │   └── run-evidence.schema.json
-    └── assets/
-        └── portable-eval-case.json
-```
+- natural prompt;
+- isolated writable fixture copy;
+- declared read-only subject resources;
+- allowed tools.
 
-The public scripts and reference responsibilities are part of the target contract. Internal library filenames are tentative and may change if implementation evidence supports a simpler decomposition.
+Subject must not receive:
 
-## Project Eval Workspace Shape
+- suite/case source paths;
+- assertions or semantic rubrics;
+- another variant's evidence;
+- reports;
+- unrestricted shell;
+- ambient Pi skills, prompts, extensions, themes, context files, or sessions.
 
-A developed project uses:
+Concrete Pi executor must:
+
+- disable ambient resources;
+- load one explicit root guard;
+- allow fixture reads/writes;
+- allow subject-resource reads;
+- reject subject writes;
+- reject eval-source reads;
+- reject traversal and nested symlink escapes;
+- enforce per-process timeout, output, and turn limits;
+- preserve partial diagnostics on hard failure.
+
+Every coordinator read derived from case, metadata, changed paths, semantic evidence, or bundle data applies same canonical containment and symlink policy.
+
+## Evidence And Grading
+
+Evidence priority:
+
+1. filesystem state, diff, status, exit, events, and protocol fields;
+2. deterministic derived facts;
+3. final response;
+4. semantic interpretation.
+
+Semantic adjudicator:
+
+- runs in fresh context;
+- receives fixed assertion IDs and only required frozen evidence;
+- uses opaque variant labels when practical;
+- reports reasoning and uncertainty;
+- cannot repair objective failure;
+- uses same owner-approved model in bootstrap;
+- counts as one potential Pi process under the same per-process hard limits and aggregate spend accounting.
+
+Human owner may independently adjudicate disputed semantics during acceptance. Human review does not mutate published bundle.
+
+Missing evidence states remain distinct:
+
+- `supported`: required fidelity captured;
+- `unavailable`: normally supported but absent in this execution;
+- `unsupported`: bootstrap cannot produce required class;
+- `inconclusive`: evidence exists but cannot decide claim.
+
+## Budget Contract
+
+Model-driven `evaluate` requires hard limits for each Pi process.
+
+- `max-turns-per-process`, `timeout-ms`, and `output-limit-bytes` apply independently to every subject and potential semantic Pi process.
+- Preflight reports the maximum Pi-process count and worst-case approved turns.
+- Root guard aborts a process before the provider call for a turn beyond `max-turns-per-process`.
+- Isolated Pi configuration disables automatic provider retries so hidden retries do not expand the approved work silently.
+- A process that reaches a hard limit without valid evidence makes the whole evaluation `incomplete` and publishes diagnostics only.
+- Provider requests, turns, tool calls, tokens, and cost are observed and reported separately.
+- Bootstrap does not claim an independently enforceable global provider-request cap.
+- Tool calls have no separate public budget in bootstrap.
+- `max-usd`, when supplied and cost available, is a soft aggregate ceiling checked after each settled serial Pi process.
+- A process may cross the soft spend ceiling because cost arrives afterward; no later process starts after observed cost reaches the ceiling.
+- Missing cost remains unavailable, never zero.
+- No persistent or cross-evaluation budget scheduler exists.
+
+## Administrative Workspace
+
+Project source remains:
 
 ```text
 .skill-eval/
 ├── config.json
 ├── .gitignore
-├── discover/
-│   ├── suite.json
-│   ├── cases/
-│   ├── prompts/
-│   ├── fixtures/
-│   ├── reports/
-│   ├── tests/
-│   ├── runs/
-│   └── cache/
-├── write-skill/
-│   └── ...
-└── evaluate-skill/
-    └── ...
+└── <skill>/
+    ├── suite.json
+    ├── cases/
+    ├── fixtures/
+    ├── reports/
+    ├── tests/
+    └── runs/
 ```
 
-Only create optional directories when needed.
+Cases and fixtures are version-controlled. Runs and staging are generated/ignored unless deliberately promoted as durable reports.
 
-Version-controlled source evidence:
+## Required Bootstrap Cases
 
-- `config.json`;
-- `suite.json`;
-- cases;
-- long prompts that do not fit cleanly in a case;
-- fixtures;
-- deterministic script tests;
-- selected durable reports.
+Required `write-skill` evidence:
 
-Ignored generated state:
+- differentiating authoring pressure/readiness honesty;
+- Draft/Unverified behavior;
+- positive activation;
+- near-miss non-trigger;
+- self-contained structure.
 
-- runs;
+Required `evaluate-skill` evidence:
+
+- artifacts outrank contradictory prose;
+- no fake verification;
+- positive activation;
+- near-miss non-trigger;
+- self-contained structure;
+- unavailable multi-turn evidence remains unsupported;
+- differentiating user-authority/eval-reuse pressure.
+
+Existing case IDs may remain. Non-differentiating `ESK2-001` remains regression but is not required for bootstrap.
+
+No batching command runs these together. Each accepted case uses independent `evaluate` invocation and result bundle.
+
+## Readiness
+
+Skill statuses:
+
+- **Draft**: source exists; owner did not require behavioral evidence.
+- **Unverified**: candidate and some checks exist; promotion evidence incomplete.
+- **Production-Ready**: behavior/activation evidence matches declared support and owner approves promotion.
+
+Bootstrap acceptance does not promote either skill automatically.
+
+Allowed statement:
+
+> Tooling accepted for constrained Pi-first dogfooding. `write-skill` and `evaluate-skill` remain Unverified v2 candidates.
+
+## Prototype Migration
+
+Retain and harden useful implementation:
+
+- Pi argument-array execution;
+- isolated config and explicit root guard;
+- per-process timeout/output/turn enforcement;
+- event/final/tool/usage/activation parsing;
+- fixture and subject materialization;
+- objective assertion semantics;
+- semantic result validation;
+- hashing and canonical containment.
+
+Delete active mature machinery:
+
 - cache;
-- transient skill snapshots;
-- raw event streams unless deliberately promoted as durable evidence.
-
-Default `.skill-eval/.gitignore`:
-
-```gitignore
-*/runs/
-*/cache/
-```
-
-Do not add a shared fixture directory until real duplication demonstrates shared ownership. Prefer local duplication over premature cross-skill coupling.
-
-## Skill Authoring Contract
-
-### Draft Versus Production-Ready
-
-A skill may exist as an unverified draft. It must be labeled honestly.
-
-A production-ready claim requires eval evidence appropriate to the skill's behavior, activation model, risk, and target hosts.
-
-`write-skill` must not force evaluation when the user explicitly asks for a draft only. It must not call an unevaluated skill production-ready.
-
-### Agent-First Instruction Design
-
-Every active sentence should earn context by routing, constraining, stopping, or guiding behavior.
-
-The skill must address:
-
-- what behavior should change;
-- when the skill should and should not activate;
-- what evidence or decision triggers each rule;
-- rule priority and conflict resolution;
-- what the agent must do instead of a prohibited behavior;
-- exit conditions preventing endless application;
-- which uncertainty should block, remain tentative, or wait for evidence.
-
-Explanations are allowed when they measurably improve behavior. Concision is not a substitute for causality.
-
-### Progressive Disclosure
-
-Start with one `SKILL.md`. Add references, scripts, or assets only when they:
-
-- prevent measured behavior failure;
-- keep high-priority active instructions visible;
-- provide conditional depth;
-- avoid repeated deterministic work;
-- supply output material the skill actually needs.
-
-References must be linked directly from `SKILL.md` with conditions describing when to read them.
-
-### Static Authoring Tool
-
-`skill-author.mjs` should support, at minimum:
-
-```text
-init
-validate
-inspect
-```
-
-`init` creates the smallest valid skill candidate. `validate` checks structural facts. `inspect` reports advisory wording or organization signals but never claims behavioral success.
-
-## Evaluation Contract
-
-### Eval Questions
-
-Every run must name the question it answers:
-
-- structural validity;
-- automatic activation;
-- explicit invocation;
-- active-body wording;
-- conversational behavior;
-- fixture/repo behavior;
-- skill composition;
-- multi-turn behavior;
-- full host/runtime behavior.
-
-Do not substitute one question for another and keep the same evidence label.
-
-### Evidence Classes
-
-A case must declare one or more evidence classes. The runner may support a claim only when it captures that class's required evidence:
-
-- `structure`: deterministic file, metadata, schema, or command evidence; no subject model required.
-- `explicit-instruction`: the exact skill snapshot is deliberately supplied or invoked, with prompt, events, final output, and usage retained. This can test active wording but cannot support an automatic-activation claim.
-- `native-activation`: the host discovers the skill through its native mechanism, and events prove the exact snapshot was read or activated. Description-boundary acceptance also needs a near-miss case showing no target-skill read or activation.
-- `artifact-outcome`: isolated before/after filesystem state, diff, status, command output, and exit evidence prove task effects.
-- `multi-turn`: a stateful session transcript proves the ordered turns and retained state. One-shot injection is not equivalent.
-- `cross-host`: the same case semantics and required evidence run through each named host adapter. One host cannot stand in for another.
-
-Semantic grading is a grading method, not an evidence class. A case may combine classes, such as `native-activation` plus `artifact-outcome`.
-
-`plan` must reject an acceptance job when a required class is unavailable. Iterate may run a labeled diagnostic only when it reports the changed question and makes no stronger claim.
-
-### Iterate Profile
-
-The default iterate path should:
-
-1. run no-model structural checks;
-2. choose one strong pressure case;
-3. select the cheapest host mode that preserves the eval question;
-4. run a valid control and candidate when no reusable control exists;
-5. grade objective evidence first;
-6. use a semantic grader only for unresolved assertions;
-7. classify the failure;
-8. recommend one wording, placement, structure, activation, fixture, or host change;
-9. rerun the failed candidate side first after revision.
-
-One decisive case is preferable to many clean prompts.
-
-### Acceptance Profile
-
-Acceptance should select only evidence relevant to the skill's declared support:
-
-- native activation;
-- high-value behavioral regressions;
-- near-miss non-trigger cases;
-- important skill compositions;
-- target hosts;
-- target models;
-- repeated runs where observed variance requires them;
-- one full-fidelity runtime path when release claims depend on it.
-
-Acceptance must report what remains unsupported or untested.
-
-### Variants
-
-The architecture must support explicit variants rather than assuming every comparison is `baseline` versus `with-skill`:
-
-- no skill;
-- old skill snapshot;
-- current release;
-- candidate working copy;
-- old description with unchanged body;
-- new description with unchanged body;
-- base skill stack;
-- base stack plus target skill;
-- installed runtime context.
-
-Typical comparisons:
-
-- new skill: no skill versus candidate;
-- revision: exact old snapshot versus candidate;
-- description change: same body with old versus new metadata;
-- composition: base stack versus base stack plus target.
-
-### Role Separation
-
-Keep these roles separate:
-
-- subject: performs the task under the selected variant;
-- mechanical grader: proves objective facts;
-- semantic grader: judges only assertions artifacts cannot prove;
-- analyzer: identifies patterns, variance, and likely failure class;
-- author: changes the skill from measured evidence;
-- human owner: decides public behavior and disputed judgments.
-
-A subject must not grade its own run in the same conversation.
-
-Semantic graders should use fresh context, fixed criteria written before the run, blinded variant identity when practical, and evidence-backed verdicts.
-
-### Deterministic And Probabilistic Grading
-
-Use deterministic checks for:
-
-- changed, created, or deleted files;
-- diff content;
-- exit status;
-- JSON/schema validity;
-- tool calls;
-- skill activation evidence;
-- command output;
-- usage and cost;
-- required or forbidden paths and protocol fields.
-
-Use model or human judgment for:
-
-- reasoning quality;
-- user-authority preservation;
-- architectural fitness;
-- recommendation quality;
-- semantic completeness;
-- whether behavior reflects the intended rule rather than phrase matching.
-
-A polished response cannot override contradictory filesystem or command evidence.
-
-## Subject Isolation
-
-Directory placement is not a security boundary. The runner must prevent subject access to eval answers through every tool it exposes.
-
-For each subject run:
-
-1. copy only the fixture into an isolated run directory outside the source workspace;
-2. copy the target skill into a separate immutable snapshot in that run directory;
-3. exclude `.skill-eval/` definitions, assertions, reports, controls, and candidate labels;
-4. start the subject inside the isolated fixture;
-5. expose only the natural user prompt, target skill, and allowed tools;
-6. keep grading criteria coordinator-side;
-7. enforce readable roots for the fixture and selected skill snapshot and writable roots for the fixture only;
-8. resolve real paths and reject traversal and symlink escapes;
-9. capture evidence after the subject settles and verify the snapshot hash did not change.
-
-The subject must not see control output, expected outcomes, reports, or semantic grading rubrics.
-
-An adapter may claim strict tool isolation only when every exposed filesystem or command tool enforces the declared roots. For Pi bootstrap runs, load one explicit adapter-owned root guard, expose no unrestricted shell, and prove allowed and denied paths before paid model execution. Auto-discovered extensions remain disabled. If the guard cannot enforce the required roots, stop; copied-directory isolation alone is only a reduced-fidelity diagnostic and cannot satisfy bootstrap acceptance.
-
-## Portable Host Architecture
-
-### Core And Adapters
-
-Use one host-neutral case, planning, scheduling, fingerprint, evidence, and grading core. Use host-specific adapters only for capability probing, command construction, event parsing, usage extraction, and cleanup.
-
-Each adapter reports capabilities such as:
-
-- native automatic skill loading;
-- explicit skill invocation;
-- instruction injection;
-- ephemeral sessions;
-- context isolation;
-- tool allowlists;
-- structured events;
-- usage and cost metrics;
-- multi-turn control;
-- sandboxing;
-- plugin loading;
-- safe parallel execution.
-
-### Fallback Rule
-
-Choose the cheapest available mode that satisfies the eval requirements.
-
-If a fallback changes the eval question or evidence quality:
-
-- do not call it equivalent;
-- label it as a diagnostic or reduced-fidelity result;
-- report the missing capability;
-- stop when acceptance requires unavailable evidence.
-
-Automatic activation cannot be proven by direct body injection. Multi-turn behavior cannot be replaced by one giant prompt. Pi behavior cannot prove Claude Code or Codex host behavior.
-
-### Pi
-
-Pi is the primary reference adapter and should support:
-
-- print/JSON one-shot runs;
-- native `--skill` loading;
-- explicit skill invocation;
-- stripped context and resources;
-- exact tool allowlists;
-- structured usage and cost capture;
-- tiny fixture execution;
-- RPC multi-turn conversation evals;
-- automatic versus explicit activation evidence.
-
-Use Pi print/JSON for most independent evals. Use Pi RPC for automated multi-turn evals. Do not use cmux or delegation merely to run ordinary cases.
-
-### Codex
-
-The Codex adapter should support proven one-shot capabilities:
-
-- `codex exec`;
-- ephemeral execution;
-- isolated cwd/config where supported;
-- JSON events;
-- sandboxing;
-- final-output capture.
-
-Do not claim native skill activation until a capability probe demonstrates an isolated, realistic path.
-
-### Claude
-
-The Claude adapter should support proven one-shot capabilities:
-
-- print mode;
-- bare mode;
-- no-session persistence;
-- stream JSON;
-- plugin loading;
-- tool restrictions;
-- budget caps.
-
-`doctor` must detect bare-mode authentication limitations. Do not silently switch to a noisier startup mode when that changes evidence quality.
-
-### Delegation And Interactive Agents
-
-Direct child processes are the default execution shape. They avoid parent-agent orchestration tokens and make evidence easier to attribute.
-
-Pi RPC handles automated multi-turn cases. A future cmux/delegation backend is allowed only when interactive panes, parent/child coordination, resume/steer behavior, or delegation contracts are themselves under test.
-
-## Scheduling, Concurrency, And Cost
-
-Use precise terms:
-
-- **wave**: the selected set of case/variant jobs;
-- **job**: one case × one variant subject or grader execution;
-- **model request**: one provider request/turn inside a job;
-- **tool call**: one tool invocation inside a model turn.
-
-The deterministic scheduler may expand:
-
-```text
-cases x variants x hosts x models x repeats
-```
-
-It must not run the full cross-product by default.
-
-Requirements:
-
-- bounded configurable concurrency with queued overflow;
-- isolated run directories and config homes;
-- immutable skill snapshots during a wave;
-- control and candidate launched from one resolved wave plan when both are needed;
-- no skill edit while related runs remain active;
-- explicit provider, model, and thinking selection before model requests;
-- a required soft model-request cap and optional soft spend cap for the wave;
-- hard per-job timeout, output, and runaway-turn limits;
-- resumable wave state with frozen snapshots, completed artifacts, pending jobs, observed usage, and pause reason;
-- provider-aware rate and budget limits where the host exposes the needed data;
-- optional fail-fast when evidence is decisive or infrastructure is broken.
-
-Parallelism reduces wall-clock time, not model tokens. A missing cost metric cannot be treated as zero; use observed model requests and report spend enforcement as unavailable.
-
-Soft caps are checked at job boundaries. When reached during an active job, let that job settle and save its evidence, then pause the wave before another job starts. The owner may raise the cap and resume the same frozen wave without rerunning completed jobs. A job may overrun a soft cap because its final request count or cost is known only after it settles.
-
-Hard safety limits may terminate the active job. Preserve partial evidence and require explicit retry or escalation. Do not kill an active tool call merely because a soft wave budget was crossed.
-
-If a runner exits while a job is active, loading that wave marks the job as needing attention. Inspect any saved evidence and treat unrecorded provider usage as unknown; never restart the job without explicit retry.
-
-### Adaptive Repeats
-
-Start with one run per side. When results conflict, activation is unstable, or acceptance needs variance evidence, the scheduler must add a bounded repeat or stop at the configured cap and report unresolved variance. Do not require a fixed three-run rule for deterministic fixture behavior.
-
-### Control Cache
-
-A control is reusable only when its fingerprint matches all behavior-relevant inputs, including:
-
-- eval ID, selected suite identity and active profile policy, selected case content, assertions, and grading policy;
-- prompt;
-- fixture;
-- skill snapshot;
-- host, host version, provider, and stable backend model revision when available;
-- model and thinking level;
-- tools and root-isolation policy;
-- context, config-home, extension, and runtime-hook settings;
-- adapter version.
-
-Any relevant mismatch invalidates the control. For a directly selected case, unrelated suite membership and inactive profile-policy changes are not behavior-relevant and must not invalidate otherwise matching evidence. When a provider does not expose a stable backend revision, record that limitation and apply an explicit cache-age policy rather than implying cross-time identity.
-
-## Normalized Evidence
-
-Every host adapter should normalize available evidence into a common run bundle:
-
-```text
-metadata.json
-final.md
-events.jsonl
-diff
-git-status.txt
-exit-status.txt
-usage.json
-objective-grade.json
-```
-
-Omit unavailable artifacts explicitly in metadata rather than fabricating them.
-
-Metadata must identify:
-
-- eval and case;
-- variant;
-- skill snapshot hash;
-- host, host version, and adapter version;
-- model and thinking level;
-- tools and context controls;
-- command or invocation shape with secrets removed;
-- evidence classes and whether each required artifact was captured;
-- run fingerprint;
-- start/end time;
-- token usage, cache usage, and cost when available.
-
-Full transcripts remain stored but are not loaded by default. Inspect them when objective evidence and final response cannot explain a surprising result.
-
-## Eval Workspace Commands
-
-`skill-eval.mjs` should expose one coherent CLI:
-
-```text
-doctor
-init
-plan
-run
-grade
-report
-```
-
-Expected behavior:
-
-- `doctor`: probe installed runtimes, hosts, auth viability, and capabilities without model calls unless an explicit smoke proof is requested.
-- `init`: create the smallest `.skill-eval/<skill-name>/` source structure required by the first case.
-- `plan`: resolve cases, variants, hosts, models, repeats, cache hits, evidence class, expected model jobs, and model-request bounds without executing models.
-- `run`: freeze snapshots, create or resume a wave, execute bounded jobs, pause safely at soft caps, capture evidence, and run objective grading.
-- `grade`: grade saved evidence, using a semantic model only for unresolved assertions when requested.
-- `report`: summarize comparisons, token/cost deltas, variance, evidence quality, residual uncertainty, and production-readiness status.
-
-Exact CLI flags remain tentative until implementation planning.
-
-## Safety And Security
-
-Bundled scripts must:
-
-- spawn commands with argument arrays rather than shell interpolation;
-- redact credentials and auth tokens from metadata;
-- reject destructive run roots such as `/`, home, or repo root;
-- delete only paths created and owned by the current run;
-- keep fixture writes isolated;
-- avoid automatic package/runtime installation;
-- avoid loading untrusted project hooks or config unless the eval explicitly requires full-fidelity runtime behavior;
-- treat subject output as untrusted data during grading and report generation;
-- cap output, runtime, retries, recursion, concurrency, and optional model spend;
-- record when a host cannot enforce requested read/write isolation.
-
-## Two-Skill Development Loop
-
-The intended loop is:
-
-1. define the target behavior and failure;
-2. write the smallest candidate skill;
-3. label it Draft or Unverified;
-4. create the smallest eval case that can expose the behavior;
-5. run the iterate profile;
-6. classify failure as activation, wording, placement, missing stop, structure, fixture, host, or grading weakness;
-7. change one measured pressure point;
-8. rerun the failed candidate side first;
-9. run acceptance when a production-ready claim matters;
-10. report evidence and residual gaps;
-11. promote status only when supported.
-
-A valid existing eval may be reused unchanged. Do not mutate an eval merely to prove eval-first ordering.
-
-If the user explicitly requests an unevaluated draft, provide it and label it. If the user requests a production-ready change while forbidding required evidence, name the conflict and ask which claim should change.
-
-## Bootstrap Entry Gate
-
-Bootstrap implementation may begin after joint spec/plan review:
-
-- resolves every blocking contradiction;
-- confirms the approved write set and preserved v1 controls;
-- proves a feasible Pi root-isolation guard before subject model calls;
-- defines required bootstrap cases and pre-run criteria;
-- leaves provider, model, thinking, and budget selection as an explicit owner gate before paid calls.
-
-## Bootstrap Acceptance Criteria
-
-The Pi-first foundation is accepted for later skill rewrites only when saved evidence confirms:
-
-- Both skills are self-contained and have no runtime dependency on external skills.
-- Active `SKILL.md` files stay compact and route conditional depth to direct references.
-- Node scripts run without npm installation or a build step.
-- Project eval source and generated state follow the `.skill-eval/<skill-name>/` ownership contract.
-- The Pi adapter enforces fixture/snapshot read roots and fixture-only write roots, including traversal and symlink checks, with no unrestricted shell.
-- All cases marked `required_for_bootstrap` have recorded results; this set includes draft/status behavior, eval reuse and user authority, old-versus-candidate pressure behavior, and positive native activation plus near-miss non-trigger evidence for both skills.
-- `iterate` runs one fair old/candidate comparison through Pi without subagents, and the resolved paired plan differs only by variant inputs.
-- Manual bootstrap and runner executions agree on invocation/evidence surfaces and fixed-rubric verdicts; stochastic text need not match exactly and observed variance is reported.
-- Every claimed evidence class has its required artifacts; unavailable classes are unsupported rather than substituted.
-- Mechanical evidence outranks contradictory prose.
-- One fresh blinded semantic grade is evidenced and optional semantic grading can be omitted when objective evidence settles the case.
-- Adaptive-repeat scheduling adds a bounded repeat for conflict or reports unresolved variance at the cap.
-- Cache reuse succeeds only for a complete matching fingerprint and rejects every behavior-relevant mismatch.
-- Concurrency queues work above the configured bound; soft request/spend caps pause after active jobs settle; hard per-job caps preserve partial evidence; and owner-approved resume continues the same frozen wave without rerunning completed jobs.
-- Pi usage and cost are captured when exposed; unavailable cost is not serialized as zero.
-- An independent fresh-context acceptance audit inspects frozen cases, raw evidence, graders, and the readiness claim; the parent adjudicates its findings.
-- No automatic Node or host installation occurs.
-- No external skill, parent subagent, legacy Freeflow eval harness, root build change, or installed hook/extension is required.
-- Pi RPC, Codex, Claude, legacy migration, and broader portability are labeled deferred.
-
-## Full Target Acceptance Criteria
-
-After final cross-skill synthesis, broader implementation acceptance additionally requires:
-
-- Pi RPC multi-turn evals with `multi-turn` evidence;
-- Codex and Claude adapters that report real capabilities and do not overclaim native activation;
-- acceptance profile selection across declared target hosts/models without forcing a full cross-product;
-- full capability, isolation, cache, and evidence conformance for every shipped adapter;
-- explicit, owner-approved legacy Freeflow eval migration if migration is still useful.
-
-## Tentative And Evidence-Gated Decisions
-
-Tentative:
-
-- exact internal JavaScript module decomposition;
-- exact CLI flags and output formatting;
-- whether selected durable reports default to Markdown, JSON, or both.
-
-Evidence-gated:
-
-- default concurrency, initially expected to be conservative;
-- whether Codex can prove native automatic skill activation in an isolated run;
-- whether Claude bare mode can prove automatic plugin skill activation under supported auth;
-- when repeated model grading materially improves verdict reliability;
-- whether a future single binary is worth replacing the Node runtime requirement;
-- whether cmux/delegation adds value beyond Pi RPC for any eval not explicitly testing delegation.
-
-## Bootstrap And Final Synthesis
-
-Before bootstrap implementation:
-
-1. write the bootstrap implementation plan;
-2. review this spec and the plan together with fresh, read-only reviewers using explicit rubrics rather than the current workflow skills;
-3. adjudicate blocking, non-blocking, question, and evidence-gap findings;
-4. revise the artifacts once from accepted findings;
-5. implement vertical, evidence-producing slices until bootstrap acceptance.
-
-After bootstrap acceptance:
-
-1. resume the remaining skill-group comparisons using the accepted Pi-first tooling where appropriate;
-2. read all candidate specs together;
-3. reconcile shared workflow, artifact, review, execution, and eval contracts;
-4. revise or supersede this draft where later evidence changes direction;
-5. perform one formal architecture/artifact review across the final set;
-6. write a master implementation plan or coordinated plan set for deferred work;
-7. implement remaining portability and acceptance scope in vertical slices.
-
-## Change Log
-
-- 2026-07-11: Clarified wave/job/model-request/tool-call terminology. Soft request/spend caps now pause between jobs after active jobs settle; hard per-job limits preserve partial evidence; owner escalation resumes the same frozen wave.
-- 2026-07-10: Incorporated the bounded four-lens bootstrap review. Split bootstrap from full-target acceptance, defined evidence classes, required enforceable Pi tool-root isolation, tightened caching/repeats/budgets, and expanded independent bootstrap evidence.
-- 2026-07-10: Changed implementation timing after owner decision. Foundational bootstrap implementation now precedes the remaining skill-pack comparison; broader portability work remains subject to final cross-skill synthesis.
+- scheduler;
+- wave state;
+- resume/escalation;
+- candidate-only reuse;
+- adaptive repeats;
+- concurrency;
+- public plan/run/grade/report lifecycle;
+- arbitrary run discovery;
+- unenforced schemas.
+
+Do not mutate or migrate prototype runs. Git history and saved evidence preserve them as historical context.
+
+## Bootstrap Acceptance
+
+Acceptance requires:
+
+- active public interface limited to `doctor`, `init`, and `evaluate`;
+- one-case-per-invocation enforced;
+- preflight makes zero provider requests;
+- invalid, blocked, changed-preview, invalid-limit, and unapproved work stops before provider execution;
+- host-free cases use zero Pi processes and reject model flags;
+- preflight reports maximum Pi-process count and worst-case approved turns;
+- every subject and semantic Pi process obeys the approved turn, timeout, and output limits;
+- automatic provider retries are disabled and provider requests are reported honestly;
+- variants run serially in case order;
+- only declared subject resources are exposed;
+- source fixture and subject inputs remain immutable;
+- root guard and coordinator reject traversal and symlink escapes;
+- objective evidence outranks prose and semantic judgment;
+- required semantic work uses fresh context under the approved per-process hard limits;
+- behavioral assertion failure can publish valid complete result;
+- infrastructure failure never publishes accepted result;
+- crash before publication leaves diagnostics only;
+- complete bundle is atomic, immutable, and integrity-verified;
+- rerun starts whole case and never reuses partial work;
+- usage/cost unavailable fields are honest;
+- historical prototype runs stay documentary only;
+- single cases publish only `pass|fail|inconclusive` case verdicts;
+- comparison cases have exactly `reference` and `candidate` variants and publish only comparative verdicts;
+- public operational outcomes are concise JSON and exact error taxonomy remains deferred;
+- both skills structurally validate and remain Unverified;
+- one manual direct Pi calibration agrees with one reduced evaluator result;
+- required activation, near-miss, pressure, readiness, and unsupported-evidence cases have saved accepted results;
+- concise bootstrap acceptance report names exact revisions, commands, evidence, limits, unsupported claims, and residual risks;
+- two fresh read-only reviewers inspect final code and evidence;
+- parent adjudicates findings once;
+- no external skill, legacy harness, npm dependency, root build change, ambient extension, or output-router dependency is required.
+
+## Re-entry Triggers
+
+Freeze implementation and return to owner-backed artifact revision when:
+
+- another public lifecycle command, state, or storage concept appears necessary;
+- evaluator needs cache, resume, partial reuse, concurrency, batching, or second host;
+- caller must understand internal manifests, variants, attempts, grades, integrity, or publication;
+- second unexpected defect appears at same retained seam;
+- case criteria change after implementation begins;
+- architecture changes after paid evidence;
+- remaining work grows after completed checkpoint;
+- required reruns increase beyond accepted evidence plan;
+- reviewer finding requires owner-owned scope, security, compatibility, or hard-to-reverse architecture decision;
+- remaining finish path cannot be stated in a few steps.
+
+At trigger:
+
+1. stop edits and paid execution;
+2. preserve current evidence;
+3. name failed assumption;
+4. classify local fix, plan defect, spec gap, owner decision, bounded refactor, or defer;
+5. do not patch public interface before alternatives are considered.
+
+## Deferred Milestones
+
+Observed need and separate owner-approved plan are required for:
+
+- output-router case composition;
+- suite batching;
+- cache and control reuse;
+- resume/partial continuation;
+- concurrency;
+- adaptive repeats;
+- different semantic model selection;
+- provider/host adapters;
+- Pi RPC and multi-turn;
+- Codex/Claude;
+- cross-host acceptance;
+- legacy migration;
+- aggregate reporting.
+
+## Confirmed Owner Decisions
+
+Confirmed 2026-07-11:
+
+1. one public `evaluate` operation owns one complete case;
+2. deterministic preflight and execution may occur inside one call;
+3. `--plan-only` remains optional for preview;
+4. model execution requires explicit owner-approved settings;
+5. no batching in evaluator;
+6. output router may compose independent commands later but evaluator does not depend on it;
+7. complete case result is atomic success unit;
+8. infrastructure failure reruns whole case; no partial reuse;
+9. Pi is concrete only host;
+10. prototype runs remain documentary evidence;
+11. both skills remain Unverified after constrained bootstrap acceptance;
+12. single cases have one `subject` and a `pass|fail|inconclusive` non-comparative verdict;
+13. comparison cases have exactly `reference` and `candidate` with deterministic assertion-pair comparison;
+14. turn, timeout, and output limits apply per Pi process; provider requests are observed, not promised as a global hard cap;
+15. automatic provider retries are disabled in isolated evaluation processes;
+16. valid operational outcomes use concise JSON without freezing exhaustive machine-code, phase, null-field, or numeric exit taxonomies;
+17. explicit `--root` preserves existing root selection and otherwise discovery begins at cwd.
