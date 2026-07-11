@@ -100,8 +100,9 @@ export async function loadWave(input) {
   if (resolve(wave.wave_root) !== dirname(path)) throw new Error(`Wave root mismatch: ${path}`);
   for (const job of wave.jobs) {
     if (job.status === "running") {
-      job.status = "pending";
+      job.status = "needs-attention";
       job.interrupted_before_resume = true;
+      job.error = "Previous runner exited while this job was active. Inspect saved evidence, then use --retry-needs-attention to retry.";
     }
   }
   return wave;

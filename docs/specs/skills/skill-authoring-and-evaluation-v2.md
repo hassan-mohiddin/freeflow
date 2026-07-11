@@ -563,6 +563,8 @@ Soft caps are checked at job boundaries. When reached during an active job, let 
 
 Hard safety limits may terminate the active job. Preserve partial evidence and require explicit retry or escalation. Do not kill an active tool call merely because a soft wave budget was crossed.
 
+If a runner exits while a job is active, loading that wave marks the job as needing attention. Inspect any saved evidence and treat unrecorded provider usage as unknown; never restart the job without explicit retry.
+
 ### Adaptive Repeats
 
 Start with one run per side. When results conflict, activation is unstable, or acceptance needs variance evidence, the scheduler must add a bounded repeat or stop at the configured cap and report unresolved variance. Do not require a fixed three-run rule for deterministic fixture behavior.

@@ -383,6 +383,7 @@ Implement:
 - required soft model-request cap and optional soft spend cap checked between jobs;
 - hard per-job timeout, output, and runaway-turn limits;
 - persisted resumable wave state with frozen snapshots, completed evidence, pending jobs, usage, and pause reason;
+- interrupted active jobs become needs-attention state and require explicit retry after evidence inspection;
 - bounded adaptive-repeat scheduling when conflict/instability is detected;
 - candidate-only rerun support when control fingerprint remains valid.
 
@@ -399,6 +400,7 @@ Semantic grading must remain optional. It cannot repair failed objective evidenc
 - Crossing a soft request/spend cap lets active jobs settle, saves their evidence, and pauses before another job starts; unavailable cost never becomes zero.
 - Raising a cap and resuming reuses the same wave snapshots and completed jobs.
 - Hard timeout/output/runaway-turn limits preserve partial evidence for explicit retry.
+- Reloading an interrupted active job does not rerun it without explicit retry; unavailable partial provider usage remains unknown.
 - Randomized opaque labels and sanitized paths keep meaningful variant identity out of the semantic grader input; residual content leakage is reported.
 - Standalone `grade` and `report` commands reproduce saved results without rerunning subjects.
 - Reports name unsupported and unverified claims.

@@ -25,6 +25,26 @@ function fakePlan() {
   };
 }
 
+test("loading an interrupted wave requires explicit retry", async (t) => {
+  const root = await mkdtemp(resolve(tmpdir(), "freeflow-wave-interrupt-test-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const waveRoot = resolve(root, "wave");
+  await mkdir(waveRoot);
+  await writeFile(resolve(waveRoot, "wave.json"), `${JSON.stringify({
+    schema_version: 1,
+    wave_id: "interrupted-wave",
+    wave_root: waveRoot,
+    plan: {},
+    jobs: [{ status: "running" }],
+  })}\n`);
+
+  const wave = await loadWave(waveRoot);
+
+  assert.equal(wave.jobs[0].status, "needs-attention");
+  assert.equal(wave.jobs[0].interrupted_before_resume, true);
+  assert.match(wave.jobs[0].error, /retry-needs-attention/);
+});
+
 test("soft cap pauses after active job and owner escalation resumes pending work", async (t) => {
   const root = await mkdtemp(resolve(tmpdir(), "freeflow-wave-test-"));
   t.after(async () => {
