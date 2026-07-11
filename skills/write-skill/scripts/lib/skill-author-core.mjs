@@ -6,12 +6,18 @@ export function parseSkill(text) {
   const match = text.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
   if (!match) return { frontmatter: null, body: text };
   const frontmatter = {};
+  const frontmatterErrors = [];
   for (const line of match[1].split("\n")) {
     const index = line.indexOf(":");
     if (index < 0) continue;
-    frontmatter[line.slice(0, index).trim()] = line.slice(index + 1).trim().replace(/^['"]|['"]$/g, "");
+    const key = line.slice(0, index).trim();
+    const rawValue = line.slice(index + 1).trim();
+    if (rawValue.includes(": ") && !/^["'|>]/.test(rawValue)) {
+      frontmatterErrors.push(`frontmatter.${key} contains ': ' in a YAML plain scalar; quote the value`);
+    }
+    frontmatter[key] = rawValue.replace(/^['"]|['"]$/g, "");
   }
-  return { frontmatter, body: match[2] };
+  return { frontmatter, frontmatterErrors, body: match[2] };
 }
 
 function inside(root, path) {
@@ -29,8 +35,8 @@ export async function validateSkill(input) {
   const skillPath = await resolveSkillPath(input);
   const skillRoot = dirname(skillPath);
   const text = await readFile(skillPath, "utf8");
-  const { frontmatter, body } = parseSkill(text);
-  const errors = [];
+  const { frontmatter, frontmatterErrors = [], body } = parseSkill(text);
+  const errors = [...frontmatterErrors];
   const warnings = [];
 
   if (!frontmatter) errors.push("SKILL.md must start with YAML frontmatter");

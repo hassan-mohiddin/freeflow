@@ -68,7 +68,7 @@
       ],
       "status": "unverified"
     },
-    "deprecation-and-migration": {
+    "migration-work": {
       "status": "unverified",
       "evals": []
     },
@@ -198,7 +198,7 @@
         "STP-004"
       ]
     },
-    "shipping-and-launch": {
+    "launch-work": {
       "status": "unverified",
       "evals": []
     },

@@ -48,7 +48,7 @@ Current direct command eval coverage:
 | `/write-plan` | `write-plan` | No | `CMD-004` | `WPL-001` through `WPL-004` | Historical coverage; revised skill Unverified |
 | `/execute-plan` | `execute-plan` | No | `CMD-001` | `XPL-001` through `XPL-004` | Historical coverage; revised skill Unverified |
 | `/simplify-code` | `simplify-code` | No | — | — | Unverified candidate |
-| `/deprecation-and-migration` | `deprecation-and-migration` | No | — | — | Unverified candidate |
+| `/migration-work` | `migration-work` | No | — | — | Unverified candidate |
 | `/diagnose-failure` | `diagnose-failure` | No | `CMD-011` | `DIA-001` | Historical coverage; revised skill Unverified |
 | `/verify-work` | `verify-work` | No | `CMD-005` | `VFY-001` through `VFY-003` | Historical coverage; revised skill Unverified |
 | `/review-work` | `review-work` | No | `CMD-009` | `REV-002`, `REV-003` | Historical coverage; revised skill Unverified |
@@ -56,7 +56,7 @@ Current direct command eval coverage:
 | `/handoff` | `handoff` | No | `CMD-006` | `HOF-001` through `HOF-005` | Historical coverage; revised skill Unverified |
 | `/finish-branch` | `finish-branch` | No | — | — | Unverified candidate |
 | `/release-work` | `release-work` | No | — | — | Unverified candidate |
-| `/shipping-and-launch` | `shipping-and-launch` | No | — | — | Unverified candidate |
+| `/launch-work` | `launch-work` | No | — | — | Unverified candidate |
 | `/bypass` | `bypass` | No | `CMD-007` | `BYP-001`, `BYP-002` | Covered |
 
 ## Pi Native Settings Commands

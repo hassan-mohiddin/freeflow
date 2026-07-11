@@ -134,7 +134,7 @@ Direct skill calls should be possible for technical users:
 /write-plan
 /execute-plan
 /simplify-code
-/deprecation-and-migration
+/migration-work
 /diagnose-failure
 /verify-work
 /review-work
@@ -142,7 +142,7 @@ Direct skill calls should be possible for technical users:
 /handoff
 /finish-branch
 /release-work
-/shipping-and-launch
+/launch-work
 /bypass
 ```
 
@@ -533,10 +533,10 @@ Optional candidate skills cover distinct lifecycle jobs:
 
 ```text
 simplify-code
-deprecation-and-migration
+migration-work
 finish-branch
 release-work
-shipping-and-launch
+launch-work
 ```
 
 The current adaptive revisions and new candidates remain Unverified until baseline-vs-with-skill evaluation shows that they change behavior under pressure. Skill presence, direct command exposure, and static review are not behavioral readiness claims.

@@ -26,6 +26,17 @@ test("validate rejects malformed frontmatter and escaping links", async (t) => {
   assert.ok(result.errors.some((item) => item.includes("escapes")));
 });
 
+test("validate rejects YAML-unsafe plain-scalar descriptions", async (t) => {
+  const root = await mkdtemp(resolve(tmpdir(), "freeflow-author-yaml-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const skillRoot = resolve(root, "bad-yaml");
+  await import("node:fs/promises").then(({ mkdir }) => mkdir(skillRoot));
+  await writeFile(resolve(skillRoot, "SKILL.md"), "---\nname: bad-yaml\ndescription: Use when routes change: choose safely.\n---\n\n# Bad YAML\n");
+  const result = await validateSkill(skillRoot);
+  assert.equal(result.valid, false);
+  assert.ok(result.errors.some((item) => item.includes("quote the value")));
+});
+
 test("inspect remains advisory and does not claim behavioral success", async (t) => {
   const root = await mkdtemp(resolve(tmpdir(), "freeflow-author-inspect-"));
   t.after(() => rm(root, { recursive: true, force: true }));

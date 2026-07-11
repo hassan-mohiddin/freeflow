@@ -82,4 +82,4 @@ Rollback must account for code, data, schema, messages, clients, caches, and ext
 
 ## Temporary Machinery
 
-Flags, adapters, dual writes, elevated logging, launch dashboards, temporary permissions, and support procedures need an owner and cleanup checkpoint. Route compatibility removal through `../../deprecation-and-migration/SKILL.md`.
+Flags, adapters, dual writes, elevated logging, launch dashboards, temporary permissions, and support procedures need an owner and cleanup checkpoint. Route compatibility removal through `../../migration-work/SKILL.md`.

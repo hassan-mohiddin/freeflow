@@ -6,8 +6,5 @@
         "graphify-out/**"
       ]
     }
-  },
-  "skills": {
-    "enabled": false
   }
 }

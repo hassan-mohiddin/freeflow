@@ -11,6 +11,8 @@
 - Excludes GitHub-only plugin docs and eval evidence from the npm runtime tarball; README evidence/docs links now target GitHub.
 - Removes activation-like kernel duplication from `AGENTS.md`, narrows Workflow to routing ownership, and aligns Mode Contract plus current eval prompts with `/freeflow mode` while preserving existing capability config.
 - Uses Claude's host-valid `./` marketplace source and validates host-specific marketplace paths plus the packaged Pi entrypoint.
+- Renames the optional `deprecation-and-migration` and `shipping-and-launch` skills to the collision-resistant `migration-work` and `launch-work` identities, including their direct commands.
+- Quotes YAML-sensitive skill descriptions and teaches `skill-author` to reject unquoted `: ` plain scalars before Pi loads them.
 
 ## 0.3.0 - 2026-06-28
 

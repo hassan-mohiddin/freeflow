@@ -59,4 +59,4 @@ Do not turn every theoretical hardening idea into a blocker. Name the asset, pat
 - Unknown exploitability/root cause -> diagnosis or specialist review.
 - Missing policy or accepted risk decision -> Decision Gate.
 - Architecture spreads trust decisions across callers -> design-for-depth.
-- Production rollout risk -> shipping-and-launch readiness.
+- Production rollout risk -> launch-work readiness.

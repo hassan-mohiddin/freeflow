@@ -9,6 +9,7 @@ command_docs="$plugin_root/evals/reports/by-command-surface/command-surface-matr
 skills_dir="$plugin_root/skills"
 mode_skill="$skills_dir/mode-contract/SKILL.md"
 pi_extension="$plugin_root/pi-extension/src/runtime-context.ts"
+pi_extension_dist="$plugin_root/pi-extension/dist/runtime-context.js"
 
 failures=0
 
@@ -174,6 +175,27 @@ done < <(jq -r '.modeCommands[] | [.command, .routesTo] | @tsv' "$registry")
 if rg -n '^/workflow (conversation|workflow|strict-workflow|reset)$' "$mode_skill" "$plugin_root"/evals/prompts/*.txt >/dev/null; then
   fail "stale /workflow mode alias remains in active mode skill or eval prompts"
 fi
+
+for legacy_skill in deprecation-and-migration shipping-and-launch; do
+  if [ -e "$skills_dir/$legacy_skill" ]; then
+    fail "legacy skill directory remains: $legacy_skill"
+  fi
+
+  if rg -n "$legacy_skill" \
+    "$registry" \
+    "$pi_extension" \
+    "$pi_extension_dist" \
+    "$plugin_root/README.md" \
+    "$plugin_root/plugin-docs/skills.md" \
+    "$plugin_root/docs/freeflow-current-state.md" \
+    "$plugin_root/docs/freeflow-packaging-and-publishing-design.md" \
+    "$plugin_root/docs/freeflow-runtime-and-lifecycle.md" \
+    "$plugin_root/docs/plugin-contract.md" \
+    "$command_docs" \
+    "$skills_dir" >/dev/null; then
+    fail "legacy skill identity remains in active runtime or docs: $legacy_skill"
+  fi
+done
 
 while IFS=$'\t' read -r command handler kind; do
   if [[ "$command" != /* ]]; then

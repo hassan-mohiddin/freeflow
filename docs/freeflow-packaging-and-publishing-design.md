@@ -133,7 +133,7 @@ The active plugin runtime ships the current skill set:
 - `execute-plan`
 - `tdd`
 - `simplify-code`
-- `deprecation-and-migration`
+- `migration-work`
 - `diagnose-failure`
 - `verify-work`
 - `review-work`
@@ -141,7 +141,7 @@ The active plugin runtime ships the current skill set:
 - `handoff`
 - `finish-branch`
 - `release-work`
-- `shipping-and-launch`
+- `launch-work`
 - `bypass`
 - `setup-freeflow`
 - `write-skill`
@@ -149,7 +149,7 @@ The active plugin runtime ships the current skill set:
 
 The setup skill uses the public `setup-freeflow` name. It creates `.freeflow/config.json` as the sole repo activation boundary, preserves repo-owned host instruction files, and reports host runtime delivery separately from activation.
 
-The current adaptive-workflow revisions are an Unverified candidate pending behavioral evaluation. `deprecation-and-migration`, `finish-branch`, `release-work`, `shipping-and-launch`, and `simplify-code` are optional lifecycle skills; `tdd` is an optional execution method.
+The current adaptive-workflow revisions are an Unverified candidate pending behavioral evaluation. `migration-work`, `finish-branch`, `release-work`, `launch-work`, and `simplify-code` are optional lifecycle skills; `tdd` is an optional execution method.
 
 ## Publishing Sequence
 

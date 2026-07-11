@@ -205,7 +205,7 @@ delivery slice           produce accepted observable behavior
 deepening slice          improve locality or interface leverage without behavior change
 ```
 
-`execute-plan` owns lifecycle routing. `tdd` is an optional test-first method for observable behavior; `simplify-code` owns behavior-preserving complexity reduction; `deprecation-and-migration` owns consumer movement and removal proof; `diagnose-failure` owns reproduction and root cause.
+`execute-plan` owns lifecycle routing. `tdd` is an optional test-first method for observable behavior; `simplify-code` owns behavior-preserving complexity reduction; `migration-work` owns consumer movement and removal proof; `diagnose-failure` owns reproduction and root cause.
 
 After every meaningful slice:
 
@@ -231,7 +231,7 @@ Closeout steps are selected rather than mandatory:
 - `handoff` preserves evidence and route state when work pauses, compacts, or changes owner. Handoffs are memory, not authority; live repo evidence wins.
 - `finish-branch` handles merge, PR, keep, discard, and cleanup choices after the branch is complete and verified.
 - `release-work` prepares, publishes, and verifies an immutable versioned consumer artifact.
-- `shipping-and-launch` deploys or exposes behavior through an observable, recoverable production rollout.
+- `launch-work` deploys or exposes behavior through an observable, recoverable production rollout.
 
 Release and shipping are distinct. A replacement release may need to precede consumer migration; migration proof must precede a later removal or breaking release. A published release may still require a separately authorized deployment or rollout.
 

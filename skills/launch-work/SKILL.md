@@ -1,9 +1,9 @@
 ---
-name: shipping-and-launch
+name: launch-work
 description: Use when preparing, approving, executing, monitoring, or rolling back a production deployment or user rollout; defining launch readiness, staged exposure, migration ordering, operational signals, advance/hold/abort criteria, or post-launch verification.
 ---
 
-# Shipping And Launch
+# Launch Work
 
 > Status: Unverified candidate
 
@@ -19,7 +19,7 @@ Use `../decision-gate/SKILL.md` when any of those choices are unresolved. Recomm
 
 Read [launch readiness](references/launch-readiness.md) when selecting risk lenses, operational evidence, rollout stages, or recovery checks.
 
-Use `../release-work/SKILL.md` when a versioned artifact must be produced first. Use `../deprecation-and-migration/SKILL.md` when the launch moves data, traffic, consumers, or compatibility contracts.
+Use `../release-work/SKILL.md` when a versioned artifact must be produced first. Use `../migration-work/SKILL.md` when the launch moves data, traffic, consumers, or compatibility contracts.
 
 ## Launch Contract
 

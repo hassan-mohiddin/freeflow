@@ -50,7 +50,7 @@ CI/CD change:
 workflow/plan -> provider/repo pipeline guidance -> verify pipeline behavior -> shipping skill only for production rollout
 
 Migration:
-deprecation-and-migration -> storage/API domain guidance -> verify each cohort -> shipping-and-launch for production cutover
+migration-work -> storage/API domain guidance -> verify each cohort -> launch-work for production cutover
 ```
 
 If no suitable domain skill exists, inspect current primary sources and repo conventions. State the expertise or environment limitation rather than inventing a universal checklist.

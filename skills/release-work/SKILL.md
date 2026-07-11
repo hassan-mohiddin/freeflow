@@ -45,7 +45,7 @@ Post-publication verification:
 
 Classify observable consumer impact, not diff size. A small change can be breaking; a large internal refactor can preserve compatibility.
 
-When consumers must migrate, use `../deprecation-and-migration/SKILL.md` to plan the complete sequence. An additive replacement release may need to ship before migration can begin; a later removal or breaking release must wait for the accepted migration and removal proof.
+When consumers must migrate, use `../migration-work/SKILL.md` to plan the complete sequence. An additive replacement release may need to ship before migration can begin; a later removal or breaking release must wait for the accepted migration and removal proof.
 
 ## Prepare
 
@@ -114,4 +114,4 @@ Report:
 - partial failures, recovery actions, and residual risk;
 - whether production shipping remains separate.
 
-Use `../shipping-and-launch/SKILL.md` only when a published artifact must now be deployed or rolled out.
+Use `../launch-work/SKILL.md` only when a published artifact must now be deployed or rolled out.

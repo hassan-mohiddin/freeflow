@@ -30,7 +30,7 @@ Freeflow ships a small workflow skill pack. Natural language is the preferred in
 | `execute-plan` | An approved rolling-plan horizon should be implemented one verified slice at a time with a route check after each slice. |
 | `tdd` | An accepted behavior or bug fix should use one observable RED/GREEN/REFACTOR loop. |
 | `simplify-code` | Working code needs behavior-preserving reduction of accidental complexity. |
-| `deprecation-and-migration` | Consumers, traffic, configuration, or data must move before an old path can be removed. |
+| `migration-work` | Consumers, traffic, configuration, or data must move before an old path can be removed. |
 | `diagnose-failure` | Behavior is broken, failing, flaky, slow, or unclear. |
 | `review-work` | Independent judgment or incoming feedback needs calibrated review, adjudication, and a bounded follow-up loop. |
 | `verify-work` | A slice or completion claim needs fresh evidence and a route check. |
@@ -38,9 +38,9 @@ Freeflow ships a small workflow skill pack. Natural language is the preferred in
 | `handoff` | Pausing, compacting, or transferring evidence and route state to a fresh context. |
 | `finish-branch` | A completed branch needs a safe merge, PR, keep, discard, or cleanup decision. |
 | `release-work` | A versioned artifact must be prepared, published, and verified for consumers. |
-| `shipping-and-launch` | A production deployment or user rollout needs readiness, observability, and recovery gates. |
+| `launch-work` | A production deployment or user rollout needs readiness, observability, and recovery gates. |
 
-The current adaptive-workflow revisions are Unverified pending behavioral evaluation. Optional candidate skills are `deprecation-and-migration`, `finish-branch`, `release-work`, `shipping-and-launch`, and `simplify-code`; `tdd` is an optional execution method.
+The current adaptive-workflow revisions are Unverified pending behavioral evaluation. Optional candidate skills are `migration-work`, `finish-branch`, `release-work`, `launch-work`, and `simplify-code`; `tdd` is an optional execution method.
 
 ## Contributor Skills
 

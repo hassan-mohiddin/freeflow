@@ -53,7 +53,7 @@ For each non-trivial slice, name only what execution needs: outcome, owning requ
 
 Do not require exact files or code before repository evidence supports them. Do not duplicate the implementation inside the plan. Read [plan shapes](references/plan-shapes.md) when a saved artifact needs the full slice shape.
 
-When TDD applies, identify the intended observable seam and first behavior; execution uses `../tdd/SKILL.md` for the method. Use `../deprecation-and-migration/SKILL.md` for consumer/data cutovers and `../shipping-and-launch/SKILL.md` for production rollout contracts rather than embedding those lifecycles as generic task lists.
+When TDD applies, identify the intended observable seam and first behavior; execution uses `../tdd/SKILL.md` for the method. Use `../migration-work/SKILL.md` for consumer/data cutovers and `../launch-work/SKILL.md` for production rollout contracts rather than embedding those lifecycles as generic task lists.
 
 ## Backward Checkpoints
 

@@ -7,7 +7,7 @@ description: Use when creating a git commit or simple push, deciding whether a v
 
 Commit an intended, coherent checkpoint. A commit preserves rollback and provenance; it does not prove correctness or approve the next route.
 
-This skill covers commits and simple pushes, not branch integration, release, or deployment orchestration. Use `../finish-branch/SKILL.md`, `../release-work/SKILL.md`, or `../shipping-and-launch/SKILL.md` for those later jobs.
+This skill covers commits and simple pushes, not branch integration, release, or deployment orchestration. Use `../finish-branch/SKILL.md`, `../release-work/SKILL.md`, or `../launch-work/SKILL.md` for those later jobs.
 
 Review is conditional. Require it when the plan, risk, accumulated change, or repository policy calls for it—not after every slice by habit. Fresh verification is required for the claim the commit represents.
 

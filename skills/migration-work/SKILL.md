@@ -1,9 +1,9 @@
 ---
-name: deprecation-and-migration
+name: migration-work
 description: Use when replacing, sunsetting, or removing an API, feature, dependency, schema, configuration, service, or implementation; migrating callers, users, traffic, or data; defining compatibility and rollback; or proving that legacy behavior can be removed safely.
 ---
 
-# Deprecation And Migration
+# Migration Work
 
 > Status: Unverified candidate
 
@@ -103,7 +103,7 @@ Use independent review for public contracts, data movement, destructive cleanup,
 
 Verification must prove the migration unit and the absence claim being made. “New path passes” does not prove “old path is unused.” “No source references” does not prove “no deployed consumers.”
 
-Use `../verify-work/SKILL.md` for claim-to-evidence matching and `../shipping-and-launch/SKILL.md` when migration includes production rollout.
+Use `../verify-work/SKILL.md` for claim-to-evidence matching and `../launch-work/SKILL.md` when migration includes production rollout.
 
 ## Completion
 

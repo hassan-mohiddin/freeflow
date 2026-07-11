@@ -66,7 +66,7 @@ Apply Chesterton's Fence before deleting: understand the purpose and current con
 
 Use the deletion test from `../design-for-depth/SKILL.md`: removing a useful module should concentrate complexity behind a better interface, not merely scatter it into callers.
 
-Do not delete compatibility, fallback, platform, migration, audit, or recovery behavior because it appears redundant. Route through `../deprecation-and-migration/SKILL.md` when consumers or removal obligations exist.
+Do not delete compatibility, fallback, platform, migration, audit, or recovery behavior because it appears redundant. Route through `../migration-work/SKILL.md` when consumers or removal obligations exist.
 
 ## Stop Conditions
 

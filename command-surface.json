@@ -44,8 +44,8 @@
       "skill": "simplify-code"
     },
     {
-      "command": "/deprecation-and-migration",
-      "skill": "deprecation-and-migration"
+      "command": "/migration-work",
+      "skill": "migration-work"
     },
     {
       "command": "/diagnose-failure",
@@ -76,8 +76,8 @@
       "skill": "release-work"
     },
     {
-      "command": "/shipping-and-launch",
-      "skill": "shipping-and-launch"
+      "command": "/launch-work",
+      "skill": "launch-work"
     },
     {
       "command": "/bypass",
