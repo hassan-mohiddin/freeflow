@@ -33,7 +33,9 @@ test("model case without approval returns needs_approval without execution", asy
   assert.equal(result.summary.pi_processes.subject, 2);
   assert.equal(result.summary.pi_processes.semantic_max, 2);
   assert.equal(result.summary.worst_case_approved_turns, 16);
+  assert.equal(result.summary.limits.transport_limit_bytes, 128 * 1024 * 1024);
   assert.match(result.summary.limitations.join("\n"), /provider requests.*observed/i);
+  assert.match(result.summary.limitations.join("\n"), /canonical evidence.*raw transport/i);
 });
 
 test("plan-only returns planned and owner-approved execution returns ready", async () => {

@@ -27,4 +27,4 @@ Before execution, report:
 
 Bootstrap runs variants serially. It has no cache, batching, concurrency, adaptive repeats, resume, or partial reuse. These mechanisms save work only by adding lifecycle state the caller or runtime must trust.
 
-A hard-limit or infrastructure failure publishes diagnostics, not a gradeable result. After the cause and owner-approved limits are resolved, invoke the whole case again.
+A hard-limit or infrastructure failure publishes diagnostics, not a gradeable result. The output limit applies to retained canonical evidence after cumulative Pi JSON update snapshots are compacted; a separate internal safeguard bounds raw transport. After the cause and owner-approved limits are resolved, invoke the whole case again.

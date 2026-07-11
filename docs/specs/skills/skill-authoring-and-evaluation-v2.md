@@ -274,6 +274,7 @@ Rules:
 
 - `skill`, `case`, `timeout-ms`, and `output-limit-bytes` are always required.
 - Timeout and output limits apply independently to each Pi process.
+- The output limit bounds retained canonical stdout/stderr evidence. The Pi adapter removes cumulative snapshots from streaming update events before applying that limit, retains malformed lines for diagnosis, and enforces a separate internal raw-transport safeguard.
 - Pi model-driven cases require `provider`, `model`, `thinking`, and `max-turns-per-process`.
 - `max-usd` is optional because cost may be unavailable; missing cost is reported as unavailable, not zero.
 - Host-free cases reject every model option and run zero Pi processes.
@@ -607,6 +608,7 @@ Missing evidence states remain distinct:
 Model-driven `evaluate` requires hard limits for each Pi process.
 
 - `max-turns-per-process`, `timeout-ms`, and `output-limit-bytes` apply independently to every subject and potential semantic Pi process.
+- `output-limit-bytes` bounds retained canonical evidence, not duplicated transport snapshots. Raw Pi JSON transport remains independently bounded by an internal safeguard.
 - Preflight reports the maximum Pi-process count and worst-case approved turns.
 - Root guard aborts a process before the provider call for a turn beyond `max-turns-per-process`.
 - Isolated Pi configuration disables automatic provider retries so hidden retries do not expand the approved work silently.

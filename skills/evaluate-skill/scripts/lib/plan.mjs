@@ -4,6 +4,7 @@ import { constants } from "node:fs";
 import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { capabilitiesFor, supportedEvidenceClasses } from "./capabilities.mjs";
+import { DEFAULT_OUTPUT_LIMIT_BYTES } from "./constants.mjs";
 import { hashDeclaredResources, hashDirectory, hashFile, hashGitResources, sha256, stableJson } from "./hash.mjs";
 import { assertNoSymlinkTree, isWithin } from "./path-policy.mjs";
 import { resolveInside } from "./workspace.mjs";
@@ -172,7 +173,10 @@ export async function buildEvaluationPlan(workspace, options) {
   const semanticProcesses = modelDriven ? variants.length * semanticPerVariant : 0;
   const totalProcesses = subjectProcesses + semanticProcesses;
   const limitations = modelDriven
-    ? ["Provider requests are observed and reported; bootstrap does not claim an independent global provider-request hard cap."]
+    ? [
+        "Provider requests are observed and reported; bootstrap does not claim an independent global provider-request hard cap.",
+        "The output limit applies to retained canonical evidence after cumulative Pi JSON updates are compacted; raw transport has a separate internal safeguard.",
+      ]
     : [];
   if (evidence.unsupported_requested.length > 0 && evalCase.unsupported_evidence === "behavior-under-test") {
     limitations.push(`Unsupported evidence is behavior under test: ${evidence.unsupported_requested.join(", ")}.`);
@@ -199,7 +203,12 @@ export async function buildEvaluationPlan(workspace, options) {
     variants: variants.map((variant) => ({ id: variant.id, role: variant.role, kind: variant.kind, revision: variant.revision ?? null, path: variant.path, resources: variant.resources, snapshot_hash: variant.snapshot_hash })),
     host,
     model: modelDriven ? { provider: options.provider ?? null, model: options.model ?? null, thinking: options.thinking ?? null } : null,
-    limits: { timeout_ms: timeoutMs, output_limit_bytes: outputLimitBytes, max_turns_per_process: maxTurns },
+    limits: {
+      timeout_ms: timeoutMs,
+      output_limit_bytes: outputLimitBytes,
+      transport_limit_bytes: modelDriven ? Math.max(outputLimitBytes, DEFAULT_OUTPUT_LIMIT_BYTES) : 0,
+      max_turns_per_process: maxTurns,
+    },
     max_usd: options.max_usd === undefined ? null : Number(options.max_usd),
     evidence,
   };

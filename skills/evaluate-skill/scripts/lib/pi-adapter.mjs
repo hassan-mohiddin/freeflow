@@ -4,9 +4,10 @@ import { accessSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { DEFAULT_OUTPUT_LIMIT_BYTES } from "./constants.mjs";
 import { runProcess } from "./process.mjs";
 
-export const PI_ADAPTER_VERSION = "pi-bootstrap-v1";
+export const PI_ADAPTER_VERSION = "pi-bootstrap-v2";
 const here = dirname(fileURLToPath(import.meta.url));
 export const PI_ROOT_GUARD_PATH = resolve(here, "..", "pi-root-guard.mjs");
 
@@ -57,6 +58,27 @@ export function buildPiInvocation({ prompt, provider, model, thinking, tools, sk
   if (skillSnapshot) args.push("--skill", skillSnapshot);
   args.push(prompt.startsWith("-") ? ` ${prompt}` : prompt);
   return { command: "pi", args };
+}
+
+export function compactPiJsonLine(line) {
+  let event;
+  try {
+    event = JSON.parse(line);
+  } catch {
+    return line;
+  }
+  if (event.type === "message_update") {
+    const { partial: _partial, ...assistantMessageEvent } = event.assistantMessageEvent ?? {};
+    return JSON.stringify({ type: event.type, assistantMessageEvent });
+  }
+  if (event.type === "message_start") {
+    return JSON.stringify({ type: event.type, message: { id: event.message?.id, role: event.message?.role } });
+  }
+  if (event.type === "turn_end" || event.type === "agent_end") return JSON.stringify({ type: event.type });
+  if (event.type === "tool_execution_update") {
+    return JSON.stringify({ type: event.type, toolCallId: event.toolCallId, toolName: event.toolName });
+  }
+  return line;
 }
 
 function textFromContent(content) {
@@ -127,7 +149,7 @@ export function parsePiJsonEvents(raw, { skillSnapshot } = {}) {
   };
 }
 
-export async function runPiSubject({ prompt, provider, model, thinking, tools, skillSnapshot, workspace, configDir, readRoots, writeRoots, timeoutMs, outputLimitBytes, maxTurns, signal }) {
+export async function runPiSubject({ prompt, provider, model, thinking, tools, skillSnapshot, workspace, configDir, readRoots, writeRoots, timeoutMs, outputLimitBytes, transportLimitBytes, maxTurns, signal }) {
   await prepareIsolatedPiConfig(configDir);
   const invocation = buildPiInvocation({ prompt, provider, model, thinking, tools, skillSnapshot });
   const counterPath = resolve(configDir, "runtime-counters.json");
@@ -144,6 +166,8 @@ export async function runPiSubject({ prompt, provider, model, thinking, tools, s
     env,
     timeoutMs,
     outputLimitBytes,
+    transportLimitBytes: transportLimitBytes ?? Math.max(outputLimitBytes, DEFAULT_OUTPUT_LIMIT_BYTES),
+    stdoutLineTransform: compactPiJsonLine,
     signal,
   });
   const parsed = parsePiJsonEvents(processResult.stdout, { skillSnapshot });

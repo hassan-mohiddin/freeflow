@@ -582,6 +582,7 @@ Prove retained security and evidence seams independently of model behavior.
 - Materialize only declared subject resources.
 - Preserve source subject and fixture immutability.
 - Harden provider-request observation and malformed-output retention.
+- Stream-compact cumulative Pi JSON update snapshots before applying the retained-evidence output limit, with a separate internal raw-transport safeguard.
 - Verify integrity and tamper detection around the already-transactional publisher.
 
 ### Checks

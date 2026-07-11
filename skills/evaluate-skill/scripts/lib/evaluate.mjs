@@ -96,6 +96,7 @@ async function executeVariant(workspace, plan, variant, evidenceDir, id, depende
         writeRoots: [fixtureRoot],
         timeoutMs: plan.plan_inputs.limits.timeout_ms,
         outputLimitBytes: plan.plan_inputs.limits.output_limit_bytes,
+        transportLimitBytes: plan.plan_inputs.limits.transport_limit_bytes,
         maxTurns: plan.plan_inputs.limits.max_turns_per_process,
       });
       execution = {
@@ -109,6 +110,9 @@ async function executeVariant(workspace, plan, variant, evidenceDir, id, depende
           signal: subject.process.signal,
           timed_out: subject.process.timed_out,
           output_limit_exceeded: subject.process.output_limit_exceeded,
+          transport_limit_exceeded: subject.process.transport_limit_exceeded,
+          transport_bytes: subject.process.transport_bytes,
+          retained_output_bytes: subject.process.retained_output_bytes,
           parse_errors: subject.parsed.parse_errors,
         },
       };
@@ -151,9 +155,12 @@ async function executeVariant(workspace, plan, variant, evidenceDir, id, depende
         signal: subject.process.signal,
         timed_out: subject.process.timed_out,
         output_limit_exceeded: subject.process.output_limit_exceeded,
+        transport_limit_exceeded: subject.process.transport_limit_exceeded,
+        transport_bytes: subject.process.transport_bytes,
+        retained_output_bytes: subject.process.retained_output_bytes,
         hard_turn_limit_reached: counters.hard_turn_limit_reached,
         parse_errors: subject.parsed.parse_errors,
-      } : { exit_code: 0, signal: null, timed_out: false, output_limit_exceeded: false, hard_turn_limit_reached: false, parse_errors: [] },
+      } : { exit_code: 0, signal: null, timed_out: false, output_limit_exceeded: false, transport_limit_exceeded: false, transport_bytes: 0, retained_output_bytes: 0, hard_turn_limit_reached: false, parse_errors: [] },
     };
     if (dependencies.persistVariantEvidence) {
       await dependencies.persistVariantEvidence({ evidenceDir, metadata, beforeManifest, afterManifest, subject, counters, git });
@@ -281,6 +288,7 @@ export async function executeEvaluation(workspace, plan, dependencies = {}) {
         max_turns_per_process: plan.plan_inputs.limits.max_turns_per_process,
         timeout_ms: plan.plan_inputs.limits.timeout_ms,
         output_limit_bytes: plan.plan_inputs.limits.output_limit_bytes,
+        transport_limit_bytes: plan.plan_inputs.limits.transport_limit_bytes,
       });
       const execution = semantic.execution ? {
         id: `semantic-${role}`,

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { buildPiInvocation, parsePiJsonEvents, prepareIsolatedPiConfig, redactedInvocation } from "../../../skills/evaluate-skill/scripts/lib/pi-adapter.mjs";
+import { buildPiInvocation, compactPiJsonLine, parsePiJsonEvents, prepareIsolatedPiConfig, redactedInvocation } from "../../../skills/evaluate-skill/scripts/lib/pi-adapter.mjs";
 
 test("Pi invocation disables ambient resources and loads only explicit skill and guard", () => {
   const invocation = buildPiInvocation({
@@ -32,6 +32,25 @@ test("isolated Pi config disables automatic retries", async (t) => {
   assert.equal(settings.retry.enabled, false);
   assert.equal(settings.retry.maxRetries, 0);
   assert.equal(settings.retry.provider.maxRetries, 0);
+});
+
+test("Pi JSON compaction removes cumulative update snapshots but preserves deltas", () => {
+  const cumulative = "x".repeat(10000);
+  const line = JSON.stringify({
+    type: "message_update",
+    message: { role: "assistant", content: [{ type: "thinking", thinking: cumulative }] },
+    assistantMessageEvent: { type: "thinking_delta", contentIndex: 0, delta: "next", partial: cumulative },
+  });
+  const compacted = compactPiJsonLine(line);
+  assert.ok(Buffer.byteLength(compacted) < 500);
+  assert.equal(compacted.includes(cumulative), false);
+  assert.deepEqual(JSON.parse(compacted), {
+    type: "message_update",
+    assistantMessageEvent: { type: "thinking_delta", contentIndex: 0, delta: "next" },
+  });
+  assert.equal(compactPiJsonLine("not-json"), "not-json");
+  const final = JSON.stringify({ type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "final" }] } });
+  assert.equal(compactPiJsonLine(final), final);
 });
 
 test("Pi JSON parser captures final response, usage, cost, and skill read", () => {

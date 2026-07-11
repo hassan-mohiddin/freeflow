@@ -141,6 +141,7 @@ export async function gradeSemanticRun(runDir, options, dependencies = {}) {
       writeRoots: [workspace],
       timeoutMs: Number(options.timeout_ms ?? 180000),
       outputLimitBytes: Number(options.output_limit_bytes ?? DEFAULT_OUTPUT_LIMIT_BYTES),
+      transportLimitBytes: Number(options.transport_limit_bytes ?? DEFAULT_OUTPUT_LIMIT_BYTES),
       maxTurns: Number(options.max_turns_per_process),
     });
     execution = {
@@ -151,6 +152,9 @@ export async function gradeSemanticRun(runDir, options, dependencies = {}) {
         signal: subject.process.signal,
         timed_out: subject.process.timed_out,
         output_limit_exceeded: subject.process.output_limit_exceeded,
+        transport_limit_exceeded: subject.process.transport_limit_exceeded,
+        transport_bytes: subject.process.transport_bytes,
+        retained_output_bytes: subject.process.retained_output_bytes,
         parse_errors: subject.parsed.parse_errors,
       },
     };
