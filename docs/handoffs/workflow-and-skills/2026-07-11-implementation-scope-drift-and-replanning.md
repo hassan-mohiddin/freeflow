@@ -1513,64 +1513,124 @@ accepted-blocker rate by reviewer
 
 A reviewer that flags every possible omission may have high recall and unusable precision. A reviewer that always passes may have high precision on clean artifacts and unusable recall. Both are broken.
 
+## Implementation Review Cap And Backward Diagnosis
+
+The outcome-level spec/plan and review-reliability handoff were committed in `2d4cb62`. Updated portable `review-artifact` and `review-work` contracts were committed in `719b268`.
+
+The first Slice 1 implementation then changed 46 files, adding roughly 942 lines and deleting 1,691. Deterministic verification reached 45 passing tests with no paid subject or semantic run, but the full cutover remained uncommitted.
+
+Manual implementation review used the committed `review-work` contract rendered into isolated, read-only Pi JSON prompts. Three bounded passes ran from a focus-neutral cmux pane.
+
+### Pass 1
+
+Accepted blockers:
+
+- plan approval did not bind evaluator/semantic implementation identity;
+- `result.json` lacked required provenance;
+- failure/spend accounting lost settled usage and mishandled soft-ceiling boundaries;
+- model-facing grading guidance retained per-side repeat/partial reuse;
+- parent additionally found Git subject resources were not all validated in preflight.
+
+### Pass 2
+
+The reviewer confirmed four fixes and retained one accepted blocker:
+
+- post-process artifact-write and cleanup failures could still lose settled subject/semantic usage or replace the primary failure.
+
+### Pass 3
+
+The settled-execution outcome fix and fault tests passed, but the terminal review found one accepted blocker:
+
+- final diagnostic publication suppressed write/rename failure, could let directory creation replace the primary failure, and could advertise a nonexistent diagnostic path.
+
+Pass 3 reached the hard cap. No fourth review is allowed for the same work and scope.
+
+Implementation-review usage:
+
+```text
+3 calls
+$2.953681 recorded cost
+```
+
+Raw review evidence:
+
+```text
+/tmp/freeflow-work-review-slice1/result/
+/tmp/freeflow-work-review-slice1/result-pass2/
+/tmp/freeflow-work-review-slice1/result-pass3/
+```
+
+All accepted findings were source-backed against the committed failure contract. This was not the earlier artifact-review contract-inflation failure.
+
+### Root diagnosis
+
+The public one-command design remains valid. The failure is internal plan slicing and module depth.
+
+The old Slice 1 combined CLI, preflight, process execution, accounting, grading, result composition, result publication, diagnostic publication, legacy deletion, and model-facing docs in one cutover. The old Slice 2 then separately promised crash boundaries, atomic publication, and diagnostic/result separation. Publication correctness was therefore both required before Slice 1 could pass and deferred until Slice 2.
+
+Implementation mirrored that contradiction:
+
+- one coordinator owned process state, filesystem evidence, budgets, grading, cleanup, and publication;
+- exceptions transported settled execution state;
+- diagnostics were assembled and published inside a terminal catch block;
+- tests followed discovered examples rather than a complete fault matrix;
+- review happened after a 46-file cutover instead of after the risky internal boundaries.
+
+Repeated usage/cleanup/publication findings are one design-pressure cluster, not independent random bugs. The missing deep boundaries are:
+
+```text
+SettledExecution
+AppendOnlyEvaluationLedger
+OperationOutcome
+PublicationOutcome
+```
+
+The plan is revised to prove those boundaries before coordinator and CLI cutover.
+
 ## Current Artifact Implication
 
-The evaluator architecture is agreed. The current spec and plan encode the outcome-level design and remain modified but uncommitted.
+- The spec remains implementation authority for public behavior.
+- The plan is revised and uncommitted around risk-first internal slices.
+- The current evaluator working tree is diagnostic evidence, not an accepted implementation baseline.
+- Do not revert to the attempt-toolkit public design.
+- Do not continue patching the current coordinator or request another review.
+- No paid subject or semantic eval may run.
 
-Do not revert to attempt-toolkit design. Do not keep adding public contract detail merely to satisfy a generic reviewer.
+## Unresolved Owner Decision
 
-Current review state:
+Choose the implementation re-entry route before code resumes:
 
-- first review found three real public/trust gaps;
-- parent audit retained the single/comparison distinction but simplified unsupported semantics;
-- parent audit replaced the unproven global provider-request hard cap with enforceable per-process limits and honest request observation;
-- parent audit reduced the oversized outcome/error protocol to concise operational JSON;
-- second-review demands for exact case JSON, exhaustive machine-code registry, and new root architecture remain rejected;
-- timeout/output scope is resolved as per Pi process;
-- controlled cmux reviewer calibration passed clean, blocker, and local-detail discrimination;
-- one narrow confirmation found a real unsupported-evidence contradiction in the plan;
-- parent accepted and corrected that single finding;
-- no further artifact review should run.
+1. **Recommended rebuild:** preserve an exact patch, restore evaluator/case paths to committed `719b268`, then rebuild through outcome-ledger, process-outcome, publication, coordinator, and CLI slices.
+2. **In-place salvage:** preserve the working tree and extract those same boundaries before committing any coordinator or CLI cutover.
 
-The artifacts now need deterministic consistency checks and commit. Reviewer output remains evidence for parent adjudication, not authority.
+The rebuild route gives cleaner commits and proves the corrected plan. It requires an explicit destructive reset after the patch is preserved. The salvage route avoids reset but carries more hidden coupling from the failed slice.
 
-## Unresolved Owner Decisions
-
-No evaluator-architecture decision remains open.
-
-Later review-system work still needs separate scoping if promoted beyond this bootstrap:
-
-1. whether controlled artifact-review dispatch should become a durable tool, skill integration, or project reviewer definition;
-2. whether the same controlled route should cover implementation review;
-3. which long-term precision/recall thresholds should gate reviewer promotion.
-
-These do not block the current artifact confirmation.
+Later review-system automation remains separately deferred. It does not block this re-entry decision.
 
 ## Do Not Do Next
 
-- do not run another broad artifact review;
-- do not patch the spec with every reviewer suggestion;
-- do not treat reviewer count, confidence, or `NON-PASS` as authority;
-- do not enumerate a mature case schema or error registry merely for reviewer satisfaction;
-- do not start evaluator code changes or paid subject/semantic evals before artifact confirmation and commit;
-- do not finish pending semantic grades automatically;
-- do not patch host-free fingerprinting;
+- do not run a fourth implementation review or another broad artifact review;
+- do not patch only the terminal diagnostic catch block;
+- do not commit the current monolithic cutover as complete;
+- do not reset or discard the working tree before owner chooses the re-entry route;
+- do not treat reviewer count, confidence, or labels as authority without parent evidence;
 - do not add batching, cache, resume, concurrency, adapters, or output-router coupling;
+- do not run paid subject/semantic evals or finish pending semantic grades;
 - do not write `bootstrap-acceptance.md` as if implementation exists;
 - do not modify `.freeflow/config.json`.
 
 ## Recommended Resume Sequence
 
-1. Read this handoff, the live spec/plan, Freeflow review skills, and latest relevant review eval reports.
+1. Read this handoff, the committed spec, revised live plan, and current evaluator diff.
 2. Reconfirm branch, worktree, active processes, and `.freeflow/config.json` state.
-3. Keep evaluator code and paid subject/semantic evals paused.
-4. Run deterministic diff, terminology, and cross-artifact consistency checks on the simplified spec/plan.
-5. Treat the completed narrow calibrated confirmation and parent adjudication as the final artifact review pass.
-6. Do not run a fourth or broader artifact review.
-7. Commit accepted artifacts and report before code.
-8. Implement evaluator through bounded slices with fresh deterministic evidence before any paid subject/semantic run.
-9. Keep generator, reviewer, adjudicator, and verifier roles distinct through cutover and acceptance.
-10. Resume wider Agent Skills comparison using both the scope-drift incident and review-reliability incident as eval sources.
+3. Keep implementation edits, model review, and paid evals paused.
+4. Run deterministic consistency checks on the revised plan and this handoff.
+5. Commit the backward diagnosis and risk-first plan separately from evaluator code.
+6. Ask the owner to choose rebuild or in-place salvage.
+7. If rebuild is chosen, save and hash the full patch/status before any reset.
+8. Implement and commit the deep internal contracts in risk order before public cutover.
+9. Use deterministic fault injection and parent audit; do not run a fourth review for the capped scope.
+10. Resume paid dogfooding only after deterministic acceptance of the final cutover.
 
 ## Live Evidence To Reopen
 
@@ -1590,12 +1650,14 @@ Core artifacts:
 Current implementation pressure points:
 
 - `skills/evaluate-skill/scripts/lib/plan.mjs`
-- `skills/evaluate-skill/scripts/lib/wave.mjs`
-- `skills/evaluate-skill/scripts/lib/run.mjs`
+- `skills/evaluate-skill/scripts/lib/evaluate.mjs`
 - `skills/evaluate-skill/scripts/lib/semantic.mjs`
+- `skills/evaluate-skill/scripts/lib/materialize.mjs`
 - `skills/evaluate-skill/scripts/lib/grade.mjs`
-- `.skill-eval/evaluate-skill/tests/fingerprint.test.mjs`
-- `.skill-eval/evaluate-skill/tests/wave-resume.test.mjs`
+- `skills/evaluate-skill/scripts/skill-eval.mjs`
+- `.skill-eval/evaluate-skill/tests/plan.test.mjs`
+- `.skill-eval/evaluate-skill/tests/evaluate.test.mjs`
+- `.skill-eval/evaluate-skill/tests/semantic.test.mjs`
 
 Review-system evidence:
 
