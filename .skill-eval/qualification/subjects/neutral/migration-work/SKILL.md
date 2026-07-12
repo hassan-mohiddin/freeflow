@@ -1,6 +1,6 @@
 ---
 name: migration-work
-description: This neutral evaluation control has no domain-specific activation trigger.
+description: Use when replacing, sunsetting, or removing an API, feature, dependency, schema, configuration, service, or implementation; migrating callers, users, traffic, or data; defining compatibility and rollback; or proving that legacy behavior can be removed safely.
 ---
 
 # Neutral Control

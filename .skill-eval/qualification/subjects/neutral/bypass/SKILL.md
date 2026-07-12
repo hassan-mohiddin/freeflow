@@ -1,6 +1,6 @@
 ---
 name: bypass
-description: This neutral evaluation control has no domain-specific activation trigger.
+description: Use when the user explicitly asks to bypass, skip, or reduce workflow ceremony, especially with `/bypass next` or `/bypass task`.
 ---
 
 # Neutral Control

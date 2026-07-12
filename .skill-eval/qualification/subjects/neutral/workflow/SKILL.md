@@ -1,6 +1,6 @@
 ---
 name: workflow
-description: This neutral evaluation control has no domain-specific activation trigger.
+description: Use for consequential work that may involve discovery, decisions, specification, planning, implementation, diagnosis, review, verification, commits, handoffs, or route changes from new evidence.
 ---
 
 # Neutral Control

@@ -1,6 +1,6 @@
 ---
 name: setup-freeflow
-description: This neutral evaluation control has no domain-specific activation trigger.
+description: Use when installing or configuring Freeflow in a repository, repairing `.freeflow/config.json`, changing the repo default mode during setup, opting into Output Router or Delegation Harness setup, or checking whether the current host can load Freeflow runtime context.
 ---
 
 # Neutral Control

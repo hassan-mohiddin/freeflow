@@ -1,6 +1,6 @@
 ---
 name: discover
-description: This neutral evaluation control has no domain-specific activation trigger.
+description: "Use for sustained collaborative exploration before or during consequential work: shaping an idea, comparing approaches, reopening assumptions, deciding architecture direction, investigating what to build, or using new implementation/review evidence to choose the next decision, experiment, slice, spec, or plan route."
 ---
 
 # Neutral Control

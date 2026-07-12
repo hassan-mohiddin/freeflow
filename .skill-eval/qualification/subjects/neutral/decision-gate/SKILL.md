@@ -1,6 +1,6 @@
 ---
 name: decision-gate
-description: This neutral evaluation control has no domain-specific activation trigger.
+description: Use when the next action depends on a user-owned decision, source-truth or path conflict, material method substitution, ambiguous artifact destination, or new evidence from discovery, implementation, review, or verification that makes the current route unsafe or changes the next action.
 ---
 
 # Neutral Control

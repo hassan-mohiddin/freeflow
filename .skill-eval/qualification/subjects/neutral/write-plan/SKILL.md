@@ -1,6 +1,6 @@
 ---
 name: write-plan
-description: This neutral evaluation control has no domain-specific activation trigger.
+description: Use when turning a planning-ready spec whose required approval is satisfied, clarified requirements, diagnosis, or validated design direction into a rolling implementation plan of phases and vertical slices, including learning work, verification, checkpoints, and backward routes.
 ---
 
 # Neutral Control

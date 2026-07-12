@@ -1,6 +1,6 @@
 ---
 name: diagnose-failure
-description: This neutral evaluation control has no domain-specific activation trigger.
+description: Use when asked to investigate or fix a bug, failed test, flaky failure, regression, performance problem, unexpected behavior, or anything described as broken.
 ---
 
 # Neutral Control

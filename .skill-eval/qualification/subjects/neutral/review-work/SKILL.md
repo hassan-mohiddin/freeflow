@@ -1,6 +1,6 @@
 ---
 name: review-work
-description: This neutral evaluation control has no domain-specific activation trigger.
+description: Use when reviewing completed work, checking a change before merge or handoff, preparing review context, receiving or applying review feedback, running a follow-up review, deciding whether findings block progress, or handling a repeated review loop.
 ---
 
 # Neutral Control

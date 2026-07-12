@@ -1,6 +1,6 @@
 ---
 name: write-spec
-description: This neutral evaluation control has no domain-specific activation trigger.
+description: Use when turning settled discovery, explicit requirements, validated design direction, or source evidence into a durable behavioral, technical, API, migration, or decision specification that later planning and review can rely on.
 ---
 
 # Neutral Control

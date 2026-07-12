@@ -1,6 +1,6 @@
 ---
 name: mode-contract
-description: This neutral evaluation control has no domain-specific activation trigger.
+description: Use when a user asks to set, change, infer, or discuss conversation/workflow/strict-workflow mode, or when task risk suggests recommending a workflow mode.
 ---
 
 # Neutral Control

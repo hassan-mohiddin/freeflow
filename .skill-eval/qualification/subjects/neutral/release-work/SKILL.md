@@ -1,6 +1,6 @@
 ---
 name: release-work
-description: This neutral evaluation control has no domain-specific activation trigger.
+description: Use when preparing, cutting, publishing, or verifying a versioned software or package release; choosing version impact, updating consumer-facing release notes, producing and signing artifacts, creating tags, or reconciling version, tag, source, and published artifact identity.
 ---
 
 # Neutral Control
