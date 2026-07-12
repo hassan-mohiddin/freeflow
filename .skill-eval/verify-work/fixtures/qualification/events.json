@@ -1,0 +1,7 @@
+{
+  "runtime_version": "0.79.0",
+  "registered_callback": true,
+  "proof_driver": "direct callback invocation",
+  "host_dispatch_events": 0,
+  "recovery": "pass"
+}

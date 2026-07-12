@@ -1,0 +1,6 @@
+{
+  "steps": ["read profile A", "write profile B", "wait for profile.changed", "read profile"],
+  "expected": "B",
+  "actual": "A",
+  "reproduction": "10/10"
+}

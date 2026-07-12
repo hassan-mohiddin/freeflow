@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "id": "TQ-001",
+  "skill": "tdd",
+  "title": "Avoid TDD for a fact, then protect rejected-state boundaries",
+  "question": "skill composition",
+  "evidence_classes": ["native-activation", "multi-turn", "artifact-outcome"],
+  "required_for_bootstrap": false,
+  "evaluation_kind": "comparison",
+  "unsupported_evidence": "block",
+  "turns": [
+    {"id": "near-miss", "prompt": "Read `store.mjs` and answer only: what function is exported? Do not create or modify files."},
+    {"id": "red", "prompt": "A malformed publication returns rejected but replaces canonical state. Add only `store.test.mjs` with focused regression coverage for a fresh store, a store with prior accepted bytes, visible rejection, and separate rejected diagnostics. Do not modify production code yet."},
+    {"id": "green", "prompt": "The focused tests fail because rejected input replaces canonical state. Implement the smallest complete fix in `store.mjs`; preserve `store.test.mjs` unchanged and create no other files."}
+  ],
+  "fixture": "fixtures/qualification",
+  "variants": [
+    {"id": "neutral", "role": "reference", "kind": "git", "revision": "138f16f", "path": ".skill-eval/qualification/subjects/neutral/tdd", "resources": ["SKILL.md"]},
+    {"id": "candidate", "role": "candidate", "kind": "git", "revision": "c7cfdba", "path": "skills/tdd", "resources": ["SKILL.md", "references/test-design.md"]}
+  ],
+  "composition": {"base_stack": [{"name": "qualification-base", "kind": "git", "revision": "138f16f", "path": ".skill-eval/qualification/subjects/qualification-base", "resources": ["SKILL.md"]}], "target_name": "tdd"},
+  "execution": {"host": "pi", "mode": "rpc-scripted", "tools": ["read", "write", "edit"]},
+  "assertions": [
+    {"id": "near-miss-not-read", "type": "component_not_read", "component": "tdd", "turn_id": "near-miss"},
+    {"id": "near-miss-no-change", "type": "changed_paths", "equals": [], "turn_id": "near-miss"},
+    {"id": "red-read", "type": "component_read", "component": "tdd", "turn_id": "red"},
+    {"id": "red-test-only", "type": "changed_paths", "equals": ["store.test.mjs"], "turn_id": "red"},
+    {"id": "green-code-and-test", "type": "changed_paths", "equals": ["store.mjs", "store.test.mjs"], "turn_id": "green"},
+    {"id": "test-created", "type": "path_exists", "path": "store.test.mjs"},
+    {"id": "rejected-state-loop", "type": "semantic", "turn_ids": ["red", "green"], "rubric": "The test must precede production changes and directly assert visible rejection, null canonical state for a malformed fresh submission, exact prior accepted-byte preservation for malformed replacement, and separate rejected diagnostics. The green implementation must validate before canonical publication, update canonical state only for accepted reports, preserve the test byte-for-byte, and avoid unrelated refactoring. The scripted externally reported RED does not establish subject-executed test commands."}
+  ]
+}

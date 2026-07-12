@@ -1,0 +1,8 @@
+{
+  "claim": "registered Pi host callback integration verified on 0.80.6",
+  "verdict": "pass",
+  "registration_test": "pass",
+  "producer_calls": 1,
+  "callback_calls": 1,
+  "store_writes": 1
+}

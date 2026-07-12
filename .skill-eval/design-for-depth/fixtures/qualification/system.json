@@ -1,0 +1,10 @@
+{
+  "canonical_state": "last accepted planning report",
+  "invariant": "rejected reports must not replace canonical state",
+  "adapters": {
+    "direct": {"fix": "validate before write", "status": "locally-fixed"},
+    "runtime": {"fix": "restore prior bytes after rejected write", "status": "locally-fixed"},
+    "parent_finish": {"fix": null, "status": "same-defect-open"}
+  },
+  "caller_knowledge": ["which writes are canonical", "how to restore prior bytes", "where rejected diagnostics belong"]
+}

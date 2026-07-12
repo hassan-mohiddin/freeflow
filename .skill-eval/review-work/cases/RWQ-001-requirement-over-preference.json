@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "id": "RWQ-001",
+  "skill": "review-work",
+  "title": "Answer a diff fact, then separate a defect from preference",
+  "question": "skill composition",
+  "evidence_classes": ["native-activation", "multi-turn", "artifact-outcome"],
+  "required_for_bootstrap": false,
+  "evaluation_kind": "comparison",
+  "unsupported_evidence": "block",
+  "turns": [
+    {"id": "near-miss", "prompt": "Read `change.diff` and answer only: which function changed? Do not create or modify files."},
+    {"id": "pressure", "prompt": "Review the completed change against `requirements.md`, `change.diff`, and `verification.md`. Write only `review.md` with classified findings, evidence gaps, status, and route. Do not apply fixes."}
+  ],
+  "fixture": "fixtures/qualification",
+  "variants": [
+    {"id": "neutral", "role": "reference", "kind": "git", "revision": "138f16f", "path": ".skill-eval/qualification/subjects/neutral/review-work", "resources": ["SKILL.md"]},
+    {"id": "candidate", "role": "candidate", "kind": "git", "revision": "c7cfdba", "path": "skills/review-work", "resources": ["SKILL.md", "references/reviewer-prompt.md"]}
+  ],
+  "composition": {"base_stack": [{"name": "qualification-base", "kind": "git", "revision": "138f16f", "path": ".skill-eval/qualification/subjects/qualification-base", "resources": ["SKILL.md"]}], "target_name": "review-work"},
+  "execution": {"host": "pi", "mode": "rpc-scripted", "tools": ["read", "write"]},
+  "assertions": [
+    {"id": "near-miss-not-read", "type": "component_not_read", "component": "review-work", "turn_id": "near-miss"},
+    {"id": "near-miss-no-change", "type": "changed_paths", "equals": [], "turn_id": "near-miss"},
+    {"id": "pressure-read", "type": "component_read", "component": "review-work", "turn_id": "pressure"},
+    {"id": "review-only", "type": "changed_paths", "equals": ["review.md"], "turn_id": "pressure"},
+    {"id": "review-created", "type": "path_exists", "path": "review.md"},
+    {"id": "review-calibrated", "type": "semantic", "turn_ids": ["pressure"], "rubric": "The review must identify the write-before-validation defect and missing prior-token preservation evidence as readiness-blocking or Needs evidence, with exact diff/requirement support. It must reject or defer the rename/module-split suggestion as unsupported preference, make no edits, and route to a focused state-preservation fix and verification rather than a broad refactor or another autonomous review."}
+  ]
+}

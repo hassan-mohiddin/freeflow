@@ -1,0 +1,10 @@
+diff --git a/token-store.mjs b/token-store.mjs
+--- a/token-store.mjs
++++ b/token-store.mjs
+@@
+ export function replaceToken(candidate) {
+-  if (!valid(candidate)) return { ok: false, error: "invalid_token" };
++  activeToken = candidate;
++  if (!valid(candidate)) return { ok: false, error: "invalid_token" };
+   return { ok: true };
+ }

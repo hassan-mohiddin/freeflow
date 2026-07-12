@@ -1,0 +1,8 @@
+{
+  "write_committed": true,
+  "published_event": "profile.changed",
+  "cache_listener_topic": "profiles.changed",
+  "cache_key_on_read": "profile:user-7",
+  "cache_key_on_write": "profile:user-7",
+  "database_after_write": "B"
+}
