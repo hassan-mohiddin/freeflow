@@ -1,7 +1,8 @@
 # Freeflow Evals
 
 - `registries/`: eval definitions.
-- `registries/skill-evidence.json`: explicit skill-to-eval grouping metadata.
+- `registries/skill-evidence.json`: explicit current skill-to-eval grouping metadata.
+- `registries/historical-evidence.json`: documentary-only index of legacy reports; never current results or readiness evidence.
 - `fixtures/`: tiny repo fixtures used by fixture evals.
 - `prompts/`: prompts referenced by registries.
 - `scripts/`: local runners and audits.
@@ -19,6 +20,7 @@ Use `registries/fixture-evals.json` for current adversarial fixture definitions.
 Use `scripts/grade-fixture-eval.sh <eval-id> --output <run-output.md>` after fixture runs that define `objective_checks`; it grades mechanical evidence such as changed files, empty diffs, exit status, and fixed output/diff text.
 Baseline fixture runs set `FREEFLOW_DISABLE_RUNTIME_CONTEXT=1` before launching nested agents so installed lifecycle hooks do not inject the compact runtime kernel, first-turn Workflow bootstrap, or enabled capability context into the baseline.
 Use `scripts/skill-evidence.sh <skill>` to group command routes, eval definitions, acceptance membership, and reports for a skill. A registry entry with `status: "unverified"` may intentionally have no grouped evals; direct exposure is not a readiness claim. `historical_evals` records predecessor evidence without treating it as current-skill verification.
+Use `node evals/scripts/audit-historical-evidence.mjs` after any included legacy report or historical index change. The index preserves exact reported excerpts and ignored/missing artifacts with fixed `historical-documentary-only` authority; it cannot create current observations, results, acceptance membership, or readiness support.
 Use `scripts/run-output-router-transform-eval.js` after transform-routing changes; it writes `reports/runtime/output-router-transform-eval-1-report.md`.
 Use `scripts/run-pi-observed-routing-eval.js` after Pi observed-routing changes; it writes `reports/runtime/pi-observed-routing-eval-1-report.md`.
 Use `npm run bench:router:vault-index` after vault-index interface/storage changes; it writes `reports/runtime/vault-index-storage-spike-1-report.md`.

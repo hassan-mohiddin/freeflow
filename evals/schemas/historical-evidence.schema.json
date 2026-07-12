@@ -1,0 +1,233 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://freeflow.local/schemas/historical-evidence.schema.json",
+  "title": "Freeflow Historical Documentary Evidence Index",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "index_id",
+    "indexing_revision",
+    "indexed_on",
+    "scope",
+    "authority",
+    "readiness_eligible",
+    "convertible_to_current_result",
+    "records"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "index_id": { "const": "freeflow-historical-evidence" },
+    "indexing_revision": { "type": "integer", "minimum": 1 },
+    "indexed_on": { "$ref": "#/$defs/date" },
+    "scope": { "$ref": "#/$defs/scope" },
+    "authority": { "const": "historical-documentary-only" },
+    "readiness_eligible": { "const": false },
+    "convertible_to_current_result": { "const": false },
+    "records": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/record" }
+    }
+  },
+  "$defs": {
+    "date": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["included_roots", "excluded_roots", "recursive", "file_extension"],
+      "properties": {
+        "included_roots": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/path" }
+        },
+        "excluded_roots": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/path" }
+        },
+        "recursive": { "const": true },
+        "file_extension": { "const": ".md" }
+      }
+    },
+    "sourceReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "reportedOutcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "excerpt", "sha256"],
+      "properties": {
+        "label": { "const": "reported-not-regraded" },
+        "excerpt": { "type": "string", "minLength": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "reportedContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["excerpt", "sha256"],
+      "anyOf": [
+        { "required": ["host"] },
+        { "required": ["model"] },
+        { "required": ["method"] }
+      ],
+      "properties": {
+        "excerpt": { "type": "string", "minLength": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "host": { "type": "string", "minLength": 1 },
+        "model": { "type": "string", "minLength": 1 },
+        "method": { "type": "string", "minLength": 1 }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_tokens", "path", "status"],
+      "properties": {
+        "source_tokens": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "path": { "$ref": "#/$defs/path" },
+        "status": { "enum": ["present", "missing", "ignored"] },
+        "kind": { "enum": ["file", "directory"] },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "present" } }, "required": ["status"] },
+          "then": { "required": ["kind", "sha256"] },
+          "else": {
+            "not": {
+              "anyOf": [
+                { "required": ["kind"] },
+                { "required": ["sha256"] }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "relationEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_report_path", "source_report_sha256", "excerpt", "excerpt_sha256"],
+      "properties": {
+        "source_report_path": { "$ref": "#/$defs/path" },
+        "source_report_sha256": { "$ref": "#/$defs/sha256" },
+        "excerpt": { "type": "string", "minLength": 1 },
+        "excerpt_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "relation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["record_id", "evidence"],
+      "properties": {
+        "record_id": { "type": "string", "pattern": "^HIST-[0-9a-f]{16}$" },
+        "evidence": { "$ref": "#/$defs/relationEvidence" }
+      }
+    },
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "source_report",
+        "reported_date",
+        "related_current_skills",
+        "reported_eval_ids",
+        "reported_outcome",
+        "referenced_artifacts",
+        "limitations",
+        "supersedes",
+        "superseded_by",
+        "indexing_revision",
+        "indexed_on",
+        "authority",
+        "readiness_eligible",
+        "convertible_to_current_result"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^HIST-[0-9a-f]{16}$" },
+        "source_report": { "$ref": "#/$defs/sourceReport" },
+        "reported_date": {
+          "oneOf": [
+            { "$ref": "#/$defs/date" },
+            { "type": "null" }
+          ]
+        },
+        "related_current_skills": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+        },
+        "reported_eval_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9]{1,9}-[0-9]{3}$" }
+        },
+        "reported_outcome": { "$ref": "#/$defs/reportedOutcome" },
+        "reported_context": { "$ref": "#/$defs/reportedContext" },
+        "referenced_artifacts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/artifact" }
+        },
+        "limitations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "artifacts-ignored",
+              "artifacts-missing",
+              "current-skill-not-mapped",
+              "date-not-stated",
+              "host-not-stated",
+              "method-not-stated",
+              "model-not-stated",
+              "reported-only",
+              "superseded"
+            ]
+          }
+        },
+        "supersedes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/relation" }
+        },
+        "superseded_by": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/relation" }
+        },
+        "indexing_revision": { "type": "integer", "minimum": 1 },
+        "indexed_on": { "$ref": "#/$defs/date" },
+        "authority": { "const": "historical-documentary-only" },
+        "readiness_eligible": { "const": false },
+        "convertible_to_current_result": { "const": false }
+      }
+    }
+  }
+}

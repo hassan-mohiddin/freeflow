@@ -4,7 +4,7 @@
 > **Date:** 2026-07-11
 > **Owner:** Hassan Mohiddin
 > **Type:** Plan
-> **Status:** Ready — Phases 1–3 complete; Phase 4 local spec gate is next
+> **Status:** Complete — all four internal engineering phases verified and checkpointed
 > **Source:** Owner-approved roadmap decisions; `docs/specs/skills/skill-authoring-and-evaluation-v2.md`; `.skill-eval/evaluate-skill/reports/bootstrap-acceptance.md`; live evaluator and host evidence
 
 ## Goal
@@ -485,6 +485,8 @@ Make legacy skill evidence searchable and auditable without granting it current 
 
 **Type:** delivery
 
+**Status:** Complete.
+
 Before creating migration artifacts, revise and review the owning spec with the documentary-only scope, fixed non-authority fields, inclusion/exclusion roots, and prohibition on current-result conversion. This local gate repeats the global source-authority rule so Phase 4 cannot start from the plan alone.
 
 Then create:
@@ -530,6 +532,8 @@ Do not create synthetic precision for missing versions, revisions, model setting
 
 **Type:** delivery
 
+**Status:** Complete.
+
 Create `evals/scripts/audit-historical-evidence.mjs` using Node standard-library APIs only. It verifies:
 
 - schema shape and version;
@@ -547,6 +551,8 @@ The script must not run models, grade, reinterpret, repair, import, or publish e
 ### Slice 4.3 — Populate And Report
 
 **Type:** delivery
+
+**Status:** Complete.
 
 Populate the index from live reports, auditing every recorded claim against the source report. Add a concise migration report describing scope, missing artifacts, supersession, and why the index cannot affect readiness.
 
@@ -569,6 +575,18 @@ Update `evals/README.md` and `skill-evidence.json` only where a link is necessar
 ### Phase Checkpoint
 
 Use one fresh artifact review of the schema, populated index, audit output, and authority boundary. A clean pass is valid. Do not create a review loop for wording preference.
+
+Phase 4 passed with parent adjudication at the terminal review cap:
+
+- `evals/registries/historical-evidence.json` contains 86 complete report records with fixed documentary-only authority;
+- 352 concrete run references are honestly recorded as ignored, with zero present and zero missing non-ignored artifacts;
+- no live report-to-report supersession was fabricated;
+- `evals/scripts/audit-historical-evidence.mjs` exits zero with zero model requests;
+- 10 deterministic historical-audit tests pass, including fault injection and fixture-only present/supersession behavior;
+- 126 evaluator tests pass and both developer skills structurally validate;
+- no Phase 4 file was published under `.skill-eval` or incorporated into current results, suites, acceptance observations, or readiness;
+- artifact review caused an all-record semantic outcome rescan and one final correction; the terminal heading-only objection was rejected as outside the accepted exact-excerpt contract;
+- complete review history and evidence hashes are recorded in `evals/reports/historical-evidence-index-1-report.md`.
 
 ## Requirement-To-Evidence Traceability
 
@@ -662,9 +680,10 @@ The native subagent wrapper labelled both runs failed because its acceptance det
 - 2026-07-11: Paused before Phase 3 at the owner's request; no Codex implementation or historical indexing began.
 - 2026-07-12: Completed the no-provider Codex capability proof, confirmed native provider-request/spend bounds are unavailable, and selected a no-paid-run reduced-fidelity diagnostic adapter.
 - 2026-07-12: Completed Phase 3 with a deterministic, publicly blocked Codex diagnostic adapter, 126 passing tests, and a clean follow-up implementation review; no model request was made.
+- 2026-07-12: Completed Phase 4 with an audited 86-report documentary index, 352 honestly ignored artifact references, 10 passing audit tests, and no current readiness authority.
 
 ## Next Executable Route
 
-Begin Phase 4 Slice 4.1 only through its local gate: revise and review the owning spec for documentary-only historical evidence before creating the schema or registry.
+Stop. The internal engineering roadmap is complete at coherent reviewed checkpoints.
 
-Do not begin Codex model evidence, external request control, generic host abstraction, or historical indexing before that spec review passes.
+Any packaging, release, Production-Ready promotion, accepted Codex model evidence, external request control, generic host abstraction, or expansion of historical authority requires a separate owner-approved route. This roadmap grants none of them.

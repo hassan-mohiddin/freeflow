@@ -1,5 +1,11 @@
 {
   "version": 1,
+  "historical_evidence_registry": {
+    "path": "evals/registries/historical-evidence.json",
+    "authority": "historical-documentary-only",
+    "readiness_eligible": false,
+    "convertible_to_current_result": false
+  },
   "registries": [
     "evals/registries/fixture-evals.json",
     "evals/registries/verify-work-evals.json",

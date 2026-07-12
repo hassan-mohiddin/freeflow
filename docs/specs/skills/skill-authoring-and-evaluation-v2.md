@@ -3,9 +3,9 @@
 > **Revised:** 2026-07-11
 > **Owner:** Hassan Mohiddin
 > **Type:** Spec
-> **Status:** Accepted internal extensions — Pi RPC and Codex diagnostic reviews passed
+> **Status:** Accepted internal engineering specification — Pi RPC, Codex diagnostic, and historical-documentary extensions reviewed
 > **Source:** Live implementation and saved evidence; `docs/handoffs/workflow-and-skills/2026-07-11-implementation-scope-drift-and-replanning.md`; `.skill-eval/evaluate-skill/reports/bootstrap-acceptance.md`; `.skill-eval/decision-gate/reports/rpc-acceptance.md`; `.skill-eval/evaluate-skill/reports/codex-diagnostic.md`; `docs/plans/skills/2026-07-11-skill-evaluation-readiness-rpc-codex-history-plan.md`; owner-approved Pi RPC and Codex diagnostic decisions
-> **Implementation:** One-shot bootstrap and fixed-script Pi RPC execution accepted for recorded configurations; Codex diagnostic adapter deterministically verified and blocked from model execution; both developer skills remain Unverified
+> **Implementation:** One-shot bootstrap and fixed-script Pi RPC execution accepted for recorded configurations; Codex diagnostic adapter deterministically verified and blocked from model execution; historical documentary index populated and audited; both developer skills remain Unverified
 
 # Skill Authoring And Evaluation V2
 
@@ -785,7 +785,7 @@ Observed need and separate owner-approved plan are required for:
 - legacy migration;
 - aggregate reporting.
 
-The reviewed roadmap and owner decisions satisfy this gate only for the fixed-script Pi RPC extension below. Adaptive conversations, session reuse/resume, host adapters, Codex, cross-host acceptance, historical migration, and every other item remain deferred until their owning phase revises this spec.
+The reviewed roadmap and owner decisions satisfy this gate only for the fixed-script Pi RPC, concrete blocked Codex diagnostic, and documentary historical-evidence extensions below. Adaptive conversations, session reuse/resume, accepted Codex or cross-host execution, authoritative historical migration, and every other item remain deferred until their owning phase revises this spec.
 
 ## Fixed-Script Pi RPC Extension
 
@@ -1163,6 +1163,170 @@ This extension does not add:
 - Codex multi-turn, resume, retries, cache, batching, concurrency, or partial reuse;
 - fallback from Codex to Pi or from one model to another.
 
+## Documentary Historical-Evidence Extension
+
+### Outcome And Authority Boundary
+
+Legacy evaluation reports may be indexed so they are searchable and mechanically auditable without becoming current evaluator results, observations, grades, acceptance evidence, or readiness authority.
+
+The index is a documentary catalog of what source reports said. It does not decide whether those reports were correct, rerun their methods, reconstruct ignored artifacts, normalize old grades into the current evaluator, or imply that a related current skill retains predecessor behavior.
+
+Every record fixes these values:
+
+```json
+{
+  "authority": "historical-documentary-only",
+  "readiness_eligible": false,
+  "convertible_to_current_result": false
+}
+```
+
+No command, report, registry consumer, or future migration may override those fields. Changing this authority requires a new owner decision and owning-spec revision; it is not an index revision.
+
+### Physical And Scope Separation
+
+The documentary registry and schema live only at:
+
+```text
+evals/registries/historical-evidence.json
+evals/schemas/historical-evidence.schema.json
+```
+
+The deterministic audit lives at `evals/scripts/audit-historical-evidence.mjs`. A concise indexing report may live under `evals/reports/` but remains documentary.
+
+The initial registry includes every regular Markdown file recursively contained by these roots at indexing time:
+
+- `evals/reports/by-skill/`;
+- `evals/reports/by-command-surface/`;
+- `evals/reports/iterations/`;
+- `evals/reports/acceptance/`.
+
+It explicitly excludes:
+
+- `evals/reports/runtime/`;
+- `evals/reports/harness/`;
+- `.skill-eval/` and every current evaluator result, diagnostic, staging, or run destination;
+- generated `evals/runs/` artifacts as source records.
+
+Runtime and harness reports have different evidence lifecycles and are not silently demoted to historical documentary status. The registry declares inclusion roots, exclusion roots, recursive Markdown selection, and indexing revision. The audit requires exact coverage: no in-scope report may be omitted and no out-of-scope report may be added.
+
+Source reports and registry paths are repo-relative, canonical, symlink-free, and contained by their declared roots. Registry records are sorted by source report path. Arrays with no semantic ordering are unique and lexically sorted so repeated audits are deterministic.
+
+### Record Identity And Source
+
+There is exactly one record per included source report. A stable record ID is derived from the normalized source report path, not sequence position or report contents:
+
+```text
+HIST-<first 16 lowercase hex characters of SHA-256(source report path UTF-8 bytes)>
+```
+
+Content changes update the source hash without changing record identity. Renaming a report creates a new identity and may declare a supersession relation; the index does not pretend a renamed path is the same record.
+
+Every record contains:
+
+- `id`;
+- `source_report.path` and SHA-256 of exact file bytes;
+- `reported_date` from the first exact report-date field by fixed precedence: document metadata `> **Date:** YYYY-MM-DD`, then a standalone top-level `Date: YYYY-MM-DD`, otherwise `null`; incidental run, revision, verification, or prepublish dates in body text are never substituted;
+- `related_current_skills`, containing only existing root `skills/<name>/` identities and permitted to be empty when no source-backed current mapping exists;
+- `reported_eval_ids`, containing only exact eval identifiers present in the source report and permitted to be empty;
+- `reported_outcome`, always labelled `reported-not-regraded` and containing an exact contiguous source excerpt plus its SHA-256;
+- optional `reported_context` for host, model, and method only when an exact contiguous source excerpt states them;
+- `referenced_artifacts` for every concrete repo-relative `evals/runs/` path stated by the report;
+- fixed-code `limitations`;
+- source-backed `supersedes` and `superseded_by` relationships;
+- `indexing_revision` and `indexed_on`;
+- the three fixed non-authority fields.
+
+The outcome excerpt is evidence, not editorial synthesis. The audit requires the exact excerpt to occur in the source report and match its recorded hash. Every optional host, model, or method value must occur verbatim in its recorded source excerpt. Missing values are omitted rather than inferred from neighboring reports, filenames, current config, or later evidence.
+
+`reported_eval_ids` may describe predecessor evals and do not enter current `evals` arrays, suites, accepted observations, or `.skill-eval` results. `related_current_skills` is a search mapping only. An empty mapping is valid and must carry `current-skill-not-mapped` in `limitations`.
+
+### Referenced Artifact Contract
+
+A concrete referenced artifact is a source token beginning `evals/runs/` or the established historical shorthand `runs/`, with no glob, placeholder, shell expansion, URI, traversal segment, or trailing prose punctuation. The audit stores the exact `source_token` and normalizes both forms to one repo-relative `path` beginning `evals/runs/`; `runs/<rest>` becomes `evals/runs/<rest>`. Different source tokens that normalize to the same path produce one artifact record whose unique sorted `source_tokens` retain every stated spelling. Non-concrete examples such as `evals/runs/setup-*/...` remain visible in the source report but are not fabricated into artifact records.
+
+Every concrete normalized reference appears once with:
+
+- non-empty `source_tokens` containing exact report text;
+- normalized `path`;
+- `status: "present" | "missing" | "ignored"`;
+- `sha256` when and only when status is `present`;
+- `kind: "file" | "directory"` when and only when status is `present`.
+
+Status meaning is fixed:
+
+- `present`: the canonical path currently exists within the repository;
+- `ignored`: it does not exist and is under the repository's ignored `evals/runs/` root;
+- `missing`: it does not exist and is not covered by that ignored root.
+
+A present file hash is SHA-256 of exact bytes. A present directory hash is SHA-256 of a canonical UTF-8 manifest containing every recursively contained regular file as normalized relative path, one space, lowercase file SHA-256, and LF, sorted by path. A contained path with CR or LF is unsupported and fails before manifest construction. Symlinks and unsupported filesystem entries fail the audit; they are not followed or omitted.
+
+No missing or ignored artifact is reconstructed, rerun, copied, or assigned a hash. The registry preserves absence rather than repairing history.
+
+### Limitations And Supersession
+
+`limitations` uses only schema-defined codes derived from observable record state:
+
+- `reported-only` on every record;
+- `date-not-stated`, `host-not-stated`, `model-not-stated`, or `method-not-stated` when corresponding exact context is absent;
+- `current-skill-not-mapped` when no related current skill exists;
+- `artifacts-ignored` or `artifacts-missing` when any reference has that status;
+- `superseded` when `superseded_by` is non-empty.
+
+Supersession is not inferred from numbering, dates, similar titles, current preference, or statements that a skill, policy, output, or behavior replaced another. A relation exists only when an exact source excerpt explicitly identifies one included source report as replacing, deprecating, moving, or superseding another included source report. The excerpt may come from either relation endpoint but its source report path and hash are recorded. Relations are reciprocal: if A supersedes B, A lists B in `supersedes` and B lists A in `superseded_by` using the same evidence identity. When the live corpus contains no such report-to-report statement, all live supersession arrays remain empty; deterministic fixtures prove relation validation without fabricating a live relation.
+
+Supersession changes discoverability only. Neither the newer nor older record gains current authority.
+
+### Deterministic Audit And Failure Contract
+
+`evals/scripts/audit-historical-evidence.mjs` uses Node.js 22+ ESM and standard-library APIs only. It is read-only and makes zero model/provider requests.
+
+It verifies:
+
+- JSON Schema shape, exact schema/index versions, and no unknown fields;
+- unique stable IDs and one exact record per in-scope report;
+- inclusion/exclusion roots and canonical path/symlink containment;
+- source report existence and hashes;
+- exact outcome/context excerpts and hashes;
+- current-skill directory mappings and exact eval-ID occurrence;
+- complete concrete `evals/runs/` and `runs/` source-token extraction, deterministic normalization, statuses, kinds, and hashes;
+- fixed limitations and reciprocal source-backed supersession;
+- fixed non-authority values on every record;
+- absence of registry-owned current-authority concepts or destinations: no field may grant a current verdict, grade, observation, acceptance membership, readiness effect, or conversion, and no registry-owned source, relation, mapping, or output path may enter `.skill-eval/` or another current evaluator result, diagnostic, staging, or run destination; documentary `evals/runs/` artifact references remain allowed only under the referenced-artifact contract above;
+- deterministic record and array ordering.
+
+Any mismatch exits nonzero and reports the failing record/path. Verbatim `reported_outcome`, `reported_context`, and supersession evidence excerpts are provenance-checked documentary text: they may quote historical words such as result, acceptance, readiness, or paths, and are exempt from semantic substring rejection. Their enclosing registry-owned fields, links, paths, fixed authority values, and destinations remain subject to the structural prohibitions above.
+
+The audit never rewrites the registry, source reports, artifacts, current mappings, readiness state, or evaluator output. Hash drift requires an explicit index revision after inspecting the changed source; it is not repaired automatically.
+
+`evals/registries/skill-evidence.json` may gain one top-level documentary link to the historical registry. Existing `evals`, suites, statuses, and `historical_evals` are not populated from the new index or reinterpreted by it. `evals/README.md` may document the audit command and non-authority boundary. No current evaluator code reads the historical registry.
+
+### Acceptance Evidence
+
+Before the historical index is accepted:
+
+1. the schema and complete populated registry pass the deterministic audit;
+2. fresh live-corpus spot checks cover one ignored or missing artifact and one report without stated host/model;
+3. when complete live extraction finds a present artifact or explicit report-to-report supersession relation, fresh spot checks cover each available class; when it finds none, the indexing report attests the empty class and deterministic fixtures prove present-file, present-directory, and supersession semantics;
+4. changing a source report, authority field, record ID, status/hash, current-skill mapping, source-token normalization, or supersession reciprocity makes a fault-injection audit fail;
+5. no model, grading, reconstruction, import, or evaluator publication occurs;
+6. no file appears under `.skill-eval/**/runs/evaluations/` because of indexing;
+7. no current `result.json`, readiness field, acceptance report, suite, or current eval list incorporates a historical record as an observation;
+8. the final scoped diff contains documentary registry/schema/report/docs plus the read-only audit and its deterministic tests only;
+9. one fresh artifact review finds the schema, populated index, audit output, and authority boundary fit for documentary use.
+
+### Non-Goals
+
+This extension does not add:
+
+- legacy run import, regrading, reconstruction, sealing, or conversion;
+- current result, observation, readiness, acceptance, or Production-Ready authority;
+- report rewriting or inferred environment metadata;
+- model execution or semantic summarization;
+- a generic migration framework, database, service, or evaluator integration;
+- runtime/harness report indexing;
+- package, release, or public product claims.
+
 ## Confirmed Owner Decisions
 
 Confirmed 2026-07-11:
@@ -1194,6 +1358,7 @@ Confirmed 2026-07-11:
 25. Codex CLI 0.144.1 isolation is proven, but hard provider-request and spend bounds are unavailable;
 26. the owner selected a no-paid-run, reduced-fidelity Codex diagnostic adapter rather than external proxy control or Phase 3 deferral;
 27. Codex provider requests and cost remain unavailable, Codex public execution stays blocked, and no cross-host acceptance claim is permitted.
+28. Legacy reports may be indexed only as physically separate, historical-documentary records with fixed non-authority fields; they cannot become current results, observations, acceptance evidence, or readiness support.
 
 ## Extension Artifact Review
 
@@ -1224,6 +1389,14 @@ The Codex contract review required literal provider semantics, whole-case null p
 
 Implementation review found one JSONL lifecycle-order blocker and missing Codex-specific timeout/output/cleanup coverage. Both were fixed; the narrow follow-up was clean. Full evidence and review hashes are recorded in `.skill-eval/evaluate-skill/reports/codex-diagnostic.md`.
 
+## Historical Documentary Reviews
+
+The Phase 4 contract review required deterministic normalization of historical `runs/` shorthand, evidence-conditional live checks, report-date precedence, structural forbidden-destination checks, and unambiguous directory hashing. The narrow follow-up was clean before indexing began.
+
+Artifact review confirmed exact 86-report scope, 352 ignored run references, fixed non-authority labels, physical separation, deterministic audit behavior, and zero model requests. It required a complete semantic rescan of outcome excerpts and one final command-surface correction. The terminal reviewer confirmed the final excerpt was exact, contiguous, semantically complete, and hash-consistent. The parent rejected its heading-inclusion objection because headings are not required by the accepted excerpt contract. No fourth review occurred.
+
+Review history, hashes, final audit output, and residual limitations are recorded in `evals/reports/historical-evidence-index-1-report.md`.
+
 ## Change Log
 
 - 2026-07-11: Recorded accepted one-shot bootstrap state and added the draft fixed-script Pi RPC contract for artifact review.
@@ -1231,3 +1404,5 @@ Implementation review found one JSONL lifecycle-order blocker and missing Codex-
 - 2026-07-11: Accepted the configuration-bound fixed-script Pi RPC implementation after deterministic tests, two final evidence cases, fresh integrity checks, and a clean final implementation review.
 - 2026-07-12: Added the owner-selected reduced-fidelity Codex diagnostic contract after a clean no-provider isolation proof; paid execution and accepted cross-host evidence remain blocked.
 - 2026-07-12: Accepted the deterministic Codex diagnostic implementation after 126 passing tests and a clean follow-up implementation review; no Codex model request was made.
+- 2026-07-12: Added the draft documentary historical-evidence contract for the mandatory Phase 4 artifact review; indexing has not begun.
+- 2026-07-12: Accepted the documentary historical-evidence extension after indexing 86 reports, auditing 352 ignored references, correcting all semantic outcome excerpts, and preserving zero current readiness authority.
