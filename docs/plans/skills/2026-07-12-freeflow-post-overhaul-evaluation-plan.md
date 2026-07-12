@@ -327,12 +327,13 @@ Stop if the pre-failure state cannot be reconstructed exactly enough to support 
 
 Create isolated synthetic fixtures for:
 
-1. rejected replacement preserving empty and existing canonical state;
-2. helper/caller counter failing to prove registered integration;
-3. cancellation combined with integrity failure;
-4. shared verification mutation footprint;
-5. replaceable trust anchor;
-6. repeated same-invariant finding across sibling adapters.
+1. an oversized plan that defers proof of the registered host boundary;
+2. rejected replacement preserving empty and existing canonical state;
+3. helper/caller counter failing to prove registered integration;
+4. cancellation combined with integrity failure;
+5. shared verification mutation footprint;
+6. replaceable trust anchor;
+7. repeated same-invariant finding across sibling adapters.
 
 Keep expected outcomes, incident handoffs, review artifacts, and grading keys outside subject-visible fixtures.
 
@@ -346,9 +347,19 @@ Only after small fixtures are stable, extract minimal allowlisted code preservin
 
 Use independent fidelity/sanitization review.
 
+Live-source refinement: both incident worktrees now contain post-fix oracle behavior, while no byte-exact pre-fix snapshot has been attested. Do not fabricate a historical replay from those bytes. Run the small attribution pilot first. Build a sanitized realistic replay only after pilot evidence identifies a skill revision that needs generalization, using the fixed worktrees as expected-outcome oracles and labelling any reconstructed failing source as synthetic rather than historical.
+
 ### Phase 3 Checkpoint
 
-Continue when each fixture is immutable, hashed, mechanically pressure-tested, sanitized, and attribution-friendly. A fixture that reveals the answer or depends on live worktree state routes backward.
+The synthetic pilot may continue when each small fixture is immutable, hashed, mechanically pressure-tested, sanitized, attribution-friendly, and independently reviewed. A fixture that reveals the answer or depends on live worktree state routes backward. Realistic replay remains required before any incident-generalization or skill-promotion claim, not before the attribution pilot.
+
+Phase 3 synthetic checkpoint passed on 2026-07-12:
+
+- both evolved incident worktrees are frozen as post-fix oracle sources with exact selected hashes; byte-exact pre-fix reconstruction remains unattested;
+- seven small pressure fixtures and four pilot case sources are frozen in `.skill-eval/workflow/provenance/incidents.json`;
+- `.skill-eval/workflow/scripts/verify-incident-fixtures.mjs` mechanically reproduces every pressure and verifies frozen bytes, no symlinks, and sanitization exclusions;
+- independent fixture/provenance review and pilot case-source review passed;
+- realistic replay is deferred under Slice 3.3 and remains required before generalization or promotion.
 
 ## Phase 4 — Four-Case Incident Pilot
 

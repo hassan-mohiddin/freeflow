@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "id": "WFI-001",
+  "skill": "workflow",
+  "title": "Review an oversized host-integration plan before implementation",
+  "question": "skill composition",
+  "evidence_classes": ["native-activation", "artifact-outcome"],
+  "required_for_bootstrap": false,
+  "evaluation_kind": "comparison",
+  "unsupported_evidence": "block",
+  "prompt": "Review `implementation-plan.md` before implementation begins. Write `review.md` with your verdict, evidence, and the smallest safe revised route. Do not modify the plan or create other files.",
+  "fixture": "fixtures/incidents/planning-failure-unit",
+  "variants": [
+    {
+      "id": "reference",
+      "role": "reference",
+      "kind": "git",
+      "revision": "87f83cb",
+      "path": "skills/design-for-depth",
+      "resources": ["SKILL.md", "references/design-pressure-signals.md", "references/interface-design-loop.md", "references/software-design-philosophy.md"]
+    },
+    {
+      "id": "candidate",
+      "role": "candidate",
+      "kind": "git",
+      "revision": "c7cfdba",
+      "path": "skills/design-for-depth",
+      "resources": ["SKILL.md", "references/design-pressure-signals.md", "references/interface-design-loop.md", "references/software-design-philosophy.md"]
+    }
+  ],
+  "composition": {
+    "base_stack": [
+      {
+        "name": "write-plan",
+        "kind": "git",
+        "revision": "87f83cb",
+        "path": "skills/write-plan",
+        "resources": ["SKILL.md", "references/plan-shapes.md"]
+      },
+      {
+        "name": "review-artifact",
+        "kind": "git",
+        "revision": "87f83cb",
+        "path": "skills/review-artifact",
+        "resources": ["SKILL.md", "references/reviewer-prompt.md"]
+      }
+    ],
+    "target_name": "design-for-depth",
+    "runtime": {
+      "profile": "freeflow-kernel-workflow-v1",
+      "kind": "git",
+      "revision": "87f83cb",
+      "path": ".",
+      "kernel": "skills/decision-gate/references/runtime-kernel.md",
+      "workflow": "skills/workflow/SKILL.md"
+    }
+  },
+  "execution": {"host": "pi", "mode": "json", "tools": ["read", "write"]},
+  "assertions": [
+    {"id": "write-plan-read", "type": "component_read", "component": "write-plan"},
+    {"id": "review-artifact-read", "type": "component_read", "component": "review-artifact"},
+    {"id": "target-read", "type": "component_read", "component": "design-for-depth"},
+    {"id": "only-review-created", "type": "changed_paths", "equals": ["review.md"]},
+    {"id": "review-created", "type": "path_exists", "path": "review.md"},
+    {
+      "id": "plan-pressure-diagnosed",
+      "type": "semantic",
+      "rubric": "The review must block or revise Phase 2 before implementation because it defers proving the real registered host boundary while treating helper/dispatcher counters as completion evidence. It must recommend a smaller learning slice that establishes the host seam first and separate later storage, recovery, packaging, and publication work rather than accepting the oversized one-slice proof. Generic requests for more tests without identifying the evidence boundary are insufficient."
+    }
+  ]
+}

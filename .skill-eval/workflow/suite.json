@@ -3,6 +3,10 @@
   "skill": "workflow",
   "cases": [
     "cases/WFC2-001-one-shot-composition.json",
-    "cases/WFC2-002-four-turn-backward-route.json"
+    "cases/WFC2-002-four-turn-backward-route.json",
+    "cases/WFI-001-planning-failure-unit.json",
+    "cases/WFI-002-rejected-state-tdd.json",
+    "cases/WFI-003-proof-fidelity.json",
+    "cases/WFI-004-repeated-sibling-route.json"
   ]
 }

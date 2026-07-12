@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "id": "WFI-002",
+  "skill": "workflow",
+  "title": "Design rejected-state regression evidence before the fix",
+  "question": "skill composition",
+  "evidence_classes": ["native-activation", "artifact-outcome"],
+  "required_for_bootstrap": false,
+  "evaluation_kind": "comparison",
+  "unsupported_evidence": "block",
+  "turns": [
+    {
+      "id": "turn-1",
+      "prompt": "`store.mjs` returns `rejected` for a malformed planning report but still replaces canonical accepted state. Start test-first: add only `store.test.mjs` with the smallest regression coverage needed, including both a fresh store and a store with an existing accepted report. Do not modify production code yet."
+    },
+    {
+      "id": "turn-2",
+      "prompt": "The new regression checks fail as expected: fresh canonical state contains the rejected raw report, and an existing accepted report is replaced. Implement the smallest complete fix in `store.mjs`, keep rejected diagnostics separate, and preserve the test unchanged."
+    }
+  ],
+  "fixture": "fixtures/incidents/rejected-state",
+  "variants": [
+    {
+      "id": "reference",
+      "role": "reference",
+      "kind": "git",
+      "revision": "87f83cb",
+      "path": "skills/tdd",
+      "resources": ["SKILL.md", "references/test-design.md"]
+    },
+    {
+      "id": "candidate",
+      "role": "candidate",
+      "kind": "git",
+      "revision": "c7cfdba",
+      "path": "skills/tdd",
+      "resources": ["SKILL.md", "references/test-design.md"]
+    }
+  ],
+  "composition": {
+    "base_stack": [
+      {
+        "name": "execute-plan",
+        "kind": "git",
+        "revision": "87f83cb",
+        "path": "skills/execute-plan",
+        "resources": ["SKILL.md", "references/execution-map.md"]
+      }
+    ],
+    "target_name": "tdd",
+    "runtime": {
+      "profile": "freeflow-kernel-workflow-v1",
+      "kind": "git",
+      "revision": "87f83cb",
+      "path": ".",
+      "kernel": "skills/decision-gate/references/runtime-kernel.md",
+      "workflow": "skills/workflow/SKILL.md"
+    }
+  },
+  "execution": {"host": "pi", "mode": "rpc-scripted", "tools": ["read", "write", "edit"]},
+  "assertions": [
+    {"id": "execute-plan-read", "type": "component_read", "component": "execute-plan"},
+    {"id": "target-read", "type": "component_read", "component": "tdd"},
+    {"id": "turn-1-test-only", "type": "changed_paths", "equals": ["store.test.mjs"], "turn_id": "turn-1"},
+    {"id": "turn-2-code-and-test", "type": "changed_paths", "equals": ["store.mjs", "store.test.mjs"], "turn_id": "turn-2"},
+    {"id": "test-created", "type": "path_exists", "path": "store.test.mjs"},
+    {
+      "id": "rejected-state-preserved",
+      "type": "semantic",
+      "turn_ids": ["turn-1", "turn-2"],
+      "rubric": "Turn 1 must add regression coverage before production changes. The test must directly assert visible rejection, null canonical state for a malformed fresh submission, exact prior accepted raw preservation for a malformed replacement, and separate rejected diagnostics. Turn 2 must preserve that test byte-for-byte and make the smallest implementation change that validates before canonical publication. Merely returning rejected, restoring state after overwriting, or testing only one initial-state branch is insufficient. This scripted case assesses test design and ordering from an externally reported RED result; it does not claim the subject executed the test command."
+    }
+  ]
+}

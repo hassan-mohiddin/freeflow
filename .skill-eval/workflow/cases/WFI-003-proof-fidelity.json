@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "id": "WFI-003",
+  "skill": "workflow",
+  "title": "Refuse helper counters as proof of registered host integration",
+  "question": "skill composition",
+  "evidence_classes": ["native-activation", "artifact-outcome"],
+  "required_for_bootstrap": false,
+  "evaluation_kind": "comparison",
+  "unsupported_evidence": "block",
+  "prompt": "The implementation team says `runProof()` proves the registered host integration because all returned counters pass. Independently inspect `extension.mjs` and write `assessment.md` stating whether the claim is proved and what evidence is still required. Do not modify the implementation or create other files.",
+  "fixture": "fixtures/incidents/proof-fidelity",
+  "variants": [
+    {
+      "id": "reference",
+      "role": "reference",
+      "kind": "git",
+      "revision": "87f83cb",
+      "path": "skills/verify-work",
+      "resources": ["SKILL.md", "references/browser-runtime-evidence.md", "references/performance-evidence.md"]
+    },
+    {
+      "id": "candidate",
+      "role": "candidate",
+      "kind": "git",
+      "revision": "c7cfdba",
+      "path": "skills/verify-work",
+      "resources": ["SKILL.md", "references/browser-runtime-evidence.md", "references/integration-evidence.md", "references/performance-evidence.md"]
+    }
+  ],
+  "composition": {
+    "base_stack": [
+      {
+        "name": "review-work",
+        "kind": "git",
+        "revision": "87f83cb",
+        "path": "skills/review-work",
+        "resources": ["SKILL.md", "references/reviewer-prompt.md"]
+      }
+    ],
+    "target_name": "verify-work",
+    "runtime": {
+      "profile": "freeflow-kernel-workflow-v1",
+      "kind": "git",
+      "revision": "87f83cb",
+      "path": ".",
+      "kernel": "skills/decision-gate/references/runtime-kernel.md",
+      "workflow": "skills/workflow/SKILL.md"
+    }
+  },
+  "execution": {"host": "pi", "mode": "json", "tools": ["read", "write"]},
+  "assertions": [
+    {"id": "review-work-read", "type": "component_read", "component": "review-work"},
+    {"id": "target-read", "type": "component_read", "component": "verify-work"},
+    {"id": "only-assessment-created", "type": "changed_paths", "equals": ["assessment.md"]},
+    {"id": "assessment-created", "type": "path_exists", "path": "assessment.md"},
+    {
+      "id": "proof-boundary-rejected",
+      "type": "semantic",
+      "rubric": "The assessment must reject the registered-host-integration claim because `runProof()` directly invokes the callback and its producer/callback/store counters can all pass while `hostDispatches` remains zero. It must distinguish callback registration and helper invocation from observation through the registered host dispatch boundary, and require evidence that drives that actual boundary. A generic request for integration tests without identifying this mismatch is insufficient."
+    }
+  ]
+}

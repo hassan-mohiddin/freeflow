@@ -1,0 +1,251 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-07-12",
+  "claim": "Synthetic attribution fixtures derived from post-fix oracle behavior and incident evidence; not byte-exact historical replays.",
+  "source_worktrees_mutated": false,
+  "sources": [
+    {
+      "incident": "output-router",
+      "repository_path": "/Users/mohammedhassanmohiddin/Documents/Antigravity/Freeflow-output-router-implementation",
+      "head": "57e60cf1912cad888e78fda4d9fc4f93b92f39e8",
+      "worktree_status_entries": 1,
+      "worktree_status_sha256": "1a53fb1f8313c3aaeef67927e3177808ee208552854b63c452577483567487d0",
+      "selected_tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "selected_tracked_diff_bytes": 0,
+      "selected_sources": [
+        {
+          "path": "router/contracts/output-router-v04/text-proof-store.mjs",
+          "status": "clean",
+          "head_blob": "f5b2ef28f8ae71115be6975df958415804fc7187",
+          "sha256": "99dbd3fc8a38d682b06d8140605b81ee4095ced31f1d7d82df3ec1e7808293b9",
+          "bytes": 28654
+        },
+        {
+          "path": "router/contracts/output-router-v04/canonical-text-v1.mjs",
+          "status": "clean",
+          "head_blob": "7412bb5a48280eb010380d09929b6ce9d6c8a96f",
+          "sha256": "4cfffa6de9db03c1df903ad28d33db738743c445e1bcf4d2408e01e7a9f63029",
+          "bytes": 829
+        },
+        {
+          "path": "router/tests/contracts/text-proof-store.test.js",
+          "status": "clean",
+          "head_blob": "2a03897e4f080d787db8be570a2a674aadf67f67",
+          "sha256": "b33cf113250cdb05bb6871eae5654ca7d13aa48d8efff796ae72baf4808af3bf",
+          "bytes": 34147
+        },
+        {
+          "path": "pi-extension/eval/output-router-text-proof/index.mjs",
+          "status": "clean",
+          "head_blob": "dc5b02a2f320f285f8501074f46eb4c00c0f0f5b",
+          "sha256": "fd52a7f241b18302472c4550b601323570cce422c36cdbf0fb25f6a621093b5c",
+          "bytes": 26858
+        },
+        {
+          "path": "pi-extension/tests/pi-output-router-text-proof-eval.test.js",
+          "status": "clean",
+          "head_blob": "9b027811424f2094c278e57408ded09eced2d5d9",
+          "sha256": "1f12a73285710d508e191b3a51b987a0c0c8ace9a82affaeeb494ad23b483364",
+          "bytes": 14003
+        },
+        {
+          "path": "evals/scripts/run-pi-output-router-text-proof-rpc.mjs",
+          "status": "clean",
+          "head_blob": "65a74cf759dd5e4e136314b773db96cd2e38960d",
+          "sha256": "bc439e238b3434a4cd3f46cbd6f9375be48a0f0cafdd52db1ddc9baed7f6d03a",
+          "bytes": 18561
+        },
+        {
+          "path": "evals/scripts/smoke-pi-output-router-text-proof.sh",
+          "status": "clean",
+          "head_blob": "6d7d164974af5ac4538301e97f1f420f51775ac8",
+          "sha256": "44afba8e5b3fb726e8e447cf72c54f3b1016a3436601f6f06a0f0d56d22d396b",
+          "bytes": 8041
+        }
+      ],
+      "evaluator_only_handoff": {
+        "path": "docs/handoffs/output-router/2026-07-12-output-router-review-blocker-pattern-and-freeflow-skill-improvement.md",
+        "status": "?? docs/handoffs/output-router/2026-07-12-output-router-review-blocker-pattern-and-freeflow-skill-improvement.md",
+        "head_blob": null,
+        "sha256": "e8476a72c28e999e1b9ccd82b06d415ed8c1a66576072c00afa6b35421cc5772",
+        "bytes": 23405
+      },
+      "state_role": "post-fix oracle and realistic-replay source",
+      "pre_failure_reconstruction": {
+        "status": "unattested",
+        "reason": "No named commit, index entry, stash, or reviewed byte-exact snapshot was matched to the failing review state."
+      }
+    },
+    {
+      "incident": "delegation",
+      "repository_path": "/Users/mohammedhassanmohiddin/Documents/Antigravity/Freeflow",
+      "head": "048f6ce0ea0618d71b9f0c481460a984fc352aba",
+      "worktree_status_entries": 61,
+      "worktree_status_sha256": "5fda6fa2feb22d301a1828199192bedd172f4a937388183d2ee0c119aa109e31",
+      "selected_tracked_diff_sha256": "71c01af80a85d069274aed6dd9fa6df5c7c447dc42fc96726d4cf510f86cd20d",
+      "selected_tracked_diff_bytes": 600960,
+      "selected_sources": [
+        {
+          "path": "delegation/src/store.ts",
+          "status": "M delegation/src/store.ts",
+          "head_blob": "cd044e60b1b46842d331108c48f5ebce1646ca01",
+          "sha256": "e6cd0dae085e852461842aba3cdf144983bed5e1ba981ec145859c06156fd155",
+          "bytes": 115762
+        },
+        {
+          "path": "delegation/src/protocol.ts",
+          "status": "M delegation/src/protocol.ts",
+          "head_blob": "b818ffd89587b33fed3d709ca92968a8a9b0529b",
+          "sha256": "34e4cfedc6fb98c608494b75ff05913bedbb700e16d694a243fad4af6d12c73f",
+          "bytes": 14267
+        },
+        {
+          "path": "delegation/src/types.ts",
+          "status": "M delegation/src/types.ts",
+          "head_blob": "54607f484e6008c4749c068fadd5012f04dfad5c",
+          "sha256": "ad31610bda0eaec03308b68fd1a7805929d235dbe17f433a5bdeb9b56cb584f4",
+          "bytes": 23212
+        },
+        {
+          "path": "delegation/src/paths.ts",
+          "status": "M delegation/src/paths.ts",
+          "head_blob": "bee8fbd797a8d01e6a26a6767586871066a50445",
+          "sha256": "80590e8e25dfda7ffd2e1ddc55983758cca8a81947a7dc8e759ae6df80df85a2",
+          "bytes": 6822
+        },
+        {
+          "path": "pi-extension/src/delegation/tools.ts",
+          "status": "M pi-extension/src/delegation/tools.ts",
+          "head_blob": "963818ef4d8daab6dd1e73b3c2fda1a02f3a9827",
+          "sha256": "ca7e44b6dd18bccf8b5b5c8d7e8803d823ca3647ae495bf5e92b8b1d28aa75be",
+          "bytes": 222273
+        },
+        {
+          "path": "pi-extension/src/delegation/runtime.ts",
+          "status": "M pi-extension/src/delegation/runtime.ts",
+          "head_blob": "a0d677e494764c02c9a78721aa69a97c954fdba5",
+          "sha256": "cf36429caa7e7f054b32b7744aff0a68960e4efddbcefb40aed2cb80bb8cbefa",
+          "bytes": 57635
+        },
+        {
+          "path": "delegation/tests/store-phase2.test.js",
+          "status": "?? delegation/tests/store-phase2.test.js",
+          "head_blob": null,
+          "sha256": "45ba54033fc59d1e1d9bf11181071177668db980f40b1cda15834706eef522e5",
+          "bytes": 55009
+        },
+        {
+          "path": "pi-extension/tests/pi-delegation-tools.test.js",
+          "status": "M pi-extension/tests/pi-delegation-tools.test.js",
+          "head_blob": "c1e6443c3a21587d6fe850ea1b0c42c4b5c40b5f",
+          "sha256": "426e72bbae335a0e8fb9161064f60ee792d6dda8b741712b928d48d631bfa97d",
+          "bytes": 179897
+        },
+        {
+          "path": "pi-extension/tests/pi-delegation-runtime.test.js",
+          "status": "M pi-extension/tests/pi-delegation-runtime.test.js",
+          "head_blob": "b04dfddead9f87a9717a02e32d67f403ece122f3",
+          "sha256": "139838360b40c41ef820e31e29e58ec134ded452cc1dc76e1d8b758fb98c448f",
+          "bytes": 58370
+        }
+      ],
+      "evaluator_only_handoff": {
+        "path": "docs/handoffs/workflow-and-skills/2026-07-12-r1c-review-loop-and-skill-composition-incident.md",
+        "status": "?? docs/handoffs/workflow-and-skills/2026-07-12-r1c-review-loop-and-skill-composition-incident.md",
+        "head_blob": null,
+        "sha256": "11e9987535fa32e85e3c02617aa960fadfd9a3ce1ff2c7e6c28a53e02443b7c7",
+        "bytes": 24567
+      },
+      "state_role": "post-fix oracle and realistic-replay source",
+      "pre_failure_reconstruction": {
+        "status": "unattested",
+        "reason": "No named commit, index entry, stash, or reviewed byte-exact snapshot was matched to the failing review state."
+      }
+    }
+  ],
+  "fixtures": [
+    {
+      "path": ".skill-eval/workflow/fixtures/incidents/cancellation-integrity/recovery.mjs",
+      "sha256": "9733540099d85e0152fbbf0e937679b572a77b6ee0e543fd0a5faca0fd30529f",
+      "bytes": 322
+    },
+    {
+      "path": ".skill-eval/workflow/fixtures/incidents/planning-failure-unit/implementation-plan.md",
+      "sha256": "3529dc6aa9ad2f86fb4c2ed436c53df0104284e6474eaa87a8e11f785e6c8484",
+      "bytes": 1332
+    },
+    {
+      "path": ".skill-eval/workflow/fixtures/incidents/proof-fidelity/extension.mjs",
+      "sha256": "a83815b6e584a95dc80a86f2f6be1f478731682c7078fb0cd22492c876210212",
+      "bytes": 860
+    },
+    {
+      "path": ".skill-eval/workflow/fixtures/incidents/rejected-state/store.mjs",
+      "sha256": "9de9d8e67a7c6b4a66037cef3548f982d4bd9d9a8a4bc6e9696585d0f1f43bf8",
+      "bytes": 856
+    },
+    {
+      "path": ".skill-eval/workflow/fixtures/incidents/replaceable-trust-anchor/store.mjs",
+      "sha256": "1cacc2b6926233fa58a5dcd354de33cc67d8ba6c24dcf850b790800f9e8612db",
+      "bytes": 906
+    },
+    {
+      "path": ".skill-eval/workflow/fixtures/incidents/sibling-adapters/system.mjs",
+      "sha256": "3c553a9cf25db6e5e3c6af35244ec0a5a1a769273d8cdc75b67b9f8d5686b48c",
+      "bytes": 989
+    },
+    {
+      "path": ".skill-eval/workflow/fixtures/incidents/verification-mutation/sample-bundle/manifest.json",
+      "sha256": "207d9046b078bade1dfd0a85ecf31c573bc042d1955a5d049a7f7b438590f5c4",
+      "bytes": 51
+    },
+    {
+      "path": ".skill-eval/workflow/fixtures/incidents/verification-mutation/verifier.mjs",
+      "sha256": "9d825794d6b73694511164816240dc99f04fb19a66f9131a660edaae49c12d1a",
+      "bytes": 509
+    }
+  ],
+  "subject_exclusions": [
+    "incident handoffs",
+    "review reports and transcripts",
+    ".pi-subagents artifacts",
+    ".git",
+    "absolute source-worktree paths",
+    "expected outcomes and grading keys",
+    "generated dist/build/cache output",
+    "credentials and host config",
+    "unrelated dirty files"
+  ],
+  "sanitization": [
+    "Fixtures contain only synthetic names and values.",
+    "No fixture imports or reads either source worktree.",
+    "Oracle and provenance paths are outside subject-visible fixture roots.",
+    "Realistic replay extraction remains a later separately reviewed slice."
+  ],
+  "pilot_case_sources": [
+    {
+      "path": ".skill-eval/workflow/cases/WFI-001-planning-failure-unit.json",
+      "sha256": "9dd790c89552c843199f93d61a181efacdc8fcb46fc18a162203e4b4b40a3ac9",
+      "bytes": 3117
+    },
+    {
+      "path": ".skill-eval/workflow/cases/WFI-002-rejected-state-tdd.json",
+      "sha256": "34f38ed386124cbe73040dca4dbd6590ff679a52506c2c2093bb21d0096c5b99",
+      "bytes": 3450
+    },
+    {
+      "path": ".skill-eval/workflow/cases/WFI-003-proof-fidelity.json",
+      "sha256": "46dff838fd801b5e82965cf795c4efa9fabbc2849f55ff4a1d72eda41643e531",
+      "bytes": 2870
+    },
+    {
+      "path": ".skill-eval/workflow/cases/WFI-004-repeated-sibling-route.json",
+      "sha256": "35680875e53f6f0d6696b9fc082090f21da0d24798e2aef7ec8258941793e124",
+      "bytes": 4692
+    }
+  ],
+  "pressure_oracle": {
+    "path": ".skill-eval/workflow/scripts/verify-incident-fixtures.mjs",
+    "sha256": "88913c44f696462f1350e95aaca3a6901cbdd4429e341c3b2db82eebb1f60848"
+  }
+}
