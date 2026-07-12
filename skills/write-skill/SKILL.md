@@ -24,7 +24,7 @@ A request for "production-ready" asks for evidence, not a label. If the repo has
 
 ## Authoring Rules
 
-1. Start with one `SKILL.md`. Add another file only when a live repo rule requires it or a measured failure cannot be fixed clearly in the active file. Hypothetical usefulness, completeness, polish, or examples do not qualify.
+1. Start with one `SKILL.md`. Keep a new single-file skill at 120 lines or fewer unless a live repo rule or measured failure requires more; remove examples and checklists that restate active rules before crossing that boundary. Add another file only when a live repo rule requires it or a measured failure cannot be fixed clearly in the active file. Hypothetical usefulness, completeness, polish, or examples do not qualify.
 2. Make the description state what the skill does and when it should activate.
 3. Write for the agent that will execute the skill, not for a human reading a manual.
 4. Put user authority, source truth, hard stops, and safety before normal workflow.

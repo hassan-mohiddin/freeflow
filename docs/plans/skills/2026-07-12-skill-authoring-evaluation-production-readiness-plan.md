@@ -2,7 +2,7 @@
 
 > **Doc ID:** PLAN-SKILLS-2026-07-12-PRODUCTION-READINESS
 > **Date:** 2026-07-12
-> **Status:** Active — Phase 1 complete; Phase 2 previews and owner paid gate next
+> **Status:** Active — first final-source attempt failed; revised write-skill requalification awaits owner approval
 > **Owner:** Hassan
 > **Source:** `docs/specs/skills/skill-authoring-and-evaluation-v2.md`; live `.skill-eval` cases and accepted bundles; `.skill-eval/evaluate-skill/reports/bootstrap-acceptance.md`; `.skill-eval/decision-gate/reports/rpc-acceptance.md`; owner request to complete configuration-bound Production-Ready promotion
 
@@ -225,7 +225,43 @@ A trustworthy behavioral failure stops promotion and routes to measured case/ski
 
 If all three cases pass, change both status lines to the exact configuration-bound Production-Ready target as a conditional final-source candidate. If any fails, keep both Unverified and revise only from preserved evidence.
 
+Qualification passed under exact approved fingerprints:
+
+| Case | Verdict | Candidate assertions | Requests | Tokens | Cost | Bundle |
+| --- | --- | --- | ---: | ---: | ---: | --- |
+| `WSK2-001` | `improved` | all pass | 15 | 47,568 | `$0.268358` | `.skill-eval/write-skill/runs/evaluations/20260712081621590-wsk2-001-d0f2e1becc/` |
+| `WSK2-006` | `improved` | all pass | 16 | 45,623 | `$0.284853` | `.skill-eval/write-skill/runs/evaluations/20260712081857568-wsk2-006-94ef901c9f/` |
+| `ESK2-009` | `improved` | all pass | 10 | 20,985 | `$0.110569` | `.skill-eval/evaluate-skill/runs/evaluations/20260712082130136-esk2-009-39e509a1fd/` |
+
+Qualification totals: 41 requests/turns, 36 tool calls, 114,176 tokens, and `$0.663780`. Fresh integrity verification passed for every bundle. No required field was unavailable and no infrastructure or isolation failure occurred.
+
+These original `write-skill` qualification bundles remain valid historical observations but no longer qualify the revised candidate source described below. The unchanged `ESK2-009` qualification bundle remains eligible.
+
 ## Phase 3 — Final-Source Promotion Suite
+
+### Route Change After First Final-Source Attempt
+
+The first final-source case, `WSK2-001`, completed with `comparison_verdict: "inconclusive"`; the candidate generated a 137-line skill and failed the immutable 120-line objective assertion. Semantic grading did not run because objective failure already blocked the candidate. Bundle integrity passed:
+
+- `.skill-eval/write-skill/runs/evaluations/20260712082524678-wsk2-001-3c88488e6a/`
+- 15 requests/turns, 12 tool calls, 47,872 tokens, `$0.232085`.
+
+No later final-source case started. Both conditional status lines were restored to Unverified and `skill-evidence.json` retained no readiness metadata.
+
+The preserved failure showed that qualitative compactness wording still permitted expanded enumerations, a restating checklist, and mini examples. `write-skill` now adds one measured general rule: a new single-file skill defaults to at most 120 lines, with restating examples/checklists removed before crossing that boundary unless live repo evidence requires more. Fresh review accepted the revision as the smallest source-backed fix; 127 deterministic tests and both structural validations pass.
+
+Because the `write-skill` candidate source changed, both original `WSK2-001` and `WSK2-006` qualification observations are superseded for promotion and must rerun under the revised Unverified source. The unchanged `ESK2-009` qualification remains valid. The failed final bundle remains diagnostic promotion evidence and cannot be retried from partial state.
+
+Revised qualification previews awaiting owner approval:
+
+| Case | Fingerprint | Processes | Worst turns | Soft ceiling |
+| --- | --- | ---: | ---: | ---: |
+| `WSK2-001` | `a87ba825f3335aae5ac774a44c6412e46839f3857aec3fdba2bb4d26a9cfd00d` | 4 | 32 | `$0.75` |
+| `WSK2-006` | `cf123484abc0b9aeb95bd626201bd0718000f3ad7efd219dd8f52e6ca1992436` | 4 | 32 | `$0.75` |
+
+The failed final run consumed the original `WSK2-001` final slot. The revised route adds three provider-capable invocations beyond the original plan: two revised qualification reruns and one later replacement final `WSK2-001` run. Total planned/developmental soft-ceiling exposure becomes `$8.65`; observed spend so far is `$0.895865`; remaining planned soft ceilings are `$5.90`; expected additional observed cost is approximately `$1.45–$2.35`. There is still no aggregate hard cap.
+
+After revised qualification passes, reapply both exact conditional status lines, regenerate all 13 final-source previews, and obtain renewed owner approval before any final provider request. Every prior final-source preview is stale after status rollback and the measured source revision.
 
 ### Slice 3.1 — Apply Conditional Status Source
 
