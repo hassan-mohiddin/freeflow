@@ -35,7 +35,8 @@
     {
       "id": "reference",
       "role": "reference",
-      "kind": "working-tree",
+      "kind": "git",
+      "revision": "d0bf6ee1972222a10e302a5c63f9eb3dc0ef8a82",
       "path": ".skill-eval/workflow/subjects/route-reference",
       "resources": [
         "SKILL.md"
@@ -44,7 +45,8 @@
     {
       "id": "candidate",
       "role": "candidate",
-      "kind": "working-tree",
+      "kind": "git",
+      "revision": "d0bf6ee1972222a10e302a5c63f9eb3dc0ef8a82",
       "path": ".skill-eval/workflow/subjects/route-candidate",
       "resources": [
         "SKILL.md"
@@ -55,7 +57,8 @@
     "base_stack": [
       {
         "name": "composition-base",
-        "kind": "working-tree",
+        "kind": "git",
+        "revision": "d0bf6ee1972222a10e302a5c63f9eb3dc0ef8a82",
         "path": ".skill-eval/workflow/subjects/composition-base",
         "resources": [
           "SKILL.md"
@@ -63,7 +66,8 @@
       },
       {
         "name": "evidence-base",
-        "kind": "working-tree",
+        "kind": "git",
+        "revision": "d0bf6ee1972222a10e302a5c63f9eb3dc0ef8a82",
         "path": ".skill-eval/workflow/subjects/evidence-base",
         "resources": [
           "SKILL.md"
@@ -73,7 +77,8 @@
     "target_name": "route-pressure",
     "runtime": {
       "profile": "freeflow-kernel-workflow-v1",
-      "kind": "working-tree",
+      "kind": "git",
+      "revision": "d0bf6ee1972222a10e302a5c63f9eb3dc0ef8a82",
       "path": ".",
       "kernel": "skills/decision-gate/references/runtime-kernel.md",
       "workflow": "skills/workflow/SKILL.md"
