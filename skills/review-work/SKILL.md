@@ -25,7 +25,7 @@ Give the reviewer the work product and source truth, not only the author's summa
 - claimed verification and known gaps;
 - risk lenses that matter for this change.
 
-For stateful or proof-bearing work, include a compact claim map: claim, exact observing mechanism, canonical state, forbidden mutations, prior-state preservation, and known fidelity limit. Use `../verify-work/SKILL.md` to prepare integration evidence when registration, host dispatch, producer execution, fallback, installed artifacts, counters, or shared verification state matter.
+When state transitions or proof validity materially affect correctness, include a compact claim map: claim, exact observing mechanism, canonical state, forbidden mutations, prior-state preservation, adversarial disproof, mutation footprint, and known fidelity limit. Use `../verify-work/SKILL.md` to prepare integration evidence when registration, host dispatch, producer execution, fallback, installed artifacts, counters, or shared verification state matter.
 
 Read [the reviewer prompt](references/reviewer-prompt.md) when preparing review context, reviewing strict or high-risk work, or running review pass 2 or 3.
 
@@ -63,7 +63,7 @@ Classify every material finding:
 - **Question:** an owner decision or missing requirement prevents a verdict.
 - **Needs evidence:** the claim may be valid, but available evidence cannot establish it.
 
-A review passes when no accepted blocker, unresolved owner question, or required evidence gap prevents proceeding. Non-blocking findings may remain on a passing review.
+A reviewer reports Pass only when it finds no Blocking finding, unresolved Question, or required evidence gap. After parent adjudication, the work may proceed when no accepted blocker, unresolved owner question, or required evidence gap remains. Non-blocking findings may remain in either case.
 
 A blocking finding must name:
 

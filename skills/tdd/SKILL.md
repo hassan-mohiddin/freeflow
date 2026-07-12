@@ -5,8 +5,6 @@ description: Use when implementing or changing observable behavior test-first, f
 
 # Test-Driven Development
 
-> Status: Unverified candidate
-
 Use one failing behavior check to guide one minimal implementation slice.
 
 TDD is an implementation method inside the workflow, not authority to invent behavior. Source truth, the accepted spec, and explicit owner decisions define what should happen.

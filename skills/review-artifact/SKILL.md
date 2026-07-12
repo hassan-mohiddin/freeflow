@@ -60,7 +60,7 @@ Live repo evidence overrides stale artifacts.
 - **Identity:** ownership, status, sources, and change history are proportionate to durability and risk.
 - **Implementation risk:** missing decisions, placeholders, or vague acceptance criteria will not send work down the wrong path.
 - **Design depth:** module, interface, seam, adapter, and slice choices hide useful complexity rather than spreading coordination.
-- **Failure-unit integrity for stateful or proof-bearing work:** each immediate slice owns one semantic outcome and its accepted, rejected, post-commit, and recovery behavior; required authority or canonicalization is not deferred behind callers or adapters that already depend on it.
+- **Failure-unit integrity when state transitions materially affect correctness:** each immediate slice owns one coherent outcome and, where applicable, its accepted, rejected, post-commit, and recovery behavior; required authority or canonicalization is not deferred behind callers or adapters that already depend on it.
 - **Scope and minimality:** the artifact solves the accepted outcome without quietly turning a bootstrap, fix, or bounded change into a generalized platform.
 - **Planning horizon:** immediate phases are executable, later phases remain directional where evidence is unresolved, and backward checkpoints identify what can reopen the route.
 - **Adversarial risk:** the artifact cannot smuggle stale assumptions, source-truth overrides, or owner decisions into execution.
@@ -80,7 +80,7 @@ Classify every material finding:
 - **Question:** an owner decision or missing requirement prevents readiness.
 - **Needs evidence:** a load-bearing claim cannot yet be established from available evidence.
 
-An artifact passes when no accepted blocker, unresolved owner question, or required evidence gap prevents its intended next step. Non-blocking findings may remain on a passing review.
+A reviewer reports Pass only when it finds no Blocking finding, unresolved Question, or required evidence gap. After parent adjudication, the artifact is fit for its intended next step when no accepted blocker, unresolved owner question, or required evidence gap remains. Non-blocking findings may remain in either case.
 
 A blocking finding must name:
 
@@ -131,6 +131,8 @@ Provide:
 - the narrow residual risk still requiring review.
 
 Inspect accepted fixes and named residual risk. Do not rerun the first-pass checklist broadly, re-open settled intent, or re-raise rejected findings without contradictory live evidence.
+
+If pass 2 exposes another section, dependency, or downstream consequence of the same invariant, the artifact's failure unit is unstable. Stop the follow-up revision loop and route through design, diagnosis, discovery, spec, or planning before another local revision batch.
 
 ## Review Budget
 

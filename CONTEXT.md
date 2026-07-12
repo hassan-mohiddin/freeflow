@@ -36,6 +36,14 @@ _Avoid_: status update, mandatory user checkpoint
 A deliberate return to the narrowest owning activity when new evidence invalidates the current path while preserving work and decisions that remain valid.
 _Avoid_: restart, failure, patch loop
 
+**Semantic Failure Unit**:
+The smallest outcome whose success, rejection, written state, forbidden effects, post-commit failure, and recovery must be owned together.
+_Avoid_: file batch, caller choreography, test count
+
+**Evidence Boundary**:
+The strongest claim directly supported by the observing mechanism. Helper execution, registered entrypoint invocation, native host dispatch, and installed-artifact behavior are different boundaries.
+_Avoid_: integration passed, self-reported proof, assumed execution
+
 **Rolling Plan**:
 A plan whose current horizon is executable while later phases remain directional and are refined from evidence.
 _Avoid_: frozen task list, roadmap

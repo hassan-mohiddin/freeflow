@@ -45,6 +45,7 @@ Slice outcome:
 Source requirement / acceptance:
 Type: learning | delivery | deepening
 Module / interface / seam:
+Semantic failure unit and observing boundary when relevant:
 Behavior, experiment, test, or benchmark:
 Failure contract when relevant:
 Verification:
@@ -53,7 +54,7 @@ Route-change triggers:
 Formal checkpoint if needed: review | commit | handoff | owner
 ```
 
-Before executing a slice that issues or redeems authority, publishes canonical or durable evidence, depends on atomic visibility, or has consequential post-commit, cancellation, or recovery behavior, use `../design-for-depth/SKILL.md` to name the semantic failure unit and observing boundary. Route backward when callers still coordinate canonical versus diagnostic state, commit visibility, capability binding, or post-commit recovery.
+Before executing a slice that issues or redeems authority, publishes canonical evidence or durable evidence whose integrity affects correctness, depends on atomic visibility, or has consequential post-commit, cancellation, or recovery behavior, use `../design-for-depth/SKILL.md` to name the semantic failure unit and observing boundary. Route backward when callers still coordinate canonical versus diagnostic state, commit visibility, capability binding, or post-commit recovery.
 
 Choose local reversible details from repo conventions. Stop when the slice requires behavior, policy, compatibility, public API, security, privacy, billing, permissions, data-loss, migration, or hard-to-reverse architecture that source truth has not settled.
 

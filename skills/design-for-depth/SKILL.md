@@ -1,6 +1,6 @@
 ---
 name: design-for-depth
-description: Use when module, interface, seam, state, role, failure-contract, or test-boundary choices affect complexity and reversibility; when caller coordination is growing; or when implementation/review keeps producing edge-case patches, public states, flags, retries, or broad refactors.
+description: Use when module, interface, seam, state, role, failure-contract, or test-boundary choices affect complexity and reversibility; when consequential authority, canonical evidence, atomic visibility, or post-commit recovery needs one coherent failure unit; when caller coordination is growing; or when implementation/review keeps producing edge-case patches, public states, flags, retries, or broad refactors.
 ---
 
 # Design For Depth
@@ -27,7 +27,7 @@ Read [software design philosophy](references/software-design-philosophy.md) when
 
 ## Structural Pressure Loop
 
-For work that issues or redeems authority, publishes canonical or durable evidence, depends on atomic visibility, or must reconcile post-commit failure or cancellation, run this loop before implementation. Name, as applicable, the trust anchor, mutable state, authority or capability binding, visibility point, diagnostic state, forbidden outcomes, and recovery contract. Use applicable repo or domain security guidance for specialist techniques; this lens does not replace threat modeling.
+For consequential work that issues or redeems authority, publishes canonical evidence or durable evidence whose integrity affects correctness, depends on atomic visibility, or must reconcile post-commit failure or cancellation, run this loop before implementation. Name, as applicable, the trust anchor, mutable state, authority or capability binding, visibility point, diagnostic state, forbidden outcomes, and recovery contract. Use applicable repo or domain security guidance for specialist techniques; this lens does not replace threat modeling.
 
 When pressure changes the route:
 

@@ -55,7 +55,7 @@ Read [agent-first instructions](references/agent-first-instructions.md) when wor
 
 ## Bundled Tool
 
-Use `node scripts/skill-author.mjs init|validate|inspect` for deterministic structure work. `validate` proves structural facts. `inspect` reports advisory signals only; neither proves behavior.
+Use the bundled [skill author](scripts/skill-author.mjs) for deterministic structure work. Resolve the link relative to this skill directory, then run `node <resolved-skill-author-path> init|validate|inspect`. `validate` proves structural facts. `inspect` reports advisory signals only; neither proves behavior.
 
 ## Stop
 

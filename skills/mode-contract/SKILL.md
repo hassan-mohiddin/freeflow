@@ -35,13 +35,17 @@ Use exactly three modes.
 - Require explicit confirmation before changing source-of-truth artifacts such as docs, tests, specs, policies, ADRs, or handoffs when they contradict the requested implementation.
 - Recommend this mode when risk warrants it, but do not silently switch unless the user configured it as default.
 
-## Inference
+## Effective Mode And Recommendations
 
-- If the user is talking, asking a conceptual question, brainstorming, or asking for read-only analysis/planning, use conversation mode.
-- If the effective mode is conversation and the user asks to edit, create files, implement, fix by changing code, commit, push, or run mutating commands, require a switch to `workflow` or `strict-workflow` before acting.
-- If no current conversation override exists and the user asks to implement, fix, discover context for action, review, or create plan/spec artifacts, use workflow mode.
-- If the task is high-risk, recommend strict-workflow mode and ask for confirmation.
-- If implementation would require overriding existing docs, tests, specs, policies, or established behavior, recommend strict-workflow mode and ask before editing.
+Use the effective mode supplied by runtime context or valid repo config. Task type does not silently change it: a conceptual question does not switch to conversation, and an implementation request does not switch to workflow.
+
+- In conversation mode, answer and inspect read-only. Require an explicit switch before edits, file creation, commits, pushes, or other mutation.
+- In workflow mode, use the adaptive workflow for consequential work.
+- In strict-workflow mode, apply the stronger gates above.
+- For high-risk work, recommend strict-workflow mode and ask for confirmation; do not switch automatically.
+- If implementation would override docs, tests, specs, policies, or established behavior, ask before editing and recommend strict-workflow when the risk warrants it.
+
+When runtime mode evidence is unavailable, read `.freeflow/config.json`. If it is missing or invalid, fall back to workflow mode and report the config issue when relevant. Do not infer a different mode merely from whether the request is conversational or mutating.
 
 ## User Control
 
@@ -69,7 +73,7 @@ Do not persist current mode, create repo state files, or edit config unless the 
 
 Phrases like "from now on", "until I say otherwise", or "for this repo" still do not persist mode unless paired with an explicit default change request.
 
-When the repo default matters, read `.freeflow/config.json`. If it is missing or invalid, fall back to `workflow` and report the config issue when relevant.
+When the repo default matters, read `.freeflow/config.json` and apply the fallback above.
 
 Persist only explicit default requests, such as "make strict-workflow the default for this repo." Update only `defaultMode` while preserving valid existing capability settings. If config does not exist, create the minimal shape:
 

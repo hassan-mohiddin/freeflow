@@ -5,8 +5,6 @@ description: Use when work on a branch or isolated checkout has reached a stoppi
 
 # Finish Branch
 
-> Status: Unverified candidate
-
 Close a development branch without confusing “the code is ready” with “the integration route is approved.”
 
 This skill begins after implementation has reached a verified or explicitly unverified checkpoint. Use `../commit-work/SKILL.md` first when intended work is not yet committed. Use `../release-work/SKILL.md` for versioned releases and `../launch-work/SKILL.md` for production deployment.

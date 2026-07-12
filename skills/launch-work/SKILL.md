@@ -5,8 +5,6 @@ description: Use when preparing, approving, executing, monitoring, or rolling ba
 
 # Launch Work
 
-> Status: Unverified candidate
-
 Change production deliberately, observably, and with an explicit recovery path.
 
 A build, merge, release, or staging pass is not production proof. Deployment changes what runs; rollout changes who experiences it.

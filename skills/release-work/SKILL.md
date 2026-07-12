@@ -5,8 +5,6 @@ description: Use when preparing, cutting, publishing, or verifying a versioned s
 
 # Release Work
 
-> Status: Unverified candidate
-
 Publish an immutable, reproducible consumer checkpoint with honest version and evidence.
 
 A commit is not a release. A tag is not proof that the artifact was built from it. A package release is not a production deployment.

@@ -7,7 +7,7 @@ description: Use when the user explicitly asks to bypass, skip, or reduce workfl
 
 Bypass skips ceremony, not judgment.
 
-Default to one action. After that action, the bypass is spent.
+A bare bypass uses `/bypass next`. Its scope ends after the next unnecessary gate is skipped and any bounded action that gate immediately unlocks is verified or stopped.
 
 ## Stop First
 
@@ -45,19 +45,20 @@ If bypass conflicts with any of these, use Stop First.
 
 ## Scope
 
-`/bypass next` means the next workflow gate only.
+`/bypass next` skips the next unnecessary workflow gate. Re-check the route immediately afterward. If that gate directly unlocks one bounded safe action, carry that action through verification and then spend the bypass; it does not carry into another gate or slice.
 
-`/bypass task` means reduce workflow pressure for the current task. It still does not skip judgment or verification.
+`/bypass task` reduces workflow pressure for the current task. It still does not skip judgment or verification and expires when that task completes, stops, or changes scope.
 
 Never leave bypass active indefinitely.
 
 ## Behavior
 
-For a safe small edit:
+For a safe bounded action unlocked by bypass:
 
-1. Make the narrow change.
-2. Verify cheaply.
-3. Say the bypass was used and is now spent.
+1. Skip only the named or next unnecessary gate.
+2. Make the narrow change when that gate was the only blocker.
+3. Verify cheaply.
+4. Say the bypass was used and is now spent.
 
 For risky or conflicting work:
 

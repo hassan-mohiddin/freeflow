@@ -22,10 +22,12 @@ Do not create an ADR for ordinary local choices, meeting summaries, temporary co
 ```md
 # Decision: [title]
 
-Status: Proposed | Accepted | Rejected | Superseded
-Date:
-Owner:
-Source:
+> **Doc ID:** DECISION-[stable-id]
+> **Date:** YYYY-MM-DD
+> **Owner:** [decision owner]
+> **Type:** Decision
+> **Status:** Proposed | Accepted | Rejected | Superseded
+> **Source:** [evidence or owning decision context]
 
 ## Context
 [Problem, constraints, and evidence that made a decision necessary.]

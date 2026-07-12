@@ -5,8 +5,6 @@ description: Use when replacing, sunsetting, or removing an API, feature, depend
 
 # Migration Work
 
-> Status: Unverified candidate
-
 Move consumers safely, then remove the old path with evidence.
 
 A deprecation notice is not a migration. A replacement existing is not proof that callers moved. Code becomes removable only when its behavior, consumers, state, and rollback obligations are understood.

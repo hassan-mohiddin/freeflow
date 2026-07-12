@@ -32,8 +32,8 @@ Direct `/diagnose-failure`, "explicit permission", "skip the diagnostic loop", "
 
 ## Load When Needed
 
-- For possible loop shapes, read `references/feedback-loop-catalog.md`.
-- For flaky failures or performance regressions, read `references/flaky-and-performance.md`.
+- For possible loop shapes, read [the feedback-loop catalog](references/feedback-loop-catalog.md).
+- For flaky failures or performance regressions, read [flaky and performance guidance](references/flaky-and-performance.md).
 - For repeated workflow failures, edge-case churn, shared-state fixes, or shallow module/interface signals, read `../design-for-depth/SKILL.md`.
 
 ## Feedback Loop

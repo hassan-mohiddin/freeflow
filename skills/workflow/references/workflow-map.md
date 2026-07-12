@@ -63,8 +63,9 @@ flowchart TD
   Entry --> Verify[Verify<br/>claim + evidence]
   Entry --> Close[Commit / handoff<br/>rollback or continuity]
   Entry --> Finish[Finish branch<br/>merge / PR / keep / discard]
+  Entry --> Migrate[Migration<br/>move consumers / traffic / data]
   Entry --> Release[Release<br/>versioned publication]
-  Entry --> Ship[Shipping<br/>production rollout]
+  Entry --> Launch[Launch<br/>production deployment / rollout]
 
   Conversation --> Done([Done])
   Gate -->|decision resolves route| Return[Return to owning state]
@@ -87,13 +88,18 @@ flowchart TD
   Horizon -->|more accepted work| Execute
   Horizon -->|complete with no delivery step| Done
   Horizon -->|branch integration selected| Finish
+  Horizon -->|migration selected| Migrate
   Horizon -->|versioned release selected| Release
-  Horizon -->|production rollout selected| Ship
+  Horizon -->|production rollout selected| Launch
   Finish -->|release selected| Release
   Finish -->|complete| Done
-  Release -->|deployment selected| Ship
+  Release -->|consumer migration selected| Migrate
+  Release -->|deployment selected| Launch
   Release -->|complete| Done
-  Ship --> Done
+  Migrate -->|removal release selected| Release
+  Migrate -->|production cutover selected| Launch
+  Migrate -->|complete| Done
+  Launch --> Done
 
   Route -->|local defect| Execute
   Route -->|failure unclear| Diagnose
@@ -114,8 +120,9 @@ flowchart TD
   Return --> Verify
   Return --> Close
   Return --> Finish
+  Return --> Migrate
   Return --> Release
-  Return --> Ship
+  Return --> Launch
 ```
 
 ## Entry Points
@@ -129,7 +136,7 @@ flowchart TD
 - **Execute plan:** an approved current horizon exists.
 - **TDD:** one accepted behavior should drive one test-first implementation loop.
 - **Simplify code:** working code needs behavior-preserving reduction of accidental complexity.
-- **Deprecation and migration:** consumers, traffic, configuration, or data must move before an old path can be removed.
+- **Migration work:** consumers, traffic, configuration, or data must move before an old path can be removed.
 - **Diagnose failure:** a broken, flaky, slow, or repeated workflow signal needs root cause.
 - **Review work:** independent judgment may change confidence or route.
 - **Verify work:** a slice or completion claim needs fresh proof.
@@ -137,7 +144,7 @@ flowchart TD
 - **Handoff:** context or continuity requires compact continuation state.
 - **Finish branch:** choose and verify merge, PR, keep, discard, or cleanup.
 - **Release work:** publish and verify an immutable versioned consumer artifact.
-- **Shipping and launch:** deploy or expose production behavior through an observable recoverable rollout.
+- **Launch work:** deploy or expose production behavior through an observable recoverable rollout.
 
 ## Slice Loop
 

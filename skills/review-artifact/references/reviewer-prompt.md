@@ -58,12 +58,12 @@ For pass 2 or 3:
 - Identity: ownership, status, sources, and history are proportionate to durability and risk.
 - Implementation risk: omissions will not cause wrong work, hidden decisions, or an implementation dead end.
 - Design depth: interfaces and seams hide complexity rather than spreading caller coordination.
-- Failure-unit integrity for stateful or proof-bearing work: each immediate slice owns one semantic outcome and its accepted, rejected, post-commit, and recovery behavior; required authority or canonicalization is not deferred behind dependent callers or adapters.
+- Failure-unit integrity when state transitions materially affect correctness: each immediate slice owns one coherent outcome and, where applicable, its accepted, rejected, post-commit, and recovery behavior; required authority or canonicalization is not deferred behind dependent callers or adapters.
 - Scope and minimality: the artifact solves the accepted outcome without quietly generalizing the milestone.
 - Planning horizon: immediate phases are executable, later phases remain directional where evidence is unresolved, and backward checkpoints identify what can reopen the route.
 - Adversarial risk: stale assumptions or source-truth overrides cannot be smuggled into execution.
 
-For follow-up review, inspect accepted fixes and named residual risk. Do not restart broad review, reopen settled intent, or re-raise rejected findings without contradictory live evidence.
+For follow-up review, inspect accepted fixes and named residual risk. Do not restart broad review, reopen settled intent, or re-raise rejected findings without contradictory live evidence. If pass 2 exposes another section, dependency, or downstream consequence of the same invariant, report the artifact's failure unit as unstable and recommend a backward route rather than another local revision batch.
 
 ## Finding Standard
 

@@ -176,6 +176,13 @@ if rg -n '^/workflow (conversation|workflow|strict-workflow|reset)$' "$mode_skil
   fail "stale /workflow mode alias remains in active mode skill or eval prompts"
 fi
 
+if ! rg -Fq 'Task type does not silently change it' "$mode_skill"; then
+  fail "mode-contract does not preserve the configured effective mode across task types"
+fi
+if rg -Fq 'If no current conversation override exists and the user asks to implement' "$mode_skill"; then
+  fail "mode-contract still infers workflow from task type instead of honoring the effective mode"
+fi
+
 for legacy_skill in deprecation-and-migration shipping-and-launch; do
   if [ -e "$skills_dir/$legacy_skill" ]; then
     fail "legacy skill directory remains: $legacy_skill"
@@ -194,6 +201,22 @@ for legacy_skill in deprecation-and-migration shipping-and-launch; do
     "$command_docs" \
     "$skills_dir" >/dev/null; then
     fail "legacy skill identity remains in active runtime or docs: $legacy_skill"
+  fi
+done
+
+for stale_active_label in discovery-light "Deprecation and migration" "Shipping and launch"; do
+  if rg -n -F "$stale_active_label" \
+    "$skills_dir" \
+    "$pi_extension" \
+    "$pi_extension_dist" \
+    "$plugin_root/README.md" \
+    "$plugin_root/plugin-docs" \
+    "$plugin_root/docs/freeflow-current-state.md" \
+    "$plugin_root/docs/freeflow-packaging-and-publishing-design.md" \
+    "$plugin_root/docs/freeflow-runtime-and-lifecycle.md" \
+    "$plugin_root/docs/plugin-contract.md" \
+    "$command_docs" >/dev/null; then
+    fail "stale active skill label remains: $stale_active_label"
   fi
 done
 

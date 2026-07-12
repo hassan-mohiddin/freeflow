@@ -39,7 +39,7 @@ Read [evaluation architecture](references/evaluation-architecture.md) when selec
 
 Use direct child processes for ordinary cases. Do not spend parent/subagent context merely to run a subject.
 
-Use `node scripts/skill-eval.mjs doctor|init|evaluate` for the bundled workspace. `evaluate` owns deterministic preflight, serial subject execution, grading, decision assembly, and atomic publication for one case. Use `evaluate --plan-only` to inspect the exact plan before owner-approved model work.
+Use the bundled [skill evaluator](scripts/skill-eval.mjs). Resolve the link relative to this skill directory, then run `node <resolved-skill-eval-path> doctor|init|evaluate`. `evaluate` requires the skill, case, timeout, and retained-output limit; model work also requires its declared model and process limits. It owns deterministic preflight, serial subject execution, grading, decision assembly, and atomic publication for one case. Add `--plan-only` to a complete `evaluate` invocation to inspect the exact plan before owner-approved model work.
 
 The default project source lives under `.skill-eval/<skill-name>/`. Subjects receive only the natural prompt, isolated fixture, explicitly declared immutable skill resources, and allowed tools. They must not receive assertions, expected outcomes, reports, or another variant.
 

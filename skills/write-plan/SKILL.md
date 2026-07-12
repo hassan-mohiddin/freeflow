@@ -1,6 +1,6 @@
 ---
 name: write-plan
-description: Use when turning an approved spec, clarified requirements, diagnosis, or validated design direction into a rolling implementation plan of phases and vertical slices, including learning work, verification, checkpoints, and backward routes.
+description: Use when turning a planning-ready spec whose required approval is satisfied, clarified requirements, diagnosis, or validated design direction into a rolling implementation plan of phases and vertical slices, including learning work, verification, checkpoints, and backward routes.
 ---
 
 # Write Plan
@@ -13,7 +13,7 @@ A plan executes source truth. It does not create product behavior, architecture,
 
 Classify the request:
 
-- **Spec-backed:** plan from the approved contract.
+- **Spec-backed:** plan from a planning-ready spec whose required repo or owner approval is satisfied. `Draft` status alone neither authorizes nor blocks planning.
 - **Context-backed and bounded:** write a lightweight plan from explicit requirements.
 - **Bug without a feedback loop:** propose diagnosis, not guessed fix steps.
 - **Unresolved design or interface:** route to Discover or `../design-for-depth/SKILL.md`.
@@ -39,7 +39,7 @@ Use **phases** for coherent groups of work or learning milestones. Use **slices*
 
 Prefer vertical slices that produce observable behavior or decisive evidence. Use foundation work only when a real dependency requires it. Use expand–migrate–contract for wide mechanical changes that cannot remain green as one vertical path.
 
-A vertical slice may cross layers, but it should own one semantic failure unit. If the active slice depends on authority, canonicalization, or recovery assigned to a later phase, move that prerequisite earlier or create a learning slice. Do not plan adapters over a seam already known to be temporary.
+A vertical slice may cross layers, but it should own one coherent outcome. When failure behavior materially affects correctness, name one semantic failure unit. If the active slice depends on authority, canonicalization, or recovery assigned to a later phase, move that prerequisite earlier or create a learning slice. Do not plan adapters over a seam already known to be temporary.
 
 Classify each slice:
 

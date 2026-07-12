@@ -7,9 +7,11 @@ description: Use when installing or configuring Freeflow in a repository, repair
 
 Make `.freeflow/config.json` the only repo activation boundary. Runtime adapters load the compact kernel; setup does not copy Freeflow instructions into repo-owned host files.
 
+This skill owns installation, invalid-config repair, default-mode setup, and the initial optional-capabilities branch. After valid setup, direct operational tuning of Output Router belongs to `../output-router/SKILL.md`; return here when activation or config validity is the problem.
+
 Read [the activation contract](references/activation-contract.md) before changing setup state. Read [host setup](references/host-setup.md) when runtime delivery or host trust is in question.
 
-Read [output-router setup](references/output-router-setup.md) only when the user asks for Output Router, observed routing, script transform, native safety-net routing, generated-path hints, thresholds, vault config, or Delegation Harness config, or accepts the optional capabilities branch.
+Read [output-router setup](references/output-router-setup.md) only when those capabilities are requested during installation or config repair, or the user accepts the initial optional-capabilities branch. For later operational tuning after valid setup, route to `../output-router/SKILL.md`.
 
 ## Inspect
 

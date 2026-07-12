@@ -20,6 +20,8 @@ Supported defaults:
 
 A config may also contain documented top-level `enabled`, `skills.enabled`, `outputRouter`, nested `outputRouter.observedRouting`, nested `outputRouter.scriptTransform`, and `delegationHarness` settings. Add them only after the setup capabilities decision point, a `/freeflow` settings change, or an explicit request. Preserve valid existing settings during idempotent setup.
 
+Do not create top-level `observedRouting` or `scriptTransform` sections. If encountered, treat them as noncanonical compatibility input: report the discrepancy and preserve it unless the user explicitly requests repair. Do not silently normalize or delete config.
+
 Missing optional sections mean built-in defaults. Output Router and Delegation Harness remain disabled by default. Never enable observed routing, native safety-net routing, Delegation Harness, or script transform without explicit opt-in. Use `output-router-setup.md` for config shape, persistence choices, and proof-gated adapters.
 
 Do not add current mode, task, phase, file inventory, plans, version metadata, activation paths, empty optional sections, docs inventories, state files, handoffs, skill inventories, or empty `CONTEXT.md`.

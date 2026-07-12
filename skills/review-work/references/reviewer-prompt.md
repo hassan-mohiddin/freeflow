@@ -12,7 +12,7 @@ Provide:
 - claimed verification and known evidence gaps;
 - relevant risk lenses;
 - review pass number;
-- for stateful or proof-bearing work: each claim's exact observer, canonical state, forbidden mutations, prior-state preservation, and fidelity limit.
+- when state transitions or proof validity materially affect correctness: each claim's exact observer, canonical state, forbidden mutations, prior-state preservation, adversarial disproof, mutation footprint, and fidelity limit.
 
 For pass 2 or 3, also provide:
 
@@ -47,7 +47,7 @@ Review the completed work. Do not edit files.
 
 - [commands or checks already run]
 - [known gaps]
-- [for stateful or proof-bearing claims: exact observer, canonical state, forbidden mutations, prior-state preservation, and fidelity limit]
+- [when state transitions or proof validity materially affect correctness: exact observer, canonical state, forbidden mutations, prior-state preservation, adversarial disproof, mutation footprint, and fidelity limit]
 
 ## Review Pass
 
@@ -65,6 +65,7 @@ For pass 2 or 3:
 - Correctness and alignment with accepted requirements.
 - Regressions, unsafe behavior, and missing failure handling.
 - Tests and verification support the claims being made.
+- Proof-bearing claims identify the real observing boundary, an adversarial disproof, shared mutation footprints, and any weaker-fidelity limit.
 - Security, privacy, billing, permissions, compatibility, public API, and data safety where relevant.
 - Complexity and abstractions are justified by the accepted outcome or an observed failure.
 - Tests protect intended behavior rather than machinery introduced by the implementation.

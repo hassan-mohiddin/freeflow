@@ -102,8 +102,4 @@ After a consequential phase exit or completion, name the useful next route:
 - **Branch:** two or three valid routes remain.
 - **Stop:** no useful or safe next action remains.
 
-Apply the runtime kernel's `Next:` contract when naming the route. A route recommendation is not permission to create the next artifact or continue into another phase.
-
-## Completion
-
-Do not claim completion without fresh evidence. State what changed, what was verified, what remains unverified, and whether review, commit, handoff, or a backward route remains.
+Apply the runtime kernel's `Next:` and completion contracts when closing the route. A route recommendation is not permission to create the next artifact or continue into another phase.

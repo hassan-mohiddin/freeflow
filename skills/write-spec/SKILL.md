@@ -15,11 +15,13 @@ If the user asks a question about a spec, answer it. Do not create or edit the a
 
 Classify readiness:
 
-- **Ready:** source-backed behavior and owner decisions are sufficient for the next planning horizon.
-- **Ready with open implementation questions:** unresolved technical questions can be answered safely through named learning slices without inventing user-visible behavior.
-- **Not ready:** behavior, scope, acceptance, public contracts, sensitive policy, failure semantics, or artifact ownership would be guessed.
+- **Planning-ready:** source-backed behavior and owner decisions are sufficient for the next planning horizon.
+- **Planning-ready with open implementation questions:** unresolved technical questions can be answered safely through named learning slices without inventing user-visible behavior.
+- **Not planning-ready:** behavior, scope, acceptance, public contracts, sensitive policy, failure semantics, or artifact ownership would be guessed.
 
-Route Not ready work to Discover, `../decision-gate/SKILL.md`, or `../design-for-depth/SKILL.md` as appropriate.
+Planning readiness describes content sufficiency; it does not change the artifact's `Draft` or `Approved` status. When repo policy or an explicit owner gate requires approval, satisfy that gate before planning.
+
+Route work that is not planning-ready to Discover, `../decision-gate/SKILL.md`, or `../design-for-depth/SKILL.md` as appropriate.
 
 Do not re-interview from scratch when discovery already reached shared understanding.
 

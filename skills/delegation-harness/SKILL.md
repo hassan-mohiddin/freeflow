@@ -134,14 +134,14 @@ Execution autonomy is desired, not guaranteed. If execution reveals new path-cha
 
 ## Read When Needed
 
-Read `references/context-locality.md` when explaining why delegation exists, deciding whether to delegate, or handling context-window/compaction pressure.
+Read [context locality](references/context-locality.md) when explaining why delegation exists, deciding whether to delegate, or handling context-window/compaction pressure.
 
-Read `references/roles-and-contracts.md` when deciding which pane owns a phase, who talks to the user, or what a parent/child report should contain.
+Read [roles and contracts](references/roles-and-contracts.md) when deciding which pane owns a phase, who talks to the user, or what a parent/child report should contain.
 
-Read `references/task-packets-and-results.md` when spawning a child, shaping a task packet, handling blockers/capability gaps, or consuming child results.
+Read [task packets and results](references/task-packets-and-results.md) when spawning a child, shaping a task packet, handling blockers/capability gaps, or consuming child results.
 
-Read `references/execution-and-integration.md` when using workers, reviewers, verifiers, integrators, worktrees, execution maps, review loops, or commit checkpoints.
+Read [execution and integration](references/execution-and-integration.md) when using workers, reviewers, verifiers, integrators, worktrees, execution maps, review loops, or commit checkpoints.
 
-Read `references/reviewer-profiles.md` when selecting requirements, code-quality, verification, security, performance, accessibility, or release/operations perspectives. Profiles define focus, not agent/model choice or authority.
+Read [reviewer profiles](references/reviewer-profiles.md) when selecting requirements, code-quality, verification, security, performance, accessibility, or release/operations perspectives. Profiles define focus, not agent/model choice or authority.
 
-Read `references/tool-policy.md` when a child asks for tools, commands, writes, or capability escalation.
+Read [tool policy](references/tool-policy.md) when a child asks for tools, commands, writes, or capability escalation.

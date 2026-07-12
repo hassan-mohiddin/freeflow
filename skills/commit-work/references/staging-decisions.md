@@ -19,7 +19,8 @@ For each changed path, classify:
 
 - **Checkpoint:** directly implements or proves the intended slice.
 - **Required generated output:** repo convention or task requires it and its generator is known.
-- **Durable source truth:** spec, policy, ADR, plan, or handoff describing the same confirmed change.
+- **Durable source truth:** spec, policy, ADR, or plan describing the same confirmed change.
+- **Durable continuation memory:** handoff describing the same checkpoint without becoming authority over live evidence.
 - **Related but separable:** useful work that should remain outside this checkpoint.
 - **Unrelated or user-owned:** not part of the current outcome.
 - **Sensitive or unsafe:** secrets, private data, debug output, destructive state, or unclear generated content.

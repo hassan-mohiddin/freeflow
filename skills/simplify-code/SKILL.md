@@ -5,8 +5,6 @@ description: Use when working code should be made easier to understand, modify, 
 
 # Simplify Code
 
-> Status: Unverified candidate
-
 Reduce the concepts a reader must hold while preserving accepted behavior exactly.
 
 Fewer lines, files, functions, or abstractions are not automatically simpler. Prefer the version that makes behavior, ownership, and failure paths easier to understand and change.

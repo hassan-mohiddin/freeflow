@@ -35,7 +35,7 @@ Define:
 - recovery proof;
 - whether partial reuse is a requirement or only an optimization.
 
-For authority-, integrity-, persistence-, or proof-bearing operations, also define:
+When authority, integrity, canonical persistence, or proof validity materially affects correctness, also define:
 
 - trust anchor and which actors can replace it;
 - mutable state and canonical versus diagnostic records;

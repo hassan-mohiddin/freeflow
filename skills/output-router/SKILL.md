@@ -1,6 +1,6 @@
 ---
 name: output-router
-description: Use after the workflow, decision-gate, discovery-light, or full Discover route is clear when choosing between native tools and Freeflow routed tools, retrieving repo/local/vault evidence, transforming bounded evidence, handling unknown-size or broad output, running likely-large/noisy commands, recovering vaulted output, configuring outputRouter/observedRouting/scriptTransform, or handling optional native read/bash safety-net routing.
+description: Use after the Workflow, Decision Gate, or Discover route is clear when choosing between native tools and Freeflow routed tools, retrieving repo/local/vault evidence, transforming bounded evidence, handling unknown-size or broad output, running likely-large/noisy commands, recovering vaulted output, tuning outputRouter/observedRouting/scriptTransform after setup, or handling optional native read/bash safety-net routing.
 ---
 
 # Output Router
@@ -9,7 +9,7 @@ Choose how evidence moves into context.
 
 Freeflow tools are the safe first choice for unknown-size, exploratory, repo-wide, generated/log-adjacent, structured, or likely noisy output, including broad `rg`/`find`/`git`/help/docs scans. Native tools stay direct for known-small, exact, intentionally raw, or mutating work. A post-hoc cap such as `head`, `sed -n`, `tail`, or `wc` does not make a broad producer known-small.
 
-Output Router does not classify the task. Workflow, Decision Gate, discovery-light, or full Discover decide whether to answer, ask, discover, plan, or stop. Output Router starts after that route is clear.
+Output Router does not classify the task. Workflow, Decision Gate, or Discover decides whether to answer, ask, discover, plan, or stop. Output Router starts after that route is clear.
 
 In delegated work, child/scout/reviewer/verifier panes should use routed evidence first for broad repo/search/test/log/doc evidence. Child transcripts are recoverable evidence, not the handoff. Child results and parent reports should carry compact summaries plus recoverable paths or output IDs.
 
@@ -195,12 +195,14 @@ When line numbers are unknown, use `query` or `get` first. Use `expand` when a r
 
 Use `freeflow_status` to inspect effective config, vault writability/index state, script adapters, observed routing, and migration recommendations.
 
-Persist optional config only after an explicit setup branch/request:
+Use `../setup-freeflow/SKILL.md` for installation, invalid-config repair, or the initial optional-capabilities branch. After valid setup, Output Router owns explicit operational tuning requested through its capability surface.
+
+Persist operational config only after an explicit tuning request or a previously accepted setup branch:
 
 - `outputRouter`: `enabled`, `profile`, `postToolRouting`, `storagePolicy`, thresholds, vault root/retention, generated paths, noisy command hints.
-- `observedRouting`: explicit MCP servers and web/fetch/codeSearch producer persistence.
-- `scriptTransform`: enabled flag, languages, sandbox/network/limits/raw-script persistence.
+- `outputRouter.observedRouting`: explicit MCP servers and web/fetch/codeSearch producer persistence.
+- `outputRouter.scriptTransform`: enabled flag, languages, sandbox/network/limits/raw-script persistence.
 
 Minimal setup stays only `defaultMode`. Missing optional sections mean built-in defaults.
 
-Read `references/safety-policy.md` before changing routing policy, reviewing router behavior, or handling exactness-sensitive output.
+Read [the safety policy](references/safety-policy.md) before changing routing policy, reviewing router behavior, or handling exactness-sensitive output.
