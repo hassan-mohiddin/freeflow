@@ -5,8 +5,6 @@ description: Evaluate agent-skill behavior. Use when preserving a skill failure,
 
 # Evaluate Skill
 
-> Status: Production-Ready for Pi 0.80.6 with `openai-codex/gpt-5.5`, high thinking, for one-shot and fixed-script two-turn evaluation; other hosts, models, Pi versions, adaptive conversations, and session recovery remain Unverified.
-
 Judge behavior under pressure. Evidence outranks confident prose.
 
 ## Route First

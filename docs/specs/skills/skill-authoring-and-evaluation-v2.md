@@ -5,7 +5,7 @@
 > **Type:** Spec
 > **Status:** Production-Ready for the accepted configuration boundary
 > **Source:** Live implementation and saved evidence; `docs/handoffs/workflow-and-skills/2026-07-11-implementation-scope-drift-and-replanning.md`; `.skill-eval/evaluate-skill/reports/bootstrap-acceptance.md`; `.skill-eval/decision-gate/reports/rpc-acceptance.md`; `.skill-eval/evaluate-skill/reports/codex-diagnostic.md`; `docs/plans/skills/2026-07-11-skill-evaluation-readiness-rpc-codex-history-plan.md`; `docs/plans/skills/2026-07-12-skill-authoring-evaluation-production-readiness-plan.md`; owner-approved configuration-bound promotion target
-> **Implementation:** Promotion evidence is accepted and linked from `.skill-eval/evaluate-skill/reports/production-readiness.md`; both developer skills carry the configuration-bound Production-Ready status
+> **Implementation:** Promotion evidence is accepted and linked from `.skill-eval/evaluate-skill/reports/production-readiness.md`; the registry records the configuration-bound Production-Ready status, while both skill files intentionally omit inline status labels
 
 # Skill Authoring And Evaluation V2
 
@@ -1435,7 +1435,7 @@ Promotion occurs only after:
 
 On pass:
 
-- both `SKILL.md` status lines use the exact configuration-bound Production-Ready wording;
+- promotion execution used exact configuration-bound status text in both `SKILL.md` files; after final acceptance, the owner removed those inline labels while retaining the registry/report as readiness authority;
 - `evals/registries/skill-evidence.json` records these exact fields for each promoted skill without treating the registry write as behavioral evidence:
 
 ```json
@@ -1583,3 +1583,4 @@ Fresh Phase 1 evidence: 127 deterministic tests passed, both skills structurally
 - 2026-07-12: Added the draft configuration-bound Production-Ready promotion contract for both developer skills; no status or paid run changed yet.
 - 2026-07-12: Accepted the promotion contract and reviewed decisive fixed two-turn cases after 127 deterministic tests; both statuses remain Unverified pending qualification.
 - 2026-07-12: Accepted the configuration-bound Production-Ready evidence after the final `ESK2-010` whole-case rerun comparison improved, all 14 final bundles passed fresh integrity verification, 127 deterministic tests passed, and independent evidence review returned Pass. Readiness report: `.skill-eval/evaluate-skill/reports/production-readiness.md`.
+- 2026-07-12: Removed inline status labels from both skill files by owner decision. Registry and report metadata remain the readiness authority; no active behavior instruction changed.

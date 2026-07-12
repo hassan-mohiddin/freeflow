@@ -499,7 +499,7 @@ The plan is complete only when:
 - every accepted bundle passes fresh integrity verification;
 - exact accounting and residual boundaries are reported;
 - independent review and parent adjudication pass;
-- both status lines and readiness metadata match the report;
+- registry/specification readiness metadata matches the report; skill files may omit inline labels by owner decision;
 - full deterministic tests and structural validation pass;
 - `.freeflow/config.json` and unrelated user work remain untouched;
 - no release, packaging, cross-host, model-independent, or inherited readiness claim is made.
@@ -513,4 +513,4 @@ Replacement `ESK2-010` completed with `comparison_verdict: "improved"` and every
 
 Final developmental accounting is 229 provider requests, 631,037 tokens, and `$3.437778`. All 14 accepted final bundles passed fresh integrity verification; 123 evaluator tests and 4 author tests passed; both skills structurally validated; independent evidence review returned Pass at `/tmp/freeflow-production-final-evidence-review-20260712.md` (SHA-256 `db8996edba7f13e0db0f6ece5d068f85c9d5fcb5521a61fec566acd55fb56e25`).
 
-The two bounded status lines, readiness report, owning specification, and registry metadata are the durable completion surfaces. No packaging, release, publication, deployment, cross-host claim, or inherited readiness follows.
+The readiness report, owning specification, and registry metadata are the durable completion surfaces. The owner subsequently removed inline status labels from both skill files without changing active behavior instructions. No packaging, release, publication, deployment, cross-host claim, or inherited readiness follows.

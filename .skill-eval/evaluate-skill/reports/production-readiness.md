@@ -46,7 +46,9 @@ All 14 accepted final bundles passed fresh integrity verification after the revi
 
 ## Evidence Freshness
 
-All accepted `write-skill` final bundles fingerprint the exact promoted write-skill source. The revised `evaluate-skill` source differs from its earlier final-suite source only by the measured Route First whole-case/no-partial-reuse rule. `ESK2-010` fingerprints and passes on that exact revised source. Earlier evaluate-skill bundles are adjacent-source regression evidence for unchanged behavior areas, not exact-source proof. This owner-approved shorter route is weaker than rerunning the complete evaluate-skill suite and is part of the readiness boundary.
+At acceptance, all `write-skill` final bundles fingerprinted the exact promoted write-skill source. The revised `evaluate-skill` source differed from its earlier final-suite source only by the measured Route First whole-case/no-partial-reuse rule, and `ESK2-010` fingerprinted and passed on that exact revised source. Earlier evaluate-skill bundles are adjacent-source regression evidence for unchanged behavior areas, not exact-source proof. This owner-approved shorter route is weaker than rerunning the complete evaluate-skill suite and is part of the readiness boundary.
+
+After final acceptance, the owner removed only the inline status blockquote from each skill file. No active behavior instruction changed and no behavioral rerun followed this presentation-only edit. The registry, this report, and the owning specification—not inline skill labels—remain the readiness authority.
 
 Historical `ESK2-008` remains inconclusive and non-promotional. `ESK2-001` remains non-required. Historical-evidence registry entries remain documentary-only.
 
