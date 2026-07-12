@@ -2,7 +2,7 @@
 
 > **Doc ID:** PLAN-SKILLS-2026-07-12-PRODUCTION-READINESS
 > **Date:** 2026-07-12
-> **Status:** Active — first final-source attempt failed; revised write-skill requalification awaits owner approval
+> **Status:** Active — revised write-skill qualification previews await owner approval
 > **Owner:** Hassan
 > **Source:** `docs/specs/skills/skill-authoring-and-evaluation-v2.md`; live `.skill-eval` cases and accepted bundles; `.skill-eval/evaluate-skill/reports/bootstrap-acceptance.md`; `.skill-eval/decision-gate/reports/rpc-acceptance.md`; owner request to complete configuration-bound Production-Ready promotion
 
@@ -75,7 +75,7 @@ Promotion gaps:
 
 ## Fixed Execution And Budget
 
-Every paid run uses Pi `0.80.6`, `openai-codex/gpt-5.5`, high thinking, 180-second per-process timeout, 8 MiB retained output, the existing 128 MiB raw safeguard, and 8 provider turns per process.
+Every paid run uses Pi `0.80.6`, `openai-codex/gpt-5.5`, high thinking, 180-second per-process timeout, 8 MiB retained output, and the existing 128 MiB raw safeguard. Every case uses 8 provider turns per process except `WSK2-001` qualification and final-source runs, which use 10 after a preserved 8-turn infrastructure failure showed the revised candidate needed provider request 9 to finish after legitimate declared-resource, fixture, and write work.
 
 Every invocation owns one complete case. Runs are serial. There is no retry, batching, cache, resume, concurrency, adaptive turn, fallback, or partial reuse. Infrastructure failure restarts the whole case only after diagnosis and a new preview.
 
@@ -252,14 +252,22 @@ The preserved failure showed that qualitative compactness wording still permitte
 
 Because the `write-skill` candidate source changed, both original `WSK2-001` and `WSK2-006` qualification observations are superseded for promotion and must rerun under the revised Unverified source. The unchanged `ESK2-009` qualification remains valid. The failed final bundle remains diagnostic promotion evidence and cannot be retried from partial state.
 
-Revised qualification previews awaiting owner approval:
+The first revised `WSK2-001` requalification attempt at fingerprint `a87ba825f3335aae5ac774a44c6412e46839f3857aec3fdba2bb4d26a9cfd00d` was infrastructure-incomplete: the root guard blocked provider request 9 at the approved 8-turn limit after the candidate had read declared resources and the fixture, written the target, and still needed to settle its final response. The attempt published diagnostics only, used 15 provider requests across the completed reference and partial candidate, and cost `$0.228492`. `WSK2-006` did not start.
+
+The owner approved a narrow limit change: only `WSK2-001` qualification and final-source runs use 10 turns per process. Its prior 8-turn preview is stale. `WSK2-006` remains at 8 turns and its approved-limit preview remains source-valid but requires renewed approval alongside the new `WSK2-001` fingerprint.
+
+Revised qualification preview state:
 
 | Case | Fingerprint | Processes | Worst turns | Soft ceiling |
 | --- | --- | ---: | ---: | ---: |
-| `WSK2-001` | `a87ba825f3335aae5ac774a44c6412e46839f3857aec3fdba2bb4d26a9cfd00d` | 4 | 32 | `$0.75` |
+| `WSK2-001` | `ed5fdfa9fe1b1971e7e30f243e498f3bb6ce67a11e689d46d8cd7a663431a29b` | 4 | 40 | `$0.75` |
 | `WSK2-006` | `cf123484abc0b9aeb95bd626201bd0718000f3ad7efd219dd8f52e6ca1992436` | 4 | 32 | `$0.75` |
 
-The failed final run consumed the original `WSK2-001` final slot. The revised route adds three provider-capable invocations beyond the original plan: two revised qualification reruns and one later replacement final `WSK2-001` run. Total planned/developmental soft-ceiling exposure becomes `$8.65`; observed spend so far is `$0.895865`; remaining planned soft ceilings are `$5.90`; expected additional observed cost is approximately `$1.45–$2.35`. There is still no aggregate hard cap.
+The original plan now has four additional provider-capable invocations: two revised qualification runs, one replacement for the failed final `WSK2-001`, and one replacement for the infrastructure-incomplete requalification. Total planned/developmental soft-ceiling exposure becomes `$9.40`; observed spend so far is `$1.124357`; remaining planned soft ceilings are `$5.90`; expected additional observed cost is approximately `$1.45–$2.35`. There is still no aggregate hard cap.
+
+Limit-revision review passed:
+
+- `/tmp/freeflow-promotion-wsk2-001-limit-review-20260712.md` — SHA-256 `b17a4c906ac440852a265d0a6d845448d40c6eb106ed818f1739aa2023ac53f8`
 
 After revised qualification passes, reapply both exact conditional status lines, regenerate all 13 final-source previews, and obtain renewed owner approval before any final provider request. Every prior final-source preview is stale after status rollback and the measured source revision.
 
