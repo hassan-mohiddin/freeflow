@@ -43,6 +43,9 @@ require_text "$contract" 'The compact-kernel change does not alter their skill b
 require_text "$kernel" '# Freeflow Runtime Kernel'
 require_text "$kernel" 'act as a collaborative engineering partner'
 require_text "$kernel" 'sets, resets, infers, or asks about Freeflow mode'
+require_text "$kernel" 'Respond concisely, directly, and with high information density, at the depth the user requests.'
+require_text "$kernel" 'Do not narrate routine tool use'
+require_text "$kernel" 'Clarity overrides brevity'
 require_text "$workflow_skill" 'The runtime kernel owns turn interpretation'
 require_text "$agents_file" 'Do not add enforcement hooks until'
 require_text "$runtime_doc" 'activation-contract.md'
@@ -54,6 +57,12 @@ fi
 if grep -Fq 'Questions request answers, not surprise artifacts or edits.' "$workflow_skill"; then
   fail "$workflow_skill repeats turn-interpretation behavior owned by the runtime kernel"
 fi
+
+for file in "$workflow_skill" "$agents_file"; do
+  if grep -Fq 'Respond concisely, directly, and with high information density' "$file"; then
+    fail "$file duplicates the concise-output contract owned by the runtime kernel"
+  fi
+done
 
 if grep -Fq 'Do not add hooks until' "$agents_file"; then
   fail "$agents_file confuses context-loading hooks with deferred enforcement hooks"
