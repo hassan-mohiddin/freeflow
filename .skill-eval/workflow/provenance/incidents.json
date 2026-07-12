@@ -225,8 +225,8 @@
   "pilot_case_sources": [
     {
       "path": ".skill-eval/workflow/cases/WFI-001-planning-failure-unit.json",
-      "sha256": "9dd790c89552c843199f93d61a181efacdc8fcb46fc18a162203e4b4b40a3ac9",
-      "bytes": 3117
+      "sha256": "4eb7821dab77af867502e1f90f4cf7c146015d31b65bd67d5242dbeb56780bb6",
+      "bytes": 2832
     },
     {
       "path": ".skill-eval/workflow/cases/WFI-002-rejected-state-tdd.json",

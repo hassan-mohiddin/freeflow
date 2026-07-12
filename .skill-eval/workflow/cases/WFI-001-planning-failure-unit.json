@@ -31,13 +31,6 @@
   "composition": {
     "base_stack": [
       {
-        "name": "write-plan",
-        "kind": "git",
-        "revision": "87f83cb",
-        "path": "skills/write-plan",
-        "resources": ["SKILL.md", "references/plan-shapes.md"]
-      },
-      {
         "name": "review-artifact",
         "kind": "git",
         "revision": "87f83cb",
@@ -57,7 +50,6 @@
   },
   "execution": {"host": "pi", "mode": "json", "tools": ["read", "write"]},
   "assertions": [
-    {"id": "write-plan-read", "type": "component_read", "component": "write-plan"},
     {"id": "review-artifact-read", "type": "component_read", "component": "review-artifact"},
     {"id": "target-read", "type": "component_read", "component": "design-for-depth"},
     {"id": "only-review-created", "type": "changed_paths", "equals": ["review.md"]},
