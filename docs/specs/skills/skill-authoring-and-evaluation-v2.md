@@ -21,7 +21,7 @@ The owner selected a deeper outcome-level design:
 
 The one-shot implementation and constrained Pi dogfooding are accepted at `aaff253`. The configuration-bound promotion evidence is accepted in `.skill-eval/evaluate-skill/reports/production-readiness.md`. Both developer skills are Production-Ready only for the exact boundary named there; all other configurations remain Unverified.
 
-The fixed-script Pi RPC section below records the implemented owner-approved contract. Its internal acceptance is configuration-bound to the exact evidence in `.skill-eval/decision-gate/reports/rpc-acceptance.md`:
+The fixed-script Pi RPC section below records the implemented owner-approved contract. The additive Freeflow composition and two-to-four-turn extension is governed by [the approved composition evaluation extension](2026-07-12-freeflow-composition-evaluation-extension.md); it remains Unverified until its exact-source acceptance evidence passes. Its internal acceptance is configuration-bound to the exact evidence in `.skill-eval/decision-gate/reports/rpc-acceptance.md`:
 
 - the accepted one-shot runtime remains authoritative for one-shot cases;
 - fixed-script RPC evidence is authoritative only for the recorded Pi/model configuration and cases;
@@ -771,7 +771,7 @@ At trigger:
 
 Observed need and separate owner-approved plan are required for:
 
-- output-router case composition;
+- composition beyond the approved Pi Freeflow composition extension, including adaptive or more-than-four-turn cases;
 - suite batching;
 - cache and control reuse;
 - resume/partial continuation;

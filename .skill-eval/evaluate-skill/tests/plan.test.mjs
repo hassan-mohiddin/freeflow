@@ -127,6 +127,125 @@ test("fixed-script RPC preflight binds turns, capability handshake, and existing
   assert.deepEqual(blocked.summary.capabilities.missing.slice().sort(), ["multi_turn", "rpc_jsonl"]);
 });
 
+test("composition preflight fingerprints every declared component and enforces scripted-turn capacity", async () => {
+  const workspace = await loadSkillWorkspace(repoRoot, "evaluate-skill");
+  const source = workspace.cases.find((item) => item.id === "ESK2-009");
+  const turns = [
+    { id: "turn-1", prompt: "Inspect the first seam." },
+    { id: "turn-2", prompt: "A sibling adapter now fails." },
+    { id: "turn-3", prompt: "Choose the route." },
+    { id: "turn-4", prompt: "State the remaining evidence gap." },
+  ];
+  const compositionCase = {
+    ...source,
+    id: "COMP-PLAN-001",
+    skill: "evaluate-skill",
+    title: "composition plan identity",
+    question: "skill composition",
+    evidence_classes: ["native-activation", "multi-turn"],
+    fixture: null,
+    turns,
+    variants: [
+      { id: "reference", role: "reference", kind: "git", revision: "87f83cb", path: "skills/design-for-depth", resources: ["SKILL.md"] },
+      { id: "candidate", role: "candidate", kind: "working-tree", path: "skills/design-for-depth", resources: ["SKILL.md", "references/design-pressure-signals.md"] },
+    ],
+    composition: {
+      base_stack: [
+        { name: "execute-plan", kind: "working-tree", path: "skills/execute-plan", resources: ["SKILL.md"] },
+        { name: "tdd", kind: "working-tree", path: "skills/tdd", resources: ["SKILL.md", "references/test-design.md"] },
+      ],
+      target_name: "design-for-depth",
+      runtime: {
+        profile: "freeflow-kernel-workflow-v1",
+        kind: "working-tree",
+        path: ".",
+        kernel: "skills/decision-gate/references/runtime-kernel.md",
+        workflow: "skills/workflow/SKILL.md",
+      },
+    },
+    execution: { host: "pi", mode: "rpc-scripted", tools: ["read"] },
+    assertions: [{ id: "route", type: "semantic", rubric: "Routes backward.", turn_ids: turns.map((turn) => turn.id) }],
+    source_path: source.source_path,
+  };
+  const cases = [...workspace.cases, Object.freeze(compositionCase)];
+  const capabilities = {
+    id: "pi",
+    available: true,
+    version: "test-pi",
+    capabilities: {
+      rpc_jsonl: true,
+      multi_turn: true,
+      native_skill_loading: true,
+      multi_skill_loading: true,
+      explicit_runtime_context: true,
+      composition_activation_evidence: true,
+      explicit_extensions: true,
+      disable_extension_discovery: true,
+      disable_context_files: true,
+      tool_allowlist: true,
+      strict_tool_isolation: true,
+    },
+  };
+  const options = {
+    case: compositionCase.id,
+    ...hardLimits,
+    provider: "p",
+    model: "m",
+    thinking: "low",
+    max_turns_per_process: 8,
+    plan_only: true,
+  };
+  const result = await buildEvaluationPlan({ ...workspace, cases }, options, { capabilitiesFor: async () => capabilities });
+  assert.equal(result.status, "planned");
+  assert.equal(result.summary.scripted_user_turns, 4);
+  assert.deepEqual(result.summary.composition.skills, ["execute-plan", "tdd", "design-for-depth"]);
+  assert.equal(result.summary.composition.runtime_profile, "freeflow-kernel-workflow-v1");
+  assert.deepEqual(result.plan_inputs.identities.composition.base_stack.map((item) => item.name), ["execute-plan", "tdd"]);
+  assert.match(result.plan_inputs.identities.composition.runtime.kernel.sha256, /^[a-f0-9]{64}$/);
+  assert.match(result.plan_inputs.identities.composition.runtime.workflow.sha256, /^[a-f0-9]{64}$/);
+  assert.match(result.plan_inputs.identities.composition.runtime.implementation.evaluator_extension.sha256, /^[a-f0-9]{64}$/);
+  assert.match(result.plan_inputs.identities.composition.runtime.implementation.production_helper.sha256, /^[a-f0-9]{64}$/);
+  for (const component of result.plan_inputs.identities.composition.base_stack) {
+    assert.match(component.identity.aggregate_sha256, /^[a-f0-9]{64}$/);
+    assert.ok(component.identity.entries.length >= 1);
+  }
+
+  const reordered = {
+    ...compositionCase,
+    composition: { ...compositionCase.composition, base_stack: [...compositionCase.composition.base_stack].reverse() },
+  };
+  const reorderedResult = await buildEvaluationPlan({ ...workspace, cases: [...workspace.cases, Object.freeze(reordered)] }, options, { capabilitiesFor: async () => capabilities });
+  assert.notEqual(reorderedResult.fingerprint, result.fingerprint);
+
+  const underBudget = await buildEvaluationPlan({ ...workspace, cases }, { ...options, max_turns_per_process: 3 }, { capabilitiesFor: async () => capabilities });
+  assert.equal(underBudget.status, "blocked");
+  assert.ok(underBudget.summary.blocked_reasons.includes("max-turns-below-scripted-user-turns"));
+
+  const oneShot = {
+    ...compositionCase,
+    prompt: "Inspect the composition.",
+    evidence_classes: ["native-activation"],
+    execution: { host: "pi", mode: "json", tools: ["read"] },
+    assertions: [{ id: "activated", type: "skill_read" }],
+  };
+  delete oneShot.turns;
+  let probedMode = null;
+  const oneShotResult = await buildEvaluationPlan({ ...workspace, cases: [...workspace.cases, Object.freeze(oneShot)] }, options, {
+    capabilitiesFor: async (_host, mode) => {
+      probedMode = mode;
+      return { ...capabilities, capabilities: { ...capabilities.capabilities, one_shot_json: true } };
+    },
+  });
+  assert.equal(oneShotResult.status, "planned", JSON.stringify(oneShotResult.summary.blocked_reasons));
+  assert.equal(probedMode, "rpc-scripted");
+
+  const wrongTarget = { ...compositionCase, composition: { ...compositionCase.composition, target_name: "wrong-target" } };
+  await assert.rejects(
+    buildEvaluationPlan({ ...workspace, cases: [...workspace.cases, Object.freeze(wrongTarget)] }, options, { capabilitiesFor: async () => capabilities }),
+    /target name mismatch/,
+  );
+});
+
 test("portable Codex planning is role-qualified, fingerprinted, and execution-blocked", async () => {
   const workspace = await loadSkillWorkspace(repoRoot, "evaluate-skill");
   const source = workspace.cases.find((item) => item.id === "ESK2-003");

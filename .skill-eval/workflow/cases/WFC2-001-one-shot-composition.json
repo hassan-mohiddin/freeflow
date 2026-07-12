@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "id": "WFC2-001",
+  "skill": "workflow",
+  "title": "Deliver one declared Freeflow composition in one shot",
+  "question": "skill composition",
+  "evidence_classes": [
+    "native-activation",
+    "artifact-outcome"
+  ],
+  "required_for_bootstrap": false,
+  "evaluation_kind": "comparison",
+  "unsupported_evidence": "block",
+  "prompt": "Read `request.md`, then write `result.json` with `base_marker`, `target_marker`, and `route`. Do not modify any other file.",
+  "fixture": "fixtures/composition-one-shot",
+  "variants": [
+    {
+      "id": "reference",
+      "role": "reference",
+      "kind": "working-tree",
+      "path": ".skill-eval/workflow/subjects/marker-reference",
+      "resources": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "candidate",
+      "role": "candidate",
+      "kind": "working-tree",
+      "path": ".skill-eval/workflow/subjects/marker-candidate",
+      "resources": [
+        "SKILL.md"
+      ]
+    }
+  ],
+  "composition": {
+    "base_stack": [
+      {
+        "name": "composition-base",
+        "kind": "working-tree",
+        "path": ".skill-eval/workflow/subjects/composition-base",
+        "resources": [
+          "SKILL.md"
+        ]
+      }
+    ],
+    "target_name": "composition-target",
+    "runtime": {
+      "profile": "freeflow-kernel-workflow-v1",
+      "kind": "working-tree",
+      "path": ".",
+      "kernel": "skills/decision-gate/references/runtime-kernel.md",
+      "workflow": "skills/workflow/SKILL.md"
+    }
+  },
+  "execution": {
+    "host": "pi",
+    "mode": "json",
+    "tools": [
+      "read",
+      "write"
+    ]
+  },
+  "assertions": [
+    {
+      "id": "base-read",
+      "type": "component_read",
+      "component": "composition-base"
+    },
+    {
+      "id": "target-read",
+      "type": "component_read",
+      "component": "composition-target"
+    },
+    {
+      "id": "only-result-created",
+      "type": "changed_paths",
+      "equals": [
+        "result.json"
+      ]
+    },
+    {
+      "id": "base-marker",
+      "type": "json_field",
+      "path": "result.json",
+      "field": "base_marker",
+      "equals": "BASE-STACK-V1"
+    },
+    {
+      "id": "candidate-marker",
+      "type": "json_field",
+      "path": "result.json",
+      "field": "target_marker",
+      "equals": "CANDIDATE-V1"
+    },
+    {
+      "id": "backward-route",
+      "type": "json_field",
+      "path": "result.json",
+      "field": "route",
+      "equals": "backward"
+    }
+  ]
+}

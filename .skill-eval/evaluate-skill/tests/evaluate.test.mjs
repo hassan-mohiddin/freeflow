@@ -6,7 +6,8 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { runCodexSubject } from "../../../skills/evaluate-skill/scripts/lib/codex-adapter.mjs";
 import { buildEvaluationPlan } from "../../../skills/evaluate-skill/scripts/lib/plan.mjs";
-import { executeEvaluation } from "../../../skills/evaluate-skill/scripts/lib/evaluate.mjs";
+import { executeEvaluation, validateCompositionRuntimeEvidence, validateCompositionRuntimeImplementation, validateCompositionSkillReads } from "../../../skills/evaluate-skill/scripts/lib/evaluate.mjs";
+import { hashFile } from "../../../skills/evaluate-skill/scripts/lib/hash.mjs";
 import { removeWritableTree } from "../../../skills/evaluate-skill/scripts/lib/materialize.mjs";
 import { loadSkillWorkspace } from "../../../skills/evaluate-skill/scripts/lib/workspace.mjs";
 
@@ -73,6 +74,50 @@ async function fixture(t, { host = "none", comparison = false, semantic = false,
   await writeFile(resolve(skillRoot, "cases", "SAMPLE-001.json"), JSON.stringify(evalCase));
   return { root, workspace: await loadSkillWorkspace(root, "sample-skill") };
 }
+
+test("composition evidence validation fails closed on missing skill or runtime delivery identity", async (t) => {
+  const composition = { base_stack: [{ name: "base" }], target_name: "target" };
+  assert.doesNotThrow(() => validateCompositionSkillReads(composition, { base: false, target: true }, "candidate"));
+  assert.throws(() => validateCompositionSkillReads(composition, { target: true }, "candidate"), /missing or ambiguous/);
+
+  const runtime = {
+    profile: "freeflow-kernel-workflow-v1",
+    kernel_identity: { sha256: "a".repeat(64) },
+    workflow_identity: { sha256: "b".repeat(64) },
+  };
+  const expected = { runtime_context_sha256: "c".repeat(64), workflow_envelope_sha256: "d".repeat(64) };
+  const record = (delivered, index) => ({
+    profile: runtime.profile,
+    kernel_sha256: runtime.kernel_identity.sha256,
+    workflow_sha256: runtime.workflow_identity.sha256,
+    runtime_context_sha256: expected.runtime_context_sha256,
+    system_prompt_sha256: "e".repeat(64),
+    workflow_custom_type: "freeflow-workflow-bootstrap",
+    workflow_delivered: delivered,
+    workflow_delivery_reason: index === 0 ? "initial" : "suppressed-active-marker",
+    workflow_envelope_sha256: index === 0 ? expected.workflow_envelope_sha256 : null,
+  });
+  assert.doesNotThrow(() => validateCompositionRuntimeEvidence(runtime, expected, [record(true, 0), record(false, 1)], 2, "candidate"));
+  assert.throws(() => validateCompositionRuntimeEvidence(runtime, expected, [record(true, 0)], 2, "candidate"), /delivery count/);
+  assert.throws(() => validateCompositionRuntimeEvidence(runtime, expected, [record(true, 0), { ...record(false, 1), kernel_sha256: "f".repeat(64) }], 2, "candidate"), /approved profile/);
+  assert.throws(() => validateCompositionRuntimeEvidence(runtime, expected, [record(false, 0), record(false, 1)], 2, "candidate"), /approved profile/);
+
+  const root = await mkdtemp(resolve(tmpdir(), "freeflow-runtime-implementation-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const extension = resolve(root, "extension.mjs");
+  const helper = resolve(root, "helper.js");
+  await writeFile(extension, "extension-v1\n");
+  await writeFile(helper, "helper-v1\n");
+  const implementation = {
+    implementation_identity: {
+      evaluator_extension: { path: "extension.mjs", sha256: await hashFile(extension) },
+      production_helper: { path: "helper.js", sha256: await hashFile(helper) },
+    },
+  };
+  await assert.doesNotReject(validateCompositionRuntimeImplementation(root, implementation, "candidate"));
+  await writeFile(helper, "helper-v2\n");
+  await assert.rejects(validateCompositionRuntimeImplementation(root, implementation, "candidate"), /changed after approval/);
+});
 
 test("host-free evaluation atomically publishes one complete result", async (t) => {
   const { root, workspace } = await fixture(t);
@@ -163,6 +208,106 @@ test("fixed-script RPC evaluation publishes frozen intermediate workspace eviden
   assert.equal(metadata.process.protocol_failed, false);
   assert.ok(Buffer.byteLength(transcriptText) <= metadata.process.retained_output_bytes);
   assert.ok(metadata.process.retained_output_bytes <= plan.plan_inputs.limits.output_limit_bytes);
+});
+
+test("four-turn composition evaluation materializes the declared stack and publishes composition identities", async (t) => {
+  const { root, workspace } = await fixture(t, { host: "pi", comparison: true, rpc: true });
+  await mkdir(resolve(root, "skills", "base-skill"), { recursive: true });
+  await writeFile(resolve(root, "skills", "base-skill", "SKILL.md"), "---\nname: base-skill\ndescription: Base.\n---\n\n# Base\n");
+  await mkdir(resolve(root, "runtime"), { recursive: true });
+  await writeFile(resolve(root, "runtime", "kernel.md"), "# Freeflow Runtime Kernel\n");
+  await writeFile(resolve(root, "runtime", "workflow.md"), "---\nname: workflow\ndescription: test\n---\n\n# Workflow\n");
+  await mkdir(resolve(root, "pi-extension", "dist"), { recursive: true });
+  await writeFile(resolve(root, "pi-extension", "dist", "runtime-context.js"), "export const runtimeContext = () => '';\n");
+
+  const source = workspace.cases[0];
+  const turns = [1, 2, 3, 4].map((number) => ({ id: `turn-${number}`, prompt: `Pressure ${number}.` }));
+  const composed = {
+    ...source,
+    title: "Composition",
+    question: "skill composition",
+    evidence_classes: ["native-activation", "multi-turn", "artifact-outcome"],
+    turns,
+    composition: {
+      base_stack: [{ name: "base-skill", kind: "working-tree", path: "skills/base-skill", resources: ["SKILL.md"] }],
+      target_name: "sample-skill",
+      runtime: { profile: "freeflow-kernel-workflow-v1", kind: "working-tree", path: ".", kernel: "runtime/kernel.md", workflow: "runtime/workflow.md" },
+    },
+    assertions: turns.map((turn) => ({ id: `unchanged-${turn.id}`, type: "changed_paths", equals: [], turn_id: turn.id })),
+  };
+  const capabilities = {
+    id: "pi",
+    available: true,
+    version: "test-pi",
+    capabilities: {
+      rpc_jsonl: true,
+      multi_turn: true,
+      native_skill_loading: true,
+      multi_skill_loading: true,
+      explicit_runtime_context: true,
+      composition_activation_evidence: true,
+      explicit_extensions: true,
+      disable_extension_discovery: true,
+      disable_context_files: true,
+      tool_allowlist: true,
+      strict_tool_isolation: true,
+    },
+  };
+  const plan = await buildEvaluationPlan({ ...workspace, cases: [Object.freeze(composed)] }, {
+    case: composed.id,
+    timeout_ms: 1000,
+    output_limit_bytes: 1048576,
+    provider: "p",
+    model: "m",
+    thinking: "low",
+    max_turns_per_process: 8,
+    owner_approved: true,
+  }, { capabilitiesFor: async () => capabilities });
+  const outcome = await executeEvaluation(workspace, plan, {
+    runRpcSubject: async ({ turns: declaredTurns, skillSnapshots, runtimeExtension, runtimeEnvironment, runtimeExpected, readRoots, configDir, onTurnSettled }) => {
+      assert.deepEqual(skillSnapshots.map((item) => item.name), ["base-skill", "sample-skill"]);
+      assert.match(runtimeExtension, /pi-composition-runtime\.mjs$/);
+      assert.ok(readRoots.includes(runtimeEnvironment.FREEFLOW_EVAL_RUNTIME_KERNEL.replace(/\/runtime\/kernel\.md$/, "")) || readRoots.some((path) => runtimeEnvironment.FREEFLOW_EVAL_RUNTIME_KERNEL.startsWith(path)));
+      await mkdir(configDir, { recursive: true });
+      await writeFile(runtimeEnvironment.FREEFLOW_EVAL_RUNTIME_EVIDENCE, `${declaredTurns.map((_, index) => JSON.stringify({
+        type: "freeflow-composition-runtime-delivery",
+        profile: "freeflow-kernel-workflow-v1",
+        kernel_sha256: plan.composition.runtime.kernel_identity.sha256,
+        workflow_sha256: plan.composition.runtime.workflow_identity.sha256,
+        runtime_context_sha256: runtimeExpected.runtime_context_sha256,
+        system_prompt_sha256: "b".repeat(64),
+        workflow_custom_type: "freeflow-workflow-bootstrap",
+        workflow_delivered: index === 0,
+        workflow_delivery_reason: index === 0 ? "initial" : "suppressed-active-marker",
+        workflow_envelope_sha256: index === 0 ? runtimeExpected.workflow_envelope_sha256 : null,
+      })).join("\n")}\n`);
+      const captured = [];
+      for (const turn of declaredTurns) captured.push({ id: turn.id, final_text: "route", workspace: await onTurnSettled({ id: turn.id }), skill_reads: { "base-skill": false, "sample-skill": false } });
+      return {
+        invocation: { command: "pi", args: ["--mode", "rpc"] },
+        process: { code: 0, signal: null, timed_out: false, output_limit_exceeded: false, transport_limit_exceeded: false, protocol_failed: false, aborted: false, transport_bytes: 1000, retained_output_bytes: 50000, stdout: "", stderr: "" },
+        parsed: {
+          parse_errors: [],
+          final_text: "route",
+          usage: { input: 40, output: 20, cache_read: 0, cache_write: 0, total_tokens: 60, cost: { total_usd: 0.1 } },
+          tool_events: [],
+          skill_read: false,
+          skill_reads: { "base-skill": false, "sample-skill": false },
+          turns: captured,
+        },
+        runtime_counters: { provider_requests: 4, turns_started: 4, tool_calls: 0, hard_turn_limit_reached: false },
+      };
+    },
+  });
+  assert.equal(outcome.status, "complete", JSON.stringify(outcome.failure));
+  const bundle = resolve(root, outcome.result, "..");
+  const result = JSON.parse(await readFile(resolve(bundle, "result.json"), "utf8"));
+  assert.deepEqual(result.identities.composition.base_stack.map((item) => item.name), ["base-skill"]);
+  assert.equal(result.identities.composition.target_name, "sample-skill");
+  const metadata = JSON.parse(await readFile(resolve(bundle, "evidence", "candidate", "metadata.json"), "utf8"));
+  assert.deepEqual(metadata.composition.skills, ["base-skill", "sample-skill"]);
+  assert.equal(metadata.composition.runtime.profile, "freeflow-kernel-workflow-v1");
+  assert.deepEqual(metadata.activation.skill_reads, { "base-skill": false, "sample-skill": false });
 });
 
 test("fake Codex subject composes through objective grading with unavailable whole-case accounting", async (t) => {

@@ -16,6 +16,7 @@ For each run:
 
 - copy only the fixture into an isolated temporary root;
 - copy only the variant's declared immutable subject resources separately;
+- for composition, materialize each named base/target skill and runtime resource separately, preserve order, and fingerprint every declared byte;
 - keep cases, assertions, reports, controls, and labels coordinator-side;
 - allow reads only from fixture and snapshot;
 - allow writes only inside fixture;
@@ -27,4 +28,4 @@ Directory placement alone is not isolation. If the adapter cannot enforce every 
 
 ## Pi Bootstrap
 
-Use one-shot JSON, no session, no context files, no auto-discovered resources, one explicit root guard, explicit skill snapshot, minimal tools, and an isolated config home. Use Pi RPC only for true multi-turn evidence.
+Use one-shot JSON, no session, no context files, no auto-discovered resources, one explicit root guard, explicit skill snapshots, minimal tools, and an isolated config home. For declared composition, use repeated explicit skill paths plus the exact evaluator-owned kernel/Workflow runtime extension; never load the installed Freeflow package. Use Pi RPC only for true fixed multi-turn evidence, currently two to four scripted user turns.

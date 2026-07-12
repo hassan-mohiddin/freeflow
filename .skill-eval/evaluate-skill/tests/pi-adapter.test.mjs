@@ -43,6 +43,43 @@ test("Pi RPC invocation keeps lifecycle internal and loads only explicit resourc
   assert.equal(redacted.args.at(-1), "<skill>");
 });
 
+test("Pi composition invocation loads ordered explicit skills and one declared runtime extension", () => {
+  const invocation = buildPiRpcInvocation({
+    provider: "provider",
+    model: "model",
+    thinking: "high",
+    tools: ["read"],
+    skillSnapshots: [
+      { name: "execute-plan", path: "/tmp/execute-plan" },
+      { name: "design-for-depth", path: "/tmp/design-for-depth" },
+    ],
+    runtimeExtension: "/tmp/freeflow-runtime.mjs",
+  });
+  const skillPaths = invocation.args.flatMap((value, index) => value === "--skill" ? [invocation.args[index + 1]] : []);
+  const extensionPaths = invocation.args.flatMap((value, index) => value === "--extension" ? [invocation.args[index + 1]] : []);
+  assert.deepEqual(skillPaths, ["/tmp/execute-plan", "/tmp/design-for-depth"]);
+  assert.equal(extensionPaths.length, 2);
+  assert.equal(extensionPaths[1], "/tmp/freeflow-runtime.mjs");
+  const redacted = redactedInvocation(invocation);
+  assert.deepEqual(redacted.args.flatMap((value, index) => value === "--skill" ? [redacted.args[index + 1]] : []), ["<skill>", "<skill>"]);
+  assert.deepEqual(redacted.args.flatMap((value, index) => value === "--extension" ? [redacted.args[index + 1]] : []), ["<extension>", "<extension>"]);
+});
+
+test("Pi JSON parsing attributes reads to each declared skill", () => {
+  const snapshots = [
+    { name: "execute-plan", path: "/tmp/execute-plan" },
+    { name: "design-for-depth", path: "/tmp/design-for-depth" },
+  ];
+  const raw = [
+    JSON.stringify({ type: "tool_execution_start", toolCallId: "a", toolName: "read", args: { path: "/tmp/execute-plan/SKILL.md" } }),
+    JSON.stringify({ type: "tool_execution_start", toolCallId: "b", toolName: "read", args: { path: "/tmp/design-for-depth/SKILL.md" } }),
+    JSON.stringify({ type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "done" }] } }),
+  ].join("\n");
+  const parsed = parsePiJsonEvents(raw, { skillSnapshots: snapshots });
+  assert.deepEqual(parsed.skill_reads, { "execute-plan": true, "design-for-depth": true });
+  assert.equal(parsed.skill_read, true);
+});
+
 test("isolated Pi config disables automatic retries", async (t) => {
   const root = await mkdtemp(resolve(tmpdir(), "freeflow-pi-config-"));
   t.after(() => rm(root, { recursive: true, force: true }));
@@ -89,10 +126,12 @@ test("Pi RPC subject captures fixed turns, usage deltas, counters, and canonical
   const root = await mkdtemp(resolve(tmpdir(), "freeflow-pi-rpc-subject-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const snapshot = resolve(root, "snapshot");
+  const secondSnapshot = resolve(root, "second-snapshot");
   const workspace = resolve(root, "workspace");
   const configDir = resolve(root, "config");
-  await Promise.all([mkdir(snapshot), mkdir(workspace)]);
+  await Promise.all([mkdir(snapshot), mkdir(secondSnapshot), mkdir(workspace)]);
   await writeFile(resolve(snapshot, "SKILL.md"), "skill");
+  await writeFile(resolve(secondSnapshot, "SKILL.md"), "second skill");
 
   let turn = 0;
   const records = [];
@@ -108,7 +147,7 @@ test("Pi RPC subject captures fixed turns, usage deltas, counters, and canonical
     },
     async promptAndSettle({ turnId }) {
       turn += 1;
-      const event = { type: "tool_execution_start", toolCallId: `tool-${turn}`, toolName: "read", args: { path: resolve(snapshot, "SKILL.md") } };
+      const event = { type: "tool_execution_start", toolCallId: `tool-${turn}`, toolName: "read", args: { path: resolve(turn === 1 ? snapshot : secondSnapshot, "SKILL.md") } };
       const started = { type: "turn_start" };
       records.push(started, event);
       return { turn_id: turnId, response: { type: "response", id: `prompt-${turn}`, command: "prompt", success: true }, events: [started, event, { type: "agent_settled" }] };
@@ -124,10 +163,10 @@ test("Pi RPC subject captures fixed turns, usage deltas, counters, and canonical
     model: "model",
     thinking: "high",
     tools: ["read"],
-    skillSnapshot: snapshot,
+    skillSnapshots: [{ name: "first", path: snapshot }, { name: "second", path: secondSnapshot }],
     workspace,
     configDir,
-    readRoots: [workspace, snapshot],
+    readRoots: [workspace, snapshot, secondSnapshot],
     writeRoots: [workspace],
     timeoutMs: 1000,
     outputLimitBytes: 65536,
@@ -149,6 +188,9 @@ test("Pi RPC subject captures fixed turns, usage deltas, counters, and canonical
   assert.equal(subject.parsed.final_text, "answer-2");
   assert.equal(subject.parsed.usage.cost.total_usd, 0.02);
   assert.equal(subject.parsed.skill_read, true);
+  assert.deepEqual(subject.parsed.turns[0].skill_reads, { first: true, second: false });
+  assert.deepEqual(subject.parsed.turns[1].skill_reads, { first: false, second: true });
+  assert.deepEqual(subject.parsed.skill_reads, { first: true, second: true });
   assert.equal(subject.runtime_counters.provider_requests, 2);
   assert.deepEqual(subject.parsed.parse_errors, []);
 });

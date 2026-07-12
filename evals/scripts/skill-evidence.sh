@@ -258,7 +258,7 @@ validate_skill() {
   local evidence_state
   evidence_state="$(jq -r --arg skill "$name" '.skills[$skill].status // "evidenced"' "$metadata")"
   case "$evidence_state" in
-    evidenced|unverified) ;;
+    evidenced|unverified|production-ready) ;;
     *)
       printf 'FAIL %s: unsupported evidence status %s\n' "$name" "$evidence_state" >&2
       return 1

@@ -61,6 +61,14 @@ export async function gradeObjectiveRun(runDir) {
         evidence = { skill_read: skillRead, turn_id: assertion.turn_id ?? null };
         break;
       }
+      case "component_read":
+      case "component_not_read": {
+        const reads = turn ? turn.skill_reads : metadata.activation?.skill_reads;
+        const observed = Boolean(reads?.[assertion.component]);
+        state = assertion.type === "component_read" ? (observed ? "pass" : "fail") : (observed ? "fail" : "pass");
+        evidence = { component: assertion.component, observed, turn_id: assertion.turn_id ?? null };
+        break;
+      }
       case "path_exists":
         state = scopedAfter.files[assertion.path]?.type === "file" || scopedAfter.files[assertion.path]?.type === "symlink" ? "pass" : "fail";
         evidence = scopedAfter.files[assertion.path] ?? null;

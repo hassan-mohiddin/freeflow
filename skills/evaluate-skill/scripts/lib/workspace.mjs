@@ -13,6 +13,8 @@ export const EVIDENCE_CLASSES = new Set([
 ]);
 
 const VARIANT_KINDS = new Set(["working-tree", "git", "none"]);
+const COMPOSITION_KINDS = new Set(["working-tree", "git"]);
+const COMPOSITION_RUNTIME_PROFILES = new Set(["freeflow-kernel-workflow-v1"]);
 const EVALUATION_KINDS = new Set(["single", "comparison"]);
 const VARIANT_ROLES = new Set(["subject", "reference", "candidate"]);
 const UNSUPPORTED_EVIDENCE_POLICIES = new Set(["block", "behavior-under-test"]);
@@ -32,6 +34,8 @@ const QUESTIONS = new Set([
 const TURN_SCOPED_ASSERTION_TYPES = new Set([
   "skill_read",
   "skill_not_read",
+  "component_read",
+  "component_not_read",
   "path_exists",
   "changed_paths",
   "forbidden_changed_path",
@@ -42,6 +46,8 @@ const TURN_SCOPED_ASSERTION_TYPES = new Set([
 const ASSERTION_TYPES = new Set([
   "skill_read",
   "skill_not_read",
+  "component_read",
+  "component_not_read",
   "path_exists",
   "changed_paths",
   "skill_frontmatter",
@@ -107,6 +113,58 @@ function validateEvidenceClasses(values, label) {
   if (new Set(values).size !== values.length) throw new Error(`${label} contains duplicate evidence classes`);
 }
 
+function validateCompositionSource(source, label, { nameRequired = true } = {}) {
+  if (!source || typeof source !== "object" || Array.isArray(source)) throw new Error(`${label} must be an object`);
+  if (nameRequired) {
+    requireString(source.name, `${label}.name`);
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(source.name)) throw new Error(`${label}.name must be a skill name`);
+  }
+  if (!COMPOSITION_KINDS.has(source.kind)) throw new Error(`${label} has unknown component kind: ${source.kind}`);
+  requireString(source.path, `${label}.path`);
+  resolveInside("/composition", source.path, `${label}.path`);
+  if (source.kind === "git") requireString(source.revision, `${label}.revision`);
+  if (!Array.isArray(source.resources) || source.resources.length === 0) throw new Error(`${label}.resources must not be empty`);
+  if (new Set(source.resources).size !== source.resources.length) throw new Error(`${label}.resources contains duplicates`);
+  for (const resource of source.resources) resolveInside("/subject", resource, `${label}.resource`);
+}
+
+function validateComposition(composition, value, path) {
+  if (!composition || typeof composition !== "object" || Array.isArray(composition)) throw new Error(`${path}.composition must be an object`);
+  if (value.evaluation_kind !== "comparison") throw new Error(`${path} composition requires comparison evaluation_kind`);
+  if (!Array.isArray(composition.base_stack) || composition.base_stack.length === 0) throw new Error(`${path}.composition.base_stack must not be empty`);
+  requireString(composition.target_name, `${path}.composition.target_name`);
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(composition.target_name)) throw new Error(`${path}.composition.target_name must be a skill name`);
+  const names = new Set();
+  for (const component of composition.base_stack) {
+    validateCompositionSource(component, `${path}.composition.base_stack component`);
+    if (!component.resources.includes("SKILL.md")) throw new Error(`${path}.composition base component must declare SKILL.md: ${component.name}`);
+    if (names.has(component.name)) throw new Error(`${path}.composition has duplicate component name: ${component.name}`);
+    names.add(component.name);
+  }
+  if (names.has(composition.target_name)) throw new Error(`${path}.composition.target_name collides with base component: ${composition.target_name}`);
+  if (composition.runtime !== undefined && composition.runtime !== null) {
+    const runtime = composition.runtime;
+    if (!runtime || typeof runtime !== "object" || Array.isArray(runtime)) throw new Error(`${path}.composition.runtime must be an object or null`);
+    if (!COMPOSITION_RUNTIME_PROFILES.has(runtime.profile)) throw new Error(`${path}.composition has unknown runtime profile: ${runtime.profile}`);
+    if (!COMPOSITION_KINDS.has(runtime.kind)) throw new Error(`${path}.composition.runtime has unknown component kind: ${runtime.kind}`);
+    requireString(runtime.path, `${path}.composition.runtime.path`);
+    resolveInside("/composition", runtime.path, `${path}.composition.runtime.path`);
+    if (runtime.kind === "git") requireString(runtime.revision, `${path}.composition.runtime.revision`);
+    for (const field of ["kernel", "workflow"]) {
+      requireString(runtime[field], `${path}.composition.runtime.${field}`);
+      resolveInside("/runtime", runtime[field], `${path}.composition.runtime.${field}`);
+    }
+    if (runtime.kernel === runtime.workflow) throw new Error(`${path}.composition runtime kernel and workflow must differ`);
+  }
+  for (const variant of value.variants) {
+    if (!variant.resources.includes("SKILL.md")) throw new Error(`${path} composition target must declare SKILL.md: ${variant.id}`);
+    if (variant.kind === "none") throw new Error(`${path} composition target variants cannot use kind none`);
+    if (["composition", "base_stack", "runtime", "target_name"].some((key) => Object.hasOwn(variant, key))) {
+      throw new Error(`${path}.${variant.id} mixes shared composition fields into a target variant`);
+    }
+  }
+}
+
 export function validateCase(value, { path = "case" } = {}) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${path} must be an object`);
   if (value.schema_version !== 1) throw new Error(`${path} has unsupported schema_version`);
@@ -147,6 +205,7 @@ export function validateCase(value, { path = "case" } = {}) {
     if (new Set(variant.resources).size !== variant.resources.length) throw new Error(`${path}.${variant.id}.resources contains duplicates`);
     for (const resource of variant.resources) resolveInside("/subject", resource, `${path}.${variant.id}.resource`);
   }
+  if (value.composition !== undefined) validateComposition(value.composition, value, path);
   const expectedRoles = value.evaluation_kind === "single" ? ["subject"] : ["reference", "candidate"];
   const actualRoles = value.variants.map((variant) => variant.role);
   if (JSON.stringify(actualRoles) !== JSON.stringify(expectedRoles)) {
@@ -164,6 +223,12 @@ export function validateCase(value, { path = "case" } = {}) {
   if (value.execution.host === "pi" && !new Set(["json", "rpc-scripted"]).has(value.execution.mode)) throw new Error(`${path} Pi execution must use json or rpc-scripted mode`);
   if (value.execution.host === "pi" && value.execution.mode === "json" && !hasPrompt) throw new Error(`${path} Pi json execution requires prompt`);
   if (value.execution.host === "pi" && value.execution.mode === "rpc-scripted" && !hasTurns) throw new Error(`${path} Pi rpc-scripted execution requires turns`);
+  if (value.composition !== undefined) {
+    if (value.execution.host !== "pi") throw new Error(`${path} composition execution requires Pi`);
+    if (value.execution.mode === "rpc-scripted" && (value.turns.length < 2 || value.turns.length > 4)) {
+      throw new Error(`${path} composition rpc-scripted execution requires two to four turns`);
+    }
+  }
   if (value.execution.host === "none" && (value.execution.mode !== "deterministic" || !hasPrompt)) throw new Error(`${path} deterministic execution must use none host and prompt`);
   if (!Array.isArray(value.execution.tools)) throw new Error(`${path}.execution.tools must be an array`);
   if (value.execution.tools.includes("bash")) throw new Error(`${path} cannot expose unrestricted bash`);
@@ -194,6 +259,12 @@ export function validateCase(value, { path = "case" } = {}) {
       } else if (assertion.turn_ids !== undefined) {
         throw new Error(`${path}.${assertion.id}.turn_ids is only valid for rpc-scripted execution`);
       }
+    }
+    if (assertion.type === "component_read" || assertion.type === "component_not_read") {
+      requireString(assertion.component, `${path}.${assertion.id}.component`);
+      if (value.composition === undefined) throw new Error(`${path}.${assertion.id} component assertions require composition`);
+      const componentNames = new Set([...value.composition.base_stack.map((component) => component.name), value.composition.target_name]);
+      if (!componentNames.has(assertion.component)) throw new Error(`${path}.${assertion.id} names unknown composition component: ${assertion.component}`);
     }
     if (assertion.type === "turn_text_contains") {
       if (assertion.turn_id === undefined) throw new Error(`${path}.${assertion.id} turn_text_contains requires turn_id`);
@@ -262,6 +333,10 @@ export async function loadSkillWorkspace(repoRoot, skill) {
       await assertNoSymlinkTree(fixturePath, `${evalCase.id} fixture`);
     }
     for (const variant of evalCase.variants) resolveInside(repoRoot, variant.path, `${evalCase.id}.${variant.id}.path`);
+    if (evalCase.composition !== undefined) {
+      for (const component of evalCase.composition.base_stack) resolveInside(repoRoot, component.path, `${evalCase.id}.composition.${component.name}.path`);
+      if (evalCase.composition.runtime) resolveInside(repoRoot, evalCase.composition.runtime.path, `${evalCase.id}.composition.runtime.path`);
+    }
     cases.push(Object.freeze({ ...evalCase, source_path: casePath }));
   }
 

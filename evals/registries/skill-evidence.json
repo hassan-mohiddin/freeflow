@@ -39,7 +39,8 @@
       "evals": [
         "BYP-001",
         "BYP-002"
-      ]
+      ],
+      "status": "unverified"
     },
     "commit-work": {
       "evals": [
@@ -111,8 +112,10 @@
         "ESK-002",
         "ESK-003"
       ],
-      "status": "production-ready",
-      "readiness": {
+      "status": "unverified",
+      "prior_readiness": {
+        "status": "production-ready",
+        "source_revision": "ed146f0",
         "support_id": "pi-0.80.6-openai-codex-gpt-5.5-high",
         "host": "pi",
         "host_version": "0.80.6",

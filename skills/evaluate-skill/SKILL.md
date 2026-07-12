@@ -20,7 +20,7 @@ Judge behavior under pressure. Evidence outranks confident prose.
 
 Distinguish structure, explicit wording, native activation, artifact behavior, multi-turn state, and cross-host behavior. Do not substitute one evidence class for another.
 
-Direct body injection cannot prove automatic activation. One-shot output cannot prove multi-turn memory. One host cannot prove another host's behavior.
+Direct body injection cannot prove automatic activation. One skill cannot prove composition. One-shot output cannot prove multi-turn memory. One host cannot prove another host's behavior.
 
 Read [evaluation architecture](references/evaluation-architecture.md) when selecting evidence classes or separating roles. Read [eval patterns](references/eval-patterns.md) when choosing a case, fixture, transcript, or comparison.
 
@@ -42,6 +42,8 @@ Use direct child processes for ordinary cases. Do not spend parent/subagent cont
 Use `node scripts/skill-eval.mjs doctor|init|evaluate` for the bundled workspace. `evaluate` owns deterministic preflight, serial subject execution, grading, decision assembly, and atomic publication for one case. Use `evaluate --plan-only` to inspect the exact plan before owner-approved model work.
 
 The default project source lives under `.skill-eval/<skill-name>/`. Subjects receive only the natural prompt, isolated fixture, explicitly declared immutable skill resources, and allowed tools. They must not receive assertions, expected outcomes, reports, or another variant.
+
+For a composition question, use the approved Pi composition case shape: one shared ordered base stack, one target skill differing across exactly two variants, optional exact kernel/Workflow runtime, and either one shot or two-to-four fixed turns. Do not concatenate skills, use ambient packages, or vary several skills and call the result attributable.
 
 Read [portable execution](references/portable-execution.md) for capability fallbacks and isolation. Read [token-efficient execution](references/token-efficient-execution.md) before expanding cases, models, or evidence scope.
 

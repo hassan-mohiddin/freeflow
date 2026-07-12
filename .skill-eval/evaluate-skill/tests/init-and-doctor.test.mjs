@@ -39,6 +39,9 @@ test("doctor proves Pi guard and Codex diagnostic status without model calls", a
   assert.equal(report.ready_for_planning, true);
   assert.equal(report.pi.capabilities.rpc_jsonl, true, report.pi.rpc_error);
   assert.equal(report.pi.capabilities.multi_turn, true, report.pi.rpc_error);
+  assert.equal(report.pi.capabilities.multi_skill_loading, true, report.pi.rpc_error);
+  assert.equal(report.pi.capabilities.explicit_runtime_context, true, report.pi.rpc_error);
+  assert.equal(report.pi.capabilities.composition_activation_evidence, true, report.pi.rpc_error);
   assert.equal(report.ready_for_rpc_planning, true);
   assert.equal(report.codex.version, "codex-cli 0.144.1");
   assert.equal(report.codex.fidelity, "diagnostic");

@@ -84,6 +84,95 @@ test("fixed-script Pi RPC cases use stable turns and one shared semantic scope",
   assert.throws(() => validateCase(rpcCase({ assertions: [{ id: "token", type: "turn_text_contains", contains: ["ALPHA"] }] })), /requires turn_id/);
 });
 
+function compositionCase(overrides = {}) {
+  const turns = [
+    { id: "turn-1", prompt: "Inspect the first failure." },
+    { id: "turn-2", prompt: "A sibling adapter now fails." },
+    { id: "turn-3", prompt: "Choose the next route." },
+    { id: "turn-4", prompt: "State what remains unverified." },
+  ];
+  return {
+    schema_version: 1,
+    id: "COMP-001",
+    skill: "workflow",
+    title: "declared composition",
+    question: "skill composition",
+    evidence_classes: ["native-activation", "multi-turn"],
+    required_for_bootstrap: false,
+    evaluation_kind: "comparison",
+    unsupported_evidence: "block",
+    fixture: null,
+    variants: [
+      { id: "reference", role: "reference", kind: "git", revision: "abc123", path: "skills/design-for-depth", resources: ["SKILL.md"] },
+      { id: "candidate", role: "candidate", kind: "working-tree", path: "skills/design-for-depth", resources: ["SKILL.md"] },
+    ],
+    composition: {
+      base_stack: [
+        { name: "execute-plan", kind: "working-tree", path: "skills/execute-plan", resources: ["SKILL.md"] },
+      ],
+      target_name: "design-for-depth",
+      runtime: {
+        profile: "freeflow-kernel-workflow-v1",
+        kind: "working-tree",
+        path: ".",
+        kernel: "skills/decision-gate/references/runtime-kernel.md",
+        workflow: "skills/workflow/SKILL.md",
+      },
+    },
+    execution: { host: "pi", mode: "rpc-scripted", tools: ["read"] },
+    turns,
+    assertions: [{ id: "route", type: "semantic", rubric: "Routes backward after repeated seam pressure.", turn_ids: turns.map((turn) => turn.id) }],
+    ...overrides,
+  };
+}
+
+test("composition cases require one shared base, one target, exact runtime, and at most four fixed turns", () => {
+  assert.equal(validateCase(compositionCase()).composition.target_name, "design-for-depth");
+  const oneShot = compositionCase({
+    prompt: "Inspect the composition.",
+    execution: { host: "pi", mode: "json", tools: ["read"] },
+    assertions: [{ id: "activated", type: "skill_read" }],
+  });
+  delete oneShot.turns;
+  assert.equal(validateCase(oneShot).execution.mode, "json");
+
+  assert.throws(() => validateCase(compositionCase({ evaluation_kind: "single" })), /composition requires comparison/);
+  assert.throws(() => validateCase(compositionCase({ composition: { ...compositionCase().composition, base_stack: [] } })), /base_stack must not be empty/);
+  assert.throws(() => validateCase(compositionCase({ composition: {
+    ...compositionCase().composition,
+    base_stack: [
+      { name: "execute-plan", kind: "working-tree", path: "skills/execute-plan", resources: ["SKILL.md"] },
+      { name: "execute-plan", kind: "working-tree", path: "skills/execute-plan", resources: ["SKILL.md"] },
+    ],
+  } })), /duplicate component name/);
+  assert.throws(() => validateCase(compositionCase({ composition: {
+    ...compositionCase().composition,
+    base_stack: [{ name: "design-for-depth", kind: "working-tree", path: "skills/design-for-depth", resources: ["SKILL.md"] }],
+  } })), /target_name collides/);
+  assert.throws(() => validateCase(compositionCase({ composition: {
+    ...compositionCase().composition,
+    base_stack: [{ name: "execute-plan", kind: "none", path: "skills/execute-plan", resources: ["SKILL.md"] }],
+  } })), /unknown component kind/);
+  assert.throws(() => validateCase(compositionCase({ composition: {
+    ...compositionCase().composition,
+    base_stack: [{ name: "execute-plan", kind: "git", path: "skills/execute-plan", resources: ["SKILL.md"] }],
+  } })), /revision/);
+  assert.throws(() => validateCase(compositionCase({ execution: { host: "none", mode: "deterministic", tools: [] } })), /composition execution requires Pi/);
+  assert.throws(() => validateCase(compositionCase({ turns: [{ id: "turn-1", prompt: "Only one." }] })), /two to four turns/);
+  assert.throws(() => validateCase(compositionCase({ turns: [...compositionCase().turns, { id: "turn-5", prompt: "Too many." }] })), /two to four turns/);
+  assert.throws(() => validateCase(compositionCase({ composition: {
+    ...compositionCase().composition,
+    runtime: { ...compositionCase().composition.runtime, profile: "unknown" },
+  } })), /unknown runtime profile/);
+  assert.throws(() => validateCase(compositionCase({ composition: {
+    ...compositionCase().composition,
+    runtime: { ...compositionCase().composition.runtime, kind: "git", revision: undefined },
+  } })), /runtime.revision/);
+  assert.equal(validateCase(compositionCase({ assertions: [{ id: "read", type: "component_read", component: "execute-plan", turn_id: "turn-1" }] })).assertions[0].component, "execute-plan");
+  assert.throws(() => validateCase(compositionCase({ assertions: [{ id: "read", type: "component_read", component: "missing", turn_id: "turn-1" }] })), /unknown composition component/);
+  assert.throws(() => validateCase(rpcCase({ assertions: [{ id: "read", type: "component_read", component: "sample-skill", turn_id: "turn-1" }] })), /require composition/);
+});
+
 test("production promotion cases bind decisive fixed two-turn evidence", async () => {
   const writeWorkspace = await loadSkillWorkspace(repoRoot, "write-skill");
   const writeCase = writeWorkspace.cases.find((item) => item.id === "WSK2-006");

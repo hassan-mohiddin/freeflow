@@ -1,0 +1,176 @@
+{
+  "schema_version": 1,
+  "id": "WFC2-002",
+  "skill": "workflow",
+  "title": "Change route after repeated invariant pressure across adapters",
+  "question": "skill composition",
+  "evidence_classes": [
+    "native-activation",
+    "multi-turn",
+    "artifact-outcome"
+  ],
+  "required_for_bootstrap": false,
+  "evaluation_kind": "comparison",
+  "unsupported_evidence": "block",
+  "turns": [
+    {
+      "id": "turn-1",
+      "prompt": "Inspect `service.json`. Explain the defect in adapter A and the smallest safe first behavior. Do not modify files yet."
+    },
+    {
+      "id": "turn-2",
+      "prompt": "Implement the accepted local fix for adapter A by changing its status to `fixed`. Preserve canonical state and do not change adapter B."
+    },
+    {
+      "id": "turn-3",
+      "prompt": "Independent review now reports that adapter B violates the same canonical-publication invariant. Handle this evidence using the available workflow guidance."
+    },
+    {
+      "id": "turn-4",
+      "prompt": "Close the current route in `route.json` with fields `route` and `failure_unit`. Preserve all valid prior work and do not start another review."
+    }
+  ],
+  "fixture": "fixtures/four-turn-route",
+  "variants": [
+    {
+      "id": "reference",
+      "role": "reference",
+      "kind": "working-tree",
+      "path": ".skill-eval/workflow/subjects/route-reference",
+      "resources": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "candidate",
+      "role": "candidate",
+      "kind": "working-tree",
+      "path": ".skill-eval/workflow/subjects/route-candidate",
+      "resources": [
+        "SKILL.md"
+      ]
+    }
+  ],
+  "composition": {
+    "base_stack": [
+      {
+        "name": "composition-base",
+        "kind": "working-tree",
+        "path": ".skill-eval/workflow/subjects/composition-base",
+        "resources": [
+          "SKILL.md"
+        ]
+      },
+      {
+        "name": "evidence-base",
+        "kind": "working-tree",
+        "path": ".skill-eval/workflow/subjects/evidence-base",
+        "resources": [
+          "SKILL.md"
+        ]
+      }
+    ],
+    "target_name": "route-pressure",
+    "runtime": {
+      "profile": "freeflow-kernel-workflow-v1",
+      "kind": "working-tree",
+      "path": ".",
+      "kernel": "skills/decision-gate/references/runtime-kernel.md",
+      "workflow": "skills/workflow/SKILL.md"
+    }
+  },
+  "execution": {
+    "host": "pi",
+    "mode": "rpc-scripted",
+    "tools": [
+      "read",
+      "write"
+    ]
+  },
+  "assertions": [
+    {
+      "id": "base-read",
+      "type": "component_read",
+      "component": "composition-base"
+    },
+    {
+      "id": "evidence-base-read",
+      "type": "component_read",
+      "component": "evidence-base"
+    },
+    {
+      "id": "route-skill-read",
+      "type": "component_read",
+      "component": "route-pressure"
+    },
+    {
+      "id": "turn-1-no-change",
+      "type": "changed_paths",
+      "equals": [],
+      "turn_id": "turn-1"
+    },
+    {
+      "id": "turn-2-first-fix-only",
+      "type": "changed_paths",
+      "equals": [
+        "service.json"
+      ],
+      "turn_id": "turn-2"
+    },
+    {
+      "id": "turn-3-design-checkpoint",
+      "type": "changed_paths",
+      "equals": [
+        "design-checkpoint.md",
+        "service.json"
+      ],
+      "turn_id": "turn-3"
+    },
+    {
+      "id": "turn-4-route-closeout",
+      "type": "changed_paths",
+      "equals": [
+        "design-checkpoint.md",
+        "route.json",
+        "service.json"
+      ],
+      "turn_id": "turn-4"
+    },
+    {
+      "id": "adapter-a-fixed",
+      "type": "json_field",
+      "path": "service.json",
+      "field": "adapters.a.status",
+      "equals": "fixed"
+    },
+    {
+      "id": "adapter-b-preserved",
+      "type": "json_field",
+      "path": "service.json",
+      "field": "adapters.b.status",
+      "equals": "buggy"
+    },
+    {
+      "id": "failure-unit-checkpoint",
+      "type": "file_contains",
+      "path": "design-checkpoint.md",
+      "patterns": [
+        "canonical-publication"
+      ]
+    },
+    {
+      "id": "backward-route",
+      "type": "json_field",
+      "path": "route.json",
+      "field": "route",
+      "equals": "backward"
+    },
+    {
+      "id": "canonical-failure-unit",
+      "type": "json_field",
+      "path": "route.json",
+      "field": "failure_unit",
+      "equals": "canonical-publication"
+    }
+  ]
+}

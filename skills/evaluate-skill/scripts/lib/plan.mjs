@@ -1,11 +1,11 @@
 import { spawnSync } from "node:child_process";
-import { access, lstat, realpath } from "node:fs/promises";
+import { access, lstat, readFile, realpath } from "node:fs/promises";
 import { constants } from "node:fs";
 import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { capabilitiesFor, supportedEvidenceClasses } from "./capabilities.mjs";
 import { DEFAULT_OUTPUT_LIMIT_BYTES } from "./constants.mjs";
-import { hashDeclaredResources, hashDirectory, hashFile, hashGitResources, sha256, stableJson } from "./hash.mjs";
+import { declaredResourceIdentity, gitResourceIdentity, hashDirectory, hashFile, sha256, stableJson } from "./hash.mjs";
 import { assertNoSymlinkTree, isWithin } from "./path-policy.mjs";
 import { resolveInside } from "./workspace.mjs";
 
@@ -22,6 +22,7 @@ const ALL_MODEL_OPTION_KEYS = [...LEGACY_MODEL_OPTION_KEYS, ...SUBJECT_MODEL_OPT
 const scriptsRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const EVALUATOR_SOURCE_FILES = [
   "skill-eval.mjs",
+  "pi-composition-runtime.mjs",
   "pi-root-guard.mjs",
   "lib/args.mjs",
   "lib/capabilities.mjs",
@@ -77,9 +78,10 @@ async function validateWorkingTreeResources(repoRoot, variant) {
 }
 
 function validateGitResources(repoRoot, variant) {
-  const variantPrefix = `${variant.path.replace(/\/$/, "")}/`;
+  const root = variant.path.replace(/\/$/, "") === "." ? "" : variant.path.replace(/\/$/, "");
+  const variantPrefix = root ? `${root}/` : "";
   for (const resource of variant.resources) {
-    const fullResource = `${variant.path.replace(/\/$/, "")}/${resource}`;
+    const fullResource = root ? `${root}/${resource}` : resource;
     const result = spawnSync("git", ["ls-tree", "-r", "-z", "--full-tree", variant.revision, "--", fullResource], { cwd: repoRoot, encoding: "utf8" });
     if (result.status !== 0) throw new Error(`Unable to inspect git subject resource ${variant.revision}:${fullResource}: ${result.stderr.trim()}`);
     const records = result.stdout.split("\0").filter(Boolean);
@@ -88,24 +90,120 @@ function validateGitResources(repoRoot, variant) {
       const [header, fullPath] = record.split("\t");
       const [mode, type] = header.split(" ");
       if (type !== "blob" || mode === "120000") throw new Error(`Unsafe git subject resource: ${mode} ${type} ${fullPath}`);
-      if (!fullPath.startsWith(variantPrefix) || (fullPath !== fullResource && !fullPath.startsWith(`${fullResource}/`))) {
+      if ((variantPrefix && !fullPath.startsWith(variantPrefix)) || (fullPath !== fullResource && !fullPath.startsWith(`${fullResource}/`))) {
         throw new Error(`Git subject resource escapes declaration: ${fullPath}`);
       }
     }
   }
 }
 
+async function resolveDeclaredSource(repoRoot, source, label, resources = source.resources) {
+  const descriptor = { ...source, id: source.id ?? source.name ?? label, resources };
+  const absolutePath = resolveInside(repoRoot, descriptor.path, `${label}.path`);
+  if (descriptor.kind === "working-tree") {
+    await validateWorkingTreeResources(repoRoot, descriptor);
+    const identity = await declaredResourceIdentity(absolutePath, resources);
+    return { ...descriptor, absolute_path: absolutePath, resource_identity: identity, snapshot_hash: identity.aggregate_sha256 };
+  }
+  if (descriptor.kind === "git") {
+    validateGitResources(repoRoot, descriptor);
+    const identity = gitResourceIdentity(repoRoot, descriptor.revision, descriptor.path, resources);
+    return { ...descriptor, absolute_path: absolutePath, resource_identity: identity, snapshot_hash: identity.aggregate_sha256 };
+  }
+  throw new Error(`Unsupported declared source kind: ${descriptor.kind}`);
+}
+
 async function resolveVariant(repoRoot, variant) {
-  const absolutePath = resolveInside(repoRoot, variant.path, `${variant.id}.path`);
-  if (variant.kind === "working-tree") {
-    await validateWorkingTreeResources(repoRoot, variant);
-    return { ...variant, absolute_path: absolutePath, snapshot_hash: await hashDeclaredResources(absolutePath, variant.resources) };
+  return resolveDeclaredSource(repoRoot, variant, variant.id);
+}
+
+async function declaredSkillName(repoRoot, source) {
+  let text;
+  if (source.kind === "working-tree") text = await readFile(resolve(source.absolute_path, "SKILL.md"), "utf8");
+  else {
+    const root = source.path.replace(/\/$/, "") === "." ? "" : source.path.replace(/\/$/, "");
+    const path = root ? `${root}/SKILL.md` : "SKILL.md";
+    const result = spawnSync("git", ["show", `${source.revision}:${path}`], { cwd: repoRoot, encoding: "utf8", maxBuffer: 1024 * 1024 });
+    if (result.status !== 0) throw new Error(`Unable to read composition skill name: ${source.revision}:${path}`);
+    text = result.stdout;
   }
-  if (variant.kind === "git") {
-    validateGitResources(repoRoot, variant);
-    return { ...variant, absolute_path: absolutePath, snapshot_hash: hashGitResources(repoRoot, variant.revision, variant.path, variant.resources) };
+  const match = text.match(/^---\n[\s\S]*?^name:\s*([^\n]+)$/m);
+  if (!match) throw new Error(`Composition skill is missing frontmatter name: ${source.path}`);
+  return match[1].trim().replace(/^['"]|['"]$/g, "");
+}
+
+function fileHash(identity, path, label) {
+  const match = identity.entries.find((entry) => entry[0] === path && entry[1] === "file");
+  if (!match) throw new Error(`Missing ${label} identity: ${path}`);
+  return match[2];
+}
+
+async function resolveComposition(repoRoot, evalCase, variants) {
+  if (evalCase.composition === undefined) return null;
+  const baseStack = [];
+  for (const component of evalCase.composition.base_stack) {
+    const resolved = await resolveDeclaredSource(repoRoot, component, `composition.${component.name}`);
+    const actualName = await declaredSkillName(repoRoot, resolved);
+    if (actualName !== component.name) throw new Error(`Composition component name mismatch: declared ${component.name}, found ${actualName}`);
+    baseStack.push(resolved);
   }
-  throw new Error(`Unsupported variant kind: ${variant.kind}`);
+  let runtime = null;
+  if (evalCase.composition.runtime) {
+    const source = evalCase.composition.runtime;
+    const resources = [source.kernel, source.workflow];
+    const resolved = await resolveDeclaredSource(repoRoot, source, "composition.runtime", resources);
+    const extensionPath = resolve(scriptsRoot, "pi-composition-runtime.mjs");
+    const evaluatorRoot = resolve(scriptsRoot, "..", "..", "..");
+    const productionHelperPath = resolve(evaluatorRoot, "pi-extension", "dist", "runtime-context.js");
+    runtime = {
+      ...resolved,
+      profile: source.profile,
+      extension_path: extensionPath,
+      kernel_identity: { path: source.kernel, sha256: fileHash(resolved.resource_identity, source.kernel, "runtime kernel") },
+      workflow_identity: { path: source.workflow, sha256: fileHash(resolved.resource_identity, source.workflow, "runtime workflow") },
+      implementation_identity: {
+        evaluator_extension: { path: relative(evaluatorRoot, extensionPath).split(sep).join("/"), absolute_path: extensionPath, sha256: await hashFile(extensionPath) },
+        production_helper: { path: relative(evaluatorRoot, productionHelperPath).split(sep).join("/"), absolute_path: productionHelperPath, sha256: await hashFile(productionHelperPath) },
+      },
+    };
+  }
+  for (const variant of variants) {
+    const actualName = await declaredSkillName(repoRoot, variant);
+    if (actualName !== evalCase.composition.target_name) throw new Error(`Composition target name mismatch for ${variant.role}: declared ${evalCase.composition.target_name}, found ${actualName}`);
+  }
+  return {
+    target_name: evalCase.composition.target_name,
+    base_stack: baseStack,
+    runtime,
+    target_variants: Object.fromEntries(variants.map((variant) => [variant.role, variant])),
+  };
+}
+
+function compositionIdentity(composition) {
+  if (!composition) return null;
+  const source = (component) => ({
+    name: component.name ?? null,
+    kind: component.kind,
+    path: component.path,
+    revision: component.revision ?? null,
+    resources: component.resources,
+    identity: component.resource_identity,
+  });
+  return {
+    target_name: composition.target_name,
+    base_stack: composition.base_stack.map(source),
+    runtime: composition.runtime ? {
+      profile: composition.runtime.profile,
+      kind: composition.runtime.kind,
+      path: composition.runtime.path,
+      revision: composition.runtime.revision ?? null,
+      identity: composition.runtime.resource_identity,
+      kernel: composition.runtime.kernel_identity,
+      workflow: composition.runtime.workflow_identity,
+      implementation: Object.fromEntries(Object.entries(composition.runtime.implementation_identity).map(([name, identity]) => [name, { path: identity.path, sha256: identity.sha256 }])),
+    } : null,
+    targets: Object.fromEntries(Object.entries(composition.target_variants).map(([role, variant]) => [role, source({ ...variant, name: composition.target_name })])),
+  };
 }
 
 function evidenceResolution(evalCase, selectedHost, effectiveMode) {
@@ -194,12 +292,17 @@ export async function buildEvaluationPlan(workspace, options, dependencies = {})
   if (options.max_usd !== undefined && (!Number.isFinite(Number(options.max_usd)) || Number(options.max_usd) <= 0)) throw new Error("--max-usd must be a positive number");
 
   const resolveCapabilities = dependencies.capabilitiesFor ?? capabilitiesFor;
-  const host = await resolveCapabilities(selectedHost, effectiveMode);
-  const requiredCapabilities = selectedHost === "codex"
+  const capabilityMode = evalCase.composition !== undefined && selectedHost === "pi" ? "rpc-scripted" : effectiveMode;
+  const host = await resolveCapabilities(selectedHost, capabilityMode);
+  const baseRequiredCapabilities = selectedHost === "codex"
     ? ["exec_jsonl", "isolated_home", "strict_config", "ephemeral", "ignore_rules", "ambient_context_disabled", "explicit_skill", "strict_filesystem_isolation", "network_disabled", "process_limits", "provider_request_bound", "spend_bound"]
     : effectiveMode === "rpc-scripted"
       ? ["rpc_jsonl", "multi_turn", "native_skill_loading", "explicit_extensions", "disable_extension_discovery", "disable_context_files", "tool_allowlist", "strict_tool_isolation"]
       : ["one_shot_json", "native_skill_loading", "explicit_extensions", "disable_extension_discovery", "disable_context_files", "tool_allowlist", "strict_tool_isolation"];
+  const compositionCapabilities = evalCase.composition === undefined
+    ? []
+    : ["multi_skill_loading", "explicit_runtime_context", "composition_activation_evidence"];
+  const requiredCapabilities = [...new Set([...baseRequiredCapabilities, ...compositionCapabilities])];
   const missingCapabilities = modelDriven ? requiredCapabilities.filter((name) => !host.capabilities?.[name]) : [];
   if (modelDriven && !host.available) missingCapabilities.unshift(`${selectedHost}-available`);
   const evidence = evidenceResolution(evalCase, selectedHost, effectiveMode);
@@ -211,6 +314,10 @@ export async function buildEvaluationPlan(workspace, options, dependencies = {})
   const fixtureHash = fixturePath ? await hashDirectory(fixturePath) : sha256("empty-fixture");
   const variants = [];
   for (const variant of evalCase.variants) variants.push(await resolveVariant(workspace.repoRoot, variant));
+  const composition = await resolveComposition(workspace.repoRoot, evalCase, variants);
+  const limitBlocks = effectiveMode === "rpc-scripted" && maxTurns < evalCase.turns.length
+    ? ["max-turns-below-scripted-user-turns"]
+    : [];
 
   const semanticPerVariant = hasSemantic ? 1 : 0;
   const subjectProcesses = modelDriven ? variants.length : 0;
@@ -246,6 +353,7 @@ export async function buildEvaluationPlan(workspace, options, dependencies = {})
     case_source: { path: caseSourcePath, sha256: await hashFile(evalCase.source_path) },
     fixture: fixtureHash,
     subjects: Object.fromEntries(variants.map((variant) => [variant.role, variant.snapshot_hash])),
+    composition: compositionIdentity(composition),
     evaluator: await sourceIdentity(EVALUATOR_SOURCE_FILES),
     semantic: await sourceIdentity(SEMANTIC_SOURCE_FILES),
   };
@@ -255,7 +363,8 @@ export async function buildEvaluationPlan(workspace, options, dependencies = {})
     skill: workspace.suite.skill,
     case: caseContent,
     identities,
-    variants: variants.map((variant) => ({ id: variant.id, role: variant.role, kind: variant.kind, revision: variant.revision ?? null, path: variant.path, resources: variant.resources, snapshot_hash: variant.snapshot_hash })),
+    variants: variants.map((variant) => ({ id: variant.id, role: variant.role, kind: variant.kind, revision: variant.revision ?? null, path: variant.path, resources: variant.resources, snapshot_hash: variant.snapshot_hash, resource_identity: variant.resource_identity })),
+    composition: identities.composition,
     host,
     subject_host: selectedHost,
     effective_mode: effectiveMode,
@@ -287,20 +396,25 @@ export async function buildEvaluationPlan(workspace, options, dependencies = {})
     codex_processes: { subject: codexSubjectProcesses, total_max: codexSubjectProcesses },
     total_processes: totalProcesses,
     scripted_user_turns: effectiveMode === "rpc-scripted" ? evalCase.turns.length : null,
+    composition: composition ? {
+      skills: [...composition.base_stack.map((component) => component.name), composition.target_name],
+      target_name: composition.target_name,
+      runtime_profile: composition.runtime?.profile ?? null,
+    } : null,
     limits: planInputs.limits,
     worst_case_approved_turns: selectedHost === "codex" ? null : totalProcesses * maxTurns,
     spend: { max_usd: planInputs.max_usd },
     evidence: { required: evidence.required, requested: evidence.requested },
     identities,
     capabilities: { host: host.id, version: host.version, missing: missingCapabilities },
-    blocked_reasons: [...new Set([...blockedEvidence, ...missingCapabilities])],
+    blocked_reasons: [...new Set([...blockedEvidence, ...missingCapabilities, ...limitBlocks])],
     limitations,
     fingerprint,
   };
   summary.rerun_command = selectedHost === "codex" ? null : rerunCommand(summary);
 
   let status = "ready";
-  if (blockedEvidence.length > 0 || missingCapabilities.length > 0) status = "blocked";
+  if (blockedEvidence.length > 0 || missingCapabilities.length > 0 || limitBlocks.length > 0) status = "blocked";
   else if (options.plan_only) status = "planned";
   else if (modelDriven && (!options.owner_approved || (options.expect_plan && options.expect_plan !== fingerprint))) status = "needs_approval";
 
@@ -310,9 +424,11 @@ export async function buildEvaluationPlan(workspace, options, dependencies = {})
     fingerprint,
     eval_case: evalCase,
     variants,
+    composition,
     fixture_path: fixturePath,
     plan_inputs: planInputs,
     blocked_evidence: blockedEvidence,
     missing_capabilities: missingCapabilities,
+    limit_blocks: limitBlocks,
   };
 }

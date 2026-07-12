@@ -1,0 +1,15 @@
+{
+  "canonical": {
+    "accepted": "stable-v1"
+  },
+  "adapters": {
+    "a": {
+      "status": "buggy",
+      "behavior": "invalid submissions replace canonical state"
+    },
+    "b": {
+      "status": "buggy",
+      "behavior": "invalid submissions replace canonical state"
+    }
+  }
+}

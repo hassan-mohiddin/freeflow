@@ -14,6 +14,7 @@
 - Renames the optional `deprecation-and-migration` and `shipping-and-launch` skills to the collision-resistant `migration-work` and `launch-work` identities, including their direct commands.
 - Quotes YAML-sensitive skill descriptions and teaches `skill-author` to reject unquoted `: ` plain scalars before Pi loads them.
 - Adds a kernel-level concise-output contract that removes filler and routine tool narration while preserving requested depth, safety, nuance, and clarity.
+- Adds an Unverified evaluator composition candidate with explicit multi-skill stacks, exact kernel/Workflow delivery, per-component identities, and bounded one-shot or two-to-four-turn Pi cases.
 - Treats repeated same-invariant defects, widening fixes, and weak evidence as route-changing signals; strengthens failure-unit design, rejected-state TDD, integration-proof fidelity, slice ordering, and follow-up review routing from observed Output Router and Delegation incidents.
 
 ## 0.3.0 - 2026-06-28

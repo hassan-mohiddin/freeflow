@@ -43,7 +43,7 @@ test("objective grading uses frozen intermediate turn evidence", async (t) => {
   await writeFile(resolve(run, "metadata.json"), JSON.stringify({
     variant: "opaque",
     execution_mode: "rpc-scripted",
-    activation: { skill_read: true },
+    activation: { skill_read: true, skill_reads: { "base-skill": true, "target-skill": true } },
     changed_paths: ["authorized.txt"],
     assertion_root: "workspace",
     evidence_classes: { requested: {} },
@@ -56,6 +56,9 @@ test("objective grading uses frozen intermediate turn evidence", async (t) => {
       { id: "unchanged-before-decision", type: "path_unchanged", path: "authorized.txt", turn_id: "turn-1" },
       { id: "exists-after-decision", type: "path_exists", path: "authorized.txt", turn_id: "turn-2" },
       { id: "skill-read-first", type: "skill_read", turn_id: "turn-1" },
+      { id: "base-read-first", type: "component_read", component: "base-skill", turn_id: "turn-1" },
+      { id: "target-not-read-first", type: "component_not_read", component: "target-skill", turn_id: "turn-1" },
+      { id: "target-read-second", type: "component_read", component: "target-skill", turn_id: "turn-2" },
       { id: "turn-text", type: "turn_text_contains", turn_id: "turn-2", contains: ["authorized"], forbids: ["forbidden"] },
     ],
   }));
@@ -64,8 +67,8 @@ test("objective grading uses frozen intermediate turn evidence", async (t) => {
   await writeFile(resolve(run, "transcript.json"), JSON.stringify({
     schema_version: 1,
     turns: [
-      { id: "turn-1", final_text: "waiting", skill_read: true, workspace: { manifest: empty, changed_paths: [] } },
-      { id: "turn-2", final_text: "authorized", skill_read: false, workspace: { manifest: created, changed_paths: ["authorized.txt"] } },
+      { id: "turn-1", final_text: "waiting", skill_read: true, skill_reads: { "base-skill": true, "target-skill": false }, workspace: { manifest: empty, changed_paths: [] } },
+      { id: "turn-2", final_text: "authorized", skill_read: true, skill_reads: { "base-skill": false, "target-skill": true }, workspace: { manifest: created, changed_paths: ["authorized.txt"] } },
     ],
   }));
   const grade = await gradeObjectiveRun(run);

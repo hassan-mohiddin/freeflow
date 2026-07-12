@@ -20,4 +20,10 @@ Separate these roles:
 
 A case may combine classes. Semantic judgment is a grading method, not a class.
 
+## Composition Evidence
+
+A supported Pi composition case has one ordered immutable base stack and one target skill whose reference and candidate snapshots are the only difference. It may add the exact declared Freeflow kernel/Workflow runtime. Record declaration, materialization, delivery, observed read/activation, and followed behavior separately.
+
+Composition supports one shot or two-to-four fixed turns. It does not prove adaptive conversation, more than four turns, another host, or every included skill's readiness. Never substitute a concatenated skill or ambient installation for declared composition evidence.
+
 Preflight blocks an unavailable required class. Unsupported requested evidence may remain a limitation only when the case explicitly tests honest unsupported-capability behavior; it cannot silently satisfy another claim.

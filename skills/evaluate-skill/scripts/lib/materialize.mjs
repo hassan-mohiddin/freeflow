@@ -32,9 +32,10 @@ export async function materializeSkillVariant(repoRoot, variant, destination) {
       await cp(source, target, { recursive: info.isDirectory(), force: true, preserveTimestamps: true });
     }
   } else if (variant.kind === "git") {
-    const prefix = `${variant.path.replace(/\/$/, "")}/`;
+    const root = variant.path.replace(/\/$/, "") === "." ? "" : variant.path.replace(/\/$/, "");
+    const prefix = root ? `${root}/` : "";
     for (const resource of resources) {
-      const fullResource = `${variant.path.replace(/\/$/, "")}/${resource}`;
+      const fullResource = root ? `${root}/${resource}` : resource;
       const raw = runGit(repoRoot, ["ls-tree", "-r", "-z", "--full-tree", variant.revision, "--", fullResource], { encoding: "buffer" });
       const records = Buffer.from(raw).toString("utf8").split("\0").filter(Boolean);
       if (records.length === 0) throw new Error(`Missing git subject resource: ${variant.revision}:${fullResource}`);
@@ -42,8 +43,8 @@ export async function materializeSkillVariant(repoRoot, variant, destination) {
         const [header, fullPath] = record.split("\t");
         const [mode, type] = header.split(" ");
         if (type !== "blob" || mode === "120000") throw new Error(`Unsupported git subject resource: ${mode} ${type} ${fullPath}`);
-        if (!fullPath.startsWith(prefix)) throw new Error(`Unexpected git path outside variant: ${fullPath}`);
-        const relativePath = fullPath.slice(prefix.length);
+        if (prefix && !fullPath.startsWith(prefix)) throw new Error(`Unexpected git path outside variant: ${fullPath}`);
+        const relativePath = prefix ? fullPath.slice(prefix.length) : fullPath;
         const target = resolve(destination, relativePath);
         await mkdir(dirname(target), { recursive: true });
         const content = spawnSync("git", ["show", `${variant.revision}:${fullPath}`], { cwd: repoRoot, encoding: null, maxBuffer: 16 * 1024 * 1024 });
@@ -56,6 +57,32 @@ export async function materializeSkillVariant(repoRoot, variant, destination) {
     throw new Error(`Cannot materialize variant kind: ${variant.kind}`);
   }
   await makeReadOnly(destination);
+}
+
+export async function materializeCompositionVariant(repoRoot, composition, targetVariant, destination) {
+  await mkdir(destination, { recursive: true });
+  const skillSnapshots = [];
+  for (const component of [...composition.base_stack, { ...targetVariant, name: composition.target_name }]) {
+    const path = resolve(destination, "skills", component.name);
+    await materializeSkillVariant(repoRoot, component, path);
+    skillSnapshots.push({ name: component.name, path, resources: component.resources });
+  }
+
+  let runtime = null;
+  if (composition.runtime) {
+    const path = resolve(destination, "runtime");
+    await materializeSkillVariant(repoRoot, composition.runtime, path);
+    runtime = {
+      profile: composition.runtime.profile,
+      path,
+      resources: composition.runtime.resources,
+      kernel: composition.runtime.kernel,
+      workflow: composition.runtime.workflow,
+    };
+  }
+
+  await makeReadOnly(destination);
+  return { skill_snapshots: skillSnapshots, runtime };
 }
 
 export async function makeReadOnly(path) {

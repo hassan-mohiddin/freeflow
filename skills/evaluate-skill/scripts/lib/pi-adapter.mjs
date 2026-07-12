@@ -38,7 +38,17 @@ export async function prepareIsolatedPiConfig(configDir, env = process.env) {
   } catch {}
 }
 
-export function buildPiInvocation({ prompt, provider, model, thinking, tools, skillSnapshot }) {
+function normalizedSkillSnapshots(skillSnapshot, skillSnapshots) {
+  if (Array.isArray(skillSnapshots) && skillSnapshots.length > 0) return skillSnapshots;
+  return skillSnapshot ? [{ name: null, path: skillSnapshot }] : [];
+}
+
+function appendDeclaredResources(args, { skillSnapshot, skillSnapshots, runtimeExtension }) {
+  if (runtimeExtension) args.push("--extension", runtimeExtension);
+  for (const snapshot of normalizedSkillSnapshots(skillSnapshot, skillSnapshots)) args.push("--skill", snapshot.path);
+}
+
+export function buildPiInvocation({ prompt, provider, model, thinking, tools, skillSnapshot, skillSnapshots, runtimeExtension }) {
   if (!provider || !model || !thinking) throw new Error("Pi runs require provider, model, and thinking");
   const args = [
     "--mode", "json",
@@ -58,12 +68,12 @@ export function buildPiInvocation({ prompt, provider, model, thinking, tools, sk
   ];
   if (tools.length === 0) args.push("--no-tools");
   else args.push("--tools", tools.join(","));
-  if (skillSnapshot) args.push("--skill", skillSnapshot);
+  appendDeclaredResources(args, { skillSnapshot, skillSnapshots, runtimeExtension });
   args.push(prompt.startsWith("-") ? ` ${prompt}` : prompt);
   return { command: "pi", args };
 }
 
-export function buildPiRpcInvocation({ provider, model, thinking, tools, skillSnapshot }) {
+export function buildPiRpcInvocation({ provider, model, thinking, tools, skillSnapshot, skillSnapshots, runtimeExtension }) {
   if (!provider || !model || !thinking) throw new Error("Pi RPC runs require provider, model, and thinking");
   const args = [
     "--mode", "rpc",
@@ -82,7 +92,7 @@ export function buildPiRpcInvocation({ provider, model, thinking, tools, skillSn
   ];
   if (tools.length === 0) args.push("--no-tools");
   else args.push("--tools", tools.join(","));
-  if (skillSnapshot) args.push("--skill", skillSnapshot);
+  appendDeclaredResources(args, { skillSnapshot, skillSnapshots, runtimeExtension });
   return { command: "pi", args };
 }
 
@@ -132,7 +142,7 @@ function textFromContent(content) {
   return content.filter((part) => part?.type === "text" && typeof part.text === "string").map((part) => part.text).join("\n");
 }
 
-export function parsePiJsonEvents(raw, { skillSnapshot } = {}) {
+export function parsePiJsonEvents(raw, { skillSnapshot, skillSnapshots } = {}) {
   const events = [];
   const parseErrors = [];
   for (const [index, line] of raw.split("\n").entries()) {
@@ -178,11 +188,17 @@ export function parsePiJsonEvents(raw, { skillSnapshot } = {}) {
     tool_name: event.toolName,
     args: event.args,
   }));
-  const normalizedSkill = skillSnapshot ? resolve(skillSnapshot, "SKILL.md") : null;
-  const skillRead = normalizedSkill !== null && toolEvents.some((event) => {
-    if (event.tool_name !== "read" || typeof event.args?.path !== "string") return false;
-    return resolve(event.args.path.replace(/^@/, "")) === normalizedSkill;
-  });
+  const declaredSkills = normalizedSkillSnapshots(skillSnapshot, skillSnapshots);
+  const skillReads = Object.fromEntries(declaredSkills.map((snapshot, index) => {
+    const name = snapshot.name ?? `subject-${index + 1}`;
+    const skillFile = resolve(snapshot.path, "SKILL.md");
+    const observed = toolEvents.some((event) => {
+      if (event.tool_name !== "read" || typeof event.args?.path !== "string") return false;
+      return resolve(event.args.path.replace(/^@/, "")) === skillFile;
+    });
+    return [name, observed];
+  }));
+  const skillRead = Object.values(skillReads).some(Boolean);
 
   return {
     events,
@@ -191,12 +207,13 @@ export function parsePiJsonEvents(raw, { skillSnapshot } = {}) {
     usage: hasUsage ? usage : null,
     tool_events: toolEvents,
     skill_read: skillRead,
+    skill_reads: skillReads,
   };
 }
 
-export async function runPiSubject({ prompt, provider, model, thinking, tools, skillSnapshot, workspace, configDir, readRoots, writeRoots, timeoutMs, outputLimitBytes, transportLimitBytes, maxTurns, signal }) {
+export async function runPiSubject({ prompt, provider, model, thinking, tools, skillSnapshot, skillSnapshots, runtimeExtension, runtimeEnvironment = {}, workspace, configDir, readRoots, writeRoots, timeoutMs, outputLimitBytes, transportLimitBytes, maxTurns, signal }) {
   await prepareIsolatedPiConfig(configDir);
-  const invocation = buildPiInvocation({ prompt, provider, model, thinking, tools, skillSnapshot });
+  const invocation = buildPiInvocation({ prompt, provider, model, thinking, tools, skillSnapshot, skillSnapshots, runtimeExtension });
   const counterPath = resolve(configDir, "runtime-counters.json");
   const env = {
     ...process.env,
@@ -205,6 +222,7 @@ export async function runPiSubject({ prompt, provider, model, thinking, tools, s
     FREEFLOW_EVAL_ROOT_POLICY: JSON.stringify({ read_roots: readRoots, write_roots: writeRoots }),
     FREEFLOW_EVAL_COUNTER_PATH: counterPath,
     FREEFLOW_EVAL_MAX_TURNS: String(maxTurns ?? 0),
+    ...runtimeEnvironment,
   };
   const processResult = await runProcess(invocation.command, invocation.args, {
     cwd: workspace,
@@ -215,7 +233,7 @@ export async function runPiSubject({ prompt, provider, model, thinking, tools, s
     stdoutLineTransform: compactPiJsonLine,
     signal,
   });
-  const parsed = parsePiJsonEvents(processResult.stdout, { skillSnapshot });
+  const parsed = parsePiJsonEvents(processResult.stdout, { skillSnapshot, skillSnapshots });
   let runtimeCounters = { provider_requests: parsed.events.filter((event) => event.type === "turn_start").length, turns_started: parsed.events.filter((event) => event.type === "turn_start").length, tool_calls: parsed.tool_events.length, hard_turn_limit_reached: false };
   try { runtimeCounters = JSON.parse(await readFile(counterPath, "utf8")); } catch {}
   return { invocation, process: processResult, parsed, runtime_counters: runtimeCounters };
@@ -295,6 +313,9 @@ export async function runPiRpcSubject({
   thinking,
   tools,
   skillSnapshot,
+  skillSnapshots,
+  runtimeExtension,
+  runtimeEnvironment = {},
   workspace,
   configDir,
   readRoots,
@@ -309,7 +330,7 @@ export async function runPiRpcSubject({
   startClient = startRpcClient,
 }) {
   await prepareIsolatedPiConfig(configDir);
-  const invocation = buildPiRpcInvocation({ provider, model, thinking, tools, skillSnapshot });
+  const invocation = buildPiRpcInvocation({ provider, model, thinking, tools, skillSnapshot, skillSnapshots, runtimeExtension });
   const counterPath = resolve(configDir, "runtime-counters.json");
   const env = {
     ...process.env,
@@ -318,6 +339,7 @@ export async function runPiRpcSubject({
     FREEFLOW_EVAL_ROOT_POLICY: JSON.stringify({ read_roots: readRoots, write_roots: writeRoots }),
     FREEFLOW_EVAL_COUNTER_PATH: counterPath,
     FREEFLOW_EVAL_MAX_TURNS: String(maxTurns ?? 0),
+    ...runtimeEnvironment,
   };
 
   let client = null;
@@ -329,8 +351,13 @@ export async function runPiRpcSubject({
   let previousUsage = null;
   let previousCounters = { provider_requests: 0, turns_started: 0, tool_calls: 0, hard_turn_limit_reached: false };
   const settledTurns = [];
-  const normalizedSkill = skillSnapshot ? resolve(skillSnapshot, "SKILL.md") : null;
-  const skillReadForEvents = (events) => normalizedSkill !== null && events.some((event) => event.tool_name === "read" && typeof event.args?.path === "string" && resolve(event.args.path.replace(/^@/, "")) === normalizedSkill);
+  const declaredSkills = normalizedSkillSnapshots(skillSnapshot, skillSnapshots);
+  const skillReadsForEvents = (events) => Object.fromEntries(declaredSkills.map((snapshot, index) => {
+    const name = snapshot.name ?? `subject-${index + 1}`;
+    const skillFile = resolve(snapshot.path, "SKILL.md");
+    const observed = events.some((event) => event.tool_name === "read" && typeof event.args?.path === "string" && resolve(event.args.path.replace(/^@/, "")) === skillFile);
+    return [name, observed];
+  }));
   try {
     client = await startClient(invocation.command, invocation.args, {
       cwd: workspace,
@@ -384,8 +411,9 @@ export async function runPiRpcSubject({
         settled_at: endedAt.toISOString(),
         duration_ms: endedAt.getTime() - startedAt.getTime(),
         workspace: null,
-        skill_read: skillReadForEvents(toolsForTurn),
+        skill_reads: skillReadsForEvents(toolsForTurn),
       };
+      turnEvidence.skill_read = Object.values(turnEvidence.skill_reads).some(Boolean);
       turnEvidence.workspace = await onTurnSettled(turnEvidence);
       settledTurns.push(turnEvidence);
       previousLeaf = entriesData.leafId ?? previousLeaf;
@@ -412,7 +440,8 @@ export async function runPiRpcSubject({
   if (!processResult) throw new Error(operationError ?? "Pi RPC process did not start");
   const runtimeCounters = await readRuntimeCounters(counterPath, previousCounters);
   const allToolEvents = settledTurns.flatMap((turn) => turn.tool_events);
-  const skillRead = skillReadForEvents(allToolEvents);
+  const skillReads = skillReadsForEvents(allToolEvents);
+  const skillRead = Object.values(skillReads).some(Boolean);
   canonicalRetainedBytes = Buffer.byteLength(`${JSON.stringify({ schema_version: 1, turns: settledTurns }, null, 2)}\n`);
   if (canonicalRetainedBytes > outputLimitBytes) {
     canonicalOutputLimitExceeded = true;
@@ -436,6 +465,7 @@ export async function runPiRpcSubject({
       usage: previousUsage,
       tool_events: allToolEvents,
       skill_read: skillRead,
+      skill_reads: skillReads,
       turns: settledTurns,
     },
     runtime_counters: runtimeCounters,
@@ -447,8 +477,9 @@ export function redactedInvocation(invocation) {
   const modeIndex = args.indexOf("--mode");
   if (args[modeIndex + 1] !== "rpc" && args.length > 0) args[args.length - 1] = "<natural-prompt>";
   for (const flag of ["--extension", "--skill"]) {
-    const index = args.indexOf(flag);
-    if (index >= 0 && index + 1 < args.length) args[index + 1] = `<${flag.slice(2)}>`;
+    for (let index = 0; index < args.length; index += 1) {
+      if (args[index] === flag && index + 1 < args.length) args[index + 1] = `<${flag.slice(2)}>`;
+    }
   }
   return { command: invocation.command, args };
 }
