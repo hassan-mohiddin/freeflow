@@ -110,7 +110,28 @@
         "ESK-001",
         "ESK-002",
         "ESK-003"
-      ]
+      ],
+      "status": "production-ready",
+      "readiness": {
+        "support_id": "pi-0.80.6-openai-codex-gpt-5.5-high",
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "execution_modes": [
+          "one-shot",
+          "fixed-script-two-turn"
+        ],
+        "report": ".skill-eval/evaluate-skill/reports/production-readiness.md",
+        "unsupported": [
+          "other-hosts",
+          "other-models",
+          "other-pi-versions",
+          "adaptive-conversation",
+          "session-recovery"
+        ]
+      }
     },
     "execute-plan": {
       "evals": [
@@ -249,7 +270,28 @@
     "write-skill": {
       "evals": [
         "WSK-001"
-      ]
+      ],
+      "status": "production-ready",
+      "readiness": {
+        "support_id": "pi-0.80.6-openai-codex-gpt-5.5-high",
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "execution_modes": [
+          "one-shot",
+          "fixed-script-two-turn"
+        ],
+        "report": ".skill-eval/evaluate-skill/reports/production-readiness.md",
+        "unsupported": [
+          "other-hosts",
+          "other-models",
+          "other-pi-versions",
+          "adaptive-conversation",
+          "session-recovery"
+        ]
+      }
     },
     "write-spec": {
       "evals": [

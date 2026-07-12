@@ -5,7 +5,7 @@ description: Create or revise agent skills. Use when defining a skill's trigger 
 
 # Write Skill
 
-> Status: Unverified v2 candidate
+> Status: Production-Ready for Pi 0.80.6 with `openai-codex/gpt-5.5`, high thinking, for one-shot and fixed-script two-turn evaluation; other hosts, models, Pi versions, adaptive conversations, and session recovery remain Unverified.
 
 Write the smallest agent-first skill that changes the target behavior.
 

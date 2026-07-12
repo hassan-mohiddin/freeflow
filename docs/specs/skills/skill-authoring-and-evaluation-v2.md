@@ -3,9 +3,9 @@
 > **Revised:** 2026-07-12
 > **Owner:** Hassan Mohiddin
 > **Type:** Spec
-> **Status:** Accepted configuration-bound promotion contract; qualification evidence pending
+> **Status:** Production-Ready for the accepted configuration boundary
 > **Source:** Live implementation and saved evidence; `docs/handoffs/workflow-and-skills/2026-07-11-implementation-scope-drift-and-replanning.md`; `.skill-eval/evaluate-skill/reports/bootstrap-acceptance.md`; `.skill-eval/decision-gate/reports/rpc-acceptance.md`; `.skill-eval/evaluate-skill/reports/codex-diagnostic.md`; `docs/plans/skills/2026-07-11-skill-evaluation-readiness-rpc-codex-history-plan.md`; `docs/plans/skills/2026-07-12-skill-authoring-evaluation-production-readiness-plan.md`; owner-approved configuration-bound promotion target
-> **Implementation:** Promotion cases `WSK2-006` and `ESK2-009` are deterministically verified and reviewed; no promotion model run or status change has occurred; both developer skills remain Unverified
+> **Implementation:** Promotion evidence is accepted and linked from `.skill-eval/evaluate-skill/reports/production-readiness.md`; both developer skills carry the configuration-bound Production-Ready status
 
 # Skill Authoring And Evaluation V2
 
@@ -19,7 +19,7 @@ The owner selected a deeper outcome-level design:
 
 > One command evaluates one case. It performs deterministic preflight internally, stops before provider execution when unsafe or unresolved, otherwise runs the complete case and publishes one trusted result bundle.
 
-The one-shot implementation and constrained Pi dogfooding are accepted at `aaff253`. The configuration-bound follow-up in the acceptance report records two complete observations for the designated readiness cases. Both developer skills remain Unverified.
+The one-shot implementation and constrained Pi dogfooding are accepted at `aaff253`. The configuration-bound promotion evidence is accepted in `.skill-eval/evaluate-skill/reports/production-readiness.md`. Both developer skills are Production-Ready only for the exact boundary named there; all other configurations remain Unverified.
 
 The fixed-script Pi RPC section below records the implemented owner-approved contract. Its internal acceptance is configuration-bound to the exact evidence in `.skill-eval/decision-gate/reports/rpc-acceptance.md`:
 
@@ -1582,3 +1582,4 @@ Fresh Phase 1 evidence: 127 deterministic tests passed, both skills structurally
 - 2026-07-12: Accepted the documentary historical-evidence extension after indexing 86 reports, auditing 352 ignored references, correcting all semantic outcome excerpts, and preserving zero current readiness authority.
 - 2026-07-12: Added the draft configuration-bound Production-Ready promotion contract for both developer skills; no status or paid run changed yet.
 - 2026-07-12: Accepted the promotion contract and reviewed decisive fixed two-turn cases after 127 deterministic tests; both statuses remain Unverified pending qualification.
+- 2026-07-12: Accepted the configuration-bound Production-Ready evidence after the final `ESK2-010` whole-case rerun comparison improved, all 14 final bundles passed fresh integrity verification, 127 deterministic tests passed, and independent evidence review returned Pass. Readiness report: `.skill-eval/evaluate-skill/reports/production-readiness.md`.

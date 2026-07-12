@@ -2,7 +2,7 @@
 
 > **Doc ID:** PLAN-SKILLS-2026-07-12-PRODUCTION-READINESS
 > **Date:** 2026-07-12
-> **Status:** Active — measured ESK2-010 wording fix approved; replacement preview next
+> **Status:** Complete — configuration-bound Production-Ready evidence accepted and finalized
 > **Owner:** Hassan
 > **Source:** `docs/specs/skills/skill-authoring-and-evaluation-v2.md`; live `.skill-eval` cases and accepted bundles; `.skill-eval/evaluate-skill/reports/bootstrap-acceptance.md`; `.skill-eval/decision-gate/reports/rpc-acceptance.md`; owner request to complete configuration-bound Production-Ready promotion
 
@@ -504,8 +504,13 @@ The plan is complete only when:
 - `.freeflow/config.json` and unrelated user work remain untouched;
 - no release, packaging, cross-host, model-independent, or inherited readiness claim is made.
 
-## Next Executable Route
+## Completion
 
-Review and commit the measured `evaluate-skill` Route First fix plus its honest evidence-contract update. Then reapply the conditional status lines and generate the exact replacement `ESK2-010` preview.
+Replacement `ESK2-010` completed with `comparison_verdict: "improved"` and every candidate assertion passing:
 
-Stop before the paid replacement and present its fingerprint, two-process/16-turn maximum, `$0.50` soft ceiling, `$11.85` total developmental soft-ceiling exposure, `$3.355424` observed cost, expected `$0.08–$0.15` added cost, and lack of an aggregate hard cap for explicit owner approval.
+- `.skill-eval/evaluate-skill/runs/evaluations/20260712111622191-esk2-010-9dadf21e38/`
+- 8 provider requests, 16,982 tokens, `$0.082354`.
+
+Final developmental accounting is 229 provider requests, 631,037 tokens, and `$3.437778`. All 14 accepted final bundles passed fresh integrity verification; 123 evaluator tests and 4 author tests passed; both skills structurally validated; independent evidence review returned Pass at `/tmp/freeflow-production-final-evidence-review-20260712.md` (SHA-256 `db8996edba7f13e0db0f6ece5d068f85c9d5fcb5521a61fec566acd55fb56e25`).
+
+The two bounded status lines, readiness report, owning specification, and registry metadata are the durable completion surfaces. No packaging, release, publication, deployment, cross-host claim, or inherited readiness follows.
