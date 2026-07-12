@@ -112,27 +112,32 @@
         "ESK-002",
         "ESK-003"
       ],
-      "status": "unverified",
-      "prior_readiness": {
-        "status": "production-ready",
-        "source_revision": "ed146f0",
-        "support_id": "pi-0.80.6-openai-codex-gpt-5.5-high",
+      "status": "production-ready",
+      "readiness": {
+        "source_revision": "615397c745ebb00dd7e2c71b8d4ebf824831be02",
+        "support_id": "pi-0.80.6-openai-codex-gpt-5.5-high-composition-v1",
         "host": "pi",
         "host_version": "0.80.6",
         "provider": "openai-codex",
         "model": "gpt-5.5",
         "thinking": "high",
         "execution_modes": [
-          "one-shot",
-          "fixed-script-two-turn"
+          "one-skill-one-shot",
+          "one-skill-fixed-two-turn",
+          "declared-composition-one-shot",
+          "declared-composition-fixed-two-to-four-turn"
         ],
-        "report": ".skill-eval/evaluate-skill/reports/production-readiness.md",
+        "report": ".skill-eval/evaluate-skill/reports/composition-extension-readiness.md",
+        "previous_report": ".skill-eval/evaluate-skill/reports/production-readiness.md",
         "unsupported": [
           "other-hosts",
           "other-models",
           "other-pi-versions",
           "adaptive-conversation",
-          "session-recovery"
+          "more-than-four-scripted-turns",
+          "session-recovery",
+          "cache-resume-batching-concurrency-partial-reuse",
+          "uncapped-execution"
         ]
       }
     },

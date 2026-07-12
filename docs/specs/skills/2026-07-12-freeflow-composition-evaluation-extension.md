@@ -4,8 +4,9 @@
 > **Date:** 2026-07-12
 > **Owner:** Hassan Mohiddin
 > **Type:** Spec
-> **Status:** Approved
+> **Status:** Implemented
 > **Source:** `docs/specs/skills/skill-authoring-and-evaluation-v2.md`; accepted evaluator implementation and evidence; Output Router and Delegation review-loop incident handoffs; owner-approved post-overhaul evaluation direction
+> **Implementation:** Configuration-bound acceptance recorded in `.skill-eval/evaluate-skill/reports/composition-extension-readiness.md`
 
 ## Problem
 

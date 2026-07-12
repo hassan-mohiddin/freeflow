@@ -290,6 +290,15 @@ The accepted claim must name the exact Pi/model/thinking boundary and one-shot/t
 
 Do not begin incident provider runs until composition delivery, four-turn evidence, exact-source evaluator regressions, integrity, and independent evidence review pass.
 
+Phase 2 passed on 2026-07-12:
+
+- `WFC2-001` and `WFC2-002` improved with every candidate assertion passing;
+- the complete accepted `write-skill` and `evaluate-skill` regression suites passed on exact current source;
+- all 16 bundles passed fresh integrity verification;
+- provider-backed qualification used 137 requests, 428,580 tokens, and `$1.917456`;
+- independent evidence review passed without findings;
+- configuration-bound evaluator acceptance is recorded in `.skill-eval/evaluate-skill/reports/composition-extension-readiness.md`.
+
 ## Phase 3 — Incident Fixture Extraction
 
 ### Slice 3.1 — Freeze Forensic Source Manifests
