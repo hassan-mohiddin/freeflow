@@ -46,6 +46,10 @@ require_text "$kernel" 'sets, resets, infers, or asks about Freeflow mode'
 require_text "$kernel" 'Respond concisely, directly, and with high information density, at the depth the user requests.'
 require_text "$kernel" 'Do not narrate routine tool use'
 require_text "$kernel" 'Clarity overrides brevity'
+require_text "$kernel" 'verify what the evidence directly proves and whether the route still holds'
+require_text "$kernel" 'Treat repeated defects at the same invariant'
+require_text "$kernel" 'Preserve valid work and re-enter the narrowest owning activity before editing again'
+require_text "$kernel" 'do not patch forward because work has already begun.'
 require_text "$workflow_skill" 'The runtime kernel owns turn interpretation'
 require_text "$agents_file" 'Do not add enforcement hooks until'
 require_text "$runtime_doc" 'activation-contract.md'
@@ -61,6 +65,9 @@ fi
 for file in "$workflow_skill" "$agents_file"; do
   if grep -Fq 'Respond concisely, directly, and with high information density' "$file"; then
     fail "$file duplicates the concise-output contract owned by the runtime kernel"
+  fi
+  if grep -Fq 'Treat repeated defects at the same invariant' "$file"; then
+    fail "$file duplicates the route-pressure contract owned by the runtime kernel"
   fi
 done
 

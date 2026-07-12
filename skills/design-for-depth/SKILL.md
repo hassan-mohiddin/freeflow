@@ -27,6 +27,8 @@ Read [software design philosophy](references/software-design-philosophy.md) when
 
 ## Structural Pressure Loop
 
+For work that issues or redeems authority, publishes canonical or durable evidence, depends on atomic visibility, or must reconcile post-commit failure or cancellation, run this loop before implementation. Name, as applicable, the trust anchor, mutable state, authority or capability binding, visibility point, diagnostic state, forbidden outcomes, and recovery contract. Use applicable repo or domain security guidance for specialist techniques; this lens does not replace threat modeling.
+
 When pressure changes the route:
 
 1. **Name the outcome.** What complete result should the caller request?
@@ -79,7 +81,7 @@ Code can produce design evidence. Exploratory code does not become production ar
 
 Stop local patching when:
 
-- a second unexpected defect appears at the same seam;
+- a second accepted defect exposes another branch, caller, adapter, or persisted-state consequence of the same invariant;
 - fixes add caller knowledge, public states, flags, or recovery rules;
 - tests increasingly target lifecycle machinery introduced by earlier fixes;
 - a narrow slice requires an unplanned subsystem;

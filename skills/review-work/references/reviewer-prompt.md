@@ -11,7 +11,8 @@ Provide:
 - changed files, diff range, or concrete work product;
 - claimed verification and known evidence gaps;
 - relevant risk lenses;
-- review pass number.
+- review pass number;
+- for stateful or proof-bearing work: each claim's exact observer, canonical state, forbidden mutations, prior-state preservation, and fidelity limit.
 
 For pass 2 or 3, also provide:
 
@@ -46,6 +47,7 @@ Review the completed work. Do not edit files.
 
 - [commands or checks already run]
 - [known gaps]
+- [for stateful or proof-bearing claims: exact observer, canonical state, forbidden mutations, prior-state preservation, and fidelity limit]
 
 ## Review Pass
 
@@ -70,7 +72,7 @@ For pass 2 or 3:
 - Remaining work is shrinking and the claimed next route still fits the evidence.
 - For security-sensitive work, use `security-risk-lens.md` and applicable repo/domain policy rather than a generic checklist.
 
-For follow-up review, inspect accepted fixes and named residual risk. Do not restart broad review, reopen settled decisions, or re-raise rejected findings without contradictory live evidence.
+For follow-up review, inspect accepted fixes and named residual risk. Do not restart broad review, reopen settled decisions, or re-raise rejected findings without contradictory live evidence. If pass 2 exposes another branch, caller, adapter, or persisted-state consequence of the same invariant, report the failure unit as unstable and recommend design or diagnosis rather than another local fix batch.
 
 ## Finding Standard
 

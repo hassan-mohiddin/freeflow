@@ -25,6 +25,8 @@ Give the reviewer the work product and source truth, not only the author's summa
 - claimed verification and known gaps;
 - risk lenses that matter for this change.
 
+For stateful or proof-bearing work, include a compact claim map: claim, exact observing mechanism, canonical state, forbidden mutations, prior-state preservation, and known fidelity limit. Use `../verify-work/SKILL.md` to prepare integration evidence when registration, host dispatch, producer execution, fallback, installed artifacts, counters, or shared verification state matter.
+
 Read [the reviewer prompt](references/reviewer-prompt.md) when preparing review context, reviewing strict or high-risk work, or running review pass 2 or 3.
 
 ## Review
@@ -127,6 +129,8 @@ Provide:
 - the narrow residual risk still requiring review.
 
 Inspect accepted fixes and named residual risk. Do not rerun the original broad review, reopen settled decisions, or re-raise rejected findings without contradictory live evidence.
+
+If pass 2 exposes another branch, caller, adapter, or persisted-state consequence of the same invariant, the failure unit is unstable. Stop the follow-up patch loop and route through design or diagnosis before another fix batch.
 
 ## Review Budget
 

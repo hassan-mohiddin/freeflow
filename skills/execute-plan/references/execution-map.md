@@ -32,6 +32,7 @@ Slice outcome:
 Source requirement / acceptance:
 Type: learning | delivery | deepening
 Module / interface / seam:
+Semantic failure unit and observing boundary when relevant:
 Behavior, experiment, test, or benchmark:
 Failure contract when relevant:
 Verification:
@@ -115,7 +116,7 @@ Choose one route:
 
 Route backward when:
 
-- a second unexpected defect appears at one seam;
+- an accepted defect reveals another branch, caller, adapter, or persisted-state consequence of the same invariant;
 - caller knowledge, public states, flags, retries, or test setup keep growing;
 - a slice requires an unplanned subsystem;
 - deferred scope enters the active milestone;

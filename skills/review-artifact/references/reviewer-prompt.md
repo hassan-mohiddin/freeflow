@@ -58,6 +58,7 @@ For pass 2 or 3:
 - Identity: ownership, status, sources, and history are proportionate to durability and risk.
 - Implementation risk: omissions will not cause wrong work, hidden decisions, or an implementation dead end.
 - Design depth: interfaces and seams hide complexity rather than spreading caller coordination.
+- Failure-unit integrity for stateful or proof-bearing work: each immediate slice owns one semantic outcome and its accepted, rejected, post-commit, and recovery behavior; required authority or canonicalization is not deferred behind dependent callers or adapters.
 - Scope and minimality: the artifact solves the accepted outcome without quietly generalizing the milestone.
 - Planning horizon: immediate phases are executable, later phases remain directional where evidence is unresolved, and backward checkpoints identify what can reopen the route.
 - Adversarial risk: stale assumptions or source-truth overrides cannot be smuggled into execution.

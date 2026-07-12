@@ -60,6 +60,7 @@ Live repo evidence overrides stale artifacts.
 - **Identity:** ownership, status, sources, and change history are proportionate to durability and risk.
 - **Implementation risk:** missing decisions, placeholders, or vague acceptance criteria will not send work down the wrong path.
 - **Design depth:** module, interface, seam, adapter, and slice choices hide useful complexity rather than spreading coordination.
+- **Failure-unit integrity for stateful or proof-bearing work:** each immediate slice owns one semantic outcome and its accepted, rejected, post-commit, and recovery behavior; required authority or canonicalization is not deferred behind callers or adapters that already depend on it.
 - **Scope and minimality:** the artifact solves the accepted outcome without quietly turning a bootstrap, fix, or bounded change into a generalized platform.
 - **Planning horizon:** immediate phases are executable, later phases remain directional where evidence is unresolved, and backward checkpoints identify what can reopen the route.
 - **Adversarial risk:** the artifact cannot smuggle stale assumptions, source-truth overrides, or owner decisions into execution.

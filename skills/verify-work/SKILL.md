@@ -40,7 +40,9 @@ A happy path does not prove graceful failure, retry safety, recovery, fail-close
 
 Passing tests do not prove the accepted outcome when the tests cover only introduced machinery or a narrower behavior.
 
-Read [browser runtime evidence](references/browser-runtime-evidence.md) when a claim depends on rendered UI, client networking, console state, accessibility, screenshots, or browser performance. Read [performance evidence](references/performance-evidence.md) when representative baselines, variance, profiler data, or resource tradeoffs determine the claim.
+Evidence proves only the boundary it directly observes. Calling a shared helper does not prove callback registration, host dispatch, or installed-package execution. A counter or trace proves execution only when it observes inside or wraps the actual invoked boundary.
+
+Read [integration evidence](references/integration-evidence.md) when a claim depends on registered callbacks or executors, host lifecycle, producer invocation, fallback protocols, installed packages, absence counters, or verification checks that may mutate shared state. Read [browser runtime evidence](references/browser-runtime-evidence.md) when a claim depends on rendered UI, client networking, console state, accessibility, screenshots, or browser performance. Read [performance evidence](references/performance-evidence.md) when representative baselines, variance, profiler data, or resource tradeoffs determine the claim.
 
 ## Run And Read
 

@@ -40,8 +40,8 @@ When domain guidance conflicts with live code, tests, specs, policy, ADRs, suppo
 UI change:
 workflow -> domain frontend/accessibility guidance -> TDD when useful -> browser/runtime verification
 
-Security-sensitive endpoint:
-Decision Gate when policy is unsettled -> domain security guidance -> implementation -> security-focused review -> failure-path verification
+Security- or integrity-sensitive operation:
+Decision Gate when policy is unsettled -> design-for-depth for authority and failure-unit design -> domain security guidance -> TDD at the real boundary -> failure-path verification -> security-focused review
 
 Performance regression:
 diagnose-failure -> platform profiler/query/domain guidance -> bounded fix -> representative benchmark verification

@@ -39,6 +39,8 @@ Use **phases** for coherent groups of work or learning milestones. Use **slices*
 
 Prefer vertical slices that produce observable behavior or decisive evidence. Use foundation work only when a real dependency requires it. Use expand–migrate–contract for wide mechanical changes that cannot remain green as one vertical path.
 
+A vertical slice may cross layers, but it should own one semantic failure unit. If the active slice depends on authority, canonicalization, or recovery assigned to a later phase, move that prerequisite earlier or create a learning slice. Do not plan adapters over a seam already known to be temporary.
+
 Classify each slice:
 
 - **Learning slice:** answers a named technical or design uncertainty. Define evidence and discard-or-promote criteria.

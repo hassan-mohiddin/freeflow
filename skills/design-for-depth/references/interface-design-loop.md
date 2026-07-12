@@ -35,6 +35,14 @@ Define:
 - recovery proof;
 - whether partial reuse is a requirement or only an optimization.
 
+For authority-, integrity-, persistence-, or proof-bearing operations, also define:
+
+- trust anchor and which actors can replace it;
+- mutable state and canonical versus diagnostic records;
+- authority or capability binding and replay scope;
+- commit and visibility point;
+- behavior when cancellation, integrity failure, or reconciliation failure occurs after an awaited or committed boundary.
+
 Retry, resume, caching, continuation, and partial reuse are separate capabilities. Durability does not automatically require them.
 
 ## 3. Inventory Caller Knowledge

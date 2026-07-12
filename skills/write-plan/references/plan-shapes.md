@@ -54,6 +54,7 @@ Slice outcome:
 Source requirement / acceptance:
 Type: learning | delivery | deepening
 Likely module / interface / write set:
+Semantic failure unit and authoritative state when relevant:
 Behavior, experiment, test, or benchmark:
 Failure contract when relevant:
 Verification:

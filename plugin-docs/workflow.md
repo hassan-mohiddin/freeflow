@@ -77,7 +77,7 @@ flowchart LR
   Reenter -. resume .-> Decide
 ```
 
-Route to the narrowest activity that owns the invalidated assumption while preserving valid work. The agent should not silently choose the backward destination when the choice changes product behavior, scope, compatibility, public APIs, security, privacy, billing, data loss, permissions, or irreversible architecture; that requires the Decision Gate.
+Route to the narrowest activity that owns the invalidated assumption while preserving valid work. Repeated defects at the same underlying invariant, fixes that widen coordination or scope, and evidence weaker than the claim are route-changing signals rather than pressure to keep patching. The agent should not silently choose the backward destination when the choice changes product behavior, scope, compatibility, public APIs, security, privacy, billing, data loss, permissions, or irreversible architecture; that requires the Decision Gate.
 
 ## Bypass
 

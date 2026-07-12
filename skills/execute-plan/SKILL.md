@@ -53,6 +53,8 @@ Route-change triggers:
 Formal checkpoint if needed: review | commit | handoff | owner
 ```
 
+Before executing a slice that issues or redeems authority, publishes canonical or durable evidence, depends on atomic visibility, or has consequential post-commit, cancellation, or recovery behavior, use `../design-for-depth/SKILL.md` to name the semantic failure unit and observing boundary. Route backward when callers still coordinate canonical versus diagnostic state, commit visibility, capability binding, or post-commit recovery.
+
 Choose local reversible details from repo conventions. Stop when the slice requires behavior, policy, compatibility, public API, security, privacy, billing, permissions, data-loss, migration, or hard-to-reverse architecture that source truth has not settled.
 
 If work is carried out through separate execution contexts, define bounded work packages, dependencies, source context, outputs, checks, and escalation conditions. The active harness owns agents, models, worktrees, parallelism, persistence, timeouts, and transport.
@@ -86,7 +88,7 @@ Continue only when the evidence preserves the current outcome, scope, interface,
 
 Route backward when:
 
-- a second unexpected defect appears at the same seam;
+- an accepted defect reveals another branch, caller, adapter, or persisted-state consequence of the same invariant;
 - fixes keep adding caller knowledge, public states, flags, retries, or test machinery;
 - a slice requires an unplanned subsystem or deferred capability;
 - implementation invalidates earlier evidence or acceptance;

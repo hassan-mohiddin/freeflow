@@ -27,6 +27,28 @@ Prefer observable state, outputs, errors, persisted effects, and caller-visible 
 
 Keep one behavior concept per test. Multiple assertions are fine when they jointly describe one outcome.
 
+## Rejection And Composed Failures
+
+For authority, persistence, canonical evidence, retry, cancellation, or recovery behavior, identify the dimensions that materially change the outcome:
+
+```text
+entry point
+× valid or invalid input
+× empty or existing accepted state
+× pre-commit or post-commit failure
+× first call or retry/replay
+```
+
+Do not expand this into an exhaustive matrix by habit. Select the smallest rows that can disprove the accepted failure contract. For each selected row, assert:
+
+- returned result;
+- allowed writes or effects;
+- forbidden writes or effects;
+- preservation of prior accepted state;
+- required diagnostic or recovery evidence.
+
+When two accepted conditions can coincide, test the composition rather than assuming isolated cases commute. Examples include cancellation plus integrity failure, successful commit plus failed reconciliation, invalid replacement plus existing valid state, or bounded recovery plus continuation redemption.
+
 ## Choose A Test Double
 
 Preference order:

@@ -33,7 +33,7 @@ A good seam:
 
 If the only possible test bypasses the interface, mocks many owned internals, duplicates caller choreography, or needs production test hooks, use `../design-for-depth/SKILL.md` before adding more test machinery.
 
-Read [test design](references/test-design.md) when choosing the test level, introducing fakes/stubs/mocks, characterizing legacy behavior, controlling time or concurrency, or deciding whether test difficulty is design pressure.
+Read [test design](references/test-design.md) when choosing the test level, introducing fakes/stubs/mocks, characterizing legacy behavior, designing rejected-state or composed-failure coverage, controlling time or concurrency, or deciding whether test difficulty is design pressure.
 
 ## One Vertical Loop
 
@@ -59,6 +59,10 @@ Prefer:
 - one behavior per test;
 - descriptive names in domain language;
 - failure-path tests for fail-closed, retry, recovery, degradation, and graceful-failure claims.
+
+For a rejected or fail-closed operation that may write or replace accepted state, the test must assert both the visible rejection and the state boundary: forbidden writes do not occur and, when prior accepted state may exist, it remains unchanged. If rejected diagnostics are required, assert that they remain separate from canonical accepted state.
+
+When security, transactional, cancellation, retry, or recovery conditions can coincide under the accepted failure contract, include one composed case. Do not rely only on isolated single-condition tests.
 
 Do not:
 
