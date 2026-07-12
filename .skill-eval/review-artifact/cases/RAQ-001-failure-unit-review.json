@@ -15,7 +15,7 @@
   "fixture": "fixtures/qualification",
   "variants": [
     {"id": "neutral", "role": "reference", "kind": "git", "revision": "138f16f", "path": ".skill-eval/qualification/subjects/neutral/review-artifact", "resources": ["SKILL.md"]},
-    {"id": "candidate", "role": "candidate", "kind": "git", "revision": "c7cfdba", "path": "skills/review-artifact", "resources": ["SKILL.md", "references/reviewer-prompt.md"]}
+    {"id": "candidate", "role": "candidate", "kind": "git", "revision": "64fe205", "path": "skills/review-artifact", "resources": ["SKILL.md", "references/reviewer-prompt.md"]}
   ],
   "composition": {
     "base_stack": [

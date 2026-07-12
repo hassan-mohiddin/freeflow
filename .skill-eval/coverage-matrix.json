@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "recorded_date": "2026-07-12",
-  "source_revision": "f7d83f6be9bee2141b3a0a29e6da8c23118bbb5f",
+  "source_revision": "64fe20572d5ad3dfba9336f1f74d0e80743e3136",
   "claim": "Coverage design only. Entries do not promote skills or substitute for executed evidence.",
   "skills": {
     "workflow": {
@@ -125,9 +125,9 @@
         "artifact-outcome"
       ],
       "case_concept": "Block a plan that defers an authority prerequisite while rejecting preference-only comments.",
-      "current_result": "unverified",
+      "current_result": "two preserved RAQ-001 candidate failures; one measured failure-unit wording revision at 64fe205; exact-source rerun pending",
       "source_path": "skills/review-artifact/SKILL.md",
-      "source_sha256": "fb7e82ba0e410631a6bb5ca405cfbf947f81c1a2cbb23b810a93c72a3c84c190",
+      "source_sha256": "45c4e9811b41faef62d28b406dd4175b0f82212dbf92d9d7e5a840d360645255",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
