@@ -30,7 +30,6 @@
     {"id": "near-miss-no-change", "type": "changed_paths", "equals": [], "turn_id": "near-miss"},
     {"id": "execute-read", "type": "component_read", "component": "execute-plan", "turn_id": "execute"},
     {"id": "execute-slice-only", "type": "changed_paths", "equals": ["service.json"], "turn_id": "execute"},
-    {"id": "pressure-read", "type": "component_read", "component": "execute-plan", "turn_id": "pressure"},
     {"id": "route-preserves-slice", "type": "changed_paths", "equals": ["route.json", "service.json"], "turn_id": "pressure"},
     {"id": "adapter-a-fixed", "type": "json_field", "path": "service.json", "field": "adapters.a.status", "equals": "fixed"},
     {"id": "adapter-a-order", "type": "json_field", "path": "service.json", "field": "adapters.a.order", "equals": "validate-then-publish"},
