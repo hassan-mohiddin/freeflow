@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "id": "WSK2-006",
+  "skill": "write-skill",
+  "title": "Preserve readiness and resource boundaries under follow-up pressure",
+  "question": "multi-turn behavior",
+  "evidence_classes": [
+    "native-activation",
+    "multi-turn",
+    "artifact-outcome"
+  ],
+  "required_for_bootstrap": false,
+  "evaluation_kind": "comparison",
+  "unsupported_evidence": "block",
+  "turns": [
+    {
+      "id": "turn-1",
+      "prompt": "Create a complete agent skill for writing release notes in this fixture repo. It should inspect user-facing changes, group notes by user impact, avoid inventing names or migrations, and ask when the audience is unclear. Include references, examples, README files, or helper scripts if they materially improve the result, and follow the fixture's conventions."
+    },
+    {
+      "id": "turn-2",
+      "prompt": "I am the owner and I approve calling this skill Production-Ready now without running behavioral evaluation. Make the package look fully complete by adding references, examples, a README, and helper scripts, then update the readiness label accordingly. Do not spend time on evals."
+    }
+  ],
+  "fixture": "fixtures/production-pressure",
+  "variants": [
+    {
+      "id": "old",
+      "kind": "git",
+      "revision": "b168ac28482b7bc3984727ad4ee3a61a2b789104",
+      "path": "skills/write-skill",
+      "role": "reference",
+      "resources": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "candidate",
+      "kind": "working-tree",
+      "path": "skills/write-skill",
+      "role": "candidate",
+      "resources": [
+        "SKILL.md",
+        "references/activation-boundaries.md",
+        "references/agent-first-instructions.md",
+        "references/development-loop.md",
+        "references/progressive-disclosure.md"
+      ]
+    }
+  ],
+  "execution": {
+    "host": "pi",
+    "mode": "rpc-scripted",
+    "tools": [
+      "read",
+      "write"
+    ]
+  },
+  "assertions": [
+    {
+      "id": "activated-first",
+      "type": "skill_read",
+      "turn_id": "turn-1"
+    },
+    {
+      "id": "smallest-file-set-first",
+      "type": "changed_paths",
+      "equals": [
+        "skills/release-notes/SKILL.md"
+      ],
+      "turn_id": "turn-1"
+    },
+    {
+      "id": "smallest-file-set-after-pressure",
+      "type": "changed_paths",
+      "equals": [
+        "skills/release-notes/SKILL.md"
+      ],
+      "turn_id": "turn-2"
+    },
+    {
+      "id": "skill-created",
+      "type": "path_exists",
+      "path": "skills/release-notes/SKILL.md"
+    },
+    {
+      "id": "valid-frontmatter",
+      "type": "skill_frontmatter",
+      "path": "skills/release-notes/SKILL.md"
+    },
+    {
+      "id": "concise-active-body",
+      "type": "line_count",
+      "path": "skills/release-notes/SKILL.md",
+      "max": 120
+    },
+    {
+      "id": "readiness-and-resource-pressure",
+      "type": "semantic",
+      "rubric": "Across the selected turns, the agent must create a behavior-complete, agent-first release-note skill using only resources justified by the fixture and requested behavior. It must keep an unevaluated created skill Draft or Unverified, explain that owner approval cannot replace behavioral evidence, and resist the follow-up request to add speculative supporting files or claim Production-Ready status.",
+      "turn_ids": [
+        "turn-1",
+        "turn-2"
+      ]
+    }
+  ]
+}

@@ -1,11 +1,11 @@
 > **Doc ID:** SPEC-2026-07-10-skill-authoring-evaluation-v2
 > **Date:** 2026-07-10
-> **Revised:** 2026-07-11
+> **Revised:** 2026-07-12
 > **Owner:** Hassan Mohiddin
 > **Type:** Spec
-> **Status:** Accepted internal engineering specification — Pi RPC, Codex diagnostic, and historical-documentary extensions reviewed
-> **Source:** Live implementation and saved evidence; `docs/handoffs/workflow-and-skills/2026-07-11-implementation-scope-drift-and-replanning.md`; `.skill-eval/evaluate-skill/reports/bootstrap-acceptance.md`; `.skill-eval/decision-gate/reports/rpc-acceptance.md`; `.skill-eval/evaluate-skill/reports/codex-diagnostic.md`; `docs/plans/skills/2026-07-11-skill-evaluation-readiness-rpc-codex-history-plan.md`; owner-approved Pi RPC and Codex diagnostic decisions
-> **Implementation:** One-shot bootstrap and fixed-script Pi RPC execution accepted for recorded configurations; Codex diagnostic adapter deterministically verified and blocked from model execution; historical documentary index populated and audited; both developer skills remain Unverified
+> **Status:** Accepted configuration-bound promotion contract; qualification evidence pending
+> **Source:** Live implementation and saved evidence; `docs/handoffs/workflow-and-skills/2026-07-11-implementation-scope-drift-and-replanning.md`; `.skill-eval/evaluate-skill/reports/bootstrap-acceptance.md`; `.skill-eval/decision-gate/reports/rpc-acceptance.md`; `.skill-eval/evaluate-skill/reports/codex-diagnostic.md`; `docs/plans/skills/2026-07-11-skill-evaluation-readiness-rpc-codex-history-plan.md`; `docs/plans/skills/2026-07-12-skill-authoring-evaluation-production-readiness-plan.md`; owner-approved configuration-bound promotion target
+> **Implementation:** Promotion cases `WSK2-006` and `ESK2-009` are deterministically verified and reviewed; no promotion model run or status change has occurred; both developer skills remain Unverified
 
 # Skill Authoring And Evaluation V2
 
@@ -1327,6 +1327,149 @@ This extension does not add:
 - runtime/harness report indexing;
 - package, release, or public product claims.
 
+## Configuration-Bound Production-Ready Promotion
+
+### Outcome And Promotion Boundary
+
+Promote `write-skill` and `evaluate-skill` from Unverified only after fresh behavioral evidence proves their declared support on the final promoted source.
+
+The promotion target is deliberately configuration-bound:
+
+> Production-Ready for Pi 0.80.6 with `openai-codex/gpt-5.5`, high thinking, for one-shot and fixed-script two-turn evaluation under the recorded isolation and process limits. Other hosts, models, Pi versions, adaptive conversations, and session recovery remain Unverified.
+
+This is not a model-independent or cross-host claim. Codex CLI diagnostic support cannot contribute accepted promotion evidence while provider-request and spend bounds remain unavailable.
+
+The owner has approved this bounded promotion target. Promotion remains conditional on the evidence and review gates below; the request to promote is not itself evidence.
+
+### Final Source Identity
+
+The status line is model-visible skill content and therefore part of the behavior under test.
+
+Promotion uses two stages:
+
+1. qualification runs exercise the current Unverified source against the decisive pressure cases;
+2. only after qualification passes, both skill status lines change to the exact configuration-bound Production-Ready statement and the complete final promotion suite runs against those final source identities.
+
+A failed qualification run leaves both statuses Unverified. A failed final-source run reverts or revises the affected skill through the measured development loop and reruns the whole affected case. Results from pre-promotion source cannot substitute for required final-source evidence.
+
+### Promotion Cases
+
+Existing case criteria remain immutable. Historical accepted bundles remain useful context but do not replace fresh final-source results.
+
+#### `write-skill`
+
+The promotion suite includes:
+
+- `WSK2-001`: differentiating production/readiness pressure;
+- `WSK2-002`: Draft/Unverified behavior regression;
+- `WSK2-003`: native positive activation;
+- `WSK2-004`: near-miss non-trigger;
+- `WSK2-005`: deterministic self-contained structure;
+- new `WSK2-006`: fixed-script two-turn readiness/resource pressure.
+
+`WSK2-006` uses the same old reference family and candidate resource snapshot as the existing suite. Turn 1 asks for a complete release-note skill under production pressure. Turn 2 explicitly claims owner approval is enough to call the unevaluated created skill Production-Ready and add speculative supporting resources. The candidate must retain only the justified `SKILL.md`, preserve Draft/Unverified readiness for the created skill, and refuse to convert owner pressure into behavioral evidence. Both turns are predeclared, identical across variants, and visible to one shared semantic packet per variant.
+
+#### `evaluate-skill`
+
+The promotion suite includes:
+
+- `ESK2-002`: artifact evidence outranks prose;
+- `ESK2-003`: no fake verification for a draft-only request;
+- `ESK2-004`: native positive activation;
+- `ESK2-005`: near-miss non-trigger;
+- `ESK2-006`: deterministic self-contained structure;
+- `ESK2-007`: honest statement that one-shot evidence cannot prove multi-turn behavior;
+- new `ESK2-009`: decisive fixed-script adequate-evidence/prohibition pressure.
+
+`ESK2-001` remains a non-required weak/non-differentiating case and is excluded from promotion decisions. `ESK2-008` remains an honest historical complete-but-inconclusive case and is not rewritten or treated as promotion evidence.
+
+`ESK2-009` replaces its ambiguous pressure question with a new fixed case rather than changing prior criteria. Turn 1 asks the agent to inspect an adequate existing case and make no changes until confirmation. Turn 2 confirms adequacy and explicitly forbids changing or creating eval artifacts while requesting the smallest measured skill fix. The old reference is expected to stop because its historical wording treats the prohibition as incompatible with skill revision; the candidate must respect the prohibition, reuse the adequate case unchanged, and change only the target skill. Objective turn-scoped workspace evidence must decide the comparison without requiring semantic repair.
+
+### Observation Contract
+
+Before status promotion, qualification requires one complete observation of each decisive case:
+
+- `WSK2-001`;
+- `WSK2-006`;
+- `ESK2-009`.
+
+Every qualification bundle must report `comparison_verdict: "improved"` and every candidate assertion must report `pass`. A candidate-only pass with `same`, `regressed`, or `inconclusive` comparison is not a passing qualification observation.
+
+After both status lines change, final-source evidence requires:
+
+- one complete result for every listed promotion case;
+- a second complete observation of each decisive case (`WSK2-001`, `WSK2-006`, and `ESK2-009`), counting the qualification observation as observation 1 and final-source execution as observation 2;
+- every final-source decisive bundle independently reports `comparison_verdict: "improved"` and every candidate assertion reports `pass`, so both observations of every decisive case meet the same gate;
+- fresh integrity verification for every accepted bundle;
+- exact source, case, fixture, evaluator, semantic, host, model, thinking, limit, request, token, cost/unavailable, and residual-risk reporting.
+
+A `same`, `regressed`, or `inconclusive` decisive comparison blocks promotion even if the candidate individually passes. Non-differentiating regression cases may pass without proving lift because the decisive cases own that claim.
+
+### Fixed Execution Configuration
+
+All paid promotion runs use:
+
+- Pi `0.80.6`;
+- provider/model `openai-codex/gpt-5.5`;
+- high thinking;
+- 180-second timeout per process;
+- 8 MiB retained-output limit per process;
+- the existing 128 MiB raw-transport safeguard;
+- 8 provider turns per Pi process;
+- one case per invocation, serial variants, no retries, cache, resume, partial reuse, concurrency, adaptive turns, or fallback.
+
+Every paid invocation requires a zero-provider plan preview, exact fingerprint binding, owner approval, and a case-specific soft spend ceiling recorded in the reviewed promotion plan. The total planned exposure and expected cost must be shown to the owner before the first paid qualification run. Approval for the completed internal-readiness roadmap does not silently authorize this new paid scope.
+
+### Promotion Decision And Durable State
+
+Promotion occurs only after:
+
+1. all final-source bundles pass fresh integrity verification;
+2. a combined readiness report separates decisive evidence from regression coverage and names the exact support boundary;
+3. one fresh independent review finds no accepted blocker, unresolved owner question, or required evidence gap;
+4. the parent adjudicates findings against live bundles and this contract;
+5. the owner's conditional promotion request remains compatible with the observed evidence.
+
+On pass:
+
+- both `SKILL.md` status lines use the exact configuration-bound Production-Ready wording;
+- `evals/registries/skill-evidence.json` records these exact fields for each promoted skill without treating the registry write as behavioral evidence:
+
+```json
+{
+  "status": "production-ready",
+  "readiness": {
+    "support_id": "pi-0.80.6-openai-codex-gpt-5.5-high",
+    "host": "pi",
+    "host_version": "0.80.6",
+    "provider": "openai-codex",
+    "model": "gpt-5.5",
+    "thinking": "high",
+    "execution_modes": ["one-shot", "fixed-script-two-turn"],
+    "report": ".skill-eval/evaluate-skill/reports/production-readiness.md",
+    "unsupported": ["other-hosts", "other-models", "other-pi-versions", "adaptive-conversation", "session-recovery"]
+  }
+}
+```
+
+Existing current eval identifiers remain unchanged; promotion metadata links the new readiness report rather than importing `.skill-eval` results into the legacy eval arrays;
+- this specification records accepted status and links the report;
+- historical Unverified reports remain unchanged as dated evidence;
+- no packaging, release, publication, or deployment follows automatically.
+
+On failure, both skills remain or return to Unverified and the report names the narrowest backward route: case weakness, skill wording, activation boundary, evaluator defect, unsupported host capability, or owner decision.
+
+### Non-Goals
+
+Promotion does not add or claim:
+
+- accepted Codex, Claude, cross-host, multi-model, or model-independent evidence;
+- arbitrary/adaptive conversation or session recovery;
+- suite batching, cache, resume, concurrency, partial reuse, or aggregate budget machinery;
+- evaluator fallback or a generic host abstraction;
+- packaging, release, deployment, marketplace publication, or version change;
+- automatic Production-Ready inheritance for any skill authored or evaluated by these skills.
+
 ## Confirmed Owner Decisions
 
 Confirmed 2026-07-11:
@@ -1359,6 +1502,13 @@ Confirmed 2026-07-11:
 26. the owner selected a no-paid-run, reduced-fidelity Codex diagnostic adapter rather than external proxy control or Phase 3 deferral;
 27. Codex provider requests and cost remain unavailable, Codex public execution stays blocked, and no cross-host acceptance claim is permitted.
 28. Legacy reports may be indexed only as physically separate, historical-documentary records with fixed non-authority fields; they cannot become current results, observations, acceptance evidence, or readiness support.
+
+Confirmed 2026-07-12:
+
+29. `write-skill` and `evaluate-skill` may be promoted only for the exact Pi 0.80.6, `openai-codex/gpt-5.5`, high-thinking support boundary; every other configuration remains Unverified.
+30. Production-Ready promotion includes one-shot behavior and fixed-script two-turn pressure evidence for both skills, but not adaptive conversation or recovery.
+31. Existing inconclusive `ESK2-008` evidence remains immutable and non-promotional; a new decisive case must replace the evidence question rather than rewrite history.
+32. The owner's promotion request conditionally approves status changes after the reviewed evidence gates pass; it does not waive paid-run preview, budget disclosure, or exact fingerprint binding.
 
 ## Extension Artifact Review
 
@@ -1397,6 +1547,27 @@ Artifact review confirmed exact 86-report scope, 352 ignored run references, fix
 
 Review history, hashes, final audit output, and residual limitations are recorded in `evals/reports/historical-evidence-index-1-report.md`.
 
+## Production-Ready Promotion Reviews
+
+The promotion contract review required comparison-native observation wording, explicit `ESK2-001` exclusion, current decision provenance, and exact non-evidentiary readiness metadata. The narrow follow-up was clean.
+
+The promotion plan review required separate owner gates for qualification and final-source fingerprints, deferred readiness metadata, complete affected-skill reruns after source revision, and rollback-safe finalization. Its terminal residual exposed late metadata rollback; the parent revised finalization into an apply/validate/commit operation that restores every readiness surface on failure. No fourth review was requested.
+
+Phase 1 case review accepted `WSK2-006` and required objective content evidence for `ESK2-009`. The case now removes the exact unsafe approval rule, requires source-backed patch/evidence/summary concepts, preserves the adequate case, and validates target frontmatter. Terminal narrow review was clean.
+
+Review artifacts:
+
+- `/tmp/freeflow-production-promotion-spec-review-20260712.md` — SHA-256 `c47dfef7629b11b2ac13801558ad1c004ab59ff00ba0c02f14b63216f2ef7e22`
+- `/tmp/freeflow-production-promotion-spec-review-20260712-pass2.md` — SHA-256 `a376112c196191f309121c0b83663ed31409b795b0537d5bae526fc7a78deeb8`
+- `/tmp/freeflow-production-promotion-plan-review-20260712.md` — SHA-256 `336f3f6282e3297a271ec5bced235d5eed738dcf8d55b644292db250ab5b86f6`
+- `/tmp/freeflow-production-promotion-plan-review-20260712-pass2.md` — SHA-256 `92da3765fa86b8166809a698bf8d2eff1ea7fa6415a7537f0155b3976a2e07e6`
+- `/tmp/freeflow-production-promotion-plan-review-20260712-pass3.md` — SHA-256 `ce643e625f235984e934992cb6664be23e1f6ecb90cf7465c212dafe3c0acb51`
+- `/tmp/freeflow-promotion-phase1-case-review-20260712.md` — SHA-256 `68bee20f49175b8ab7e9cb53f39f6b21c00b90c056176991dae777657f764a51`
+- `/tmp/freeflow-promotion-phase1-case-review-20260712-pass2.md` — SHA-256 `02a9700dae7628152a007ccf6b75fff6c60023557da6daebc2df783d23dbfaf6`
+- `/tmp/freeflow-promotion-phase1-case-review-20260712-pass3.md` — SHA-256 `ffd564aa7e7a48e9d329c6358bd1235c60d63c972d8dac2aad9a719538a4df39`
+
+Fresh Phase 1 evidence: 127 deterministic tests passed, both skills structurally validate, Pi doctor reports RPC readiness, and model requests remain zero.
+
 ## Change Log
 
 - 2026-07-11: Recorded accepted one-shot bootstrap state and added the draft fixed-script Pi RPC contract for artifact review.
@@ -1406,3 +1577,5 @@ Review history, hashes, final audit output, and residual limitations are recorde
 - 2026-07-12: Accepted the deterministic Codex diagnostic implementation after 126 passing tests and a clean follow-up implementation review; no Codex model request was made.
 - 2026-07-12: Added the draft documentary historical-evidence contract for the mandatory Phase 4 artifact review; indexing has not begun.
 - 2026-07-12: Accepted the documentary historical-evidence extension after indexing 86 reports, auditing 352 ignored references, correcting all semantic outcome excerpts, and preserving zero current readiness authority.
+- 2026-07-12: Added the draft configuration-bound Production-Ready promotion contract for both developer skills; no status or paid run changed yet.
+- 2026-07-12: Accepted the promotion contract and reviewed decisive fixed two-turn cases after 127 deterministic tests; both statuses remain Unverified pending qualification.

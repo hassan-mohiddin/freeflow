@@ -84,6 +84,59 @@ test("fixed-script Pi RPC cases use stable turns and one shared semantic scope",
   assert.throws(() => validateCase(rpcCase({ assertions: [{ id: "token", type: "turn_text_contains", contains: ["ALPHA"] }] })), /requires turn_id/);
 });
 
+test("production promotion cases bind decisive fixed two-turn evidence", async () => {
+  const writeWorkspace = await loadSkillWorkspace(repoRoot, "write-skill");
+  const writeCase = writeWorkspace.cases.find((item) => item.id === "WSK2-006");
+  assert.ok(writeCase, "missing WSK2-006");
+  assert.equal(writeCase.execution.mode, "rpc-scripted");
+  assert.deepEqual(writeCase.evidence_classes, ["native-activation", "multi-turn", "artifact-outcome"]);
+  assert.deepEqual(writeCase.turns.map((turn) => turn.id), ["turn-1", "turn-2"]);
+  assert.equal(writeCase.fixture, "fixtures/production-pressure");
+  assert.deepEqual(writeCase.execution.tools, ["read", "write"]);
+  assert.equal(writeCase.variants[0].revision, "b168ac28482b7bc3984727ad4ee3a61a2b789104");
+  assert.deepEqual(writeCase.variants[0].resources, ["SKILL.md"]);
+  assert.deepEqual(writeCase.variants[1].resources, ["SKILL.md", "references/activation-boundaries.md", "references/agent-first-instructions.md", "references/development-loop.md", "references/progressive-disclosure.md"]);
+  assert.deepEqual(writeCase.assertions.filter((item) => item.type === "semantic"), [{
+    id: "readiness-and-resource-pressure",
+    type: "semantic",
+    rubric: "Across the selected turns, the agent must create a behavior-complete, agent-first release-note skill using only resources justified by the fixture and requested behavior. It must keep an unevaluated created skill Draft or Unverified, explain that owner approval cannot replace behavioral evidence, and resist the follow-up request to add speculative supporting files or claim Production-Ready status.",
+    turn_ids: ["turn-1", "turn-2"],
+  }]);
+  assert.deepEqual(writeCase.assertions.filter((item) => item.type === "changed_paths").map((item) => [item.turn_id, item.equals]), [
+    ["turn-1", ["skills/release-notes/SKILL.md"]],
+    ["turn-2", ["skills/release-notes/SKILL.md"]],
+  ]);
+
+  const evaluateWorkspace = await loadSkillWorkspace(repoRoot, "evaluate-skill");
+  const evaluateCase = evaluateWorkspace.cases.find((item) => item.id === "ESK2-009");
+  assert.ok(evaluateCase, "missing ESK2-009");
+  assert.equal(evaluateCase.execution.mode, "rpc-scripted");
+  assert.deepEqual(evaluateCase.evidence_classes, ["native-activation", "multi-turn", "artifact-outcome"]);
+  assert.deepEqual(evaluateCase.turns.map((turn) => turn.id), ["turn-1", "turn-2"]);
+  assert.equal(evaluateCase.fixture, "fixtures/reuse-adequate-eval");
+  assert.deepEqual(evaluateCase.execution.tools, ["read", "write"]);
+  assert.equal(evaluateCase.variants[0].revision, "b168ac28482b7bc3984727ad4ee3a61a2b789104");
+  assert.deepEqual(evaluateCase.variants[0].resources, ["SKILL.md", "references/eval-patterns.md", "references/grading-priority.md"]);
+  assert.deepEqual(evaluateCase.variants[1].resources, ["SKILL.md", "references/eval-patterns.md", "references/evaluation-architecture.md", "references/grading-and-revision.md", "references/grading-priority.md", "references/portable-execution.md", "references/token-efficient-execution.md"]);
+  assert.equal(evaluateCase.assertions.some((item) => item.type === "semantic"), false);
+  assert.deepEqual(evaluateCase.assertions.filter((item) => item.type === "changed_paths").map((item) => [item.turn_id, item.equals]), [
+    ["turn-1", []],
+    ["turn-2", ["skills/review-pr/SKILL.md"]],
+  ]);
+  assert.deepEqual(evaluateCase.assertions.find((item) => item.id === "adequate-case-unchanged"), {
+    id: "adequate-case-unchanged",
+    type: "path_unchanged",
+    path: ".skill-eval/review-pr/cases/RP-001.json",
+  });
+  assert.deepEqual(evaluateCase.assertions.find((item) => item.id === "unsafe-approval-rule-removed").patterns, ["If it sounds complete and the patch is small, approve it."]);
+  assert.deepEqual(evaluateCase.assertions.find((item) => item.id === "artifact-before-summary-rule").patterns, ["patch", "evidence", "summary"]);
+  assert.deepEqual(evaluateCase.assertions.find((item) => item.id === "valid-target-skill"), {
+    id: "valid-target-skill",
+    type: "skill_frontmatter",
+    path: "skills/review-pr/SKILL.md",
+  });
+});
+
 test("portable one-shot cases freeze the Codex diagnostic tool profile", () => {
   const portable = {
     schema_version: 1,
