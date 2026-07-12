@@ -84,6 +84,30 @@ test("fixed-script Pi RPC cases use stable turns and one shared semantic scope",
   assert.throws(() => validateCase(rpcCase({ assertions: [{ id: "token", type: "turn_text_contains", contains: ["ALPHA"] }] })), /requires turn_id/);
 });
 
+test("portable one-shot cases freeze the Codex diagnostic tool profile", () => {
+  const portable = {
+    schema_version: 1,
+    id: "PORTABLE-001",
+    skill: "sample-skill",
+    title: "portable behavior",
+    question: "explicit invocation",
+    evidence_classes: ["explicit-instruction"],
+    required_for_bootstrap: false,
+    evaluation_kind: "single",
+    unsupported_evidence: "block",
+    prompt: "Use the skill.",
+    fixture: null,
+    variants: [{ id: "candidate", role: "subject", kind: "working-tree", path: "skills/sample-skill", resources: ["SKILL.md"] }],
+    execution: { host: "portable", allowed_hosts: ["pi", "codex"], mode: "one-shot", tools: ["read", "write"] },
+    assertions: [{ id: "quality", type: "semantic", rubric: "Useful." }],
+  };
+  assert.deepEqual(validateCase(structuredClone(portable)).execution.allowed_hosts, ["pi", "codex"]);
+  assert.throws(() => validateCase({ ...structuredClone(portable), execution: { ...portable.execution, allowed_hosts: ["pi", "pi"] } }), /duplicate.*host/i);
+  assert.throws(() => validateCase({ ...structuredClone(portable), execution: { ...portable.execution, allowed_hosts: ["pi", "other"] } }), /allowed host/i);
+  assert.throws(() => validateCase({ ...structuredClone(portable), execution: { ...portable.execution, tools: ["read"] } }), /codex.*tools/i);
+  assert.throws(() => validateCase({ ...structuredClone(portable), turns: [{ id: "turn-1", prompt: "x" }], prompt: undefined }), /prompt|exactly one/i);
+});
+
 test("unknown evidence classes are rejected", () => {
   assert.throws(() => validateCase({
     schema_version: 1,

@@ -12,7 +12,8 @@ const COMMAND_OPTIONS = {
   doctor: new Set(["root", "help"]),
   init: new Set(["skill", "root", "help"]),
   evaluate: new Set([
-    "skill", "case", "timeout_ms", "output_limit_bytes", "provider", "model", "thinking",
+    "skill", "case", "host", "timeout_ms", "output_limit_bytes", "provider", "model", "thinking",
+    "subject_provider", "subject_model", "subject_thinking", "grader_provider", "grader_model", "grader_thinking",
     "max_turns_per_process", "max_usd", "plan_only", "owner_approved", "expect_plan", "root", "help",
   ]),
 };
@@ -27,7 +28,7 @@ function usage() {
 Commands:
   doctor [--root <repo>]
   init --skill <name> [--root <repo>]
-  evaluate --skill <name> --case <id> --timeout-ms <integer> --output-limit-bytes <integer> [model options] [--plan-only | --owner-approved]
+  evaluate --skill <name> --case <id> [--host pi|codex] --timeout-ms <integer> --output-limit-bytes <integer> [model options] [--plan-only | --owner-approved]
 `;
 }
 
@@ -85,11 +86,18 @@ export async function main(argv = process.argv.slice(2)) {
   const workspace = await loadSkillWorkspace(repoRoot, options.skill);
   const plan = await buildEvaluationPlan(workspace, {
     case: options.case,
+    host: options.host,
     timeout_ms: integerOption(options, "timeout_ms"),
     output_limit_bytes: integerOption(options, "output_limit_bytes"),
     provider: options.provider,
     model: options.model,
     thinking: options.thinking,
+    subject_provider: options.subject_provider,
+    subject_model: options.subject_model,
+    subject_thinking: options.subject_thinking,
+    grader_provider: options.grader_provider,
+    grader_model: options.grader_model,
+    grader_thinking: options.grader_thinking,
     max_turns_per_process: options.max_turns_per_process === undefined ? undefined : integerOption(options, "max_turns_per_process"),
     max_usd: options.max_usd,
     plan_only: options.plan_only === true,

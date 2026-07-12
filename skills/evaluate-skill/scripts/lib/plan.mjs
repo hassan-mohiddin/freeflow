@@ -13,8 +13,12 @@ const ADAPTER_VERSIONS = {
   deterministic: "deterministic-v1",
   json: "pi-outcome-v1",
   "rpc-scripted": "pi-rpc-scripted-v1",
+  exec: "codex-exec-diagnostic-v1",
 };
-const MODEL_OPTION_KEYS = ["provider", "model", "thinking", "max_turns_per_process", "max_usd"];
+const LEGACY_MODEL_OPTION_KEYS = ["provider", "model", "thinking"];
+const SUBJECT_MODEL_OPTION_KEYS = ["subject_provider", "subject_model", "subject_thinking"];
+const GRADER_MODEL_OPTION_KEYS = ["grader_provider", "grader_model", "grader_thinking"];
+const ALL_MODEL_OPTION_KEYS = [...LEGACY_MODEL_OPTION_KEYS, ...SUBJECT_MODEL_OPTION_KEYS, ...GRADER_MODEL_OPTION_KEYS, "max_turns_per_process", "max_usd"];
 const scriptsRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const EVALUATOR_SOURCE_FILES = [
   "skill-eval.mjs",
@@ -22,6 +26,7 @@ const EVALUATOR_SOURCE_FILES = [
   "lib/args.mjs",
   "lib/capabilities.mjs",
   "lib/coordinator.mjs",
+  "lib/codex-adapter.mjs",
   "lib/decision.mjs",
   "lib/evaluate.mjs",
   "lib/grade.mjs",
@@ -103,8 +108,8 @@ async function resolveVariant(repoRoot, variant) {
   throw new Error(`Unsupported variant kind: ${variant.kind}`);
 }
 
-function evidenceResolution(evalCase) {
-  const supported = supportedEvidenceClasses(evalCase.execution.host, evalCase.execution.mode);
+function evidenceResolution(evalCase, selectedHost, effectiveMode) {
+  const supported = supportedEvidenceClasses(selectedHost, effectiveMode);
   const state = (values = []) => Object.fromEntries(values.map((name) => [name, supported.has(name) ? "supported" : "unsupported"]));
   const required = state(evalCase.evidence_classes);
   const requested = state(evalCase.requested_evidence_classes);
@@ -125,7 +130,14 @@ function rerunCommand(summary) {
     `--output-limit-bytes ${summary.limits.output_limit_bytes}`,
   ];
   if (summary.model) {
-    args.push(`--provider ${summary.model.provider}`, `--model ${summary.model.model}`, `--thinking ${summary.model.thinking}`, `--max-turns-per-process ${summary.limits.max_turns_per_process}`);
+    args.push(`--provider ${summary.model.provider}`, `--model ${summary.model.model}`, `--thinking ${summary.model.thinking}`);
+  } else if (summary.subject_model) {
+    args.push(`--host ${summary.subject_host}`);
+    args.push(`--subject-provider ${summary.subject_model.provider}`, `--subject-model ${summary.subject_model.model}`, `--subject-thinking ${summary.subject_model.thinking}`);
+    if (summary.grader_model) args.push(`--grader-provider ${summary.grader_model.provider}`, `--grader-model ${summary.grader_model.model}`, `--grader-thinking ${summary.grader_model.thinking}`);
+  }
+  if (summary.model || summary.subject_model) {
+    args.push(`--max-turns-per-process ${summary.limits.max_turns_per_process}`);
     if (summary.spend.max_usd !== null) args.push(`--max-usd ${summary.spend.max_usd}`);
     args.push("--owner-approved", `--expect-plan ${summary.fingerprint}`);
   }
@@ -136,37 +148,61 @@ export async function buildEvaluationPlan(workspace, options, dependencies = {})
   const evalCase = selectCase(workspace, options.case);
   const timeoutMs = requirePositiveInteger(options.timeout_ms, "--timeout-ms");
   const outputLimitBytes = requirePositiveInteger(options.output_limit_bytes, "--output-limit-bytes");
-  const modelDriven = evalCase.execution.host !== "none";
-  if (!modelDriven && evalCase.assertions.some((assertion) => assertion.type === "semantic")) {
-    throw new Error("Host-free cases cannot require semantic Pi grading");
+  const portable = evalCase.execution.host === "portable";
+  if (portable) {
+    if (typeof options.host !== "string") throw new Error("Portable evaluation requires --host pi|codex");
+    if (!evalCase.execution.allowed_hosts.includes(options.host)) throw new Error(`Selected host is not allowed by case: ${options.host}`);
+  } else if (options.host !== undefined) {
+    throw new Error("Fixed-host cases reject --host");
   }
+  const selectedHost = portable ? options.host : evalCase.execution.host;
+  const effectiveMode = portable ? (selectedHost === "pi" ? "json" : "exec") : evalCase.execution.mode;
+  const modelDriven = selectedHost !== "none";
+  const hasSemantic = evalCase.assertions.some((assertion) => assertion.type === "semantic");
+  if (!modelDriven && hasSemantic) throw new Error("Host-free cases cannot require semantic Pi grading");
+
+  const legacySupplied = LEGACY_MODEL_OPTION_KEYS.filter((key) => options[key] !== undefined);
+  const subjectSupplied = SUBJECT_MODEL_OPTION_KEYS.filter((key) => options[key] !== undefined);
+  const graderSupplied = GRADER_MODEL_OPTION_KEYS.filter((key) => options[key] !== undefined);
+  let subjectModel = null;
+  let graderModel = null;
   if (!modelDriven) {
-    const supplied = MODEL_OPTION_KEYS.filter((key) => options[key] !== undefined);
+    const supplied = ALL_MODEL_OPTION_KEYS.filter((key) => options[key] !== undefined);
     if (supplied.length > 0) throw new Error(`Host-free case rejects model options: ${supplied.map((key) => `--${key.replaceAll("_", "-")}`).join(", ")}`);
+  } else if (!portable) {
+    if (subjectSupplied.length > 0 || graderSupplied.length > 0) throw new Error("Fixed Pi cases reject role-qualified model options");
+    const missing = LEGACY_MODEL_OPTION_KEYS.filter((key) => options[key] === undefined);
+    if (missing.length > 0) throw new Error(`Model-driven evaluation requires ${missing.map((key) => `--${key.replaceAll("_", "-")}`).join(", ")}`);
+    subjectModel = { provider: options.provider, model: options.model, thinking: options.thinking };
+    graderModel = hasSemantic ? { ...subjectModel } : null;
+  } else {
+    if (legacySupplied.length > 0) throw new Error("Portable cases reject legacy or mixed model options");
+    const missingSubject = SUBJECT_MODEL_OPTION_KEYS.filter((key) => options[key] === undefined);
+    if (missingSubject.length > 0) throw new Error(`Portable evaluation requires ${missingSubject.map((key) => `--${key.replaceAll("_", "-")}`).join(", ")}`);
+    if (hasSemantic) {
+      const missingGrader = GRADER_MODEL_OPTION_KEYS.filter((key) => options[key] === undefined);
+      if (missingGrader.length > 0) throw new Error(`Semantic portable evaluation requires ${missingGrader.map((key) => `--${key.replaceAll("_", "-")}`).join(", ")}`);
+    } else if (graderSupplied.length > 0) {
+      throw new Error("Grader options require semantic assertions");
+    }
+    subjectModel = { provider: options.subject_provider, model: options.subject_model, thinking: options.subject_thinking };
+    graderModel = hasSemantic ? { provider: options.grader_provider, model: options.grader_model, thinking: options.grader_thinking } : null;
+    if (selectedHost === "codex" && subjectModel.provider !== "openai") throw new Error("Codex --subject-provider must be openai");
   }
-  const missingModel = modelDriven
-    ? ["provider", "model", "thinking", "max_turns_per_process"].filter((key) => options[key] === undefined)
-    : [];
-  if (modelDriven && missingModel.length > 0) {
-    throw new Error(`Model-driven evaluation requires ${missingModel.map((key) => `--${key.replaceAll("_", "-")}`).join(", ")}`);
-  }
-  const maxTurns = modelDriven && options.max_turns_per_process !== undefined
-    ? requirePositiveInteger(options.max_turns_per_process, "--max-turns-per-process")
-    : 0;
-  if (options.max_usd !== undefined && (!Number.isFinite(Number(options.max_usd)) || Number(options.max_usd) <= 0)) {
-    throw new Error("--max-usd must be a positive number");
-  }
+  if (modelDriven && options.max_turns_per_process === undefined) throw new Error("Model-driven evaluation requires --max-turns-per-process");
+  const maxTurns = modelDriven ? requirePositiveInteger(options.max_turns_per_process, "--max-turns-per-process") : 0;
+  if (options.max_usd !== undefined && (!Number.isFinite(Number(options.max_usd)) || Number(options.max_usd) <= 0)) throw new Error("--max-usd must be a positive number");
 
   const resolveCapabilities = dependencies.capabilitiesFor ?? capabilitiesFor;
-  const host = await resolveCapabilities(evalCase.execution.host, evalCase.execution.mode);
-  const requiredCapabilities = evalCase.execution.mode === "rpc-scripted"
-    ? ["rpc_jsonl", "multi_turn", "native_skill_loading", "explicit_extensions", "disable_extension_discovery", "disable_context_files", "tool_allowlist", "strict_tool_isolation"]
-    : ["one_shot_json", "native_skill_loading", "explicit_extensions", "disable_extension_discovery", "disable_context_files", "tool_allowlist", "strict_tool_isolation"];
-  const missingCapabilities = modelDriven
-    ? requiredCapabilities.filter((name) => !host.capabilities?.[name])
-    : [];
-  if (modelDriven && !host.available) missingCapabilities.unshift("pi-available");
-  const evidence = evidenceResolution(evalCase);
+  const host = await resolveCapabilities(selectedHost, effectiveMode);
+  const requiredCapabilities = selectedHost === "codex"
+    ? ["exec_jsonl", "isolated_home", "strict_config", "ephemeral", "ignore_rules", "ambient_context_disabled", "explicit_skill", "strict_filesystem_isolation", "network_disabled", "process_limits", "provider_request_bound", "spend_bound"]
+    : effectiveMode === "rpc-scripted"
+      ? ["rpc_jsonl", "multi_turn", "native_skill_loading", "explicit_extensions", "disable_extension_discovery", "disable_context_files", "tool_allowlist", "strict_tool_isolation"]
+      : ["one_shot_json", "native_skill_loading", "explicit_extensions", "disable_extension_discovery", "disable_context_files", "tool_allowlist", "strict_tool_isolation"];
+  const missingCapabilities = modelDriven ? requiredCapabilities.filter((name) => !host.capabilities?.[name]) : [];
+  if (modelDriven && !host.available) missingCapabilities.unshift(`${selectedHost}-available`);
+  const evidence = evidenceResolution(evalCase, selectedHost, effectiveMode);
   const blockedEvidence = [
     ...evidence.unsupported_required,
     ...(evalCase.unsupported_evidence === "block" ? evidence.unsupported_requested : []),
@@ -176,24 +212,30 @@ export async function buildEvaluationPlan(workspace, options, dependencies = {})
   const variants = [];
   for (const variant of evalCase.variants) variants.push(await resolveVariant(workspace.repoRoot, variant));
 
-  const semanticPerVariant = evalCase.assertions.some((assertion) => assertion.type === "semantic") ? 1 : 0;
+  const semanticPerVariant = hasSemantic ? 1 : 0;
   const subjectProcesses = modelDriven ? variants.length : 0;
   const semanticProcesses = modelDriven ? variants.length * semanticPerVariant : 0;
+  const piSubjectProcesses = selectedHost === "pi" ? subjectProcesses : 0;
+  const codexSubjectProcesses = selectedHost === "codex" ? subjectProcesses : 0;
   const totalProcesses = subjectProcesses + semanticProcesses;
-  const limitations = modelDriven
+  const limitations = !modelDriven ? [] : selectedHost === "codex"
     ? [
+        "Codex support is diagnostic only; public execution is blocked before auth access and model startup.",
+        "Codex provider-request count and monetary cost are unavailable, not zero.",
+        "The recorded isolation profile is codex-diagnostic-macos-v1 and is not claimed equivalent to Pi's tool allowlist.",
+      ]
+    : [
         "Provider requests are observed and reported; bootstrap does not claim an independent global provider-request hard cap.",
         "The output limit applies to retained canonical evidence after cumulative Pi JSON updates are compacted; raw transport has a separate internal safeguard.",
-      ]
-    : [];
-  if (evalCase.execution.mode === "rpc-scripted") {
+      ];
+  if (effectiveMode === "rpc-scripted") {
     limitations.push("Turn, timeout, retained-output, and raw-transport limits apply across each complete RPC process; scripted user turns are not separate process budgets.");
   }
   if (evidence.unsupported_requested.length > 0 && evalCase.unsupported_evidence === "behavior-under-test") {
     limitations.push(`Unsupported evidence is behavior under test: ${evidence.unsupported_requested.join(", ")}.`);
   }
-  if (options.max_usd === undefined && modelDriven) limitations.push("Cost is reported when available; no aggregate spend ceiling was supplied.");
-  if (options.max_usd !== undefined && modelDriven) limitations.push(evalCase.execution.mode === "rpc-scripted"
+  if (options.max_usd === undefined && modelDriven && selectedHost === "pi") limitations.push("Cost is reported when available; no aggregate spend ceiling was supplied.");
+  if (options.max_usd !== undefined && modelDriven && selectedHost === "pi") limitations.push(effectiveMode === "rpc-scripted"
     ? "The spend ceiling is checked between Pi processes and before later scripted prompts when the host reports cost; unavailable cost remains unavailable."
     : "The spend ceiling is checked between Pi processes only when the host reports cost; unavailable cost remains unavailable.");
 
@@ -209,13 +251,18 @@ export async function buildEvaluationPlan(workspace, options, dependencies = {})
   };
   const planInputs = {
     schema_version: 1,
-    adapter_version: ADAPTER_VERSIONS[evalCase.execution.mode] ?? `unsupported-${evalCase.execution.mode}`,
+    adapter_version: ADAPTER_VERSIONS[effectiveMode] ?? `unsupported-${effectiveMode}`,
     skill: workspace.suite.skill,
     case: caseContent,
     identities,
     variants: variants.map((variant) => ({ id: variant.id, role: variant.role, kind: variant.kind, revision: variant.revision ?? null, path: variant.path, resources: variant.resources, snapshot_hash: variant.snapshot_hash })),
     host,
-    model: modelDriven ? { provider: options.provider ?? null, model: options.model ?? null, thinking: options.thinking ?? null } : null,
+    subject_host: selectedHost,
+    effective_mode: effectiveMode,
+    model: !portable && modelDriven ? subjectModel : null,
+    subject_model: subjectModel,
+    grader_model: graderModel,
+    isolation_profile: selectedHost === "codex" ? "codex-diagnostic-macos-v1" : null,
     limits: {
       timeout_ms: timeoutMs,
       output_limit_bytes: outputLimitBytes,
@@ -232,18 +279,25 @@ export async function buildEvaluationPlan(workspace, options, dependencies = {})
     evaluation_kind: evalCase.evaluation_kind,
     variants: variants.map(({ id, role }) => ({ id, role })),
     model: planInputs.model,
-    pi_processes: { subject: subjectProcesses, semantic_max: semanticProcesses, total_max: totalProcesses },
-    scripted_user_turns: evalCase.execution.mode === "rpc-scripted" ? evalCase.turns.length : null,
+    subject_model: planInputs.subject_model,
+    grader_model: planInputs.grader_model,
+    subject_host: selectedHost,
+    fidelity: selectedHost === "codex" ? "diagnostic" : "accepted",
+    pi_processes: { subject: piSubjectProcesses, semantic_max: semanticProcesses, total_max: piSubjectProcesses + semanticProcesses },
+    codex_processes: { subject: codexSubjectProcesses, total_max: codexSubjectProcesses },
+    total_processes: totalProcesses,
+    scripted_user_turns: effectiveMode === "rpc-scripted" ? evalCase.turns.length : null,
     limits: planInputs.limits,
-    worst_case_approved_turns: totalProcesses * maxTurns,
+    worst_case_approved_turns: selectedHost === "codex" ? null : totalProcesses * maxTurns,
     spend: { max_usd: planInputs.max_usd },
     evidence: { required: evidence.required, requested: evidence.requested },
     identities,
     capabilities: { host: host.id, version: host.version, missing: missingCapabilities },
+    blocked_reasons: [...new Set([...blockedEvidence, ...missingCapabilities])],
     limitations,
     fingerprint,
   };
-  summary.rerun_command = rerunCommand(summary);
+  summary.rerun_command = selectedHost === "codex" ? null : rerunCommand(summary);
 
   let status = "ready";
   if (blockedEvidence.length > 0 || missingCapabilities.length > 0) status = "blocked";

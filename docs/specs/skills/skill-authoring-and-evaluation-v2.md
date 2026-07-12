@@ -3,9 +3,9 @@
 > **Revised:** 2026-07-11
 > **Owner:** Hassan Mohiddin
 > **Type:** Spec
-> **Status:** Accepted internal extension — implementation and evidence review passed
-> **Source:** Live implementation and saved evidence; `docs/handoffs/workflow-and-skills/2026-07-11-implementation-scope-drift-and-replanning.md`; `.skill-eval/evaluate-skill/reports/bootstrap-acceptance.md`; `.skill-eval/decision-gate/reports/rpc-acceptance.md`; `docs/plans/skills/2026-07-11-skill-evaluation-readiness-rpc-codex-history-plan.md`; owner-approved fixed-script Pi RPC decisions
-> **Implementation:** One-shot bootstrap and fixed-script Pi RPC execution accepted for their recorded configurations; both developer skills remain Unverified
+> **Status:** Accepted internal extensions — Pi RPC and Codex diagnostic reviews passed
+> **Source:** Live implementation and saved evidence; `docs/handoffs/workflow-and-skills/2026-07-11-implementation-scope-drift-and-replanning.md`; `.skill-eval/evaluate-skill/reports/bootstrap-acceptance.md`; `.skill-eval/decision-gate/reports/rpc-acceptance.md`; `.skill-eval/evaluate-skill/reports/codex-diagnostic.md`; `docs/plans/skills/2026-07-11-skill-evaluation-readiness-rpc-codex-history-plan.md`; owner-approved Pi RPC and Codex diagnostic decisions
+> **Implementation:** One-shot bootstrap and fixed-script Pi RPC execution accepted for recorded configurations; Codex diagnostic adapter deterministically verified and blocked from model execution; both developer skills remain Unverified
 
 # Skill Authoring And Evaluation V2
 
@@ -978,6 +978,191 @@ The extension does not add:
 - different semantic-model selection;
 - current authority for historical evidence.
 
+## Concrete Codex Diagnostic Extension
+
+### Decision And Status
+
+The Phase 3 no-provider proof for installed `codex-cli 0.144.1` passed filesystem isolation, ambient suppression, explicit skill discovery, symlink protection, network denial, process-tree cleanup, timeout, retained-output, and raw-transport checks.
+
+Codex CLI does not expose a hard provider-request cap or monetary spend accounting. One exec turn may make repeated successful sampling requests, while JSONL reports token totals rather than request count or cost. External timeout can stop later work but cannot prevent an additional request or spend overrun before observation.
+
+The owner selected a reduced-fidelity diagnostic adapter and explicitly rejected paid Codex runs for this phase. Therefore:
+
+- the concrete adapter may be implemented and tested with fake processes and no-provider probes;
+- Codex planning must label provider requests and cost unavailable;
+- public evaluation must block before Codex model startup;
+- no Codex result may support cross-host acceptance, readiness, or Production-Ready status;
+- external request-control proxies, app-server, and generic host frameworks remain out of scope.
+
+This is a deliberate diagnostic capability, not degraded acceptance presented as success.
+
+### Portable Case Contract
+
+Existing fixed-host cases remain unchanged.
+
+A portable one-shot case uses:
+
+```json
+{
+  "execution": {
+    "host": "portable",
+    "allowed_hosts": ["pi", "codex"],
+    "mode": "one-shot",
+    "tools": ["read", "write"]
+  }
+}
+```
+
+Rules:
+
+- `allowed_hosts` is non-empty, unique, and contains only `pi` and `codex`;
+- portable cases use one natural `prompt`, not scripted turns;
+- `--host pi|codex` is required and must name an allowed host;
+- fixed-host cases reject `--host` rather than silently reinterpret their contract;
+- selection is exact and never falls back to another host;
+- Pi maps portable `one-shot` to the accepted JSON adapter;
+- Codex maps it to concrete `codex exec` diagnostic mode;
+- cross-host comparison remains documentary across independent results and never merges hosts inside one invocation.
+
+### Role-Qualified Model Settings
+
+Option acceptance is fixed by case shape:
+
+| Case shape | `--host` | Model settings |
+| --- | --- | --- |
+| host-free | rejected | all legacy and role-qualified settings rejected |
+| fixed Pi | rejected | legacy `--provider`, `--model`, and `--thinking` required; role-qualified settings rejected |
+| portable | required | legacy settings rejected; subject-qualified settings required |
+
+Portable cases require:
+
+```text
+--subject-provider
+--subject-model
+--subject-thinking
+```
+
+For selected host `pi`, all three subject values are passed to the accepted Pi adapter.
+
+For selected host `codex`, `--subject-provider` must equal the literal `openai`. The adapter binds strict config with `model_provider = "openai"`; other values fail preflight. The option is neither ignored nor treated as an arbitrary custom-provider selector. Model fallback and custom provider definitions are forbidden.
+
+When semantic assertions exist, portable cases additionally require:
+
+```text
+--grader-provider
+--grader-model
+--grader-thinking
+```
+
+The semantic grader remains one fresh, separately identified and accounted Pi process per variant.
+
+Fixed Pi cases preserve shared legacy subject/grader settings exactly; they do not accept role-qualified-only forms in this extension. Portable cases reject legacy settings. All cases reject mixed legacy and role-qualified forms. Grader settings are rejected when no semantic assertions exist.
+
+`--max-turns-per-process` continues to bind Pi subject and grader processes. It does not become a claimed Codex provider-request bound. `--max-usd` remains effective only where settled host usage reports cost and never makes Codex diagnostic execution acceptable.
+
+### Plan And Fingerprint
+
+The plan fingerprint includes:
+
+- selected subject host;
+- concrete adapter identity and executable version;
+- subject and grader settings separately;
+- case, fixture, and subject identities;
+- Codex isolation profile identity;
+- timeout, retained-output, and raw-transport limits;
+- capability state for filesystem isolation, ambient suppression, explicit skills, network denial, provider-request bounds, and spend accounting;
+- diagnostic fidelity and blocked reasons.
+
+A Codex plan reports:
+
+- fidelity `diagnostic`;
+- provider requests `unavailable`;
+- cost `unavailable`;
+- missing hard boundaries `provider_request_bound` and `spend_bound`;
+- status `blocked` for execution, including with `--plan-only` or `--owner-approved`.
+
+A blocked Codex plan exits nonzero, includes its summary, fingerprint, and blocked reasons, and creates no staging, diagnostic, or result bundle. It emits no owner-approved rerun command capable of bypassing the block. Fingerprint binding cannot override a missing hard boundary.
+
+Public planning, blocked execution, and doctor may spawn only `codex --version` to identify the executable. They never read or copy auth, create isolated runtime homes, spawn `codex exec`, run sandbox/capability commands, or reach model startup. Auth copying is reachable only through the internal adapter seam under injected fake-process tests in this phase. Installed-CLI no-provider probes remain explicit test/proof operations outside public planning/doctor routes and cannot continue to model startup.
+
+### Concrete Adapter Boundary
+
+The adapter uses one isolated process per variant and keeps Codex-specific details internal.
+
+It must:
+
+- create separate evaluator-owned `HOME` and `CODEX_HOME` directories;
+- copy only `auth.json` from ambient Codex state, with mode `0600`;
+- write evaluator-owned strict config and one declared skill under `CODEX_HOME/skills/<name>`;
+- set `project_doc_max_bytes = 0`;
+- set `[skills.bundled] enabled = false`;
+- use isolation profile `codex-diagnostic-macos-v1`: `:minimal` runtime read, fixture write, copied declared skill read, every other filesystem path denied by omission, and network disabled;
+- invoke `codex exec --strict-config --ephemeral --ignore-rules --json` with `model_provider = "openai"`, explicit model, reasoning, cwd, never-approve policy, and `$skill-name` text;
+- never use danger-full-access, resume, app-server, project rules, ambient skills, or fallback models/hosts;
+- parse LF-delimited JSONL and require one thread, one CLI turn, terminal completion, and usable final assistant text;
+- capture observed item/tool events, token usage, workspace evidence, and process failure flags;
+- preserve provider-request count and cost as unavailable rather than zero;
+- apply aggregate timeout, retained-output, and raw-transport limits through the existing detached process boundary;
+- clean isolated auth/config state and the complete process tree on every route.
+
+The subject snapshot remains read-only and is re-hashed before and after execution. The fixture remains the only writable evaluation root. Symlink escapes fail closed.
+
+The Codex profile is not a generic mapping of Pi tools. A portable case selected for Codex must declare exactly `tools: ["read", "write"]`; any missing, additional, reordered, or otherwise incompatible tool declaration fails preflight. Case input cannot widen or narrow `codex-diagnostic-macos-v1`. Codex's model-visible tool surface is not claimed equivalent to Pi's allowlist.
+
+### Diagnostic Outcome Boundary
+
+The deep internal subject outcome may represent unavailable counters:
+
+```json
+{
+  "runtime_counters": {
+    "provider_requests": null,
+    "turns_started": 1,
+    "tool_calls": 2,
+    "hard_turn_limit_reached": null
+  },
+  "usage": {
+    "input": 100,
+    "output": 20,
+    "cache_read": 0,
+    "cache_write": 0,
+    "total_tokens": 120,
+    "cost": null
+  }
+}
+```
+
+The existing deep usage shape remains `cost: null | {"total_usd": number}`. If any settled model execution has unavailable provider requests, aggregate `usage.provider_requests` is `null`, even when a Pi semantic grader reports a numeric count. If any settled model execution has unavailable cost, aggregate `usage.cost_usd` is `null`, even when another process reports cost. Available per-execution observations remain in deep evidence; partial totals are never presented as whole-case totals.
+
+When null, the public unavailable-field list includes `usage.provider_requests` and/or `usage.cost_usd`. The ledger never coerces unavailable provider requests or cost to zero.
+
+No accepted `result.json` is published from Codex in this phase because public preflight blocks before model startup. Fake-process tests may exercise the complete internal adapter and coordinator seam without changing that public boundary.
+
+### Required Deterministic Evidence
+
+Before the diagnostic implementation is a coherent checkpoint:
+
+1. the no-provider capability proof and its independent review remain linked;
+2. the host/option acceptance matrix, literal Codex provider binding, and incompatible tool declarations are rejected deterministically;
+3. strict config, isolated homes, exact skill tree, permission profile identity, prompt form, and redacted invocation are unit tested;
+4. fake JSONL tests cover completion, malformed records, missing terminal events, timeout, output limits, unavailable accounting, and cleanup;
+5. nullable-ledger tests prove a Codex subject plus numeric Pi grader still yields null whole-case provider requests and cost while preserving deep observations;
+6. every public Codex route permits at most one `codex --version` child and blocks before auth access, runtime materialization, any other process spawn, or model startup;
+7. an end-to-end fake subject case proves existing objective grading and whole-case atomicity;
+8. existing Pi one-shot and RPC suites remain green;
+9. doctor obtains Codex identity only through `codex --version` and reports the proven isolation capabilities, diagnostic fidelity, and two unsupported paid-work boundaries with zero auth access and zero model requests.
+
+### Codex Diagnostic Non-Goals
+
+This extension does not add:
+
+- paid Codex evaluation;
+- accepted Codex or cross-host evidence;
+- hard Codex provider-request or spend claims;
+- a proxy, network mediation service, app-server integration, host registry, or plugin API;
+- Codex multi-turn, resume, retries, cache, batching, concurrency, or partial reuse;
+- fallback from Codex to Pi or from one model to another.
+
 ## Confirmed Owner Decisions
 
 Confirmed 2026-07-11:
@@ -990,7 +1175,7 @@ Confirmed 2026-07-11:
 6. output router may compose independent commands later but evaluator does not depend on it;
 7. complete case result is atomic success unit;
 8. infrastructure failure reruns whole case; no partial reuse;
-9. Pi is concrete only host;
+9. Pi is the only concrete accepted host; Codex may exist only as a blocked diagnostic adapter under the extension below;
 10. prototype runs remain documentary evidence;
 11. both skills remain Unverified after constrained bootstrap acceptance;
 12. single cases have one `subject` and a `pass|fail|inconclusive` non-comparative verdict;
@@ -1005,7 +1190,10 @@ Confirmed 2026-07-11:
 21. no repeated one-shot fallback, adaptive branch, generated follow-up, shared session, resume, or partial reuse;
 22. initial acceptance requires one synthetic state/isolation case and one real `decision-gate` case;
 23. the owner granted standing approval for roadmap-declared model runs that preserve reviewed scope and limits; changed scope, higher limits, or a materially different method still requires owner direction;
-24. all semantic assertions in one multi-turn case use the same ordered `turn_ids`, preserving at most one semantic process per variant; differing semantic scopes are rejected in preflight.
+24. all semantic assertions in one multi-turn case use the same ordered `turn_ids`, preserving at most one semantic process per variant; differing semantic scopes are rejected in preflight;
+25. Codex CLI 0.144.1 isolation is proven, but hard provider-request and spend bounds are unavailable;
+26. the owner selected a no-paid-run, reduced-fidelity Codex diagnostic adapter rather than external proxy control or Phase 3 deferral;
+27. Codex provider requests and cost remain unavailable, Codex public execution stays blocked, and no cross-host acceptance claim is permitted.
 
 ## Extension Artifact Review
 
@@ -1028,8 +1216,18 @@ The first follow-up confirmed those fixes but found that `skill_read` entered th
 
 Review evidence and accepted result paths are recorded in `.skill-eval/decision-gate/reports/rpc-acceptance.md`.
 
+## Codex Diagnostic Reviews
+
+The no-provider capability review confirmed filesystem, ambient, skill, network, symlink, process, and output boundaries after one evidence-reproducibility revision. It also confirmed hard provider-request and spend bounds are unavailable. The owner selected the reduced-fidelity, no-paid-run route.
+
+The Codex contract review required literal provider semantics, whole-case null propagation, an immutable tool/security profile, and a precise public process boundary. Pass 3 was clean.
+
+Implementation review found one JSONL lifecycle-order blocker and missing Codex-specific timeout/output/cleanup coverage. Both were fixed; the narrow follow-up was clean. Full evidence and review hashes are recorded in `.skill-eval/evaluate-skill/reports/codex-diagnostic.md`.
+
 ## Change Log
 
 - 2026-07-11: Recorded accepted one-shot bootstrap state and added the draft fixed-script Pi RPC contract for artifact review.
 - 2026-07-11: Preserved one semantic process per variant by requiring identical ordered semantic `turn_ids`; narrow pass 2 confirmed the revision and moved the extension to Ready.
 - 2026-07-11: Accepted the configuration-bound fixed-script Pi RPC implementation after deterministic tests, two final evidence cases, fresh integrity checks, and a clean final implementation review.
+- 2026-07-12: Added the owner-selected reduced-fidelity Codex diagnostic contract after a clean no-provider isolation proof; paid execution and accepted cross-host evidence remain blocked.
+- 2026-07-12: Accepted the deterministic Codex diagnostic implementation after 126 passing tests and a clean follow-up implementation review; no Codex model request was made.

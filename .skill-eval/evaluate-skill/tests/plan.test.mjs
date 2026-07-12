@@ -127,6 +127,83 @@ test("fixed-script RPC preflight binds turns, capability handshake, and existing
   assert.deepEqual(blocked.summary.capabilities.missing.slice().sort(), ["multi_turn", "rpc_jsonl"]);
 });
 
+test("portable Codex planning is role-qualified, fingerprinted, and execution-blocked", async () => {
+  const workspace = await loadSkillWorkspace(repoRoot, "evaluate-skill");
+  const source = workspace.cases.find((item) => item.id === "ESK2-003");
+  const portable = {
+    ...source,
+    execution: { host: "portable", allowed_hosts: ["pi", "codex"], mode: "one-shot", tools: ["read", "write"] },
+  };
+  const cases = workspace.cases.map((item) => item.id === portable.id ? Object.freeze(portable) : item);
+  const capabilities = {
+    id: "codex",
+    available: true,
+    version: "codex-cli 0.144.1",
+    fidelity: "diagnostic",
+    capabilities: {
+      exec_jsonl: true,
+      isolated_home: true,
+      strict_config: true,
+      ephemeral: true,
+      ignore_rules: true,
+      ambient_context_disabled: true,
+      explicit_skill: true,
+      strict_filesystem_isolation: true,
+      network_disabled: true,
+      process_limits: true,
+      provider_request_bound: false,
+      spend_bound: false,
+    },
+  };
+  const options = {
+    case: portable.id,
+    ...hardLimits,
+    host: "codex",
+    subject_provider: "openai",
+    subject_model: "gpt-test",
+    subject_thinking: "high",
+    grader_provider: "p",
+    grader_model: "m",
+    grader_thinking: "low",
+    max_turns_per_process: 4,
+    plan_only: true,
+  };
+  const result = await buildEvaluationPlan({ ...workspace, cases }, options, { capabilitiesFor: async () => capabilities });
+  assert.equal(result.status, "blocked");
+  assert.equal(result.plan_inputs.subject_host, "codex");
+  assert.equal(result.plan_inputs.adapter_version, "codex-exec-diagnostic-v1");
+  assert.deepEqual(result.plan_inputs.subject_model, { provider: "openai", model: "gpt-test", thinking: "high" });
+  assert.deepEqual(result.plan_inputs.grader_model, { provider: "p", model: "m", thinking: "low" });
+  assert.deepEqual(result.summary.blocked_reasons.slice().sort(), ["provider_request_bound", "spend_bound"]);
+  assert.equal(result.summary.fidelity, "diagnostic");
+  assert.equal(result.summary.rerun_command, null);
+  assert.equal(result.summary.codex_processes.subject, 1);
+  assert.equal(result.summary.pi_processes.semantic_max, 1);
+  assert.equal(result.summary.worst_case_approved_turns, null);
+
+  await assert.rejects(
+    buildEvaluationPlan({ ...workspace, cases }, { ...options, subject_provider: "custom" }, { capabilitiesFor: async () => capabilities }),
+    /subject-provider.*openai/i,
+  );
+  await assert.rejects(
+    buildEvaluationPlan({ ...workspace, cases }, { ...options, provider: "legacy" }, { capabilitiesFor: async () => capabilities }),
+    /legacy|mixed/i,
+  );
+});
+
+test("fixed Pi cases reject role-qualified model options", async () => {
+  await assert.rejects(
+    plan("evaluate-skill", "ESK2-001", {
+      subject_provider: "p",
+      subject_model: "m",
+      subject_thinking: "low",
+      max_turns_per_process: 4,
+      plan_only: true,
+    }),
+    /role-qualified|fixed pi/i,
+  );
+});
+
 test("host-free case rejects model options", async () => {
   await assert.rejects(
     plan("write-skill", "WSK2-005", { provider: "p", owner_approved: true }),

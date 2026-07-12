@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
+import { runCodexSubject } from "../../../skills/evaluate-skill/scripts/lib/codex-adapter.mjs";
 import { buildEvaluationPlan } from "../../../skills/evaluate-skill/scripts/lib/plan.mjs";
 import { executeEvaluation } from "../../../skills/evaluate-skill/scripts/lib/evaluate.mjs";
 import { removeWritableTree } from "../../../skills/evaluate-skill/scripts/lib/materialize.mjs";
@@ -24,7 +25,7 @@ function successfulSubject(cost = 0) {
   };
 }
 
-async function fixture(t, { host = "none", comparison = false, semantic = false, withFixture = false, rpc = false } = {}) {
+async function fixture(t, { host = "none", comparison = false, semantic = false, withFixture = false, rpc = false, portable = false } = {}) {
   const root = await mkdtemp(resolve(tmpdir(), "freeflow-outcome-eval-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   await mkdir(resolve(root, "skills", "sample-skill"), { recursive: true });
@@ -55,7 +56,9 @@ async function fixture(t, { host = "none", comparison = false, semantic = false,
           { id: "candidate", role: "candidate", kind: "working-tree", path: "skills/sample-skill", resources: ["SKILL.md"] },
         ]
       : [{ id: "candidate", role: "subject", kind: "working-tree", path: "skills/sample-skill", resources: ["SKILL.md"] }],
-    execution: { host, mode: host === "none" ? "deterministic" : rpc ? "rpc-scripted" : "json", tools: host === "none" ? [] : ["read", ...(rpc ? ["write"] : [])], timeout_ms: 1000 },
+    execution: portable
+      ? { host: "portable", allowed_hosts: ["pi", "codex"], mode: "one-shot", tools: ["read", "write"] }
+      : { host, mode: host === "none" ? "deterministic" : rpc ? "rpc-scripted" : "json", tools: host === "none" ? [] : ["read", ...(rpc ? ["write"] : [])], timeout_ms: 1000 },
     assertions: semantic
       ? [{ id: "quality", type: "semantic", rubric: "The response is useful.", ...(rpc ? { turn_ids: ["turn-1", "turn-2"] } : {}) }]
       : rpc
@@ -63,7 +66,9 @@ async function fixture(t, { host = "none", comparison = false, semantic = false,
             { id: "stopped-first", type: "changed_paths", equals: [], turn_id: "turn-1" },
             { id: "acted-second", type: "changed_paths", equals: ["authorized.txt"], turn_id: "turn-2" },
           ]
-        : [{ id: "frontmatter", type: "skill_frontmatter", path: "SKILL.md" }],
+        : portable
+          ? [{ id: "authorized", type: "changed_paths", equals: ["authorized.txt"] }]
+          : [{ id: "frontmatter", type: "skill_frontmatter", path: "SKILL.md" }],
   };
   await writeFile(resolve(skillRoot, "cases", "SAMPLE-001.json"), JSON.stringify(evalCase));
   return { root, workspace: await loadSkillWorkspace(root, "sample-skill") };
@@ -158,6 +163,130 @@ test("fixed-script RPC evaluation publishes frozen intermediate workspace eviden
   assert.equal(metadata.process.protocol_failed, false);
   assert.ok(Buffer.byteLength(transcriptText) <= metadata.process.retained_output_bytes);
   assert.ok(metadata.process.retained_output_bytes <= plan.plan_inputs.limits.output_limit_bytes);
+});
+
+test("fake Codex subject composes through objective grading with unavailable whole-case accounting", async (t) => {
+  const { root, workspace } = await fixture(t, { portable: true });
+  const capabilities = {
+    id: "codex",
+    available: true,
+    version: "codex-cli 0.144.1",
+    fidelity: "diagnostic",
+    capabilities: {
+      exec_jsonl: true,
+      isolated_home: true,
+      strict_config: true,
+      ephemeral: true,
+      ignore_rules: true,
+      ambient_context_disabled: true,
+      explicit_skill: true,
+      strict_filesystem_isolation: true,
+      network_disabled: true,
+      process_limits: true,
+      provider_request_bound: true,
+      spend_bound: true,
+    },
+  };
+  const plan = await buildEvaluationPlan(workspace, {
+    case: "SAMPLE-001",
+    host: "codex",
+    timeout_ms: 1000,
+    output_limit_bytes: 1048576,
+    subject_provider: "openai",
+    subject_model: "gpt-test",
+    subject_thinking: "high",
+    max_turns_per_process: 4,
+    owner_approved: true,
+  }, { capabilitiesFor: async () => capabilities });
+  assert.equal(plan.status, "ready");
+  let codexRuntimeWorkspace;
+  const outcome = await executeEvaluation(workspace, plan, {
+    runCodexSubject: async ({ workspace: runtimeWorkspace }) => {
+      codexRuntimeWorkspace = runtimeWorkspace;
+      await writeFile(resolve(runtimeWorkspace, "authorized.txt"), "authorized\n");
+      return {
+        invocation: { command: "codex", args: ["exec", "--json", "-C", runtimeWorkspace, "$sample-skill\n\nInspect."] },
+        process: { code: 0, signal: null, timed_out: false, output_limit_exceeded: false, transport_limit_exceeded: false, protocol_failed: false, aborted: false, transport_bytes: 500, retained_output_bytes: 300, stdout: "{}\n", stderr: "" },
+        parsed: {
+          parse_errors: [],
+          final_text: "done",
+          usage: { input: 10, output: 5, cache_read: 0, cache_write: 0, total_tokens: 15, cost: null },
+          tool_events: [],
+          skill_read: false,
+        },
+        runtime_counters: { provider_requests: null, turns_started: 1, tool_calls: 1, hard_turn_limit_reached: null },
+      };
+    },
+  });
+  assert.equal(outcome.status, "complete");
+  assert.equal(outcome.decision.case_verdict, "pass");
+  assert.equal(outcome.usage.provider_requests, null);
+  assert.equal(outcome.usage.cost_usd, null);
+  const bundle = resolve(root, outcome.result, "..");
+  const result = JSON.parse(await readFile(resolve(bundle, "result.json"), "utf8"));
+  assert.deepEqual(result.unavailable.slice().sort(), ["usage.cost_usd", "usage.provider_requests"]);
+  const metadata = JSON.parse(await readFile(resolve(bundle, "evidence", "subject", "metadata.json"), "utf8"));
+  assert.equal(metadata.host, "codex");
+  assert.equal(metadata.adapter_version, "codex-exec-diagnostic-v1");
+  assert.equal(JSON.stringify(metadata.invocation).includes(codexRuntimeWorkspace), false);
+});
+
+test("Codex failure cleans isolated auth and config while publishing diagnostics only", async (t) => {
+  const { root, workspace } = await fixture(t, { portable: true });
+  const authPath = resolve(root, "fake-auth.json");
+  await writeFile(authPath, "{}\n", { mode: 0o600 });
+  const capabilities = {
+    id: "codex",
+    available: true,
+    version: "codex-cli 0.144.1",
+    fidelity: "diagnostic",
+    capabilities: {
+      exec_jsonl: true, isolated_home: true, strict_config: true, ephemeral: true, ignore_rules: true,
+      ambient_context_disabled: true, explicit_skill: true, strict_filesystem_isolation: true,
+      network_disabled: true, process_limits: true, provider_request_bound: true, spend_bound: true,
+    },
+  };
+  const plan = await buildEvaluationPlan(workspace, {
+    case: "SAMPLE-001", host: "codex", timeout_ms: 1000, output_limit_bytes: 1048576,
+    subject_provider: "openai", subject_model: "gpt-test", subject_thinking: "high",
+    max_turns_per_process: 4, owner_approved: true,
+  }, { capabilitiesFor: async () => capabilities });
+  let isolatedConfigDir;
+  const records = [
+    { type: "thread.started", thread_id: "thread" },
+    { type: "turn.started" },
+    { type: "item.completed", item: { id: "message", type: "agent_message", text: "partial" } },
+    { type: "turn.completed", usage: { input_tokens: 4, cached_input_tokens: 0, output_tokens: 2, reasoning_output_tokens: 0 } },
+  ];
+  const outcome = await executeEvaluation(workspace, plan, {
+    runCodexSubject: async (args) => {
+      isolatedConfigDir = args.configDir;
+      return runCodexSubject({
+        ...args,
+        authPath,
+        startProcess: async (_command, _argv, options) => ({
+          code: null,
+          signal: "SIGKILL",
+          timed_out: true,
+          output_limit_exceeded: false,
+          transport_limit_exceeded: false,
+          aborted: false,
+          transport_bytes: 500,
+          retained_output_bytes: 300,
+          stdout: `${records.map((record) => options.stdoutLineTransform(JSON.stringify(record), { terminated: true })).filter(Boolean).join("\n")}\n`,
+          stderr: "timed out",
+        }),
+      });
+    },
+  });
+  assert.equal(outcome.status, "incomplete");
+  assert.equal(outcome.usage.provider_requests, null);
+  assert.equal(outcome.usage.cost_usd, null);
+  await assert.rejects(() => access(isolatedConfigDir));
+  const diagnosticRoot = resolve(root, outcome.diagnostic, "..");
+  const metadata = JSON.parse(await readFile(resolve(diagnosticRoot, "evidence", "subject", "metadata.json"), "utf8"));
+  assert.equal(metadata.process.timed_out, true);
+  await assert.rejects(() => access(resolve(diagnosticRoot, "result.json")));
 });
 
 test("RPC protocol failure publishes diagnostics while preserving settled usage", async (t) => {

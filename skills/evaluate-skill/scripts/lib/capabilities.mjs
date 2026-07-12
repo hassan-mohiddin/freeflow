@@ -109,6 +109,36 @@ export async function probePiRpc(base = probePi(), dependencies = {}) {
   }
 }
 
+export function probeCodex(dependencies = {}) {
+  const runVersion = dependencies.run ?? run;
+  const version = runVersion("codex", ["--version"]);
+  const available = version.status === 0;
+  const value = available ? version.stdout.trim() : null;
+  const provenVersion = value === "codex-cli 0.144.1";
+  return {
+    id: "codex",
+    available,
+    version: value,
+    error: available ? null : version.error ?? version.stderr.trim(),
+    fidelity: "diagnostic",
+    isolation_profile: "codex-diagnostic-macos-v1",
+    capabilities: {
+      exec_jsonl: provenVersion,
+      isolated_home: provenVersion,
+      strict_config: provenVersion,
+      ephemeral: provenVersion,
+      ignore_rules: provenVersion,
+      ambient_context_disabled: provenVersion,
+      explicit_skill: provenVersion,
+      strict_filesystem_isolation: provenVersion,
+      network_disabled: provenVersion,
+      process_limits: provenVersion,
+      provider_request_bound: false,
+      spend_bound: false,
+    },
+  };
+}
+
 export async function capabilitiesFor(host, mode) {
   if (host === "none") {
     return {
@@ -122,6 +152,7 @@ export async function capabilitiesFor(host, mode) {
     const base = probePi();
     return mode === "rpc-scripted" ? probePiRpc(base) : base;
   }
+  if (host === "codex") return probeCodex();
   return { id: host, available: false, version: null, capabilities: {} };
 }
 
@@ -133,5 +164,6 @@ export function supportedEvidenceClasses(host, mode) {
   if (host === "pi" && mode === "rpc-scripted") {
     return new Set(["structure", "explicit-instruction", "native-activation", "artifact-outcome", "multi-turn"]);
   }
+  if (host === "codex" && mode === "exec") return new Set(["structure", "explicit-instruction", "native-activation", "artifact-outcome"]);
   return new Set();
 }

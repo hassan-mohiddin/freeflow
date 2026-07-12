@@ -54,6 +54,7 @@ export function createEvaluationLedger({ modelDriven }) {
     publicUsage() {
       let turns = 0;
       let providerRequests = 0;
+      let providerRequestsAvailable = modelDriven;
       let toolCalls = 0;
       let tokensAvailable = modelDriven;
       let costAvailable = modelDriven;
@@ -63,7 +64,8 @@ export function createEvaluationLedger({ modelDriven }) {
       for (const execution of records) {
         const counters = execution.runtime_counters;
         turns += counters.turns_started ?? 0;
-        providerRequests += counters.provider_requests ?? 0;
+        if (typeof counters.provider_requests !== "number") providerRequestsAvailable = false;
+        else providerRequests += counters.provider_requests;
         toolCalls += counters.tool_calls ?? 0;
         if (!modelDriven) continue;
         const usage = execution.usage;
@@ -84,7 +86,7 @@ export function createEvaluationLedger({ modelDriven }) {
 
       return snapshot({
         turns,
-        provider_requests: providerRequests,
+        provider_requests: modelDriven && !providerRequestsAvailable ? null : providerRequests,
         tool_calls: toolCalls,
         tokens: tokensAvailable ? tokens : null,
         cost_usd: costAvailable ? costUsd : null,

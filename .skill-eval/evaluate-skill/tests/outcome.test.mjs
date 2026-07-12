@@ -59,6 +59,23 @@ test("public usage derives only from recorded executions", () => {
   });
 });
 
+test("one unavailable Codex execution makes whole-case requests and cost unavailable", () => {
+  const ledger = createEvaluationLedger({ modelDriven: true });
+  const codex = execution("subject-codex", { cost: null });
+  codex.runtime_counters.provider_requests = null;
+  ledger.record(codex);
+  ledger.record(execution("semantic-pi", { cost: 0.2 }));
+  assert.deepEqual(ledger.publicUsage(), {
+    turns: 2,
+    provider_requests: null,
+    tool_calls: 4,
+    tokens: { input: 20, output: 10, cache_read: 4, cache_write: 2, total: 36 },
+    cost_usd: null,
+  });
+  assert.equal(ledger.entries()[1].runtime_counters.provider_requests, 1);
+  assert.equal(ledger.entries()[1].usage.cost.total_usd, 0.2);
+});
+
 test("missing model usage remains unavailable rather than zero", () => {
   const ledger = createEvaluationLedger({ modelDriven: true });
   ledger.record(execution("subject-1", { usage: false }));

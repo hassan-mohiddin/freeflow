@@ -65,7 +65,7 @@ export function runProcess(command, args, {
     function transformLine(line, terminated = true) {
       if (transformError || outputLimitExceeded || transportLimitExceeded) return;
       try {
-        const transformed = stdoutLineTransform(line);
+        const transformed = stdoutLineTransform(line, { terminated });
         if (transformed === null || transformed === undefined) return;
         retain(stdout, `${transformed}${terminated ? "\n" : ""}`);
       } catch (error) {

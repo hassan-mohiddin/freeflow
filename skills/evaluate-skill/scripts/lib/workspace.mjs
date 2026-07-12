@@ -16,7 +16,8 @@ const VARIANT_KINDS = new Set(["working-tree", "git", "none"]);
 const EVALUATION_KINDS = new Set(["single", "comparison"]);
 const VARIANT_ROLES = new Set(["subject", "reference", "candidate"]);
 const UNSUPPORTED_EVIDENCE_POLICIES = new Set(["block", "behavior-under-test"]);
-const HOSTS = new Set(["pi", "none"]);
+const HOSTS = new Set(["pi", "none", "portable"]);
+const PORTABLE_HOSTS = new Set(["pi", "codex"]);
 const QUESTIONS = new Set([
   "structural validity",
   "automatic activation",
@@ -152,12 +153,23 @@ export function validateCase(value, { path = "case" } = {}) {
     throw new Error(`${path} ${value.evaluation_kind} variant roles must be ${expectedRoles.join(", ")}`);
   }
   if (!value.execution || !HOSTS.has(value.execution.host)) throw new Error(`${path} has unknown execution host`);
+  if (value.execution.host === "portable") {
+    if (value.execution.mode !== "one-shot" || !hasPrompt) throw new Error(`${path} portable execution requires one-shot mode and prompt`);
+    if (!Array.isArray(value.execution.allowed_hosts) || value.execution.allowed_hosts.length === 0) throw new Error(`${path}.execution.allowed_hosts must be non-empty`);
+    if (new Set(value.execution.allowed_hosts).size !== value.execution.allowed_hosts.length) throw new Error(`${path}.execution.allowed_hosts contains duplicate host`);
+    for (const host of value.execution.allowed_hosts) if (!PORTABLE_HOSTS.has(host)) throw new Error(`${path}.execution.allowed_hosts contains unknown allowed host: ${host}`);
+  } else if (value.execution.allowed_hosts !== undefined) {
+    throw new Error(`${path}.execution.allowed_hosts is only valid for portable execution`);
+  }
   if (value.execution.host === "pi" && !new Set(["json", "rpc-scripted"]).has(value.execution.mode)) throw new Error(`${path} Pi execution must use json or rpc-scripted mode`);
   if (value.execution.host === "pi" && value.execution.mode === "json" && !hasPrompt) throw new Error(`${path} Pi json execution requires prompt`);
   if (value.execution.host === "pi" && value.execution.mode === "rpc-scripted" && !hasTurns) throw new Error(`${path} Pi rpc-scripted execution requires turns`);
   if (value.execution.host === "none" && (value.execution.mode !== "deterministic" || !hasPrompt)) throw new Error(`${path} deterministic execution must use none host and prompt`);
   if (!Array.isArray(value.execution.tools)) throw new Error(`${path}.execution.tools must be an array`);
   if (value.execution.tools.includes("bash")) throw new Error(`${path} cannot expose unrestricted bash`);
+  if (value.execution.host === "portable" && value.execution.allowed_hosts.includes("codex") && JSON.stringify(value.execution.tools) !== JSON.stringify(["read", "write"])) {
+    throw new Error(`${path} portable Codex tools must be exactly read, write`);
+  }
   if (!Array.isArray(value.assertions) || value.assertions.length === 0) throw new Error(`${path}.assertions must not be empty`);
   const assertionIds = new Set();
   let semanticTurnScope = null;

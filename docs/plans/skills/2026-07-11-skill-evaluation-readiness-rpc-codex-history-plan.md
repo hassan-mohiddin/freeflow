@@ -4,7 +4,7 @@
 > **Date:** 2026-07-11
 > **Owner:** Hassan Mohiddin
 > **Type:** Plan
-> **Status:** Paused — Phases 1 and 2 complete; stopped before Phase 3 at owner request
+> **Status:** Ready — Phases 1–3 complete; Phase 4 local spec gate is next
 > **Source:** Owner-approved roadmap decisions; `docs/specs/skills/skill-authoring-and-evaluation-v2.md`; `.skill-eval/evaluate-skill/reports/bootstrap-acceptance.md`; live evaluator and host evidence
 
 ## Goal
@@ -58,7 +58,7 @@ The current spec deliberately defers Pi RPC, second-host support, and historical
 - current-configuration Pi readiness evidence;
 - backward-compatible case-contract additions for fixed scripted turns;
 - strict Pi RPC JSONL transport and canonical per-turn evidence;
-- a concrete Codex CLI subject adapter if its required boundaries are enforceable;
+- a concrete Codex CLI subject adapter when required boundaries are enforceable, plus the explicitly selected reduced-fidelity diagnostic exception that remains blocked from model execution;
 - role-specific execution configuration and accounting;
 - documentary historical-evidence index, schema, and audit;
 - focused docs, tests, cases, reports, and integrity verification.
@@ -336,7 +336,27 @@ Refine exact implementation slices only after Phase 2. Do not extract a generic 
 
 ### Outcome
 
-Run one case on exactly one owner-selected subject host through `codex exec`, with explicit skill invocation, isolated configuration, honest accounting, and no claim beyond proven fidelity.
+Implement and deterministically verify one concrete `codex exec` diagnostic adapter with explicit skill invocation, isolated configuration, honest unavailable accounting, and no paid run or accepted cross-host claim.
+
+### Owner Route Decision
+
+The no-provider capability proof passed isolation, ambient suppression, explicit skill, network, symlink, timeout, process-tree, retained-output, and raw-transport boundaries. Codex CLI 0.144.1 does not expose a hard provider-request cap or monetary spend accounting.
+
+On 2026-07-12 the owner selected the reduced-fidelity diagnostic route:
+
+- implement the concrete adapter and portable planning contract;
+- use fake processes and no-provider probes only;
+- allow public planning/doctor to run only `codex --version`, while keeping auth access, runtime materialization, all other Codex processes, and model startup blocked;
+- report provider requests and cost unavailable rather than zero;
+- make no accepted Codex or cross-host readiness claim;
+- do not introduce an external proxy, app-server, or generic host abstraction.
+
+Capability evidence:
+
+- `/tmp/freeflow-phase3-codex-capability-proof-20260712.md`
+- `/tmp/freeflow-phase3-codex-capability-review-20260712.md`
+- `/tmp/freeflow-phase3-codex-capability-review-20260712-pass2.md` — clean deterministic proof with the paid-work boundary still unsupported
+- `/var/folders/2x/tsrlzqfx3ld_fn5bmr1_3l600000gn/T/freeflow-codex-capability-dLlNhG/evidence/`
 
 ### Slice 3.1 — Isolation And Limit Capability Proof
 
@@ -369,7 +389,9 @@ Relevant source facts to revalidate at execution time:
 
 **Type:** delivery
 
-Only after the capability proof, revise the spec with the proven contract:
+**Status:** Complete.
+
+After the capability proof and owner route decision, revise the spec with the proven diagnostic contract:
 
 - cases declare allowed subject hosts;
 - `--host pi|codex` selects exactly one host and never falls back;
@@ -391,16 +413,20 @@ Role-qualified options:
 --grader-thinking
 ```
 
-Legacy `--provider`, `--model`, and `--thinking` remain accepted only for existing Pi-only cases where subject and grader share one configuration. Reject mixed legacy and role-qualified forms. Reject grader options when no semantic assertions exist. Generated rerun commands use role-qualified options.
+Fixed Pi cases preserve legacy-only shared settings and reject role-qualified settings. Portable cases require role-qualified settings and reject legacy or mixed forms. For Codex, `--subject-provider` must be literal `openai` and binds strict config to the built-in provider; custom or fallback providers are rejected. Reject grader options when no semantic assertions exist. Blocked Codex plans emit no executable rerun command.
+
+Portable Codex cases must declare exactly `tools: ["read", "write"]`. That declaration selects immutable isolation profile `codex-diagnostic-macos-v1`; it does not map arbitrary Pi tool declarations to Codex.
 
 ### Slice 3.3 — Implement The Concrete Adapter
 
 **Type:** delivery
 
+**Status:** Complete on the reduced-fidelity, no-paid-run route.
+
 Add a Codex-specific adapter that:
 
-- materializes only declared skill resources into isolated `CODEX_HOME`;
-- invokes `codex exec --json --ephemeral` with explicit `$skill-name` selection, explicit model/reasoning, sandbox, approval, cwd, output, and config settings;
+- materializes only declared skill resources into isolated `CODEX_HOME` under separate isolated `HOME`;
+- invokes `codex exec --strict-config --json --ephemeral --ignore-rules` with explicit `$skill-name` selection, built-in `openai` provider, explicit model/reasoning, immutable `codex-diagnostic-macos-v1` permissions, never-approve policy, cwd, output, and config settings;
 - captures JSONL, final response, tool/process events, usage when reported, workspace evidence, and failure flags;
 - treats cost or provider-request data as unavailable rather than zero when Codex does not report it;
 - returns the existing deep subject outcome shape;
@@ -412,29 +438,42 @@ After both concrete adapters work, normalize only the outcome fields the coordin
 
 **Type:** delivery
 
+**Status:** Deferred by the reduced-fidelity route. No Codex model run is authorized in this phase.
+
+The original accepted-fidelity route would have:
+
 1. Run a synthetic explicit-invocation/isolation case on Codex.
 2. Run one real one-shot `decision-gate` case independently on Pi and Codex using the same fixed case contract.
 3. Verify each result bundle independently.
 4. Write a documentary comparison that links both results without merging or converting either `result.json`.
 
-Any paid run requires an exact plan, role-specific settings, fingerprint binding, and bounded process limits under the owner's standing approval. Escalate only when scope, bounds, or method changes.
+This original paid route is superseded and inactive. Current standing approval does not authorize a Codex model run because the required provider-request and spend bounds failed. Any future paid route requires a new spec revision, capability proof, and explicit owner decision.
 
-Allowed configuration-bound wording:
+The original configuration-bound wording below is forbidden under the selected diagnostic route:
 
 > Verified for Codex CLI 0.144.1 with `<model>`, high reasoning, under the recorded isolation profile.
 
-Use this wording only if every required boundary passes. Otherwise state the exact reduced-fidelity or unsupported limitation.
-
 ### Backward Checkpoint
 
-- **Continue to accepted Codex evidence if:** explicit skill loading, ambient suppression, filesystem isolation, evidence capture, and required limits pass.
-- **Remain diagnostic if:** execution works but a required equivalence boundary is unavailable.
+- **Continue to accepted Codex evidence if:** explicit skill loading, ambient suppression, filesystem isolation, evidence capture, and required limits pass. This condition is not met because provider-request and spend bounds are unavailable.
+- **Remain diagnostic if:** deterministic adapter execution works while provider-request and cost accounting remain unavailable. This is the selected route.
 - **Re-enter design if:** a generic host abstraction starts driving the concrete adapter, or app-server becomes necessary.
-- **Stop for owner direction if:** honest Codex support requires weaker trust claims, external sandboxing, proxy-based request control, or new public behavior.
+- **Stop for owner direction if:** implementation would weaken the selected diagnostic boundary, enable model startup, add external sandboxing/proxy control, or introduce public behavior beyond the reviewed portable blocked-plan contract.
 
 ### Phase Checkpoint
 
 Use fresh independent review for isolation/security and for the final normalized outcome/accounting seam. Parent adjudicates findings against source truth. Do not exceed three passes for the same phase scope.
+
+Phase 3 passed on the owner-selected reduced-fidelity route:
+
+- `.skill-eval/evaluate-skill/reports/codex-diagnostic.md`
+- no-provider capability evidence passed after reproducibility fixes;
+- contract review pass 3 was clean;
+- implementation review pass 2 was clean;
+- 126 deterministic tests passed with zero failures/skips/cancellations;
+- doctor reports Codex `0.144.1`, diagnostic planning ready, model execution false, and zero model requests;
+- public Codex routes remain blocked before auth access, runtime materialization, `codex exec`, sandbox probes, or model startup;
+- no paid Codex run or accepted Codex/cross-host result exists.
 
 ## Phase 4 — Documentary Historical-Evidence Index
 
@@ -621,9 +660,11 @@ The native subagent wrapper labelled both runs failed because its acceptance det
 - 2026-07-11: Applied the accepted Pi RPC spec-review finding by preserving one shared semantic turn scope and one semantic process per variant; narrow confirmation passed.
 - 2026-07-11: Completed Phase 2 with strict fixed-script Pi RPC execution, bounded canonical evidence, two accepted cases, fresh integrity verification, and a clean final implementation review.
 - 2026-07-11: Paused before Phase 3 at the owner's request; no Codex implementation or historical indexing began.
+- 2026-07-12: Completed the no-provider Codex capability proof, confirmed native provider-request/spend bounds are unavailable, and selected a no-paid-run reduced-fidelity diagnostic adapter.
+- 2026-07-12: Completed Phase 3 with a deterministic, publicly blocked Codex diagnostic adapter, 126 passing tests, and a clean follow-up implementation review; no model request was made.
 
 ## Next Executable Route
 
-Stop before Phase 3. Phase 2 is complete and no Codex or historical-evidence work has begun.
+Begin Phase 4 Slice 4.1 only through its local gate: revise and review the owning spec for documentary-only historical evidence before creating the schema or registry.
 
-When the owner resumes the roadmap, start only with Phase 3 Slice 3.1's no-provider Codex isolation and limit-capability proof. Do not begin Codex model evidence, generic host abstraction, or Phase 4 indexing until that backward checkpoint passes.
+Do not begin Codex model evidence, external request control, generic host abstraction, or historical indexing before that spec review passes.

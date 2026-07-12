@@ -1,15 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
 const repoRoot = resolve(import.meta.dirname, "..", "..", "..");
 const cli = resolve(repoRoot, "skills/evaluate-skill/scripts/skill-eval.mjs");
 
-function run(args) {
-  return spawnSync(process.execPath, [cli, ...args], { cwd: repoRoot, encoding: "utf8" });
+function run(args, options = {}) {
+  return spawnSync(process.execPath, [cli, ...args], { cwd: repoRoot, encoding: "utf8", ...options });
 }
 
 test("help exposes only doctor, init, and evaluate", () => {
@@ -40,6 +40,42 @@ test("model-driven evaluation without owner approval produces needs_approval", (
   const output = JSON.parse(result.stdout);
   assert.equal(output.status, "needs_approval");
   assert.ok(output.plan.fingerprint);
+});
+
+test("portable Codex plan blocks before auth, runtime, or model execution", async (t) => {
+  const root = await mkdtemp(resolve(tmpdir(), "freeflow-cli-codex-plan-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const isolatedHome = resolve(root, "home");
+  await mkdir(resolve(root, "skills", "sample-skill"), { recursive: true });
+  await mkdir(resolve(root, ".skill-eval", "sample-skill", "cases"), { recursive: true });
+  await mkdir(isolatedHome);
+  await writeFile(resolve(root, ".skill-eval", "config.json"), "{}\n");
+  await writeFile(resolve(root, "skills", "sample-skill", "SKILL.md"), "---\nname: sample-skill\ndescription: Sample.\n---\n\n# Sample\n");
+  await writeFile(resolve(root, ".skill-eval", "sample-skill", "suite.json"), JSON.stringify({ schema_version: 1, skill: "sample-skill", cases: ["cases/SAMPLE-001.json"] }));
+  await writeFile(resolve(root, ".skill-eval", "sample-skill", "cases", "SAMPLE-001.json"), JSON.stringify({
+    schema_version: 1,
+    id: "SAMPLE-001",
+    skill: "sample-skill",
+    title: "Sample",
+    question: "explicit invocation",
+    evidence_classes: ["explicit-instruction"],
+    required_for_bootstrap: false,
+    evaluation_kind: "single",
+    unsupported_evidence: "block",
+    prompt: "Inspect.",
+    fixture: null,
+    variants: [{ id: "candidate", role: "subject", kind: "working-tree", path: "skills/sample-skill", resources: ["SKILL.md"] }],
+    execution: { host: "portable", allowed_hosts: ["pi", "codex"], mode: "one-shot", tools: ["read", "write"] },
+    assertions: [{ id: "frontmatter", type: "skill_frontmatter", path: "SKILL.md" }],
+  }));
+  const result = run(["evaluate", "--root", root, "--skill", "sample-skill", "--case", "SAMPLE-001", "--host", "codex", "--timeout-ms", "1000", "--output-limit-bytes", "1048576", "--subject-provider", "openai", "--subject-model", "gpt-test", "--subject-thinking", "high", "--max-turns-per-process", "2", "--plan-only"], { env: { ...process.env, HOME: isolatedHome } });
+  assert.equal(result.status, 1, result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.status, "blocked");
+  assert.deepEqual(output.plan.blocked_reasons.slice().sort(), ["provider_request_bound", "spend_bound"]);
+  assert.equal(output.plan.rerun_command, null);
+  assert.deepEqual(await readdir(isolatedHome), []);
+  await assert.rejects(() => access(resolve(root, ".skill-eval", "sample-skill", "runs")));
 });
 
 test("approved host-free CLI invocation publishes a complete result", async (t) => {

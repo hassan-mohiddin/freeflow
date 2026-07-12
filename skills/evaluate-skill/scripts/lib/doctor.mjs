@@ -76,15 +76,19 @@ export async function probeRootGuard() {
 
 export async function doctorReport() {
   const pi = await capabilitiesFor("pi", "rpc-scripted");
+  const codex = await capabilitiesFor("codex", "exec");
   const rootGuard = pi.available ? await probeRootGuard() : { available: false, error: "Pi unavailable" };
   const nodeSupported = Number(process.versions.node.split(".")[0]) >= 22;
   return {
     schema_version: 1,
     node: { version: process.version, supported: nodeSupported },
     pi,
+    codex,
     root_guard: rootGuard,
     model_requests: 0,
     ready_for_planning: nodeSupported && pi.available && rootGuard.available,
     ready_for_rpc_planning: nodeSupported && pi.available && pi.capabilities.rpc_jsonl && rootGuard.available,
+    ready_for_codex_diagnostic_planning: nodeSupported && codex.available && codex.capabilities.strict_filesystem_isolation,
+    ready_for_codex_model_execution: false,
   };
 }

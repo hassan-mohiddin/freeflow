@@ -1,6 +1,7 @@
 import { cp, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, relative, resolve, sep } from "node:path";
+import { CODEX_ADAPTER_VERSION, redactedCodexInvocation, runCodexSubject } from "./codex-adapter.mjs";
 import { coordinateEvaluation } from "./coordinator.mjs";
 import { createManifest, captureGitEvidenceNonMutating, copyDirectory, initializeFixtureGit, makeWritable, materializeSkillVariant, removeWritableTree } from "./materialize.mjs";
 import { hashDeclaredResources, hashDirectory } from "./hash.mjs";
@@ -85,16 +86,20 @@ async function executeVariant(workspace, plan, variant, evidenceDir, id, depende
     if (subjectHashBefore !== variant.snapshot_hash) throw new Error(`Materialized subject differs from approved resources for ${variant.role}`);
     const skillManifest = await createManifest(snapshotRoot);
 
-    if (plan.eval_case.execution.host !== "none") {
-      const rpcMode = plan.eval_case.execution.mode === "rpc-scripted";
-      const subjectRunner = rpcMode ? dependencies.runRpcSubject : dependencies.runSubject;
+    const selectedHost = plan.plan_inputs.subject_host;
+    const effectiveMode = plan.plan_inputs.effective_mode;
+    if (selectedHost !== "none") {
+      const rpcMode = effectiveMode === "rpc-scripted";
+      const codexMode = selectedHost === "codex";
+      const subjectRunner = codexMode ? dependencies.runCodexSubject : rpcMode ? dependencies.runRpcSubject : dependencies.runSubject;
       subject = await subjectRunner({
         prompt: plan.eval_case.prompt,
         turns: plan.eval_case.turns,
-        provider: plan.plan_inputs.model.provider,
-        model: plan.plan_inputs.model.model,
-        thinking: plan.plan_inputs.model.thinking,
+        provider: plan.plan_inputs.subject_model.provider,
+        model: plan.plan_inputs.subject_model.model,
+        thinking: plan.plan_inputs.subject_model.thinking,
         tools: plan.eval_case.execution.tools,
+        skillName: workspace.suite.skill,
         skillSnapshot: snapshotRoot,
         workspace: fixtureRoot,
         configDir: configRoot,
@@ -157,22 +162,22 @@ async function executeVariant(workspace, plan, variant, evidenceDir, id, depende
       subject_resources: variant.resources,
       subject_source_hash: variant.snapshot_hash,
       materialized_subject_hash: subjectHashBefore,
-      host: plan.eval_case.execution.host,
-      adapter_version: plan.eval_case.execution.mode === "rpc-scripted" ? PI_RPC_ADAPTER_VERSION : PI_ADAPTER_VERSION,
-      execution_mode: plan.eval_case.execution.mode,
+      host: selectedHost,
+      adapter_version: selectedHost === "codex" ? CODEX_ADAPTER_VERSION : effectiveMode === "rpc-scripted" ? PI_RPC_ADAPTER_VERSION : PI_ADAPTER_VERSION,
+      execution_mode: effectiveMode,
       scripted_turns: plan.eval_case.turns?.map(({ id }) => id) ?? null,
-      provider: plan.plan_inputs.model?.provider ?? null,
-      model: plan.plan_inputs.model?.model ?? null,
-      thinking: plan.plan_inputs.model?.thinking ?? null,
+      provider: plan.plan_inputs.subject_model?.provider ?? null,
+      model: plan.plan_inputs.subject_model?.model ?? null,
+      thinking: plan.plan_inputs.subject_model?.thinking ?? null,
       tools: plan.eval_case.execution.tools,
       hard_limits: plan.plan_inputs.limits,
-      invocation: subject ? redactedInvocation(subject.invocation) : { command: null, args: [] },
+      invocation: subject ? (selectedHost === "codex" ? redactedCodexInvocation(subject.invocation) : redactedInvocation(subject.invocation)) : { command: null, args: [] },
       evidence_classes: { required: plan.summary.evidence.required, requested: plan.summary.evidence.requested },
       usage: subject?.parsed.usage ?? null,
       runtime_counters: counters,
       activation: { skill_read: subject?.parsed.skill_read ?? false },
       changed_paths: git.changedPaths,
-      assertion_root: plan.eval_case.execution.host === "none" ? "skill" : "workspace",
+      assertion_root: selectedHost === "none" ? "skill" : "workspace",
       skill_manifest: skillManifest,
       process: subject ? {
         exit_code: subject.process.code,
@@ -209,7 +214,7 @@ async function executeVariant(workspace, plan, variant, evidenceDir, id, depende
         writeFile(resolve(evidenceDir, "git-status.txt"), git.status),
         writeFile(resolve(evidenceDir, "exit-status.txt"), `${subject?.process.code ?? 0}\n`),
         writeFile(resolve(evidenceDir, "usage.json"), `${JSON.stringify(subject?.parsed.usage ?? null, null, 2)}\n`),
-        ...(plan.eval_case.execution.mode === "rpc-scripted" ? [writeFile(resolve(evidenceDir, "transcript.json"), `${JSON.stringify({ schema_version: 1, turns: subject?.parsed.turns ?? [] }, null, 2)}\n`)] : []),
+        ...(effectiveMode === "rpc-scripted" ? [writeFile(resolve(evidenceDir, "transcript.json"), `${JSON.stringify({ schema_version: 1, turns: subject?.parsed.turns ?? [] }, null, 2)}\n`)] : []),
       ]);
     }
     if (subjectFailure) throw new Error(`Subject ${variant.role} produced unusable evidence or exited with ${subject.process.code}`);
@@ -269,6 +274,7 @@ function renderReport(plan, decision, variants, usage, limitations) {
 export async function executeEvaluation(workspace, plan, dependencies = {}) {
   const runSubject = dependencies.runSubject ?? runPiSubject;
   const runRpcSubject = dependencies.runRpcSubject ?? runPiRpcSubject;
+  const runCodex = dependencies.runCodexSubject ?? runCodexSubject;
   const gradeSemantic = dependencies.gradeSemantic ?? gradeSemanticRun;
   const id = evaluationId(plan);
   const runsRoot = resolve(workspace.skillRoot, "runs");
@@ -291,7 +297,7 @@ export async function executeEvaluation(workspace, plan, dependencies = {}) {
     skill: workspace.suite.skill,
     case_id: plan.eval_case.id,
     evaluation_kind: plan.eval_case.evaluation_kind,
-    model_driven: plan.eval_case.execution.host !== "none",
+    model_driven: plan.plan_inputs.subject_host !== "none",
     max_usd: plan.plan_inputs.max_usd,
     evidence_support: plan.summary.evidence,
     limitations: plan.summary.limitations,
@@ -306,13 +312,13 @@ export async function executeEvaluation(workspace, plan, dependencies = {}) {
       variantByRole.get(role),
       resolve(stagingDir, "evidence", role),
       id,
-      { runSubject, runRpcSubject, persistVariantEvidence: dependencies.persistVariantEvidence, cleanupRuntime: dependencies.cleanupRuntime },
+      { runSubject, runRpcSubject, runCodexSubject: runCodex, persistVariantEvidence: dependencies.persistVariantEvidence, cleanupRuntime: dependencies.cleanupRuntime },
     ),
     runSemantic: async ({ role }) => {
       const semantic = await gradeSemantic(resolve(stagingDir, "evidence", role), {
-        provider: plan.plan_inputs.model.provider,
-        model: plan.plan_inputs.model.model,
-        thinking: plan.plan_inputs.model.thinking,
+        provider: plan.plan_inputs.grader_model.provider,
+        model: plan.plan_inputs.grader_model.model,
+        thinking: plan.plan_inputs.grader_model.thinking,
         max_turns_per_process: plan.plan_inputs.limits.max_turns_per_process,
         timeout_ms: plan.plan_inputs.limits.timeout_ms,
         output_limit_bytes: plan.plan_inputs.limits.output_limit_bytes,
@@ -352,6 +358,7 @@ export async function executeEvaluation(workspace, plan, dependencies = {}) {
         ...(variant.semantic?.uncertainty ? [`${variant.role}: ${variant.semantic.uncertainty}`] : []),
       ]);
       const unavailable = [
+        ...(coordinated.usage.provider_requests === null ? ["usage.provider_requests"] : []),
         ...(coordinated.usage.cost_usd === null ? ["usage.cost_usd"] : []),
         ...(coordinated.usage.tokens === null ? ["usage.tokens"] : []),
       ];
