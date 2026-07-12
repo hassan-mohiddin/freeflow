@@ -28,6 +28,16 @@ const QUESTIONS = new Set([
   "multi-turn behavior",
   "full host/runtime behavior",
 ]);
+const TURN_SCOPED_ASSERTION_TYPES = new Set([
+  "skill_read",
+  "skill_not_read",
+  "path_exists",
+  "changed_paths",
+  "forbidden_changed_path",
+  "path_unchanged",
+  "line_count",
+  "turn_text_contains",
+]);
 const ASSERTION_TYPES = new Set([
   "skill_read",
   "skill_not_read",
@@ -43,6 +53,7 @@ const ASSERTION_TYPES = new Set([
   "json_field_in",
   "forbidden_text",
   "unsupported_evidence_class",
+  "turn_text_contains",
 ]);
 
 export async function readJson(path) {
@@ -100,7 +111,21 @@ export function validateCase(value, { path = "case" } = {}) {
   if (value.schema_version !== 1) throw new Error(`${path} has unsupported schema_version`);
   for (const key of ["id", "skill", "title", "question"]) requireString(value[key], `${path}.${key}`);
   if (!QUESTIONS.has(value.question)) throw new Error(`${path} has unknown eval question: ${value.question}`);
-  requireString(value.prompt, `${path}.prompt`, { allowEmpty: true });
+  const hasPrompt = Object.hasOwn(value, "prompt");
+  const hasTurns = Object.hasOwn(value, "turns");
+  if (hasPrompt === hasTurns) throw new Error(`${path} must declare exactly one of prompt or turns`);
+  if (hasPrompt) requireString(value.prompt, `${path}.prompt`, { allowEmpty: true });
+  const turnIds = new Set();
+  if (hasTurns) {
+    if (!Array.isArray(value.turns) || value.turns.length === 0) throw new Error(`${path}.turns must be a non-empty array`);
+    for (const turn of value.turns) {
+      if (!turn || typeof turn !== "object" || Array.isArray(turn)) throw new Error(`${path}.turn must be an object`);
+      requireString(turn.id, `${path}.turn.id`);
+      requireString(turn.prompt, `${path}.${turn.id}.prompt`, { allowEmpty: true });
+      if (turnIds.has(turn.id)) throw new Error(`${path} has duplicate turn id: ${turn.id}`);
+      turnIds.add(turn.id);
+    }
+  }
   if (typeof value.required_for_bootstrap !== "boolean") throw new Error(`${path}.required_for_bootstrap must be boolean`);
   if (!EVALUATION_KINDS.has(value.evaluation_kind)) throw new Error(`${path} has unknown evaluation_kind: ${value.evaluation_kind}`);
   if (!UNSUPPORTED_EVIDENCE_POLICIES.has(value.unsupported_evidence)) throw new Error(`${path} has unknown unsupported_evidence policy: ${value.unsupported_evidence}`);
@@ -127,19 +152,65 @@ export function validateCase(value, { path = "case" } = {}) {
     throw new Error(`${path} ${value.evaluation_kind} variant roles must be ${expectedRoles.join(", ")}`);
   }
   if (!value.execution || !HOSTS.has(value.execution.host)) throw new Error(`${path} has unknown execution host`);
-  if (value.execution.host === "pi" && value.execution.mode !== "json") throw new Error(`${path} Pi execution must use json mode`);
-  if (value.execution.host === "none" && value.execution.mode !== "deterministic") throw new Error(`${path} deterministic execution must use none host`);
+  if (value.execution.host === "pi" && !new Set(["json", "rpc-scripted"]).has(value.execution.mode)) throw new Error(`${path} Pi execution must use json or rpc-scripted mode`);
+  if (value.execution.host === "pi" && value.execution.mode === "json" && !hasPrompt) throw new Error(`${path} Pi json execution requires prompt`);
+  if (value.execution.host === "pi" && value.execution.mode === "rpc-scripted" && !hasTurns) throw new Error(`${path} Pi rpc-scripted execution requires turns`);
+  if (value.execution.host === "none" && (value.execution.mode !== "deterministic" || !hasPrompt)) throw new Error(`${path} deterministic execution must use none host and prompt`);
   if (!Array.isArray(value.execution.tools)) throw new Error(`${path}.execution.tools must be an array`);
   if (value.execution.tools.includes("bash")) throw new Error(`${path} cannot expose unrestricted bash`);
   if (!Array.isArray(value.assertions) || value.assertions.length === 0) throw new Error(`${path}.assertions must not be empty`);
   const assertionIds = new Set();
+  let semanticTurnScope = null;
   for (const assertion of value.assertions) {
     requireString(assertion.id, `${path}.assertion.id`);
     requireString(assertion.type, `${path}.${assertion.id}.type`);
     if (!ASSERTION_TYPES.has(assertion.type)) throw new Error(`${path} has unknown assertion type: ${assertion.type}`);
     if (assertionIds.has(assertion.id)) throw new Error(`${path} has duplicate assertion: ${assertion.id}`);
     assertionIds.add(assertion.id);
-    if (assertion.type === "semantic") requireString(assertion.rubric, `${path}.${assertion.id}.rubric`);
+    if (assertion.type === "semantic") {
+      requireString(assertion.rubric, `${path}.${assertion.id}.rubric`);
+      if (value.execution.mode === "rpc-scripted") {
+        if (!Array.isArray(assertion.turn_ids) || assertion.turn_ids.length === 0) throw new Error(`${path}.${assertion.id}.turn_ids must be a non-empty array`);
+        if (new Set(assertion.turn_ids).size !== assertion.turn_ids.length) throw new Error(`${path}.${assertion.id}.turn_ids contains duplicates`);
+        for (const turnId of assertion.turn_ids) {
+          requireString(turnId, `${path}.${assertion.id}.turn_id`);
+          if (!turnIds.has(turnId)) throw new Error(`${path}.${assertion.id}.turn_ids contains unknown turn id: ${turnId}`);
+        }
+        const scope = JSON.stringify(assertion.turn_ids);
+        if (semanticTurnScope !== null && semanticTurnScope !== scope) throw new Error(`${path} semantic assertions must use the same ordered turn_ids`);
+        semanticTurnScope = scope;
+      } else if (assertion.turn_ids !== undefined) {
+        throw new Error(`${path}.${assertion.id}.turn_ids is only valid for rpc-scripted execution`);
+      }
+    }
+    if (assertion.type === "turn_text_contains") {
+      if (assertion.turn_id === undefined) throw new Error(`${path}.${assertion.id} turn_text_contains requires turn_id`);
+      const common = assertion.contains;
+      const byRole = assertion.contains_by_role;
+      if ((common === undefined) === (byRole === undefined)) throw new Error(`${path}.${assertion.id} must declare exactly one of contains or contains_by_role`);
+      const validatePatterns = (patterns, label) => {
+        if (!Array.isArray(patterns) || patterns.length === 0 || patterns.some((pattern) => typeof pattern !== "string" || pattern.length === 0)) throw new Error(`${label} must be a non-empty string array`);
+      };
+      if (common !== undefined) validatePatterns(common, `${path}.${assertion.id}.contains`);
+      if (byRole !== undefined) {
+        if (!byRole || typeof byRole !== "object" || Array.isArray(byRole)) throw new Error(`${path}.${assertion.id}.contains_by_role must be an object`);
+        if (JSON.stringify(Object.keys(byRole).sort()) !== JSON.stringify([...expectedRoles].sort())) throw new Error(`${path}.${assertion.id}.contains_by_role must match variant roles`);
+        for (const role of expectedRoles) validatePatterns(byRole[role], `${path}.${assertion.id}.contains_by_role.${role}`);
+      }
+      if (assertion.forbids !== undefined) validatePatterns(assertion.forbids, `${path}.${assertion.id}.forbids`);
+      if (assertion.forbids_by_role !== undefined) {
+        const forbidden = assertion.forbids_by_role;
+        if (!forbidden || typeof forbidden !== "object" || Array.isArray(forbidden)) throw new Error(`${path}.${assertion.id}.forbids_by_role must be an object`);
+        if (JSON.stringify(Object.keys(forbidden).sort()) !== JSON.stringify([...expectedRoles].sort())) throw new Error(`${path}.${assertion.id}.forbids_by_role must match variant roles`);
+        for (const role of expectedRoles) validatePatterns(forbidden[role], `${path}.${assertion.id}.forbids_by_role.${role}`);
+      }
+    }
+    if (assertion.type !== "semantic" && assertion.turn_id !== undefined) {
+      requireString(assertion.turn_id, `${path}.${assertion.id}.turn_id`);
+      if (value.execution.mode !== "rpc-scripted") throw new Error(`${path}.${assertion.id}.turn_id is only valid for rpc-scripted execution`);
+      if (!TURN_SCOPED_ASSERTION_TYPES.has(assertion.type)) throw new Error(`${path}.${assertion.id} type ${assertion.type} does not support turn_id`);
+      if (!turnIds.has(assertion.turn_id)) throw new Error(`${path}.${assertion.id}.turn_id names unknown turn id: ${assertion.turn_id}`);
+    }
     if (new Set(["path_exists", "skill_frontmatter", "line_count", "path_unchanged", "file_contains", "json_field", "json_field_in", "forbidden_text"]).has(assertion.type)) {
       requireString(assertion.path, `${path}.${assertion.id}.path`);
       resolveInside("/owned", assertion.path, `${path}.${assertion.id}.path`);

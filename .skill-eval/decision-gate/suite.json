@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "skill": "decision-gate",
+  "cases": [
+    "cases/DG2-001-rpc-state-isolation.json",
+    "cases/DG2-002-rpc-owner-decision.json"
+  ]
+}

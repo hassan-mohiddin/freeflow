@@ -23,4 +23,7 @@ test("doctor proves Pi guard without model calls", async () => {
   assert.equal(report.pi.available, true);
   assert.equal(report.root_guard.available, true, JSON.stringify(report.root_guard));
   assert.equal(report.ready_for_planning, true);
+  assert.equal(report.pi.capabilities.rpc_jsonl, true, report.pi.rpc_error);
+  assert.equal(report.pi.capabilities.multi_turn, true, report.pi.rpc_error);
+  assert.equal(report.ready_for_rpc_planning, true);
 });

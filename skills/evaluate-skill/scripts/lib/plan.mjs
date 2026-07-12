@@ -9,7 +9,11 @@ import { hashDeclaredResources, hashDirectory, hashFile, hashGitResources, sha25
 import { assertNoSymlinkTree, isWithin } from "./path-policy.mjs";
 import { resolveInside } from "./workspace.mjs";
 
-const ADAPTER_VERSION = "pi-outcome-v1";
+const ADAPTER_VERSIONS = {
+  deterministic: "deterministic-v1",
+  json: "pi-outcome-v1",
+  "rpc-scripted": "pi-rpc-scripted-v1",
+};
 const MODEL_OPTION_KEYS = ["provider", "model", "thinking", "max_turns_per_process", "max_usd"];
 const scriptsRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const EVALUATOR_SOURCE_FILES = [
@@ -30,6 +34,7 @@ const EVALUATOR_SOURCE_FILES = [
   "lib/plan.mjs",
   "lib/process-outcome.mjs",
   "lib/process.mjs",
+  "lib/rpc-client.mjs",
   "lib/publication.mjs",
   "lib/workspace.mjs",
 ];
@@ -127,7 +132,7 @@ function rerunCommand(summary) {
   return args.join(" ");
 }
 
-export async function buildEvaluationPlan(workspace, options) {
+export async function buildEvaluationPlan(workspace, options, dependencies = {}) {
   const evalCase = selectCase(workspace, options.case);
   const timeoutMs = requirePositiveInteger(options.timeout_ms, "--timeout-ms");
   const outputLimitBytes = requirePositiveInteger(options.output_limit_bytes, "--output-limit-bytes");
@@ -152,10 +157,13 @@ export async function buildEvaluationPlan(workspace, options) {
     throw new Error("--max-usd must be a positive number");
   }
 
-  const host = capabilitiesFor(evalCase.execution.host);
+  const resolveCapabilities = dependencies.capabilitiesFor ?? capabilitiesFor;
+  const host = await resolveCapabilities(evalCase.execution.host, evalCase.execution.mode);
+  const requiredCapabilities = evalCase.execution.mode === "rpc-scripted"
+    ? ["rpc_jsonl", "multi_turn", "native_skill_loading", "explicit_extensions", "disable_extension_discovery", "disable_context_files", "tool_allowlist", "strict_tool_isolation"]
+    : ["one_shot_json", "native_skill_loading", "explicit_extensions", "disable_extension_discovery", "disable_context_files", "tool_allowlist", "strict_tool_isolation"];
   const missingCapabilities = modelDriven
-    ? ["one_shot_json", "native_skill_loading", "explicit_extensions", "disable_extension_discovery", "disable_context_files", "tool_allowlist", "strict_tool_isolation"]
-      .filter((name) => !host.capabilities?.[name])
+    ? requiredCapabilities.filter((name) => !host.capabilities?.[name])
     : [];
   if (modelDriven && !host.available) missingCapabilities.unshift("pi-available");
   const evidence = evidenceResolution(evalCase);
@@ -178,11 +186,16 @@ export async function buildEvaluationPlan(workspace, options) {
         "The output limit applies to retained canonical evidence after cumulative Pi JSON updates are compacted; raw transport has a separate internal safeguard.",
       ]
     : [];
+  if (evalCase.execution.mode === "rpc-scripted") {
+    limitations.push("Turn, timeout, retained-output, and raw-transport limits apply across each complete RPC process; scripted user turns are not separate process budgets.");
+  }
   if (evidence.unsupported_requested.length > 0 && evalCase.unsupported_evidence === "behavior-under-test") {
     limitations.push(`Unsupported evidence is behavior under test: ${evidence.unsupported_requested.join(", ")}.`);
   }
   if (options.max_usd === undefined && modelDriven) limitations.push("Cost is reported when available; no aggregate spend ceiling was supplied.");
-  if (options.max_usd !== undefined && modelDriven) limitations.push("The spend ceiling is checked between Pi processes only when the host reports cost; unavailable cost remains unavailable.");
+  if (options.max_usd !== undefined && modelDriven) limitations.push(evalCase.execution.mode === "rpc-scripted"
+    ? "The spend ceiling is checked between Pi processes and before later scripted prompts when the host reports cost; unavailable cost remains unavailable."
+    : "The spend ceiling is checked between Pi processes only when the host reports cost; unavailable cost remains unavailable.");
 
   const { source_path: _sourcePath, ...caseContent } = evalCase;
   const caseSourcePath = relative(workspace.repoRoot, evalCase.source_path).split(sep).join("/");
@@ -196,7 +209,7 @@ export async function buildEvaluationPlan(workspace, options) {
   };
   const planInputs = {
     schema_version: 1,
-    adapter_version: ADAPTER_VERSION,
+    adapter_version: ADAPTER_VERSIONS[evalCase.execution.mode] ?? `unsupported-${evalCase.execution.mode}`,
     skill: workspace.suite.skill,
     case: caseContent,
     identities,
@@ -220,6 +233,7 @@ export async function buildEvaluationPlan(workspace, options) {
     variants: variants.map(({ id, role }) => ({ id, role })),
     model: planInputs.model,
     pi_processes: { subject: subjectProcesses, semantic_max: semanticProcesses, total_max: totalProcesses },
+    scripted_user_turns: evalCase.execution.mode === "rpc-scripted" ? evalCase.turns.length : null,
     limits: planInputs.limits,
     worst_case_approved_turns: totalProcesses * maxTurns,
     spend: { max_usd: planInputs.max_usd },

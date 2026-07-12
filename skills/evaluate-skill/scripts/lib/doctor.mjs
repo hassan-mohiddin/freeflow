@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { authorizeToolPath, createRootPolicy } from "./path-policy.mjs";
-import { probePi } from "./capabilities.mjs";
+import { capabilitiesFor } from "./capabilities.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const guardPath = resolve(scriptDir, "..", "pi-root-guard.mjs");
@@ -75,14 +75,16 @@ export async function probeRootGuard() {
 }
 
 export async function doctorReport() {
-  const pi = probePi();
+  const pi = await capabilitiesFor("pi", "rpc-scripted");
   const rootGuard = pi.available ? await probeRootGuard() : { available: false, error: "Pi unavailable" };
+  const nodeSupported = Number(process.versions.node.split(".")[0]) >= 22;
   return {
     schema_version: 1,
-    node: { version: process.version, supported: Number(process.versions.node.split(".")[0]) >= 22 },
+    node: { version: process.version, supported: nodeSupported },
     pi,
     root_guard: rootGuard,
     model_requests: 0,
-    ready_for_planning: Number(process.versions.node.split(".")[0]) >= 22 && pi.available && rootGuard.available,
+    ready_for_planning: nodeSupported && pi.available && rootGuard.available,
+    ready_for_rpc_planning: nodeSupported && pi.available && pi.capabilities.rpc_jsonl && rootGuard.available,
   };
 }

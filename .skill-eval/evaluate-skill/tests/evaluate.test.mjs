@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -23,7 +24,7 @@ function successfulSubject(cost = 0) {
   };
 }
 
-async function fixture(t, { host = "none", comparison = false, semantic = false, withFixture = false } = {}) {
+async function fixture(t, { host = "none", comparison = false, semantic = false, withFixture = false, rpc = false } = {}) {
   const root = await mkdtemp(resolve(tmpdir(), "freeflow-outcome-eval-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   await mkdir(resolve(root, "skills", "sample-skill"), { recursive: true });
@@ -41,12 +42,12 @@ async function fixture(t, { host = "none", comparison = false, semantic = false,
     id: "SAMPLE-001",
     skill: "sample-skill",
     title: "Sample",
-    question: host === "none" ? "structural validity" : "explicit invocation",
-    evidence_classes: [host === "none" ? "structure" : "explicit-instruction"],
+    question: host === "none" ? "structural validity" : rpc ? "multi-turn behavior" : "explicit invocation",
+    evidence_classes: [host === "none" ? "structure" : rpc ? "multi-turn" : "explicit-instruction"],
     required_for_bootstrap: true,
     evaluation_kind: comparison ? "comparison" : "single",
     unsupported_evidence: "block",
-    prompt: "Inspect the sample.",
+    ...(rpc ? { turns: [{ id: "turn-1", prompt: "Wait for authorization." }, { id: "turn-2", prompt: "Authorization granted." }] } : { prompt: "Inspect the sample." }),
     fixture: withFixture ? "fixtures/input" : null,
     variants: comparison
       ? [
@@ -54,10 +55,15 @@ async function fixture(t, { host = "none", comparison = false, semantic = false,
           { id: "candidate", role: "candidate", kind: "working-tree", path: "skills/sample-skill", resources: ["SKILL.md"] },
         ]
       : [{ id: "candidate", role: "subject", kind: "working-tree", path: "skills/sample-skill", resources: ["SKILL.md"] }],
-    execution: { host, mode: host === "none" ? "deterministic" : "json", tools: host === "none" ? [] : ["read"], timeout_ms: 1000 },
+    execution: { host, mode: host === "none" ? "deterministic" : rpc ? "rpc-scripted" : "json", tools: host === "none" ? [] : ["read", ...(rpc ? ["write"] : [])], timeout_ms: 1000 },
     assertions: semantic
-      ? [{ id: "quality", type: "semantic", rubric: "The response is useful." }]
-      : [{ id: "frontmatter", type: "skill_frontmatter", path: "SKILL.md" }],
+      ? [{ id: "quality", type: "semantic", rubric: "The response is useful.", ...(rpc ? { turn_ids: ["turn-1", "turn-2"] } : {}) }]
+      : rpc
+        ? [
+            { id: "stopped-first", type: "changed_paths", equals: [], turn_id: "turn-1" },
+            { id: "acted-second", type: "changed_paths", equals: ["authorized.txt"], turn_id: "turn-2" },
+          ]
+        : [{ id: "frontmatter", type: "skill_frontmatter", path: "SKILL.md" }],
   };
   await writeFile(resolve(skillRoot, "cases", "SAMPLE-001.json"), JSON.stringify(evalCase));
   return { root, workspace: await loadSkillWorkspace(root, "sample-skill") };
@@ -85,6 +91,119 @@ test("host-free evaluation atomically publishes one complete result", async (t) 
   const bundleRoot = resolve(root, outcome.result, "..");
   await assert.rejects(() => access(resolve(bundleRoot, "evidence", "subject", "inputs", "skill", "UNDECLARED.md")));
   assert.deepEqual(await readdir(resolve(workspace.skillRoot, "runs", "diagnostics")).catch(() => []), []);
+});
+
+test("fixed-script RPC evaluation publishes frozen intermediate workspace evidence", async (t) => {
+  const { root, workspace } = await fixture(t, { host: "pi", rpc: true });
+  const capabilities = {
+    id: "pi",
+    available: true,
+    version: "test-pi",
+    capabilities: {
+      rpc_jsonl: true,
+      multi_turn: true,
+      native_skill_loading: true,
+      explicit_extensions: true,
+      disable_extension_discovery: true,
+      disable_context_files: true,
+      tool_allowlist: true,
+      strict_tool_isolation: true,
+    },
+  };
+  const plan = await buildEvaluationPlan(workspace, {
+    case: "SAMPLE-001",
+    timeout_ms: 1000,
+    output_limit_bytes: 1048576,
+    provider: "p",
+    model: "m",
+    thinking: "low",
+    max_turns_per_process: 4,
+    owner_approved: true,
+  }, { capabilitiesFor: async () => capabilities });
+  const outcome = await executeEvaluation(workspace, plan, {
+    runRpcSubject: async ({ turns, workspace: runtimeWorkspace, onTurnSettled }) => {
+      const captured = [];
+      captured.push({ id: turns[0].id, final_text: "I need authorization.", workspace: await onTurnSettled({ id: turns[0].id }) });
+      assert.equal(spawnSync("git", ["diff", "--cached", "--quiet"], { cwd: runtimeWorkspace }).status, 0);
+      await writeFile(resolve(runtimeWorkspace, "authorized.txt"), "authorized\n");
+      captured.push({ id: turns[1].id, final_text: "Authorized action complete.", workspace: await onTurnSettled({ id: turns[1].id }) });
+      assert.equal(spawnSync("git", ["diff", "--cached", "--quiet"], { cwd: runtimeWorkspace }).status, 0);
+      return {
+        invocation: { command: "pi", args: ["--mode", "rpc"] },
+        process: { code: 0, signal: null, timed_out: false, output_limit_exceeded: false, transport_limit_exceeded: false, protocol_failed: false, aborted: false, transport_bytes: 1000, retained_output_bytes: 50000, stdout: "", stderr: "" },
+        parsed: {
+          parse_errors: [],
+          final_text: captured.at(-1).final_text,
+          usage: { input: 20, output: 10, cache_read: 0, cache_write: 0, total_tokens: 30, cost: { total_usd: 0.1 } },
+          tool_events: [],
+          skill_read: false,
+          turns: captured,
+        },
+        runtime_counters: { provider_requests: 2, turns_started: 2, tool_calls: 1, hard_turn_limit_reached: false },
+      };
+    },
+  });
+  assert.equal(outcome.status, "complete");
+  assert.equal(outcome.decision.case_verdict, "pass");
+  const bundle = resolve(root, outcome.result, "..");
+  const transcriptText = await readFile(resolve(bundle, "evidence", "subject", "transcript.json"), "utf8");
+  const transcript = JSON.parse(transcriptText);
+  assert.deepEqual(transcript.turns[0].workspace.changed_paths, []);
+  assert.deepEqual(transcript.turns[1].workspace.changed_paths, ["authorized.txt"]);
+  const result = JSON.parse(await readFile(resolve(bundle, "result.json"), "utf8"));
+  assert.equal(result.variants[0].assertions.every((assertion) => assertion.verdict === "pass"), true);
+  const metadata = JSON.parse(await readFile(resolve(bundle, "evidence", "subject", "metadata.json"), "utf8"));
+  assert.equal(metadata.execution_mode, "rpc-scripted");
+  assert.equal(metadata.adapter_version, "pi-rpc-scripted-v1");
+  assert.equal(metadata.process.protocol_failed, false);
+  assert.ok(Buffer.byteLength(transcriptText) <= metadata.process.retained_output_bytes);
+  assert.ok(metadata.process.retained_output_bytes <= plan.plan_inputs.limits.output_limit_bytes);
+});
+
+test("RPC protocol failure publishes diagnostics while preserving settled usage", async (t) => {
+  const { root, workspace } = await fixture(t, { host: "pi", rpc: true });
+  const capabilities = {
+    id: "pi",
+    available: true,
+    version: "test-pi",
+    capabilities: { rpc_jsonl: true, multi_turn: true, native_skill_loading: true, explicit_extensions: true, disable_extension_discovery: true, disable_context_files: true, tool_allowlist: true, strict_tool_isolation: true },
+  };
+  const plan = await buildEvaluationPlan(workspace, {
+    case: "SAMPLE-001",
+    timeout_ms: 1000,
+    output_limit_bytes: 1048576,
+    provider: "p",
+    model: "m",
+    thinking: "low",
+    max_turns_per_process: 4,
+    owner_approved: true,
+  }, { capabilitiesFor: async () => capabilities });
+  const outcome = await executeEvaluation(workspace, plan, {
+    runRpcSubject: async ({ turns, onTurnSettled }) => {
+      const workspaceEvidence = await onTurnSettled({ id: turns[0].id });
+      return {
+        invocation: { command: "pi", args: ["--mode", "rpc"] },
+        process: { code: null, signal: "SIGKILL", timed_out: false, output_limit_exceeded: false, transport_limit_exceeded: false, protocol_failed: true, aborted: false, transport_bytes: 200, retained_output_bytes: 100, stdout: "", stderr: "" },
+        parsed: {
+          parse_errors: [{ line: null, error: "malformed RPC" }],
+          final_text: "partial",
+          usage: { input: 10, output: 5, cache_read: 0, cache_write: 0, total_tokens: 15, cost: { total_usd: 0.2 } },
+          tool_events: [],
+          skill_read: false,
+          turns: [{ id: turns[0].id, final_text: "partial", workspace: workspaceEvidence }],
+        },
+        runtime_counters: { provider_requests: 2, turns_started: 2, tool_calls: 0, hard_turn_limit_reached: false },
+      };
+    },
+  });
+  assert.equal(outcome.status, "incomplete");
+  assert.equal(outcome.usage.provider_requests, 2);
+  assert.equal(outcome.usage.cost_usd, 0.2);
+  assert.match(outcome.failure.primary, /unusable evidence/i);
+  const diagnostic = resolve(root, outcome.diagnostic, "..");
+  const metadata = JSON.parse(await readFile(resolve(diagnostic, "evidence", "subject", "metadata.json"), "utf8"));
+  assert.equal(metadata.process.protocol_failed, true);
+  await assert.rejects(() => access(resolve(diagnostic, "result.json")));
 });
 
 test("plan identity covers declared subject resources and ignores undeclared files", async (t) => {

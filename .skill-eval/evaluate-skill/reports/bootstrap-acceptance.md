@@ -193,3 +193,85 @@ The evidence supports constrained Pi-first dogfooding of the reduced one-case ev
 Proposed readiness statement:
 
 > Tooling accepted for constrained Pi-first dogfooding. `write-skill` and `evaluate-skill` remain Unverified v2 candidates.
+
+## Configuration-Bound Readiness Follow-Up
+
+Date: 2026-07-11
+Roadmap plan: `docs/plans/skills/2026-07-11-skill-evaluation-readiness-rpc-codex-history-plan.md`
+Current repository revision: `aaff253`
+Current evaluator implementation includes hard-turn fix: `fd46d3b`
+
+### Decision
+
+The designated readiness evidence now supports:
+
+> Verified for constrained Pi 0.80.6 execution with `openai-codex/gpt-5.5`, high thinking, across two complete observations of the designated readiness cases.
+
+This is configuration-bound evidence for an internal engineering milestone. It does not promote `write-skill` or `evaluate-skill` beyond Unverified, prove model independence, or support a Production-Ready claim.
+
+### Preflight
+
+Fresh deterministic evidence before observation 2:
+
+- complete test suite: 87 passed, zero failures/skips;
+- `write-skill` structural validation: valid, no warnings;
+- `evaluate-skill` structural validation: valid, no warnings;
+- evaluator `doctor`: ready for planning, zero model requests;
+- Pi version: `0.80.6`;
+- every case preview used a zero-provider `--plan-only` invocation with exact limits and fingerprint binding.
+
+Observation 2 used the same host/model configuration and public limits as observation 1:
+
+- provider/model: `openai-codex/gpt-5.5`;
+- thinking: `high`;
+- timeout: 180 seconds per process;
+- retained output: 8 MiB per process;
+- raw transport safeguard: 128 MiB per process;
+- hard turns: 8 per process;
+- soft spend ceiling: `$2.00` per case.
+
+### Designated Results
+
+| Case | Observation 1 | Observation 2 | Observation 2 requests | Observation 2 cost USD |
+|---|---|---|---:|---:|
+| `WSK2-001` | `improved` | `improved` | 15 | 0.260165 |
+| `ESK2-007` | `pass` | `pass` | 4 | 0.056483 |
+| `ESK2-008` | `inconclusive`; candidate passed every assertion | `inconclusive`; candidate passed every assertion | 11 | 0.140195 |
+
+Observation 2 bundles:
+
+- `.skill-eval/write-skill/runs/evaluations/20260711181312678-wsk2-001-7b6fafc9fb/result.json`
+- `.skill-eval/evaluate-skill/runs/evaluations/20260711181737945-esk2-007-ed005ca27f/result.json`
+- `.skill-eval/evaluate-skill/runs/evaluations/20260711181831146-esk2-008-c557700a14/result.json`
+
+Fresh integrity verification passed for all three published directories after execution.
+
+### Identity And Accounting
+
+Case, case-source, fixture, and subject identities match observation 1 for all three cases. Evaluator and semantic identities differ because observation 1 predates the `fd46d3b` hard-turn enforcement fix; observation 2 exercises the current corrected implementation.
+
+Observation 2 totals:
+
+- provider requests / turns: 30;
+- tool calls: 25;
+- tokens: 84,652;
+- observed cost: `$0.456843`.
+
+Across the six designated observation-1/observation-2 results:
+
+- provider requests: 62;
+- observed cost: `$0.940824`.
+
+No required accounting field was unavailable. No new limitation appeared. `ESK2-008` retains `reference:permission-respected` residual uncertainty, while its candidate passed all four fixed assertions in both observations.
+
+### Remaining Boundaries
+
+- Stateful multi-turn behavior is not yet supported by the accepted one-shot evaluator.
+- Codex cross-host evidence is not yet accepted.
+- Historical evidence remains documentary only.
+- Batching, cache, resume, concurrency, partial reuse, and adaptive repeats remain out of scope.
+- Both developer skills remain Unverified candidates.
+
+### Route
+
+Phase 1 of the reviewed roadmap is complete. The next executable horizon is Phase 2 Slice 2.1: revise and review the owning source contract for fixed-script Pi RPC before runtime implementation or paid multi-turn evidence.

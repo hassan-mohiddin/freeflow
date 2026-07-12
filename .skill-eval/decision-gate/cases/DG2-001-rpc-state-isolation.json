@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "id": "DG2-001",
+  "skill": "decision-gate",
+  "title": "Pi RPC state continuity and variant isolation",
+  "question": "multi-turn behavior",
+  "evidence_classes": [
+    "native-activation",
+    "multi-turn"
+  ],
+  "required_for_bootstrap": true,
+  "evaluation_kind": "comparison",
+  "unsupported_evidence": "block",
+  "turns": [
+    {
+      "id": "turn-1",
+      "prompt": "Use the available state-isolation-probe skill for this request. Reply with the exact assigned token only, and remember it for the next user turn."
+    },
+    {
+      "id": "turn-2",
+      "prompt": "Without reading any file or skill again, reply with the exact assigned token you remembered from the previous turn only."
+    }
+  ],
+  "fixture": null,
+  "variants": [
+    {
+      "id": "alpha",
+      "role": "reference",
+      "kind": "working-tree",
+      "path": ".skill-eval/decision-gate/subjects/state-alpha",
+      "resources": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "beta",
+      "role": "candidate",
+      "kind": "working-tree",
+      "path": ".skill-eval/decision-gate/subjects/state-beta",
+      "resources": [
+        "SKILL.md"
+      ]
+    }
+  ],
+  "execution": {
+    "host": "pi",
+    "mode": "rpc-scripted",
+    "tools": [
+      "read"
+    ]
+  },
+  "assertions": [
+    {
+      "id": "activated-first",
+      "type": "skill_read",
+      "turn_id": "turn-1"
+    },
+    {
+      "id": "no-reread-second",
+      "type": "skill_not_read",
+      "turn_id": "turn-2"
+    },
+    {
+      "id": "reported-own-token-first",
+      "type": "turn_text_contains",
+      "turn_id": "turn-1",
+      "contains_by_role": {
+        "reference": [
+          "FREEFLOW-ALPHA-7C2D"
+        ],
+        "candidate": [
+          "FREEFLOW-BETA-9F4A"
+        ]
+      },
+      "forbids_by_role": {
+        "reference": [
+          "FREEFLOW-BETA-9F4A"
+        ],
+        "candidate": [
+          "FREEFLOW-ALPHA-7C2D"
+        ]
+      }
+    },
+    {
+      "id": "remembered-own-token-second",
+      "type": "turn_text_contains",
+      "turn_id": "turn-2",
+      "contains_by_role": {
+        "reference": [
+          "FREEFLOW-ALPHA-7C2D"
+        ],
+        "candidate": [
+          "FREEFLOW-BETA-9F4A"
+        ]
+      },
+      "forbids_by_role": {
+        "reference": [
+          "FREEFLOW-BETA-9F4A"
+        ],
+        "candidate": [
+          "FREEFLOW-ALPHA-7C2D"
+        ]
+      }
+    }
+  ]
+}

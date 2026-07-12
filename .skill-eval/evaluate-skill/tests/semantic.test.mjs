@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { buildSemanticPrompt, gradeSemanticRun, validateSemanticResult } from "../../../skills/evaluate-skill/scripts/lib/semantic.mjs";
@@ -24,6 +24,40 @@ test("semantic prompt uses opaque identity and fixed criteria", async (t) => {
   assert.equal(built.prompt.includes(run), false);
   assert.equal(built.prompt.includes('"id": "path"'), false);
   assert.deepEqual(built.criterionIds, ["quality"]);
+});
+
+test("multi-turn semantic packet exposes only one shared declared turn scope", async (t) => {
+  const run = await mkdtemp(resolve(tmpdir(), "freeflow-semantic-turns-"));
+  t.after(() => rm(run, { recursive: true, force: true }));
+  await mkdir(resolve(run, "inputs"), { recursive: true });
+  await writeFile(resolve(run, "metadata.json"), JSON.stringify({ variant: "candidate", execution_mode: "rpc-scripted", changed_paths: [] }));
+  await writeFile(resolve(run, "inputs", "case.json"), JSON.stringify({
+    turns: [
+      { id: "turn-1", prompt: "first prompt" },
+      { id: "turn-2", prompt: "undeclared secret prompt" },
+      { id: "turn-3", prompt: "third prompt" },
+    ],
+    assertions: [
+      { id: "a", type: "semantic", rubric: "criterion a", turn_ids: ["turn-1", "turn-3"] },
+      { id: "b", type: "semantic", rubric: "criterion b", turn_ids: ["turn-1", "turn-3"] },
+    ],
+  }));
+  await writeFile(resolve(run, "objective-grade.json"), JSON.stringify({ objective_pass: true, assertions: [] }));
+  await writeFile(resolve(run, "transcript.json"), JSON.stringify({
+    turns: [
+      { id: "turn-1", final_text: "first answer", workspace: { changed_paths: [], diff: "" } },
+      { id: "turn-2", final_text: "undeclared secret answer", workspace: { changed_paths: ["secret"], diff: "SECRET DIFF" } },
+      { id: "turn-3", final_text: "third answer", workspace: { changed_paths: ["allowed"], diff: "ALLOWED DIFF" } },
+    ],
+  }));
+  const built = await buildSemanticPrompt(run);
+  assert.deepEqual(built.evidence.selected_turn_ids, ["turn-1", "turn-3"]);
+  assert.deepEqual(built.evidence.turns.map((turn) => turn.id), ["turn-1", "turn-3"]);
+  assert.equal(built.prompt.includes("undeclared secret"), false);
+  assert.equal(built.prompt.includes("SECRET DIFF"), false);
+  assert.equal(built.prompt.includes("candidate"), false);
+  assert.match(built.prompt, /first answer/);
+  assert.match(built.prompt, /third answer/);
 });
 
 test("semantic evidence reads reject changed-path traversal", async (t) => {
@@ -84,6 +118,9 @@ test("semantic post-process and cleanup failures preserve settled execution", as
   assert.equal(outcome.execution.usage.cost.total_usd, 0.2);
   assert.match(outcome.failure.primary, /evidence write failed/);
   assert.match(outcome.failure.cleanup, /cleanup failed/);
+  const packet = JSON.parse(await readFile(resolve(run, "semantic-packet.json"), "utf8"));
+  assert.equal(packet.schema_version, 1);
+  assert.equal(JSON.stringify(packet).includes('"subject"'), false);
 });
 
 test("semantic grading cannot repair objective failure", async (t) => {

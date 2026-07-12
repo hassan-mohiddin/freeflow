@@ -3,15 +3,15 @@
 > **Revised:** 2026-07-11
 > **Owner:** Hassan Mohiddin
 > **Type:** Spec
-> **Status:** Ready for commit — calibrated confirmation adjudicated
-> **Source:** Live prototype, saved evidence, `docs/handoffs/workflow-and-skills/2026-07-11-implementation-scope-drift-and-replanning.md`, architecture-skill comparison, bounded Pi Design It Twice review, parent review-delta audit, and controlled cmux reviewer calibration
-> **Implementation:** Frozen until this spec and plan are committed and the pre-code report is delivered
+> **Status:** Accepted internal extension — implementation and evidence review passed
+> **Source:** Live implementation and saved evidence; `docs/handoffs/workflow-and-skills/2026-07-11-implementation-scope-drift-and-replanning.md`; `.skill-eval/evaluate-skill/reports/bootstrap-acceptance.md`; `.skill-eval/decision-gate/reports/rpc-acceptance.md`; `docs/plans/skills/2026-07-11-skill-evaluation-readiness-rpc-codex-history-plan.md`; owner-approved fixed-script Pi RPC decisions
+> **Implementation:** One-shot bootstrap and fixed-script Pi RPC execution accepted for their recorded configurations; both developer skills remain Unverified
 
 # Skill Authoring And Evaluation V2
 
 ## Status And Authority
 
-This document defines the proposed reduced bootstrap for Freeflow's `write-skill` and `evaluate-skill` developer skills.
+This document defines the accepted reduced one-shot bootstrap for Freeflow's `write-skill` and `evaluate-skill` developer skills and the accepted fixed-script Pi RPC extension.
 
 The previous design exposed manifests, attempts, retries, grades, comparisons, waves, cache, budgets, and reporting as caller-managed operations. Repeated review kept finding lifecycle edge cases because the public seam was too low.
 
@@ -19,12 +19,14 @@ The owner selected a deeper outcome-level design:
 
 > One command evaluates one case. It performs deterministic preflight internally, stops before provider execution when unsafe or unresolved, otherwise runs the complete case and publishes one trusted result bundle.
 
-The parent review-delta audit and narrow calibrated confirmation are complete. One accepted contradiction was corrected in the plan. This revision becomes implementation authority only after the spec, plan, and updated handoff are committed. Until then:
+The one-shot implementation and constrained Pi dogfooding are accepted at `aaff253`. The configuration-bound follow-up in the acceptance report records two complete observations for the designated readiness cases. Both developer skills remain Unverified.
 
-- no runtime or skill code changes;
-- no paid subject or semantic evals;
-- no bootstrap acceptance claim;
-- current v2 skills remain Unverified candidates.
+The fixed-script Pi RPC section below records the implemented owner-approved contract. Its internal acceptance is configuration-bound to the exact evidence in `.skill-eval/decision-gate/reports/rpc-acceptance.md`:
+
+- the accepted one-shot runtime remains authoritative for one-shot cases;
+- fixed-script RPC evidence is authoritative only for the recorded Pi/model configuration and cases;
+- no claim expands to adaptive follow-ups, resume, shared sessions, another host, or model-independent readiness;
+- both developer skills remain Unverified.
 
 The durable failure and design context lives in:
 
@@ -783,6 +785,199 @@ Observed need and separate owner-approved plan are required for:
 - legacy migration;
 - aggregate reporting.
 
+The reviewed roadmap and owner decisions satisfy this gate only for the fixed-script Pi RPC extension below. Adaptive conversations, session reuse/resume, host adapters, Codex, cross-host acceptance, historical migration, and every other item remain deferred until their owning phase revises this spec.
+
+## Fixed-Script Pi RPC Extension
+
+### Outcome
+
+The existing public `evaluate` operation may execute a case-declared fixed user-turn script in one isolated Pi RPC process per variant and publish trustworthy per-turn and session evidence.
+
+This extension proves predeclared stateful interaction. It does not provide an interactive evaluator, adaptive branching, model-generated follow-ups, caller-managed sessions, or a new lifecycle command.
+
+### Case Contract
+
+Existing one-shot cases remain valid without changes.
+
+A Pi case uses exactly one prompt shape:
+
+- one-shot: `prompt` plus `execution.mode: "json"`;
+- fixed multi-turn: non-empty `turns` plus `execution.mode: "rpc-scripted"`.
+
+A multi-turn case:
+
+- keeps `schema_version: 1`;
+- declares an ordered `turns` array;
+- gives every turn a unique stable `id` and fixed natural `prompt`;
+- uses the same declared turn script for every variant;
+- declares all turns before subject output exists;
+- contains no branch condition, generated follow-up, interpolation from model output, `steer`, or `follow_up` behavior;
+- declares the existing fixture, variants, subject resources, tools, evidence classes, and assertions normally.
+
+Every multi-turn semantic assertion must declare a non-empty ordered `turn_ids` list. Each ID must name a declared turn. The assertion may inspect only those frozen turns and required objective facts.
+
+All semantic assertions in one multi-turn case must declare the same ordered `turn_ids`. Preflight rejects differing semantic turn scopes before provider work. This preserves the accepted maximum of one fresh semantic process per variant while making the shared packet's transcript visibility exact for every included assertion. A case needing different semantic transcript scopes must combine the meaning into one shared-scope rubric or remain unsupported; it does not silently add grader processes.
+
+Turn-scoped objective assertions declare one owning turn when their claim depends on intermediate state. Session-level assertions remain explicitly session-level. The evaluator rejects ambiguous assertion scope before provider work.
+
+One-shot `ESK2-007` remains valid: one-shot output still cannot prove stateful multi-turn behavior merely because another execution mode now can.
+
+### Public Interface
+
+The public command remains:
+
+```text
+skill-eval evaluate
+```
+
+No `session`, `rpc`, `continue`, `resume`, `turn`, or grading command is added. The case selects `json` or `rpc-scripted`; callers continue to select one skill and one case and provide approved model and process limits.
+
+`--plan-only`, `--owner-approved`, `--expect-plan`, one-case atomicity, serial variants, result/diagnostic publication, and public outcome statuses retain their existing meaning.
+
+Preflight adds:
+
+- RPC capability and protocol-handshake support;
+- declared turn IDs and assertion-scope validation;
+- scripted user-turn count;
+- aggregate process limits and worst-case provider-turn allowance;
+- transcript/evidence identity;
+- explicit no-fallback limitation.
+
+A missing RPC capability blocks the case. Repeating one-shot processes is not a fallback because it changes the stateful evidence question.
+
+### Concrete Pi RPC Boundary
+
+Each variant receives one fresh process:
+
+```text
+pi --mode rpc --no-session
+```
+
+The adapter preserves the accepted Pi isolation boundary:
+
+- evaluator-owned config home;
+- explicit model and thinking;
+- explicit immutable skill snapshot;
+- explicit root-guard extension;
+- no ambient extensions, skills, prompts, themes, context files, or session persistence;
+- exact tool allowlist;
+- fixture-only writes and declared fixture/subject reads.
+
+Before the first prompt, the adapter disables automatic retry and automatic compaction. It uses strict LF-delimited JSONL framing with correlated command IDs; Node `readline` is not protocol-compliant for this transport.
+
+For every declared turn, the adapter:
+
+1. sends one `prompt` command;
+2. requires a successful correlated acceptance response;
+3. waits for `agent_settled`, not merely `agent_end`;
+4. captures the entries, final assistant text, tool evidence, usage, counters, and workspace state attributable to that turn;
+5. checks remaining known limits and integrity before sending the next prompt.
+
+The adapter never sends `steer`, `follow_up`, `new_session`, `switch_session`, `fork`, `clone`, manual compaction, retry, or RPC `bash` commands. Any extension UI request is unsupported and fails the variant.
+
+### Canonical Turn Evidence
+
+After every settled scripted turn, retain:
+
+- declared turn ID and prompt hash;
+- correlated prompt-acceptance response;
+- canonical session entries added during the turn;
+- final assistant text, excluding hidden reasoning;
+- tool calls and results required for grading;
+- provider-request, turn, tool-call, token, cost, and duration deltas when available;
+- non-mutating workspace status, changed paths, diff, and manifest evidence;
+- skill-snapshot integrity;
+- settlement and termination state.
+
+Per-turn workspace capture must not modify the fixture Git index. Intermediate evidence remains authoritative even if a later turn reverts an earlier edit.
+
+Raw cumulative streaming snapshots do not become canonical transcript evidence. After every settled turn, the adapter measures the serialized canonical transcript and fails the variant when it exceeds the public output limit; the compacted retained event stream is independently checked against the same ceiling. Derived presentation duplicates and copied declared inputs are not charged again. Raw transport remains independently safeguarded. Malformed or non-LF-terminated transport is preserved only as diagnostic evidence.
+
+The result bundle includes the frozen scripted-turn definition, canonical per-turn transcript/evidence, session totals, objective grades, filtered semantic packets, final assertions, decision, report, and integrity inventory. `result.json` remains the sole structured decision record.
+
+### Semantic Containment
+
+At most one fresh one-shot semantic grader runs per variant. It receives only:
+
+- the pending assertion IDs and fixed rubrics;
+- the one shared ordered `turn_ids` list declared identically by those assertions;
+- text from those declared turns;
+- the smallest objective facts required by those rubrics.
+
+It does not receive:
+
+- undeclared turns;
+- hidden reasoning;
+- another variant's evidence;
+- reference/candidate identity or comparison outcome;
+- expected answers, case assertions outside its packet, or author summaries.
+
+Objective evidence continues to outrank semantic interpretation. A semantic grader cannot repair an objective failure or infer an intermediate state from final-session output.
+
+### Aggregate Limits And Accounting
+
+Timeout, retained-output, raw-transport, provider-turn, and observed-cost limits apply across the complete RPC process, not independently to each scripted user turn.
+
+The root guard enforces the provider-turn cap before an extra provider call. Scripted user turns and provider turns remain distinct counters because one user prompt may cause multiple assistant/tool turns.
+
+After every `agent_settled`, the adapter records session totals and derives the current turn delta from settled evidence. Before sending a later prompt, it checks known remaining provider-turn and spend allowance. If the next declared prompt cannot start within a known hard limit, the variant becomes incomplete before another provider request.
+
+Observed cost remains a soft ceiling because a provider response may cross it before cost becomes known. No later scripted prompt or process starts after observed cost reaches the approved ceiling. Missing cost remains unavailable, never zero.
+
+Every settled subject or semantic process enters the existing append-only ledger exactly once. Per-turn counters explain one RPC process; they do not become separately reusable execution records.
+
+### Failure Contract
+
+A multi-turn case is incomplete and publishes no accepted `result.json` when any required variant has:
+
+- rejected, mismatched, malformed, or missing RPC command responses;
+- malformed JSONL or framing failure;
+- premature EOF, unexpected process exit, or missing `agent_settled`;
+- unexpected retry, compaction, queue continuation, or extension UI;
+- timeout, retained-output, raw-transport, or provider-turn failure;
+- unusable assistant termination or missing required turn evidence;
+- insufficient known allowance for the next declared turn;
+- per-turn transcript or workspace-capture failure;
+- subject-snapshot mutation, isolation failure, or cleanup failure that compromises evidence.
+
+Later variants do not start after infrastructure failure. Available artifacts and settled usage may publish diagnostics only. A retry reruns the whole case from new variant processes; there is no session resume or partial reuse.
+
+A subject that settles every declared turn but fails behavioral assertions still produces a complete trustworthy result.
+
+### Required Acceptance Evidence
+
+Before claiming fixed-script Pi RPC support:
+
+1. deterministic protocol and fault-injection tests must cover command correlation, LF framing, settlement, EOF, limits, abort, cleanup, and per-turn capture;
+2. the complete existing one-shot evaluator suite must remain green;
+3. one synthetic two-turn comparison must prove state continuity and cross-variant isolation with distinct immutable skill tokens;
+4. one real two-turn `decision-gate` fixture must prove no unauthorized turn-1 edit and only the authorized turn-2 action;
+5. every semantic assertion must be shown to receive only its declared turns;
+6. both published bundles must pass fresh integrity verification;
+7. exact Pi version, provider/model/thinking, limits, requests, tokens, cost/unavailable fields, and residual uncertainty must be reported.
+
+Allowed claim after those checks pass:
+
+> Fixed-script multi-turn evaluation verified for the recorded Pi, model, thinking, isolation, and limit configuration.
+
+This does not prove adaptive conversation, arbitrary session length, session recovery, another host, or Production-Ready skill behavior.
+
+### Extension Non-Goals
+
+The extension does not add:
+
+- adaptive or conditional turns;
+- subject-generated prompts;
+- steering or follow-up queues;
+- shared, switched, forked, cloned, persisted, resumed, or cached sessions;
+- partial result reuse;
+- batching or concurrency;
+- a generic conversation/session API;
+- a second host or host abstraction;
+- Output Router composition;
+- different semantic-model selection;
+- current authority for historical evidence.
+
 ## Confirmed Owner Decisions
 
 Confirmed 2026-07-11:
@@ -803,4 +998,38 @@ Confirmed 2026-07-11:
 14. turn, timeout, and output limits apply per Pi process; provider requests are observed, not promised as a global hard cap;
 15. automatic provider retries are disabled in isolated evaluation processes;
 16. valid operational outcomes use concise JSON without freezing exhaustive machine-code, phase, null-field, or numeric exit taxonomies;
-17. explicit `--root` preserves existing root selection and otherwise discovery begins at cwd.
+17. explicit `--root` preserves existing root selection and otherwise discovery begins at cwd;
+18. fixed multi-turn uses predeclared turns and one isolated Pi RPC process per variant;
+19. every multi-turn semantic assertion declares exact visible turn IDs;
+20. process limits aggregate across the complete RPC process;
+21. no repeated one-shot fallback, adaptive branch, generated follow-up, shared session, resume, or partial reuse;
+22. initial acceptance requires one synthetic state/isolation case and one real `decision-gate` case;
+23. the owner granted standing approval for roadmap-declared model runs that preserve reviewed scope and limits; changed scope, higher limits, or a materially different method still requires owner direction;
+24. all semantic assertions in one multi-turn case use the same ordered `turn_ids`, preserving at most one semantic process per variant; differing semantic scopes are rejected in preflight.
+
+## Extension Artifact Review
+
+Pass 1 found one blocker: per-assertion turn visibility was ambiguous when the existing one-semantic-process-per-variant packet contained assertions with different turn scopes. The parent accepted the finding. The owner approved the narrowest revision: require identical ordered `turn_ids` across all semantic assertions in a multi-turn case and reject differing scopes in preflight.
+
+Pass 2 inspected only transcript visibility, semantic process cardinality, preflight counts, and aggregate accounting. It passed with no blocking, non-blocking, question, or needs-evidence finding. Runtime implementation may begin at the reviewed transport learning slice.
+
+Review evidence:
+
+- `/tmp/freeflow-pi-rpc-spec-review-20260711.md` — SHA-256 `e2db200871684abe3e832657cc0cdde251744fac202054d87300b0fd45baf036`
+- `/tmp/freeflow-pi-rpc-spec-review-20260711-pass2.md` — SHA-256 `0dbf8cf5e3aef7028cd48616adc359e895efe55fba74446ef7934907e0dc4886`
+
+The pass-1 native subagent wrapper reported a transport-level acceptance-detection failure after saving the complete report; the parent read and adjudicated the artifact. Pass 2 ran synchronously and completed normally.
+
+## Extension Implementation Review
+
+The architecture-bearing implementation review accepted state continuity, isolation, frozen workspace evidence, semantic containment, whole-case atomicity, and bundle integrity. It found two trust-boundary blockers: valid non-LF-terminated JSON could be accepted, and the public retained-output limit did not cover the serialized canonical transcript. Both findings were accepted and fixed.
+
+The first follow-up confirmed those fixes but found that `skill_read` entered the transcript after the pre-next-prompt size check. The adapter now records that field before serialization; a two-turn overflow test proves that no later prompt starts. The final narrow review was clean.
+
+Review evidence and accepted result paths are recorded in `.skill-eval/decision-gate/reports/rpc-acceptance.md`.
+
+## Change Log
+
+- 2026-07-11: Recorded accepted one-shot bootstrap state and added the draft fixed-script Pi RPC contract for artifact review.
+- 2026-07-11: Preserved one semantic process per variant by requiring identical ordered semantic `turn_ids`; narrow pass 2 confirmed the revision and moved the extension to Ready.
+- 2026-07-11: Accepted the configuration-bound fixed-script Pi RPC implementation after deterministic tests, two final evidence cases, fresh integrity checks, and a clean final implementation review.

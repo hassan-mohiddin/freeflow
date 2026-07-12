@@ -83,6 +83,24 @@ export async function captureGitEvidence(workspace) {
   return { status, diff, changedPaths };
 }
 
+export function captureGitEvidenceNonMutating(workspace) {
+  const status = runGit(workspace, ["status", "--short", "--untracked-files=all"]);
+  const changedPaths = status.split("\n").filter(Boolean).map((line) => line.slice(3).replace(/^.* -> /, "")).sort();
+  const trackedDiff = runGit(workspace, ["diff", "--binary", "--no-ext-diff", "HEAD"]);
+  const untrackedDiffs = [];
+  for (const line of status.split("\n").filter((item) => item.startsWith("?? "))) {
+    const path = line.slice(3);
+    const result = spawnSync("git", ["diff", "--no-index", "--binary", "--no-ext-diff", "--", "/dev/null", path], {
+      cwd: workspace,
+      encoding: "utf8",
+      maxBuffer: 16 * 1024 * 1024,
+    });
+    if (result.status !== 0 && result.status !== 1) throw new Error(`Unable to capture untracked diff for ${path}: ${String(result.stderr).trim()}`);
+    if (result.stdout) untrackedDiffs.push(result.stdout);
+  }
+  return { status, diff: [trackedDiff, ...untrackedDiffs].filter(Boolean).join("\n"), changedPaths };
+}
+
 export async function createManifest(root, { exclude = [] } = {}) {
   const files = {};
   const excluded = new Set(exclude);

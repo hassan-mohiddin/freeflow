@@ -68,6 +68,65 @@ test("unsupported evidence under explicit behavior test is a limitation, not a b
   assert.equal(result.summary.evidence.requested["multi-turn"], "unsupported");
 });
 
+test("fixed-script RPC preflight binds turns, capability handshake, and existing process maximum", async () => {
+  const workspace = await loadSkillWorkspace(repoRoot, "evaluate-skill");
+  const source = workspace.cases.find((item) => item.id === "ESK2-007");
+  const { prompt: _prompt, requested_evidence_classes: _requested, ...rest } = source;
+  const rpc = {
+    ...rest,
+    question: "multi-turn behavior",
+    evidence_classes: ["multi-turn"],
+    unsupported_evidence: "block",
+    turns: [
+      { id: "turn-1", prompt: "Remember alpha." },
+      { id: "turn-2", prompt: "What did I ask you to remember?" },
+    ],
+    execution: { ...source.execution, mode: "rpc-scripted" },
+    assertions: [{ id: "state", type: "semantic", rubric: "Remembers alpha.", turn_ids: ["turn-1", "turn-2"] }],
+  };
+  const cases = workspace.cases.map((item) => item.id === rpc.id ? Object.freeze(rpc) : item);
+  const capabilities = {
+    id: "pi",
+    available: true,
+    version: "test-pi",
+    capabilities: {
+      rpc_jsonl: true,
+      multi_turn: true,
+      native_skill_loading: true,
+      explicit_extensions: true,
+      disable_extension_discovery: true,
+      disable_context_files: true,
+      tool_allowlist: true,
+      strict_tool_isolation: true,
+    },
+  };
+  const options = {
+    case: rpc.id,
+    ...hardLimits,
+    provider: "p",
+    model: "m",
+    thinking: "low",
+    max_turns_per_process: 4,
+    owner_approved: true,
+  };
+  const result = await buildEvaluationPlan({ ...workspace, cases }, options, { capabilitiesFor: async () => capabilities });
+  assert.equal(result.status, "ready");
+  assert.equal(result.summary.scripted_user_turns, 2);
+  assert.equal(result.summary.pi_processes.subject, 1);
+  assert.equal(result.summary.pi_processes.semantic_max, 1);
+  assert.equal(result.summary.pi_processes.total_max, 2);
+  assert.equal(result.summary.worst_case_approved_turns, 8);
+  assert.equal(result.plan_inputs.adapter_version, "pi-rpc-scripted-v1");
+  assert.equal(result.summary.evidence.required["multi-turn"], "supported");
+  assert.match(result.summary.limitations.join("\n"), /complete RPC process/);
+
+  const blocked = await buildEvaluationPlan({ ...workspace, cases }, options, {
+    capabilitiesFor: async () => ({ ...capabilities, capabilities: { ...capabilities.capabilities, rpc_jsonl: false, multi_turn: false } }),
+  });
+  assert.equal(blocked.status, "blocked");
+  assert.deepEqual(blocked.summary.capabilities.missing.slice().sort(), ["multi_turn", "rpc_jsonl"]);
+});
+
 test("host-free case rejects model options", async () => {
   await assert.rejects(
     plan("write-skill", "WSK2-005", { provider: "p", owner_approved: true }),

@@ -33,9 +33,15 @@ export async function gradeObjectiveRun(runDir) {
   const after = await readJson(resolve(runDir, "after-manifest.json"));
   const changedPaths = metadata.changed_paths ?? [];
   const assertionRoot = resolve(runDir, metadata.assertion_root === "skill" ? "inputs/skill" : "artifacts/workspace");
+  const transcript = metadata.execution_mode === "rpc-scripted" ? await readJson(resolve(runDir, "transcript.json")) : null;
+  const turnsById = new Map((transcript?.turns ?? []).map((turn) => [turn.id, turn]));
   const results = [];
 
   for (const assertion of evalCase.assertions) {
+    const turn = assertion.turn_id ? turnsById.get(assertion.turn_id) : null;
+    if (assertion.turn_id && !turn) throw new Error(`Missing transcript evidence for ${assertion.turn_id}`);
+    const scopedAfter = turn?.workspace?.manifest ?? after;
+    const scopedChangedPaths = turn?.workspace?.changed_paths ?? changedPaths;
     let state = "pass";
     let evidence = null;
     switch (assertion.type) {
@@ -43,41 +49,45 @@ export async function gradeObjectiveRun(runDir) {
         state = "pending-semantic";
         evidence = "Requires fresh semantic grading";
         break;
-      case "skill_read":
-        state = metadata.activation?.skill_read ? "pass" : "fail";
-        evidence = metadata.activation;
+      case "skill_read": {
+        const skillRead = turn ? Boolean(turn.skill_read) : Boolean(metadata.activation?.skill_read);
+        state = skillRead ? "pass" : "fail";
+        evidence = { skill_read: skillRead, turn_id: assertion.turn_id ?? null };
         break;
-      case "skill_not_read":
-        state = metadata.activation?.skill_read ? "fail" : "pass";
-        evidence = metadata.activation;
+      }
+      case "skill_not_read": {
+        const skillRead = turn ? Boolean(turn.skill_read) : Boolean(metadata.activation?.skill_read);
+        state = skillRead ? "fail" : "pass";
+        evidence = { skill_read: skillRead, turn_id: assertion.turn_id ?? null };
         break;
+      }
       case "path_exists":
-        state = after.files[assertion.path]?.type === "file" || after.files[assertion.path]?.type === "symlink" ? "pass" : "fail";
-        evidence = after.files[assertion.path] ?? null;
+        state = scopedAfter.files[assertion.path]?.type === "file" || scopedAfter.files[assertion.path]?.type === "symlink" ? "pass" : "fail";
+        evidence = scopedAfter.files[assertion.path] ?? null;
         break;
       case "changed_paths": {
         const expected = [...assertion.equals].sort();
-        const actual = [...changedPaths].sort();
+        const actual = [...scopedChangedPaths].sort();
         state = JSON.stringify(expected) === JSON.stringify(actual) ? "pass" : "fail";
         evidence = { expected, actual };
         break;
       }
       case "forbidden_changed_path": {
         const matcher = globRegex(assertion.glob);
-        const matches = changedPaths.filter((path) => matcher.test(path));
+        const matches = scopedChangedPaths.filter((path) => matcher.test(path));
         state = matches.length === 0 ? "pass" : "fail";
         evidence = { glob: assertion.glob, matches };
         break;
       }
       case "path_unchanged": {
         const beforeEntry = before.files[assertion.path] ?? null;
-        const afterEntry = after.files[assertion.path] ?? null;
+        const afterEntry = scopedAfter.files[assertion.path] ?? null;
         state = JSON.stringify(beforeEntry) === JSON.stringify(afterEntry) ? "pass" : "fail";
         evidence = { before: beforeEntry, after: afterEntry };
         break;
       }
       case "line_count": {
-        const entry = after.files[assertion.path] ?? (metadata.assertion_root === "skill" ? metadata.skill_manifest?.files?.[assertion.path] : null);
+        const entry = scopedAfter.files[assertion.path] ?? (metadata.assertion_root === "skill" ? metadata.skill_manifest?.files?.[assertion.path] : null);
         state = entry?.type === "file" && entry.lines <= assertion.max ? "pass" : "fail";
         evidence = { actual: entry?.lines ?? null, max: assertion.max };
         break;
@@ -116,6 +126,16 @@ export async function gradeObjectiveRun(runDir) {
         try { actual = getField(JSON.parse(text), assertion.field); } catch {}
         state = assertion.values.includes(actual) ? "pass" : "fail";
         evidence = { actual, expected_one_of: assertion.values };
+        break;
+      }
+      case "turn_text_contains": {
+        const text = turn?.final_text ?? "";
+        const expected = assertion.contains_by_role?.[metadata.role] ?? assertion.contains ?? [];
+        const forbidden = assertion.forbids_by_role?.[metadata.role] ?? assertion.forbids ?? [];
+        const missing = expected.filter((pattern) => !text.includes(pattern));
+        const forbidden_matches = forbidden.filter((pattern) => text.includes(pattern));
+        state = missing.length === 0 && forbidden_matches.length === 0 ? "pass" : "fail";
+        evidence = { turn_id: assertion.turn_id, expected, missing, forbidden_matches };
         break;
       }
       case "unsupported_evidence_class": {

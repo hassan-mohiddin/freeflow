@@ -2,12 +2,12 @@ import { cp, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, relative, resolve, sep } from "node:path";
 import { coordinateEvaluation } from "./coordinator.mjs";
-import { createManifest, captureGitEvidence, copyDirectory, initializeFixtureGit, makeWritable, materializeSkillVariant, removeWritableTree } from "./materialize.mjs";
+import { createManifest, captureGitEvidenceNonMutating, copyDirectory, initializeFixtureGit, makeWritable, materializeSkillVariant, removeWritableTree } from "./materialize.mjs";
 import { hashDeclaredResources, hashDirectory } from "./hash.mjs";
 import { gradeObjectiveRun } from "./grade.mjs";
 import { verifyBundleIntegrity, writeBundleIntegrity } from "./integrity.mjs";
 import { incompleteOperation } from "./outcome.mjs";
-import { PI_ADAPTER_VERSION, redactedInvocation, runPiSubject } from "./pi-adapter.mjs";
+import { PI_ADAPTER_VERSION, PI_RPC_ADAPTER_VERSION, redactedInvocation, runPiRpcSubject, runPiSubject } from "./pi-adapter.mjs";
 import { createStagingDirectory, publishDiagnostic as publishDiagnosticBundle, publishResult as publishResultBundle } from "./publication.mjs";
 import { gradeSemanticRun } from "./semantic.mjs";
 
@@ -30,6 +30,8 @@ function processFailed(subject) {
     || subject.process.timed_out
     || subject.process.output_limit_exceeded
     || subject.process.transport_limit_exceeded
+    || subject.process.protocol_failed
+    || subject.process.aborted
     || subject.runtime_counters.hard_turn_limit_reached
     || subject.parsed.parse_errors.length > 0;
 }
@@ -84,8 +86,11 @@ async function executeVariant(workspace, plan, variant, evidenceDir, id, depende
     const skillManifest = await createManifest(snapshotRoot);
 
     if (plan.eval_case.execution.host !== "none") {
-      subject = await dependencies.runSubject({
+      const rpcMode = plan.eval_case.execution.mode === "rpc-scripted";
+      const subjectRunner = rpcMode ? dependencies.runRpcSubject : dependencies.runSubject;
+      subject = await subjectRunner({
         prompt: plan.eval_case.prompt,
+        turns: plan.eval_case.turns,
         provider: plan.plan_inputs.model.provider,
         model: plan.plan_inputs.model.model,
         thinking: plan.plan_inputs.model.thinking,
@@ -99,6 +104,20 @@ async function executeVariant(workspace, plan, variant, evidenceDir, id, depende
         outputLimitBytes: plan.plan_inputs.limits.output_limit_bytes,
         transportLimitBytes: plan.plan_inputs.limits.transport_limit_bytes,
         maxTurns: plan.plan_inputs.limits.max_turns_per_process,
+        maxUsd: plan.plan_inputs.max_usd,
+        onTurnSettled: rpcMode ? async () => {
+          const currentSubjectHash = await hashDirectory(snapshotRoot);
+          if (currentSubjectHash !== subjectHashBefore) throw new Error(`Subject resources mutated during ${variant.role}`);
+          const manifest = await createManifest(fixtureRoot);
+          const git = captureGitEvidenceNonMutating(fixtureRoot);
+          return {
+            manifest,
+            changed_paths: git.changedPaths,
+            diff: git.diff,
+            git_status: git.status,
+            subject_hash: currentSubjectHash,
+          };
+        } : undefined,
       });
       execution = {
         id: `subject-${variant.role}`,
@@ -112,6 +131,8 @@ async function executeVariant(workspace, plan, variant, evidenceDir, id, depende
           timed_out: subject.process.timed_out,
           output_limit_exceeded: subject.process.output_limit_exceeded,
           transport_limit_exceeded: subject.process.transport_limit_exceeded,
+          protocol_failed: subject.process.protocol_failed ?? false,
+          aborted: subject.process.aborted ?? false,
           transport_bytes: subject.process.transport_bytes,
           retained_output_bytes: subject.process.retained_output_bytes,
           parse_errors: subject.parsed.parse_errors,
@@ -123,7 +144,7 @@ async function executeVariant(workspace, plan, variant, evidenceDir, id, depende
     const subjectHashAfter = await hashDirectory(snapshotRoot);
     if (subjectHashBefore !== subjectHashAfter) throw new Error(`Subject resources mutated during ${variant.role}`);
     const afterManifest = await createManifest(fixtureRoot);
-    const git = await captureGitEvidence(fixtureRoot);
+    const git = captureGitEvidenceNonMutating(fixtureRoot);
 
     const counters = subject?.runtime_counters ?? { provider_requests: 0, turns_started: 0, tool_calls: 0, hard_turn_limit_reached: false };
     const metadata = {
@@ -137,7 +158,9 @@ async function executeVariant(workspace, plan, variant, evidenceDir, id, depende
       subject_source_hash: variant.snapshot_hash,
       materialized_subject_hash: subjectHashBefore,
       host: plan.eval_case.execution.host,
-      adapter_version: PI_ADAPTER_VERSION,
+      adapter_version: plan.eval_case.execution.mode === "rpc-scripted" ? PI_RPC_ADAPTER_VERSION : PI_ADAPTER_VERSION,
+      execution_mode: plan.eval_case.execution.mode,
+      scripted_turns: plan.eval_case.turns?.map(({ id }) => id) ?? null,
       provider: plan.plan_inputs.model?.provider ?? null,
       model: plan.plan_inputs.model?.model ?? null,
       thinking: plan.plan_inputs.model?.thinking ?? null,
@@ -157,11 +180,13 @@ async function executeVariant(workspace, plan, variant, evidenceDir, id, depende
         timed_out: subject.process.timed_out,
         output_limit_exceeded: subject.process.output_limit_exceeded,
         transport_limit_exceeded: subject.process.transport_limit_exceeded,
+        protocol_failed: subject.process.protocol_failed ?? false,
+        aborted: subject.process.aborted ?? false,
         transport_bytes: subject.process.transport_bytes,
         retained_output_bytes: subject.process.retained_output_bytes,
         hard_turn_limit_reached: counters.hard_turn_limit_reached,
         parse_errors: subject.parsed.parse_errors,
-      } : { exit_code: 0, signal: null, timed_out: false, output_limit_exceeded: false, transport_limit_exceeded: false, transport_bytes: 0, retained_output_bytes: 0, hard_turn_limit_reached: false, parse_errors: [] },
+      } : { exit_code: 0, signal: null, timed_out: false, output_limit_exceeded: false, transport_limit_exceeded: false, protocol_failed: false, aborted: false, transport_bytes: 0, retained_output_bytes: 0, hard_turn_limit_reached: false, parse_errors: [] },
     };
     if (dependencies.persistVariantEvidence) {
       await dependencies.persistVariantEvidence({ evidenceDir, metadata, beforeManifest, afterManifest, subject, counters, git });
@@ -184,6 +209,7 @@ async function executeVariant(workspace, plan, variant, evidenceDir, id, depende
         writeFile(resolve(evidenceDir, "git-status.txt"), git.status),
         writeFile(resolve(evidenceDir, "exit-status.txt"), `${subject?.process.code ?? 0}\n`),
         writeFile(resolve(evidenceDir, "usage.json"), `${JSON.stringify(subject?.parsed.usage ?? null, null, 2)}\n`),
+        ...(plan.eval_case.execution.mode === "rpc-scripted" ? [writeFile(resolve(evidenceDir, "transcript.json"), `${JSON.stringify({ schema_version: 1, turns: subject?.parsed.turns ?? [] }, null, 2)}\n`)] : []),
       ]);
     }
     if (subjectFailure) throw new Error(`Subject ${variant.role} produced unusable evidence or exited with ${subject.process.code}`);
@@ -242,6 +268,7 @@ function renderReport(plan, decision, variants, usage, limitations) {
 
 export async function executeEvaluation(workspace, plan, dependencies = {}) {
   const runSubject = dependencies.runSubject ?? runPiSubject;
+  const runRpcSubject = dependencies.runRpcSubject ?? runPiRpcSubject;
   const gradeSemantic = dependencies.gradeSemantic ?? gradeSemanticRun;
   const id = evaluationId(plan);
   const runsRoot = resolve(workspace.skillRoot, "runs");
@@ -279,7 +306,7 @@ export async function executeEvaluation(workspace, plan, dependencies = {}) {
       variantByRole.get(role),
       resolve(stagingDir, "evidence", role),
       id,
-      { runSubject, persistVariantEvidence: dependencies.persistVariantEvidence, cleanupRuntime: dependencies.cleanupRuntime },
+      { runSubject, runRpcSubject, persistVariantEvidence: dependencies.persistVariantEvidence, cleanupRuntime: dependencies.cleanupRuntime },
     ),
     runSemantic: async ({ role }) => {
       const semantic = await gradeSemantic(resolve(stagingDir, "evidence", role), {
