@@ -2,7 +2,7 @@
 
 > **Doc ID:** PLAN-SKILLS-2026-07-12-PRODUCTION-READINESS
 > **Date:** 2026-07-12
-> **Status:** Blocked — final-source suite stopped at provider usage limit; statuses restored to Unverified
+> **Status:** Active — remaining final-source previews await renewed owner approval
 > **Owner:** Hassan
 > **Source:** `docs/specs/skills/skill-authoring-and-evaluation-v2.md`; live `.skill-eval` cases and accepted bundles; `.skill-eval/evaluate-skill/reports/bootstrap-acceptance.md`; `.skill-eval/decision-gate/reports/rpc-acceptance.md`; owner request to complete configuration-bound Production-Ready promotion
 
@@ -75,7 +75,7 @@ Promotion gaps:
 
 ## Fixed Execution And Budget
 
-Every paid run uses Pi `0.80.6`, `openai-codex/gpt-5.5`, high thinking, 180-second per-process timeout, 8 MiB retained output, and the existing 128 MiB raw safeguard. Every case uses 8 provider turns per process except `WSK2-001` qualification and final-source runs, which use 10 after a preserved 8-turn infrastructure failure showed the revised candidate needed provider request 9 to finish after legitimate declared-resource, fixture, and write work.
+Every paid run uses Pi `0.80.6`, `openai-codex/gpt-5.5`, high thinking, 180-second per-process timeout, 8 MiB retained output, and the existing 128 MiB raw safeguard. Every case uses 8 provider turns per process except: `WSK2-001` qualification/final-source runs use 10 after a preserved 8-turn failure showed the revised candidate needed provider request 9 to finish legitimate declared-resource, fixture, and write work; the remaining `ESK2-003` final-source run uses 12 after its candidate exhausted 8 while reading declared resources and exploring the exact fixture destination before file creation.
 
 Every invocation owns one complete case. Runs are serial. There is no retry, batching, cache, resume, concurrency, adaptive turn, fallback, or partial reuse. Infrastructure failure restarts the whole case only after diagnosis and a new preview.
 
@@ -306,9 +306,20 @@ The renewed final-source suite started only after exact owner approval. These bu
 
 No later case started. Both model-visible status lines were restored to Unverified and the registry still has no Production-Ready metadata.
 
-Developmental accounting through this stop is 177 provider requests, 504,332 tokens, and `$2.824869` observed cost. The route now requires one whole-case `ESK2-003` replacement plus the untouched `ESK2-004`, `ESK2-005`, host-free `ESK2-006`, `ESK2-007`, and `ESK2-009` cases. Remaining summed soft ceilings are `$1.45`; total developmental soft-ceiling exposure is `$10.50`; there is no aggregate hard cap.
+After provider capacity returned, an approved whole-case `ESK2-003` replacement at the same 8-turn fingerprint became infrastructure-incomplete when the subject legitimately exhausted 8 provider requests during declared-resource reads and fixture destination discovery, then attempted provider request 9 before file creation. It published diagnostics only:
 
-Do not resume until provider capacity is available. Then reapply the exact conditional status lines, regenerate the remaining six previews, verify source/evaluator identities against accepted earlier bundles, and obtain renewed owner approval before any provider request. Existing accepted final-source bundles remain eligible only if the re-applied status source and all fingerprinted identities match exactly.
+- `.skill-eval/evaluate-skill/runs/diagnostics/20260712103850446-esk2-003-139ac8dac3/`
+- 8 provider requests, 9 started turns/tool calls, 25,668 tokens, `$0.079503`.
+
+No later case started. Both statuses were again restored to Unverified and no readiness metadata exists. The owner approved a narrow 12-turn limit only for the remaining `ESK2-003` final-source run; its prior 8-turn fingerprint is stale. All other remaining cases stay at 8 turns.
+
+Developmental accounting through this stop is 185 provider requests, 530,000 tokens, and `$2.904372` observed cost. The route requires one 12-turn whole-case `ESK2-003` replacement plus untouched `ESK2-004`, `ESK2-005`, host-free `ESK2-006`, `ESK2-007`, and `ESK2-009`. Remaining summed soft ceilings are `$1.45`; total developmental soft-ceiling exposure is `$10.85`; there is no aggregate hard cap.
+
+The narrow limit change passed review:
+
+- `/tmp/freeflow-promotion-esk2-003-limit-review-20260712.md` — SHA-256 `9ebca7e64b024892e37f73f5b463744a06b18b0081bcc774ba353dd02bb21f36`
+
+The re-applied status source matches the accepted earlier bundles. The new 12-turn `ESK2-003` fingerprint is `9e949abf3c642b034402c8ba588aaf10e2796ef71cba4ef6a9832d1810096d3a` with two processes and 24 worst-case turns. The other five remaining fingerprints are unchanged. Renewed owner approval remains required before any provider request. Existing accepted final-source bundles remain eligible only while all fingerprinted identities continue to match exactly.
 
 ### Slice 3.1 — Apply Conditional Status Source
 

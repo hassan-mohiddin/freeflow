@@ -1416,7 +1416,8 @@ All paid promotion runs use:
 - 8 MiB retained-output limit per process;
 - the existing 128 MiB raw-transport safeguard;
 - 8 provider turns per Pi process by default;
-- 10 provider turns per process only for `WSK2-001` qualification and final-source runs, after the revised candidate legitimately exhausted 8 while reading declared resources, inspecting the fixture, writing the target, and attempting its final response; all other promotion cases remain at 8;
+- 10 provider turns per process only for `WSK2-001` qualification and final-source runs, after the revised candidate legitimately exhausted 8 while reading declared resources, inspecting the fixture, writing the target, and attempting its final response;
+- 12 provider turns per process only for the remaining `ESK2-003` final-source run, after its candidate legitimately exhausted 8 while reading declared resources and exploring the exact fixture destination before file creation; all other promotion cases remain at 8;
 - one case per invocation, serial variants, no retries, cache, resume, partial reuse, concurrency, adaptive turns, or fallback.
 
 Every paid invocation requires a zero-provider plan preview, exact fingerprint binding, owner approval, and a case-specific soft spend ceiling recorded in the reviewed promotion plan. The total planned exposure and expected cost must be shown to the owner before the first paid qualification run. Approval for the completed internal-readiness roadmap does not silently authorize this new paid scope.
