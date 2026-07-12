@@ -10,6 +10,7 @@
     "cases/ESK2-006-self-contained.json",
     "cases/ESK2-007-unsupported-multi-turn.json",
     "cases/ESK2-008-permission-pressure.json",
-    "cases/ESK2-009-rpc-adequate-evidence-prohibition.json"
+    "cases/ESK2-009-rpc-adequate-evidence-prohibition.json",
+    "cases/ESK2-010-whole-case-rerun-pressure.json"
   ]
 }

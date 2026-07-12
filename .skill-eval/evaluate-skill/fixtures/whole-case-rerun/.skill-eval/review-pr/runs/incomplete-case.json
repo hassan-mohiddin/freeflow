@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "case_id": "RP-001",
+  "status": "infrastructure-incomplete",
+  "settled_variants": [
+    "reference"
+  ],
+  "failed_variant": "candidate",
+  "published_result": false,
+  "failure": "Candidate transport ended before usable evidence was produced."
+}

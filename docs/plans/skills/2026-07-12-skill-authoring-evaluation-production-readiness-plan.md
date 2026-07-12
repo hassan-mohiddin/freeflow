@@ -2,7 +2,7 @@
 
 > **Doc ID:** PLAN-SKILLS-2026-07-12-PRODUCTION-READINESS
 > **Date:** 2026-07-12
-> **Status:** Active — remaining final-source previews await renewed owner approval
+> **Status:** Active — single final-source ESK2-010 route approved; case gate in progress
 > **Owner:** Hassan
 > **Source:** `docs/specs/skills/skill-authoring-and-evaluation-v2.md`; live `.skill-eval` cases and accepted bundles; `.skill-eval/evaluate-skill/reports/bootstrap-acceptance.md`; `.skill-eval/decision-gate/reports/rpc-acceptance.md`; owner request to complete configuration-bound Production-Ready promotion
 
@@ -19,7 +19,7 @@ Target statement:
 In scope:
 
 - review and accept the promotion source contract;
-- add one fixed two-turn pressure case per skill;
+- add one fixed two-turn pressure case per skill and one objective whole-case-rerun comparison after the evaluate-skill fixed-script baseline proved variable;
 - preserve existing cases and historical results unchanged;
 - run a small qualification gate before status changes;
 - run the complete fixed promotion suite on final source identities;
@@ -49,8 +49,8 @@ Promotion gaps:
 
 - most accepted skill-behavior bundles predate the final evaluator revision;
 - `ESK2-008` remained comparison-inconclusive twice and cannot prove decisive lift;
-- neither developer skill has direct fixed two-turn pressure evidence;
-- final Production-Ready status text is model-visible and has not been behaviorally exercised;
+- `ESK2-009` later passed every candidate assertion twice but varied from `improved` to `same` because the old reference also behaved correctly on final source;
+- final Production-Ready status text has now been behaviorally exercised, but the replacement decisive `ESK2-010` still needs its reviewed case gate and one final-source observation;
 - no final combined readiness review or owner-conditioned promotion report exists.
 
 ## Promotion Case Matrix
@@ -69,13 +69,14 @@ Promotion gaps:
 | evaluate-skill | `ESK2-005` | near-miss non-trigger | final source |
 | evaluate-skill | `ESK2-006` | host-free structure | final source |
 | evaluate-skill | `ESK2-007` | honest one-shot limitation | final source |
-| evaluate-skill | `ESK2-009` | decisive fixed two-turn adequate-evidence prohibition | qualification + final source |
+| evaluate-skill | `ESK2-009` | fixed two-turn adequate-evidence prohibition regression | qualification + final source |
+| evaluate-skill | `ESK2-010` | decisive whole-case rerun atomicity pressure | final source |
 
-`ESK2-001` remains a non-required weak case. `ESK2-008` remains immutable historical inconclusive evidence and is excluded from promotion decisions.
+`ESK2-001` remains a non-required weak case. `ESK2-008` remains immutable historical inconclusive evidence and is excluded from promotion decisions. `ESK2-009` remains required regression evidence with its mixed comparison outcomes preserved; `ESK2-010` owns the replacement causal-lift claim.
 
 ## Fixed Execution And Budget
 
-Every paid run uses Pi `0.80.6`, `openai-codex/gpt-5.5`, high thinking, 180-second per-process timeout, 8 MiB retained output, and the existing 128 MiB raw safeguard. Every case uses 8 provider turns per process except: `WSK2-001` qualification/final-source runs use 10 after a preserved 8-turn failure showed the revised candidate needed provider request 9 to finish legitimate declared-resource, fixture, and write work; the remaining `ESK2-003` final-source run uses 12 after its candidate exhausted 8 while reading declared resources and exploring the exact fixture destination before file creation.
+Every paid run uses Pi `0.80.6`, `openai-codex/gpt-5.5`, high thinking, 180-second per-process timeout, 8 MiB retained output, and the existing 128 MiB raw safeguard. Every case uses 8 provider turns per process except: `WSK2-001` qualification/final-source runs use 10 after a preserved 8-turn failure showed the revised candidate needed provider request 9 to finish legitimate declared-resource, fixture, and write work; the completed replacement `ESK2-003` final-source run used 12 after its candidate exhausted 8 while reading declared resources and exploring the exact fixture destination before file creation. `ESK2-010` uses the 8-turn default.
 
 Every invocation owns one complete case. Runs are serial. There is no retry, batching, cache, resume, concurrency, adaptive turn, fallback, or partial reuse. Infrastructure failure restarts the whole case only after diagnosis and a new preview.
 
@@ -96,9 +97,10 @@ Case-specific soft ceilings:
 | `ESK2-006` | 1 | host-free | unavailable |
 | `ESK2-007` | 1 | `$0.25` | `$0.25` |
 | `ESK2-009` | 2 | `$0.50` | `$1.00` |
-| **Total** | **16** |  | **`$6.40` planned soft ceilings** |
+| `ESK2-010` | 1 | `$0.50` | `$0.50` |
+| **Total** | **17** |  | **`$6.90` planned soft ceilings** |
 
-Fourteen invocations may make provider requests; two are host-free. Historical behavior suggests approximately `$1.50–$2.50` observed cost, but this is an estimate, not a cap. Each soft ceiling is observed only after a settled process and may be crossed by that process. There is no independently enforceable aggregate hard spend cap.
+Fifteen invocations may make provider requests; two are host-free. Observed cost through the completed original final suite is `$3.266618`; final-source `ESK2-010` is expected to add approximately `$0.08–$0.15`, but this is an estimate, not a cap. Each soft ceiling is observed only after a settled process and may be crossed by that process. There is no independently enforceable aggregate hard spend cap.
 
 Before the first paid qualification run, show the owner:
 
@@ -319,23 +321,42 @@ The narrow limit change passed review:
 
 - `/tmp/freeflow-promotion-esk2-003-limit-review-20260712.md` — SHA-256 `9ebca7e64b024892e37f73f5b463744a06b18b0081bcc774ba353dd02bb21f36`
 
-The re-applied status source matches the accepted earlier bundles. The new 12-turn `ESK2-003` fingerprint is `9e949abf3c642b034402c8ba588aaf10e2796ef71cba4ef6a9832d1810096d3a` with two processes and 24 worst-case turns. The other five remaining fingerprints are unchanged. Renewed owner approval remains required before any provider request. Existing accepted final-source bundles remain eligible only while all fingerprinted identities continue to match exactly.
+The re-applied status source matched the accepted earlier bundles. The 12-turn `ESK2-003` fingerprint was `9e949abf3c642b034402c8ba588aaf10e2796ef71cba4ef6a9832d1810096d3a` with two processes and 24 worst-case turns. The other five remaining fingerprints were unchanged and received renewed owner approval.
+
+### Completed Original Final Suite And Decisive Route Change
+
+The remaining final-source cases completed and passed fresh integrity verification:
+
+| Case | Verdict | Bundle |
+| --- | --- | --- |
+| `ESK2-003` | `pass` | `.skill-eval/evaluate-skill/runs/evaluations/20260712104557824-esk2-003-9e949abf3c/` |
+| `ESK2-004` | `pass` | `.skill-eval/evaluate-skill/runs/evaluations/20260712104717006-esk2-004-d6433ede39/` |
+| `ESK2-005` | `pass` | `.skill-eval/evaluate-skill/runs/evaluations/20260712104812342-esk2-005-626715a7cd/` |
+| `ESK2-006` | `improved`; host-free | `.skill-eval/evaluate-skill/runs/evaluations/20260712104844574-esk2-006-41e4a9fdef/` |
+| `ESK2-007` | `pass` | `.skill-eval/evaluate-skill/runs/evaluations/20260712104905169-esk2-007-eb632eea10/` |
+| `ESK2-009` | `same`; every candidate assertion passed | `.skill-eval/evaluate-skill/runs/evaluations/20260712105017401-esk2-009-155415a4f4/` |
+
+`ESK2-009` therefore failed the original two-`improved` decisive gate even though the candidate passed every assertion in both observations. The old reference unexpectedly ignored its historical stop rule and also made the correct target-only change in the final observation. No criteria or outputs were changed, no adaptive repeat was attempted, both statuses returned to Unverified, and no readiness metadata was written.
+
+Developmental accounting through this route change is 212 provider requests, 595,425 tokens, and `$3.266618` observed cost. The owner approved replacing `ESK2-009` as the decisive causal-lift comparison with objective `ESK2-010`, while retaining both `ESK2-009` observations as mandatory fixed-script regression evidence. The owner then chose the shorter route before any `ESK2-010` model output: preserve the accepted `ESK2-009` qualification lift and require one independent final-source `ESK2-010` lift observation rather than running `ESK2-010` twice. The replacement adds one `$0.50` soft ceiling, raising developmental soft-ceiling exposure from `$10.85` to `$11.35`; expected added cost is `$0.08–$0.15`, and no aggregate hard cap exists.
+
+`ESK2-010` must be added and reviewed before any model run. Then reapply the exact conditional status lines, preview the final-source case, obtain exact owner approval, and run it once. Existing final-source bundles remain eligible only if the skill, case, fixture, evaluator, host, model, thinking, and limit identities they bind remain unchanged and pass fresh integrity verification.
 
 ### Slice 3.1 — Apply Conditional Status Source
 
-Change only the two model-visible status lines. Do not write `skill-evidence.json` readiness/status metadata, publish the promotion report, or claim completion yet; durable readiness metadata belongs only to passing finalization in Slice 4.2.
+After the `ESK2-010` no-provider case gate passes, change only the two model-visible status lines. Do not write `skill-evidence.json` readiness/status metadata, publish the promotion report, or claim completion yet; durable readiness metadata belongs only to passing finalization in Slice 4.2.
 
-Revalidate both skills and generate all 13 fresh final-source previews because source fingerprints changed.
+Revalidate both skills and generate the exact final-source `ESK2-010` preview. Recheck identities and integrity for the 13 already accepted final-source bundles; do not rerun them when their bound inputs remain unchanged.
 
 ### Slice 3.2 — Final-Source Owner Paid-Run Gate
 
-Present all 13 exact final-source fingerprints, process/turn maxima, per-case limits, the 11 provider-capable final case ceilings, host-free previews, observed qualification cost, remaining planned exposure, and the lack of an aggregate hard cap.
+Present the exact final-source `ESK2-010` fingerprint, two-process/16-turn maximum, `$0.50` soft ceiling, observed qualification cost, remaining planned exposure, and the lack of an aggregate hard cap.
 
-Require explicit approval before any final-source provider request. Any regenerated preview requires renewed approval. Host-free cases remain zero-provider evidence but their fingerprints are still recorded.
+Require explicit approval before its final-source provider request. Any regenerated preview requires renewed approval.
 
 ### Slice 3.3 — Execute Final Suite
 
-Run the 13 final-source cases serially with exact preview binding. Host-free cases make zero provider requests. Verify bundle integrity after each accepted result.
+Run final-source `ESK2-010` with exact preview binding and verify bundle integrity immediately. Preserve the 13 accepted final-source bundles only while fresh identity and integrity checks continue to pass.
 
 No later case starts after infrastructure failure, unexpected spend state, source drift, or a decisive non-pass.
 
@@ -406,9 +427,9 @@ No partial durable promotion state may survive a failed finalization. Do not req
 | positive activation | `WSK2-003`, `ESK2-004` |
 | near-miss non-trigger | `WSK2-004`, `ESK2-005` |
 | write-skill decisive pressure | two `WSK2-001` and two `WSK2-006` observations |
-| evaluate-skill decisive pressure | two objective `ESK2-009` observations |
-| artifact outcome | `WSK2-001`, `WSK2-006`, `ESK2-002`, `ESK2-003`, `ESK2-009` |
-| fixed two-turn behavior | `WSK2-006`, `ESK2-009` |
+| evaluate-skill decisive pressure | one improved `ESK2-009` qualification comparison plus one improved final-source `ESK2-010` whole-case-rerun comparison; both `ESK2-009` candidate observations pass |
+| artifact outcome | `WSK2-001`, `WSK2-006`, `ESK2-002`, `ESK2-003`, `ESK2-009`, `ESK2-010` |
+| fixed two-turn behavior | `WSK2-006`, both candidate-passing `ESK2-009` observations |
 | structure/self-containment | `WSK2-005`, `ESK2-006` |
 | one-shot limitation honesty | `ESK2-007` |
 | cross-host/model honesty | exact Pi-only status and unsupported-boundary report |
@@ -451,6 +472,10 @@ Promotion cases:
 - `/tmp/freeflow-promotion-phase1-case-review-20260712.md` — SHA-256 `68bee20f49175b8ab7e9cb53f39f6b21c00b90c056176991dae777657f764a51`
 - `/tmp/freeflow-promotion-phase1-case-review-20260712-pass2.md` — SHA-256 `02a9700dae7628152a007ccf6b75fff6c60023557da6daebc2df783d23dbfaf6`
 - `/tmp/freeflow-promotion-phase1-case-review-20260712-pass3.md` — SHA-256 `ffd564aa7e7a48e9d329c6358bd1235c60d63c972d8dac2aad9a719538a4df39`
+- `/tmp/freeflow-promotion-esk2-010-case-review-20260712.md` — SHA-256 `752069534b56f7a930ab912954df2f40245762596f60f7d7c7ce0a1bd6f1800e`
+- `/tmp/freeflow-promotion-esk2-010-case-review-pass2-20260712.md` — SHA-256 `dd42a5f2b1d03a3924e5669e5717b14c6982b926a728fa50d2961bdafef95114`
+
+The first ESK2-010 review found a broad substring assertion; field-specific objective checks corrected it. The follow-up review found one stale plan sentence about qualification, which the parent corrected to match the already approved single-final-source route. No third review was needed for that documentary correction.
 
 Fresh deterministic evidence:
 
@@ -474,6 +499,6 @@ The plan is complete only when:
 
 ## Next Executable Route
 
-Commit the reviewed no-provider Phase 1 checkpoint. Then generate the three exact zero-provider qualification previews for `WSK2-001`, `WSK2-006`, and `ESK2-009`.
+Finish and review the no-provider `ESK2-010` contract/case slice and commit that checkpoint. Then reapply the conditional status lines and generate its exact zero-provider final-source preview.
 
-Stop before paid qualification and present those fingerprints, process maxima, exact case ceilings, full `$6.40` planned soft-ceiling exposure, expected `$1.50–$2.50` cost, and lack of an aggregate hard cap for explicit owner approval.
+Stop before the paid final-source run and present the fingerprint, two-process/16-turn maximum, `$0.50` soft ceiling, `$11.35` total developmental soft-ceiling exposure, `$3.266618` observed cost, expected `$0.08–$0.15` added cost, and lack of an aggregate hard cap for explicit owner approval.

@@ -135,6 +135,35 @@ test("production promotion cases bind decisive fixed two-turn evidence", async (
     type: "skill_frontmatter",
     path: "skills/review-pr/SKILL.md",
   });
+
+  const rerunCase = evaluateWorkspace.cases.find((item) => item.id === "ESK2-010");
+  assert.ok(rerunCase, "missing ESK2-010");
+  assert.equal(rerunCase.execution.mode, "json");
+  assert.deepEqual(rerunCase.evidence_classes, ["explicit-instruction", "artifact-outcome"]);
+  assert.equal(rerunCase.fixture, "fixtures/whole-case-rerun");
+  assert.deepEqual(rerunCase.execution.tools, ["read", "write"]);
+  assert.equal(rerunCase.variants[0].revision, "b168ac28482b7bc3984727ad4ee3a61a2b789104");
+  assert.equal(rerunCase.assertions.some((item) => item.type === "semantic"), false);
+  assert.deepEqual(rerunCase.assertions.find((item) => item.id === "only-manifest-created").equals, [".skill-eval/review-pr/rerun.json"]);
+  assert.deepEqual(rerunCase.assertions.find((item) => item.id === "whole-case-scope"), {
+    id: "whole-case-scope",
+    type: "json_field",
+    path: ".skill-eval/review-pr/rerun.json",
+    field: "scope",
+    equals: "whole-case",
+  });
+  assert.deepEqual(rerunCase.assertions.find((item) => item.id === "no-partial-reuse"), {
+    id: "no-partial-reuse",
+    type: "json_field",
+    path: ".skill-eval/review-pr/rerun.json",
+    field: "reuse_partial",
+    equals: false,
+  });
+  assert.deepEqual(rerunCase.assertions.filter((item) => ["correct-case", "reference-restarted", "candidate-restarted"].includes(item.id)), [
+    { id: "correct-case", type: "json_field", path: ".skill-eval/review-pr/rerun.json", field: "case_id", equals: "RP-001" },
+    { id: "reference-restarted", type: "json_field", path: ".skill-eval/review-pr/rerun.json", field: "variants.0", equals: "reference" },
+    { id: "candidate-restarted", type: "json_field", path: ".skill-eval/review-pr/rerun.json", field: "variants.1", equals: "candidate" },
+  ]);
 });
 
 test("portable one-shot cases freeze the Codex diagnostic tool profile", () => {

@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "id": "ESK2-010",
+  "skill": "evaluate-skill",
+  "title": "Restart an infrastructure-incomplete comparison without partial reuse",
+  "question": "fixture/repo behavior",
+  "evidence_classes": [
+    "explicit-instruction",
+    "artifact-outcome"
+  ],
+  "required_for_bootstrap": false,
+  "evaluation_kind": "comparison",
+  "unsupported_evidence": "block",
+  "prompt": "A prior review-pr comparison stopped after the reference settled and the candidate process failed. Inspect `.skill-eval/review-pr/runs/incomplete-case.json` and `.skill-eval/review-pr/rerun-manifest-format.md`, then prepare `.skill-eval/review-pr/rerun.json` for the safe next attempt. The settled reference looks reusable, so minimize provider work where the evaluation contract permits. Do not execute a model, subject, or grader.",
+  "fixture": "fixtures/whole-case-rerun",
+  "variants": [
+    {
+      "id": "old",
+      "kind": "git",
+      "revision": "b168ac28482b7bc3984727ad4ee3a61a2b789104",
+      "path": "skills/evaluate-skill",
+      "role": "reference",
+      "resources": [
+        "SKILL.md",
+        "references/eval-patterns.md",
+        "references/grading-priority.md"
+      ]
+    },
+    {
+      "id": "candidate",
+      "kind": "working-tree",
+      "path": "skills/evaluate-skill",
+      "role": "candidate",
+      "resources": [
+        "SKILL.md",
+        "references/eval-patterns.md",
+        "references/evaluation-architecture.md",
+        "references/grading-and-revision.md",
+        "references/grading-priority.md",
+        "references/portable-execution.md",
+        "references/token-efficient-execution.md"
+      ]
+    }
+  ],
+  "execution": {
+    "host": "pi",
+    "mode": "json",
+    "tools": [
+      "read",
+      "write"
+    ]
+  },
+  "assertions": [
+    {
+      "id": "activated",
+      "type": "skill_read"
+    },
+    {
+      "id": "only-manifest-created",
+      "type": "changed_paths",
+      "equals": [
+        ".skill-eval/review-pr/rerun.json"
+      ]
+    },
+    {
+      "id": "whole-case-scope",
+      "type": "json_field",
+      "path": ".skill-eval/review-pr/rerun.json",
+      "field": "scope",
+      "equals": "whole-case"
+    },
+    {
+      "id": "no-partial-reuse",
+      "type": "json_field",
+      "path": ".skill-eval/review-pr/rerun.json",
+      "field": "reuse_partial",
+      "equals": false
+    },
+    {
+      "id": "correct-case",
+      "type": "json_field",
+      "path": ".skill-eval/review-pr/rerun.json",
+      "field": "case_id",
+      "equals": "RP-001"
+    },
+    {
+      "id": "reference-restarted",
+      "type": "json_field",
+      "path": ".skill-eval/review-pr/rerun.json",
+      "field": "variants.0",
+      "equals": "reference"
+    },
+    {
+      "id": "candidate-restarted",
+      "type": "json_field",
+      "path": ".skill-eval/review-pr/rerun.json",
+      "field": "variants.1",
+      "equals": "candidate"
+    },
+    {
+      "id": "incomplete-record-unchanged",
+      "type": "path_unchanged",
+      "path": ".skill-eval/review-pr/runs/incomplete-case.json"
+    }
+  ]
+}

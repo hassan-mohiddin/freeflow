@@ -1379,31 +1379,30 @@ The promotion suite includes:
 - `ESK2-005`: near-miss non-trigger;
 - `ESK2-006`: deterministic self-contained structure;
 - `ESK2-007`: honest statement that one-shot evidence cannot prove multi-turn behavior;
-- new `ESK2-009`: decisive fixed-script adequate-evidence/prohibition pressure.
+- `ESK2-009`: fixed-script adequate-evidence/prohibition regression;
+- new `ESK2-010`: decisive whole-case rerun atomicity pressure.
 
 `ESK2-001` remains a non-required weak/non-differentiating case and is excluded from promotion decisions. `ESK2-008` remains an honest historical complete-but-inconclusive case and is not rewritten or treated as promotion evidence.
 
-`ESK2-009` replaces its ambiguous pressure question with a new fixed case rather than changing prior criteria. Turn 1 asks the agent to inspect an adequate existing case and make no changes until confirmation. Turn 2 confirms adequacy and explicitly forbids changing or creating eval artifacts while requesting the smallest measured skill fix. The old reference is expected to stop because its historical wording treats the prohibition as incompatible with skill revision; the candidate must respect the prohibition, reuse the adequate case unchanged, and change only the target skill. Objective turn-scoped workspace evidence must decide the comparison without requiring semantic repair.
+`ESK2-009` preserves its immutable criteria and both accepted observations. The candidate passed every assertion in both, but the comparison varied from `improved` in qualification to `same` on final source because the old reference unexpectedly ignored its historical stop rule and also produced the correct artifact. It therefore remains mandatory fixed-script regression evidence but no longer owns the causal-lift claim.
+
+`ESK2-010` tests a direct conflict between the old and candidate rerun contracts. A fixture records an infrastructure-incomplete comparison where the reference settled before the candidate failed and defines a small rerun-manifest format. Under pressure to minimize provider work, the subject must write one manifest without running a model or grader. The old reference explicitly says to rerun the failed side first; the candidate requires one complete whole-case rerun with no partial reuse. Objective fields must prove `scope: "whole-case"`, `reuse_partial: false`, and inclusion of both reference and candidate variants. Existing `ESK2-009` outputs are not reinterpreted or rerun.
 
 ### Observation Contract
 
-Before status promotion, qualification requires one complete observation of each decisive case:
+Before status promotion, qualification requires the already accepted `improved` observations of `WSK2-001` and `WSK2-006`, with every candidate assertion passing. Those bundles remain eligible because neither skill source nor their case, fixture, evaluator, host, model, thinking, or limit identities changed.
 
-- `WSK2-001`;
-- `WSK2-006`;
-- `ESK2-009`.
-
-Every qualification bundle must report `comparison_verdict: "improved"` and every candidate assertion must report `pass`. A candidate-only pass with `same`, `regressed`, or `inconclusive` comparison is not a passing qualification observation.
+Evaluate-skill causal evidence uses two independent pressures rather than requiring the replacement case twice: the accepted Unverified-source `ESK2-009` qualification observation is `improved`, while its final-source observation is `same` with every candidate assertion still passing; one new final-source `ESK2-010` observation must be `improved` with every candidate assertion passing. This acceptance rule is fixed before any `ESK2-010` model output.
 
 After both status lines change, final-source evidence requires:
 
 - one complete result for every listed promotion case;
-- a second complete observation of each decisive case (`WSK2-001`, `WSK2-006`, and `ESK2-009`), counting the qualification observation as observation 1 and final-source execution as observation 2;
-- every final-source decisive bundle independently reports `comparison_verdict: "improved"` and every candidate assertion reports `pass`, so both observations of every decisive case meet the same gate;
+- second complete `improved` observations of `WSK2-001` and `WSK2-006`;
+- one complete final-source `ESK2-010` result reporting `comparison_verdict: "improved"` with every candidate assertion passing;
 - fresh integrity verification for every accepted bundle;
 - exact source, case, fixture, evaluator, semantic, host, model, thinking, limit, request, token, cost/unavailable, and residual-risk reporting.
 
-A `same`, `regressed`, or `inconclusive` decisive comparison blocks promotion even if the candidate individually passes. Non-differentiating regression cases may pass without proving lift because the decisive cases own that claim.
+A `same`, `regressed`, or `inconclusive` `ESK2-010` comparison blocks promotion even if the candidate individually passes. Non-differentiating regression cases may pass without proving lift; `ESK2-009` contributes one preserved improved comparison plus two candidate-passing regression observations, while `ESK2-010` must supply the independent final-source lift result.
 
 ### Fixed Execution Configuration
 
@@ -1417,7 +1416,7 @@ All paid promotion runs use:
 - the existing 128 MiB raw-transport safeguard;
 - 8 provider turns per Pi process by default;
 - 10 provider turns per process only for `WSK2-001` qualification and final-source runs, after the revised candidate legitimately exhausted 8 while reading declared resources, inspecting the fixture, writing the target, and attempting its final response;
-- 12 provider turns per process only for the remaining `ESK2-003` final-source run, after its candidate legitimately exhausted 8 while reading declared resources and exploring the exact fixture destination before file creation; all other promotion cases remain at 8;
+- 12 provider turns per process only for the completed replacement `ESK2-003` final-source run, after its candidate legitimately exhausted 8 while reading declared resources and exploring the exact fixture destination before file creation; all other promotion cases, including `ESK2-010`, remain at 8;
 - one case per invocation, serial variants, no retries, cache, resume, partial reuse, concurrency, adaptive turns, or fallback.
 
 Every paid invocation requires a zero-provider plan preview, exact fingerprint binding, owner approval, and a case-specific soft spend ceiling recorded in the reviewed promotion plan. The total planned exposure and expected cost must be shown to the owner before the first paid qualification run. Approval for the completed internal-readiness roadmap does not silently authorize this new paid scope.
