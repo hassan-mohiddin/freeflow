@@ -61,6 +61,9 @@ Live repo evidence overrides stale artifacts.
 - **Implementation risk:** missing decisions, placeholders, or vague acceptance criteria will not send work down the wrong path.
 - **Design depth:** module, interface, seam, adapter, and slice choices hide useful complexity rather than spreading coordination.
 - **Failure-unit integrity when state transitions materially affect correctness:** each immediate slice owns one coherent outcome and, where applicable, its accepted, rejected, post-commit, and recovery behavior; required authority or canonicalization is not deferred behind callers or adapters that already depend on it.
+
+An immediate slice is unfit when it commits callers or adapters to a state transition while deferring whether that state is canonical, diagnostic, accepted, or rejected. Classify an unresolved owner decision as Question, but treat that Question as readiness-blocking and route backward before implementation.
+
 - **Scope and minimality:** the artifact solves the accepted outcome without quietly turning a bootstrap, fix, or bounded change into a generalized platform.
 - **Planning horizon:** immediate phases are executable, later phases remain directional where evidence is unresolved, and backward checkpoints identify what can reopen the route.
 - **Adversarial risk:** the artifact cannot smuggle stale assumptions, source-truth overrides, or owner decisions into execution.
