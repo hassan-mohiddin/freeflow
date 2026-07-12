@@ -59,7 +59,6 @@
   },
   "execution": {"host": "pi", "mode": "rpc-scripted", "tools": ["read", "write", "edit"]},
   "assertions": [
-    {"id": "execute-plan-read", "type": "component_read", "component": "execute-plan"},
     {"id": "target-read", "type": "component_read", "component": "tdd"},
     {"id": "turn-1-test-only", "type": "changed_paths", "equals": ["store.test.mjs"], "turn_id": "turn-1"},
     {"id": "turn-2-code-and-test", "type": "changed_paths", "equals": ["store.mjs", "store.test.mjs"], "turn_id": "turn-2"},

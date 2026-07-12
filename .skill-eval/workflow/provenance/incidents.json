@@ -230,8 +230,8 @@
     },
     {
       "path": ".skill-eval/workflow/cases/WFI-002-rejected-state-tdd.json",
-      "sha256": "34f38ed386124cbe73040dca4dbd6590ff679a52506c2c2093bb21d0096c5b99",
-      "bytes": 3450
+      "sha256": "fe8052018b5e1fd42ecad5c8fd553c1cde1eff9b1297405edaf6d81d4d680548",
+      "bytes": 3362
     },
     {
       "path": ".skill-eval/workflow/cases/WFI-003-proof-fidelity.json",
@@ -240,8 +240,8 @@
     },
     {
       "path": ".skill-eval/workflow/cases/WFI-004-repeated-sibling-route.json",
-      "sha256": "35680875e53f6f0d6696b9fc082090f21da0d24798e2aef7ec8258941793e124",
-      "bytes": 4692
+      "sha256": "28079dc620d44a978e8ce2eb412eb73eebd741a25edd1f46c638526af963b763",
+      "bytes": 4294
     }
   ],
   "pressure_oracle": {
