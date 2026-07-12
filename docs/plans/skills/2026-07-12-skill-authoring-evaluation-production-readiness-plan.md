@@ -2,7 +2,7 @@
 
 > **Doc ID:** PLAN-SKILLS-2026-07-12-PRODUCTION-READINESS
 > **Date:** 2026-07-12
-> **Status:** Active — single final-source ESK2-010 route approved; case gate in progress
+> **Status:** Active — measured ESK2-010 wording fix approved; replacement preview next
 > **Owner:** Hassan
 > **Source:** `docs/specs/skills/skill-authoring-and-evaluation-v2.md`; live `.skill-eval` cases and accepted bundles; `.skill-eval/evaluate-skill/reports/bootstrap-acceptance.md`; `.skill-eval/decision-gate/reports/rpc-acceptance.md`; owner request to complete configuration-bound Production-Ready promotion
 
@@ -97,10 +97,10 @@ Case-specific soft ceilings:
 | `ESK2-006` | 1 | host-free | unavailable |
 | `ESK2-007` | 1 | `$0.25` | `$0.25` |
 | `ESK2-009` | 2 | `$0.50` | `$1.00` |
-| `ESK2-010` | 1 | `$0.50` | `$0.50` |
-| **Total** | **17** |  | **`$6.90` planned soft ceilings** |
+| `ESK2-010` | 2 | `$0.50` | `$1.00` |
+| **Total** | **18** |  | **`$7.40` planned soft ceilings** |
 
-Fifteen invocations may make provider requests; two are host-free. Observed cost through the completed original final suite is `$3.266618`; final-source `ESK2-010` is expected to add approximately `$0.08–$0.15`, but this is an estimate, not a cap. Each soft ceiling is observed only after a settled process and may be crossed by that process. There is no independently enforceable aggregate hard spend cap.
+Sixteen invocations may make provider requests; two are host-free. Observed cost through the first final-source `ESK2-010` failure is `$3.355424`; its replacement is expected to add approximately `$0.08–$0.15`, but this is an estimate, not a cap. Each soft ceiling is observed only after a settled process and may be crossed by that process. There is no independently enforceable aggregate hard spend cap.
 
 Before the first paid qualification run, show the owner:
 
@@ -340,13 +340,20 @@ The remaining final-source cases completed and passed fresh integrity verificati
 
 Developmental accounting through this route change is 212 provider requests, 595,425 tokens, and `$3.266618` observed cost. The owner approved replacing `ESK2-009` as the decisive causal-lift comparison with objective `ESK2-010`, while retaining both `ESK2-009` observations as mandatory fixed-script regression evidence. The owner then chose the shorter route before any `ESK2-010` model output: preserve the accepted `ESK2-009` qualification lift and require one independent final-source `ESK2-010` lift observation rather than running `ESK2-010` twice. The replacement adds one `$0.50` soft ceiling, raising developmental soft-ceiling exposure from `$10.85` to `$11.35`; expected added cost is `$0.08–$0.15`, and no aggregate hard cap exists.
 
-`ESK2-010` must be added and reviewed before any model run. Then reapply the exact conditional status lines, preview the final-source case, obtain exact owner approval, and run it once. Existing final-source bundles remain eligible only if the skill, case, fixture, evaluator, host, model, thinking, and limit identities they bind remain unchanged and pass fresh integrity verification.
+`ESK2-010` was added and reviewed before model execution. Its first final-source observation completed with `comparison_verdict: "same"`: both variants wrote candidate-only manifests, so the candidate failed `whole-case`, `reuse_partial`, and both-variant assertions. The complete bundle passed integrity verification:
+
+- `.skill-eval/evaluate-skill/runs/evaluations/20260712110949463-esk2-010-507d2c5f73/`
+- 9 provider requests, 18,630 tokens, `$0.088806`.
+
+Both statuses returned to Unverified and no readiness metadata was written. Developmental accounting is now 221 provider requests, 614,055 tokens, and `$3.355424`. The owner approved the smallest measured skill fix: move a sharpened whole-case/no-partial-reuse rule into `Route First`, then rerun unchanged `ESK2-010` once. The replacement adds one `$0.50` ceiling, bringing developmental soft-ceiling exposure to `$11.85`; no aggregate hard cap exists.
+
+Because only that measured rule changes, earlier passing evaluate-skill bundles remain adjacent-source regression evidence for unchanged behavior areas rather than exact-final-source proof. The readiness report and final review must disclose this weaker freshness boundary. Any broader change or another replacement non-pass ends promotion.
 
 ### Slice 3.1 — Apply Conditional Status Source
 
-After the `ESK2-010` no-provider case gate passes, change only the two model-visible status lines. Do not write `skill-evidence.json` readiness/status metadata, publish the promotion report, or claim completion yet; durable readiness metadata belongs only to passing finalization in Slice 4.2.
+After the measured wording fix is reviewed, reapply the two model-visible status lines. Do not write `skill-evidence.json` readiness/status metadata, publish the promotion report, or claim completion yet; durable readiness metadata belongs only to passing finalization in Slice 4.2.
 
-Revalidate both skills and generate the exact final-source `ESK2-010` preview. Recheck identities and integrity for the 13 already accepted final-source bundles; do not rerun them when their bound inputs remain unchanged.
+Revalidate both skills and generate the replacement final-source `ESK2-010` preview. Freshly integrity-check the 13 earlier bundles and classify evaluate-skill bundles as adjacent-source regression evidence; do not claim their subject hash matches the revised final source.
 
 ### Slice 3.2 — Final-Source Owner Paid-Run Gate
 
@@ -356,7 +363,7 @@ Require explicit approval before its final-source provider request. Any regenera
 
 ### Slice 3.3 — Execute Final Suite
 
-Run final-source `ESK2-010` with exact preview binding and verify bundle integrity immediately. Preserve the 13 accepted final-source bundles only while fresh identity and integrity checks continue to pass.
+Run replacement final-source `ESK2-010` with exact preview binding and verify bundle integrity immediately. Preserve the 13 earlier bundles only as the exact or adjacent-source evidence described above while fresh integrity checks continue to pass.
 
 No later case starts after infrastructure failure, unexpected spend state, source drift, or a decisive non-pass.
 
@@ -499,6 +506,6 @@ The plan is complete only when:
 
 ## Next Executable Route
 
-Finish and review the no-provider `ESK2-010` contract/case slice and commit that checkpoint. Then reapply the conditional status lines and generate its exact zero-provider final-source preview.
+Review and commit the measured `evaluate-skill` Route First fix plus its honest evidence-contract update. Then reapply the conditional status lines and generate the exact replacement `ESK2-010` preview.
 
-Stop before the paid final-source run and present the fingerprint, two-process/16-turn maximum, `$0.50` soft ceiling, `$11.35` total developmental soft-ceiling exposure, `$3.266618` observed cost, expected `$0.08–$0.15` added cost, and lack of an aggregate hard cap for explicit owner approval.
+Stop before the paid replacement and present its fingerprint, two-process/16-turn maximum, `$0.50` soft ceiling, `$11.85` total developmental soft-ceiling exposure, `$3.355424` observed cost, expected `$0.08–$0.15` added cost, and lack of an aggregate hard cap for explicit owner approval.

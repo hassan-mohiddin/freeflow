@@ -1350,7 +1350,9 @@ Promotion uses two stages:
 1. qualification runs exercise the current Unverified source against the decisive pressure cases;
 2. only after qualification passes, both skill status lines change to the exact configuration-bound Production-Ready statement and the complete final promotion suite runs against those final source identities.
 
-A failed qualification run leaves both statuses Unverified. A failed final-source run reverts or revises the affected skill through the measured development loop and reruns the whole affected case. Results from pre-promotion source cannot substitute for required final-source evidence.
+A failed qualification run leaves both statuses Unverified. A failed final-source run reverts or revises the affected skill through the measured development loop and reruns the whole affected case. Results from pre-promotion source cannot substitute for required final-source evidence by default.
+
+The owner approved one narrow exception after the first final-source `ESK2-010` observation measured a placement failure: both variants chose partial reuse despite the candidate's lower whole-case rule. The candidate moves a sharpened no-partial-reuse rule into `Route First`, and only unchanged `ESK2-010` reruns on that revised final source. Earlier passing evaluate-skill bundles remain adjacent-source regression evidence for unchanged behavior areas, not exact-source proof; the readiness report and final review must disclose this weaker freshness boundary. Any broader source change or another `ESK2-010` non-pass blocks promotion rather than expanding the exception.
 
 ### Promotion Cases
 
@@ -1402,7 +1404,7 @@ After both status lines change, final-source evidence requires:
 - fresh integrity verification for every accepted bundle;
 - exact source, case, fixture, evaluator, semantic, host, model, thinking, limit, request, token, cost/unavailable, and residual-risk reporting.
 
-A `same`, `regressed`, or `inconclusive` `ESK2-010` comparison blocks promotion even if the candidate individually passes. Non-differentiating regression cases may pass without proving lift; `ESK2-009` contributes one preserved improved comparison plus two candidate-passing regression observations, while `ESK2-010` must supply the independent final-source lift result.
+A `same`, `regressed`, or `inconclusive` replacement `ESK2-010` comparison blocks promotion even if the candidate individually passes. Non-differentiating regression cases may pass without proving lift; `ESK2-009` contributes one preserved improved comparison plus two candidate-passing regression observations, while revised-source `ESK2-010` must supply the independent final-source lift result. The first `ESK2-010` `same` result remains preserved behavioral-failure evidence and cannot count toward promotion.
 
 ### Fixed Execution Configuration
 

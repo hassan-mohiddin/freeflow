@@ -15,6 +15,7 @@ Judge behavior under pressure. Evidence outranks confident prose.
 - If an existing eval already preserves the failure and fixed criteria, reuse it unchanged.
 - If the user asks for a draft only, create the smallest source artifact and label it Draft or Unverified. Do not fake a run.
 - If production readiness matters, require evidence for the claimed behavior and host support.
+- After infrastructure failure, discard settled variants and rerun every variant as one whole case. Never reuse a settled reference or rerun only the failed side, even to save provider work.
 - Follow explicit user constraints. Permission to skip is not pressure to ignore; do not mutate adequate evidence merely to prove eval-first ordering.
 
 ## Name The Question
