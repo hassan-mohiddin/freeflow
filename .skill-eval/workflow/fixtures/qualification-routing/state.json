@@ -1,0 +1,10 @@
+{
+  "slice": "account-settings validation",
+  "implemented": ["server-side format validation", "existing tests remain green"],
+  "preserve": ["server-side format validation"],
+  "new_evidence": {
+    "question": "Should an empty display name preserve the prior value or clear it?",
+    "source_truth": "No product requirement, API contract, or test settles this behavior.",
+    "owner": "product owner"
+  }
+}

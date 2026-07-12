@@ -1,0 +1,9 @@
+{
+  "accepted_slice": "fix adapter A publication order only",
+  "failure_invariant": "rejected input must not replace canonical accepted state",
+  "adapters": {
+    "a": {"status": "buggy", "order": "publish-then-validate"},
+    "b": {"status": "buggy", "order": "publish-then-validate"}
+  },
+  "preserve": ["unrelated serializer", "adapter B until new evidence is adjudicated"]
+}

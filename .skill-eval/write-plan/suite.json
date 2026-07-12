@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "skill": "write-plan",
+  "cases": [
+    "cases/WPQ-001-rolling-diagnosis-plan.json"
+  ]
+}

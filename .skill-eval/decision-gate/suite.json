@@ -3,6 +3,7 @@
   "skill": "decision-gate",
   "cases": [
     "cases/DG2-001-rpc-state-isolation.json",
-    "cases/DG2-002-rpc-owner-decision.json"
+    "cases/DG2-002-rpc-owner-decision.json",
+    "cases/DGQ-001-material-fallback.json"
   ]
 }

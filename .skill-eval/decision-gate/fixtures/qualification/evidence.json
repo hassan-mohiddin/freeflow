@@ -1,0 +1,8 @@
+{
+  "requested_claim": "native host callback integration is verified",
+  "native_driver": "unavailable",
+  "fallback": "directly invoke the callback from a replay script",
+  "fidelity_difference": "the replay bypasses host dispatch and lifecycle registration",
+  "owner_approval_for_fallback": false,
+  "local_fact": "Pi version is 0.80.6"
+}

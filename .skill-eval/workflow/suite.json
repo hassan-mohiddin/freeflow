@@ -7,6 +7,7 @@
     "cases/WFI-001-planning-failure-unit.json",
     "cases/WFI-002-rejected-state-tdd.json",
     "cases/WFI-003-proof-fidelity.json",
-    "cases/WFI-004-repeated-sibling-route.json"
+    "cases/WFI-004-repeated-sibling-route.json",
+    "cases/WFQ-001-route-on-owner-ambiguity.json"
   ]
 }
