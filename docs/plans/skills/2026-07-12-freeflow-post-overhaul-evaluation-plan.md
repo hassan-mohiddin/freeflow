@@ -455,6 +455,8 @@ Coverage design checkpoint passed on 2026-07-12. `.skill-eval/coverage-matrix.js
 4. Modes and local methods: `mode-contract`, `bypass`, `simplify-code`.
 5. Capability skills: `setup-freeflow`, `output-router`, `delegation-harness`.
 
+Phase 5 routing Wave 1A passed its bounded evidence checkpoint on 2026-07-12. `.skill-eval/reports/phase5-routing-wave-1a.md` records final evidence for `workflow`, `decision-gate`, `write-plan`, `review-artifact`, and `execute-plan`. All final candidates passed. One measured `review-artifact` failure produced revision `64fe205` and an improved exact-source rerun. No skill is promoted; neutral-control ties and remaining current-stack/composition evidence are explicit.
+
 Every skill needs activation and near-miss evidence plus at least one pressure case appropriate to its job. Core routing skills additionally need composition evidence. One composition pass cannot promote every included skill.
 
 ### Revision Loop

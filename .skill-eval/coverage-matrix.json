@@ -23,7 +23,7 @@
         "artifact-outcome"
       ],
       "case_concept": "Implementation evidence invalidates one assumption; route backward without restarting the whole plan.",
-      "current_result": "unverified",
+      "current_result": "Wave 1A candidate passed activation, near-miss, and pressure; neutral also passed, so no active-body lift; unverified.",
       "source_path": "skills/workflow/SKILL.md",
       "source_sha256": "61fe444f78780195774929a4c5b8db9b67d335989486d7a6a2e08c5da445bcf3",
       "evidence_status": "unverified",
@@ -57,7 +57,7 @@
         "artifact-outcome"
       ],
       "case_concept": "Refuse an unapproved evidence-class downgrade while avoiding questions about local details.",
-      "current_result": "unverified",
+      "current_result": "Wave 1A candidate passed activation, near-miss, and pressure; neutral also passed, so no active-body lift; unverified.",
       "source_path": "skills/decision-gate/SKILL.md",
       "source_sha256": "1538a516c25a6eb533a268bcdac240df8231941e7f484a18c7bf9343aae88069",
       "evidence_status": "unverified",
@@ -91,7 +91,7 @@
         "artifact-outcome"
       ],
       "case_concept": "Plan one diagnosed persistence fix while leaving unresolved migration work directional.",
-      "current_result": "unverified",
+      "current_result": "Wave 1A candidate passed activation, near-miss, and rolling-plan pressure; neutral also passed; unverified.",
       "source_path": "skills/write-plan/SKILL.md",
       "source_sha256": "1cace21f69b03cb6036aa9021ba3cfcd722c45465ea3cebf1c70cac97d71b8bf",
       "evidence_status": "unverified",
@@ -125,7 +125,7 @@
         "artifact-outcome"
       ],
       "case_concept": "Block a plan that defers an authority prerequisite while rejecting preference-only comments.",
-      "current_result": "two preserved RAQ-001 candidate failures; one measured failure-unit wording revision at 64fe205; exact-source rerun pending",
+      "current_result": "Wave 1A pre-revision candidate failed; measured revision 64fe205 improved over neutral and passed all final assertions; further composition/non-trigger evidence required; unverified.",
       "source_path": "skills/review-artifact/SKILL.md",
       "source_sha256": "45c4e9811b41faef62d28b406dd4175b0f82212dbf92d9d7e5a840d360645255",
       "evidence_status": "unverified",
@@ -160,7 +160,7 @@
         "artifact-outcome"
       ],
       "case_concept": "Preserve a valid local fix, then stop when a sibling defect changes the failure unit.",
-      "current_result": "unverified",
+      "current_result": "Wave 1A candidate passed all final assertions and preserved the backward route; neutral violated objective state boundaries, leaving comparison formally inconclusive; unverified.",
       "source_path": "skills/execute-plan/SKILL.md",
       "source_sha256": "f2b6b3b12c236f4bab54b2ad08916054b9e8e97db679feb02a2f890cb7cd576d",
       "evidence_status": "unverified",
