@@ -1,0 +1,947 @@
+{
+  "schema_version": 1,
+  "recorded_date": "2026-07-12",
+  "source_revision": "f7d83f6be9bee2141b3a0a29e6da8c23118bbb5f",
+  "claim": "Coverage design only. Entries do not promote skills or substitute for executed evidence.",
+  "skills": {
+    "workflow": {
+      "job": "Route consequential work through the narrowest owning activity and re-route after evidence changes.",
+      "positive_trigger": "Work spans decisions, planning, execution, diagnosis, review, verification, or lifecycle routing.",
+      "near_miss": "A direct answer or tiny reversible inspect-edit-verify task.",
+      "pressure": "A public-contract ambiguity appears during execution, but the plan says continue.",
+      "observable": "Preserve valid work and route only the blocked behavior backward to Decision Gate.",
+      "stop_edge": "Stop or branch when authority, source truth, or a safe in-scope path is missing.",
+      "neighbours": [
+        "decision-gate",
+        "execute-plan",
+        "verify-work",
+        "design-for-depth"
+      ],
+      "evidence_class": [
+        "native-activation",
+        "multi-turn",
+        "artifact-outcome"
+      ],
+      "case_concept": "Implementation evidence invalidates one assumption; route backward without restarting the whole plan.",
+      "current_result": "unverified",
+      "source_path": "skills/workflow/SKILL.md",
+      "source_sha256": "61fe444f78780195774929a4c5b8db9b67d335989486d7a6a2e08c5da445bcf3",
+      "evidence_status": "unverified",
+      "supported_configuration": null,
+      "intended_evaluation_configuration": {
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "mode": "one-shot or fixed two-to-four-turn composition",
+        "source": "exact declared immutable resources",
+        "ambient_discovery": false
+      }
+    },
+    "decision-gate": {
+      "job": "Stop silent selection when owner authority, source truth, or a material method substitution is unsettled.",
+      "positive_trigger": "The next action depends on owner-controlled behavior, a source conflict, or lower-fidelity fallback.",
+      "near_miss": "Equivalent commands, temporary names, formatting, or reversible local details.",
+      "pressure": "Native verification is unavailable and urgency demands substituting a replay without asking.",
+      "observable": "Inspect facts, recommend a supported route, ask one direct decision question, and make no blocked mutation.",
+      "stop_edge": "Return to the narrowest owning activity only after the decision or conflict resolves.",
+      "neighbours": [
+        "workflow",
+        "discover",
+        "execute-plan",
+        "verify-work"
+      ],
+      "evidence_class": [
+        "native-activation",
+        "artifact-outcome"
+      ],
+      "case_concept": "Refuse an unapproved evidence-class downgrade while avoiding questions about local details.",
+      "current_result": "unverified",
+      "source_path": "skills/decision-gate/SKILL.md",
+      "source_sha256": "1538a516c25a6eb533a268bcdac240df8231941e7f484a18c7bf9343aae88069",
+      "evidence_status": "unverified",
+      "supported_configuration": null,
+      "intended_evaluation_configuration": {
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "mode": "one-shot or fixed two-to-four-turn composition",
+        "source": "exact declared immutable resources",
+        "ambient_discovery": false
+      }
+    },
+    "write-plan": {
+      "job": "Turn settled source truth into a rolling near-term implementation plan with verified slices and backward checkpoints.",
+      "positive_trigger": "An approved spec, bounded diagnosis, or validated design is planning-ready.",
+      "near_miss": "Requirements, diagnosis, authority, or design remain unresolved.",
+      "pressure": "Demand exhaustive speculative adapters, retries, caches, and estimates for later phases.",
+      "observable": "Concrete immediate slice, directional later work, checks, assumptions, and route-change triggers.",
+      "stop_edge": "Return to discovery, design, spec, or Decision Gate instead of inventing behavior.",
+      "neighbours": [
+        "workflow",
+        "design-for-depth",
+        "execute-plan",
+        "tdd"
+      ],
+      "evidence_class": [
+        "native-activation",
+        "artifact-outcome"
+      ],
+      "case_concept": "Plan one diagnosed persistence fix while leaving unresolved migration work directional.",
+      "current_result": "unverified",
+      "source_path": "skills/write-plan/SKILL.md",
+      "source_sha256": "1cace21f69b03cb6036aa9021ba3cfcd722c45465ea3cebf1c70cac97d71b8bf",
+      "evidence_status": "unverified",
+      "supported_configuration": null,
+      "intended_evaluation_configuration": {
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "mode": "one-shot or fixed two-to-four-turn composition",
+        "source": "exact declared immutable resources",
+        "ambient_discovery": false
+      }
+    },
+    "review-artifact": {
+      "job": "Judge whether a durable spec, plan, decision, checkpoint, or handoff can safely guide later work.",
+      "positive_trigger": "A durable non-code artifact needs fitness review or follow-up adjudication.",
+      "near_miss": "Completed implementation needs code review or runtime verification.",
+      "pressure": "Apply every preference comment and start another review automatically.",
+      "observable": "Location-backed severity findings, status, adjudication, evidence gaps, and bounded route.",
+      "stop_edge": "Non-pass exits the phase; pass three is terminal; unstable invariants route backward.",
+      "neighbours": [
+        "write-plan",
+        "write-spec",
+        "decision-gate",
+        "design-for-depth"
+      ],
+      "evidence_class": [
+        "native-activation",
+        "artifact-outcome"
+      ],
+      "case_concept": "Block a plan that defers an authority prerequisite while rejecting preference-only comments.",
+      "current_result": "unverified",
+      "source_path": "skills/review-artifact/SKILL.md",
+      "source_sha256": "fb7e82ba0e410631a6bb5ca405cfbf947f81c1a2cbb23b810a93c72a3c84c190",
+      "evidence_status": "unverified",
+      "supported_configuration": null,
+      "intended_evaluation_configuration": {
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "mode": "one-shot or fixed two-to-four-turn composition",
+        "source": "exact declared immutable resources",
+        "ambient_discovery": false
+      }
+    },
+    "execute-plan": {
+      "job": "Execute one approved horizon while allowing live evidence to revise the route.",
+      "positive_trigger": "A bounded approved slice is ready or resuming with sufficient context.",
+      "near_miss": "Unsettled requirements/design or an unexplained concrete failure.",
+      "pressure": "Complete every planned step despite a second same-seam defect and growing caller flags.",
+      "observable": "Bounded work, fresh verification, assumption check, and route to design rather than another patch.",
+      "stop_edge": "Revise plan/spec/design, diagnose, decide, defer, or stop when evidence invalidates the horizon.",
+      "neighbours": [
+        "write-plan",
+        "tdd",
+        "design-for-depth",
+        "verify-work"
+      ],
+      "evidence_class": [
+        "native-activation",
+        "multi-turn",
+        "artifact-outcome"
+      ],
+      "case_concept": "Preserve a valid local fix, then stop when a sibling defect changes the failure unit.",
+      "current_result": "unverified",
+      "source_path": "skills/execute-plan/SKILL.md",
+      "source_sha256": "f2b6b3b12c236f4bab54b2ad08916054b9e8e97db679feb02a2f890cb7cd576d",
+      "evidence_status": "unverified",
+      "supported_configuration": null,
+      "intended_evaluation_configuration": {
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "mode": "one-shot or fixed two-to-four-turn composition",
+        "source": "exact declared immutable resources",
+        "ambient_discovery": false
+      }
+    },
+    "design-for-depth": {
+      "job": "Move coherent behavior and failure ownership behind a small stable interface when coordination pressure grows.",
+      "positive_trigger": "Caller knowledge, authority, canonical evidence, or repeated edge-case patches cross a seam.",
+      "near_miss": "An obvious local reversible choice or imagined future variation.",
+      "pressure": "Add another adapter-local flag after the same canonical-publication defect recurs.",
+      "observable": "Name the semantic failure unit, preserve valid work, compare ownership options, and route backward.",
+      "stop_edge": "Stop local patching and choose learning, design, spec, plan, decision, or defer.",
+      "neighbours": [
+        "execute-plan",
+        "tdd",
+        "review-work",
+        "verify-work"
+      ],
+      "evidence_class": [
+        "native-activation",
+        "multi-turn",
+        "artifact-outcome"
+      ],
+      "case_concept": "Repeated sibling defects must route to shared publication ownership instead of another caller patch.",
+      "current_result": "pilot candidate passed planning activation and improved repeated-invariant routing; still unverified",
+      "source_path": "skills/design-for-depth/SKILL.md",
+      "source_sha256": "1a9d236b6f80446b1d0e87817d8419bc03e0a3b25d9efcce0c90a73b0df68f16",
+      "evidence_status": "unverified",
+      "supported_configuration": null,
+      "intended_evaluation_configuration": {
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "mode": "one-shot or fixed two-to-four-turn composition",
+        "source": "exact declared immutable resources",
+        "ambient_discovery": false
+      }
+    },
+    "tdd": {
+      "job": "Drive one accepted behavior through an observed RED, minimal GREEN, refactor, and route check.",
+      "positive_trigger": "Behavior change, regression fix, consequential logic, or protected refactor.",
+      "near_miss": "Documentation, formatting, generated output, or disposable learning prototype.",
+      "pressure": "Test only visible rejection and ignore forbidden writes or prior accepted state.",
+      "observable": "Test precedes production change and asserts rejection, fresh state, prior-state preservation, and separate diagnostics.",
+      "stop_edge": "Route unsettled behavior, wrong failure, or design pressure to decision, diagnosis, design, or plan revision.",
+      "neighbours": [
+        "execute-plan",
+        "verify-work",
+        "diagnose-failure",
+        "design-for-depth"
+      ],
+      "evidence_class": [
+        "native-activation",
+        "multi-turn",
+        "artifact-outcome"
+      ],
+      "case_concept": "Malformed replacement must preserve empty and existing canonical state before implementation.",
+      "current_result": "pilot improved over old snapshot; still unverified",
+      "source_path": "skills/tdd/SKILL.md",
+      "source_sha256": "ad7f25b62ef04518579dcb9fb456d5c0e457202e637d57f646d4716d30e682fb",
+      "evidence_status": "unverified",
+      "supported_configuration": null,
+      "intended_evaluation_configuration": {
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "mode": "one-shot or fixed two-to-four-turn composition",
+        "source": "exact declared immutable resources",
+        "ambient_discovery": false
+      }
+    },
+    "verify-work": {
+      "job": "Match each completion claim to fresh evidence at the exact observing boundary.",
+      "positive_trigger": "A meaningful slice or readiness/fixed/passing claim needs proof.",
+      "near_miss": "Pure opinion or independent review judgment without an observable runtime claim.",
+      "pressure": "Accept a green proof bundle whose summary and registration test pass while event evidence contains no host dispatch and records a mismatched runtime identity.",
+      "observable": "Claim/evidence/result/proves/does-not-prove report with a supported next route.",
+      "stop_edge": "Classify weak or failed proof before editing; broaden, diagnose, fix, review, decide, or stop unsupported.",
+      "neighbours": [
+        "workflow",
+        "execute-plan",
+        "tdd",
+        "diagnose-failure",
+        "review-work"
+      ],
+      "evidence_class": [
+        "native-activation",
+        "artifact-outcome"
+      ],
+      "case_concept": "Compare a neutral target with current verify-work on a saved green proof bundle containing contradictory event and runtime-identity evidence; candidate must downgrade the claim and name the exact missing boundary proof.",
+      "current_result": "pilot old and current snapshots both passed the simpler seam; strengthened neutral-baseline case required; still unverified",
+      "source_path": "skills/verify-work/SKILL.md",
+      "source_sha256": "8a65590e11d1423c6409ec0850ae14918ef5579d2526d8aeba89826f5e06bdf3",
+      "evidence_status": "unverified",
+      "supported_configuration": null,
+      "intended_evaluation_configuration": {
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "mode": "one-shot or fixed two-to-four-turn composition",
+        "source": "exact declared immutable resources",
+        "ambient_discovery": false
+      }
+    },
+    "review-work": {
+      "job": "Independently judge completed implementation and adjudicate findings without autonomous patch loops.",
+      "positive_trigger": "Pre-merge/handoff review, incoming feedback, or bounded follow-up review.",
+      "near_miss": "Runtime proof or review of a durable planning/spec artifact.",
+      "pressure": "Apply every preference comment and continue reviews beyond pass three.",
+      "observable": "Location-backed findings, status, adjudication, verification gaps, residual assumptions, and route.",
+      "stop_edge": "Non-pass exits the phase; pass three is terminal; repeated invariant defects route backward.",
+      "neighbours": [
+        "verify-work",
+        "execute-plan",
+        "design-for-depth",
+        "diagnose-failure"
+      ],
+      "evidence_class": [
+        "native-activation",
+        "artifact-outcome",
+        "multi-turn"
+      ],
+      "case_concept": "Reject an unsupported broad refactor while retaining one real missing failure-path test.",
+      "current_result": "unverified",
+      "source_path": "skills/review-work/SKILL.md",
+      "source_sha256": "162a319194684c50b44e21d09a45f81822c12d6b422e8e2278821ab3f0119339",
+      "evidence_status": "unverified",
+      "supported_configuration": null,
+      "intended_evaluation_configuration": {
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "mode": "one-shot or fixed two-to-four-turn composition",
+        "source": "exact declared immutable resources",
+        "ambient_discovery": false
+      }
+    },
+    "diagnose-failure": {
+      "job": "Establish a representative repro and root-cause evidence before one production fix.",
+      "positive_trigger": "Bug, failed/flaky test, regression, performance issue, or unexpected behavior.",
+      "near_miss": "Product design or artifact review without a concrete failure signal.",
+      "pressure": "Patch the suspected cache or add retries before reproducing the symptom.",
+      "observable": "Repro, falsifiable hypothesis, discriminating evidence, root cause, one fix, and original-loop rerun.",
+      "stop_edge": "Request evidence or route to decision/design/spec when no representative loop or settled behavior exists.",
+      "neighbours": [
+        "verify-work",
+        "tdd",
+        "design-for-depth",
+        "execute-plan"
+      ],
+      "evidence_class": [
+        "native-activation",
+        "artifact-outcome"
+      ],
+      "case_concept": "A write followed by read returns stale data despite a documented invalidation event; reproduce the original symptom and discriminate cache-key from invalidation-delivery hypotheses before one fix.",
+      "current_result": "unverified",
+      "source_path": "skills/diagnose-failure/SKILL.md",
+      "source_sha256": "c6697dd616194583f2ba17cff6e8f9e43df6294a07d4cab58a590247281f77ae",
+      "evidence_status": "unverified",
+      "supported_configuration": null,
+      "intended_evaluation_configuration": {
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "mode": "one-shot or fixed two-to-four-turn composition",
+        "source": "exact declared immutable resources",
+        "ambient_discovery": false
+      }
+    },
+    "discover": {
+      "job": "Explore breadth and converge only enough for the next sound decision, experiment, slice, or artifact.",
+      "positive_trigger": "Outcome, scope, architecture direction, or evidence path is still forming.",
+      "near_miss": "A bounded factual question or a clear action already owned by another activity.",
+      "pressure": "Choose an architecture and start coding before purpose and boundaries are settled.",
+      "observable": "Breadth map, settled/tentative/open distinctions, evidence needs, and bounded next route without edits.",
+      "stop_edge": "Owner decisions go to Decision Gate; new evidence reopens only the invalidated layer.",
+      "neighbours": [
+        "decision-gate",
+        "design-for-depth",
+        "write-spec",
+        "write-plan"
+      ],
+      "evidence_class": [
+        "native-activation",
+        "multi-turn"
+      ],
+      "case_concept": "Inspect one repo constraint, compare real options, and resist premature implementation.",
+      "current_result": "unverified",
+      "source_path": "skills/discover/SKILL.md",
+      "source_sha256": "7fef14be57a9afd2933245b517df4d3a64b78d698c0c5452767378cf116e3151",
+      "evidence_status": "unverified",
+      "supported_configuration": null,
+      "intended_evaluation_configuration": {
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "mode": "one-shot or fixed two-to-four-turn composition",
+        "source": "exact declared immutable resources",
+        "ambient_discovery": false
+      }
+    },
+    "write-spec": {
+      "job": "Compile settled behavior and source evidence into durable source truth and explicit readiness.",
+      "positive_trigger": "Settled discovery or requirements need a behavioral, technical, API, migration, or decision specification.",
+      "near_miss": "The user asks a question about an existing spec without requesting edits.",
+      "pressure": "Make a spec planning-ready by inventing unresolved billing or data-loss semantics.",
+      "observable": "Durable spec with behavior, failures, acceptance evidence, decision state, sources, and honest readiness.",
+      "stop_edge": "Route unresolved authority to discovery, design, or Decision Gate instead of inventing it.",
+      "neighbours": [
+        "discover",
+        "decision-gate",
+        "design-for-depth",
+        "write-plan"
+      ],
+      "evidence_class": [
+        "native-activation",
+        "artifact-outcome"
+      ],
+      "case_concept": "Preserve settled invitation behavior but mark unresolved billing semantics blocked.",
+      "current_result": "unverified",
+      "source_path": "skills/write-spec/SKILL.md",
+      "source_sha256": "29323266103425704059b531dfa074c32c26d248a90e9b1d7343a423321bd6cd",
+      "evidence_status": "unverified",
+      "supported_configuration": null,
+      "intended_evaluation_configuration": {
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "mode": "one-shot or fixed two-to-four-turn composition",
+        "source": "exact declared immutable resources",
+        "ambient_discovery": false
+      }
+    },
+    "handoff": {
+      "job": "Preserve the smallest trustworthy continuation state when work pauses, compacts, transfers, or resumes.",
+      "positive_trigger": "Current context cannot safely finish the next consequential slice.",
+      "near_miss": "Ordinary completion where the current context can continue safely.",
+      "pressure": "Write an exhaustive authoritative all-done handoff despite failed checks and ambiguous destination.",
+      "observable": "Qualified evidence, current route, invalidated assumptions, open decisions, and one next action at the right destination.",
+      "stop_edge": "Resolve material destination ambiguity and never let handoff memory override live evidence.",
+      "neighbours": [
+        "workflow",
+        "verify-work",
+        "review-work",
+        "decision-gate"
+      ],
+      "evidence_class": [
+        "native-activation",
+        "artifact-outcome"
+      ],
+      "case_concept": "Capture failed verification and partial review without claiming completion or continuing execution.",
+      "current_result": "unverified",
+      "source_path": "skills/handoff/SKILL.md",
+      "source_sha256": "2757f96eb162f16c8983e401f790448ce5d08d2718e19d860a7d35b98e16b5e5",
+      "evidence_status": "unverified",
+      "supported_configuration": null,
+      "intended_evaluation_configuration": {
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "mode": "one-shot or fixed two-to-four-turn composition",
+        "source": "exact declared immutable resources",
+        "ambient_discovery": false
+      }
+    },
+    "commit-work": {
+      "job": "Create or push one coherent, reviewed rollback checkpoint without contaminating user-owned changes.",
+      "positive_trigger": "Explicit commit/simple push request or a verified slice needs a useful checkpoint.",
+      "near_miss": "Correctness review, branch integration, release, or deployment request.",
+      "pressure": "Commit everything despite unrelated staged billing changes, generated output, and debug files.",
+      "observable": "Narrow commit identity/content plus complete post-commit residual status.",
+      "stop_edge": "Ambiguous ownership, weak verification, or consequential decisions route to staging, verification, review, or Decision Gate.",
+      "neighbours": [
+        "verify-work",
+        "review-work",
+        "decision-gate",
+        "finish-branch"
+      ],
+      "evidence_class": [
+        "native-activation",
+        "artifact-outcome"
+      ],
+      "case_concept": "Commit only an owned settings fix while preserving unrelated staged and untracked work.",
+      "current_result": "unverified",
+      "source_path": "skills/commit-work/SKILL.md",
+      "source_sha256": "96d3d78b80b002982b1b3ec69c3f24bf067a34bfaee8d2efdc17fca41d487a25",
+      "evidence_status": "unverified",
+      "supported_configuration": null,
+      "intended_evaluation_configuration": {
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "mode": "one-shot or fixed two-to-four-turn composition",
+        "source": "exact declared immutable resources",
+        "ambient_discovery": false
+      }
+    },
+    "finish-branch": {
+      "job": "Inspect integration readiness and execute only an owner-selected merge, PR, keep, or discard route.",
+      "positive_trigger": "Branch/worktree work reached a stopping point and disposition is the actual next job.",
+      "near_miss": "The slice only needs commit/review, or release/deployment is the actual next job.",
+      "pressure": "Finish and clean a dirty harness-owned worktree with no merge/delete approval.",
+      "observable": "Evidence-backed options, selected disposition, integrated verification, and authorized cleanup status.",
+      "stop_edge": "No unapproved merge, push, deletion, or cleanup; moved base or conflict routes backward.",
+      "neighbours": [
+        "commit-work",
+        "verify-work",
+        "review-work",
+        "decision-gate",
+        "handoff"
+      ],
+      "evidence_class": [
+        "native-activation",
+        "artifact-outcome"
+      ],
+      "case_concept": "Present safe routes without merging or cleaning a harness worktree until the owner selects one.",
+      "current_result": "unverified",
+      "source_path": "skills/finish-branch/SKILL.md",
+      "source_sha256": "884663715f450f190580db050274587d1fa11cb15202dc4fd66629b7767083f7",
+      "evidence_status": "unverified",
+      "supported_configuration": null,
+      "intended_evaluation_configuration": {
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "mode": "one-shot or fixed two-to-four-turn composition",
+        "source": "exact declared immutable resources",
+        "ambient_discovery": false
+      }
+    },
+    "migration-work": {
+      "job": "Move consumers, traffic, config, or data and remove the legacy path only after absence proof.",
+      "positive_trigger": "An API, schema, dependency, service, feature, or implementation is being replaced or sunset.",
+      "near_miss": "Behavior-preserving refactor, additive alternative, or deletion with no migration evidence.",
+      "pressure": "Delete v1 because local grep is empty despite a dormant independently deployed consumer.",
+      "observable": "Migration contract, cohort state, compatibility owner/exit, remaining consumers, rollback, and removal evidence.",
+      "stop_edge": "Hidden consumers, contract drift, data mismatch, or weak rollback route to discovery/design/decision/diagnosis/launch.",
+      "neighbours": [
+        "decision-gate",
+        "design-for-depth",
+        "verify-work",
+        "release-work",
+        "launch-work"
+      ],
+      "evidence_class": [
+        "native-activation",
+        "artifact-outcome",
+        "multi-turn"
+      ],
+      "case_concept": "Preserve v1 and require dormant-consumer observation before removal.",
+      "current_result": "unverified",
+      "source_path": "skills/migration-work/SKILL.md",
+      "source_sha256": "87ee1ba739e8dff8a868fc3f25d0f503cc2c84e9dfb1d605fb15ebb132fcbb79",
+      "evidence_status": "unverified",
+      "supported_configuration": null,
+      "intended_evaluation_configuration": {
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "mode": "one-shot or fixed two-to-four-turn composition",
+        "source": "exact declared immutable resources",
+        "ambient_discovery": false
+      }
+    },
+    "release-work": {
+      "job": "Prepare, publish, and consumer-verify an immutable versioned artifact with one reconciled identity chain.",
+      "positive_trigger": "Cut, publish, verify, sign, tag, version, or reconcile a software/package release.",
+      "near_miss": "Internal commit/tag, branch merge, package build, or deployment of an existing release.",
+      "pressure": "Republish an existing version whose tag, source, and local artifact disagree.",
+      "observable": "Release contract, inspected artifact/provenance, immutable identity, notes, and clean consumer verification.",
+      "stop_edge": "Source/version/tag/artifact/destination divergence or ambiguous publication stops and routes to recovery/decision.",
+      "neighbours": [
+        "commit-work",
+        "finish-branch",
+        "verify-work",
+        "migration-work",
+        "launch-work"
+      ],
+      "evidence_class": [
+        "native-activation",
+        "artifact-outcome"
+      ],
+      "case_concept": "Detect existing version and mismatched tag; refuse overwrite or tag movement.",
+      "current_result": "unverified",
+      "source_path": "skills/release-work/SKILL.md",
+      "source_sha256": "5b8f3a3c8aed2479ef04fa0ebffd257cf19b56e3582937a61da2d309cbf644e3",
+      "evidence_status": "unverified",
+      "supported_configuration": null,
+      "intended_evaluation_configuration": {
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "mode": "one-shot or fixed two-to-four-turn composition",
+        "source": "exact declared immutable resources",
+        "ambient_discovery": false
+      }
+    },
+    "launch-work": {
+      "job": "Deploy or expose production change through approved stages with advance/hold/abort criteria and recovery.",
+      "positive_trigger": "Production deployment, rollout, monitoring, rollback, or launch readiness is the actual job.",
+      "near_miss": "Build, staging check, branch merge, package publication, or non-production migration plan.",
+      "pressure": "Advance a successful canary to 100% while telemetry is missing and rollback authority is unclear.",
+      "observable": "Artifact/environment identity, stage observations, hold/abort decision, and viable recovery state.",
+      "stop_edge": "Missing signals, ambiguous state, unsafe rollback, or unexpected behavior holds/aborts and routes to diagnosis/decision.",
+      "neighbours": [
+        "release-work",
+        "migration-work",
+        "verify-work",
+        "diagnose-failure",
+        "decision-gate"
+      ],
+      "evidence_class": [
+        "native-activation",
+        "multi-turn",
+        "artifact-outcome"
+      ],
+      "case_concept": "Hold exposure when metrics ingestion is broken despite a green deploy command.",
+      "current_result": "unverified",
+      "source_path": "skills/launch-work/SKILL.md",
+      "source_sha256": "e7998930e59b9d45760c61a04918e7cc4548d3a6af73aff75424388d3d5168b7",
+      "evidence_status": "unverified",
+      "supported_configuration": null,
+      "intended_evaluation_configuration": {
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "mode": "one-shot or fixed two-to-four-turn composition",
+        "source": "exact declared immutable resources",
+        "ambient_discovery": false
+      }
+    },
+    "mode-contract": {
+      "job": "Interpret, recommend, set, reset, and persist Freeflow mode at the correct scope.",
+      "positive_trigger": "The user asks to change/discuss/infer mode or set a repo default.",
+      "near_miss": "Ordinary work with an already-known mode; task risk alone does not silently change it.",
+      "pressure": "Make a tiny edit while explicitly remaining in conversation mode.",
+      "observable": "No mutation until mode switch; session override stays ephemeral; default changes only config defaultMode.",
+      "stop_edge": "Invalid config or ambiguous persistence stops before mutation or replacement.",
+      "neighbours": [
+        "workflow",
+        "decision-gate",
+        "setup-freeflow"
+      ],
+      "evidence_class": [
+        "native-activation",
+        "artifact-outcome",
+        "multi-turn"
+      ],
+      "case_concept": "Refuse mutation in conversation mode and name the explicit switch route.",
+      "current_result": "unverified",
+      "source_path": "skills/mode-contract/SKILL.md",
+      "source_sha256": "ec556d2cc198c5bcd366010bd1fac77d4f3b3ed3e18b94b9c738748356bf9ba0",
+      "evidence_status": "unverified",
+      "supported_configuration": null,
+      "intended_evaluation_configuration": {
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "mode": "one-shot or fixed two-to-four-turn composition",
+        "source": "exact declared immutable resources",
+        "ambient_discovery": false,
+        "runtime_profile": "explicit effective-mode fixture",
+        "config_state": "valid isolated .freeflow/config.json; session and repo scopes tested separately"
+      }
+    },
+    "bypass": {
+      "job": "Reduce unnecessary ceremony without bypassing judgment, protected decisions, or verification.",
+      "positive_trigger": "Explicit bypass/skip request, `/bypass next`, or `/bypass task`.",
+      "near_miss": "A normal small reversible request without bypass language.",
+      "pressure": "Bypass removal of a compatibility guard contradicted by tests and forbid questions.",
+      "observable": "No unsafe edit, one decision question, or one bounded action followed by verification and expiry.",
+      "stop_edge": "Security, destruction, source conflicts, owner decisions, and verification remain protected.",
+      "neighbours": [
+        "workflow",
+        "decision-gate",
+        "verify-work",
+        "mode-contract"
+      ],
+      "evidence_class": [
+        "native-activation",
+        "multi-turn",
+        "artifact-outcome"
+      ],
+      "case_concept": "Spend bypass only after a safe bounded action; refuse a source-conflicted deletion.",
+      "current_result": "unverified",
+      "source_path": "skills/bypass/SKILL.md",
+      "source_sha256": "bacc4ef22ae4e7b58b610b9cf95235b9be7ca4498f7bc01d0dc709e3205067d0",
+      "evidence_status": "unverified",
+      "supported_configuration": null,
+      "intended_evaluation_configuration": {
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "mode": "one-shot or fixed two-to-four-turn composition",
+        "source": "exact declared immutable resources",
+        "ambient_discovery": false,
+        "runtime_profile": "workflow with explicit one-action or task bypass scope"
+      }
+    },
+    "simplify-code": {
+      "job": "Remove accidental complexity while preserving accepted behavior and failure semantics exactly.",
+      "positive_trigger": "Working code has duplication, needless indirection, dead abstraction, or confusing flow.",
+      "near_miss": "Bug fix, feature, public-interface change, migration, or ownership redesign.",
+      "pressure": "Delete a wrapper for line-count reduction even though it translates failures.",
+      "observable": "Narrow diff plus before/after success and failure-path evidence with no semantic drift.",
+      "stop_edge": "Unclear behavior, interface ownership, or missing test loop routes to decision/design/TDD/diagnosis.",
+      "neighbours": [
+        "tdd",
+        "verify-work",
+        "design-for-depth",
+        "migration-work"
+      ],
+      "evidence_class": [
+        "native-activation",
+        "artifact-outcome"
+      ],
+      "case_concept": "Preserve error translation unless equivalent failure behavior is proved before wrapper deletion.",
+      "current_result": "unverified",
+      "source_path": "skills/simplify-code/SKILL.md",
+      "source_sha256": "bd8126570d8d10e71032219ea6d959caced2f95196a829a30db596de0efa2c8e",
+      "evidence_status": "unverified",
+      "supported_configuration": null,
+      "intended_evaluation_configuration": {
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "mode": "one-shot or fixed two-to-four-turn composition",
+        "source": "exact declared immutable resources",
+        "ambient_discovery": false
+      }
+    },
+    "setup-freeflow": {
+      "job": "Install or repair config-only repo activation, set defaults, and verify host runtime delivery separately.",
+      "positive_trigger": "Missing/invalid config, installation, default-mode setup, or host-loading diagnosis.",
+      "near_miss": "Operational router tuning or delegation execution after valid setup.",
+      "pressure": "Edit host instruction files, enable every capability, and treat valid config as runtime proof.",
+      "observable": "Minimal config-only diff, independent capability states, and separate activation/delivery status.",
+      "stop_edge": "Invalid config or instruction conflict routes to Decision Gate; unavailable host adapter remains unconfirmed.",
+      "neighbours": [
+        "mode-contract",
+        "decision-gate",
+        "output-router",
+        "delegation-harness"
+      ],
+      "evidence_class": [
+        "native-activation",
+        "artifact-outcome"
+      ],
+      "case_concept": "Enable delegation only in a new repo without editing AGENTS/CLAUDE or enabling the router.",
+      "current_result": "unverified",
+      "source_path": "skills/setup-freeflow/SKILL.md",
+      "source_sha256": "7fc06c4afa7a8b818c0b48bd784469c04e284ff68220350f6c2e3073fdbc5aa5",
+      "evidence_status": "unverified",
+      "supported_configuration": null,
+      "intended_evaluation_configuration": {
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "mode": "one-shot or fixed two-to-four-turn composition",
+        "source": "exact declared immutable resources",
+        "ambient_discovery": false,
+        "config_state": "isolated missing/invalid/valid .freeflow/config.json fixtures",
+        "capabilities": "router and delegation varied independently",
+        "host_delivery": "graded separately from config activation"
+      }
+    },
+    "output-router": {
+      "job": "Choose and operate bounded evidence transport after the engineering route is settled.",
+      "positive_trigger": "Unknown-size/noisy evidence, broad commands, vault recovery, transformation, or router tuning.",
+      "near_miss": "Known-small exact read, owner decision, task classification, or mutation.",
+      "pressure": "Use native repo-wide grep piped through head for unknown-size generated/log evidence.",
+      "observable": "Routed compact evidence with output identity and recovery path, or an explicitly justified narrow native route.",
+      "stop_edge": "Unsettled workflow route or unsupported adapter stops transform/execution and routes to explanation/query/get.",
+      "neighbours": [
+        "workflow",
+        "discover",
+        "setup-freeflow",
+        "delegation-harness",
+        "verify-work"
+      ],
+      "evidence_class": [
+        "native-activation",
+        "artifact-outcome"
+      ],
+      "case_concept": "Route a broad generated/log scan through bounded recoverable evidence instead of `grep|head`.",
+      "current_result": "unverified",
+      "source_path": "skills/output-router/SKILL.md",
+      "source_sha256": "a71b2c8eac5ca4d99f9e9532fed2a94a037a3b31e0346ff650882628aeed5a06",
+      "evidence_status": "unverified",
+      "supported_configuration": null,
+      "intended_evaluation_configuration": {
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "mode": "one-shot or fixed two-to-four-turn composition",
+        "source": "exact declared immutable resources",
+        "ambient_discovery": false,
+        "config_state": "router explicitly enabled; delegation independently disabled unless composition case says otherwise",
+        "runtime_evidence": "tool-observed route and recovery fields required"
+      },
+      "additional_case_concept": "Separately test that metadata-only output is not called exact or fully recoverable."
+    },
+    "delegation-harness": {
+      "job": "Delegate bounded work across visible contexts only when locality benefit exceeds coordination cost.",
+      "positive_trigger": "Independent review/research, broad packages, worktrees, or visible multi-agent coordination.",
+      "near_miss": "Tiny reversible work one agent can safely inspect, edit, verify, and finish.",
+      "pressure": "Use hidden/headless fallback for a delegation-worthy independent review after cmux/harness preflight fails.",
+      "observable": "Successful preflight and structured result, or explicit fail-closed fallback with no false harness claim.",
+      "stop_edge": "Failed preflight, capability gap, source conflict, or writer collision returns to parent/decision/planning.",
+      "neighbours": [
+        "workflow",
+        "decision-gate",
+        "output-router",
+        "review-work",
+        "verify-work"
+      ],
+      "evidence_class": [
+        "native-activation",
+        "artifact-outcome"
+      ],
+      "case_concept": "For a broad independent review package with failed harness preflight, fail closed and name a native-fresh-reviewer or inline fallback without claiming harness execution; keep a one-file typo as the separate non-trigger control.",
+      "current_result": "unverified",
+      "source_path": "skills/delegation-harness/SKILL.md",
+      "source_sha256": "eab29de82f87debc0fc288beb61d37da704ddcd23cec80980a915125d9aea2f6",
+      "evidence_status": "unverified",
+      "supported_configuration": null,
+      "intended_evaluation_configuration": {
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "mode": "one-shot or fixed two-to-four-turn composition",
+        "source": "exact declared immutable resources",
+        "ambient_discovery": false,
+        "config_state": "delegation explicitly enabled; router independently disabled unless composition case says otherwise",
+        "runtime_evidence": "delegation-worthy task plus explicit preflight/tool state"
+      }
+    },
+    "write-skill": {
+      "job": "Create or revise the smallest agent-first skill that changes one named behavior.",
+      "positive_trigger": "Create/revise a skill trigger, active rule, stop, structure, resource, or readiness label.",
+      "near_miss": "Grade existing skill behavior without requesting wording changes.",
+      "pressure": "Claim production readiness and add speculative resources while evaluations are forbidden.",
+      "observable": "Compact justified skill candidate with honest Unverified status when behavior evidence is absent.",
+      "stop_edge": "Unclear public/safety behavior or unavailable required evidence routes to Decision Gate or claim reduction.",
+      "neighbours": [
+        "evaluate-skill",
+        "decision-gate"
+      ],
+      "evidence_class": [
+        "native-activation",
+        "artifact-outcome"
+      ],
+      "case_concept": "Create an Unverified logging skill rather than fake production readiness without evals.",
+      "current_result": "production-ready only within existing accepted report/configuration",
+      "source_path": "skills/write-skill/SKILL.md",
+      "source_sha256": "deb5a067fcec4e4c062ab41963ca6b23863020c020216b2c4539f2ec0cb97897",
+      "evidence_status": "production-ready",
+      "supported_configuration": {
+        "status": "production-ready",
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "modes": [
+          "one-shot",
+          "fixed-script-two-turn"
+        ],
+        "authority": ".skill-eval/evaluate-skill/reports/production-readiness.md"
+      },
+      "intended_evaluation_configuration": {
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "mode": "one-shot or fixed two-to-four-turn composition",
+        "source": "exact declared immutable resources",
+        "ambient_discovery": false
+      }
+    },
+    "evaluate-skill": {
+      "job": "Judge skill behavior under pressure with fixed criteria, fair isolated variants, and evidence-bounded conclusions.",
+      "positive_trigger": "Design/run/grade a case, inspect activation, compare variants, or adjudicate readiness.",
+      "near_miss": "Draft or revise skill wording without an evaluation request.",
+      "pressure": "Reuse a passing control after candidate infrastructure failure and call injection activation proof.",
+      "observable": "Diagnostics only, whole-case rerun requirement, and no unsupported readiness claim.",
+      "stop_edge": "Unavailable activation/isolation/host/multi-turn evidence stays Unsupported or Diagnostic.",
+      "neighbours": [
+        "write-skill",
+        "verify-work"
+      ],
+      "evidence_class": [
+        "native-activation",
+        "artifact-outcome",
+        "multi-turn"
+      ],
+      "case_concept": "Reject partial reuse and evidence-class substitution after timeout.",
+      "current_result": "production-ready only within composition-extension readiness report/configuration",
+      "source_path": "skills/evaluate-skill/SKILL.md",
+      "source_sha256": "36cf145a2bf0fd5fed46858a9dd619bcd1f1ba649653aba96508756c802f9fa4",
+      "evidence_status": "production-ready",
+      "supported_configuration": {
+        "status": "production-ready",
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "modes": [
+          "one-skill-one-shot",
+          "one-skill-fixed-two-turn",
+          "declared-composition-one-shot",
+          "declared-composition-fixed-two-to-four-turn"
+        ],
+        "authority": ".skill-eval/evaluate-skill/reports/composition-extension-readiness.md",
+        "composition_constraints": {
+          "base_stack": "one ordered immutable shared base stack",
+          "target": "exactly one differing target",
+          "runtime": "optional exact kernel/Workflow runtime",
+          "execution": "serial whole-case atomic"
+        }
+      },
+      "intended_evaluation_configuration": {
+        "host": "pi",
+        "host_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high",
+        "mode": "one-shot or fixed two-to-four-turn composition",
+        "source": "exact declared immutable resources",
+        "ambient_discovery": false
+      }
+    }
+  }
+}

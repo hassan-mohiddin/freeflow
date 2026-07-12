@@ -445,6 +445,8 @@ For each of 26 skills record:
 
 Existing accepted `write-skill` and `evaluate-skill` evidence remains bounded to exact source/configuration. The other 24 begin Unverified.
 
+Coverage design checkpoint passed on 2026-07-12. `.skill-eval/coverage-matrix.json` records all 26 exact skill hashes, ownership, positive and near-miss boundaries, pressure, observable route, stop edge, neighbours, evidence class, current result, supported configuration, and intended evaluation configuration. Independent review passed after correcting configuration, delegation, diagnosis, Output Router, and verification case boundaries.
+
 ### Priority Families
 
 1. Workflow routing and incident owners: `workflow`, `decision-gate`, `write-plan`, `review-artifact`, `execute-plan`, `design-for-depth`, `tdd`, `verify-work`, `review-work`, `diagnose-failure`.
