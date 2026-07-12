@@ -412,6 +412,18 @@ Produce one pilot report separating:
 
 Do not edit several skills from one observation.
 
+Phase 4 passed on 2026-07-12. Accepted evidence is recorded in `.skill-eval/workflow/reports/incident-pilot.md`:
+
+- current `design-for-depth` activated and passed the planning pressure where the old target did not activate;
+- current `tdd` improved rejected-state test design and canonical/diagnostic preservation;
+- old and current `verify-work` both rejected fake host-boundary proof;
+- current `design-for-depth` improved repeated-invariant routing to the shared canonical-publication failure contract;
+- every final candidate assertion passed and every final bundle passed fresh integrity verification;
+- case, grader, activation, and limit diagnostics remain preserved separately;
+- independent evidence review passed after narrowing two claims to the recorded evidence boundary.
+
+No immediate skill edit is justified. Continue to Phase 5 coverage design without promoting any pilot skill.
+
 ## Phase 5 — Post-Overhaul Skill Qualification
 
 Directional until pilot evidence settles the campaign shape.
