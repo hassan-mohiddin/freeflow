@@ -2,7 +2,7 @@
 
 > **Doc ID:** PLAN-SKILLS-2026-07-12-PRODUCTION-READINESS
 > **Date:** 2026-07-12
-> **Status:** Active — revised write-skill qualification previews await owner approval
+> **Status:** Blocked — final-source suite stopped at provider usage limit; statuses restored to Unverified
 > **Owner:** Hassan
 > **Source:** `docs/specs/skills/skill-authoring-and-evaluation-v2.md`; live `.skill-eval` cases and accepted bundles; `.skill-eval/evaluate-skill/reports/bootstrap-acceptance.md`; `.skill-eval/decision-gate/reports/rpc-acceptance.md`; owner request to complete configuration-bound Production-Ready promotion
 
@@ -269,7 +269,46 @@ Limit-revision review passed:
 
 - `/tmp/freeflow-promotion-wsk2-001-limit-review-20260712.md` — SHA-256 `b17a4c906ac440852a265d0a6d845448d40c6eb106ed818f1739aa2023ac53f8`
 
-After revised qualification passes, reapply both exact conditional status lines, regenerate all 13 final-source previews, and obtain renewed owner approval before any final provider request. Every prior final-source preview is stale after status rollback and the measured source revision.
+Revised qualification results:
+
+| Case | Verdict | Requests | Tokens | Cost | Bundle |
+| --- | --- | ---: | ---: | ---: | --- |
+| `WSK2-001` at 10 turns | `improved` | 15 | 46,806 | `$0.290539` | `.skill-eval/write-skill/runs/evaluations/20260712084701749-wsk2-001-ed5fdfa9fe/` |
+| `WSK2-006` at 8 turns | infrastructure-incomplete | 9 | 21,465 | `$0.130498` | `.skill-eval/write-skill/runs/diagnostics/20260712084929893-wsk2-006-cf123484ab/` |
+| `WSK2-006` whole-case rerun | `improved` | 15 | 42,581 | `$0.293987` | `.skill-eval/write-skill/runs/evaluations/20260712085933802-wsk2-006-cf123484ab/` |
+
+The first `WSK2-006` attempt failed when its reference semantic grader encountered a provider WebSocket transport failure and returned no valid JSON. It published diagnostics only; no candidate variant started and no partial evidence was reused. The owner approved one exact whole-case rerun, which passed with every candidate assertion and fresh integrity verification.
+
+The current qualification set is now `WSK2-001` at `ed5fdfa9…31a29b`, `WSK2-006` at `cf123484…92436`, and unchanged `ESK2-009` at `39e509a1…fcefd`; all three comparisons are `improved`, all candidate assertions pass, and all accepted bundles pass integrity verification. Current-source qualification totals are 40 requests/turns, 32 tool calls, 110,372 tokens, and `$0.695095`.
+
+Developmental accounting through qualification is 110 provider requests, 318,362 tokens, and `$1.839381` observed cost. Remaining planned final-suite soft ceilings are `$4.40`; total developmental soft-ceiling exposure is `$10.15`; there is no aggregate hard cap.
+
+Reapply both exact conditional status lines, regenerate all 13 final-source previews, and obtain renewed owner approval before any final provider request. Every prior final-source preview is stale after status rollback and the measured source revision.
+
+### Final-Suite Progress And Provider Block
+
+The renewed final-source suite started only after exact owner approval. These bundles completed and passed fresh integrity verification:
+
+| Case | Verdict | Bundle |
+| --- | --- | --- |
+| `WSK2-001` | `improved`; all candidate assertions pass | `.skill-eval/write-skill/runs/evaluations/20260712091456398-wsk2-001-160fd46fea/` |
+| `WSK2-002` | `same`; all candidate assertions pass | `.skill-eval/write-skill/runs/evaluations/20260712091733939-wsk2-002-5b9a7204ff/` |
+| `WSK2-003` | `pass` | `.skill-eval/write-skill/runs/evaluations/20260712091938227-wsk2-003-a6b0ae5c2d/` |
+| `WSK2-004` | `pass` | `.skill-eval/write-skill/runs/evaluations/20260712092037845-wsk2-004-66e5a6f6f6/` |
+| `WSK2-005` | `improved`; host-free | `.skill-eval/write-skill/runs/evaluations/20260712092111401-wsk2-005-cf5fb0144f/` |
+| `WSK2-006` | `improved`; all candidate assertions pass | `.skill-eval/write-skill/runs/evaluations/20260712092132785-wsk2-006-51c1f2a6f7/` |
+| `ESK2-002` | `same`; all candidate assertions pass | `.skill-eval/evaluate-skill/runs/evaluations/20260712092348188-esk2-002-96c97d33b5/` |
+
+`ESK2-003` then became infrastructure-incomplete when its semantic grader received `Codex error: The usage limit has been reached` before producing output. It published diagnostics only:
+
+- `.skill-eval/evaluate-skill/runs/diagnostics/20260712092527924-esk2-003-139ac8dac3/`
+- 7 requests/turns, 5 tool calls, 16,102 tokens, `$0.067325`.
+
+No later case started. Both model-visible status lines were restored to Unverified and the registry still has no Production-Ready metadata.
+
+Developmental accounting through this stop is 177 provider requests, 504,332 tokens, and `$2.824869` observed cost. The route now requires one whole-case `ESK2-003` replacement plus the untouched `ESK2-004`, `ESK2-005`, host-free `ESK2-006`, `ESK2-007`, and `ESK2-009` cases. Remaining summed soft ceilings are `$1.45`; total developmental soft-ceiling exposure is `$10.50`; there is no aggregate hard cap.
+
+Do not resume until provider capacity is available. Then reapply the exact conditional status lines, regenerate the remaining six previews, verify source/evaluator identities against accepted earlier bundles, and obtain renewed owner approval before any provider request. Existing accepted final-source bundles remain eligible only if the re-applied status source and all fingerprinted identities match exactly.
 
 ### Slice 3.1 — Apply Conditional Status Source
 
