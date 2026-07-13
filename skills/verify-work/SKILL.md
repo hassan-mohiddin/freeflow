@@ -56,6 +56,8 @@ Do not convert missing evidence into zero, pass, safe, or probably correct.
 
 If the user asks to skip checks, skip them but downgrade the claim to changed, inspected, or unverified. Permission to skip evidence is not evidence.
 
+When downgrading a boundary claim, name the exact fresh evidence required to restore it. “Not proved” without that observing boundary is a verdict, not a verification route.
+
 ## Failure Route
 
 When verification fails or proves less than expected, stop before patching forward and classify:
