@@ -1,6 +1,6 @@
 ---
 name: review-work
-description: "Use after self-verification of any meaningful slice when richer guidance would improve self-review, or for the standing final independent review, another authorized formal/fresh/second-opinion review, `/review-work`, finding adjudication, or narrow confirmation. Reading it does not imply independence; `/review-work` defaults to formal review unless the user explicitly requests inline self-review."
+description: "Use after self-verification of any meaningful slice when richer guidance would improve self-review, for an approved plan-selected phase-exit review, or for the standing final independent review, another authorized formal/fresh/second-opinion review, `/review-work`, finding adjudication, or narrow confirmation. Reading it does not imply independence; `/review-work` defaults to formal review unless the user explicitly requests inline self-review."
 ---
 
 # Review Work
@@ -19,9 +19,9 @@ This skill provides richer review method in two modes. Reading it never creates 
 
 One fresh independent review of the final integrated implementation is standing-authorized after the sequential final self-check and needs no user reconfirmation. Dispatch it in parallel with, but independently from, the distinct final verifier against the same frozen state.
 
-Any additional formal review requires Workflow's consequential boundary and scoped user authorization, such as promotion of architecture, combined risk direct checks cannot establish, sensitive or hard-to-reverse behavior, an unresolved diagnostic route, or an explicit request.
+A consequential phase-exit review selected by an approved plan carries scoped authorization and needs no reconfirmation. At every other phase exit, assess whether the integrated phase promotes architecture, combines risks direct checks cannot establish, or crosses sensitive or hard-to-reverse behavior; if so, ask before dispatch. Other additional formal reviews also require scoped user authorization.
 
-Do not invoke formal mode merely because an intermediate slice or phase ended, code changed, a plan predicted optional review, or ordinary mistakes remain possible.
+Do not invoke formal mode merely because an intermediate slice ended, code changed, a phase label exists, a plan predicted only optional review, or ordinary mistakes remain possible.
 
 Use a separate reviewer context: another agent, fresh run, external reviewer, or equivalent independent mechanism. The reviewer must be distinct from both implementer and final verifier and must not perform the verifier role. If independence is unavailable, do not present a check of your own work as independent review.
 
@@ -42,7 +42,7 @@ Read [the reviewer prompt](references/reviewer-prompt.md) only for formal indepe
 
 Do not provide only the author's summary or ask the reviewer to validate the author's reasoning.
 
-## Review Strictly And Proportionately
+## Review Proportionately
 
 Inspect source truth and direct evidence before judging implementation choices. Focus on:
 
@@ -52,7 +52,7 @@ Inspect source truth and direct evidence before judging implementation choices. 
 - structural complexity that materially harms correctness or maintainability;
 - interactions among individually verified slices.
 
-Strict means a high evidence bar for consequential claims, not adversarial issue generation. Do not block for style, preference, intentionally deferred work, ordinary reversible choices, or hypothetical completeness.
+Use a high evidence bar for consequential claims without adversarial issue generation. Do not block for style, preference, intentionally deferred work, ordinary reversible choices, or hypothetical completeness.
 
 A blocker must name:
 

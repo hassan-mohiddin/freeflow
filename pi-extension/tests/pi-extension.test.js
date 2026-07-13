@@ -637,8 +637,9 @@ test("Pi loads the full Workflow skill as one persistent first-turn message", as
     assert.match(first.message.content, /Use an adaptive engineering loop, not a one-way checklist/);
     assert.match(first.message.content, /self-verification.*self-review/i);
     assert.match(first.message.content, /Reading a skill enhances self-verification or self-review/i);
-    assert.match(first.message.content, /one verifier plus one different reviewer dispatched in parallel/i);
-    assert.match(first.message.content, /same frozen implementation/i);
+    assert.match(first.message.content, /Treat every phase exit as a review decision point/i);
+    assert.match(first.message.content, /one verifier plus a different reviewer in parallel/i);
+    assert.match(first.message.content, /frozen implementation/i);
     assert.doesNotMatch(first.systemPrompt, /# Freeflow Workflow Bootstrap/);
 
     sessionEntries.push({

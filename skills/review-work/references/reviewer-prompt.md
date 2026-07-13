@@ -22,7 +22,7 @@ Do not provide only the author's summary, intentionally partial work as though i
 ```md
 # Independent Work Review
 
-Review the integrated work. Do not edit files or act as the final independent verifier. This is a strict second opinion, not a defect quota or permission to broaden scope.
+Review the integrated work. Do not edit files or act as the final independent verifier. This is an evidence-backed second opinion, not a defect quota or permission to broaden scope.
 
 ## Boundary Under Review
 
@@ -110,6 +110,6 @@ Verification gaps: [unproved boundary claims or none]
 
 ## Calibration
 
-Strict means a high evidence bar for consequential claims, not maximum finding count. Lead with the few findings that can change the boundary decision. A long list of low-consequence observations is weaker than one supported blocker.
+Use a high evidence bar for consequential claims, not maximum finding count. Lead with the few findings that can change the boundary decision. A long list of low-consequence observations is weaker than one supported blocker.
 
 The verdict is evidence for responsible-agent adjudication, not authority over source truth or owner decisions. Collect it with the parallel verifier result. Completion requires verifier Pass and resolved review for the same unchanged state; any code change stales both and requires a new self-check plus authorization before redispatch.

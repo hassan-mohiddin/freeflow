@@ -67,6 +67,6 @@ Focus on artifact/config identity, compatibility, data safety, observability, ad
 
 ## Composition
 
-Use one reviewer with the fewest material lenses that cover the boundary. Multiple independent reviewers are additional review dispatches and require scoped user authorization; do not parallelize reviewers merely to increase confidence or finding count.
+Use one reviewer with the fewest material lenses that cover the boundary. Multiple reviewers for one boundary are additional dispatches and require scoped user authorization; do not parallelize reviewers merely to increase confidence or finding count.
 
 Do not count votes. The parent adjudicates findings against source truth. One narrow confirmation requires scoped authorization and accepted blockers; a third pass is exceptional, owner-selected, and terminal.

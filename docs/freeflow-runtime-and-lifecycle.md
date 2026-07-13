@@ -191,7 +191,7 @@ write-plan               when execution needs ordered slices and checks
 
 Discovery interleaves the smallest useful repo, provided-source, and current external evidence with option shaping and targeted questions. It ends in a checkpoint in chat or the narrowest durable artifact. Do not force every task through discovery.
 
-`write-spec` records agreed behavior, boundaries, failure semantics, and acceptance evidence. `write-plan` produces an executable current horizon while later phases remain directional. Later phases are refined from evidence rather than frozen prematurely.
+`write-spec` records agreed behavior, boundaries, failure semantics, and acceptance evidence. `write-plan` produces an executable current horizon, keeps later phases directional, and selects independent review at consequential phase exits before dependent work. Later phases are refined from evidence rather than frozen prematurely.
 
 A consequential durable artifact phase receives the standing route selected by `write-spec`: one combined spec-then-plan review, separate spec and plan reviews for high-risk spec-first approval, or spec-only review. A plan without a spec receives its own standing review. These selected artifact reviews need no reconfirmation. Findings are evidence to adjudicate, not instructions that override source truth. One narrow confirmation requires scoped authorization and accepted blockers that need reinspection; a third pass is exceptional, owner-selected, and terminal.
 
@@ -221,7 +221,7 @@ Self-verification is universal per meaningful slice and proportionate to the cla
 
 Standing final assurance uses three distinct contexts. After the sequential final self-check, freeze one implementation state and dispatch a fresh verifier plus a different fresh reviewer in parallel. Neither consumes the other's output; collect factual verifier evidence and reviewer judgment before adjudicating.
 
-The artifact reviewer and parallel final verifier/reviewer need no reconfirmation. Any extra independent context requires scoped authorization. Completion needs verifier Pass plus resolved review for the same unchanged state. Any code change stales both results; self-check the fix and ask before redispatch.
+The artifact reviewer, approved plan-selected phase-exit reviewers, and parallel final verifier/reviewer need no reconfirmation. Any other independent context requires scoped authorization. Completion needs verifier Pass plus resolved review for the same unchanged state. Any code change stales both results; self-check the fix and ask before redispatch.
 
 ## Conditional Closeout And Delivery
 

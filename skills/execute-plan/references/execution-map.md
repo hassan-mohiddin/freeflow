@@ -7,6 +7,7 @@ Use this for multi-slice execution, learning work, rolling-plan refinement, dist
 ```text
 Orient to current horizon
 -> Bound one learning / delivery / deepening slice
+-> Announce its outcome, boundary, and direct check
 -> Execute
 -> Self-verify with direct evidence
 -> If supported, silently self-review your own work once
@@ -32,6 +33,8 @@ Direct verification:
 Route-changing assumptions or stop conditions:
 ```
 
+Before execution, announce the slice in one compact line with its outcome, bounded scope or seam, and direct verification. Re-announce only when a route change selects a materially different slice.
+
 Add semantic failure unit, observing boundary, forbidden outcomes, and recovery only when consequential state, authority, atomic visibility, or durable evidence requires them. A slice is a coherent behavior or evidence unit, not a file batch.
 
 ## Route Map
@@ -40,7 +43,8 @@ Add semantic failure unit, observing boundary, forbidden outcomes, and recovery 
 flowchart TD
   Start([Current horizon]) --> Orient[Orient to source truth + live code]
   Orient --> Slice[Bound one slice]
-  Slice --> Build[Implement or experiment]
+  Slice --> Announce[Announce outcome + boundary + check]
+  Announce --> Build[Implement or experiment]
   Build --> Verify[Self-verify with direct evidence]
   Verify -->|supports outcome| Self[Self-review your own work once]
   Verify -->|fails / insufficient| Diagnose[Diagnose root cause]
@@ -56,7 +60,7 @@ flowchart TD
   Route -->|path changed without failure| Back
 
   Next --> Formal{Consequential checkpoint selected?}
-  Formal -->|independent review| Review[Strict independent review]
+  Formal -->|independent review| Review[Independent review]
   Formal -->|commit| Commit[Rollback checkpoint]
   Formal -->|handoff| Handoff[Continuity checkpoint]
   Formal -->|none| More{More accepted work?}
@@ -124,10 +128,11 @@ Commit, handoff, owner, integration, release, and launch checkpoints remain sepa
 At phase boundaries:
 
 1. preserve completed evidence and settled decisions;
-2. update only invalidated assumptions;
-3. refine the next phase into executable slices;
-4. keep later phases directional;
-5. stop only when the next safe action truly depends on unresolved source truth or owner authority.
+2. run the independent review selected by the approved plan, or assess whether accumulated interaction and irreversibility now justify asking for one;
+3. update only invalidated assumptions;
+4. refine the next phase into executable slices;
+5. keep later phases directional;
+6. stop only when the next safe action truly depends on unresolved source truth or owner authority.
 
 A changed plan is healthy adaptation. Following an invalidated plan is not discipline; rewriting it after every local correction is not adaptation.
 

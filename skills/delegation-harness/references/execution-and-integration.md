@@ -57,7 +57,7 @@ sequential final self-check: self-verification -> if supported, self-review
 -> complete on verifier Pass + resolved review with no code change, otherwise route backward
 ```
 
-Implementer, reviewer, and verifier are separate contexts. Review is judgment; verification is factual claim evidence. The standing reviewer and verifier need no reconfirmation. Any additional reviewer or independent verifier requires scoped user authorization.
+Implementer, reviewer, and verifier are separate contexts. Review is judgment; verification is factual claim evidence. Standing artifact/final roles and approved plan-selected phase-exit reviewers need no reconfirmation. Any other reviewer or independent verifier requires scoped user authorization.
 
 Verifier output is factual evidence; reviewer findings are judgment. Neither sees the other's output before reporting. Any implementation change stales both results; self-check the fix and ask before redispatching either role. Preserve an unaffected result only when no source change invalidates its boundary.
 

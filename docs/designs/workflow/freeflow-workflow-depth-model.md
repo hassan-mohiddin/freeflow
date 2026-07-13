@@ -206,13 +206,13 @@ Update direction:
 
 - Make dependency and slice order explicit when it affects execution.
 - Use vertical slices that produce testable behavior.
-- Include direct checks and route conditions per meaningful slice; use the `write-spec`-selected combined or high-risk separate artifact-review route before implementation, then after final self-check run a distinct verifier and reviewer in parallel against one frozen state, while forecasting extra contexts only when justified and authorized.
+- Include direct checks and route conditions per meaningful slice; select independent review at consequential phase exits whose integrated outcome constrains dependent work; use the artifact-review route before implementation and parallel final verifier/reviewer assurance after final self-check.
 - Allow some design decisions to be deferred until slice evidence exists.
 - Route to design-for-depth when slice boundaries, seams, interfaces, or locality are unclear.
 
 ### Review Artifact
 
-One strict independent review of the consequential spec/plan package is a standing boundary before implementation. `write-spec` chooses combined spec-then-plan review, spec-first review for high-risk source truth, or spec-only review. The writing agent's own check remains separate.
+One evidence-backed independent review of the consequential spec/plan package is a standing boundary before implementation. `write-spec` chooses combined spec-then-plan review, spec-first review for high-risk source truth, or spec-only review. The writing agent's own check remains separate.
 
 Keep formal review bounded:
 
@@ -234,16 +234,16 @@ Update direction:
 - Correct local reversible mistakes directly and let the agent learn across slices.
 - Diagnose repeated or unexplained failure before redesigning; use design-for-depth only for established structural pressure or proactive consequential architecture.
 - If evidence invalidates the plan, route only affected work backward.
-- Close final implementation through sequential self-check, then parallel fresh verifier and different fresh reviewer contexts against the same frozen state.
+- Complete approved plan-selected independent reviews at consequential phase exits before dependent work, then close final implementation through sequential self-check and parallel fresh verifier/reviewer contexts against the same frozen state.
 - Use optional commit/handoff checkpoints when rollback or continuity matters.
 
 ### Review Work
 
-After final self-check, one fresh verifier and one different fresh reviewer run in parallel against the same frozen implementation without sharing outputs. Extra reviewer or verifier contexts require scoped user authorization. Review feedback is evidence, not authority; verifier output is factual evidence, not judgment.
+Approved plan-selected consequential phase-exit reviews carry scoped authorization. After final self-check, one fresh verifier and one different fresh reviewer run in parallel against the same frozen implementation without sharing outputs. Other reviewer or verifier contexts require scoped user authorization. Review feedback is evidence, not authority; verifier output is factual evidence, not judgment.
 
 Update direction:
 
-- Review the coherent task outcome, not every slice.
+- Review coherent consequential phase outcomes selected by the plan and the final task outcome, not every slice.
 - Keep classification before editing: accepted, rejected, question, needs evidence.
 - Apply clear local accepted fixes when safe; do not create an automatic review-fix-review loop.
 - Request narrow confirmation only when independently authorized reinspection materially protects the boundary.

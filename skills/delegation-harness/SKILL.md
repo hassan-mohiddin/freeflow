@@ -25,7 +25,7 @@ When a task warrants separate context, route in this order:
 2. Otherwise use the host's native subagent mechanism when available.
 3. Otherwise work inline and report that delegation was unavailable or not worth the overhead.
 
-This applies when other skills ask for a fresh reviewer, researcher, verifier, worker, subagent, or independent context. Standing artifact review, final work review, and one distinct final verifier need no dispatch reconfirmation. Any additional reviewer or independent verifier requires Workflow's scoped user authorization. Do not choose a host-native subagent before checking the harness route.
+This applies when other skills ask for a fresh reviewer, researcher, verifier, worker, subagent, or independent context. Standing artifact review, approved plan-selected phase-exit reviews, final work review, and one distinct final verifier need no dispatch reconfirmation. Any other reviewer or independent verifier requires Workflow's scoped user authorization. Do not choose a host-native subagent before checking the harness route.
 
 If the harness route is unavailable or inappropriate, name that and the fallback before presenting the work as independently reviewed or delegated.
 

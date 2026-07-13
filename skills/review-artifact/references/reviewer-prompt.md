@@ -21,7 +21,7 @@ For a combined spec-and-plan package, identify the spec as upstream authority an
 ```md
 # Independent Artifact Review
 
-Review whether this artifact package is fit for its intended boundary. Do not edit files or resolve owner decisions. This is a strict second opinion, not a completeness contest.
+Review whether this artifact package is fit for its intended boundary. Do not edit files or resolve owner decisions. This is an evidence-backed second opinion, not a completeness contest.
 
 ## Boundary Under Review
 
@@ -114,6 +114,6 @@ Recommendation: Proceed | Revise locally | Gather evidence | Diagnose | Ask owne
 
 ## Calibration
 
-Strict means a high evidence bar for the selected consequential boundary, not exhaustive issue generation. Lead with the few findings that can change the boundary decision.
+Use a high evidence bar for the selected consequential boundary, not exhaustive issue generation. Lead with the few findings that can change the boundary decision.
 
 Reviewer output is evidence for responsible-agent adjudication, not authority over source truth. A passing review returns to the workflow route; it does not approve implementation or make later plan updates require another review.

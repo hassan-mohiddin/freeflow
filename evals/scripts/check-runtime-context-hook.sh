@@ -60,8 +60,9 @@ for expected in \
   "# Freeflow Workflow Bootstrap" \
   "Use an adaptive engineering loop, not a one-way checklist" \
   "Reading a skill enhances self-verification or self-review" \
-  "one verifier plus one different reviewer dispatched in parallel" \
-  "same frozen implementation" \
+  "Treat every phase exit as a review decision point" \
+  "one verifier plus a different reviewer in parallel" \
+  "frozen implementation" \
   'Current Freeflow default mode: `workflow`.' \
   'Skills: enabled' \
   'Output router: disabled' \

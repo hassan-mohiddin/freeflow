@@ -19,6 +19,8 @@
 - Aligns effective-mode authority, bypass lifetime, lifecycle identities, artifact metadata, handoff classification, reviewer proof context, failure-unit activation, capability-config ownership, and bundled skill-tool path guidance across the current skill pack.
 - Adds a bounded silent pre-action check, current-horizon evidence-producer gate, author-side review-readiness pass, shared-invariant review context, and artifact evidence-feasibility lens without replacing verification or independent review.
 - Reframes the active agent as the responsible engineer: implementation and one sequential self-check—self-verification then, only on support, bounded self-review—are the primary feedback loop; review/verify skills may enhance either inline without creating independence; repeated failure routes through diagnosis before redesign; standing assurance uses a `write-spec`-selected combined or high-risk separate artifact-review route, then a distinct final verifier and reviewer in parallel against one frozen implementation.
+- Requires a compact slice announcement before execution and makes `write-plan` select independent reviews at consequential phase exits; approved plan-selected reviews carry scoped authorization, while unselected exits require a review-need assessment.
+- Replaces “strict” review wording with proportionate, evidence-backed independent judgment while preserving consequential evidence standards and parent adjudication.
 
 ## 0.3.0 - 2026-06-28
 

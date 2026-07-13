@@ -33,7 +33,7 @@ Implementation, tests, runtime evidence, and one sequential self-check: self-ver
 _Avoid_: reviewer-driven development, independent context after every slice
 
 **Formal Independent Review**:
-Strict judgment from a separate reviewer context. A consequential artifact phase has a standing route chosen by `write-spec`: one combined review or separate spec/plan reviews when high risk; final review may run in parallel with the distinct final verifier against the same frozen implementation, without shared outputs. Additional reviews require scoped user authorization.
+Evidence-backed judgment from a separate reviewer context. A consequential artifact phase has a standing route chosen by `write-spec`: one combined review or separate spec/plan reviews when high risk; final review may run in parallel with the distinct final verifier against the same frozen implementation, without shared outputs. Consequential phase-exit reviews selected by an approved plan carry scoped authorization. At other phase exits, assess accumulated interaction and irreversibility; additional reviews require scoped user authorization.
 _Avoid_: self-review, defect quota, mandatory intermediate ceremony
 
 **Independent Verification**:

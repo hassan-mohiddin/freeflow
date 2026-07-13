@@ -7,6 +7,8 @@ contract="$repo_root/skills/setup-freeflow/references/activation-contract.md"
 host_setup="$repo_root/skills/setup-freeflow/references/host-setup.md"
 kernel="$repo_root/skills/decision-gate/references/runtime-kernel.md"
 workflow_skill="$repo_root/skills/workflow/SKILL.md"
+write_plan_skill="$repo_root/skills/write-plan/SKILL.md"
+execute_plan_skill="$repo_root/skills/execute-plan/SKILL.md"
 review_work_skill="$repo_root/skills/review-work/SKILL.md"
 review_artifact_skill="$repo_root/skills/review-artifact/SKILL.md"
 verify_work_skill="$repo_root/skills/verify-work/SKILL.md"
@@ -28,7 +30,7 @@ require_text() {
   grep -Fq -- "$text" "$file" || fail "$file is missing: $text"
 }
 
-for file in "$setup_skill" "$contract" "$host_setup" "$kernel" "$workflow_skill" "$review_work_skill" "$review_artifact_skill" "$verify_work_skill" "$agents_file" "$runtime_doc" "$registry" "$pi_runtime" "$shared_hook"; do
+for file in "$setup_skill" "$contract" "$host_setup" "$kernel" "$workflow_skill" "$write_plan_skill" "$execute_plan_skill" "$review_work_skill" "$review_artifact_skill" "$verify_work_skill" "$agents_file" "$runtime_doc" "$registry" "$pi_runtime" "$shared_hook"; do
   [[ -f "$file" ]] || fail "missing required file: $file"
 done
 
@@ -64,12 +66,17 @@ require_text "$workflow_skill" 'The runtime kernel owns turn interpretation'
 require_text "$workflow_skill" 'silently self-review your own work once'
 require_text "$workflow_skill" 'Reading a skill enhances self-verification or self-review and never dispatches another context by itself.'
 require_text "$workflow_skill" 'artifact-review route selected by `write-spec`'
-require_text "$workflow_skill" 'separate spec and plan reviews when high risk'
-require_text "$workflow_skill" 'one verifier plus one different reviewer dispatched in parallel'
-require_text "$workflow_skill" 'same frozen implementation'
-require_text "$workflow_skill" 'distinct fresh contexts and do not depend on each other'
-require_text "$workflow_skill" 'Reading or calling a review/verify skill selects method guidance, not another agent'
+require_text "$workflow_skill" 'Treat every phase exit as a review decision point'
+require_text "$workflow_skill" 'plan-selected consequential phase-exit review carries scoped authorization'
+require_text "$workflow_skill" 'one verifier plus a different reviewer in parallel'
+require_text "$workflow_skill" 'frozen implementation'
+require_text "$workflow_skill" 'Final roles use distinct fresh contexts and independent outputs.'
+require_text "$workflow_skill" 'Reading skills never dispatches.'
+require_text "$write_plan_skill" 'decide which phase exits need independent review'
+require_text "$write_plan_skill" 'approval of the plan grants scoped authorization for that review'
+require_text "$execute_plan_skill" "At a phase exit, run the approved plan's selected independent review"
 require_text "$review_work_skill" 'Reading it does not imply independence'
+require_text "$review_work_skill" 'approved plan-selected phase-exit review'
 require_text "$review_work_skill" '**Enhanced self-review:**'
 require_text "$review_work_skill" '`/review-work` selects this mode by default unless the user explicitly says inline'
 require_text "$review_artifact_skill" 'Reading it does not imply independence'

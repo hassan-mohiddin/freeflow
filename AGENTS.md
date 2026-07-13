@@ -81,7 +81,7 @@ The core workflow principle:
 Move forward when context is sufficient.
 Self-check sequentially after each meaningful slice: self-verify first; self-review once only when evidence supports the outcome.
 Diagnose repeated or unexplained failure before redesigning.
-Use independent review for the standing artifact and final-work boundaries, plus explicitly authorized exceptional checkpoints.
+Use independent review for standing artifact/final-work boundaries and consequential phase exits selected by an approved plan. At every other phase exit, assess accumulated interaction and irreversibility; ask before an additional independent dispatch.
 After the final sequential self-check, freeze the state and dispatch one verifier plus one different reviewer in parallel. Ask before any additional independent dispatch.
 Re-enter the narrowest owning activity when evidence changes the path.
 ```

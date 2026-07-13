@@ -24,7 +24,7 @@ Enter where the work actually is:
 - **TDD or simplify:** accepted behavior needs test-first implementation, or working code needs behavior-preserving simplification.
 - **Migrate:** consumers, traffic, configuration, or data must move before removal.
 - **Diagnose:** a concrete, repeated, or unexplained failure needs root-cause evidence.
-- **Formal review:** a strict second opinion is warranted at a consequential boundary or after primary feedback cannot resolve the route.
+- **Formal review:** an independent second opinion is warranted at a consequential boundary or after primary feedback cannot resolve the route.
 - **Structured verification:** choosing, interpreting, or recovering a non-trivial proof path needs `verify-work`; routine direct checks stay inline.
 - **Commit or handoff:** verified work needs rollback or continuity.
 - **Finish, release, or launch:** integration, publication, or production rollout is the next job.
@@ -43,7 +43,7 @@ Orient -> explore when needed -> converge enough
 
 Tests, direct observations, compilers, and runtime behavior are primary feedback. Self-verification states what evidence proves; only supported work proceeds to self-review against outcome and route. Read `../verify-work/SKILL.md`, `../review-work/SKILL.md`, or `../review-artifact/SKILL.md` after any slice when richer guidance helps. Reading a skill enhances self-verification or self-review and never dispatches another context by itself.
 
-Do not dispatch an independent reviewer because a slice ended, a phase exists, a plan changed, or ordinary mistakes remain possible. When failure repeats or remains unexplained, use `../diagnose-failure/SKILL.md` before redesigning. Use `../design-for-depth/SKILL.md` only when diagnosis or direct structural evidence shows that ownership, interface, state, or failure-unit design is the cause.
+Do not dispatch an independent reviewer because a slice ended or ordinary mistakes remain possible. Treat every phase exit as a review decision point: follow the approved plan's selected independent review, or assess whether accumulated interaction and irreversibility now justify asking for one. When failure repeats or remains unexplained, use `../diagnose-failure/SKILL.md` before redesigning. Use `../design-for-depth/SKILL.md` only when diagnosis or direct structural evidence shows that ownership, interface, state, or failure-unit design is the cause.
 
 Method and domain skills run inside this loop without overriding source truth or owner authority. Read [domain skill composition](references/domain-skill-composition.md) when specialized guidance must compose.
 
@@ -61,7 +61,7 @@ Each meaningful slice needs one outcome, source requirement, stable seam, smalle
 
 One sequential self-check—self-verification, then bounded self-review only on support—closes the normal slice. Other checkpoints are conditional:
 
-- independent review only at a selected boundary below;
+- independent review at standing or plan-selected phase-exit boundaries below;
 - commit when a coherent verified rollback point is useful and authorized;
 - handoff when continuity requires it;
 - owner checkpoint when a consequential decision remains.
@@ -70,11 +70,11 @@ When separate contexts are useful, describe bounded outcomes, dependencies, evid
 
 ## Independent Boundaries
 
-Standing authorization needs no confirmation for the artifact-review route selected by `write-spec`—one combined review, or separate spec and plan reviews when high risk—and, after the final self-check, one verifier plus one different reviewer dispatched in parallel against the same frozen implementation. The final verifier and reviewer use distinct fresh contexts and do not depend on each other's output. An artifact-only task uses its artifact review as final review and needs no verifier unless executable claims require one. Standing artifact and final assurance cannot be bypassed while claiming readiness or completion. Bypass may skip optional extra checkpoints but leaves required assurance unsatisfied.
+Standing authorization needs no confirmation for the artifact-review route selected by `write-spec` and, after final self-check, one verifier plus a different reviewer in parallel against the frozen implementation. Final roles use distinct fresh contexts and independent outputs. An artifact-only task uses its artifact review as final review and needs no verifier unless executable claims require one. Standing artifact/final assurance cannot be bypassed for readiness or completion.
 
-Any additional reviewer or independent verifier requires scoped user authorization. Explicit independent/fresh/formal/second-opinion wording or direct review commands grants review permission; explicit independent/fresh verifier wording grants verifier permission. Reading or calling a review/verify skill selects method guidance, not another agent, unless the direct review command or wording clearly selects formal independence. Ask once when “review” is ambiguous and retain the answer for that checkpoint.
+A plan-selected consequential phase-exit review carries scoped authorization. Other reviewers or independent verifiers require scoped authorization. Explicit independent/formal review wording or direct review commands authorizes review; explicit independent verifier wording authorizes verification. Reading skills never dispatches. Clarify ambiguous “review” once per checkpoint.
 
-Collect both final results before adjudicating. Completion requires verifier Pass and resolved review with no later implementation change. Preserve an unaffected result when possible; any code change stales both. Self-check fixes, then ask before another independent verifier or reviewer dispatch. Phase endings do not trigger extra review.
+Collect both final results before adjudicating. Completion requires verifier Pass and resolved review with no later implementation change. Preserve an unaffected result when possible; any code change stales both. Self-check fixes, then ask before another independent verifier or reviewer dispatch. At an unselected phase exit, assess review need rather than automatically dispatching or automatically continuing.
 
 ## Backward Edge
 

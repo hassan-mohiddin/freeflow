@@ -42,6 +42,8 @@ For non-trivial work, name only what execution needs:
 - direct verification;
 - assumptions or stop conditions that could change the route.
 
+Before starting each meaningful slice, announce it to the user in one compact line: intended outcome, bounded scope or seam, and direct verification. Announce before edits or experiments. If evidence changes the route, announce the revised slice before resuming. Do not turn this into a plan recap or routine status narration.
+
 Add a semantic failure unit only when authority, canonical evidence, atomic visibility, durable state, cancellation, or recovery materially affects correctness. Use `../design-for-depth/SKILL.md` proactively when such architecture is unsettled; do not invoke redesign merely because implementation contains ordinary bugs.
 
 Choose reversible details from repo conventions. Stop for unsettled product, compatibility, public API, security, privacy, billing, permissions, data-loss, migration, or hard-to-reverse architecture decisions.
@@ -87,13 +89,13 @@ After the final implementation slice:
 
 Verifier and reviewer are separate from each other and the implementer, and neither depends on the other's output. Both standing dispatches need no reconfirmation.
 
-Completion requires verifier Pass and resolved review with no later implementation change. Preserve an unaffected result when its boundary still holds, but any code change stales both. Self-check the correction and ask before another independent verifier or reviewer dispatch. Other extra contexts also require scoped authorization.
+Completion requires verifier Pass and resolved review with no later implementation change. Preserve an unaffected result when its boundary still holds, but any code change stales both. Self-check the correction and ask before another independent verifier or reviewer dispatch. Extra contexts outside approved phase-exit checkpoints also require scoped authorization.
 
-Commit, handoff, owner, integration, release, and launch checkpoints remain separately conditional. No intermediate slice or phase requires review merely by ending.
+Commit, handoff, owner, integration, release, and launch checkpoints remain separately conditional. A slice ending does not require review. At a phase exit, run the approved plan's selected independent review before dependent work; if none was selected, assess accumulated interaction and irreversibility before continuing and ask before an emergent dispatch.
 
 ## Rolling Plan
 
-At a phase boundary, preserve evidence and refine only the next executable horizon. Keep later phases directional.
+At a phase boundary, preserve evidence, complete any selected independent review, and refine only the next executable horizon. Keep later phases directional.
 
 Revise the plan when evidence changes order, slices, mechanisms, or checks. Revise the spec or ask the owner when behavior, scope, acceptance, public contract, sensitive policy, or failure semantics change. Ordinary implementation learning does not require independent artifact review.
 
@@ -101,4 +103,4 @@ Revise the plan when evidence changes order, slices, mechanisms, or checks. Revi
 
 Report completed outcomes, direct verification, route-changing discoveries, accepted plan/spec changes, useful checkpoints, and remaining unverified behavior.
 
-Implementation is complete when the final self-check supports the outcome and parallel final assurance returns verifier Pass plus resolved review for the same unchanged source identity. Unavailable or skipped standing assurance prevents a completion claim; preserve the work as unassured and report the missing boundary. Predicted intermediate reviews need not occur.
+Implementation is complete when the final self-check supports the outcome and parallel final assurance returns verifier Pass plus resolved review for the same unchanged source identity. Unavailable or skipped standing assurance prevents a completion claim; preserve the work as unassured and report the missing boundary. Optional forecast reviews need not occur; selected phase-exit reviews remain required unless evidence revises the plan.

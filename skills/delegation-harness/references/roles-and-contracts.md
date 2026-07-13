@@ -34,7 +34,7 @@ evidence pointers
 
 Owns plan-guided execution.
 
-It builds the live execution map, assigns work packages, launches workers or an integrator when useful, adjudicates formal findings, handles planned intermediate commits, and reports back. At final assurance it freezes one state and launches a fresh verifier plus a different fresh reviewer in parallel. Neither consumes the other's output; the parent collects both before adjudication. Extra reviewers or independent verifiers require Workflow authorization.
+It builds the live execution map, assigns work packages, launches workers or an integrator when useful, dispatches approved plan-selected phase-exit reviews, adjudicates formal findings, handles planned intermediate commits, and reports back. At final assurance it freezes one state and launches a fresh verifier plus a different fresh reviewer in parallel. Neither consumes the other's output; the parent collects both before adjudication. Other reviewers or independent verifiers require Workflow authorization.
 
 For broad or multi-slice implementation, it assigns a worker to the implementation stream instead of self-implementing slice by slice. It decides from the whole execution package, not from whether the next slice looks small.
 
@@ -61,7 +61,7 @@ evidence pointers
 
 - **Researcher**: deep/broad evidence gathering. No mutation.
 - **Worker**: responsible engineer for the assigned package in its checkout/worktree. It implements, self-verifies, self-reviews, may read review/verify skills for richer inline guidance, corrects local reversible mistakes, and learns across sequential slices; do not replace it per slice by default.
-- **Reviewer**: strict independent second opinion at a selected consequential boundary. It does not supervise the worker continuously, own source truth, fix findings, or count as the verifier.
+- **Reviewer**: evidence-backed independent second opinion at a selected consequential boundary. It does not supervise the worker continuously, own source truth, fix findings, or count as the verifier.
 - **Verifier**: distinct fresh context that runs the finalized allowed checks and reports factual evidence without editing or reviewing design. The standing final verifier runs once; extra independent runs require user authorization.
 - **Integrator**: merge/apply worker outputs and resolve integration issues within scope.
 

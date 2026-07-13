@@ -127,4 +127,4 @@ Do not prescribe harness-specific agents, models, worktrees, timeouts, or transp
 - **Handoff:** context or continuity boundary.
 - **Backward:** evidence invalidates assumptions, interface, scope, spec, or later plan.
 
-A phase ending is not itself a review trigger. Checkpoint forecasts may change during execution; adaptation follows evidence rather than plan ceremony.
+For each phase exit, decide whether the integrated outcome needs independent review before dependent work continues. Prefer review for architecture promotion, interacting risk, or sensitive/hard-to-reverse foundations; omit it for small reversible or learning phases. A selected checkpoint in the approved plan carries scoped authorization. Forecasts may still change when execution evidence changes the route.

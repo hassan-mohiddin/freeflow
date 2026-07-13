@@ -32,7 +32,7 @@ Freeflow ships a small workflow skill pack. Natural language is the preferred in
 | `simplify-code` | Working code needs behavior-preserving reduction of accidental complexity. |
 | `migration-work` | Consumers, traffic, configuration, or data must move before an old path can be removed. |
 | `diagnose-failure` | Behavior is broken, failing, flaky, slow, repeated, unexplained, or a workflow loop keeps failing. |
-| `review-work` | Enhance self-review inline, or run standing/authorized independent judgment in a separate reviewer context. |
+| `review-work` | Enhance self-review inline, or run approved plan-selected phase-exit, standing final, or otherwise authorized independent judgment in a separate reviewer context. |
 | `verify-work` | Enhance self-verification after any slice or package the separately selected final/authorized verifier; reading it never implies independence. |
 | `commit-work` | A coherent verified rollback checkpoint is useful and authorized. |
 | `handoff` | Pausing, compacting, or transferring evidence and route state to a fresh context. |

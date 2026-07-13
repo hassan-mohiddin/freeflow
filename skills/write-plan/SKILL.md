@@ -62,11 +62,11 @@ When TDD, migration, or launch applies, point to the owning skill rather than re
 
 ## Plan For Feedback, Not Perfection
 
-Every slice ends with one sequential self-check by the implementing agent: self-verification first, then bounded self-review only when evidence supports the slice. Read `verify-work` or `review-work` when richer guidance helps; reading them does not create independence. Do not schedule an independent context merely because a slice or phase ends.
+Every slice ends with one sequential self-check by the implementing agent: self-verification first, then bounded self-review only when evidence supports the slice. Read `verify-work` or `review-work` when richer guidance helps; reading them does not create independence. Do not schedule an independent context merely because a slice ends.
 
-Beyond the required artifact review and the parallel final verifier/reviewer pair, forecast separate contexts only when promotion, interacting risk, sensitive or hard-to-reverse behavior, or an unresolved route materially needs them.
+While writing a multi-phase plan, decide which phase exits need independent review. Prefer it when a phase produces a coherent integrated outcome that later phases depend on, promotes architecture, combines interacting risks, or crosses sensitive or hard-to-reverse behavior. Omit it for small reversible or learning phases where direct evidence and self-review are sufficient. Mark each selected boundary and the outcome it protects; approval of the plan grants scoped authorization for that review.
 
-A phase boundary can batch coherent work but is not a trigger by itself. Rolling-plan edits normally use evidence and self-review, optionally enhanced by `review-artifact`, not another independent artifact-review pass. Final acceptance checks should form one reproducible package. After sequential final self-verification and self-review, freeze one state and dispatch a distinct verifier and reviewer in parallel. Completion needs verifier Pass plus resolved review; code changes stale both and require a new self-check plus authorization before redispatch.
+Rolling-plan edits normally use evidence and self-review, optionally enhanced by `review-artifact`, not another independent artifact-review pass. Final acceptance checks should form one reproducible package. After sequential final self-verification and self-review, freeze one state and dispatch a distinct verifier and reviewer in parallel. Completion needs verifier Pass plus resolved review; code changes stale both and require a new self-check plus authorization before redispatch.
 
 When failure repeats during execution, route first to diagnosis. Revise design only when diagnosis or direct structural evidence establishes a design cause.
 
@@ -97,7 +97,7 @@ Before finishing, self-check in order: first self-verify source alignment and ev
 - Is the current horizon executable without guessing consequential behavior?
 - Can direct evidence disagree with each load-bearing condition?
 - Are later phases directional rather than prematurely frozen?
-- Did the plan add ceremony, review, or machinery without an owning risk?
+- Do phase-exit review choices protect consequential integrated outcomes without adding review to small reversible phases?
 
 Correct local clarity or consistency problems directly. Read `../review-artifact/SKILL.md` when richer artifact lenses would help, but treat that as enhanced self-review unless a formal independent boundary was selected. Surface only route-changing gaps.
 

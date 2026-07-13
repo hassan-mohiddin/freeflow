@@ -252,7 +252,7 @@ meaningful slice -> sequential self-check: self-verification -> if supported, bo
 route check -> continue | diagnose | checkpoint | complete | backward edge
 ```
 
-Discovery, durable artifacts, extra independent contexts, commits, handoffs, branch integration, releases, and launches are conditional. When consequential artifacts exist, `write-spec` selects the standing route: one combined review, separate spec/plan reviews when high risk, or spec-only review. Completed implementation dispatches one final verifier and a different final reviewer in parallel against the same frozen state. Every meaningful slice still gets a sequential self-check—self-verification then, only on support, bounded self-review—and a route check. Review/verify skills may enhance either inline without creating independence.
+Discovery, durable artifacts, extra independent contexts, commits, handoffs, branch integration, releases, and launches are conditional. When consequential artifacts exist, `write-spec` selects the standing route: one combined review, separate spec/plan reviews when high risk, or spec-only review. For multi-phase implementation, `write-plan` selects independent review at consequential phase exits; approval of the plan grants scoped authorization. Completed implementation dispatches one final verifier and a different final reviewer in parallel against the same frozen state. Every meaningful slice still gets a sequential self-check—self-verification then, only on support, bounded self-review—and a route check. Review/verify skills may enhance either inline without creating independence.
 
 Scale workflow pressure to:
 
@@ -588,7 +588,7 @@ The candidate is useful when:
 - It inspects discoverable evidence before asking and reserves the Decision Gate for user-owned decisions, source-truth conflicts, and material path substitutions.
 - Every meaningful slice gets one sequential self-check—proportionate self-verification then, only on support, bounded self-review—and a route check; review/verify skills may enhance either inline.
 - Invalidated work returns to the narrowest owning activity while valid work is preserved.
-- Durable artifacts remain conditional; consequential spec/plan and final implementation reviews plus one distinct final verifier are standing boundaries, while extra independent contexts, commits, handoffs, integration, releases, and launches remain conditional.
+- Durable artifacts remain conditional; consequential spec/plan review, approved plan-selected phase-exit reviews, and final implementation review plus one distinct final verifier are authorized boundaries, while other independent contexts, commits, handoffs, integration, releases, and launches remain conditional.
 - Artifacts preserve compact recoverable decisions rather than ceremony or transcript residue.
 - Source-truth artifacts are not rewritten merely to satisfy the latest request.
 - Direct skill calls select a workflow segment without bypassing its gates.

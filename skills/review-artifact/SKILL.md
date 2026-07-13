@@ -56,7 +56,7 @@ Do not treat review as permission to:
 
 Classify source conflicts and route user-owned decisions through Decision Gate.
 
-## Review Strictly And Proportionately
+## Review Proportionately
 
 Select only lenses material to the boundary:
 
@@ -69,7 +69,7 @@ Select only lenses material to the boundary:
 - **Scope:** the artifact does not convert bounded work into speculative platform design.
 - **Clarity:** a future agent can act without transcript memory.
 
-Strict means a high bar for claims that cross the reviewed boundary, not exhaustive completion. Do not block on style, exact filenames, helper shapes, internal taxonomies, reversible choices, intentionally deferred work, or evidence needed only for a later promotion.
+Use a high evidence bar for claims that cross the reviewed boundary without demanding exhaustive completion. Do not block on style, exact filenames, helper shapes, internal taxonomies, reversible choices, intentionally deferred work, or evidence needed only for a later promotion.
 
 A blocker must name:
 

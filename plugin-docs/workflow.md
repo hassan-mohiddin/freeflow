@@ -64,9 +64,9 @@ Three standing assurance roles need no repeated confirmation:
 
 Verifier evidence and reviewer judgment are independent parallel results. Implementer, verifier, and reviewer use distinct contexts, and the final agents do not consume each other's output. An artifact-only task uses its artifact review as final review and needs no verifier unless executable claims require one.
 
-Any additional reviewer or independent verifier needs scoped user authorization. Reading review/verify skills enhances self-review/self-verification and does not dispatch. `/review-work` and `/review-artifact` default to formal review unless inline use is explicit; `/verify-work` defaults to self-verification. Ask once when plain “review” is ambiguous and retain the answer. Collect both results before adjudicating. Completion needs verifier Pass plus resolved review for the same unchanged state. Any code change stales both; self-check the fix and ask before another independent dispatch.
+A consequential phase-exit review selected by an approved plan carries scoped authorization. Any other additional reviewer or independent verifier needs scoped user authorization. Reading review/verify skills enhances self-review/self-verification and does not dispatch. `/review-work` and `/review-artifact` default to formal review unless inline use is explicit; `/verify-work` defaults to self-verification. Ask once when plain “review” is ambiguous and retain the answer. Collect both results before adjudicating. Completion needs verifier Pass plus resolved review for the same unchanged state. Any code change stales both; self-check the fix and ask before another independent dispatch.
 
-A phase boundary does not trigger extra review. Keep formal roles strict, scoped, and capable of a clean pass.
+While writing a multi-phase plan, select independent review at phase exits whose integrated outcome constrains dependent work, promotes architecture, combines interacting risk, or crosses sensitive/hard-to-reverse behavior. Omit it for small reversible or learning phases. At execution, complete selected reviews before dependent work; unselected phase exits require a review-need assessment, not an automatic dispatch or automatic continuation. Keep formal roles evidence-backed, scoped, and capable of a clean pass.
 
 ## Artifact review route
 
@@ -99,7 +99,7 @@ Preserve valid work. Do not redesign because ordinary mistakes exist, restart fr
 
 The agent is the responsible collaborative engineer: it owns locally authorized implementation, verification, correction, and learning. The user is the accountable owner and collaborator: they own product intent and consequential decisions, but live evidence owns factual behavior. Either may correct the other with evidence.
 
-Delegation parent/child names context topology, not competence. Reviewers are strict independent peers or tech leads; verifiers are separate factual evidence runners. Neither continuously supervises the implementing agent or replaces source truth.
+Delegation parent/child names context topology, not competence. Reviewers are independent peers or tech leads; verifiers are separate factual evidence runners. Neither continuously supervises the implementing agent or replaces source truth.
 
 ## Bypass
 
