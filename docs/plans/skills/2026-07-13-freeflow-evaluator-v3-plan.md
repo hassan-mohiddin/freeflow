@@ -5,6 +5,7 @@
 > **Source:** `docs/specs/skills/2026-07-13-freeflow-evaluator-v3.md`
 > **Baseline:** Current evaluator under `skills/evaluate-skill/scripts/`; 132 deterministic tests passed during spec review
 > **Provider policy:** No provider-backed execution until deterministic v3 acceptance, exact preview, and owner approval
+> **Review:** Passed artifact review after one revision pass; four initial blockers were resolved
 
 ## Goal
 
@@ -14,7 +15,8 @@ Replace the one-case, JSON-heavy, terminal-limit evaluator coordinator with a co
 
 - Preserve existing single-case CLI JSON and bundle behavior throughout migration.
 - Keep one writer per source checkout; isolate every subject workspace.
-- Do not change skill behavior, case criteria, or readiness metadata to make v3 pass.
+- Do not change skill behavior or case criteria to make v3 pass.
+- At the first v3 runtime implementation change, mark `evaluate-skill` Unverified and preserve the accepted v2 report as historical evidence. Restore readiness only after Slice 5.5. `write-skill` readiness remains independent unless its source changes.
 - Keep canonical JSON exact; compact rendering is a model/terminal view.
 - Preserve whole-case subject rerun fairness after subject/candidate/infrastructure failure.
 - Add batching behind the existing `evaluate` command.
@@ -23,19 +25,20 @@ Replace the one-case, JSON-heavy, terminal-limit evaluator coordinator with a co
 
 ## Phase 0 — Freeze Baseline And Cost Corpus
 
-### Slice 0.1 — Acceptance Manifest Generator
+### Slice 0.1 — Preliminary Baseline Corpus Lock
 
 **Type:** learning/delivery
 
-Add a deterministic script that inventories selected saved bundles and writes `.skill-eval/evaluate-skill/v3-acceptance.json` with exact hashes for:
+Add a deterministic script that inventories selected saved bundles and writes `.skill-eval/evaluate-skill/v3-baseline-lock.json` with exact hashes for:
 
 - baseline evaluator implementation;
 - Pi adapter/version;
 - representative case/fixture/skill/runtime inputs;
 - canonical semantic packets;
 - observed process usage and model-visible byte counts;
-- expected objective and semantic verdicts;
-- injected local/global fault fixtures.
+- expected baseline objective and semantic verdicts.
+
+This lock is a preliminary input to later acceptance. It contains no candidate identity, cannot authorize provider execution, and is never renamed or mutated into the final acceptance manifest. Slice 5.4 generates `.skill-eval/evaluate-skill/v3-acceptance.json` from the immutable baseline lock plus the completed v3 candidate, codec/reducers, limits, tools, and fault fixtures.
 
 Initial corpus:
 
@@ -43,10 +46,9 @@ Initial corpus:
 - `WFC2-002` four-turn composition;
 - final `WFI-002` mutation case;
 - final `WFI-003` proof-fidelity case;
-- one complete semantic bundle suitable for rubric-only regrade;
-- deterministic fake-adapter batch faults.
+- one complete semantic bundle suitable for rubric-only regrade.
 
-**Verification:** manifest is reproducible byte-for-byte; missing or mutated bundle fails closed; no provider requests.
+**Verification:** the baseline lock is reproducible byte-for-byte; missing or mutated bundle fails closed; no provider requests.
 
 ### Slice 0.2 — Baseline Metrics
 
@@ -54,11 +56,17 @@ Measure canonical/model-visible bytes, provider requests, rerun causes, cap fail
 
 **Checkpoint:** revise later thresholds only if baseline evidence makes an approved threshold impossible or meaningless.
 
+### Slice 0.3 — Legacy Compatibility Fixtures
+
+Freeze representative v1 single-case plan/evaluate JSON, exit statuses, and accepted/diagnostic bundle-reader fixtures before changing runtime code. Golden tests must compare normalized volatile fields while preserving schema, required fields, statuses, and exit behavior.
+
 ## Phase 1 — Compact Evidence And Feasibility Preflight
 
-### Slice 1.1 — CEV1 Codec Core
+### Slice 1.1 — CEV1 Codec Core And Readiness Transition
 
 **Type:** delivery
+
+Before the first evaluator runtime source edit, update the evidence registry/current readiness documentation so `evaluate-skill` is Unverified during v3 implementation. Preserve the accepted v2 evidence and leave `write-skill` readiness unchanged.
 
 Create a pure module owning:
 
@@ -85,17 +93,24 @@ Extend preflight to catch, before provider access:
 - requested operations unavailable through tools;
 - redundant later-turn reread assertions;
 - exact literals unsupported by source/prompt enums;
+- overconstrained equivalent classifications or setup seams;
 - missing conditional resources;
 - changed-path/request conflicts;
 - rubric facts absent or undiscoverable;
-- insufficient hard budget for scripted turns/tool allowance;
+- fixture oracles that do not reproduce the claimed pressure;
+- insufficient hard budget for scripted turns and tool round trips;
+- compact packet and raw transport exceeding their separate limits;
 - subject-visible grading leakage.
 
-Use preserved campaign defects as regression fixtures.
+Use preserved campaign defects as regression fixtures. Preflight emits compact warnings/errors for operators and a canonical exact report with the check id, source span, evidence, severity, and blocking reason. Blocking findings make zero provider requests.
+
+**Acceptance:** regression cases cover discovery-tool absence, exact-literal leakage, redundant rereads, equivalent setup seams, non-reproducing fixture pressure, and compact/raw limit mismatch.
 
 ### Slice 1.4 — Result Semantics
 
-Add explicit internal result states and embed semantic evidence in assembled results. Keep legacy fields/status/exit behavior unchanged for single-case JSON.
+Implement objective and semantic grading as separate axes. Objective failure still blocks acceptance, but complete safe artifacts may receive diagnostic semantic grading labelled non-promotable; unsafe, partial, capped, or integrity-invalid artifacts must not reach semantic grading. Embed the semantic verdict, rationale, uncertainty, and promotability directly in assembled results instead of placeholder text.
+
+Tests cover objective-fail with safe complete evidence, objective-fail with unsafe/incomplete evidence, semantic-grader failure, and legacy external projection. Keep legacy fields/status/exit behavior unchanged for single-case JSON.
 
 **Phase check:** full existing evaluator suite plus CEV/preflight tests pass; no provider use.
 
@@ -183,9 +198,9 @@ Golden-test existing single-case JSON stdout, statuses, exit codes, plan semanti
 
 Run all old and v3 tests, CEV parity, preflight defect fixtures, batch fault matrix, journal recovery, budget reservation, cache/regrade, adapter conformance, and package cleanliness.
 
-### Slice 5.4 — Exact Provider Preview
+### Slice 5.4 — Final Acceptance Manifest And Provider Preview
 
-Freeze final `v3-acceptance.json`, generate exact Pi/model/thinking/case/limit fingerprints, and obtain owner approval.
+Generate and freeze `.skill-eval/evaluate-skill/v3-acceptance.json` from the immutable baseline lock and completed v3 candidate. It includes exact candidate, Pi/model/provider/thinking, codec/reducer, prompt, tool, limit, expected assertion, and local/global fault-fixture identities. Generate exact execution fingerprints and obtain owner approval.
 
 ### Slice 5.5 — Behavioral And Cost Qualification
 
@@ -199,7 +214,7 @@ Run the frozen suite. Require:
 - integrity and exact recovery pass;
 - independent final implementation/evidence review.
 
-Only then update `evaluate-skill` readiness to the exact v3 Pi configuration.
+Only then restore `evaluate-skill` readiness for the exact v3 Pi configuration. Preserve the v2 report as historical evidence and leave `write-skill` readiness unchanged.
 
 ## Dynamic Backward Triggers
 
