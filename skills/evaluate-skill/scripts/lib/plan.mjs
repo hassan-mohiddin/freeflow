@@ -6,6 +6,9 @@ import { fileURLToPath } from "node:url";
 import { capabilitiesFor, supportedEvidenceClasses } from "./capabilities.mjs";
 import { DEFAULT_OUTPUT_LIMIT_BYTES } from "./constants.mjs";
 import { declaredResourceIdentity, gitResourceIdentity, hashDirectory, hashFile, sha256, stableJson } from "./hash.mjs";
+import { compileCaseFeasibility, renderFeasibilityRows } from "./feasibility.mjs";
+import { createManifest } from "./materialize.mjs";
+import { runFixtureOracle } from "./fixture-oracle.mjs";
 import { assertNoSymlinkTree, isWithin } from "./path-policy.mjs";
 import { resolveInside } from "./workspace.mjs";
 
@@ -31,6 +34,8 @@ const EVALUATOR_SOURCE_FILES = [
   "lib/codex-adapter.mjs",
   "lib/decision.mjs",
   "lib/evaluate.mjs",
+  "lib/feasibility.mjs",
+  "lib/fixture-oracle.mjs",
   "lib/grade.mjs",
   "lib/outcome.mjs",
   "lib/hash.mjs",
@@ -293,6 +298,55 @@ export async function buildEvaluationPlan(workspace, options, dependencies = {})
   const maxTurns = modelDriven ? requirePositiveInteger(options.max_turns_per_process, "--max-turns-per-process") : 0;
   if (options.max_usd !== undefined && (!Number.isFinite(Number(options.max_usd)) || Number(options.max_usd) <= 0)) throw new Error("--max-usd must be a positive number");
 
+  const fixturePath = evalCase.fixture === null ? null : resolveInside(workspace.skillRoot, evalCase.fixture, `${evalCase.id}.fixture`);
+  const fixtureManifest = fixturePath ? await createManifest(fixturePath) : { files: {} };
+  const fixtureFiles = Object.keys(fixtureManifest.files ?? {}).sort();
+  const fixtureBytes = Object.values(fixtureManifest.files ?? {}).reduce((sum, file) => sum + Number(file.size ?? 0), 0);
+  const semanticInputBytes = Buffer.byteLength(JSON.stringify({
+    prompts: Object.hasOwn(evalCase, "prompt") ? [evalCase.prompt] : evalCase.turns.map((turn) => turn.prompt),
+    criteria: evalCase.assertions.filter((assertion) => assertion.type === "semantic").map((assertion) => assertion.rubric),
+  }));
+  const estimatedCompactBytes = semanticInputBytes + Math.min(fixtureBytes, 30000) + 4096;
+  const transportLimitBytes = modelDriven ? Math.max(outputLimitBytes, DEFAULT_OUTPUT_LIMIT_BYTES) : 0;
+  const feasibility = await compileCaseFeasibility(evalCase, {
+    modelDriven,
+    maxTurns,
+    outputLimitBytes,
+    transportLimitBytes,
+    estimatedCompactBytes,
+    estimatedTransportBytes: estimatedCompactBytes * 2,
+    fixtureFiles,
+    readFixture: async (path) => {
+      if (!fixturePath) return null;
+      try { return await readFile(resolveInside(fixturePath, path, "feasibility fixture source"), "utf8"); } catch (error) {
+        if (error.code === "ENOENT") return null;
+        throw error;
+      }
+    },
+    runOracle: async (declaration) => runFixtureOracle(fixturePath, declaration),
+  });
+  if (feasibility.blocking) {
+    const blockedReasons = feasibility.findings.map((item) => item.id);
+    return {
+      status: "blocked",
+      summary: {
+        skill: workspace.suite.skill,
+        case: evalCase.id,
+        feasibility: { ...feasibility, rows: renderFeasibilityRows(feasibility) },
+        blocked_reasons: blockedReasons,
+      },
+      fingerprint: null,
+      eval_case: evalCase,
+      variants: [],
+      composition: null,
+      fixture_path: fixturePath,
+      plan_inputs: null,
+      blocked_evidence: [],
+      missing_capabilities: [],
+      limit_blocks: blockedReasons,
+    };
+  }
+
   const resolveCapabilities = dependencies.capabilitiesFor ?? capabilitiesFor;
   const capabilityMode = evalCase.composition !== undefined && selectedHost === "pi" ? "rpc-scripted" : effectiveMode;
   const host = await resolveCapabilities(selectedHost, capabilityMode);
@@ -312,7 +366,6 @@ export async function buildEvaluationPlan(workspace, options, dependencies = {})
     ...evidence.unsupported_required,
     ...(evalCase.unsupported_evidence === "block" ? evidence.unsupported_requested : []),
   ];
-  const fixturePath = evalCase.fixture === null ? null : resolveInside(workspace.skillRoot, evalCase.fixture, `${evalCase.id}.fixture`);
   const fixtureHash = fixturePath ? await hashDirectory(fixturePath) : sha256("empty-fixture");
   const variants = [];
   for (const variant of evalCase.variants) variants.push(await resolveVariant(workspace.repoRoot, variant));
@@ -377,11 +430,12 @@ export async function buildEvaluationPlan(workspace, options, dependencies = {})
     limits: {
       timeout_ms: timeoutMs,
       output_limit_bytes: outputLimitBytes,
-      transport_limit_bytes: modelDriven ? Math.max(outputLimitBytes, DEFAULT_OUTPUT_LIMIT_BYTES) : 0,
+      transport_limit_bytes: transportLimitBytes,
       max_turns_per_process: maxTurns,
     },
     max_usd: options.max_usd === undefined ? null : Number(options.max_usd),
     evidence,
+    feasibility,
   };
   const fingerprint = sha256(stableJson(planInputs));
   const summary = {
@@ -407,6 +461,7 @@ export async function buildEvaluationPlan(workspace, options, dependencies = {})
     worst_case_approved_turns: selectedHost === "codex" ? null : totalProcesses * maxTurns,
     spend: { max_usd: planInputs.max_usd },
     evidence: { required: evidence.required, requested: evidence.requested },
+    ...(evalCase.feasibility ? { feasibility: { ...feasibility, rows: renderFeasibilityRows(feasibility) } } : {}),
     identities,
     capabilities: { host: host.id, version: host.version, missing: missingCapabilities },
     blocked_reasons: [...new Set([...blockedEvidence, ...missingCapabilities, ...limitBlocks])],

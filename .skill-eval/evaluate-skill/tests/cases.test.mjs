@@ -21,6 +21,25 @@ test("all bootstrap suites and cases parse with existing fixtures", async () => 
   }
 });
 
+test("case schema validates bounded hybrid feasibility declarations", async () => {
+  const workspace = await loadSkillWorkspace(repoRoot, "evaluate-skill");
+  const source = workspace.cases.find((item) => item.id === "ESK2-001");
+  const { source_path: _sourcePath, ...plain } = source;
+  const valid = {
+    ...plain,
+    feasibility: {
+      required_evidence_paths: ["reports/review-pr-failure.md"],
+      literal_requirements: [{ value: "failed", source: "fixture:reports/review-pr-failure.md", equivalence_class: "failure-status" }],
+      accepted_equivalences: ["failure-status"],
+      expected_tool_round_trips: 2,
+      fixture_oracle: { argv: ["node", "oracle.mjs"], expected_exit: 0, stdout_contains: ["PRESSURE_OK"] },
+    },
+  };
+  assert.equal(validateCase(valid).feasibility.expected_tool_round_trips, 2);
+  assert.throws(() => validateCase({ ...valid, feasibility: { unknown: true } }), /unknown field/i);
+  assert.throws(() => validateCase({ ...valid, feasibility: { fixture_oracle: { argv: ["bash", "x"], expected_exit: 0 } } }), /executable must be node/i);
+});
+
 test("natural prompts do not embed semantic rubrics", async () => {
   for (const skill of ["write-skill", "evaluate-skill", "decision-gate"]) {
     const workspace = await loadSkillWorkspace(repoRoot, skill);

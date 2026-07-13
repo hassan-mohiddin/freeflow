@@ -128,6 +128,45 @@ function validateCompositionSource(source, label, { nameRequired = true } = {}) 
   for (const resource of source.resources) resolveInside("/subject", resource, `${label}.resource`);
 }
 
+function validateFeasibility(feasibility, path) {
+  if (!feasibility || typeof feasibility !== "object" || Array.isArray(feasibility)) throw new Error(`${path}.feasibility must be an object`);
+  const allowed = new Set(["required_evidence_paths", "literal_requirements", "accepted_equivalences", "active_context_components", "active_context_skill", "expected_tool_round_trips", "fixture_oracle"]);
+  for (const key of Object.keys(feasibility)) if (!allowed.has(key)) throw new Error(`${path}.feasibility has unknown field: ${key}`);
+  const stringArray = (value, label, { paths = false } = {}) => {
+    if (!Array.isArray(value) || value.length === 0 || value.some((item) => typeof item !== "string" || item.length === 0)) throw new Error(`${label} must be a non-empty string array`);
+    if (new Set(value).size !== value.length) throw new Error(`${label} contains duplicates`);
+    if (paths) for (const item of value) resolveInside("/fixture", item, label);
+  };
+  if (feasibility.required_evidence_paths !== undefined) stringArray(feasibility.required_evidence_paths, `${path}.feasibility.required_evidence_paths`, { paths: true });
+  if (feasibility.accepted_equivalences !== undefined) stringArray(feasibility.accepted_equivalences, `${path}.feasibility.accepted_equivalences`);
+  if (feasibility.active_context_components !== undefined) stringArray(feasibility.active_context_components, `${path}.feasibility.active_context_components`);
+  if (feasibility.active_context_skill !== undefined && typeof feasibility.active_context_skill !== "boolean") throw new Error(`${path}.feasibility.active_context_skill must be boolean`);
+  if (feasibility.expected_tool_round_trips !== undefined && (!Number.isInteger(feasibility.expected_tool_round_trips) || feasibility.expected_tool_round_trips < 0)) throw new Error(`${path}.feasibility.expected_tool_round_trips must be a non-negative integer`);
+  if (feasibility.literal_requirements !== undefined) {
+    if (!Array.isArray(feasibility.literal_requirements) || feasibility.literal_requirements.length === 0) throw new Error(`${path}.feasibility.literal_requirements must be non-empty`);
+    for (const [index, item] of feasibility.literal_requirements.entries()) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error(`${path}.feasibility.literal_requirements[${index}] must be an object`);
+      for (const key of Object.keys(item)) if (!["value", "source", "equivalence_class"].includes(key)) throw new Error(`${path}.feasibility.literal_requirements[${index}] has unknown field: ${key}`);
+      requireString(item.value, `${path}.feasibility.literal_requirements[${index}].value`);
+      requireString(item.source, `${path}.feasibility.literal_requirements[${index}].source`);
+      if (item.source !== "prompt" && !item.source.startsWith("fixture:")) throw new Error(`${path}.feasibility.literal_requirements[${index}].source must be prompt or fixture:path`);
+      if (item.source.startsWith("fixture:")) resolveInside("/fixture", item.source.slice("fixture:".length), `${path}.feasibility.literal_requirements[${index}].source`);
+      if (item.equivalence_class !== undefined) requireString(item.equivalence_class, `${path}.feasibility.literal_requirements[${index}].equivalence_class`);
+    }
+  }
+  if (feasibility.fixture_oracle !== undefined) {
+    const oracle = feasibility.fixture_oracle;
+    if (!oracle || typeof oracle !== "object" || Array.isArray(oracle)) throw new Error(`${path}.feasibility.fixture_oracle must be an object`);
+    for (const key of Object.keys(oracle)) if (!["argv", "expected_exit", "stdout_contains"].includes(key)) throw new Error(`${path}.feasibility.fixture_oracle has unknown field: ${key}`);
+    stringArray(oracle.argv, `${path}.feasibility.fixture_oracle.argv`);
+    if (oracle.argv[0] !== "node") throw new Error(`${path}.feasibility.fixture_oracle executable must be node`);
+    if (oracle.argv.length < 2) throw new Error(`${path}.feasibility.fixture_oracle requires a script path`);
+    resolveInside("/fixture", oracle.argv[1], `${path}.feasibility.fixture_oracle script`);
+    if (!Number.isInteger(oracle.expected_exit)) throw new Error(`${path}.feasibility.fixture_oracle.expected_exit must be an integer`);
+    if (oracle.stdout_contains !== undefined) stringArray(oracle.stdout_contains, `${path}.feasibility.fixture_oracle.stdout_contains`);
+  }
+}
+
 function validateComposition(composition, value, path) {
   if (!composition || typeof composition !== "object" || Array.isArray(composition)) throw new Error(`${path}.composition must be an object`);
   if (value.evaluation_kind !== "comparison") throw new Error(`${path} composition requires comparison evaluation_kind`);
@@ -190,6 +229,7 @@ export function validateCase(value, { path = "case" } = {}) {
   if (!UNSUPPORTED_EVIDENCE_POLICIES.has(value.unsupported_evidence)) throw new Error(`${path} has unknown unsupported_evidence policy: ${value.unsupported_evidence}`);
   validateEvidenceClasses(value.evidence_classes, `${path}.evidence_classes`);
   if (value.requested_evidence_classes !== undefined) validateEvidenceClasses(value.requested_evidence_classes, `${path}.requested_evidence_classes`);
+  if (value.feasibility !== undefined) validateFeasibility(value.feasibility, path);
   if (value.fixture !== null && typeof value.fixture !== "string") throw new Error(`${path}.fixture must be a string or null`);
   if (!Array.isArray(value.variants) || value.variants.length === 0) throw new Error(`${path}.variants must not be empty`);
   const variantIds = new Set();
@@ -206,6 +246,11 @@ export function validateCase(value, { path = "case" } = {}) {
     for (const resource of variant.resources) resolveInside("/subject", resource, `${path}.${variant.id}.resource`);
   }
   if (value.composition !== undefined) validateComposition(value.composition, value, path);
+  if (value.feasibility?.active_context_components !== undefined) {
+    if (value.composition === undefined) throw new Error(`${path}.feasibility.active_context_components requires composition`);
+    const componentNames = new Set([...value.composition.base_stack.map((component) => component.name), value.composition.target_name]);
+    for (const name of value.feasibility.active_context_components) if (!componentNames.has(name)) throw new Error(`${path}.feasibility.active_context_components names unknown component: ${name}`);
+  }
   const expectedRoles = value.evaluation_kind === "single" ? ["subject"] : ["reference", "candidate"];
   const actualRoles = value.variants.map((variant) => variant.role);
   if (JSON.stringify(actualRoles) !== JSON.stringify(expectedRoles)) {

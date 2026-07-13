@@ -22,6 +22,31 @@ test("host-free case preflights one case with zero Pi processes", async () => {
   assert.equal(result.summary.worst_case_approved_turns, 0);
 });
 
+test("feasibility blockers stop planning before host capability access", async () => {
+  const workspace = await loadSkillWorkspace(repoRoot, "evaluate-skill");
+  const source = workspace.cases.find((item) => item.id === "ESK2-001");
+  const changed = {
+    ...source,
+    execution: { ...source.execution, tools: ["read"] },
+    feasibility: { required_evidence_paths: ["unnamed-evidence.json"], expected_tool_round_trips: 5 },
+  };
+  let capabilityCalls = 0;
+  const result = await buildEvaluationPlan({ ...workspace, cases: workspace.cases.map((item) => item.id === changed.id ? changed : item) }, {
+    case: changed.id,
+    ...hardLimits,
+    provider: "p",
+    model: "m",
+    thinking: "low",
+    max_turns_per_process: 4,
+    plan_only: true,
+  }, { capabilitiesFor: async () => { capabilityCalls += 1; throw new Error("capabilities must not run"); } });
+  assert.equal(result.status, "blocked");
+  assert.equal(capabilityCalls, 0);
+  assert.deepEqual(result.summary.feasibility.findings.map((finding) => finding.id), ["FEAS-EVIDENCE-MISSING", "FEAS-EVIDENCE-DISCOVERY", "FEAS-OUTPUT-TOOL", "FEAS-TURN-BUDGET"]);
+  assert.equal(result.summary.feasibility.provider_requests, 0);
+  assert.match(result.summary.feasibility.rows, /^BLOCK\|FEAS-EVIDENCE-MISSING/);
+});
+
 test("model case without approval returns needs_approval without execution", async () => {
   const result = await plan("evaluate-skill", "ESK2-001", {
     provider: "p",

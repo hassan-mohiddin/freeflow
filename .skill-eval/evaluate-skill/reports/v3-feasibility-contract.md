@@ -41,6 +41,8 @@ Optional `feasibility` declarations own only:
 - required evidence paths not named by the natural prompt;
 - exact literal requirements and their source pointers;
 - accepted semantic/setup equivalence classes;
+- active-context lifetime where later reread assertions would otherwise be ambiguous;
+- expected tool round trips beyond scripted user turns;
 - a provider-free fixture oracle as an argv array plus exact exit/output expectations.
 
 Declarations cannot waive derived checks. They remain grader-side and are excluded from subject prompts. Missing declarations block only cases whose rubric requires those non-inferable facts.
