@@ -42,10 +42,11 @@ const EVALUATOR_SOURCE_FILES = [
   "lib/process-outcome.mjs",
   "lib/process.mjs",
   "lib/rpc-client.mjs",
+  "lib/semantic-evidence.mjs",
   "lib/publication.mjs",
   "lib/workspace.mjs",
 ];
-const SEMANTIC_SOURCE_FILES = ["pi-root-guard.mjs", "lib/compact-evidence.mjs", "lib/outcome.mjs", "lib/pi-adapter.mjs", "lib/process-outcome.mjs", "lib/process.mjs", "lib/semantic.mjs"];
+const SEMANTIC_SOURCE_FILES = ["pi-root-guard.mjs", "lib/compact-evidence.mjs", "lib/outcome.mjs", "lib/pi-adapter.mjs", "lib/process-outcome.mjs", "lib/process.mjs", "lib/semantic-evidence.mjs", "lib/semantic.mjs"];
 
 async function sourceIdentity(files) {
   const entries = [];

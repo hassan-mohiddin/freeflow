@@ -23,7 +23,31 @@ test("semantic prompt uses opaque identity and fixed criteria", async (t) => {
   assert.equal(built.prompt.includes("candidate"), false);
   assert.equal(built.prompt.includes(run), false);
   assert.equal(built.prompt.includes('"id": "path"'), false);
+  assert.equal(built.modelEvidence.rendered.format, "canonical-json");
+  assert.match(built.prompt, /canonical JSON/);
+  assert.equal(built.modelEvidence.rendered.reason, "compact-not-smaller");
   assert.deepEqual(built.criterionIds, ["quality"]);
+});
+
+test("semantic packet records upstream byte caps as explicit omissions", async (t) => {
+  const run = await mkdtemp(resolve(tmpdir(), "freeflow-semantic-cap-"));
+  t.after(() => rm(run, { recursive: true, force: true }));
+  await mkdir(resolve(run, "inputs"), { recursive: true });
+  await mkdir(resolve(run, "artifacts", "workspace"), { recursive: true });
+  await writeFile(resolve(run, "metadata.json"), JSON.stringify({ variant: "subject", changed_paths: [] }));
+  await writeFile(resolve(run, "inputs", "case.json"), JSON.stringify({ prompt: "x", assertions: [{ id: "quality", type: "semantic", rubric: "x" }] }));
+  await writeFile(resolve(run, "objective-grade.json"), JSON.stringify({ objective_pass: true, assertions: [] }));
+  await writeFile(resolve(run, "final.md"), "x".repeat(31000));
+  await writeFile(resolve(run, "diff"), "");
+  const built = await buildSemanticPrompt(run);
+  assert.equal(built.evidence.source_omissions[0].reason, "upstream-byte-cap");
+  assert.equal(built.evidence.source_omissions[0].omitted_bytes, 1000);
+  const omission = built.modelEvidence.records.find((record) => record.type === "O");
+  const details = omission.fields.detail.split(";").map((item) => {
+    const [reason, span, omittedBytes] = item.split(",");
+    return { reason, span, omittedBytes: Number(omittedBytes) };
+  });
+  assert.equal(details.some((item) => item.reason === "upstream-byte-cap" && item.omittedBytes === 1000), true);
 });
 
 test("multi-turn semantic packet exposes only one shared declared turn scope", async (t) => {
@@ -91,7 +115,7 @@ test("semantic post-process and cleanup failures preserve settled execution", as
   await writeFile(resolve(run, "metadata.json"), JSON.stringify({ variant: "subject", changed_paths: [] }));
   await writeFile(resolve(run, "inputs", "case.json"), JSON.stringify({ prompt: "x", assertions: [{ id: "quality", type: "semantic", rubric: "x" }] }));
   await writeFile(resolve(run, "objective-grade.json"), JSON.stringify({ objective_pass: true, assertions: [] }));
-  await writeFile(resolve(run, "final.md"), "answer");
+  await writeFile(resolve(run, "final.md"), `answer ${"x".repeat(2000)}`);
   await writeFile(resolve(run, "diff"), "");
   const outcome = await gradeSemanticRun(run, {
     provider: "p",
@@ -119,7 +143,11 @@ test("semantic post-process and cleanup failures preserve settled execution", as
   assert.match(outcome.failure.primary, /evidence write failed/);
   assert.match(outcome.failure.cleanup, /cleanup failed/);
   const packet = JSON.parse(await readFile(resolve(run, "semantic-packet.json"), "utf8"));
+  const packetView = JSON.parse(await readFile(resolve(run, "semantic-packet-view.json"), "utf8"));
+  const compactPacket = await readFile(resolve(run, "semantic-packet.cev1"), "utf8");
   assert.equal(packet.schema_version, 1);
+  assert.equal(packetView.format, "cev1");
+  assert.match(compactPacket, /^H\|CEV1\|/);
   assert.equal(JSON.stringify(packet).includes('"subject"'), false);
 });
 

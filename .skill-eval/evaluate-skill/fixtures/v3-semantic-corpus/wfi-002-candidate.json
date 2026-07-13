@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "evidence": {
+    "label": "Run-A172C26B",
+    "criteria": [
+      {
+        "id": "rejected-state-preserved",
+        "rubric": "Turn 1 must add regression coverage before production changes. The test must directly assert visible rejection, null canonical state for a malformed fresh submission, exact prior accepted raw preservation for a malformed replacement, and separate rejected diagnostics. Turn 2 must preserve that test byte-for-byte and make the smallest implementation change that validates before canonical publication. Merely returning rejected, restoring state after overwriting, or testing only one initial-state branch is insufficient. This scripted case assesses test design and ordering from an externally reported RED result; it does not claim the subject executed the test command.",
+        "turn_ids": [
+          "turn-1",
+          "turn-2"
+        ]
+      }
+    ],
+    "objective_checks_passed": true,
+    "selected_turn_ids": [
+      "turn-1",
+      "turn-2"
+    ],
+    "turns": [
+      {
+        "id": "turn-1",
+        "natural_prompt": "`store.mjs` returns `rejected` for a malformed planning report but still replaces canonical accepted state. Start test-first: add only `store.test.mjs` with the smallest regression coverage needed, including both a fresh store and a store with an existing accepted report. Do not modify production code yet.",
+        "final_response": "Added `store.test.mjs` only; production code untouched.\n\nCoverage added:\n- Fresh store: malformed report returns `rejected` and leaves `canonicalRaw` as `null`.\n- Existing accepted report: malformed report returns `rejected` and preserves prior canonical accepted raw.\n- Both assert rejected diagnostics remain in `rejectedPublications`.\n\nVerification:\n- Re-read `store.test.mjs` after writing.\n- Could not run RED here because no command execution tool is available in this session.\n\nNext: run `node --test store.test.mjs`; it should fail against current `store.mjs` because `publish()` assigns `canonicalRaw = raw` before validation.",
+        "changed_paths": [
+          "store.test.mjs"
+        ],
+        "diff": "diff --git a/store.test.mjs b/store.test.mjs\nnew file mode 100644\nindex 0000000..a2675c7\n--- /dev/null\n+++ b/store.test.mjs\n@@ -0,0 +1,32 @@\n+import assert from \"node:assert/strict\";\n+import test from \"node:test\";\n+\n+import { createPlanningStore } from \"./store.mjs\";\n+\n+const TASK_ID = \"task-1\";\n+const MALFORMED_REPORT = \"{not json\";\n+\n+test(\"rejecting a malformed report in a fresh store does not create canonical accepted state\", () => {\n+  const store = createPlanningStore();\n+\n+  const result = store.publish(TASK_ID, MALFORMED_REPORT);\n+\n+  assert.equal(result.status, \"rejected\");\n+  assert.equal(store.canonicalRaw, null);\n+  assert.deepEqual(store.rejectedPublications, [\n+    { raw: MALFORMED_REPORT, reason: \"invalid_json\" },\n+  ]);\n+});\n+\n+test(\"rejecting a malformed report preserves existing canonical accepted state\", () => {\n+  const acceptedReport = JSON.stringify({ status: \"ready\", task_id: TASK_ID });\n+  const store = createPlanningStore(acceptedReport);\n+\n+  const result = store.publish(TASK_ID, MALFORMED_REPORT);\n+\n+  assert.equal(result.status, \"rejected\");\n+  assert.equal(store.canonicalRaw, acceptedReport);\n+  assert.deepEqual(store.rejectedPublications, [\n+    { raw: MALFORMED_REPORT, reason: \"invalid_json\" },\n+  ]);\n+});\n"
+      },
+      {
+        "id": "turn-2",
+        "natural_prompt": "The new regression checks fail as expected: fresh canonical state contains the rejected raw report, and an existing accepted report is replaced. Implement the smallest complete fix in `store.mjs`, keep rejected diagnostics separate, and preserve the test unchanged.",
+        "final_response": "Implemented smallest fix in `store.mjs`.\n\nChange:\n- `publish()` now validates first.\n- On `rejected`, it only appends to `rejectedPublications`.\n- On `accepted`, it updates `canonicalRaw`.\n\nPreserved:\n- `store.test.mjs` unchanged.\n- Rejected diagnostics remain separate from canonical accepted state.\n\nVerification:\n- Re-read `store.mjs` and `store.test.mjs`.\n- Test execution not available from this session; run `node --test store.test.mjs` to confirm GREEN.",
+        "changed_paths": [
+          "store.mjs",
+          "store.test.mjs"
+        ],
+        "diff": "diff --git a/store.mjs b/store.mjs\nindex fffff96..3e4abab 100644\n--- a/store.mjs\n+++ b/store.mjs\n@@ -18,9 +18,12 @@ export function createPlanningStore(initialCanonicalRaw = null) {\n     get canonicalRaw() { return canonicalRaw; },\n     get rejectedPublications() { return [...rejected]; },\n     publish(expectedTaskId, raw) {\n-      canonicalRaw = raw;\n       const result = parsePlanningReport(expectedTaskId, raw);\n-      if (result.status === \"rejected\") rejected.push({ raw, reason: result.reason });\n+      if (result.status === \"rejected\") {\n+        rejected.push({ raw, reason: result.reason });\n+      } else {\n+        canonicalRaw = raw;\n+      }\n       return result;\n     },\n   };\n\ndiff --git a/store.test.mjs b/store.test.mjs\nnew file mode 100644\nindex 0000000..a2675c7\n--- /dev/null\n+++ b/store.test.mjs\n@@ -0,0 +1,32 @@\n+import assert from \"node:assert/strict\";\n+import test from \"node:test\";\n+\n+import { createPlanningStore } from \"./store.mjs\";\n+\n+const TASK_ID = \"task-1\";\n+const MALFORMED_REPORT = \"{not json\";\n+\n+test(\"rejecting a malformed report in a fresh store does not create canonical accepted state\", () => {\n+  const store = createPlanningStore();\n+\n+  const result = store.publish(TASK_ID, MALFORMED_REPORT);\n+\n+  assert.equal(result.status, \"rejected\");\n+  assert.equal(store.canonicalRaw, null);\n+  assert.deepEqual(store.rejectedPublications, [\n+    { raw: MALFORMED_REPORT, reason: \"invalid_json\" },\n+  ]);\n+});\n+\n+test(\"rejecting a malformed report preserves existing canonical accepted state\", () => {\n+  const acceptedReport = JSON.stringify({ status: \"ready\", task_id: TASK_ID });\n+  const store = createPlanningStore(acceptedReport);\n+\n+  const result = store.publish(TASK_ID, MALFORMED_REPORT);\n+\n+  assert.equal(result.status, \"rejected\");\n+  assert.equal(store.canonicalRaw, acceptedReport);\n+  assert.deepEqual(store.rejectedPublications, [\n+    { raw: MALFORMED_REPORT, reason: \"invalid_json\" },\n+  ]);\n+});\n"
+      }
+    ]
+  }
+}

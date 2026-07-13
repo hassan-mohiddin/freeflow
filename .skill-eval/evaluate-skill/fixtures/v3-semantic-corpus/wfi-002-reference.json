@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "evidence": {
+    "label": "Run-7EA6F85C",
+    "criteria": [
+      {
+        "id": "rejected-state-preserved",
+        "rubric": "Turn 1 must add regression coverage before production changes. The test must directly assert visible rejection, null canonical state for a malformed fresh submission, exact prior accepted raw preservation for a malformed replacement, and separate rejected diagnostics. Turn 2 must preserve that test byte-for-byte and make the smallest implementation change that validates before canonical publication. Merely returning rejected, restoring state after overwriting, or testing only one initial-state branch is insufficient. This scripted case assesses test design and ordering from an externally reported RED result; it does not claim the subject executed the test command.",
+        "turn_ids": [
+          "turn-1",
+          "turn-2"
+        ]
+      }
+    ],
+    "objective_checks_passed": true,
+    "selected_turn_ids": [
+      "turn-1",
+      "turn-2"
+    ],
+    "turns": [
+      {
+        "id": "turn-1",
+        "natural_prompt": "`store.mjs` returns `rejected` for a malformed planning report but still replaces canonical accepted state. Start test-first: add only `store.test.mjs` with the smallest regression coverage needed, including both a fresh store and a store with an existing accepted report. Do not modify production code yet.",
+        "final_response": "Added only `store.test.mjs`.\n\nCoverage:\n- Fresh store: malformed report is rejected and `canonicalRaw` remains `null`.\n- Store with existing accepted report: malformed report is rejected and `canonicalRaw` remains the accepted report.\n\nI did not modify production code. Tests were not run because no command execution tool is available in this session.",
+        "changed_paths": [
+          "store.test.mjs"
+        ],
+        "diff": "diff --git a/store.test.mjs b/store.test.mjs\nnew file mode 100644\nindex 0000000..9b4cfce\n--- /dev/null\n+++ b/store.test.mjs\n@@ -0,0 +1,28 @@\n+import { strict as assert } from \"node:assert\";\n+import test from \"node:test\";\n+\n+import { createPlanningStore } from \"./store.mjs\";\n+\n+const taskId = \"task-1\";\n+const acceptedReport = JSON.stringify({ status: \"ready\", task_id: taskId });\n+const malformedReport = \"{not valid json\";\n+\n+function assertRejectedWithoutCanonicalReplacement(store, expectedCanonicalRaw) {\n+  const result = store.publish(taskId, malformedReport);\n+\n+  assert.deepEqual(result, { status: \"rejected\", reason: \"invalid_json\" });\n+  assert.equal(store.canonicalRaw, expectedCanonicalRaw);\n+}\n+\n+test(\"rejects a malformed report without creating canonical state in a fresh store\", () => {\n+  const store = createPlanningStore();\n+\n+  assertRejectedWithoutCanonicalReplacement(store, null);\n+});\n+\n+test(\"rejects a malformed report without replacing an existing accepted report\", () => {\n+  const store = createPlanningStore();\n+  assert.equal(store.publish(taskId, acceptedReport).status, \"accepted\");\n+\n+  assertRejectedWithoutCanonicalReplacement(store, acceptedReport);\n+});\n"
+      },
+      {
+        "id": "turn-2",
+        "natural_prompt": "The new regression checks fail as expected: fresh canonical state contains the rejected raw report, and an existing accepted report is replaced. Implement the smallest complete fix in `store.mjs`, keep rejected diagnostics separate, and preserve the test unchanged.",
+        "final_response": "Updated `store.mjs` only.\n\nChange:\n- `publish()` now parses first.\n- Rejected reports are recorded in `rejectedPublications` and return without changing `canonicalRaw`.\n- Accepted reports still replace `canonicalRaw`.\n\n`store.test.mjs` was preserved unchanged. Tests not run here due no command execution tool.",
+        "changed_paths": [
+          "store.mjs",
+          "store.test.mjs"
+        ],
+        "diff": "diff --git a/store.mjs b/store.mjs\nindex fffff96..eae1b7b 100644\n--- a/store.mjs\n+++ b/store.mjs\n@@ -18,9 +18,12 @@ export function createPlanningStore(initialCanonicalRaw = null) {\n     get canonicalRaw() { return canonicalRaw; },\n     get rejectedPublications() { return [...rejected]; },\n     publish(expectedTaskId, raw) {\n-      canonicalRaw = raw;\n       const result = parsePlanningReport(expectedTaskId, raw);\n-      if (result.status === \"rejected\") rejected.push({ raw, reason: result.reason });\n+      if (result.status === \"rejected\") {\n+        rejected.push({ raw, reason: result.reason });\n+        return result;\n+      }\n+      canonicalRaw = raw;\n       return result;\n     },\n   };\n\ndiff --git a/store.test.mjs b/store.test.mjs\nnew file mode 100644\nindex 0000000..9b4cfce\n--- /dev/null\n+++ b/store.test.mjs\n@@ -0,0 +1,28 @@\n+import { strict as assert } from \"node:assert\";\n+import test from \"node:test\";\n+\n+import { createPlanningStore } from \"./store.mjs\";\n+\n+const taskId = \"task-1\";\n+const acceptedReport = JSON.stringify({ status: \"ready\", task_id: taskId });\n+const malformedReport = \"{not valid json\";\n+\n+function assertRejectedWithoutCanonicalReplacement(store, expectedCanonicalRaw) {\n+  const result = store.publish(taskId, malformedReport);\n+\n+  assert.deepEqual(result, { status: \"rejected\", reason: \"invalid_json\" });\n+  assert.equal(store.canonicalRaw, expectedCanonicalRaw);\n+}\n+\n+test(\"rejects a malformed report without creating canonical state in a fresh store\", () => {\n+  const store = createPlanningStore();\n+\n+  assertRejectedWithoutCanonicalReplacement(store, null);\n+});\n+\n+test(\"rejects a malformed report without replacing an existing accepted report\", () => {\n+  const store = createPlanningStore();\n+  assert.equal(store.publish(taskId, acceptedReport).status, \"accepted\");\n+\n+  assertRejectedWithoutCanonicalReplacement(store, acceptedReport);\n+});\n"
+      }
+    ]
+  }
+}

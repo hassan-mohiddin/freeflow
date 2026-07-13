@@ -8,7 +8,7 @@ function exactRecords(canonicalText, value = "pass") {
     { type: "H", schema: "CEV1", fields: { case: "CASE-1", role: "candidate" } },
     { type: "S", fields: { id: "s1", kind: "file", path: "result.json", sha256: sha256(canonicalText), bytes: Buffer.byteLength(canonicalText), recovery: "exact" } },
     { type: "F", fields: { name: "verdict", value, source: "s1", span: "json:/verdict", op: `json-pointer@${"a".repeat(64)}`, recovery: "exact-source" } },
-    { type: "O", fields: { kind: "omitted", reason: "irrelevant-to-fixed-criteria", count: 3 } },
+    { type: "O", fields: { kind: "omitted", reason: "irrelevant-to-fixed-criteria", omittedBytes: 3, source: "s1", span: "json:/unrelated", op: `omit@${"b".repeat(64)}`, recovery: "exact-source" } },
     { type: "R", fields: { bundle: "bundle-1", canonicalSha256: sha256(canonicalText), recovery: "exact" } },
   ];
 }
@@ -23,6 +23,17 @@ test("CEV1 round-trips escaped delimiters, newlines, backslashes, and controls d
   assert.equal(decoded[0].schema, "CEV1");
   assert.equal(decoded[2].fields.value, "a|b\ncr\rslash\\tab\t");
   assert.deepEqual(decodeCev1(encodeCev1(decoded)), decoded);
+});
+
+test("CEV1 rejects raw controls and uses locale-independent field ordering", () => {
+  const canonical = `${JSON.stringify({ verdict: "pass" }, null, 2)}\n`;
+  const records = exactRecords(canonical);
+  records[0].fields = { i: "lower", I: "upper", alpha: "first" };
+  const encoded = encodeCev1(records);
+  assert.equal(encoded.split("\n")[0], "H|CEV1|I=upper|alpha=first|i=lower");
+  assert.throws(() => decodeCev1(encoded.replace("upper", "upper\tunsafe")), /unescaped control/i);
+  assert.throws(() => decodeCev1(encoded.replace("upper", "upper\runsafe")), /unescaped control/i);
+  assert.throws(() => decodeCev1(encoded.replace("upper", `upper${String.fromCodePoint(0x7f)}unsafe`)), /unescaped control/i);
 });
 
 test("CEV1 rejects missing or overstated fact lineage", () => {

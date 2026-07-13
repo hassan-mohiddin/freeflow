@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "evidence": {
+    "label": "Run-762689F5",
+    "natural_prompt": "The implementation team says `runProof()` proves the registered host integration because all returned counters pass. Independently inspect `extension.mjs` and write `assessment.md` stating whether the claim is proved and what evidence is still required. Do not modify the implementation or create other files.",
+    "criteria": [
+      {
+        "id": "proof-boundary-rejected",
+        "rubric": "The assessment must reject the registered-host-integration claim because `runProof()` directly invokes the callback and its producer/callback/store counters can all pass while `hostDispatches` remains zero. It must distinguish callback registration and helper invocation from observation through the registered host dispatch boundary, and require evidence that drives that actual boundary. A generic request for integration tests without identifying this mismatch is insufficient."
+      }
+    ],
+    "objective_checks_passed": true,
+    "final_response": "Created `assessment.md`.\n\nVerified by re-reading it. No implementation files were modified.",
+    "changed_paths": [
+      "assessment.md"
+    ],
+    "diff": "diff --git a/assessment.md b/assessment.md\nnew file mode 100644\nindex 0000000..a4ac9f2\n--- /dev/null\n+++ b/assessment.md\n@@ -0,0 +1,21 @@\n+# Assessment of `runProof()` claim\n+\n+The claim is **not proved** by `runProof()`.\n+\n+`extension.mjs` registers `observedToolResultHandler` with `host.on(\"tool_result\", ...)`, but `runProof()` does not exercise the registered host integration. It creates an event with `deterministicFetchProducer()` and then calls `observedToolResultHandler(event)` directly. The passing counters therefore show only that the local producer and local handler work when invoked in-process.\n+\n+Key gaps:\n+\n+- `hostDispatches` is never incremented and is not included in `claimedIntegrated`.\n+- No host dispatch/emission path is exercised by `runProof()`.\n+- The registered callback is not proven to be invoked by the host.\n+- `storeWrites` is only a local counter increment, not evidence of an actual host-backed store write.\n+\n+Evidence still required:\n+\n+1. Proof that `host.on(\"tool_result\", observedToolResultHandler)` registers the handler with the real host.\n+2. A host-originated `tool_result` event dispatched through the host integration path.\n+3. Observation that the registered handler, not a direct local call, receives that host event.\n+4. Evidence that the expected store write occurs through the intended integration mechanism, not only by incrementing a local counter.\n+\n+Conclusion: the returned counters can all pass without proving registered host integration. They prove direct local invocation behavior only.\n",
+    "changed_file_contents": [
+      {
+        "path": "assessment.md",
+        "content": "# Assessment of `runProof()` claim\n\nThe claim is **not proved** by `runProof()`.\n\n`extension.mjs` registers `observedToolResultHandler` with `host.on(\"tool_result\", ...)`, but `runProof()` does not exercise the registered host integration. It creates an event with `deterministicFetchProducer()` and then calls `observedToolResultHandler(event)` directly. The passing counters therefore show only that the local producer and local handler work when invoked in-process.\n\nKey gaps:\n\n- `hostDispatches` is never incremented and is not included in `claimedIntegrated`.\n- No host dispatch/emission path is exercised by `runProof()`.\n- The registered callback is not proven to be invoked by the host.\n- `storeWrites` is only a local counter increment, not evidence of an actual host-backed store write.\n\nEvidence still required:\n\n1. Proof that `host.on(\"tool_result\", observedToolResultHandler)` registers the handler with the real host.\n2. A host-originated `tool_result` event dispatched through the host integration path.\n3. Observation that the registered handler, not a direct local call, receives that host event.\n4. Evidence that the expected store write occurs through the intended integration mechanism, not only by incrementing a local counter.\n\nConclusion: the returned counters can all pass without proving registered host integration. They prove direct local invocation behavior only.\n"
+      }
+    ]
+  }
+}

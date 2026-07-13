@@ -6,7 +6,7 @@
 > **Baseline:** Current evaluator under `skills/evaluate-skill/scripts/`; 132 deterministic tests passed during spec review
 > **Provider policy:** No provider-backed execution until deterministic v3 acceptance, exact preview, and owner approval
 > **Review:** Passed artifact review after one revision pass; four initial blockers were resolved
-> **Progress:** Phase 0 and Slice 1.1 complete; Slice 1.2 is the next executable horizon
+> **Progress:** Phase 0 and Slices 1.1–1.2 complete; Slice 1.3 is the next executable horizon
 
 ## Goal
 
@@ -22,7 +22,8 @@ Replace the one-case, JSON-heavy, terminal-limit evaluator coordinator with a co
 - Preserve whole-case subject rerun fairness after subject/candidate/infrastructure failure.
 - Add batching behind the existing `evaluate` command.
 - No Claude/Codex implementation in the Pi acceptance horizon.
-- Every slice ends with focused tests, full evaluator tests when affected, and `git diff --check`.
+- Every slice ends with sequential self-check: focused direct verification, broader evaluator tests when affected, then one bounded self-review only when evidence supports the outcome; `git diff --check` remains structural evidence.
+- Intermediate slices and phase endings do not dispatch independent reviewers or verifiers. Additional independent checkpoints require explicit scoped authorization.
 
 ## Phase 0 — Freeze Baseline And Cost Corpus
 
@@ -203,7 +204,7 @@ Run all old and v3 tests, CEV parity, preflight defect fixtures, batch fault mat
 
 Generate and freeze `.skill-eval/evaluate-skill/v3-acceptance.json` from the immutable baseline lock and completed v3 candidate. It includes exact candidate, Pi/model/provider/thinking, codec/reducer, prompt, tool, limit, expected assertion, and local/global fault-fixture identities. Generate exact execution fingerprints and obtain owner approval.
 
-### Slice 5.5 — Behavioral And Cost Qualification
+### Slice 5.5 — Behavioral And Cost Qualification And Final Assurance
 
 Run the frozen suite. Require:
 
@@ -212,8 +213,9 @@ Run the frozen suite. Require:
 - compact byte target met;
 - zero subject requests for grader-only correction;
 - unaffected siblings complete under case-local fault;
-- integrity and exact recovery pass;
-- independent final implementation/evidence review.
+- integrity and exact recovery pass.
+
+Then run the final sequential self-check, freeze one exact source/evidence identity, and dispatch one fresh verifier plus one different fresh reviewer in parallel against that same state. Neither receives the other's output. Completion and readiness restoration require verifier Pass plus resolved review with no later implementation change. Any code change stales both results; self-check the correction and ask before another independent dispatch.
 
 Only then restore `evaluate-skill` readiness for the exact v3 Pi configuration. Preserve the v2 report as historical evidence and leave `write-skill` readiness unchanged.
 
@@ -233,4 +235,4 @@ Route backward if:
 
 ## Immediate Horizon
 
-Implement Phase 0 and Phase 1 only. They provide cost evidence and prevent known architectural defects before scheduler/resume complexity is introduced. Stop for a design/plan checkpoint after the complete feasibility compiler and compact semantic packet tests pass.
+Implement Phase 0 and Phase 1 only. They provide cost evidence and prevent known architectural defects before scheduler/resume complexity is introduced. After the complete feasibility compiler and compact semantic packet tests pass, run the sequential phase self-check and reassess the plan route without dispatching an independent context merely because the phase ended.

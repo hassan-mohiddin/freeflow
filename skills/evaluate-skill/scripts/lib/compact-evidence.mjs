@@ -49,6 +49,10 @@ function unescapeValue(value) {
   return output;
 }
 
+function codeUnitOrder([left], [right]) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
 function splitRecord(line) {
   const parts = [];
   let part = "";
@@ -124,6 +128,15 @@ function validateRecords(records) {
     } else if (record.type === "O") {
       requireField(record, "kind");
       requireField(record, "reason");
+      const omittedBytes = Number(requireField(record, "omittedBytes"));
+      if (!Number.isSafeInteger(omittedBytes) || omittedBytes < 1) throw new Error("O record omittedBytes must be a positive integer");
+      const sourceId = requireField(record, "source");
+      requireField(record, "span");
+      if (!OPERATION.test(requireField(record, "op"))) throw new Error("O record op must include an operation SHA-256 identity");
+      const omissionRecovery = recovery(requireField(record, "recovery"), "O record");
+      const source = sources.get(sourceId);
+      if (!source) throw new Error(`O record references unknown source: ${sourceId}`);
+      if (omissionRecovery > recovery(String(source.fields.recovery), "S record")) throw new Error("Omission recoverability cannot exceed source recoverability");
     } else if (record.type === "R") {
       requireField(record, "bundle");
       if (!HASH.test(requireField(record, "canonicalSha256"))) throw new Error("R record requires canonicalSha256");
@@ -138,7 +151,7 @@ export function encodeCev1(records) {
   const lines = records.map((record) => {
     const prefix = record.type === "H" ? ["H", "CEV1"] : [record.type];
     const fields = Object.entries(record.fields ?? {})
-      .sort(([left], [right]) => left.localeCompare(right))
+      .sort(codeUnitOrder)
       .map(([key, value]) => `${key}=${escapeValue(scalar(value, `${record.type}.${key}`))}`);
     return [...prefix, ...fields].join("|");
   });
@@ -147,6 +160,10 @@ export function encodeCev1(records) {
 
 export function decodeCev1(text) {
   if (typeof text !== "string" || !text.endsWith("\n")) throw new Error("CEV1 must end with a newline");
+  for (const character of text) {
+    const code = character.codePointAt(0);
+    if ((code < 0x20 && character !== "\n") || code === 0x7f) throw new Error("CEV1 contains an unescaped control byte");
+  }
   const records = text.slice(0, -1).split("\n").map((line) => {
     const parts = splitRecord(line);
     const type = parts.shift();
@@ -171,8 +188,10 @@ export function renderCompactEvidence({ canonical, records }) {
   const canonicalSha256 = sha256(canonicalText);
   const canonicalBytes = Buffer.byteLength(canonicalText);
   let compactText;
+  let sourceOmitted = 0;
   try {
     compactText = encodeCev1(records);
+    sourceOmitted = records.filter((record) => record.type === "O").reduce((sum, record) => sum + Number(record.fields.omittedBytes), 0);
     const recoveryRecord = records.at(-1);
     if (String(recoveryRecord.fields.canonicalSha256) !== canonicalSha256) throw new Error("R canonicalSha256 does not match canonical evidence");
   } catch (error) {
@@ -181,7 +200,7 @@ export function renderCompactEvidence({ canonical, records }) {
       content: canonicalText,
       reason: "lineage-invalid",
       lineage_error: error instanceof Error ? error.message : String(error),
-      bytes: { canonical: canonicalBytes, compact: null, omitted: 0 },
+      bytes: { canonical: canonicalBytes, compact: null, savings: 0, source_omitted: 0 },
       recovery: { class: "exact", canonical_sha256: canonicalSha256 },
     };
   }
@@ -191,7 +210,7 @@ export function renderCompactEvidence({ canonical, records }) {
       format: "canonical-json",
       content: canonicalText,
       reason: "compact-not-smaller",
-      bytes: { canonical: canonicalBytes, compact: compactBytes, omitted: 0 },
+      bytes: { canonical: canonicalBytes, compact: compactBytes, savings: 0, source_omitted: sourceOmitted },
       recovery: { class: "exact", canonical_sha256: canonicalSha256 },
     };
   }
@@ -199,7 +218,7 @@ export function renderCompactEvidence({ canonical, records }) {
     format: "cev1",
     content: compactText,
     reason: "compact-smaller",
-    bytes: { canonical: canonicalBytes, compact: compactBytes, omitted: canonicalBytes - compactBytes },
+    bytes: { canonical: canonicalBytes, compact: compactBytes, savings: canonicalBytes - compactBytes, source_omitted: sourceOmitted },
     recovery: { class: "exact", canonical_sha256: canonicalSha256 },
   };
 }
