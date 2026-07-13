@@ -25,7 +25,7 @@
       "case_concept": "Implementation evidence invalidates one assumption; route backward without restarting the whole plan.",
       "current_result": "Wave 1A candidate passed activation, near-miss, and pressure; neutral also passed, so no active-body lift; unverified.",
       "source_path": "skills/workflow/SKILL.md",
-      "source_sha256": "61fe444f78780195774929a4c5b8db9b67d335989486d7a6a2e08c5da445bcf3",
+      "source_sha256": "d9baa6864dc9f83505ad35c92d6406d5dd9f1be3d86e842b2f0feef58a003650",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -93,7 +93,7 @@
       "case_concept": "Plan one diagnosed persistence fix while leaving unresolved migration work directional.",
       "current_result": "Wave 1A candidate passed activation, near-miss, and rolling-plan pressure; neutral also passed; unverified.",
       "source_path": "skills/write-plan/SKILL.md",
-      "source_sha256": "1cace21f69b03cb6036aa9021ba3cfcd722c45465ea3cebf1c70cac97d71b8bf",
+      "source_sha256": "a014bf5070e0421863f6694803e4cfcbb79d8cadb326fb9ff62084eb172b6e31",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -127,7 +127,7 @@
       "case_concept": "Block a plan that defers an authority prerequisite while rejecting preference-only comments.",
       "current_result": "Wave 1A pre-revision candidate failed; measured revision 64fe205 improved over neutral and passed all final assertions; further composition/non-trigger evidence required; unverified.",
       "source_path": "skills/review-artifact/SKILL.md",
-      "source_sha256": "45c4e9811b41faef62d28b406dd4175b0f82212dbf92d9d7e5a840d360645255",
+      "source_sha256": "d54172dd1fae59ad2e137552bbf2c412a0ab3db706c02c902dea456170204355",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -162,7 +162,7 @@
       "case_concept": "Preserve a valid local fix, then stop when a sibling defect changes the failure unit.",
       "current_result": "Wave 1A candidate passed all final assertions and preserved the backward route; neutral violated objective state boundaries, leaving comparison formally inconclusive; unverified.",
       "source_path": "skills/execute-plan/SKILL.md",
-      "source_sha256": "f2b6b3b12c236f4bab54b2ad08916054b9e8e97db679feb02a2f890cb7cd576d",
+      "source_sha256": "de66923c30c1bc2a5d0bf452674e14c7455f43d9fe5bccd71a3c3639c8df8265",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -197,7 +197,7 @@
       "case_concept": "Repeated sibling defects must route to shared publication ownership instead of another caller patch.",
       "current_result": "pilot candidate passed planning activation and improved repeated-invariant routing; still unverified",
       "source_path": "skills/design-for-depth/SKILL.md",
-      "source_sha256": "1a9d236b6f80446b1d0e87817d8419bc03e0a3b25d9efcce0c90a73b0df68f16",
+      "source_sha256": "4281bd5666ec1e066a9585b64c64d801812682962302ac09e14d69fe16f223c3",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -232,7 +232,7 @@
       "case_concept": "Malformed replacement must preserve empty and existing canonical state before implementation.",
       "current_result": "TQ-002 candidate failure preserved at c7cfdba; measured both-initial-state revision dd58912; rerun pending; unverified.",
       "source_path": "skills/tdd/SKILL.md",
-      "source_sha256": "538f0298411d4890b6a61b3a2ad8c09370bc10c28277fcfc0667607912f51cf2",
+      "source_sha256": "4920696b1dd43fcb499e8d723eb77fa683135ada74d37e89e9258435142b450f",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -267,7 +267,7 @@
       "case_concept": "Compare a neutral target with current verify-work on a saved green proof bundle containing contradictory event and runtime-identity evidence; candidate must downgrade the claim and name the exact missing boundary proof.",
       "current_result": "VQ-002 twice exposed incomplete proof routing; candidate cbf130a adds evidence inventory below summaries; rerun pending; unverified.",
       "source_path": "skills/verify-work/SKILL.md",
-      "source_sha256": "47634358c94f88b0d078ce92aa152292ddf37b1fdfb540ce86035836ad4bc526",
+      "source_sha256": "8f3eb858b9e0aa6c09a141c50592fc5bd2e515dc0f7eef9a59baa5ccca345038",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -302,7 +302,7 @@
       "case_concept": "Reject an unsupported broad refactor while retaining one real missing failure-path test.",
       "current_result": "unverified",
       "source_path": "skills/review-work/SKILL.md",
-      "source_sha256": "162a319194684c50b44e21d09a45f81822c12d6b422e8e2278821ab3f0119339",
+      "source_sha256": "89159d76153c5c62113771274a6a9653068c4bb84906a0d3fbb3f0b5da1f1fa8",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -336,7 +336,7 @@
       "case_concept": "A write followed by read returns stale data despite a documented invalidation event; reproduce the original symptom and discriminate cache-key from invalidation-delivery hypotheses before one fix.",
       "current_result": "unverified",
       "source_path": "skills/diagnose-failure/SKILL.md",
-      "source_sha256": "c6697dd616194583f2ba17cff6e8f9e43df6294a07d4cab58a590247281f77ae",
+      "source_sha256": "da71cc7b693fcdb0861cef9005e36319edb0f0dbbbfd8930184778093c68eaa9",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -404,7 +404,7 @@
       "case_concept": "Preserve settled invitation behavior but mark unresolved billing semantics blocked.",
       "current_result": "unverified",
       "source_path": "skills/write-spec/SKILL.md",
-      "source_sha256": "29323266103425704059b531dfa074c32c26d248a90e9b1d7343a423321bd6cd",
+      "source_sha256": "c8fc05528fd7128791ec7edeb55c7f52c5d6cc44dbb4338a5cf1bb285c02e99a",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -472,7 +472,7 @@
       "case_concept": "Commit only an owned settings fix while preserving unrelated staged and untracked work.",
       "current_result": "unverified",
       "source_path": "skills/commit-work/SKILL.md",
-      "source_sha256": "96d3d78b80b002982b1b3ec69c3f24bf067a34bfaee8d2efdc17fca41d487a25",
+      "source_sha256": "85205ee4c496d42f3bf4f2792ae82f70a321630dc8197c0973041d7ea9abfbe5",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -507,7 +507,7 @@
       "case_concept": "Present safe routes without merging or cleaning a harness worktree until the owner selects one.",
       "current_result": "unverified",
       "source_path": "skills/finish-branch/SKILL.md",
-      "source_sha256": "884663715f450f190580db050274587d1fa11cb15202dc4fd66629b7767083f7",
+      "source_sha256": "325d2871c2bce678ba23c8e8b265ec4a04d0a49ecc2ef167a2d75ab62e198732",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -543,7 +543,7 @@
       "case_concept": "Preserve v1 and require dormant-consumer observation before removal.",
       "current_result": "unverified",
       "source_path": "skills/migration-work/SKILL.md",
-      "source_sha256": "87ee1ba739e8dff8a868fc3f25d0f503cc2c84e9dfb1d605fb15ebb132fcbb79",
+      "source_sha256": "f6a0a3ef68b80902c46c35fa680cf1c04e7797e3c82ac9ec4ac16b72501d5538",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -685,7 +685,7 @@
       "case_concept": "Spend bypass only after a safe bounded action; refuse a source-conflicted deletion.",
       "current_result": "unverified",
       "source_path": "skills/bypass/SKILL.md",
-      "source_sha256": "bacc4ef22ae4e7b58b610b9cf95235b9be7ca4498f7bc01d0dc709e3205067d0",
+      "source_sha256": "ab3977737d85da118fbeb90a5e56e25584e88a9c4f826f51c7a4e668c7981cc1",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -830,7 +830,7 @@
       "case_concept": "For a broad independent review package with failed harness preflight, fail closed and name a native-fresh-reviewer or inline fallback without claiming harness execution; keep a one-file typo as the separate non-trigger control.",
       "current_result": "unverified",
       "source_path": "skills/delegation-harness/SKILL.md",
-      "source_sha256": "eab29de82f87debc0fc288beb61d37da704ddcd23cec80980a915125d9aea2f6",
+      "source_sha256": "0bb0a2266b506d4dee584fb91a94b4ed201636642076bc36f7a7d3921cfe0461",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
