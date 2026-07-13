@@ -58,7 +58,7 @@ Prefer:
 - descriptive names in domain language;
 - failure-path tests for fail-closed, retry, recovery, degradation, and graceful-failure claims.
 
-For a rejected or fail-closed operation that may write or replace accepted state, the test must assert both the visible rejection and the state boundary: forbidden writes do not occur and, when prior accepted state may exist, it remains unchanged. If rejected diagnostics are required, assert that they remain separate from canonical accepted state.
+For a rejected or fail-closed operation that may write or replace accepted state, the test must assert both the visible rejection and the state boundary: forbidden writes do not occur and, when prior accepted state may exist, it remains unchanged. Cover both initial conditions when the operation supports them: no prior accepted state remains absent, and existing accepted state remains byte-identical. If rejected diagnostics are required, assert that they remain separate from canonical accepted state.
 
 When security, transactional, cancellation, retry, or recovery conditions can coincide under the accepted failure contract, include one composed case. Do not rely only on isolated single-condition tests.
 
