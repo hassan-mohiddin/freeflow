@@ -25,7 +25,7 @@ Give the reviewer the work product and source truth, not only the author's summa
 - claimed verification and known gaps;
 - risk lenses that matter for this change.
 
-When state transitions or proof validity materially affect correctness, include a compact claim map: claim, exact observing mechanism, canonical state, forbidden mutations, prior-state preservation, adversarial disproof, mutation footprint, and known fidelity limit. Use `../verify-work/SKILL.md` to prepare integration evidence when registration, host dispatch, producer execution, fallback, installed artifacts, counters, or shared verification state matter.
+When state transitions or proof validity materially affect correctness, name the canonical invariant owner and every known entrypoint, caller, or adapter that can affect it. Include a compact claim map: claim, exact observing mechanism, canonical state, forbidden mutations, prior-state preservation, adversarial disproof, mutation footprint, and known fidelity limit. Use `../verify-work/SKILL.md` to prepare integration evidence when registration, host dispatch, producer execution, fallback, installed artifacts, counters, or shared verification state matter.
 
 Read [the reviewer prompt](references/reviewer-prompt.md) when preparing review context, reviewing strict or high-risk work, or running review pass 2 or 3.
 

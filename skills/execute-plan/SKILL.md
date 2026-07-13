@@ -100,6 +100,12 @@ Route backward when:
 
 Preserve verified work and identify only the affected decisions, spec sections, phases, and slices. Do not restart from zero or patch forward because work has already begun.
 
+## Review Readiness
+
+Before requesting formal review of architecture-bearing, security-sensitive, state-transition, or proof-bearing work, perform one bounded author-side readiness check. Use [review readiness](references/execution-map.md#review-readiness) to identify the owning invariant and failure unit, known entrypoints or adapters, forbidden effects and prior-state preservation, and each load-bearing claim's direct evidence and adversarial disproof.
+
+If the check exposes an unresolved gap, re-enter design, TDD, diagnosis, planning, or verification instead of asking review to complete that work. Keep the check internal unless it changes the route. It does not count as independent review or replace verification.
+
 ## Formal Checkpoints
 
 Use formal checkpoints when they can change or preserve the route:

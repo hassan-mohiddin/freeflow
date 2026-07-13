@@ -57,7 +57,7 @@ Likely module / interface / write set:
 Semantic failure unit and authoritative state when relevant:
 Behavior, experiment, test, or benchmark:
 Failure contract when relevant:
-Verification:
+Verification and direct evidence producer or acquisition slice:
 Dependencies:
 Stop conditions:
 ```
@@ -70,7 +70,7 @@ A slice is a proof-bearing unit, not a file list. It should be independently und
 Question:
 Competing hypotheses or designs:
 Prototype / benchmark boundary:
-Evidence to capture:
+Evidence to capture and available producer or acquisition path:
 Time, request, or cost boundary:
 Discard-or-promote rule:
 Backward checkpoint:

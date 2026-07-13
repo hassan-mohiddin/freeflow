@@ -55,6 +55,8 @@ For each non-trivial slice, name only what execution needs: outcome, owning requ
 
 Do not require exact files or code before repository evidence supports them. Do not duplicate the implementation inside the plan. Read [plan shapes](references/plan-shapes.md) when a saved artifact needs the full slice shape.
 
+For the current executable horizon, every load-bearing acceptance or promotion condition must name an available mechanism that can directly support or falsify it at the required evidence boundary, or an earlier evidence-acquisition learning slice. “Where practical,” “if possible,” or equivalent language cannot support required promotion evidence; make it an open learning question or mark the horizon not ready.
+
 When TDD applies, identify the intended observable seam and first behavior; execution uses `../tdd/SKILL.md` for the method. Use `../migration-work/SKILL.md` for consumer/data cutovers and `../launch-work/SKILL.md` for production rollout contracts rather than embedding those lifecycles as generic task lists.
 
 ## Backward Checkpoints

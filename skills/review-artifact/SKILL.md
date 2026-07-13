@@ -55,6 +55,7 @@ Live repo evidence overrides stale artifacts.
 
 - **Completeness:** enough is present to take the intended next step.
 - **Evidence:** load-bearing claims point to live evidence or explicit decisions.
+- **Evidence feasibility:** each load-bearing acceptance or promotion condition in the immediate horizon has a direct supporting or falsifying mechanism, or an earlier acquisition slice. Qualifiers such as “where practical” do not soften an otherwise required condition; genuinely optional evidence does not become mandatory.
 - **Clarity:** a fresh agent can act without transcript memory.
 - **Consistency:** the artifact agrees with itself and source truth.
 - **Identity:** ownership, status, sources, and change history are proportionate to durability and risk.

@@ -112,6 +112,25 @@ Choose one route:
 - **Decision gate:** owner choice or source/path conflict blocks progress.
 - **Stop/defer:** no safe in-scope continuation.
 
+## Review Readiness
+
+Use this once before formal review when architecture, security, consequential state transitions, or proof validity makes omissions expensive:
+
+```text
+Accepted outcome and source requirement:
+Owning invariant and semantic failure unit:
+Known entrypoints, callers, and adapters that can affect it:
+Forbidden effects and prior accepted-state preservation:
+Load-bearing claim -> direct observer -> adversarial disproof:
+Known evidence or fidelity gaps:
+Unresolved assumptions and owning activity:
+Route: review | design | TDD | diagnose | revise plan/spec | verify | decide | stop
+```
+
+Inspect available source evidence before filling the map. Do not turn unknown facts into confident entries or user questions. Ask only when the unresolved item is user-owned and changes the next safe action.
+
+This is one bounded author-side readiness pass, not recursive self-review, independent judgment, or verification. If a gap changes the route, leave valid work intact and re-enter its owning activity before dispatching review.
+
 ## Dynamic Backward Triggers
 
 Route backward when:

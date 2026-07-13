@@ -44,6 +44,10 @@ _Avoid_: file batch, caller choreography, test count
 The strongest claim directly supported by the observing mechanism. Helper execution, registered entrypoint invocation, native host dispatch, and installed-artifact behavior are different boundaries.
 _Avoid_: integration passed, self-reported proof, assumed execution
 
+**Review Readiness**:
+A bounded author-side check that the failure unit, affected entrypoints, state effects, and claim evidence are complete enough for independent review. It does not count as review or verification.
+_Avoid_: self-approval, review pass zero, recursive reflection
+
 **Rolling Plan**:
 A plan whose current horizon is executable while later phases remain directional and are refined from evidence.
 _Avoid_: frozen task list, roadmap

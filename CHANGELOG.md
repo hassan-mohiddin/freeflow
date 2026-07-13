@@ -17,6 +17,7 @@
 - Adds configuration-bound Production-Ready evaluator composition for Pi with explicit multi-skill stacks, exact kernel/Workflow delivery, per-component identities, and bounded one-shot or two-to-four-turn cases.
 - Treats repeated same-invariant defects, widening fixes, and weak evidence as route-changing signals; strengthens failure-unit design, rejected-state TDD, integration-proof fidelity, slice ordering, and follow-up review routing from observed Output Router and Delegation incidents.
 - Aligns effective-mode authority, bypass lifetime, lifecycle identities, artifact metadata, handoff classification, reviewer proof context, failure-unit activation, capability-config ownership, and bundled skill-tool path guidance across the current skill pack.
+- Adds a bounded silent pre-action check, current-horizon evidence-producer gate, author-side review-readiness pass, shared-invariant review context, and artifact evidence-feasibility lens without replacing verification or independent review.
 
 ## 0.3.0 - 2026-06-28
 

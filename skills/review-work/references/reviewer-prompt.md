@@ -12,7 +12,7 @@ Provide:
 - claimed verification and known evidence gaps;
 - relevant risk lenses;
 - review pass number;
-- when state transitions or proof validity materially affect correctness: each claim's exact observer, canonical state, forbidden mutations, prior-state preservation, adversarial disproof, mutation footprint, and fidelity limit.
+- when state transitions or proof validity materially affect correctness: the canonical invariant owner; every known entrypoint, caller, or adapter that can affect it; and each claim's exact observer, canonical state, forbidden mutations, prior-state preservation, adversarial disproof, mutation footprint, and fidelity limit.
 
 For pass 2 or 3, also provide:
 
@@ -47,7 +47,7 @@ Review the completed work. Do not edit files.
 
 - [commands or checks already run]
 - [known gaps]
-- [when state transitions or proof validity materially affect correctness: exact observer, canonical state, forbidden mutations, prior-state preservation, adversarial disproof, mutation footprint, and fidelity limit]
+- [when state transitions or proof validity materially affect correctness: canonical invariant owner; known entrypoints/callers/adapters; exact observer, canonical state, forbidden mutations, prior-state preservation, adversarial disproof, mutation footprint, and fidelity limit]
 
 ## Review Pass
 
@@ -70,6 +70,7 @@ For pass 2 or 3:
 - Complexity and abstractions are justified by the accepted outcome or an observed failure.
 - Tests protect intended behavior rather than machinery introduced by the implementation.
 - Individually valid slices have not accumulated scope drift, caller coordination, or a shallow interface.
+- Shared invariants have one named owner and every known entrypoint, caller, or adapter that can affect them is covered by implementation and evidence.
 - Remaining work is shrinking and the claimed next route still fits the evidence.
 - For security-sensitive work, use `security-risk-lens.md` and applicable repo/domain policy rather than a generic checklist.
 
