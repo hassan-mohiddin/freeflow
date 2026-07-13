@@ -1,6 +1,6 @@
 ---
 name: review-artifact
-description: "Use after writing/revising and self-verifying an artifact when richer guidance would improve self-review, or for the standing independent spec/plan review, another authorized formal/fresh/second-opinion artifact review, `/review-artifact`, finding adjudication, or narrow confirmation. Reading it does not imply independence; `/review-artifact` defaults to formal review unless the user explicitly requests inline self-review."
+description: "Use after writing/revising and self-verifying an artifact when richer guidance would improve self-review, when a consequential artifact is replaced wholesale and prior review no longer applies, or for the standing independent spec/plan review, another authorized formal/fresh/second-opinion artifact review, `/review-artifact`, finding adjudication, or narrow confirmation. Reading it does not imply independence; `/review-artifact` defaults to formal review unless the user explicitly requests inline self-review."
 ---
 
 # Review Artifact
@@ -18,6 +18,8 @@ This skill provides richer artifact-review method in two modes. Reading it never
 ## Formal Independent Mode
 
 The artifact-review route chosen by `write-spec` is standing-authorized and needs no reconfirmation: one combined spec-then-plan review, separate spec and plan reviews for a high-risk spec-first route, or spec-only review. When the task deliverable is only that artifact, its review also satisfies final review.
+
+A wholesale rewrite of a consequential durable artifact invalidates every review of the replaced contents. Treat the current contents as a new artifact state regardless of filename or intended boundary. After its sequential self-check supports the rewrite, run the selected standing artifact-review route before implementation. This is not confirmation of the old artifact. Lightweight or disposable drafts still do not create this checkpoint.
 
 Any artifact review outside the selected route requires Workflow's consequential boundary and scoped user authorization, such as sensitive source truth, promotion into hard-to-reverse architecture, a large consequential plan, an unresolved route, or an explicit request.
 
