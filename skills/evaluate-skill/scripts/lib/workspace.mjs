@@ -157,13 +157,19 @@ function validateFeasibility(feasibility, path) {
   if (feasibility.fixture_oracle !== undefined) {
     const oracle = feasibility.fixture_oracle;
     if (!oracle || typeof oracle !== "object" || Array.isArray(oracle)) throw new Error(`${path}.feasibility.fixture_oracle must be an object`);
-    for (const key of Object.keys(oracle)) if (!["argv", "expected_exit", "stdout_contains"].includes(key)) throw new Error(`${path}.feasibility.fixture_oracle has unknown field: ${key}`);
-    stringArray(oracle.argv, `${path}.feasibility.fixture_oracle.argv`);
-    if (oracle.argv[0] !== "node") throw new Error(`${path}.feasibility.fixture_oracle executable must be node`);
-    if (oracle.argv.length < 2) throw new Error(`${path}.feasibility.fixture_oracle requires a script path`);
-    resolveInside("/fixture", oracle.argv[1], `${path}.feasibility.fixture_oracle script`);
-    if (!Number.isInteger(oracle.expected_exit)) throw new Error(`${path}.feasibility.fixture_oracle.expected_exit must be an integer`);
-    if (oracle.stdout_contains !== undefined) stringArray(oracle.stdout_contains, `${path}.feasibility.fixture_oracle.stdout_contains`);
+    for (const key of Object.keys(oracle)) if (key !== "checks") throw new Error(`${path}.feasibility.fixture_oracle has unknown field: ${key}`);
+    if (!Array.isArray(oracle.checks) || oracle.checks.length === 0) throw new Error(`${path}.feasibility.fixture_oracle.checks must be a non-empty array`);
+    for (const [index, check] of oracle.checks.entries()) {
+      const label = `${path}.feasibility.fixture_oracle.checks[${index}]`;
+      if (!check || typeof check !== "object" || Array.isArray(check)) throw new Error(`${label} must be an object`);
+      for (const key of Object.keys(check)) if (!["path", "contains", "not_contains", "sha256"].includes(key)) throw new Error(`${label} has unknown field: ${key}`);
+      requireString(check.path, `${label}.path`);
+      resolveInside("/fixture", check.path, `${label}.path`);
+      if (check.contains !== undefined) stringArray(check.contains, `${label}.contains`);
+      if (check.not_contains !== undefined) stringArray(check.not_contains, `${label}.not_contains`);
+      if (check.sha256 !== undefined && !/^[a-f0-9]{64}$/.test(check.sha256)) throw new Error(`${label}.sha256 must be a lowercase SHA-256`);
+      if (check.contains === undefined && check.not_contains === undefined && check.sha256 === undefined) throw new Error(`${label} requires contains, not_contains, or sha256`);
+    }
   }
 }
 

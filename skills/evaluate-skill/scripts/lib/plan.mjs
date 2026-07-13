@@ -8,7 +8,7 @@ import { DEFAULT_OUTPUT_LIMIT_BYTES } from "./constants.mjs";
 import { declaredResourceIdentity, gitResourceIdentity, hashDirectory, hashFile, sha256, stableJson } from "./hash.mjs";
 import { compileCaseFeasibility, renderFeasibilityRows } from "./feasibility.mjs";
 import { createManifest } from "./materialize.mjs";
-import { runFixtureOracle } from "./fixture-oracle.mjs";
+import { inspectFixtureOracle } from "./fixture-oracle.mjs";
 import { assertNoSymlinkTree, isWithin } from "./path-policy.mjs";
 import { resolveInside } from "./workspace.mjs";
 
@@ -323,7 +323,7 @@ export async function buildEvaluationPlan(workspace, options, dependencies = {})
         throw error;
       }
     },
-    runOracle: async (declaration) => runFixtureOracle(fixturePath, declaration),
+    runOracle: async (declaration) => inspectFixtureOracle(fixturePath, declaration),
   });
   if (feasibility.blocking) {
     const blockedReasons = feasibility.findings.map((item) => item.id);

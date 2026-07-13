@@ -22,7 +22,8 @@ test("semantic prompt uses opaque identity and fixed criteria", async (t) => {
   assert.equal(built.prompt.includes('"variant"'), false);
   assert.equal(built.prompt.includes("candidate"), false);
   assert.equal(built.prompt.includes(run), false);
-  assert.equal(built.prompt.includes('"id": "path"'), false);
+  assert.equal(built.prompt.includes('"id": "path"'), true);
+  assert.deepEqual(built.evidence.objective_assertions, [{ id: "path", type: "path_exists", state: "pass" }]);
   assert.equal(built.modelEvidence.rendered.format, "canonical-json");
   assert.match(built.prompt, /canonical JSON/);
   assert.equal(built.modelEvidence.rendered.reason, "compact-not-smaller");
@@ -47,7 +48,7 @@ test("semantic packet records upstream byte caps as explicit omissions", async (
     const [reason, span, omittedBytes] = item.split(",");
     return { reason, span, omittedBytes: Number(omittedBytes) };
   });
-  assert.equal(details.some((item) => item.reason === "upstream-byte-cap" && item.omittedBytes === 1000), true);
+  assert.equal(details.some((item) => item.reason === "UC" && item.omittedBytes === 1000), true);
 });
 
 test("multi-turn semantic packet exposes only one shared declared turn scope", async (t) => {
@@ -82,6 +83,25 @@ test("multi-turn semantic packet exposes only one shared declared turn scope", a
   assert.equal(built.prompt.includes("candidate"), false);
   assert.match(built.prompt, /first answer/);
   assert.match(built.prompt, /third answer/);
+});
+
+test("semantic packet represents deleted and file-count-capped changed paths without crashing", async (t) => {
+  const run = await mkdtemp(resolve(tmpdir(), "freeflow-semantic-files-"));
+  t.after(() => rm(run, { recursive: true, force: true }));
+  await mkdir(resolve(run, "inputs"), { recursive: true });
+  await mkdir(resolve(run, "artifacts", "workspace"), { recursive: true });
+  const changedPaths = ["deleted.txt", ...Array.from({ length: 19 }, (_, index) => `kept-${index}.txt`), "after-cap.txt"];
+  await writeFile(resolve(run, "metadata.json"), JSON.stringify({ variant: "subject", changed_paths: changedPaths }));
+  await writeFile(resolve(run, "inputs", "case.json"), JSON.stringify({ prompt: "Inspect all changed paths.", assertions: [{ id: "quality", type: "semantic", rubric: "Account for all changed paths." }] }));
+  await writeFile(resolve(run, "objective-grade.json"), JSON.stringify({ objective_pass: true, assertions: [] }));
+  await writeFile(resolve(run, "final.md"), "done");
+  for (const path of changedPaths.slice(1, 20)) await writeFile(resolve(run, "artifacts", "workspace", path), path);
+  await writeFile(resolve(run, "diff"), `diff --git a/deleted.txt b/deleted.txt\n@@ -1 +0,0 @@\n-old\ndiff --git a/after-cap.txt b/after-cap.txt\n@@ -0,0 +1 @@\n+new\n`);
+  const built = await buildSemanticPrompt(run);
+  assert.deepEqual(built.evidence.changed_file_contents[0], { path: "deleted.txt", status: "deleted", content: null });
+  assert.deepEqual(built.evidence.changed_file_unavailable, [{ path: "after-cap.txt", reason: "file-count-cap" }]);
+  assert.match(built.modelEvidence.rendered.content, /after-cap\.txt/);
+  assert.match(built.modelEvidence.rendered.content, /\+new/);
 });
 
 test("semantic evidence reads reject changed-path traversal", async (t) => {

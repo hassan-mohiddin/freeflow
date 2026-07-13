@@ -36,12 +36,13 @@ test("semantic reducer preserves every fixed criterion and selected turn in comp
     const decoded = decodeCev1(reduced.rendered.content);
     const facts = decoded.filter((record) => record.type === "F");
     for (const criterion of source.evidence.criteria) {
-      assert.equal(facts.some((fact) => fact.fields.name === `criterion.${criterion.id}` && fact.fields.value.includes(criterion.rubric)), true, `${name}:${criterion.id}`);
+      assert.equal(facts.some((fact) => fact.fields.name === `c.${criterion.id}` && fact.fields.value.includes(criterion.rubric)), true, `${name}:${criterion.id}`);
     }
     for (const turn of source.evidence.turns ?? []) {
-      const fact = facts.find((item) => item.fields.name === "turns");
+      const fact = facts.find((item) => item.fields.name === "t");
       assert.ok(fact, `${name}:${turn.id}`);
       assert.match(fact.fields.value, new RegExp(turn.id));
+      assert.equal(fact.fields.value.includes(turn.natural_prompt), true, `${name}:${turn.id}:natural-prompt`);
       assert.equal(fact.fields.value.includes(turn.final_response.slice(0, 50)), true, `${name}:${turn.id}:response-head`);
       assert.equal(reduced.parity.response_sha256[turn.id].length, 64);
     }
@@ -69,14 +70,24 @@ test("semantic reducer emits typed exact-lineage omissions and separates savings
   const omissions = decoded.filter((record) => record.type === "O");
   assert.equal(omissions.length, 1);
   const details = omissionDetails(omissions[0]);
-  assert.equal(details.some((item) => item.reason === "natural-prompt-not-required"), true);
-  assert.equal(details.some((item) => item.reason === "bounded-response-excerpt"), true);
-  assert.equal(details.some((item) => item.reason === "unmodified-diff-context-and-transport-headers"), true);
-  assert.equal(details.every((item) => item.span.startsWith("json:/") && item.omittedBytes > 0), true);
-  assert.equal(omissions[0].fields.source, "packet");
+  assert.equal(details.some((item) => item.reason === "BR"), true);
+  assert.equal(details.some((item) => item.reason === "DC"), true);
+  assert.equal(details.every((item) => item.span.startsWith("/") && item.omittedBytes > 0), true);
+  assert.equal(omissions[0].fields.source, "p");
   assert.equal(omissions[0].fields.recovery, "exact-source");
   assert.equal(reduced.rendered.bytes.savings > 0, true);
   assert.equal(reduced.rendered.bytes.source_omitted, Number(omissions[0].fields.omittedBytes));
+});
+
+test("semantic reducer preserves deterministic objective assertion facts", async () => {
+  const source = await packet("wfi-003-reference");
+  source.evidence.objective_assertions = [{ id: "path", type: "changed_paths", state: "pass", evidence: { expected: ["a"], actual: ["a"] } }];
+  const reduced = reduceSemanticPacket(source);
+  const fact = decodeCev1(reduced.rendered.content).find((record) => record.type === "F" && record.fields.name === "o.path");
+  assert.ok(fact);
+  assert.match(fact.fields.value, /changed_paths/);
+  assert.match(fact.fields.value, /\"state\":\"pass\"/);
+  assert.match(fact.fields.value, /\"actual\":\[\"a\"\]/);
 });
 
 test("semantic reducer rejects selected-turn mismatch before rendering", async () => {
@@ -111,5 +122,5 @@ test("no-file diff truncation emits a bounded-diff omission", () => {
   const reduced = reduceSemanticPacket(packet);
   const omission = decodeCev1(reduced.rendered.content).find((record) => record.type === "O");
   const details = omissionDetails(omission);
-  assert.equal(details.some((item) => item.reason === "bounded-diff-excerpt" && item.omittedBytes > 0), true);
+  assert.equal(details.some((item) => item.reason === "BD" && item.omittedBytes > 0), true);
 });

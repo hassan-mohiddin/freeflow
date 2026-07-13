@@ -29,6 +29,13 @@ export async function compileCaseFeasibility(evalCase, context) {
   if (unnamedEvidence.length > 0 && !tools.has("ls") && !tools.has("find")) {
     findings.push(finding("FEAS-EVIDENCE-DISCOVERY", "case.feasibility.required_evidence_paths", { unnamed_paths: unnamedEvidence, tools: [...tools] }, "Required evidence is unnamed and the subject cannot list fixture contents."));
   }
+  const requiredReads = [...new Set([
+    ...(declaration.required_evidence_paths ?? []),
+    ...(declaration.literal_requirements ?? []).map((item) => item.source?.startsWith("fixture:") ? item.source.slice("fixture:".length) : null).filter(Boolean),
+  ])].sort();
+  if (context.modelDriven !== false && requiredReads.length > 0 && !tools.has("read")) {
+    findings.push(finding("FEAS-EVIDENCE-READ", "case.execution.tools", { required_paths: requiredReads, tools: [...tools] }, "Declared fixture evidence exists but the subject has no read tool."));
+  }
 
   for (let index = 0; index < (declaration.literal_requirements ?? []).length; index += 1) {
     const requirement = declaration.literal_requirements[index];
@@ -80,9 +87,8 @@ export async function compileCaseFeasibility(evalCase, context) {
 
   if (declaration.fixture_oracle) {
     const outcome = context.runOracle ? await context.runOracle(declaration.fixture_oracle) : null;
-    const expectedText = declaration.fixture_oracle.stdout_contains ?? [];
-    if (!outcome || outcome.timed_out || outcome.exit_code !== declaration.fixture_oracle.expected_exit || expectedText.some((text) => !outcome.stdout.includes(text))) {
-      findings.push(finding("FEAS-FIXTURE-ORACLE", "case.feasibility.fixture_oracle", { expected: { exit_code: declaration.fixture_oracle.expected_exit, stdout_contains: expectedText }, observed: outcome ? { exit_code: outcome.exit_code, signal: outcome.signal, timed_out: outcome.timed_out, stdout_sha256: sha256(outcome.stdout ?? ""), stdout_bytes: Buffer.byteLength(outcome.stdout ?? ""), stderr_sha256: sha256(outcome.stderr ?? ""), stderr_bytes: Buffer.byteLength(outcome.stderr ?? "") } : null }, "The provider-free fixture oracle does not reproduce the declared pressure."));
+    if (!outcome?.passed) {
+      findings.push(finding("FEAS-FIXTURE-ORACLE", "case.feasibility.fixture_oracle", { checks: declaration.fixture_oracle.checks, observed: outcome ?? null }, "The declarative fixture oracle does not establish the declared pressure."));
     }
   }
 

@@ -32,12 +32,13 @@ test("case schema validates bounded hybrid feasibility declarations", async () =
       literal_requirements: [{ value: "failed", source: "fixture:reports/review-pr-failure.md", equivalence_class: "failure-status" }],
       accepted_equivalences: ["failure-status"],
       expected_tool_round_trips: 2,
-      fixture_oracle: { argv: ["node", "oracle.mjs"], expected_exit: 0, stdout_contains: ["PRESSURE_OK"] },
+      fixture_oracle: { checks: [{ path: "reports/review-pr-failure.md", contains: ["failed"] }] },
     },
   };
   assert.equal(validateCase(valid).feasibility.expected_tool_round_trips, 2);
   assert.throws(() => validateCase({ ...valid, feasibility: { unknown: true } }), /unknown field/i);
-  assert.throws(() => validateCase({ ...valid, feasibility: { fixture_oracle: { argv: ["bash", "x"], expected_exit: 0 } } }), /executable must be node/i);
+  assert.throws(() => validateCase({ ...valid, feasibility: { fixture_oracle: { argv: ["node", "oracle.mjs"], expected_exit: 0 } } }), /unknown field/i);
+  assert.throws(() => validateCase({ ...valid, feasibility: { fixture_oracle: { checks: [{ path: "../escape", contains: ["x"] }] } } }), /escapes its owned root/i);
 });
 
 test("natural prompts do not embed semantic rubrics", async () => {

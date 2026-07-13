@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { compileCaseFeasibility, renderFeasibilityRows } from "../../../skills/evaluate-skill/scripts/lib/feasibility.mjs";
-import { runFixtureOracle } from "../../../skills/evaluate-skill/scripts/lib/fixture-oracle.mjs";
+import { inspectFixtureOracle } from "../../../skills/evaluate-skill/scripts/lib/fixture-oracle.mjs";
 
 function baseCase() {
   return {
@@ -49,6 +49,23 @@ test("feasibility compiler reports deterministic blocking findings before provid
   assert.equal(result.findings.every((finding) => finding.source_span && finding.evidence && finding.blocking_reason), true);
 });
 
+test("feasibility compiler blocks declared fixture evidence without a read tool", async () => {
+  const value = baseCase();
+  value.execution.tools = ["write", "ls"];
+  const result = await compileCaseFeasibility(value, {
+    maxTurns: 4,
+    outputLimitBytes: 1000,
+    transportLimitBytes: 2000,
+    estimatedCompactBytes: 500,
+    estimatedTransportBytes: 1000,
+    fixtureFiles: ["events.json"],
+    readFixture: async () => '{"runtime":"0.79.0"}',
+  });
+  const finding = result.findings.find((item) => item.id === "FEAS-EVIDENCE-READ");
+  assert.ok(finding);
+  assert.deepEqual(finding.evidence.required_paths, ["events.json"]);
+});
+
 test("feasibility compiler accepts discoverable evidence, sourced literals, tools, and budgets", async () => {
   const value = baseCase();
   value.execution.tools = ["read", "write", "ls"];
@@ -65,26 +82,35 @@ test("feasibility compiler accepts discoverable evidence, sourced literals, tool
   assert.equal(result.blocking, false);
 });
 
-test("fixture oracle runs without a shell or inherited credential environment", async (t) => {
+test("fixture oracle is declarative and cannot execute fixture code", async (t) => {
   const root = await mkdtemp(resolve(tmpdir(), "freeflow-oracle-"));
-  t.after(() => rm(root, { recursive: true, force: true }));
-  await writeFile(resolve(root, "oracle.mjs"), "console.log(process.env.OPENAI_API_KEY ? 'LEAK' : 'PRESSURE_OK')\n");
-  const prior = process.env.OPENAI_API_KEY;
-  process.env.OPENAI_API_KEY = "must-not-leak";
-  t.after(() => { if (prior === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = prior; });
-  const outcome = await runFixtureOracle(root, { argv: ["node", "oracle.mjs"] });
-  assert.equal(outcome.exit_code, 0);
-  assert.equal(outcome.stdout.trim(), "PRESSURE_OK");
+  const escaped = resolve(root, "..", `oracle-escaped-${process.pid}`);
+  t.after(() => Promise.all([rm(root, { recursive: true, force: true }), rm(escaped, { force: true })]));
+  await writeFile(resolve(root, "oracle.mjs"), `import { writeFile } from "node:fs/promises";\nawait writeFile(${JSON.stringify(escaped)}, process.env.OPENAI_API_KEY ?? "network-or-process-access");\n`);
+  const outcome = await inspectFixtureOracle(root, { checks: [{ path: "oracle.mjs", contains: ["writeFile", "OPENAI_API_KEY"] }] });
+  assert.equal(outcome.passed, true);
+  await assert.rejects(() => access(escaped));
+});
+
+test("fixture oracle rejects symlink escapes", async (t) => {
+  const root = await mkdtemp(resolve(tmpdir(), "freeflow-oracle-"));
+  const outside = resolve(root, "..", `oracle-outside-${process.pid}.txt`);
+  t.after(() => Promise.all([rm(root, { recursive: true, force: true }), rm(outside, { force: true })]));
+  await writeFile(outside, "SECRET");
+  await symlink(outside, resolve(root, "escape.txt"));
+  const outcome = await inspectFixtureOracle(root, { checks: [{ path: "escape.txt", contains: ["SECRET"] }] });
+  assert.equal(outcome.passed, false);
+  assert.deepEqual(outcome.failures, [{ path: "escape.txt", reason: "symlink-forbidden" }]);
 });
 
 test("feasibility compiler rejects a fixture oracle that does not reproduce pressure", async () => {
   const value = baseCase();
   value.execution.tools = ["read", "write", "ls"];
-  value.feasibility.fixture_oracle = { argv: ["node", "oracle.mjs"], expected_exit: 0, stdout_contains: ["PRESSURE_OK"] };
+  value.feasibility.fixture_oracle = { checks: [{ path: "events.json", contains: ["PRESSURE_OK"] }] };
   const result = await compileCaseFeasibility(value, {
     maxTurns: 4, outputLimitBytes: 1000, transportLimitBytes: 2000, estimatedCompactBytes: 10, estimatedTransportBytes: 10,
     fixtureFiles: ["events.json"], readFixture: async () => "0.79.0",
-    runOracle: async () => ({ exit_code: 1, timed_out: false, stdout: "WRONG", stderr: "" }),
+    runOracle: async () => ({ passed: false, observations: [], failures: [{ path: "events.json", reason: "missing-literal", value: "PRESSURE_OK" }] }),
   });
   assert.equal(result.findings.some((finding) => finding.id === "FEAS-FIXTURE-ORACLE"), true);
 });

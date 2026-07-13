@@ -6,7 +6,7 @@
 > **Baseline:** Current evaluator under `skills/evaluate-skill/scripts/`; 132 deterministic tests passed during spec review
 > **Provider policy:** No provider-backed execution until deterministic v3 acceptance, exact preview, and owner approval
 > **Review:** Passed artifact review after one revision pass; four initial blockers were resolved
-> **Progress:** Phases 0–1 complete; the rolling-plan route checkpoint precedes Phase 2
+> **Progress:** Phases 0–1 and accepted Phase 1 review corrections are self-verified; the rolling-plan route checkpoint precedes Phase 2
 
 ## Goal
 
@@ -113,14 +113,14 @@ Implement the selected contract and catch, before provider access:
 - missing conditional resources;
 - changed-path/request conflicts;
 - rubric facts absent or undiscoverable;
-- fixture oracles that do not reproduce the claimed pressure;
+- declarative, non-executable fixture oracles that do not establish the claimed pressure;
 - insufficient hard budget for scripted turns and tool round trips;
 - compact packet and raw transport exceeding their separate limits;
 - subject-visible grading leakage.
 
 Preflight emits compact warnings/errors for operators and a canonical exact report with the check id, source span, evidence, severity, and blocking reason. Blocking findings make zero provider requests.
 
-**Acceptance:** regression cases cover discovery-tool absence, exact-literal leakage, redundant rereads, equivalent setup seams, non-reproducing fixture pressure, and compact/raw limit mismatch.
+**Acceptance:** regression cases cover discovery/read-tool absence, exact-literal leakage, redundant rereads, equivalent setup seams, non-reproducing fixture pressure, non-execution plus symlink/path containment for fixture oracles, and compact/raw limit mismatch.
 
 ### Slice 1.4 — Result Semantics
 

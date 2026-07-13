@@ -14,6 +14,6 @@
 | Fixture does not reproduce pressure | evaluator case/tool/grader defect class | bounded provider-free oracle mismatch | `FEAS-FIXTURE-ORACLE` |
 | Ordinary work terminated by insufficient limits | preserved incident and qualification diagnostics | scripted turns plus declared tool round trips; separate compact/raw estimates | `FEAS-TURN-BUDGET`, `FEAS-COMPACT-LIMIT`, `FEAS-TRANSPORT-LIMIT` |
 
-Additional regressions cover absent evidence, missing write capability, conflicting changed-path contracts, rubric leakage, declaration schema, oracle environment isolation, and blocking before host capability access.
+Additional regressions cover absent evidence, missing read/write capability, conflicting changed-path contracts, rubric leakage, declaration schema, declarative-oracle non-execution and symlink/path containment, and blocking before host capability access.
 
 These are minimized infrastructure reproductions. They do not claim byte-exact historical incident replay or skill behavior evidence.

@@ -43,13 +43,13 @@ Optional `feasibility` declarations own only:
 - accepted semantic/setup equivalence classes;
 - active-context lifetime where later reread assertions would otherwise be ambiguous;
 - expected tool round trips beyond scripted user turns;
-- a provider-free fixture oracle as an argv array plus exact exit/output expectations.
+- a provider-free declarative fixture oracle with bounded contained-file hash/literal expectations.
 
 Declarations cannot waive derived checks. They remain grader-side and are excluded from subject prompts. Missing declarations block only cases whose rubric requires those non-inferable facts.
 
 ## Failure Contract
 
-The compiler produces canonical exact findings and compact operator rows. Every finding has check id, severity, case-source span, evidence, and blocking reason. A blocking finding stops before capability probes that can reach credentials or providers. Oracle execution uses argv without a shell, the isolated fixture root, bounded time/output, and an explicit executable allowlist.
+The compiler produces canonical exact findings and compact operator rows. Every finding has check id, severity, case-source span, evidence, and blocking reason. A blocking finding stops before capability probes that can reach credentials or providers. Fixture oracles never execute fixture-controlled code. They inspect bounded regular files within the fixture root, reject symlinks and path escapes, and compare only declared hashes or literals.
 
 ## Route
 
