@@ -6,7 +6,7 @@
 > **Baseline:** Current evaluator under `skills/evaluate-skill/scripts/`; 132 deterministic tests passed during spec review
 > **Provider policy:** No provider-backed execution until deterministic v3 acceptance, exact preview, and owner approval
 > **Review:** Passed artifact review after one revision pass; four initial blockers were resolved
-> **Progress:** Phase 0 and Slices 1.1–1.2 complete; Slice 1.3 is the next executable horizon
+> **Progress:** Phase 0, Slices 1.1–1.2, and feasibility learning Slice 1.3a complete; Slice 1.3b is the next executable horizon
 
 ## Goal
 
@@ -89,7 +89,21 @@ Build compact semantic packets from immutable run artifacts. Preserve fixed crit
 
 ### Slice 1.3 — Case Feasibility Compiler
 
-Extend preflight to catch, before provider access:
+#### Slice 1.3a — Feasibility Contract Learning
+
+**Question:** Which checks can be derived safely from the existing case, fixture, tool, assertion, and limit schema, and which require explicit author declarations rather than prompt/rubric heuristics?
+
+Compare:
+
+- heuristic-only inference from natural language;
+- declaration-only feasibility manifests;
+- a hybrid where mechanical checks derive from existing fields and only non-inferable semantics use bounded declarations.
+
+Use preserved campaign defects as the experiment corpus. Reject any design that recreates hidden grading keys, requires duplicating the rubric, or lets optional declarations bypass mechanical checks. Promote only the smallest contract that makes each required check deterministic and emits source spans; otherwise revise this slice before production code.
+
+#### Slice 1.3b — Compiler And Exact Report
+
+Implement the selected contract and catch, before provider access:
 
 - unnamed evidence without discovery tools;
 - requested operations unavailable through tools;
@@ -104,7 +118,7 @@ Extend preflight to catch, before provider access:
 - compact packet and raw transport exceeding their separate limits;
 - subject-visible grading leakage.
 
-Use preserved campaign defects as regression fixtures. Preflight emits compact warnings/errors for operators and a canonical exact report with the check id, source span, evidence, severity, and blocking reason. Blocking findings make zero provider requests.
+Preflight emits compact warnings/errors for operators and a canonical exact report with the check id, source span, evidence, severity, and blocking reason. Blocking findings make zero provider requests.
 
 **Acceptance:** regression cases cover discovery-tool absence, exact-literal leakage, redundant rereads, equivalent setup seams, non-reproducing fixture pressure, and compact/raw limit mismatch.
 
