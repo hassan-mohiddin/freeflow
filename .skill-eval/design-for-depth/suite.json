@@ -1,1 +1,1 @@
-{"schema_version":1,"skill":"design-for-depth","cases":["cases/DFQ-001-shared-failure-unit.json"]}
+{"schema_version":1,"skill":"design-for-depth","cases":["cases/DFQ-001-shared-failure-unit.json","cases/DFQ-002-local-patch-pressure.json"]}
