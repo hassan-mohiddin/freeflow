@@ -11,8 +11,8 @@ Host runtimes still control tools, sandboxing, approvals, and permissions. Freef
 - how much clarification is needed
 - when artifacts are useful
 - when source-truth conflicts stop edits
-- how each meaningful slice is verified and rerouted from evidence
-- when independent review, commit, handoff, branch integration, release, or launch is useful
+- how each meaningful slice is verified, checked once by its implementing agent, and rerouted from evidence
+- the standing artifact reviewer, parallel distinct final verifier/reviewer contexts, authorization for extra independent contexts, and conditional delivery checkpoints
 
 ## Package Layout
 

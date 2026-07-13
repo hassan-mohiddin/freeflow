@@ -605,7 +605,7 @@ test("Pi before_agent_start keeps the per-turn system context to the compact run
 
     assert.match(result.systemPrompt, /# Freeflow Runtime Kernel/);
     assert.match(result.systemPrompt, /Runtime delivery: confirmed for this Pi `before_agent_start` invocation/);
-    assert.match(result.systemPrompt, /act as a collaborative engineering partner/i);
+    assert.match(result.systemPrompt, /act as a responsible collaborative engineer/i);
     assert.match(result.systemPrompt, /sets, resets, infers, or asks about Freeflow mode.*load `mode-contract`/i);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Mode Contract Skill/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);
@@ -635,6 +635,10 @@ test("Pi loads the full Workflow skill as one persistent first-turn message", as
     assert.match(first.message.content, /^# Freeflow Workflow Bootstrap/);
     assert.match(first.message.content, /# Workflow/);
     assert.match(first.message.content, /Use an adaptive engineering loop, not a one-way checklist/);
+    assert.match(first.message.content, /self-verification.*self-review/i);
+    assert.match(first.message.content, /Reading a skill enhances self-verification or self-review/i);
+    assert.match(first.message.content, /one verifier plus one different reviewer dispatched in parallel/i);
+    assert.match(first.message.content, /same frozen implementation/i);
     assert.doesNotMatch(first.systemPrompt, /# Freeflow Workflow Bootstrap/);
 
     sessionEntries.push({
@@ -706,7 +710,7 @@ test("Pi before_agent_start injects the Freeflow runtime kernel on every turn", 
     for (const result of [first, second]) {
       assert.match(result.systemPrompt, /# Freeflow Runtime Context/);
       assert.match(result.systemPrompt, /# Freeflow Runtime Kernel/);
-      assert.match(result.systemPrompt, /act as a collaborative engineering partner/i);
+      assert.match(result.systemPrompt, /act as a responsible collaborative engineer/i);
       assert.doesNotMatch(result.systemPrompt, /## Freeflow Runtime Priority/);
       assert.doesNotMatch(result.systemPrompt, /## Loaded Mode Contract Skill/);
       assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);

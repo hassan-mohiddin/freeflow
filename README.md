@@ -42,7 +42,7 @@ Freeflow is not about making every change bureaucratic. It is about applying jus
 
 The map is orienting, not mandatory. Freeflow’s core rule is:
 
-> Enter at the narrowest useful state. Verify and check the route after each meaningful slice; return only invalidated work to its owning activity.
+> Enter at the narrowest useful state. Use implementation and one sequential self-check—self-verification then, only on support, bounded self-review—as the primary loop; optionally enhance either method, diagnose before redesigning, then run distinct verifier/reviewer contexts in parallel against the frozen final state.
 
 ## What Freeflow Changes
 
@@ -61,9 +61,9 @@ Freeflow ships short behavior-shaping skills for the moments where agents tend t
 | --- | --- | --- |
 | Core workflow | [`workflow`](skills/workflow/SKILL.md), [`mode-contract`](skills/mode-contract/SKILL.md), [`decision-gate`](skills/decision-gate/SKILL.md), [`bypass`](skills/bypass/SKILL.md) | Route work, choose workflow pressure, stop silent decisions, skip only unnecessary ceremony. |
 | Discovery and design | [`discover`](skills/discover/SKILL.md), [`design-for-depth`](skills/design-for-depth/SKILL.md) | Gather the smallest useful evidence, compare paths, and avoid shallow seams. |
-| Artifacts | [`write-spec`](skills/write-spec/SKILL.md), [`review-artifact`](skills/review-artifact/SKILL.md), [`write-plan`](skills/write-plan/SKILL.md) | Create or review only the specs/plans/notes that actually reduce risk or preserve decisions. |
+| Artifacts | [`write-spec`](skills/write-spec/SKILL.md), [`review-artifact`](skills/review-artifact/SKILL.md), [`write-plan`](skills/write-plan/SKILL.md) | Create minimum-sufficient specs/plans and independently review the consequential artifact package before implementation. |
 | Execution | [`execute-plan`](skills/execute-plan/SKILL.md), [`tdd`](skills/tdd/SKILL.md), [`simplify-code`](skills/simplify-code/SKILL.md), [`migration-work`](skills/migration-work/SKILL.md), [`diagnose-failure`](skills/diagnose-failure/SKILL.md) | Implement approved slices, test first when useful, simplify safely, migrate consumers, diagnose failures, and route backward when evidence changes the plan. |
-| Closeout and delivery | [`review-work`](skills/review-work/SKILL.md), [`verify-work`](skills/verify-work/SKILL.md), [`commit-work`](skills/commit-work/SKILL.md), [`handoff`](skills/handoff/SKILL.md), [`finish-branch`](skills/finish-branch/SKILL.md), [`release-work`](skills/release-work/SKILL.md), [`launch-work`](skills/launch-work/SKILL.md) | Review, verify, checkpoint, integrate, release, deploy, and preserve continuation context deliberately. |
+| Closeout and delivery | [`review-work`](skills/review-work/SKILL.md), [`verify-work`](skills/verify-work/SKILL.md), [`commit-work`](skills/commit-work/SKILL.md), [`handoff`](skills/handoff/SKILL.md), [`finish-branch`](skills/finish-branch/SKILL.md), [`release-work`](skills/release-work/SKILL.md), [`launch-work`](skills/launch-work/SKILL.md) | Self-check sequentially during work, then run a distinct verifier and reviewer in parallel against the frozen final state before delivery. |
 | Capabilities and contributor | [`output-router`](skills/output-router/SKILL.md), [`delegation-harness`](skills/delegation-harness/SKILL.md), [`setup-freeflow`](skills/setup-freeflow/SKILL.md), [`write-skill`](skills/write-skill/SKILL.md), [`evaluate-skill`](skills/evaluate-skill/SKILL.md) | Route evidence and independent contexts, install Freeflow, and improve/evaluate skill behavior. |
 
 The current adaptive-workflow, config-only activation, compact-kernel, and first-turn Workflow-bootstrap revisions are Unverified pending behavioral evaluation. Optional candidate skills are `migration-work`, `finish-branch`, `release-work`, `launch-work`, and `simplify-code`; `tdd` is an optional execution method.
@@ -242,6 +242,8 @@ Slash-style mode and skill prompts are model-routed in Codex and Claude:
 /launch-work
 /bypass
 ```
+
+`/review-artifact` and `/review-work` default to formal independent review unless inline self-review is explicit. `/verify-work` enhances self-verification by default. Reading any review/verify skill never dispatches another context by itself.
 
 Pi-native control and settings commands:
 

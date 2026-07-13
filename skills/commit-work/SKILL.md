@@ -9,7 +9,7 @@ Commit an intended, coherent checkpoint. A commit preserves rollback and provena
 
 This skill covers commits and simple pushes, not branch integration, release, or deployment orchestration. Use `../finish-branch/SKILL.md`, `../release-work/SKILL.md`, or `../launch-work/SKILL.md` for those later jobs.
 
-Review is conditional. Require it when the plan, risk, accumulated change, or repository policy calls for it—not after every slice by habit. Fresh verification is required for the claim the commit represents.
+A commit does not trigger independent review. Require review only when Workflow has selected a consequential boundary or repository policy explicitly requires it. Fresh verification is required for the claim the commit represents.
 
 Read [staging decisions](references/staging-decisions.md) when changes are mixed, generated files or durable docs appear, existing staged state is unclear, or broad commit/push language conflicts with diff evidence.
 

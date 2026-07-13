@@ -249,7 +249,7 @@ Good local-agent uses:
 Keep with the frontier orchestrator:
 
 - final synthesis
-- final review result
+- adjudication of the separate final reviewer and verifier results
 - product decisions
 - security/privacy/billing/public API decisions
 - architecture decisions
@@ -261,8 +261,9 @@ Keep with the frontier orchestrator:
 The default rule:
 
 ```text
-Local agents can help often.
-Frontier agents decide and verify.
+The responsible worker implements, directly verifies, and learns.
+A separate verifier and different reviewer run in parallel against one frozen final state, then the orchestrator collects evidence and judgment.
+The orchestrator adjudicates and closes.
 ```
 
 ## Skill Updates
@@ -284,8 +285,8 @@ Update existing skills only where local delegation naturally improves the task:
 
 - `research-brief`: delegate extraction, summaries, and source maps.
 - `diagnose-failure`: delegate log clustering, reproduction note extraction, and second-pass hypotheses.
-- `review-work`: delegate an additional local review, then have frontier review decide what is blocking.
-- `verify-work`: delegate evidence collection, but keep completion claims with frontier.
+- `review-work`: use one separate reviewer at the standing final boundary or another authorized checkpoint; the orchestrator adjudicates findings.
+- `verify-work`: guide inline verification or the one distinct final verifier; loading the skill does not itself delegate.
 - `execute-plan`: delegate bounded inspection or patch suggestions, not final integration.
 - `write-plan`: delegate source inventory or dependency mapping, not plan ownership.
 

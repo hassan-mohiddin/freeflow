@@ -9,8 +9,8 @@ A plugin or skill pack that guides coding agents through consequential work with
 _Avoid_: Orchestra, agent framework, workflow engine
 
 **Workflow Pressure**:
-The amount of process the plugin applies to a task. More pressure means more gates, artifacts, and verification before action.
-_Avoid_: bureaucracy, automation level
+The amount of explicit coordination and evidence a task needs. Increase it only when consequence, uncertainty, or reversibility requires it—not because more lifecycle steps are available.
+_Avoid_: bureaucracy, artifact count, automation level
 
 **Conversation Mode**:
 A mode for discussion, explanation, critique, and exploration where no workflow artifacts are required.
@@ -21,8 +21,24 @@ The default mode for consequential work. It follows an adaptive engineering loop
 _Avoid_: auto mode, normal mode
 
 **Strict Workflow Mode**:
-A mode for high-risk work where gates, artifacts, and verification are stronger.
+A mode for high-risk work where owner decisions, evidence, and consequential boundaries are stronger without making every slice require review.
 _Avoid_: safe mode, locked mode
+
+**Responsible Engineer**:
+The active agent owns locally authorized implementation, verification, correction, and learning. It uses evidence rather than continuous supervision while preserving user authority over intent and consequential decisions.
+_Avoid_: supervised typist, infallible agent, obedient child
+
+**Primary Feedback Loop**:
+Implementation, tests, runtime evidence, and one sequential self-check: self-verification first, then bounded self-review only when evidence supports the outcome. Review/verify skills may enhance either method inline; independent contexts sit outside this loop.
+_Avoid_: reviewer-driven development, independent context after every slice
+
+**Formal Independent Review**:
+Strict judgment from a separate reviewer context. A consequential artifact phase has a standing route chosen by `write-spec`: one combined review or separate spec/plan reviews when high risk; final review may run in parallel with the distinct final verifier against the same frozen implementation, without shared outputs. Additional reviews require scoped user authorization.
+_Avoid_: self-review, defect quota, mandatory intermediate ceremony
+
+**Independent Verification**:
+One factual evidence run by a fresh verifier distinct from implementer and reviewer. At final assurance it runs in parallel with the reviewer against the same frozen implementation and without shared output. Another run requires user authorization.
+_Avoid_: self-verification, `/verify-work` activation, reviewer inspection
 
 **Decision Gate**:
 A stop that fires when the next action depends on a user-owned decision, source-truth conflict, or materially different path.
@@ -33,8 +49,8 @@ The lightweight check after a meaningful slice that compares evidence with the a
 _Avoid_: status update, mandatory user checkpoint
 
 **Backward Edge**:
-A deliberate return to the narrowest owning activity when new evidence invalidates the current path while preserving work and decisions that remain valid.
-_Avoid_: restart, failure, patch loop
+A deliberate return to the narrowest owning activity when new evidence invalidates the current path while preserving work and decisions that remain valid. Repeated failure routes to diagnosis before redesign unless structural evidence already establishes the cause.
+_Avoid_: restart, automatic redesign, patch loop
 
 **Semantic Failure Unit**:
 The smallest outcome whose success, rejection, written state, forbidden effects, post-commit failure, and recovery must be owned together.
@@ -44,9 +60,17 @@ _Avoid_: file batch, caller choreography, test count
 The strongest claim directly supported by the observing mechanism. Helper execution, registered entrypoint invocation, native host dispatch, and installed-artifact behavior are different boundaries.
 _Avoid_: integration passed, self-reported proof, assumed execution
 
-**Review Readiness**:
-A bounded author-side check that the failure unit, affected entrypoints, state effects, and claim evidence are complete enough for independent review. It does not count as review or verification.
-_Avoid_: self-approval, review pass zero, recursive reflection
+**Self-Check**:
+The active agent's sequential feedback pair after meaningful work: self-verify first; only then self-review once. Both use the same active context.
+_Avoid_: independent assurance, parallel self-check, reviewer-driven feedback
+
+**Self-Review**:
+The active agent silently checks its own work once after self-verification supports the outcome, against source truth, evidence, and route. Kernel/Workflow provide the basic method; review skills may enhance it inline without creating independence.
+_Avoid_: independent review, asking the user to check, review pass zero
+
+**Self-Verification**:
+The active agent runs and interprets direct evidence for its own claims. Kernel/Workflow provide the basic method; `verify-work` may enhance it after any meaningful slice without dispatching a verifier.
+_Avoid_: independent verification, test exit code without interpretation, reviewer judgment
 
 **Rolling Plan**:
 A plan whose current horizon is executable while later phases remain directional and are refined from evidence.

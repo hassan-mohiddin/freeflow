@@ -185,7 +185,7 @@ Planning is conditional and rolling. Enter the narrowest activity that resolves 
 ```text
 discover                 when the option space or intended outcome is unclear
 write-spec               when behavior or acceptance needs a durable contract
-review-artifact          when independent judgment would materially reduce risk
+review-artifact          for the standing consequential spec/plan review or another authorized formal review
 write-plan               when execution needs ordered slices and checks
 ```
 
@@ -193,7 +193,7 @@ Discovery interleaves the smallest useful repo, provided-source, and current ext
 
 `write-spec` records agreed behavior, boundaries, failure semantics, and acceptance evidence. `write-plan` produces an executable current horizon while later phases remain directional. Later phases are refined from evidence rather than frozen prematurely.
 
-Artifact review is conditional. Findings are evidence for the parent to adjudicate, not instructions that automatically override source truth. Follow-up review should narrow to accepted fixes and stop after three total passes; unresolved disagreement then goes to the owner or is recorded as residual risk.
+A consequential durable artifact phase receives the standing route selected by `write-spec`: one combined spec-then-plan review, separate spec and plan reviews for high-risk spec-first approval, or spec-only review. A plan without a spec receives its own standing review. These selected artifact reviews need no reconfirmation. Findings are evidence to adjudicate, not instructions that override source truth. One narrow confirmation requires scoped authorization and accepted blockers that need reinspection; a third pass is exceptional, owner-selected, and terminal.
 
 ## Execution And Routing
 
@@ -210,18 +210,18 @@ deepening slice          improve locality or interface leverage without behavior
 After every meaningful slice:
 
 ```text
-slice -> fresh verification -> route check
+slice -> sequential self-check: self-verification -> if supported, self-review once -> route check
 ```
 
-Continue when evidence supports the accepted route. If evidence invalidates an assumption, preserve valid work and return only the affected layer to discovery, design, spec, planning, execution, diagnosis, review, verification, or the Decision Gate. Do not silently rewrite accepted behavior or patch around an invalid plan.
+Kernel/Workflow provide one basic sequential self-check: self-verification first, then self-review only when evidence supports the outcome. Review/verify skills may enhance those methods inline after any meaningful slice without creating independence. Correct local reversible mistakes directly, and route repeated or unexplained failure to diagnosis before redesign. If evidence invalidates an assumption, preserve valid work and return only the affected layer to discovery, spec, planning, execution, diagnosis, design, formal review, verification, or the Decision Gate.
 
 ## Review And Verification
 
-Verification is universal per meaningful slice and proportionate to the claim. It may use tests, typechecks, lint, browser/runtime evidence, logs, screenshots, benchmarks, or other direct evidence. A completion claim must state what was actually proved and what remains unverified.
+Self-verification is universal per meaningful slice and proportionate to the claim. It may use tests, typechecks, lint, browser/runtime evidence, logs, screenshots, benchmarks, or other direct evidence. `verify-work` may enhance it after any slice; `review-work` or `review-artifact` may enhance self-review. Reading these skills never implies another agent.
 
-Independent review is conditional on risk, uncertainty, public surface area, or the value of a fresh judgment. It asks whether the change matches intent, source truth, engineering quality, and risk constraints. Fresh review guidance is mechanism-neutral: use whatever independent context the host can provide without making agent, model, worktree, or parallelism choices part of the skill contract.
+Standing final assurance uses three distinct contexts. After the sequential final self-check, freeze one implementation state and dispatch a fresh verifier plus a different fresh reviewer in parallel. Neither consumes the other's output; collect factual verifier evidence and reviewer judgment before adjudicating.
 
-Review and verification answer different questions. Either can pass while the other fails. Accepted findings route to the narrowest owning activity; disputed findings are adjudicated against evidence rather than applied performatively.
+The artifact reviewer and parallel final verifier/reviewer need no reconfirmation. Any extra independent context requires scoped authorization. Completion needs verifier Pass plus resolved review for the same unchanged state. Any code change stales both results; self-check the fix and ask before redispatch.
 
 ## Conditional Closeout And Delivery
 
@@ -243,7 +243,7 @@ Release and shipping are distinct. A replacement release may need to precede con
 - `bypass`: skip unnecessary ceremony without skipping judgment.
 - `mode-contract`: infer or discuss Freeflow modes.
 
-Discovery checkpoints record stable decisions only when they must survive beyond chat; session residue belongs in handoffs or rolling plans. `bypass` defaults to one action and never bypasses user-owned decisions, source-truth conflicts, risky checks, or verification.
+Discovery checkpoints record stable decisions only when they must survive beyond chat; session residue belongs in handoffs or rolling plans. `bypass` defaults to one action and never bypasses user-owned decisions, source conflicts, self-verification, or standing artifact/final assurance when claiming readiness or completion.
 
 ## Developer Meta Skills
 

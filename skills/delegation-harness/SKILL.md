@@ -13,6 +13,8 @@ Core rule:
 Store broadly. Return compactly. Promote selectively. Load narrowly.
 ```
 
+Parent and child name context topology and coordination ownership, not competence or seniority. Workers remain responsible engineers: they implement, self-verify, self-review, correct local mistakes, and learn without continuous supervision. Reading review/verify skills may enhance those inline methods without creating independence. The user is the accountable owner and collaborator, not factual authority.
+
 ## Subagent Routing Contract
 
 Treat “subagent” as any separate agent context: Freeflow pane, host-native child, reviewer, researcher, worker, verifier, integrator, planning-parent, execution-parent, or future role-specific agent.
@@ -23,13 +25,13 @@ When a task warrants separate context, route in this order:
 2. Otherwise use the host's native subagent mechanism when available.
 3. Otherwise work inline and report that delegation was unavailable or not worth the overhead.
 
-This applies when other skills ask for a fresh reviewer, researcher, verifier, worker, subagent, or independent context. Do not choose a host-native subagent before checking the harness route.
+This applies when other skills ask for a fresh reviewer, researcher, verifier, worker, subagent, or independent context. Standing artifact review, final work review, and one distinct final verifier need no dispatch reconfirmation. Any additional reviewer or independent verifier requires Workflow's scoped user authorization. Do not choose a host-native subagent before checking the harness route.
 
 If the harness route is unavailable or inappropriate, name that and the fallback before presenting the work as independently reviewed or delegated.
 
 Do not manually run cmux for normal child management. Manual cmux is only for bootstrapping a parent pane, recovering/debugging the harness itself, or notification/cleanup when the delegation tool surface is unavailable.
 
-Tiny clear work stays inline. Do not create delegation state, specs, plans, or panes when one agent can safely inspect, edit, verify, and close out.
+Tiny clear work stays inline during implementation. Do not create delegation state, specs, plans, or panes unnecessarily; when Workflow requires final independent assurance, still use distinct reviewer and verifier contexts or report that independence is unavailable.
 
 Decide execution delegation from the whole work package, not the next slice. For broad or multi-slice implementation, the execution-parent coordinates and assigns a worker stream; it does not become the main implementer just because the current slice is small. Reuse a worker across sequential slices when context remains useful. Spawn a new worker only for a real context boundary, parallelism, write-scope/capability change, stale context, or isolation need.
 
@@ -38,11 +40,11 @@ Execution-parent inline edits are limited to coordination, reporting, or mechani
 ## Model
 
 - **Orchestrator**: root continuity, user-facing routing, final closeout, final commit/push decision.
-- **Planning-parent**: user-guided planning, research synthesis, spec/plan writing, artifact review loops.
-- **Execution-parent**: plan-guided execution coordination, worker assignment, review/verification adjudication, integration, planned intermediate commits.
+- **Planning-parent**: user-guided planning, research synthesis, spec/plan writing, and the standing artifact review.
+- **Execution-parent**: plan-guided execution coordination, worker assignment, integration, formal-finding adjudication, and final reviewer/verifier sequencing.
 - **Children**: bounded researcher, worker, reviewer, verifier, or integrator panes.
 
-The user normally talks to the orchestrator or active parent. Leaf children communicate through structured results, blockers, status, and evidence pointers.
+The user normally talks to the orchestrator or active parent. The user owns intent and consequential decisions; agents may correct factual or technical claims with evidence. Leaf children communicate through structured results, blockers, status, and evidence pointers.
 
 Harness state and alerts need a failure contract before happy-path implementation: who may set each state, whether it is terminal, what evidence is required, whether it wakes the parent, what must not happen, and the recovery path.
 
@@ -113,7 +115,7 @@ Use the right representation for the interface.
 Delegate when work has real context boundaries:
 
 - planning research can run independently;
-- a reviewer/verifier can inspect a bounded artifact, diff, or command result;
+- Workflow requires the standing final verifier or a scoped user authorization selects another independent verifier/reviewer;
 - execution packages can be isolated by dependencies/write sets;
 - context-window pressure would force noisy compaction;
 - a phase parent can synthesize child outputs into a compact report.
@@ -123,12 +125,13 @@ Keep small, reversible, single-file work inline. Do not use slice-local smallnes
 ## Phase Flow
 
 1. Orchestrator and user settle the goal and rough scope.
-2. Planning-parent owns deep planning and writes/reviews artifacts.
+2. Planning-parent owns deep planning, writes the consequential spec/plan package, and runs its standing independent artifact review before implementation.
 3. Planning-parent reports settled decisions, artifacts, open questions, risks, and execution guidance to orchestrator.
-4. Orchestrator starts execution after user-approved planning.
-5. Execution-parent builds a live execution map, assigns worker streams for implementation packages, adjudicates reviews, verifies, integrates, and performs planned intermediate commits.
-6. Execution-parent reports compact execution evidence to orchestrator.
-7. Orchestrator owns final review/verification summary, final commit/push decision, handoff, and completion claim.
+4. Orchestrator starts execution after required user approval.
+5. Execution-parent builds a live execution map, assigns worker streams, preserves workers' implementation feedback loops, directly verifies and integrates results, and runs additional review only at authorized boundaries.
+6. After the sequential final self-check, freeze the implementation and dispatch a fresh verifier plus a different fresh reviewer in parallel.
+7. Each works independently against the same state; collect both results before parent adjudication.
+8. Orchestrator closes only with verifier Pass and resolved review without code changes, then owns the assurance summary, commit/push decision, handoff, and completion claim.
 
 Execution autonomy is desired, not guaranteed. If execution reveals new path-changing evidence, route backward.
 
@@ -143,5 +146,7 @@ Read [task packets and results](references/task-packets-and-results.md) when spa
 Read [execution and integration](references/execution-and-integration.md) when using workers, reviewers, verifiers, integrators, worktrees, execution maps, review loops, or commit checkpoints.
 
 Read [reviewer profiles](references/reviewer-profiles.md) when selecting requirements, code-quality, verification, security, performance, accessibility, or release/operations perspectives. Profiles define focus, not agent/model choice or authority.
+
+Before spawning the standing final verifier or another authorized verifier, load `../verify-work/SKILL.md` and follow its independent-verifier contract.
 
 Read [tool policy](references/tool-policy.md) when a child asks for tools, commands, writes, or capability escalation.

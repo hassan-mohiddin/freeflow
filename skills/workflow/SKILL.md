@@ -7,99 +7,92 @@ description: Use for consequential work that may involve discovery, decisions, s
 
 Use an adaptive engineering loop, not a one-way checklist.
 
-The runtime kernel owns turn interpretation, user authority, mode routing, and universal completion constraints. This skill owns workflow entry points, slices, backward edges, and conditional lifecycle routes.
+The runtime kernel owns turn interpretation, user authority, mode routing, and universal feedback constraints. This skill owns entry points, slices, backward edges, and conditional lifecycle routes.
 
-Move forward when context is sufficient. After each meaningful slice, verify what it proved and check whether the route still holds. Re-enter the narrowest earlier activity when evidence changes the path.
+The active agent is the responsible engineer. Its sequential self-check—self-verification, then self-review only when evidence supports the outcome—drives learning with implementation and runtime evidence. Independent review and verification are boundary roles.
 
 ## Choose The Entry Point
 
-Enter where the current work actually is:
+Enter where the work actually is:
 
-- **Conversation:** direct answers, critique, and non-mutating exploration.
-- **Discover:** outcome, option space, evidence path, or architecture direction is still forming.
-- **Decision gate:** a user-owned decision, source conflict, or material path substitution blocks action.
+- **Conversation:** answer, critique, or inspect without mutation.
+- **Discover:** outcome, options, evidence path, or architecture direction is forming.
+- **Decision gate:** user-owned decision, source conflict, or material path substitution blocks action.
 - **Spec:** behavior, scope, acceptance, public contract, or failure semantics need durable source truth.
-- **Plan:** the next executable horizon needs phases, slices, checks, and backward checkpoints.
+- **Plan:** the next executable horizon needs slices, checks, and backward routes.
 - **Execute:** an approved bounded slice is ready.
-- **TDD or simplify:** one accepted behavior needs test-first implementation, or working code needs behavior-preserving simplification.
-- **Migrate:** consumers, traffic, configuration, or data must move before an old path can be removed.
-- **Diagnose:** a concrete failure signal needs root-cause evidence.
-- **Review:** independent judgment may change confidence or route.
-- **Verify:** an implementation or completion claim needs proof.
-- **Commit or handoff:** a verified checkpoint needs rollback or continuity.
-- **Finish, release, or ship:** branch integration, versioned publication, or production rollout is the actual next job.
+- **TDD or simplify:** accepted behavior needs test-first implementation, or working code needs behavior-preserving simplification.
+- **Migrate:** consumers, traffic, configuration, or data must move before removal.
+- **Diagnose:** a concrete, repeated, or unexplained failure needs root-cause evidence.
+- **Formal review:** a strict second opinion is warranted at a consequential boundary or after primary feedback cannot resolve the route.
+- **Structured verification:** choosing, interpreting, or recovering a non-trivial proof path needs `verify-work`; routine direct checks stay inline.
+- **Commit or handoff:** verified work needs rollback or continuity.
+- **Finish, release, or launch:** integration, publication, or production rollout is the next job.
 
-Small reversible work may move directly from inspection to execution and verification. Do not manufacture specs, plans, reviews, commits, or handoffs merely because the full lifecycle contains them.
+Small reversible work may move from inspection to execution and self-verification. Do not manufacture lifecycle steps. Read [the workflow map](references/workflow-map.md) when routing is unclear or the complete lifecycle is needed.
 
-Read [the workflow map](references/workflow-map.md) when the entry point is unclear, work spans multiple phases, or public documentation needs the complete lifecycle.
-
-## Adaptive Loop
+## Adaptive Feedback Loop
 
 ```text
-Orient
--> Explore breadth when needed
--> Converge enough for the next safe horizon
--> Specify or plan only what must be durable
--> Execute one learning / delivery / deepening slice
--> Verify
--> Route check
--> Continue, branch, move backward, or stop
+Orient -> explore when needed -> converge enough
+-> specify or plan only what must be durable
+-> execute one learning / delivery / deepening slice
+-> self-verify -> if supported, silently self-review your own work once
+-> continue, diagnose, move backward, or stop
 ```
 
-Method skills such as TDD, simplification, diagnosis, migration, and design-for-depth run inside this loop. They do not override source truth, owner authority, or route checks.
+Tests, direct observations, compilers, and runtime behavior are primary feedback. Self-verification states what evidence proves; only supported work proceeds to self-review against outcome and route. Read `../verify-work/SKILL.md`, `../review-work/SKILL.md`, or `../review-artifact/SKILL.md` after any slice when richer guidance helps. Reading a skill enhances self-verification or self-review and never dispatches another context by itself.
 
-Use relevant repo or domain skills for specialized engineering while Freeflow owns routing, decisions, evidence, and backward edges. Read [domain skill composition](references/domain-skill-composition.md) when frontend, accessibility, browser, security, performance, CI/CD, observability, cloud, migration, release, or deployment guidance must compose with the workflow.
+Do not dispatch an independent reviewer because a slice ended, a phase exists, a plan changed, or ordinary mistakes remain possible. When failure repeats or remains unexplained, use `../diagnose-failure/SKILL.md` before redesigning. Use `../design-for-depth/SKILL.md` only when diagnosis or direct structural evidence shows that ownership, interface, state, or failure-unit design is the cause.
 
-Plans are rolling. Detail the immediate executable phase; keep later phases directional until evidence resolves their assumptions.
+Method and domain skills run inside this loop without overriding source truth or owner authority. Read [domain skill composition](references/domain-skill-composition.md) when specialized guidance must compose.
 
-## Decision And Source Boundaries
+Plans are rolling: detail the immediate executable horizon and keep later phases directional.
 
-Use `../decision-gate/SKILL.md` when a runtime-kernel stop condition fires. Inspect factual questions first; ask only for decisions that remain user-owned or path-changing.
+## Authority And Evidence
 
-Handoffs are memory, not authority. Live evidence wins when they conflict.
+The user is accountable owner and collaborator, not factual source truth. Correct unsupported claims while preserving their authority over intent and consequential tradeoffs. Use `../decision-gate/SKILL.md` only for user-owned, path-changing decisions or conflicts.
+
+Handoffs are memory, not authority. Live evidence wins.
 
 ## Slice Discipline
 
-Each meaningful slice should have:
+Each meaningful slice needs one outcome, source requirement, stable seam, smallest useful implementation or experiment, disagreeing evidence, and route check.
 
-- one outcome or learning question;
-- source requirement and stable seam;
-- smallest useful implementation or experiment;
-- verification that can disagree with the claim;
-- a route check against assumptions, interface, scope, and remaining work.
+One sequential self-check—self-verification, then bounded self-review only on support—closes the normal slice. Other checkpoints are conditional:
 
-Formal checkpoints are conditional:
-
-- review when architecture, sensitivity, integration, accumulated risk, or final confidence warrants independence;
+- independent review only at a selected boundary below;
 - commit when a coherent verified rollback point is useful and authorized;
-- handoff when context or continuity requires it;
+- handoff when continuity requires it;
 - owner checkpoint when a consequential decision remains.
 
-When work uses separate contexts, describe bounded outcomes, dependencies, evidence, and escalation conditions. The harness owns agents, models, worktrees, parallelism, persistence, timeouts, and transport.
+When separate contexts are useful, describe bounded outcomes, dependencies, evidence, and escalation. The harness owns agents, models, worktrees, parallelism, persistence, timeouts, and transport.
+
+## Independent Boundaries
+
+Standing authorization needs no confirmation for the artifact-review route selected by `write-spec`—one combined review, or separate spec and plan reviews when high risk—and, after the final self-check, one verifier plus one different reviewer dispatched in parallel against the same frozen implementation. The final verifier and reviewer use distinct fresh contexts and do not depend on each other's output. An artifact-only task uses its artifact review as final review and needs no verifier unless executable claims require one. Standing artifact and final assurance cannot be bypassed while claiming readiness or completion. Bypass may skip optional extra checkpoints but leaves required assurance unsatisfied.
+
+Any additional reviewer or independent verifier requires scoped user authorization. Explicit independent/fresh/formal/second-opinion wording or direct review commands grants review permission; explicit independent/fresh verifier wording grants verifier permission. Reading or calling a review/verify skill selects method guidance, not another agent, unless the direct review command or wording clearly selects formal independence. Ask once when “review” is ambiguous and retain the answer for that checkpoint.
+
+Collect both final results before adjudicating. Completion requires verifier Pass and resolved review with no later implementation change. Preserve an unaffected result when possible; any code change stales both. Self-check fixes, then ask before another independent verifier or reviewer dispatch. Phase endings do not trigger extra review.
 
 ## Backward Edge
 
-Route backward when new evidence changes the next safe action.
+Route only when evidence changes the next safe action:
 
-Examples:
+- clear local defect -> fix and verify;
+- repeated or unexplained failure -> diagnose;
+- diagnosed structural pressure -> design-for-depth;
+- new option space -> Discover;
+- changed behavior, scope, acceptance, public contract, or failure semantics -> revise spec;
+- changed order, slices, checks, or later assumptions -> revise plan;
+- owner choice or source conflict -> decision gate;
+- no safe in-scope route -> defer or stop.
 
-- implementation exposes new option space -> Discover;
-- caller coordination or edge-case patches grow -> design-for-depth;
-- behavior, scope, acceptance, public contract, or failure semantics change -> revise spec;
-- order, slice boundaries, checks, or later phases change -> revise plan;
-- a failure signal lacks root cause -> diagnose;
-- owner choice or source conflict appears -> decision gate;
-- no safe in-scope route remains -> defer or stop.
-
-Preserve valid work and revise only affected downstream decisions. Do not restart from zero, rewrite source truth silently, or patch forward because work has already begun.
+Preserve valid work and revise only affected downstream decisions. Do not restart from zero, rewrite source truth silently, or redesign because ordinary mistakes exist.
 
 ## Route Closeout
 
-After a consequential phase exit or completion, name the useful next route:
+After consequential completion or a phase exit, name the useful route: **Forward**, **Backward**, **Branch**, or **Stop**.
 
-- **Forward:** the next bounded action is clear.
-- **Backward:** evidence invalidated the current path.
-- **Branch:** two or three valid routes remain.
-- **Stop:** no useful or safe next action remains.
-
-Apply the runtime kernel's `Next:` and completion contracts when closing the route. A route recommendation is not permission to create the next artifact or continue into another phase.
+Apply the runtime kernel's `Next:` and completion contracts. A route recommendation is not permission to create the next artifact or continue into another phase.

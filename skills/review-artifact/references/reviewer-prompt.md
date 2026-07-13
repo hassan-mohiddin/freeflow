@@ -1,98 +1,97 @@
-# Artifact Reviewer Contract
+# Independent Artifact Reviewer Contract
 
-Use this to prepare a portable artifact-review context. It defines the evidence, calibration, and output expected from a reviewer without depending on a particular agent, model, or harness.
+Use this for the standing consequential spec/plan review or another formally authorized independent artifact-review boundary. It is not the active agent's enhanced self-review mode.
 
 ## Required Context
 
 Provide:
 
-- artifact path and type;
-- outcome or next work the artifact must support;
-- live source truth and explicit owner decisions;
-- relevant code, tests, policies, ADRs, and established behavior;
-- review pass number.
+- artifact path, type, and boundary it must support;
+- accepted outcome, non-goals, and explicit owner decisions;
+- live source truth: relevant code, tests, policies, ADRs, and established behavior;
+- linked upstream or downstream artifacts;
+- known evidence gaps;
+- only the review lenses material to this boundary;
+- prior findings and adjudication for a confirmation review.
 
-For pass 2 or 3, also provide:
-
-- prior findings;
-- parent adjudication: accepted, rejected, question, or needs evidence;
-- owner clarifications;
-- changed sections;
-- the narrow residual risk to inspect.
+For a combined spec-and-plan package, identify the spec as upstream authority and the plan as provisional until the spec verdict is known.
 
 ## Portable Prompt
 
 ```md
-# Artifact Review
+# Independent Artifact Review
 
-Review whether this artifact is fit to guide its intended next work. Do not edit files or resolve owner decisions.
+Review whether this artifact package is fit for its intended boundary. Do not edit files or resolve owner decisions. This is a strict second opinion, not a completeness contest.
 
-## Artifact
+## Boundary Under Review
 
-Path: [ARTIFACT_PATH]
-Type: [spec | plan | handoff | decision note | discovery note | other]
-Intended next work: [OUTCOME_OR_DECISION_SUPPORTED]
+[What future promotion, planning, implementation, or consequential decision this review protects.]
+
+## Artifact Package
+
+- [path]: [spec | plan | handoff | decision note | discovery note | other]
+- Dependency order: [upstream -> downstream, or standalone]
+
+For a combined spec and plan, review the spec first. Review the plan only if the spec is fit enough to plan from. If a spec blocker invalidates plan assumptions, mark those plan areas contingent rather than generating exhaustive downstream findings.
+
+## Accepted Outcome And Non-Goals
+
+- Outcome: [accepted outcome]
+- Non-goals: [explicit exclusions]
+- Owner decisions: [decisions or none]
 
 ## Source Truth
 
 - [docs, tests, policies, ADRs, code, established behavior]
-- Owner decisions: [decisions or none]
 
-## Review Pass
+## Review Scope
 
-Pass: [1 | 2 | 3]
+- Material lenses: [source alignment | sufficiency | evidence | failure contract | planning horizon | design depth | scope | clarity]
+- Pass: [1 | confirmation | exceptional-3]
 
-For pass 2 or 3:
+For confirmation or exceptional pass:
 - Prior findings: [summary]
 - Parent adjudication: [accepted | rejected | question | needs evidence]
 - Owner clarifications: [decisions or none]
-- Changed sections: [sections]
-- Residual risk: [narrow question]
+- Changed sections and evidence: [bounded list]
+- Residual risk: [one narrow question]
 
 ## Check
 
-- Completeness: enough is present to take the intended next step.
-- Evidence: load-bearing claims point to live evidence or explicit decisions.
-- Evidence feasibility: each load-bearing acceptance or promotion condition in the immediate horizon has a direct supporting or falsifying mechanism, or an earlier acquisition slice. Qualifiers such as “where practical” do not soften an otherwise required condition; genuinely optional evidence does not become mandatory.
-- Clarity: a fresh agent can act without transcript memory.
-- Consistency: the artifact agrees with itself and source truth.
-- Identity: ownership, status, sources, and history are proportionate to durability and risk.
-- Implementation risk: omissions will not cause wrong work, hidden decisions, or an implementation dead end.
-- Design depth: interfaces and seams hide complexity rather than spreading caller coordination.
-- Failure-unit integrity when state transitions materially affect correctness: each immediate slice owns one coherent outcome and, where applicable, its accepted, rejected, post-commit, and recovery behavior; required authority or canonicalization is not deferred behind dependent callers or adapters.
-- Scope and minimality: the artifact solves the accepted outcome without quietly generalizing the milestone.
-- Planning horizon: immediate phases are executable, later phases remain directional where evidence is unresolved, and backward checkpoints identify what can reopen the route.
-- Adversarial risk: stale assumptions or source-truth overrides cannot be smuggled into execution.
+Apply only the selected lenses:
 
-For follow-up review, inspect accepted fixes and named residual risk. Do not restart broad review, reopen settled intent, or re-raise rejected findings without contradictory live evidence. If pass 2 exposes another section, dependency, or downstream consequence of the same invariant, report the artifact's failure unit as unstable and recommend a backward route rather than another local revision batch.
+- Source alignment: requirements, owner decisions, and live facts agree.
+- Sufficiency: enough is settled for the intended next action, not every future action.
+- Evidence: boundary-critical claims and promotion conditions have direct supporting or falsifying mechanisms.
+- Failure contract: consequential states, forbidden outcomes, recovery, and observers are explicit where required.
+- Planning horizon: immediate work is executable and later work remains directional.
+- Design depth: accepted interfaces hide rather than spread required coordination.
+- Scope: bounded work has not become speculative platform design.
+- Clarity: a future agent can act without transcript memory.
+
+Do not turn intentionally deferred work, safe implementation learning, or reversible local choices into blockers. Evidence required only for a later promotion does not block earlier reversible work.
+
+For confirmation, inspect only accepted revisions, their evidence, and the named residual risk. Do not restart broad review or reopen settled findings without contradictory evidence. If another consequence of the same unknown cause appears, recommend diagnosis before redesign.
 
 ## Finding Standard
 
-Classify findings as:
-
-- Blocking
-- Non-blocking
-- Question
-- Needs evidence
+Classify material findings as Blocking, Non-blocking, Question, or Needs evidence.
 
 A Blocking finding must include:
 
-1. exact artifact location;
-2. violated accepted requirement or source truth;
-3. concrete consequence for future work;
-4. why it cannot remain a local reversible implementation choice;
-5. smallest safe revision or backward route.
+1. exact location and violated source truth;
+2. concrete consequence at the boundary under review;
+3. why the issue cannot be learned safely during reversible work;
+4. smallest safe revision or backward route.
 
-Do not block on wording preference, uneven detail, hypothetical completeness, or omitted filenames, encodings, helper shapes, internal taxonomies, and other reversible implementation details. Missing identity blocks only when durability, ownership, risk, or readiness makes it consequential.
-
-A useful artifact is sufficient, not exhaustive. Review can pass with non-blocking findings; do not invent findings or expand the public contract to manufacture completeness.
+Do not block on wording preference, uneven detail, hypothetical completeness, exact filenames, helper shapes, internal taxonomies, or other reversible implementation details. A useful artifact is sufficient, not exhaustive. A clean pass is valid.
 
 ## Output
 
 ### Findings
 
 #### Blocking
-- [location] [finding, violated requirement, consequence, and smallest safe route]
+- [location] [finding, violated source truth, boundary consequence, and smallest safe route]
 
 #### Non-blocking
 - ...
@@ -106,13 +105,15 @@ A useful artifact is sufficient, not exhaustive. Review can pass with non-blocki
 ### Assessment
 
 Status: Pass | Non-blocking | Blocking | Question | Needs evidence
+Boundary reviewed: [decision protected]
+Package dependency: [upstream/downstream effect or standalone]
 Reasoning: [concise evidence-backed assessment]
 Residual assumptions: [assumptions or none]
-Recommendation: Proceed | Revise later | Gather evidence | Ask owner | Move backward
+Recommendation: Proceed | Revise locally | Gather evidence | Diagnose | Ask owner | Move backward
 ```
 
 ## Calibration
 
-Only flag issues that could cause wrong work, blocked work, hidden decisions, unsafe behavior, stale authority, or an implementation dead end.
+Strict means a high evidence bar for the selected consequential boundary, not exhaustive issue generation. Lead with the few findings that can change the boundary decision.
 
-Reviewer output is evidence for parent adjudication, not authority to rewrite source truth. Use `Non-blocking` status only when findings are deferrable and no blocker, unresolved owner question, or required evidence gap prevents the intended next step. A passing review returns to the workflow route check; it does not approve the next phase by itself. On pass 3, report remaining risk and stop; do not recommend another broad review.
+Reviewer output is evidence for responsible-agent adjudication, not authority over source truth. A passing review returns to the workflow route; it does not approve implementation or make later plan updates require another review.

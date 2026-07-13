@@ -1,174 +1,143 @@
 # Execute Plan Map
 
-Use this for multi-slice execution, learning work, rolling-plan refinement, accumulated design pressure, or failed verification/review/source/scope conditions.
-
-The map is adaptive. It preserves the accepted outcome while allowing evidence to change the path.
+Use this for multi-slice execution, learning work, rolling-plan refinement, distributed work, or failed source, scope, verification, or formal-review conditions.
 
 ## Compact Loop
 
 ```text
 Orient to current horizon
--> Name slice contract
--> Execute one learning / delivery / deepening slice
--> Verify
--> Route check
+-> Bound one learning / delivery / deepening slice
+-> Execute
+-> Self-verify with direct evidence
+-> If supported, silently self-review your own work once
    -> continue
-   -> formal review / commit / handoff when useful
-   -> bounded fix
-   -> diagnose
-   -> Discover / design
-   -> revise spec / plan
-   -> decision gate
-   -> stop or defer
--> Refine only the next executable horizon
+   -> correct a local reversible mistake
+   -> diagnose repeated or unexplained failure
+   -> revise affected source / plan / design only when evidence requires it
+   -> select a formal checkpoint only when useful
+-> Refine the next executable horizon
 ```
 
-Every meaningful slice gets verification and a route check. Formal checkpoints are conditional.
+The active agent owns this loop. Review/verify skills may enhance self-review or self-verification without creating independence.
 
 ## Slice Contract
 
+Name only what execution needs:
+
 ```text
-Slice outcome:
-Source requirement / acceptance:
-Type: learning | delivery | deepening
-Module / interface / seam:
-Semantic failure unit and observing boundary when relevant:
-Behavior, experiment, test, or benchmark:
-Failure contract when relevant:
-Verification:
-Assumptions under test:
-Route-change triggers:
-Formal checkpoint if needed: review | commit | handoff | owner
+Outcome and source requirement:
+Stable seam or write boundary:
+Behavior or learning question:
+Direct verification:
+Route-changing assumptions or stop conditions:
 ```
 
-A slice is a proof-bearing unit, not a file batch. If this contract changes materially during execution, stop and classify the new route.
+Add semantic failure unit, observing boundary, forbidden outcomes, and recovery only when consequential state, authority, atomic visibility, or durable evidence requires them. A slice is a coherent behavior or evidence unit, not a file batch.
 
 ## Route Map
 
 ```mermaid
 flowchart TD
-  Start([Current plan horizon]) --> Orient[Orient<br/>source truth + live code + prior evidence]
-  Orient --> Contract[Slice contract<br/>outcome + seam + evidence + triggers]
-  Contract --> Safe{Safe bounded slice?}
+  Start([Current horizon]) --> Orient[Orient to source truth + live code]
+  Orient --> Slice[Bound one slice]
+  Slice --> Build[Implement or experiment]
+  Build --> Verify[Self-verify with direct evidence]
+  Verify -->|supports outcome| Self[Self-review your own work once]
+  Verify -->|fails / insufficient| Diagnose[Diagnose root cause]
+  Self --> Route{Evidence and route}
 
-  Safe -->|yes| Build[Execute slice<br/>learning / delivery / deepening<br/>TDD when applicable]
-  Safe -->|no| Back[Backward route<br/>Discover / design / spec / plan / owner]
+  Route -->|holds| Next[Continue or refine next horizon]
+  Route -->|clear local defect| Fix[Correct locally + verify]
+  Fix --> Self
+  Route -->|failure repeats or lacks cause| Diagnose
+  Diagnose -->|local implementation or test cause| Fix
+  Diagnose -->|source / plan / scope cause| Back[Revise affected owner]
+  Diagnose -->|structural cause established| Design[Design for depth]
+  Route -->|path changed without failure| Back
 
-  Build --> Verify[Verify slice outcome]
-  Verify -->|evidence insufficient or failed| Classify[Classify evidence]
-  Verify -->|proved| RouteCheck[Route check<br/>assumptions + interface + remaining work]
+  Next --> Formal{Consequential checkpoint selected?}
+  Formal -->|independent review| Review[Strict independent review]
+  Formal -->|commit| Commit[Rollback checkpoint]
+  Formal -->|handoff| Handoff[Continuity checkpoint]
+  Formal -->|none| More{More accepted work?}
 
-  RouteCheck -->|route still holds| Formal{Formal checkpoint useful?}
-  RouteCheck -->|local defect| Fix[Bounded fix route]
-  RouteCheck -->|repeated or unclear failure| Diagnose[Diagnose failure or design pressure]
-  RouteCheck -->|path invalidated| Back
-
-  Formal -->|review| Review[Independent review when warranted]
-  Formal -->|commit| Commit[Verified rollback checkpoint]
-  Formal -->|handoff| Handoff[Continuation checkpoint]
-  Formal -->|none| Horizon[Refine next horizon]
-
-  Review -->|pass| Horizon
-  Review -->|non-pass| Adjudicate[Adjudicate findings<br/>accepted / rejected / question / needs evidence]
-  Adjudicate --> Classify
-  Commit --> Horizon
+  Review --> Adjudicate[Adjudicate against source truth]
+  Adjudicate --> Route
+  Commit --> More
   Handoff --> Stop([Pause])
-
-  Classify -->|implementation defect| Fix
-  Classify -->|needs evidence| Diagnose
-  Classify -->|source / scope / owner / design| Back
-  Fix --> Contract
-  Diagnose --> Back
-
-  Horizon --> Next{More accepted work?}
-  Next -->|yes| Orient
-  Next -->|no| Done([Final evidence and route])
+  Back --> Stop
+  Design --> Stop
+  More -->|yes| Orient
+  More -->|no| Final[Sequential final self-check]
+  Final --> FinalVerifier[Fresh verifier]
+  Final --> FinalReview[Different fresh reviewer]
+  FinalVerifier --> FinalGate{Collect both results}
+  FinalReview --> FinalGate
+  FinalGate -->|verifier pass + review resolved| Done([Completion evidence + route])
+  FinalGate -->|implementation changes| Stale[Self-check + ask before redispatch]
+  FinalGate -->|failure / inconclusive| VerifyStop[Diagnose + route]
 ```
 
-## Route Check
+## Bounded Self-Review
 
-After verification, ask:
+Only after self-verification supports the outcome, silently ask once:
 
-- What did this slice prove?
-- Which assumption changed?
-- Does the module still hide complexity behind the intended interface?
-- Is remaining work shrinking?
-- Can the next bounded finish path be stated clearly?
-- Did a deferred capability or unplanned subsystem enter scope?
-- Did this slice invalidate earlier evidence or later phases?
-- Is independent review, a rollback checkpoint, or a handoff useful now?
+- Does the change match the accepted outcome and source truth?
+- What does the evidence prove, and what remains outside its boundary?
+- Is there a clear local correction, or did evidence change the route?
 
-Choose one route:
+Correct a local reversible mistake and rerun affected checks. Workflow guidance is enough for routine work; read review/verify skills when richer self-review or self-verification helps. Reading them does not create a formal verdict, independent context, or user question. Surface only route-changing gaps.
 
-- **Continue:** current outcome, scope, interface, and plan remain valid.
-- **Bounded fix:** one source-backed local defect; no scope or design change.
-- **Review:** independent judgment could change confidence or route.
-- **Commit:** coherent verified rollback point.
-- **Handoff:** context or continuity boundary.
-- **Diagnose:** failure signal or repeated loop needs root-cause evidence.
-- **Discover/design:** option space, ownership, failure unit, or interface reopened.
-- **Revise spec:** behavior, scope, acceptance, public contract, or failure semantics changed.
-- **Revise plan:** order, slices, mechanism, checks, or later phases changed.
-- **Decision gate:** owner choice or source/path conflict blocks progress.
-- **Stop/defer:** no safe in-scope continuation.
+## Diagnose Before Redesign
 
-## Review Readiness
+Repeated failure is a signal that the current explanation may be wrong, not proof that the architecture is wrong.
 
-Use this once before formal review when architecture, security, consequential state transitions, or proof validity makes omissions expensive:
+Diagnosis may find:
 
-```text
-Accepted outcome and source requirement:
-Owning invariant and semantic failure unit:
-Known entrypoints, callers, and adapters that can affect it:
-Forbidden effects and prior accepted-state preservation:
-Load-bearing claim -> direct observer -> adversarial disproof:
-Known evidence or fidelity gaps:
-Unresolved assumptions and owning activity:
-Route: review | design | TDD | diagnose | revise plan/spec | verify | decide | stop
-```
+- one local implementation defect;
+- an inadequate or stale test;
+- a missing reproduction or observer;
+- a source-truth or owner conflict;
+- a bad slice boundary or plan assumption;
+- stale reviewer context;
+- structural ownership, interface, state, or failure-unit pressure.
 
-Inspect available source evidence before filling the map. Do not turn unknown facts into confident entries or user questions. Ask only when the unresolved item is user-owned and changes the next safe action.
+Only the last category routes to redesign. Direct structural evidence may enter design-for-depth without manufacturing a failure first.
 
-This is one bounded author-side readiness pass, not recursive self-review, independent judgment, or verification. If a gap changes the route, leave valid work intact and re-enter its owning activity before dispatching review.
+## Final Assurance
 
-## Dynamic Backward Triggers
+The final slice closes in this order:
 
-Route backward when:
+1. sequential self-check: self-verification, then bounded self-review only on support;
+2. freeze one source identity;
+3. dispatch one fresh verifier and one different fresh reviewer in parallel;
+4. collect both results, then adjudicate.
 
-- an accepted defect reveals another branch, caller, adapter, or persisted-state consequence of the same invariant;
-- caller knowledge, public states, flags, retries, or test setup keep growing;
-- a slice requires an unplanned subsystem;
-- deferred scope enters the active milestone;
-- implementation invalidates earlier evidence;
-- later phases depend on a changed interface or ordering;
-- remaining work grows after completed slices;
-- the bounded finish path is no longer clear;
-- review or verification repeatedly fails for different local reasons.
+Implementer, verifier, and reviewer use separate contexts. Verifier supplies factual evidence; reviewer supplies judgment without depending on verifier output. Completion requires verifier Pass and resolved review for the same unchanged state.
 
-These triggers do not authorize a refactor. Preserve valid evidence, name the affected layer, and choose the narrowest backward route.
+If one result fails without source changes, preserve the unaffected result when its boundary still holds. Any implementation change stales both; self-check the fix and ask before another independent verifier or reviewer dispatch.
+
+Commit, handoff, owner, integration, release, and launch checkpoints remain separately conditional.
 
 ## Rolling Horizon
 
 At phase boundaries:
 
 1. preserve completed evidence and settled decisions;
-2. update invalidated assumptions;
+2. update only invalidated assumptions;
 3. refine the next phase into executable slices;
 4. keep later phases directional;
-5. record new backward checkpoints and formal checkpoint forecasts;
-6. stop if refinement would silently change behavior or scope.
+5. stop only when the next safe action truly depends on unresolved source truth or owner authority.
 
-A changed plan is healthy adaptation when evidence and owner authority support it. Following an invalidated plan is not discipline.
+A changed plan is healthy adaptation. Following an invalidated plan is not discipline; rewriting it after every local correction is not adaptation.
 
 ## Separate Execution Contexts
 
-When work is distributed, each work package should contain:
+For distributed work, give each package:
 
-- one bounded slice outcome;
-- source requirements and constraints;
-- relevant module/interface context;
-- expected output and evidence;
-- write boundary;
+- bounded outcome and source constraints;
+- relevant seam and write boundary;
+- expected output and direct evidence;
 - route-change and escalation conditions.
 
-The execution harness owns agents, models, worktrees, parallelism, persistence, timeouts, and transport.
+Reuse worker context while it remains useful. The harness owns agents, models, worktrees, parallelism, persistence, timeouts, and transport.

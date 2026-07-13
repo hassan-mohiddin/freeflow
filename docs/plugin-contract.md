@@ -146,7 +146,7 @@ Direct skill calls should be possible for technical users:
 /bypass
 ```
 
-Direct skill calls are manual state selection. If the user calls `/execute-plan`, the agent should treat that as permission to operate in that workflow segment, while still firing the decision gate if a user-owned decision appears.
+Direct skill calls are manual method selection. `/review-artifact` and `/review-work` default to formal independent review unless the user explicitly requests inline self-review. `/verify-work` defaults to enhanced self-verification and never authorizes a separate verifier by itself. If the user calls `/execute-plan`, the agent may operate in that segment while still firing the decision gate for user-owned decisions.
 
 Developer and setup skill calls are available when configuring Freeflow or developing plugins and skills:
 
@@ -233,7 +233,9 @@ Meaning:
 Bypass must not skip:
 
 - User-owned decisions.
-- Fresh verification before completion claims.
+- Self-verification before completion claims.
+- Standing artifact review before implementation readiness.
+- Standing final verifier/reviewer assurance before completion.
 - Explicit approval for destructive or irreversible actions.
 - Security, privacy, billing, or data-loss checks.
 
@@ -246,11 +248,11 @@ There is no mandatory forward pipeline. Enter at the narrowest useful state:
 ```text
 request -> choose entry
 entry -> conversation | discover | decide | spec | plan | execute | diagnose | review | verify | close
-meaningful slice -> fresh verification + route check
-route check -> continue | checkpoint | complete | backward edge
+meaningful slice -> sequential self-check: self-verification -> if supported, bounded self-review -> route check
+route check -> continue | diagnose | checkpoint | complete | backward edge
 ```
 
-Discovery, formal artifacts, independent review, commits, handoffs, branch integration, releases, and launches are conditional. Every meaningful learning, delivery, or deepening slice still gets verification proportionate to its claim and a route check.
+Discovery, durable artifacts, extra independent contexts, commits, handoffs, branch integration, releases, and launches are conditional. When consequential artifacts exist, `write-spec` selects the standing route: one combined review, separate spec/plan reviews when high risk, or spec-only review. Completed implementation dispatches one final verifier and a different final reviewer in parallel against the same frozen state. Every meaningful slice still gets a sequential self-check—self-verification then, only on support, bounded self-review—and a route check. Review/verify skills may enhance either inline without creating independence.
 
 Scale workflow pressure to:
 
@@ -584,9 +586,9 @@ The candidate is useful when:
 
 - The agent infers Conversation Mode versus Workflow Mode correctly in common cases.
 - It inspects discoverable evidence before asking and reserves the Decision Gate for user-owned decisions, source-truth conflicts, and material path substitutions.
-- Every meaningful slice gets proportionate fresh verification and a route check.
+- Every meaningful slice gets one sequential self-check—proportionate self-verification then, only on support, bounded self-review—and a route check; review/verify skills may enhance either inline.
 - Invalidated work returns to the narrowest owning activity while valid work is preserved.
-- Formal artifacts, independent review, commits, handoffs, integration, releases, and launches remain conditional.
+- Durable artifacts remain conditional; consequential spec/plan and final implementation reviews plus one distinct final verifier are standing boundaries, while extra independent contexts, commits, handoffs, integration, releases, and launches remain conditional.
 - Artifacts preserve compact recoverable decisions rather than ceremony or transcript residue.
 - Source-truth artifacts are not rewritten merely to satisfy the latest request.
 - Direct skill calls select a workflow segment without bypassing its gates.
@@ -599,11 +601,12 @@ These are candidate claims until baseline-vs-with-skill evaluation verifies the 
 - Exactly three modes: Conversation, Workflow, Strict Workflow.
 - Workflow Mode is the main/default work mode; Conversation Mode disables workflow pressure.
 - The workflow is adaptive and recurrent, not a fixed forward pipeline.
-- Verification and route checking follow every meaningful slice.
+- One sequential self-check—self-verification then, only on support, bounded self-review—and route checking follows every meaningful slice. Review/verify skills may enhance those methods; reading them does not imply another agent.
 - Backward edges return to the narrowest owning activity; the Decision Gate is only for user-owned decisions, source-truth conflicts, or material path substitutions.
 - Source-truth conflicts stop edits until the owning decision is resolved.
 - Handoffs are memory, not authority.
-- Review findings are evidence; follow-up loops narrow and stop after three total passes.
+- Review findings are evidence; one narrow confirmation is allowed only when materially needed and scoped authorization exists, and a third pass is exceptional, owner-selected, and terminal.
+- Implementer, final verifier, and final reviewer are distinct contexts. The verifier and reviewer run in parallel against one frozen state without sharing outputs; another independent dispatch requires user authorization.
 - Bypass defaults to one action.
 - Skills own behavior; host runtimes and harnesses own execution mechanisms.
 - Enforcement hooks come only after behavior evals show a repeated need.

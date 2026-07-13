@@ -19,7 +19,7 @@ Inspect:
 - staged, unstaged, and untracked work;
 - upstream, remote, and ahead/behind state;
 - worktree ownership and whether the active harness owns cleanup;
-- review and fresh verification status for the branch outcome.
+- sequential self-check and parallel independent-verifier/final-review status for the branch outcome.
 
 Do not infer the base branch, remote destination, PR target, or workspace ownership when the wrong choice could lose work or affect collaborators.
 
@@ -46,8 +46,8 @@ Before presenting a branch as ready to integrate, require:
 
 - the accepted branch outcome is clear;
 - intended commits and remaining dirty state are known;
-- fresh evidence supports the readiness claim;
-- required review has passed or residual findings are explicit;
+- fresh direct evidence supports the readiness claim;
+- a distinct verifier passed and reviewer resolved in parallel against the same unchanged branch state; unavailable or skipped assurance means the branch may be kept or handed off but not presented as ready;
 - no unresolved source conflict, owner decision, or required evidence gap blocks integration.
 
 If checks fail, report that the branch is not ready for merge/PR approval. Keeping the branch, handing off, or choosing a diagnostic route may still be valid.
@@ -94,7 +94,7 @@ Do not run destructive reset, clean, branch deletion, worktree removal, remote d
 - Conflict changes behavior, source truth, API, data, security, or architecture -> Decision Gate or plan/spec revision.
 - Integrated tests fail -> diagnose before cleanup.
 - Branch contains mixed or unrelated work -> return to commit/staging decisions.
-- Base moved enough to invalidate assumptions -> review or revise the integration route.
+- Base moved enough to invalidate assumptions -> inspect, diagnose failures, or revise the integration route.
 - PR/release/deployment policy is unclear -> ask the owner or follow repo authority.
 
 ## Completion

@@ -2,7 +2,7 @@
 
 Use profiles to select a review perspective, not to grant authority or prescribe a model. The harness chooses the available agent, fresh context, transport, and tools.
 
-Every profile receives the applicable Freeflow reviewer contract, source truth, work product, verification evidence, pass history, and residual risk. Domain prestige does not replace evidence.
+Reviewer profiles receive the applicable Freeflow reviewer contract, source truth, work product, direct evidence, pass history, and residual risk. The independent verifier receives the verifier contract and finalized evidence package instead; it is not a reviewer profile. Domain prestige does not replace evidence.
 
 ## Requirements Reviewer
 
@@ -27,17 +27,19 @@ Focus:
 
 Do not use “would a staff engineer approve” as evidence. Cite the requirement and consequence.
 
-## Verifier / Test Reviewer
+## Independent Verifier
 
-Focus:
+The verifier is a distinct fresh context from implementer and reviewer. It runs the finalized allowed checks once against the unchanged final state and reports:
 
-- whether checks exercise the claimed seam;
-- RED/GREEN and original-path evidence where TDD is claimed;
-- failure, recovery, integration, and environment gaps;
-- flaky or over-mocked tests;
-- claims broader than the evidence.
+- exact state and environment identity;
+- commands, exit status, and evidence pointers;
+- whether checks exercised the claimed seam;
+- proved, unproved, reduced-fidelity, failed, or unavailable claims;
+- unexpected mutations or side effects.
 
-A verifier runs allowed checks; a test reviewer may inspect test design. Neither decides product behavior.
+It does not inspect broad design quality, decide product behavior, edit, or fix. It may run in parallel with a distinct reviewer against the same frozen state without sharing outputs. If another independent run is needed, the parent must obtain user authorization.
+
+A test-quality reviewer is different: it may judge whether tests are representative or over-mocked, but its judgment does not count as independent verification.
 
 ## Security Reviewer
 
@@ -65,6 +67,6 @@ Focus on artifact/config identity, compatibility, data safety, observability, ad
 
 ## Composition
 
-Use the fewest profiles that cover the material risk. Several profiles may review in parallel when their questions are genuinely independent.
+Use one reviewer with the fewest material lenses that cover the boundary. Multiple independent reviewers are additional review dispatches and require scoped user authorization; do not parallelize reviewers merely to increase confidence or finding count.
 
-Do not count votes. The parent adjudicates findings against source truth. A fresh profile continues the same review-pass history and three-pass cap.
+Do not count votes. The parent adjudicates findings against source truth. One narrow confirmation requires scoped authorization and accepted blockers; a third pass is exceptional, owner-selected, and terminal.

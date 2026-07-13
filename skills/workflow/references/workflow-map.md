@@ -9,14 +9,21 @@ This map is adaptive. It is not a mandatory sequence.
 ```mermaid
 flowchart LR
   Request{Request}
-  Talk[Conversation<br/>answer directly]
+  Talk[Conversation]
   Entry{Choose entry}
-  Discover[Discover<br/>when needed]
-  Durable[Decision / spec / rolling plan<br/>when needed]
+  Discover[Discover when needed]
+  Durable[Decision / spec / rolling plan when needed]
+  ArtifactReview[Fresh artifact review]
   Slice[Learning / delivery / deepening slice]
-  Verify[Verify + route check]
-  Formal[Review / commit / handoff<br/>when useful]
-  Delivery[Finish branch / release / ship<br/>when selected]
+  Verify[Self-verify with direct evidence]
+  Self[Self-review your own work once]
+  Route{Route}
+  Diagnose[Diagnose repeated or unclear failure]
+  ExtraReview[Authorized extra review]
+  FinalReview[Fresh final reviewer]
+  FinalVerifier[Distinct fresh final verifier]
+  FinalGate{Both final results settled}
+  Delivery[Finish / release / launch when selected]
   Done[Close]
 
   Request -->|question or critique| Talk
@@ -26,104 +33,46 @@ flowchart LR
   Entry -->|bounded work ready| Slice
   Discover --> Durable
   Discover -->|learning slice ready| Slice
-  Durable --> Slice
+  Durable --> ArtifactReview
+  ArtifactReview --> Slice
   Slice --> Verify
-  Verify -->|continue without checkpoint| Slice
-  Verify -->|checkpoint useful| Formal
-  Verify -->|complete with no delivery step| Done
-  Verify -->|integration / release / launch remains| Delivery
-  Formal --> Slice
-  Formal -->|delivery remains| Delivery
-  Formal --> Done
+  Verify -->|supports outcome| Self
+  Verify -->|fails / insufficient| Diagnose
+  Self --> Route
+  Route -->|continue or local correction| Slice
+  Route -->|failure repeats or lacks cause| Diagnose
+  Diagnose -->|local cause| Slice
+  Diagnose -. evidence changes path .-> Entry
+  Route -->|authorized extra boundary| ExtraReview
+  ExtraReview -->|pass| Route
+  ExtraReview -. finding changes path .-> Entry
+  Route -->|implementation complete| FinalVerifier
+  Route -->|implementation complete| FinalReview
+  FinalVerifier --> FinalGate
+  FinalReview --> FinalGate
+  FinalGate -->|verifier pass + review resolved| Delivery
+  FinalGate -. failure or path change .-> Entry
+  Delivery -. evidence changes path .-> Entry
   Delivery --> Done
-  Verify -. evidence changes route .-> Entry
-  Delivery -. evidence changes route .-> Entry
 ```
 
 Small reversible work may use:
 
 ```text
-inspect -> execute -> verify -> route closeout
+inspect -> execute -> self-verify -> self-review once -> parallel distinct verifier + reviewer -> close
 ```
 
-## Adaptive Lifecycle
+## Feedback Hierarchy
 
-```mermaid
-flowchart TD
-  Request([Request]) --> Entry{Choose current entry}
+Use the cheapest direct feedback that can disagree with the claim:
 
-  Entry --> Conversation[Conversation<br/>answer / critique / inspect]
-  Entry --> Discover[Discover<br/>facts + options + tradeoffs]
-  Entry --> Gate[Decision gate<br/>owner or source conflict]
-  Entry --> Spec[Spec<br/>behavior + acceptance + failure contract]
-  Entry --> Plan[Rolling plan<br/>current horizon + directional later phases]
-  Entry --> Execute[Execute slice<br/>learning / delivery / deepening]
-  Entry --> Diagnose[Diagnose<br/>reproduce + root cause]
-  Entry --> Review[Review<br/>independent judgment]
-  Entry --> Verify[Verify<br/>claim + evidence]
-  Entry --> Close[Commit / handoff<br/>rollback or continuity]
-  Entry --> Finish[Finish branch<br/>merge / PR / keep / discard]
-  Entry --> Migrate[Migration<br/>move consumers / traffic / data]
-  Entry --> Release[Release<br/>versioned publication]
-  Entry --> Launch[Launch<br/>production deployment / rollout]
+1. implementation, tests, runtime observations, compilers, and focused checks;
+2. self-verification of what the evidence actually proves;
+3. only on support, one bounded self-review of the agent's own work against outcome, evidence, and route;
+4. diagnosis when failure repeats or remains unexplained;
+5. standing independent artifact/final assurance at their boundaries, with extra separate contexts only when authorized.
 
-  Conversation --> Done([Done])
-  Gate -->|decision resolves route| Return[Return to owning state]
-  Discover -->|durable behavior needed| Spec
-  Discover -->|bounded evidence path| Plan
-  Spec --> Plan
-  Plan --> Execute
-  Diagnose --> Execute
-  Execute --> Verify
-  Verify --> Route{Route check}
-
-  Route -->|continue| Formal{Formal checkpoint useful?}
-  Formal -->|review| Review
-  Formal -->|commit or handoff| Close
-  Formal -->|none| Horizon[Refine next executable horizon]
-  Review -->|pass| Horizon
-  Review -->|non-pass| Adjudicate[Adjudicate findings]
-  Adjudicate --> Backward
-  Close --> Horizon
-  Horizon -->|more accepted work| Execute
-  Horizon -->|complete with no delivery step| Done
-  Horizon -->|branch integration selected| Finish
-  Horizon -->|migration selected| Migrate
-  Horizon -->|versioned release selected| Release
-  Horizon -->|production rollout selected| Launch
-  Finish -->|release selected| Release
-  Finish -->|complete| Done
-  Release -->|consumer migration selected| Migrate
-  Release -->|deployment selected| Launch
-  Release -->|complete| Done
-  Migrate -->|removal release selected| Release
-  Migrate -->|production cutover selected| Launch
-  Migrate -->|complete| Done
-  Launch --> Done
-
-  Route -->|local defect| Execute
-  Route -->|failure unclear| Diagnose
-  Route -->|path invalidated| Backward[Backward route]
-
-  Backward -->|option space / architecture| Discover
-  Backward -->|behavior / scope / contract| Spec
-  Backward -->|slices / order / checks| Plan
-  Backward -->|owner or source conflict| Gate
-  Backward -->|no safe route| Stop([Stop or defer])
-
-  Return --> Discover
-  Return --> Spec
-  Return --> Plan
-  Return --> Execute
-  Return --> Diagnose
-  Return --> Review
-  Return --> Verify
-  Return --> Close
-  Return --> Finish
-  Return --> Migrate
-  Return --> Release
-  Return --> Launch
-```
+Basic self-review and self-verification come from the kernel and Workflow. When richer guidance helps, read the applicable review or verify skill after any slice. Reading enhances the current agent's method; it does not create independence, reviewer passes, or another context.
 
 ## Entry Points
 
@@ -131,15 +80,15 @@ flowchart TD
 - **Discover:** problem, outcome, approaches, architecture direction, or evidence path is unsettled.
 - **Decision gate:** owner decision, source conflict, or material path substitution blocks action.
 - **Write spec:** accepted behavior, scope, contracts, or acceptance need durability.
-- **Review artifact:** a spec, plan, decision, or handoff must guide future work safely.
 - **Write plan:** immediate execution needs phases, slices, verification, and backward checkpoints.
 - **Execute plan:** an approved current horizon exists.
 - **TDD:** one accepted behavior should drive one test-first implementation loop.
 - **Simplify code:** working code needs behavior-preserving reduction of accidental complexity.
 - **Migration work:** consumers, traffic, configuration, or data must move before an old path can be removed.
-- **Diagnose failure:** a broken, flaky, slow, or repeated workflow signal needs root cause.
-- **Review work:** independent judgment may change confidence or route.
-- **Verify work:** a slice or completion claim needs fresh proof.
+- **Diagnose failure:** a broken, flaky, slow, repeated, or unexplained signal needs root cause.
+- **Formal artifact review:** a consequential durable artifact needs strict independent judgment.
+- **Formal work review:** integrated work or a critical promotion needs strict independent judgment.
+- **Verify work:** enhanced self-verification or a separately selected verifier needs structured proof guidance; reading it does not imply another agent.
 - **Commit work:** a coherent verified rollback checkpoint is useful and authorized.
 - **Handoff:** context or continuity requires compact continuation state.
 - **Finish branch:** choose and verify merge, PR, keep, discard, or cleanup.
@@ -151,42 +100,66 @@ flowchart TD
 ```text
 Slice contract
 -> implement or experiment
--> verify
--> route check
+-> self-verify with direct evidence
+-> if supported, silently self-review your own work once
    -> continue
-   -> bounded fix
-   -> review
-   -> commit / handoff
-   -> diagnose
-   -> Discover / design
-   -> revise spec / plan
-   -> decision gate
+   -> correct a local reversible mistake
+   -> diagnose repeated or unclear failure
+   -> revise the affected spec / plan / design only when evidence requires it
+   -> formal review only at a selected consequential boundary
+   -> commit / handoff when useful
    -> stop
 ```
 
-Verification and route check occur after every meaningful slice. Formal review, commit, handoff, and user checkpoints are selected by risk and route value.
+Basic self-verification occurs after every meaningful slice; bounded self-review follows only when evidence supports the outcome. Review/verify skills may be read to enhance either method; reading alone never dispatches another agent or satisfies an independent boundary.
+
+## Independent Boundaries
+
+Standing authorization requires:
+
+- the artifact-review route selected by `write-spec`: one combined review, separate spec and plan reviews when high risk, or spec-only review;
+- after the final sequential self-check, one fresh verifier and one different fresh reviewer dispatched in parallel against the same frozen implementation.
+
+An artifact-only task uses its artifact review as final review and needs no separate verifier unless executable claims require one. Standing artifact/final assurance cannot be bypassed for readiness or completion. Bypass may skip only optional extra checkpoints and must leave the claim unassured.
+
+Any additional reviewer or independent verifier needs scoped user authorization. Ask once for ambiguous review wording and retain the answer. `/verify-work` is not verifier authorization. The implementing agent, reviewer, and verifier use distinct contexts; reviewer and verifier roles never collapse silently.
+
+Collect both results before adjudicating. Completion needs verifier Pass and resolved review with no later implementation change. Any code change stales both results; self-check the fix and ask before another independent dispatch. If one result fails without a source change, preserve the unaffected result when its boundary still holds.
 
 ## Rolling Horizon
 
 A rolling plan separates:
 
-- **Current phase:** concrete slices, seams, checks, dependencies, and stop conditions.
+- **Current phase:** concrete outcomes, slices, checks, dependencies, and stop conditions.
 - **Next phase:** directional outcome, likely dependencies, and questions current evidence must resolve.
 - **Later phases:** provisional outcomes and major constraints only.
 
-At each phase boundary, preserve evidence and refine only the next executable horizon.
+At each phase boundary, preserve evidence and refine only the next executable horizon. Review the phase independently only when one of the boundary conditions above applies.
 
 ## Backward Routing
 
+- Clear local defect with a valid seam -> fix and verify.
+- Repeated or unexplained failure -> diagnose.
+- Diagnosis or direct evidence establishes structural coordination pressure -> design-for-depth.
 - New option space or invalidated assumptions -> Discover.
-- Growing caller knowledge, states, flags, retries, or test machinery -> design-for-depth.
 - Changed behavior, scope, acceptance, public contract, or failure semantics -> spec revision.
 - Changed implementation order, slices, checks, or later-phase assumptions -> plan revision.
-- Unclear root cause -> diagnosis.
 - Owner or source conflict -> decision gate.
 - No safe in-scope continuation -> defer or stop.
 
-Route only affected work backward. Preserve valid decisions, code, and evidence.
+Diagnosis may conclude that the implementation, test, evidence, spec, plan, reviewer context, or design is wrong. Do not assume redesign before establishing the cause. Route only affected work backward and preserve valid decisions, code, and evidence.
+
+## Conditional Lifecycle
+
+After verified work:
+
+- commit only when a coherent rollback point is useful and authorized;
+- hand off only when continuity requires durable context;
+- finish a branch only when integration is the next job;
+- release only when versioned publication is selected;
+- launch only when production exposure is selected.
+
+These activities may require their own risk-specific verification or review. Their existence does not add review checkpoints to earlier slices.
 
 ## Route Closeout
 

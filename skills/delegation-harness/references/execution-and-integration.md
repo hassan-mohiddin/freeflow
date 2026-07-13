@@ -1,87 +1,83 @@
 # Execution And Integration
 
-Execution should be plan-guided and autonomous when the plan is sufficient. Autonomy is desired, not guaranteed.
+Execution should be plan-guided and autonomous when the plan is sufficient. Parent and child name context topology, not competence or continuous supervision.
 
 ## Execution Map
 
-Execution-parent turns the approved plan into a live execution map:
+The execution-parent turns the approved, artifact-reviewed plan into a live map:
 
 ```text
-work packages
-dependencies
-parallel/sequential groups
-expected write sets
-assigned checkout/worktree
-allowed checks
-review checkpoints
-verification checkpoints
-commit checkpoints
-integration order
+work packages and dependencies
+parallel / sequential groups
+expected write sets and assigned checkouts
+allowed direct checks
+standing final-review boundary
+any separately authorized extra-review boundary
+commit checkpoints and integration order
 stop conditions
 ```
 
-A work package may contain one slice or several related slices.
+A package may contain one slice or several related slices.
 
 ## Worker Ownership
 
-Decide worker delegation from the whole execution shape, not from the next slice alone.
+For broad or multi-slice implementation, a worker owns the implementation stream. It implements, self-verifies, self-reviews once, corrects local reversible mistakes, and learns across related slices. It may read review/verify skills to enhance either method without creating independence.
 
-For broad or multi-slice implementation, execution-parent coordinates and a worker owns the implementation stream. Do not let the parent become the main implementer because each individual slice looks small.
+Do not replace the worker or summon a reviewer after each slice. Spawn a new worker only for a real context, capability, write-scope, isolation, or parallelism boundary.
 
-One worker may own multiple sequential slices when context remains useful and the write scope stays coherent. Spawn a new worker only for a real context boundary, parallelism, different write scope or capability, stale context, or isolation need.
-
-Execution-parent inline edits are for coordination, reporting, or mechanical integration. If the parent edits product/runtime files, it must state why the edit is not worker-owned.
+Execution-parent edits are limited to coordination, reporting, or mechanical integration. If it edits product/runtime files, it states why the work is not worker-owned.
 
 ## Parallelism
 
-Default to sequential unless independence is explicit.
+Default to sequential unless independence is explicit. Parallel work requires satisfied dependencies, no unresolved shared contract, safe write sets, one writer per checkout, package checks, and a defined integration path. Use worktrees for parallel writers.
 
-Parallel work requires:
-
-- dependency satisfied;
-- no unresolved shared API/schema/product decision;
-- safe expected write sets;
-- one writer per checkout;
-- checks per package;
-- integration path.
-
-Use worktrees for parallel writers.
-
-## Review And Fix Flow
+## Primary Feedback Flow
 
 ```text
-worker completes package
--> verifier runs planned checks
--> reviewer reviews artifact/diff/work
--> execution-parent adjudicates findings
--> worker fixes accepted implementation findings
--> integrator fixes integration findings
--> verifier/reviewer re-check as needed
+worker implements package
+-> self-verifies with direct evidence
+-> self-reviews its own work once
+-> correct local reversible mistakes
+-> report evidence and route-changing gaps
+-> execution-parent integrates sequentially
+-> verify integrated result
 ```
 
-Reviewer findings are evidence, not commands. Reviewer does not fix.
+Repeated or unexplained failure routes to diagnosis before redesign. A reviewer is not the worker's normal feedback loop.
 
-Repeated review/verification failure routes backward to diagnose, discover, spec, or plan.
+## Independent Assurance Flow
+
+The consequential spec/plan package receives its standing artifact review before execution. After all packages are integrated:
+
+```text
+sequential final self-check: self-verification -> if supported, self-review
+-> freeze one implementation state
+-> dispatch fresh verifier + different fresh reviewer in parallel
+-> collect both results
+-> complete on verifier Pass + resolved review with no code change, otherwise route backward
+```
+
+Implementer, reviewer, and verifier are separate contexts. Review is judgment; verification is factual claim evidence. The standing reviewer and verifier need no reconfirmation. Any additional reviewer or independent verifier requires scoped user authorization.
+
+Verifier output is factual evidence; reviewer findings are judgment. Neither sees the other's output before reporting. Any implementation change stales both results; self-check the fix and ask before redispatching either role. Preserve an unaffected result only when no source change invalidates its boundary.
 
 ## Integration
 
-Parallel implementation can run concurrently. Integration is sequential by default:
+Parallel implementation may run concurrently. Integration is sequential by default:
 
 ```text
 merge/apply package A -> verify
 merge/apply package B -> verify
 ```
 
-Integrator escalates behavior conflicts, source-truth conflicts, API/schema mismatch, and design changes.
+Integrator escalates behavior conflicts, source conflicts, API/schema mismatch, and path-changing design evidence.
 
 ## Commit Checkpoints
 
-Execution-parent owns planned intermediate commit checkpoints.
+Execution-parent owns planned intermediate commits. A commit is allowed when the package is coherently verified, the diff matches scope, required formal review has occurred at its actual boundary, and no sensitive/generated/user-owned surprise files are included.
 
-A checkpoint commit is allowed when it was planned, the package is reviewed/verified as required, the diff matches intended scope, and no sensitive/generated/user-owned surprise files are included.
-
-Final closeout commit and push remain orchestrator/user-owned.
+A commit does not itself trigger review. Final closeout commit and push remain orchestrator/user-owned.
 
 ## Stop Conditions
 
-Stop and route back for product behavior, scope, public API, compatibility, security, privacy, billing, data loss, source-truth conflicts, spec/plan contradiction, repeated failure, or integration conflicts that change design/behavior.
+Stop or route backward for product behavior, scope, public API, compatibility, security, privacy, billing, data loss, source conflicts, spec/plan contradiction, repeated unexplained failure, or integration conflicts that change accepted behavior.

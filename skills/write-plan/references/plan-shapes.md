@@ -30,7 +30,7 @@ Phase 1 — current executable horizon
 - Learning and delivery slices
 - Verification
 - Backward checkpoint
-- Likely review / commit / handoff checkpoint
+- Consequential review / commit / handoff checkpoint, if any
 
 Phase 2 — directional
 - Intended outcome
@@ -42,7 +42,8 @@ Later phases — provisional
 - Outcomes and major constraints only
 
 Dynamic plan-health triggers:
-Final acceptance and residual risks:
+Final direct checks and one reproducible independent-verifier package:
+Residual risks:
 ```
 
 Detail decreases with distance. Refine a later phase only when it becomes the next executable horizon.
@@ -57,12 +58,12 @@ Likely module / interface / write set:
 Semantic failure unit and authoritative state when relevant:
 Behavior, experiment, test, or benchmark:
 Failure contract when relevant:
-Verification and direct evidence producer or acquisition slice:
+Self-verification and direct evidence producer or acquisition slice:
 Dependencies:
 Stop conditions:
 ```
 
-A slice is a proof-bearing unit, not a file list. It should be independently understandable and leave a clear route.
+A slice is a proof-bearing unit, not a file list. It should be understandable enough to execute and leave a clear route without predicting every local choice.
 
 ## Learning Slice
 
@@ -120,10 +121,10 @@ Do not prescribe harness-specific agents, models, worktrees, timeouts, or transp
 
 ## Checkpoint Selection
 
-- **Route check:** after every slice; normally internal and lightweight.
-- **Review:** architecture, sensitive behavior, integration risk, or accumulated change.
+- **Sequential self-check:** self-verification then, only on support, bounded self-review after every meaningful slice; review/verify skills may enhance either inline.
+- **Independent assurance:** the `write-spec`-selected combined or high-risk separate artifact-review route before implementation; after the sequential final self-check, one fresh verifier and one different fresh reviewer in parallel against the same frozen state. Extra contexts require scoped authorization.
 - **Commit:** coherent verified rollback point when authorized.
 - **Handoff:** context or continuity boundary.
 - **Backward:** evidence invalidates assumptions, interface, scope, spec, or later plan.
 
-Checkpoint forecasts may change during execution. That is adaptation, not plan failure, when the evidence and route are reported.
+A phase ending is not itself a review trigger. Checkpoint forecasts may change during execution; adaptation follows evidence rather than plan ceremony.

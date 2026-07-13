@@ -93,7 +93,7 @@ Stop and trigger a design or plan checkpoint when:
 - making the test pass invalidates earlier evidence or expands scope;
 - the interface is difficult to use correctly or impossible to test without internals.
 
-Do not keep adding tests and patches because the loop is green. Re-enter design, spec, or planning when the evidence changes the route.
+Do not keep adding tests and patches because the loop is green. Diagnose repeated or unexplained failures before redesigning; revise design, spec, or planning only when evidence identifies that owner.
 
 ## Completion Evidence
 
@@ -106,7 +106,7 @@ GREEN command and result:
 Original-path verification:
 Broader checks:
 Remaining unverified behavior:
-Route check: proceed | review | commit | redesign | revise plan/spec | stop
+Route check: proceed | local correction | diagnose | formal review if selected | commit | revise design/plan/spec | stop
 ```
 
 Do not claim TDD from tests written after implementation or a test that was never observed failing for the intended reason.

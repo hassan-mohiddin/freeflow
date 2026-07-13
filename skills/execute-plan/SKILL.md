@@ -1,140 +1,104 @@
 ---
 name: execute-plan
-description: Use when implementing an approved plan, executing or resuming planned slices, refining a rolling plan from implementation evidence, handling failed checks or review findings during execution, or deciding whether the next route is forward, backward, branched, or stopped.
+description: Use when implementing an approved plan, executing or resuming planned slices, refining a rolling plan from implementation evidence, handling failed checks or formal-review findings, or deciding whether the next route is forward, backward, branched, or stopped.
 ---
 
 # Execute Plan
 
 Execute the next approved horizon without treating the plan as permanent authority.
 
-Live repo evidence and source truth win. Preserve the accepted outcome, but revise the implementation path when evidence invalidates it.
+The active agent owns implementation, self-verification, self-review, local correction, and learning. Live source truth wins over the plan. Every meaningful slice closes through a sequential self-check—self-verification, then bounded self-review only when evidence supports the outcome; independent contexts remain boundary tools.
 
-Every meaningful slice ends with verification and a route check. Review, commit, handoff, and user checkpoints are conditional.
-
-Read [the execution map](references/execution-map.md) for multi-slice work, learning slices, TDD, rolling-plan refinement, accumulated design pressure, or any failed check, review, source, or scope condition.
+Read [the execution map](references/execution-map.md) for multi-slice work, learning slices, distributed execution, or a failed source, scope, verification, or review condition.
 
 ## Orient
 
-Before editing, read:
+Read only enough to execute the current horizon safely:
 
-- the current plan phase and source requirements;
-- relevant specs, docs, tests, policies, ADRs, and live code;
-- prior phase evidence and handoffs as memory, not authority;
-- later phases only far enough to understand dependencies and assumptions.
-
-Confirm that the immediate phase is executable. Later phases may remain directional.
+- current phase and source requirements;
+- relevant specs, tests, policies, ADRs, and live code;
+- prior evidence and handoffs as memory;
+- later work only for dependencies that constrain this slice.
 
 Classify the next route:
 
-- **Execute:** the next slice is bounded and supported by source truth.
-- **Discover or design:** the option space, interface, ownership, or failure unit is unsettled.
+- **Execute:** bounded work is supported by source truth.
+- **Discover or design:** option space or a consequential interface is unsettled before implementation.
 - **Revise spec:** behavior, scope, acceptance, public contract, or failure semantics changed.
-- **Revise plan:** slice boundaries, order, mechanism, checks, or later phases changed.
-- **Decision gate:** a user-owned decision or source/path conflict blocks progress.
-- **Diagnose:** the next question is a concrete failure signal or repeated loop failure.
+- **Revise plan:** order, slice boundaries, mechanism, checks, or later assumptions changed.
+- **Decision gate:** a user-owned decision or source conflict blocks action.
+- **Diagnose:** a concrete, repeated, or unexplained failure needs root-cause evidence.
 - **Stop or defer:** no safe in-scope route remains.
 
 Do not improve, broaden, or reinterpret the plan silently.
 
-## Slice Contract
+## Bound The Slice
 
-Before each non-trivial slice, name:
+For non-trivial work, name only what execution needs:
 
-```text
-Slice outcome:
-Source requirement / acceptance:
-Type: learning | delivery | deepening
-Module / interface / seam:
-Semantic failure unit and observing boundary when relevant:
-Behavior, experiment, test, or benchmark:
-Failure contract when relevant:
-Verification:
-Assumptions under test:
-Route-change triggers:
-Formal checkpoint if needed: review | commit | handoff | owner
-```
+- outcome and source requirement;
+- stable seam or write boundary;
+- behavior or learning question;
+- direct verification;
+- assumptions or stop conditions that could change the route.
 
-Before executing a slice that issues or redeems authority, publishes canonical evidence or durable evidence whose integrity affects correctness, depends on atomic visibility, or has consequential post-commit, cancellation, or recovery behavior, use `../design-for-depth/SKILL.md` to name the semantic failure unit and observing boundary. Route backward when callers still coordinate canonical versus diagnostic state, commit visibility, capability binding, or post-commit recovery.
+Add a semantic failure unit only when authority, canonical evidence, atomic visibility, durable state, cancellation, or recovery materially affects correctness. Use `../design-for-depth/SKILL.md` proactively when such architecture is unsettled; do not invoke redesign merely because implementation contains ordinary bugs.
 
-Choose local reversible details from repo conventions. Stop when the slice requires behavior, policy, compatibility, public API, security, privacy, billing, permissions, data-loss, migration, or hard-to-reverse architecture that source truth has not settled.
+Choose reversible details from repo conventions. Stop for unsettled product, compatibility, public API, security, privacy, billing, permissions, data-loss, migration, or hard-to-reverse architecture decisions.
 
-If work is carried out through separate execution contexts, define bounded work packages, dependencies, source context, outputs, checks, and escalation conditions. The active harness owns agents, models, worktrees, parallelism, persistence, timeouts, and transport.
+When separate execution contexts are useful, give each one a bounded outcome, source context, write boundary, evidence, and escalation conditions. The harness owns agent and transport mechanics.
 
-Do not start a slice when the remaining context is insufficient to orient, edit, verify, and record the route.
+## Execute
 
-## Execute The Slice
+Work through one coherent behavior or evidence path:
 
-Work vertically through one behavior or evidence path.
+- edit only what the slice needs;
+- keep later work out unless evidence changes the route;
+- let learning slices fail safely and apply their discard-or-promote rule;
+- use `../tdd/SKILL.md` when behavior should drive a RED/GREEN/REFACTOR loop;
+- use `../diagnose-failure/SKILL.md` when a failed signal lacks a supported cause.
 
-- Make only the edits needed for the active slice.
-- Keep later slices out unless current evidence changes the plan explicitly.
-- For a learning slice, capture the named evidence and apply its discard-or-promote rule. Exploratory code does not become production code silently.
-- When test-first work applies, use `../tdd/SKILL.md` for one behavior-level RED/GREEN/REFACTOR loop.
-- Use `../design-for-depth/SKILL.md` when caller knowledge, states, flags, retries, test setup, or cross-module coordination starts growing.
-- Use `../diagnose-failure/SKILL.md` when a failed check needs root-cause evidence rather than another patch.
+Do not rewrite tests, verifiers, specs, or policies merely to make implementation pass. A conflicting check may be stale, but that is a fact to establish, not permission to change source truth.
 
-Do not rewrite a verifier, test, spec, policy, or other source-truth artifact merely to make implementation pass. A stale or incorrect check is evidence that the route may need revision, not permission to change the contract.
-
-## Verify And Check The Route
+## Self-Verify And Self-Review
 
 After every meaningful slice:
 
-1. Run the planned check or the smallest equivalent check that proves the slice outcome.
-2. State what the evidence proves and what remains unverified.
-3. Compare the result with the slice assumptions, interface, failure contract, and remaining plan.
-4. Check whether the next bounded finish path is still clear and remaining work is shrinking.
-5. Choose the next route before editing again.
+1. Self-verify with the smallest direct check that can disagree with the intended outcome.
+2. State what it proves and what remains unverified.
+3. Only when evidence supports the outcome, silently self-review your own change once against source truth, evidence, and route.
+4. Correct clear local reversible mistakes and rerun affected checks.
+5. Surface only gaps that change scope, authority, design, evidence, or the next safe action.
 
-Continue only when the evidence preserves the current outcome, scope, interface, and plan health.
+Workflow guidance is enough for routine work. Read `../verify-work/SKILL.md` or `../review-work/SKILL.md` after any slice when richer self-verification or self-review guidance helps. Reading either skill does not dispatch another context or satisfy an independent boundary.
 
-Route backward when:
+Continue when evidence preserves the outcome and route. When failures repeat, differ without explanation, or expose another consequence of an unknown cause, use diagnosis before redesign. Diagnosis may conclude local implementation bug, inadequate test, stale source, bad slice, reviewer-context problem, or structural design pressure.
 
-- an accepted defect reveals another branch, caller, adapter, or persisted-state consequence of the same invariant;
-- fixes keep adding caller knowledge, public states, flags, retries, or test machinery;
-- a slice requires an unplanned subsystem or deferred capability;
-- implementation invalidates earlier evidence or acceptance;
-- later phases now depend on a different interface or ordering;
-- remaining work grows after completed slices;
-- the next bounded finish path can no longer be stated clearly;
-- verification or review exposes a source conflict, missing owner decision, or unsupported claim.
+Preserve valid work. Redesign only when root-cause or direct structural evidence shows that ownership, interface, state, or failure-unit shape is wrong.
 
-Preserve verified work and identify only the affected decisions, spec sections, phases, and slices. Do not restart from zero or patch forward because work has already begun.
+## Final Assurance
 
-## Review Readiness
+After the final implementation slice:
 
-Before requesting formal review of architecture-bearing, security-sensitive, state-transition, or proof-bearing work, perform one bounded author-side readiness check. Use [review readiness](references/execution-map.md#review-readiness) to identify the owning invariant and failure unit, known entrypoints or adapters, forbidden effects and prior-state preservation, and each load-bearing claim's direct evidence and adversarial disproof.
+1. run the sequential self-check: final self-verification, then bounded self-review only if it supports the outcome;
+2. freeze the source identity;
+3. dispatch one fresh verifier and one different fresh reviewer in parallel against that same state;
+4. collect both results, then adjudicate and close or route backward.
 
-If the check exposes an unresolved gap, re-enter design, TDD, diagnosis, planning, or verification instead of asking review to complete that work. Keep the check internal unless it changes the route. It does not count as independent review or replace verification.
+Verifier and reviewer are separate from each other and the implementer, and neither depends on the other's output. Both standing dispatches need no reconfirmation.
 
-## Formal Checkpoints
+Completion requires verifier Pass and resolved review with no later implementation change. Preserve an unaffected result when its boundary still holds, but any code change stales both. Self-check the correction and ask before another independent verifier or reviewer dispatch. Other extra contexts also require scoped authorization.
 
-Use formal checkpoints when they can change or preserve the route:
-
-- **Review:** architecture-bearing, sensitive, integration, accumulated-risk, or final work; use `../review-work/SKILL.md`.
-- **Commit:** a coherent verified rollback point exists and repository/user workflow permits it; use `../commit-work/SKILL.md`.
-- **Handoff:** context, pause, or continuity requires durable continuation state; use `../handoff/SKILL.md`.
-- **Owner:** a consequential decision remains; use `../decision-gate/SKILL.md`.
-
-Do not require every checkpoint after every slice by habit.
-
-A non-passing review is a phase exit. Adjudicate through `review-work` before editing from its findings. A failed verification is evidence to classify through `verify-work` or diagnosis before changing direction.
+Commit, handoff, owner, integration, release, and launch checkpoints remain separately conditional. No intermediate slice or phase requires review merely by ending.
 
 ## Rolling Plan
 
-At a phase boundary, refine only the next executable horizon from current evidence. Keep later phases directional until their dependencies and assumptions are resolved.
+At a phase boundary, preserve evidence and refine only the next executable horizon. Keep later phases directional.
 
-If refinement changes accepted behavior or scope, revise the spec or ask the owner before continuing. If it changes only implementation order, slice boundaries, or checks, revise the plan and name why.
+Revise the plan when evidence changes order, slices, mechanisms, or checks. Revise the spec or ask the owner when behavior, scope, acceptance, public contract, sensitive policy, or failure semantics change. Ordinary implementation learning does not require independent artifact review.
 
 ## Completion
 
-Report:
+Report completed outcomes, direct verification, route-changing discoveries, accepted plan/spec changes, useful checkpoints, and remaining unverified behavior.
 
-- slices completed and evidence produced;
-- verification and review status;
-- assumptions confirmed or invalidated;
-- plan/spec changes or backward routes taken;
-- commit or handoff checkpoints when relevant;
-- remaining unverified behavior;
-- recommended next route.
-
-Implementation is complete only when the accepted outcome is proved, not when every original plan step was followed.
+Implementation is complete when the final self-check supports the outcome and parallel final assurance returns verifier Pass plus resolved review for the same unchanged source identity. Unavailable or skipped standing assurance prevents a completion claim; preserve the work as unassured and report the missing boundary. Predicted intermediate reviews need not occur.

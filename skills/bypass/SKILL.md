@@ -25,7 +25,7 @@ Skip unnecessary workflow gates:
 
 - spec
 - plan
-- review checkpoint
+- optional extra review checkpoint
 - extended questioning
 - artifact creation
 
@@ -39,7 +39,9 @@ Do not bypass:
 - repo source-of-truth conflicts
 - destructive or irreversible actions
 - security, privacy, billing, data-loss, public API, compatibility, or migration checks
-- verification before completion claims
+- self-verification before completion claims
+- standing artifact review before implementation readiness
+- standing final verifier/reviewer assurance before completion
 
 If bypass conflicts with any of these, use Stop First.
 
@@ -47,7 +49,7 @@ If bypass conflicts with any of these, use Stop First.
 
 `/bypass next` skips the next unnecessary workflow gate. Re-check the route immediately afterward. If that gate directly unlocks one bounded safe action, carry that action through verification and then spend the bypass; it does not carry into another gate or slice.
 
-`/bypass task` reduces workflow pressure for the current task. It still does not skip judgment or verification and expires when that task completes, stops, or changes scope.
+`/bypass task` reduces workflow pressure for the current task. It does not turn an unreviewed artifact into implementation authority or unassured work into completion. It expires when the task completes, stops, or changes scope.
 
 Never leave bypass active indefinitely.
 

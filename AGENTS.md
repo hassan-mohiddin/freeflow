@@ -63,6 +63,8 @@ When reference skills conflict:
 - Use evals that compare baseline vs with-skill behavior. A useful eval usually makes baseline fail and with-skill pass.
 - Prefer adversarial fixture evals with saved diffs over clean prompts or subjective self-assessment.
 - Add a new skill only when it has a distinct job, trigger, and failure mode. Update an existing skill when the behavior belongs to an existing job. Use `evaluate-skill` and `write-skill` for meaningful skill changes.
+- Treat implementation, tests, and one sequential self-check—self-verification then, only on support, bounded self-review—as the primary feedback loop. Review/verify skills may enhance either method inline. At final assurance, dispatch a fresh verifier and different fresh reviewer in parallel against one frozen state.
+- Diagnose repeated or unexplained failure before redesigning unless direct structural evidence already establishes the cause.
 - Do not add enforcement hooks until skill wording and evals prove the behavior needs mechanical enforcement.
 
 ## Current Product Shape
@@ -77,7 +79,10 @@ The core workflow principle:
 
 ```text
 Move forward when context is sufficient.
-Verify and check the route after each meaningful slice.
+Self-check sequentially after each meaningful slice: self-verify first; self-review once only when evidence supports the outcome.
+Diagnose repeated or unexplained failure before redesigning.
+Use independent review for the standing artifact and final-work boundaries, plus explicitly authorized exceptional checkpoints.
+After the final sequential self-check, freeze the state and dispatch one verifier plus one different reviewer in parallel. Ask before any additional independent dispatch.
 Re-enter the narrowest owning activity when evidence changes the path.
 ```
 

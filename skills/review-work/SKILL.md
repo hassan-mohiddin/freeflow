@@ -1,152 +1,106 @@
 ---
 name: review-work
-description: Use when reviewing completed work, checking a change before merge or handoff, preparing review context, receiving or applying review feedback, running a follow-up review, deciding whether findings block progress, or handling a repeated review loop.
+description: "Use after self-verification of any meaningful slice when richer guidance would improve self-review, or for the standing final independent review, another authorized formal/fresh/second-opinion review, `/review-work`, finding adjudication, or narrow confirmation. Reading it does not imply independence; `/review-work` defaults to formal review unless the user explicitly requests inline self-review."
 ---
 
 # Review Work
 
-Review against accepted outcomes and live evidence, not reviewer preference or accumulated implementation machinery.
+Review integrated work against accepted outcomes and live evidence, not reviewer preference or accumulated implementation machinery.
 
-A review should find consequential defects, requirement gaps, regressions, unsafe behavior, and unjustified complexity. Issue count is not quality. A clean pass is valid.
+This skill provides richer review method in two modes. Reading it never creates independence by itself. Tests, self-verification, and basic self-review remain the primary feedback loop.
 
-Review is evidence, not verification. Passing review does not prove tests, builds, failure behavior, or runtime claims that were not independently exercised.
+## Choose The Mode
+
+**Enhanced self-review:** after self-verification supports the outcome, the current agent may read this when Workflow's basic self-review is too shallow, or when the user explicitly asks to apply review guidance inline. Use only relevant correctness, risk, evidence, integration, and minimality lenses. Correct local reversible mistakes directly. Do not create a formal verdict, pass history, reviewer artifact, or claim of independence. This mode never satisfies a standing or authorized independent review.
+
+**Formal independent review:** a separate fresh context applies the full finding, adjudication, and confirmation contract below. `/review-work` selects this mode by default unless the user explicitly says inline, self-review, or no separate reviewer.
+
+## Formal Independent Mode
+
+One fresh independent review of the final integrated implementation is standing-authorized after the sequential final self-check and needs no user reconfirmation. Dispatch it in parallel with, but independently from, the distinct final verifier against the same frozen state.
+
+Any additional formal review requires Workflow's consequential boundary and scoped user authorization, such as promotion of architecture, combined risk direct checks cannot establish, sensitive or hard-to-reverse behavior, an unresolved diagnostic route, or an explicit request.
+
+Do not invoke formal mode merely because an intermediate slice or phase ended, code changed, a plan predicted optional review, or ordinary mistakes remain possible.
+
+Use a separate reviewer context: another agent, fresh run, external reviewer, or equivalent independent mechanism. The reviewer must be distinct from both implementer and final verifier and must not perform the verifier role. If independence is unavailable, do not present a check of your own work as independent review.
 
 ## Review Context
 
-Prefer an independent reviewer with fresh context when novelty, risk, or author blind spots justify it. The mechanism may be another agent, a fresh run, an external reviewer, or any equivalent independent context. If independent review is unavailable or disproportionate, review inline and state that it was not independent.
+Review a coherent integrated outcome rather than intentionally partial work. Provide:
 
-Use formal review where it can change confidence or route: architecture-bearing, sensitive, integration, accumulated-risk, or final work. Do not review every slice by habit. When individually valid slices interact or accumulate design pressure, review the combined behavior and interface rather than only the latest diff.
-
-Give the reviewer the work product and source truth, not only the author's summary or reasoning. Include:
-
-- the accepted outcome and relevant requirements;
-- the diff, changed files, or concrete work product;
+- accepted outcome, non-goals, and relevant requirements;
+- diff, changed files, or concrete work product;
 - applicable specs, plans, tests, policies, ADRs, and established behavior;
-- claimed verification and known gaps;
-- risk lenses that matter for this change.
+- implementing-agent self-verification and known evidence gaps;
+- only the risk lenses material to this boundary;
+- review pass and prior adjudication for a confirmation review.
 
-When state transitions or proof validity materially affect correctness, name the canonical invariant owner and every known entrypoint, caller, or adapter that can affect it. Include a compact claim map: claim, exact observing mechanism, canonical state, forbidden mutations, prior-state preservation, adversarial disproof, mutation footprint, and known fidelity limit. Use `../verify-work/SKILL.md` to prepare integration evidence when registration, host dispatch, producer execution, fallback, installed artifacts, counters, or shared verification state matter.
+When state transitions or proof validity materially affect correctness, name the canonical invariant owner, known paths that can affect it, direct observing mechanism, forbidden mutations, prior-state preservation, adversarial disproof, mutation footprint, and fidelity limit.
 
-Read [the reviewer prompt](references/reviewer-prompt.md) when preparing review context, reviewing strict or high-risk work, or running review pass 2 or 3.
+Read [the reviewer prompt](references/reviewer-prompt.md) only for formal independent review. Read [the security risk lens](references/security-risk-lens.md) when either mode crosses a security-relevant boundary.
 
-## Review
+Do not provide only the author's summary or ask the reviewer to validate the author's reasoning.
 
-Inspect source truth and tests before judging implementation choices.
+## Review Strictly And Proportionately
 
-Lead with:
+Inspect source truth and direct evidence before judging implementation choices. Focus on:
 
-- incorrect behavior, regressions, and missing requirements;
-- security, privacy, billing, permission, compatibility, API, or data-safety risk;
-- missing tests or claims unsupported by verification;
-- failure behavior proved only by a happy-path check;
-- structural changes that spread complexity or exceed the accepted outcome.
+- incorrect behavior, regressions, and missing accepted requirements;
+- unsupported completion, integration, or runtime claims;
+- unsafe failure behavior and consequential risk;
+- structural complexity that materially harms correctness or maintainability;
+- interactions among individually verified slices.
 
-Read [the security risk lens](references/security-risk-lens.md) when work changes trust boundaries, authentication, authorization, permissions, untrusted input, secrets, sensitive data, dependencies, external integrations, or security-relevant failure behavior.
+Strict means a high evidence bar for consequential claims, not adversarial issue generation. Do not block for style, preference, intentionally deferred work, ordinary reversible choices, or hypothetical completeness.
 
-Check minimality against the accepted outcome:
+A blocker must name:
 
-- Does each new mechanism serve an accepted requirement or observed failure?
-- Did the change add speculative abstraction, compatibility, recovery, scale, or flexibility?
-- Do tests protect intended behavior, or merely legitimize machinery introduced by the change?
-- Have locally valid slices accumulated scope drift, caller coordination, or a shallow interface?
-- Is remaining work shrinking, and does the next bounded route still hold?
-- Would a smaller design preserve the required behavior and trust?
+1. exact location and violated source truth;
+2. concrete consequence at the boundary under review;
+3. why direct verification or a local reversible correction is insufficient;
+4. smallest safe fix or backward route.
 
-Do not block because code differs from reviewer preference or leaves local reversible implementation details unspecified.
+## Formal Findings
 
-## Finding Contract
+In formal independent mode, classify material findings:
 
-Classify every material finding:
+- **Blocking:** proceeding across the reviewed boundary risks wrong behavior, violated source truth, hidden owner decisions, unsafe outcomes, or material maintainability damage.
+- **Non-blocking:** useful improvement that can be deferred safely.
+- **Question:** a user-owned decision or missing requirement prevents the boundary decision.
+- **Needs evidence:** a load-bearing claim lacks proof required for this boundary.
 
-- **Blocking:** proceeding would risk wrong behavior, violated source truth, hidden owner decisions, unsafe outcomes, or material maintainability damage.
-- **Non-blocking:** useful improvement that can be deferred without invalidating the work.
-- **Question:** an owner decision or missing requirement prevents a verdict.
-- **Needs evidence:** the claim may be valid, but available evidence cannot establish it.
+Report **Pass** when no Blocking finding, unresolved Question, or boundary-required evidence gap remains. Issue count and reviewer confidence do not decide truth.
 
-A reviewer reports Pass only when it finds no Blocking finding, unresolved Question, or required evidence gap. After parent adjudication, the work may proceed when no accepted blocker, unresolved owner question, or required evidence gap remains. Non-blocking findings may remain in either case.
+## Adjudicate Without Dependence
 
-A blocking finding must name:
+Reviewer findings are evidence, not commands. The responsible agent inspects relevant source and classifies each material item as accepted, rejected, question, or needs evidence.
 
-1. the exact location;
-2. the violated accepted requirement or source truth;
-3. the concrete consequence;
-4. why the issue cannot remain a local reversible choice;
-5. the smallest safe fix or backward route.
+- Apply a clear local accepted fix directly when source truth, owner intent, and route remain unchanged; then verify it.
+- Route path-changing findings to diagnosis, discovery, spec, plan, design, or Decision Gate before editing.
+- Reject stale, unsupported, duplicate, preference-only, or source-misread findings with evidence.
+- Do not rewrite tests, specs, policies, or accepted behavior merely to satisfy the reviewer.
 
-Review can pass. Do not invent findings to justify the review.
+Do not create an autonomous review-fix-review loop. The agent remains responsible for the work and decides the next route from source truth and evidence.
 
-## Adjudicate Feedback
+## Confirmation Review
 
-Reviewer findings are evidence, not commands. Before editing, inspect the relevant code, tests, docs, and prior decisions, then classify each material item:
+Do not schedule pass 2 by habit. It is another independent dispatch: require scoped user authorization unless the user already authorized review through closure. Then request one narrow confirmation only when an accepted blocker or required evidence gap materially benefits from reinspection.
 
-- **Accepted:** valid and safe to apply without changing settled intent.
-- **Rejected:** stale, unsupported, already resolved, equivalent, preference-only, or based on a source-contract misread.
-- **Question:** requires owner direction.
-- **Needs evidence:** inspect or verify more before deciding.
+Provide prior findings, parent adjudication, changed areas, verification, and the exact residual risk. Inspect only that scope; do not restart broad review or reopen settled findings without contradictory evidence.
 
-Do not use performative agreement. State the technical requirement, evidence, disagreement, or action.
+One initial review plus one narrow confirmation is the normal maximum. A third pass is exceptional, owner-selected for unresolved high-risk work, and terminal. Never request a fourth review for the same scope.
 
-A non-passing review is a phase exit, not an autonomous patch loop. When an accepted blocker, unresolved question, or required evidence gap prevents proceeding, the receiving turn ends with adjudication and route only. Do not edit from that review batch in the same turn, even when the reviewer or user says to apply everything and continue reviewing.
-
-## Source-Truth Guard
-
-Feedback is not approval to change source truth.
-
-Stop before editing when a finding would:
-
-- contradict tests, specs, policies, ADRs, or established behavior;
-- change product, security, privacy, billing, permissions, data loss, compatibility, public API, or irreversible architecture behavior;
-- guess what an ambiguous reviewer meant;
-- approve failure semantics without a source-backed failure contract;
-- turn a narrow comment into an unapproved broad refactor.
-
-Name the conflict and ask which path to follow. When an owner decision blocks the route, end with a direct choice question.
-
-## Apply Accepted Findings
-
-On a later explicit fix pass:
-
-- apply independent, clear findings one at a time;
-- keep each change scoped to the accepted finding;
-- verify each fix;
-- stop blocked or interacting items before editing them;
-- push back on incorrect feedback with source evidence.
-
-If accepted findings expose a shallow interface, bad seam, or repeated edge-case patching, route through `../design-for-depth/SKILL.md` before broad refactoring.
-
-Do not apply a non-pass batch and request another review in one autonomous loop.
-
-## Follow-Up Reviews
-
-A follow-up review continues the same review history even when the reviewer is fresh.
-
-Provide:
-
-- review pass number;
-- prior findings and parent adjudication;
-- owner clarifications;
-- files or sections changed in response;
-- the narrow residual risk still requiring review.
-
-Inspect accepted fixes and named residual risk. Do not rerun the original broad review, reopen settled decisions, or re-raise rejected findings without contradictory live evidence.
-
-If pass 2 exposes another branch, caller, adapter, or persisted-state consequence of the same invariant, the failure unit is unstable. Stop the follow-up patch loop and route through design or diagnosis before another fix batch.
-
-## Review Budget
-
-Aim to finish in two passes: initial review, then one confirmation after an explicit fix pass.
-
-Three review passes is the hard cap for the same work and scope. The third pass is terminal: classify the findings, do not edit from that batch, and do not request a fourth review.
-
-If accepted blocking, question, or needs-evidence findings remain after pass 3, diagnose whether the outcome, source contract, discovery, spec, plan, design, implementation, verification, scope, or reviewer calibration is wrong or too thin. Route backward instead of grinding forward.
+If confirmation reveals repeated consequences of the same unknown cause, stop reviewing patches and route to diagnosis. Redesign only if diagnosis establishes a structural cause.
 
 ## Report
 
 Lead with findings ordered by consequence, then state:
 
 - **Status:** Pass | Non-blocking | Blocking | Question | Needs evidence
-- **Accepted/rejected adjudication:** when feedback is incoming
-- **Verification gaps:** claims review could not prove
-- **Route:** proceed, gather evidence, ask owner, apply accepted fixes later, or move backward
+- **Boundary reviewed:** what decision this review protects
+- **Verification gaps:** what review could not prove
+- **Adjudication:** when receiving findings
+- **Route:** proceed, correct locally, gather evidence, diagnose, ask owner, or move backward
 
-If no findings remain, say the review passed and name residual assumptions or unverified behavior. A pass returns to the workflow route check; it is not automatic permission to continue.
+A resolved final review combines with verifier Pass only after both parallel results return for the same unchanged state. Any accepted code change stales both results: self-check the fix and ask before another independent verifier or reviewer dispatch.

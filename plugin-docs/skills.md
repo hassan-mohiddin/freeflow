@@ -1,6 +1,6 @@
 # Skills
 
-Freeflow ships a small workflow skill pack. Natural language is the preferred interface. In Codex/Claude, slash-style phrases work as model-routed skill hints; in Pi, the extension registers the direct calls declared in `command-surface.json` and exposes model skills only after `/setup-freeflow` creates `.freeflow/config.json` and skills are enabled. The full `workflow` skill loads once on the first turn; later reads remain available through progressive disclosure. Cross-cutting skills such as `mode-contract`, `decision-gate`, `design-for-depth`, and `tdd` remain model-routed unless explicitly listed as direct calls.
+Freeflow ships a small workflow skill pack. Natural language is the preferred interface. Kernel/Workflow provide one sequential self-check after meaningful slices: self-verification first, then self-review only when evidence supports the outcome. Reading review or verify skills may enhance those inline methods without creating independence. `/review-artifact` and `/review-work` default to formal independent review unless the user explicitly requests inline self-review; `/verify-work` defaults to enhanced self-verification and never dispatches by itself. In Codex/Claude, slash-style phrases work as model-routed skill hints; in Pi, the extension registers the direct calls declared in `command-surface.json` and exposes model skills only after `/setup-freeflow` creates `.freeflow/config.json` and skills are enabled. The full `workflow` skill loads once on the first turn; later reads remain available through progressive disclosure. Cross-cutting skills such as `mode-contract`, `decision-gate`, `design-for-depth`, and `tdd` remain model-routed unless explicitly listed as direct calls.
 
 ## Core
 
@@ -20,20 +20,20 @@ Freeflow ships a small workflow skill pack. Natural language is the preferred in
 | --- | --- |
 | `discover` | An idea, feature, architecture direction, vague task, or consequential question needs evidence, brainstorming, targeted questions, and a checkpoint before spec, plan, build, or durable memory. |
 | `write-spec` | Agreed requirements or decisions need a durable spec. |
-| `review-artifact` | A spec, plan, handoff, discovery checkpoint, or decision note must guide future work. |
+| `review-artifact` | Enhance artifact self-review inline, or run the standing/authorized independent artifact review in a separate context. |
 | `write-plan` | An approved spec or explicit task context needs executable slices. |
 
 ## Execution And Closeout
 
 | Skill | Use When |
 | --- | --- |
-| `execute-plan` | An approved rolling-plan horizon should be implemented one verified slice at a time with a route check after each slice. |
+| `execute-plan` | Implement an approved horizon through self-verification, bounded self-review, diagnosis before redesign, and parallel distinct final verifier/reviewer contexts after the sequential self-check. |
 | `tdd` | An accepted behavior or bug fix should use one observable RED/GREEN/REFACTOR loop. |
 | `simplify-code` | Working code needs behavior-preserving reduction of accidental complexity. |
 | `migration-work` | Consumers, traffic, configuration, or data must move before an old path can be removed. |
-| `diagnose-failure` | Behavior is broken, failing, flaky, slow, or unclear. |
-| `review-work` | Independent judgment or incoming feedback needs calibrated review, adjudication, and a bounded follow-up loop. |
-| `verify-work` | A slice or completion claim needs fresh evidence and a route check. |
+| `diagnose-failure` | Behavior is broken, failing, flaky, slow, repeated, unexplained, or a workflow loop keeps failing. |
+| `review-work` | Enhance self-review inline, or run standing/authorized independent judgment in a separate reviewer context. |
+| `verify-work` | Enhance self-verification after any slice or package the separately selected final/authorized verifier; reading it never implies independence. |
 | `commit-work` | A coherent verified rollback checkpoint is useful and authorized. |
 | `handoff` | Pausing, compacting, or transferring evidence and route state to a fresh context. |
 | `finish-branch` | A completed branch needs a safe merge, PR, keep, discard, or cleanup decision. |

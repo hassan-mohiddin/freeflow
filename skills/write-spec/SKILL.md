@@ -7,7 +7,7 @@ description: Use when turning settled discovery, explicit requirements, validate
 
 Compile shared understanding into source truth. Do not create new intent while making it look polished.
 
-A spec defines what later planning must preserve: outcome, scope, observable behavior, constraints, failure semantics, acceptance, and decision status. It is not an implementation plan or a claim that every technical question is already answered.
+A spec defines the minimum source truth later work must preserve: outcome, scope, observable behavior, constraints, failure semantics, acceptance, and decision status. It is not an implementation plan, review-defense document, or claim that every technical question is already answered.
 
 ## Route First
 
@@ -83,18 +83,30 @@ Read [spec shapes](references/spec-shapes.md) when artifact type changes the con
 
 Do not include volatile file inventories, guessed task lists, or complete implementation code. Include a code/type/state sketch only when it expresses an accepted contract more precisely than prose.
 
-## Downstream Readiness
+## Self-Check The Spec
 
-Before finishing, ask:
+Before finishing, self-check in order: first self-verify load-bearing claims, decisions, and acceptance against their sources; only when supported, silently self-review the spec once for downstream fitness:
 
 - Can planning distinguish required behavior from scope creep?
 - Can each acceptance criterion become a check, observation, or explicit unsupported claim?
-- Are user-owned decisions settled for the immediate planning horizon?
-- Are public and failure contracts explicit where callers would otherwise invent them?
+- Are user-owned decisions settled for the immediate horizon?
+- Are public and failure contracts explicit only where callers need them?
 - Are implementation-testable questions safe to defer?
-- Would a future agent know what evidence can reopen the spec?
+- Can a concise provisional plan safely be written before independent artifact review?
 
-Do not demand certainty about later phases when rolling-wave planning can preserve the uncertainty safely.
+Correct local clarity, consistency, or traceability problems directly. Read `../review-artifact/SKILL.md` when richer artifact lenses would help, but treat that as enhanced self-review unless a formal independent boundary was selected. Surface only gaps that change behavior, authority, readiness, or route.
+
+## Choose The Artifact Review Route
+
+Because the spec is upstream source truth, choose its artifact-review route before planning:
+
+- **Combined:** the spec is planning-ready, a concise provisional plan is cheap and reversible, and one reviewer can judge the spec first and then the plan.
+- **Spec first:** the spec is a high-risk approval gate, planning would commit expensive or hard-to-reverse assumptions, or unresolved spec defects could make the plan misleading. Review the plan separately after the spec passes; both reviews belong to the standing artifact route and need no reconfirmation.
+- **Spec only:** the task ends with the spec or no plan is currently needed.
+
+A consequential durable spec requires this standing-authorized independent review without user reconfirmation. If the task ends with the spec, its artifact review also satisfies final review. Lightweight chat guidance does not create the checkpoint. A bypassed durable artifact remains unreviewed and cannot authorize implementation.
+
+Record the selected route in the completion report or durable artifact metadata only when a future context needs it. Do not ask the user to choose between combined and sequential review unless the tradeoff itself is user-owned.
 
 ## Completion
 
@@ -102,7 +114,7 @@ Report:
 
 - artifact path;
 - source context used;
-- readiness classification;
+- readiness classification and artifact-review route;
 - open and implementation-testable questions;
 - decisions that still block a later phase;
 - recommended next route.

@@ -55,10 +55,13 @@ for expected in \
   'Setup status: configured by `.freeflow/config.json`' \
   "Runtime delivery: confirmed for this lifecycle-hook invocation." \
   "# Freeflow Runtime Kernel" \
-  "act as a collaborative engineering partner" \
+  "act as a responsible collaborative engineer" \
   'sets, resets, infers, or asks about Freeflow mode, load `mode-contract`' \
   "# Freeflow Workflow Bootstrap" \
   "Use an adaptive engineering loop, not a one-way checklist" \
+  "Reading a skill enhances self-verification or self-review" \
+  "one verifier plus one different reviewer dispatched in parallel" \
+  "same frozen implementation" \
   'Current Freeflow default mode: `workflow`.' \
   'Skills: enabled' \
   'Output router: disabled' \
@@ -84,7 +87,7 @@ claude_output="$(printf '{"hook_event_name":"SessionStart","source":"startup","c
 assert_contains "$claude_output" '"hookEventName":"SessionStart"' "Claude wrapper"
 assert_contains "$claude_output" "# Freeflow Runtime Kernel" "Claude config-only context"
 assert_contains "$claude_output" "# Freeflow Workflow Bootstrap" "Claude first-turn context"
-assert_contains "$claude_output" "act as a collaborative engineering partner" "Claude config-only context"
+assert_contains "$claude_output" "act as a responsible collaborative engineer" "Claude config-only context"
 
 for source in startup resume clear compact; do
   event_output="$(printf '{"hook_event_name":"SessionStart","source":"%s","cwd":"%s","model":"gpt-5"}\n' "$source" "$tmp_dir" | node "$HOOK_PATH" SessionStart)"

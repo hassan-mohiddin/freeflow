@@ -1,15 +1,23 @@
 ---
 name: verify-work
-description: Use after a meaningful work slice and before claiming work is done, fixed, passing, implemented, reviewed, or ready; when choosing evidence for a claim; when verification fails or proves less than expected; or when verification evidence may change the current route.
+description: "Use after any meaningful slice when richer guidance would improve self-verification, when a non-trivial integration/runtime/installed/browser/performance/failure proof path needs guidance, when direct checks fail or prove less than expected, or for a separately selected verifier. Reading it or calling `/verify-work` does not imply independence; independent verification requires the standing final boundary or explicit user authorization."
 ---
 
 # Verify Work
 
 Match every consequential claim to fresh evidence, then check whether the evidence preserves the current route.
 
-Verification is not ceremony at the end. It is the feedback edge after each meaningful slice.
+Verification is not ceremony at the end. Direct checks are the feedback edge after each meaningful slice.
 
-Review and verification are different: review supplies independent judgment; verification proves observable claims. Neither substitutes for the other.
+Routine planned checks may run from Workflow guidance alone. Read this skill after any meaningful slice when richer proof method, evidence-boundary, or failure-interpretation guidance would help; reuse it across related slices while context remains valid.
+
+## Choose The Mode
+
+**Enhanced self-verification:** the implementing agent applies this method in its current context, runs checks, interprets evidence, and corrects local reversible defects. Reading the skill or calling `/verify-work` selects this mode by default and never claims independence.
+
+**Independent verification:** a distinct fresh verifier applies the same method without editing. This mode requires the standing final boundary or explicit scoped user authorization. It is separate from independent review.
+
+Review and verification answer different questions: review supplies judgment; verification proves observable claims. Neither substitutes for the other.
 
 ## Name The Claim
 
@@ -68,10 +76,10 @@ When verification fails or proves less than expected, stop before patching forwa
 - **Environment or dependency:** the check cannot run as designed.
 - **Source conflict or owner decision:** accepted behavior is no longer clear.
 - **Plan or scope defect:** the slice or acceptance path is wrong.
-- **Design pressure:** repeated local failures expose a shallow interface, shared state, or growing coordination.
+- **Possible design pressure:** diagnosis or direct structural evidence may show a shallow interface, shared state, or growing coordination.
 - **Unsupported claim:** the required host, failure path, integration, or evidence class is unavailable.
 
-Do not edit tests, verifiers, specs, policies, or implementation randomly to make the signal green. Use `../diagnose-failure/SKILL.md` when root cause is unclear, `../design-for-depth/SKILL.md` when failures accumulate at a seam, and `../decision-gate/SKILL.md` when direction depends on source truth or an owner decision.
+Do not edit tests, verifiers, specs, policies, or implementation randomly to make the signal green. Use `../diagnose-failure/SKILL.md` when root cause is unclear or failures repeat. Use `../design-for-depth/SKILL.md` only when diagnosis or direct structural evidence establishes design pressure, and `../decision-gate/SKILL.md` when direction depends on source truth or an owner decision.
 
 ## Route Check
 
@@ -81,7 +89,7 @@ After the check, ask:
 - Which behavior or failure path remains unverified?
 - Did evidence invalidate an assumption, interface, spec, plan, or later slice?
 - Is remaining work shrinking and the next bounded path still clear?
-- Does accumulated risk now justify review, a commit checkpoint, or handoff?
+- Is this final implementation verification, or does an authorized exceptional boundary require formal review?
 
 Choose a route:
 
@@ -89,12 +97,20 @@ Choose a route:
 - **Broaden verification:** the claim is wider than the check.
 - **Bounded fix:** one source-backed local defect is clear.
 - **Diagnose:** root cause or repeated failure is unclear.
-- **Review:** independent judgment could change confidence or route.
+- **Formal review:** standing artifact/final boundary or another scoped authorization applies.
 - **Revise design/spec/plan:** evidence invalidated the current path.
 - **Decision gate:** owner or source conflict blocks progress.
 - **Stop or unsupported:** no honest proof path is available.
 
 A green command is not automatic permission to continue when the route check exposes scope drift or design pressure.
+
+## Independent Final Verification
+
+After the sequential final self-check, run one standing-authorized independent verification against the frozen integrated implementation in parallel with the final reviewer. The verifier must use a distinct fresh context from both implementer and reviewer and must not receive reviewer output. Read [the independent verifier prompt](references/verifier-prompt.md) when packaging this checkpoint.
+
+The verifier runs the finalized evidence package and reports factual boundaries; it does not edit, redesign, or perform the independent review role. One package may contain several commands, environments, and claims but counts as one independent-verification checkpoint.
+
+Collect its result with the independent review before adjudicating. Completion requires verifier Pass and resolved review for the same unchanged state. If either result causes implementation changes, both are stale; self-check the fix and ask before another independent verifier or reviewer dispatch. Do not collapse the roles.
 
 ## Report
 
@@ -106,7 +122,7 @@ Evidence:
 Result:
 Proves:
 Does not prove:
-Route: continue | broaden | fix | diagnose | review | revise | decide | stop
+Route: continue | broaden | fix | diagnose | formal-review | revise | decide | stop
 ```
 
-For final consequential completion, state what changed, what was verified, what remains unverified, and the recommended next route. Omit `Next:` for direct answers, mid-task status, clarification-only turns, and direct owner-decision questions.
+For final consequential implementation, complete the sequential self-check, then dispatch the distinct verifier and reviewer in parallel against one frozen state before claiming completion. State what changed, what was verified, and what remains unverified. Omit `Next:` for direct answers, mid-task status, clarification-only turns, and direct owner-decision questions.

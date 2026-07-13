@@ -206,26 +206,22 @@ Update direction:
 
 - Make dependency and slice order explicit when it affects execution.
 - Use vertical slices that produce testable behavior.
-- Include checks and route conditions per meaningful slice; mark review, commit, and handoff checkpoints only when their value or risk justifies them.
+- Include direct checks and route conditions per meaningful slice; use the `write-spec`-selected combined or high-risk separate artifact-review route before implementation, then after final self-check run a distinct verifier and reviewer in parallel against one frozen state, while forecasting extra contexts only when justified and authorized.
 - Allow some design decisions to be deferred until slice evidence exists.
 - Route to design-for-depth when slice boundaries, seams, interfaces, or locality are unclear.
 
 ### Review Artifact
 
-Artifact review should be adversarial enough to catch weak context, hidden decisions, and design pressure, but bounded enough to avoid endless edge-case refinement.
+One strict independent review of the consequential spec/plan package is a standing boundary before implementation. `write-spec` chooses combined spec-then-plan review, spec-first review for high-risk source truth, or spec-only review. The writing agent's own check remains separate.
 
-Current review-loop cap is good and should remain:
+Keep formal review bounded:
 
-- Aim to finish by second review pass.
-- Three passes is the hard cap for the same artifact and scope.
-- At cap, adjudicate and diagnose instead of chasing a clean review.
+- A clean first-pass review is valid.
+- Request one narrow confirmation only with scoped authorization and accepted blockers or boundary-required evidence gaps.
+- A third pass is exceptional, owner-selected, and terminal.
+- Diagnose repeated unknown causes before redesigning or growing prose.
 
-Update direction:
-
-- Add design-for-depth as a review lens when artifacts encode module/interface/seam choices.
-- Explicitly question findings before fixing them.
-- Distinguish blocking findings from non-blocking suggestions and owner questions.
-- If review reveals design pressure, route backward to discovery/spec/plan revision rather than patching prose.
+Review only lenses material to the boundary. Distinguish blocking findings, non-blocking suggestions, owner questions, and evidence gaps; adjudicate findings instead of obeying them.
 
 ### Execute Plan
 
@@ -234,23 +230,24 @@ Execution should be slice-based and evidence-driven.
 Update direction:
 
 - Keep one verified vertical slice at a time.
-- Use TDD/red-green-refactor when requested, planned, repo-conventional, or when the slice has a crisp behavior seam.
-- Name slice contract before non-trivial edits.
-- Use design-for-depth when implementation spreads complexity across callers, tests, docs, or review comments.
-- If slice evidence invalidates the plan, stop and route backward before patching forward.
-- Use optional commit/handoff checkpoints after meaningful verified slices, especially when rollback/debuggability matters.
+- Use tests and one sequential self-check—self-verification then, only on support, bounded self-review—as the primary feedback loop; allow review/verify skills to enhance either inline without implying independence.
+- Correct local reversible mistakes directly and let the agent learn across slices.
+- Diagnose repeated or unexplained failure before redesigning; use design-for-depth only for established structural pressure or proactive consequential architecture.
+- If evidence invalidates the plan, route only affected work backward.
+- Close final implementation through sequential self-check, then parallel fresh verifier and different fresh reviewer contexts against the same frozen state.
+- Use optional commit/handoff checkpoints when rollback or continuity matters.
 
 ### Review Work
 
-Work review should inspect the actual diff against source truth, intent, and engineering quality. Review feedback is evidence, not authority.
+After final self-check, one fresh verifier and one different fresh reviewer run in parallel against the same frozen implementation without sharing outputs. Extra reviewer or verifier contexts require scoped user authorization. Review feedback is evidence, not authority; verifier output is factual evidence, not judgment.
 
 Update direction:
 
-- Add design-pressure signals as review lenses.
+- Review the coherent task outcome, not every slice.
 - Keep classification before editing: accepted, rejected, question, needs evidence.
-- Make the review-loop cap and diagnosis path explicit for repeated work reviews.
-- Avoid broad refactors from narrow comments unless the design issue is real and accepted.
-- Route to design-for-depth or diagnose-failure when repeated findings are edge-case churn instead of isolated defects.
+- Apply clear local accepted fixes when safe; do not create an automatic review-fix-review loop.
+- Request narrow confirmation only when independently authorized reinspection materially protects the boundary.
+- Diagnose repeated findings before redesigning.
 
 ### Diagnose Failure
 
@@ -258,8 +255,8 @@ Diagnosis should cover both normal failure signals and workflow-loop failures.
 
 Existing bug/test/performance diagnosis remains the core. Add a secondary route for repeated workflow failures such as:
 
-- Artifact review hit the three-pass cap.
-- Work review hit the three-pass cap.
+- Artifact review remains blocked after a narrow confirmation.
+- Final work review reveals repeated consequences of one unknown cause.
 - Verification keeps failing for different reasons.
 - Implementation keeps creating new edge cases.
 - Accepted fixes repeatedly reveal shared-state or module-shape problems.
@@ -325,9 +322,9 @@ Do not rely on intuition alone. Candidate evals:
    - Fixture has a pass-through abstraction or scattered policy.
    - Passing behavior: identify shallow/deep module issue and recommend redesign route, not surface cleanup.
 
-4. **Review loop cap trap**
-   - Reviewer repeatedly finds edge cases.
-   - Passing behavior: adjudicate findings, stop at cap, diagnose loop root cause.
+4. **Reviewer-dependence trap**
+   - Pressure asks for repeated broad reviewers after ordinary slices or each fix.
+   - Passing behavior: use self-verification and self-review, optionally enhance them with review/verify skills, keep standing artifact/final reviewers plus one distinct final verifier, and diagnose repeated unknown causes.
 
 5. **Execution spread trap**
    - A plan slice causes complexity to spread across callers/tests.

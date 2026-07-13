@@ -1,13 +1,13 @@
 ---
 name: diagnose-failure
-description: Use when asked to investigate or fix a bug, failed test, flaky failure, regression, performance problem, unexpected behavior, or anything described as broken.
+description: Use when asked to investigate or fix a bug, failed test, flaky failure, regression, performance problem, unexpected behavior, repeated or unexplained implementation failure, or a workflow loop that keeps failing.
 ---
 
 # Diagnose Failure
 
 Build the feedback loop before fixing.
 
-No production fix without root-cause evidence. A plausible cause is not enough.
+Failure is implementation feedback, not automatic evidence that the plan or architecture is wrong. No production fix without root-cause evidence; a plausible cause is not enough.
 
 ## Route First
 
@@ -74,7 +74,7 @@ Before changing behavior:
 
 If the failure exposes a product, data-loss, security, privacy, billing, compatibility, or architecture decision, re-enter the decision gate before fixing.
 
-For repeated workflow failures, classify the likely cause before fixing again: thin discovery, wrong scope, premature decisions, source-truth conflict, missing owner decision, bad plan slice, shallow module/interface, implementation bug, stale reviewer context, or inadequate verification loop. Recommend the next route: rediscover, revise spec, revise plan, use `../design-for-depth/SKILL.md`, fix implementation, adjust reviewer context, or stop.
+For repeated implementation or workflow failures, classify the likely cause before fixing again: implementation bug, inadequate or stale test, missing observer, thin discovery, wrong scope, premature decision, source conflict, bad plan slice, stale reviewer context, or structural module/interface pressure. Route to the narrowest owner. Use `../design-for-depth/SKILL.md` only when diagnosis establishes a structural cause or direct structural evidence already exists.
 
 ## Fix
 
@@ -87,7 +87,7 @@ Then:
 3. Watch the check pass.
 4. Re-run the original feedback loop.
 
-If multiple fixes fail or each fix reveals a different shared-state problem, stop and question the architecture before trying another patch.
+If multiple fixes fail or expose related shared-state consequences, expand the diagnosis before another patch. Redesign only when the evidence identifies ownership, interface, state, or failure-unit structure as the cause.
 
 ## Completion
 

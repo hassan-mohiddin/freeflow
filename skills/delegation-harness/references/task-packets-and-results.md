@@ -70,7 +70,7 @@ RECOMMENDATION|...
 END_FFRESULT
 ```
 
-Reviewers return findings grouped by blocking/non-blocking/questions. Artifact reviewers use artifact-review shape. Verifiers return checks run, pass/fail evidence, output IDs, unverified areas, and whether a completion claim is supported.
+Reviewers return findings grouped by blocking/non-blocking/questions. Artifact reviewers use artifact-review shape. Verifiers return exact state identity, checks run, evidence pointers, exercised boundaries, proved/unproved claims, unexpected mutations, and `Pass | Fail | Inconclusive | Unavailable`. Verifiers do not return review findings or fixes.
 
 The harness stores raw text and parsed/canonical JSON. Parent agents usually consume the parsed compact result, direct lifecycle result, or role-specific report through the tool's model-visible compact envelope.
 

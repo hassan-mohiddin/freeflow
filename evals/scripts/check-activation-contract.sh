@@ -7,6 +7,9 @@ contract="$repo_root/skills/setup-freeflow/references/activation-contract.md"
 host_setup="$repo_root/skills/setup-freeflow/references/host-setup.md"
 kernel="$repo_root/skills/decision-gate/references/runtime-kernel.md"
 workflow_skill="$repo_root/skills/workflow/SKILL.md"
+review_work_skill="$repo_root/skills/review-work/SKILL.md"
+review_artifact_skill="$repo_root/skills/review-artifact/SKILL.md"
+verify_work_skill="$repo_root/skills/verify-work/SKILL.md"
 agents_file="$repo_root/AGENTS.md"
 runtime_doc="$repo_root/docs/freeflow-runtime-and-lifecycle.md"
 registry="$repo_root/evals/registries/fixture-evals.json"
@@ -25,7 +28,7 @@ require_text() {
   grep -Fq -- "$text" "$file" || fail "$file is missing: $text"
 }
 
-for file in "$setup_skill" "$contract" "$host_setup" "$kernel" "$workflow_skill" "$agents_file" "$runtime_doc" "$registry" "$pi_runtime" "$shared_hook"; do
+for file in "$setup_skill" "$contract" "$host_setup" "$kernel" "$workflow_skill" "$review_work_skill" "$review_artifact_skill" "$verify_work_skill" "$agents_file" "$runtime_doc" "$registry" "$pi_runtime" "$shared_hook"; do
   [[ -f "$file" ]] || fail "missing required file: $file"
 done
 
@@ -41,19 +44,40 @@ require_text "$setup_skill" '../output-router/SKILL.md'
 require_text "$setup_skill" '../delegation-harness/SKILL.md'
 require_text "$contract" 'The compact-kernel change does not alter their skill bodies, tool/runtime ownership, opt-in defaults, or setup policy.'
 require_text "$kernel" '# Freeflow Runtime Kernel'
-require_text "$kernel" 'act as a collaborative engineering partner'
+require_text "$kernel" 'act as a responsible collaborative engineer'
 require_text "$kernel" 'sets, resets, infers, or asks about Freeflow mode'
 require_text "$kernel" 'Respond concisely, directly, and with high information density, at the depth the user requests.'
 require_text "$kernel" 'Do not narrate routine tool use'
 require_text "$kernel" 'Clarity overrides brevity'
-require_text "$kernel" 'Before a consequential action or user question, silently check whether evidence supports the route'
+require_text "$kernel" 'Before a consequential action or asking the user, silently check'
 require_text "$kernel" 'the action is locally owned'
 require_text "$kernel" 'ask one owner question'
-require_text "$kernel" 'verify what the evidence directly proves and whether the route still holds'
-require_text "$kernel" 'Treat repeated defects at the same invariant'
-require_text "$kernel" 'Preserve valid work and re-enter the narrowest owning activity before editing again'
-require_text "$kernel" 'do not patch forward because work has already begun.'
+require_text "$kernel" 'Tests and direct verification are primary feedback.'
+require_text "$kernel" 'self-check in order: self-verify the outcome'
+require_text "$kernel" 'only if evidence supports it, silently self-review'
+require_text "$kernel" 'silently self-review your own work once'
+require_text "$kernel" 'Correct local reversible mistakes directly.'
+require_text "$kernel" 'diagnose before redesigning.'
+require_text "$kernel" 'preserve valid work and re-enter the narrowest owning activity before editing again'
+require_text "$kernel" 'do not patch forward because work began.'
 require_text "$workflow_skill" 'The runtime kernel owns turn interpretation'
+require_text "$workflow_skill" 'silently self-review your own work once'
+require_text "$workflow_skill" 'Reading a skill enhances self-verification or self-review and never dispatches another context by itself.'
+require_text "$workflow_skill" 'artifact-review route selected by `write-spec`'
+require_text "$workflow_skill" 'separate spec and plan reviews when high risk'
+require_text "$workflow_skill" 'one verifier plus one different reviewer dispatched in parallel'
+require_text "$workflow_skill" 'same frozen implementation'
+require_text "$workflow_skill" 'distinct fresh contexts and do not depend on each other'
+require_text "$workflow_skill" 'Reading or calling a review/verify skill selects method guidance, not another agent'
+require_text "$review_work_skill" 'Reading it does not imply independence'
+require_text "$review_work_skill" '**Enhanced self-review:**'
+require_text "$review_work_skill" '`/review-work` selects this mode by default unless the user explicitly says inline'
+require_text "$review_artifact_skill" 'Reading it does not imply independence'
+require_text "$review_artifact_skill" '**Enhanced self-review:**'
+require_text "$verify_work_skill" '**Enhanced self-verification:**'
+require_text "$verify_work_skill" 'Reading the skill or calling `/verify-work` selects this mode by default and never claims independence.'
+require_text "$verify_work_skill" 'run one standing-authorized independent verification against the frozen integrated implementation in parallel with the final reviewer'
+require_text "$verify_work_skill" 'Collect its result with the independent review before adjudicating.'
 require_text "$agents_file" 'Do not add enforcement hooks until'
 require_text "$runtime_doc" 'activation-contract.md'
 

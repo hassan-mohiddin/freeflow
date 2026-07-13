@@ -97,7 +97,7 @@ Do not delete source truth or historical migration evidence merely to make searc
 
 ## Review And Verification
 
-Use independent review for public contracts, data movement, destructive cleanup, security/privacy, large consumer sets, or irreversible cutover.
+Select independent review under Workflow for public contracts, consequential data movement, destructive cleanup, security/privacy boundaries, large consumer sets, or irreversible cutover. Reversible migration learning does not require review by default.
 
 Verification must prove the migration unit and the absence claim being made. “New path passes” does not prove “old path is unused.” “No source references” does not prove “no deployed consumers.”
 

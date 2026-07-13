@@ -7,134 +7,104 @@ description: Use when turning a planning-ready spec whose required approval is s
 
 Plan the next executable horizon without pretending later implementation is already known.
 
-A plan executes source truth. It does not create product behavior, architecture, or policy. It is a revisable best path whose immediate phase is concrete and later phases become progressively less detailed.
+A plan is a revisable path from source truth, not a second specification, implementation transcript, or promise of flawless execution. Write the smallest plan that lets the responsible agent begin, learn, verify, and adapt safely.
 
 ## Route First
 
-Classify the request:
+Classify the source:
 
-- **Spec-backed:** plan from a planning-ready spec whose required repo or owner approval is satisfied. `Draft` status alone neither authorizes nor blocks planning.
-- **Context-backed and bounded:** write a lightweight plan from explicit requirements.
-- **Bug without a feedback loop:** propose diagnosis, not guessed fix steps.
-- **Unresolved design or interface:** route to Discover or `../design-for-depth/SKILL.md`.
+- **Spec-backed:** planning-ready source truth and any required approval exist.
+- **Context-backed and bounded:** explicit requirements support a lightweight plan.
+- **Bug without a feedback loop:** route to diagnosis instead of guessed fix steps.
+- **Unresolved interface or architecture:** use Discover or `../design-for-depth/SKILL.md` before freezing a path.
 - **Hidden owner decision or source conflict:** use `../decision-gate/SKILL.md`.
-- **Missing source context:** gather evidence before planning.
+- **Missing factual context:** inspect evidence before planning.
 
-If the user asks a question about a plan, answer it instead of writing or editing one.
+If the user asks a question about a plan, answer it instead of creating or editing one.
 
-## Source First
+## Read Only What Constrains The Horizon
 
-Read:
+Use the source spec, diagnosis, or explicit requirements; relevant policies, ADRs, tests, and live code; established module and test seams; and handoffs only as memory.
 
-- the source spec, diagnosis, issue, or explicit requirements;
-- relevant docs, policies, ADRs, tests, and live code;
-- existing module and test seams;
-- handoffs only as memory.
+Do not turn speculative repository exploration into plan requirements. Live evidence wins when the requested path is stale.
 
-A plan must reflect current repo evidence. If source truth invalidates the requested path, stop before writing.
+## Scale The Plan
 
-## Phases And Slices
+Use a lightweight checklist for clear bounded work. Use phases only when outcomes, dependencies, learning, or risk make them useful. Read [plan shapes](references/plan-shapes.md) for the smallest fitting form.
 
-Use **phases** for coherent groups of work or learning milestones. Use **slices** for the smallest complete, verifiable unit inside a phase.
+For a rolling plan:
 
-Prefer vertical slices that produce observable behavior or decisive evidence. Use foundation work only when a real dependency requires it. Use expand–migrate–contract for wide mechanical changes that cannot remain green as one vertical path.
+- detail only the current executable horizon;
+- keep the next phase directional;
+- reduce later phases to provisional outcomes and major constraints;
+- move protocol detail into tests, experiments, or owning source documents instead of expanding the plan.
 
-A vertical slice may cross layers, but it should own one coherent outcome. When failure behavior materially affects correctness, name one semantic failure unit. If the active slice depends on authority, canonicalization, or recovery assigned to a later phase, move that prerequisite earlier or create a learning slice. Do not plan adapters over a seam already known to be temporary.
+A plan may contain several slices without requiring review between them.
 
-Classify each slice:
+## Shape Useful Slices
 
-- **Learning slice:** answers a named technical or design uncertainty. Define evidence and discard-or-promote criteria.
-- **Delivery slice:** produces accepted behavior through a stable seam.
-- **Deepening slice:** improves module depth without changing behavior; keep it bounded and separately reviewable.
+A slice is the smallest coherent behavior or learning result worth verifying. Name only:
 
-The immediate phase should be executable. Later phases may contain outcomes, dependencies, likely slices, risks, and open questions without guessed file-level precision.
+- outcome and source requirement;
+- type: learning, delivery, or deepening;
+- likely seam or write boundary;
+- behavior or experiment;
+- self-verification through direct evidence;
+- dependencies and route-changing stop conditions.
 
-## Slice Contract
+Add failure-unit, state, recovery, migration, or rollout detail only when the slice materially owns it. Do not require exact files or helper shapes before repository evidence supports them.
 
-For each non-trivial slice, name only what execution needs: outcome, owning requirement, slice type, likely seam or write boundary, behavior or experiment, failure contract when relevant, verification, dependencies, and stop conditions.
+Learning slices name a question, bounded experiment, available evidence mechanism, and discard-or-promote rule. Let them fail safely; they do not default to production code or independent review.
 
-Do not require exact files or code before repository evidence supports them. Do not duplicate the implementation inside the plan. Read [plan shapes](references/plan-shapes.md) when a saved artifact needs the full slice shape.
+For the current horizon, every load-bearing acceptance or promotion condition must have an available mechanism that can directly support or falsify it at the required evidence boundary, or an earlier acquisition slice. “Where practical” and similar wording cannot make unavailable evidence mandatory.
 
-For the current executable horizon, every load-bearing acceptance or promotion condition must name an available mechanism that can directly support or falsify it at the required evidence boundary, or an earlier evidence-acquisition learning slice. “Where practical,” “if possible,” or equivalent language cannot support required promotion evidence; make it an open learning question or mark the horizon not ready.
+When TDD, migration, or launch applies, point to the owning skill rather than reproducing its procedure.
 
-When TDD applies, identify the intended observable seam and first behavior; execution uses `../tdd/SKILL.md` for the method. Use `../migration-work/SKILL.md` for consumer/data cutovers and `../launch-work/SKILL.md` for production rollout contracts rather than embedding those lifecycles as generic task lists.
+## Plan For Feedback, Not Perfection
+
+Every slice ends with one sequential self-check by the implementing agent: self-verification first, then bounded self-review only when evidence supports the slice. Read `verify-work` or `review-work` when richer guidance helps; reading them does not create independence. Do not schedule an independent context merely because a slice or phase ends.
+
+Beyond the required artifact review and the parallel final verifier/reviewer pair, forecast separate contexts only when promotion, interacting risk, sensitive or hard-to-reverse behavior, or an unresolved route materially needs them.
+
+A phase boundary can batch coherent work but is not a trigger by itself. Rolling-plan edits normally use evidence and self-review, optionally enhanced by `review-artifact`, not another independent artifact-review pass. Final acceptance checks should form one reproducible package. After sequential final self-verification and self-review, freeze one state and dispatch a distinct verifier and reviewer in parallel. Completion needs verifier Pass plus resolved review; code changes stale both and require a new self-check plus authorization before redispatch.
+
+When failure repeats during execution, route first to diagnosis. Revise design only when diagnosis or direct structural evidence establishes a design cause.
 
 ## Backward Checkpoints
 
-Predefine checkpoints where a phase or slice is expected to produce route-changing evidence. Name the assumptions under test and the evidence that should continue the plan, reopen Discover or design, revise the spec, revise the plan or later phases, or require an owner decision. Read [plan shapes](references/plan-shapes.md) when the artifact needs the full checkpoint shape.
+Predefine a checkpoint only where expected evidence can materially change behavior, scope, architecture, ordering, or owner decisions. State what would continue the plan and what would revise the affected spec, plan, design, or route.
 
-These are decision functions, not predictions of the result.
-
-Also define dynamic checkpoint triggers:
-
-- a second unexpected defect at one seam;
-- caller knowledge, public states, flags, retries, or test setup keep growing;
-- a slice requires an unplanned subsystem;
-- deferred capability enters the active milestone;
-- evidence invalidates an earlier accepted result;
-- remaining work grows after completed slices;
-- the next bounded finish path can no longer be stated clearly.
-
-When a trigger fires, preserve valid work and route backward. Do not absorb it as another implementation task.
-
-## Review, Commit, And Handoff
-
-Every slice ends with verification and a lightweight route check.
-
-Estimate formal checkpoints only where they may change the route:
-
-- review after architecture-bearing, sensitive, integration, or accumulated-risk work;
-- commit when a coherent verified rollback point exists and repository/user workflow permits it;
-- handoff when context or continuity requires a durable checkpoint;
-- phase checkpoint when later plans should be refined from the evidence.
-
-Not every slice needs independent review, a commit, or a user interruption. The plan may predict checkpoints; execution may add or remove them when evidence supports the change.
-
-For separate-agent work, describe bounded work packages, dependencies, required context, outputs, checks, and escalation conditions. The harness owns agent, model, worktree, timeout, and transport mechanics.
+Dynamic evidence may reveal a bad slice, unplanned dependency, stale assumption, or unclear root cause. Preserve valid work and change only affected downstream planning. Ordinary local mistakes do not require replanning.
 
 ## Hard Stops
 
-Do not write a plan that would:
+Do not write a plan that:
 
-- invent or change product behavior, scope, domain meaning, public APIs, compatibility, sensitive policy, failure semantics, or hard-to-reverse architecture;
-- rewrite source truth to match the intended implementation;
-- turn open implementation evidence into a predetermined result;
-- plan a production bug fix without a repro or accepted diagnostic path;
-- hide uncertainty in detailed steps, code blocks, filenames, or task estimates;
-- treat a handoff or review comment as authority;
-- recast agreed scope as MVP, v1/v2, roadmap, or deferred delivery without approval;
-- add cache, resume, concurrency, adapters, generalized extension points, or recovery machinery without an owning requirement or observed pressure.
+- invents product behavior, scope, public API, compatibility, sensitive policy, failure semantics, or hard-to-reverse architecture;
+- rewrites source truth to fit a desired implementation;
+- hides path-changing uncertainty in detailed steps;
+- promotes a production fix without a repro or accepted diagnostic path;
+- turns reversible implementation choices into owner gates;
+- adds speculative recovery, scale, adapters, or extension points;
+- treats a handoff or reviewer finding as authority.
 
-Ask one direct route question when a user-owned decision or source conflict blocks planning.
+Ask one direct question only when a user-owned decision or source conflict blocks the next safe horizon.
 
-## Shape
+## Self-Check The Plan
 
-Scale the plan to consequence. A durable plan may contain:
+Before finishing, self-check in order: first self-verify source alignment and every load-bearing evidence path; only when supported, silently self-review the plan once for its intended next action:
 
-- goal and source authority;
-- stable scope/non-goals;
-- phase map;
-- current phase slices;
-- directional later phases;
-- requirement-to-slice/evidence traceability;
-- learning questions;
-- failure contracts;
-- backward, review, commit, and handoff checkpoints;
-- plan-health triggers;
-- final verification and residual risks.
+- Is the current horizon executable without guessing consequential behavior?
+- Can direct evidence disagree with each load-bearing condition?
+- Are later phases directional rather than prematurely frozen?
+- Did the plan add ceremony, review, or machinery without an owning risk?
 
-Read [plan shapes](references/plan-shapes.md) for lightweight, normal, strict, or delegated artifacts.
+Correct local clarity or consistency problems directly. Read `../review-artifact/SKILL.md` when richer artifact lenses would help, but treat that as enhanced self-review unless a formal independent boundary was selected. Surface only route-changing gaps.
+
+When a source spec exists, follow the combined, spec-first, or spec-only review route chosen by `write-spec`; do not reopen it unless new evidence changes the risk or readiness. If no spec exists and the plan is the task's only consequential durable artifact, review that plan independently before implementation under Workflow's standing authorization. If the task ends with the plan, its artifact review also satisfies final review.
 
 ## Completion
 
-Report:
+Report the plan path when saved, source context, current executable horizon, directional later work, open learning questions, route-changing decisions, and material unverified assumptions.
 
-- artifact path, if saved;
-- source context;
-- immediate executable phase;
-- provisional later phases;
-- open learning questions;
-- planned and dynamic checkpoints;
-- decisions still blocked.
-
-The plan is ready when the next phase can begin safely, not when every future slice is frozen.
+The plan is ready when responsible implementation can begin and learn safely—not when every future slice, mistake, or review outcome has been predicted.

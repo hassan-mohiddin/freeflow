@@ -1,6 +1,6 @@
 ---
 name: design-for-depth
-description: Use when module, interface, seam, state, role, failure-contract, or test-boundary choices affect complexity and reversibility; when consequential authority, canonical evidence, atomic visibility, or post-commit recovery needs one coherent failure unit; when caller coordination is growing; or when implementation/review keeps producing edge-case patches, public states, flags, retries, or broad refactors.
+description: Use when module, interface, seam, state, role, failure-contract, or test-boundary choices affect complexity and reversibility; when consequential authority, canonical evidence, atomic visibility, or post-commit recovery needs one coherent failure unit; when caller coordination is visibly growing; or when diagnosis establishes structural ownership or interface pressure.
 ---
 
 # Design For Depth
@@ -9,7 +9,9 @@ Use this as a lens, not a mandatory phase.
 
 Design for less coordination: callers, tests, docs, reviewers, and future agents should ask for an outcome through a small stable interface while the module owns internal sequencing and policy.
 
-If each local fix increases caller knowledge, stop specifying or patching the current interface. Reconsider the module shape before adding another state, flag, retry, wrapper, or test.
+If direct evidence shows each local fix increasing caller knowledge, reconsider the module shape before adding another state, flag, retry, wrapper, or test.
+
+Do not enter design merely because implementation failed, a reviewer found defects, or ordinary bugs exist. Diagnose repeated or unexplained failure first. Direct entry is appropriate when structural pressure is already observable or consequential architecture must be chosen before implementation.
 
 Do not use architecture language to hide product decisions or turn a local reversible change into ceremony.
 
@@ -79,18 +81,15 @@ Code can produce design evidence. Exploratory code does not become production ar
 
 ## Pressure Triggers
 
-Stop local patching when:
+Structural pressure exists when:
 
-- a second accepted defect exposes another branch, caller, adapter, or persisted-state consequence of the same invariant;
+- diagnosis shows multiple failures share an ownership, interface, state, or failure-unit cause;
 - fixes add caller knowledge, public states, flags, or recovery rules;
-- tests increasingly target lifecycle machinery introduced by earlier fixes;
-- a narrow slice requires an unplanned subsystem;
-- implementation invalidates earlier evidence;
-- remaining work grows after slices complete;
-- review produces an edge-case stream rather than isolated defects;
-- correctness can be explained only as coordinated steps across modules.
+- tests increasingly duplicate lifecycle coordination across modules;
+- a bounded outcome requires an unplanned subsystem because the current seam cannot own it;
+- correctness can be explained only as coordinated steps across callers.
 
-These are checkpoint triggers, not automatic refactor permission.
+These signals justify design work, not automatic refactoring. Failed tests, finding count, or a second defect alone do not.
 
 ## Route
 
