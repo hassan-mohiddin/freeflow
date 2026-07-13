@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "recorded_date": "2026-07-12",
-  "source_revision": "dd58912436eed99cc81d496ac858098c30047acd",
+  "source_revision": "97674943dca325ad835ea8abfd4767951612d6f5",
   "claim": "Coverage design only. Entries do not promote skills or substitute for executed evidence.",
   "skills": {
     "workflow": {
@@ -265,9 +265,9 @@
         "artifact-outcome"
       ],
       "case_concept": "Compare a neutral target with current verify-work on a saved green proof bundle containing contradictory event and runtime-identity evidence; candidate must downgrade the claim and name the exact missing boundary proof.",
-      "current_result": "pilot old and current snapshots both passed the simpler seam; strengthened neutral-baseline case required; still unverified",
+      "current_result": "VQ-002 candidate failure preserved at c7cfdba; measured boundary-route revision 9767494; rerun pending; unverified.",
       "source_path": "skills/verify-work/SKILL.md",
-      "source_sha256": "8a65590e11d1423c6409ec0850ae14918ef5579d2526d8aeba89826f5e06bdf3",
+      "source_sha256": "761d7154a77cf21a64d07759960e0ae159e2148918e0a002e46972aded276c9b",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
