@@ -6,7 +6,7 @@
 > **Baseline:** Current evaluator under `skills/evaluate-skill/scripts/`; 132 deterministic tests passed during spec review
 > **Provider policy:** No provider-backed execution until deterministic v3 acceptance, exact preview, and owner approval
 > **Review:** Passed artifact review after one revision pass; four initial blockers were resolved
-> **Progress:** Phase 0 and Slices 1.1–1.3 complete; Slice 1.4 is the next executable horizon
+> **Progress:** Phases 0–1 complete; the rolling-plan route checkpoint precedes Phase 2
 
 ## Goal
 

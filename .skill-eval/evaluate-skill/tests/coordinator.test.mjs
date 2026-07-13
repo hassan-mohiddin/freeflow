@@ -84,7 +84,7 @@ test("semantic execution is recorded before final assertion assembly", async () 
     ], { semantic: ["meaning"] }),
     runSemantic: async (variant) => completeOperation({
       execution: execution(`semantic-${variant.role}`, variant.role, 0.2),
-      value: { assertions: [{ id: "meaning", verdict: "pass" }], uncertainty: null },
+      value: { assertions: [{ id: "meaning", verdict: "pass", evidence: ["specific semantic fact"] }], uncertainty: null },
     }),
     ...publishers(publication),
   });
@@ -92,6 +92,51 @@ test("semantic execution is recorded before final assertion assembly", async () 
   assert.equal(outcome.decision.case_verdict, "pass");
   assert.equal(outcome.usage.provider_requests, 2);
   assert.ok(Math.abs(outcome.usage.cost_usd - 0.3) < 1e-9);
+  const result = publication.find(([kind]) => kind === "result")[1];
+  assert.deepEqual(result.variants[0].assertions.find((item) => item.id === "meaning").evidence, ["specific semantic fact"]);
+});
+
+test("objective failure may receive non-promotable diagnostic semantic grading", async () => {
+  const publication = [];
+  let semanticContext = null;
+  const outcome = await coordinateEvaluation(plan(), {
+    runSubject: async () => completeSubject("subject", [
+      { id: "structure", verdict: "fail", evidence: "objective mismatch" },
+      { id: "meaning", verdict: "inconclusive", evidence: "Requires fresh semantic grading" },
+    ], { semantic: ["meaning"] }),
+    runSemantic: async (_variant, _subject, context) => {
+      semanticContext = context;
+      return completeOperation({
+        execution: execution("semantic-subject", "subject", 0.2),
+        value: { assertions: [{ id: "meaning", verdict: "pass", evidence: ["diagnostic observation"] }], uncertainty: null, grade: { verdict: "pass" } },
+      });
+    },
+    ...publishers(publication),
+  });
+  assert.equal(outcome.status, "complete");
+  assert.equal(outcome.decision.case_verdict, "fail");
+  assert.deepEqual(semanticContext, { diagnostic: true, promotable: false });
+  const result = publication.find(([kind]) => kind === "result")[1];
+  assert.equal(result.variants[0].semantic.promotable, false);
+  assert.equal(result.variants[0].semantic.diagnostic, true);
+  assert.equal(result.variants[0].assertions.find((item) => item.id === "meaning").verdict, "inconclusive");
+  assert.equal(result.variants[0].semantic.assertions[0].evidence[0], "diagnostic observation");
+});
+
+test("diagnostic semantic failure preserves the complete subject as regradable", async () => {
+  const publication = [];
+  const outcome = await coordinateEvaluation(plan(), {
+    runSubject: async () => completeSubject("subject", [
+      { id: "structure", verdict: "fail" },
+      { id: "meaning", verdict: "inconclusive" },
+    ], { semantic: ["meaning"] }),
+    runSemantic: async () => incompleteOperation({ execution: execution("semantic-subject", "subject", 0.2), primary: "grader failed" }),
+    ...publishers(publication),
+  });
+  assert.equal(outcome.status, "incomplete");
+  assert.equal(outcome.failure.primary, "grader failed");
+  const diagnostic = publication.find(([kind]) => kind === "diagnostic")[1];
+  assert.deepEqual(diagnostic.completed_variants, [{ id: "candidate", role: "subject" }]);
 });
 
 test("incomplete subject publishes diagnostics with recorded usage and no result", async () => {

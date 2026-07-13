@@ -159,4 +159,7 @@ test("semantic grading cannot repair objective failure", async (t) => {
   await writeFile(resolve(run, "inputs", "case.json"), JSON.stringify({ prompt: "x", assertions: [{ id: "quality", type: "semantic", rubric: "x" }] }));
   await writeFile(resolve(run, "objective-grade.json"), JSON.stringify({ objective_pass: false, assertions: [] }));
   await assert.rejects(() => buildSemanticPrompt(run), /cannot repair/);
+  const diagnostic = await buildSemanticPrompt(run, { diagnostic: true });
+  assert.equal(diagnostic.evidence.objective_checks_passed, false);
+  assert.match(diagnostic.prompt, /non-promotable diagnostic grading/);
 });

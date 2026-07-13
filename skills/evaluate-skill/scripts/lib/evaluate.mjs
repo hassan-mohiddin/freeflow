@@ -456,7 +456,7 @@ export async function executeEvaluation(workspace, plan, dependencies = {}) {
       id,
       { runSubject, runRpcSubject, runCodexSubject: runCodex, persistVariantEvidence: dependencies.persistVariantEvidence, cleanupRuntime: dependencies.cleanupRuntime },
     ),
-    runSemantic: async ({ role }) => {
+    runSemantic: async ({ role }, _subject, semanticContext) => {
       const semantic = await gradeSemantic(resolve(stagingDir, "evidence", role), {
         provider: plan.plan_inputs.grader_model.provider,
         model: plan.plan_inputs.grader_model.model,
@@ -465,6 +465,7 @@ export async function executeEvaluation(workspace, plan, dependencies = {}) {
         timeout_ms: plan.plan_inputs.limits.timeout_ms,
         output_limit_bytes: plan.plan_inputs.limits.output_limit_bytes,
         transport_limit_bytes: plan.plan_inputs.limits.transport_limit_bytes,
+        diagnostic: semanticContext.diagnostic,
       });
       const execution = semantic.execution ? {
         id: `semantic-${role}`,
@@ -491,7 +492,7 @@ export async function executeEvaluation(workspace, plan, dependencies = {}) {
         role: variant.role,
         subject_identity: variantByRole.get(variant.role).snapshot_hash,
         objective: { verdict: variant.subject.objective.verdict, assertions: variant.subject.objective.assertions },
-        semantic: variant.semantic?.grade ?? null,
+        semantic: variant.semantic ? { ...variant.semantic.grade, diagnostic: variant.semantic.diagnostic, promotable: variant.semantic.promotable } : null,
         assertions: variant.assertions,
       }));
       const candidate = variants.find((variant) => variant.role === "candidate" || variant.role === "subject");

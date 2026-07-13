@@ -31,8 +31,11 @@ function mergeSemanticAssertions(subjectAssertions, semanticIds, semanticValue) 
   const expected = [...semanticIds].sort();
   const actual = (semanticValue?.assertions ?? []).map((item) => item.id).sort();
   if (JSON.stringify(expected) !== JSON.stringify(actual)) throw new Error(`Semantic assertion IDs do not match: expected ${expected.join(", ")}; got ${actual.join(", ")}`);
-  const semantic = new Map(semanticValue.assertions.map((item) => [item.id, item.verdict]));
-  return subjectAssertions.map((assertion) => semantic.has(assertion.id) ? { ...assertion, verdict: semantic.get(assertion.id) } : assertion);
+  const semantic = new Map(semanticValue.assertions.map((item) => [item.id, item]));
+  return subjectAssertions.map((assertion) => {
+    const graded = semantic.get(assertion.id);
+    return graded ? { ...assertion, verdict: graded.verdict, evidence: graded.evidence } : assertion;
+  });
 }
 
 async function incompleteResult(plan, ledger, failure, completed, publishDiagnostic) {
@@ -88,18 +91,22 @@ export async function coordinateEvaluation(plan, dependencies) {
     }
 
     let semantic = null;
-    if (semanticIds.length > 0 && !assertions.some((assertion) => assertion.verdict === "fail")) {
-      if (!runSemantic) return incompleteResult(plan, ledger, { primary: "Semantic assertions require a semantic process", secondary: null }, completed, publishDiagnostic);
+    let semanticValue = null;
+    const diagnosticSemantic = assertions.some((assertion) => assertion.verdict === "fail");
+    if (semanticIds.length > 0) {
+      const completedSubject = [...completed, { id: variant.id, role: variant.role }];
+      if (!runSemantic) return incompleteResult(plan, ledger, { primary: "Semantic assertions require a semantic process", secondary: null }, completedSubject, publishDiagnostic);
       if (!canStartProcess(ledger, plan.max_usd)) {
-        return incompleteResult(plan, ledger, { primary: `Observed spend ceiling reached before ${variant.role} semantic process`, secondary: null }, completed, publishDiagnostic);
+        return incompleteResult(plan, ledger, { primary: `Observed spend ceiling reached before ${variant.role} semantic process`, secondary: null }, completedSubject, publishDiagnostic);
       }
-      semantic = await invokeOperation(runSemantic, variant, { assertions, semantic_assertion_ids: semanticIds });
+      semantic = await invokeOperation(runSemantic, variant, { assertions, semantic_assertion_ids: semanticIds }, { diagnostic: diagnosticSemantic, promotable: !diagnosticSemantic });
       if (semantic.execution) ledger.record(semantic.execution);
-      if (semantic.status === "incomplete") return incompleteResult(plan, ledger, semantic.failure, completed, publishDiagnostic);
+      if (semantic.status === "incomplete") return incompleteResult(plan, ledger, semantic.failure, completedSubject, publishDiagnostic);
+      semanticValue = { ...semantic.value, diagnostic: diagnosticSemantic, promotable: !diagnosticSemantic };
       try {
-        assertions = mergeSemanticAssertions(assertions, semanticIds, semantic.value);
+        if (!diagnosticSemantic) assertions = mergeSemanticAssertions(assertions, semanticIds, semanticValue);
       } catch (error) {
-        return incompleteResult(plan, ledger, { primary: message(error), secondary: null }, completed, publishDiagnostic);
+        return incompleteResult(plan, ledger, { primary: message(error), secondary: null }, completedSubject, publishDiagnostic);
       }
     }
 
@@ -107,7 +114,7 @@ export async function coordinateEvaluation(plan, dependencies) {
       id: variant.id,
       role: variant.role,
       subject: subject.value,
-      semantic: semantic?.value ?? null,
+      semantic: semanticValue,
       assertions: Object.freeze(assertions.map((assertion) => Object.freeze({ ...assertion }))),
     }));
   }
