@@ -4,7 +4,8 @@
 > **Date:** 2026-07-12
 > **Owner:** Hassan Mohiddin
 > **Type:** Plan
-> **Status:** Ready
+> **Status:** Paused during Phase 5 for evaluator v3 optimization
+> **Current route:** Resume paid skill qualification only after `docs/plans/skills/2026-07-13-freeflow-evaluator-v3-plan.md` reaches accepted Pi v3 evidence
 > **Source:** `docs/specs/skills/2026-07-12-freeflow-composition-evaluation-extension.md`; `docs/specs/skills/skill-authoring-and-evaluation-v2.md`; current 26-skill inventory and evidence registry; Output Router and Delegation review-loop incident handoffs; owner-approved evaluation campaign
 
 ## Goal
