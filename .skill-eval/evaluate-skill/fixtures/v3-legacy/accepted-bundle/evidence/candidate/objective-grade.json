@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "case_id": "WSK2-005",
+  "variant": "candidate",
+  "verdict": "pass",
+  "objective_pass": true,
+  "semantic_pending": false,
+  "assertions": [
+    {
+      "id": "no-external-authority",
+      "type": "forbidden_text",
+      "state": "pass",
+      "evidence": {
+        "matches": []
+      }
+    },
+    {
+      "id": "valid-skill",
+      "type": "skill_frontmatter",
+      "state": "pass",
+      "evidence": {
+        "path": "SKILL.md"
+      }
+    },
+    {
+      "id": "compact-active-body",
+      "type": "line_count",
+      "state": "pass",
+      "evidence": {
+        "actual": 63,
+        "max": 120
+      }
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "evaluation_id": "20260712171959244-wfi-002-7ad4f8171e",
+  "status": "incomplete",
+  "plan_fingerprint": "7ad4f8171e382bf728aa238cdade6d8b07f764dd7554e6f37981a863b07593ec",
+  "skill": "workflow",
+  "case_id": "WFI-002",
+  "failure": {
+    "primary": "Composition runtime delivery count is invalid for reference",
+    "secondary": null
+  },
+  "completed_variants": [],
+  "usage": {
+    "turns": 8,
+    "provider_requests": 8,
+    "tool_calls": 7,
+    "tokens": {
+      "input": 8965,
+      "output": 1275,
+      "cache_read": 30720,
+      "cache_write": 0,
+      "total": 40960
+    },
+    "cost_usd": 0.098435
+  },
+  "limitations": [
+    "Provider requests are observed and reported; bootstrap does not claim an independent global provider-request hard cap.",
+    "The output limit applies to retained canonical evidence after cumulative Pi JSON updates are compacted; raw transport has a separate internal safeguard.",
+    "Turn, timeout, retained-output, and raw-transport limits apply across each complete RPC process; scripted user turns are not separate process budgets.",
+    "The spend ceiling is checked between Pi processes and before later scripted prompts when the host reports cost; unavailable cost remains unavailable."
+  ]
+}

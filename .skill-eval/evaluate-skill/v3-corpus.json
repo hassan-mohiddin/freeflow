@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "authority": "preliminary-baseline-only",
+  "bundles": [
+    {
+      "id": "composition-one-shot",
+      "case_id": "WFC2-001",
+      "path": ".skill-eval/workflow/runs/evaluations/20260712132227851-wfc2-001-0a4a209cd2",
+      "semantic_packets": []
+    },
+    {
+      "id": "composition-four-turn",
+      "case_id": "WFC2-002",
+      "path": ".skill-eval/workflow/runs/evaluations/20260712132336147-wfc2-002-47a1206ace",
+      "semantic_packets": []
+    },
+    {
+      "id": "rejected-state-tdd",
+      "case_id": "WFI-002",
+      "path": ".skill-eval/workflow/runs/evaluations/20260712174026240-wfi-002-a533c790e6",
+      "semantic_packets": [
+        "evidence/reference/semantic-packet.json",
+        "evidence/candidate/semantic-packet.json"
+      ]
+    },
+    {
+      "id": "proof-fidelity",
+      "case_id": "WFI-003",
+      "path": ".skill-eval/workflow/runs/evaluations/20260712173020819-wfi-003-92e364fe99",
+      "semantic_packets": [
+        "evidence/reference/semantic-packet.json",
+        "evidence/candidate/semantic-packet.json"
+      ]
+    }
+  ]
+}

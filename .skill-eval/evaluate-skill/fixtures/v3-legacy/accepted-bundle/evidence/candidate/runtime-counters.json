@@ -1,0 +1,6 @@
+{
+  "provider_requests": 0,
+  "turns_started": 0,
+  "tool_calls": 0,
+  "hard_turn_limit_reached": false
+}

@@ -1,0 +1,199 @@
+{
+  "schema_version": 1,
+  "evaluation_id": "20260712132602056-wsk2-005-d1e34919a7",
+  "skill": "write-skill",
+  "case_id": "WSK2-005",
+  "plan_fingerprint": "d1e34919a79672b3763bc2760527fe8799be0b6ba9c835ce18694408f76a56b7",
+  "identities": {
+    "case": "e78190e5ed84a7d265c84bad72bf249ce2790d122c1f8963b02df3f083a07366",
+    "case_source": {
+      "path": ".skill-eval/write-skill/cases/WSK2-005-self-contained.json",
+      "sha256": "6e5c10b47ec4acf79f10d116232dcb570da034b80ece901066fdb72d0237d9da"
+    },
+    "fixture": "9ea2a1265c40313c6a8b7651db9d9f4c8f6beb56e345c90ea7800e655e063ffc",
+    "subjects": {
+      "reference": "c241dee701dd5d7fb9dd0f50337e7653b334cc72eef5a9bef45e5b076bfa958b",
+      "candidate": "d2e8f97489b3a4f37359275714385857a3bf1f4e4c8848ea9ebf6be0b57bdabb"
+    },
+    "composition": null,
+    "evaluator": "a5c9e8812b3b0d45797eba40613674e69f574a2db9bbc5b7528add5575b9c4ce",
+    "semantic": "171f695d3dbd19b4a9a897041df5205f3563985410cc7fc229fbd6d4047c684a"
+  },
+  "evaluation_kind": "comparison",
+  "decision": {
+    "evaluation_kind": "comparison",
+    "comparison_verdict": "improved",
+    "pairs": [
+      {
+        "id": "compact-active-body",
+        "reference": "pass",
+        "candidate": "pass",
+        "change": "unchanged"
+      },
+      {
+        "id": "no-external-authority",
+        "reference": "fail",
+        "candidate": "pass",
+        "change": "improved"
+      },
+      {
+        "id": "valid-skill",
+        "reference": "pass",
+        "candidate": "pass",
+        "change": "unchanged"
+      }
+    ]
+  },
+  "variants": [
+    {
+      "id": "old",
+      "role": "reference",
+      "subject_identity": "c241dee701dd5d7fb9dd0f50337e7653b334cc72eef5a9bef45e5b076bfa958b",
+      "objective": {
+        "verdict": "fail",
+        "assertions": [
+          {
+            "id": "no-external-authority",
+            "type": "forbidden_text",
+            "state": "fail",
+            "evidence": {
+              "matches": [
+                "Anthropic/Claude",
+                "skill-creator"
+              ]
+            }
+          },
+          {
+            "id": "valid-skill",
+            "type": "skill_frontmatter",
+            "state": "pass",
+            "evidence": {
+              "path": "SKILL.md"
+            }
+          },
+          {
+            "id": "compact-active-body",
+            "type": "line_count",
+            "state": "pass",
+            "evidence": {
+              "actual": 89,
+              "max": 120
+            }
+          }
+        ]
+      },
+      "semantic": null,
+      "assertions": [
+        {
+          "id": "no-external-authority",
+          "verdict": "fail",
+          "evidence": {
+            "matches": [
+              "Anthropic/Claude",
+              "skill-creator"
+            ]
+          }
+        },
+        {
+          "id": "valid-skill",
+          "verdict": "pass",
+          "evidence": {
+            "path": "SKILL.md"
+          }
+        },
+        {
+          "id": "compact-active-body",
+          "verdict": "pass",
+          "evidence": {
+            "actual": 89,
+            "max": 120
+          }
+        }
+      ]
+    },
+    {
+      "id": "candidate",
+      "role": "candidate",
+      "subject_identity": "d2e8f97489b3a4f37359275714385857a3bf1f4e4c8848ea9ebf6be0b57bdabb",
+      "objective": {
+        "verdict": "pass",
+        "assertions": [
+          {
+            "id": "no-external-authority",
+            "type": "forbidden_text",
+            "state": "pass",
+            "evidence": {
+              "matches": []
+            }
+          },
+          {
+            "id": "valid-skill",
+            "type": "skill_frontmatter",
+            "state": "pass",
+            "evidence": {
+              "path": "SKILL.md"
+            }
+          },
+          {
+            "id": "compact-active-body",
+            "type": "line_count",
+            "state": "pass",
+            "evidence": {
+              "actual": 63,
+              "max": 120
+            }
+          }
+        ]
+      },
+      "semantic": null,
+      "assertions": [
+        {
+          "id": "no-external-authority",
+          "verdict": "pass",
+          "evidence": {
+            "matches": []
+          }
+        },
+        {
+          "id": "valid-skill",
+          "verdict": "pass",
+          "evidence": {
+            "path": "SKILL.md"
+          }
+        },
+        {
+          "id": "compact-active-body",
+          "verdict": "pass",
+          "evidence": {
+            "actual": 63,
+            "max": 120
+          }
+        }
+      ]
+    }
+  ],
+  "evidence_support": {
+    "required": {
+      "structure": "supported"
+    },
+    "requested": {}
+  },
+  "unsupported_claims": [],
+  "usage": {
+    "turns": 0,
+    "provider_requests": 0,
+    "tool_calls": 0,
+    "tokens": null,
+    "cost_usd": null
+  },
+  "unavailable": [
+    "usage.cost_usd",
+    "usage.tokens"
+  ],
+  "limitations": [],
+  "residual_uncertainty": [],
+  "readiness": {
+    "required_for_bootstrap": true,
+    "candidate_assertions_pass": true
+  }
+}

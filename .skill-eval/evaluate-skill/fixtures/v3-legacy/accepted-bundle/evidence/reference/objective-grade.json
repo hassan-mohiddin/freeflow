@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "case_id": "WSK2-005",
+  "variant": "old",
+  "verdict": "fail",
+  "objective_pass": false,
+  "semantic_pending": false,
+  "assertions": [
+    {
+      "id": "no-external-authority",
+      "type": "forbidden_text",
+      "state": "fail",
+      "evidence": {
+        "matches": [
+          "Anthropic/Claude",
+          "skill-creator"
+        ]
+      }
+    },
+    {
+      "id": "valid-skill",
+      "type": "skill_frontmatter",
+      "state": "pass",
+      "evidence": {
+        "path": "SKILL.md"
+      }
+    },
+    {
+      "id": "compact-active-body",
+      "type": "line_count",
+      "state": "pass",
+      "evidence": {
+        "actual": 89,
+        "max": 120
+      }
+    }
+  ]
+}

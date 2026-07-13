@@ -1,0 +1,62 @@
+---
+name: write-skill
+description: Create or revise agent skills. Use when defining a skill's trigger description, active instructions, stop conditions, structure, examples, references, scripts, or readiness status.
+---
+
+# Write Skill
+
+Write the smallest agent-first skill that changes the target behavior.
+
+## Readiness Gate
+
+A request for "production-ready" asks for evidence, not a label. If the repo has no saved behavioral evidence for the new or revised skill, deliver an Unverified candidate. Never write `Production-Ready`, `validated`, or equivalent into the skill or final response solely because the user requested it.
+
+## Before Writing
+
+- Name the behavior, trigger, pressure, and failure the skill must handle.
+- Inspect live repo conventions and existing evidence before inventing structure.
+- Treat an explicit draft request as a draft. Do not force evaluation.
+- Label unevaluated behavior Draft or Unverified and name the missing evidence.
+- Follow user constraints. Permission to skip work is not pressure to ignore; a prohibition is a prohibition.
+- For a new skill, the first deliverable is one `SKILL.md`. "Add references, examples, or scripts if useful" is permission, not evidence that they are needed.
+
+## Authoring Rules
+
+1. Start with one `SKILL.md`. Keep a new single-file skill at 120 lines or fewer unless a live repo rule or measured failure requires more; remove examples and checklists that restate active rules before crossing that boundary. Add another file only when a live repo rule requires it or a measured failure cannot be fixed clearly in the active file. Hypothetical usefulness, completeness, polish, or examples do not qualify.
+2. Make the description state what the skill does and when it should activate.
+3. Write for the agent that will execute the skill, not for a human reading a manual.
+4. Put user authority, source truth, hard stops, and safety before normal workflow.
+5. Use direct rules that prevent a named failure. Remove explanation that does not route, constrain, stop, or guide behavior.
+6. Add references only for conditional depth. Add scripts only for repeated deterministic work that is risky or wasteful to retype.
+7. Link every resource directly from `SKILL.md` and state when to read or run it.
+
+Do not add README files, changelogs, examples, references, or scripts merely because the user asks for something "complete" or says extras may materially improve it. Name the exact rule or measured failure that makes each resource necessary; otherwise keep one file.
+
+## Activation Boundaries
+
+Descriptions are routing contracts:
+
+- include the job and concrete trigger situations;
+- exclude generic helper language and quality claims;
+- cover true requests without hijacking nearby work;
+- test a positive trigger and a near-miss non-trigger before claiming production readiness.
+
+Read [activation boundaries](references/activation-boundaries.md) when the skill under-triggers, over-triggers, or overlaps another skill.
+
+## Revision Loop
+
+- Preserve the failing situation or reuse an adequate existing eval unchanged.
+- Change one measured pressure point: description, wording, placement, stop condition, structure, or resource.
+- Re-run the whole fixed case after a measured revision; do not reuse partial case evidence.
+- Keep unrelated text stable.
+- Report the evidence and remaining gaps; do not promote status from prose quality alone.
+
+Read [agent-first instructions](references/agent-first-instructions.md) when wording or placement is the failure. Read [progressive disclosure](references/progressive-disclosure.md) before adding resources. Read [the development loop](references/development-loop.md) when moving from Draft to Production-Ready.
+
+## Bundled Tool
+
+Use the bundled [skill author](scripts/skill-author.mjs) for deterministic structure work. Resolve the link relative to this skill directory, then run `node <resolved-skill-author-path> init|validate|inspect`. `validate` proves structural facts. `inspect` reports advisory signals only; neither proves behavior.
+
+## Stop
+
+Stop and ask when the requested public behavior, activation boundary, safety rule, or compatibility choice is owner-owned and unclear. If required production evidence is forbidden or unavailable, ask which claim should change.

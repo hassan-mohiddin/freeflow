@@ -1,0 +1,593 @@
+{
+  "schema_version": 1,
+  "authority": "preliminary-baseline-only",
+  "can_authorize_provider_execution": false,
+  "corpus_sha256": "3a3aef5d053c57735057b19feb52d97468309ae40c4e83d5d3b959858ecc148f",
+  "evaluator": {
+    "fingerprint": "a5c9e8812b3b0d45797eba40613674e69f574a2db9bbc5b7528add5575b9c4ce",
+    "semantic_fingerprint": "171f695d3dbd19b4a9a897041df5205f3563985410cc7fc229fbd6d4047c684a",
+    "full_tree_sha256": "700e9a7e3e53272f7747115a03c23e686fcc908b7a9c39a84f307e27970b7820",
+    "files": [
+      {
+        "path": "skills/evaluate-skill/scripts/lib/args.mjs",
+        "sha256": "7843072dc0f2c0c55895b21d4969711b2bb47c6731426c6a023f219fc4763475"
+      },
+      {
+        "path": "skills/evaluate-skill/scripts/lib/capabilities.mjs",
+        "sha256": "58a1b68ac196e204698e39a8be34cb6a1456dce1d8eeab3ab4e90c3bfd15870b"
+      },
+      {
+        "path": "skills/evaluate-skill/scripts/lib/codex-adapter.mjs",
+        "sha256": "c8147ba6feed90a334e87e4ab7716a646471513cb1269427211293e497eef405"
+      },
+      {
+        "path": "skills/evaluate-skill/scripts/lib/constants.mjs",
+        "sha256": "9462808afc40c176b43d25c4907f549db58c4fe3135e057dd3c2fc9eb9a9cc49"
+      },
+      {
+        "path": "skills/evaluate-skill/scripts/lib/coordinator.mjs",
+        "sha256": "7c9a3efb6242027766296b78fba132ab3535630902bd33d155f0ec18850afd71"
+      },
+      {
+        "path": "skills/evaluate-skill/scripts/lib/decision.mjs",
+        "sha256": "c9e7a590039c2c25388aa6ed168828f6fdcad2b0cb0358e1cf3b52b19f00e269"
+      },
+      {
+        "path": "skills/evaluate-skill/scripts/lib/doctor.mjs",
+        "sha256": "d80602b64ca48a1500f7b4c96f60ce028b1d6b2b636947d609b3e8d4a70774ef"
+      },
+      {
+        "path": "skills/evaluate-skill/scripts/lib/evaluate.mjs",
+        "sha256": "dda3934e1d4a953dfffb3971943502f5d8d7ce22f352c9895ece765d8a64fc62"
+      },
+      {
+        "path": "skills/evaluate-skill/scripts/lib/grade.mjs",
+        "sha256": "1c21e40547662e0a8c04496c961b46d6415766fa4cb97b06a8ae31e9bfdb2bd2"
+      },
+      {
+        "path": "skills/evaluate-skill/scripts/lib/hash.mjs",
+        "sha256": "29141a9c371144c431a3c198d2278ae25177299b9f2b3168f11d8c50e80914eb"
+      },
+      {
+        "path": "skills/evaluate-skill/scripts/lib/integrity.mjs",
+        "sha256": "070eb10449e4f19aa8fcf19975807dcb547d4cb2caa2fbe7792dc0056b7f0dfc"
+      },
+      {
+        "path": "skills/evaluate-skill/scripts/lib/materialize.mjs",
+        "sha256": "c7f5cde49c6db125b64f566795f30764948b6ab21fa2c63ae32082a6b3012110"
+      },
+      {
+        "path": "skills/evaluate-skill/scripts/lib/outcome.mjs",
+        "sha256": "fb62af50f05f3cbf499b5e99c18f465188166a4fde1c8805ae98add876c4a077"
+      },
+      {
+        "path": "skills/evaluate-skill/scripts/lib/path-policy.mjs",
+        "sha256": "d19f59181e425d0a631eca92ab450f96b71862ab15687f13c90aac5dcd2b2120"
+      },
+      {
+        "path": "skills/evaluate-skill/scripts/lib/pi-adapter.mjs",
+        "sha256": "392720a9fdd7c3da45de2f9fe8589b6f2c24eada50f09cb0a45d0bdeb95e2c3f"
+      },
+      {
+        "path": "skills/evaluate-skill/scripts/lib/plan.mjs",
+        "sha256": "d2b1c63d6e86bd3a188dc00bcff2a280a1a5a1a54c2f7fc355307b7a448255d5"
+      },
+      {
+        "path": "skills/evaluate-skill/scripts/lib/process-outcome.mjs",
+        "sha256": "16a674063e81439304e56d139a6940c009df95d8512d5af0c63c9294ff01c897"
+      },
+      {
+        "path": "skills/evaluate-skill/scripts/lib/process.mjs",
+        "sha256": "66617b49a12102baea8b4ad96fc4182f24f42d5c6add77af35b793d1895a66fe"
+      },
+      {
+        "path": "skills/evaluate-skill/scripts/lib/publication.mjs",
+        "sha256": "e845b6d70eec8448dc6a6e616da6a60f8958d37839e9656e9040b469908a9734"
+      },
+      {
+        "path": "skills/evaluate-skill/scripts/lib/rpc-client.mjs",
+        "sha256": "bdc35d6424b81beb56cfe6904c30740dc46f636b36b9feab770679634e82f68c"
+      },
+      {
+        "path": "skills/evaluate-skill/scripts/lib/semantic.mjs",
+        "sha256": "b0f75e07f2c186a0f4c04a07feb713383772f3cb4fc05d0ee08f735a2b5bc4e9"
+      },
+      {
+        "path": "skills/evaluate-skill/scripts/lib/workspace.mjs",
+        "sha256": "7dcb568c329721776c1ad818ed0932fc35df3dcaf2fb5575d809829499403190"
+      },
+      {
+        "path": "skills/evaluate-skill/scripts/pi-composition-runtime.mjs",
+        "sha256": "cb5b63a0d3dfff3a9f8cad877c87a82eb2c363d2d588fbf6a46bbcdc38cff641"
+      },
+      {
+        "path": "skills/evaluate-skill/scripts/pi-root-guard.mjs",
+        "sha256": "e837b563c60ce79cc36411a643edc44f0725fd2a9a83181e2dd03a1ec430d65e"
+      },
+      {
+        "path": "skills/evaluate-skill/scripts/skill-eval.mjs",
+        "sha256": "f92cdab78888b4b203c05dabb61c6efeaacf14ad1218c1f506ec7e9ce9e056af"
+      }
+    ]
+  },
+  "bundles": [
+    {
+      "id": "composition-one-shot",
+      "source_path": ".skill-eval/workflow/runs/evaluations/20260712132227851-wfc2-001-0a4a209cd2",
+      "case_id": "WFC2-001",
+      "evaluation_id": "20260712132227851-wfc2-001-0a4a209cd2",
+      "plan_fingerprint": "0a4a209cd2d497b49a9d8342ddae1fba3ef8fbda9b5c791337251ddd34005557",
+      "bundle_identity": "ccb2fcffaac9abf9adb2425439251646d1c3fbd945a14d1f5f077f8de4f26a6a",
+      "bundle_files": 47,
+      "bundle_bytes": 135589,
+      "runtime": {
+        "host": "pi",
+        "adapter_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high"
+      },
+      "usage": {
+        "turns": 6,
+        "provider_requests": 6,
+        "tool_calls": 8,
+        "tokens": {
+          "input": 8645,
+          "output": 703,
+          "cache_read": 11264,
+          "cache_write": 0,
+          "total": 20612
+        },
+        "cost_usd": 0.06994700000000001
+      },
+      "recorded_identities": {
+        "evaluator": "a5c9e8812b3b0d45797eba40613674e69f574a2db9bbc5b7528add5575b9c4ce",
+        "semantic": "171f695d3dbd19b4a9a897041df5205f3563985410cc7fc229fbd6d4047c684a"
+      },
+      "expected": {
+        "comparison_verdict": "improved",
+        "candidate_assertions_pass": true,
+        "variants": [
+          {
+            "role": "reference",
+            "objective_verdict": "fail",
+            "semantic_verdict": null,
+            "assertions": [
+              {
+                "id": "base-read",
+                "verdict": "pass"
+              },
+              {
+                "id": "target-read",
+                "verdict": "pass"
+              },
+              {
+                "id": "only-result-created",
+                "verdict": "pass"
+              },
+              {
+                "id": "base-marker",
+                "verdict": "pass"
+              },
+              {
+                "id": "candidate-marker",
+                "verdict": "fail"
+              },
+              {
+                "id": "backward-route",
+                "verdict": "fail"
+              }
+            ]
+          },
+          {
+            "role": "candidate",
+            "objective_verdict": "pass",
+            "semantic_verdict": null,
+            "assertions": [
+              {
+                "id": "base-read",
+                "verdict": "pass"
+              },
+              {
+                "id": "target-read",
+                "verdict": "pass"
+              },
+              {
+                "id": "only-result-created",
+                "verdict": "pass"
+              },
+              {
+                "id": "base-marker",
+                "verdict": "pass"
+              },
+              {
+                "id": "candidate-marker",
+                "verdict": "pass"
+              },
+              {
+                "id": "backward-route",
+                "verdict": "pass"
+              }
+            ]
+          }
+        ]
+      },
+      "semantic_packets": []
+    },
+    {
+      "id": "composition-four-turn",
+      "source_path": ".skill-eval/workflow/runs/evaluations/20260712132336147-wfc2-002-47a1206ace",
+      "case_id": "WFC2-002",
+      "evaluation_id": "20260712132336147-wfc2-002-47a1206ace",
+      "plan_fingerprint": "47a1206ace45e0249c63e3375dbf9548b663bc46522cfb097418e17ed8e827f7",
+      "bundle_identity": "3308888188c2433b9554f96a2e90d4349c3e2492d1156bede0070ba6701ffcc1",
+      "bundle_files": 52,
+      "bundle_bytes": 1207148,
+      "runtime": {
+        "host": "pi",
+        "adapter_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high"
+      },
+      "usage": {
+        "turns": 30,
+        "provider_requests": 30,
+        "tool_calls": 29,
+        "tokens": {
+          "input": 37065,
+          "output": 3224,
+          "cache_read": 86528,
+          "cache_write": 0,
+          "total": 126817
+        },
+        "cost_usd": 0.32530900000000007
+      },
+      "recorded_identities": {
+        "evaluator": "a5c9e8812b3b0d45797eba40613674e69f574a2db9bbc5b7528add5575b9c4ce",
+        "semantic": "171f695d3dbd19b4a9a897041df5205f3563985410cc7fc229fbd6d4047c684a"
+      },
+      "expected": {
+        "comparison_verdict": "improved",
+        "candidate_assertions_pass": true,
+        "variants": [
+          {
+            "role": "reference",
+            "objective_verdict": "fail",
+            "semantic_verdict": null,
+            "assertions": [
+              {
+                "id": "base-read",
+                "verdict": "fail"
+              },
+              {
+                "id": "evidence-base-read",
+                "verdict": "pass"
+              },
+              {
+                "id": "route-skill-read",
+                "verdict": "pass"
+              },
+              {
+                "id": "turn-1-no-change",
+                "verdict": "pass"
+              },
+              {
+                "id": "turn-2-first-fix-only",
+                "verdict": "fail"
+              },
+              {
+                "id": "turn-3-design-checkpoint",
+                "verdict": "fail"
+              },
+              {
+                "id": "turn-4-route-closeout",
+                "verdict": "fail"
+              },
+              {
+                "id": "adapter-a-fixed",
+                "verdict": "pass"
+              },
+              {
+                "id": "adapter-b-preserved",
+                "verdict": "fail"
+              },
+              {
+                "id": "failure-unit-checkpoint",
+                "verdict": "fail"
+              },
+              {
+                "id": "backward-route",
+                "verdict": "fail"
+              },
+              {
+                "id": "canonical-failure-unit",
+                "verdict": "fail"
+              }
+            ]
+          },
+          {
+            "role": "candidate",
+            "objective_verdict": "pass",
+            "semantic_verdict": null,
+            "assertions": [
+              {
+                "id": "base-read",
+                "verdict": "pass"
+              },
+              {
+                "id": "evidence-base-read",
+                "verdict": "pass"
+              },
+              {
+                "id": "route-skill-read",
+                "verdict": "pass"
+              },
+              {
+                "id": "turn-1-no-change",
+                "verdict": "pass"
+              },
+              {
+                "id": "turn-2-first-fix-only",
+                "verdict": "pass"
+              },
+              {
+                "id": "turn-3-design-checkpoint",
+                "verdict": "pass"
+              },
+              {
+                "id": "turn-4-route-closeout",
+                "verdict": "pass"
+              },
+              {
+                "id": "adapter-a-fixed",
+                "verdict": "pass"
+              },
+              {
+                "id": "adapter-b-preserved",
+                "verdict": "pass"
+              },
+              {
+                "id": "failure-unit-checkpoint",
+                "verdict": "pass"
+              },
+              {
+                "id": "backward-route",
+                "verdict": "pass"
+              },
+              {
+                "id": "canonical-failure-unit",
+                "verdict": "pass"
+              }
+            ]
+          }
+        ]
+      },
+      "semantic_packets": []
+    },
+    {
+      "id": "rejected-state-tdd",
+      "source_path": ".skill-eval/workflow/runs/evaluations/20260712174026240-wfi-002-a533c790e6",
+      "case_id": "WFI-002",
+      "evaluation_id": "20260712174026240-wfi-002-a533c790e6",
+      "plan_fingerprint": "a533c790e6733b84c33277eb58c2e81ed651b03334517c0c6e038694fbbf3410",
+      "bundle_identity": "0a63a0ee20fd2dd0cd0436165213494edc395b16482d07310c145936651bc35a",
+      "bundle_files": 69,
+      "bundle_bytes": 1468357,
+      "runtime": {
+        "host": "pi",
+        "adapter_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high"
+      },
+      "usage": {
+        "turns": 23,
+        "provider_requests": 23,
+        "tool_calls": 20,
+        "tokens": {
+          "input": 47452,
+          "output": 4496,
+          "cache_read": 74752,
+          "cache_write": 0,
+          "total": 126700
+        },
+        "cost_usd": 0.409516
+      },
+      "recorded_identities": {
+        "evaluator": "a5c9e8812b3b0d45797eba40613674e69f574a2db9bbc5b7528add5575b9c4ce",
+        "semantic": "171f695d3dbd19b4a9a897041df5205f3563985410cc7fc229fbd6d4047c684a"
+      },
+      "expected": {
+        "comparison_verdict": "improved",
+        "candidate_assertions_pass": true,
+        "variants": [
+          {
+            "role": "reference",
+            "objective_verdict": "pending-semantic",
+            "semantic_verdict": "fail",
+            "assertions": [
+              {
+                "id": "target-read",
+                "verdict": "pass"
+              },
+              {
+                "id": "turn-1-test-only",
+                "verdict": "pass"
+              },
+              {
+                "id": "turn-2-code-and-test",
+                "verdict": "pass"
+              },
+              {
+                "id": "test-created",
+                "verdict": "pass"
+              },
+              {
+                "id": "rejected-state-preserved",
+                "verdict": "fail"
+              }
+            ]
+          },
+          {
+            "role": "candidate",
+            "objective_verdict": "pending-semantic",
+            "semantic_verdict": "pass",
+            "assertions": [
+              {
+                "id": "target-read",
+                "verdict": "pass"
+              },
+              {
+                "id": "turn-1-test-only",
+                "verdict": "pass"
+              },
+              {
+                "id": "turn-2-code-and-test",
+                "verdict": "pass"
+              },
+              {
+                "id": "test-created",
+                "verdict": "pass"
+              },
+              {
+                "id": "rejected-state-preserved",
+                "verdict": "pass"
+              }
+            ]
+          }
+        ]
+      },
+      "semantic_packets": [
+        {
+          "path": "evidence/reference/semantic-packet.json",
+          "sha256": "491b5e96363207f463e38a9c178f6c16596c4e516a641393535defaf7de85931",
+          "bytes": 5912,
+          "minified_bytes": 5586,
+          "whitespace_bytes": 326,
+          "structural_key_bytes": 250
+        },
+        {
+          "path": "evidence/candidate/semantic-packet.json",
+          "sha256": "951862ca3257b57db439dfa3dda5320db83bd01e9a5ee7de9d4e8b90f65f6bc9",
+          "bytes": 6488,
+          "minified_bytes": 6162,
+          "whitespace_bytes": 326,
+          "structural_key_bytes": 250
+        }
+      ]
+    },
+    {
+      "id": "proof-fidelity",
+      "source_path": ".skill-eval/workflow/runs/evaluations/20260712173020819-wfi-003-92e364fe99",
+      "case_id": "WFI-003",
+      "evaluation_id": "20260712173020819-wfi-003-92e364fe99",
+      "plan_fingerprint": "92e364fe999f475aef00c943a29609a2064537706e79b852d95e1a0934dd6412",
+      "bundle_identity": "df7d0f91b98f050fd655a3ab09d247e97ed6903880d2f408a754fd7b6b05cb74",
+      "bundle_files": 73,
+      "bundle_bytes": 507983,
+      "runtime": {
+        "host": "pi",
+        "adapter_version": "0.80.6",
+        "provider": "openai-codex",
+        "model": "gpt-5.5",
+        "thinking": "high"
+      },
+      "usage": {
+        "turns": 14,
+        "provider_requests": 14,
+        "tool_calls": 10,
+        "tokens": {
+          "input": 23462,
+          "output": 2170,
+          "cache_read": 44032,
+          "cache_write": 0,
+          "total": 69664
+        },
+        "cost_usd": 0.20442600000000002
+      },
+      "recorded_identities": {
+        "evaluator": "a5c9e8812b3b0d45797eba40613674e69f574a2db9bbc5b7528add5575b9c4ce",
+        "semantic": "171f695d3dbd19b4a9a897041df5205f3563985410cc7fc229fbd6d4047c684a"
+      },
+      "expected": {
+        "comparison_verdict": "same",
+        "candidate_assertions_pass": true,
+        "variants": [
+          {
+            "role": "reference",
+            "objective_verdict": "pending-semantic",
+            "semantic_verdict": "pass",
+            "assertions": [
+              {
+                "id": "review-work-read",
+                "verdict": "pass"
+              },
+              {
+                "id": "target-read",
+                "verdict": "pass"
+              },
+              {
+                "id": "only-assessment-created",
+                "verdict": "pass"
+              },
+              {
+                "id": "assessment-created",
+                "verdict": "pass"
+              },
+              {
+                "id": "proof-boundary-rejected",
+                "verdict": "pass"
+              }
+            ]
+          },
+          {
+            "role": "candidate",
+            "objective_verdict": "pending-semantic",
+            "semantic_verdict": "pass",
+            "assertions": [
+              {
+                "id": "review-work-read",
+                "verdict": "pass"
+              },
+              {
+                "id": "target-read",
+                "verdict": "pass"
+              },
+              {
+                "id": "only-assessment-created",
+                "verdict": "pass"
+              },
+              {
+                "id": "assessment-created",
+                "verdict": "pass"
+              },
+              {
+                "id": "proof-boundary-rejected",
+                "verdict": "pass"
+              }
+            ]
+          }
+        ]
+      },
+      "semantic_packets": [
+        {
+          "path": "evidence/reference/semantic-packet.json",
+          "sha256": "344bda930c92796ce4c223284b70193a17c330697f774e2c0cc6e9a1eab474e8",
+          "bytes": 4325,
+          "minified_bytes": 4174,
+          "whitespace_bytes": 151,
+          "structural_key_bytes": 185
+        },
+        {
+          "path": "evidence/candidate/semantic-packet.json",
+          "sha256": "8e68c6ab735ddd278d86bde917044c12b48a870156c238d2c449d684220ad31f",
+          "bytes": 4324,
+          "minified_bytes": 4173,
+          "whitespace_bytes": 151,
+          "structural_key_bytes": 185
+        }
+      ]
+    }
+  ]
+}

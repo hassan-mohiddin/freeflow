@@ -1,0 +1,230 @@
+{
+  "schema_version": 1,
+  "inventory": {
+    "files": {
+      "evidence/candidate/after-manifest.json": {
+        "type": "file",
+        "size": 103,
+        "sha256": "56bf67c9bfd824924a0dae43aeba1429fb0ee77450287902ef0c862c4e3019da",
+        "lines": 5
+      },
+      "evidence/candidate/before-manifest.json": {
+        "type": "file",
+        "size": 103,
+        "sha256": "56bf67c9bfd824924a0dae43aeba1429fb0ee77450287902ef0c862c4e3019da",
+        "lines": 5
+      },
+      "evidence/candidate/diff": {
+        "type": "file",
+        "size": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "lines": 1
+      },
+      "evidence/candidate/events.jsonl": {
+        "type": "file",
+        "size": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "lines": 1
+      },
+      "evidence/candidate/exit-status.txt": {
+        "type": "file",
+        "size": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "lines": 2
+      },
+      "evidence/candidate/final.md": {
+        "type": "file",
+        "size": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "lines": 1
+      },
+      "evidence/candidate/git-status.txt": {
+        "type": "file",
+        "size": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "lines": 1
+      },
+      "evidence/candidate/inputs/case.json": {
+        "type": "file",
+        "size": 1610,
+        "sha256": "2ed5a22ababe2f97350280c495f0c2f7642f8153cda5526b594822f4b992d8cb",
+        "lines": 71
+      },
+      "evidence/candidate/inputs/skill/SKILL.md": {
+        "type": "file",
+        "size": 4285,
+        "sha256": "deb5a067fcec4e4c062ab41963ca6b23863020c020216b2c4539f2ec0cb97897",
+        "lines": 63
+      },
+      "evidence/candidate/inputs/skill/references/activation-boundaries.md": {
+        "type": "file",
+        "size": 864,
+        "sha256": "cea51de032663776ae2e1c3e589e9f14743cdf35ec9a0b93ea8c871f2dbcf6e6",
+        "lines": 29
+      },
+      "evidence/candidate/inputs/skill/references/agent-first-instructions.md": {
+        "type": "file",
+        "size": 1012,
+        "sha256": "c35ae8efc2334450b7565d9dba0722b3210c1f43af3e3f8638fdc1a62b982c84",
+        "lines": 40
+      },
+      "evidence/candidate/inputs/skill/references/development-loop.md": {
+        "type": "file",
+        "size": 974,
+        "sha256": "b8cf610e29314aac8c7bdf69bfcfedf619454d6f75368dafeaaaa1b5e4ab8ce4",
+        "lines": 28
+      },
+      "evidence/candidate/inputs/skill/references/progressive-disclosure.md": {
+        "type": "file",
+        "size": 842,
+        "sha256": "95772bf2cfef7e3388b0671e8b7e3701fffaaa79f514ffc16a9eb1a975bc7636",
+        "lines": 29
+      },
+      "evidence/candidate/metadata.json": {
+        "type": "file",
+        "size": 2875,
+        "sha256": "933e232a4f07c684dd5acc39ba2636b8af3d53d6e03943b8fecd7701d9a8c305",
+        "lines": 104
+      },
+      "evidence/candidate/objective-grade.json": {
+        "type": "file",
+        "size": 651,
+        "sha256": "8c04171af66161e7fe8b6b1cb4d03588b320eab3227879b6dc40efde75a6d231",
+        "lines": 36
+      },
+      "evidence/candidate/runtime-counters.json": {
+        "type": "file",
+        "size": 106,
+        "sha256": "9bd64f61ada928cfca9ec85afc3e96097d79794fcbf08a62a03f6e939bb148df",
+        "lines": 7
+      },
+      "evidence/candidate/stderr.log": {
+        "type": "file",
+        "size": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "lines": 1
+      },
+      "evidence/candidate/tool-events.json": {
+        "type": "file",
+        "size": 3,
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+        "lines": 2
+      },
+      "evidence/candidate/usage.json": {
+        "type": "file",
+        "size": 5,
+        "sha256": "38e0b9de817f645c4bec37c0d4a3e58baecccb040f5718dc069a72c7385a0bed",
+        "lines": 2
+      },
+      "evidence/reference/after-manifest.json": {
+        "type": "file",
+        "size": 103,
+        "sha256": "56bf67c9bfd824924a0dae43aeba1429fb0ee77450287902ef0c862c4e3019da",
+        "lines": 5
+      },
+      "evidence/reference/before-manifest.json": {
+        "type": "file",
+        "size": 103,
+        "sha256": "56bf67c9bfd824924a0dae43aeba1429fb0ee77450287902ef0c862c4e3019da",
+        "lines": 5
+      },
+      "evidence/reference/diff": {
+        "type": "file",
+        "size": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "lines": 1
+      },
+      "evidence/reference/events.jsonl": {
+        "type": "file",
+        "size": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "lines": 1
+      },
+      "evidence/reference/exit-status.txt": {
+        "type": "file",
+        "size": 2,
+        "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+        "lines": 2
+      },
+      "evidence/reference/final.md": {
+        "type": "file",
+        "size": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "lines": 1
+      },
+      "evidence/reference/git-status.txt": {
+        "type": "file",
+        "size": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "lines": 1
+      },
+      "evidence/reference/inputs/case.json": {
+        "type": "file",
+        "size": 1610,
+        "sha256": "2ed5a22ababe2f97350280c495f0c2f7642f8153cda5526b594822f4b992d8cb",
+        "lines": 71
+      },
+      "evidence/reference/inputs/skill/SKILL.md": {
+        "type": "file",
+        "size": 2853,
+        "sha256": "aa0a961f5224079f9e4d9818b45c96c563a0ddcd91acfdbda13b3af342f011e7",
+        "lines": 89
+      },
+      "evidence/reference/metadata.json": {
+        "type": "file",
+        "size": 1870,
+        "sha256": "6f5d16628607e15f476dd2c9940056ad70a22d0ba80259f378b824bf3935126e",
+        "lines": 76
+      },
+      "evidence/reference/objective-grade.json": {
+        "type": "file",
+        "size": 711,
+        "sha256": "c49f89a871d9da3d9c11d21eb01d5b57f7c925c0fbb5cc51a0c9ea6795b97ed1",
+        "lines": 39
+      },
+      "evidence/reference/runtime-counters.json": {
+        "type": "file",
+        "size": 106,
+        "sha256": "9bd64f61ada928cfca9ec85afc3e96097d79794fcbf08a62a03f6e939bb148df",
+        "lines": 7
+      },
+      "evidence/reference/stderr.log": {
+        "type": "file",
+        "size": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "lines": 1
+      },
+      "evidence/reference/tool-events.json": {
+        "type": "file",
+        "size": 3,
+        "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+        "lines": 2
+      },
+      "evidence/reference/usage.json": {
+        "type": "file",
+        "size": 5,
+        "sha256": "38e0b9de817f645c4bec37c0d4a3e58baecccb040f5718dc069a72c7385a0bed",
+        "lines": 2
+      },
+      "plan.json": {
+        "type": "file",
+        "size": 2054,
+        "sha256": "4ad6f245f0245c75ad7c758883c56b85fcd86121e8a9f8d6299f4f8a16f37fd1",
+        "lines": 74
+      },
+      "report.md": {
+        "type": "file",
+        "size": 344,
+        "sha256": "2ab4638e4d93ff3a5e3ded39b025c7c1fc2ce73c3ae14041727350ac38247384",
+        "lines": 20
+      },
+      "result.json": {
+        "type": "file",
+        "size": 5010,
+        "sha256": "544684ebfa9d4be115a76cfd632447362a8d79d6b271ff84d9686f133b41dad4",
+        "lines": 200
+      }
+    },
+    "fingerprint": "c4e6bc30e223ed0d17f1835b48b0c4d41985fe7a0c6c97e1e86c479774948e47"
+  }
+}

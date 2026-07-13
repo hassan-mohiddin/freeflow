@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "id": "WSK2-005",
+  "skill": "write-skill",
+  "title": "Self-contained authoring instructions",
+  "question": "structural validity",
+  "evidence_classes": [
+    "structure"
+  ],
+  "required_for_bootstrap": true,
+  "prompt": "",
+  "fixture": null,
+  "variants": [
+    {
+      "id": "old",
+      "kind": "git",
+      "revision": "b168ac28482b7bc3984727ad4ee3a61a2b789104",
+      "path": "skills/write-skill",
+      "role": "reference",
+      "resources": [
+        "SKILL.md"
+      ]
+    },
+    {
+      "id": "candidate",
+      "kind": "working-tree",
+      "path": "skills/write-skill",
+      "role": "candidate",
+      "resources": [
+        "SKILL.md",
+        "references/activation-boundaries.md",
+        "references/agent-first-instructions.md",
+        "references/development-loop.md",
+        "references/progressive-disclosure.md"
+      ]
+    }
+  ],
+  "execution": {
+    "host": "none",
+    "mode": "deterministic",
+    "tools": []
+  },
+  "assertions": [
+    {
+      "id": "no-external-authority",
+      "type": "forbidden_text",
+      "path": "SKILL.md",
+      "patterns": [
+        "Anthropic/Claude",
+        "skill-creator",
+        "Matt Pocock",
+        "Superpowers"
+      ]
+    },
+    {
+      "id": "valid-skill",
+      "type": "skill_frontmatter",
+      "path": "SKILL.md"
+    },
+    {
+      "id": "compact-active-body",
+      "type": "line_count",
+      "path": "SKILL.md",
+      "max": 120
+    }
+  ],
+  "evaluation_kind": "comparison",
+  "unsupported_evidence": "block",
+  "source_path": "<repo-root>/.skill-eval/write-skill/cases/WSK2-005-self-contained.json"
+}

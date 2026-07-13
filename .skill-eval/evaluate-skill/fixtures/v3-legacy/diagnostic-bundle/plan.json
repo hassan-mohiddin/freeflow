@@ -1,0 +1,218 @@
+{
+  "schema_version": 1,
+  "skill": "workflow",
+  "case": "WFI-002",
+  "evaluation_kind": "comparison",
+  "variants": [
+    {
+      "id": "reference",
+      "role": "reference"
+    },
+    {
+      "id": "candidate",
+      "role": "candidate"
+    }
+  ],
+  "model": {
+    "provider": "openai-codex",
+    "model": "gpt-5.5",
+    "thinking": "high"
+  },
+  "subject_model": {
+    "provider": "openai-codex",
+    "model": "gpt-5.5",
+    "thinking": "high"
+  },
+  "grader_model": {
+    "provider": "openai-codex",
+    "model": "gpt-5.5",
+    "thinking": "high"
+  },
+  "subject_host": "pi",
+  "fidelity": "accepted",
+  "pi_processes": {
+    "subject": 2,
+    "semantic_max": 2,
+    "total_max": 4
+  },
+  "codex_processes": {
+    "subject": 0,
+    "total_max": 0
+  },
+  "total_processes": 4,
+  "scripted_user_turns": 2,
+  "composition": {
+    "skills": [
+      "execute-plan",
+      "tdd"
+    ],
+    "target_name": "tdd",
+    "runtime_profile": "freeflow-kernel-workflow-v1"
+  },
+  "limits": {
+    "timeout_ms": 180000,
+    "output_limit_bytes": 8388608,
+    "transport_limit_bytes": 134217728,
+    "max_turns_per_process": 8
+  },
+  "worst_case_approved_turns": 32,
+  "spend": {
+    "max_usd": 1
+  },
+  "evidence": {
+    "required": {
+      "native-activation": "supported",
+      "artifact-outcome": "supported"
+    },
+    "requested": {}
+  },
+  "identities": {
+    "case": "9afa5429de0ef38957c7c26247b9c2e33cc4718f31e4c434e46c67af91275976",
+    "case_source": {
+      "path": ".skill-eval/workflow/cases/WFI-002-rejected-state-tdd.json",
+      "sha256": "34f38ed386124cbe73040dca4dbd6590ff679a52506c2c2093bb21d0096c5b99"
+    },
+    "fixture": "407a650d895a07ca84ff5e94f68ffc64aaf7b4ece824591f83b7da6aeeb018d2",
+    "subjects": {
+      "reference": "281df88de06d86e5e0e3156b8e8b75bedf8aaf3c8e6a9a28261b0b3e5104bd81",
+      "candidate": "7b2df8b11665f34f73bc727fb8ad6e397672b326b091f9039e115ee160709992"
+    },
+    "composition": {
+      "target_name": "tdd",
+      "base_stack": [
+        {
+          "name": "execute-plan",
+          "kind": "git",
+          "path": "skills/execute-plan",
+          "revision": "87f83cb",
+          "resources": [
+            "SKILL.md",
+            "references/execution-map.md"
+          ],
+          "identity": {
+            "entries": [
+              [
+                "references/execution-map.md",
+                "file",
+                "a1f629300b324a61bc9b7c9c1684782ac4cd25a68098322dff252ad6f6d6624e"
+              ],
+              [
+                "SKILL.md",
+                "file",
+                "dc2f5c91c5a46aec396181369cc6d6e99e802cf5e16f9444bbd806a62534cddb"
+              ]
+            ],
+            "aggregate_sha256": "e75dea3c351cd1e4f741b77a63014ea3f66f2844cac35181675cda88022a5929"
+          }
+        }
+      ],
+      "runtime": {
+        "profile": "freeflow-kernel-workflow-v1",
+        "kind": "git",
+        "path": ".",
+        "revision": "87f83cb",
+        "identity": {
+          "entries": [
+            [
+              "skills/decision-gate/references/runtime-kernel.md",
+              "file",
+              "9bb3e8b3de4c994dfe8053b7275d489d11f81a3ec5216572093b9058e382210f"
+            ],
+            [
+              "skills/workflow/SKILL.md",
+              "file",
+              "7e8e96d58744b1699c9cde4f4cb4216b578fb0c99d49ac4af5687644ba9a4526"
+            ]
+          ],
+          "aggregate_sha256": "6a00997d0300528ed71589026737e22ab53fae866a3221aa81d80f98e4f49f15"
+        },
+        "kernel": {
+          "path": "skills/decision-gate/references/runtime-kernel.md",
+          "sha256": "9bb3e8b3de4c994dfe8053b7275d489d11f81a3ec5216572093b9058e382210f"
+        },
+        "workflow": {
+          "path": "skills/workflow/SKILL.md",
+          "sha256": "7e8e96d58744b1699c9cde4f4cb4216b578fb0c99d49ac4af5687644ba9a4526"
+        },
+        "implementation": {
+          "evaluator_extension": {
+            "path": "skills/evaluate-skill/scripts/pi-composition-runtime.mjs",
+            "sha256": "cb5b63a0d3dfff3a9f8cad877c87a82eb2c363d2d588fbf6a46bbcdc38cff641"
+          },
+          "production_helper": {
+            "path": "pi-extension/dist/runtime-context.js",
+            "sha256": "2895dbdefa602ffc99fbadbdebc3d6b35ac6140bde4e2dfd4a679bba55b94988"
+          }
+        }
+      },
+      "targets": {
+        "reference": {
+          "name": "tdd",
+          "kind": "git",
+          "path": "skills/tdd",
+          "revision": "87f83cb",
+          "resources": [
+            "SKILL.md",
+            "references/test-design.md"
+          ],
+          "identity": {
+            "entries": [
+              [
+                "references/test-design.md",
+                "file",
+                "2f7d49567e4be78e86da8f2fbb55989bb438426327454fb49e7a0fb877c929ab"
+              ],
+              [
+                "SKILL.md",
+                "file",
+                "face2bf78c8516020e82b487d07cafa852e39ee87c59f926476bf42896810662"
+              ]
+            ],
+            "aggregate_sha256": "281df88de06d86e5e0e3156b8e8b75bedf8aaf3c8e6a9a28261b0b3e5104bd81"
+          }
+        },
+        "candidate": {
+          "name": "tdd",
+          "kind": "git",
+          "path": "skills/tdd",
+          "revision": "c7cfdba",
+          "resources": [
+            "SKILL.md",
+            "references/test-design.md"
+          ],
+          "identity": {
+            "entries": [
+              [
+                "references/test-design.md",
+                "file",
+                "86f8e279ca800e7616b3158474c848d8cb9779b1420358bb90f7feb9c95d4982"
+              ],
+              [
+                "SKILL.md",
+                "file",
+                "ad7f25b62ef04518579dcb9fb456d5c0e457202e637d57f646d4716d30e682fb"
+              ]
+            ],
+            "aggregate_sha256": "7b2df8b11665f34f73bc727fb8ad6e397672b326b091f9039e115ee160709992"
+          }
+        }
+      }
+    },
+    "evaluator": "a5c9e8812b3b0d45797eba40613674e69f574a2db9bbc5b7528add5575b9c4ce",
+    "semantic": "171f695d3dbd19b4a9a897041df5205f3563985410cc7fc229fbd6d4047c684a"
+  },
+  "capabilities": {
+    "host": "pi",
+    "version": "0.80.6",
+    "missing": []
+  },
+  "blocked_reasons": [],
+  "limitations": [
+    "Provider requests are observed and reported; bootstrap does not claim an independent global provider-request hard cap.",
+    "The output limit applies to retained canonical evidence after cumulative Pi JSON updates are compacted; raw transport has a separate internal safeguard.",
+    "Turn, timeout, retained-output, and raw-transport limits apply across each complete RPC process; scripted user turns are not separate process budgets.",
+    "The spend ceiling is checked between Pi processes and before later scripted prompts when the host reports cost; unavailable cost remains unavailable."
+  ],
+  "fingerprint": "7ad4f8171e382bf728aa238cdade6d8b07f764dd7554e6f37981a863b07593ec",
+  "rerun_command": "node skills/evaluate-skill/scripts/skill-eval.mjs evaluate --skill workflow --case WFI-002 --timeout-ms 180000 --output-limit-bytes 8388608 --provider openai-codex --model gpt-5.5 --thinking high --max-turns-per-process 8 --max-usd 1 --owner-approved --expect-plan 7ad4f8171e382bf728aa238cdade6d8b07f764dd7554e6f37981a863b07593ec"
+}

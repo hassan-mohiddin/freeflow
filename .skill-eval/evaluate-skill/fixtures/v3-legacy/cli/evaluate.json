@@ -1,0 +1,36 @@
+{
+  "status": "complete",
+  "decision": {
+    "evaluation_kind": "comparison",
+    "comparison_verdict": "improved",
+    "pairs": [
+      {
+        "id": "compact-active-body",
+        "reference": "pass",
+        "candidate": "pass",
+        "change": "unchanged"
+      },
+      {
+        "id": "no-external-authority",
+        "reference": "fail",
+        "candidate": "pass",
+        "change": "improved"
+      },
+      {
+        "id": "valid-skill",
+        "reference": "pass",
+        "candidate": "pass",
+        "change": "unchanged"
+      }
+    ]
+  },
+  "result": "<evaluation-result-path>",
+  "usage": {
+    "turns": 0,
+    "provider_requests": 0,
+    "tool_calls": 0,
+    "tokens": null,
+    "cost_usd": null
+  },
+  "limitations": []
+}

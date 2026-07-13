@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "evaluation_id": "20260712132602056-wsk2-005-d1e34919a7",
+  "skill": "write-skill",
+  "case_id": "WSK2-005",
+  "variant": "candidate",
+  "role": "candidate",
+  "subject_resources": [
+    "SKILL.md",
+    "references/activation-boundaries.md",
+    "references/agent-first-instructions.md",
+    "references/development-loop.md",
+    "references/progressive-disclosure.md"
+  ],
+  "subject_source_hash": "d2e8f97489b3a4f37359275714385857a3bf1f4e4c8848ea9ebf6be0b57bdabb",
+  "materialized_subject_hash": "d2e8f97489b3a4f37359275714385857a3bf1f4e4c8848ea9ebf6be0b57bdabb",
+  "composition": null,
+  "host": "none",
+  "adapter_version": "pi-bootstrap-v2",
+  "execution_mode": "deterministic",
+  "scripted_turns": null,
+  "provider": null,
+  "model": null,
+  "thinking": null,
+  "tools": [],
+  "hard_limits": {
+    "timeout_ms": 180000,
+    "output_limit_bytes": 8388608,
+    "transport_limit_bytes": 0,
+    "max_turns_per_process": 0
+  },
+  "invocation": {
+    "command": null,
+    "args": []
+  },
+  "evidence_classes": {
+    "required": {
+      "structure": "supported"
+    },
+    "requested": {}
+  },
+  "usage": null,
+  "runtime_counters": {
+    "provider_requests": 0,
+    "turns_started": 0,
+    "tool_calls": 0,
+    "hard_turn_limit_reached": false
+  },
+  "activation": {
+    "skill_read": false,
+    "skill_reads": null
+  },
+  "changed_paths": [],
+  "assertion_root": "skill",
+  "skill_manifest": {
+    "files": {
+      "SKILL.md": {
+        "type": "file",
+        "size": 4285,
+        "sha256": "deb5a067fcec4e4c062ab41963ca6b23863020c020216b2c4539f2ec0cb97897",
+        "lines": 63
+      },
+      "references/activation-boundaries.md": {
+        "type": "file",
+        "size": 864,
+        "sha256": "cea51de032663776ae2e1c3e589e9f14743cdf35ec9a0b93ea8c871f2dbcf6e6",
+        "lines": 29
+      },
+      "references/agent-first-instructions.md": {
+        "type": "file",
+        "size": 1012,
+        "sha256": "c35ae8efc2334450b7565d9dba0722b3210c1f43af3e3f8638fdc1a62b982c84",
+        "lines": 40
+      },
+      "references/development-loop.md": {
+        "type": "file",
+        "size": 974,
+        "sha256": "b8cf610e29314aac8c7bdf69bfcfedf619454d6f75368dafeaaaa1b5e4ab8ce4",
+        "lines": 28
+      },
+      "references/progressive-disclosure.md": {
+        "type": "file",
+        "size": 842,
+        "sha256": "95772bf2cfef7e3388b0671e8b7e3701fffaaa79f514ffc16a9eb1a975bc7636",
+        "lines": 29
+      }
+    },
+    "fingerprint": "fcf5e1591e35a348f9bf2b772d7acc9c998622567e3eb12c82a7021aec3590f2"
+  },
+  "process": {
+    "exit_code": 0,
+    "signal": null,
+    "timed_out": false,
+    "output_limit_exceeded": false,
+    "transport_limit_exceeded": false,
+    "protocol_failed": false,
+    "aborted": false,
+    "transport_bytes": 0,
+    "retained_output_bytes": 0,
+    "hard_turn_limit_reached": false,
+    "parse_errors": []
+  }
+}
