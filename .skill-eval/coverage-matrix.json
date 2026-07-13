@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "recorded_date": "2026-07-12",
-  "source_revision": "64fe20572d5ad3dfba9336f1f74d0e80743e3136",
+  "source_revision": "dd58912436eed99cc81d496ac858098c30047acd",
   "claim": "Coverage design only. Entries do not promote skills or substitute for executed evidence.",
   "skills": {
     "workflow": {
@@ -230,9 +230,9 @@
         "artifact-outcome"
       ],
       "case_concept": "Malformed replacement must preserve empty and existing canonical state before implementation.",
-      "current_result": "pilot improved over old snapshot; still unverified",
+      "current_result": "TQ-002 candidate failure preserved at c7cfdba; measured both-initial-state revision dd58912; rerun pending; unverified.",
       "source_path": "skills/tdd/SKILL.md",
-      "source_sha256": "ad7f25b62ef04518579dcb9fb456d5c0e457202e637d57f646d4716d30e682fb",
+      "source_sha256": "538f0298411d4890b6a61b3a2ad8c09370bc10c28277fcfc0667607912f51cf2",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
