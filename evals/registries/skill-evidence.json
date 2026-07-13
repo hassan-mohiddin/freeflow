@@ -112,8 +112,14 @@
         "ESK-002",
         "ESK-003"
       ],
-      "status": "production-ready",
-      "readiness": {
+      "status": "unverified",
+      "readiness_transition": {
+        "reason": "evaluator-v3-runtime-source-change",
+        "baseline_revision": "1710c77",
+        "baseline_lock": ".skill-eval/evaluate-skill/v3-baseline-lock.json",
+        "report": ".skill-eval/evaluate-skill/reports/v3-transition.md"
+      },
+      "historical_readiness": {
         "source_revision": "615397c745ebb00dd7e2c71b8d4ebf824831be02",
         "support_id": "pi-0.80.6-openai-codex-gpt-5.5-high-composition-v1",
         "host": "pi",

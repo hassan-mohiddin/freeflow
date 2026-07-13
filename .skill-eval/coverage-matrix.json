@@ -907,11 +907,12 @@
         "multi-turn"
       ],
       "case_concept": "Reject partial reuse and evidence-class substitution after timeout.",
-      "current_result": "production-ready only within composition-extension readiness report/configuration",
+      "current_result": "unverified during evaluator v3 implementation; accepted v2 evidence remains historical for its exact source and configuration",
       "source_path": "skills/evaluate-skill/SKILL.md",
       "source_sha256": "36cf145a2bf0fd5fed46858a9dd619bcd1f1ba649653aba96508756c802f9fa4",
-      "evidence_status": "production-ready",
-      "supported_configuration": {
+      "evidence_status": "unverified",
+      "supported_configuration": null,
+      "historical_supported_configuration": {
         "status": "production-ready",
         "host": "pi",
         "host_version": "0.80.6",

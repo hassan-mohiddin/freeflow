@@ -26,6 +26,7 @@ const EVALUATOR_SOURCE_FILES = [
   "pi-root-guard.mjs",
   "lib/args.mjs",
   "lib/capabilities.mjs",
+  "lib/compact-evidence.mjs",
   "lib/coordinator.mjs",
   "lib/codex-adapter.mjs",
   "lib/decision.mjs",
@@ -44,7 +45,7 @@ const EVALUATOR_SOURCE_FILES = [
   "lib/publication.mjs",
   "lib/workspace.mjs",
 ];
-const SEMANTIC_SOURCE_FILES = ["pi-root-guard.mjs", "lib/outcome.mjs", "lib/pi-adapter.mjs", "lib/process-outcome.mjs", "lib/process.mjs", "lib/semantic.mjs"];
+const SEMANTIC_SOURCE_FILES = ["pi-root-guard.mjs", "lib/compact-evidence.mjs", "lib/outcome.mjs", "lib/pi-adapter.mjs", "lib/process-outcome.mjs", "lib/process.mjs", "lib/semantic.mjs"];
 
 async function sourceIdentity(files) {
   const entries = [];
