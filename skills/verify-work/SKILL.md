@@ -47,10 +47,11 @@ Read [integration evidence](references/integration-evidence.md) when a claim dep
 ## Run And Read
 
 1. Run the complete selected check.
-2. Read the full relevant output and exit status.
-3. Confirm it exercised the intended seam and failure or success path.
-4. Compare the result with the source requirement and claim.
-5. State what passed, failed, remained unavailable, or was reduced-fidelity.
+2. Inventory the supplied evidence before selecting scope. A summary never defines the evidence boundary; read lower-level events, metadata, or artifacts that can contradict it.
+3. Read the full relevant output and exit status.
+4. Confirm it exercised the intended seam and failure or success path.
+5. Compare the result with the source requirement and claim.
+6. State what passed, failed, remained unavailable, or was reduced-fidelity.
 
 Do not convert missing evidence into zero, pass, safe, or probably correct.
 
