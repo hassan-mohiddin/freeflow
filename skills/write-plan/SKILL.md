@@ -1,6 +1,6 @@
 ---
 name: write-plan
-description: Use when turning an approved spec, clarified requirements, explicit task context, strict-workflow work, or delegated/future-agent work into an executable implementation plan before coding.
+description: Use when turning an approved spec, clarified requirements, explicit task context, strict-workflow work, or future-agent work into an executable implementation plan before coding.
 ---
 
 # Write Plan
@@ -52,7 +52,7 @@ Slices are execution boundaries, not scope reductions. Do not recast agreed scop
 
 When full scope is too large for one safe plan, split it into implementation slices, implementation phases, checklists, or multiple plan artifacts. Ask before changing the user's scope or adopting versioned shipping.
 
-When slice boundaries, seams, interfaces, state machines, tool protocols, role ownership, delegation/context boundaries, or locality are unclear, use `../design-for-depth/SKILL.md` before writing executable steps. Do not hide unresolved design choices inside implementation detail.
+When slice boundaries, seams, interfaces, state machines, tool protocols, role ownership, agent/context boundaries, or locality are unclear, use `../design-for-depth/SKILL.md` before writing executable steps. Do not hide unresolved design choices inside implementation detail.
 
 For consequential systems, plan the failure contract before the happy path: what can fail, who observes it, what state is written, fail-open/closed/degrade/escalate/retry behavior, what must not happen, recovery path, and proof.
 

@@ -98,7 +98,7 @@ Classify findings:
 
 Review can pass. Do not invent issues to justify the review.
 
-When a fresh reviewer or separate-agent review is warranted, use the active delegation mechanism for this environment. If none is enabled or appropriate, review inline and report the limitation.
+When a fresh reviewer or separate-agent review is warranted, use a host-provided mechanism when available and appropriate. Otherwise review inline and report that the review was not independent.
 
 When asking another agent to review, give it source truth, changed files, risk lenses, and pass/fail criteria. Do not hand it only the previous agent's summary or your chat history.
 

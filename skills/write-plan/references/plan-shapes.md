@@ -1,6 +1,6 @@
 # Plan Shapes
 
-Use this for strict-workflow, high-risk, durable, or delegated plans.
+Use this for strict-workflow, high-risk, durable, or multi-agent plans.
 
 ## Durable Plan Identity
 
@@ -52,7 +52,7 @@ Use for spec-backed feature work:
 
 Each slice should produce a reviewable state, not just a list of files to edit.
 
-## Strict Or Delegated Plans
+## Strict Or Multi-Agent Plans
 
 Use for high-risk work or work another agent will execute:
 

@@ -85,8 +85,7 @@ cat >"$workspace/.freeflow/config.json" <<'JSON'
   "enabled": false,
   "defaultMode": "workflow",
   "skills": { "enabled": true },
-  "outputRouter": { "enabled": true },
-  "delegationHarness": { "enabled": true }
+  "outputRouter": { "enabled": true }
 }
 JSON
 
@@ -96,7 +95,7 @@ freeflow_disabled_output="$(
 )"
 
 require_contains "Disabled Freeflow SessionStart output" "$freeflow_disabled_output" "Freeflow Disabled"
-if [[ "$freeflow_disabled_output" == *"Loaded Workflow Skill"* || "$freeflow_disabled_output" == *"Loaded Output Router Skill"* || "$freeflow_disabled_output" == *"Loaded Delegation Harness Skill"* ]]; then
+if [[ "$freeflow_disabled_output" == *"Loaded Workflow Skill"* || "$freeflow_disabled_output" == *"Loaded Output Router Skill"* ]]; then
   fail "Freeflow enabled=false should suppress all skill and capability context."
 fi
 
@@ -172,21 +171,6 @@ require_contains "Observed-routing configured SessionStart output" "$observed_ro
 if [[ "$observed_routing_configured_output" == *"partial setup"* || "$observed_routing_configured_output" == *"invalid \`.freeflow/config.json\`"* ]]; then
   fail "observedRouting/scriptTransform config should not make setup partial or invalid."
 fi
-
-cat >"$workspace/.freeflow/config.json" <<'JSON'
-{
-  "defaultMode": "workflow",
-  "delegationHarness": { "enabled": true }
-}
-JSON
-
-delegation_configured_output="$(
-  printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s","model":"gpt-test"}' "$workspace" |
-    PLUGIN_ROOT="$plugin_root" CLAUDE_PLUGIN_ROOT="$plugin_root" node "$hook_script" SessionStart
-)"
-
-require_contains "Delegation configured SessionStart output" "$delegation_configured_output" "Delegation harness: enabled"
-require_contains "Delegation configured SessionStart output" "$delegation_configured_output" "Loaded Delegation Harness Skill"
 
 cat >"$workspace/.freeflow/config.json" <<'JSON'
 {

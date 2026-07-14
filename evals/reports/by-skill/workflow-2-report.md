@@ -4,7 +4,7 @@ Date: 2026-07-01
 
 ## Scope
 
-Tightened workflow scale-down guidance after delegation-harness design work surfaced a pressure case: tiny clear work should not be routed through spec, plan, delegation, or handoff ceremony.
+Tightened workflow scale-down guidance around a pressure case: tiny clear work should not be routed through unnecessary spec, plan, or handoff ceremony.
 
 ## Skill Change
 
@@ -14,7 +14,7 @@ Updated `skills/workflow/SKILL.md` to state that a clear tiny task may be only:
 inspect enough -> execute -> verify -> commit/closeout
 ```
 
-The skill now explicitly says not to add spec, plan, delegation, or handoff phases just because the full workflow map contains them.
+The skill now explicitly says not to add spec, plan, or handoff phases just because the full workflow map contains them.
 
 ## Eval Evidence
 

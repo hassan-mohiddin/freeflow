@@ -10,7 +10,7 @@ Setup renders this reference. Do not copy full skills, workflow maps, or runtime
 - Minimal config has exactly one field: `defaultMode`.
 - Valid defaults are exactly `conversation`, `workflow`, and `strict-workflow`.
 - Default mode is `workflow` unless the user explicitly persists another valid mode.
-- Optional top-level `enabled`, `skills.enabled`, `outputRouter`, nested `outputRouter.observedRouting`, nested `outputRouter.scriptTransform`, and `delegationHarness` config is allowed only after the capabilities decision point, `/freeflow` settings, or an explicit request.
+- Optional top-level `enabled`, `skills.enabled`, `outputRouter`, nested `outputRouter.observedRouting`, and nested `outputRouter.scriptTransform` config is allowed only after the capabilities decision point, `/freeflow` settings, or an explicit request.
 - Removed `capture` and `providers` config is not written by setup.
 - Codex activation writes `AGENTS.md`, not `.codex/rules`.
 - Claude activation writes a `CLAUDE.md` import plus one `.claude/rules/freeflow-core.md` file.
@@ -43,8 +43,8 @@ Config:
 - Add optional config only after the capabilities decision point, `/freeflow` settings, or an explicit request, using `output-router-setup.md` where router config is involved.
 - Missing optional sections mean built-in defaults, not setup failure.
 - Missing top-level `enabled` and `skills.enabled` means enabled after setup; writing `enabled: false` disables the full Freeflow runtime while preserving nested settings.
-- Output Router and Delegation Harness are disabled by default.
-- Never enable Output Router, Delegation Harness, observed routing, native safety-net routing, or script transform by default.
+- Output Router is disabled by default.
+- Never enable Output Router, observed routing, native safety-net routing, or script transform by default.
 - Observed routing requires explicit producer/server entries and user-chosen persistence: `exact`, `metadata-only`, or `none`. Do not offer or write `redacted`.
 
 ## Codex Core Block

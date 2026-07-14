@@ -34,7 +34,7 @@ Team setup still uses compact activation. Add both hosts only if requested. Do n
 
 Strict setup changes `.freeflow/config.json` to `strict-workflow` only when the user explicitly asks to make that the repo default. Otherwise recommend strict-workflow for high-risk work without persisting it.
 
-Capability setup is an opt-in branch inside normal setup, not a host profile. Use `output-router-setup.md`; keep minimal config unchanged unless the user accepts the capabilities decision point or explicitly asks for Output Router, observed-routing, script-transform, native safety-net, or Delegation Harness config.
+Capability setup is an opt-in branch inside normal setup, not a host profile. Use `output-router-setup.md`; keep minimal config unchanged unless the user accepts the capabilities decision point or explicitly asks for Output Router, observed-routing, script-transform, or native safety-net config.
 
 Valid persisted defaults are exactly `conversation`, `workflow`, and `strict-workflow`.
 

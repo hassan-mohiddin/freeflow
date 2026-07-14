@@ -138,7 +138,6 @@ They should:
 - load `skills/mode-contract/SKILL.md`, `skills/workflow/SKILL.md`, and `skills/interview-gate/SKILL.md` only when `skills.enabled` is effective
 - load discovery-light guidance instead of the full Discover skill only when `skills.enabled` is effective
 - load `skills/output-router/SKILL.md` only when output-router is effective
-- load `skills/delegation-harness/SKILL.md` only when delegation harness is effective
 - state the runtime priority for whichever layers are active
 - run on session start for startup, resume, clear, and compact
 - report whether setup appears complete or partial once config activates the runtime
@@ -367,7 +366,7 @@ Current evidence:
 - `setup-freeflow` has focused setup evals for Codex and Claude activation shapes.
 - `write-skill` has behavior and direct command evals showing that production-ready pressure must not overbuild skill folders.
 - `evaluate-skill` has behavior and direct command evals showing that shortcut wording must not skip creating or updating an eval artifact before skill edits.
-- Command-surface coverage is current for the direct Freeflow routes. The current registry has 4 mode commands, 11 direct skill calls, 3 developer skill calls, and 3 Pi native settings commands. See `evals/reports/by-command-surface/command-surface-matrix.md`.
+- Command-surface coverage is current for the direct Freeflow routes. The current registry has 4 mode commands, 11 direct skill calls, 3 developer skill calls, and 2 Pi native settings commands. See `evals/reports/by-command-surface/command-surface-matrix.md`.
 - The fixture harness supports Codex by default and Claude through `FREEFLOW_FIXTURE_AGENT=claude`; live Claude runs still require local Claude auth and are not active release blockers for Hassan's local Codex-first testing.
 
 ## Current Pack Readiness
@@ -378,7 +377,7 @@ The local-only v0.1 acceptance suite passed after measured fixes in `evals/repor
 
 Current packaging shape:
 
-- 18 active skills under `skills/`; deprecated skills live under root `deprecated/skills/` and are not part of the runtime skill surface.
+- 17 active skills under `skills/`; deprecated skills live under root `deprecated/skills/` and are not part of the runtime skill surface.
 - Single plugin runtime under the repo root, including skills, context hooks, manifests, evals, command-surface metadata, and refined plugin docs.
 - Every `SKILL.md` is under the 100-line project budget.
 - Extra reference files exist only where targeted evals or complexity justified progressive disclosure.

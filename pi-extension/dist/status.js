@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { DEFAULT_OBSERVED_ROUTING_CONFIG, DEFAULT_OUTPUT_ROUTER_ENABLED, DEFAULT_OUTPUT_ROUTER_PROFILE, DEFAULT_POST_TOOL_ROUTING, DEFAULT_ROUTER_THRESHOLDS, DEFAULT_SCRIPT_TRANSFORM_CONFIG, DEFAULT_STORAGE_POLICY, OBSERVED_ROUTING_PERSISTENCE_MODES, RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES, DEFAULT_VAULT_RETENTION, DEFAULT_VAULT_ROOT, defaultScriptTransformAdaptersHome, createLocalVaultIndex, createVault, discoverEryxPythonSandboxAdaptersFromEnv, discoverJqWasmSandboxAdaptersFromEnv, discoverQuickJsWasiSandboxAdaptersFromEnv, normalizeFreeflowConfig, normalizeLocalFreeflowConfig, probeScriptSandboxAdapters, } from "../../router/dist/index.js";
 import { VALID_MODES, readCapabilityState, readModeState } from "./runtime-context.js";
 const STATUS_ACTIONS = new Set(["status", "doctor", "migration"]);
-const TOP_LEVEL_CONFIG_KEYS = new Set(["enabled", "defaultMode", "skills", "outputRouter", "delegationHarness", "observedRouting", "scriptTransform"]);
+const TOP_LEVEL_CONFIG_KEYS = new Set(["enabled", "defaultMode", "skills", "outputRouter", "observedRouting", "scriptTransform"]);
 const OUTPUT_ROUTER_CONFIG_KEYS = new Set([
     "enabled",
     "profile",
@@ -80,7 +80,6 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
             configured: runtimeState.configured,
             enabled: runtimeState.enabled,
             skills: runtimeState.skills,
-            delegationHarness: runtimeState.delegationHarness,
             outputRouter: {
                 enabled: effectiveFreeflowConfig.outputRouter.enabled,
                 profile: effectiveFreeflowConfig.outputRouter.profile,

@@ -1,6 +1,6 @@
 ---
 name: setup-freeflow
-description: Use when setting up, installing, enabling, initializing, or configuring Freeflow in a repo, choosing Codex/Claude/multi-agent activation, creating `.freeflow/config.json`, changing the repo default mode during setup, or opting into Output Router, observed-routing, script-transform, or Delegation Harness setup.
+description: Use when setting up, installing, enabling, initializing, or configuring Freeflow in a repo, choosing Codex/Claude/multi-agent activation, creating `.freeflow/config.json`, changing the repo default mode during setup, or opting into Output Router, observed-routing, or script-transform setup.
 ---
 
 # Setup Freeflow
@@ -11,7 +11,7 @@ Read `references/activation-contract.md` before rendering activation text or con
 
 Read `references/host-setup.md` when choosing Codex, Claude, both hosts, setup profile, hooks/trust guidance, or default mode shape.
 
-Read `references/output-router-setup.md` only when the user asks for Output Router, observed-routing, script-transform, native safety-net, generated-path, threshold, vault, or Delegation Harness config, or accepts the optional capabilities branch.
+Read `references/output-router-setup.md` only when the user asks for Output Router, observed-routing, script-transform, native safety-net, generated-path, threshold, or vault config, or accepts the optional capabilities branch.
 
 ## Stop Before Editing
 
@@ -71,13 +71,13 @@ Do not list the whole workflow, every mode, or full `interview-gate`/`discover` 
 
 ## Optional Capabilities Branch
 
-After minimal host/config setup, ask one optional capabilities question: whether to enable Output Router, configure Output Router subfeatures, or enable Delegation Harness during setup.
+After minimal host/config setup, ask one optional capabilities question: whether to enable Output Router or configure Output Router subfeatures during setup.
 
 If declined, keep minimal setup.
 
 If accepted or explicitly requested, read `references/output-router-setup.md`. Ask only path-changing follow-ups, write the selected capability config directly, and verify with `freeflow_status` when available. Do not require a second slash command after the user chooses setup capabilities.
 
-Output Router and Delegation Harness are disabled by default. Enable them only when the user opts in during setup or explicitly requested them. Never enable observed routing, native safety-net routing, Delegation Harness, or script transform by default.
+Output Router is disabled by default. Enable it only when the user opts in during setup or explicitly requests it. Never enable observed routing, native safety-net routing, or script transform by default.
 
 Script transform adapter install requires explicit consent and successful sandbox proof probing. Install adapters globally, not repo-locally, using the command documented in `references/output-router-setup.md`. Report probe failures instead of claiming a language is enabled.
 
@@ -87,8 +87,8 @@ Before claiming setup is complete, check:
 
 - config JSON parses;
 - minimal config contains only `defaultMode` unless optional capabilities were accepted or explicitly requested;
-- optional top-level `enabled`, `skills.enabled`, `outputRouter`, nested `outputRouter.observedRouting`, nested `outputRouter.scriptTransform`, and `delegationHarness` config contains only requested valid keys;
-- Output Router, Delegation Harness, observed routing, native safety-net routing, and script transform are off unless explicitly requested and supported;
+- optional top-level `enabled`, `skills.enabled`, `outputRouter`, nested `outputRouter.observedRouting`, and nested `outputRouter.scriptTransform` config contains only requested valid keys;
+- Output Router, observed routing, native safety-net routing, and script transform are off unless explicitly requested and supported;
 - every enabled observed-routing producer/server has user-chosen persistence: `exact`, `metadata-only`, or `none`; setup does not offer or write `redacted`;
 - Codex setup has exactly one `## Freeflow` block in `AGENTS.md`;
 - Claude setup has exactly one `CLAUDE.md` import and one `.claude/rules/freeflow-core.md` core file;

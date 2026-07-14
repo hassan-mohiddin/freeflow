@@ -12,7 +12,7 @@ New eval:
 
 ## Failure Preserved
 
-During sustained brainstorming, the conversation reached a natural pause around delegation as context locality. The desired behavior is for the agent to act as a partner: summarize the settled framing, surface the next path-changing topics or route, recommend one next step, and avoid creating artifacts without permission.
+During sustained brainstorming, the conversation reached a natural pause around context locality in long, multi-stage work. The desired behavior is for the agent to act as a partner: summarize the settled framing, surface the next path-changing topics or route, recommend one next step, and avoid creating artifacts without permission.
 
 ## Eval Artifacts
 

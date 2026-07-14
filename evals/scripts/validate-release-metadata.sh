@@ -371,8 +371,8 @@ check_docs_drift() {
     ok=0
   }
 
-  contains_fixed "$release_evidence" "3 Pi native settings commands" || {
-    record_check "$check" "fail" "Release evidence no longer lists 3 Pi native settings commands."
+  contains_fixed "$release_evidence" "2 Pi native settings commands" || {
+    record_check "$check" "fail" "Release evidence no longer lists 2 Pi native settings commands."
     ok=0
   }
 

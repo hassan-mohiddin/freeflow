@@ -1,15 +1,18 @@
 # Deprecated
 
-Historical Freeflow artifacts kept outside the active plugin runtime.
+Historical Freeflow artifacts kept outside the active plugin runtime and npm package.
 
-These files are not part of the current skill surface under `skills/`, active router runtime under `router/src/`, or included npm package runtime.
+## Delegation Harness
+
+- `delegation-harness/`: final implementation and development evidence, isolated from active Freeflow behavior.
 
 ## Router
 
-- `deprecated/router/experimental-local-index.ts`
+- `router/experimental-local-index.ts`: historical local-index experiment.
 
 ## Documentation
 
+- `codex-cli-agent-harness/`: historical Codex CLI and agent-runtime research.
 - `docs/output-router-pi-v04/`: abandoned Pi output-router v0.4 plans, specs, issues, and handoffs.
 
 ## Skills
@@ -18,4 +21,4 @@ These files are not part of the current skill surface under `skills/`, active ro
 - `skills/grill-context/`
 - `skills/capture-decisions/`
 
-They were replaced by the active `skills/research/` discovery skill. See `docs/adr/0004-research-replaces-shallow-discovery-skills.md`.
+These discovery skills were replaced by the active `skills/discover/` skill. See `plugin-docs/adr/0004-discover-replaces-shallow-discovery-skills.md`.

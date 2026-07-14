@@ -27,7 +27,7 @@ import {
 import { VALID_MODES, readCapabilityState, readModeState } from "./runtime-context.js";
 
 const STATUS_ACTIONS = new Set(["status", "doctor", "migration"]);
-const TOP_LEVEL_CONFIG_KEYS = new Set(["enabled", "defaultMode", "skills", "outputRouter", "delegationHarness", "observedRouting", "scriptTransform"]);
+const TOP_LEVEL_CONFIG_KEYS = new Set(["enabled", "defaultMode", "skills", "outputRouter", "observedRouting", "scriptTransform"]);
 const OUTPUT_ROUTER_CONFIG_KEYS = new Set([
   "enabled",
   "profile",
@@ -107,7 +107,6 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
       configured: runtimeState.configured,
       enabled: runtimeState.enabled,
       skills: runtimeState.skills,
-      delegationHarness: runtimeState.delegationHarness,
       outputRouter: {
         enabled: effectiveFreeflowConfig.outputRouter.enabled,
         profile: effectiveFreeflowConfig.outputRouter.profile,

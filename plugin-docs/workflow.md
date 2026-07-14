@@ -18,7 +18,7 @@ Pi users can run `/freeflow` for one control and settings surface. `/freeflow mo
 
 - `enabled: false` turns the full Freeflow runtime off and makes nested settings inactive.
 - `skills.enabled: false` hides model workflow skills and suppresses mode-contract, workflow, interview-gate, and discovery-light runtime context.
-- `outputRouter.enabled` and `delegationHarness.enabled` remain layer toggles, but only take effect while top-level Freeflow is enabled.
+- `outputRouter.enabled` is a layer toggle, but only takes effect while top-level Freeflow is enabled.
 
 `/freeflow enable` remains available while Freeflow is disabled.
 

@@ -353,21 +353,6 @@ function observedProducerItems(id, label, value, inactive) {
         },
     ];
 }
-function delegationHarnessItems(rawConfig, freeflowInactive = false) {
-    const configEnabled = getPath(rawConfig, ["delegationHarness", "enabled"]) === true;
-    return [
-        {
-            id: "delegationHarness.enabled",
-            label: "Delegation Harness",
-            description: "Master switch for the Freeflow cmux delegation harness tools, hooks, and runtime guidance.",
-            path: ["delegationHarness", "enabled"],
-            kind: "boolean",
-            value: configEnabled,
-            defaultValue: false,
-            inactive: freeflowInactive,
-        },
-    ];
-}
 function freeflowItems(rawConfig, modeState) {
     const freeflowEnabled = getPath(rawConfig, ["enabled"]) !== false;
     const freeflowInactive = !freeflowEnabled;
@@ -378,13 +363,11 @@ function freeflowItems(rawConfig, modeState) {
     const sessionMode = modeState?.currentMode ?? "default";
     const routerItems = outputRouterItems(rawConfig, freeflowInactive);
     const routerEnabled = routerItems.find((item) => item.id === "outputRouter.enabled")?.value === true;
-    const delegationItems = delegationHarnessItems(rawConfig, freeflowInactive);
-    const delegationEnabled = delegationItems.find((item) => item.id === "delegationHarness.enabled")?.value === true;
     return [
         {
             id: "freeflow.enabled",
             label: "Freeflow",
-            description: "Master switch for Freeflow skills, runtime context, output routing, delegation, and observed/native routing in this repo.",
+            description: "Master switch for Freeflow skills, runtime context, output routing, and observed/native routing in this repo.",
             path: ["enabled"],
             kind: "boolean",
             value: freeflowEnabled,
@@ -436,15 +419,6 @@ function freeflowItems(rawConfig, modeState) {
             value: routerEnabled,
             inactive: freeflowInactive,
             children: routerItems,
-        },
-        {
-            id: "delegationHarness.group",
-            label: "Delegation Harness",
-            description: "Open grouped settings for the Freeflow cmux delegation harness tools, hooks, and runtime guidance.",
-            kind: "group",
-            value: delegationEnabled,
-            inactive: freeflowInactive,
-            children: delegationItems,
         },
     ];
 }
@@ -519,7 +493,6 @@ function pruneKnownDefaults(config) {
         { path: ["outputRouter", "observedRouting", "web", "enabled"], value: DEFAULT_OBSERVED_ROUTING_CONFIG.web.enabled },
         { path: ["outputRouter", "observedRouting", "fetch", "enabled"], value: DEFAULT_OBSERVED_ROUTING_CONFIG.fetch.enabled },
         { path: ["outputRouter", "observedRouting", "codeSearch", "enabled"], value: DEFAULT_OBSERVED_ROUTING_CONFIG.codeSearch.enabled },
-        { path: ["delegationHarness", "enabled"], value: false },
     ];
     for (const item of defaultPaths) {
         if (valuesEqual(getPath(config, item.path), item.value)) {
@@ -937,11 +910,9 @@ class FreeflowSettingsComponent {
         const freeflowInactive = freeflowItem ? freeflowItem.value !== true : false;
         const skillsEnabled = findSettingsItem(this.options.items, "freeflow.skills.enabled")?.value === true;
         const routerEnabled = findSettingsItem(this.options.items, "outputRouter.enabled")?.value === true;
-        const delegationEnabled = findSettingsItem(this.options.items, "delegationHarness.enabled")?.value === true;
         const sessionModeItem = findSettingsItem(this.options.items, "freeflow.sessionMode");
         const defaultModeItem = findSettingsItem(this.options.items, "freeflow.defaultMode");
         const routerGroup = findSettingsItem(this.options.items, "outputRouter.group");
-        const delegationGroup = findSettingsItem(this.options.items, "delegationHarness.group");
         if (defaultModeItem) {
             defaultModeItem.displaySuffix = !freeflowInactive && !skillsEnabled ? "(inactive)" : undefined;
         }
@@ -955,10 +926,6 @@ class FreeflowSettingsComponent {
             routerGroup.value = routerEnabled;
             routerGroup.inactive = freeflowInactive;
         }
-        if (delegationGroup) {
-            delegationGroup.value = delegationEnabled;
-            delegationGroup.inactive = freeflowInactive;
-        }
         walkSettingsItems(this.options.items, (candidate) => {
             if (candidate.id === "freeflow.enabled") {
                 candidate.inactive = false;
@@ -966,10 +933,10 @@ class FreeflowSettingsComponent {
             else if (candidate.id === "freeflow.sessionMode") {
                 candidate.inactive = freeflowInactive || !skillsEnabled;
             }
-            else if (candidate.id === "outputRouter.group" || candidate.id === "delegationHarness.group") {
+            else if (candidate.id === "outputRouter.group") {
                 candidate.inactive = freeflowInactive;
             }
-            else if (candidate.id === "outputRouter.enabled" || candidate.id === "delegationHarness.enabled") {
+            else if (candidate.id === "outputRouter.enabled") {
                 candidate.inactive = freeflowInactive;
             }
             else if (candidate.id.startsWith("outputRouter.")) {
@@ -1046,20 +1013,7 @@ function freeflowStatusText(state) {
         `Freeflow: ${state.enabled ? "enabled" : "disabled"}`,
         `skills: ${state.skills.effective ? "enabled" : "disabled (workflow modes inactive)"}`,
         `output router: ${state.outputRouter.enabled ? "enabled" : "disabled"}`,
-        `delegation harness: ${state.delegationHarness.enabled ? "enabled" : "disabled"}`,
     ].join("; ");
-}
-function delegationHarnessStatusText(state) {
-    if (!state.configured) {
-        return state.configExists
-            ? `Delegation Harness: inactive (invalid Freeflow config: ${state.parseError ?? "unknown parse error"})`
-            : "Delegation Harness: inactive (repo not set up; run /setup-freeflow)";
-    }
-    const details = state.delegationHarness.envEnabled && !state.delegationHarness.configEnabled
-        ? " (enabled by FREEFLOW_DELEGATION_HARNESS_ENABLED)"
-        : "";
-    const inactive = !state.enabled ? " (inactive: Freeflow off)" : "";
-    return `Delegation Harness: ${state.delegationHarness.enabled ? "enabled" : "disabled"}${details}${inactive}`;
 }
 function actionIsMutation(action) {
     return action === "" || action === "settings" || ["enable", "on", "true", "disable", "off", "false"].includes(action);
@@ -1211,54 +1165,6 @@ export async function handleOutputRouterCommand(args, ctx, afterChange) {
             }
             else {
                 ctx.ui.notify("Run /reload for Output Router changes to fully apply.", "warning");
-            }
-        },
-    });
-    return { changed, reloaded: changed && typeof ctx.reload === "function" };
-}
-export async function handleDelegationHarnessCommand(args, ctx, afterChange) {
-    const action = (args ?? "").trim().toLowerCase();
-    const raw = await readFreeflowConfig(ctx.cwd);
-    if (await maybeBlockLayerMutation(action, ctx, "Delegation Harness")) {
-        return { changed: false, reloaded: false, error: "freeflow_inactive" };
-    }
-    if (action === "status") {
-        const state = await readCapabilityState(ctx.cwd);
-        ctx.ui.notify(delegationHarnessStatusText(state), "info");
-        return { changed: false, reloaded: false };
-    }
-    if (["enable", "on", "true", "disable", "off", "false"].includes(action)) {
-        const enabled = ["enable", "on", "true"].includes(action);
-        const item = delegationHarnessItems(raw)[0];
-        await updateConfig(ctx.cwd, item, enabled);
-        await afterChange(true);
-        ctx.ui.notify(`Delegation Harness ${enabled ? "enabled" : "disabled"}. Reloading Freeflow runtime...`, "info");
-        if (typeof ctx.reload === "function") {
-            await ctx.reload();
-            return { changed: true, reloaded: true };
-        }
-        ctx.ui.notify("Run /reload for Delegation Harness changes to fully apply.", "warning");
-        return { changed: true, reloaded: false };
-    }
-    if (action && action !== "settings") {
-        ctx.ui.notify("Usage: /delegation-harness, /delegation-harness settings, or /delegation-harness status", "warning");
-        return { changed: false, reloaded: false, error: "invalid_action" };
-    }
-    const changed = await openSettings({
-        title: "Delegation Harness Settings",
-        items: delegationHarnessItems(raw),
-        ctx,
-        onChange: (item, value) => updateConfig(ctx.cwd, item, value),
-        onClose: async (settingsChanged) => {
-            if (!settingsChanged)
-                return;
-            await afterChange(true);
-            ctx.ui.notify("Delegation Harness settings saved. Reloading Freeflow runtime...", "info");
-            if (typeof ctx.reload === "function") {
-                await ctx.reload();
-            }
-            else {
-                ctx.ui.notify("Run /reload for Delegation Harness changes to fully apply.", "warning");
             }
         },
     });

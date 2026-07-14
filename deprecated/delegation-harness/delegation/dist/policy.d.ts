@@ -1,0 +1,15 @@
+import type { EvaluatePolicyInput, PolicyDecision } from "./types.js";
+export declare function evaluatePolicy(input: EvaluatePolicyInput): PolicyDecision;
+export declare function isSecretPath(path: string): boolean;
+export declare function commandMatchesAllowedList(command: string, allowedCommands?: readonly string[]): boolean;
+export declare function isCommandBlockedAsDestructive(command: string): boolean;
+export declare function isCredentialOrEnvDumpCommand(command: string): boolean;
+export declare function isPublishOrDeployCommand(command: string): boolean;
+export declare function isGitPushCommand(command: string): boolean;
+export declare function isGitCommitCommand(command: string): boolean;
+export declare function isBroadGitStageCommand(command: string): boolean;
+export declare function isGitWorktreeMutationCommand(command: string): boolean;
+export declare function isPathInsideAnyScope(path: string, scopes: readonly string[], cwd: string | undefined): boolean;
+export declare function isPathInsideScope(path: string, scope: string, cwd: string | undefined): boolean;
+export declare function isLikelyProductCodePath(path: string, cwd: string | undefined): boolean;
+export declare function normalizeCommand(command: string): string;

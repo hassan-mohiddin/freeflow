@@ -58,7 +58,7 @@ At the third review, adjudicate before treating it as failure. If any accepted b
 
 ## Review Setup
 
-Use a fresh reviewer when the artifact will guide future work and a separate agent context is warranted. Use the active delegation mechanism for this environment; on explicit fresh-reviewer or separate-agent requests, name the selected route or fallback before treating the review as independent. Use [references/reviewer-prompt.md](references/reviewer-prompt.md).
+Use a fresh reviewer when the artifact will guide future work and a separate agent context is warranted. Use a host-provided mechanism when available; on explicit fresh-reviewer or separate-agent requests, name the selected route or fallback before treating the review as independent. Use [references/reviewer-prompt.md](references/reviewer-prompt.md).
 
 Use `../design-for-depth/SKILL.md` when the artifact encodes module, interface, seam, adapter, architecture, or slice-boundary decisions.
 

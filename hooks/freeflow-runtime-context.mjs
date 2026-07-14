@@ -49,7 +49,6 @@ function findWorkspaceRoot(cwd) {
 function loadRuntimeContext(options = {}) {
   const includeSkills = options.skills === true;
   const includeOutputRouter = options.outputRouter === true;
-  const includeDelegationHarness = options.delegationHarness === true;
   const modeContractSkill = includeSkills ? readText(path.join(PLUGIN_ROOT, "skills", "mode-contract", "SKILL.md")) : null;
   const workflowSkill = includeSkills ? readText(path.join(PLUGIN_ROOT, "skills", "workflow", "SKILL.md")) : null;
   const interviewGateSkill = includeSkills
@@ -58,26 +57,22 @@ function loadRuntimeContext(options = {}) {
   const outputRouterSkill = includeOutputRouter
     ? readText(path.join(PLUGIN_ROOT, "skills", "output-router", "SKILL.md"))
     : null;
-  const delegationHarnessSkill = includeDelegationHarness
-    ? readText(path.join(PLUGIN_ROOT, "skills", "delegation-harness", "SKILL.md"))
-    : null;
 
   if (
     (includeSkills && (!modeContractSkill || !workflowSkill || !interviewGateSkill)) ||
-    (includeOutputRouter && !outputRouterSkill) ||
-    (includeDelegationHarness && !delegationHarnessSkill)
+    (includeOutputRouter && !outputRouterSkill)
   ) {
     throw new Error("Freeflow runtime context files are missing.");
   }
 
-  return { modeContractSkill, workflowSkill, interviewGateSkill, outputRouterSkill, delegationHarnessSkill };
+  return { modeContractSkill, workflowSkill, interviewGateSkill, outputRouterSkill };
 }
 
 function readConfig(root) {
   const configPath = path.join(root, ".freeflow", "config.json");
   const body = readText(configPath);
   if (!body) {
-    return { exists: false, valid: false, configured: false, enabled: false, skillsEnabled: false, defaultMode: null, outputRouterEnabled: false, delegationHarnessEnabled: false };
+    return { exists: false, valid: false, configured: false, enabled: false, skillsEnabled: false, defaultMode: null, outputRouterEnabled: false };
   }
 
   try {
@@ -92,10 +87,9 @@ function readConfig(root) {
       skillsEnabled: enabled && parsed?.skills?.enabled !== false,
       defaultMode: VALID_MODES.has(parsed?.defaultMode) ? parsed.defaultMode : "workflow",
       outputRouterEnabled: enabled && parsed?.outputRouter?.enabled === true,
-      delegationHarnessEnabled: enabled && parsed?.delegationHarness?.enabled === true,
     };
   } catch {
-    return { exists: true, valid: false, configured: false, enabled: false, skillsEnabled: false, defaultMode: null, outputRouterEnabled: false, delegationHarnessEnabled: false };
+    return { exists: true, valid: false, configured: false, enabled: false, skillsEnabled: false, defaultMode: null, outputRouterEnabled: false };
   }
 }
 
@@ -104,7 +98,7 @@ function isValidSetupConfig(value) {
     return false;
   }
 
-  const allowedKeys = new Set(["enabled", "defaultMode", "skills", "outputRouter", "delegationHarness", "observedRouting", "scriptTransform"]);
+  const allowedKeys = new Set(["enabled", "defaultMode", "skills", "outputRouter", "observedRouting", "scriptTransform"]);
   if (!Object.keys(value).every((key) => allowedKeys.has(key))) {
     return false;
   }
@@ -140,12 +134,6 @@ function isValidSetupConfig(value) {
 
   if (Object.prototype.hasOwnProperty.call(value, "scriptTransform")) {
     if (!Boolean(value.scriptTransform) || typeof value.scriptTransform !== "object" || Array.isArray(value.scriptTransform)) {
-      return false;
-    }
-  }
-
-  if (Object.prototype.hasOwnProperty.call(value, "delegationHarness")) {
-    if (!Boolean(value.delegationHarness) || typeof value.delegationHarness !== "object" || Array.isArray(value.delegationHarness)) {
       return false;
     }
   }
@@ -253,7 +241,6 @@ function capabilityStatus(config) {
     "",
     `- Skills: ${config.skillsEnabled ? "enabled" : "disabled"}.`,
     `- Output router: ${config.outputRouterEnabled ? "enabled" : "disabled"}.`,
-    `- Delegation harness: ${config.delegationHarnessEnabled ? "enabled" : "disabled"}.`,
     "",
     "Capability-specific instructions are active only while that capability is enabled."
   ];
@@ -272,15 +259,14 @@ function buildContext(input) {
       "# Freeflow Disabled",
       "",
       "Freeflow is installed and configured for this repo, but `.freeflow/config.json` has `enabled: false`.",
-      "Do not inject Freeflow workflow skills, output routing, delegation guidance, or setup pressure while disabled.",
+      "Do not inject Freeflow workflow skills, output routing, or setup pressure while disabled.",
       "Re-enable only if the user asks: set `.freeflow/config.json` `enabled` to true, or use `/freeflow enable` in Pi."
     ].join("\n");
   }
 
-  const { modeContractSkill, workflowSkill, interviewGateSkill, outputRouterSkill, delegationHarnessSkill } = loadRuntimeContext({
+  const { modeContractSkill, workflowSkill, interviewGateSkill, outputRouterSkill } = loadRuntimeContext({
     skills: setup.config.skillsEnabled,
     outputRouter: setup.config.outputRouterEnabled,
-    delegationHarness: setup.config.delegationHarnessEnabled,
   });
   const prioritySection = setup.config.skillsEnabled
     ? [
@@ -330,16 +316,6 @@ function buildContext(input) {
         "```"
       ]
     : [];
-  const delegationHarnessSection = setup.config.delegationHarnessEnabled
-    ? [
-        "",
-        "## Loaded Delegation Harness Skill",
-        "```md",
-        delegationHarnessSkill.trim(),
-        "```"
-      ]
-    : [];
-
   return [
     "# Freeflow Runtime Context",
     "",
@@ -352,8 +328,7 @@ function buildContext(input) {
     ...prioritySection,
     ...capabilityStatus(setup.config),
     ...skillSections,
-    ...outputRouterSection,
-    ...delegationHarnessSection
+    ...outputRouterSection
   ].join("\n");
 }
 

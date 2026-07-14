@@ -7,8 +7,8 @@ node_modules/
 .env.*
 .freeflow/local.json
 
-# Local Freeflow delegation runtime state.
-.freeflow/delegation/
+# Local Freeflow runtime state directories.
+.freeflow/*/
 
 # Generated eval harness output.
 evals/runs/

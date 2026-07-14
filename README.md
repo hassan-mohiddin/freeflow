@@ -241,7 +241,6 @@ Pi-native control and settings commands:
 /freeflow mode
 /freeflow mode conversation|workflow|strict-workflow|reset
 /output-router
-/delegation-harness
 ```
 
 Contributor/developer routes:

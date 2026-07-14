@@ -194,7 +194,7 @@ Plain-language meaning:
 Correct location:
 
 ```text
-docs/codex-cli-agent-harness/passes/2026-06-12-pass-3-sandboxing-and-permissions.md:523-535
+evals/fixtures/output-router-corpus/sandbox-permissions.md:523-535
 ```
 
 But broad `freeflow_retrieve` from repo root returned:
@@ -280,7 +280,7 @@ Do not proceed to documentation yet. Fix retrieval accuracy and context bounding
 Recommended next slice:
 
 1. Add failing regression for the exact SandboxPermissions broad-repo query.
-   - Expected path: `docs/codex-cli-agent-harness/passes/2026-06-12-pass-3-sandboxing-and-permissions.md`.
+   - Expected path: `evals/fixtures/output-router-corpus/sandbox-permissions.md`.
    - Expected returned excerpt must be bounded and must not include `graphify-out/graph.html`.
 2. Add generated-path excludes by default:
    - `graphify-out/**`

@@ -97,7 +97,7 @@ The root `package.json` exposes the repo as a Pi package:
 - `pi.skills`: `[]` (skill exposure is dynamic)
 - `pi.extensions`: `pi-extension/freeflow/index.js`
 
-The Pi extension registers direct Freeflow commands, keeps `/freeflow mode` changes session-scoped, distinguishes temporary Session mode from persisted Default mode in `/freeflow`, exposes setup/model skills dynamically after repo setup, loads only effective runtime context on session start and compact, and injects that context before every agent turn. It stays inert until `.freeflow/config.json` exists, and top-level `enabled: false` suppresses Freeflow context, tools, routing, and delegation. It does not enforce policy, grant permissions, or create repo-local hooks.
+The Pi extension registers direct Freeflow commands, keeps `/freeflow mode` changes session-scoped, distinguishes temporary Session mode from persisted Default mode in `/freeflow`, exposes setup/model skills dynamically after repo setup, loads only effective runtime context on session start and compact, and injects that context before every agent turn. It stays inert until `.freeflow/config.json` exists, and top-level `enabled: false` suppresses Freeflow context, tools, and routing. It does not enforce policy, grant permissions, or create repo-local hooks.
 
 ## README Shape
 

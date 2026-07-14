@@ -11,9 +11,9 @@ The plan is instructions, not authority. Live repo evidence and source truth win
 
 Move one verified slice at a time. Preserve rollback, reviewability, and user control.
 
-When executing through a separate-agent workflow, use the active delegation mechanism for this environment. A coordinating execution role may assign workers, reviewers, verifiers, and integrators from the approved plan. Execution autonomy is desired, not guaranteed; route backward when new evidence changes the plan.
+When an approved plan explicitly uses separate agents, follow the host-provided mechanism and the plan's ownership, isolation, review, and verification boundaries. If that mechanism is unavailable, stop before silently changing the execution shape.
 
-Use delegation when execution crosses real context boundaries: multiple work packages or slices, reviewer/verifier loops, independent roles, context pressure, expected parallelism or worktree isolation, planned intermediate commits, or integration risk. Tiny clear slices stay inline.
+Tiny clear slices stay inline. Separate-agent execution is warranted only when the approved plan has real context boundaries, independent roles, expected parallelism, worktree isolation, or integration risk.
 
 Read `references/execution-map.md` when the plan has multiple slices, TDD/benchmark work, review checkpoints, per-slice commits, context-window pressure, or any failed check/review/source-scope conflict.
 

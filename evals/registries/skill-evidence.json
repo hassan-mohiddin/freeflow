@@ -203,17 +203,6 @@
         "DFD-002",
         "DFD-003"
       ]
-    },
-    "delegation-harness": {
-      "evals": [
-        "DEL-001",
-        "DEL-002",
-        "DEL-003",
-        "DEL-004",
-        "DEL-005",
-        "DEL-006",
-        "DEL-007"
-      ]
     }
   }
 }

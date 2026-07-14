@@ -15,26 +15,21 @@ Current project direction lives at the docs root:
 
 - `adr/`: durable project decisions.
 - `specs/automation/`: CI/CD and release automation specs.
-- `specs/delegation/`: delegation and harness specs.
 - `specs/output-router/`: output router contract and architecture specs.
 - `specs/output-processing/`: output capture, file processing, derive, and context-saving specs.
-- `plans/delegation/`: delegation and harness implementation plans.
 - `plans/output-router/`: output router implementation and architecture plans.
 - `plans/output-processing/`: output capture, derive, file processing, and context-saving plans.
 - `plans/script-transforms/`: script sandbox / transform spike plans.
 - `plans/workflow/`: workflow model implementation plans.
 - `plans/release/`: release and prepublish plans.
 - `plans/skills/`: skill inventory and skill-pack planning.
-- `designs/delegation/`: delegation harness designs.
 - `designs/output-router/`: output router architecture designs.
 - `designs/workflow/`: workflow model designs.
-- `research/delegation/`: local model and delegation research.
 - `research/memory-and-artifacts/`: memory and artifact-skill research.
 - `research/prior-art/orchestra/`: old Orchestra audits and prior art.
 - `research/script-transforms/`: script sandbox research.
 - `research/workflow/`: workflow, reference-stack, and behavior-eval research.
 - `handoffs/bootstrap/`: bootstrap and current-state continuation memory.
-- `handoffs/delegation/`: delegation and harness handoffs.
 - `handoffs/output-router/`: output router and context tooling handoffs.
 - `handoffs/workflow-and-skills/`: workflow and skill-pack handoffs.
 - `issues/workflow-and-skills/`: workflow and skill behavior deepening notes.
@@ -43,7 +38,6 @@ Current project direction lives at the docs root:
 - `issues/artifacts/interface-reviews/`: HTML review artifacts.
 - `guides/evals/`: eval workflow guides.
 - `guides/tooling/`: agent tooling guides.
-- `codex-cli-agent-harness/passes/`: Codex CLI / agent harness research passes.
 
 ## Public Plugin Docs
 
