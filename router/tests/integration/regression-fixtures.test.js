@@ -8,7 +8,7 @@ import freeflowExtension from "../../../pi-extension/dist/index.js";
 import { createVault, freeflowSearch, freeflowRun, readOutputText } from "../../dist/index.js";
 
 const repoRoot = resolve(new URL("../../../", import.meta.url).pathname);
-const fixtureRoot = resolve(repoRoot, "evals/fixtures/output-router");
+const fixtureRoot = resolve(repoRoot, "router/evals/fixtures/output-router");
 
 async function fixtureText(name) {
   return readFile(join(fixtureRoot, name), "utf8");

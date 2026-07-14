@@ -4,9 +4,9 @@ import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { SCRIPT_SANDBOX_REQUIRED_PROOFS, scriptSandboxProofFixturesForLanguage } from "../../router/dist/index.js";
+import { SCRIPT_SANDBOX_REQUIRED_PROOFS, scriptSandboxProofFixturesForLanguage } from "../../dist/index.js";
 
-const DEFAULT_REPORT_PATH = "evals/reports/runtime/quickjs-wasi-proof-spike-1-report.md";
+const DEFAULT_REPORT_PATH = "router/evals/reports/quickjs-wasi-proof-spike-1-report.md";
 const DEFAULT_TIMEOUT_MS = 250;
 const DEFAULT_MEMORY_BYTES = 8 * 1024 * 1024;
 const DEFAULT_OUTPUT_BYTES = 4096;

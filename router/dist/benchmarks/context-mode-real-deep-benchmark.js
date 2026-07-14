@@ -1245,10 +1245,10 @@ function shellQuote(value) {
     return `'${String(value).replace(/'/g, `'"'"'`)}'`;
 }
 function defaultReportPath() {
-    return path.resolve(process.cwd(), "evals/reports/runtime/context-mode-real-deep-baseline-1-report.md");
+    return path.resolve(process.cwd(), "router/evals/reports/context-mode-real-deep-baseline-1-report.md");
 }
 function defaultUnavailableReportPath() {
-    return path.resolve(process.cwd(), "evals/reports/runtime/context-mode-real-deep-unavailable-report.md");
+    return path.resolve(process.cwd(), "router/evals/reports/context-mode-real-deep-unavailable-report.md");
 }
 function defaultRealDeepJsonReportPath(markdownReportPath) {
     return defaultJsonRunReportPath(markdownReportPath);

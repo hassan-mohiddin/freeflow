@@ -20,16 +20,16 @@ This is not approval to wire execution into `freeflow_derive`. Slice 17 remains 
 
 ## Source Evidence
 
-- JavaScript proof report: `evals/reports/runtime/quickjs-wasi-proof-spike-1-report.md`
+- JavaScript proof report: `router/evals/reports/quickjs-wasi-proof-spike-1-report.md`
   - `quickjs-wasi@3.0.1`
   - proofs passed 9/9
   - no repo dependency added
   - no script execution path enabled
-- Python proof report: `evals/reports/runtime/eryx-python-proof-spike-1-report.md`
+- Python proof report: `router/evals/reports/eryx-python-proof-spike-1-report.md`
   - `@bsull/eryx@0.5.0`
   - failed before Python execution because `@bytecodealliance/preview2-shim/filesystem` did not export `_setFileData`
   - proofs not run
-- jq proof report: `evals/reports/runtime/jq-wasm-proof-spike-1-report.md`
+- jq proof report: `router/evals/reports/jq-wasm-proof-spike-1-report.md`
   - `jq-wasm@1.2.0-jq-1.8.2`
   - proofs passed 9/9
   - timeout proof uses Worker termination

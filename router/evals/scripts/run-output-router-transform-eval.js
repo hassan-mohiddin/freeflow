@@ -9,9 +9,9 @@ import {
   freeflowTransform,
   readOutputText,
   storeCommandOutput,
-} from "../../router/dist/index.js";
+} from "../../dist/index.js";
 
-const REPORT_PATH = "evals/reports/runtime/output-router-transform-eval-1-report.md";
+const REPORT_PATH = "router/evals/reports/output-router-transform-eval-1-report.md";
 const DATE = "2026-06-28";
 
 function bytes(value) {
@@ -93,7 +93,7 @@ function renderReport(results) {
     return `| ${result.id} | ${result.baseline} | ${result.freeflow} | ${passMark(Object.values(result.gates).every(Boolean))} | ${gates} |`;
   }).join("\n");
 
-  return `# Output Router Transform Eval - Iteration 1\n\nDate: ${DATE}\n\n## Scope\n\nTargeted deterministic eval for transformed-output routing. It compares direct/manual long-log inspection against explicit Freeflow transform operations.\n\n## Command\n\n\`\`\`sh\nnpm run build && node evals/scripts/run-output-router-transform-eval.js\n\`\`\`\n\n## Summary\n\n- Fixtures: ${results.length}\n- Objective gates passed: ${passedGates}/${totalGates}\n\n## Results\n\n| fixture | direct/raw baseline | Freeflow routed behavior | status | gates |\n| --- | --- | --- | --- | --- |\n${rows}\n\n## Result\n\nAll targeted transform gates passed for these deterministic fixtures.\n`;
+  return `# Output Router Transform Eval - Iteration 1\n\nDate: ${DATE}\n\n## Scope\n\nTargeted deterministic eval for transformed-output routing. It compares direct/manual long-log inspection against explicit Freeflow transform operations.\n\n## Command\n\n\`\`\`sh\nnpm run build && node router/evals/scripts/run-output-router-transform-eval.js\n\`\`\`\n\n## Summary\n\n- Fixtures: ${results.length}\n- Objective gates passed: ${passedGates}/${totalGates}\n\n## Results\n\n| fixture | direct/raw baseline | Freeflow routed behavior | status | gates |\n| --- | --- | --- | --- | --- |\n${rows}\n\n## Result\n\nAll targeted transform gates passed for these deterministic fixtures.\n`;
 }
 
 async function main() {

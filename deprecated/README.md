@@ -8,6 +8,10 @@ These files are not part of the current skill surface under `skills/`, active ro
 
 - `deprecated/router/experimental-local-index.ts`
 
+## Skill Evaluations
+
+- `skill-evals-v1/`: retired skill-evaluation cases, durable results, and harness machinery. Raw generated runs are intentionally omitted.
+
 ## Skills
 
 - `skills/research-brief/`

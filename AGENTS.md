@@ -28,7 +28,7 @@ For historical research, read `docs/` only when background matters. Live repo ev
 
 For current continuation state, read the latest relevant file in `docs/handoffs/`.
 
-For evidence about whether a skill works, read `evals/README.md`, then the relevant report under `evals/reports/`. Prefer later reports over earlier ones when they conflict.
+For current skill-evaluation evidence, inspect `.skill-eval/` and the accepted bundle for the exact skill, case, host, model, and configuration. Historical v1 cases and reports under `deprecated/skill-evals-v1/` are documentary only and never establish current readiness.
 
 ## Reference Skill Stack
 
@@ -88,7 +88,7 @@ Re-enter the narrowest owning activity when evidence changes the path.
 
 ## Implementation Pointers
 
-The repo root is the single source of truth for runtime skills, plugin docs, evals, and command-surface metadata. The npm tarball contains only runtime-required files; GitHub retains docs and evidence.
+The repo root is the single source of truth for runtime skills, plugin docs, current `.skill-eval/` definitions, router evidence under `router/evals/`, and command-surface metadata. The npm tarball contains only runtime-required files; GitHub retains docs and evidence.
 
 For the current skill set, inspect `skills/`.
 

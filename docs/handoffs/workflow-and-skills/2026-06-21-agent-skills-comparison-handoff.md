@@ -47,8 +47,8 @@ Freeflow evidence to reopen before changing Freeflow:
 - `evals/reports/by-skill/discover-1-report.md`
 - `evals/reports/by-skill/interview-gate-2-report.md`
 - `evals/reports/by-command-surface/command-surface-matrix.md`
-- `evals/reports/runtime/always-on-runtime-1-report.md`
-- `evals/reports/runtime/workflow-context-hook-1-report.md`
+- `router/evals/reports/always-on-runtime-1-report.md`
+- `router/evals/reports/workflow-context-hook-1-report.md`
 
 `agent-skills` upstream sources inspected in this pass:
 

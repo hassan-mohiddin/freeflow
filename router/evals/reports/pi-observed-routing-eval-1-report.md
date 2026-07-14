@@ -13,7 +13,7 @@ It does not claim Context Mode or cross-host superiority. Claude and Codex obser
 ## Command
 
 ```sh
-npm run build && node evals/scripts/run-pi-observed-routing-eval.js
+npm run build && node router/evals/scripts/run-pi-observed-routing-eval.js
 ```
 
 ## Summary

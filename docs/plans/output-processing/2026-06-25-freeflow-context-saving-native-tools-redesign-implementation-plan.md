@@ -53,7 +53,7 @@ Current implementation areas:
 - `pi-extension/src/renderers.ts`
 - `router/tests/`
 - `evals/scripts/`
-- `evals/reports/runtime/`
+- `router/evals/reports/`
 
 ## Non-Goals
 
@@ -103,7 +103,7 @@ Steps:
 
 Checks:
 
-- Baseline report saved under `evals/reports/runtime/`.
+- Baseline report saved under `router/evals/reports/`.
 - Existing tests pass before changes.
 
 Stop if:
@@ -380,8 +380,8 @@ Status: done.
 
 Evidence:
 
-- `evals/reports/runtime/storage-policy-benchmark-1-report.md`
-- `evals/runs/output-router/storage-policy-benchmark-1-report.json`
+- `router/evals/reports/storage-policy-benchmark-1-report.md`
+- `router/evals/runs/storage-policy-benchmark-1-report.json`
 
 Result:
 
@@ -453,7 +453,7 @@ Stop if:
 - index improves speed but worsens accuracy/recovery,
 - index adds unacceptable dependency/setup/staleness risk.
 
-Status: done. Evidence recorded in `evals/reports/runtime/output-router-index-benchmark-1-report.md` and `evals/runs/output-router/output-router-index-benchmark-1-report.json`. Scanner-only, local lexical index, Node `node:sqlite` FTS5/BM25/trigram, and conservative hybrid scanner+index all passed 3/3 fixtures with recall@3 3/3 and zero generated false positives. FTS5/BM25/trigram was tested through the experimental Node runtime available in this environment; no package dependency was added. Scanner remains default; index is not adopted.
+Status: done. Evidence recorded in `router/evals/reports/output-router-index-benchmark-1-report.md` and `router/evals/runs/output-router-index-benchmark-1-report.json`. Scanner-only, local lexical index, Node `node:sqlite` FTS5/BM25/trigram, and conservative hybrid scanner+index all passed 3/3 fixtures with recall@3 3/3 and zero generated false positives. FTS5/BM25/trigram was tested through the experimental Node runtime available in this environment; no package dependency was added. Scanner remains default; index is not adopted.
 
 ## Slice 10: Context Mode Normalized Benchmark
 
@@ -490,7 +490,7 @@ Stop if:
 - Freeflow saves fewer tokens without compensating accuracy/recovery benefit,
 - benchmark fixtures are not comparable enough for a claim.
 
-Status: done. Evidence recorded in `evals/reports/runtime/context-mode-normalized-benchmark-1-report.md` and `evals/runs/output-router/context-mode-normalized-benchmark-1-report.json`. Freeflow-owned tools and the normalized Context Mode-style proxy both passed 6/6 fixtures. Freeflow preserved exact facts and recovery on 6/6, but answer-accurate visible output was 4/6 and the proxy had lower model-visible bytes on these normalized fixtures. Freeflow reduced tool calls only for the batch fixture. No public superiority claim is allowed from this benchmark.
+Status: done. Evidence recorded in `router/evals/reports/context-mode-normalized-benchmark-1-report.md` and `router/evals/runs/context-mode-normalized-benchmark-1-report.json`. Freeflow-owned tools and the normalized Context Mode-style proxy both passed 6/6 fixtures. Freeflow preserved exact facts and recovery on 6/6, but answer-accurate visible output was 4/6 and the proxy had lower model-visible bytes on these normalized fixtures. Freeflow reduced tool calls only for the batch fixture. No public superiority claim is allowed from this benchmark.
 
 ## Slice 11: Public Surface Migration Decision
 

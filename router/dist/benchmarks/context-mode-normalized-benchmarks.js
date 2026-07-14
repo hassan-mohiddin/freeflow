@@ -120,7 +120,7 @@ export function renderContextModeNormalizedBenchmarkReport(report) {
         "npm run bench:router:context-mode-normalized",
         "```",
         "",
-        "The CLI writes machine-readable JSON under `evals/runs/output-router/` by default. That JSON is generated run data; this Markdown file is the durable runtime report.",
+        "The CLI writes machine-readable JSON under `router/evals/runs/` by default. That JSON is generated run data; this Markdown file is the durable runtime report.",
         "",
         "## Summary",
         "",
@@ -680,7 +680,7 @@ function byteLength(value) {
     return Buffer.byteLength(value, "utf8");
 }
 function defaultReportPath() {
-    return resolve(process.cwd(), "evals/reports/runtime/context-mode-normalized-benchmark-1-report.md");
+    return resolve(process.cwd(), "router/evals/reports/context-mode-normalized-benchmark-1-report.md");
 }
 async function runCli() {
     const { iterations, reportPath, jsonReportPath } = parseBenchmarkCliArgs(process.argv.slice(2), { reportPath: defaultReportPath() });

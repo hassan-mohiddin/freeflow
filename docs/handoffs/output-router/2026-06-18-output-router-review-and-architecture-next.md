@@ -22,7 +22,7 @@ Current modified areas are mostly:
 - `router/src/vault/vault.ts` and `dist/vault/vault.js`
 - `pi-extension/index.js`
 - router tests under `router/tests/`
-- `evals/reports/runtime/output-router-codex-large-index-sqlite-adhoc-report.md`
+- `router/evals/reports/output-router-codex-large-index-sqlite-adhoc-report.md`
 
 Important: subagent review output files were generated and removed (`final-review-code.md`, `final-review-verification.md`, earlier `review-*`). There should be no intended untracked review artifacts.
 
@@ -151,7 +151,7 @@ Possible invariant: parser/fact-preservation fixtures score the first non-duplic
 
 ### 6. DurableReportEvidence policy
 
-Files: runtime eval reports under `evals/reports/runtime/`.
+Files: runtime eval reports under `router/evals/reports/`.
 
 Decide how current evidence vs historical evidence is recorded. Avoid making durable claims with only `/tmp` pointers unless the report clearly says it is ad hoc/historical.
 

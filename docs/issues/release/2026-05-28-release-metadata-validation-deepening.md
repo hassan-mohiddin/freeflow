@@ -28,7 +28,7 @@ Current files:
 - `.codex-plugin/plugin.json`
 - `.claude-plugin/plugin.json`
 - `command-surface.json`
-- `evals/scripts/audit-command-surface.sh`
+- `scripts/validation/audit-command-surface.sh`
 - `plugin-docs/architecture.md`
 - `plugin-docs/release-evidence.md`
 - `plugin-docs/adr/0003-release-boundary.md`

@@ -69,7 +69,7 @@ export function renderCommandBenchmarkReport(report) {
         "npm run bench:router:commands",
         "```",
         "",
-        "The CLI writes machine-readable JSON under `evals/runs/output-router/` by default. That JSON is generated run data; this Markdown file is the durable runtime report.",
+        "The CLI writes machine-readable JSON under `router/evals/runs/` by default. That JSON is generated run data; this Markdown file is the durable runtime report.",
         "",
         "## Summary",
         "",
@@ -626,7 +626,7 @@ function formatCommandCorrectnessChecks(correctness) {
     ].join(" ");
 }
 function defaultReportPath() {
-    return resolve(process.cwd(), "evals/reports/runtime/output-router-command-benchmark-1-report.md");
+    return resolve(process.cwd(), "router/evals/reports/output-router-command-benchmark-1-report.md");
 }
 async function runCli() {
     const { iterations, reportPath, jsonReportPath } = parseBenchmarkCliArgs(process.argv.slice(2), { reportPath: defaultReportPath() });

@@ -277,8 +277,8 @@ Current evidence inventory (historical behavior reports do not verify revised sk
 - `setup-freeflow` has registered config-only and runtime-delivery fixture definitions for Codex and Claude; they remain Unverified, and earlier host-file setup reports are historical.
 - `write-skill` has behavior and direct command evals showing that production-ready pressure must not overbuild skill folders.
 - `evaluate-skill` has behavior and direct command evals showing that shortcut wording must not skip creating or updating an eval artifact before skill edits.
-- Command-surface coverage is current for the direct Freeflow routes. The current registry has 4 mode commands, 16 direct skill calls, 3 developer skill calls, and 3 Pi native settings commands. See `evals/reports/by-command-surface/command-surface-matrix.md`.
-- The fixture harness supports Codex by default and Claude through `FREEFLOW_FIXTURE_AGENT=claude`; live Claude runs still require local Claude auth and are not active release blockers for Hassan's local Codex-first testing.
+- Command-surface structure is validated against `command-surface.json`, Pi registration, and `plugin-docs/skills.md` by `scripts/validation/audit-command-surface.sh`.
+- Current skill evaluation uses the host-neutral evaluator under `.skill-eval/`. Reports from the retired fixture harness live under `deprecated/skill-evals-v1/` and do not establish current readiness.
 
 ## Current Pack Readiness
 

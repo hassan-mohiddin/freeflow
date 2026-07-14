@@ -136,7 +136,7 @@ Stop before:
 Run after implementation:
 
 - `git diff --check`
-- `evals/scripts/audit-command-surface.sh`
+- `scripts/validation/audit-command-surface.sh`
 - JSON parsing for eval registries
 - focused review of skill changes
 

@@ -16,8 +16,8 @@ The output router is a Pi-first, host-portable routed-output system. It now has:
 - Pi adapter changes in `pi-extension/index.js`.
 - Runtime-facing skill in `skills/output-router/SKILL.md`.
 - Safety policy reference in `skills/output-router/references/safety-policy.md`.
-- Deterministic regression fixtures in `evals/fixtures/output-router/`.
-- Regression/evidence report in `evals/reports/runtime/output-router-regression-1-report.md`.
+- Deterministic regression fixtures in `router/evals/fixtures/output-router/`.
+- Regression/evidence report in `router/evals/reports/output-router-regression-1-report.md`.
 
 Current design/spec/plan files were updated away from the earlier bootstrap-only shape:
 
@@ -134,7 +134,7 @@ The working tree was synced into Pi's installed package cache at:
 
 The user ran `/reload`, then package-discovery smoke passed without `-e` override:
 
-- `freeflow_retrieve` found `OUTPUT_ROUTER_SKILL_DECISION_ANCHOR` in `evals/fixtures/output-router/large-router-manual.md`.
+- `freeflow_retrieve` found `OUTPUT_ROUTER_SKILL_DECISION_ANCHOR` in `router/evals/fixtures/output-router/large-router-manual.md`.
 - `freeflow_run` returned `toolStatus: ok`, `execution.status: success`, `routing.status: routed`, and an `outputId`.
 - Native `read` safety net with `postToolRouting=safety-net` returned `Freeflow routed this native read result` and `outputId=ffout_...`.
 
@@ -266,10 +266,10 @@ Reopen these before continuing:
 
 - `router/src/tools/retrieve.ts` — broad retrieval bug lives here.
 - `router/tests/regression-fixtures.test.js` — add the SandboxPermissions broad-lookup failure here.
-- `evals/fixtures/output-router/` — add/extend fixtures for generated-artifact and huge-line retrieval failures.
+- `router/evals/fixtures/output-router/` — add/extend fixtures for generated-artifact and huge-line retrieval failures.
 - `skills/output-router/SKILL.md` — router tool-choice guidance.
 - `skills/output-router/references/safety-policy.md` — exactness-sensitive behavior.
-- `evals/reports/runtime/output-router-regression-1-report.md` — current evidence report; update after fixes.
+- `router/evals/reports/output-router-regression-1-report.md` — current evidence report; update after fixes.
 - `docs/specs/output-router/freeflow-output-router-design.md` — spec now points to output-router skill, not bootstrap artifact.
 - `docs/plans/output-router/2026-06-16-freeflow-output-router-implementation-plan.md` — plan updated to skill-based shape but still has historical slice framing.
 

@@ -546,7 +546,7 @@ function byteLength(value: string): number {
 }
 
 function defaultReportPath(): string {
-  return resolve(process.cwd(), "evals/reports/runtime/context-saving-native-tools-baseline-1-report.md");
+  return resolve(process.cwd(), "router/evals/reports/context-saving-native-tools-baseline-1-report.md");
 }
 
 async function runCli() {

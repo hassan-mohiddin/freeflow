@@ -30,7 +30,8 @@ freeflow/
   assets/
   plugin-docs/
   docs/
-  evals/
+  .skill-eval/
+  deprecated/
   hooks/
   pi-extension/
   router/
@@ -39,7 +40,7 @@ freeflow/
 
 The repository root is the plugin root. Codex uses `.agents/plugins/marketplace.json` with local source `.`, while Claude uses `.claude-plugin/marketplace.json` with host-valid local source `./`. Pi uses the root `package.json` `pi` manifest to load `pi-extension/freeflow/index.js`, which re-exports the built extension from `pi-extension/dist/index.js`; TypeScript source lives under `pi-extension/src/`. Pi model skill exposure is dynamic and owned by the extension.
 
-The repo root is the single source of truth. Skill edits, bundled references, eval metadata, public docs, and command-surface metadata live there to avoid generated package drift. Public plugin docs live under `plugin-docs/`; eval definitions and evidence live under `evals/`. They ship through GitHub but are excluded from the npm runtime tarball. Project-development memory lives under `docs/` and is not part of the runtime surface.
+The repo root is the single source of truth. Skill edits, bundled references, evaluation metadata, public docs, and command-surface metadata live there to avoid generated package drift. Public plugin docs live under `plugin-docs/`; current skill evaluation lives under `.skill-eval/`; router evaluation lives under `router/evals/`; and documentary-only legacy skill evaluations live under `deprecated/skill-evals-v1/`. They ship through GitHub but are excluded from the npm runtime tarball. Project-development memory lives under `docs/` and is not part of the runtime surface.
 
 `router/src/` is organized by responsibility: public tool entrypoints in `tools/`, transformation internals in `transform/`, evidence helpers in `evidence/`, vault storage in `vault/`, repo traversal in `repo/`, explicit local-source traversal in `local/`, capture/routing/parsers in `routing/`, sandbox adapters in `sandbox/`, configuration contracts in `config/`, benchmark harnesses in `benchmarks/`, and frozen experiments in `experiments/`. `router/dist/` mirrors that layout as generated package output; active deprecated or historical router artifacts stay outside runtime code under `deprecated/router/`.
 

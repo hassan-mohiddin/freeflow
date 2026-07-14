@@ -43,8 +43,8 @@ Implementation evidence:
 - `router/src/config/config.ts`
 - `pi-extension/index.js`
 - `router/tests/`
-- `evals/fixtures/output-router/`
-- `evals/reports/runtime/output-router-regression-1-report.md`
+- `router/evals/fixtures/output-router/`
+- `router/evals/reports/output-router-regression-1-report.md`
 - `docs/handoffs/output-router/2026-06-16-output-router-implementation-and-retrieval-benchmark.md`
 
 Research benchmark oracle:
@@ -100,13 +100,13 @@ Tests and fixtures:
 - `router/tests/run.test.js`
 - `router/tests/config.test.js`
 - `router/tests/pi-extension.test.js`
-- `evals/fixtures/output-router/`
-- possible new benchmark fixtures under `evals/fixtures/output-router/benchmarks/`
+- `router/evals/fixtures/output-router/`
+- possible new benchmark fixtures under `router/evals/fixtures/output-router/benchmarks/`
 - possible new scripts under `evals/scripts/`
 
 Docs/reports:
 
-- `evals/reports/runtime/output-router-regression-*.md`
+- `router/evals/reports/output-router-regression-*.md`
 - `docs/specs/output-router/freeflow-output-router-excellence-spec.md` only if implementation reveals a spec/source conflict
 - `docs/plans/output-router/2026-06-16-freeflow-output-router-excellence-implementation-plan.md` if plan changes materially
 - `plugin-docs/release-evidence.md` only after verified evidence exists
@@ -288,7 +288,7 @@ Implementation:
    - latency p50/p95 where repeated runs are practical,
    - recovery success,
    - generated false-positive rate.
-4. Add report output under `evals/reports/runtime/`.
+4. Add report output under `router/evals/reports/`.
 5. Add a CI-friendly subset that does not require external tools.
 
 Checks:
@@ -498,7 +498,7 @@ Checks:
 - Setup docs, activation contract, and setup evals agree.
 - Pi extension treats absent `outputRouter` as default behavior and present invalid config as warning-worthy.
 - TUI smoke is rerun if TUI renderer behavior changed.
-- `evals/scripts/check-activation-contract.sh` passes if setup behavior or activation text changed.
+- `scripts/validation/check-activation-contract.sh` passes if setup behavior or activation text changed.
 
 Stop if:
 
@@ -559,7 +559,7 @@ Also run:
 - router retrieval benchmark subset,
 - command-output benchmark subset once added,
 - Codex Q&A benchmark subset once added,
-- `evals/scripts/check-activation-contract.sh` if setup behavior or activation text changes,
+- `scripts/validation/check-activation-contract.sh` if setup behavior or activation text changes,
 - real Pi smoke if Pi adapter or TUI behavior changes,
 - installed-cache `/reload` smoke before claiming installed package behavior.
 

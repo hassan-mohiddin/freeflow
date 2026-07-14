@@ -97,7 +97,7 @@ Expected: no tracked text keeps the previous candidate identity.
 Run:
 
 ```sh
-evals/scripts/audit-command-surface.sh
+scripts/validation/audit-command-surface.sh
 ```
 
 Expected: audit passes using the repo root.
@@ -605,7 +605,7 @@ git mv evals/command-surface-matrix.md evals/reports/by-command-surface/
 git mv evals/claude-harness-1-report.md evals/reports/harness/
 git mv evals/eval-harness-1-report.md evals/reports/harness/
 git mv evals/v0.1-acceptance-report.md evals/reports/acceptance/
-git mv evals/always-on-runtime-1-report.md evals/reports/runtime/
+git mv evals/always-on-runtime-1-report.md router/evals/reports/
 git mv evals/*-report.md evals/reports/by-skill/
 git mv evals/*runbook.md evals/runbooks/
 git mv evals/v0.1-acceptance-suite.md evals/suites/v0.1-acceptance-suite.md
@@ -659,7 +659,7 @@ Run:
 
 ```sh
 jq empty evals/registries/fixture-evals.json
-evals/scripts/audit-command-surface.sh
+scripts/validation/audit-command-surface.sh
 ```
 
 Expected: JSON parses and audit passes.
@@ -785,7 +785,7 @@ Expected: all JSON parses.
 Run:
 
 ```sh
-evals/scripts/audit-command-surface.sh
+scripts/validation/audit-command-surface.sh
 git diff --check
 ```
 

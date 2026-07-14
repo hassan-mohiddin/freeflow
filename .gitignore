@@ -10,8 +10,8 @@ node_modules/
 # Local Freeflow delegation runtime state.
 .freeflow/delegation/
 
-# Generated eval harness output.
-evals/runs/
+# Generated router evaluation output.
+router/evals/runs/
 
 # Graphify generated output.
 graphify-out/

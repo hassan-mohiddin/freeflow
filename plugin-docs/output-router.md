@@ -406,4 +406,4 @@ Current release evidence:
 - Context Mode normalized benchmark: Freeflow-owned tools and the normalized Context Mode-style proxy both passed 6/6 fixtures. Freeflow preserved exact facts/recovery on 6/6 but did not beat the proxy on model-visible bytes in these normalized fixtures; no public superiority claim is made.
 - Setup eval: optional `outputRouter`/`observedRouting`/`scriptTransform` config is opt-in through the capabilities branch; minimal setup remains only `defaultMode`.
 
-See `release-evidence.md` and runtime reports under `evals/reports/runtime/`.
+See `release-evidence.md` and runtime reports under `router/evals/reports/`.

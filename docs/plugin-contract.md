@@ -627,6 +627,8 @@ Not frozen:
 Use companion artifacts for volatile current state instead of embedding it in this contract:
 
 - Current skill files live under `skills/`.
-- Current eval evidence and status live under `evals/`.
+- Current skill-evaluation definitions and accepted evidence live under `.skill-eval/`.
+- Router evaluation evidence lives under `router/evals/`.
+- Legacy skill evaluations under `deprecated/skill-evals-v1/` are documentary only.
 - Current project status lives in `docs/freeflow-current-state.md`.
 - Current continuation state lives in handoffs.

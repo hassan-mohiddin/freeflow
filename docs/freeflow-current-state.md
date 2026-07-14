@@ -45,43 +45,43 @@ The public repository includes:
 - Claude marketplace metadata at `.claude-plugin/marketplace.json`.
 - Pi package metadata in root `package.json`.
 - Plugin runtime under the repo root.
-- Active runtime skills, bundled references, eval definitions, eval reports, and command-surface metadata.
+- Active runtime skills, bundled references, current `.skill-eval/` definitions, router evidence under `router/evals/`, and command-surface metadata.
 - Refined user-facing plugin docs under `plugin-docs/`.
 - Project-development docs under `docs/` for planning, current state, research, and handoffs.
 
-The npm runtime tarball excludes root `evals/`, `plugin-docs/`, and project-development docs; those remain GitHub evidence and documentation surfaces.
+The npm runtime tarball excludes `.skill-eval/`, `router/evals/`, `deprecated/`, `plugin-docs/`, and project-development docs; those remain GitHub evidence and documentation surfaces.
 
 The public repository excludes:
 
-- Generated eval run output under `evals/runs/`.
+- Generated router evaluation output under `router/evals/runs/`.
 - Enforcement hooks, CLI enforcement, Codex/Claude native slash handlers, and old Orchestra compatibility.
 
 ## Evidence
 
-Use `evals/README.md` for the eval directory guide.
+Use `.skill-eval/` for current skill-evaluation definitions and accepted evidence, `router/evals/README.md` for router evaluation, and `deprecated/skill-evals-v1/README.md` for the documentary-only legacy skill-evaluation archive.
 
 Current high-signal historical and runtime evidence (not behavioral verification of the adaptive candidate):
 
-- `evals/reports/acceptance/v0.1-acceptance-report.md`
-- `evals/reports/by-skill/discover-1-report.md`
-- `evals/reports/by-skill/interview-gate-2-report.md`
-- `evals/reports/by-skill/setup-freeflow-5-report.md`
-- `evals/reports/by-command-surface/command-surface-matrix.md`
-- `evals/reports/runtime/always-on-runtime-1-report.md`
-- `evals/reports/runtime/workflow-context-hook-1-report.md`
-- `evals/reports/runtime/output-router-benchmark-1-report.md`
-- `evals/reports/runtime/output-router-command-benchmark-1-report.md`
-- `evals/reports/runtime/pi-observed-routing-eval-1-report.md`
-- `evals/reports/runtime/vault-index-storage-spike-1-report.md`
-- `evals/reports/runtime/output-router-transform-eval-1-report.md`
-- `evals/reports/runtime/storage-policy-benchmark-1-report.md`
-- `evals/reports/runtime/context-mode-normalized-benchmark-1-report.md`
-- `evals/reports/runtime/context-mode-real-deep-final-slice-11-report.md`
-- `evals/reports/runtime/output-router-codex-qa-benchmark-1-report.md`
-- `evals/reports/runtime/quickjs-wasi-proof-spike-1-report.md`
-- `evals/reports/runtime/eryx-python-proof-spike-2-report.md`
-- `evals/reports/runtime/jq-wasm-proof-spike-1-report.md`
-- `evals/reports/runtime/script-sandbox-probe-resource-hardening-1-report.md`
+- `deprecated/skill-evals-v1/reports/acceptance/v0.1-acceptance-report.md`
+- `deprecated/skill-evals-v1/reports/by-skill/discover-1-report.md`
+- `deprecated/skill-evals-v1/reports/by-skill/interview-gate-2-report.md`
+- `deprecated/skill-evals-v1/reports/by-skill/setup-freeflow-5-report.md`
+- `deprecated/skill-evals-v1/reports/by-command-surface/command-surface-matrix.md`
+- `deprecated/skill-evals-v1/reports/runtime/always-on-runtime-1-report.md`
+- `deprecated/skill-evals-v1/reports/runtime/workflow-context-hook-1-report.md`
+- `router/evals/reports/output-router-benchmark-1-report.md`
+- `router/evals/reports/output-router-command-benchmark-1-report.md`
+- `router/evals/reports/pi-observed-routing-eval-1-report.md`
+- `router/evals/reports/vault-index-storage-spike-1-report.md`
+- `router/evals/reports/output-router-transform-eval-1-report.md`
+- `router/evals/reports/storage-policy-benchmark-1-report.md`
+- `router/evals/reports/context-mode-normalized-benchmark-1-report.md`
+- `router/evals/reports/context-mode-real-deep-final-slice-11-report.md`
+- `router/evals/reports/output-router-codex-qa-benchmark-1-report.md`
+- `router/evals/reports/quickjs-wasi-proof-spike-1-report.md`
+- `router/evals/reports/eryx-python-proof-spike-2-report.md`
+- `router/evals/reports/jq-wasm-proof-spike-1-report.md`
+- `router/evals/reports/script-sandbox-probe-resource-hardening-1-report.md`
 
 ## Current Next Work
 

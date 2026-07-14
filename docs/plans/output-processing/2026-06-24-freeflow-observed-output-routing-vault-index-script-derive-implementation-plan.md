@@ -51,7 +51,7 @@ Docs, skills, setup, evals:
 - `docs/`
 - `evals/README.md`
 - `evals/scripts/`
-- `evals/reports/runtime/`
+- `router/evals/reports/`
 
 Deferred adapter surfaces, not implemented by this plan:
 
@@ -181,7 +181,7 @@ Tests/evals:
   - `script-derive.test.js`
   - `pi-extension-observed-routing.test.js`
 - `evals/scripts/`
-- `evals/reports/runtime/`
+- `router/evals/reports/`
 
 Generated output:
 
@@ -499,7 +499,7 @@ Steps:
    - Pi capability status.
 3. Record raw bytes/lines/items vs returned evidence bytes/lines/items, including percentage byte reduction where a raw baseline exists.
 4. Verify exact facts preserved and recoverability is accurate.
-5. Write a runtime report under `evals/reports/runtime/`.
+5. Write a runtime report under `router/evals/reports/`.
 6. Do not claim Context Mode superiority unless comparable benchmark evidence exists.
 
 Checks:
@@ -582,7 +582,7 @@ Slice 11 decision after benchmark:
 
 - Use `local-json-sidecar` behind the vault-index interface for subsequent slices.
 - Keep SQLite/FTS deferred because introducing a native dependency or relying on experimental runtime SQLite needs explicit owner approval.
-- Evidence: `evals/reports/runtime/vault-index-storage-spike-1-report.md`.
+- Evidence: `router/evals/reports/vault-index-storage-spike-1-report.md`.
 
 Tests/checks:
 
@@ -871,8 +871,8 @@ Slice 17 partial progress:
 - Pi discovers jq only through the explicit `FREEFLOW_JQ_WASM_ROOT` package-root environment variable.
 - With a registered/provided jq-wasm adapter, jq scripts receive a JSON object keyed by copied vault-source alias and write bounded stdout/stderr through `jq.raw`.
 - jq timeouts use Worker termination. Output-limit failures return structured `derive_execution_failure` without exact recovery. Residual caveat: `jq-wasm` can still generate large strings inside the Worker before wrapper truncation.
-- Evidence: `evals/reports/runtime/quickjs-script-derive-execution-1-report.md`, `evals/reports/runtime/eryx-python-proof-spike-2-report.md`, `evals/reports/runtime/eryx-python-script-derive-execution-1-report.md`, and `evals/reports/runtime/jq-script-derive-execution-1-report.md`.
-- Follow-up resource hardening reduced sandbox proof flood fixture counts, lowered jq proof timeout, cached adapter proof results by adapter hash/probe limits, and fixed a global-vault test assumption. Evidence: `evals/reports/runtime/script-sandbox-probe-resource-hardening-1-report.md`.
+- Evidence: `router/evals/reports/quickjs-script-derive-execution-1-report.md`, `router/evals/reports/eryx-python-proof-spike-2-report.md`, `router/evals/reports/eryx-python-script-derive-execution-1-report.md`, and `router/evals/reports/jq-script-derive-execution-1-report.md`.
+- Follow-up resource hardening reduced sandbox proof flood fixture counts, lowered jq proof timeout, cached adapter proof results by adapter hash/probe limits, and fixed a global-vault test assumption. Evidence: `router/evals/reports/script-sandbox-probe-resource-hardening-1-report.md`.
 
 ## Slice 18: Final Docs, Evals, Benchmarks, And Cleanup
 

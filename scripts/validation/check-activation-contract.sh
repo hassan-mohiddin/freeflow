@@ -14,7 +14,6 @@ review_artifact_skill="$repo_root/skills/review-artifact/SKILL.md"
 verify_work_skill="$repo_root/skills/verify-work/SKILL.md"
 agents_file="$repo_root/AGENTS.md"
 runtime_doc="$repo_root/docs/freeflow-runtime-and-lifecycle.md"
-registry="$repo_root/evals/registries/fixture-evals.json"
 pi_runtime="$repo_root/pi-extension/src/runtime-context.ts"
 shared_hook="$repo_root/hooks/freeflow-runtime-context.mjs"
 
@@ -30,7 +29,7 @@ require_text() {
   grep -Fq -- "$text" "$file" || fail "$file is missing: $text"
 }
 
-for file in "$setup_skill" "$contract" "$host_setup" "$kernel" "$workflow_skill" "$write_plan_skill" "$execute_plan_skill" "$review_work_skill" "$review_artifact_skill" "$verify_work_skill" "$agents_file" "$runtime_doc" "$registry" "$pi_runtime" "$shared_hook"; do
+for file in "$setup_skill" "$contract" "$host_setup" "$kernel" "$workflow_skill" "$write_plan_skill" "$execute_plan_skill" "$review_work_skill" "$review_artifact_skill" "$verify_work_skill" "$agents_file" "$runtime_doc" "$pi_runtime" "$shared_hook"; do
   [[ -f "$file" ]] || fail "missing required file: $file"
 done
 
@@ -130,40 +129,8 @@ if grep -Eq 'AGENTS\.md|CLAUDE\.md|freeflow-core\.md|activeHosts|activation bloc
   fail "$shared_hook still uses host instruction files as activation markers"
 fi
 
-while IFS= read -r fixture_file; do
-  if grep -Fq 'Use Freeflow for consequential work' "$fixture_file"; then
-    fail "$fixture_file still contains generated activation text"
-  fi
-done < <(find "$repo_root/evals/fixtures" -path '*/tiny-post-setup-*' -name AGENTS.md -type f | sort)
-
-jq empty "$registry"
-
-jq -e '
-  [.evals[] | select(.id | startswith("STP-"))] as $stp
-  | ($stp | length) == 11
-  and ([$stp[] | select((.expected_output + " " + (.assertions | join(" "))) | test("^Adds exactly one ## Freeflow block|^Creates \\.claude/rules/freeflow-core\\.md|canonical activation contract|activation block count"; "i"))] | length) == 0
-' "$registry" >/dev/null || fail "setup fixtures still require generated host activation artifacts"
-
-jq -e '
-  .evals[]
-  | select(.id == "STP-010")
-  | (any(.assertions[]; test("compact runtime kernel"; "i")) and any(.assertions[]; test("full Workflow skill"; "i")))
-' "$registry" >/dev/null || fail "STP-010 must assert same-session kernel and Workflow loading"
-
-jq -e '
-  .evals[]
-  | select(.id == "STP-012")
-  | any(.assertions[]; test("untrusted or disabled SessionStart hook"; "i"))
-' "$registry" >/dev/null || fail "STP-012 must cover unavailable or untrusted runtime delivery"
-
-jq -e '
-  [.evals[] | select(.id == "STP-001" or .id == "STP-002" or .id == "STP-005" or .id == "STP-006" or .id == "STP-007" or .id == "STP-008" or .id == "STP-009" or .id == "STP-010" or .id == "STP-011" or .id == "STP-012")
-    | select(any(.assertions[]; test("runtime delivery"; "i")) | not)]
-  | length == 0
-' "$registry" >/dev/null || fail "successful setup fixtures must report runtime delivery separately"
-
 if [[ "$failures" -gt 0 ]]; then
   exit 1
 fi
 
-printf 'Activation contract check passed: config-only activation, compact kernel loading, host-file preservation, and setup fixtures are aligned.\n'
+printf 'Activation contract check passed: config-only activation, compact kernel loading, and host-file preservation are aligned.\n'

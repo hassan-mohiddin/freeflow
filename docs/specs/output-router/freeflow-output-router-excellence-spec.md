@@ -114,8 +114,8 @@ Relevant Freeflow artifacts:
 - `router/src/tools/run.ts`
 - `router/src/vault/vault.ts`
 - `router/tests/`
-- `evals/fixtures/output-router/`
-- `evals/reports/runtime/output-router-regression-1-report.md`
+- `router/evals/fixtures/output-router/`
+- `router/evals/reports/output-router-regression-1-report.md`
 
 Reference tools researched:
 
@@ -924,7 +924,7 @@ Every benchmark report should include:
 - notes on skipped external tools,
 - regression status.
 
-Reports should live under `evals/reports/runtime/` unless a better eval-specific location is established.
+Reports should live under `router/evals/reports/` unless a better eval-specific location is established.
 
 ## Codex CLI Agent-Harness Macro Benchmark
 

@@ -46,12 +46,12 @@ test("benchmark harness preserves current byte, token, percent, and table helper
 test("benchmark harness derives generated JSON paths and parses shared CLI args", () => {
   const defaultReportPath = resolve(process.cwd(), "tmp/default-report.md");
   assert.equal(
-    defaultJsonRunReportPath(resolve(process.cwd(), "evals/reports/runtime/output-router-benchmark-1-report.md")),
-    resolve(process.cwd(), "evals/runs/output-router/output-router-benchmark-1-report.json"),
+    defaultJsonRunReportPath(resolve(process.cwd(), "router/evals/reports/output-router-benchmark-1-report.md")),
+    resolve(process.cwd(), "router/evals/runs/output-router-benchmark-1-report.json"),
   );
   assert.equal(
-    defaultJsonRunReportPath(resolve(process.cwd(), "evals/reports/runtime/custom")),
-    resolve(process.cwd(), "evals/runs/output-router/custom.json"),
+    defaultJsonRunReportPath(resolve(process.cwd(), "router/evals/reports/custom")),
+    resolve(process.cwd(), "router/evals/runs/custom.json"),
   );
 
   assert.deepEqual(parseBenchmarkCliArgs(["--iterations=3.5"], { reportPath: defaultReportPath }), {

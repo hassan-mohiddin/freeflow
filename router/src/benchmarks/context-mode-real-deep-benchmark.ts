@@ -1562,11 +1562,11 @@ function shellQuote(value: string): string {
 }
 
 function defaultReportPath(): string {
-  return path.resolve(process.cwd(), "evals/reports/runtime/context-mode-real-deep-baseline-1-report.md");
+  return path.resolve(process.cwd(), "router/evals/reports/context-mode-real-deep-baseline-1-report.md");
 }
 
 function defaultUnavailableReportPath(): string {
-  return path.resolve(process.cwd(), "evals/reports/runtime/context-mode-real-deep-unavailable-report.md");
+  return path.resolve(process.cwd(), "router/evals/reports/context-mode-real-deep-unavailable-report.md");
 }
 
 function defaultRealDeepJsonReportPath(markdownReportPath: string): string {

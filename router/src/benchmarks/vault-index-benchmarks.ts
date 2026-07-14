@@ -71,7 +71,7 @@ interface BenchmarkFixture {
 }
 
 const DEFAULT_ITERATIONS = 3;
-const REPORT_PATH = "evals/reports/runtime/vault-index-storage-spike-1-report.md";
+const REPORT_PATH = "router/evals/reports/vault-index-storage-spike-1-report.md";
 
 export async function runVaultIndexStorageBenchmark(options: RunVaultIndexStorageBenchmarkOptions = {}): Promise<VaultIndexStorageBenchmarkReport> {
   const iterations = normalizeIterations(options.iterations, DEFAULT_ITERATIONS);

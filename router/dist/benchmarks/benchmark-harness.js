@@ -50,7 +50,7 @@ export function escapeMarkdownTableCell(value) {
 export function defaultJsonRunReportPath(markdownReportPath) {
     const markdownName = basename(markdownReportPath);
     const jsonName = markdownName.endsWith(".md") ? `${markdownName.slice(0, -".md".length)}.json` : `${markdownName}.json`;
-    return resolve(process.cwd(), "evals/runs/output-router", jsonName);
+    return resolve(process.cwd(), "router/evals/runs", jsonName);
 }
 export function parseBenchmarkCliArgs(argv, defaults) {
     let iterations;

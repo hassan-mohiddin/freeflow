@@ -1675,7 +1675,7 @@ Touchpoints:
 - `router/src/evidence/evidence-range-selector.ts`,
 - `router/src/evidence/bounded-evidence.ts`,
 - tests under `router/tests/`,
-- benchmark reports under `evals/reports/runtime/` when behavior changes meaningfully.
+- benchmark reports under `router/evals/reports/` when behavior changes meaningfully.
 
 Do not make FTS/vector/semantic search default without benchmark-backed adoption and dependency decisions.
 
@@ -1881,7 +1881,7 @@ Deferred/adoption-gated work:
 
 ## Evidence And Current Confidence
 
-High-signal current evidence is summarized in `plugin-docs/release-evidence.md` and runtime reports under `evals/reports/runtime/`.
+High-signal current evidence is summarized in `plugin-docs/release-evidence.md` and runtime reports under `router/evals/reports/`.
 
 Current adoption decisions:
 

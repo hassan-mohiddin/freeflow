@@ -93,8 +93,8 @@ Live repo evidence to reopen:
 - `router/src/config/types.ts`
 - `router/src/routing/parsers.ts`
 - `router/src/experiments/local-index.ts`
-- `evals/reports/runtime/output-router-index-benchmark-1-report.md`
-- `evals/reports/runtime/output-router-command-benchmark-1-report.md`
+- `router/evals/reports/output-router-index-benchmark-1-report.md`
+- `router/evals/reports/output-router-command-benchmark-1-report.md`
 
 Relevant current design facts:
 
@@ -211,9 +211,9 @@ Reopen these before changing design or docs:
   - `router/src/routing/parsers.ts`
 - Local index experimental status:
   - `router/src/experiments/local-index.ts`
-  - `evals/reports/runtime/output-router-index-benchmark-1-report.md`
+  - `router/evals/reports/output-router-index-benchmark-1-report.md`
 - Command router evidence:
-  - `evals/reports/runtime/output-router-command-benchmark-1-report.md`
+  - `router/evals/reports/output-router-command-benchmark-1-report.md`
 - External research clones, if still present:
   - `/tmp/pi-github-repos/oraios/serena`
   - `/tmp/pi-github-repos/DeusData/codebase-memory-mcp`

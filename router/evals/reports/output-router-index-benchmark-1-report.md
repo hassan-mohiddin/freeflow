@@ -14,7 +14,7 @@ The index cache is keyed by repo root and stores outside the repo by default. No
 npm run bench:router:index
 ```
 
-The CLI writes machine-readable JSON under `evals/runs/output-router/` by default. That JSON is generated run data; this Markdown file is the durable runtime report.
+The CLI writes machine-readable JSON under `router/evals/runs/` by default. That JSON is generated run data; this Markdown file is the durable runtime report.
 
 ## Summary
 

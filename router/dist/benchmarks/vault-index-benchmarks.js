@@ -7,7 +7,7 @@ import { escapeMarkdownTableCell as escapeTable, formatPercent, latencySummary, 
 import { createLocalVaultIndex } from "../vault/vault-index.js";
 import { createVault, readOutputText, storeCommandOutput, storeMetadataOutput, storeTextOutput } from "../vault/vault.js";
 const DEFAULT_ITERATIONS = 3;
-const REPORT_PATH = "evals/reports/runtime/vault-index-storage-spike-1-report.md";
+const REPORT_PATH = "router/evals/reports/vault-index-storage-spike-1-report.md";
 export async function runVaultIndexStorageBenchmark(options = {}) {
     const iterations = normalizeIterations(options.iterations, DEFAULT_ITERATIONS);
     const localAppendLatencies = [];

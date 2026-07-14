@@ -50,8 +50,8 @@ A repo can then disable the full Freeflow runtime with top-level `enabled: false
 
 - `npm run build:pi-extension`
 - `node --test $(find pi-extension/tests -name '*.test.js' | sort)`
-- `evals/scripts/check-runtime-context-hook.sh`
-- `evals/scripts/check-activation-contract.sh` if activation contract/setup wording changes
+- `hooks/tests/check-runtime-context-hook.sh`
+- `scripts/validation/check-activation-contract.sh` if activation contract/setup wording changes
 
 ## Out Of Scope
 

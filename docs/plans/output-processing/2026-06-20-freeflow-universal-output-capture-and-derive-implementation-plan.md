@@ -65,7 +65,7 @@ Current implementation areas:
 - `pi-extension/dist/`
 - `router/dist/`
 - `evals/README.md`
-- `evals/reports/runtime/`
+- `router/evals/reports/`
 
 Reference research:
 

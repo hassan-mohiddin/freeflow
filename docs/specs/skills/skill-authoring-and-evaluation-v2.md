@@ -1203,7 +1203,7 @@ The initial registry includes every regular Markdown file recursively contained 
 
 It explicitly excludes:
 
-- `evals/reports/runtime/`;
+- `router/evals/reports/`;
 - `evals/reports/harness/`;
 - `.skill-eval/` and every current evaluator result, diagnostic, staging, or run destination;
 - generated `evals/runs/` artifacts as source records.

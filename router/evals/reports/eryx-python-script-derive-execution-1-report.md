@@ -62,7 +62,7 @@ With package root:
 
 Command evidence: `ffout_b223c00fa8c1f7b82ce6ab15`.
 
-The dedicated proof report is `evals/reports/runtime/eryx-python-proof-spike-2-report.md`.
+The dedicated proof report is `router/evals/reports/eryx-python-proof-spike-2-report.md`.
 
 ## Product Execution Smoke
 

@@ -67,10 +67,10 @@ codex_manifest="$plugin_root/.codex-plugin/plugin.json"
 claude_manifest="$plugin_root/.claude-plugin/plugin.json"
 command_surface="$plugin_root/command-surface.json"
 package_json="$plugin_root/package.json"
-command_audit="$plugin_root/evals/scripts/audit-command-surface.sh"
+command_audit="$plugin_root/scripts/validation/audit-command-surface.sh"
 runtime_hooks_json="$plugin_root/hooks/hooks.json"
 runtime_hook_script="$plugin_root/hooks/freeflow-runtime-context.mjs"
-runtime_hook_check="$plugin_root/evals/scripts/check-runtime-context-hook.sh"
+runtime_hook_check="$plugin_root/hooks/tests/check-runtime-context-hook.sh"
 command_audit_stdout="$(mktemp "${TMPDIR:-/tmp}/freeflow-command-surface-audit.out.XXXXXX")"
 command_audit_stderr="$(mktemp "${TMPDIR:-/tmp}/freeflow-command-surface-audit.err.XXXXXX")"
 runtime_hook_stdout="$(mktemp "${TMPDIR:-/tmp}/freeflow-runtime-hook.out.XXXXXX")"
@@ -256,8 +256,8 @@ check_release_boundary() {
     ok=0
   }
 
-  contains_fixed "$release_boundary_adr" 'It excludes GitHub-only `plugin-docs/`, root `evals/`' || {
-    record_check "$check" "fail" "ADR 0003 no longer excludes GitHub-only docs and eval evidence from npm."
+  contains_fixed "$release_boundary_adr" 'It excludes GitHub-only `plugin-docs/`, `.skill-eval/`, `router/evals/`, `deprecated/`' || {
+    record_check "$check" "fail" "ADR 0003 no longer excludes GitHub-only docs, evaluation evidence, and deprecated artifacts from npm."
     ok=0
   }
 
@@ -296,13 +296,13 @@ check_package_cleanliness() {
   local ok=1
   local pack_manifest=""
 
-  contains_fixed "$gitignore" "evals/runs/" || {
-    record_check "$check" "fail" ".gitignore does not ignore generated eval runs."
+  contains_fixed "$gitignore" "router/evals/runs/" || {
+    record_check "$check" "fail" ".gitignore does not ignore generated router evaluation runs."
     ok=0
   }
 
-  if git -C "$repo_root" ls-files evals/runs | rg -q .; then
-    record_check "$check" "fail" "Generated eval run output is tracked."
+  if git -C "$repo_root" ls-files router/evals/runs | rg -q .; then
+    record_check "$check" "fail" "Generated router evaluation run output is tracked."
     ok=0
   fi
 
@@ -334,12 +334,12 @@ check_package_cleanliness() {
     ok=0
   fi
 
-  if jq -e '.files[] | select(startswith("plugin-docs/") or startswith("evals/"))' "$package_json" >/dev/null; then
-    record_check "$check" "fail" "The npm runtime package includes GitHub-only plugin docs or eval evidence."
+  if jq -e '.files[] | select(startswith("plugin-docs/") or startswith(".skill-eval/") or startswith("router/evals/") or startswith("deprecated/"))' "$package_json" >/dev/null; then
+    record_check "$check" "fail" "The npm runtime package includes GitHub-only docs, evaluation evidence, or deprecated artifacts."
     ok=0
   fi
 
-  if rg -n '\]\((plugin-docs|evals)/' "$plugin_root/README.md" >/dev/null; then
+  if rg -n '\]\((plugin-docs|\.skill-eval|router/evals|deprecated)/' "$plugin_root/README.md" >/dev/null; then
     record_check "$check" "fail" "README contains relative links to files excluded from the npm tarball."
     ok=0
   fi
@@ -349,7 +349,7 @@ check_package_cleanliness() {
     ok=0
   elif ! jq -e '
     .[0] as $pack
-    | ([$pack.files[].path | select(startswith("plugin-docs/") or startswith("evals/"))] | length) == 0
+    | ([$pack.files[].path | select(startswith("plugin-docs/") or startswith(".skill-eval/") or startswith("router/evals/") or startswith("deprecated/"))] | length) == 0
       and ([$pack.files[].path | select(. == "skills/workflow/SKILL.md")] | length) == 1
       and ([$pack.files[].path | select(. == "skills/decision-gate/references/runtime-kernel.md")] | length) == 1
       and ([$pack.files[].path | select(. == "pi-extension/freeflow/index.js")] | length) == 1
@@ -359,7 +359,7 @@ check_package_cleanliness() {
   fi
 
   if [ "$ok" = "1" ]; then
-    record_check "$check" "pass" "Generated runs are ignored, GitHub-only docs/evals are excluded from npm, no duplicate manifests were found, and old command compatibility is absent."
+    record_check "$check" "pass" "Generated router runs are ignored, GitHub-only docs/evidence and deprecated artifacts are excluded from npm, no duplicate manifests were found, and old command compatibility is absent."
   fi
 }
 

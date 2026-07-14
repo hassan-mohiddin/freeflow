@@ -26,7 +26,7 @@ The old public `freeflow_retrieve` and `freeflow_derive` surfaces were removed f
 
 There is no separate public transform tool and no `router/src/tools/search-transform.ts` facade. Shared transform implementation lives in `router/src/transform/engine.ts` because both `run` and `search` need it.
 
-Reports under `evals/reports/` are Markdown-only. Machine-readable JSON belongs under ignored/generated run locations such as `evals/runs/output-router/`, not under committed reports.
+Reports under `evals/reports/` are Markdown-only. Machine-readable JSON belongs under ignored/generated run locations such as `router/evals/runs/`, not under committed reports.
 
 ## Decisions Made
 
@@ -56,15 +56,15 @@ Recent commits:
   - Updated release evidence with measured final result.
   - Refreshed related benchmark reports.
 - `bad7f23 test: keep runtime reports markdown-only`
-  - Removed committed JSON reports from `evals/reports/runtime/`.
-  - Updated benchmark default JSON output to `evals/runs/output-router/`.
+  - Removed committed JSON reports from `router/evals/reports/`.
+  - Updated benchmark default JSON output to `router/evals/runs/`.
   - Added test coverage that committed runtime reports stay Markdown-only.
 
 Final benchmark evidence:
 
-- `evals/reports/runtime/context-mode-real-deep-final-slice-11-report.md`
-- `evals/reports/runtime/context-mode-real-deep-final-slice-11-review.md`
-- Baseline comparison source: `evals/reports/runtime/context-mode-real-deep-baseline-1-report.md`
+- `router/evals/reports/context-mode-real-deep-final-slice-11-report.md`
+- `router/evals/reports/context-mode-real-deep-final-slice-11-review.md`
+- Baseline comparison source: `router/evals/reports/context-mode-real-deep-baseline-1-report.md`
 
 Final benchmark headline:
 
@@ -88,7 +88,7 @@ Verification run after final cleanup:
 
 Observed routing / web / MCP evidence exists separately:
 
-- `evals/reports/runtime/pi-observed-routing-eval-1-report.md`
+- `router/evals/reports/pi-observed-routing-eval-1-report.md`
 - Pi observed routing covered configured MCP, web, fetch, and code-search producer output after direct host execution.
 - That eval passed 28/28 objective gates and measured 82.2% overall byte reduction excluding status-only fixtures.
 - Fixture reductions included MCP GitHub search 86.0%, MCP Gmail metadata-only 93.1%, web search 32.4%, fetch content 67.6%, and code search 82.9%.
@@ -158,9 +158,9 @@ Recommended order:
 
 Before consequential work, inspect:
 
-- `evals/reports/runtime/context-mode-real-deep-final-slice-11-review.md`
-- `evals/reports/runtime/context-mode-real-deep-final-slice-11-report.md`
-- `evals/reports/runtime/pi-observed-routing-eval-1-report.md`
+- `router/evals/reports/context-mode-real-deep-final-slice-11-review.md`
+- `router/evals/reports/context-mode-real-deep-final-slice-11-report.md`
+- `router/evals/reports/pi-observed-routing-eval-1-report.md`
 - `plugin-docs/release-evidence.md`
 - `plugin-docs/output-router.md`
 - `skills/output-router/SKILL.md`

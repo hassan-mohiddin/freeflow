@@ -6,9 +6,9 @@ import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { Worker } from "node:worker_threads";
 
-import { SCRIPT_SANDBOX_REQUIRED_PROOFS, scriptSandboxProofFixturesForLanguage } from "../../router/dist/index.js";
+import { SCRIPT_SANDBOX_REQUIRED_PROOFS, scriptSandboxProofFixturesForLanguage } from "../../dist/index.js";
 
-const DEFAULT_REPORT_PATH = "evals/reports/runtime/eryx-python-proof-spike-2-report.md";
+const DEFAULT_REPORT_PATH = "router/evals/reports/eryx-python-proof-spike-2-report.md";
 const DEFAULT_TIMEOUT_MS = 500;
 const DEFAULT_OUTPUT_BYTES = 4096;
 const SECRET_SENTINEL = "FREEFLOW_SANDBOX_SECRET_SENTINEL_VALUE";

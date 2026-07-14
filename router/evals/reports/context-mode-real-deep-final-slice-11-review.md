@@ -4,8 +4,8 @@ Generated: 2026-06-28
 
 ## Source Reports
 
-- Baseline: `evals/reports/runtime/context-mode-real-deep-baseline-1-report.md`
-- Final run: `evals/reports/runtime/context-mode-real-deep-final-slice-11-report.md`
+- Baseline: `router/evals/reports/context-mode-real-deep-baseline-1-report.md`
+- Final run: `router/evals/reports/context-mode-real-deep-final-slice-11-report.md`
 
 ## Headline
 

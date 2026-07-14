@@ -511,7 +511,7 @@ function errorMessage(error) {
     return error instanceof Error ? error.message : String(error);
 }
 function defaultReportPath() {
-    return resolve(process.cwd(), "evals/reports/runtime/storage-policy-benchmark-1-report.md");
+    return resolve(process.cwd(), "router/evals/reports/storage-policy-benchmark-1-report.md");
 }
 async function runCli() {
     const { iterations, reportPath, jsonReportPath } = parseBenchmarkCliArgs(process.argv.slice(2), { reportPath: defaultReportPath() });

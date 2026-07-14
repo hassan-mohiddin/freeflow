@@ -57,14 +57,15 @@ freeflow/
   assets/
   plugin-docs/
   docs/
-  evals/
+  .skill-eval/
+  deprecated/
   hooks/
   pi-extension/
   router/
   skills/
 ```
 
-`plugin-docs/` contains public plugin docs. `evals/` contains development definitions and evidence. `docs/` contains project-development memory. These remain in the GitHub repository; `plugin-docs/`, root `evals/`, and project docs are excluded from the npm runtime tarball. Generated eval run output stays ignored under `evals/runs/`.
+`plugin-docs/` contains public plugin docs. `.skill-eval/` contains current skill-evaluation definitions, `router/evals/` contains router-owned evaluation evidence, and `deprecated/skill-evals-v1/` contains documentary-only legacy skill evaluations. `docs/` contains project-development memory. These remain in the GitHub repository and are excluded from the npm runtime tarball. Generated router evaluation output stays ignored under `router/evals/runs/`.
 
 ## Codex Manifest
 

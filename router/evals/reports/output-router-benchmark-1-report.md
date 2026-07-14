@@ -18,7 +18,7 @@ The pre-hardening Freeflow mode is a deterministic proxy for the old line-scorin
 npm run bench:router
 ```
 
-The CLI writes machine-readable JSON under `evals/runs/output-router/` by default. That JSON is generated run data; this Markdown file is the durable runtime report.
+The CLI writes machine-readable JSON under `router/evals/runs/` by default. That JSON is generated run data; this Markdown file is the durable runtime report.
 
 ## Summary
 

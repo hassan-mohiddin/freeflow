@@ -174,7 +174,7 @@ python3 /Users/mohammedhassanmohiddin/.codex/skills/.system/plugin-creator/scrip
 ```
 
 ```text
-evals/scripts/audit-command-surface.sh
+scripts/validation/audit-command-surface.sh
 ```
 
 Command-surface audit result:

@@ -53,8 +53,8 @@ Related source context:
 
 Benchmark/evals:
 
-- `evals/reports/runtime/`
-- `evals/runs/output-router/`
+- `router/evals/reports/`
+- `router/evals/runs/`
 - `router/src/benchmarks/`
 - `router/tests/benchmarks/`
 - `package.json`
@@ -103,9 +103,9 @@ Steps:
 1. Move `/tmp/freeflow-context-mode-deep-benchmark.mjs` into a repo eval script/module.
 2. Convert it to TypeScript or repo-standard JS consistent with existing router benchmark harnesses.
 3. Store current baseline report:
-   - Markdown under `evals/reports/runtime/`.
-   - Durable JSON under `evals/reports/runtime/`.
-   - Generated rerun JSON may still go under ignored `evals/runs/output-router/`.
+   - Markdown under `router/evals/reports/`.
+   - Durable JSON under `router/evals/reports/`.
+   - Generated rerun JSON may still go under ignored `router/evals/runs/`.
 4. Add npm script, proposed:
    - `bench:router:context-mode-real-deep`
 5. Add tests that verify:

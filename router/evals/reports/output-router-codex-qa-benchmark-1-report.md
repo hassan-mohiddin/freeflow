@@ -14,7 +14,7 @@ The fixture uses existing Freeflow research docs as oracle scaffolding and inclu
 npm run bench:router:codex-qa
 ```
 
-The CLI writes machine-readable JSON under `evals/runs/output-router/` by default. That JSON is generated run data; this Markdown file is the durable runtime report.
+The CLI writes machine-readable JSON under `router/evals/runs/` by default. That JSON is generated run data; this Markdown file is the durable runtime report.
 
 ## Summary
 

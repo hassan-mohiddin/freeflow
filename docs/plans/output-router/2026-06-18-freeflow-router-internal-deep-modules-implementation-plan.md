@@ -89,9 +89,9 @@ Tests:
 
 Reports:
 
-- `evals/reports/runtime/output-router-command-benchmark-1-report.md`
-- `evals/reports/runtime/output-router-index-benchmark-1-report.md` only if rerun/meaningfully affected
-- `evals/reports/runtime/output-router-codex-large-index-sqlite-adhoc-report.md`
+- `router/evals/reports/output-router-command-benchmark-1-report.md`
+- `router/evals/reports/output-router-index-benchmark-1-report.md` only if rerun/meaningfully affected
+- `router/evals/reports/output-router-codex-large-index-sqlite-adhoc-report.md`
 - other runtime reports only if their underlying benchmark is rerun or corrected
 
 Pi adapter:

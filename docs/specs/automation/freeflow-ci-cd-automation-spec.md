@@ -75,10 +75,10 @@ Recommended commands:
     "check:json": "find . -path './evals/runs' -prune -o -name '*.json' -print0 | xargs -0 -n1 jq empty",
     "check:shell": "find evals/scripts evals/fixtures -name '*.sh' -print0 | xargs -0 -n1 bash -n",
     "check:js": "find the repo root -name '*.js' -o -name '*.mjs' | xargs -n1 node --check",
-    "check:commands": "evals/scripts/audit-command-surface.sh",
-    "check:activation": "evals/scripts/check-activation-contract.sh",
-    "check:runtime": "evals/scripts/check-runtime-context-hook.sh",
-    "check:metadata": "evals/scripts/validate-release-metadata.sh --mode prepublish --release-version \"$(node -p 'require(\"./package.json\").version')\"",
+    "check:commands": "scripts/validation/audit-command-surface.sh",
+    "check:activation": "scripts/validation/check-activation-contract.sh",
+    "check:runtime": "hooks/tests/check-runtime-context-hook.sh",
+    "check:metadata": "scripts/validation/validate-release-metadata.sh --mode prepublish --release-version \"$(node -p 'require(\"./package.json\").version')\"",
     "pack:dry": "npm pack --dry-run"
   }
 }

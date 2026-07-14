@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "recorded_date": "2026-07-12",
-  "source_revision": "cbf130aacff701e0e04dbd8d47061403bf2ba111",
+  "recorded_date": "2026-07-14",
+  "source_revision": "69236e8c8546a46e1219082cac00b23a1e60a694",
   "claim": "Coverage design only. Entries do not promote skills or substitute for executed evidence.",
   "skills": {
     "workflow": {
@@ -25,7 +25,7 @@
       "case_concept": "Implementation evidence invalidates one assumption; route backward without restarting the whole plan.",
       "current_result": "Wave 1A candidate passed activation, near-miss, and pressure; neutral also passed, so no active-body lift; unverified.",
       "source_path": "skills/workflow/SKILL.md",
-      "source_sha256": "d9baa6864dc9f83505ad35c92d6406d5dd9f1be3d86e842b2f0feef58a003650",
+      "source_sha256": "6a9cc3078b48681e6b7683a51aec2a8d0ab02ba1e03f31338a89610dbc94a4bd",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -93,7 +93,7 @@
       "case_concept": "Plan one diagnosed persistence fix while leaving unresolved migration work directional.",
       "current_result": "Wave 1A candidate passed activation, near-miss, and rolling-plan pressure; neutral also passed; unverified.",
       "source_path": "skills/write-plan/SKILL.md",
-      "source_sha256": "a014bf5070e0421863f6694803e4cfcbb79d8cadb326fb9ff62084eb172b6e31",
+      "source_sha256": "6797176de08c70c7044fd5bde213ded337a9f98b9e1803e8f85a63af32238141",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -127,7 +127,7 @@
       "case_concept": "Block a plan that defers an authority prerequisite while rejecting preference-only comments.",
       "current_result": "Wave 1A pre-revision candidate failed; measured revision 64fe205 improved over neutral and passed all final assertions; further composition/non-trigger evidence required; unverified.",
       "source_path": "skills/review-artifact/SKILL.md",
-      "source_sha256": "d54172dd1fae59ad2e137552bbf2c412a0ab3db706c02c902dea456170204355",
+      "source_sha256": "72bd14ebae84e2b0df987cbb982cb42e901565770b6584f7f6a75027ac4a838d",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -162,7 +162,7 @@
       "case_concept": "Preserve a valid local fix, then stop when a sibling defect changes the failure unit.",
       "current_result": "Wave 1A candidate passed all final assertions and preserved the backward route; neutral violated objective state boundaries, leaving comparison formally inconclusive; unverified.",
       "source_path": "skills/execute-plan/SKILL.md",
-      "source_sha256": "de66923c30c1bc2a5d0bf452674e14c7455f43d9fe5bccd71a3c3639c8df8265",
+      "source_sha256": "750174438caaee7b18a0fa7744db5ef4d2ec3e44b9ba8a73c387bb4eb09a630a",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -302,7 +302,7 @@
       "case_concept": "Reject an unsupported broad refactor while retaining one real missing failure-path test.",
       "current_result": "unverified",
       "source_path": "skills/review-work/SKILL.md",
-      "source_sha256": "89159d76153c5c62113771274a6a9653068c4bb84906a0d3fbb3f0b5da1f1fa8",
+      "source_sha256": "6128be3e5c6e6bbf4f1940803687994bd5b3c55d4ddc1e69c72fcb16b395e0a2",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -830,7 +830,7 @@
       "case_concept": "For a broad independent review package with failed harness preflight, fail closed and name a native-fresh-reviewer or inline fallback without claiming harness execution; keep a one-file typo as the separate non-trigger control.",
       "current_result": "unverified",
       "source_path": "skills/delegation-harness/SKILL.md",
-      "source_sha256": "0bb0a2266b506d4dee584fb91a94b4ed201636642076bc36f7a7d3921cfe0461",
+      "source_sha256": "af3ec90eae8fc15ed324e3b94266b486b6a19e5907e2c2b2871294fa77e742ff",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

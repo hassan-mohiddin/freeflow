@@ -4,10 +4,10 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import { createVault, readOutputText } from "../../router/dist/index.js";
-import freeflowExtension from "../../pi-extension/dist/index.js";
+import { createVault, readOutputText } from "../../dist/index.js";
+import freeflowExtension from "../../../pi-extension/dist/index.js";
 
-const REPORT_PATH = "evals/reports/runtime/pi-observed-routing-eval-1-report.md";
+const REPORT_PATH = "router/evals/reports/pi-observed-routing-eval-1-report.md";
 const DATE = "2026-06-24";
 
 function loadExtension() {
@@ -298,7 +298,7 @@ It does not claim Context Mode or cross-host superiority. Claude and Codex obser
 ## Command
 
 \`\`\`sh
-npm run build && node evals/scripts/run-pi-observed-routing-eval.js
+npm run build && node router/evals/scripts/run-pi-observed-routing-eval.js
 \`\`\`
 
 ## Summary
@@ -471,7 +471,7 @@ async function main() {
     results.push(await runStatusFixture(tmpRoot));
 
     assertAllPassed(results);
-    await mkdir(join("evals/reports/runtime"), { recursive: true });
+    await mkdir(join("router/evals/reports"), { recursive: true });
     await writeFile(REPORT_PATH, renderReport(results), "utf8");
   } finally {
     await rm(tmpRoot, { recursive: true, force: true });

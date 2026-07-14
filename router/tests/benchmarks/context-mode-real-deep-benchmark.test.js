@@ -10,7 +10,7 @@ import {
   writeContextModeRealDeepBenchmarkReports,
 } from "../../dist/benchmarks/context-mode-real-deep-benchmark.js";
 
-const baselineMarkdownPath = "evals/reports/runtime/context-mode-real-deep-baseline-1-report.md";
+const baselineMarkdownPath = "router/evals/reports/context-mode-real-deep-baseline-1-report.md";
 
 test("real Context Mode deep benchmark degrades without making claims when Context Mode is unavailable", async () => {
   const root = await mkdtemp(join(tmpdir(), "freeflow-context-mode-real-deep-unavailable-"));
@@ -74,6 +74,6 @@ test("committed real Context Mode baseline markdown preserves current failure cl
 
 test("committed runtime reports stay markdown-only", async () => {
   const { readdir } = await import("node:fs/promises");
-  const entries = await readdir("evals/reports/runtime");
+  const entries = await readdir("router/evals/reports");
   assert.deepEqual(entries.filter((entry) => entry.endsWith(".json")), []);
 });

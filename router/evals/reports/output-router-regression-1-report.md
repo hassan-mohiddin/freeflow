@@ -8,7 +8,7 @@ Added deterministic Freeflow Router regression fixtures and tests for output-rou
 
 Fixtures live under:
 
-- `evals/fixtures/output-router/`
+- `router/evals/fixtures/output-router/`
 
 Regression tests live in:
 
@@ -62,7 +62,7 @@ Commands:
 
 ```sh
 npm run test:router
-pi --no-session --no-extensions --no-skills --no-context-files --approve -e "$PWD/pi-extension/index.js" --tools freeflow_retrieve --mode json -p "Use the freeflow_retrieve tool exactly once with action=query, source.kind=repo, source.path='evals/fixtures/output-router/large-router-manual.md', query='OUTPUT_ROUTER_SKILL_DECISION_ANCHOR safety net', preserve=important. Then report the output path and whether the anchor appears."
+pi --no-session --no-extensions --no-skills --no-context-files --approve -e "$PWD/pi-extension/index.js" --tools freeflow_retrieve --mode json -p "Use the freeflow_retrieve tool exactly once with action=query, source.kind=repo, source.path='router/evals/fixtures/output-router/large-router-manual.md', query='OUTPUT_ROUTER_SKILL_DECISION_ANCHOR safety net', preserve=important. Then report the output path and whether the anchor appears."
 PI_CODING_AGENT_DIR=/tmp/freeflow-pi-agent-cache-... pi install "$PWD" --approve
 PI_CODING_AGENT_DIR=/tmp/freeflow-pi-agent-cache-... pi --no-session --no-context-files --approve --tools freeflow_retrieve --mode json -p "Use freeflow_retrieve..."
 # plus temp-project Pi smoke for freeflow_run and native read safety-net routing through package discovery

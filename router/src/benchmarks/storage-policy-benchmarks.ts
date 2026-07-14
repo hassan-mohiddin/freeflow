@@ -714,7 +714,7 @@ function errorMessage(error: unknown): string {
 }
 
 function defaultReportPath(): string {
-  return resolve(process.cwd(), "evals/reports/runtime/storage-policy-benchmark-1-report.md");
+  return resolve(process.cwd(), "router/evals/reports/storage-policy-benchmark-1-report.md");
 }
 
 async function runCli() {

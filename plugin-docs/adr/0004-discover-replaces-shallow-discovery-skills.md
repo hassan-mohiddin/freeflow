@@ -22,5 +22,5 @@ The `discover` skill uses the `design-for-depth` lens when module/interface/seam
 
 - `/research-brief`, `/grill-context`, and `/capture-decisions` are removed from the current command surface.
 - Historical evals and reports for the deprecated skills remain as development evidence.
-- Current discovery eval evidence lives in `evals/reports/by-skill/discover-1-report.md`. Historical `research` eval reports remain development evidence only.
+- Legacy discovery evidence lives in `deprecated/skill-evals-v1/reports/by-skill/discover-1-report.md` and is documentary only. Current readiness requires accepted evidence under `.skill-eval/`.
 - Durable decisions now belong to the checkpoint destination chosen by `discover`: spec, plan, handoff, decision note, ADR, domain memory, or chat.

@@ -5,7 +5,7 @@ repo_root="$(git rev-parse --show-toplevel)"
 plugin_root="$repo_root"
 registry="$plugin_root/command-surface.json"
 manifest="$plugin_root/.codex-plugin/plugin.json"
-command_docs="$plugin_root/evals/reports/by-command-surface/command-surface-matrix.md"
+command_docs="$plugin_root/README.md"
 skills_dir="$plugin_root/skills"
 mode_skill="$skills_dir/mode-contract/SKILL.md"
 pi_extension="$plugin_root/pi-extension/src/runtime-context.ts"
@@ -172,8 +172,8 @@ while IFS=$'\t' read -r command skill; do
   fi
 done < <(jq -r '.modeCommands[] | [.command, .routesTo] | @tsv' "$registry")
 
-if rg -n '^/workflow (conversation|workflow|strict-workflow|reset)$' "$mode_skill" "$plugin_root"/evals/prompts/*.txt >/dev/null; then
-  fail "stale /workflow mode alias remains in active mode skill or eval prompts"
+if rg -n '^/workflow (conversation|workflow|strict-workflow|reset)$' "$mode_skill" >/dev/null; then
+  fail "stale /workflow mode alias remains in the active mode skill"
 fi
 
 if ! rg -Fq 'Task type does not silently change it' "$mode_skill"; then

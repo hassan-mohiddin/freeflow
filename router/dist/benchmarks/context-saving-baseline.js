@@ -416,7 +416,7 @@ function byteLength(value) {
     return Buffer.byteLength(value, "utf8");
 }
 function defaultReportPath() {
-    return resolve(process.cwd(), "evals/reports/runtime/context-saving-native-tools-baseline-1-report.md");
+    return resolve(process.cwd(), "router/evals/reports/context-saving-native-tools-baseline-1-report.md");
 }
 async function runCli() {
     const { reportPath, jsonReportPath } = parseBenchmarkCliArgs(process.argv.slice(2), { reportPath: defaultReportPath() });

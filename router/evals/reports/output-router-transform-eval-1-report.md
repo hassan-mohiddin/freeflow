@@ -9,7 +9,7 @@ Targeted deterministic eval for transformed-output routing. It compares direct/m
 ## Command
 
 ```sh
-npm run build && node evals/scripts/run-output-router-transform-eval.js
+npm run build && node router/evals/scripts/run-output-router-transform-eval.js
 ```
 
 ## Summary
