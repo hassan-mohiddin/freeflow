@@ -8,6 +8,10 @@ These files are not part of the current skill surface under `skills/`, active ro
 
 - `deprecated/router/experimental-local-index.ts`
 
+## Documentation
+
+- `docs/output-router-pi-v04/`: abandoned Pi output-router v0.4 plans, specs, issues, and handoffs.
+
 ## Skills
 
 - `skills/research-brief/`
