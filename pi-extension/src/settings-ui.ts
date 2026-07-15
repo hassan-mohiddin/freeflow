@@ -21,7 +21,6 @@ import {
   VALID_MODES,
 } from "./runtime-context.js";
 
-const BOOLEAN_VALUES = ["enabled", "disabled"] as const;
 const POST_TOOL_ROUTING_VALUES = ["off", "safety-net", "strict"] as const;
 const STORAGE_POLICY_VALUES = ["hybrid-dedupe", "store-everything"] as const;
 const OBSERVED_PERSISTENCE_VALUES = ["none", "metadata-only", "exact"] as const;
@@ -75,7 +74,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function cloneJson<T>(value: T): T {
-  return value === undefined ? value : JSON.parse(JSON.stringify(value));
+  if (value === undefined) return value;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (error) {
+    throw new Error(`Could not clone settings value: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 function getPath(source: unknown, path: string[]): unknown {
@@ -157,7 +161,12 @@ function parsePositiveInteger(text: string): number {
 function parseJsonObject(text: string): unknown {
   const trimmed = text.trim();
   if (!trimmed) return {};
-  const parsed = JSON.parse(trimmed);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch (error) {
+    throw new Error(`Expected valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+  }
   if (!isRecord(parsed)) {
     throw new Error("Expected a JSON object.");
   }
@@ -174,10 +183,6 @@ function formatJson(value: unknown): string {
 
 function booleanValue(value: unknown): string {
   return value === true ? "enabled" : "disabled";
-}
-
-function booleanFromUi(value: string): boolean {
-  return value === "enabled";
 }
 
 function normalizedSettingsConfig(rawConfig: Record<string, unknown>) {

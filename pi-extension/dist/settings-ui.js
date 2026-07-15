@@ -2,7 +2,6 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DEFAULT_OBSERVED_ROUTING_CONFIG, DEFAULT_OUTPUT_ROUTER_ENABLED, DEFAULT_POST_TOOL_ROUTING, DEFAULT_ROUTER_THRESHOLDS, DEFAULT_SCRIPT_TRANSFORM_CONFIG, DEFAULT_STORAGE_POLICY, DEFAULT_VAULT_RETENTION, DEFAULT_VAULT_ROOT, normalizeFreeflowConfig, } from "../../router/dist/index.js";
 import { handleModeCommand, readCapabilityState, readFreeflowConfig, readFreeflowConfigState, readModeState, VALID_MODES, } from "./runtime-context.js";
-const BOOLEAN_VALUES = ["enabled", "disabled"];
 const POST_TOOL_ROUTING_VALUES = ["off", "safety-net", "strict"];
 const STORAGE_POLICY_VALUES = ["hybrid-dedupe", "store-everything"];
 const OBSERVED_PERSISTENCE_VALUES = ["none", "metadata-only", "exact"];
@@ -25,7 +24,14 @@ function isRecord(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function cloneJson(value) {
-    return value === undefined ? value : JSON.parse(JSON.stringify(value));
+    if (value === undefined)
+        return value;
+    try {
+        return JSON.parse(JSON.stringify(value));
+    }
+    catch (error) {
+        throw new Error(`Could not clone settings value: ${error instanceof Error ? error.message : String(error)}`);
+    }
 }
 function getPath(source, path) {
     let current = source;
@@ -101,7 +107,13 @@ function parseJsonObject(text) {
     const trimmed = text.trim();
     if (!trimmed)
         return {};
-    const parsed = JSON.parse(trimmed);
+    let parsed;
+    try {
+        parsed = JSON.parse(trimmed);
+    }
+    catch (error) {
+        throw new Error(`Expected valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+    }
     if (!isRecord(parsed)) {
         throw new Error("Expected a JSON object.");
     }
@@ -115,9 +127,6 @@ function formatJson(value) {
 }
 function booleanValue(value) {
     return value === true ? "enabled" : "disabled";
-}
-function booleanFromUi(value) {
-    return value === "enabled";
 }
 function normalizedSettingsConfig(rawConfig) {
     const rawRouter = isRecord(rawConfig.outputRouter) ? rawConfig.outputRouter : {};
