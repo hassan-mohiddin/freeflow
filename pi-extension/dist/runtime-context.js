@@ -1,8 +1,12 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { normalizeFreeflowConfig, normalizeLocalFreeflowConfig } from "../../router/dist/index.js";
-export const VALID_MODES = new Set(["conversation", "workflow", "strict-workflow"]);
+import { normalizeFreeflowConfig, normalizeLocalFreeflowConfig, } from "../../router/dist/index.js";
+export const VALID_MODES = new Set([
+    "conversation",
+    "workflow",
+    "strict-workflow",
+]);
 export const WORKFLOW_COMMANDS = [
     { command: "discover", skill: "discover" },
     { command: "write-spec", skill: "write-spec" },
@@ -61,37 +65,60 @@ export function freeflowModelSkillPaths() {
 const MODE_STATE_ENTRY = "freeflow-mode";
 const RESET_MODE_ARGS = new Set(["reset"]);
 export const FREEFLOW_STATUS_TOOL_NAME = "freeflow_status";
-export const OUTPUT_ROUTER_TOOL_NAMES = ["freeflow_search", "freeflow_run", "freeflow_batch"];
+export const OUTPUT_ROUTER_TOOL_NAMES = [
+    "freeflow_search",
+    "freeflow_run",
+    "freeflow_batch",
+];
 export const DELEGATION_HARNESS_ENV_FLAG = "FREEFLOW_DELEGATION_HARNESS_ENABLED";
 export const WORKFLOW_BOOTSTRAP_MESSAGE_TYPE = "freeflow-workflow-bootstrap";
 let runtimeContextCache = null;
 let currentModeOverride = null;
 let lastRouterConfigWarningKey = null;
 async function loadRuntimeContext(capabilityState = undefined) {
+    const interactionContractEnabled = capabilityState?.interactionContract?.effective === true;
     const skillsEnabled = capabilityState?.skills?.effective === true;
     const outputRouterEnabled = capabilityState?.outputRouter?.enabled === true;
     const delegationHarnessEnabled = capabilityState?.delegationHarness?.enabled === true;
-    const [runtimeKernel, workflowSkill, outputRouterSkill, delegationHarnessSkill] = await Promise.all([
-        skillsEnabled
-            ? readFile(new URL("../../skills/decision-gate/references/runtime-kernel.md", import.meta.url), "utf8")
+    const [interactionContract, workflowSkill, outputRouterSkill, delegationHarnessSkill,] = await Promise.all([
+        interactionContractEnabled
+            ? readFile(new URL("../../runtime/interaction-contract.md", import.meta.url), "utf8")
             : Promise.resolve(null),
-        skillsEnabled ? readFile(new URL("../../skills/workflow/SKILL.md", import.meta.url), "utf8") : Promise.resolve(null),
-        outputRouterEnabled ? readFile(new URL("../../skills/output-router/SKILL.md", import.meta.url), "utf8") : Promise.resolve(null),
-        delegationHarnessEnabled ? readFile(new URL("../../skills/delegation-harness/SKILL.md", import.meta.url), "utf8") : Promise.resolve(null),
+        skillsEnabled
+            ? readFile(new URL("../../skills/workflow/SKILL.md", import.meta.url), "utf8")
+            : Promise.resolve(null),
+        outputRouterEnabled
+            ? readFile(new URL("../../skills/output-router/SKILL.md", import.meta.url), "utf8")
+            : Promise.resolve(null),
+        delegationHarnessEnabled
+            ? readFile(new URL("../../skills/delegation-harness/SKILL.md", import.meta.url), "utf8")
+            : Promise.resolve(null),
     ]);
-    return { runtimeKernel, workflowSkill, outputRouterSkill, delegationHarnessSkill };
+    return {
+        interactionContract,
+        workflowSkill,
+        outputRouterSkill,
+        delegationHarnessSkill,
+    };
 }
 function runtimeContextCacheSatisfies(capabilityState) {
     if (!runtimeContextCache) {
         return false;
     }
-    if (capabilityState?.skills?.effective === true && (!runtimeContextCache.runtimeKernel || !runtimeContextCache.workflowSkill)) {
+    if (capabilityState?.interactionContract?.effective === true &&
+        !runtimeContextCache.interactionContract) {
         return false;
     }
-    if (capabilityState?.outputRouter?.enabled === true && !runtimeContextCache.outputRouterSkill) {
+    if (capabilityState?.skills?.effective === true &&
+        !runtimeContextCache.workflowSkill) {
         return false;
     }
-    if (capabilityState?.delegationHarness?.enabled === true && !runtimeContextCache.delegationHarnessSkill) {
+    if (capabilityState?.outputRouter?.enabled === true &&
+        !runtimeContextCache.outputRouterSkill) {
+        return false;
+    }
+    if (capabilityState?.delegationHarness?.enabled === true &&
+        !runtimeContextCache.delegationHarnessSkill) {
         return false;
     }
     return true;
@@ -127,10 +154,12 @@ function activeSessionEntries(sessionManager) {
     return [];
 }
 export function workflowBootstrapMessage(freeflowContext, capabilityState, sessionManager) {
-    if (capabilityState?.skills?.effective !== true || !freeflowContext?.workflowSkill) {
+    if (capabilityState?.skills?.effective !== true ||
+        !freeflowContext?.workflowSkill) {
         return undefined;
     }
-    const alreadyLoaded = activeSessionEntries(sessionManager).some((entry) => entry?.type === "custom_message" && entry?.customType === WORKFLOW_BOOTSTRAP_MESSAGE_TYPE);
+    const alreadyLoaded = activeSessionEntries(sessionManager).some((entry) => entry?.type === "custom_message" &&
+        entry?.customType === WORKFLOW_BOOTSTRAP_MESSAGE_TYPE);
     if (alreadyLoaded) {
         return undefined;
     }
@@ -148,7 +177,16 @@ function validateFreeflowConfigShape(value) {
     if (!isRecord(value)) {
         return "config must be a JSON object";
     }
-    const allowedKeys = new Set(["enabled", "defaultMode", "skills", "outputRouter", "delegationHarness", "observedRouting", "scriptTransform"]);
+    const allowedKeys = new Set([
+        "enabled",
+        "defaultMode",
+        "interactionContract",
+        "skills",
+        "outputRouter",
+        "delegationHarness",
+        "observedRouting",
+        "scriptTransform",
+    ]);
     for (const key of Object.keys(value)) {
         if (!allowedKeys.has(key)) {
             return `unsupported top-level config key: ${key}`;
@@ -160,15 +198,25 @@ function validateFreeflowConfigShape(value) {
     if (value.enabled !== undefined && typeof value.enabled !== "boolean") {
         return "enabled must be a boolean";
     }
+    if (value.interactionContract !== undefined &&
+        typeof value.interactionContract !== "boolean") {
+        return "interactionContract must be a boolean";
+    }
     if (value.skills !== undefined) {
         if (!isRecord(value.skills)) {
             return "skills must be an object";
         }
-        if (value.skills.enabled !== undefined && typeof value.skills.enabled !== "boolean") {
+        if (value.skills.enabled !== undefined &&
+            typeof value.skills.enabled !== "boolean") {
             return "skills.enabled must be a boolean";
         }
     }
-    for (const key of ["outputRouter", "delegationHarness", "observedRouting", "scriptTransform"]) {
+    for (const key of [
+        "outputRouter",
+        "delegationHarness",
+        "observedRouting",
+        "scriptTransform",
+    ]) {
         if (value[key] !== undefined && !isRecord(value[key])) {
             return `${key} must be an object`;
         }
@@ -182,17 +230,35 @@ export async function readFreeflowConfigState(cwd) {
         const parsed = JSON.parse(raw);
         const validationError = validateFreeflowConfigShape(parsed);
         if (validationError) {
-            return { path, exists: true, valid: false, parsed: {}, parseError: validationError };
+            return {
+                path,
+                exists: true,
+                valid: false,
+                parsed: {},
+                parseError: validationError,
+            };
         }
         return { path, exists: true, valid: true, parsed, parseError: null };
     }
     catch (error) {
         const code = error && typeof error === "object" ? error.code : undefined;
         if (code === "ENOENT") {
-            return { path, exists: false, valid: false, parsed: {}, parseError: null };
+            return {
+                path,
+                exists: false,
+                valid: false,
+                parsed: {},
+                parseError: null,
+            };
         }
         const message = error instanceof Error ? error.message : String(error);
-        return { path, exists: true, valid: false, parsed: {}, parseError: message };
+        return {
+            path,
+            exists: true,
+            valid: false,
+            parsed: {},
+            parseError: message,
+        };
     }
 }
 export async function readFreeflowConfig(cwd) {
@@ -219,8 +285,10 @@ export async function readCapabilityState(cwd) {
     const normalized = normalizeFreeflowConfig(parsed);
     const configured = configState.valid;
     const enabled = configured && parsed.enabled !== false;
+    const interactionContractConfigEnabled = parsed.interactionContract !== false;
     const skillsConfigEnabled = !isRecord(parsed.skills) || parsed.skills.enabled !== false;
-    const delegationConfigEnabled = isRecord(parsed.delegationHarness) && parsed.delegationHarness.enabled === true;
+    const delegationConfigEnabled = isRecord(parsed.delegationHarness) &&
+        parsed.delegationHarness.enabled === true;
     const delegationEnvEnabled = process.env[DELEGATION_HARNESS_ENV_FLAG] === "1";
     const outputRouterConfigEnabled = normalized.config.outputRouter.enabled;
     return {
@@ -230,6 +298,10 @@ export async function readCapabilityState(cwd) {
         configPath: configState.path,
         parseError: configState.parseError,
         enabled,
+        interactionContract: {
+            enabled: interactionContractConfigEnabled,
+            effective: enabled && interactionContractConfigEnabled,
+        },
         skills: {
             enabled: skillsConfigEnabled,
             effective: enabled && skillsConfigEnabled,
@@ -248,13 +320,23 @@ export async function readCapabilityState(cwd) {
 export const readRuntimeState = readCapabilityState;
 async function writeCapabilityEnabled(cwd, capability, enabled) {
     const parsed = await readFreeflowConfig(cwd);
-    const next = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? { ...parsed } : {};
+    const next = parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? { ...parsed }
+        : {};
     if (capability === "outputRouter") {
-        const current = next.outputRouter && typeof next.outputRouter === "object" && !Array.isArray(next.outputRouter) ? next.outputRouter : {};
+        const current = next.outputRouter &&
+            typeof next.outputRouter === "object" &&
+            !Array.isArray(next.outputRouter)
+            ? next.outputRouter
+            : {};
         next.outputRouter = { ...current, enabled };
     }
     else if (capability === "delegationHarness") {
-        const current = next.delegationHarness && typeof next.delegationHarness === "object" && !Array.isArray(next.delegationHarness) ? next.delegationHarness : {};
+        const current = next.delegationHarness &&
+            typeof next.delegationHarness === "object" &&
+            !Array.isArray(next.delegationHarness)
+            ? next.delegationHarness
+            : {};
         next.delegationHarness = { ...current, enabled };
     }
     else {
@@ -271,7 +353,9 @@ function capabilityLabel(capability) {
     return capability === "outputRouter" ? "Output router" : "Delegation harness";
 }
 function capabilityEnabledFromState(state, capability) {
-    return capability === "outputRouter" ? state.outputRouter.enabled : state.delegationHarness.enabled;
+    return capability === "outputRouter"
+        ? state.outputRouter.enabled
+        : state.delegationHarness.enabled;
 }
 export async function handleCapabilityCommand(capability, args, ctx) {
     const command = capability === "outputRouter" ? "output-router" : "delegation-harness";
@@ -282,7 +366,8 @@ export async function handleCapabilityCommand(capability, args, ctx) {
         ctx.ui.notify(`${capabilityLabel(capability)} is ${enabled ? "enabled" : "disabled"}. ${capabilityCommandUsage(command)}.`, "info");
         return { changed: false, enabled };
     }
-    if (["enable", "on", "true"].includes(action) || ["disable", "off", "false"].includes(action)) {
+    if (["enable", "on", "true"].includes(action) ||
+        ["disable", "off", "false"].includes(action)) {
         const enabled = ["enable", "on", "true"].includes(action);
         await writeCapabilityEnabled(ctx.cwd, capability, enabled);
         ctx.ui.notify(`${capabilityLabel(capability)} ${enabled ? "enabled" : "disabled"}. Reloading Freeflow runtime...`, "info");
@@ -294,10 +379,17 @@ export async function handleCapabilityCommand(capability, args, ctx) {
         return { changed: true, enabled, reloaded: false };
     }
     ctx.ui.notify(capabilityCommandUsage(command), "warning");
-    return { changed: false, enabled: capabilityEnabledFromState(state, capability), error: "invalid_action" };
+    return {
+        changed: false,
+        enabled: capabilityEnabledFromState(state, capability),
+        error: "invalid_action",
+    };
 }
 export async function readOutputRouterConfig(cwd) {
-    const [configState, localParsed] = await Promise.all([readFreeflowConfigState(cwd), readFreeflowLocalConfig(cwd)]);
+    const [configState, localParsed] = await Promise.all([
+        readFreeflowConfigState(cwd),
+        readFreeflowLocalConfig(cwd),
+    ]);
     const parsed = configState.valid ? configState.parsed : {};
     const normalized = normalizeFreeflowConfig(parsed);
     const local = normalizeLocalFreeflowConfig(localParsed);
@@ -307,8 +399,14 @@ export async function readOutputRouterConfig(cwd) {
         : {
             ...normalized.config,
             outputRouter: { ...normalized.config.outputRouter, enabled: false },
-            observedRouting: { ...normalized.config.observedRouting, enabled: false },
-            scriptTransform: { ...normalized.config.scriptTransform, enabled: false },
+            observedRouting: {
+                ...normalized.config.observedRouting,
+                enabled: false,
+            },
+            scriptTransform: {
+                ...normalized.config.scriptTransform,
+                enabled: false,
+            },
         };
     const configWarnings = [...normalized.warnings];
     if (configState.exists && !configState.valid) {
@@ -345,7 +443,9 @@ export function restoreModeOverride(ctx) {
 }
 export async function readModeState(cwd) {
     const defaultMode = await readDefaultMode(cwd);
-    const currentMode = VALID_MODES.has(currentModeOverride) ? currentModeOverride : null;
+    const currentMode = VALID_MODES.has(currentModeOverride)
+        ? currentModeOverride
+        : null;
     return {
         defaultMode,
         currentMode,
@@ -354,7 +454,9 @@ export async function readModeState(cwd) {
 }
 export function setModeStatus(ctx, modeState, capabilityState = undefined) {
     if (capabilityState && !capabilityState.configured) {
-        ctx.ui.setStatus("freeflow", capabilityState.configExists ? "freeflow: config error" : "freeflow: setup needed");
+        ctx.ui.setStatus("freeflow", capabilityState.configExists
+            ? "freeflow: config error"
+            : "freeflow: setup needed");
         return;
     }
     if (capabilityState && !capabilityState.enabled) {
@@ -362,6 +464,9 @@ export function setModeStatus(ctx, modeState, capabilityState = undefined) {
         return;
     }
     const active = [];
+    if (capabilityState?.interactionContract.effective) {
+        active.push("interaction");
+    }
     if (capabilityState?.skills.effective) {
         active.push(`${modeState.effectiveMode}${modeState.currentMode ? " (session)" : ""}`);
     }
@@ -408,11 +513,19 @@ ${freeflowContext.outputRouterSkill.trim()}
 \`\`\``;
 }
 function capabilityContext(capabilityState) {
+    const interactionContract = capabilityState.interactionContract.effective
+        ? "enabled"
+        : "disabled";
     const skills = capabilityState.skills.effective ? "enabled" : "disabled";
-    const outputRouter = capabilityState.outputRouter.enabled ? "enabled" : "disabled";
-    const delegationHarness = capabilityState.delegationHarness.enabled ? "enabled" : "disabled";
+    const outputRouter = capabilityState.outputRouter.enabled
+        ? "enabled"
+        : "disabled";
+    const delegationHarness = capabilityState.delegationHarness.enabled
+        ? "enabled"
+        : "disabled";
     return `## Freeflow Capabilities
 
+- Interaction contract: ${interactionContract}. Configure with \`/freeflow settings\`; inspect with \`/freeflow status\`.
 - Skills: ${skills}. Configure with \`/freeflow settings\`; inspect with \`/freeflow status\`.
 - Output router: ${outputRouter}. Configure with \`/freeflow settings\` or \`/output-router\`; inspect with \`/output-router status\`.
 - Delegation harness: ${delegationHarness}. Configure with \`/freeflow settings\` or \`/delegation-harness\`; inspect with \`/delegation-harness status\`.
@@ -420,7 +533,10 @@ function capabilityContext(capabilityState) {
 Disabled capabilities are named only for status/config awareness. Capability-specific instructions and tools are active only while that capability is enabled.`;
 }
 function hasModelFacingCapability(capabilityState) {
-    return capabilityState.skills.effective || capabilityState.outputRouter.enabled || capabilityState.delegationHarness.enabled;
+    return (capabilityState.interactionContract.effective ||
+        capabilityState.skills.effective ||
+        capabilityState.outputRouter.enabled ||
+        capabilityState.delegationHarness.enabled);
 }
 function activeModeContext(modeState) {
     const currentMode = modeState.currentMode ?? "none";
@@ -453,7 +569,7 @@ ${inactiveModeContext(modeState)}
 
 ${capabilityContext(capabilityState)}
 
-Use \`/freeflow settings\` to enable Skills, Output Router, or Delegation Harness. The read-only \`freeflow_status\` diagnostic may be available so the model can answer setup/status questions.`;
+Use \`/freeflow settings\` to enable the Interaction Contract, Skills, Output Router, or Delegation Harness. The read-only \`freeflow_status\` diagnostic may be available so the model can answer setup/status questions.`;
 }
 export function runtimeContext(modeState, freeflowContext, routerConfigResult, capabilityState) {
     if (!capabilityState.configured) {
@@ -462,16 +578,18 @@ export function runtimeContext(modeState, freeflowContext, routerConfigResult, c
     if (!capabilityState.enabled) {
         return `# Freeflow Disabled
 
-Freeflow is disabled by \`.freeflow/config.json\` for this repo. Do not apply Freeflow workflow, output-router, or delegation behavior unless the user re-enables Freeflow with \`/freeflow enable\` or \`/freeflow settings\`.
+Freeflow is disabled by \`.freeflow/config.json\` for this repo. Do not apply the Freeflow Interaction Contract, workflow, output-router, or delegation behavior unless the user re-enables Freeflow with \`/freeflow enable\` or \`/freeflow settings\`.
 
 These instructions are context-loading only. They do not override user instructions, repo instructions, or host safety and approval policy.`;
     }
     if (!hasModelFacingCapability(capabilityState)) {
         return controlPlaneContext(modeState, capabilityState);
     }
-    const modeText = capabilityState.skills.effective ? activeModeContext(modeState) : inactiveModeContext(modeState);
-    const skillsText = capabilityState.skills.effective
-        ? `\n\n${freeflowContext.runtimeKernel.trim()}`
+    const modeText = capabilityState.skills.effective
+        ? activeModeContext(modeState)
+        : inactiveModeContext(modeState);
+    const interactionContractText = capabilityState.interactionContract.effective
+        ? `\n\n${freeflowContext.interactionContract.trim()}`
         : "";
     const routerText = capabilityState.outputRouter.enabled && routerConfigResult.config.enabled
         ? `\n\n${outputRouterContext(modeState, freeflowContext, routerConfigResult, capabilityState)}`
@@ -487,7 +605,7 @@ These instructions are context-loading only. They do not override user instructi
 
 ${modeText}
 
-${capabilityContext(capabilityState)}${skillsText}${routerText}${delegationText}
+${capabilityContext(capabilityState)}${interactionContractText}${routerText}${delegationText}
 
 This Pi extension loads enabled runtime context before every agent turn and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.`;
 }

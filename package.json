@@ -64,6 +64,7 @@
     "pi-extension/**",
     "delegation/dist/**",
     "router/dist/**",
+    "runtime/**",
     "skills/**"
   ],
   "devDependencies": {

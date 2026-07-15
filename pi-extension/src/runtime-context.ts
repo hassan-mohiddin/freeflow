@@ -2,456 +2,647 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { normalizeFreeflowConfig, normalizeLocalFreeflowConfig } from "../../router/dist/index.js";
+import {
+	normalizeFreeflowConfig,
+	normalizeLocalFreeflowConfig,
+} from "../../router/dist/index.js";
 
-export const VALID_MODES = new Set(["conversation", "workflow", "strict-workflow"]);
+export const VALID_MODES = new Set([
+	"conversation",
+	"workflow",
+	"strict-workflow",
+]);
 
 export const WORKFLOW_COMMANDS = [
-  { command: "discover", skill: "discover" },
-  { command: "write-spec", skill: "write-spec" },
-  { command: "review-artifact", skill: "review-artifact" },
-  { command: "write-plan", skill: "write-plan" },
-  { command: "execute-plan", skill: "execute-plan" },
-  { command: "simplify-code", skill: "simplify-code" },
-  { command: "migration-work", skill: "migration-work" },
-  { command: "diagnose-failure", skill: "diagnose-failure" },
-  { command: "verify-work", skill: "verify-work" },
-  { command: "review-work", skill: "review-work" },
-  { command: "commit-work", skill: "commit-work" },
-  { command: "handoff", skill: "handoff" },
-  { command: "finish-branch", skill: "finish-branch" },
-  { command: "release-work", skill: "release-work" },
-  { command: "launch-work", skill: "launch-work" },
-  { command: "bypass", skill: "bypass" },
+	{ command: "discover", skill: "discover" },
+	{ command: "write-spec", skill: "write-spec" },
+	{ command: "review-artifact", skill: "review-artifact" },
+	{ command: "write-plan", skill: "write-plan" },
+	{ command: "execute-plan", skill: "execute-plan" },
+	{ command: "simplify-code", skill: "simplify-code" },
+	{ command: "migration-work", skill: "migration-work" },
+	{ command: "diagnose-failure", skill: "diagnose-failure" },
+	{ command: "verify-work", skill: "verify-work" },
+	{ command: "review-work", skill: "review-work" },
+	{ command: "commit-work", skill: "commit-work" },
+	{ command: "handoff", skill: "handoff" },
+	{ command: "finish-branch", skill: "finish-branch" },
+	{ command: "release-work", skill: "release-work" },
+	{ command: "launch-work", skill: "launch-work" },
+	{ command: "bypass", skill: "bypass" },
 ];
 
 export const CONTRIBUTOR_COMMANDS = [
-  "setup-freeflow",
-  "write-skill",
-  "evaluate-skill",
+	"setup-freeflow",
+	"write-skill",
+	"evaluate-skill",
 ];
 
 export const FREEFLOW_MODEL_SKILL_NAMES = [
-  "bypass",
-  "commit-work",
-  "decision-gate",
-  "migration-work",
-  "design-for-depth",
-  "diagnose-failure",
-  "discover",
-  "evaluate-skill",
-  "execute-plan",
-  "finish-branch",
-  "handoff",
-  "mode-contract",
-  "release-work",
-  "review-artifact",
-  "review-work",
-  "setup-freeflow",
-  "launch-work",
-  "simplify-code",
-  "tdd",
-  "verify-work",
-  "workflow",
-  "write-plan",
-  "write-skill",
-  "write-spec",
+	"bypass",
+	"commit-work",
+	"decision-gate",
+	"migration-work",
+	"design-for-depth",
+	"diagnose-failure",
+	"discover",
+	"evaluate-skill",
+	"execute-plan",
+	"finish-branch",
+	"handoff",
+	"mode-contract",
+	"release-work",
+	"review-artifact",
+	"review-work",
+	"setup-freeflow",
+	"launch-work",
+	"simplify-code",
+	"tdd",
+	"verify-work",
+	"workflow",
+	"write-plan",
+	"write-skill",
+	"write-spec",
 ];
 
 export function freeflowSkillPath(skillName) {
-  return fileURLToPath(new URL(`../../skills/${skillName}/SKILL.md`, import.meta.url));
+	return fileURLToPath(
+		new URL(`../../skills/${skillName}/SKILL.md`, import.meta.url),
+	);
 }
 
 export function freeflowModelSkillPaths() {
-  return FREEFLOW_MODEL_SKILL_NAMES.map((skillName) => freeflowSkillPath(skillName));
+	return FREEFLOW_MODEL_SKILL_NAMES.map((skillName) =>
+		freeflowSkillPath(skillName),
+	);
 }
 
 const MODE_STATE_ENTRY = "freeflow-mode";
 const RESET_MODE_ARGS = new Set(["reset"]);
 
 export const FREEFLOW_STATUS_TOOL_NAME = "freeflow_status";
-export const OUTPUT_ROUTER_TOOL_NAMES = ["freeflow_search", "freeflow_run", "freeflow_batch"];
-export const DELEGATION_HARNESS_ENV_FLAG = "FREEFLOW_DELEGATION_HARNESS_ENABLED";
+export const OUTPUT_ROUTER_TOOL_NAMES = [
+	"freeflow_search",
+	"freeflow_run",
+	"freeflow_batch",
+];
+export const DELEGATION_HARNESS_ENV_FLAG =
+	"FREEFLOW_DELEGATION_HARNESS_ENABLED";
 export const WORKFLOW_BOOTSTRAP_MESSAGE_TYPE = "freeflow-workflow-bootstrap";
 
 let runtimeContextCache = null;
 let currentModeOverride = null;
 let lastRouterConfigWarningKey = null;
 async function loadRuntimeContext(capabilityState = undefined) {
-  const skillsEnabled = capabilityState?.skills?.effective === true;
-  const outputRouterEnabled = capabilityState?.outputRouter?.enabled === true;
-  const delegationHarnessEnabled = capabilityState?.delegationHarness?.enabled === true;
-  const [runtimeKernel, workflowSkill, outputRouterSkill, delegationHarnessSkill] = await Promise.all([
-    skillsEnabled
-      ? readFile(new URL("../../skills/decision-gate/references/runtime-kernel.md", import.meta.url), "utf8")
-      : Promise.resolve(null),
-    skillsEnabled ? readFile(new URL("../../skills/workflow/SKILL.md", import.meta.url), "utf8") : Promise.resolve(null),
-    outputRouterEnabled ? readFile(new URL("../../skills/output-router/SKILL.md", import.meta.url), "utf8") : Promise.resolve(null),
-    delegationHarnessEnabled ? readFile(new URL("../../skills/delegation-harness/SKILL.md", import.meta.url), "utf8") : Promise.resolve(null),
-  ]);
+	const interactionContractEnabled =
+		capabilityState?.interactionContract?.effective === true;
+	const skillsEnabled = capabilityState?.skills?.effective === true;
+	const outputRouterEnabled = capabilityState?.outputRouter?.enabled === true;
+	const delegationHarnessEnabled =
+		capabilityState?.delegationHarness?.enabled === true;
+	const [
+		interactionContract,
+		workflowSkill,
+		outputRouterSkill,
+		delegationHarnessSkill,
+	] = await Promise.all([
+		interactionContractEnabled
+			? readFile(
+					new URL("../../runtime/interaction-contract.md", import.meta.url),
+					"utf8",
+				)
+			: Promise.resolve(null),
+		skillsEnabled
+			? readFile(
+					new URL("../../skills/workflow/SKILL.md", import.meta.url),
+					"utf8",
+				)
+			: Promise.resolve(null),
+		outputRouterEnabled
+			? readFile(
+					new URL("../../skills/output-router/SKILL.md", import.meta.url),
+					"utf8",
+				)
+			: Promise.resolve(null),
+		delegationHarnessEnabled
+			? readFile(
+					new URL("../../skills/delegation-harness/SKILL.md", import.meta.url),
+					"utf8",
+				)
+			: Promise.resolve(null),
+	]);
 
-  return { runtimeKernel, workflowSkill, outputRouterSkill, delegationHarnessSkill };
+	return {
+		interactionContract,
+		workflowSkill,
+		outputRouterSkill,
+		delegationHarnessSkill,
+	};
 }
 
 function runtimeContextCacheSatisfies(capabilityState) {
-  if (!runtimeContextCache) {
-    return false;
-  }
-  if (capabilityState?.skills?.effective === true && (!runtimeContextCache.runtimeKernel || !runtimeContextCache.workflowSkill)) {
-    return false;
-  }
-  if (capabilityState?.outputRouter?.enabled === true && !runtimeContextCache.outputRouterSkill) {
-    return false;
-  }
-  if (capabilityState?.delegationHarness?.enabled === true && !runtimeContextCache.delegationHarnessSkill) {
-    return false;
-  }
-  return true;
+	if (!runtimeContextCache) {
+		return false;
+	}
+	if (
+		capabilityState?.interactionContract?.effective === true &&
+		!runtimeContextCache.interactionContract
+	) {
+		return false;
+	}
+	if (
+		capabilityState?.skills?.effective === true &&
+		!runtimeContextCache.workflowSkill
+	) {
+		return false;
+	}
+	if (
+		capabilityState?.outputRouter?.enabled === true &&
+		!runtimeContextCache.outputRouterSkill
+	) {
+		return false;
+	}
+	if (
+		capabilityState?.delegationHarness?.enabled === true &&
+		!runtimeContextCache.delegationHarnessSkill
+	) {
+		return false;
+	}
+	return true;
 }
 
 export async function refreshRuntimeContext(capabilityState = undefined) {
-  runtimeContextCache = await loadRuntimeContext(capabilityState);
-  return runtimeContextCache;
+	runtimeContextCache = await loadRuntimeContext(capabilityState);
+	return runtimeContextCache;
 }
 
 export async function getRuntimeContext(capabilityState = undefined) {
-  if (runtimeContextCacheSatisfies(capabilityState)) {
-    return runtimeContextCache;
-  }
-  return refreshRuntimeContext(capabilityState);
+	if (runtimeContextCacheSatisfies(capabilityState)) {
+		return runtimeContextCache;
+	}
+	return refreshRuntimeContext(capabilityState);
 }
 
 function activeSessionEntries(sessionManager) {
-  try {
-    if (typeof sessionManager?.buildContextEntries === "function") {
-      const entries = sessionManager.buildContextEntries();
-      if (Array.isArray(entries)) {
-        return entries;
-      }
-    }
-    if (typeof sessionManager?.getEntries === "function") {
-      const entries = sessionManager.getEntries();
-      if (Array.isArray(entries)) {
-        return entries;
-      }
-    }
-  } catch {
-    // A missing session snapshot should reload useful context rather than suppress it.
-  }
-  return [];
+	try {
+		if (typeof sessionManager?.buildContextEntries === "function") {
+			const entries = sessionManager.buildContextEntries();
+			if (Array.isArray(entries)) {
+				return entries;
+			}
+		}
+		if (typeof sessionManager?.getEntries === "function") {
+			const entries = sessionManager.getEntries();
+			if (Array.isArray(entries)) {
+				return entries;
+			}
+		}
+	} catch {
+		// A missing session snapshot should reload useful context rather than suppress it.
+	}
+	return [];
 }
 
-export function workflowBootstrapMessage(freeflowContext, capabilityState, sessionManager) {
-  if (capabilityState?.skills?.effective !== true || !freeflowContext?.workflowSkill) {
-    return undefined;
-  }
+export function workflowBootstrapMessage(
+	freeflowContext,
+	capabilityState,
+	sessionManager,
+) {
+	if (
+		capabilityState?.skills?.effective !== true ||
+		!freeflowContext?.workflowSkill
+	) {
+		return undefined;
+	}
 
-  const alreadyLoaded = activeSessionEntries(sessionManager).some(
-    (entry) => entry?.type === "custom_message" && entry?.customType === WORKFLOW_BOOTSTRAP_MESSAGE_TYPE,
-  );
-  if (alreadyLoaded) {
-    return undefined;
-  }
+	const alreadyLoaded = activeSessionEntries(sessionManager).some(
+		(entry) =>
+			entry?.type === "custom_message" &&
+			entry?.customType === WORKFLOW_BOOTSTRAP_MESSAGE_TYPE,
+	);
+	if (alreadyLoaded) {
+		return undefined;
+	}
 
-  return {
-    customType: WORKFLOW_BOOTSTRAP_MESSAGE_TYPE,
-    content: `# Freeflow Workflow Bootstrap\n\n${freeflowContext.workflowSkill.trim()}`,
-    display: false,
-    details: { skill: "workflow", source: "first-turn-bootstrap" },
-  };
+	return {
+		customType: WORKFLOW_BOOTSTRAP_MESSAGE_TYPE,
+		content: `# Freeflow Workflow Bootstrap\n\n${freeflowContext.workflowSkill.trim()}`,
+		display: false,
+		details: { skill: "workflow", source: "first-turn-bootstrap" },
+	};
 }
 
 function isRecord(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function validateFreeflowConfigShape(value) {
-  if (!isRecord(value)) {
-    return "config must be a JSON object";
-  }
+	if (!isRecord(value)) {
+		return "config must be a JSON object";
+	}
 
-  const allowedKeys = new Set(["enabled", "defaultMode", "skills", "outputRouter", "delegationHarness", "observedRouting", "scriptTransform"]);
-  for (const key of Object.keys(value)) {
-    if (!allowedKeys.has(key)) {
-      return `unsupported top-level config key: ${key}`;
-    }
-  }
+	const allowedKeys = new Set([
+		"enabled",
+		"defaultMode",
+		"interactionContract",
+		"skills",
+		"outputRouter",
+		"delegationHarness",
+		"observedRouting",
+		"scriptTransform",
+	]);
+	for (const key of Object.keys(value)) {
+		if (!allowedKeys.has(key)) {
+			return `unsupported top-level config key: ${key}`;
+		}
+	}
 
-  if (value.defaultMode !== undefined && !VALID_MODES.has(value.defaultMode)) {
-    return `invalid defaultMode: ${JSON.stringify(value.defaultMode)}`;
-  }
+	if (value.defaultMode !== undefined && !VALID_MODES.has(value.defaultMode)) {
+		return `invalid defaultMode: ${JSON.stringify(value.defaultMode)}`;
+	}
 
-  if (value.enabled !== undefined && typeof value.enabled !== "boolean") {
-    return "enabled must be a boolean";
-  }
+	if (value.enabled !== undefined && typeof value.enabled !== "boolean") {
+		return "enabled must be a boolean";
+	}
 
-  if (value.skills !== undefined) {
-    if (!isRecord(value.skills)) {
-      return "skills must be an object";
-    }
-    if (value.skills.enabled !== undefined && typeof value.skills.enabled !== "boolean") {
-      return "skills.enabled must be a boolean";
-    }
-  }
+	if (
+		value.interactionContract !== undefined &&
+		typeof value.interactionContract !== "boolean"
+	) {
+		return "interactionContract must be a boolean";
+	}
 
-  for (const key of ["outputRouter", "delegationHarness", "observedRouting", "scriptTransform"]) {
-    if (value[key] !== undefined && !isRecord(value[key])) {
-      return `${key} must be an object`;
-    }
-  }
+	if (value.skills !== undefined) {
+		if (!isRecord(value.skills)) {
+			return "skills must be an object";
+		}
+		if (
+			value.skills.enabled !== undefined &&
+			typeof value.skills.enabled !== "boolean"
+		) {
+			return "skills.enabled must be a boolean";
+		}
+	}
 
-  return null;
+	for (const key of [
+		"outputRouter",
+		"delegationHarness",
+		"observedRouting",
+		"scriptTransform",
+	]) {
+		if (value[key] !== undefined && !isRecord(value[key])) {
+			return `${key} must be an object`;
+		}
+	}
+
+	return null;
 }
 
 export async function readFreeflowConfigState(cwd) {
-  const path = join(cwd, ".freeflow/config.json");
-  try {
-    const raw = await readFile(path, "utf8");
-    const parsed = JSON.parse(raw);
-    const validationError = validateFreeflowConfigShape(parsed);
-    if (validationError) {
-      return { path, exists: true, valid: false, parsed: {}, parseError: validationError };
-    }
-    return { path, exists: true, valid: true, parsed, parseError: null };
-  } catch (error) {
-    const code = error && typeof error === "object" ? error.code : undefined;
-    if (code === "ENOENT") {
-      return { path, exists: false, valid: false, parsed: {}, parseError: null };
-    }
-    const message = error instanceof Error ? error.message : String(error);
-    return { path, exists: true, valid: false, parsed: {}, parseError: message };
-  }
+	const path = join(cwd, ".freeflow/config.json");
+	try {
+		const raw = await readFile(path, "utf8");
+		const parsed = JSON.parse(raw);
+		const validationError = validateFreeflowConfigShape(parsed);
+		if (validationError) {
+			return {
+				path,
+				exists: true,
+				valid: false,
+				parsed: {},
+				parseError: validationError,
+			};
+		}
+		return { path, exists: true, valid: true, parsed, parseError: null };
+	} catch (error) {
+		const code = error && typeof error === "object" ? error.code : undefined;
+		if (code === "ENOENT") {
+			return {
+				path,
+				exists: false,
+				valid: false,
+				parsed: {},
+				parseError: null,
+			};
+		}
+		const message = error instanceof Error ? error.message : String(error);
+		return {
+			path,
+			exists: true,
+			valid: false,
+			parsed: {},
+			parseError: message,
+		};
+	}
 }
 
 export async function readFreeflowConfig(cwd) {
-  const state = await readFreeflowConfigState(cwd);
-  return state.valid ? state.parsed : {};
+	const state = await readFreeflowConfigState(cwd);
+	return state.valid ? state.parsed : {};
 }
 
 export async function readFreeflowLocalConfig(cwd) {
-  try {
-    const raw = await readFile(join(cwd, ".freeflow/local.json"), "utf8");
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : {};
-  } catch {
-    return {};
-  }
+	try {
+		const raw = await readFile(join(cwd, ".freeflow/local.json"), "utf8");
+		const parsed = JSON.parse(raw);
+		return parsed && typeof parsed === "object" ? parsed : {};
+	} catch {
+		return {};
+	}
 }
 
 async function readDefaultMode(cwd) {
-  const parsed = await readFreeflowConfig(cwd);
-  return VALID_MODES.has(parsed.defaultMode) ? parsed.defaultMode : "workflow";
+	const parsed = await readFreeflowConfig(cwd);
+	return VALID_MODES.has(parsed.defaultMode) ? parsed.defaultMode : "workflow";
 }
 
 export async function readCapabilityState(cwd) {
-  const configState = await readFreeflowConfigState(cwd);
-  const parsed = configState.valid ? configState.parsed : {};
-  const normalized = normalizeFreeflowConfig(parsed);
-  const configured = configState.valid;
-  const enabled = configured && parsed.enabled !== false;
-  const skillsConfigEnabled = !isRecord(parsed.skills) || parsed.skills.enabled !== false;
-  const delegationConfigEnabled = isRecord(parsed.delegationHarness) && parsed.delegationHarness.enabled === true;
-  const delegationEnvEnabled = process.env[DELEGATION_HARNESS_ENV_FLAG] === "1";
-  const outputRouterConfigEnabled = normalized.config.outputRouter.enabled;
-  return {
-    configured,
-    configExists: configState.exists,
-    configValid: configState.valid,
-    configPath: configState.path,
-    parseError: configState.parseError,
-    enabled,
-    skills: {
-      enabled: skillsConfigEnabled,
-      effective: enabled && skillsConfigEnabled,
-    },
-    outputRouter: {
-      enabled: enabled && outputRouterConfigEnabled,
-      configEnabled: outputRouterConfigEnabled,
-    },
-    delegationHarness: {
-      enabled: enabled && (delegationConfigEnabled || delegationEnvEnabled),
-      configEnabled: delegationConfigEnabled,
-      envEnabled: delegationEnvEnabled,
-    },
-  };
+	const configState = await readFreeflowConfigState(cwd);
+	const parsed = configState.valid ? configState.parsed : {};
+	const normalized = normalizeFreeflowConfig(parsed);
+	const configured = configState.valid;
+	const enabled = configured && parsed.enabled !== false;
+	const interactionContractConfigEnabled = parsed.interactionContract !== false;
+	const skillsConfigEnabled =
+		!isRecord(parsed.skills) || parsed.skills.enabled !== false;
+	const delegationConfigEnabled =
+		isRecord(parsed.delegationHarness) &&
+		parsed.delegationHarness.enabled === true;
+	const delegationEnvEnabled = process.env[DELEGATION_HARNESS_ENV_FLAG] === "1";
+	const outputRouterConfigEnabled = normalized.config.outputRouter.enabled;
+	return {
+		configured,
+		configExists: configState.exists,
+		configValid: configState.valid,
+		configPath: configState.path,
+		parseError: configState.parseError,
+		enabled,
+		interactionContract: {
+			enabled: interactionContractConfigEnabled,
+			effective: enabled && interactionContractConfigEnabled,
+		},
+		skills: {
+			enabled: skillsConfigEnabled,
+			effective: enabled && skillsConfigEnabled,
+		},
+		outputRouter: {
+			enabled: enabled && outputRouterConfigEnabled,
+			configEnabled: outputRouterConfigEnabled,
+		},
+		delegationHarness: {
+			enabled: enabled && (delegationConfigEnabled || delegationEnvEnabled),
+			configEnabled: delegationConfigEnabled,
+			envEnabled: delegationEnvEnabled,
+		},
+	};
 }
 
 export const readRuntimeState = readCapabilityState;
 
 async function writeCapabilityEnabled(cwd, capability, enabled) {
-  const parsed = await readFreeflowConfig(cwd);
-  const next = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? { ...parsed } : {};
-  if (capability === "outputRouter") {
-    const current = next.outputRouter && typeof next.outputRouter === "object" && !Array.isArray(next.outputRouter) ? next.outputRouter : {};
-    next.outputRouter = { ...current, enabled };
-  } else if (capability === "delegationHarness") {
-    const current = next.delegationHarness && typeof next.delegationHarness === "object" && !Array.isArray(next.delegationHarness) ? next.delegationHarness : {};
-    next.delegationHarness = { ...current, enabled };
-  } else {
-    throw new Error(`Unsupported Freeflow capability: ${capability}`);
-  }
-  await mkdir(join(cwd, ".freeflow"), { recursive: true });
-  await writeFile(join(cwd, ".freeflow/config.json"), `${JSON.stringify(next, null, 2)}\n`, "utf8");
-  return next;
+	const parsed = await readFreeflowConfig(cwd);
+	const next =
+		parsed && typeof parsed === "object" && !Array.isArray(parsed)
+			? { ...parsed }
+			: {};
+	if (capability === "outputRouter") {
+		const current =
+			next.outputRouter &&
+			typeof next.outputRouter === "object" &&
+			!Array.isArray(next.outputRouter)
+				? next.outputRouter
+				: {};
+		next.outputRouter = { ...current, enabled };
+	} else if (capability === "delegationHarness") {
+		const current =
+			next.delegationHarness &&
+			typeof next.delegationHarness === "object" &&
+			!Array.isArray(next.delegationHarness)
+				? next.delegationHarness
+				: {};
+		next.delegationHarness = { ...current, enabled };
+	} else {
+		throw new Error(`Unsupported Freeflow capability: ${capability}`);
+	}
+	await mkdir(join(cwd, ".freeflow"), { recursive: true });
+	await writeFile(
+		join(cwd, ".freeflow/config.json"),
+		`${JSON.stringify(next, null, 2)}\n`,
+		"utf8",
+	);
+	return next;
 }
 
 function capabilityCommandUsage(command) {
-  return `Usage: /${command}, /${command} settings, or /${command} status`;
+	return `Usage: /${command}, /${command} settings, or /${command} status`;
 }
 
 function capabilityLabel(capability) {
-  return capability === "outputRouter" ? "Output router" : "Delegation harness";
+	return capability === "outputRouter" ? "Output router" : "Delegation harness";
 }
 
 function capabilityEnabledFromState(state, capability) {
-  return capability === "outputRouter" ? state.outputRouter.enabled : state.delegationHarness.enabled;
+	return capability === "outputRouter"
+		? state.outputRouter.enabled
+		: state.delegationHarness.enabled;
 }
 
 export async function handleCapabilityCommand(capability, args, ctx) {
-  const command = capability === "outputRouter" ? "output-router" : "delegation-harness";
-  const action = (args ?? "status").trim().toLowerCase() || "status";
-  const state = await readCapabilityState(ctx.cwd);
-  if (["status", "enabled", "disabled"].includes(action)) {
-    const enabled = capabilityEnabledFromState(state, capability);
-    ctx.ui.notify(`${capabilityLabel(capability)} is ${enabled ? "enabled" : "disabled"}. ${capabilityCommandUsage(command)}.`, "info");
-    return { changed: false, enabled };
-  }
+	const command =
+		capability === "outputRouter" ? "output-router" : "delegation-harness";
+	const action = (args ?? "status").trim().toLowerCase() || "status";
+	const state = await readCapabilityState(ctx.cwd);
+	if (["status", "enabled", "disabled"].includes(action)) {
+		const enabled = capabilityEnabledFromState(state, capability);
+		ctx.ui.notify(
+			`${capabilityLabel(capability)} is ${enabled ? "enabled" : "disabled"}. ${capabilityCommandUsage(command)}.`,
+			"info",
+		);
+		return { changed: false, enabled };
+	}
 
-  if (["enable", "on", "true"].includes(action) || ["disable", "off", "false"].includes(action)) {
-    const enabled = ["enable", "on", "true"].includes(action);
-    await writeCapabilityEnabled(ctx.cwd, capability, enabled);
-    ctx.ui.notify(`${capabilityLabel(capability)} ${enabled ? "enabled" : "disabled"}. Reloading Freeflow runtime...`, "info");
-    if (typeof ctx.reload === "function") {
-      await ctx.reload();
-      return { changed: true, enabled, reloaded: true };
-    }
-    ctx.ui.notify(`Run /reload for ${capabilityLabel(capability).toLowerCase()} changes to fully apply.`, "warning");
-    return { changed: true, enabled, reloaded: false };
-  }
+	if (
+		["enable", "on", "true"].includes(action) ||
+		["disable", "off", "false"].includes(action)
+	) {
+		const enabled = ["enable", "on", "true"].includes(action);
+		await writeCapabilityEnabled(ctx.cwd, capability, enabled);
+		ctx.ui.notify(
+			`${capabilityLabel(capability)} ${enabled ? "enabled" : "disabled"}. Reloading Freeflow runtime...`,
+			"info",
+		);
+		if (typeof ctx.reload === "function") {
+			await ctx.reload();
+			return { changed: true, enabled, reloaded: true };
+		}
+		ctx.ui.notify(
+			`Run /reload for ${capabilityLabel(capability).toLowerCase()} changes to fully apply.`,
+			"warning",
+		);
+		return { changed: true, enabled, reloaded: false };
+	}
 
-  ctx.ui.notify(capabilityCommandUsage(command), "warning");
-  return { changed: false, enabled: capabilityEnabledFromState(state, capability), error: "invalid_action" };
+	ctx.ui.notify(capabilityCommandUsage(command), "warning");
+	return {
+		changed: false,
+		enabled: capabilityEnabledFromState(state, capability),
+		error: "invalid_action",
+	};
 }
 
 export async function readOutputRouterConfig(cwd) {
-  const [configState, localParsed] = await Promise.all([readFreeflowConfigState(cwd), readFreeflowLocalConfig(cwd)]);
-  const parsed = configState.valid ? configState.parsed : {};
-  const normalized = normalizeFreeflowConfig(parsed);
-  const local = normalizeLocalFreeflowConfig(localParsed);
-  const freeflowEnabled = configState.valid && parsed.enabled !== false;
-  const effectiveConfig = freeflowEnabled
-    ? normalized.config
-    : {
-        ...normalized.config,
-        outputRouter: { ...normalized.config.outputRouter, enabled: false },
-        observedRouting: { ...normalized.config.observedRouting, enabled: false },
-        scriptTransform: { ...normalized.config.scriptTransform, enabled: false },
-      };
-  const configWarnings = [...normalized.warnings];
-  if (configState.exists && !configState.valid) {
-    configWarnings.unshift(`.freeflow/config.json could not be parsed; Freeflow runtime is inactive. ${configState.parseError ?? ""}`.trim());
-  }
-  return {
-    config: effectiveConfig.outputRouter,
-    freeflowConfig: effectiveConfig,
-    localConfig: local.config,
-    warnings: [...configWarnings, ...local.warnings],
-  };
+	const [configState, localParsed] = await Promise.all([
+		readFreeflowConfigState(cwd),
+		readFreeflowLocalConfig(cwd),
+	]);
+	const parsed = configState.valid ? configState.parsed : {};
+	const normalized = normalizeFreeflowConfig(parsed);
+	const local = normalizeLocalFreeflowConfig(localParsed);
+	const freeflowEnabled = configState.valid && parsed.enabled !== false;
+	const effectiveConfig = freeflowEnabled
+		? normalized.config
+		: {
+				...normalized.config,
+				outputRouter: { ...normalized.config.outputRouter, enabled: false },
+				observedRouting: {
+					...normalized.config.observedRouting,
+					enabled: false,
+				},
+				scriptTransform: {
+					...normalized.config.scriptTransform,
+					enabled: false,
+				},
+			};
+	const configWarnings = [...normalized.warnings];
+	if (configState.exists && !configState.valid) {
+		configWarnings.unshift(
+			`.freeflow/config.json could not be parsed; Freeflow runtime is inactive. ${configState.parseError ?? ""}`.trim(),
+		);
+	}
+	return {
+		config: effectiveConfig.outputRouter,
+		freeflowConfig: effectiveConfig,
+		localConfig: local.config,
+		warnings: [...configWarnings, ...local.warnings],
+	};
 }
 
 export function notifyRouterConfigWarnings(ctx, routerConfigResult) {
-  if (!routerConfigResult.warnings.length) {
-    return;
-  }
+	if (!routerConfigResult.warnings.length) {
+		return;
+	}
 
-  const key = routerConfigResult.warnings.join("\n");
-  if (key === lastRouterConfigWarningKey) {
-    return;
-  }
+	const key = routerConfigResult.warnings.join("\n");
+	if (key === lastRouterConfigWarningKey) {
+		return;
+	}
 
-  lastRouterConfigWarningKey = key;
-  ctx.ui.notify(`Freeflow config warning: ${routerConfigResult.warnings.join(" ")}`, "warning");
+	lastRouterConfigWarningKey = key;
+	ctx.ui.notify(
+		`Freeflow config warning: ${routerConfigResult.warnings.join(" ")}`,
+		"warning",
+	);
 }
 
 export function restoreModeOverride(ctx) {
-  currentModeOverride = null;
-  const entries = ctx.sessionManager?.getEntries?.() ?? [];
+	currentModeOverride = null;
+	const entries = ctx.sessionManager?.getEntries?.() ?? [];
 
-  for (const entry of entries) {
-    if (entry.type !== "custom" || entry.customType !== MODE_STATE_ENTRY) {
-      continue;
-    }
+	for (const entry of entries) {
+		if (entry.type !== "custom" || entry.customType !== MODE_STATE_ENTRY) {
+			continue;
+		}
 
-    const mode = entry.data?.currentMode;
-    currentModeOverride = VALID_MODES.has(mode) ? mode : null;
-  }
+		const mode = entry.data?.currentMode;
+		currentModeOverride = VALID_MODES.has(mode) ? mode : null;
+	}
 }
 
 export async function readModeState(cwd) {
-  const defaultMode = await readDefaultMode(cwd);
-  const currentMode = VALID_MODES.has(currentModeOverride) ? currentModeOverride : null;
-  return {
-    defaultMode,
-    currentMode,
-    effectiveMode: currentMode ?? defaultMode,
-  };
+	const defaultMode = await readDefaultMode(cwd);
+	const currentMode = VALID_MODES.has(currentModeOverride)
+		? currentModeOverride
+		: null;
+	return {
+		defaultMode,
+		currentMode,
+		effectiveMode: currentMode ?? defaultMode,
+	};
 }
 
 export function setModeStatus(ctx, modeState, capabilityState = undefined) {
-  if (capabilityState && !capabilityState.configured) {
-    ctx.ui.setStatus("freeflow", capabilityState.configExists ? "freeflow: config error" : "freeflow: setup needed");
-    return;
-  }
-  if (capabilityState && !capabilityState.enabled) {
-    ctx.ui.setStatus("freeflow", "freeflow: off");
-    return;
-  }
+	if (capabilityState && !capabilityState.configured) {
+		ctx.ui.setStatus(
+			"freeflow",
+			capabilityState.configExists
+				? "freeflow: config error"
+				: "freeflow: setup needed",
+		);
+		return;
+	}
+	if (capabilityState && !capabilityState.enabled) {
+		ctx.ui.setStatus("freeflow", "freeflow: off");
+		return;
+	}
 
-  const active: string[] = [];
-  if (capabilityState?.skills.effective) {
-    active.push(`${modeState.effectiveMode}${modeState.currentMode ? " (session)" : ""}`);
-  }
-  if (capabilityState?.outputRouter.enabled) {
-    active.push("router");
-  }
-  if (capabilityState?.delegationHarness.enabled) {
-    active.push("delegation");
-  }
-  ctx.ui.setStatus("freeflow", `freeflow: ${active.length > 0 ? active.join(" · ") : "idle"}`);
+	const active: string[] = [];
+	if (capabilityState?.interactionContract.effective) {
+		active.push("interaction");
+	}
+	if (capabilityState?.skills.effective) {
+		active.push(
+			`${modeState.effectiveMode}${modeState.currentMode ? " (session)" : ""}`,
+		);
+	}
+	if (capabilityState?.outputRouter.enabled) {
+		active.push("router");
+	}
+	if (capabilityState?.delegationHarness.enabled) {
+		active.push("delegation");
+	}
+	ctx.ui.setStatus(
+		"freeflow",
+		`freeflow: ${active.length > 0 ? active.join(" · ") : "idle"}`,
+	);
 }
 
 function describeModeState(modeState) {
-  if (modeState.currentMode) {
-    return `current ${modeState.currentMode}; default ${modeState.defaultMode}`;
-  }
-  return `default ${modeState.defaultMode}`;
+	if (modeState.currentMode) {
+		return `current ${modeState.currentMode}; default ${modeState.defaultMode}`;
+	}
+	return `default ${modeState.defaultMode}`;
 }
 
 export function skillPrompt(skill, args) {
-  const trimmed = args?.trim();
-  return trimmed ? `/skill:${skill}\n\n${trimmed}` : `/skill:${skill}`;
+	const trimmed = args?.trim();
+	return trimmed ? `/skill:${skill}\n\n${trimmed}` : `/skill:${skill}`;
 }
 
 function outputRouterModeGuidance(mode, skillsEnabled = true) {
-  if (!skillsEnabled) {
-    return "Freeflow Skills are disabled: no Freeflow workflow mode is active; apply only output-router evidence guidance.";
-  }
-  if (mode === "conversation") {
-    return "conversation mode: keep routed-tool guidance soft; answer questions directly.";
-  }
-  if (mode === "strict-workflow") {
-    return "strict-workflow mode: strongest guidance; prefer exact, recoverable routed evidence for risky work.";
-  }
-  return "workflow mode: prefer routed tools for exploration and likely-large command output.";
+	if (!skillsEnabled) {
+		return "Freeflow Skills are disabled: no Freeflow workflow mode is active; apply only output-router evidence guidance.";
+	}
+	if (mode === "conversation") {
+		return "conversation mode: keep routed-tool guidance soft; answer questions directly.";
+	}
+	if (mode === "strict-workflow") {
+		return "strict-workflow mode: strongest guidance; prefer exact, recoverable routed evidence for risky work.";
+	}
+	return "workflow mode: prefer routed tools for exploration and likely-large command output.";
 }
 
-function outputRouterContext(modeState, freeflowContext, routerConfigResult, capabilityState) {
-  const safetyNetText =
-    routerConfigResult.config.postToolRouting === "off"
-      ? ""
-      : "\n\nOutput-router config note: large native read/bash outputs may be vaulted and replaced with labeled routed output. Use freeflow_search with the output id to recover exact content.";
+function outputRouterContext(
+	modeState,
+	freeflowContext,
+	routerConfigResult,
+	capabilityState,
+) {
+	const safetyNetText =
+		routerConfigResult.config.postToolRouting === "off"
+			? ""
+			: "\n\nOutput-router config note: large native read/bash outputs may be vaulted and replaced with labeled routed output. Use freeflow_search with the output id to recover exact content.";
 
-  return `## Loaded Output Router Skill
+	return `## Loaded Output Router Skill
 
 Mode guidance: ${outputRouterModeGuidance(modeState.effectiveMode, capabilityState.skills.effective)}${safetyNetText}
 
@@ -461,11 +652,19 @@ ${freeflowContext.outputRouterSkill.trim()}
 }
 
 function capabilityContext(capabilityState) {
-  const skills = capabilityState.skills.effective ? "enabled" : "disabled";
-  const outputRouter = capabilityState.outputRouter.enabled ? "enabled" : "disabled";
-  const delegationHarness = capabilityState.delegationHarness.enabled ? "enabled" : "disabled";
-  return `## Freeflow Capabilities
+	const interactionContract = capabilityState.interactionContract.effective
+		? "enabled"
+		: "disabled";
+	const skills = capabilityState.skills.effective ? "enabled" : "disabled";
+	const outputRouter = capabilityState.outputRouter.enabled
+		? "enabled"
+		: "disabled";
+	const delegationHarness = capabilityState.delegationHarness.enabled
+		? "enabled"
+		: "disabled";
+	return `## Freeflow Capabilities
 
+- Interaction contract: ${interactionContract}. Configure with \`/freeflow settings\`; inspect with \`/freeflow status\`.
 - Skills: ${skills}. Configure with \`/freeflow settings\`; inspect with \`/freeflow status\`.
 - Output router: ${outputRouter}. Configure with \`/freeflow settings\` or \`/output-router\`; inspect with \`/output-router status\`.
 - Delegation harness: ${delegationHarness}. Configure with \`/freeflow settings\` or \`/delegation-harness\`; inspect with \`/delegation-harness status\`.
@@ -474,12 +673,17 @@ Disabled capabilities are named only for status/config awareness. Capability-spe
 }
 
 function hasModelFacingCapability(capabilityState) {
-  return capabilityState.skills.effective || capabilityState.outputRouter.enabled || capabilityState.delegationHarness.enabled;
+	return (
+		capabilityState.interactionContract.effective ||
+		capabilityState.skills.effective ||
+		capabilityState.outputRouter.enabled ||
+		capabilityState.delegationHarness.enabled
+	);
 }
 
 function activeModeContext(modeState) {
-  const currentMode = modeState.currentMode ?? "none";
-  return `## Repo Setup
+	const currentMode = modeState.currentMode ?? "none";
+	return `## Repo Setup
 
 Repo default mode from \`.freeflow/config.json\`: \`${modeState.defaultMode}\`.
 Current session mode override: \`${currentMode}\`.
@@ -494,14 +698,14 @@ Do not announce the current mode on every reply. Mention it when the user asks, 
 }
 
 function inactiveModeContext(modeState) {
-  return `## Repo Setup
+	return `## Repo Setup
 
 Default mode: \`${modeState.defaultMode}\` (inactive because Skills are disabled).
 Freeflow workflow modes are dormant until Skills are enabled with \`/freeflow settings\`.`;
 }
 
 function controlPlaneContext(modeState, capabilityState) {
-  return `# Freeflow Control Plane
+	return `# Freeflow Control Plane
 
 Freeflow is enabled for this repo, but no model-facing capabilities are enabled.
 These lines are status/config awareness only; do not apply Freeflow workflow, output-router, or delegation behavior.
@@ -510,38 +714,46 @@ ${inactiveModeContext(modeState)}
 
 ${capabilityContext(capabilityState)}
 
-Use \`/freeflow settings\` to enable Skills, Output Router, or Delegation Harness. The read-only \`freeflow_status\` diagnostic may be available so the model can answer setup/status questions.`;
+Use \`/freeflow settings\` to enable the Interaction Contract, Skills, Output Router, or Delegation Harness. The read-only \`freeflow_status\` diagnostic may be available so the model can answer setup/status questions.`;
 }
 
-export function runtimeContext(modeState, freeflowContext, routerConfigResult, capabilityState) {
-  if (!capabilityState.configured) {
-    return "";
-  }
+export function runtimeContext(
+	modeState,
+	freeflowContext,
+	routerConfigResult,
+	capabilityState,
+) {
+	if (!capabilityState.configured) {
+		return "";
+	}
 
-  if (!capabilityState.enabled) {
-    return `# Freeflow Disabled
+	if (!capabilityState.enabled) {
+		return `# Freeflow Disabled
 
-Freeflow is disabled by \`.freeflow/config.json\` for this repo. Do not apply Freeflow workflow, output-router, or delegation behavior unless the user re-enables Freeflow with \`/freeflow enable\` or \`/freeflow settings\`.
+Freeflow is disabled by \`.freeflow/config.json\` for this repo. Do not apply the Freeflow Interaction Contract, workflow, output-router, or delegation behavior unless the user re-enables Freeflow with \`/freeflow enable\` or \`/freeflow settings\`.
 
 These instructions are context-loading only. They do not override user instructions, repo instructions, or host safety and approval policy.`;
-  }
+	}
 
-  if (!hasModelFacingCapability(capabilityState)) {
-    return controlPlaneContext(modeState, capabilityState);
-  }
+	if (!hasModelFacingCapability(capabilityState)) {
+		return controlPlaneContext(modeState, capabilityState);
+	}
 
-  const modeText = capabilityState.skills.effective ? activeModeContext(modeState) : inactiveModeContext(modeState);
-  const skillsText = capabilityState.skills.effective
-    ? `\n\n${freeflowContext.runtimeKernel.trim()}`
-    : "";
-  const routerText = capabilityState.outputRouter.enabled && routerConfigResult.config.enabled
-    ? `\n\n${outputRouterContext(modeState, freeflowContext, routerConfigResult, capabilityState)}`
-    : "";
-  const delegationText = capabilityState.delegationHarness.enabled
-    ? `\n\n## Loaded Delegation Harness Skill\n\n\`\`\`md\n${freeflowContext.delegationHarnessSkill.trim()}\n\`\`\``
-    : "";
+	const modeText = capabilityState.skills.effective
+		? activeModeContext(modeState)
+		: inactiveModeContext(modeState);
+	const interactionContractText = capabilityState.interactionContract.effective
+		? `\n\n${freeflowContext.interactionContract.trim()}`
+		: "";
+	const routerText =
+		capabilityState.outputRouter.enabled && routerConfigResult.config.enabled
+			? `\n\n${outputRouterContext(modeState, freeflowContext, routerConfigResult, capabilityState)}`
+			: "";
+	const delegationText = capabilityState.delegationHarness.enabled
+		? `\n\n## Loaded Delegation Harness Skill\n\n\`\`\`md\n${freeflowContext.delegationHarnessSkill.trim()}\n\`\`\``
+		: "";
 
-  return `# Freeflow Runtime Context
+	return `# Freeflow Runtime Context
 
 Freeflow Pi extension loaded this before the agent turn.
 Runtime delivery: confirmed for this Pi \`before_agent_start\` invocation.
@@ -549,67 +761,77 @@ These instructions are context-loading only. They do not override user instructi
 
 ${modeText}
 
-${capabilityContext(capabilityState)}${skillsText}${routerText}${delegationText}
+${capabilityContext(capabilityState)}${interactionContractText}${routerText}${delegationText}
 
 This Pi extension loads enabled runtime context before every agent turn and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.`;
 }
 
 export async function setSessionMode(mode, ctx, pi) {
-  const nextMode = mode === "default" || mode === "reset" || mode === null ? null : mode;
-  if (nextMode !== null && !VALID_MODES.has(nextMode)) {
-    throw new Error(`Invalid Freeflow mode: ${String(mode)}`);
-  }
-  currentModeOverride = nextMode;
-  pi?.appendEntry?.(MODE_STATE_ENTRY, { currentMode: nextMode });
-  return readModeState(ctx.cwd);
+	const nextMode =
+		mode === "default" || mode === "reset" || mode === null ? null : mode;
+	if (nextMode !== null && !VALID_MODES.has(nextMode)) {
+		throw new Error(`Invalid Freeflow mode: ${String(mode)}`);
+	}
+	currentModeOverride = nextMode;
+	pi?.appendEntry?.(MODE_STATE_ENTRY, { currentMode: nextMode });
+	return readModeState(ctx.cwd);
 }
 
 export async function handleModeCommand(args, ctx, pi) {
-  const arg = args?.trim();
-  const capabilityState = await readCapabilityState(ctx.cwd);
-  const inactiveModeState = await readModeState(ctx.cwd);
+	const arg = args?.trim();
+	const capabilityState = await readCapabilityState(ctx.cwd);
+	const inactiveModeState = await readModeState(ctx.cwd);
 
-  if (!capabilityState.configured) {
-    setModeStatus(ctx, inactiveModeState, capabilityState);
-    ctx.ui.notify("Freeflow is installed but this repo is not set up. Run /setup-freeflow before changing mode.", "warning");
-    return { changed: false, error: "not_configured" };
-  }
-  if (!capabilityState.enabled) {
-    setModeStatus(ctx, inactiveModeState, capabilityState);
-    ctx.ui.notify("Freeflow is disabled for this repo. Use /freeflow enable or /freeflow settings to re-enable it.", "warning");
-    return { changed: false, error: "freeflow_disabled" };
-  }
-  if (!capabilityState.skills.effective) {
-    setModeStatus(ctx, inactiveModeState, capabilityState);
-    ctx.ui.notify(
-      `Freeflow modes are inactive because Skills are disabled. Current default mode: ${inactiveModeState.defaultMode}. Enable Skills in /freeflow settings before changing mode.`,
-      "warning"
-    );
-    return { changed: false, error: "skills_disabled" };
-  }
+	if (!capabilityState.configured) {
+		setModeStatus(ctx, inactiveModeState, capabilityState);
+		ctx.ui.notify(
+			"Freeflow is installed but this repo is not set up. Run /setup-freeflow before changing mode.",
+			"warning",
+		);
+		return { changed: false, error: "not_configured" };
+	}
+	if (!capabilityState.enabled) {
+		setModeStatus(ctx, inactiveModeState, capabilityState);
+		ctx.ui.notify(
+			"Freeflow is disabled for this repo. Use /freeflow enable or /freeflow settings to re-enable it.",
+			"warning",
+		);
+		return { changed: false, error: "freeflow_disabled" };
+	}
+	if (!capabilityState.skills.effective) {
+		setModeStatus(ctx, inactiveModeState, capabilityState);
+		ctx.ui.notify(
+			`Freeflow modes are inactive because Skills are disabled. Current default mode: ${inactiveModeState.defaultMode}. Enable Skills in /freeflow settings before changing mode.`,
+			"warning",
+		);
+		return { changed: false, error: "skills_disabled" };
+	}
 
-  if (VALID_MODES.has(arg)) {
-    const modeState = await setSessionMode(arg, ctx, pi);
-    setModeStatus(ctx, modeState, capabilityState);
-    ctx.ui.notify(
-      `Freeflow mode is now ${modeState.effectiveMode} for this session. Repo default remains ${modeState.defaultMode}.`,
-      "info"
-    );
-    return { changed: true, modeState };
-  }
+	if (VALID_MODES.has(arg)) {
+		const modeState = await setSessionMode(arg, ctx, pi);
+		setModeStatus(ctx, modeState, capabilityState);
+		ctx.ui.notify(
+			`Freeflow mode is now ${modeState.effectiveMode} for this session. Repo default remains ${modeState.defaultMode}.`,
+			"info",
+		);
+		return { changed: true, modeState };
+	}
 
-  if (RESET_MODE_ARGS.has(arg) || arg === "default") {
-    const modeState = await setSessionMode(null, ctx, pi);
-    setModeStatus(ctx, modeState, capabilityState);
-    ctx.ui.notify(`Freeflow mode reset to repo default: ${modeState.defaultMode}.`, "info");
-    return { changed: true, modeState };
-  }
+	if (RESET_MODE_ARGS.has(arg) || arg === "default") {
+		const modeState = await setSessionMode(null, ctx, pi);
+		setModeStatus(ctx, modeState, capabilityState);
+		ctx.ui.notify(
+			`Freeflow mode reset to repo default: ${modeState.defaultMode}.`,
+			"info",
+		);
+		return { changed: true, modeState };
+	}
 
-  const modeState = await readModeState(ctx.cwd);
-  setModeStatus(ctx, modeState, capabilityState);
-  ctx.ui.notify(
-    `Freeflow mode is ${modeState.effectiveMode} (${describeModeState(modeState)}). Use /freeflow mode conversation, /freeflow mode workflow, /freeflow mode strict-workflow, or /freeflow mode reset.`,
-    "info"
-  );
-  return { changed: false, modeState, error: arg ? "invalid_mode" : undefined };
+	const modeState = await readModeState(ctx.cwd);
+	setModeStatus(ctx, modeState, capabilityState);
+	ctx.ui.notify(
+		`Freeflow mode is ${modeState.effectiveMode} (${describeModeState(modeState)}). Use /freeflow mode conversation, /freeflow mode workflow, /freeflow mode strict-workflow, or /freeflow mode reset.`,
+		"info",
+	);
+	return { changed: false, modeState, error: arg ? "invalid_mode" : undefined };
 }

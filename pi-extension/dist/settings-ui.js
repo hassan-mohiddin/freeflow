@@ -7,6 +7,7 @@ const STORAGE_POLICY_VALUES = ["hybrid-dedupe", "store-everything"];
 const OBSERVED_PERSISTENCE_VALUES = ["none", "metadata-only", "exact"];
 const SCRIPT_LANGUAGES = ["javascript", "python", "jq"];
 const DEFAULT_FREEFLOW_ENABLED = true;
+const DEFAULT_INTERACTION_CONTRACT_ENABLED = true;
 const DEFAULT_SKILLS_ENABLED = true;
 const MODE_VALUES = ["conversation", "workflow", "strict-workflow"];
 const MODE_LABELS = {
@@ -83,7 +84,8 @@ function setConfigValue(config, item, value) {
     if (!item.path?.length) {
         throw new Error(`${item.label} is a settings group, not a writable setting.`);
     }
-    if (item.defaultValue !== undefined && valuesEqual(value, item.defaultValue)) {
+    if (item.defaultValue !== undefined &&
+        valuesEqual(value, item.defaultValue)) {
         deletePath(config, item.path);
         return;
     }
@@ -94,7 +96,10 @@ function setConfigValue(config, item, value) {
     setPath(config, item.path, value);
 }
 function parseStringList(text) {
-    return text.split(",").map((item) => item.trim()).filter(Boolean);
+    return text
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
 }
 function parsePositiveInteger(text) {
     const value = Number(text.trim());
@@ -129,7 +134,9 @@ function booleanValue(value) {
     return value === true ? "enabled" : "disabled";
 }
 function normalizedSettingsConfig(rawConfig) {
-    const rawRouter = isRecord(rawConfig.outputRouter) ? rawConfig.outputRouter : {};
+    const rawRouter = isRecord(rawConfig.outputRouter)
+        ? rawConfig.outputRouter
+        : {};
     const normalized = normalizeFreeflowConfig({
         ...rawConfig,
         outputRouter: { ...rawRouter, enabled: true },
@@ -223,7 +230,9 @@ function outputRouterItems(rawConfig, freeflowInactive = false) {
             description: "TTL retention for vaulted output. Set a positive integer; default is 7 days.",
             path: ["outputRouter", "vault", "retention", "ttlDays"],
             kind: "integer",
-            value: router.vault.retention?.strategy === "ttl" ? router.vault.retention.ttlDays : DEFAULT_VAULT_RETENTION.ttlDays,
+            value: router.vault.retention?.strategy === "ttl"
+                ? router.vault.retention.ttlDays
+                : DEFAULT_VAULT_RETENTION.ttlDays,
             defaultValue: DEFAULT_VAULT_RETENTION.ttlDays,
             parse: parsePositiveInteger,
             inactive,
@@ -321,7 +330,7 @@ function outputRouterItems(rawConfig, freeflowInactive = false) {
         {
             id: "outputRouter.observedRouting.mcp.servers",
             label: "MCP servers JSON",
-            description: "JSON object keyed by MCP server id. Example: {\"github\":{\"enabled\":true,\"persistence\":\"exact\"}}",
+            description: 'JSON object keyed by MCP server id. Example: {"github":{"enabled":true,"persistence":"exact"}}',
             path: ["outputRouter", "observedRouting", "mcp", "servers"],
             kind: "json",
             value: observedRouting.mcp?.servers ?? {},
@@ -380,29 +389,44 @@ function delegationHarnessItems(rawConfig, freeflowInactive = false) {
 function freeflowItems(rawConfig, modeState) {
     const freeflowEnabled = getPath(rawConfig, ["enabled"]) !== false;
     const freeflowInactive = !freeflowEnabled;
+    const interactionContractEnabled = getPath(rawConfig, ["interactionContract"]) !== false;
     const skillsConfig = getPath(rawConfig, ["skills"]);
     const skillsEnabled = !isRecord(skillsConfig) || skillsConfig.enabled !== false;
     const rawDefaultMode = rawConfig.defaultMode;
-    const defaultMode = typeof rawDefaultMode === "string" && VALID_MODES.has(rawDefaultMode) ? rawDefaultMode : "workflow";
+    const defaultMode = typeof rawDefaultMode === "string" && VALID_MODES.has(rawDefaultMode)
+        ? rawDefaultMode
+        : "workflow";
     const sessionMode = modeState?.currentMode ?? "default";
     const routerItems = outputRouterItems(rawConfig, freeflowInactive);
-    const routerEnabled = routerItems.find((item) => item.id === "outputRouter.enabled")?.value === true;
+    const routerEnabled = routerItems.find((item) => item.id === "outputRouter.enabled")?.value ===
+        true;
     const delegationItems = delegationHarnessItems(rawConfig, freeflowInactive);
-    const delegationEnabled = delegationItems.find((item) => item.id === "delegationHarness.enabled")?.value === true;
+    const delegationEnabled = delegationItems.find((item) => item.id === "delegationHarness.enabled")
+        ?.value === true;
     return [
         {
             id: "freeflow.enabled",
             label: "Freeflow",
-            description: "Master switch for Freeflow skills, runtime context, output routing, delegation, and observed/native routing in this repo.",
+            description: "Master switch for the Interaction Contract, Freeflow skills, output routing, delegation, and observed/native routing in this repo.",
             path: ["enabled"],
             kind: "boolean",
             value: freeflowEnabled,
             defaultValue: DEFAULT_FREEFLOW_ENABLED,
         },
         {
+            id: "freeflow.interactionContract",
+            label: "Interaction Contract",
+            description: "Apply Freeflow's compact turn-interpretation and collaboration guidance.",
+            path: ["interactionContract"],
+            kind: "boolean",
+            value: interactionContractEnabled,
+            defaultValue: DEFAULT_INTERACTION_CONTRACT_ENABLED,
+            inactive: freeflowInactive,
+        },
+        {
             id: "freeflow.skills.enabled",
             label: "Skills",
-            description: "Expose Freeflow skills, inject the compact runtime kernel, and load Workflow once on the first turn.",
+            description: "Expose Freeflow skills and load Workflow once on the first turn.",
             path: ["skills", "enabled"],
             kind: "boolean",
             value: skillsEnabled,
@@ -458,24 +482,32 @@ function freeflowItems(rawConfig, modeState) {
     ];
 }
 function migrateLegacyRouterConfig(config) {
-    const outputRouter = isRecord(config.outputRouter) ? config.outputRouter : undefined;
+    const outputRouter = isRecord(config.outputRouter)
+        ? config.outputRouter
+        : undefined;
     if (!outputRouter)
         return;
-    if (config.scriptTransform !== undefined && outputRouter.scriptTransform === undefined) {
+    if (config.scriptTransform !== undefined &&
+        outputRouter.scriptTransform === undefined) {
         outputRouter.scriptTransform = config.scriptTransform;
         delete config.scriptTransform;
     }
-    if (config.observedRouting !== undefined && outputRouter.observedRouting === undefined) {
+    if (config.observedRouting !== undefined &&
+        outputRouter.observedRouting === undefined) {
         outputRouter.observedRouting = config.observedRouting;
         delete config.observedRouting;
     }
-    const thresholds = isRecord(outputRouter.thresholds) ? outputRouter.thresholds : {};
-    if (outputRouter.largeOutputBytes !== undefined && thresholds.largeOutputBytes === undefined) {
+    const thresholds = isRecord(outputRouter.thresholds)
+        ? outputRouter.thresholds
+        : {};
+    if (outputRouter.largeOutputBytes !== undefined &&
+        thresholds.largeOutputBytes === undefined) {
         thresholds.largeOutputBytes = outputRouter.largeOutputBytes;
         outputRouter.thresholds = thresholds;
         delete outputRouter.largeOutputBytes;
     }
-    if (outputRouter.largeOutputLines !== undefined && thresholds.largeOutputLines === undefined) {
+    if (outputRouter.largeOutputLines !== undefined &&
+        thresholds.largeOutputLines === undefined) {
         thresholds.largeOutputLines = outputRouter.largeOutputLines;
         outputRouter.thresholds = thresholds;
         delete outputRouter.largeOutputLines;
@@ -486,18 +518,24 @@ function migrateLegacyRouterConfig(config) {
         outputRouter.vault = vault;
         delete outputRouter.vaultRoot;
     }
-    if (outputRouter.vaultRetentionDays !== undefined && !isRecord(vault.retention)) {
-        vault.retention = { strategy: "ttl", ttlDays: outputRouter.vaultRetentionDays };
+    if (outputRouter.vaultRetentionDays !== undefined &&
+        !isRecord(vault.retention)) {
+        vault.retention = {
+            strategy: "ttl",
+            ttlDays: outputRouter.vaultRetentionDays,
+        };
         outputRouter.vault = vault;
         delete outputRouter.vaultRetentionDays;
     }
     const hints = isRecord(outputRouter.hints) ? outputRouter.hints : {};
-    if (outputRouter.generatedPaths !== undefined && hints.generatedPathGlobs === undefined) {
+    if (outputRouter.generatedPaths !== undefined &&
+        hints.generatedPathGlobs === undefined) {
         hints.generatedPathGlobs = outputRouter.generatedPaths;
         outputRouter.hints = hints;
         delete outputRouter.generatedPaths;
     }
-    if (outputRouter.noisyCommandHints !== undefined && hints.noisyCommandPatterns === undefined) {
+    if (outputRouter.noisyCommandHints !== undefined &&
+        hints.noisyCommandPatterns === undefined) {
         hints.noisyCommandPatterns = outputRouter.noisyCommandHints;
         outputRouter.hints = hints;
         delete outputRouter.noisyCommandHints;
@@ -506,28 +544,86 @@ function migrateLegacyRouterConfig(config) {
 function pruneKnownDefaults(config) {
     const defaultPaths = [
         { path: ["enabled"], value: DEFAULT_FREEFLOW_ENABLED },
+        {
+            path: ["interactionContract"],
+            value: DEFAULT_INTERACTION_CONTRACT_ENABLED,
+        },
         { path: ["skills", "enabled"], value: DEFAULT_SKILLS_ENABLED },
         { path: ["outputRouter", "enabled"], value: DEFAULT_OUTPUT_ROUTER_ENABLED },
-        { path: ["outputRouter", "postToolRouting"], value: DEFAULT_POST_TOOL_ROUTING },
+        {
+            path: ["outputRouter", "postToolRouting"],
+            value: DEFAULT_POST_TOOL_ROUTING,
+        },
         { path: ["outputRouter", "storagePolicy"], value: DEFAULT_STORAGE_POLICY },
-        { path: ["outputRouter", "thresholds", "largeOutputBytes"], value: DEFAULT_ROUTER_THRESHOLDS.largeOutputBytes },
-        { path: ["outputRouter", "thresholds", "largeOutputLines"], value: DEFAULT_ROUTER_THRESHOLDS.largeOutputLines },
+        {
+            path: ["outputRouter", "thresholds", "largeOutputBytes"],
+            value: DEFAULT_ROUTER_THRESHOLDS.largeOutputBytes,
+        },
+        {
+            path: ["outputRouter", "thresholds", "largeOutputLines"],
+            value: DEFAULT_ROUTER_THRESHOLDS.largeOutputLines,
+        },
         { path: ["outputRouter", "vault", "root"], value: DEFAULT_VAULT_ROOT },
-        { path: ["outputRouter", "vault", "retention", "ttlDays"], value: DEFAULT_VAULT_RETENTION.ttlDays },
-        { path: ["outputRouter", "scriptTransform", "enabled"], value: DEFAULT_SCRIPT_TRANSFORM_CONFIG.enabled },
-        { path: ["outputRouter", "scriptTransform", "sandbox"], value: DEFAULT_SCRIPT_TRANSFORM_CONFIG.sandbox },
-        { path: ["outputRouter", "scriptTransform", "languages"], value: DEFAULT_SCRIPT_TRANSFORM_CONFIG.languages },
-        { path: ["outputRouter", "scriptTransform", "network"], value: DEFAULT_SCRIPT_TRANSFORM_CONFIG.network },
-        { path: ["outputRouter", "scriptTransform", "rawScriptPersistence"], value: DEFAULT_SCRIPT_TRANSFORM_CONFIG.rawScriptPersistence },
-        { path: ["outputRouter", "scriptTransform", "limits", "timeoutMs"], value: DEFAULT_SCRIPT_TRANSFORM_CONFIG.limits.timeoutMs },
-        { path: ["outputRouter", "scriptTransform", "limits", "maxInputBytes"], value: DEFAULT_SCRIPT_TRANSFORM_CONFIG.limits.maxInputBytes },
-        { path: ["outputRouter", "scriptTransform", "limits", "maxOutputBytes"], value: DEFAULT_SCRIPT_TRANSFORM_CONFIG.limits.maxOutputBytes },
-        { path: ["outputRouter", "observedRouting", "enabled"], value: DEFAULT_OBSERVED_ROUTING_CONFIG.enabled },
-        { path: ["outputRouter", "observedRouting", "onRoutingFailure"], value: DEFAULT_OBSERVED_ROUTING_CONFIG.onRoutingFailure },
-        { path: ["outputRouter", "observedRouting", "mcp", "servers"], value: DEFAULT_OBSERVED_ROUTING_CONFIG.mcp.servers },
-        { path: ["outputRouter", "observedRouting", "web", "enabled"], value: DEFAULT_OBSERVED_ROUTING_CONFIG.web.enabled },
-        { path: ["outputRouter", "observedRouting", "fetch", "enabled"], value: DEFAULT_OBSERVED_ROUTING_CONFIG.fetch.enabled },
-        { path: ["outputRouter", "observedRouting", "codeSearch", "enabled"], value: DEFAULT_OBSERVED_ROUTING_CONFIG.codeSearch.enabled },
+        {
+            path: ["outputRouter", "vault", "retention", "ttlDays"],
+            value: DEFAULT_VAULT_RETENTION.ttlDays,
+        },
+        {
+            path: ["outputRouter", "scriptTransform", "enabled"],
+            value: DEFAULT_SCRIPT_TRANSFORM_CONFIG.enabled,
+        },
+        {
+            path: ["outputRouter", "scriptTransform", "sandbox"],
+            value: DEFAULT_SCRIPT_TRANSFORM_CONFIG.sandbox,
+        },
+        {
+            path: ["outputRouter", "scriptTransform", "languages"],
+            value: DEFAULT_SCRIPT_TRANSFORM_CONFIG.languages,
+        },
+        {
+            path: ["outputRouter", "scriptTransform", "network"],
+            value: DEFAULT_SCRIPT_TRANSFORM_CONFIG.network,
+        },
+        {
+            path: ["outputRouter", "scriptTransform", "rawScriptPersistence"],
+            value: DEFAULT_SCRIPT_TRANSFORM_CONFIG.rawScriptPersistence,
+        },
+        {
+            path: ["outputRouter", "scriptTransform", "limits", "timeoutMs"],
+            value: DEFAULT_SCRIPT_TRANSFORM_CONFIG.limits.timeoutMs,
+        },
+        {
+            path: ["outputRouter", "scriptTransform", "limits", "maxInputBytes"],
+            value: DEFAULT_SCRIPT_TRANSFORM_CONFIG.limits.maxInputBytes,
+        },
+        {
+            path: ["outputRouter", "scriptTransform", "limits", "maxOutputBytes"],
+            value: DEFAULT_SCRIPT_TRANSFORM_CONFIG.limits.maxOutputBytes,
+        },
+        {
+            path: ["outputRouter", "observedRouting", "enabled"],
+            value: DEFAULT_OBSERVED_ROUTING_CONFIG.enabled,
+        },
+        {
+            path: ["outputRouter", "observedRouting", "onRoutingFailure"],
+            value: DEFAULT_OBSERVED_ROUTING_CONFIG.onRoutingFailure,
+        },
+        {
+            path: ["outputRouter", "observedRouting", "mcp", "servers"],
+            value: DEFAULT_OBSERVED_ROUTING_CONFIG.mcp.servers,
+        },
+        {
+            path: ["outputRouter", "observedRouting", "web", "enabled"],
+            value: DEFAULT_OBSERVED_ROUTING_CONFIG.web.enabled,
+        },
+        {
+            path: ["outputRouter", "observedRouting", "fetch", "enabled"],
+            value: DEFAULT_OBSERVED_ROUTING_CONFIG.fetch.enabled,
+        },
+        {
+            path: ["outputRouter", "observedRouting", "codeSearch", "enabled"],
+            value: DEFAULT_OBSERVED_ROUTING_CONFIG.codeSearch.enabled,
+        },
         { path: ["delegationHarness", "enabled"], value: false },
     ];
     for (const item of defaultPaths) {
@@ -536,13 +632,29 @@ function pruneKnownDefaults(config) {
         }
     }
     for (const producer of ["web", "fetch", "codeSearch"]) {
-        const enabledPath = ["outputRouter", "observedRouting", producer, "enabled"];
-        const persistencePath = ["outputRouter", "observedRouting", producer, "persistence"];
-        if (getPath(config, enabledPath) !== true && getPath(config, persistencePath) === "none") {
+        const enabledPath = [
+            "outputRouter",
+            "observedRouting",
+            producer,
+            "enabled",
+        ];
+        const persistencePath = [
+            "outputRouter",
+            "observedRouting",
+            producer,
+            "persistence",
+        ];
+        if (getPath(config, enabledPath) !== true &&
+            getPath(config, persistencePath) === "none") {
             deletePath(config, persistencePath);
         }
     }
-    const servers = getPath(config, ["outputRouter", "observedRouting", "mcp", "servers"]);
+    const servers = getPath(config, [
+        "outputRouter",
+        "observedRouting",
+        "mcp",
+        "servers",
+    ]);
     if (isRecord(servers) && Object.keys(servers).length === 0) {
         deletePath(config, ["outputRouter", "observedRouting", "mcp", "servers"]);
     }
@@ -562,7 +674,9 @@ function valueForDisplay(item) {
         value = booleanValue(item.value);
     }
     else if (item.kind === "group") {
-        const status = typeof item.value === "boolean" ? booleanValue(item.value) : String(item.value ?? "");
+        const status = typeof item.value === "boolean"
+            ? booleanValue(item.value)
+            : String(item.value ?? "");
         const count = item.children?.length ?? 0;
         value = count > 0 ? `${status} (${count})` : status;
     }
@@ -626,7 +740,9 @@ function findSettingsItem(items, id) {
     for (const item of items) {
         if (item.id === id)
             return item;
-        const child = item.children ? findSettingsItem(item.children, id) : undefined;
+        const child = item.children
+            ? findSettingsItem(item.children, id)
+            : undefined;
         if (child)
             return child;
     }
@@ -652,14 +768,23 @@ class FreeflowSettingsComponent {
         this.keybindings = keybindings;
         const initialChoice = options.initialChoice;
         this.frames = initialChoice
-            ? [{
+            ? [
+                {
                     title: options.title,
                     items: [],
                     selected: Math.max(0, initialChoice.values?.indexOf(String(initialChoice.value)) ?? 0),
                     search: "",
                     choiceFor: initialChoice,
-                }]
-            : [{ title: options.title, items: options.items, selected: 0, search: "" }];
+                },
+            ]
+            : [
+                {
+                    title: options.title,
+                    items: options.items,
+                    selected: 0,
+                    search: "",
+                },
+            ];
     }
     render(width) {
         const lines = [];
@@ -679,12 +804,14 @@ class FreeflowSettingsComponent {
         lines.push(this.searchLine(frame, width));
         lines.push("");
         if (frame.items.length === 0) {
-            lines.push(this.theme.fg?.("dim", "  No settings available") ?? "  No settings available");
+            lines.push(this.theme.fg?.("dim", "  No settings available") ??
+                "  No settings available");
             lines.push(this.border(width));
             return lines;
         }
         if (items.length === 0) {
-            lines.push(this.theme.fg?.("dim", "  No matching settings") ?? "  No matching settings");
+            lines.push(this.theme.fg?.("dim", "  No matching settings") ??
+                "  No matching settings");
             lines.push("");
             lines.push(truncate(this.theme.fg?.("dim", hint) ?? hint, width));
             lines.push(this.border(width));
@@ -699,7 +826,9 @@ class FreeflowSettingsComponent {
             const selected = index === frame.selected;
             const prefix = selected ? "› " : "  ";
             const label = item.label.padEnd(maxLabel);
-            const value = this.editItem?.id === item.id ? `[${this.editBuffer}]` : valueForDisplay(item);
+            const value = this.editItem?.id === item.id
+                ? `[${this.editBuffer}]`
+                : valueForDisplay(item);
             const groupMarker = item.children?.length ? " ›" : "";
             const inactive = item.inactive ? " inactive" : "";
             const line = truncate(`${prefix}${label}  ${value}${groupMarker}${inactive}`, width);
@@ -737,7 +866,8 @@ class FreeflowSettingsComponent {
         }
         const items = this.displayItems(frame);
         this.clampSelection(frame, items.length);
-        if (this.matches(data, "tui.editor.deleteCharBackward", isBackspace) && frame.search) {
+        if (this.matches(data, "tui.editor.deleteCharBackward", isBackspace) &&
+            frame.search) {
             frame.search = frame.search.slice(0, -1);
             frame.selected = 0;
         }
@@ -748,13 +878,16 @@ class FreeflowSettingsComponent {
         }
         else if (this.matches(data, "tui.select.up", isUp)) {
             if (items.length > 0)
-                frame.selected = frame.selected === 0 ? items.length - 1 : frame.selected - 1;
+                frame.selected =
+                    frame.selected === 0 ? items.length - 1 : frame.selected - 1;
         }
         else if (this.matches(data, "tui.select.down", isDown)) {
             if (items.length > 0)
-                frame.selected = frame.selected === items.length - 1 ? 0 : frame.selected + 1;
+                frame.selected =
+                    frame.selected === items.length - 1 ? 0 : frame.selected + 1;
         }
-        else if (this.matches(data, "tui.select.confirm", isEnter) || data === " ") {
+        else if (this.matches(data, "tui.select.confirm", isEnter) ||
+            data === " ") {
             this.activateSelected();
         }
         else if (this.matches(data, "tui.select.cancel", isEscape)) {
@@ -779,7 +912,8 @@ class FreeflowSettingsComponent {
         return matchesKeybinding(this.keybindings, data, keybinding, fallback);
     }
     border(width) {
-        return this.theme.fg?.("border", "─".repeat(Math.max(1, width))) ?? "─".repeat(Math.max(1, width));
+        return (this.theme.fg?.("border", "─".repeat(Math.max(1, width))) ??
+            "─".repeat(Math.max(1, width)));
     }
     searchLine(frame, width) {
         const cursor = this.theme.fg?.("accent", "█") ?? "█";
@@ -804,7 +938,8 @@ class FreeflowSettingsComponent {
             lines.push(selected ? (this.theme.fg?.("accent", line) ?? line) : line);
         }
         lines.push("");
-        lines.push(truncate(this.theme.fg?.("dim", "  Enter to select · Esc to go back") ?? "  Enter to select · Esc to go back", width));
+        lines.push(truncate(this.theme.fg?.("dim", "  Enter to select · Esc to go back") ??
+            "  Enter to select · Esc to go back", width));
         lines.push(this.border(width));
         return lines;
     }
@@ -812,12 +947,14 @@ class FreeflowSettingsComponent {
         const values = frame.choiceFor?.values ?? [];
         if (this.matches(data, "tui.select.up", isUp)) {
             if (values.length > 0)
-                frame.selected = frame.selected === 0 ? values.length - 1 : frame.selected - 1;
+                frame.selected =
+                    frame.selected === 0 ? values.length - 1 : frame.selected - 1;
             return;
         }
         if (this.matches(data, "tui.select.down", isDown)) {
             if (values.length > 0)
-                frame.selected = frame.selected === values.length - 1 ? 0 : frame.selected + 1;
+                frame.selected =
+                    frame.selected === values.length - 1 ? 0 : frame.selected + 1;
             return;
         }
         if (this.matches(data, "tui.select.confirm", isEnter) || data === " ") {
@@ -875,7 +1012,12 @@ class FreeflowSettingsComponent {
             return;
         }
         if (item.children?.length) {
-            this.frames.push({ title: item.label, items: item.children, selected: 0, search: "" });
+            this.frames.push({
+                title: item.label,
+                items: item.children,
+                selected: 0,
+                search: "",
+            });
             return;
         }
         if (item.kind === "boolean") {
@@ -909,10 +1051,13 @@ class FreeflowSettingsComponent {
             this.message = "Edit cancelled.";
             return;
         }
-        if (this.matches(data, "tui.input.submit", isEnter) || this.matches(data, "tui.select.confirm", isEnter)) {
+        if (this.matches(data, "tui.input.submit", isEnter) ||
+            this.matches(data, "tui.select.confirm", isEnter)) {
             const item = this.editItem;
             try {
-                const parsed = item.parse ? item.parse(this.editBuffer) : this.editBuffer;
+                const parsed = item.parse
+                    ? item.parse(this.editBuffer)
+                    : this.editBuffer;
                 this.editItem = null;
                 this.editBuffer = "";
                 this.applyValue(item, parsed);
@@ -936,7 +1081,9 @@ class FreeflowSettingsComponent {
         this.refreshDerivedState();
         this.changed = true;
         this.message = `${item.label} = ${valueForDisplay(item)}`;
-        this.pending = this.pending.then(() => this.options.onChange(item, value)).catch((error) => {
+        this.pending = this.pending
+            .then(() => this.options.onChange(item, value))
+            .catch((error) => {
             const message = error instanceof Error ? error.message : String(error);
             this.message = `Write failed: ${message}`;
         });
@@ -944,21 +1091,29 @@ class FreeflowSettingsComponent {
     refreshDerivedState() {
         const freeflowItem = findSettingsItem(this.options.items, "freeflow.enabled");
         const freeflowInactive = freeflowItem ? freeflowItem.value !== true : false;
-        const skillsEnabled = findSettingsItem(this.options.items, "freeflow.skills.enabled")?.value === true;
-        const routerEnabled = findSettingsItem(this.options.items, "outputRouter.enabled")?.value === true;
-        const delegationEnabled = findSettingsItem(this.options.items, "delegationHarness.enabled")?.value === true;
+        const skillsEnabled = findSettingsItem(this.options.items, "freeflow.skills.enabled")?.value ===
+            true;
+        const routerEnabled = findSettingsItem(this.options.items, "outputRouter.enabled")?.value ===
+            true;
+        const delegationEnabled = findSettingsItem(this.options.items, "delegationHarness.enabled")
+            ?.value === true;
         const sessionModeItem = findSettingsItem(this.options.items, "freeflow.sessionMode");
         const defaultModeItem = findSettingsItem(this.options.items, "freeflow.defaultMode");
         const routerGroup = findSettingsItem(this.options.items, "outputRouter.group");
         const delegationGroup = findSettingsItem(this.options.items, "delegationHarness.group");
         if (defaultModeItem) {
-            defaultModeItem.displaySuffix = !freeflowInactive && !skillsEnabled ? "(inactive)" : undefined;
+            defaultModeItem.displaySuffix =
+                !freeflowInactive && !skillsEnabled ? "(inactive)" : undefined;
         }
         if (sessionModeItem) {
             const defaultMode = String(defaultModeItem?.value ?? "workflow");
             sessionModeItem.inactive = freeflowInactive || !skillsEnabled;
-            sessionModeItem.displaySuffix = sessionModeItem.value === "default" ? `(${defaultMode})` : undefined;
-            sessionModeItem.valueDescriptions = { default: defaultMode, ...MODE_DESCRIPTIONS };
+            sessionModeItem.displaySuffix =
+                sessionModeItem.value === "default" ? `(${defaultMode})` : undefined;
+            sessionModeItem.valueDescriptions = {
+                default: defaultMode,
+                ...MODE_DESCRIPTIONS,
+            };
         }
         if (routerGroup) {
             routerGroup.value = routerEnabled;
@@ -975,10 +1130,12 @@ class FreeflowSettingsComponent {
             else if (candidate.id === "freeflow.sessionMode") {
                 candidate.inactive = freeflowInactive || !skillsEnabled;
             }
-            else if (candidate.id === "outputRouter.group" || candidate.id === "delegationHarness.group") {
+            else if (candidate.id === "outputRouter.group" ||
+                candidate.id === "delegationHarness.group") {
                 candidate.inactive = freeflowInactive;
             }
-            else if (candidate.id === "outputRouter.enabled" || candidate.id === "delegationHarness.enabled") {
+            else if (candidate.id === "outputRouter.enabled" ||
+                candidate.id === "delegationHarness.enabled") {
                 candidate.inactive = freeflowInactive;
             }
             else if (candidate.id.startsWith("outputRouter.")) {
@@ -1053,6 +1210,7 @@ function freeflowStatusText(state) {
     }
     return [
         `Freeflow: ${state.enabled ? "enabled" : "disabled"}`,
+        `interaction contract: ${state.interactionContract.effective ? "enabled" : "disabled"}`,
         `skills: ${state.skills.effective ? "enabled" : "disabled (workflow modes inactive)"}`,
         `output router: ${state.outputRouter.enabled ? "enabled" : "disabled"}`,
         `delegation harness: ${state.delegationHarness.enabled ? "enabled" : "disabled"}`,
@@ -1071,7 +1229,9 @@ function delegationHarnessStatusText(state) {
     return `Delegation Harness: ${state.delegationHarness.enabled ? "enabled" : "disabled"}${details}${inactive}`;
 }
 function actionIsMutation(action) {
-    return action === "" || action === "settings" || ["enable", "on", "true", "disable", "off", "false"].includes(action);
+    return (action === "" ||
+        action === "settings" ||
+        ["enable", "on", "true", "disable", "off", "false"].includes(action));
 }
 async function maybeBlockLayerMutation(action, ctx, layerName) {
     if (!actionIsMutation(action))
@@ -1093,7 +1253,10 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi) {
     const actionValue = rest.join(" ");
     const configState = await readFreeflowConfigState(ctx.cwd);
     const raw = configState.valid ? await readFreeflowConfig(ctx.cwd) : {};
-    const [state, modeState] = await Promise.all([readCapabilityState(ctx.cwd), readModeState(ctx.cwd)]);
+    const [state, modeState] = await Promise.all([
+        readCapabilityState(ctx.cwd),
+        readModeState(ctx.cwd),
+    ]);
     if (action === "status") {
         ctx.ui.notify(freeflowStatusText(state), "info");
         return { changed: false, reloaded: false };
@@ -1174,7 +1337,10 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi) {
             }
         },
     });
-    return { changed, reloaded: configChanged && typeof ctx.reload === "function" };
+    return {
+        changed,
+        reloaded: configChanged && typeof ctx.reload === "function",
+    };
 }
 export async function handleOutputRouterCommand(args, ctx, afterChange) {
     const action = (args ?? "").trim().toLowerCase();
@@ -1184,7 +1350,9 @@ export async function handleOutputRouterCommand(args, ctx, afterChange) {
     }
     if (action === "status") {
         const state = await readCapabilityState(ctx.cwd);
-        const prefix = !state.configured || !state.enabled ? `${freeflowStatusText(state)}; ` : "";
+        const prefix = !state.configured || !state.enabled
+            ? `${freeflowStatusText(state)}; `
+            : "";
         ctx.ui.notify(`${prefix}${outputRouterStatusText(raw)}`, !state.configured || !state.enabled ? "warning" : "info");
         return { changed: false, reloaded: false };
     }

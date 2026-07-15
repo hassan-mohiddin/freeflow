@@ -2,9 +2,18 @@ import { constants as fsConstants } from "node:fs";
 import { access, readFile, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { DEFAULT_OBSERVED_ROUTING_CONFIG, DEFAULT_OUTPUT_ROUTER_ENABLED, DEFAULT_OUTPUT_ROUTER_PROFILE, DEFAULT_POST_TOOL_ROUTING, DEFAULT_ROUTER_THRESHOLDS, DEFAULT_SCRIPT_TRANSFORM_CONFIG, DEFAULT_STORAGE_POLICY, OBSERVED_ROUTING_PERSISTENCE_MODES, RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES, DEFAULT_VAULT_RETENTION, DEFAULT_VAULT_ROOT, defaultScriptTransformAdaptersHome, createLocalVaultIndex, createVault, discoverEryxPythonSandboxAdaptersFromEnv, discoverJqWasmSandboxAdaptersFromEnv, discoverQuickJsWasiSandboxAdaptersFromEnv, normalizeFreeflowConfig, normalizeLocalFreeflowConfig, probeScriptSandboxAdapters, } from "../../router/dist/index.js";
-import { VALID_MODES, readCapabilityState, readModeState } from "./runtime-context.js";
+import { VALID_MODES, readCapabilityState, readModeState, } from "./runtime-context.js";
 const STATUS_ACTIONS = new Set(["status", "doctor", "migration"]);
-const TOP_LEVEL_CONFIG_KEYS = new Set(["enabled", "defaultMode", "skills", "outputRouter", "delegationHarness", "observedRouting", "scriptTransform"]);
+const TOP_LEVEL_CONFIG_KEYS = new Set([
+    "enabled",
+    "defaultMode",
+    "interactionContract",
+    "skills",
+    "outputRouter",
+    "delegationHarness",
+    "observedRouting",
+    "scriptTransform",
+]);
 const OUTPUT_ROUTER_CONFIG_KEYS = new Set([
     "enabled",
     "profile",
@@ -22,24 +31,47 @@ const OUTPUT_ROUTER_CONFIG_KEYS = new Set([
     "observedRouting",
     "scriptTransform",
 ]);
-const OBSERVED_ROUTING_CONFIG_KEYS = new Set(["enabled", "onRoutingFailure", "mcp", "web", "fetch", "codeSearch"]);
+const OBSERVED_ROUTING_CONFIG_KEYS = new Set([
+    "enabled",
+    "onRoutingFailure",
+    "mcp",
+    "web",
+    "fetch",
+    "codeSearch",
+]);
 const OBSERVED_ROUTING_PRODUCER_KEYS = new Set(["enabled", "persistence"]);
 const OBSERVED_ROUTING_MCP_KEYS = new Set(["servers"]);
-const SCRIPT_TRANSFORM_CONFIG_KEYS = new Set(["enabled", "sandbox", "languages", "network", "limits", "rawScriptPersistence"]);
+const SCRIPT_TRANSFORM_CONFIG_KEYS = new Set([
+    "enabled",
+    "sandbox",
+    "languages",
+    "network",
+    "limits",
+    "rawScriptPersistence",
+]);
 export async function buildFreeflowStatusReport(params = {}, ctx) {
     const action = normalizeStatusAction(params.action);
     const configFile = await readConfigFile(ctx.cwd);
     const localConfigFile = await readLocalConfigFile(ctx.cwd);
     const normalized = normalizeFreeflowConfig(configFile.parsed);
     const localNormalized = normalizeLocalFreeflowConfig(localConfigFile.parsed);
-    const [modeState, runtimeState] = await Promise.all([readModeState(ctx.cwd), readCapabilityState(ctx.cwd)]);
+    const [modeState, runtimeState] = await Promise.all([
+        readModeState(ctx.cwd),
+        readCapabilityState(ctx.cwd),
+    ]);
     const effectiveFreeflowConfig = runtimeState.enabled
         ? normalized.config
         : {
             ...normalized.config,
             outputRouter: { ...normalized.config.outputRouter, enabled: false },
-            observedRouting: { ...normalized.config.observedRouting, enabled: false },
-            scriptTransform: { ...normalized.config.scriptTransform, enabled: false },
+            observedRouting: {
+                ...normalized.config.observedRouting,
+                enabled: false,
+            },
+            scriptTransform: {
+                ...normalized.config.scriptTransform,
+                enabled: false,
+            },
         };
     const vault = createVault({
         root: effectiveFreeflowConfig.outputRouter.vault.root,
@@ -50,7 +82,9 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
     if (configFile.parseError) {
         configWarnings.unshift(`.freeflow/config.json could not be parsed; using built-in defaults. ${configFile.parseError}`);
     }
-    if (isRecord(configFile.parsed) && configFile.parsed.defaultMode !== undefined && !VALID_MODES.has(configFile.parsed.defaultMode)) {
+    if (isRecord(configFile.parsed) &&
+        configFile.parsed.defaultMode !== undefined &&
+        !VALID_MODES.has(configFile.parsed.defaultMode)) {
         configWarnings.push(`Invalid defaultMode=${JSON.stringify(configFile.parsed.defaultMode)}; using workflow.`);
     }
     if (localConfigFile.parseError) {
@@ -64,7 +98,10 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
     const [vaultWritability, vaultIndex, scriptSandbox] = await Promise.all([
         inspectVaultWritability(vault.root),
         inspectVaultIndex(vault),
-        probeScriptSandboxAdapters({ config: effectiveFreeflowConfig.scriptTransform, adapters: scriptSandboxAdapters }),
+        probeScriptSandboxAdapters({
+            config: effectiveFreeflowConfig.scriptTransform,
+            adapters: scriptSandboxAdapters,
+        }),
     ]);
     const migration = migrationReport(configFile.parsed);
     return {
@@ -79,6 +116,7 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
         effectiveConfig: {
             configured: runtimeState.configured,
             enabled: runtimeState.enabled,
+            interactionContract: runtimeState.interactionContract,
             skills: runtimeState.skills,
             delegationHarness: runtimeState.delegationHarness,
             outputRouter: {
@@ -96,6 +134,7 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
         effectiveLocalConfig: localNormalized.config,
         effectiveDefaults: {
             enabled: true,
+            interactionContract: true,
             skills: { enabled: true },
             outputRouter: {
                 enabled: DEFAULT_OUTPUT_ROUTER_ENABLED,
@@ -143,7 +182,13 @@ async function readConfigFile(cwd) {
         const raw = await readFile(path, "utf8");
         try {
             const parsed = JSON.parse(raw);
-            return { path, exists: true, raw, parsed: isRecord(parsed) ? parsed : {}, parseError: null };
+            return {
+                path,
+                exists: true,
+                raw,
+                parsed: isRecord(parsed) ? parsed : {},
+                parseError: null,
+            };
         }
         catch (error) {
             const message = error instanceof Error ? error.message : String(error);
@@ -160,7 +205,13 @@ async function readLocalConfigFile(cwd) {
         const raw = await readFile(path, "utf8");
         try {
             const parsed = JSON.parse(raw);
-            return { path, exists: true, raw, parsed: isRecord(parsed) ? parsed : {}, parseError: null };
+            return {
+                path,
+                exists: true,
+                raw,
+                parsed: isRecord(parsed) ? parsed : {},
+                parseError: null,
+            };
         }
         catch (error) {
             const message = error instanceof Error ? error.message : String(error);
@@ -175,7 +226,10 @@ async function inspectVaultWritability(root) {
     try {
         const rootStats = await stat(root);
         if (!rootStats.isDirectory()) {
-            return { status: "not_directory", detail: "Vault root exists but is not a directory." };
+            return {
+                status: "not_directory",
+                detail: "Vault root exists but is not a directory.",
+            };
         }
         await access(root, fsConstants.W_OK | fsConstants.X_OK);
         return { status: "writable", detail: "Vault root exists and is writable." };
@@ -186,9 +240,15 @@ async function inspectVaultWritability(root) {
             return inspectMissingVaultRoot(root);
         }
         if (code === "EACCES" || code === "EPERM") {
-            return { status: "not_writable", detail: `Vault root exists but is not writable (${code}).` };
+            return {
+                status: "not_writable",
+                detail: `Vault root exists but is not writable (${code}).`,
+            };
         }
-        return { status: "unknown", detail: `Could not determine vault writability (${code ?? "unknown"}).` };
+        return {
+            status: "unknown",
+            detail: `Could not determine vault writability (${code ?? "unknown"}).`,
+        };
     }
 }
 async function inspectVaultIndex(vault) {
@@ -215,18 +275,30 @@ async function inspectVaultIndex(vault) {
 async function inspectMissingVaultRoot(root) {
     const ancestor = await nearestExistingAncestor(dirname(root));
     if (!ancestor) {
-        return { status: "missing_ancestor_unavailable", detail: "Vault root does not exist and no existing writable ancestor could be found. No directory was created." };
+        return {
+            status: "missing_ancestor_unavailable",
+            detail: "Vault root does not exist and no existing writable ancestor could be found. No directory was created.",
+        };
     }
     if (!ancestor.stats.isDirectory()) {
-        return { status: "missing_ancestor_unavailable", detail: `Nearest existing ancestor is not a directory: ${ancestor.path}. No directory was created.` };
+        return {
+            status: "missing_ancestor_unavailable",
+            detail: `Nearest existing ancestor is not a directory: ${ancestor.path}. No directory was created.`,
+        };
     }
     try {
         await access(ancestor.path, fsConstants.W_OK | fsConstants.X_OK);
-        return { status: "missing_ancestor_writable", detail: `Vault root does not exist; nearest existing ancestor is writable: ${ancestor.path}. Recursive vault creation should be possible. No directory was created.` };
+        return {
+            status: "missing_ancestor_writable",
+            detail: `Vault root does not exist; nearest existing ancestor is writable: ${ancestor.path}. Recursive vault creation should be possible. No directory was created.`,
+        };
     }
     catch (error) {
         const code = error && typeof error === "object" ? error.code : undefined;
-        return { status: "missing_ancestor_unavailable", detail: `Vault root does not exist and nearest existing ancestor is not writable: ${ancestor.path} (${code ?? "unknown"}). No directory was created.` };
+        return {
+            status: "missing_ancestor_unavailable",
+            detail: `Vault root does not exist and nearest existing ancestor is not writable: ${ancestor.path} (${code ?? "unknown"}). No directory was created.`,
+        };
     }
 }
 async function nearestExistingAncestor(startPath) {
@@ -265,7 +337,11 @@ function scriptTransformStatus(config, sandboxReport) {
         network: config.network,
         limits: config.limits,
         rawScriptPersistence: config.rawScriptPersistence,
-        executionStatus: config.enabled && sandboxReport.adapterAvailable ? "available" : config.enabled ? "adapter_unavailable" : "disabled",
+        executionStatus: config.enabled && sandboxReport.adapterAvailable
+            ? "available"
+            : config.enabled
+                ? "adapter_unavailable"
+                : "disabled",
         adapterHome,
         setupCommand: "node <plugin-root>/router/dist/setup/script-transform-adapters.js install --config .freeflow/config.json",
         notes: [
@@ -319,7 +395,9 @@ function observedRoutingStatus(config) {
         fetch: config.fetch,
         codeSearch: config.codeSearch,
         persistenceModes: [...OBSERVED_ROUTING_PERSISTENCE_MODES],
-        unsupportedPersistenceModes: [...RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES],
+        unsupportedPersistenceModes: [
+            ...RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES,
+        ],
         notes: [
             "Observed routing is off unless outputRouter.enabled, outputRouter.observedRouting.enabled, and the individual producer/server are enabled.",
             "redacted persistence is reserved for future work; unsupported redacted config falls back to metadata-only.",
