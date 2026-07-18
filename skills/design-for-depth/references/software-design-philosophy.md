@@ -56,7 +56,7 @@ Freeflow translation:
 
 - Do not redesign everything up front.
 - Do stop when the local patch clearly makes the next slice, review, or bug fix harder.
-- Route backward when the plan is tactical but the work is becoming structural.
+- Return the structural evidence to [Workflow](../../workflow/SKILL.md) when a tactical patch is becoming structural work.
 
 ## Parnas: Information Hiding
 
@@ -170,8 +170,8 @@ Public flexibility has permanent coordination cost. One outcome-level operation 
 
 Classify mechanisms before adding them:
 
-- trust and safety can be bootstrap requirements;
-- efficiency, scale, and portability require observed pressure and approved scope.
+- required trust and safety cannot be deferred merely to simplify the design;
+- efficiency, scale, and portability require accepted requirements or observed pressure.
 
 When the best interface cannot be known from source inspection, use a bounded learning slice. Name the question, competing designs, evidence, cost boundary, and discard-or-promote rule. Code can answer a design question without becoming the production design automatically.
 
@@ -198,7 +198,7 @@ Classify it:
 
 ## Applying The Philosophy In Freeflow
 
-### In discovery
+### In discussion
 
 Use design ideas to ask better questions, not to freeze architecture.
 
@@ -229,9 +229,9 @@ Requirement: implement NotificationDeliveryPortFactoryStrategy.
 
 ### In plans
 
-Plan around vertical behavior and interfaces. Keep the immediate phase concrete and later phases provisional when implementation evidence may change them.
+Use [Write Plan](../../write-plan/SKILL.md) only when the ordered strategy can be stated without guessing. When later direction remains provisional, keep it in [Track Work](../../track-work/SKILL.md) or return the evidence to [Workflow](../../workflow/SKILL.md) rather than freezing it as a Plan.
 
-For consequential systems, failure contract -> happy path -> refactor/deepen. Do not leave failure behavior as an implementer guess after happy-path planning.
+For consequential systems, make failure behavior explicit before implementation choices harden. Do not leave it as an implementer guess after planning only the happy path.
 
 A good slice can be verified through the intended interface. If the slice requires broad caller choreography, revise the slice.
 

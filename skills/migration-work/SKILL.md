@@ -1,118 +1,115 @@
 ---
 name: migration-work
-description: Use when replacing, sunsetting, or removing an API, feature, dependency, schema, configuration, service, or implementation; migrating callers, users, traffic, or data; defining compatibility and rollback; or proving that legacy behavior can be removed safely.
+description: Use when replacing an existing software or data path and moving its consumers, state, or traffic safely.
 ---
 
 # Migration Work
 
-Move consumers safely, then remove the old path with evidence.
+Move consumers, state, or traffic to an accepted replacement without losing compatibility, evidence, or recovery options.
 
-A deprecation notice is not a migration. A replacement existing is not proof that callers moved. Code becomes removable only when its behavior, consumers, state, and rollback obligations are understood.
+A replacement existing does not prove that consumers moved. A migration unit may be complete while the old path remains under an accepted support contract. Removal is a separate claim with separate evidence and authority.
 
-## Route First
+## Establish Authority And Scope
 
-Use `../decision-gate/SKILL.md` before choosing:
+Loading this skill, discussing a migration, or approving a general implementation Plan does not authorize migration, deprecation, cutover, destructive cleanup, or removal. Execute only the stages and units explicitly requested or separately approved.
+
+Use [Decision Gate](../decision-gate/SKILL.md) when any of these remain unresolved:
 
 - whether the old behavior should be maintained, deprecated, or removed;
-- advisory versus compulsory migration, deadlines, and support windows;
+- advisory versus compulsory migration, deadlines, or support windows;
 - compatibility, public API, data conversion, downtime, permissions, billing, security, privacy, or data-loss behavior;
 - irreversible cutover, destructive cleanup, or rollback limits.
 
-Do not manufacture a migration merely because code looks old. Inspect ownership, usage, source truth, incidents, maintenance cost, and consumer value first.
+Do not manufacture a migration because code looks old. Inspect ownership, supported consumers, runtime use, source truth, incidents, maintenance cost, and current value.
 
-If the replacement behavior or interface is unsettled, route to Discover, `../design-for-depth/SKILL.md`, or spec revision before planning migration mechanics.
+When replacement behavior, interfaces, ownership, or failure semantics remain unsettled, return that evidence to [Workflow](../workflow/SKILL.md). Use [Discuss](../discuss/SKILL.md) for open direction, [Design for Depth](../design-for-depth/SKILL.md) for design-bearing boundaries, and [Write Spec](../write-spec/SKILL.md) when accepted migration behavior needs a durable contract.
 
-## Establish The Contract
+## Define The Migration Contract
 
-Before editing, identify:
+Before moving anything, establish:
 
 ```text
 Old contract and current value:
 Replacement contract and known differences:
 Consumers / callers / data / traffic:
-Compatibility promise:
+Compatibility promise and support window:
 Migration unit and ordering:
 State written during transition:
 Verification for each unit:
 Rollback or forward-recovery path:
 Removal proof:
 Owner decisions and stop conditions:
+Approved stages and scope:
 ```
 
-Read [the migration lifecycle](references/migration-lifecycle.md) for API, code, configuration, traffic, or data migration shapes and removal evidence.
+Read [the migration lifecycle](references/migration-lifecycle.md) when choosing an API, code, configuration, dependency, feature, traffic, or data shape. Use only the stages required by the accepted migration; do not force every migration through one sequence.
 
-Treat undocumented observable behavior as possible consumer dependency until evidence says otherwise. Do not preserve every quirk automatically; surface consequential differences for decision.
+Treat undocumented observable behavior as a possible consumer dependency until evidence says otherwise. Do not preserve every quirk automatically; surface consequential differences for decision.
 
-## Expand
+## Prepare The Replacement
 
-Introduce the replacement or additive contract without breaking the old path.
+When an additive or replacement stage is approved:
 
-- Prove the replacement through the real caller seam.
-- Keep old and new ownership explicit.
-- Add compatibility adapters, flags, dual reads/writes, or translation only when the migration contract requires them.
-- Give temporary compatibility machinery an owner, purpose, exit condition, and removal checkpoint.
-- Do not add new features to the old path unless required for safety or an explicit support decision.
+- prove the replacement through the real caller path or interface;
+- keep old and new ownership explicit;
+- add adapters, flags, aliases, translation, or dual reads/writes only when the migration contract requires them;
+- give temporary compatibility machinery an owner, purpose, failure behavior, exit condition, and removal evidence;
+- do not add features to the old path unless required for safety or an explicit support decision.
 
-A migration without a viable replacement may still be necessary for an emergency security or data-safety reason, but that route requires explicit owner direction and a documented failure contract.
+If compatibility machinery starts spreading caller knowledge, public states, or exceptions, return the structural evidence to Workflow rather than building a second permanent system.
 
-## Migrate
+An emergency migration without a viable replacement may be necessary for security or data safety, but it requires explicit owner direction, bounded impact, and a documented failure and recovery contract.
 
-Move one bounded consumer, cohort, traffic segment, configuration set, or data partition at a time.
+## Move Bounded Units
+
+Move one accepted consumer, cohort, traffic segment, configuration set, or data partition at a time.
 
 For each unit:
 
-1. capture the pre-migration state or baseline;
+1. capture the relevant pre-migration state or baseline;
 2. apply the migration through the intended path;
-3. verify behavior, data, errors, permissions, and relevant operational signals;
+3. verify behavior, data, errors, permissions, and operational signals at the required boundary;
 4. confirm rollback or forward recovery remains possible;
-5. record remaining consumers and route-changing evidence.
+5. preserve evidence and account for remaining units.
 
-Do not infer migration completion from code search alone when runtime, external, dormant, generated, or independently deployed consumers may exist.
+Code search alone cannot prove completion when runtime, external, dormant, generated, offline, or independently deployed consumers may exist.
 
-Stop when:
+Stop and return evidence to Workflow when replacement behavior diverges, unknown consumers appear, a new owner decision is required, data cannot be reconciled, recovery assumptions fail, compatibility machinery spreads, or the next safe unit is unclear. Preserve completed units; do not restart the whole migration automatically.
 
-- replacement behavior diverges from the accepted contract;
-- unknown consumers or hidden dependencies appear;
-- migration requires a new public or failure behavior decision;
-- data cannot be reconciled or rollback assumptions fail;
-- compatibility machinery spreads caller knowledge or becomes a second permanent system;
-- remaining work grows or the next bounded migration unit is unclear.
+## Remove The Old Path
 
-Preserve completed evidence and route only the affected contract, plan, or cohort backward.
-
-## Contract
-
-Remove the old path only after the accepted removal proof is satisfied.
+Remove or disable the old path only when that stage is explicitly authorized and the accepted removal proof is satisfied.
 
 Check, as relevant:
 
-- active and dormant consumers are accounted for;
-- traffic, telemetry, dependency analysis, or explicit owner confirmation supports zero remaining use;
+- supported active and dormant consumers are accounted for;
+- runtime, telemetry, dependency, or owner evidence supports the absence claim;
 - data and configuration are reconciled;
-- rollback obligations and observation windows are complete;
+- compatibility, support-window, observation, and recovery obligations have ended;
 - old code, adapters, flags, tests, docs, alerts, dashboards, secrets, jobs, and configuration are classified for removal or retention;
-- the replacement remains verified without the old path.
+- the replacement remains verified with the old path disabled or absent.
 
-Do not delete source truth or historical migration evidence merely to make search results clean. Update current docs and contracts; preserve durable history where the repo expects it.
+Do not delete source truth or historical migration evidence merely to make searches clean. If current docs or contracts would become false, return them to Workflow and update them only when they are included in the approved migration or removal scope. Preserve durable history where repository policy requires it.
 
-## Review And Verification
+## Verification And Review
 
-Select independent review under Workflow for public contracts, consequential data movement, destructive cleanup, security/privacy boundaries, large consumer sets, or irreversible cutover. Reversible migration learning does not require review by default.
+Read [Verify Work](../verify-work/SKILL.md) for each migration-unit, compatibility, reconciliation, and absence claim. “The new path passes” does not prove “the old path is unused.” Missing telemetry is unavailable evidence, not zero use.
 
-Verification must prove the migration unit and the absence claim being made. “New path passes” does not prove “old path is unused.” “No source references” does not prove “no deployed consumers.”
+Return the need for broader judgment to Workflow when the migration changes public contracts, moves consequential data, crosses security or privacy boundaries, affects many consumers, or performs irreversible cutover or cleanup. Workflow selects any independent review; this skill supplies the migration boundary and evidence.
 
-Use `../verify-work/SKILL.md` for claim-to-evidence matching and `../launch-work/SKILL.md` when migration includes production rollout.
+Use [Release Work](../release-work/SKILL.md) when the replacement must be published as a versioned artifact. Use [Launch Work](../launch-work/SKILL.md) when migration stages change production traffic, data, configuration, or exposure.
 
-## Completion
+## Report Completion Precisely
 
 Report:
 
+- approved migration scope and completed units;
 - replacement and compatibility status;
-- migrated and remaining consumers or data;
+- remaining consumers, state, traffic, or observation windows;
 - verification and operational evidence;
-- rollback or recovery status;
+- rollback or forward-recovery status;
 - legacy components removed and deliberately retained;
-- unresolved decisions and residual risk;
-- next migration, observation, removal, or stop route.
+- unresolved decisions, uncertainty, and residual risk;
+- next approved unit, removal boundary, deferment, or stop route.
 
-Do not call a deprecation complete while supported consumers remain, and do not call a migration complete while the legacy path still lacks an accepted removal decision.
+A migration unit is complete when its accepted consumers or state moved and its required evidence holds. A scoped migration may complete while the legacy path remains under an accepted support contract. Removal is complete only when its separate authorization and proof are satisfied.

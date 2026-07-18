@@ -1,15 +1,19 @@
 ---
 name: commit-work
-description: Use when creating a git commit or simple push, deciding whether a verified slice is a coherent rollback checkpoint, inspecting staged, unstaged, untracked, generated, sensitive, or mixed changes, or handling broad “commit everything” pressure.
+description: Use when committing work, including selecting and staging the intended changes, creating and verifying the commit, or explicitly pushing committed work.
 ---
 
 # Commit Work
 
 Commit an intended, coherent checkpoint. A commit preserves rollback and provenance; it does not prove correctness or approve the next route.
 
-This skill covers commits and simple pushes, not branch integration, release, or deployment orchestration. Use `../finish-branch/SKILL.md`, `../release-work/SKILL.md`, or `../launch-work/SKILL.md` for those later jobs.
+This skill covers commits and simple pushes, not branch integration, release, or deployment orchestration. Use [Finish Branch](../finish-branch/SKILL.md), [Release Work](../release-work/SKILL.md), or [Launch Work](../launch-work/SKILL.md) for those later jobs.
 
-A commit does not trigger independent review. Require review only when Workflow has selected a consequential boundary or repository policy explicitly requires it. Fresh verification is required for the claim the commit represents.
+A local commit is authorized by an explicit user request, a checkpoint in a user-approved Plan, or a checkpoint explicitly approved during discussion. A Working Record may preserve that authorization but cannot create it. Plan approval does not authorize push, integration, migration, deprecation, release, or launch.
+
+A planned checkpoint remains conditional on live state. Do not force it when its intended outcome, evidence, review status, or change boundary no longer holds; return the deviation to [Workflow](../workflow/SKILL.md).
+
+A commit does not select or trigger independent review. Complete only review selected by Workflow, an approved Plan, or repository policy. Commit Work does not adjudicate findings or authorize corrections or follow-up review. Fresh verification is required for the claim the commit represents.
 
 Read [staging decisions](references/staging-decisions.md) when changes are mixed, generated files or durable docs appear, existing staged state is unclear, or broad commit/push language conflicts with diff evidence.
 
@@ -19,12 +23,12 @@ Before staging, confirm:
 
 - the slice or work package has one coherent outcome;
 - source truth and owner decisions still support it;
-- fresh evidence proves the claim represented by the commit;
-- required review has passed or its non-blocking residuals are explicit;
-- no unresolved blocker, required evidence gap, or route-changing assumption remains inside the checkpoint;
-- a commit is useful now for rollback, integration, handoff, or repository workflow.
+- fresh evidence supports the claim represented by the commit, or an explicitly requested preservation checkpoint names its incomplete claim honestly;
+- any selected review has ended, its adjudicated status is known, and Workflow supports the checkpoint route;
+- no unresolved blocker, required evidence gap, or route-changing assumption is hidden by the checkpoint claim;
+- the checkpoint remains authorized and useful for rollback, integration, handoff, or repository workflow.
 
-If the user explicitly requests a checkpoint of incomplete or unverified work, label it honestly and do not present it as a completed feature or verified fix. Stop when the requested commit would hide an unsafe or ambiguous state.
+When review or evidence leaves unresolved work, return it to Workflow rather than deciding readiness here. If the user explicitly requests a preservation checkpoint of incomplete, unverified, blocked, or inconclusive work, label that state honestly and include only what is safe and useful to preserve. The commit does not authorize crossing the unresolved boundary.
 
 ## Inspect
 
@@ -59,7 +63,7 @@ Stop before commit or push when:
 - the commit mixes separable concerns in a way that harms review, diagnosis, or rollback;
 - product, security, privacy, billing, permissions, data-loss, compatibility, public API, migration, or architecture behavior changed without an explicit decision.
 
-Use `../decision-gate/SKILL.md` when the safe commit path depends on an owner or source-truth decision. If a clean narrow commit is possible without touching unrelated work, prefer it and report what remains.
+Use [Decision Gate](../decision-gate/SKILL.md) when the safe commit path depends on an owner or source-truth decision. If a clean narrow commit is possible without touching unrelated work, prefer it and report what remains.
 
 ## Commit Shape
 
@@ -97,4 +101,6 @@ Report:
 - remaining staged, unstaged, untracked, unpushed, or unverified work;
 - recommended next route.
 
-Do not continue to the next slice or integrate the branch merely because the commit succeeded. Return to the execution route check or `finish-branch` when branch closeout is the selected route.
+When a Working Record exists, use [Track Work](../track-work/SKILL.md) to record the commit SHA, checkpoint result, remaining state, and next useful action.
+
+Do not continue to the next slice, push, or integrate merely because the commit succeeded. Return the result to [Workflow](../workflow/SKILL.md), or use [Finish Branch](../finish-branch/SKILL.md) when branch closeout is selected.

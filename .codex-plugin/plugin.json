@@ -1,7 +1,7 @@
 {
   "name": "freeflow",
   "version": "0.3.0",
-  "description": "Lightweight workflow for coding agents.",
+  "description": "Feedback-based control system for coding agents.",
   "author": {
     "name": "Hassan Mohiddin"
   },
@@ -12,16 +12,19 @@
     "workflow",
     "skills",
     "agents",
+    "feedback-loop",
+    "task-memory",
     "planning",
     "verification",
+    "review",
     "codex",
     "claude"
   ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Freeflow",
-    "shortDescription": "Lightweight workflow for coding agents.",
-    "longDescription": "Freeflow guides coding agents through conversation, workflow, and strict-workflow modes with decision gates, source-truth checks, planning, execution, review, verification, commit discipline, handoffs, and durable decision capture.",
+    "shortDescription": "Feedback-based control for coding agents.",
+    "longDescription": "Freeflow gives coding agents an Interaction Contract, evidence-driven Workflow, focused methods, and durable task memory across conversation, workflow, and strict-workflow modes.",
     "developerName": "Hassan Mohiddin",
     "category": "Coding",
     "capabilities": [

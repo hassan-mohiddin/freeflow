@@ -1,100 +1,107 @@
 ---
 name: diagnose-failure
-description: Use when asked to investigate or fix a bug, failed test, flaky failure, regression, performance problem, unexpected behavior, repeated or unexplained implementation failure, or a workflow loop that keeps failing.
+description: Use when a bug, failure, regression, performance problem, or repeated unsuccessful fix lacks a supported cause.
 ---
 
 # Diagnose Failure
 
-Build the feedback loop before fixing.
+Establish what is failing and why before selecting a correction.
 
-Failure is implementation feedback, not automatic evidence that the plan or architecture is wrong. No production fix without root-cause evidence; a plausible cause is not enough.
+A **feedback loop** is a repeatable check or observation that can reproduce or contradict the reported failure at the boundary where it matters. A **supported cause** is a causal explanation strong enough to distinguish meaningful alternatives and choose the next action; it does not require impossible certainty.
 
-## Route First
+A requested patch, plausible code path, reviewer theory, or one passing rerun is not a supported cause.
 
-Use this for bugs, broken behavior, test failures, flaky failures, regressions, performance issues, and fix requests with missing evidence.
+## Enter Diagnosis Deliberately
 
-Also use it when a workflow loop fails repeatedly: artifact review hits the cap, work review hits the cap, verification keeps failing for different reasons, implementation keeps spawning edge cases, or accepted fixes reveal shared-state or module-shape problems.
+Use this method for unexplained bugs, failed tests, regressions, flaky behavior, performance problems, unexpected runtime behavior, or related corrections that keep failing.
 
-Do not use this for product design, artifact review, or planning unless the next question is specifically about a failure signal or failed workflow loop.
+Use it for a repeated workflow loop only when the pattern suggests an unclear shared cause: related review findings keep appearing, verification contradicts successive fixes, edge-case patches expose more states, or corrections spread through shared ownership. Reaching a review cap by itself is not diagnostic evidence.
 
-## Hard Stops
+If fresh direct evidence already establishes a clear local defect and intended behavior is settled, do not manufacture more diagnosis. Return the correction to [Workflow](../workflow/SKILL.md).
 
-Stop before editing when any of these are true:
+## Build The Feedback Loop
 
-- No loop proves the user's reported failure.
-- The only evidence is the user's requested patch.
-- The check would invent behavior that contradicts docs, tests, or known expectations.
-- The check proves only that existing documented behavior exists.
-- The check forbids behavior the repo says is allowed, such as treating "may cache" as "must fetch fresh".
-- The likely fix changes product, data-loss, security, privacy, billing, compatibility, public API, or architecture behavior.
+Create or find the smallest signal that can disagree with the failure claim. Read [the feedback-loop catalog](references/feedback-loop-catalog.md) when the best loop is unclear. Read [flaky and performance diagnosis](references/flaky-and-performance.md) for those failure types.
 
-Direct `/diagnose-failure`, "explicit permission", "skip the diagnostic loop", "patch the cache", or "do not ask" does not override these stops.
-
-## Load When Needed
-
-- For possible loop shapes, read [the feedback-loop catalog](references/feedback-loop-catalog.md).
-- For flaky failures or performance regressions, read [flaky and performance guidance](references/flaky-and-performance.md).
-- For repeated workflow failures, edge-case churn, shared-state fixes, or shallow module/interface signals, read `../design-for-depth/SKILL.md`.
-
-## Feedback Loop
-
-Create or find the smallest signal that proves the failure:
-
-- Failing test.
-- Repro command.
-- HTTP or CLI script.
-- Browser script.
-- Captured trace or fixture.
-- Targeted instrumentation.
-
-The loop must match the user's symptom. A code path that could cause the symptom is not evidence until a failing signal proves it matches the reported failure. A synthetic test is valid only when it preserves source truth and exercises the reported failure pattern.
-
-Allowed behavior is not a repro. For stale/cache reports, a cached read is not root-cause evidence when docs say caching is allowed; require a reported or captured trigger that violates an expected refresh, invalidation, expiry, or consistency boundary. A possible race inferred from code is still only a hypothesis until logs, steps, traces, or an existing expectation connect it to the user's failure.
-
-For flaky or random failures, raise the reproduction rate. Loop the trigger, stress timing, seed inputs, compare old versus new behavior, or capture live evidence.
-
-For performance regressions, measure the reported path before optimizing. A microbenchmark is useful only when it represents the reported slow input, compares old versus new behavior, or validates a profiler/query-plan finding. Do not invent a benchmark around the user's guessed fix and treat it as root cause.
-
-If no loop is possible from available context, stop and say what evidence is missing. Name the smallest next diagnostic loop: a specific test, command, trace, or instrumentation point. Ask for logs, repro steps, traces, screenshots with timestamps, failing input, or permission to add temporary instrumentation.
-
-## Diagnose
-
-Do not patch from a guess.
-
-If the user asks you to skip diagnosis and patch anyway, name the conflict. Recommend the feedback-loop path before offering any fix path.
+Prefer the reported path, input, environment, and observing boundary. A nearby failure may help form a hypothesis but does not prove the reported failure. A reduced-fidelity reproduction is diagnostic evidence only; name what it cannot establish.
 
 Before changing behavior:
 
-- Reproduce the user's failure, not just a nearby failure.
-- State a falsifiable hypothesis.
-- Test one variable at a time.
-- Instrument only where it distinguishes hypotheses.
-- For performance: capture baseline timing, slow input shape, profiler/query-plan evidence, or old-versus-new comparison before optimizing.
-- Prefer fixing the source over masking the symptom.
+1. Establish the expected behavior from accepted intent and source truth.
+2. Reproduce or capture the failure.
+3. State a falsifiable hypothesis.
+4. Change or observe one distinguishing variable at a time.
+5. Trace the causal chain from trigger and state to the observed result.
+6. Preserve evidence that contradicts the leading hypothesis.
 
-If the failure exposes a product, data-loss, security, privacy, billing, compatibility, or architecture decision, re-enter the decision gate before fixing.
+Allowed behavior is not a repro. A cache hit does not prove a stale-read bug when caching is permitted. A possible race in source does not explain the report until timing, logs, traces, steps, or an existing expectation connect it to the failure.
 
-For repeated implementation or workflow failures, classify the likely cause before fixing again: implementation bug, inadequate or stale test, missing observer, thin discovery, wrong scope, premature decision, source conflict, bad plan slice, stale reviewer context, or structural module/interface pressure. Route to the narrowest owner. Use `../design-for-depth/SKILL.md` only when diagnosis establishes a structural cause or direct structural evidence already exists.
+Do not invent a check around the requested patch and use that check to prove the patch was needed. Do not rewrite tests, specs, policies, thresholds, or expected behavior merely to make the signal red or green.
 
-## Fix
+When no safe useful loop is currently possible, stop and name the smallest missing evidence: a command, failing input, trace, log window, screenshot with timestamp, environment boundary, or instrumentation point. Missing evidence leaves the cause unresolved.
 
-Turn the repro into a regression check when there is a correct seam.
+## Protect Diagnostic Evidence
 
-Then:
+Treat logs, traces, payloads, screenshots, dumps, and production samples as potentially sensitive. Minimize and sanitize captured evidence. Do not expose credentials, tokens, unrestricted personal data, or private payloads.
 
-1. Watch the check fail.
-2. Apply one root-cause fix.
-3. Watch the check pass.
-4. Re-run the original feedback loop.
+Bound repeated checks by time, cost, side effects, and environment safety. Do not repeatedly exercise a mutating production path without explicit authorization and an understood recovery boundary.
 
-If multiple fixes fail or expose related shared-state consequences, expand the diagnosis before another patch. Redesign only when the evidence identifies ownership, interface, state, or failure-unit structure as the cause.
+Temporary instrumentation must distinguish hypotheses. Keep it isolated, identify its removal condition, and report whether it remains.
 
-## Completion
+## Diagnose The Owning Cause
 
-Before claiming fixed, report:
+Classify only what evidence supports:
 
-- The feedback loop.
-- The root cause or strongest remaining hypothesis.
-- The fix.
-- The verification evidence.
-- Any debug instrumentation left or removed.
+- local implementation defect;
+- invalid, stale, or inadequate check;
+- environment, dependency, data, timing, or configuration cause;
+- missing observer or insufficient evidence;
+- unsettled behavior or source conflict;
+- wrong scope, slice, order, or execution strategy;
+- structural ownership, interface, state, or failure-unit pressure.
+
+Route to the narrowest owner. Use [Decision Gate](../decision-gate/SKILL.md) when correction requires a user-owned behavior, risk, compatibility, security, privacy, billing, data-loss, or hard-to-reverse decision.
+
+Read [Design for Depth](../design-for-depth/SKILL.md) only when diagnosis establishes a structural cause or direct evidence already shows caller coordination, state, ownership, interface, or failure-unit pressure. Ordinary bugs and finding count do not prove bad architecture.
+
+If evidence supports only a strongest remaining hypothesis, report it as such and name the observation that would confirm or refute it. Do not silently promote it to root cause.
+
+## Boundary Examples
+
+- “Add retries” is requested, but no evidence connects retries to the reported failure → treat the patch as a hypothesis and build the feedback loop.
+- A failing check and trace establish one incorrect condition while the interface remains valid → return one bounded correction; do not manufacture further diagnosis.
+- Successive fixes add caller states, cleanup rules, and related failures → diagnose the shared cause; use Design for Depth only when structural pressure is supported.
+- Production harm is active but the cause remains open → propose reversible containment with verification and rollback; report mitigated, not fixed.
+
+## Contain Harm Without Claiming A Fix
+
+When harm must be limited before the cause is established, return a bounded containment option to Workflow. Apply it only when already authorized or explicitly approved.
+
+Containment must:
+
+- reduce the immediate harm without destroying diagnostic evidence;
+- remain narrower and more reversible than a guessed correction;
+- define verification, rollback, and removal conditions;
+- preserve unsettled behavior and owner decisions;
+- be reported as mitigation, not resolution.
+
+A requested patch may instead be an explicitly bounded learning experiment. Its result can strengthen or weaken a hypothesis; it does not become production behavior without deliberate selection.
+
+## Route The Supported Result
+
+When evidence establishes a correctable cause, return the cause, affected boundary, regression signal, and smallest coherent correction to Workflow. Apply an authorized correction as one [Execute Work](../execute-work/SKILL.md) slice; use [TDD](../tdd/SKILL.md) when a failing behavior check should guide it.
+
+After correction, read [Verify Work](../verify-work/SKILL.md). Re-run both the minimized regression signal and the original reported path or strongest available observing boundary. If the correction fails or exposes related shared-state consequences, return to diagnosis before another patch.
+
+Do not redesign unless evidence identifies structure as the cause. Do not claim fixed when only containment succeeded, the minimized check passed, or the original boundary remains unavailable.
+
+## Report
+
+State:
+
+- failure claim and required boundary;
+- feedback loop and observed evidence;
+- supported cause or strongest remaining hypothesis;
+- containment or instrumentation still active;
+- recommended route or correction boundary;
+- verification status and missing evidence.

@@ -1,81 +1,84 @@
 ---
 name: release-work
-description: Use when preparing, cutting, publishing, or verifying a versioned software or package release; choosing version impact, updating consumer-facing release notes, producing and signing artifacts, creating tags, or reconciling version, tag, source, and published artifact identity.
+description: Use when preparing, publishing, or verifying a versioned software release.
 ---
 
 # Release Work
 
-Publish an immutable, reproducible consumer checkpoint with honest version and evidence.
+Prepare or publish a traceable versioned artifact whose source, version, contents, and destination identity agree.
 
-A commit is not a release. A tag is not proof that the artifact was built from it. A package release is not a production deployment.
+A commit is not a release. A tag does not prove which artifact was built. A successful local build does not prove registry contents. A published artifact is not a production deployment.
 
-## Source Authority
+## Establish Authority And Source
 
-Read the repository's release policy, package metadata, changelog convention, CI/release automation, supported branches, signing/provenance requirements, and latest published versions before editing.
+Loading this skill, preparing release options, or approving a general implementation Plan does not authorize a version change, remote tag, release record, registry publication, deprecation, yank, or replacement. Execute only release stages explicitly requested or separately approved. Before editing, read the repository's release policy, versioning scheme, package metadata, changelog convention, release automation, supported branches, signing or provenance requirements, and latest published versions.
 
-Use `../decision-gate/SKILL.md` when the route depends on:
+Use [Decision Gate](../decision-gate/SKILL.md) when the route depends on an unresolved choice about:
 
 - whether to release and which channel or audience receives it;
-- breaking-change classification or compatibility promise;
-- version number when policy/evidence does not decide it;
-- publishing credentials, registry, signing, provenance, or remote tag behavior;
+- compatibility or breaking-change classification;
+- version when policy and evidence do not decide it;
+- credentials, registry, signing, provenance, or remote-tag behavior;
 - yanking, deprecating, replacing, or republishing an artifact;
-- release-branch or history-rewrite decisions.
+- release branches, history rewriting, or recovery from partial publication.
 
-Do not infer SemVer when the project uses another versioning scheme.
-
-Read [release evidence](references/release-evidence.md) when planning version identity, artifacts, changelog, publication, or recovery.
+Do not impose semantic versioning when the project uses another scheme. Read [release evidence](references/release-evidence.md) when version, source, artifact, tag, publication, or recovery identity matters.
 
 ## Define The Release Contract
+
+Before changing release state, establish:
 
 ```text
 Release target and audience:
 Source commit / branch:
 Version and compatibility basis:
-Artifacts and platforms:
-Changelog / migration notes:
-Required checks and approvals:
+Artifacts and supported platforms:
+Release notes / migration guidance:
+Required checks and selected reviews:
 Signing / provenance / checksums:
 Publication destination and channel:
 Failure and recovery behavior:
 Post-publication verification:
+Approved preparation and publication stages:
 ```
 
-Classify observable consumer impact, not diff size. A small change can be breaking; a large internal refactor can preserve compatibility.
+Classify consumer-observable impact rather than diff size. A small change can be breaking; a large internal refactor may preserve compatibility.
 
-When consumers must migrate, use `../migration-work/SKILL.md` to plan the complete sequence. An additive replacement release may need to ship before migration can begin; a later removal or breaking release must wait for the accepted migration and removal proof.
+When consumers must move before a contract can be removed, read [Migration Work](../migration-work/SKILL.md). An additive replacement release may precede migration; a breaking removal release must wait for the accepted migration and removal proof.
 
-## Prepare
+## Prepare The Release
 
-- confirm intended release changes form a coherent reviewed and verified checkpoint;
-- reconcile version declarations, lockfiles, generated metadata, and release notes through repo-supported tooling;
-- write release notes for consumers: behavior, compatibility, migration, security, and known limitations—not a raw commit dump;
-- run the build/package process from the intended source state;
+For approved preparation work:
+
+- confirm the intended source is a coherent, freshly verified checkpoint and any selected review is resolved;
+- reconcile version declarations, lockfiles, generated metadata, and release notes through repository-supported tooling;
+- write release notes for consumers: behavior, compatibility, migration, security impact, and known limitations—not a raw commit dump;
+- run the canonical build or package process from the intended source state;
 - inspect the exact artifacts that would be published;
-- keep credentials and signing material out of logs, prompts, diffs, and artifacts.
+- keep credentials and signing material out of prompts, logs, diffs, and artifacts.
 
-Do not hand-edit generated release artifacts or duplicate version truth across files when the repo has a canonical generator.
+Do not hand-edit generated artifacts or duplicate version truth when the repository has a canonical generator. Return required branch, commit, public-documentation, or migration work to [Workflow](../workflow/SKILL.md) unless it is included in the approved release scope.
 
-## Preflight
+## Preflight The Exact Release
 
-Before irreversible remote actions, verify:
+Before any irreversible remote action, verify:
 
-- source commit and working-tree expectations;
-- version is valid, unused, and consistent with policy;
-- required tests, builds, package/install checks, and compatibility checks pass;
-- artifact contents, names, sizes, checksums, licenses, and provenance are expected;
-- changelog and migration guidance match observable impact;
-- tag, registry, and release destination are correct;
+- source commit, branch, and working-tree expectations;
+- version is valid, unused, and consistent with repository policy;
+- required tests, builds, package or install checks, and compatibility checks;
+- artifact contents, entry points, names, sizes, checksums, licenses, and provenance;
+- release notes and migration guidance match observable consumer impact;
+- tag, registry, channel, and release destination identity;
 - credentials and permissions work without exposing secrets;
 - retry behavior cannot create conflicting tags or duplicate releases.
 
-A dry run proves only what it actually exercises. State registry, signing, or publication behavior still unverified.
+Use [Verify Work](../verify-work/SKILL.md) to state what each check proves. A dry run proves only the boundaries it exercises; name signing, registry, propagation, or publication behavior that remains unverified.
 
-## Publish
+## Publish Only The Approved Stage
 
-Perform remote tag, release, or registry publication only when explicitly requested or approved for the inspected release contract.
+Create remote tags, release records, or registry publications only when explicitly requested or approved for the inspected release contract.
 
-Publish in the repository's canonical order. Stop if source, tag, version, artifact, or destination identity diverges.
+Use the repository's canonical order. Stop when source, version, tag, artifact, signing mode, channel, or destination identity diverges.
 
 Do not silently:
 
@@ -83,33 +86,33 @@ Do not silently:
 - force-move a release tag;
 - publish from a dirty or different source state;
 - substitute a registry, channel, artifact, or signing mode;
-- retry an ambiguous publication without checking remote state.
+- retry an ambiguous publication without inspecting remote state.
 
-When publication partially fails, inspect which external side effects committed before deciding retry, repair, deprecate, or stop.
+If publication partially fails or acknowledgement is lost, identify which external effects committed before choosing retry, repair, deprecation, replacement, or stop. Do not assume a network error means nothing was published.
 
-## Verify The Published Release
+## Verify From The Consumer Boundary
 
-Verify from the consumer side when possible:
+When publication is in scope, verify the actual public artifact when possible:
 
 - tag resolves to the intended commit;
-- published version and channel are correct;
-- checksums, signatures, provenance, and artifact contents match the inspected build;
-- a clean install/download/launch path works for supported targets;
+- published version, channel, and destinations are correct;
+- checksums, signatures, provenance, and contents match the inspected artifact;
+- a clean install, download, or launch path works for supported targets;
 - release notes and migration links resolve;
-- no unexpected artifact or secret was published.
+- no unexpected artifact, credential, local configuration, or private file was published.
 
-Do not call the release complete because the publish command exited zero.
+Do not call the release complete because the publish command exited successfully. Unavailable propagation or consumer evidence leaves the corresponding claim unverified.
 
-## Completion
+## Report Completion Precisely
 
 Report:
 
+- approved release stage and status;
 - version, source commit, tag, channel, and destinations;
-- compatibility rationale and migration notes;
-- checks and artifact evidence;
+- compatibility basis and migration guidance;
+- checks, artifact identity, and selected-review status;
 - publication and consumer-side verification;
-- credentials/signing steps performed without secret values;
 - partial failures, recovery actions, and residual risk;
-- whether production shipping remains separate.
+- any deferred commit, migration, launch, or documentation work.
 
-Use `../launch-work/SKILL.md` only when a published artifact must now be deployed or rolled out.
+A prepared release is not published. A published release is not deployed. Use [Launch Work](../launch-work/SKILL.md) only when production deployment or rollout is separately requested or approved.

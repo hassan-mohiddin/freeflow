@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted.
+Superseded by [ADR 0005](0005-discuss-and-track-work-replace-discover.md).
+
+This ADR preserves the historical decision that consolidated three shallow discovery skills. Its `discover` identity and command are no longer the current canonical surface.
 
 ## Decision
 

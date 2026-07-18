@@ -1,74 +1,86 @@
 # Artifact Standards
 
-Use this only for durable artifacts: specs, PRDs, decision artifacts, requirements docs, living docs, policies, or docs future agents or teammates will rely on.
+Read this when a durable spec-like artifact needs a destination, identity, status, source trail, or revision history. Follow established repository conventions before introducing these defaults.
 
-Do not apply this to chat answers, quick questions, tiny reversible work, or conversation mode unless the user explicitly asks for a file.
+## Choose The Destination
 
-## Title And Compact Header
+Place the artifact where its intended readers and authority belong.
 
-For durable specs, start with one clear H1 title, followed immediately by the compact document-information header:
+- Use an established product, design, API, issue, migration, policy, or architecture location when one exists.
+- For a task-local artifact, read [Track Work](../../track-work/SKILL.md) and use the `specs/` location it owns unless the artifact should become canonical repo documentation.
+- Use the repository's issue tracker when the requested artifact is an issue and that system is available and intended.
+- Ask before choosing between task-local memory and canonical repository documentation when the distinction changes authority, review, or longevity.
+
+Do not create a new top-level docs convention for one artifact without a real need.
+
+## Give Durable Artifacts Identity
+
+Use the repository's required frontmatter or metadata format. When no convention exists and identity will help future readers, use a compact title and header:
 
 ```md
-# Team Invitations
+# Team Invitations API
 
-> **Doc ID:** SPEC-001-team-invitations
-> **Date:** 2026-05-26
-> **Owner:** Hassan Mohiddin
-> **Type:** Spec
+> **Doc ID:** SPEC-001-team-invitations-api
+> **Type:** API Contract
 > **Status:** Draft
-> **Source:** User-provided decision session
+> **Owner:** User
+> **Source:** Working Record task-004 and accepted product decisions
 ```
 
-Do not put metadata, status text, or preamble before the title. The title identifies the artifact for readers; the compact header immediately establishes its durable identity and authority.
+Add only useful fields:
 
-Preserve repo-specific field names and required metadata that fit this order. If a required parser, frontmatter format, or artifact convention requires metadata first, name the conflict and use the Decision Gate rather than silently reversing the requested order.
+- **Doc ID:** stable identifier when links, review history, or supersession need one.
+- **Type:** the artifact's actual job, such as PRD, Issue, Technical Design, API Contract, Migration Contract, or Decision.
+- **Status:** current artifact state under the repository or owner's vocabulary.
+- **Owner:** person or role with authority over the artifact's intent.
+- **Source:** compact pointers to accepted context and evidence.
+- **Date / Last Updated:** only when a reliable date matters.
+- **Supersedes / Superseded by:** when readers must follow artifact lineage.
 
-Rules:
+Do not invent an owner, approval, date, or authority merely to complete a header. Writing or reviewing an artifact does not make it `Approved`.
 
-- `Title`: one concise human-readable H1 that names the specified behavior or system.
-- `Doc ID`: stable, readable, and unique enough for the repo. Prefer `SPEC-###-slug` when no convention exists.
-- `Date`: creation date.
-- `Owner`: use the named product/technical owner when known. In normal workflow, use `User` if the requester is the only known owner. In strict-workflow, ask when owner is unknown.
-- `Type`: `Spec`, `PRD`, `Decision`, or the artifact type requested.
-- `Status`: usually `Draft` for new specs unless the user or repo says otherwise.
-- `Source`: name the evidence used, not a transcript. Examples: `Shared grilling context`, `docs/research/team-invitations.md`, `User-provided decision session`.
+## Represent Status Honestly
 
-Optional team fields:
+Use the repository's statuses when available. Otherwise keep the vocabulary small, for example:
 
-```md
-> **Approver:** Platform Lead
-> **Reviewers:** Security, Billing
-> **Last Updated:** 2026-05-27
+```text
+Draft | Reviewed | Approved | Rejected | Superseded
 ```
 
-Add optional fields only when the user, repo, team setting, or strict-workflow risk makes them useful.
+The appropriate statuses depend on the artifact type. An issue, policy, ADR, and API contract need not share one lifecycle.
 
-## Mode Pressure
+Status communicates artifact state; it does not replace review evidence or user authority.
 
-- Conversation mode: no artifact or header pressure. Answer questions directly.
-- Workflow mode: use the header for durable specs and future-agent-facing artifacts.
-- Strict-workflow mode: require explicit owner and status for security, billing, privacy, public API, migration, data-loss, and architecture work. Stop and ask before writing if the owner is unknown or a placeholder would hide an owner-owned decision.
+## Preserve Sources Without Copying Them
 
-## Statuses
+Link to stable sources such as:
 
-Use small status sets:
+```text
+file:<path>#<section>
+working-record:<task>/record.md#<section>
+commit:<sha>
+issue:<id>
+output:<output-id>
+session:<session-id>/turn:<turn-id>
+```
 
-| Artifact | Statuses |
-| --- | --- |
-| Spec / PRD / Design Brief | `Draft`, `Approved`, `Implemented`, `Rejected` |
-| Plan | `Draft`, `Ready`, `Executed`, `Abandoned` |
-| Decision / ADR | `Proposed`, `Accepted`, `Rejected`, `Superseded` |
-| Bug / Diagnosis | `Investigating`, `Fixed`, `Verified`, `Rejected` |
-| Runbook / Living Doc / Policy | `Current`, `Outdated`, `Deprecated` |
+Use identifiers that actually exist. Prefer links and concise quotations over copied inventories, logs, diffs, or transcripts.
 
-Do not invent a large workflow taxonomy.
+A source trail should let a future reader recover why the artifact says what it says. It does not require preserving every conversation turn.
 
-## Change Log
+## Revise Without Rewriting History
 
-Do not add a changelog on first creation.
+Do not add a changelog on first creation unless repository policy requires one.
 
-Add `## Change Log` after a material revision, status transition, or implementation divergence.
+For material revisions:
 
-Use changelogs for living docs, runbooks, policies, and long-lived architecture docs.
+- update the artifact's current content and status honestly;
+- preserve consequential rationale through a change note, decision record, supersession link, or version control;
+- record only changes that help readers understand current intent or avoid repeating rejected work;
+- do not turn the changelog into execution status or transcript history.
 
-Never use a changelog as a transcript. Record meaningful document evolution only.
+Use the Working Record for task progress, slice history, and current execution state.
+
+## Keep The Artifact Usable
+
+A durable artifact should be identifiable, source-backed, and understandable without the original conversation. It should contain enough depth for its intended use while avoiding information owned by a Plan, Working Record, Handoff, or another canonical document.

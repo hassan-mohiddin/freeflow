@@ -26,7 +26,7 @@ Use only the lenses relevant to the production change. This is not a universal c
 - Authentication, authorization, secret handling, untrusted input, dependency, network, and privilege boundaries are verified where affected.
 - Telemetry and support tooling do not expose secrets or unnecessary personal data.
 
-Read `../../review-work/references/security-risk-lens.md` when preparing a security-focused review.
+When Workflow selects a security-focused review, read the [security risk lens](../../review-work/references/security-risk-lens.md).
 
 ## Performance And Capacity
 
@@ -34,7 +34,7 @@ Read `../../review-work/references/security-risk-lens.md` when preparing a secur
 - Critical latency, throughput, saturation, queue, storage, and dependency limits have evidence.
 - Advance and abort criteria are relative to accepted SLOs, historical baseline, or owner-approved thresholds.
 
-Use `../../diagnose-failure/references/flaky-and-performance.md` for regression evidence.
+Read [performance evidence](../../verify-work/references/performance-evidence.md) for readiness and improvement claims. Read [flaky and performance diagnosis](../../diagnose-failure/references/flaky-and-performance.md) only when a regression lacks a supported cause.
 
 ## Accessibility And User Experience
 
@@ -82,4 +82,4 @@ Rollback must account for code, data, schema, messages, clients, caches, and ext
 
 ## Temporary Machinery
 
-Flags, adapters, dual writes, elevated logging, launch dashboards, temporary permissions, and support procedures need an owner and cleanup checkpoint. Route compatibility removal through `../../migration-work/SKILL.md`.
+Flags, adapters, dual writes, elevated logging, launch dashboards, temporary permissions, and support procedures need an owner and cleanup checkpoint. Route compatibility removal through [Migration Work](../../migration-work/SKILL.md).

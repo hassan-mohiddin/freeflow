@@ -26,6 +26,9 @@ plugin_root="$repo_root"
 mode="prepublish"
 release_version="0.3.0"
 format="text"
+product_description="Feedback-based control system for coding agents."
+short_description="Feedback-based control for coding agents."
+long_description="Freeflow gives coding agents an Interaction Contract, evidence-driven Workflow, focused methods, and durable task memory across conversation, workflow, and strict-workflow modes."
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -68,13 +71,18 @@ claude_manifest="$plugin_root/.claude-plugin/plugin.json"
 command_surface="$plugin_root/command-surface.json"
 package_json="$plugin_root/package.json"
 command_audit="$plugin_root/scripts/validation/audit-command-surface.sh"
+skill_routing_check="$plugin_root/scripts/validation/check-skill-routing-doc.mjs"
 runtime_hooks_json="$plugin_root/hooks/hooks.json"
 runtime_hook_script="$plugin_root/hooks/freeflow-runtime-context.mjs"
 runtime_hook_check="$plugin_root/hooks/tests/check-runtime-context-hook.sh"
 command_audit_stdout="$(mktemp "${TMPDIR:-/tmp}/freeflow-command-surface-audit.out.XXXXXX")"
 command_audit_stderr="$(mktemp "${TMPDIR:-/tmp}/freeflow-command-surface-audit.err.XXXXXX")"
+skill_routing_stdout="$(mktemp "${TMPDIR:-/tmp}/freeflow-skill-routing.out.XXXXXX")"
+skill_routing_stderr="$(mktemp "${TMPDIR:-/tmp}/freeflow-skill-routing.err.XXXXXX")"
 runtime_hook_stdout="$(mktemp "${TMPDIR:-/tmp}/freeflow-runtime-hook.out.XXXXXX")"
 runtime_hook_stderr="$(mktemp "${TMPDIR:-/tmp}/freeflow-runtime-hook.err.XXXXXX")"
+readme="$plugin_root/README.md"
+packaging_design="$plugin_root/docs/freeflow-packaging-and-publishing-design.md"
 architecture_doc="$plugin_root/plugin-docs/architecture.md"
 release_evidence="$plugin_root/plugin-docs/release-evidence.md"
 release_boundary_adr="$plugin_root/plugin-docs/adr/0003-release-boundary.md"
@@ -85,7 +93,7 @@ findings_file="$(mktemp "${TMPDIR:-/tmp}/freeflow-release-findings.XXXXXX")"
 warnings_file="$(mktemp "${TMPDIR:-/tmp}/freeflow-release-warnings.XXXXXX")"
 deferred_file="$(mktemp "${TMPDIR:-/tmp}/freeflow-release-deferred.XXXXXX")"
 evidence_file="$(mktemp "${TMPDIR:-/tmp}/freeflow-release-evidence.XXXXXX")"
-trap 'rm -f "$checks_file" "$findings_file" "$warnings_file" "$deferred_file" "$evidence_file" "$command_audit_stdout" "$command_audit_stderr" "$runtime_hook_stdout" "$runtime_hook_stderr"' EXIT
+trap 'rm -f "$checks_file" "$findings_file" "$warnings_file" "$deferred_file" "$evidence_file" "$command_audit_stdout" "$command_audit_stderr" "$skill_routing_stdout" "$skill_routing_stderr" "$runtime_hook_stdout" "$runtime_hook_stderr"' EXIT
 
 status="pass"
 
@@ -210,9 +218,16 @@ check_manifest_consistency() {
   same_value "$check" "Claude marketplace version" "$release_version" "$(json_get "$claude_marketplace" '.plugins[0].version')" || ok=0
   same_value "$check" "Claude marketplace homepage" "$(json_get "$claude_manifest" '.homepage')" "$(json_get "$claude_marketplace" '.plugins[0].homepage')" || ok=0
   same_value "$check" "Claude marketplace author" "$(json_get "$claude_manifest" '.author.name')" "$(json_get "$claude_marketplace" '.plugins[0].author.name')" || ok=0
+  same_value "$check" "npm package description" "$product_description" "$(json_get "$package_json" '.description')" || ok=0
+  same_value "$check" "Codex manifest description" "$product_description" "$(json_get "$codex_manifest" '.description')" || ok=0
+  same_value "$check" "Codex short description" "$short_description" "$(json_get "$codex_manifest" '.interface.shortDescription')" || ok=0
+  same_value "$check" "Codex long description" "$long_description" "$(json_get "$codex_manifest" '.interface.longDescription')" || ok=0
+  same_value "$check" "Claude manifest description" "$long_description" "$(json_get "$claude_manifest" '.description')" || ok=0
+  same_value "$check" "Claude marketplace description" "$product_description" "$(json_get "$claude_marketplace" '.description')" || ok=0
+  same_value "$check" "Claude marketplace plugin description" "$short_description" "$(json_get "$claude_marketplace" '.plugins[0].description')" || ok=0
 
   if [ "$ok" = "1" ]; then
-    record_check "$check" "pass" "Codex and Claude manifests agree on release identity."
+    record_check "$check" "pass" "Package and marketplace manifests agree on release identity and product descriptions."
   fi
 }
 
@@ -223,6 +238,16 @@ check_command_surface() {
     record_check "$check" "pass" "Existing command-surface audit passed."
   else
     record_check "$check" "fail" "Existing command-surface audit failed."
+  fi
+}
+
+check_skill_routing() {
+  local check="skill-routing"
+  require_file "$check" "$skill_routing_check" || return
+  if node "$skill_routing_check" >"$skill_routing_stdout" 2>"$skill_routing_stderr"; then
+    record_check "$check" "pass" "Contributor skill-routing map matches active sibling routes and direct resource dependencies."
+  else
+    record_check "$check" "fail" "Contributor skill-routing map drifted from active skills."
   fi
 }
 
@@ -351,7 +376,7 @@ check_package_cleanliness() {
     .[0] as $pack
     | ([$pack.files[].path | select(startswith("plugin-docs/") or startswith(".skill-eval/") or startswith("router/evals/") or startswith("deprecated/"))] | length) == 0
       and ([$pack.files[].path | select(. == "skills/workflow/SKILL.md")] | length) == 1
-      and ([$pack.files[].path | select(. == "skills/decision-gate/references/runtime-kernel.md")] | length) == 1
+      and ([$pack.files[].path | select(. == "runtime/interaction-contract.md")] | length) == 1
       and ([$pack.files[].path | select(. == "pi-extension/freeflow/index.js")] | length) == 1
   ' <<<"$pack_manifest" >/dev/null; then
     record_check "$check" "fail" "npm pack contents do not match the runtime boundary."
@@ -394,6 +419,16 @@ check_docs_drift() {
 
   contains_fixed "$architecture_doc" '`pi-extension/freeflow/index.js`' || {
     record_check "$check" "fail" "Architecture docs do not name the Pi manifest entrypoint."
+    ok=0
+  }
+
+  contains_fixed "$readme" '**A feedback-based control system for coding agents.**' || {
+    record_check "$check" "fail" "README no longer states the accepted product identity."
+    ok=0
+  }
+
+  contains_fixed "$packaging_design" 'Tagline: `A feedback-based control system for coding agents.`' || {
+    record_check "$check" "fail" "Packaging design no longer states the accepted product identity."
     ok=0
   }
 
@@ -520,6 +555,7 @@ check_json_shape
 check_marketplace_locality
 check_manifest_consistency
 check_command_surface
+check_skill_routing
 check_runtime_context_hooks
 check_release_boundary
 check_package_cleanliness

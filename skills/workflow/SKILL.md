@@ -1,98 +1,113 @@
 ---
 name: workflow
-description: Use for consequential work that may involve discovery, decisions, specification, planning, implementation, diagnosis, review, verification, commits, handoffs, or route changes from new evidence.
+description: Use when coordinating discussion, decisions, durable task memory, execution, verification, review, or a route change from feedback.
 ---
 
 # Workflow
 
-Use an adaptive engineering loop, not a one-way checklist.
+Use feedback to choose the smallest useful next action. Treat work as an **Interaction Lifecycle** with an internal **Feedback Loop**, not a fixed sequence.
 
-The runtime kernel owns turn interpretation, user authority, mode routing, and universal feedback constraints. This skill owns entry points, slices, backward edges, and conditional lifecycle routes.
+The active agent owns understanding, routing, authorized work, verification, correction, and completion. Independent review may add judgment; it does not take over workflow control.
 
-The active agent is the responsible engineer. Its sequential self-check—self-verification, then self-review only when evidence supports the outcome—drives learning with implementation and runtime evidence. Independent review and verification are boundary roles.
+Read the [expanded Workflow loop](references/workflow-loop.md) when the complete lifecycle, skill relationships, or possible exits are unclear. Read [domain skill composition](references/domain-skill-composition.md) when specialized engineering guidance must run inside the active route.
 
-## Choose The Entry Point
-
-Enter where the work actually is:
-
-- **Conversation:** answer, critique, or inspect without mutation.
-- **Discover:** outcome, options, evidence path, or architecture direction is forming.
-- **Decision gate:** user-owned decision, source conflict, or material path substitution blocks action.
-- **Spec:** behavior, scope, acceptance, public contract, or failure semantics need durable source truth.
-- **Plan:** the next executable horizon needs slices, checks, and backward routes.
-- **Execute:** an approved bounded slice is ready.
-- **TDD or simplify:** accepted behavior needs test-first implementation, or working code needs behavior-preserving simplification.
-- **Migrate:** consumers, traffic, configuration, or data must move before removal.
-- **Diagnose:** a concrete, repeated, or unexplained failure needs root-cause evidence.
-- **Formal review:** an independent second opinion is warranted at a consequential boundary or after primary feedback cannot resolve the route.
-- **Structured verification:** choosing, interpreting, or recovering a non-trivial proof path needs `verify-work`; routine direct checks stay inline.
-- **Commit or handoff:** verified work needs rollback or continuity.
-- **Finish, release, or launch:** integration, publication, or production rollout is the next job.
-
-Small reversible work may move from inspection to execution and self-verification. Do not manufacture lifecycle steps. Read [the workflow map](references/workflow-map.md) when routing is unclear or the complete lifecycle is needed.
-
-## Adaptive Feedback Loop
+## Interaction Lifecycle
 
 ```text
-Orient -> explore when needed -> converge enough
--> specify or plan only what must be durable
--> execute one learning / delivery / deepening slice
--> self-verify -> if supported, silently self-review your own work once
--> continue, diagnose, move backward, or stop
+[Entry] -> [Feedback Loop when needed] -> [Supported Exit]
+   ^              ^        |                  |
+   |              |________|                  |
+   |__________________________________________|
+            later user turn or evidence
 ```
 
-Tests, direct observations, compilers, and runtime behavior are primary feedback. Self-verification states what evidence proves; only supported work proceeds to self-review against outcome and route. Read `../verify-work/SKILL.md`, `../review-work/SKILL.md`, or `../review-artifact/SKILL.md` after any slice when richer guidance helps. Reading a skill enhances self-verification or self-review and never dispatches another context by itself.
+Entry begins with a user turn or new evidence interpreted through the Interaction Contract and effective mode. It may route directly to an answer, wait, deferment, or stop. When work is needed, Workflow enters the Feedback Loop and re-enters the narrowest owner until a supported exit exists.
 
-Do not dispatch an independent reviewer because a slice ended or ordinary mistakes remain possible. Treat every phase exit as a review decision point: follow the approved plan's selected independent review, or assess whether accumulated interaction and irreversibility now justify asking for one. When failure repeats or remains unexplained, use `../diagnose-failure/SKILL.md` before redesigning. Use `../design-for-depth/SKILL.md` only when diagnosis or direct structural evidence shows that ownership, interface, state, or failure-unit design is the cause.
+## Choose The Owning Skill
 
-Method and domain skills run inside this loop without overriding source truth or owner authority. Read [domain skill composition](references/domain-skill-composition.md) when specialized guidance must compose.
+- **Understand and decide:** [Discuss](../discuss/SKILL.md) shapes open or revisited direction; [Decision Gate](../decision-gate/SKILL.md) stops on one user-owned choice, source conflict, or material path change; [Bypass](../bypass/SKILL.md) reduces optional pressure inside an accepted action.
+- **Preserve memory and artifacts:** [Track Work](../track-work/SKILL.md) owns living task state; [Write Spec](../write-spec/SKILL.md) owns stable accepted content; [Write Plan](../write-plan/SKILL.md) owns stable ordered strategy; [Review Artifact](../review-artifact/SKILL.md) owns artifact self-review and selected independent review.
+- **Execute and learn:** [Execute Work](../execute-work/SKILL.md) owns bounded concrete changes; [Migration Work](../migration-work/SKILL.md) moves consumers, traffic, configuration, or data; [Diagnose Failure](../diagnose-failure/SKILL.md) establishes unsupported causes; [Verify Work](../verify-work/SKILL.md) checks factual claims; [Review Work](../review-work/SKILL.md) owns implementation self-review and selected independent judgment.
+- **Preserve or close out:** [Commit Work](../commit-work/SKILL.md) owns authorized commits and pushes; [Handoff](../handoff/SKILL.md) transfers continuation context; [Finish Branch](../finish-branch/SKILL.md) owns branch integration or preservation; [Release Work](../release-work/SKILL.md) owns versioned publication; [Launch Work](../launch-work/SKILL.md) owns production deployment and rollout.
 
-Plans are rolling: detail the immediate executable horizon and keep later phases directional.
+These are owners, not mandatory phases. Small, clear, reversible work may move directly from inspection to execution and verification. Create no artifact or checkpoint merely because one exists. Method and domain skills compose inside the selected route without overriding accepted behavior, live evidence, or user authority.
 
-## Authority And Evidence
+## Run The Feedback Loop
 
-The user is accountable owner and collaborator, not factual source truth. Correct unsupported claims while preserving their authority over intent and consequential tradeoffs. Use `../decision-gate/SKILL.md` only for user-owned, path-changing decisions or conflicts.
+For one bounded activity:
 
-Handoffs are memory, not authority. Live evidence wins.
+1. Orient to accepted intent, relevant task memory, and live evidence.
+2. Implement, test, observe, discuss, or otherwise use the owning skill.
+3. Verify what the evidence proves.
+4. When supported, self-review once for alignment, suitability, and unnecessary complexity.
+5. Continue, correct, diagnose, revise, ask, defer, or stop from the result.
 
-## Slice Discipline
+Self-review is silent and creates no formal judgment or cycle. Correct clear local issues and re-verify, then freeze the supported state. Freezing does not end a current Track Work slice; discussion, selected review, checkpoints, and accepted in-scope correction may continue inside it. Further polish, advisory warnings, and unrelated issues require another selected slice.
 
-Each meaningful slice needs one outcome, source requirement, stable seam, smallest useful implementation or experiment, disagreeing evidence, and route check.
+Handle only edge cases required by accepted behavior, observed evidence, or material safety. A stream of related patches routes to diagnosis of the shared requirement, cause, ownership, or interface.
 
-One sequential self-check—self-verification, then bounded self-review only on support—closes the normal slice. Other checkpoints are conditional:
+Use Verify Work when the claim or evidence boundary needs its fuller method. Use Review Work for implementation self-review or selected independent work review, and Review Artifact for artifact review. Reading either review skill does not create independence.
 
-- independent review at standing or plan-selected phase-exit boundaries below;
-- commit when a coherent verified rollback point is useful and authorized;
-- handoff when continuity requires it;
-- owner checkpoint when a consequential decision remains.
+If verification fails, correct a clear local defect or diagnose the cause; do not review unsupported work as ready. Continue while authority remains clear, evidence supports the route, no checkpoint is due, and remaining work converges.
 
-When separate contexts are useful, describe bounded outcomes, dependencies, evidence, and escalation. The harness owns agents, models, worktrees, parallelism, persistence, timeouts, and transport.
+## Discuss Before Execution
 
-## Independent Boundaries
+Before routing to execution, assess whether brief discussion has material decision value. Recommend Discuss when user input could materially change the outcome, boundaries, tradeoffs, approach, or acceptance. When architecture, interfaces, ownership, state, failure contracts, or spreading complexity shape that direction, use [Design for Depth](../design-for-depth/SKILL.md) as a lens during discussion and retain it while the boundary remains design-bearing. Name the question and why it matters, then wait.
 
-Standing authorization needs no confirmation for the artifact-review route selected by `write-spec` and, after final self-check, one verifier plus a different reviewer in parallel against the frozen implementation. Final roles use distinct fresh contexts and independent outputs. An artifact-only task uses its artifact review as final review and needs no verifier unless executable claims require one. Standing artifact/final assurance cannot be bypassed for readiness or completion.
+Do not discuss facts that can be inspected, settled direction, or reversible local choices. If the user declines optional discussion and no owner decision, source conflict, or safety boundary remains, proceed within accepted scope. Do not ask again without new evidence. A discussion recommendation creates no artifact, checkpoint, slice, or implementation authority.
 
-A plan-selected consequential phase-exit review carries scoped authorization. Other reviewers or independent verifiers require scoped authorization. Explicit independent/formal review wording or direct review commands authorizes review; explicit independent verifier wording authorizes verification. Reading skills never dispatches. Clarify ambiguous “review” once per checkpoint.
+## Preserve Context Deliberately
 
-Collect both final results before adjudicating. Completion requires verifier Pass and resolved review with no later implementation change. Preserve an unaffected result when possible; any code change stales both. Self-check fixes, then ask before another independent verifier or reviewer dispatch. At an unselected phase exit, assess review need rather than automatically dispatching or automatically continuing.
+Create durable memory only when forgetting would risk misalignment:
 
-## Backward Edge
+- a **Working Record** for living task state;
+- a **Spec** for stable accepted content;
+- a **Plan** for stable ordered strategy;
+- an **ADR** for a surprising, hard-to-reverse repository decision;
+- a **Handoff** for point-in-time transfer.
 
-Route only when evidence changes the next safe action:
+These artifacts are conditional and do not override contradictory live evidence or user decisions.
 
-- clear local defect -> fix and verify;
-- repeated or unexplained failure -> diagnose;
-- diagnosed structural pressure -> design-for-depth;
-- new option space -> Discover;
-- changed behavior, scope, acceptance, public contract, or failure semantics -> revise spec;
-- changed order, slices, checks, or later assumptions -> revise plan;
-- owner choice or source conflict -> decision gate;
-- no safe in-scope route -> defer or stop.
+When an ongoing task resumes after compaction, summarization, clear, resume, or session navigation, read its complete Working Record before the next task action and compare it with the current conversation and live state. Identify the record from context or inspect and ask rather than guessing. Another conversation branch may have written memory, not authority. Before an expected boundary, use Track Work to reconcile changed state.
 
-Preserve valid work and revise only affected downstream decisions. Do not restart from zero, rewrite source truth silently, or redesign because ordinary mistakes exist.
+Do not synchronize durable architecture, plugin, setup, or similar docs after every slice. Track their impact and update them once behavior stabilizes, unless earlier synchronization governs the next action or prevents real compatibility, safety, or coordination harm. Never close with a known required-doc inconsistency.
 
-## Route Closeout
+## Route Checkpoints And Review
 
-After consequential completion or a phase exit, name the useful route: **Forward**, **Backward**, **Branch**, or **Stop**.
+At a supported boundary, assess whether a local commit would materially improve rollback, provenance, handoff, integration, or preservation before riskier work. A slice ending alone is insufficient. If useful but unapproved, recommend the exact purpose, scope, and due conditions, then wait; do not stage, commit, or push from the recommendation. When an approved checkpoint becomes due during execution, Execute Work uses Commit Work before continuing; Workflow may route directly for an explicit commit request or a due checkpoint outside execution. Push remains separately controlled. If the user declines, do not recommend the same checkpoint again without materially changed state.
 
-Apply the runtime kernel's `Next:` and completion contracts. A route recommendation is not permission to create the next artifact or continue into another phase.
+Specs and Plans receive separate independent Review Artifact after author self-review. Working Records do not by default. Select independent work review for sensitive, hard-to-reverse, architecture-bearing, strongly interacting, plan-selected, or explicitly requested boundaries—not merely because a slice ended.
+
+Independent review ends with Pass, Non-blocking, Inconclusive, or Blocking. The active agent adjudicates:
+
+- **Pass:** proceed.
+- **Non-blocking:** proceed with explicit deferrals.
+- **Inconclusive:** gather the missing evidence or decision.
+- **Blocking:** do not cross the boundary; re-enter the narrowest owning activity, defer, or stop.
+
+Review findings do not authorize edits. Ask once for every unapproved next action: accepted corrections plus any warranted focused follow-up review, or corrections alone when no follow-up is warranted. A review budget caps independent reviews but does not authorize another dispatch.
+
+Return implementation corrections to Execute Work and artifact revisions to their owner. Keep the current slice when its intended result remains coherent and accepted scope can be verified as one unit. Before expanded work begins, decide and record whether it extends that slice or needs a distinct result, authority, or evidence boundary. Verify corrections and run a focused follow-up only when needed and authorized. Never create an automatic review-fix-review loop or keep editing merely to obtain Pass.
+
+## Route From Evidence
+
+- **Continue:** evidence supports the route.
+- **Correct:** a clear local defect preserves intent and scope.
+- **Broaden evidence:** the claim exceeds the check.
+- **Diagnose:** cause is unclear or failure repeats.
+- **Discuss:** new options or invalid assumptions change direction.
+- **Track Work:** task memory or history must be reconciled.
+- **Revise Spec:** accepted behavior, scope, contract, or failure semantics changed.
+- **Revise Plan:** order, mechanism, dependencies, slices, or checks changed.
+- **Decision Gate:** a user-owned choice or source conflict blocks progress.
+- **Stop or defer:** no safe worthwhile continuation remains.
+
+Preserve valid work and revise only the affected layer. Do not continue because implementation started or redesign because an ordinary mistake occurred.
+
+## Reach A Supported Exit
+
+A supported exit may answer, wait, pause, hand off, defer, stop, preserve a controlled boundary, or complete the task. Use `Next:` only when a phase exit, completion, or blocker leaves one useful recommendation; it does not authorize action.
+
+Claim completion only when fresh verification supports the outcome, self-review has no unresolved material issue, selected reviews are resolved, any Working Record is accurate, required durable artifacts are synchronized, and no user-owned decision or source conflict remains hidden.
+
+Report the supported outcome, evidence, gaps, and route.

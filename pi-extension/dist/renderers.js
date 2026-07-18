@@ -351,23 +351,43 @@ export function renderFreeflowStatusResult(result, { expanded } = {}, theme) {
         return textComponent(fallbackResultText(result));
     }
     const warnings = Array.isArray(report.configWarnings) ? report.configWarnings : [];
+    const localWarnings = Array.isArray(report.localConfigWarnings) ? report.localConfigWarnings : [];
+    const allWarnings = [...warnings, ...localWarnings];
     const recommendations = Array.isArray(report.migration?.recommendations) ? report.migration.recommendations : [];
-    const router = report.effectiveConfig?.outputRouter ?? {};
-    const observedRouting = report.observedRouting ?? report.effectiveConfig?.observedRouting ?? {};
+    const core = report.effectiveConfig ?? {};
+    const sources = report.configuration?.sources ?? core.sources ?? {};
+    const router = core.outputRouter ?? {};
+    const observedRouting = report.observedRouting ?? core.observedRouting ?? {};
     const unsafeProcessing = report.processing?.unsafeUnsandboxed?.enabled === true;
+    const modeActive = report.mode?.active === true;
+    const resolvedMode = report.mode?.resolvedMode ?? report.mode?.effectiveMode ?? "workflow";
+    const displayedMode = modeActive ? resolvedMode : `dormant (${resolvedMode})`;
     const icon = statusIcon(report.toolStatus);
     const lines = [
-        `${themeFg(theme, "success", icon)} ${themeFg(theme, "toolTitle", "freeflow_status")} ${themeFg(theme, "muted", report.action ?? "status")} • router ${formatStatus(theme, router.enabled === false ? "off" : "ok")} ${themeFg(theme, "dim", router.profile ?? "standard")}`,
+        `${themeFg(theme, "success", icon)} ${themeFg(theme, "toolTitle", "freeflow_status")} ${themeFg(theme, "muted", report.action ?? "status")} • freeflow ${formatStatus(theme, core.enabled ? "ok" : "off")} • mode ${themeFg(theme, modeActive ? "accent" : "dim", displayedMode)} • router ${formatStatus(theme, router.enabled === false ? "off" : "ok")}`,
         `${themeFg(theme, "muted", "vault:")} ${themeFg(theme, "accent", shortenMiddle(report.vault?.root ?? "unknown", 80))} ${themeFg(theme, "dim", report.vault?.writability?.status ?? "unknown")}`,
-        `${themeFg(theme, "muted", "routing:")} observed=${observedRouting.enabled ? "on" : "off"} • processing=${unsafeProcessing ? "unsafe/unsandboxed" : "safe-default"} • warnings=${warnings.length} • migrations=${recommendations.length}`,
+        `${themeFg(theme, "muted", "routing:")} observed=${observedRouting.enabled ? "on" : "off"} • processing=${unsafeProcessing ? "unsafe/unsandboxed" : "safe-default"} • warnings=${allWarnings.length} • migrations=${recommendations.length}`,
     ];
     if (!expanded) {
-        lines.push(themeFg(theme, "dim", "ctrl+o to expand effective config, observed routing, warnings, and migration recommendations"));
+        lines.push(themeFg(theme, "dim", "ctrl+o to expand configuration sources, effective state, routing, warnings, and migrations"));
         return textComponent(lines.join("\n"));
     }
+    const repository = report.configuration?.repository ?? {};
+    const personal = report.configuration?.personal ?? {};
+    lines.push("", themeFg(theme, "toolTitle", "Configuration"));
+    lines.push(`  ${themeFg(theme, "muted", "repository:")} ${repository.exists ? repository.valid ? "valid" : themeFg(theme, "warning", "invalid") : "missing"} ${themeFg(theme, "dim", shortenMiddle(repository.path ?? report.configPath ?? ".freeflow/config.json", 90))}`);
+    lines.push(`  ${themeFg(theme, "muted", "personal:")} ${personal.exists ? personal.valid ? "valid" : themeFg(theme, "warning", "invalid") : "not set"} ${themeFg(theme, "dim", shortenMiddle(personal.path ?? report.localConfigPath ?? ".freeflow/local.json", 90))}`);
+    lines.push(`  ${themeFg(theme, "muted", "enabled:")} ${String(Boolean(core.enabled))} ${themeFg(theme, "dim", `(${sources.enabled ?? "builtin"})`)}`);
+    lines.push(`  ${themeFg(theme, "muted", "interactionContract:")} ${String(Boolean(core.interactionContract?.enabled))} ${themeFg(theme, "dim", `(${sources.interactionContract ?? "builtin"})`)}`);
+    lines.push(`  ${themeFg(theme, "muted", "skills:")} ${String(Boolean(core.skills?.enabled))} ${themeFg(theme, "dim", `(${sources.skillsEnabled ?? "builtin"})`)}`);
     lines.push("", themeFg(theme, "toolTitle", "Mode"));
-    lines.push(`  ${themeFg(theme, "muted", "effective:")} ${report.mode?.effectiveMode ?? "workflow"}`);
-    lines.push(`  ${themeFg(theme, "muted", "default:")} ${report.mode?.defaultMode ?? "workflow"}`);
+    lines.push(`  ${themeFg(theme, "muted", "active:")} ${String(modeActive)}`);
+    lines.push(`  ${themeFg(theme, "muted", "effective:")} ${report.mode?.effectiveMode ?? "none"}`);
+    lines.push(`  ${themeFg(theme, "muted", "resolved:")} ${resolvedMode}`);
+    lines.push(`  ${themeFg(theme, "muted", "repository default:")} ${report.mode?.repositoryDefaultMode ?? "workflow"} ${themeFg(theme, "dim", `(${report.mode?.repositoryDefaultModeSource ?? "builtin"})`)}`);
+    lines.push(`  ${themeFg(theme, "muted", "personal default override:")} ${report.mode?.personalDefaultMode ?? "none"}`);
+    lines.push(`  ${themeFg(theme, "muted", "configured default:")} ${report.mode?.defaultMode ?? "workflow"} ${themeFg(theme, "dim", `(${report.mode?.defaultModeSource ?? sources.defaultMode ?? "builtin"})`)}`);
+    lines.push(`  ${themeFg(theme, "muted", "session override:")} ${report.mode?.sessionMode ?? report.mode?.currentMode ?? "none"}`);
     lines.push("", themeFg(theme, "toolTitle", "Router"));
     lines.push(`  ${themeFg(theme, "muted", "enabled:")} ${String(router.enabled !== false)}`);
     lines.push(`  ${themeFg(theme, "muted", "profile:")} ${router.profile ?? "standard"}`);
@@ -417,8 +437,6 @@ export function renderFreeflowStatusResult(result, { expanded } = {}, theme) {
     if (observedRouting.web || observedRouting.fetch || observedRouting.codeSearch) {
         lines.push(`  ${themeFg(theme, "muted", "web/fetch/codeSearch:")} web=${observedRouting.web?.enabled ? "on" : "off"} fetch=${observedRouting.fetch?.enabled ? "on" : "off"} codeSearch=${observedRouting.codeSearch?.enabled ? "on" : "off"}`);
     }
-    const localWarnings = Array.isArray(report.localConfigWarnings) ? report.localConfigWarnings : [];
-    const allWarnings = [...warnings, ...localWarnings];
     if (allWarnings.length > 0) {
         lines.push("", themeFg(theme, "toolTitle", "Warnings"));
         allWarnings.slice(0, 8).forEach((warning) => lines.push(`  ${themeFg(theme, "warning", truncateText(warning, 180))}`));

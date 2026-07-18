@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "freeflow",
-  "description": "Lightweight workflow for coding agents.",
+  "description": "Feedback-based control system for coding agents.",
   "owner": {
     "name": "Hassan Mohiddin",
     "url": "https://github.com/hassan-mohiddin"
@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "freeflow",
-      "description": "Conversation, workflow, and strict-workflow skills for coding agents.",
+      "description": "Feedback-based control for coding agents.",
       "version": "0.3.0",
       "category": "development",
       "source": "./",

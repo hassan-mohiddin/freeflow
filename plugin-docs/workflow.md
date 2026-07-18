@@ -1,106 +1,94 @@
 # Workflow
 
-Freeflow is a workflow layer, not a new agent. It helps the active agent work as a responsible engineer while applying only the process the task needs.
+Freeflow is a workflow layer, not a new agent. The active agent owns understanding, routing, authorized work, verification, correction, adjudication, and completion.
 
 ## Modes
 
-- `conversation`: non-mutating discussion, read-only exploration, and planning in chat; edits or other state-changing work require switching to `workflow` or `strict-workflow` first.
-- `workflow`: default for consequential work; use the adaptive loop and scale detail to risk.
-- `strict-workflow`: high-risk or hard-to-reverse work with stronger owner and evidence boundaries, not review after every slice.
+- `conversation`: read-only discussion, critique, explanation, and exploration. Agent-performed mutation requires switching mode first.
+- `workflow`: the default for consequential or mutating work. Use the adaptive lifecycle and scale pressure to risk.
+- `strict-workflow`: the same lifecycle with stronger decision, evidence, and checkpoint pressure at high-risk or hard-to-reverse boundaries.
 
-Use strict-workflow for security, privacy, billing, public APIs, migrations, data loss, compatibility, permissions, deployment, or irreversible architecture.
+Mode changes do not authorize work or resolve decisions. Task type and direct skill calls do not switch mode.
 
-## Activation and toggles
+## Activation And Configuration
 
-Freeflow is repo-local. A global install stays inactive until `/setup-freeflow` creates a `.freeflow/config.json` that parses and matches the supported setup config shape.
+Freeflow requires a valid shared `.freeflow/config.json`. Optional `.freeflow/local.json` supplies per-checkout personal core overrides and cannot activate Freeflow by itself. A Pi session mode override sits above configured defaults temporarily.
 
-Pi users can run `/freeflow` for one control and settings surface. `/freeflow mode` opens the session-mode selector; `/freeflow mode conversation|workflow|strict-workflow|reset` changes or clears the temporary session override. The settings screen keeps Session mode separate from the persisted Default mode in `.freeflow/config.json`.
-
-- `enabled: false` turns the full Freeflow runtime off and makes nested settings inactive.
-- `skills.enabled: false` hides model workflow skills and suppresses the compact runtime kernel and first-turn Workflow bootstrap.
-- `outputRouter.enabled` and `delegationHarness.enabled` remain layer toggles, but only take effect while top-level Freeflow is enabled.
-
-`/freeflow enable` remains available while Freeflow is disabled.
-
-## Primary feedback loop
-
-```mermaid
-flowchart LR
-  Entry{choose entry}
-  Durable[spec / rolling plan<br/>when needed]
-  ArtifactReview[fresh artifact review<br/>before implementation]
-  Slice[learning / delivery / deepening slice]
-  Verify[self-verify with direct evidence]
-  Self[self-review your own work once]
-  Diagnose[diagnose repeated or unclear failure]
-  FinalReview[fresh final reviewer]
-  FinalVerifier[different fresh verifier]
-  FinalGate{collect both results}
-  Done[close]
-
-  Entry -->|artifact needed| Durable
-  Entry -->|bounded work ready| Slice
-  Durable --> ArtifactReview
-  ArtifactReview --> Slice
-  Slice --> Verify
-  Verify --> Self
-  Self -->|continue or local correction| Slice
-  Self -->|failure repeats or lacks cause| Diagnose
-  Diagnose -->|local cause| Slice
-  Diagnose -. source / plan / structural route .-> Entry
-  Self -->|implementation complete| FinalVerifier
-  Self -->|implementation complete| FinalReview
-  FinalVerifier --> FinalGate
-  FinalReview --> FinalGate
-  FinalGate --> Done
+```text
+session mode
+-> personal default override
+-> repository default
+-> built-in default
 ```
 
-Implementation, tests, runtime evidence, and one sequential self-check—self-verification first, then bounded self-review only on support—are the primary feedback loop. Kernel/Workflow provide the basic methods; review/verify skills may enhance either inline after a meaningful slice without creating independence. The agent corrects local reversible mistakes directly and diagnoses repeated or unexplained failure before redesigning.
+A configured mode is dormant while Skills are ineffective. An invalid existing local config fails closed instead of silently inheriting shared settings.
 
-Three standing assurance roles need no repeated confirmation:
+Pi `/freeflow settings` edits personal overrides; `/freeflow settings repo` edits shared configuration. `/freeflow mode` manages only the temporary session override.
 
-1. the artifact-review route selected by `write-spec`: one combined review, separate spec and plan reviews when high risk, or spec-only review;
-2. after the final sequential self-check, a fresh verifier and different fresh reviewer dispatched in parallel against one frozen state.
+## Interaction Lifecycle
 
-Verifier evidence and reviewer judgment are independent parallel results. Implementer, verifier, and reviewer use distinct contexts, and the final agents do not consume each other's output. An artifact-only task uses its artifact review as final review and needs no verifier unless executable claims require one.
+```text
+[Entry] -> [Feedback Loop when needed] -> [Supported Exit]
+   ^              ^        |                  |
+   |              |________|                  |
+   |__________________________________________|
+            later user turn or evidence
+```
 
-A consequential phase-exit review selected by an approved plan carries scoped authorization. Any other additional reviewer or independent verifier needs scoped user authorization. Reading review/verify skills enhances self-review/self-verification and does not dispatch. `/review-work` and `/review-artifact` default to formal review unless inline use is explicit; `/verify-work` defaults to self-verification. Ask once when plain “review” is ambiguous and retain the answer. Collect both results before adjudicating. Completion needs verifier Pass plus resolved review for the same unchanged state. Any code change stales both; self-check the fix and ask before another independent dispatch.
+Entry is a user turn or new evidence interpreted through the Interaction Contract and effective mode. It may lead directly to an answer, wait, deferment, or stop. When work is needed, Workflow chooses the narrowest owning skill.
 
-While writing a multi-phase plan, select independent review at phase exits whose integrated outcome constrains dependent work, promotes architecture, combines interacting risk, or crosses sensitive/hard-to-reverse behavior. Omit it for small reversible or learning phases. At execution, complete selected reviews before dependent work; unselected phase exits require a review-need assessment, not an automatic dispatch or automatic continuation. Keep formal roles evidence-backed, scoped, and capable of a clean pass.
+The Feedback Loop is:
 
-## Artifact review route
+```text
+orient to accepted intent, task memory, and live evidence
+-> act, discuss, test, or observe through the owning skill
+-> verify what direct evidence proves
+-> when supported, self-review once
+-> continue, correct, diagnose, revise, ask, defer, or stop
+```
 
-`write-spec` chooses how the standing artifact review is packaged:
+A later turn or new evidence begins another Interaction Lifecycle. Re-enter only the owning activity whose responsibility changed; preserve valid work and decisions.
 
-- **Combined:** review the settled spec first and then its concise provisional plan in one independent context.
-- **Spec first:** review a high-risk source contract before writing the dependent plan, then review the plan separately.
-- **Spec only:** no plan is currently needed or the task ends with the spec.
+## Conditional Artifacts
 
-When no spec exists and a consequential durable plan is the only artifact, review that plan before implementation. Routine rolling-plan updates use direct evidence and self-review unless they materially change the reviewed boundary.
+Artifacts have distinct jobs:
 
-## Adaptive routing
+- **Working Record:** living task context, one current slice, proposed work, decisions, evidence pointers, history, and next action.
+- **Spec:** stable accepted content, behavior, boundaries, and uncertainty.
+- **Plan:** stable ordered execution strategy when dependencies, mechanism, and checks can be stated without guessing.
+- **Handoff:** point-in-time continuation context for a pause or transfer.
 
-Enter at the narrowest useful state. Small reversible work may go directly from inspection to execution and verification. Discovery, durable artifacts, commits, handoffs, integration, release, and launch remain conditional.
+They are conditional memory, not proof or authority over contradictory live evidence. Specs and Plans each receive a separate independent Review Artifact after author self-review. Working Records do not require independent review by default.
 
-Route only affected work backward:
+## Review And Verification
 
-- clear local defect -> fix and verify;
-- repeated or unexplained failure -> diagnose;
-- diagnosed structural pressure -> design-for-depth;
-- new option space -> Discover;
-- changed behavior, scope, acceptance, public contract, or failure semantics -> revise spec;
-- changed order, slices, checks, or later assumptions -> revise plan;
-- user-owned decision or source conflict -> Decision Gate;
-- no safe in-scope path -> defer or stop.
+Verification is factual work owned by the active agent. Verify Work may deepen the method; reading it does not dispatch or create another role.
 
-Preserve valid work. Do not redesign because ordinary mistakes exist, restart from zero, or patch around an invalid path.
+Self-review is silent and follows only supported verification. Review Work and Review Artifact may deepen self-review or guide a separately selected independent reviewer. Reading either skill does not create independence.
 
-## User and agent roles
+Independent review ends with one valid exit:
 
-The agent is the responsible collaborative engineer: it owns locally authorized implementation, verification, correction, and learning. The user is the accountable owner and collaborator: they own product intent and consequential decisions, but live evidence owns factual behavior. Either may correct the other with evidence.
+- **Pass:** proceed.
+- **Non-blocking:** proceed with explicit deferrals.
+- **Inconclusive:** gather the missing evidence or decision.
+- **Blocking:** do not cross the boundary; re-enter the narrowest owner, defer, or stop.
 
-Delegation parent/child names context topology, not competence. Reviewers are independent peers or tech leads; verifiers are separate factual evidence runners. Neither continuously supervises the implementing agent or replaces source truth.
+Review findings are evidence, not commands. If correction authority is not already explicit, ask once for accepted corrections plus any warranted focused follow-up review, or corrections alone. Review budgets cap dispatches; they do not authorize another review.
 
-## Bypass
+Corrections leave review and return to Execute Work or the artifact owner. They may remain in the same coherent Working Record slice. Before expanded work starts, decide and record whether it extends that slice or needs a distinct result, authority, or evidence boundary.
 
-Bypass may skip optional ceremony, not standing artifact/final assurance for readiness or completion. If required assurance is unavailable or skipped, preserve and report the work as unreviewed or unassured rather than claiming it ready or complete.
+## Task Continuity
+
+When an ongoing task resumes after compaction, summarization, clear, resume, or session navigation, read its complete Working Record before continuing task work. Compare it with the current conversation and live state. Another conversation branch may have written memory, not authority.
+
+Routine in-slice feedback is not checkpoint history. Record state changes, accepted boundary extensions, decisions, blockers, evidence, and selected checkpoint results—not every edit or comment.
+
+## Checkpoints And Closeout
+
+Independent review, a local commit, a user decision, and continuity transfer are additional checkpoints only when selected. A slice ending alone does not require one.
+
+Commit, branch integration, migration, release, launch, and destructive cleanup remain separately controlled. Bypass may reduce optional pressure inside an accepted action, but it cannot change mode, create authority, erase evidence, remove selected review, or weaken a completion claim.
+
+A Supported Exit may answer, wait, pause, hand off, defer, stop, preserve a controlled boundary, or complete. Completion requires fresh verification, one supported self-review, resolved selected reviews, accurate task memory, synchronized required docs, and no hidden owner decision or source conflict.
+
+See [Skill routing](skill-routing.md) for the shipped methods, ownership, routes, and references.

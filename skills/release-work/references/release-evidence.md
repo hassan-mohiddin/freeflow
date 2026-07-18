@@ -20,7 +20,7 @@ A trustworthy release can connect:
 
 ```text
 source commit
--> reviewed / verified release state
+-> freshly verified release state
 -> version metadata
 -> build invocation and environment
 -> artifact digest / signature / provenance

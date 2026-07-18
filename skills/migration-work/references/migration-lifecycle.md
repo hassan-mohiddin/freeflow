@@ -11,7 +11,7 @@ Read this when choosing migration units, compatibility shape, cutover evidence, 
 - **Dependency:** introduce the replacement, verify compatibility at owning seams, migrate packages or consumers, remove the old dependency and transitive assumptions.
 - **Feature:** define replacement or removal behavior, migrate users and documentation, observe usage, then remove code and operational surfaces.
 
-Do not force every migration into the same sequence. Choose the smallest shape that preserves accepted compatibility, safety, and evidence.
+Do not force every migration into the same sequence. Choose the smallest shape that preserves accepted compatibility, safety, and evidence. A scoped migration may stop after its accepted units move while the old contract remains under a support window; removal remains a separate stage and claim.
 
 ## Consumer Inventory
 
@@ -42,7 +42,7 @@ Removal evidence:
 Failure behavior:
 ```
 
-If the shim becomes harder to remove with each consumer, reconsider the seam before adding another exception.
+If the shim becomes harder to remove with each consumer, reconsider the compatibility boundary and ownership before adding another exception.
 
 ## Data Movement
 

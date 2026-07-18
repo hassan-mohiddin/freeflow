@@ -7,6 +7,7 @@
     "cases/WSK2-003-native-activation.json",
     "cases/WSK2-004-near-miss.json",
     "cases/WSK2-005-self-contained.json",
-    "cases/WSK2-006-rpc-readiness-pressure.json"
+    "cases/WSK2-006-rpc-readiness-pressure.json",
+    "cases/WSK2-007-first-read-description.json"
   ]
 }

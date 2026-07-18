@@ -1,27 +1,43 @@
 # Skill Development Loop
 
+Read this when moving a skill from an unevaluated draft through measured revision to a readiness decision.
+
 ## Draft
 
-- Define purpose, trigger, non-goals, and failure pressure.
-- Write the smallest candidate.
-- Label it Draft or Unverified.
-- Static validation may prove structure, not behavior.
+- Define the target behavior and failure pressure.
+- Identify the earliest useful first-read prompt and one nearby case.
+- Declare guaranteed prior context and optional dependencies.
+- Write the smallest candidate that is complete on first read.
+- Record it as Draft or Unverified in the owning eval artifact, report, task memory, tool result, or delivery response.
+- Keep that authoring status out of the subject `SKILL.md`.
+- Use static validation for structure only.
 
-## Iterate
+## Evaluate The Behavioral Claim
 
-- Preserve one strong failure or reuse an adequate case unchanged.
-- Compare the exact old/no-skill control with the candidate under the same prompt, fixture, tools, host, and model settings.
-- Grade objective artifacts before prose.
-- Change one measured pressure point.
-- Re-run the whole fixed case after the measured change; bootstrap does not reuse partial control evidence.
+Read [Evaluate Skill](../../evaluate-skill/SKILL.md) and name the exact claim: activation, first-read behavior, nearby behavior, dependency composition, retained use, artifact outcome, or readiness.
 
-## Production-Ready
+Preserve an adequate existing case instead of creating a replacement for process appearance. Compare the exact declared variants under fixed prompt, fixture, tools, host, model, and thinking settings. Do not use one evidence class to imply another.
 
-Require evidence relevant to the declared support:
+## Revise From Evidence
 
-- positive activation and near-miss non-trigger behavior;
-- high-value pressure regressions;
-- artifact outcomes where files or commands matter;
-- honest unsupported labels for unavailable host or multi-turn evidence.
+- Classify the failed boundary before editing.
+- Find the description cue, instruction, placement, dependency, reference boundary, example, or stop condition that should have prevented it.
+- Change one measured pressure point when possible.
+- Keep unrelated instructions and criteria stable.
+- Rerun the complete fixed case after the change.
 
-The owner decides promotion when evidence and residual gaps are visible.
+Do not add broad prose, examples, references, or scripts until the failure shows why they are needed.
+
+## Decide Readiness
+
+Require evidence for every claimed behavior and host. Keep unavailable activation, composition, retained-use, artifact, or cross-host evidence explicit in the owning evidence surface, not in the subject skill body.
+
+A strong candidate normally has:
+
+- earliest-use activation evidence;
+- first-read behavior with only guaranteed context;
+- a nearby case that does not get hijacked;
+- pressure cases where the baseline fails and the candidate improves behavior;
+- exact dependency, multi-turn, artifact, and host evidence only when claimed.
+
+The owner decides promotion after the evidence and residual gaps are visible.

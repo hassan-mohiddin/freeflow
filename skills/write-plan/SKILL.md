@@ -1,110 +1,123 @@
 ---
 name: write-plan
-description: Use when turning a planning-ready spec whose required approval is satisfied, clarified requirements, diagnosis, or validated design direction into a rolling implementation plan of phases and vertical slices, including learning work, verification, checkpoints, and backward routes.
+description: Use when writing or revising an implementation plan, execution plan, remediation plan, migration plan, or similar ordered plan.
 ---
 
 # Write Plan
 
-Plan the next executable horizon without pretending later implementation is already known.
+Write an ordered execution strategy that is expected to be followed.
 
-A plan is a revisable path from source truth, not a second specification, implementation transcript, or promise of flawless execution. Write the smallest plan that lets the responsible agent begin, learn, verify, and adapt safely.
+A Plan defines intended phases, slices, dependencies, boundaries, and checks. It is not a Spec, progress report, task history, or rolling record.
 
-## Route First
+## Confirm The Work Is Ready To Plan
 
-Classify the source:
+Write a Plan when:
 
-- **Spec-backed:** planning-ready source truth and any required approval exist.
-- **Context-backed and bounded:** explicit requirements support a lightweight plan.
-- **Bug without a feedback loop:** route to diagnosis instead of guessed fix steps.
-- **Unresolved interface or architecture:** use Discover or `../design-for-depth/SKILL.md` before freezing a path.
-- **Hidden owner decision or source conflict:** use `../decision-gate/SKILL.md`.
-- **Missing factual context:** inspect evidence before planning.
+- the intended outcome and scope are clear;
+- material user decisions and source conflicts are resolved;
+- the execution approach is understood well enough to order;
+- phases, slices, and dependencies can be stated without guessing;
+- expected checks are known or obtainable;
+- substantial branching or discovery is not expected.
 
-If the user asks a question about a plan, answer it instead of creating or editing one.
+If direction or major alternatives remain unsettled, read [Discuss](../discuss/SKILL.md). If one user-owned choice or source conflict blocks planning, read [Decision Gate](../decision-gate/SKILL.md). If a reported failure lacks a supported cause or feedback loop, read [Diagnose Failure](../diagnose-failure/SKILL.md) instead of planning a guessed fix.
 
-## Read Only What Constrains The Horizon
+Use [Track Work](../track-work/SKILL.md) when strategy is still evolving or actual execution, evidence, deviations, and current state need durable memory.
 
-Use the source spec, diagnosis, or explicit requirements; relevant policies, ADRs, tests, and live code; established module and test seams; and handoffs only as memory.
+If the user asks about a Plan, answer instead of writing or revising one.
 
-Do not turn speculative repository exploration into plan requirements. Live evidence wins when the requested path is stale.
+## Plan From Source
 
-## Scale The Plan
+A Plan may be written directly from sufficiently clear context; a separate Spec is not required.
 
-Use a lightweight checklist for clear bounded work. Use phases only when outcomes, dependencies, learning, or risk make them useful. Read [plan shapes](references/plan-shapes.md) for the smallest fitting form.
+Use the sources that establish the intended work:
 
-For a rolling plan:
+- explicit user direction and accepted shared understanding;
+- a Spec, issue, technical design, diagnosis, requirements, or Working Record when one exists;
+- relevant code, tests, policies, ADRs, and established behavior;
+- current external sources when an API, platform, or version constrains execution.
 
-- detail only the current executable horizon;
-- keep the next phase directional;
-- reduce later phases to provisional outcomes and major constraints;
-- move protocol detail into tests, experiments, or owning source documents instead of expanding the plan.
+When a Spec or decision artifact is linked, preserve its contract rather than silently reinterpreting it. Live evidence overrides stale memory. A Working Record, handoff, review item, or earlier Plan is not authority over contradictory user decisions or source truth.
 
-A plan may contain several slices without requiring review between them.
+## Write The Ordered Strategy
 
-## Shape Useful Slices
+Read [plan shapes](references/plan-shapes.md) and choose the smallest shape that makes the intended execution inspectable.
 
-A slice is the smallest coherent behavior or learning result worth verifying. Name only:
+Include, when relevant:
 
-- outcome and source requirement;
-- type: learning, delivery, or deepening;
-- likely seam or write boundary;
-- behavior or experiment;
-- self-verification through direct evidence;
-- dependencies and route-changing stop conditions.
+- goal, source, scope, and non-goals;
+- accepted decisions, assumptions, dependencies, and required order;
+- phases and slices with coherent, bounded results;
+- checks, integration, and final acceptance;
+- conditions that would invalidate the Plan.
 
-Add failure-unit, state, recovery, migration, or rollout detail only when the slice materially owns it. Do not require exact files or helper shapes before repository evidence supports them.
+Include exact paths, systems, and commands when known and useful. Do not guess them to make the Plan appear complete.
 
-Learning slices name a question, bounded experiment, available evidence mechanism, and discard-or-promote rule. Let them fail safely; they do not default to production code or independent review.
+Each slice should produce a coherent result that can be checked. A validation step may stop the Plan when a known assumption fails. If its result is expected to choose among materially different strategies, use a Working Record learning slice instead of pretending the later Plan is known.
 
-For the current horizon, every load-bearing acceptance or promotion condition must have an available mechanism that can directly support or falsify it at the required evidence boundary, or an earlier acquisition slice. “Where practical” and similar wording cannot make unavailable evidence mandatory.
+## Select Useful Checkpoints
 
-When TDD, migration, or launch applies, point to the owning skill rather than reproducing its procedure.
+Every meaningful slice is verified and silently self-reviewed during execution; do not restate that default unless its evidence boundary is unusual.
 
-## Plan For Feedback, Not Perfection
+At meaningful slice, phase, integration, risk, or continuity boundaries, consider independent review, a local commit, a user decision, or a continuity checkpoint. Record only selected checkpoints and their conditions. A slice ending or a fixed count alone does not justify a commit; prefer one when supported work forms a coherent rollback point or the next work may destabilize it.
 
-Every slice ends with one sequential self-check by the implementing agent: self-verification first, then bounded self-review only when evidence supports the slice. Read `verify-work` or `review-work` when richer guidance helps; reading them does not create independence. Do not schedule an independent context merely because a slice ends.
+User approval of the Plan authorizes its listed work, checks, reviews, Working Record updates, and local commits. It does not authorize push, integration, migration, deprecation, release, or launch. Planned commits remain conditional on live evidence and [Commit Work](../commit-work/SKILL.md) inspection.
 
-While writing a multi-phase plan, decide which phase exits need independent review. Prefer it when a phase produces a coherent integrated outcome that later phases depend on, promotes architecture, combines interacting risks, or crosses sensitive or hard-to-reverse behavior. Omit it for small reversible or learning phases where direct evidence and self-review are sufficient. Mark each selected boundary and the outcome it protects; approval of the plan grants scoped authorization for that review.
+## Keep Plan And Working Record Separate
 
-Rolling-plan edits normally use evidence and self-review, optionally enhanced by `review-artifact`, not another independent artifact-review pass. Final acceptance checks should form one reproducible package. After sequential final self-verification and self-review, freeze one state and dispatch a distinct verifier and reviewer in parallel. Completion needs verifier Pass plus resolved review; code changes stale both and require a new self-check plus authorization before redispatch.
+The Plan records the intended execution path. The Working Record records actual execution, current slices, evidence, task-local decisions, deviations, and next action.
 
-When failure repeats during execution, route first to diagnosis. Revise design only when diagnosis or direct structural evidence establishes a design cause.
+Do not revise the Plan for slice progress, expected evidence, status changes, or reversible local choices. Record those events in the Working Record when one exists.
 
-## Backward Checkpoints
+Link accepted behavior, contracts, and architecture rationale from the owning Spec or decision artifact instead of duplicating them in the Plan.
 
-Predefine a checkpoint only where expected evidence can materially change behavior, scope, architecture, ordering, or owner decisions. State what would continue the plan and what would revise the affected spec, plan, design, or route.
+## Stop Before Inventing A Path
 
-Dynamic evidence may reveal a bad slice, unplanned dependency, stale assumption, or unclear root cause. Preserve valid work and change only affected downstream planning. Ordinary local mistakes do not require replanning.
+Stop when writing would:
 
-## Hard Stops
+- invent or change requirements, scope, public behavior, compatibility, sensitive policy, failure semantics, or hard-to-reverse design;
+- hide unresolved strategy, architecture, dependencies, or owner choices inside confident steps;
+- plan a production fix from a guessed cause;
+- rewrite tests, docs, policies, or acceptance merely to make the proposed path succeed;
+- add speculative abstractions, migration machinery, retries, recovery, scale, or extension points;
+- replace agreed scope with an unapproved MVP, v1/v2, roadmap, or later-version split.
 
-Do not write a plan that:
+Route the unresolved issue to its owner rather than writing a Plan that assumes the answer.
 
-- invents product behavior, scope, public API, compatibility, sensitive policy, failure semantics, or hard-to-reverse architecture;
-- rewrites source truth to fit a desired implementation;
-- hides path-changing uncertainty in detailed steps;
-- promotes a production fix without a repro or accepted diagnostic path;
-- turns reversible implementation choices into owner gates;
-- adds speculative recovery, scale, adapters, or extension points;
-- treats a handoff or reviewer finding as authority.
+## Revise Only From Founded Evidence
 
-Ask one direct question only when a user-owned decision or source conflict blocks the next safe horizon.
+Write Plan also owns deliberate Plan revisions.
 
-## Self-Check The Plan
+Correct clerical mistakes directly. Do not revise the Plan for ordinary local choices or expected progress.
 
-Before finishing, self-check in order: first self-verify source alignment and every load-bearing evidence path; only when supported, silently self-review the plan once for its intended next action:
+Revise or supersede the affected Plan when supported evidence materially changes its scope, design, architecture, order, dependencies, checks, or execution mechanism. An accepted review item may support revision. Reaching the independent-review cap does not itself justify rewriting the Plan; revise only when diagnosis or evidence shows that the Plan is wrong or insufficient.
 
-- Is the current horizon executable without guessing consequential behavior?
-- Can direct evidence disagree with each load-bearing condition?
-- Are later phases directional rather than prematurely frozen?
-- Do phase-exit review choices protect consequential integrated outcomes without adding review to small reversible phases?
+Record the reason and execution impact in the Working Record when one exists. Revise a linked Spec or decision artifact only when its owned content changed. Preserve unaffected Plan content and history.
 
-Correct local clarity or consistency problems directly. Read `../review-artifact/SKILL.md` when richer artifact lenses would help, but treat that as enhanced self-review unless a formal independent boundary was selected. Surface only route-changing gaps.
+## Self-Check
 
-When a source spec exists, follow the combined, spec-first, or spec-only review route chosen by `write-spec`; do not reopen it unless new evidence changes the risk or readiness. If no spec exists and the plan is the task's only consequential durable artifact, review that plan independently before implementation under Workflow's standing authorization. If the task ends with the plan, its artifact review also satisfies final review.
+Silently review the Plan before routing it onward:
 
-## Completion
+- Are the intended result, source, and scope clear?
+- Can coherent, checkable slices proceed in the stated order?
+- Are dependencies, integration, final checks, and invalidation conditions represented?
+- Are selected checkpoints useful and proportionate rather than automatic ceremony?
+- Did the Plan invent intent, disguise material uncertainty, or absorb rolling task state?
 
-Report the plan path when saved, source context, current executable horizon, directional later work, open learning questions, route-changing decisions, and material unverified assumptions.
+Correct clear local issues directly. Surface only material gaps that prevent the Plan from being executable or fit for review.
 
-The plan is ready when responsible implementation can begin and learn safely—not when every future slice, mistake, or review outcome has been predicted.
+## Review The Plan
+
+After writing or materially revising the Plan, route it to [Review Artifact](../review-artifact/SKILL.md) before treating it as ready for approval and execution.
+
+Provide the reviewer with the complete Plan, intended use, source truth, linked artifacts, dependencies, selected checkpoints, and known evidence gaps. Review Artifact owns dependency ordering, review items, judgment, adjudication, and the review cycle. Artifact review establishes fitness; the user approves the Plan and its scoped execution authority.
+
+## Report
+
+State:
+
+- Plan path and intended use;
+- source context and linked artifacts;
+- material assumptions, blockers, or invalidation conditions;
+- selected review, commit, user, or continuity checkpoints;
+- artifact-review and user-approval status.

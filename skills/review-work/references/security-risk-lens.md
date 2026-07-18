@@ -45,18 +45,23 @@ Prefer evidence at the real boundary:
 
 A generic scanner pass cannot prove authorization logic or policy correctness. A unit test cannot prove deployed headers, identity configuration, or infrastructure permissions.
 
-## Finding Calibration
+Do not copy secrets, credentials, unrestricted personal data, or sensitive payloads into review context. Use the smallest sanitized evidence that supports the review item.
 
-Block when evidence shows exploitable behavior, policy violation, unintended privilege/data exposure, unsafe failure semantics, secret leakage, or a required control missing from the accepted contract.
+## Review Item Calibration
 
-Use `Question` for unresolved security behavior owned by the user or policy. Use `Needs evidence` when the control may exist but the available test or environment cannot prove it.
+Treat supported exploitable behavior, policy violation, unintended privilege or data exposure, unsafe failure semantics, secret leakage, or a missing required control as an Issue.
 
-Do not turn every theoretical hardening idea into a blocker. Name the asset, path, precondition, consequence, and source requirement.
+Classify the Issue against the accepted security policy and reviewed boundary:
+
+- **Blocking:** crossing the boundary would remain unsafe, non-compliant, or contrary to a required control.
+- **Non-blocking:** the security issue is real but can be deferred safely without violating the accepted boundary.
+
+Use **Question** when security behavior or accepted risk remains undecided. Use **Needs evidence** when a control may exist but the available test or environment cannot establish it.
+
+Treat materially useful defense-in-depth beyond the accepted boundary as an Improvement. Do not turn theoretical hardening, preference, or hypothetical completeness into an Issue.
+
+Do not omit an observed security issue merely because the selected lenses were narrower. Name the asset, path, precondition, consequence, evidence, and source requirement.
 
 ## Route
 
-- Implementation defect -> bounded fix with regression evidence.
-- Unknown exploitability/root cause -> diagnosis or specialist review.
-- Missing policy or accepted risk decision -> Decision Gate.
-- Architecture spreads trust decisions across callers -> design-for-depth.
-- Production rollout risk -> launch-work readiness.
+When security evidence changes the path, use [Workflow](../../workflow/SKILL.md) to choose what follows. Use [Diagnose Failure](../../diagnose-failure/SKILL.md) for unknown exploitability or root cause, [Decision Gate](../../decision-gate/SKILL.md) for missing policy or accepted-risk decisions, [Design For Depth](../../design-for-depth/SKILL.md) when trust decisions spread across callers, and [Launch Work](../../launch-work/SKILL.md) when the concern affects production rollout.

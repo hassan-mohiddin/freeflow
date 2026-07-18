@@ -1,115 +1,133 @@
 # Independent Work Reviewer Contract
 
-Use this for the standing final-work review or another authorized boundary. The reviewer is distinct from implementer and verifier and may run in parallel with the verifier against the same frozen state; neither receives the other's output.
+Use this when preparing an independent review of implementation or integrated work.
+
+The reviewer did not produce the work. Give them the work product, source truth, and evidence needed to judge it directly. Do not provide only the author's summary, reasoning, or claimed result.
 
 ## Required Context
 
 Provide:
 
-- the boundary decision this review protects;
-- accepted outcome, non-goals, and requirements;
-- source truth: relevant specs, plans, tests, policies, ADRs, and established behavior;
-- changed files, diff range, or coherent integrated work product;
-- implementing-agent self-verification and known evidence gaps;
-- only the risk lenses material to this boundary;
-- review pass and prior adjudication when this is a confirmation review;
-- when state transitions or proof validity matter: canonical invariant owner, known affecting paths, exact observer, canonical state, forbidden mutations, prior-state preservation, adversarial disproof, mutation footprint, and fidelity limit.
+- the work and future action covered by the review;
+- accepted outcome, requirements, and non-goals;
+- relevant specs, plans, tests, policies, ADRs, and established behavior;
+- the implementation, changed files, or diff range;
+- verification evidence and known gaps;
+- only the review lenses material to this boundary;
+- review number and, for a follow-up, prior items, adjudication, corrections, and new evidence.
 
-Do not provide only the author's summary, intentionally partial work as though it were final, or a request to validate the author's reasoning.
+When state transitions or proof integrity matter, also provide the invariant or state owner, affecting paths, observing mechanism, forbidden mutations, prior-state requirements, adversarial disproof, mutation footprint, and fidelity limits.
 
-## Portable Prompt
+## Reviewer Prompt
 
 ```md
 # Independent Work Review
 
-Review the integrated work. Do not edit files or act as the final independent verifier. This is an evidence-backed second opinion, not a defect quota or permission to broaden scope.
+Review work you did not produce. Inspect the supplied work, source truth, and evidence directly. Report review items without editing. The review ends with this report; do not fix items, dispatch a follow-up, or keep reviewing merely to obtain Pass.
 
-## Boundary Under Review
+A pass is valid. Do not invent items, broaden scope, or treat possible improvement as unfinished work.
 
-[Promotion, integration, sensitive commitment, final consequential work, unresolved route, or explicit user request.]
+## Boundary
+
+[Work and future action this review covers.]
 
 ## Accepted Outcome And Non-Goals
 
-[What the work must accomplish and what remains intentionally outside scope.]
+- Outcome: [required result]
+- Requirements: [accepted requirements]
+- Non-goals: [intentional exclusions]
 
 ## Source Truth
 
-- [spec, plan, policy, ADR, tests, established behavior]
+- [specs, plans, tests, policies, ADRs, and established behavior]
 
 ## Work Product
 
-- [diff range, changed files, or artifact paths]
+- Reviewed state: [commit, tree, diff, or other identity]
+- Work: [diff range, changed files, implementation, or integrated result]
 
-## Self-Verification Evidence
+## Verification Evidence
 
-- Implementing-agent checks: [commands and results]
+- Checks and results: [commands, observations, and results]
 - Known gaps: [gaps or none]
-- [when relevant: invariant owner; known affecting paths; exact observer; canonical state; forbidden mutations; prior-state preservation; adversarial disproof; mutation footprint; fidelity limit]
+- When relevant: [state owner, affecting paths, observer, forbidden mutations, prior-state requirements, adversarial disproof, mutation footprint, fidelity limits]
 
 ## Review Scope
 
-- [risk lenses material to this boundary]
-- Pass: [1 | confirmation | exceptional-3]
+- Review number: [1 | 2 | 3]
+- Material lenses: [alignment and correctness | regression and integration | failure and risk | evidence | design and minimality | maintainability]
 
-For confirmation or exceptional pass:
-- Prior findings: [summary]
-- Parent adjudication: [accepted | rejected | question | needs evidence]
-- Owner clarifications: [decisions or none]
-- Changed areas and verification: [bounded list]
-- Residual risk: [one narrow question]
+For Review 2 or 3:
+- Prior items and adjudication: [Accepted | Rejected | Open]
+- Clarifications: [settled decisions or none]
+- Corrections and new evidence: [changes and verification]
+- Remaining risk: [narrow unresolved scope]
 
 ## Check
 
-- Correctness and alignment with accepted requirements.
-- Regressions, unsafe behavior, and missing required failure handling.
-- Direct verification supports the claims made at this boundary.
-- Sensitive behavior and proof-bearing claims use the real observing boundary and name fidelity limits.
-- Complexity materially harmful to correctness or maintainability is not hidden by local passing tests.
-- Individually verified slices behave correctly when integrated.
-- Shared invariants have one owner and known affecting paths are covered where required.
-- Intentionally deferred work and reversible local choices are not misclassified as blockers.
+Apply only the selected lenses:
 
-For confirmation, inspect only accepted fixes, their verification, and the named residual risk. Do not restart broad review or reopen settled findings without contradictory evidence. If another consequence of the same unknown cause appears, recommend diagnosis before redesign.
+- The work satisfies accepted behavior without invention or omission.
+- Affected callers, states, and components remain correct together.
+- Relevant failure paths and material risks are handled safely.
+- Verification supports the claims and exercised the required boundary.
+- Complexity and coordination are justified by requirements or observed failures.
+- The work remains understandable and changeable without hidden policy or fragile coupling.
 
-## Finding Standard
+Do not search for unrelated issues. Report an out-of-scope issue only when it materially affects whether this boundary may be crossed.
 
-Classify material findings as Blocking, Non-blocking, Question, or Needs evidence.
+A possible edge case is not an Issue without accepted behavior, observed reachability, or material risk. Use Question when expected behavior is unclear, Needs evidence when reachability or consequence is unsupported, and Improvement for useful resilience not required by the boundary.
 
-A Blocking finding must include:
+For Review 2 or 3, inspect only accepted corrections, affected interactions, new evidence, and remaining risk. Do not reopen Rejected items without contradictory evidence. If another related case suggests one unclear cause, report that pattern rather than proposing another patch. Review 3 is final for this cycle; do not recommend Review 4.
 
-1. exact location and violated source truth;
-2. concrete consequence at the boundary under review;
-3. why direct verification or a local reversible correction is insufficient;
-4. smallest safe fix or backward route.
+## Classify Review Items
 
-Do not block on preference, style already enforced by tooling, hypothetical completeness, intentionally deferred work, or unspecified local reversible details. A clean pass is valid; do not invent findings.
+- **Blocking Issue:** supported defect or risk that must be resolved before crossing this boundary.
+- **Non-blocking Issue:** real issue that can be deferred safely for this boundary.
+- **Question:** material intent, requirement, or owner decision is unclear.
+- **Needs evidence:** a plausible concern cannot be established from available evidence.
+- **Improvement:** useful enhancement not required for this boundary. It does not affect judgment or authorize implementation.
+
+A Blocking Issue must include its exact location, violated requirement or source truth, evidence, concrete boundary consequence, and smallest safe correction or owning activity to re-enter.
+
+## Determine The Judgment
+
+1. **Blocking:** one or more Blocking Issues exist.
+2. **Inconclusive:** no Blocking Issue exists, but a material Question or Needs evidence item prevents judgment.
+3. **Non-blocking:** only Non-blocking Issues remain.
+4. **Pass:** no Issues or material Unresolved items remain. Improvements may still be reported.
 
 ## Output
 
-### Findings
+Review type: independent
+Review number: [1 | 2 | 3]
+Boundary: [reviewed work and future action]
+Reviewed state: [state identity]
+Judgment: Pass | Non-blocking | Inconclusive | Blocking
+Reasoning: [concise evidence-backed judgment]
 
-#### Blocking
-- [location] [finding, violated source truth, boundary consequence, and smallest safe route]
+### Review Items
 
-#### Non-blocking
-- ...
+#### Issues — Blocking
+- [location, issue, violated source, evidence, consequence, smallest safe correction]
 
-#### Questions
-- ...
+#### Issues — Non-blocking
+- [location, issue, evidence, why it can be deferred]
 
-#### Needs evidence
-- ...
+#### Unresolved — Questions
+- [question, effect on judgment, required answer]
 
-### Assessment
+#### Unresolved — Needs evidence
+- [concern, missing evidence, evidence needed]
 
-Status: Pass | Non-blocking | Blocking | Question | Needs evidence
-Boundary reviewed: [decision protected]
-Reasoning: [concise evidence-backed assessment]
-Verification gaps: [unproved boundary claims or none]
+#### Improvements
+- [improvement, benefit, supporting evidence]
+
+Evidence gaps: [unproved claims or none]
 ```
 
 ## Calibration
 
-Use a high evidence bar for consequential claims, not maximum finding count. Lead with the few findings that can change the boundary decision. A long list of low-consequence observations is weaker than one supported blocker.
+Use a high evidence bar, not a high item count. Lead with the few items that can change the boundary judgment. Prior review, urgency, implementation effort, or author confidence does not establish correctness.
 
-The verdict is evidence for responsible-agent adjudication, not authority over source truth or owner decisions. Collect it with the parallel verifier result. Completion requires verifier Pass and resolved review for the same unchanged state; any code change stales both and requires a new self-check plus authorization before redispatch.
+The review is evidence for adjudication, not authority over source truth, owner decisions, corrections, or another independent dispatch. Pass, Non-blocking, Inconclusive, and Blocking are all valid exits.

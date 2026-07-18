@@ -63,7 +63,8 @@ When reference skills conflict:
 - Use evals that compare baseline vs with-skill behavior. A useful eval usually makes baseline fail and with-skill pass.
 - Prefer adversarial fixture evals with saved diffs over clean prompts or subjective self-assessment.
 - Add a new skill only when it has a distinct job, trigger, and failure mode. Update an existing skill when the behavior belongs to an existing job. Use `evaluate-skill` and `write-skill` for meaningful skill changes.
-- Treat implementation, tests, and one sequential self-check—self-verification then, only on support, bounded self-review—as the primary feedback loop. Review/verify skills may enhance either method inline. At final assurance, dispatch a fresh verifier and different fresh reviewer in parallel against one frozen state.
+- Treat implementation, tests, and one sequential self-check—active-agent verification then, only on support, bounded self-review—as the primary feedback loop. Review/verify skills may enhance either method inline; reading them does not create independence.
+- Use independent review only at its standing Spec or Plan boundary, an approved Plan-selected boundary, or another explicitly selected boundary. Review findings do not authorize edits; request unapproved corrections and any warranted focused follow-up together.
 - Diagnose repeated or unexplained failure before redesigning unless direct structural evidence already establishes the cause.
 - Do not add enforcement hooks until skill wording and evals prove the behavior needs mechanical enforcement.
 
@@ -78,19 +79,21 @@ The plugin has exactly three modes:
 The core workflow principle:
 
 ```text
-Move forward when context is sufficient.
-Self-check sequentially after each meaningful slice: self-verify first; self-review once only when evidence supports the outcome.
+Begin one Interaction Lifecycle from the user turn or new evidence.
+Enter the Feedback Loop only when work is needed.
+Self-check sequentially after meaningful work: verify first; self-review once only when evidence supports the result.
 Diagnose repeated or unexplained failure before redesigning.
-Use independent review for standing artifact/final-work boundaries and consequential phase exits selected by an approved plan. At every other phase exit, assess accumulated interaction and irreversibility; ask before an additional independent dispatch.
-After the final sequential self-check, freeze the state and dispatch one verifier plus one different reviewer in parallel. Ask before any additional independent dispatch.
+Use separate independent review for Specs, Plans, approved Plan-selected boundaries, or another explicitly selected boundary.
+End review with Pass, Non-blocking, Inconclusive, or Blocking; then adjudicate and route without treating findings as commands.
 Re-enter the narrowest owning activity when evidence changes the path.
+Reach a Supported Exit without inventing another phase.
 ```
 
 ## Implementation Pointers
 
 The repo root is the single source of truth for runtime skills, plugin docs, current `.skill-eval/` definitions, router evidence under `router/evals/`, and command-surface metadata. The npm tarball contains only runtime-required files; GitHub retains docs and evidence.
 
-For the current skill set, inspect `skills/`.
+For the current skill set, inspect `skills/`. When an ongoing task resumes after compaction, summarization, clear, resume, or session navigation, read its complete Working Record and compare it with the current conversation and live state before continuing task work.
 
 ## Style
 

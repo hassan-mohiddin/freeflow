@@ -30,21 +30,22 @@ Prefer an adversarial disproof: bypass the producer, forge or replay the event, 
 
 ## Compare Mutation Footprints
 
-Before parallelizing verification, compare what each check may write or remove. Run checks serially when they share generated directories, caches, build outputs, package roots, fixture state, ports, databases, or intentional stale-artifact files.
+Before running checks concurrently, compare what each check may write or remove. Run checks serially when they share generated directories, caches, build outputs, package roots, fixture state, ports, databases, or intentional stale-artifact files.
 
 A concurrency-induced red signal is orchestration evidence, not automatically an implementation defect. Reproduce it under a non-overlapping or serial schedule before changing production code.
 
 ## Claim Map
 
-For sensitive or proof-bearing work, keep the review context compact:
+For sensitive or proof-bearing claims, record:
 
 ```text
 Claim:
-Exact observing mechanism:
-Boundary and fidelity level:
+Required boundary:
+Observing mechanism:
 Adversarial disproof:
-Known gap or unsupported stronger claim:
 Mutation footprint:
+Proves:
+Does not prove:
 ```
 
 Downgrade or split the claim when one mechanism cannot observe every asserted boundary.

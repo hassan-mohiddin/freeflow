@@ -1,25 +1,34 @@
 # Feedback Loop Catalog
 
-Pick the smallest loop that proves the user's failure. Prefer loops the agent can run repeatedly.
+Read this when the smallest useful loop for a reported failure is unclear.
 
 ## Common Loops
 
-- Failing test: best when an existing seam reaches the bug.
-- Repro command: CLI, script, package task, or one exact command with fixture input.
-- HTTP script: one request or short request sequence against a local service.
-- Browser script: UI flow with DOM, console, and network assertions.
-- Captured trace: HAR, log slice, event payload, seed, screenshot timestamp, core dump, or production sample replayed locally.
-- Throwaway harness: minimal script around the real module when no test framework exists.
-- Differential loop: same input through old versus new code, config, dataset, or dependency version.
-- Instrumented run: targeted logs or counters at boundaries that distinguish hypotheses.
+- **Failing test:** use when an existing stable interface or test boundary reaches the reported behavior.
+- **Repro command:** one CLI, package task, or script with representative fixture input.
+- **HTTP or protocol script:** the smallest real request sequence that crosses the affected boundary.
+- **Browser path:** the user flow with relevant DOM, console, network, and visual observations.
+- **Captured trace:** a sanitized log window, HAR, event payload, seed, timestamped screenshot, dump, or production sample replayed safely.
+- **Throwaway harness:** a minimal script around the real module when no test framework reaches it.
+- **Differential loop:** the same input through old and new code, configuration, dataset, dependency, or environment.
+- **Instrumented run:** targeted probes at boundaries that distinguish competing hypotheses.
 
-## Loop Quality
+## Improve The Loop
 
-Improve the loop before fixing:
+Prefer a loop that is:
 
-- Faster: remove unrelated startup and setup.
-- Sharper: assert the exact symptom, not generic success.
-- More deterministic: pin time, seed randomness, isolate network and filesystem.
-- More representative: use the reported input shape and environment boundary.
+- **Sharper:** asserts the reported symptom rather than generic failure.
+- **More representative:** preserves the relevant input, state, environment, and observing boundary.
+- **More deterministic:** pins time, randomness, dependencies, filesystem, or network only when doing so preserves the failure.
+- **Faster:** removes unrelated setup without narrowing the claim.
+- **Safer:** isolates mutation, sanitizes sensitive evidence, and has a bounded cleanup or recovery path.
 
-If none is possible, stop and ask for the smallest missing artifact: command, logs, trace, failing input, screenshot with timestamp, environment access, or permission for temporary instrumentation.
+An observer must sit on the real path and cover the complete operation. A manual counter beside the path, a helper call, or a nearby mocked flow does not prove the reported boundary ran.
+
+## Boundary Examples
+
+- A UI save remains pending → exercise the browser path and inspect the request, console, and rendered state; a reducer unit test does not prove the reported boundary.
+- A registered callback allegedly never runs → invoke or observe the registered entrypoint; calling its helper directly proves only helper behavior.
+- A failure appears only in CI → compare the same input across local and CI configuration before changing timing or adding retries.
+
+If no safe useful loop is possible, identify the smallest missing artifact or access: command, logs, trace, failing input, timestamped screenshot, environment boundary, or permission for isolated temporary instrumentation. Leave the cause unresolved rather than substituting a weaker claim.

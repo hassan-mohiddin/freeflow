@@ -20,7 +20,7 @@ Then classify:
 - **Continue:** no design pressure that changes the next action.
 - **Local fix:** improve within current module/interface.
 - **Plan revision:** slice boundary or verification path is wrong.
-- **Spec/discovery:** behavior, scope, or acceptance is unclear.
+- **Discuss or revise a Spec:** behavior, scope, or acceptance is unclear.
 - **Owner decision:** public API, compatibility, security, privacy, billing, data loss, permissions, migration, or hard-to-reverse architecture.
 - **Deferred deepening:** real design pressure, but not worth solving in this scope.
 
@@ -41,7 +41,7 @@ Likely issue: a likely-changing decision is not hidden behind a module.
 
 Route:
 
-- If behavior/scope is unsettled: discovery or spec.
+- If behavior or scope is unsettled: Discuss or revise the owning Spec.
 - If behavior is settled but slice spreads edits: plan revision or refactor candidate.
 
 ### Caller Choreography
@@ -141,7 +141,7 @@ Signal: completed slices increase the estimated remaining work, pull deferred ca
 
 Likely issue: the milestone or plan has been invalidated even if each local change remains technically in scope.
 
-Route to a backward checkpoint: keep, simplify, split, defer, revise plan/spec, or stop for owner direction.
+Return the evidence and options to Workflow: keep, simplify, split, defer, revise the owning Plan or Spec, or stop for owner direction.
 
 ### Edge-Case Patch Stream
 
@@ -156,8 +156,8 @@ Likely issue: review is exposing missing behavior ownership, not isolated bugs.
 Route:
 
 - classify findings;
-- stop at review cap;
-- diagnose whether discovery, spec, plan, source truth, module shape, or reviewer context is wrong.
+- respect the review cap;
+- diagnose only when related findings suggest an unclear shared cause in discussion, source truth, the Spec or Plan, module shape, or reviewer context.
 
 ### Pass-Through Wrapper
 
@@ -177,7 +177,7 @@ Options:
 
 - delete it if it hides nothing;
 - deepen it by moving real policy behind it;
-- keep it only if it expresses a stable domain interface that will soon hide behavior.
+- keep it only when it expresses a stable domain or compatibility interface with a source-backed reason to exist.
 
 ### Leaky Interface
 
@@ -297,7 +297,7 @@ Pressure:
 Better direction:
 
 ```text
-Discover expected freshness boundary. If source truth supports it, hide invalidation/freshness rules behind a cache-aware read interface.
+Discuss the expected freshness boundary. If source truth supports it, hide invalidation and freshness rules behind a cache-aware read interface.
 ```
 
 ## False Positives

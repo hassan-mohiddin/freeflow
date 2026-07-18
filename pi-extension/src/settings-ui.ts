@@ -1,5 +1,7 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { execFile } from "node:child_process";
+import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { dirname, isAbsolute, join, resolve } from "node:path";
+import { promisify } from "node:util";
 
 import {
 	DEFAULT_OBSERVED_ROUTING_CONFIG,
@@ -16,7 +18,8 @@ import {
 	handleModeCommand,
 	readCapabilityState,
 	readFreeflowConfig,
-	readFreeflowConfigState,
+	readFreeflowConfigLayers,
+	readFreeflowLocalConfig,
 	readModeState,
 	VALID_MODES,
 } from "./runtime-context.js";
@@ -30,16 +33,21 @@ const DEFAULT_INTERACTION_CONTRACT_ENABLED = true;
 const DEFAULT_SKILLS_ENABLED = true;
 const MODE_VALUES = ["conversation", "workflow", "strict-workflow"];
 const MODE_LABELS = {
-	default: "Use repo default",
+	default: "Use configured default",
 	conversation: "conversation",
 	workflow: "workflow",
 	"strict-workflow": "strict-workflow",
 };
 const MODE_DESCRIPTIONS = {
-	conversation: "Discussion without workflow pressure",
-	workflow: "Default for consequential work",
-	"strict-workflow": "Stronger gates for high-risk work",
+	conversation: "Discussion and read-only inspection",
+	workflow: "Adaptive workflow for consequential work",
+	"strict-workflow": "Stronger decision and evidence pressure for high-risk work",
 };
+const LOCAL_INHERIT = "inherit";
+const execFileAsync = promisify(execFile);
+
+type ConfigScope = "local" | "repository";
+type ConfigSource = "local" | "repository" | "builtin";
 
 type SettingKind =
 	| "boolean"
@@ -66,6 +74,13 @@ type SettingsItem = {
 	children?: SettingsItem[];
 	parse?: (text: string) => unknown;
 	format?: (value: unknown) => string;
+	configScope?: ConfigScope;
+	configValues?: Record<string, unknown>;
+	effectiveValue?: unknown;
+	effectiveSource?: ConfigSource;
+	inheritedValue?: unknown;
+	inheritedSource?: ConfigSource;
+	localOverrideValue?: unknown;
 };
 
 type OpenSettingsOptions = {
@@ -536,114 +551,405 @@ function delegationHarnessItems(
 	];
 }
 
-function freeflowItems(
-	rawConfig: Record<string, unknown>,
-	modeState?: Awaited<ReturnType<typeof readModeState>>,
-): SettingsItem[] {
-	const freeflowEnabled = getPath(rawConfig, ["enabled"]) !== false;
-	const freeflowInactive = !freeflowEnabled;
-	const interactionContractEnabled =
-		getPath(rawConfig, ["interactionContract"]) !== false;
-	const skillsConfig = getPath(rawConfig, ["skills"]);
-	const skillsEnabled =
-		!isRecord(skillsConfig) || skillsConfig.enabled !== false;
-	const rawDefaultMode = rawConfig.defaultMode;
-	const defaultMode =
-		typeof rawDefaultMode === "string" && VALID_MODES.has(rawDefaultMode)
-			? rawDefaultMode
-			: "workflow";
-	const sessionMode = modeState?.currentMode ?? "default";
-	const routerItems = outputRouterItems(rawConfig, freeflowInactive);
-	const routerEnabled =
-		routerItems.find((item) => item.id === "outputRouter.enabled")?.value ===
-		true;
-	const delegationItems = delegationHarnessItems(rawConfig, freeflowInactive);
-	const delegationEnabled =
-		delegationItems.find((item) => item.id === "delegationHarness.enabled")
-			?.value === true;
+function configValueForChoice(item: SettingsItem, value: unknown): unknown {
+	const key = String(value);
+	if (item.configValues && Object.hasOwn(item.configValues, key)) {
+		return item.configValues[key];
+	}
+	return value;
+}
 
-	return [
-		{
-			id: "freeflow.enabled",
-			label: "Freeflow",
-			description:
-				"Master switch for the Interaction Contract, Freeflow skills, output routing, delegation, and observed/native routing in this repo.",
-			path: ["enabled"],
-			kind: "boolean",
-			value: freeflowEnabled,
-			defaultValue: DEFAULT_FREEFLOW_ENABLED,
-		},
-		{
-			id: "freeflow.interactionContract",
-			label: "Interaction Contract",
-			description:
-				"Apply Freeflow's compact turn-interpretation and collaboration guidance.",
-			path: ["interactionContract"],
-			kind: "boolean",
-			value: interactionContractEnabled,
-			defaultValue: DEFAULT_INTERACTION_CONTRACT_ENABLED,
-			inactive: freeflowInactive,
-		},
-		{
-			id: "freeflow.skills.enabled",
-			label: "Skills",
-			description:
-				"Expose Freeflow skills and load Workflow once on the first turn.",
-			path: ["skills", "enabled"],
-			kind: "boolean",
-			value: skillsEnabled,
-			defaultValue: DEFAULT_SKILLS_ENABLED,
-			inactive: freeflowInactive,
-		},
-		{
-			id: "freeflow.sessionMode",
-			label: "Session mode",
-			description:
-				"Temporary mode override for this Pi session. Use repo default clears the override without changing config.json.",
+function effectiveItemValue(item: SettingsItem): unknown {
+	return item.effectiveValue !== undefined ? item.effectiveValue : item.value;
+}
+
+function formatCoreValue(value: unknown): string {
+	return typeof value === "boolean" ? booleanValue(value) : String(value ?? "");
+}
+
+function coreDisplaySuffix(item: SettingsItem, inactive = false): string {
+	const source = item.effectiveSource ?? "builtin";
+	const parts =
+		item.configScope === "repository" && source === "local"
+			? [`effective ${formatCoreValue(effectiveItemValue(item))}`, source]
+			: [source];
+	if (inactive) parts.push("inactive");
+	return `(${parts.join(" · ")})`;
+}
+
+function updateScopedItemState(item: SettingsItem, value: unknown) {
+	if (!item.configScope) return;
+	const configValue = configValueForChoice(item, value);
+	if (item.configScope === "local") {
+		item.effectiveValue =
+			configValue === undefined ? item.inheritedValue : configValue;
+		item.effectiveSource =
+			configValue === undefined ? (item.inheritedSource ?? "builtin") : "local";
+		return;
+	}
+	if (item.localOverrideValue !== undefined) {
+		item.effectiveValue = item.localOverrideValue;
+		item.effectiveSource = "local";
+		return;
+	}
+	item.effectiveValue = configValue;
+	item.effectiveSource =
+		item.defaultValue !== undefined &&
+		valuesEqual(configValue, item.defaultValue)
+			? "builtin"
+			: "repository";
+}
+
+type ScopedBooleanItemOptions = {
+	scope: ConfigScope;
+	rawConfig: Record<string, unknown>;
+	localConfig: Record<string, unknown>;
+	id: string;
+	label: string;
+	description: string;
+	path: string[];
+	effectiveValue: boolean;
+	effectiveSource: ConfigSource;
+	defaultValue: boolean;
+};
+
+function createScopedBooleanItem(
+	options: ScopedBooleanItemOptions,
+): SettingsItem {
+	const repositoryValue = getPath(options.rawConfig, options.path);
+	const inheritedValue =
+		typeof repositoryValue === "boolean"
+			? repositoryValue
+			: options.defaultValue;
+	const inheritedSource: ConfigSource =
+		typeof repositoryValue === "boolean" ? "repository" : "builtin";
+	const localValue = getPath(options.localConfig, options.path);
+	let item: SettingsItem;
+	if (options.scope === "local") {
+		const selectedValue =
+			typeof localValue === "boolean" ? String(localValue) : LOCAL_INHERIT;
+		item = {
+			id: options.id,
+			label: options.label,
+			description: `${options.description} Choose inherit to use the repository value; use /freeflow settings repo to edit shared defaults.`,
+			path: options.path,
 			kind: "enum",
-			value: sessionMode,
-			values: ["default", ...MODE_VALUES],
-			valueLabels: MODE_LABELS,
-			valueDescriptions: {
-				default: defaultMode,
-				...MODE_DESCRIPTIONS,
+			value: selectedValue,
+			values: [LOCAL_INHERIT, "true", "false"],
+			valueLabels: {
+				inherit: "Inherit repository",
+				true: "enabled",
+				false: "disabled",
 			},
-			inactive: freeflowInactive || !skillsEnabled,
-			displaySuffix: sessionMode === "default" ? `(${defaultMode})` : undefined,
-		},
-		{
+			valueDescriptions: {
+				inherit: `Use ${formatCoreValue(inheritedValue)} from ${inheritedSource}.`,
+				true: "Set a personal enabled override.",
+				false: "Set a personal disabled override.",
+			},
+			format: (value) => {
+				if (value === LOCAL_INHERIT) return LOCAL_INHERIT;
+				return booleanValue(value === "true");
+			},
+			configScope: "local",
+			configValues: {
+				inherit: undefined,
+				true: true,
+				false: false,
+			},
+			effectiveValue: options.effectiveValue,
+			effectiveSource: options.effectiveSource,
+			inheritedValue,
+			inheritedSource,
+		};
+	} else {
+		item = {
+			id: options.id,
+			label: options.label,
+			description: `${options.description} This edits shared .freeflow/config.json.`,
+			path: options.path,
+			kind: "boolean",
+			value: inheritedValue,
+			defaultValue: options.defaultValue,
+			configScope: "repository",
+			effectiveValue: options.effectiveValue,
+			effectiveSource: options.effectiveSource,
+			localOverrideValue:
+				typeof localValue === "boolean" ? localValue : undefined,
+		};
+	}
+	item.displaySuffix = coreDisplaySuffix(item);
+	return item;
+}
+
+type ScopedDefaultModeItemOptions = {
+	scope: ConfigScope;
+	repositoryDefaultMode: string;
+	repositoryDefaultSource: ConfigSource;
+	localDefaultMode?: string;
+	effectiveValue: string;
+	effectiveSource: ConfigSource;
+};
+
+function createScopedDefaultModeItem(
+	options: ScopedDefaultModeItemOptions,
+): SettingsItem {
+	let item: SettingsItem;
+	if (options.scope === "local") {
+		item = {
 			id: "freeflow.defaultMode",
 			label: "Default mode",
 			description:
-				"Repo default Freeflow mode used when Skills are enabled; inactive while Skills are disabled.",
+				"Personal default mode for this checkout. Choose inherit to use the repository default; use /freeflow settings repo to edit shared defaults.",
 			path: ["defaultMode"],
 			kind: "enum",
-			value: defaultMode,
+			value: options.localDefaultMode ?? LOCAL_INHERIT,
+			values: [LOCAL_INHERIT, ...MODE_VALUES],
+			valueLabels: {
+				inherit: "Inherit repository",
+				...MODE_LABELS,
+			},
+			valueDescriptions: {
+				inherit: `Use ${options.repositoryDefaultMode} from ${options.repositoryDefaultSource}.`,
+				...MODE_DESCRIPTIONS,
+			},
+			format: (value) => String(value),
+			configScope: "local",
+			configValues: { inherit: undefined },
+			effectiveValue: options.effectiveValue,
+			effectiveSource: options.effectiveSource,
+			inheritedValue: options.repositoryDefaultMode,
+			inheritedSource: options.repositoryDefaultSource,
+		};
+	} else {
+		item = {
+			id: "freeflow.defaultMode",
+			label: "Default mode",
+			description:
+				"Shared repository default Freeflow mode used when Skills are enabled. This edits .freeflow/config.json.",
+			path: ["defaultMode"],
+			kind: "enum",
+			value: options.repositoryDefaultMode,
 			values: MODE_VALUES,
 			valueLabels: MODE_LABELS,
 			valueDescriptions: MODE_DESCRIPTIONS,
-			inactive: freeflowInactive,
-			displaySuffix:
-				!freeflowInactive && !skillsEnabled ? "(inactive)" : undefined,
+			configScope: "repository",
+			effectiveValue: options.effectiveValue,
+			effectiveSource: options.effectiveSource,
+			localOverrideValue: options.localDefaultMode,
+		};
+	}
+	item.displaySuffix = coreDisplaySuffix(item);
+	return item;
+}
+
+function sessionModeDisplaySuffix(
+	sessionMode: string,
+	defaultMode: string,
+	defaultSource: ConfigSource,
+	inactive: boolean,
+): string | undefined {
+	if (sessionMode !== "default") return undefined;
+	const inactiveSuffix = inactive ? " · inactive" : "";
+	return `(${defaultMode} · ${defaultSource}${inactiveSuffix})`;
+}
+
+function validModeOrUndefined(value: unknown): string | undefined {
+	return typeof value === "string" && VALID_MODES.has(value)
+		? value
+		: undefined;
+}
+
+function resolveSettingsCoreView(
+	rawConfig: Record<string, unknown>,
+	layers?: Awaited<ReturnType<typeof readFreeflowConfigLayers>>,
+) {
+	const localConfig =
+		layers?.local.valid && isRecord(layers.local.parsed)
+			? layers.local.parsed
+			: {};
+	const repositorySkillsValue = getPath(rawConfig, ["skills"]);
+	const repositorySkills = isRecord(repositorySkillsValue)
+		? repositorySkillsValue
+		: {};
+	const fallbackCore = {
+		enabled: getPath(rawConfig, ["enabled"]) !== false,
+		interactionContract: getPath(rawConfig, ["interactionContract"]) !== false,
+		skills: { enabled: getPath(repositorySkills, ["enabled"]) !== false },
+		defaultMode: validModeOrUndefined(rawConfig.defaultMode) ?? "workflow",
+	};
+	const fallbackSources = {
+		enabled:
+			typeof getPath(rawConfig, ["enabled"]) === "boolean"
+				? "repository"
+				: "builtin",
+		interactionContract:
+			typeof getPath(rawConfig, ["interactionContract"]) === "boolean"
+				? "repository"
+				: "builtin",
+		skillsEnabled:
+			typeof getPath(repositorySkills, ["enabled"]) === "boolean"
+				? "repository"
+				: "builtin",
+		defaultMode:
+			validModeOrUndefined(rawConfig.defaultMode) !== undefined
+				? "repository"
+				: "builtin",
+	} as const;
+	return {
+		localConfig,
+		core: layers?.coreConfig ?? fallbackCore,
+		sources: (layers?.sources ?? fallbackSources) as {
+			enabled: ConfigSource;
+			interactionContract: ConfigSource;
+			skillsEnabled: ConfigSource;
+			defaultMode: ConfigSource;
 		},
+	};
+}
+
+function groupEnabled(items: SettingsItem[], id: string): boolean {
+	return items.find((item) => item.id === id)?.value === true;
+}
+
+function freeflowItems(
+	rawConfig: Record<string, unknown>,
+	modeState?: Awaited<ReturnType<typeof readModeState>>,
+	options: {
+		scope?: ConfigScope;
+		layers?: Awaited<ReturnType<typeof readFreeflowConfigLayers>>;
+	} = {},
+): SettingsItem[] {
+	const scope = options.scope ?? "repository";
+	const layers = options.layers;
+	const { localConfig, core, sources } = resolveSettingsCoreView(
+		rawConfig,
+		layers,
+	);
+
+	const freeflowItem = createScopedBooleanItem({
+		scope,
+		rawConfig,
+		localConfig,
+		id: "freeflow.enabled",
+		label: "Freeflow",
+		description:
+			"Master switch for the Interaction Contract and Freeflow skills in this checkout.",
+		path: ["enabled"],
+		effectiveValue: core.enabled,
+		effectiveSource: sources.enabled,
+		defaultValue: DEFAULT_FREEFLOW_ENABLED,
+	});
+	const interactionItem = createScopedBooleanItem({
+		scope,
+		rawConfig,
+		localConfig,
+		id: "freeflow.interactionContract",
+		label: "Interaction Contract",
+		description:
+			"Apply Freeflow's compact turn-interpretation and collaboration guidance.",
+		path: ["interactionContract"],
+		effectiveValue: core.interactionContract,
+		effectiveSource: sources.interactionContract,
+		defaultValue: DEFAULT_INTERACTION_CONTRACT_ENABLED,
+	});
+	const skillsItem = createScopedBooleanItem({
+		scope,
+		rawConfig,
+		localConfig,
+		id: "freeflow.skills.enabled",
+		label: "Skills",
+		description:
+			"Expose Freeflow skills and load Workflow once on the first turn.",
+		path: ["skills", "enabled"],
+		effectiveValue: core.skills.enabled,
+		effectiveSource: sources.skillsEnabled,
+		defaultValue: DEFAULT_SKILLS_ENABLED,
+	});
+
+	const repositoryModeValue = validModeOrUndefined(rawConfig.defaultMode);
+	const repositoryDefaultMode = repositoryModeValue ?? "workflow";
+	const repositoryDefaultSource: ConfigSource = repositoryModeValue
+		? "repository"
+		: "builtin";
+	const localDefaultMode = validModeOrUndefined(localConfig.defaultMode);
+	const defaultModeItem = createScopedDefaultModeItem({
+		scope,
+		repositoryDefaultMode,
+		repositoryDefaultSource,
+		localDefaultMode,
+		effectiveValue: core.defaultMode,
+		effectiveSource: sources.defaultMode,
+	});
+
+	const freeflowInactive = !core.enabled;
+	const skillsEnabled = core.skills.enabled;
+	interactionItem.inactive = freeflowInactive;
+	skillsItem.inactive = freeflowInactive;
+	defaultModeItem.inactive = freeflowInactive;
+	defaultModeItem.displaySuffix = coreDisplaySuffix(
+		defaultModeItem,
+		freeflowInactive || !skillsEnabled,
+	);
+	const sessionMode = modeState?.currentMode ?? "default";
+	const sessionModeItem: SettingsItem = {
+		id: "freeflow.sessionMode",
+		label: "Session mode",
+		description:
+			"Temporary mode override for this Pi session. Use configured default clears the override without changing either config file.",
+		kind: "enum",
+		value: sessionMode,
+		values: ["default", ...MODE_VALUES],
+		valueLabels: {
+			...MODE_LABELS,
+			default: "Use configured default",
+		},
+		valueDescriptions: {
+			default: `${core.defaultMode} from ${sources.defaultMode}`,
+			...MODE_DESCRIPTIONS,
+		},
+		inactive: freeflowInactive || !skillsEnabled,
+		displaySuffix: sessionModeDisplaySuffix(
+			sessionMode,
+			core.defaultMode,
+			sources.defaultMode,
+			freeflowInactive || !skillsEnabled,
+		),
+	};
+
+	const routerItems = outputRouterItems(rawConfig, freeflowInactive);
+	const routerEnabled = groupEnabled(routerItems, "outputRouter.enabled");
+	const delegationItems = delegationHarnessItems(rawConfig, freeflowInactive);
+	const delegationEnabled = groupEnabled(
+		delegationItems,
+		"delegationHarness.enabled",
+	);
+
+	return [
+		freeflowItem,
+		interactionItem,
+		skillsItem,
+		sessionModeItem,
+		defaultModeItem,
 		{
 			id: "outputRouter.group",
 			label: "Output Router",
 			description:
-				"Open grouped settings for routed evidence tools, native output safety net, vault storage, script transforms, and observed tool routing.",
+				"Shared repository settings for routed evidence tools, native output safety net, vault storage, script transforms, and observed tool routing.",
 			kind: "group",
 			value: routerEnabled,
 			inactive: freeflowInactive,
+			displaySuffix: "(repository)",
 			children: routerItems,
 		},
 		{
 			id: "delegationHarness.group",
 			label: "Delegation Harness",
 			description:
-				"Open grouped settings for the Freeflow cmux delegation harness tools, hooks, and runtime guidance.",
+				"Shared repository settings for the Freeflow cmux delegation harness tools, hooks, and runtime guidance.",
 			kind: "group",
 			value: delegationEnabled,
 			inactive: freeflowInactive,
+			displaySuffix: "(repository)",
 			children: delegationItems,
 		},
 	];
@@ -850,7 +1156,95 @@ function pruneKnownDefaults(config: Record<string, unknown>) {
 	}
 }
 
-async function updateConfig(cwd: string, item: SettingsItem, value: unknown) {
+async function ensureLocalConfigIgnored(cwd: string) {
+	let gitPath: string;
+	try {
+		const result = await execFileAsync("git", [
+			"-C",
+			cwd,
+			"rev-parse",
+			"--git-path",
+			"info/exclude",
+		]);
+		gitPath = result.stdout.trim();
+	} catch {
+		return;
+	}
+
+	const tracked = await execFileAsync("git", [
+		"-C",
+		cwd,
+		"ls-files",
+		"--",
+		".freeflow/local.json",
+	]);
+	if (tracked.stdout.trim()) {
+		throw new Error(
+			".freeflow/local.json is tracked by git; remove it from the index before writing personal overrides.",
+		);
+	}
+
+	try {
+		await execFileAsync("git", [
+			"-C",
+			cwd,
+			"check-ignore",
+			"-q",
+			"--",
+			".freeflow/local.json",
+		]);
+		return;
+	} catch {
+		// Add a local exclude when the repository does not already ignore the file.
+	}
+
+	const excludePath = isAbsolute(gitPath) ? gitPath : resolve(cwd, gitPath);
+	let existing = "";
+	try {
+		existing = await readFile(excludePath, "utf8");
+	} catch {
+		// The git metadata path may not exist yet in a minimal repository.
+	}
+	const rule = ".freeflow/local.json";
+	if (existing.split(/\r?\n/).includes(rule)) return;
+	await mkdir(dirname(excludePath), { recursive: true });
+	const prefix = existing && !existing.endsWith("\n") ? "\n" : "";
+	await appendFile(excludePath, `${prefix}${rule}\n`, "utf8");
+}
+
+async function updateConfig(
+	cwd: string,
+	item: SettingsItem,
+	value: unknown,
+	scope: ConfigScope = item.configScope ?? "repository",
+) {
+	if (scope === "local") {
+		if (!item.path?.length) {
+			throw new Error(
+				`${item.label} is a settings group, not a writable setting.`,
+			);
+		}
+		const current = await readFreeflowLocalConfig(cwd);
+		const next = cloneJson(current) as Record<string, unknown>;
+		const configValue = configValueForChoice(item, value);
+		const previousValue = getPath(current, item.path);
+		if (configValue === undefined || isEmptyValue(configValue)) {
+			if (previousValue === undefined) return;
+			deletePath(next, item.path);
+		} else {
+			setPath(next, item.path, configValue);
+		}
+		const path = join(cwd, ".freeflow/local.json");
+		await ensureLocalConfigIgnored(cwd);
+		if (Object.keys(next).length === 0) {
+			await rm(path, { force: true });
+			return;
+		}
+		await mkdir(join(cwd, ".freeflow"), { recursive: true });
+		await writeFile(path, `${JSON.stringify(next, null, 2)}\n`, "utf8");
+		return;
+	}
+
 	const current = await readFreeflowConfig(cwd);
 	const next = cloneJson(current) as Record<string, unknown>;
 	setConfigValue(next, item, value);
@@ -866,7 +1260,9 @@ async function updateConfig(cwd: string, item: SettingsItem, value: unknown) {
 
 function valueForDisplay(item: SettingsItem): string {
 	let value: string;
-	if (item.kind === "boolean") {
+	if (item.configScope === "local") {
+		value = formatCoreValue(effectiveItemValue(item));
+	} else if (item.kind === "boolean") {
 		value = booleanValue(item.value);
 	} else if (item.kind === "group") {
 		const status =
@@ -975,6 +1371,7 @@ class FreeflowSettingsComponent {
 	private editBuffer = "";
 	private message = "";
 	private changed = false;
+	private successfulWrites = 0;
 	private pending = Promise.resolve();
 
 	constructor(
@@ -1158,6 +1555,7 @@ class FreeflowSettingsComponent {
 
 	async waitForWrites() {
 		await this.pending;
+		return this.successfulWrites > 0;
 	}
 
 	private currentFrame(): SettingsFrame {
@@ -1370,15 +1768,20 @@ class FreeflowSettingsComponent {
 	}
 
 	private applyValue(item: SettingsItem, value: unknown) {
+		updateScopedItemState(item, value);
 		item.value = value;
 		this.refreshDerivedState();
 		this.changed = true;
 		this.message = `${item.label} = ${valueForDisplay(item)}`;
 		this.pending = this.pending
-			.then(() => this.options.onChange(item, value))
+			.then(async () => {
+				await this.options.onChange(item, value);
+				this.successfulWrites += 1;
+			})
 			.catch((error) => {
 				const message = error instanceof Error ? error.message : String(error);
 				this.message = `Write failed: ${message}`;
+				this.options.ctx?.ui?.notify?.(this.message, "error");
 			});
 	}
 
@@ -1387,10 +1790,16 @@ class FreeflowSettingsComponent {
 			this.options.items,
 			"freeflow.enabled",
 		);
-		const freeflowInactive = freeflowItem ? freeflowItem.value !== true : false;
-		const skillsEnabled =
-			findSettingsItem(this.options.items, "freeflow.skills.enabled")?.value ===
-			true;
+		const freeflowInactive = freeflowItem
+			? effectiveItemValue(freeflowItem) !== true
+			: false;
+		const skillsItem = findSettingsItem(
+			this.options.items,
+			"freeflow.skills.enabled",
+		);
+		const skillsEnabled = skillsItem
+			? effectiveItemValue(skillsItem) === true
+			: true;
 		const routerEnabled =
 			findSettingsItem(this.options.items, "outputRouter.enabled")?.value ===
 			true;
@@ -1414,17 +1823,20 @@ class FreeflowSettingsComponent {
 			"delegationHarness.group",
 		);
 
-		if (defaultModeItem) {
-			defaultModeItem.displaySuffix =
-				!freeflowInactive && !skillsEnabled ? "(inactive)" : undefined;
-		}
 		if (sessionModeItem) {
-			const defaultMode = String(defaultModeItem?.value ?? "workflow");
+			const defaultMode = String(
+				defaultModeItem ? effectiveItemValue(defaultModeItem) : "workflow",
+			);
+			const defaultSource = defaultModeItem?.effectiveSource ?? "builtin";
 			sessionModeItem.inactive = freeflowInactive || !skillsEnabled;
-			sessionModeItem.displaySuffix =
-				sessionModeItem.value === "default" ? `(${defaultMode})` : undefined;
+			sessionModeItem.displaySuffix = sessionModeDisplaySuffix(
+				String(sessionModeItem.value),
+				defaultMode,
+				defaultSource,
+				freeflowInactive || !skillsEnabled,
+			);
 			sessionModeItem.valueDescriptions = {
-				default: defaultMode,
+				default: `${defaultMode} from ${defaultSource}`,
 				...MODE_DESCRIPTIONS,
 			};
 		}
@@ -1439,8 +1851,15 @@ class FreeflowSettingsComponent {
 		}
 
 		walkSettingsItems(this.options.items, (candidate) => {
-			if (candidate.id === "freeflow.enabled") {
-				candidate.inactive = false;
+			if (candidate.configScope) {
+				const inactive =
+					candidate.id === "freeflow.enabled" ? false : freeflowInactive;
+				const displayInactive =
+					candidate.id === "freeflow.defaultMode"
+						? freeflowInactive || !skillsEnabled
+						: inactive;
+				candidate.inactive = inactive;
+				candidate.displaySuffix = coreDisplaySuffix(candidate, displayInactive);
 			} else if (candidate.id === "freeflow.sessionMode") {
 				candidate.inactive = freeflowInactive || !skillsEnabled;
 			} else if (
@@ -1512,9 +1931,10 @@ async function openSettings(options: OpenSettingsOptions): Promise<boolean> {
 		},
 	);
 
-	await component?.waitForWrites();
-	await options.onClose?.(changed === true);
-	return changed === true;
+	const wroteSuccessfully = (await component?.waitForWrites()) ?? false;
+	const effectiveChanged = changed === true && wroteSuccessfully;
+	await options.onClose?.(effectiveChanged);
+	return effectiveChanged;
 }
 
 function outputRouterStatusText(rawConfig: Record<string, unknown>): string {
@@ -1610,12 +2030,13 @@ export async function handleFreeflowCommand(
 	const input = (args ?? "settings").trim().toLowerCase() || "settings";
 	const [action, ...rest] = input.split(/\s+/);
 	const actionValue = rest.join(" ");
-	const configState = await readFreeflowConfigState(ctx.cwd);
-	const raw = configState.valid ? await readFreeflowConfig(ctx.cwd) : {};
-	const [state, modeState] = await Promise.all([
+	const [layers, state, modeState] = await Promise.all([
+		readFreeflowConfigLayers(ctx.cwd),
 		readCapabilityState(ctx.cwd),
 		readModeState(ctx.cwd),
 	]);
+	const configState = layers.repository;
+	const raw = configState.valid ? configState.parsed : {};
 
 	if (action === "status") {
 		ctx.ui.notify(freeflowStatusText(state), "info");
@@ -1625,6 +2046,13 @@ export async function handleFreeflowCommand(
 	if (!configState.valid) {
 		ctx.ui.notify(freeflowStatusText(state), "warning");
 		return { changed: false, reloaded: false, error: "not_configured" };
+	}
+	if (layers.local.exists && !layers.local.valid) {
+		ctx.ui.notify(
+			`.freeflow/local.json is invalid; repair or remove it before changing Freeflow settings. ${layers.local.parseError ?? ""}`.trim(),
+			"warning",
+		);
+		return { changed: false, reloaded: false, error: "invalid_local_config" };
 	}
 
 	if (action === "mode") {
@@ -1642,9 +2070,10 @@ export async function handleFreeflowCommand(
 			return { changed: false, reloaded: false, error: result.error };
 		}
 
-		const item = freeflowItems(raw, modeState).find(
-			(candidate) => candidate.id === "freeflow.sessionMode",
-		)!;
+		const item = freeflowItems(raw, modeState, {
+			scope: "local",
+			layers,
+		}).find((candidate) => candidate.id === "freeflow.sessionMode")!;
 		let modeChanged = false;
 		const changed = await openSettings({
 			title: "Freeflow Mode",
@@ -1661,10 +2090,11 @@ export async function handleFreeflowCommand(
 
 	if (["enable", "on", "true", "disable", "off", "false"].includes(action)) {
 		const enabled = ["enable", "on", "true"].includes(action);
-		const item = freeflowItems(raw, modeState).find(
-			(candidate) => candidate.id === "freeflow.enabled",
-		)!;
-		await updateConfig(ctx.cwd, item, enabled);
+		const item = freeflowItems(raw, modeState, {
+			scope: "repository",
+			layers,
+		}).find((candidate) => candidate.id === "freeflow.enabled")!;
+		await updateConfig(ctx.cwd, item, enabled, "repository");
 		await afterChange(true);
 		ctx.ui.notify(
 			`Freeflow ${enabled ? "enabled" : "disabled"}. Reloading Freeflow runtime...`,
@@ -1683,16 +2113,30 @@ export async function handleFreeflowCommand(
 
 	if (action && action !== "settings") {
 		ctx.ui.notify(
-			"Usage: /freeflow, /freeflow settings, /freeflow status, /freeflow mode [conversation|workflow|strict-workflow|reset], /freeflow enable, or /freeflow disable",
+			"Usage: /freeflow, /freeflow settings [local|repo], /freeflow status, /freeflow mode [conversation|workflow|strict-workflow|reset], /freeflow enable, or /freeflow disable",
 			"warning",
 		);
 		return { changed: false, reloaded: false, error: "invalid_action" };
 	}
 
+	let settingsScope: ConfigScope = "local";
+	if (["repo", "repository", "shared"].includes(actionValue)) {
+		settingsScope = "repository";
+	} else if (actionValue && !["local", "personal"].includes(actionValue)) {
+		ctx.ui.notify(
+			"Usage: /freeflow settings, /freeflow settings local, or /freeflow settings repo",
+			"warning",
+		);
+		return { changed: false, reloaded: false, error: "invalid_scope" };
+	}
+
 	let configChanged = false;
 	const changed = await openSettings({
-		title: "Freeflow Settings",
-		items: freeflowItems(raw, modeState),
+		title:
+			settingsScope === "local"
+				? "Freeflow Settings · Personal overrides"
+				: "Freeflow Repository Settings · modifies .freeflow/config.json",
+		items: freeflowItems(raw, modeState, { scope: settingsScope, layers }),
 		ctx,
 		onChange: async (item, value) => {
 			if (item.id === "freeflow.sessionMode") {
@@ -1700,14 +2144,23 @@ export async function handleFreeflowCommand(
 				return;
 			}
 			configChanged = true;
-			await updateConfig(ctx.cwd, item, value);
+			await updateConfig(
+				ctx.cwd,
+				item,
+				value,
+				item.configScope ?? "repository",
+			);
 		},
 		onClose: async (settingsChanged) => {
 			if (!settingsChanged) return;
 			if (!configChanged) return;
 			await afterChange(true);
 			ctx.ui.notify(
-				"Freeflow settings saved. Reloading Freeflow runtime...",
+				`Freeflow ${
+					settingsScope === "local"
+						? "personal overrides"
+						: "repository settings"
+				} saved. Reloading Freeflow runtime...`,
 				"info",
 			);
 			if (typeof ctx.reload === "function") {

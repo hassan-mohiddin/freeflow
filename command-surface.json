@@ -20,8 +20,18 @@
   ],
   "directSkillCalls": [
     {
+      "command": "/discuss",
+      "skill": "discuss"
+    },
+    {
       "command": "/discover",
-      "skill": "discover"
+      "skill": "discuss",
+      "aliasFor": "/discuss",
+      "piOnly": true
+    },
+    {
+      "command": "/track-work",
+      "skill": "track-work"
     },
     {
       "command": "/write-spec",
@@ -36,8 +46,14 @@
       "skill": "write-plan"
     },
     {
+      "command": "/execute-work",
+      "skill": "execute-work"
+    },
+    {
       "command": "/execute-plan",
-      "skill": "execute-plan"
+      "skill": "execute-work",
+      "aliasFor": "/execute-work",
+      "piOnly": true
     },
     {
       "command": "/simplify-code",

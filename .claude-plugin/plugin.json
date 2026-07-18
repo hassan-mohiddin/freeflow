@@ -1,6 +1,6 @@
 {
   "name": "freeflow",
-  "description": "Lightweight workflow for coding agents. Conversation, workflow, and strict-workflow skills for planning, execution, review, verification, handoff, and decision capture.",
+  "description": "Freeflow gives coding agents an Interaction Contract, evidence-driven Workflow, focused methods, and durable task memory across conversation, workflow, and strict-workflow modes.",
   "version": "0.3.0",
   "author": {
     "name": "Hassan Mohiddin"
@@ -12,8 +12,11 @@
     "workflow",
     "skills",
     "agents",
+    "feedback-loop",
+    "task-memory",
     "planning",
     "verification",
+    "review",
     "claude-code",
     "codex"
   ]

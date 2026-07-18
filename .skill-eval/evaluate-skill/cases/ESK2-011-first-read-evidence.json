@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "id": "ESK2-011",
+  "skill": "evaluate-skill",
+  "title": "Evaluate first-read activation and retained use",
+  "question": "conversational behavior",
+  "evidence_classes": [
+    "native-activation"
+  ],
+  "required_for_bootstrap": false,
+  "prompt": "Design the smallest valid evaluation for a revised skill description that should load at the first useful prompt. I need to distinguish: whether the natural description activates, whether the body is understandable on first read without undeclared vocabulary, whether a nearby prompt is handled safely even if the skill loads, and whether the method remains available on a later turn. Explain which claims need native activation, explicit body delivery, composition, or multi-turn evidence, and what a one-shot case cannot prove.",
+  "fixture": null,
+  "variants": [
+    {
+      "id": "old",
+      "kind": "git",
+      "revision": "69236e8c8546a46e1219082cac00b23a1e60a694",
+      "path": "skills/evaluate-skill",
+      "role": "reference",
+      "resources": [
+        "SKILL.md",
+        "references/eval-patterns.md",
+        "references/evaluation-architecture.md",
+        "references/grading-and-revision.md",
+        "references/grading-priority.md",
+        "references/portable-execution.md",
+        "references/token-efficient-execution.md"
+      ]
+    },
+    {
+      "id": "candidate",
+      "kind": "working-tree",
+      "path": "skills/evaluate-skill",
+      "role": "candidate",
+      "resources": [
+        "SKILL.md",
+        "references/eval-patterns.md",
+        "references/evaluation-architecture.md",
+        "references/grading-and-revision.md",
+        "references/grading-priority.md",
+        "references/portable-execution.md",
+        "references/token-efficient-execution.md"
+      ]
+    }
+  ],
+  "execution": {
+    "host": "pi",
+    "mode": "json",
+    "tools": [
+      "read"
+    ]
+  },
+  "assertions": [
+    {
+      "id": "activated",
+      "type": "skill_read",
+      "skill": "evaluate-skill"
+    },
+    {
+      "id": "separate-evidence-questions",
+      "type": "semantic",
+      "rubric": "The response must separate first native activation, first-read body comprehension, declared dependency composition, nearby behavioral interference, and retained multi-turn use rather than treating `skill loaded` as proof of all of them."
+    },
+    {
+      "id": "honest-evidence-boundaries",
+      "type": "semantic",
+      "rubric": "The response must map native activation to natural description routing, explicit body delivery to first-read wording, exact composition to dependency claims, and stateful multi-turn execution to later retained use. It must state that one-shot evidence cannot prove retained multi-turn behavior."
+    },
+    {
+      "id": "safe-nearby-behavior",
+      "type": "semantic",
+      "rubric": "The response must allow a nearby case to pass through either non-activation or harmless activation followed by a correct quick exit; it must not assume every nearby skill read is automatically a behavioral failure."
+    }
+  ],
+  "evaluation_kind": "comparison",
+  "unsupported_evidence": "block"
+}

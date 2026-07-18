@@ -1,16 +1,16 @@
 # Output Router Setup
 
-Use this when setup reaches the optional capabilities branch or explicitly asks for Output Router, observed routing, generated-path hints, native safety-net routing, vault, thresholds, script-transform adapters, script-transform repo config, or Delegation Harness.
+Use this only when repository setup or repair explicitly includes Output Router, observed routing, generated-path hints, native safety-net routing, vault, thresholds, script-transform adapters, or script-transform repository config.
 
 ## Defaults
 
-- Minimal `/setup-freeflow` writes only `defaultMode`; the presence of a parseable `.freeflow/config.json` is what activates Freeflow for the repo.
-- Output Router is disabled by default. Delegation Harness is disabled by default.
+- Minimal `/setup-freeflow` writes only repository `defaultMode`. `.freeflow/config.json` remains required for activation; a local override cannot activate Freeflow.
+- Output Router is repository-owned and disabled by default.
 - Missing optional sections mean built-in defaults, not setup failure.
-- Ask one capabilities decision point. If declined, do not write `enabled`, `skills`, `outputRouter`, `delegationHarness`, or script adapter config, and do not install script adapters.
-- If the user opts into Output Router during setup, write `outputRouter.enabled: true` directly. Do not make them run `/output-router` or `/freeflow` afterward.
-- If the user opts into Delegation Harness during setup, write `delegationHarness.enabled: true` directly. Do not make them run `/delegation-harness` or `/freeflow` afterward.
+- Normal setup does not ask a generic capability question. If Output Router was not explicitly requested, do not write `outputRouter` config or install script adapters.
+- If the user explicitly opts into Output Router during setup, write `outputRouter.enabled: true` directly. Do not make them run another command afterward.
 - Observed routing is opt-in per producer/server. The user must choose persistence for each enabled entry before setup writes config.
+- Preserve unrelated valid repository and personal settings. Do not copy Output Router config into `.freeflow/local.json`; only documented local-only processing settings belong there.
 - Do not create a separate `setup-output-router` skill.
 
 If the user says only “set up the output router” with no requested knobs, explain that enabling Output Router is enough for the router tools/guidance, then ask which optional subfeatures, if any, they want persisted. Recommend no subfeature config unless they need observed routing, repo-specific hints, script transform setup, or native safety-net behavior.
@@ -64,9 +64,6 @@ Supported shape:
       },
       "rawScriptPersistence": "disabled"
     }
-  },
-  "delegationHarness": {
-    "enabled": true
   }
 }
 ```
@@ -75,7 +72,6 @@ Rules:
 
 - Top-level `enabled` and `skills.enabled` default to true after setup; write them only when the user explicitly wants to disable Freeflow or the skills layer.
 - `outputRouter.enabled` defaults to `false`; write `true` only when the user chooses Output Router.
-- `delegationHarness.enabled` defaults to `false`; write `true` only when the user chooses Delegation Harness.
 - `postToolRouting` defaults to `off`. Do not write `off`; use `safety-net` only when explicitly requested. Treat `strict` as reserved; ask before writing it.
 - `thresholds.largeOutputBytes`, `thresholds.largeOutputLines`, and `vault.retention.ttlDays` must be positive integers.
 - `vault.root` must be a non-empty string. Repo-local storage requires explicit user choice.
@@ -104,10 +100,10 @@ After writing optional capability config, use `freeflow_status` or equivalent di
 
 - JSON parses.
 - `defaultMode` is valid.
-- Minimal setup still contains only `defaultMode` when capabilities were declined.
-- Optional `enabled`, `skills.enabled`, `outputRouter`, `outputRouter.observedRouting`, `outputRouter.scriptTransform`, and `delegationHarness` sections contain only requested keys.
-- Invalid router/observed-routing/script-transform/delegation values are not written.
-- Output Router, Delegation Harness, observed routing, native safety-net routing, and script transform are not enabled unless explicitly requested.
+- A minimal shared setup with no optional settings contains only `defaultMode`.
+- Newly added `enabled`, `interactionContract`, `skills.enabled`, `outputRouter`, `outputRouter.observedRouting`, and `outputRouter.scriptTransform` keys were requested; preserved valid settings remain unchanged.
+- Invalid router, observed-routing, or script-transform values are not written.
+- Output Router, observed routing, native safety-net routing, and script transform are not enabled unless explicitly requested.
 - If script transform setup was accepted, global adapter install completed or a clear install/probe failure was reported, and enabled languages match proof-passing adapters.
 - No observed-routing entry uses `redacted`, and every enabled entry has explicit persistence.
 - `freeflow_status` shows effective defaults and migration recommendations without rewriting config.

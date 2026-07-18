@@ -28,4 +28,4 @@ Directory placement alone is not isolation. If the adapter cannot enforce every 
 
 ## Pi Bootstrap
 
-Use one-shot JSON, no session, no context files, no auto-discovered resources, one explicit root guard, explicit skill snapshots, minimal tools, and an isolated config home. For declared composition, use repeated explicit skill paths plus the exact evaluator-owned kernel/Workflow runtime extension; never load the installed Freeflow package. Use Pi RPC only for true fixed multi-turn evidence, currently two to four scripted user turns.
+Use one-shot JSON, no session, no context files, no auto-discovered resources, one explicit root guard, explicit skill snapshots, minimal tools, and an isolated config home. For declared composition, use repeated explicit skill paths plus only the exact declared evaluator-owned runtime resources; never load the installed Freeflow package. Use Pi RPC only for true fixed multi-turn evidence, currently two to four scripted user turns.

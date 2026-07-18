@@ -1,86 +1,117 @@
 # Architecture
 
-Freeflow is a portable skill pack for coding agents.
+Freeflow is a portable skill pack and context-loading runtime for coding agents. It is not a new agent, permission system, or enforcement engine.
 
-## Runtime Boundary
+## Package Boundary
 
-Freeflow ships Markdown skills, bundled references, lightweight context-loading hooks, and a Pi extension. It does not ship a CLI, Codex/Claude native slash handlers, enforcement hooks, or a new agent runtime in this release.
-
-Host runtimes still control tools, sandboxing, approvals, and permissions. Freeflow controls workflow pressure:
-
-- how much clarification is needed
-- when artifacts are useful
-- when source-truth conflicts stop edits
-- how each meaningful slice is verified, checked once by its implementing agent, and rerouted from evidence
-- the standing artifact reviewer, approved plan-selected phase-exit reviewers, parallel distinct final verifier/reviewer contexts, authorization for other independent contexts, and conditional delivery checkpoints
-
-## Package Layout
+The repository root is the single source of truth for skills, references, runtime contracts, manifests, capability source, command metadata, docs, and current evidence.
 
 ```text
 freeflow/
-  package.json
-  .agents/plugins/marketplace.json
-  .codex-plugin/plugin.json
-  .claude-plugin/marketplace.json
-  .claude-plugin/plugin.json
-  README.md
-  LICENSE
-  CHANGELOG.md
-  command-surface.json
-  assets/
-  plugin-docs/
-  docs/
-  .skill-eval/
-  deprecated/
+  runtime/interaction-contract.md
+  skills/
   hooks/
   pi-extension/
   router/
-  skills/
+  delegation/
+  command-surface.json
+  plugin-docs/
+  docs/
+  .skill-eval/
 ```
 
-The repository root is the plugin root. Codex uses `.agents/plugins/marketplace.json` with local source `.`, while Claude uses `.claude-plugin/marketplace.json` with host-valid local source `./`. Pi uses the root `package.json` `pi` manifest to load `pi-extension/freeflow/index.js`, which re-exports the built extension from `pi-extension/dist/index.js`; TypeScript source lives under `pi-extension/src/`. Pi model skill exposure is dynamic and owned by the extension.
+The npm tarball contains runtime-required files. GitHub also retains plugin docs, project memory, current eval definitions, router evidence, and deprecated historical evidence. There is no generated package mirror.
 
-The repo root is the single source of truth. Skill edits, bundled references, evaluation metadata, public docs, and command-surface metadata live there to avoid generated package drift. Public plugin docs live under `plugin-docs/`; current skill evaluation lives under `.skill-eval/`; router evaluation lives under `router/evals/`; and documentary-only legacy skill evaluations live under `deprecated/skill-evals-v1/`. They ship through GitHub but are excluded from the npm runtime tarball. Project-development memory lives under `docs/` and is not part of the runtime surface.
+Codex marketplace metadata uses local source `.`, while Claude uses host-valid local source `./`. Pi loads `pi-extension/freeflow/index.js` from the root package manifest.
 
-`router/src/` is organized by responsibility: public tool entrypoints in `tools/`, transformation internals in `transform/`, evidence helpers in `evidence/`, vault storage in `vault/`, repo traversal in `repo/`, explicit local-source traversal in `local/`, capture/routing/parsers in `routing/`, sandbox adapters in `sandbox/`, configuration contracts in `config/`, benchmark harnesses in `benchmarks/`, and frozen experiments in `experiments/`. `router/dist/` mirrors that layout as generated package output; active deprecated or historical router artifacts stay outside runtime code under `deprecated/router/`.
+Freeflow does not ship a CLI, Codex/Claude native slash handlers, enforcement hooks, or a new agent runtime in this release. It does ship context-loading hooks and the Pi extension.
 
-## Progressive Disclosure
+## Layered Configuration
 
-Each skill keeps its active `SKILL.md` short. Stable details move into `references/` files only when they prevent bloat, reduce repeated work, or address measured failures.
+`.freeflow/config.json` is required shared repository activation. `.freeflow/local.json` is optional per-checkout personal core configuration and cannot activate Freeflow alone.
 
-This keeps the model's first-loaded instructions focused on behavior:
+```text
+Pi session mode override
+-> personal core override
+-> repository value
+-> built-in default
+```
 
-- trigger
-- loop
-- stop condition
-- failure prevention
+An invalid existing personal layer fails closed. Repository-owned Output Router configuration is not copied into the personal layer. Deprecated Delegation Harness configuration may be preserved for compatibility but Setup does not offer or add it.
 
-## Host Setup
+Configuration establishes activation state; it does not prove host runtime delivery.
 
-`setup-freeflow` creates `.freeflow/config.json`, the sole repo activation boundary.
+## Runtime Guidance
 
-The canonical setup contract lives in `skills/setup-freeflow/references/activation-contract.md`; setup docs, fixtures, and deterministic checks stay aligned with it.
+Freeflow has two model-facing guidance layers:
 
-Codex, Claude, and Pi use the same repo shape. Setup does not generate Freeflow blocks, imports, or rule files in repo-owned host instructions. Existing repo instructions remain source truth and must be inspected when they conflict with activation.
+1. **Interaction Contract:** `runtime/interaction-contract.md` supplies compact turn interpretation when its switch is effective.
+2. **Workflow bootstrap:** `skills/workflow/SKILL.md` supplies the complete Interaction Lifecycle, Feedback Loop, routing, review, continuity, and Supported Exit behavior when Skills are effective.
 
-## Runtime Context Hooks
+Hosts also provide compact mode and capability state. Mode Contract and other workflow skills remain on demand. Output Router instructions are loaded only when that capability is effective.
 
-The installed plugin owns `hooks/hooks.json`. Setup does not copy hook files into target repos.
+The Interaction Contract is the only compact interaction-guidance artifact. It owns turn interpretation; Workflow owns routing and recurrence.
 
-The hooks stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape. Once configured and enabled, they load `skills/decision-gate/references/runtime-kernel.md`, the full `workflow` skill once at the first session turn, and any independently enabled capability context:
+Context loading does not enforce policy, block tools, grant permissions, or replace repository instructions.
 
-- at session start, including startup, resume, clear, and compact
+## Host Delivery
 
-The compact kernel remains system context and routes mode-setting, reset, inference, or discussion to the full Mode Contract on demand. In Pi, the full Workflow skill is a hidden persistent custom message and is not duplicated while its stable message marker remains in active session context. Codex and Claude receive the same full Workflow body from their session-start hook. `enabled: false` suppresses all Freeflow hook context; `skills.enabled: false` suppresses the kernel, Workflow bootstrap, and workflow skill exposure while leaving enabled capabilities available. Full `mode-contract`, `decision-gate`, `discover`, and lifecycle skill bodies remain available on demand. Hooks do not run after edit/write tools, block tools, grant permissions, enforce mode policy, replace repo instructions, or use host instruction files as activation markers.
+### Codex And Claude
 
-Setup handles the same-session case directly: after successful setup verification, it reads and applies the canonical kernel, full Workflow skill, and any capability skill effective after setup and only then says that current-session context is loaded.
+The packaged lifecycle hook reads repository and personal configuration at supported start, resume, clear, and compact boundaries. When effective, it delivers the Interaction Contract, Workflow bootstrap, compact mode/capability state, and enabled capability context.
 
-Host runtimes may require plugin hooks to be reviewed and trusted after install. Setup reports runtime delivery as confirmed, unavailable, or unconfirmed. If a hook is absent or skipped as untrusted, config still activates the repo but automatic session context will not load until the adapter is available/trusted and the session is restarted, resumed, cleared, or compacted.
+The hook stays inert without valid repository activation, fails closed on invalid personal core config, and preserves the existing host system context. Host trust or hook registration may still be required. Setup reports delivery as confirmed, unavailable, or unconfirmed.
 
-Pi uses an extension instead of `hooks/hooks.json`. The built Pi extension registers direct commands, dynamically exposes setup/model skills, refreshes enabled runtime context on `session_start` and `session_compact`, appends the compact kernel to the existing system prompt during Pi's `before_agent_start` lifecycle before every agent turn, and injects the full Workflow skill as one hidden persistent custom message when that marker is absent from active session context. `.freeflow/config.json` is the activation boundary: missing or invalid config exposes only setup; top-level `enabled: false` suppresses skills, tools, runtime context, observed routing, native routing, and delegation. `/freeflow` is the unified control/settings/status command and stays available for re-enable; `/freeflow mode` owns session-mode selection, while the settings UI distinguishes temporary Session mode from persisted Default mode. `/output-router` and `/delegation-harness` remain compatibility settings commands. The full `discover` skill, workflow-map reference, and output-router safety-policy reference remain available on demand when skills are enabled but are not injected wholesale by default. The same extension registers `freeflow_status`, `freeflow_search`, `freeflow_run`, and `freeflow_batch` only as active tools when effective config permits, and gives them compact/expanded TUI renderers so collapsed tool rows stay readable while `ctrl+o` shows structured status, evidence, recovery details, and non-destructive migration recommendations. `freeflow_search action=transform operation.kind="script"` and `freeflow_run` script producers stay disabled until setup/user config opts in; setup can install JavaScript/Python/jq adapters into a user-global Freeflow cache, Pi auto-discovers that cache plus explicit `FREEFLOW_QUICKJS_WASI_ROOT`, `FREEFLOW_JQ_WASM_ROOT`, and `FREEFLOW_ERYX_ROOT` overrides, and only proof-passing languages are enabled. The Eryx Python adapter launches the setup-installed `node@24` child process with `--experimental-wasm-jspi` when needed, so normal Pi launches can still use Python after setup proof passes. When configured, enabled, and output-router-effective, its Pi `tool_result` hook observed-routes MCP, web, fetch, and code-search outputs after direct host execution; host permissions and execution remain owned by Pi. Pi `/freeflow mode` commands set a session-scoped current-mode override only when skills are effective, while `.freeflow/config.json` remains the default-mode source. It follows the same boundary as the Codex/Claude hooks: context loading and output routing only, no enforcement.
+### Pi
+
+The Pi extension:
+
+- reads both config layers before agent turns;
+- appends effective compact context and the Interaction Contract in `before_agent_start`;
+- stores Workflow as one hidden persistent custom message while Skills are effective;
+- restores temporary session mode from Pi session entries;
+- dynamically exposes 25 model/contributor skills;
+- registers canonical direct commands and two Pi-only compatibility aliases;
+- activates Output Router tools and context only when effective;
+- preserves deprecated Delegation Harness compatibility without exposing it as a model skill.
+
+`/freeflow settings` edits personal core overrides. `/freeflow settings repo` edits shared repository settings. `/freeflow mode` changes only temporary Pi session mode.
+
+Pi source lives under `pi-extension/src/`; the package executes built output under `pi-extension/dist/` through `pi-extension/freeflow/index.js`.
+
+## Skill Architecture
+
+Workflow owns routing. Leaf skills own focused methods and return evidence, decisions, or route changes rather than redefining the lifecycle.
+
+A skill body is complete on first read with guaranteed context. Conditional depth lives in linked references; deterministic repeated work may live in scripts. Cross-skill links are project dependencies, not bundled local resources.
+
+See [Skill routing](skill-routing.md) for the typed owner, route, and reference adjacency map.
+
+The active model/contributor surface has 25 skills. Output Router is an optional runtime capability. Delegation Harness is deprecated compatibility state. The package therefore still contains 27 skill packages without treating all 27 as one model-discovery list.
+
+## Review And Verification Topology
+
+The active agent owns factual verification and workflow control. Self-review is silent and follows supported verification.
+
+Independent review is a distinct selected judgment boundary. Specs and Plans each receive separate Review Artifact. Additional independent work review is plan-selected, explicitly requested, or otherwise authorized through Workflow. Review budgets limit dispatches but do not authorize them.
+
+A review report never edits. The active agent adjudicates and may request corrections plus one warranted focused follow-up together. Corrections return to Execute Work or the artifact owner and may remain in the same coherent Working Record slice.
+
+## Task Memory
+
+Track Work owns a composite method:
+
+- `skills/track-work/SKILL.md` is the compact first-read contract;
+- `skills/track-work/references/working-record-schema.md` is required before creating, resuming, or mutating a Working Record.
+
+After compaction, summarization, clear, resume, or session navigation, Workflow reads the complete active record before continuing task work and reconciles it against the current conversation and live state. Conversation branches may write memory but cannot create authority for another branch.
+
+## Capabilities
+
+Output Router owns routed retrieval, noisy command execution, observed routing, vault recovery, and optional script transformation. Its detailed runtime and evidence contract lives in [Output Router](output-router.md).
+
+Delegation Harness remains packaged for compatibility but is deprecated in the active workflow. New setup and skill routing do not promote it.
 
 ## Deferred Enforcement
 
-Enforcement hooks and CLI checks are intentionally deferred. They are useful only after skill wording and evals prove a repeated behavior needs mechanical enforcement.
-
-For Codex and Claude, slash-style skill calls such as `/write-spec` or `/verify-work` are model-routed language rather than native registered handlers. The Pi extension registers the direct and developer calls declared in `command-surface.json`; natural language remains the preferred interface.
+Enforcement hooks and CLI policy checks remain deferred until behavioral evidence shows that concise instructions and workflow routing cannot prevent a repeated concrete failure. Existing hooks load context only.

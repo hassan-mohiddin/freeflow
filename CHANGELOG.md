@@ -2,25 +2,18 @@
 
 ## Unreleased
 
-- Renames the active `interview-gate` skill and runtime path to `decision-gate`; legacy `IVG-*` eval IDs and historical reports remain unchanged.
-- Reworks the workflow into adaptive verified slices with rolling plans, route checks, backward edges, conditional formal checkpoints, and bounded review loops.
-- Adds optional Unverified candidates for simplification, deprecation/migration, branch completion, release, and production launch, plus an optional TDD execution method.
-- Adds Pi/direct command routes for the five optional lifecycle candidates. The adaptive candidate remains Unverified pending behavioral evaluation.
-- Makes `.freeflow/config.json` the sole repo activation boundary and replaces duplicated always-on core skill bodies with one canonical compact runtime kernel across Pi, Codex, and Claude; setup preserves host instruction files and reports runtime delivery separately.
-- Loads the full Workflow skill once on the first session turn, keeps the compact kernel in per-turn system context, and routes mode questions or changes to Mode Contract on demand.
-- Excludes GitHub-only plugin docs and eval evidence from the npm runtime tarball; README evidence/docs links now target GitHub.
-- Removes activation-like kernel duplication from `AGENTS.md`, narrows Workflow to routing ownership, and aligns Mode Contract plus current eval prompts with `/freeflow mode` while preserving existing capability config.
-- Uses Claude's host-valid `./` marketplace source and validates host-specific marketplace paths plus the packaged Pi entrypoint.
-- Renames the optional `deprecation-and-migration` and `shipping-and-launch` skills to the collision-resistant `migration-work` and `launch-work` identities, including their direct commands.
-- Quotes YAML-sensitive skill descriptions and teaches `skill-author` to reject unquoted `: ` plain scalars before Pi loads them.
-- Adds a kernel-level concise-output contract that removes filler and routine tool narration while preserving requested depth, safety, nuance, and clarity.
-- Adds configuration-bound Production-Ready evaluator composition for Pi with explicit multi-skill stacks, exact kernel/Workflow delivery, per-component identities, and bounded one-shot or two-to-four-turn cases; that evidence remains historical while the source-changing evaluator v3 candidate is Unverified.
-- Treats repeated same-invariant defects, widening fixes, and weak evidence as route-changing signals; strengthens failure-unit design, rejected-state TDD, integration-proof fidelity, slice ordering, and follow-up review routing from observed Output Router and Delegation incidents.
-- Aligns effective-mode authority, bypass lifetime, lifecycle identities, artifact metadata, handoff classification, reviewer proof context, failure-unit activation, capability-config ownership, and bundled skill-tool path guidance across the current skill pack.
-- Adds a bounded silent pre-action check, current-horizon evidence-producer gate, author-side review-readiness pass, shared-invariant review context, and artifact evidence-feasibility lens without replacing verification or independent review.
-- Reframes the active agent as the responsible engineer: implementation and one sequential self-check—self-verification then, only on support, bounded self-review—are the primary feedback loop; review/verify skills may enhance either inline without creating independence; repeated failure routes through diagnosis before redesign; standing assurance uses a `write-spec`-selected combined or high-risk separate artifact-review route, then a distinct final verifier and reviewer in parallel against one frozen implementation.
-- Requires a compact slice announcement before execution and makes `write-plan` select independent reviews at consequential phase exits; approved plan-selected reviews carry scoped authorization, while unselected exits require a review-need assessment.
-- Replaces “strict” review wording with proportionate, evidence-backed independent judgment while preserving consequential evidence standards and parent adjudication.
+- Reframes Freeflow as a feedback-based control system for coding agents, with a directed Interaction Lifecycle, internal Feedback Loop, and evidence-supported exits instead of a fixed phase pipeline.
+- Uses the compact Interaction Contract plus one Workflow bootstrap as runtime guidance, while keeping mode and capability state independently gated.
+- Adds required repository activation, optional per-checkout personal core overrides, Pi session-mode precedence, fail-closed invalid-local behavior, and explicit delivery evidence.
+- Replaces the canonical `discover` and `execute-plan` model skills with `discuss`, `track-work`, and `execute-work`; Pi retains `/discover` and `/execute-plan` only as compatibility aliases.
+- Keeps factual verification with the active agent, distinguishes silent self-review from selected independent review, and makes Pass, Non-blocking, Inconclusive, and Blocking valid review exits.
+- Gives Specs and Plans separate independent Review Artifact boundaries, keeps findings non-authorizing, and requires explicit correction and focused follow-up authority.
+- Adds the composite Track Work method for context-first Working Records, coherent write-ahead slice extensions, state-transition history, inert Notes, and restoration after context loss or session navigation.
+- Aligns Mode Contract, Setup Freeflow, Bypass, Commit Work, migration, release, launch, handoff, branch finish, diagnosis, TDD, simplification, and design-depth methods with the feedback-based model.
+- Keeps skill readiness outside subject `SKILL.md` files and repairs Skill Author validation for readable project-contained sibling and runtime dependencies.
+- Refreshes package and marketplace identity, root and plugin documentation, release/current-state contracts, activation validation, and the typed 25-skill routing/dependency map.
+- Preserves Output Router as an explicit optional capability and keeps its existing runtime behavior and evidence boundaries unchanged in this migration.
+- Leaves the adaptive candidate Unverified pending current baseline-vs-with-skill behavioral evaluation; deterministic structure and delivery checks do not establish behavioral readiness.
 
 ## 0.3.0 - 2026-06-28
 

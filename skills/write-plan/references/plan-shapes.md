@@ -1,130 +1,156 @@
 # Plan Shapes
 
-Choose the smallest plan that lets the next execution horizon proceed safely. Plans are revisable paths, not frozen predictions.
+Read this when choosing the structure, destination, identity, or revision shape of an ordered Plan. Use only the sections the Plan needs.
 
-## Lightweight Plan
+## Destination And Durable Identity
 
-Use for clear, low-risk, bounded work:
+Follow repository convention when one exists.
+
+When [Track Work](../../track-work/SKILL.md) owns the task, store a task-local Plan in the `plans/` location it defines unless the Plan should become a canonical repository artifact.
+
+When no convention exists and future readers need durable identity, begin with a compact title and header:
+
+```md
+# Billing Webhook Implementation Plan
+
+> **Doc ID:** PLAN-001-billing-webhook
+> **Type:** Implementation Plan
+> **Status:** Draft
+> **Owner:** <plan owner>
+> **Source:** <spec, issue, Working Record, diagnosis, or accepted context>
+```
+
+Use one current status. Follow the repository or owner's vocabulary; useful states may include `Draft`, `Reviewed`, `Ready`, `Superseded`, and `Abandoned`. Writing or reviewing a Plan does not by itself make it `Ready`.
+
+Add dates, supersession links, or approvers only when useful and reliable.
+
+## Start With Source And Boundaries
+
+Make the execution boundary and its dependencies clear:
 
 ```text
 Goal:
-Source context:
-Slice(s):
-Checks:
-Stop conditions:
-```
-
-No artifact identity, phase taxonomy, or checkpoint ceremony is required when one short slice is sufficient.
-
-## Rolling Plan
-
-Use for consequential multi-phase work:
-
-```text
-Goal and source authority:
-Scope / non-goals:
-
-Phase 1 — current executable horizon
-- Outcome
-- Assumptions under test
-- Learning and delivery slices
-- Verification
-- Backward checkpoint
-- Consequential review / commit / handoff checkpoint, if any
-
-Phase 2 — directional
-- Intended outcome
-- Dependencies
-- Likely slices
-- Questions to resolve from Phase 1 evidence
-
-Later phases — provisional
-- Outcomes and major constraints only
-
-Dynamic plan-health triggers:
-Final direct checks and one reproducible independent-verifier package:
-Residual risks:
-```
-
-Detail decreases with distance. Refine a later phase only when it becomes the next executable horizon.
-
-## Slice Shape
-
-```text
-Slice outcome:
-Source requirement / acceptance:
-Type: learning | delivery | deepening
-Likely module / interface / write set:
-Semantic failure unit and authoritative state when relevant:
-Behavior, experiment, test, or benchmark:
-Failure contract when relevant:
-Self-verification and direct evidence producer or acquisition slice:
+Source and linked artifacts:
+Scope:
+Non-goals:
+Accepted decisions:
+Assumptions:
 Dependencies:
-Stop conditions:
+Required order:
 ```
 
-A slice is a proof-bearing unit, not a file list. It should be understandable enough to execute and leave a clear route without predicting every local choice.
+Link accepted behavior, architecture, and decisions instead of copying their rationale. Do not hide unsettled design or owner choices as assumptions. If an assumption could choose among materially different strategies, resolve it before treating the Plan as executable.
 
-## Learning Slice
+## Choose The Execution Shape
+
+### Lightweight Ordered Plan
+
+Use when the work is clear and short enough that phases add no value:
 
 ```text
-Question:
-Competing hypotheses or designs:
-Prototype / benchmark boundary:
-Evidence to capture and available producer or acquisition path:
-Time, request, or cost boundary:
-Discard-or-promote rule:
-Backward checkpoint:
+Ordered actions or slices:
+Checks:
+Selected checkpoints, if any:
+Completion condition:
 ```
 
-A learning slice ends in evidence and a route decision. Production code is not its default output.
+A tiny reversible action may not need a saved Plan.
 
-## Backward Checkpoint
+### Phased Implementation Plan
+
+Use when execution has meaningful dependencies, integration points, or several coherent outcomes:
 
 ```text
-Assumptions under test:
-Continue if:
-Re-enter Discover/design if:
-Revise spec if:
-Revise plan or later phases if:
-Owner decision if:
+## Phase 1 — <outcome>
+Purpose:
+Dependencies:
+Selected checkpoints, if any:
+Completion condition:
+
+### Slice 1.1 — <result>
+Scope or boundary:
+Work:
+Checks:
+Completion condition:
+
+### Slice 1.2 — <result>
+...
+
+## Phase 2 — <outcome>
+...
 ```
 
-Use after architecture-bearing or uncertainty-reducing work. Do not require one after every mechanical slice.
+Describe the whole intended strategy with enough detail to inspect and execute it. If later phases cannot yet be planned honestly, use a Working Record instead.
 
-## Durable Plan Identity
+## Define Phases And Slices
 
-When future agents or teammates will rely on the saved plan, use a compact header:
+A phase groups slices that produce one meaningful integrated outcome. State its purpose, dependencies, and completion condition.
 
-```md
-> **Doc ID:** PLAN-001-billing-webhook-api
-> **Date:** 2026-07-11
-> **Owner:** Hassan Mohiddin
-> **Type:** Plan
-> **Status:** Ready
-> **Source:** docs/specs/billing-webhook-api.md
+For each slice, use only the fields needed to execute and check it:
+
+```text
+Intended result:
+Source requirement:
+Scope or write boundary:
+Work:
+Dependencies:
+Tests or observations:
+Verification claim and required boundary:
+Selected independent review, if any:
+Selected local commit, if any:
+Other user or continuity checkpoint, if any:
+Completion condition:
 ```
 
-Use `Draft` when the next horizon is not executable and `Ready` when it is. In strict-workflow, stop rather than guessing owner, source, or sensitive behavior.
+A slice is a coherent result, not a file list. Mention files, modules, or systems only when they clarify scope.
 
-## Separate-Agent Guidance
+Consider checkpoints at meaningful slice, phase, integration, risk, and continuity boundaries. Record only useful additions; normal verification and silent self-review need no repeated fields.
 
-A work package should give an executing role:
+A selected local commit names its coherent outcome and conditions, not merely “commit after this slice.” Plan approval authorizes listed local commits subject to live evidence and Commit Work inspection, but not push, integration, migration, deprecation, release, or launch. Record actual results and commit identities in the Working Record.
 
-- one slice outcome and source requirements;
-- relevant interfaces and constraints;
-- expected evidence and output;
-- write boundary;
-- stop/escalation conditions.
+## Adapt For The Work Type
 
-Do not prescribe harness-specific agents, models, worktrees, timeouts, or transport. The active harness owns those mechanics.
+### Remediation
 
-## Checkpoint Selection
+After evidence or diagnosis establishes the cause, include the observed problem, source requirement, affected scope, ordered corrections, regression checks, recovery or cleanup, and completion condition. Do not plan from a requested patch or plausible cause alone.
 
-- **Sequential self-check:** self-verification then, only on support, bounded self-review after every meaningful slice; review/verify skills may enhance either inline.
-- **Independent assurance:** the `write-spec`-selected combined or high-risk separate artifact-review route before implementation; after the sequential final self-check, one fresh verifier and one different fresh reviewer in parallel against the same frozen state. Extra contexts require scoped authorization.
-- **Commit:** coherent verified rollback point when authorized.
-- **Handoff:** context or continuity boundary.
-- **Backward:** evidence invalidates assumptions, interface, scope, spec, or later plan.
+### Migration Or Operations
 
-For each phase exit, decide whether the integrated outcome needs independent review before dependent work continues. Prefer review for architecture promotion, interacting risk, or sensitive/hard-to-reverse foundations; omit it for small reversible or learning phases. A selected checkpoint in the approved plan carries scoped authorization. Forecasts may still change when execution evidence changes the route.
+For an accepted migration, release, rollout, or operational contract, include the source and target states, prerequisites, ordered execution or cohorts, checks before/during/after, stop or recovery conditions, observation, completion, and cleanup.
+
+The Plan implements accepted compatibility, safety, and recovery requirements; it does not invent them.
+
+## Finish With Integration And Invalidation
+
+End with the complete-result checks and conditions that would stop the Plan:
+
+```text
+Integration:
+Final tests or observations:
+Verification claims and required boundaries:
+Selected independent review, if any:
+Selected local commit, if any:
+Other user or continuity checkpoint, if any:
+Completion condition:
+
+Plan invalidation conditions:
+```
+
+Useful invalidation conditions include:
+
+- a source requirement or accepted decision changes;
+- a material dependency behaves differently;
+- the design or architecture cannot satisfy the contract;
+- checks cannot establish the required claims;
+- implementation requires materially different scope or order;
+- accepted review items expose a Plan-level defect.
+
+These conditions stop or revise the affected Plan. They are not alternate branches. Do not use a narrow final check to imply broader completion.
+
+## Revise Or Supersede
+
+A local implementation detail, expected result, or completed slice does not revise the Plan.
+
+For a founded material change, update only the affected strategy and dependencies, record why it changed, preserve prior rationale, and update linked artifacts only when their content changed.
+
+Use a superseding Plan when editing in place would obscure what was originally reviewed. Route a materially revised or superseding Plan through artifact review again.

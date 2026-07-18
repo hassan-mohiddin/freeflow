@@ -20,8 +20,8 @@ The development surface now uses `freeflow` as well. The public repository uses 
 - Repository name: `freeflow`
 - Plugin name: `freeflow`
 - Display name: `Freeflow`
-- Tagline: `Lightweight workflow for coding agents.`
-- Positioning: Freeflow is a portable workflow skill pack for Codex, Claude, and Pi. It keeps consequential work moving while preserving user control over product behavior, scope, public APIs, security, privacy, billing, data loss, compatibility, and irreversible architecture.
+- Tagline: `A feedback-based control system for coding agents.`
+- Positioning: Freeflow is a portable control layer for Codex, Claude, and Pi. It gives coding agents an Interaction Contract, evidence-driven Workflow, focused methods, and durable task memory while preserving user authority and live source truth.
 
 Freeflow should not present itself as a full governance system, agent replacement, CLI framework, or hook-enforced process engine.
 
@@ -76,8 +76,8 @@ Use `.codex-plugin/plugin.json` as the Codex manifest:
 - `license`: `MIT`
 - `skills`: `./skills/`
 - `interface.displayName`: `Freeflow`
-- `interface.shortDescription`: `Lightweight workflow for coding agents.`
-- `interface.longDescription`: describe conversation/workflow/strict-workflow, decision gates, verification-before-claiming, review, commit, handoff, and decision capture without overclaiming.
+- `interface.shortDescription`: `Feedback-based control for coding agents.`
+- `interface.longDescription`: describe the Interaction Contract, adaptive Workflow, three modes, routing from evidence, task memory, verification, selected review, and controlled delivery boundaries without overclaiming readiness.
 - `interface.category`: `Coding` or `Productivity`; prefer `Coding`.
 - no `commands` or `slashCommands` until native handlers are intentionally added.
 
@@ -98,24 +98,21 @@ The root `package.json` exposes the repo as a Pi package:
 - `pi.skills`: `[]` (skill exposure is dynamic)
 - `pi.extensions`: `pi-extension/freeflow/index.js`
 
-The Pi extension registers direct Freeflow commands, keeps `/freeflow mode` changes session-scoped, distinguishes temporary Session mode from persisted Default mode in `/freeflow`, exposes setup/model skills dynamically after repo setup, loads the canonical compact kernel plus independently enabled capability context on session start and compact, appends system context to the existing prompt before every agent turn, and loads the full Workflow skill once as a hidden persistent first-turn message. It stays inert until valid `.freeflow/config.json` exists, and top-level `enabled: false` suppresses Freeflow context, tools, routing, and delegation. It does not enforce policy, grant permissions, or create repo-local hooks.
+The Pi extension registers direct Freeflow commands, keeps `/freeflow mode` changes session-scoped, separates temporary Session mode from configured defaults, and exposes model skills dynamically after setup. It reads required `.freeflow/config.json` plus optional per-checkout `.freeflow/local.json`, appends effective compact state and the Interaction Contract before agent turns, and loads Workflow once as a hidden persistent message while Skills are effective. Top-level `enabled: false` suppresses Freeflow context and capabilities. The extension does not enforce policy, grant permissions, or create repo-local hooks.
 
 ## README Shape
 
-The public README should be short and install-focused:
+The public README should establish the product before installation:
 
-1. What Freeflow is.
-2. What it is not.
-3. Install for Codex.
-4. Install for Claude.
-5. Install for Pi.
-6. Basic usage examples.
-7. Mode summary: `conversation`, `workflow`, `strict-workflow`.
-8. Skill list.
-9. Development evidence: link to v0.1 acceptance report in this repo or copied release notes.
-10. Relationship to Orchestra.
+1. Feedback-based control-system identity and failure pressures.
+2. Interaction Lifecycle, Feedback Loop, and core principles.
+3. Three modes, skill routing, task memory, and optional Output Router.
+4. Evidence and explicit Unverified boundary for the current candidate.
+5. Install and repository activation for Codex, Claude, and Pi.
+6. Runtime delivery, canonical commands, compatibility aliases, and public-doc links.
+7. What Freeflow is not.
 
-Avoid long competitive comparisons, broad philosophy essays, or old Orchestra feature promises.
+Keep the explanation concise and evidence-backed. Avoid broad competitive claims, generic philosophy essays, or old Orchestra feature promises.
 
 ## Release Boundary
 
@@ -125,13 +122,14 @@ The active plugin runtime ships the current skill set:
 - `mode-contract`
 - `decision-gate`
 - `output-router`
-- `delegation-harness`
-- `discover`
+- `delegation-harness` (deprecated compatibility)
+- `discuss`
+- `track-work`
 - `design-for-depth`
 - `write-spec`
 - `review-artifact`
 - `write-plan`
-- `execute-plan`
+- `execute-work`
 - `tdd`
 - `simplify-code`
 - `migration-work`
@@ -148,7 +146,7 @@ The active plugin runtime ships the current skill set:
 - `write-skill`
 - `evaluate-skill`
 
-The setup skill uses the public `setup-freeflow` name. It creates `.freeflow/config.json` as the sole repo activation boundary, preserves repo-owned host instruction files, and reports host runtime delivery separately from activation.
+The setup skill uses the public `setup-freeflow` name. It creates required shared `.freeflow/config.json`, may create optional personal `.freeflow/local.json` only when requested, preserves repo-owned host instruction files, and reports host runtime delivery separately from activation. Output Router remains explicit optional setup; deprecated Delegation Harness config is preserved but not offered.
 
 The current adaptive-workflow revisions are an Unverified candidate pending behavioral evaluation. `migration-work`, `finish-branch`, `release-work`, `launch-work`, and `simplify-code` are optional lifecycle skills; `tdd` is an optional execution method.
 

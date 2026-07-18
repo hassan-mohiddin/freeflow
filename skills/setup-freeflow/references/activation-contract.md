@@ -1,10 +1,10 @@
 # Activation Contract
 
-`.freeflow/config.json` is Freeflow's sole repo activation boundary.
+Freeflow uses layered checkout configuration. Shared repository activation, personal overrides, and runtime delivery are separate facts.
 
-## Config
+## Repository Activation
 
-Minimal valid setup:
+`.freeflow/config.json` is the required shared activation boundary. Minimal setup is:
 
 ```json
 {
@@ -12,52 +12,111 @@ Minimal valid setup:
 }
 ```
 
-Supported defaults:
+Supported defaults are `conversation`, `workflow`, and `strict-workflow`. Missing core keys use built-in defaults:
 
-- `conversation`
-- `workflow`
-- `strict-workflow`
+- `enabled: true`
+- `interactionContract: true`
+- `skills.enabled: true`
+- `defaultMode: workflow`
 
-A config may also contain documented top-level `enabled`, `skills.enabled`, `outputRouter`, nested `outputRouter.observedRouting`, nested `outputRouter.scriptTransform`, and `delegationHarness` settings. Add them only after the setup capabilities decision point, a `/freeflow` settings change, or an explicit request. Preserve valid existing settings during idempotent setup.
+Repository config may also contain documented Output Router settings. Add optional settings only after an explicit request and preserve valid existing settings during idempotent setup.
 
-Do not create top-level `observedRouting` or `scriptTransform` sections. If encountered, treat them as noncanonical compatibility input: report the discrepancy and preserve it unless the user explicitly requests repair. Do not silently normalize or delete config.
+An existing valid `delegationHarness` section remains compatibility state: preserve it, but Setup Freeflow does not offer, add, or tune it.
 
-Missing optional sections mean built-in defaults. Output Router and Delegation Harness remain disabled by default. Never enable observed routing, native safety-net routing, Delegation Harness, or script transform without explicit opt-in. Use `output-router-setup.md` for config shape, persistence choices, and proof-gated adapters.
+Do not add current mode, task state, phase, file inventories, plans, version metadata, activation paths, empty optional sections, host instruction copies, or generated workflow text.
 
-Do not add current mode, task, phase, file inventory, plans, version metadata, activation paths, empty optional sections, docs inventories, state files, handoffs, skill inventories, or empty `CONTEXT.md`.
+Missing or invalid repository config means repository activation is absent. A valid config with effective `enabled: false` remains configured but inactive.
 
-Missing or invalid config means Freeflow is not active for the repo. `"enabled": false` means installed and configured but disabled.
+## Personal Overrides
+
+`.freeflow/local.json` is optional per-checkout state. It cannot activate Freeflow without a valid repository config.
+
+It may override these core values:
+
+```json
+{
+  "enabled": true,
+  "interactionContract": true,
+  "skills": {
+    "enabled": true
+  },
+  "defaultMode": "strict-workflow"
+}
+```
+
+Every field is optional. Omission inherits the repository value, then the built-in default. Local core precedence is property-level, not whole-file replacement.
+
+The local file may also contain documented local-only `processing` config. It must not contain repository-owned Output Router or Delegation Harness config.
+
+Keep local config untracked and ignored. In a Git checkout, prefer `.git/info/exclude` or an existing ignore rule over an unsolicited shared `.gitignore` edit. Refuse to write personal overrides to a tracked local file.
+
+A missing local file means full inheritance. An invalid existing local file blocks effective Freeflow and must not silently fall back to repository settings. Repair or removal requires authorization.
+
+## Effective Core State
+
+Resolve core values in this order:
+
+```text
+personal override -> repository value -> built-in default
+```
+
+A Pi session mode override sits above the configured default for mode resolution only. It is host session state, not config.
+
+Effective Freeflow requires:
+
+1. valid repository config;
+2. missing or valid local config;
+3. resolved `enabled: true`.
+
+The Interaction Contract and Skills are independent resolved switches. When Skills are disabled, the configured mode remains visible as resolved state but no Freeflow mode is effective.
+
+Repository-owned Output Router settings remain independent capability config and take effect only while top-level Freeflow is enabled. Existing deprecated Delegation Harness config follows its runtime compatibility path but is not part of new setup.
+
+## Mutation Authority By State
+
+Mode constrains agent-performed setup only when a mode is effective:
+
+- **Unconfigured:** missing or invalid repository config means no effective mode. An explicit setup request may create missing minimal activation; replacing invalid config requires specific authorization and source-conflict resolution.
+- **Configured but ineffective:** top-level disablement, dormant Skills, or invalid local config leaves no effective mode. An explicit request governs the selected enablement, configuration, or repair; any reported resolved mode remains dormant state only.
+- **Effective:** obey the reported mode. Conversation is read-only. Workflow and Strict Workflow allow only separately authorized setup or repair.
+
+A user operating native host settings changes host-managed state directly. That action is distinct from an agent editing `.freeflow/config.json` or `.freeflow/local.json`; verify the resulting source and effective state afterward.
 
 ## Runtime Delivery
 
-Activation and delivery are separate facts:
+Configuration does not prove runtime delivery.
 
-- **Repo activation:** valid `.freeflow/config.json`.
-- **Runtime delivery:** the current host's installed, trusted adapter injects the canonical compact kernel and loads the full Workflow skill once into session context.
+When effective, host adapters may deliver:
 
-Pi uses the extension's `before_agent_start` path, appends the kernel to the existing system prompt, and stores Workflow as a hidden persistent custom message. Codex and Claude use the packaged lifecycle hook. Adapters load `skills/decision-gate/references/runtime-kernel.md` and bootstrap the full `skills/workflow/SKILL.md`; full `mode-contract` and `decision-gate` bodies remain on demand.
+- `runtime/interaction-contract.md` when the Interaction Contract switch is enabled;
+- one full `skills/workflow/SKILL.md` bootstrap when Skills are enabled;
+- compact active or dormant mode and capability state;
+- explicitly enabled capability context owned by that capability.
 
-Output Router and Delegation Harness remain independent capability sections controlled by config. The compact-kernel change does not alter their skill bodies, tool/runtime ownership, opt-in defaults, or setup policy.
+The full Mode Contract and other workflow skills remain on demand. Adapters load context only; they do not enforce policy, block tools, grant permissions, or replace repo instructions.
 
-A setup report must say whether runtime delivery is confirmed, unavailable, or unconfirmed. Config alone is not evidence that a Codex or Claude hook executed.
+A setup report classifies automatic delivery as:
+
+- **confirmed:** trustworthy evidence shows the current host adapter ran;
+- **unavailable:** the adapter is absent, disabled, denied, untrusted, or unsupported;
+- **unconfirmed:** the host exposes no trustworthy execution evidence.
+
+For the setup turn itself, direct reads of newly effective context establish guidance only for that turn. Report those reads separately from lifecycle delivery.
 
 ## Repo-Owned Instructions
 
-Do not create replacement Freeflow text in:
+Do not create replacement Freeflow text in `AGENTS.md`, `CLAUDE.md`, `.claude/rules/`, or another repository instruction surface.
 
-- `AGENTS.md`
-- `CLAUDE.md`
-- `.claude/rules/freeflow-core.md`
+Existing repo instructions remain live source truth within host precedence. Inspect conflicts and use Decision Gate rather than overwriting them to make Freeflow appear active.
 
-Existing repo-owned instructions remain authoritative within normal host precedence. Inspect them for conflicts; do not overwrite them to make Freeflow appear active.
+## Setup Invariants
 
-## Invariants
-
-Setup must be:
+Setup is:
 
 - idempotent;
-- additive only where config must be created;
-- non-mutating toward user-owned host instructions;
-- free of generated replacement kernels;
-- explicit about runtime-hook evidence;
-- compatible with same-session kernel, Workflow, and conditional enabled-capability loading without claiming lifecycle injection already occurred.
+- minimal by default;
+- explicit about shared versus personal state;
+- fail-closed for an invalid personal layer;
+- non-mutating toward repo-owned host instructions;
+- explicit about same-turn reads versus automatic runtime delivery;
+- free of generated replacement instructions and unrequested capability config.

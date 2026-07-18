@@ -30,7 +30,7 @@ Capture:
 - known residuals, migrations, rollout, or compatibility notes;
 - required reviewers or checks from repo policy.
 
-Do not claim merge readiness from a PR URL alone.
+A draft pull request may preserve or share incomplete work when that route is explicitly approved. State failing or unavailable evidence. Do not claim merge readiness from a pull-request URL alone.
 
 ## Keep For Later
 
@@ -77,4 +77,4 @@ Stop when conflict resolution would choose between:
 - security, privacy, billing, permissions, or compatibility policies;
 - two architecture directions.
 
-The correct route may be review, diagnosis, Decision Gate, spec revision, or plan revision—not “take ours” or “take theirs.”
+Return the conflict and evidence to Workflow. The next route may be review, diagnosis, Decision Gate, Spec revision, or Plan revision—not “take ours” or “take theirs.”

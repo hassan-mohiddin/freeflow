@@ -1,67 +1,48 @@
 ---
 name: decision-gate
-description: Use when the next action depends on a user-owned decision, source-truth or path conflict, material method substitution, ambiguous artifact destination, or new evidence from discovery, implementation, review, or verification that makes the current route unsafe or changes the next action.
+description: Use when proceeding would silently choose for the user, conflict with existing code, tests, docs, or requirements, or take a materially different path from what was requested or agreed.
 ---
 
 # Decision Gate
 
-Stop before silently choosing a consequential path.
+Stop before making a decision that belongs to the user or quietly changing the agreed path.
 
-This skill handles one unsafe next action. It is not a questionnaire, brainstorming method, or substitute for Discover.
+The [Interaction Contract](../../runtime/interaction-contract.md) governs whether the user is asking, proposing, reasoning, or authorizing action. Decision Gate begins only after one blocking choice or conflict is clear. When the problem or alternatives still need broader exploration, read [Discuss](../discuss/SKILL.md) instead.
 
-The always-on interaction contract lives in [the runtime kernel](references/runtime-kernel.md). Read it when configuring or reviewing Freeflow runtime behavior; runtime adapters may load it directly as system context.
+## Stop Here
 
-## Fire The Gate
+Use the gate when:
 
-Stop when the next action depends on:
+- the user must choose product behavior, scope, priorities, public interfaces, compatibility, permissions, security, privacy, billing, data-loss behavior, migration direction, or another hard-to-reverse outcome;
+- the request conflicts with existing code, tests, docs, policies, requirements, or established behavior;
+- the proposed action would materially change what was requested or agreed, including its evidence quality, risk, cost, persistence, or user-visible result;
+- new evidence exposes one known user choice or source conflict that must be resolved before proceeding.
 
-- product behavior, scope, priority, or domain meaning;
-- public API, compatibility, permissions, security, privacy, billing, or data-loss behavior;
-- hard-to-reverse architecture or migration behavior;
-- artifact creation, destination, durability, or authority when alternatives differ materially;
-- changing docs, tests, specs, policies, ADRs, or handoffs to fit a new request or implementation;
-- a request, handoff, plan, review comment, or assumption that conflicts with live evidence;
-- the user asking for X while the proposed next action is materially different Y;
-- replacing a requested, planned, or skill-required method with a fallback that changes evidence quality, workflow shape, risk, scope, cost, persistence, or user-visible output;
-- implementation, review, or verification evidence that invalidates the current spec, plan, interface, scope, or later slices.
+Do not use the gate for facts that can be inspected, harmless local choices, or reversible implementation details that preserve the accepted outcome.
 
-Do not fire for harmless local choices such as equivalent commands, temporary names, nearby reads, formatting, or implementation details that preserve the accepted outcome.
+## Inspect Before Asking
 
-## Inspect Or Ask
+Inspect code, tests, docs, policies, logs, repository state, or current external sources when they can answer the factual part of the problem.
 
-Inspect first when code, tests, docs, logs, issues, ADRs, repo state, or current external sources can answer the factual question.
+Ask the user only for a choice that remains theirs. If you cannot state the decision and meaningful alternatives clearly, the option space is not ready for a gate; use Discuss.
 
-Ask only for decisions that remain user-owned or whose alternatives materially change the next route.
+## Ask One Direct Question
 
-Exception: when the requested method and a materially different fallback are already known, ask before fallback work or extra inspection performed only to make the substitution sound more complete.
+State:
 
-## Gate Response
+1. what was requested or previously agreed;
+2. the conflicting evidence, missing choice, or materially different path;
+3. why it changes the next action;
+4. the meaningful options and tradeoffs;
+5. a recommendation when evidence supports one;
+6. one direct question that resolves the block.
 
-1. Name the current requested or planned path.
-2. Name the conflicting path, evidence, or missing decision.
-3. Explain why it changes the next action.
-4. Recommend a route only when evidence supports one; do not manufacture a preferred answer before the option space is understood.
-5. Ask one direct decision question, or route to Discover when the problem needs broader collaborative exploration.
-6. Stop. Do not perform the blocked action in the same response.
+Then stop. Do not perform the blocked action in the same response.
 
-A direct skill call, approval to continue, “do not ask,” urgency, reviewer confidence, or existing practice does not override the gate.
-
-## Backward Route
-
-When later work exposes a gap, preserve what remains valid and identify the narrowest affected layer:
-
-- continue when evidence does not change the route;
-- revise later slices or the plan when execution order or mechanism changed;
-- revise the spec when behavior, scope, acceptance, public contract, or failure semantics changed;
-- use `../design-for-depth/SKILL.md` when caller knowledge, states, edge cases, or coordination are spreading;
-- use `../diagnose-failure/SKILL.md` when the next question is a failure signal or root cause;
-- return to Discover when the option space or intended outcome needs reopening;
-- stop or defer when no safe in-scope route remains.
-
-Do not restart discovery from zero or patch forward silently.
+Urgency, approval to continue, reviewer confidence, or existing practice does not resolve an unnamed decision or conflict.
 
 ## Exit
 
-Exit when the relevant decision is explicit, source conflicts are resolved, and remaining ambiguity would not change the next safe action.
+Exit when the choice is explicit, the conflict is resolved, and remaining uncertainty would not change the next safe action.
 
-If the user must choose between consequential paths, end with the direct choice question rather than `Next:`.
+Preserve the decision accurately for the work that depends on it. Do not broaden the decision or treat it as approval for a different path.

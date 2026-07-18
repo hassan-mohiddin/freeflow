@@ -1,56 +1,61 @@
 # Domain Skill Composition
 
-Use Freeflow to decide the route and a domain skill to perform specialized engineering.
+Use Freeflow to choose the route and domain guidance to perform specialized engineering.
 
-## Ownership Boundary
+## Ownership
 
 Freeflow owns:
 
-- mode and workflow route;
+- effective mode and Workflow route;
 - user-owned decisions and source conflicts;
-- discovery, specs, plans, slices, and backward edges;
+- discussion, Specs, Plans, slices, and feedback-driven route changes;
 - review calibration, verification honesty, commits, and handoffs.
 
-Domain skills may own techniques for frontend, accessibility, browser tools, security, performance, databases, APIs, CI/CD, observability, cloud platforms, migrations, releases, and deployment.
+Domain skills may own techniques for frontend, accessibility, browser tools, security, performance, databases, APIs, CI/CD, observability, cloud platforms, migration, release, and deployment.
 
-A domain skill does not override accepted behavior, repo policy, owner decisions, failure contracts, or evidence requirements.
+Domain guidance never overrides accepted behavior, repository policy, owner decisions, failure contracts, or evidence requirements.
 
-## Selection Rule
+## Compose One Active Route
 
-For one active slice:
+For one current slice:
 
-1. choose one owning Freeflow phase;
-2. add at most one primary method or lens, such as TDD, design-for-depth, or diagnosis;
-3. load only the domain guidance needed for the concrete technology or risk;
-4. use extra specialist reviewers only when independent risk lenses justify them.
+1. Choose one owning Freeflow skill or route.
+2. Load Design for Depth early and retain it when the work is already design-bearing or evidence establishes structural pressure.
+3. Use no more than one primary implementation or diagnostic method at a time, such as TDD, Simplify Code, or Diagnose Failure. Change methods when evidence routes elsewhere without automatically changing the current slice.
+4. Load only the domain guidance needed for the concrete technology or risk.
+5. Add specialist independent review only when its risk lens materially protects the selected boundary.
 
-Do not load an entire handbook because one keyword appears. Prefer repo-local policy and current official sources over generic examples.
+Do not load a handbook because one keyword appears. Prefer repository policy and current primary sources over generic examples.
 
-## Conflict Rule
+## Resolve Conflicts
 
-When domain guidance conflicts with live code, tests, specs, policy, ADRs, supported versions, or an explicit owner decision:
+When domain guidance conflicts with live code, tests, Specs, policy, ADRs, supported versions, or an owner decision:
 
 - inspect whether the guidance is stale, generic, or inapplicable;
 - do not rewrite source truth or silently follow the domain skill;
-- use the Decision Gate when resolving the conflict changes behavior or risk.
+- use Decision Gate when resolution changes behavior or material risk.
 
-## Common Composition
+## Common Shapes
 
 ```text
 UI change:
-workflow -> domain frontend/accessibility guidance -> TDD when useful -> browser/runtime verification
+Workflow -> frontend/accessibility guidance -> TDD when useful -> browser verification
 
-Security- or integrity-sensitive operation:
-Decision Gate when policy is unsettled -> design-for-depth for authority and failure-unit design -> domain security guidance -> TDD at the real boundary -> failure-path verification -> security-focused review
+Security- or integrity-sensitive work:
+Decision Gate when policy is unsettled -> Design for Depth -> security guidance
+-> TDD at the real boundary -> failure-path verification -> selected security review
 
 Performance regression:
-diagnose-failure -> platform profiler/query/domain guidance -> bounded fix -> representative benchmark verification
+Diagnose Failure -> profiler/query/domain guidance -> bounded correction
+-> representative performance verification
 
 CI/CD change:
-workflow/plan -> provider/repo pipeline guidance -> verify pipeline behavior -> shipping skill only for production rollout
+Workflow or Plan -> provider/repository pipeline guidance -> pipeline verification
+-> Launch Work only for separately authorized production rollout
 
 Migration:
-migration-work -> storage/API domain guidance -> verify each cohort -> launch-work for production cutover
+Migration Work -> storage/API guidance -> verify each unit
+-> Launch Work for separately authorized production cutover
 ```
 
-If no suitable domain skill exists, inspect current primary sources and repo conventions. State the expertise or environment limitation rather than inventing a universal checklist.
+If no suitable domain skill exists, inspect current primary sources and repository conventions. State expertise or environment limits rather than inventing a universal checklist.

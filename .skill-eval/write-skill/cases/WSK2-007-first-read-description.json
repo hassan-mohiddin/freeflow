@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "id": "WSK2-007",
+  "skill": "write-skill",
+  "title": "Write descriptions for the first useful read",
+  "question": "automatic activation",
+  "evidence_classes": [
+    "native-activation"
+  ],
+  "required_for_bootstrap": false,
+  "prompt": "Help me revise this agent-skill description: `Use for sustained collaborative exploration before or during consequential work.` The skill should become available when a user is brainstorming, comparing approaches, shaping an idea, giving an open-ended request, or reopening assumptions after new evidence. Write a concise replacement and explain what makes it a reliable activation description for an agent that has not read the skill body yet.",
+  "fixture": null,
+  "variants": [
+    {
+      "id": "old",
+      "kind": "git",
+      "revision": "69236e8c8546a46e1219082cac00b23a1e60a694",
+      "path": "skills/write-skill",
+      "role": "reference",
+      "resources": [
+        "SKILL.md",
+        "references/activation-boundaries.md",
+        "references/agent-first-instructions.md",
+        "references/development-loop.md",
+        "references/progressive-disclosure.md"
+      ]
+    },
+    {
+      "id": "candidate",
+      "kind": "working-tree",
+      "path": "skills/write-skill",
+      "role": "candidate",
+      "resources": [
+        "SKILL.md",
+        "references/activation-boundaries.md",
+        "references/agent-first-instructions.md",
+        "references/development-loop.md",
+        "references/progressive-disclosure.md"
+      ]
+    }
+  ],
+  "execution": {
+    "host": "pi",
+    "mode": "json",
+    "tools": [
+      "read"
+    ]
+  },
+  "assertions": [
+    {
+      "id": "activated",
+      "type": "skill_read",
+      "skill": "write-skill"
+    },
+    {
+      "id": "observable-first-read-cues",
+      "type": "semantic",
+      "rubric": "The replacement description must use plain, observable situations available before the body is read, such as brainstorming, comparing approaches, shaping an idea, an open-ended request, or reopened assumptions. It must not depend on unexplained classifications such as `sustained` or `consequential` to decide whether to load the skill."
+    },
+    {
+      "id": "first-use-reasoning",
+      "type": "semantic",
+      "rubric": "The explanation must optimize for the earliest useful activation, distinguish description routing from body-level classification, and allow a nearby prompt either not to activate or to load safely without hijacking the task."
+    }
+  ],
+  "evaluation_kind": "comparison",
+  "unsupported_evidence": "block"
+}

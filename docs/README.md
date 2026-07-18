@@ -47,4 +47,4 @@ Current project direction lives at the docs root:
 
 ## Public Plugin Docs
 
-Public plugin docs live at [plugin-docs/README.md](../plugin-docs/README.md), plus [workflow](../plugin-docs/workflow.md), [skills](../plugin-docs/skills.md), [architecture](../plugin-docs/architecture.md), [output router](../plugin-docs/output-router.md), [release evidence](../plugin-docs/release-evidence.md), and [release ADRs](../plugin-docs/adr/README.md).
+Public plugin docs live at [plugin-docs/README.md](../plugin-docs/README.md), plus [workflow](../plugin-docs/workflow.md), [skill routing](../plugin-docs/skill-routing.md), [architecture](../plugin-docs/architecture.md), [output router](../plugin-docs/output-router.md), [release evidence](../plugin-docs/release-evidence.md), and [release ADRs](../plugin-docs/adr/README.md).

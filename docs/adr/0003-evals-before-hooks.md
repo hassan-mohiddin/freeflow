@@ -1,3 +1,5 @@
-# Evals Before Hooks
+# Evals Before Enforcement Hooks
 
-Freeflow should prove behavior with baseline versus with-skill evals before adding enforcement hooks. Context-loading runtime may load the canonical compact kernel, one full first-turn Workflow bootstrap, and independently enabled capability instructions, but hooks that block or enforce behavior can come later only after measured failures justify them.
+Freeflow should prove behavior with baseline-versus-with-skill evals before adding enforcement hooks.
+
+Context-loading runtime may deliver the Interaction Contract, one Workflow bootstrap while Skills are effective, compact mode/capability state, and enabled capability guidance. Those adapters load context only. Hooks that block tools or enforce workflow policy remain deferred until measured repeated failures justify them.

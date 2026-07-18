@@ -54,4 +54,4 @@ Stop or downgrade the claim when:
 - only a nearby operation improved;
 - required production evidence is unavailable.
 
-Route unexplained regressions to `../../diagnose-failure/SKILL.md`. Route material product/SLO/cost tradeoffs to `../../decision-gate/SKILL.md`.
+Read [Diagnose Failure](../../diagnose-failure/SKILL.md) for unexplained regressions. Read [Decision Gate](../../decision-gate/SKILL.md) when the next step depends on a product, SLO, cost, or resource tradeoff owned by the user.

@@ -84,7 +84,7 @@ Classify proposed capabilities:
 - **Scale:** supports concurrency or volume.
 - **Portability:** supports additional hosts, providers, or environments.
 
-A bootstrap normally implements trust and minimum safety. Efficiency, scale, and portability need observed pressure and an approved milestone.
+Required trust and safety cannot be deferred merely to simplify the design. Efficiency, scale, and portability need accepted requirements or observed pressure.
 
 ## 5. Design It Twice
 
@@ -118,7 +118,7 @@ Compare designs by:
 - correct-use ergonomics;
 - misuse and hidden-decision risk;
 - failure behavior and recoverability;
-- contract stability under Hyrum's Law;
+- contract stability when callers depend on observable details;
 - test surface quality;
 - reversibility;
 - maturity fit;
@@ -137,22 +137,20 @@ Prototype boundary:
 Evidence to capture:
 Time / cost boundary:
 Discard-or-promote rule:
-Backward checkpoint:
+Return condition:
 ```
 
 The experiment should answer the design question, not quietly implement the whole subsystem.
 
-## 8. Route
+## 8. Return To Workflow
 
-End with one route:
+Return the structural evidence, compared designs, recommendation, unresolved owner decisions, and one narrow route:
 
 - continue with the selected interface;
-- ask an owner decision;
-- revise spec;
-- revise plan or later phases;
-- run the learning slice;
-- propose a bounded deepening refactor;
-- defer with the pressure recorded;
-- stop because no safe design fits the current scope.
+- discuss or ask an owner decision;
+- revise the owning Spec or Plan;
+- run the bounded learning slice;
+- propose a bounded deepening slice;
+- defer or stop because no worthwhile safe design fits the current scope.
 
-Do not edit merely because one design is recommended. Recommendation is direction; execution still follows the owning workflow and approval boundaries.
+Do not edit merely because one design is recommended. Recommendation is direction; Workflow owns selection and approval boundaries.

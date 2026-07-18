@@ -1,62 +1,81 @@
 ---
 name: write-skill
-description: Create or revise agent skills. Use when defining a skill's trigger description, active instructions, stop conditions, structure, examples, references, scripts, or readiness status.
+description: Use when creating or revising an agent skill.
 ---
 
 # Write Skill
 
 Write the smallest agent-first skill that changes the target behavior.
 
-## Readiness Gate
+## Establish The First Read
 
-A request for "production-ready" asks for evidence, not a label. If the repo has no saved behavioral evidence for the new or revised skill, deliver an Unverified candidate. Never write `Production-Ready`, `validated`, or equivalent into the skill or final response solely because the user requested it.
+Before writing, identify:
 
-## Before Writing
+- the behavior and failure the skill must change;
+- the earliest natural prompt or situation where its guidance becomes useful;
+- the cues an agent can observe before reading the body;
+- the context guaranteed to be loaded before this skill;
+- a nearby case that should not be hijacked.
 
-- Name the behavior, trigger, pressure, and failure the skill must handle.
-- Inspect live repo conventions and existing evidence before inventing structure.
-- Treat an explicit draft request as a draft. Do not force evaluation.
-- Label unevaluated behavior Draft or Unverified and name the missing evidence.
-- Follow user constraints. Permission to skip work is not pressure to ignore; a prohibition is a prohibition.
-- For a new skill, the first deliverable is one `SKILL.md`. "Add references, examples, or scripts if useful" is permission, not evidence that they are needed.
+A description cannot rely on terminology or classifications taught only inside the skill. The body must work for an agent reading it for the first time with only declared guaranteed context.
 
-## Authoring Rules
+## Write The Description
 
-1. Start with one `SKILL.md`. Keep a new single-file skill at 120 lines or fewer unless a live repo rule or measured failure requires more; remove examples and checklists that restate active rules before crossing that boundary. Add another file only when a live repo rule requires it or a measured failure cannot be fixed clearly in the active file. Hypothetical usefulness, completeness, polish, or examples do not qualify.
-2. Make the description state what the skill does and when it should activate.
-3. Write for the agent that will execute the skill, not for a human reading a manual.
-4. Put user authority, source truth, hard stops, and safety before normal workflow.
-5. Use direct rules that prevent a named failure. Remove explanation that does not route, constrain, stop, or guide behavior.
-6. Add references only for conditional depth. Add scripts only for repeated deterministic work that is risky or wasteful to retype.
-7. Link every resource directly from `SKILL.md` and state when to read or run it.
+Optimize for the first useful activation, not repeated reads.
 
-Do not add README files, changelogs, examples, references, or scripts merely because the user asks for something "complete" or says extras may materially improve it. Name the exact rule or measured failure that makes each resource necessary; otherwise keep one file.
+- State the broad core job in plain language.
+- Use cues observable in the user request or immediate task state.
+- Prefer broad recall when loading the skill is safe and the body can exit cleanly.
+- Do not require the agent to predict an internal classification taught only after activation.
+- Do not turn the description into an exhaustive trigger taxonomy or compressed summary of the body.
 
-## Activation Boundaries
+A nearby case may pass by not loading the skill or by loading it and exiting without changing the task incorrectly. Read [activation boundaries](references/activation-boundaries.md) when writing or diagnosing a description.
 
-Descriptions are routing contracts:
+## Write For The Executing Agent
 
-- include the job and concrete trigger situations;
-- exclude generic helper language and quality claims;
-- cover true requests without hijacking nearby work;
-- test a positive trigger and a near-miss non-trigger before claiming production readiness.
+1. Establish the skill’s job immediately.
+2. Define necessary terms before relying on them.
+3. Put rules where the agent first makes the affected choice.
+4. Keep the normal path executable from `SKILL.md` alone.
+5. Say what to do, what not to do, and when to stop, exit, or route.
+6. Lead with required behavior. Use a negative instruction only to block a plausible or observed failure, and pair it with the positive action, exit, or route. Do not introduce rejected mechanisms or hypothetical behavior merely to forbid them.
+7. Use direct instructions that change action or judgment.
+8. Include why only when it helps the agent generalize, choose correctly in an unseen case, or avoid a harmful literal reading.
+9. Repeat a shared rule only when a local reminder prevents a real failure; do not copy the owning workflow.
+10. Keep authoring status, evaluation caveats, evidence gaps, changelog notes, and readiness metadata out of the subject `SKILL.md`; they do not guide the executing agent.
 
-Read [activation boundaries](references/activation-boundaries.md) when the skill under-triggers, over-triggers, or overlaps another skill.
+Use discussion, research, and author reasoning to understand the target behavior. Do not copy conversation history, author debate, iteration notes, rejected drafts, or explanation written for collaborators into the skill. Translate that context into only the instructions, definitions, boundaries, and examples a first-time executing agent needs.
 
-## Revision Loop
+A skill may rely on guaranteed base context. Do not assume an optional sibling skill, reference, or accidental earlier read. Link conditional dependencies and state when to read them.
 
-- Preserve the failing situation or reuse an adequate existing eval unchanged.
-- Change one measured pressure point: description, wording, placement, stop condition, structure, or resource.
-- Re-run the whole fixed case after a measured revision; do not reuse partial case evidence.
-- Keep unrelated text stable.
-- Report the evidence and remaining gaps; do not promote status from prose quality alone.
+Read [agent-first instructions](references/agent-first-instructions.md) when wording, placement, undeclared context, or author explanation is obscuring execution.
 
-Read [agent-first instructions](references/agent-first-instructions.md) when wording or placement is the failure. Read [progressive disclosure](references/progressive-disclosure.md) before adding resources. Read [the development loop](references/development-loop.md) when moving from Draft to Production-Ready.
+## Use Examples Deliberately
+
+Add a compact behavioral example when prose alone leaves a likely misclassification. Show the observable situation and the required action, stop, exit, or route.
+
+Keep examples general enough to transfer beyond one fixture. Do not turn the body into a transcript, test suite, or scenario catalog. Inline examples teach; behavioral evals test whether the skill changes behavior under pressure.
+
+## Add Resources Only When Needed
+
+Start with one `SKILL.md`. Keep a new single-file skill at 120 lines or fewer unless a live repo rule or measured failure requires more. Remove repeated prose and low-value checklists before expanding the file set.
+
+Add a reference only for conditional depth. Add a script only for repeated deterministic work that is risky or wasteful to retype. Link every resource from `SKILL.md` with an observable read or run condition.
+
+Do not add README files, changelogs, example collections, references, or scripts merely to appear complete. Read [progressive disclosure](references/progressive-disclosure.md) before adding resources.
+
+## Evaluate Before Claiming Readiness
+
+Static validation proves structure, not behavior. Record unevaluated behavior as Draft or Unverified and name the missing evidence in the owning eval artifact, evidence report, release/current-state metadata, Working Record, tool result, or delivery response—not in the subject `SKILL.md`.
+
+Read [Evaluate Skill](../evaluate-skill/SKILL.md) when testing activation, first-read behavior, nearby behavior, dependencies, retained use, artifact outcomes, or readiness. Preserve adequate existing evidence, revise one measured pressure point at a time, and rerun the complete fixed case after a behavioral change.
+
+Do not claim activation from body injection, retained use from one turn, or dependency behavior from undeclared context. Read [the development loop](references/development-loop.md) when revising from measured failure or deciding whether evidence supports promotion.
 
 ## Bundled Tool
 
-Use the bundled [skill author](scripts/skill-author.mjs) for deterministic structure work. Resolve the link relative to this skill directory, then run `node <resolved-skill-author-path> init|validate|inspect`. `validate` proves structural facts. `inspect` reports advisory signals only; neither proves behavior.
+Use the bundled [skill author](scripts/skill-author.mjs) for deterministic structure work. Resolve the link relative to this skill directory, then run `node <resolved-path> init|validate|inspect`. Validation proves structure; inspection reports advisory signals. Neither proves behavior.
 
 ## Stop
 
-Stop and ask when the requested public behavior, activation boundary, safety rule, or compatibility choice is owner-owned and unclear. If required production evidence is forbidden or unavailable, ask which claim should change.
+Stop and ask when the requested public behavior, activation boundary, dependency, safety rule, or compatibility choice is unclear and cannot be settled from evidence. If required readiness evidence is unavailable or forbidden, keep the external claim Draft or Unverified and name the gap without annotating or weakening the active skill body.

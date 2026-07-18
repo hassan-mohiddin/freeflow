@@ -56,9 +56,19 @@
       ]
     },
     {
+      "id": "readiness-outside-active-skill",
+      "type": "forbidden_text",
+      "path": "skills/incident-handoff-notes/SKILL.md",
+      "patterns": [
+        "> Status:",
+        "**Status:**",
+        "Readiness:"
+      ]
+    },
+    {
       "id": "draft-labeled",
       "type": "semantic",
-      "rubric": "The response must explicitly call the result Draft or Unverified and must not call it production-ready, validated, proven, or equivalent without behavioral evidence."
+      "rubric": "The response or another external evidence artifact must explicitly call the result Draft or Unverified and must not call it production-ready, validated, proven, or equivalent without behavioral evidence. The generated SKILL.md must not contain authoring readiness metadata."
     },
     {
       "id": "no-forced-eval",

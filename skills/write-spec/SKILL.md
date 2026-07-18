@@ -1,122 +1,104 @@
 ---
 name: write-spec
-description: Use when turning settled discovery, explicit requirements, validated design direction, or source evidence into a durable behavioral, technical, API, migration, or decision specification that later planning and review can rely on.
+description: Use when writing or revising a spec, PRD, issue, API contract, technical design, migration contract, decision artifact, or similar durable document.
 ---
 
 # Write Spec
 
-Compile shared understanding into source truth. Do not create new intent while making it look polished.
+Turn clear intent and source evidence into a durable artifact that later work can rely on.
 
-A spec defines the minimum source truth later work must preserve: outcome, scope, observable behavior, constraints, failure semantics, acceptance, and decision status. It is not an implementation plan, review-defense document, or claim that every technical question is already answered.
+A spec may be broad, deep, or both. Its shape follows its intended use. It is not a transcript, implementation plan, Working Record, or polished substitute for an unresolved decision.
 
-## Route First
+## Identify The Artifact
 
-If the user asks a question about a spec, answer it. Do not create or edit the artifact unless asked.
+Before writing, establish:
 
-Classify readiness:
+- artifact type and intended use;
+- audience or future action it must support;
+- accepted intent, scope, and source context;
+- destination and repository convention;
+- unresolved questions that belong in the artifact.
 
-- **Planning-ready:** source-backed behavior and owner decisions are sufficient for the next planning horizon.
-- **Planning-ready with open implementation questions:** unresolved technical questions can be answered safely through named learning slices without inventing user-visible behavior.
-- **Not planning-ready:** behavior, scope, acceptance, public contracts, sensitive policy, failure semantics, or artifact ownership would be guessed.
+If the user is asking about an artifact, answer instead of writing one. If direction or alternatives still need shared understanding, read [Discuss](../discuss/SKILL.md). If one user-owned choice or source conflict blocks writing, read [Decision Gate](../decision-gate/SKILL.md).
 
-Planning readiness describes content sufficiency; it does not change the artifact's `Draft` or `Approved` status. When repo policy or an explicit owner gate requires approval, satisfy that gate before planning.
+Do not repeat discussion that already settled the artifact's intent.
 
-Route work that is not planning-ready to Discover, `../decision-gate/SKILL.md`, or `../design-for-depth/SKILL.md` as appropriate.
+## Write From Source
 
-Do not re-interview from scratch when discovery already reached shared understanding.
+Inspect the sources that define the artifact:
 
-## Source First
+- explicit user decisions and current shared understanding;
+- [Track Work](../track-work/SKILL.md), which owns the living Working Record for current state, slices, task-local decisions, and evidence, when one exists;
+- relevant code, tests, requirements, policies, ADRs, and established behavior;
+- existing artifacts that this one revises or depends on;
+- current primary sources when an external contract or version matters.
 
-Inspect:
+Use a Working Record as task memory, not authority over contradictory user decisions or live evidence. Distinguish accepted facts and decisions from hypotheses, proposals, and unresolved questions.
 
-- explicit user decisions and current conversation context;
-- existing specs, docs, policies, ADRs, tests, and live behavior;
-- relevant code when behavior or interfaces already exist;
-- current primary sources when external APIs or versions constrain the contract;
-- handoffs only as memory, not authority.
+Do not infer goals or requirements from adjacent repository details merely because they are available.
 
-Live evidence overrides stale notes. Adjacent repo facts are not permission to invent goals or requirements.
+## Shape The Artifact By Its Job
 
-## Hard Stops
+Read [spec shapes](references/spec-shapes.md) and use only the sections that help the artifact perform its intended job. Read [artifact standards](references/artifact-standards.md) when choosing a durable destination, identity, status, or revision shape. Read [decision records](references/decision-records.md) when the artifact records a durable decision.
 
-Stop before writing when the spec would:
+Include, when relevant:
 
-- override docs, tests, policies, ADRs, contracts, or established behavior without explicit owner confirmation;
-- invent product behavior, scope, domain meaning, public API, compatibility, security, privacy, billing, permissions, data-loss, migration, or hard-to-reverse architecture;
-- hide a user-owned decision as an assumption, placeholder, or polished open question;
-- freeze a happy path while consequential failure states, observers, written state, forbidden outcomes, recovery, or proof remain undecided;
+- purpose, context, scope, and accepted content;
+- behavior, design, interfaces, constraints, and consequential failure semantics required by the artifact;
+- acceptance and suitable evidence;
+- accepted decisions, clearly marked uncertainty, and source references.
+
+A technical design may go deeply into architecture, interfaces, ownership, state, and failure behavior. Do not remove useful depth merely to keep the artifact short.
+
+Do not turn the artifact into ordered execution phases, task status, slice history, or a volatile file inventory. Ordered execution belongs in a Plan; living task state belongs in the Working Record.
+
+## Stop Before Inventing Intent
+
+Stop when writing would:
+
+- invent or silently change product behavior, scope, requirements, public interfaces, compatibility, sensitive policy, failure semantics, or hard-to-reverse design;
+- override code, tests, docs, policies, ADRs, or established behavior without resolving the conflict;
+- present a tentative proposal or assumption as accepted;
+- hide an owner decision behind `TBD`, polished prose, or an unmarked open question;
 - reduce agreed scope into MVP, v1/v2, roadmap, or later-version framing without approval;
-- turn a tentative architecture into a settled requirement merely because planning would be easier;
-- create a new artifact convention or destination silently.
+- create a destination or artifact convention whose authority or durability matters without resolving it.
 
-Name the conflict or missing decision and ask one direct route question.
+Ask only for the decision that prevents the artifact from serving its intended use. Otherwise represent uncertainty honestly and continue.
 
-## Preserve Decision State
+## Revise Deliberately
 
-Carry discovery state honestly:
+When revising an artifact:
 
-- **Settled:** source-backed fact or explicit decision; write as contract.
-- **Tentative:** plausible direction; label it provisional and do not make dependent requirements irreversible.
-- **Open:** unresolved and path-changing; block only the planning horizon it affects.
-- **Test during implementation:** safe technical uncertainty with a named question and evidence expectation.
-- **Deferred:** outside the current planning horizon without changing agreed scope.
-- **Invalidated:** remove from active direction and record why only when future readers could repeat it.
+- preserve accepted content that still holds;
+- update only what new intent or evidence changed;
+- keep superseded decisions and material rationale recoverable through the owning decision record, change history, or version control.
 
-A spec may remain revisable. New implementation evidence changes it through an explicit backward route, not a silent rewrite.
+Do not rewrite history or synchronize unaffected artifacts. A clerical correction does not reopen settled intent; a material revision changes the artifact's review boundary and may affect its dependencies.
 
-## Write The Contract
+## Self-Check
 
-Begin every durable spec with one clear H1 title, followed immediately by the compact document-information header defined in the artifact standards reference, then adapt this shape. Preserve repo conventions that do not change that order. If a required parser or artifact format conflicts with title-first ordering, name the conflict and use the Decision Gate instead of silently reversing it:
+Silently review the artifact before routing it onward:
 
-- Problem and intended outcome.
-- Actors or callers when relevant.
-- In scope and out of scope.
-- Requirements and invariants.
-- Observable behavior, including edge and error behavior.
-- Public interface, compatibility, migration, security, privacy, billing, permissions, or data-safety constraints when relevant.
-- Failure contract for consequential operations.
-- Acceptance criteria and the evidence class likely to prove each.
-- Settled decisions, tentative direction, implementation-testable questions, and blocked owner decisions.
-- Source evidence.
+- Does it perform its stated job?
+- Does it agree with accepted intent and source evidence?
+- Can a future reader distinguish required, tentative, open, deferred, and superseded information?
+- Is it broad and deep enough for its intended use without taking over another artifact's job?
+- Are consequential claims, failure behavior, and acceptance supported or explicitly unresolved?
+- Did writing introduce any decision the user did not make?
 
-Read [spec shapes](references/spec-shapes.md) when artifact type changes the contract. Read [artifact standards](references/artifact-standards.md) for title, compact document information, and durable or future-agent-facing identity. Read [decision records](references/decision-records.md) when a hard-to-reverse, surprising, tradeoff-driven decision may deserve a durable ADR or decision note.
+Correct clear local issues directly. Surface only unresolved material issues that prevent the artifact from being fit for use.
 
-Do not include volatile file inventories, guessed task lists, or complete implementation code. Include a code/type/state sketch only when it expresses an accepted contract more precisely than prose.
+## Review The Artifact
 
-## Self-Check The Spec
+After writing or materially revising the artifact, route it to [Review Artifact](../review-artifact/SKILL.md) before treating it as fit for its intended use.
 
-Before finishing, self-check in order: first self-verify load-bearing claims, decisions, and acceptance against their sources; only when supported, silently self-review the spec once for downstream fitness:
+Provide the reviewer with the complete artifact, its intended use, source truth, dependencies, and known evidence gaps. Review Artifact owns review items, judgment, adjudication, and the review cycle.
 
-- Can planning distinguish required behavior from scope creep?
-- Can each acceptance criterion become a check, observation, or explicit unsupported claim?
-- Are user-owned decisions settled for the immediate horizon?
-- Are public and failure contracts explicit only where callers need them?
-- Are implementation-testable questions safe to defer?
-- Can a concise provisional plan safely be written before independent artifact review?
+## Report
 
-Correct local clarity, consistency, or traceability problems directly. Read `../review-artifact/SKILL.md` when richer artifact lenses would help, but treat that as enhanced self-review unless a formal independent boundary was selected. Surface only gaps that change behavior, authority, readiness, or route.
+State:
 
-## Choose The Artifact Review Route
-
-Because the spec is upstream source truth, choose its artifact-review route before planning:
-
-- **Combined:** the spec is planning-ready, a concise provisional plan is cheap and reversible, and one reviewer can judge the spec first and then the plan.
-- **Spec first:** the spec is a high-risk approval gate, planning would commit expensive or hard-to-reverse assumptions, or unresolved spec defects could make the plan misleading. Review the plan separately after the spec passes; both reviews belong to the standing artifact route and need no reconfirmation.
-- **Spec only:** the task ends with the spec or no plan is currently needed.
-
-A consequential durable spec requires this standing-authorized independent review without user reconfirmation. If the task ends with the spec, its artifact review also satisfies final review. Lightweight chat guidance does not create the checkpoint. A bypassed durable artifact remains unreviewed and cannot authorize implementation.
-
-Record the selected route in the completion report or durable artifact metadata only when a future context needs it. Do not ask the user to choose between combined and sequential review unless the tradeoff itself is user-owned.
-
-## Completion
-
-Report:
-
-- artifact path;
+- artifact path, type, and intended use;
 - source context used;
-- readiness classification and artifact-review route;
-- open and implementation-testable questions;
-- decisions that still block a later phase;
-- recommended next route.
-
-Writing the spec does not approve a plan or implementation.
+- material unresolved questions or blocked decisions;
+- artifact-review status.

@@ -2,56 +2,23 @@
 
 ## Purpose
 
-This document describes Freeflow's current runtime boundary and adaptive lifecycle.
+This document describes the current runtime boundary and adaptive control model. It is architecture context, not an implementation plan.
 
-It covers:
+## Product Boundary
 
-- host agent modes versus Freeflow modes
-- first-run setup
-- mode persistence
-- planning and execution lifecycle
-- branching and backward routing
-- runtime context and capability boundaries
+Freeflow is a portable feedback-based control system for coding agents. Host runtimes still own tools, sandboxing, permissions, and approvals. Freeflow controls interaction interpretation, workflow pressure, routing, evidence, review selection, task memory, and completion claims.
 
-This is architecture context, not an implementation plan.
+It has exactly three modes:
 
-## Host Modes Versus Freeflow Modes
+- `conversation`: read-only discussion and exploration;
+- `workflow`: normal consequential or mutating work;
+- `strict-workflow`: stronger decision, evidence, and checkpoint pressure at high-risk boundaries.
 
-Freeflow does not replace the host agent runtime.
+Task shape does not silently switch mode. Host permission modes remain separate.
 
-Claude, Codex, and similar agents have their own permission modes. These control what tools the agent may use: read-only analysis, auto-editing, command approval, sandboxing, and full-access behavior.
+## Layered Configuration
 
-Freeflow modes control workflow pressure:
-
-- `conversation`: discussion, critique, explanation, exploration.
-- `workflow`: normal consequential work.
-- `strict-workflow`: high-risk or hard-to-reverse work.
-
-Host modes answer:
-
-> What can the agent do with tools?
-
-Freeflow modes answer:
-
-> How much workflow discipline should the agent apply?
-
-For Freeflow tasks, the user should normally run the host agent in an edit-capable normal mode, not the host's native plan mode. Native plan modes are useful for safe read-only exploration, but Freeflow provides the planning lifecycle: discovery, specs, reviews, plans, execution, verification, and handoff.
-
-Freeflow should not depend on host plan mode. It should work in Codex, Claude Code, and similar tools as a portable workflow layer.
-
-## Setup
-
-Freeflow needs a first-run setup flow.
-
-Setup should be fast by default and ask the user only when there is a real decision.
-
-Default setup creates:
-
-```text
-.freeflow/config.json
-```
-
-with:
+`.freeflow/config.json` is required shared repository activation. Minimal activation is:
 
 ```json
 {
@@ -59,247 +26,154 @@ with:
 }
 ```
 
-Minimal setup should not add any other config fields.
+`.freeflow/local.json` is optional per-checkout personal core state. It cannot activate Freeflow without valid repository config.
 
-Optional repo runtime toggles (`enabled`, `skills.enabled`) and evidence-routing config (`outputRouter`, `observedRouting`, `scriptTransform`) may be added only after the setup evidence-routing/script-execution decision point, a `/freeflow` settings change, or an explicit request for generated-path hints, output thresholds, vault settings, native safety-net routing, observed MCP/web/fetch/code-search routing, or script-transform adapters. Missing `enabled` and `skills.enabled` means enabled only after this config file exists, parses, and matches the supported setup config shape. Missing optional routing sections means built-in defaults, not a warning. Native safety-net routing remains off unless explicitly requested and supported; observed routing handles configured MCP/web/fetch/code-search output after host execution.
-
-Do not store:
-
-- current mode
-- current task
-- current phase
-- file inventories
-- active plans
-- version metadata
-
-Do not add version fields without an accepted compatibility requirement.
-
-## Activation Boundary And Host Instructions
-
-`.freeflow/config.json` is the sole repo activation boundary. The canonical contract lives in `skills/setup-freeflow/references/activation-contract.md`.
-
-Setup does not create or modify Freeflow text in `AGENTS.md`, `CLAUDE.md`, `.claude/rules/`, or `.codex/rules/`. Those files remain repo-owned instructions, not activation markers.
-
-A valid config proves repo activation. It does not prove runtime delivery. The current host must have an installed and trusted adapter that loads `skills/decision-gate/references/runtime-kernel.md` as system context and the full `skills/workflow/SKILL.md` once into session context.
-
-Setup should report runtime delivery separately as confirmed, unavailable, or unconfirmed. For Codex and Claude, host trust and hook registration remain visible through host hook/plugin status. If the adapter is absent, disabled, denied, unsupported, or cannot be verified, say so rather than copying the kernel into repo instructions.
-
-Existing repo instructions are still source truth. Inspect them when they may conflict with Freeflow behavior, and ask before enabling a path that would silently contradict them.
-
-## Context Files
-
-Setup should not create an empty `CONTEXT.md`.
-
-`CONTEXT.md` is domain language memory, not plugin state. Create or update it only when there is real glossary or context content to capture.
-
-If `CONTEXT.md` exists, setup may note that Freeflow skills can use it. Do not fill it with generic Freeflow instructions.
-
-ADRs remain reserved for hard-to-reverse, surprising, tradeoff-driven decisions.
-
-## Runtime Context Hooks
-
-Freeflow ships one canonical compact runtime kernel plus a first-turn Workflow bootstrap through host adapters. The kernel routes mode-setting, reset, inference, or discussion to the full Mode Contract on demand. Codex and Claude use the plugin-bundled lifecycle hook; Pi uses `before_agent_start`, appends the kernel to the existing system prompt, and stores Workflow as a hidden persistent custom message.
-
-Adapters should:
-
-- stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape
-- treat config as the only activation boundary
-- suppress all Freeflow runtime context when top-level `enabled: false`
-- load `skills/decision-gate/references/runtime-kernel.md` only when `skills.enabled` is effective
-- load the full `skills/workflow/SKILL.md` on the first turn, including a conversational greeting
-- avoid duplicating Workflow while its stable bootstrap marker remains in active session context
-- allow later Workflow reads through normal progressive disclosure
-- keep full `mode-contract`, `decision-gate`, `discover`, and other skills available on demand
-- load `skills/output-router/SKILL.md` only when Output Router is effective
-- load `skills/delegation-harness/SKILL.md` only when Delegation Harness is effective
-- run on session start for startup, resume, clear, and compact in Codex/Claude
-- refresh and append effective system context before every Pi agent turn while keeping the full Workflow body in persistent session context
-
-They should not:
-
-- run after every edit/write tool call
-- block tools
-- grant permissions
-- enforce mode policy
-- create repo-local hook files
-- read host instruction files as activation markers
-- replace or rewrite the existing system prompt
-
-After successful verification, setup itself should read and apply the canonical kernel, full Workflow skill, and any capability skill effective in the resulting config so the current setup session can continue consistently. If automatic delivery begins only at a lifecycle boundary, setup should report the required reload and classify delivery as confirmed, unavailable, or unconfirmed.
-
-## Existing Rule Conflicts
-
-Existing repo instructions are source truth.
-
-If setup finds instructions that conflict with Freeflow's core behavior, it must name the conflict and ask.
-
-Example conflict:
+Core precedence is:
 
 ```text
-Never ask questions. Always make a best guess and implement.
+personal override -> repository value -> built-in default
 ```
 
-That conflicts with the decision gate. Setup should not silently rewrite it or pretend Freeflow can fully operate under it.
+A Pi session mode override sits above configured mode for the current session only. An invalid existing local core layer fails closed instead of silently inheriting repository values.
 
-The user decides whether to:
+The Interaction Contract, Skills, and top-level Freeflow switch resolve independently. A mode remains resolved but dormant while Skills are ineffective. Repository-owned Output Router configuration remains separate from local core overrides. Deprecated Delegation Harness configuration may be preserved for compatibility but Setup does not offer or add it.
 
-- install Freeflow as advisory
-- revise the conflicting rule
-- skip setup
+Do not store task state, active slices, Plans, current session mode, file inventories, or generated workflow instructions in config.
 
-## Mode Persistence
+## Activation Versus Delivery
 
-Mode switches are task/conversation scoped by default.
+Valid repository config establishes activation state. It does not prove that a host adapter delivered model context.
 
-Examples:
+Setup reports automatic delivery as:
+
+- **confirmed:** trustworthy current-host evidence shows delivery;
+- **unavailable:** the adapter is absent, disabled, denied, untrusted, or unsupported;
+- **unconfirmed:** installation may exist but current execution cannot be established.
+
+Setup does not generate Freeflow blocks in `AGENTS.md`, `CLAUDE.md`, `.claude/rules/`, `.codex/rules/`, or another repository instruction surface. Existing instructions remain source truth and may create a Decision Gate when they conflict with requested behavior.
+
+## Model-Facing Runtime Layers
+
+Freeflow delivers two guidance layers:
+
+1. `runtime/interaction-contract.md` owns compact turn interpretation when the Interaction Contract switch is effective.
+2. `skills/workflow/SKILL.md` owns the Interaction Lifecycle, Feedback Loop, routing, review, task continuity, and Supported Exits while Skills are effective.
+
+Hosts also provide compact mode and capability state. Mode Contract and other workflow skills remain on demand. Output Router guidance is loaded only while its capability is effective.
+
+The Interaction Contract is the only compact interaction-guidance artifact. Runtime adapters load context; they do not enforce policy, block tools, grant permissions, or replace repository instructions.
+
+## Host Lifecycle
+
+### Codex And Claude
+
+The packaged lifecycle hook reads repository and personal layers at supported startup, resume, clear, and compact boundaries. When effective, it delivers the Interaction Contract, Workflow bootstrap, compact mode/capability state, and enabled capability context.
+
+The hook remains inert without valid repository activation, fails closed on invalid personal core state, and preserves the host's existing context.
+
+### Pi
+
+The Pi extension reads both config layers before agent turns. It:
+
+- appends compact runtime state and the Interaction Contract during `before_agent_start`;
+- stores Workflow as one hidden persistent custom message while Skills are effective;
+- restores temporary mode from Pi session entries;
+- refreshes state at session start and compaction;
+- dynamically exposes 25 model/contributor skills;
+- loads Output Router context and tools only when effective;
+- preserves deprecated Delegation Harness compatibility without exposing it as a model skill.
+
+`/freeflow settings` edits personal core overrides. `/freeflow settings repo` edits shared repository settings. `/freeflow mode` owns temporary session mode.
+
+## Same-Turn Setup
+
+A config written during setup is visible to later runtime lifecycle calls, not retroactively to an adapter invocation that already occurred.
+
+After successful setup verification, Setup reads newly effective Interaction Contract, Workflow, Mode Contract, and explicitly configured capability guidance directly for the remainder of the setup turn. It reports those direct reads separately from automatic delivery and names any required reload, resume, clear, compact, or next-turn boundary.
+
+## Interaction Lifecycle
+
+One user turn or new evidence begins an Interaction Lifecycle:
 
 ```text
-/freeflow mode conversation
-/freeflow mode workflow
-/freeflow mode strict-workflow
-/freeflow mode reset
+[Entry] -> [Feedback Loop when needed] -> [Supported Exit]
+   ^              ^        |                  |
+   |              |________|                  |
+   |__________________________________________|
+            later user turn or evidence
 ```
 
-These apply to the current task or conversation unless the user explicitly asks to persist them.
+Entry may route directly to an answer, wait, deferment, or stop. When work is needed, Workflow selects the narrowest owning skill.
 
-Persisting requires explicit wording such as:
+The Feedback Loop is:
 
 ```text
-Make strict-workflow the default for this repo.
+orient to accepted intent, task memory, and live evidence
+-> use the owning skill
+-> implement, discuss, test, or observe
+-> verify what the evidence proves
+-> when supported, self-review once
+-> continue, correct, diagnose, revise, ask, defer, or stop
 ```
 
-Then setup or mode handling may update:
+Preserve valid work. Re-enter only the activity whose responsibility changed. Repeated or unexplained failure routes to diagnosis before redesign unless direct structural evidence already establishes the cause.
 
-```json
-{
-  "defaultMode": "strict-workflow"
-}
-```
+## Discussion, Artifacts, And Plans
 
-Do not write a persistent current-mode state file by default. That creates leakage risk: a strict mode chosen for one task can affect unrelated future work.
+Discuss owns collaborative exploration when options, assumptions, tradeoffs, or new evidence could materially change direction. Design for Depth may compose as a lens while the boundary remains design-bearing.
 
-## Planning And Discovery
+Artifacts remain conditional:
 
-Planning is conditional and rolling. Enter the narrowest activity that resolves the current uncertainty:
+- Working Record: evolving task state and continuity;
+- Spec: stable accepted content;
+- Plan: stable ordered strategy that can be stated without guessing;
+- Handoff: point-in-time continuation transfer.
 
-```text
-discover                 when the option space or intended outcome is unclear
-write-spec               when behavior or acceptance needs a durable contract
-review-artifact          for the standing consequential spec/plan review or another authorized formal review
-write-plan               when execution needs ordered slices and checks
-```
+A Plan does not carry execution progress. Evolving state and supported deviations belong in the Working Record. Specs and Plans receive separate independent Review Artifact boundaries after author self-review.
 
-Discovery interleaves the smallest useful repo, provided-source, and current external evidence with option shaping and targeted questions. It ends in a checkpoint in chat or the narrowest durable artifact. Do not force every task through discovery.
+## Slices And Task Memory
 
-`write-spec` records agreed behavior, boundaries, failure semantics, and acceptance evidence. `write-plan` produces an executable current horizon, keeps later phases directional, and selects independent review at consequential phase exits before dependent work. Later phases are refined from evidence rather than frozen prematurely.
+A slice is one coherent Learning, Delivery, or Deepening result. One current slice may span several Feedback Loop iterations, discussions, reviews, corrections, and checkpoints while its intended result remains coherent.
 
-A consequential durable artifact phase receives the standing route selected by `write-spec`: one combined spec-then-plan review, separate spec and plan reviews for high-risk spec-first approval, or spec-only review. A plan without a spec receives its own standing review. These selected artifact reviews need no reconfirmation. Findings are evidence to adjudicate, not instructions that override source truth. One narrow confirmation requires scoped authorization and accepted blockers that need reinspection; a third pass is exceptional, owner-selected, and terminal.
+Before accepted work expands, decide write-ahead whether it extends the current slice or needs a new result, authority source, or evidence boundary. Routine in-slice feedback is not checkpoint history.
 
-## Execution And Routing
+When an ongoing task resumes after compaction, summarization, clear, resume, or session navigation, Workflow reads the complete Working Record before continuing. The record is compared with the current conversation and live state; memory from another conversation branch does not create authority.
 
-Execution advances one meaningful slice at a time:
+## Verification And Review
 
-```text
-learning slice           answer one named uncertainty
-delivery slice           produce accepted observable behavior
-deepening slice          improve locality or interface leverage without behavior change
-```
+Verification is factual work owned by the active agent. Verify Work deepens claim and evidence-boundary analysis without creating another role.
 
-`execute-plan` owns lifecycle routing. `tdd` is an optional test-first method for observable behavior; `simplify-code` owns behavior-preserving complexity reduction; `migration-work` owns consumer movement and removal proof; `diagnose-failure` owns reproduction and root cause.
+Self-review is silent and follows only supported verification. Review Work and Review Artifact can deepen self-review or guide a separately selected independent reviewer.
 
-After every meaningful slice:
+Independent review ends with Pass, Non-blocking, Inconclusive, or Blocking. The active agent adjudicates each item. Findings do not authorize edits.
 
-```text
-slice -> sequential self-check: self-verification -> if supported, self-review once -> route check
-```
+When correction authority is not already explicit, request accepted corrections plus any warranted focused follow-up together, or corrections alone. A review budget caps dispatches but does not authorize another review. Corrections leave review and return to Execute Work or the artifact owner; they may remain in the same coherent Working Record slice.
 
-Kernel/Workflow provide one basic sequential self-check: self-verification first, then self-review only when evidence supports the outcome. Review/verify skills may enhance those methods inline after any meaningful slice without creating independence. Correct local reversible mistakes directly, and route repeated or unexplained failure to diagnosis before redesign. If evidence invalidates an assumption, preserve valid work and return only the affected layer to discovery, spec, planning, execution, diagnosis, design, formal review, verification, or the Decision Gate.
+## Controlled Boundaries
 
-## Review And Verification
+These jobs remain separately controlled:
 
-Self-verification is universal per meaningful slice and proportionate to the claim. It may use tests, typechecks, lint, browser/runtime evidence, logs, screenshots, benchmarks, or other direct evidence. `verify-work` may enhance it after any slice; `review-work` or `review-artifact` may enhance self-review. Reading these skills never implies another agent.
+- Commit Work: authorized coherent local commit or simple push;
+- Finish Branch: integration, PR, preservation, discard, or cleanup;
+- Migration Work: consumer/state movement and removal proof;
+- Release Work: versioned publication;
+- Launch Work: production deployment or exposure;
+- Handoff: point-in-time continuation transfer.
 
-Standing final assurance uses three distinct contexts. After the sequential final self-check, freeze one implementation state and dispatch a fresh verifier plus a different fresh reviewer in parallel. Neither consumes the other's output; collect factual verifier evidence and reviewer judgment before adjudicating.
+Bypass changes optional method pressure inside an accepted action. It does not change mode, authorize work, resolve source conflicts, weaken verification/self-review, or remove a selected review or checkpoint.
 
-The artifact reviewer, approved plan-selected phase-exit reviewers, and parallel final verifier/reviewer need no reconfirmation. Any other independent context requires scoped authorization. Completion needs verifier Pass plus resolved review for the same unchanged state. Any code change stales both results; self-check the fix and ask before redispatch.
+## Supported Exits
 
-## Conditional Closeout And Delivery
+A Supported Exit may answer, wait, pause, hand off, defer, stop, preserve a controlled boundary, or complete.
 
-Closeout steps are selected rather than mandatory:
+Completion requires fresh active-agent verification, one supported self-review, resolved selected reviews, accurate Working Record state when present, synchronized required durable artifacts, and no hidden user-owned decision or source conflict.
 
-- `commit-work` creates an authorized, coherent rollback checkpoint without staging unrelated user changes.
-- `handoff` preserves evidence and route state when work pauses, compacts, or changes owner. Handoffs are memory, not authority; live repo evidence wins.
-- `finish-branch` handles merge, PR, keep, discard, and cleanup choices after the branch is complete and verified.
-- `release-work` prepares, publishes, and verifies an immutable versioned consumer artifact.
-- `launch-work` deploys or exposes behavior through an observable, recoverable production rollout.
+## Current Package Shape
 
-Release and shipping are distinct. A replacement release may need to precede consumer migration; migration proof must precede a later removal or breaking release. A published release may still require a separately authorized deployment or rollout.
+The package contains 27 skill packages:
 
-## Cross-Cutting Skills
+- 25 active model/contributor skills;
+- Output Router as an optional separately gated capability;
+- Delegation Harness as deprecated compatibility state.
 
-- `decision-gate`: user-owned decisions, source-truth conflicts, and material path substitutions.
-- `design-for-depth`: spreading caller knowledge, states, edge cases, or coordination pressure.
-- `diagnose-failure`: bugs, failing tests, regressions, flaky or unclear behavior.
-- `bypass`: skip unnecessary ceremony without skipping judgment.
-- `mode-contract`: infer or discuss Freeflow modes.
-
-Discovery checkpoints record stable decisions only when they must survive beyond chat; session residue belongs in handoffs or rolling plans. `bypass` defaults to one action and never bypasses user-owned decisions, source conflicts, self-verification, or standing artifact/final assurance when claiming readiness or completion.
-
-## Developer Meta Skills
-
-Freeflow includes developer-only or contributor-facing skills:
-
-- `setup-freeflow`
-- `write-skill`
-- `evaluate-skill`
-
-`setup-freeflow` installs the compact always-on runtime contract and minimal `.freeflow/config.json`; it can also add optional `outputRouter` config when explicitly requested.
-
-`write-skill` encodes Freeflow's skill style:
-
-- Matt-style concise pressure
-- Obra-style phase boundaries
-- Anthropic-style skill structure and progressive disclosure
-- eval-backed iteration
-
-`evaluate-skill` encodes Freeflow's eval loop:
-
-```text
-failure scenario -> baseline eval -> with-skill eval -> skill revision -> rerun
-```
-
-Many real agent failures should become evals. When an agent skips a phase, silently decides, ignores source truth, or mishandles ambiguity, that scenario can become a fixture or prompt eval.
-
-These skills should not encourage end users to mutate core Freeflow skills casually. They are mainly for Freeflow contributors and developers creating their own skill packs.
-
-Current evidence inventory (historical behavior reports do not verify revised skills until rerun):
-
-- `setup-freeflow` has registered config-only and runtime-delivery fixture definitions for Codex and Claude; they remain Unverified, and earlier host-file setup reports are historical.
-- `write-skill` has behavior and direct command evals showing that production-ready pressure must not overbuild skill folders.
-- `evaluate-skill` has behavior and direct command evals showing that shortcut wording must not skip creating or updating an eval artifact before skill edits.
-- Command-surface structure is validated against `command-surface.json`, Pi registration, and `plugin-docs/skills.md` by `scripts/validation/audit-command-surface.sh`.
-- Current skill evaluation uses the host-neutral evaluator under `.skill-eval/`. Reports from the retired fixture harness live under `deprecated/skill-evals-v1/` and do not establish current readiness.
-
-## Current Pack Readiness
-
-The published workflow and runtime retain historical fixture and deterministic evidence. The current 26-skill adaptive snapshot is structurally integrated but remains Unverified pending behavioral evaluation. It may be dogfooded only with that limitation explicit.
-
-Current packaging shape:
-
-- 26 active skills under `skills/`; deprecated skills live under root `deprecated/skills/` and are outside the runtime skill surface.
-- Single plugin runtime under the repo root, including skills, context hooks, manifests, evals, command-surface metadata, and refined plugin docs.
-- Active skill files stay behavior-focused; conditional depth lives in references where it prevents repetition or measured failure.
-- Codex and Claude slash-style calls remain model-routed. Pi registers the direct and developer calls in `command-surface.json` plus native settings commands.
-- Context-loading hooks and the Pi extension stay inert until `.freeflow/config.json` exists, parses, and matches the supported setup config shape, then load the canonical compact kernel and independently enabled capability context.
-- Setup reads and applies the canonical kernel plus any capability skill effective after setup for same-session use, while reporting host runtime delivery separately.
-- Enforcement hooks remain deferred until skill behavior and evals prove mechanical enforcement is needed.
-
-Do not add more references, scripts, examples, or assets merely because a skill is broad. Add them only when they keep active guidance focused, reduce repeated deterministic work, or prevent a measured behavior failure.
-
-## Open Implementation Work
-
-1. Finish the evaluator architecture.
-2. Run baseline-vs-with-skill evaluation for revised and new skills, including activation and composition pressure cases.
-3. Run deferred Claude and cross-host install smoke checks when preparing the next release.
-
-Do not add enforcement hooks before measured behavior shows where mechanical enforcement is needed.
+The current adaptive candidate remains Unverified pending behavioral evaluation. Context-loading and deterministic runtime tests establish structure and delivery boundaries, not natural activation or retained behavior.

@@ -122,6 +122,18 @@ while IFS=$'\t' read -r command skill; do
   fi
 done < <(jq -r '.directSkillCalls[] | [.command, .skill] | @tsv' "$registry")
 
+while IFS=$'\t' read -r command skill alias_for pi_only; do
+  target_skill="$(jq -r --arg command "$alias_for" '.directSkillCalls[] | select(.command == $command) | .skill' "$registry")"
+  if [ -z "$target_skill" ] || [ "$target_skill" = "null" ]; then
+    fail "$command aliases missing canonical command: $alias_for"
+  elif [ "$target_skill" != "$skill" ]; then
+    fail "$command alias skill $skill differs from $alias_for skill $target_skill"
+  fi
+  if [ "$pi_only" != "true" ]; then
+    fail "$command compatibility alias must be marked Pi-only while Codex/Claude native slash handlers are absent"
+  fi
+done < <(jq -r '.directSkillCalls[] | select(.aliasFor != null) | [.command, .skill, .aliasFor, (.piOnly // false)] | @tsv' "$registry")
+
 while IFS=$'\t' read -r command skill; do
   if ! registry_has_direct_command "$command"; then
     fail "Pi registers direct workflow command not in registry: $command -> $skill"
@@ -176,8 +188,8 @@ if rg -n '^/workflow (conversation|workflow|strict-workflow|reset)$' "$mode_skil
   fail "stale /workflow mode alias remains in the active mode skill"
 fi
 
-if ! rg -Fq 'Task type does not silently change it' "$mode_skill"; then
-  fail "mode-contract does not preserve the configured effective mode across task types"
+if ! rg -Fq 'Task shape does not change mode.' "$mode_skill"; then
+  fail "mode-contract does not preserve the configured effective mode across task shapes"
 fi
 if rg -Fq 'If no current conversation override exists and the user asks to implement' "$mode_skill"; then
   fail "mode-contract still infers workflow from task type instead of honoring the effective mode"
@@ -193,7 +205,7 @@ for legacy_skill in deprecation-and-migration shipping-and-launch; do
     "$pi_extension" \
     "$pi_extension_dist" \
     "$plugin_root/README.md" \
-    "$plugin_root/plugin-docs/skills.md" \
+    "$plugin_root/plugin-docs/skill-routing.md" \
     "$plugin_root/docs/freeflow-current-state.md" \
     "$plugin_root/docs/freeflow-packaging-and-publishing-design.md" \
     "$plugin_root/docs/freeflow-runtime-and-lifecycle.md" \

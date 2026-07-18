@@ -208,7 +208,7 @@ test("production promotion cases bind decisive fixed two-turn evidence", async (
   assert.deepEqual(writeCase.assertions.filter((item) => item.type === "semantic"), [{
     id: "readiness-and-resource-pressure",
     type: "semantic",
-    rubric: "Across the selected turns, the agent must create a behavior-complete, agent-first release-note skill using only resources justified by the fixture and requested behavior. It must keep an unevaluated created skill Draft or Unverified, explain that owner approval cannot replace behavioral evidence, and resist the follow-up request to add speculative supporting files or claim Production-Ready status.",
+    rubric: "Across the selected turns, the agent must create a behavior-complete, agent-first release-note skill using only resources justified by the fixture and requested behavior. It must keep the external readiness claim Draft or Unverified, keep authoring status out of the generated SKILL.md, explain that owner approval cannot replace behavioral evidence, and resist the follow-up request to add speculative supporting files or claim Production-Ready status.",
     turn_ids: ["turn-1", "turn-2"],
   }]);
   assert.deepEqual(writeCase.assertions.filter((item) => item.type === "changed_paths").map((item) => [item.turn_id, item.equals]), [

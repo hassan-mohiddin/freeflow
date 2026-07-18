@@ -47,11 +47,12 @@ function findWorkspaceRoot(cwd) {
 }
 
 function loadRuntimeContext(options = {}) {
+  const includeInteractionContract = options.interactionContract === true;
   const includeSkills = options.skills === true;
   const includeOutputRouter = options.outputRouter === true;
   const includeDelegationHarness = options.delegationHarness === true;
-  const runtimeKernel = includeSkills
-    ? readText(path.join(PLUGIN_ROOT, "skills", "decision-gate", "references", "runtime-kernel.md"))
+  const interactionContract = includeInteractionContract
+    ? readText(path.join(PLUGIN_ROOT, "runtime", "interaction-contract.md"))
     : null;
   const workflowSkill = includeSkills
     ? readText(path.join(PLUGIN_ROOT, "skills", "workflow", "SKILL.md"))
@@ -64,94 +65,217 @@ function loadRuntimeContext(options = {}) {
     : null;
 
   if (
-    (includeSkills && (!runtimeKernel || !workflowSkill)) ||
+    (includeInteractionContract && !interactionContract) ||
+    (includeSkills && !workflowSkill) ||
     (includeOutputRouter && !outputRouterSkill) ||
     (includeDelegationHarness && !delegationHarnessSkill)
   ) {
     throw new Error("Freeflow runtime context files are missing.");
   }
 
-  return { runtimeKernel, workflowSkill, outputRouterSkill, delegationHarnessSkill };
+  return {
+    interactionContract,
+    workflowSkill,
+    outputRouterSkill,
+    delegationHarnessSkill,
+  };
 }
 
 function readConfig(root) {
-  const configPath = path.join(root, ".freeflow", "config.json");
-  const body = readText(configPath);
-  if (!body) {
-    return { exists: false, valid: false, configured: false, enabled: false, skillsEnabled: false, defaultMode: null, outputRouterEnabled: false, delegationHarnessEnabled: false };
+  const repository = readConfigLayer(
+    path.join(root, ".freeflow", "config.json"),
+    isValidSetupConfig,
+  );
+  const local = readConfigLayer(
+    path.join(root, ".freeflow", "local.json"),
+    isValidLocalConfig,
+  );
+  const localValid = !local.exists || local.valid;
+  const configured = repository.valid && localValid;
+  const core = resolveCoreConfig(
+    repository.valid ? repository.parsed : {},
+    local.valid ? local.parsed : {},
+  );
+  const enabled = configured && core.config.enabled;
+  const repositoryConfig = repository.valid ? repository.parsed : {};
+
+  return {
+    exists: repository.exists,
+    valid: configured,
+    configured,
+    repositoryValid: repository.valid,
+    localExists: local.exists,
+    localValid,
+    error: !repository.valid ? repository.error : local.error,
+    enabled,
+    interactionContractEnabled: enabled && core.config.interactionContract,
+    skillsEnabled: enabled && core.config.skills.enabled,
+    defaultMode: core.config.defaultMode,
+    sources: core.sources,
+    outputRouterEnabled:
+      enabled && repositoryConfig?.outputRouter?.enabled === true,
+    delegationHarnessEnabled:
+      enabled && repositoryConfig?.delegationHarness?.enabled === true,
+  };
+}
+
+function readConfigLayer(filePath, validate) {
+  if (!fs.existsSync(filePath)) {
+    return { path: filePath, exists: false, valid: false, parsed: {}, error: null };
   }
 
   try {
-    const parsed = JSON.parse(body);
-    const valid = isValidSetupConfig(parsed);
-    const enabled = valid && parsed?.enabled !== false;
+    const parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    const error = validate(parsed);
     return {
+      path: filePath,
       exists: true,
-      valid,
-      configured: valid,
-      enabled,
-      skillsEnabled: enabled && parsed?.skills?.enabled !== false,
-      defaultMode: VALID_MODES.has(parsed?.defaultMode) ? parsed.defaultMode : "workflow",
-      outputRouterEnabled: enabled && parsed?.outputRouter?.enabled === true,
-      delegationHarnessEnabled: enabled && parsed?.delegationHarness?.enabled === true,
+      valid: error === null,
+      parsed: error === null ? parsed : {},
+      error,
     };
-  } catch {
-    return { exists: true, valid: false, configured: false, enabled: false, skillsEnabled: false, defaultMode: null, outputRouterEnabled: false, delegationHarnessEnabled: false };
+  } catch (error) {
+    return {
+      path: filePath,
+      exists: true,
+      valid: false,
+      parsed: {},
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 }
 
-function isValidSetupConfig(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return false;
-  }
+function isRecord(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
 
-  const allowedKeys = new Set(["enabled", "defaultMode", "skills", "outputRouter", "delegationHarness", "observedRouting", "scriptTransform"]);
-  if (!Object.keys(value).every((key) => allowedKeys.has(key))) {
-    return false;
-  }
-
+function validateCoreConfigFields(value) {
   if (Object.prototype.hasOwnProperty.call(value, "defaultMode") && !VALID_MODES.has(value.defaultMode)) {
-    return false;
+    return "defaultMode must be conversation, workflow, or strict-workflow";
   }
-
   if (Object.prototype.hasOwnProperty.call(value, "enabled") && typeof value.enabled !== "boolean") {
-    return false;
+    return "enabled must be a boolean";
   }
-
+  if (Object.prototype.hasOwnProperty.call(value, "interactionContract") && typeof value.interactionContract !== "boolean") {
+    return "interactionContract must be a boolean";
+  }
   if (Object.prototype.hasOwnProperty.call(value, "skills")) {
-    if (!Boolean(value.skills) || typeof value.skills !== "object" || Array.isArray(value.skills)) {
-      return false;
+    if (!isRecord(value.skills)) {
+      return "skills must be an object";
     }
     if (Object.prototype.hasOwnProperty.call(value.skills, "enabled") && typeof value.skills.enabled !== "boolean") {
-      return false;
+      return "skills.enabled must be a boolean";
     }
   }
+  return null;
+}
 
-  if (Object.prototype.hasOwnProperty.call(value, "outputRouter")) {
-    if (!Boolean(value.outputRouter) || typeof value.outputRouter !== "object" || Array.isArray(value.outputRouter)) {
-      return false;
-    }
+function isValidSetupConfig(value) {
+  if (!isRecord(value)) {
+    return "repository config must be a JSON object";
   }
 
-  if (Object.prototype.hasOwnProperty.call(value, "observedRouting")) {
-    if (!Boolean(value.observedRouting) || typeof value.observedRouting !== "object" || Array.isArray(value.observedRouting)) {
-      return false;
-    }
+  const allowedKeys = new Set([
+    "enabled",
+    "defaultMode",
+    "interactionContract",
+    "skills",
+    "outputRouter",
+    "delegationHarness",
+    "observedRouting",
+    "scriptTransform",
+  ]);
+  if (!Object.keys(value).every((key) => allowedKeys.has(key))) {
+    return "repository config contains unsupported top-level keys";
   }
 
-  if (Object.prototype.hasOwnProperty.call(value, "scriptTransform")) {
-    if (!Boolean(value.scriptTransform) || typeof value.scriptTransform !== "object" || Array.isArray(value.scriptTransform)) {
-      return false;
-    }
+  const coreError = validateCoreConfigFields(value);
+  if (coreError) {
+    return coreError;
   }
 
-  if (Object.prototype.hasOwnProperty.call(value, "delegationHarness")) {
-    if (!Boolean(value.delegationHarness) || typeof value.delegationHarness !== "object" || Array.isArray(value.delegationHarness)) {
-      return false;
+  for (const key of [
+    "outputRouter",
+    "observedRouting",
+    "scriptTransform",
+    "delegationHarness",
+  ]) {
+    if (Object.prototype.hasOwnProperty.call(value, key) && !isRecord(value[key])) {
+      return `${key} must be an object`;
     }
   }
+  return null;
+}
 
-  return true;
+function isValidLocalConfig(value) {
+  if (!isRecord(value)) {
+    return "local config must be a JSON object";
+  }
+
+  const allowedKeys = new Set([
+    "enabled",
+    "defaultMode",
+    "interactionContract",
+    "skills",
+    "processing",
+  ]);
+  if (!Object.keys(value).every((key) => allowedKeys.has(key))) {
+    return "local config contains unsupported top-level keys";
+  }
+  return validateCoreConfigFields(value);
+}
+
+function hasOwn(value, key) {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function resolveLayeredValue(repository, local, key, fallback) {
+  if (hasOwn(local, key)) {
+    return { value: local[key], source: "local" };
+  }
+  if (hasOwn(repository, key)) {
+    return { value: repository[key], source: "repository" };
+  }
+  return { value: fallback, source: "builtin" };
+}
+
+function resolveCoreConfig(repository, local) {
+  const enabled = resolveLayeredValue(repository, local, "enabled", true);
+  const interactionContract = resolveLayeredValue(
+    repository,
+    local,
+    "interactionContract",
+    true,
+  );
+  const defaultMode = resolveLayeredValue(
+    repository,
+    local,
+    "defaultMode",
+    "workflow",
+  );
+  const repositorySkills = isRecord(repository.skills) ? repository.skills : {};
+  const localSkills = isRecord(local.skills) ? local.skills : {};
+  const skillsEnabled = resolveLayeredValue(
+    repositorySkills,
+    localSkills,
+    "enabled",
+    true,
+  );
+
+  return {
+    config: {
+      enabled: enabled.value,
+      interactionContract: interactionContract.value,
+      skills: { enabled: skillsEnabled.value },
+      defaultMode: defaultMode.value,
+    },
+    sources: {
+      enabled: enabled.source,
+      interactionContract: interactionContract.source,
+      skillsEnabled: skillsEnabled.source,
+      defaultMode: defaultMode.source,
+    },
+  };
 }
 
 function inspectSetup(root) {
@@ -159,24 +283,23 @@ function inspectSetup(root) {
 }
 
 function configStatus(config) {
-  if (config.valid) {
-    return `defaultMode \`${config.defaultMode}\``;
+  if (!config.valid) {
+    return "invalid layered configuration";
   }
-  if (config.exists) {
-    return "invalid `.freeflow/config.json`; effective default mode falls back to `workflow`";
-  }
-  return "missing `.freeflow/config.json`; effective default mode falls back to `workflow`";
+  const source = config.sources.defaultMode;
+  const personal = config.localExists ? "; personal overrides present" : "";
+  return `defaultMode \`${config.defaultMode}\` from ${source}${personal}`;
 }
 
 function modeGuidance(mode) {
   return [
     `Current Freeflow default mode: \`${mode}\`.`,
-    "Treat this as the repo default at session start, resume, clear, and compact.",
+    "Treat this as the resolved default at session start, resume, clear, and compact.",
     "Mode behavior:",
     "- `conversation`: answer, discuss, critique, and inspect read-only; switch modes before mutating state.",
     "- `workflow`: use the adaptive workflow for normal consequential work.",
     "- `strict-workflow`: strengthen user-owned decisions, review, and verification for high-risk or hard-to-reverse work.",
-    "Do not announce the current mode on every reply. Mention it when the user asks, setup/config is discussed, or the mode changes the next action."
+    "Do not announce the current mode on every reply. Mention it when the user asks, setup/config is discussed, or the mode changes the next action.",
   ];
 }
 
@@ -186,10 +309,15 @@ function buildSetupStatus(root) {
     return "Setup status: Freeflow is not configured for this repo.";
   }
 
+  const modeStatus = config.skillsEnabled
+    ? modeGuidance(config.defaultMode)
+    : [
+        `Resolved default mode: \`${config.defaultMode}\` (dormant because Skills are disabled).`,
+      ];
   return [
     `Setup status: configured by \`.freeflow/config.json\` with ${configStatus(config)}.`,
     "Runtime delivery: confirmed for this lifecycle-hook invocation.",
-    ...modeGuidance(config.defaultMode)
+    ...modeStatus,
   ].join("\n");
 }
 
@@ -205,11 +333,12 @@ function capabilityStatus(config) {
   return [
     "## Freeflow Capabilities",
     "",
+    `- Interaction Contract: ${config.interactionContractEnabled ? "enabled" : "disabled"}.`,
     `- Skills: ${config.skillsEnabled ? "enabled" : "disabled"}.`,
     `- Output router: ${config.outputRouterEnabled ? "enabled" : "disabled"}.`,
     `- Delegation harness: ${config.delegationHarnessEnabled ? "enabled" : "disabled"}.`,
     "",
-    "Capability-specific instructions are active only while that capability is enabled."
+    "Capability-specific instructions are active only while that capability is enabled.",
   ];
 }
 
@@ -225,21 +354,28 @@ function buildContext(input) {
     return [
       "# Freeflow Disabled",
       "",
-      "Freeflow is installed and configured for this repo, but `.freeflow/config.json` has `enabled: false`.",
-      "Do not inject Freeflow workflow skills, output routing, delegation guidance, or setup pressure while disabled.",
-      "Re-enable only if the user asks: set `.freeflow/config.json` `enabled` to true, or use `/freeflow enable` in Pi."
+      `Freeflow is configured for this repo, but effective \`enabled\` is false from ${setup.config.sources.enabled}.`,
+      "Do not inject the Interaction Contract, Freeflow workflow skills, output routing, delegation guidance, or setup pressure while disabled.",
+      "Re-enable only if the user asks; use /freeflow settings for a personal override or /freeflow settings repo for the shared repository default in Pi.",
     ].join("\n");
   }
 
-  const { runtimeKernel, workflowSkill, outputRouterSkill, delegationHarnessSkill } = loadRuntimeContext({
+  const {
+    interactionContract,
+    workflowSkill,
+    outputRouterSkill,
+    delegationHarnessSkill,
+  } = loadRuntimeContext({
+    interactionContract: setup.config.interactionContractEnabled,
     skills: setup.config.skillsEnabled,
     outputRouter: setup.config.outputRouterEnabled,
     delegationHarness: setup.config.delegationHarnessEnabled,
   });
+  const interactionSection = setup.config.interactionContractEnabled
+    ? ["", interactionContract.trim()]
+    : [];
   const skillSections = setup.config.skillsEnabled
     ? [
-        "",
-        runtimeKernel.trim(),
         "",
         "# Freeflow Workflow Bootstrap",
         "",
@@ -252,7 +388,7 @@ function buildContext(input) {
         "## Loaded Output Router Skill",
         "```md",
         outputRouterSkill.trim(),
-        "```"
+        "```",
       ]
     : [];
   const delegationHarnessSection = setup.config.delegationHarnessEnabled
@@ -261,7 +397,7 @@ function buildContext(input) {
         "## Loaded Delegation Harness Skill",
         "```md",
         delegationHarnessSkill.trim(),
-        "```"
+        "```",
       ]
     : [];
 
@@ -275,9 +411,10 @@ function buildContext(input) {
     buildSetupStatus(root),
     "",
     ...capabilityStatus(setup.config),
+    ...interactionSection,
     ...skillSections,
     ...outputRouterSection,
-    ...delegationHarnessSection
+    ...delegationHarnessSection,
   ].join("\n");
 }
 

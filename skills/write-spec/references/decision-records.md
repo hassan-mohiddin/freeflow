@@ -1,56 +1,77 @@
 # Decision Records
 
-Read this when deciding whether a tradeoff deserves a durable decision note or ADR.
+Read this when writing or revising an artifact whose primary job is to preserve a decision and its rationale.
 
-Record a decision only when future work is likely to reopen it and the reason is not obvious from code, tests, policy, or the owning spec.
+## Choose The Right Record
 
-## ADR-Worthy Signals
+Use the smallest record that preserves the decision where future work will look for it.
 
-A decision is usually worth recording when it is:
+- **Working Record decision:** task-local choice that affects later slices or current task direction. [Track Work](../../track-work/SKILL.md) owns its `D-` ID, state, rationale, and supersession.
+- **Decision note:** durable product, policy, scope, compatibility, or technical choice that needs a separate document but does not require the repository's ADR process.
+- **ADR:** surprising, cross-cutting, or hard-to-reverse architecture or operational decision whose alternatives and consequences must remain durable.
+- **Owning spec:** keep a decision inside a PRD, API contract, technical design, or other spec when that artifact clearly owns the decision and a separate record would only duplicate it.
+
+Do not create a separate decision artifact merely because a decision occurred.
+
+## When A Separate Decision Artifact Helps
+
+A separate record is useful when the decision is:
 
 - hard or expensive to reverse;
-- surprising relative to common or repo practice;
-- a real tradeoff between materially different options;
-- cross-cutting across modules, teams, or operational boundaries;
-- likely to be challenged again without the original evidence;
-- a deliberate rejection whose reason future reviewers must preserve.
+- surprising relative to repository or domain practice;
+- a real tradeoff among materially different paths;
+- cross-cutting across systems, teams, or operational boundaries;
+- likely to be challenged again without its original rationale;
+- intentionally rejected or superseded in a way future work must understand;
+- explicitly requested as a durable decision artifact.
 
-Do not create an ADR for ordinary local choices, meeting summaries, temporary constraints, implementation progress, or decisions already owned clearly by another artifact.
+Ordinary reversible implementation choices, task progress, temporary constraints, assumptions, and unanswered questions do not belong in a durable decision record.
 
-## Compact Shape
+## Write The Decision Clearly
+
+Use the repository's ADR or decision format when one exists. Otherwise adapt this shape:
 
 ```md
-# Decision: [title]
+# Decision: <title>
 
-> **Doc ID:** DECISION-[stable-id]
-> **Date:** YYYY-MM-DD
-> **Owner:** [decision owner]
-> **Type:** Decision
+> **Doc ID:** DECISION-<stable-id>
+> **Type:** Decision | ADR
 > **Status:** Proposed | Accepted | Rejected | Superseded
-> **Source:** [evidence or owning decision context]
+> **Owner:** <decision owner>
+> **Source:** <accepted context and evidence>
 
 ## Context
-[Problem, constraints, and evidence that made a decision necessary.]
+<Decision question, constraints, and evidence.>
 
 ## Decision
-[What was decided and its scope.]
+<Chosen path and exact scope.>
 
 ## Alternatives
-[Only materially different options and why they were not chosen.]
+<Only materially different alternatives and why they were not chosen.>
 
 ## Consequences
-[Benefits, costs, risks, compatibility, operations, and what could reopen it.]
+<Benefits, costs, risks, compatibility, operations, and follow-up obligations.>
 
-## Supersession
-[Prior or later decision links when relevant.]
+## Revisit Or Supersession
+<Evidence, conditions, or later decision that would reopen or replace it.>
 ```
 
-Use the repo's convention when one exists. Keep volatile inventories and implementation status elsewhere.
+State proposals as proposals. Do not write an assumption, reviewer suggestion, or agent preference as an accepted decision.
 
-## Authority
+## Preserve Authority And History
 
-An accepted ADR can own a durable architecture or policy decision within its scope. It does not override a later explicit owner decision automatically, and a handoff or reviewer cannot supersede it.
+Name who made or owns the decision when that matters. A reviewer can challenge a decision but cannot silently replace it. A Working Record, Plan, or Handoff cannot supersede a durable decision merely by describing a different path.
 
-When live evidence conflicts with an ADR, use the Decision Gate to choose whether the implementation is wrong, the ADR is outdated, or a new decision should supersede it.
+When a decision changes:
 
-Never edit an old accepted ADR to make history appear consistent. Mark it superseded and link the new decision when the repo follows immutable decision records.
+- preserve the old record as `Superseded` rather than rewriting it to match the present;
+- create or identify the replacement decision;
+- link both directions;
+- update owning specs, plans, or policies whose current content depends on it;
+- preserve the evidence that justified the change.
+
+Live evidence may show that implementation violates a decision or that the decision is no longer viable. Use Decision Gate when resolving that conflict requires user authority.
+
+## Avoid Duplication
+
+Reference the decision from dependent artifacts instead of copying its full rationale. Keep task-local decisions in the Working Record unless they become durable beyond the task.

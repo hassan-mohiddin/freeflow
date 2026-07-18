@@ -1,112 +1,117 @@
 ---
 name: finish-branch
-description: Use when work on a branch or isolated checkout has reached a stopping point and the next job is to inspect integration readiness, choose merge/PR/keep/discard, verify the integrated result, or clean up branch/worktree state safely.
+description: Use when deciding how to integrate, preserve, or discard work on a branch or isolated checkout.
 ---
 
 # Finish Branch
 
-Close a development branch without confusing “the code is ready” with “the integration route is approved.”
+Close a branch or isolated checkout without confusing readiness, integration, publication, and cleanup authority.
 
-This skill begins after implementation has reached a verified or explicitly unverified checkpoint. Use `../commit-work/SKILL.md` first when intended work is not yet committed. Use `../release-work/SKILL.md` for versioned releases and `../launch-work/SKILL.md` for production deployment.
+A verified branch does not authorize merge or push. A chosen integration route does not automatically authorize branch deletion, worktree removal, release, or deployment.
 
-## Inspect Before Offering A Route
+## Inspect The Exact State
 
-Inspect:
+Before offering or executing a route, inspect:
 
-- current branch, detached state, and repository root;
-- base branch or merge base supported by evidence;
+- current branch, detached state, repository root, and worktree ownership;
+- base branch or merge base supported by repository evidence;
 - commits and diff relative to the base;
 - staged, unstaged, and untracked work;
 - upstream, remote, and ahead/behind state;
-- worktree ownership and whether the active harness owns cleanup;
-- sequential self-check and parallel independent-verifier/final-review status for the branch outcome.
+- fresh verification, silent self-review, and any selected independent-review status;
+- CI, policy, or repository gates relevant to the intended route.
 
-Do not infer the base branch, remote destination, PR target, or workspace ownership when the wrong choice could lose work or affect collaborators.
+Do not infer the base, remote destination, pull-request target, or workspace owner when the wrong choice could lose work or affect collaborators.
 
-Read [integration options](references/integration-options.md) when selecting merge, PR, keep, discard, or cleanup behavior.
+Read [integration options](references/integration-options.md) when choosing local integration, pull request, preservation, discard, or cleanup. Use [Commit Work](../commit-work/SKILL.md) when the selected route requires a local commit or simple push; do not commit merely to make branch status look finished.
 
-## Gate The Choice
+Use [Release Work](../release-work/SKILL.md) for a separately approved versioned release and [Launch Work](../launch-work/SKILL.md) for a separately approved production deployment or rollout.
+
+## Keep Route Authority Explicit
+
+Loading this skill, asking whether a branch is ready, or approving a general implementation Plan does not authorize merge, rebase, push, pull-request creation, branch deletion, worktree removal, discard, force push, release, or deployment.
 
 The user owns whether to:
 
-- integrate locally;
-- push and create or update a PR;
-- keep the branch or worktree for later;
+- integrate locally and by which repository-supported method;
+- push or create/update a normal or draft pull request;
+- preserve the branch, worktree, or dirty state;
 - discard commits or uncommitted work;
 - delete local or remote branches;
-- rewrite or force-push history.
+- rewrite or force-push history;
+- clean up a checkout or worktree.
 
-Present only routes that fit the observed repository state. Do not force a four-option menu when an option is impossible or unsafe.
+Present only routes supported by the observed state. Do not force a fixed menu when an option is impossible, unsafe, or irrelevant. Approval of one route covers only the scope shown and accepted.
 
-A direct call to this skill means “prepare branch closeout,” not approval to merge, push, delete, discard, or clean up.
+## State Readiness Honestly
 
-## Readiness
-
-Before presenting a branch as ready to integrate, require:
+Present a branch as ready for its intended integration boundary only when:
 
 - the accepted branch outcome is clear;
 - intended commits and remaining dirty state are known;
-- fresh direct evidence supports the readiness claim;
-- a distinct verifier passed and reviewer resolved in parallel against the same unchanged branch state; unavailable or skipped assurance means the branch may be kept or handed off but not presented as ready;
-- no unresolved source conflict, owner decision, or required evidence gap blocks integration.
+- fresh direct evidence supports the branch claim;
+- silent self-review has no unresolved material issue;
+- any selected independent review is resolved for the unchanged state;
+- no source conflict, owner decision, required evidence gap, or repository gate blocks the route.
 
-If checks fail, report that the branch is not ready for merge/PR approval. Keeping the branch, handing off, or choosing a diagnostic route may still be valid.
+Read [Verify Work](../verify-work/SKILL.md) when matching branch-readiness claims to evidence. A feature-branch pass does not prove the integrated result.
 
-## Execute The Chosen Route
+Unverified or failing work may still be preserved, handed off, or shared through an explicitly approved draft route. State the gaps; do not describe it as integration-ready.
+
+## Execute Only The Chosen Route
 
 ### Local Integration
 
-- refresh base-branch evidence without overwriting local work;
-- integrate using the repo's accepted merge/rebase policy;
-- stop on conflicts that require behavior or ownership decisions;
-- verify the integrated result, not only the feature branch;
-- delete branch/worktree state only after integration and verification succeed.
+- refresh base evidence without overwriting local work;
+- use the repository's accepted merge or rebase policy;
+- stop when a conflict requires a behavior, source, or owner decision;
+- verify the integrated result on the resulting base state;
+- delete branch or worktree state only when cleanup was included in the approved route and integration verification succeeded.
 
 ### Pull Request
 
-- inspect remote/upstream state before pushing;
-- push only intended commits;
-- create or update the PR using repo conventions;
-- report CI, review, or merge requirements still pending;
-- preserve the worktree when iteration or review feedback may continue.
+- inspect remote and upstream state before pushing;
+- push only intended commits to the accepted destination;
+- create or update the pull request using repository conventions;
+- mark incomplete or failing work as draft when that is the approved route;
+- report CI, review, merge, migration, release, or launch requirements still pending;
+- preserve the worktree when iteration or feedback may continue.
 
-### Keep
+A pull-request URL proves creation, not readiness or merge.
 
-Report the branch, worktree, dirty state, verification status, and next route. Create a handoff only when continuation needs durable context.
+### Preserve
+
+Report the branch, worktree, commit and dirty state, evidence status, reason preserved, and next approved route. Read [Handoff](../handoff/SKILL.md) only when continuation needs durable transfer context.
 
 ### Discard
 
-Before destructive action, state exactly what would be lost: commits, uncommitted paths, branch, worktree, remote state, and recoverability.
+Before destructive action, state exactly which commits, paths, branches, worktrees, and remote state would be lost and what remains recoverable. Require explicit confirmation for that concrete scope.
 
-Require explicit confirmation for the concrete discard operation. Do not treat “clean up,” “finish,” or a menu number as confirmation for broader destruction than was shown.
+Do not treat “finish,” “clean up,” a menu number, or approval of integration as confirmation for broader destruction.
 
-## Cleanup Ownership
+## Protect Workspace Ownership
 
-Do not remove a worktree, checkout, session, or harness state you did not create or are not authorized to manage.
-
-The harness owns harness-created workspace cleanup. If ownership is unclear, preserve the workspace and report it.
+Do not remove a worktree, checkout, session, or harness state you did not create or are not authorized to manage. If ownership is unclear, preserve it and report the uncertainty.
 
 Do not run destructive reset, clean, branch deletion, worktree removal, remote deletion, or force push merely to produce a clean status.
 
-## Conflicts And Backward Routes
+## Return Conflicts And Failures
 
-- Merge conflict with clear mechanical resolution -> resolve narrowly and verify.
-- Conflict changes behavior, source truth, API, data, security, or architecture -> Decision Gate or plan/spec revision.
-- Integrated tests fail -> diagnose before cleanup.
-- Branch contains mixed or unrelated work -> return to commit/staging decisions.
-- Base moved enough to invalidate assumptions -> inspect, diagnose failures, or revise the integration route.
-- PR/release/deployment policy is unclear -> ask the owner or follow repo authority.
+Resolve a conflict locally only when both sides' intended behavior is settled and the resolution is mechanical. Return behavior, source-truth, API, data, security, compatibility, or architecture conflicts to [Workflow](../workflow/SKILL.md).
 
-## Completion
+Use [Diagnose Failure](../diagnose-failure/SKILL.md) when integrated checks fail without a supported cause. Return mixed or unrelated branch contents to [Commit Work](../commit-work/SKILL.md) and [staging decisions](../commit-work/references/staging-decisions.md). Preserve branch state before re-entering another owning activity.
+
+## Report The Chosen Outcome
 
 Report:
 
-- branch/base and selected route;
-- commits and dirty state handled;
-- integration, push, or PR result;
-- verification on the final state;
-- branch/worktree cleanup performed or deliberately preserved;
-- unresolved CI, review, release, or deployment work;
-- recoverability and next route.
+- branch, base, and selected route;
+- commit and dirty state handled or preserved;
+- integration, push, or pull-request result;
+- verification on the final observed state;
+- selected-review and repository-gate status;
+- cleanup performed or deliberately omitted;
+- unresolved CI, review, migration, release, or deployment work;
+- recoverability and next approved route.
 
 Branch closeout is complete only for the chosen route. A pushed branch is not merged, a merged branch is not released, and a released artifact is not deployed.

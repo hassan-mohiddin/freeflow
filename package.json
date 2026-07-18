@@ -1,7 +1,7 @@
 {
   "name": "@hassangameryt/freeflow",
   "version": "0.3.0",
-  "description": "Lightweight workflow for coding agents.",
+  "description": "Feedback-based control system for coding agents.",
   "publishConfig": {
     "access": "public"
   },
@@ -39,8 +39,11 @@
     "workflow",
     "skills",
     "agents",
+    "feedback-loop",
+    "task-memory",
     "planning",
     "verification",
+    "review",
     "codex",
     "claude",
     "pi"

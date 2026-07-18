@@ -1,94 +1,111 @@
 # Freeflow Current State
 
 > **Doc ID:** STATE-2026-07-11-freeflow-current
-> **Date:** 2026-07-11
 > **Owner:** Hassan Mohiddin
 > **Type:** Current State
-> **Status:** Current
-> **Source:** Live repo, npm package metadata, v0.1 acceptance evidence, v0.3 runtime/setup/output-router evidence, marketplace-layout verification, Pi package/runtime verification.
+> **Status:** Current candidate
+> **Source:** Live repository, current runtime/tests, package metadata, historical v0.1 acceptance evidence, and current router evidence.
 
-Freeflow is a portable workflow skill pack for coding agents.
+Freeflow is a portable feedback-based control system for coding agents.
 
-## Current Status
+## Product Shape
 
-- Product name: Freeflow.
-- Source tree: the repo root is the single source of truth for manifests, skills, references, evals, command-surface metadata, and refined plugin docs; the npm tarball includes only runtime-required files.
-- Marketplace repo root: contains GitHub README, license, changelog, `plugin-docs/`, `docs/`, Codex marketplace index, Claude marketplace index, and Pi package manifest.
-- Current package version: `0.3.0`.
-- License target: MIT.
-- GitHub target: `hassan-mohiddin/freeflow`.
-- GitHub repo: published at `https://github.com/hassan-mohiddin/freeflow`.
-- npm package: published as `@hassangameryt/freeflow@0.3.0`.
+- Exactly three modes: `conversation`, `workflow`, and `strict-workflow`.
+- One Interaction Lifecycle runs from Entry through a Feedback Loop when needed to a Supported Exit.
+- The active agent owns understanding, routing, authorized work, factual verification, correction, adjudication, and completion.
+- Verification remains active-agent factual work. Independent review is separately selected judgment.
+- Specs and Plans receive separate Review Artifact boundaries.
+- Working Records preserve living task state across compaction and session navigation without becoming authority.
+- Review ends with Pass, Non-blocking, Inconclusive, or Blocking; findings do not authorize edits.
+- Repeated or unexplained failure routes to diagnosis before redesign unless direct structural evidence already establishes the cause.
+
+The adaptive candidate remains **Unverified** pending current baseline-vs-with-skill behavioral evaluation.
+
+## Runtime And Configuration
+
+`.freeflow/config.json` is required shared repository activation. Optional `.freeflow/local.json` supplies per-checkout personal core overrides and cannot activate Freeflow alone. A Pi session mode override has highest temporary mode precedence.
+
+Invalid existing local core config fails closed.
+
+When effective, host adapters deliver:
+
+- `runtime/interaction-contract.md` as compact interaction guidance;
+- one `skills/workflow/SKILL.md` session bootstrap while Skills are effective;
+- compact active/dormant mode and capability state;
+- effective optional capability context.
+
+The Interaction Contract is the only compact interaction-guidance artifact. Interaction Contract and Skills are independently resolved switches. Runtime context guides behavior; it does not enforce policy, block tools, grant permissions, or replace repository instructions.
+
+Pi reads config before turns, appends effective compact context, stores Workflow as one hidden persistent message, restores session mode entries, and dynamically exposes model skills. Codex and Claude use packaged lifecycle hooks at supported start, resume, clear, and compact boundaries.
+
+Setup reports automatic delivery as confirmed, unavailable, or unconfirmed and distinguishes same-turn direct reads from adapter execution.
+
+## Skill Surface
+
+The package contains 27 skill packages:
+
+- 25 active model/contributor skills;
+- Output Router as an optional separately gated runtime capability;
+- Delegation Harness as deprecated compatibility state, not offered by Setup or exposed through active model discovery.
+
+Canonical collaboration and execution skills are `discuss`, `track-work`, and `execute-work`. Pi retains `/discover` and `/execute-plan` as Pi-only compatibility aliases without restoring deleted skill identities.
+
+See `plugin-docs/skill-routing.md` for the typed owner, route, and reference map.
+
+Subject skill bodies contain executing-agent instructions only. Draft, Unverified, Production-Ready, and evidence-gap metadata remain in external eval/report/current-state surfaces.
+
+## Command Surface
+
+Current metadata declares:
+
+- 4 mode commands;
+- 19 direct command names: 17 canonical plus 2 Pi-only aliases;
+- 3 contributor/setup calls;
+- 3 Pi native settings commands.
+
+Codex and Claude have no native Freeflow slash handlers. Pi registers direct commands through its extension.
+
+## Package And Release Boundary
+
+- Repository root is the single source of truth.
+- Current package version is `0.3.0`.
+- GitHub repository: `hassan-mohiddin/freeflow`.
+- npm package: `@hassangameryt/freeflow`.
 - Host targets: Codex, Claude Code, and Pi.
-- v0.1 local acceptance suite: passed after measured fixes and remains historical release evidence; it does not verify the current adaptive-workflow candidate.
-- Output-router evidence: passed for deterministic retrieval, command-output routing/recovery, observed routing, vault-wide indexing, transform/reducer routing, proof-backed script transform adapters, storage policy, Context Mode comparison, and Codex Structured Q&A coverage.
-- Setup/config contract: `.freeflow/config.json` is the sole repo activation boundary; setup preserves repo-owned host instructions and adds optional router/observed-routing/script-transform config only after an explicit setup branch/request. This revised setup behavior is Unverified pending behavioral evaluation.
-- Prepublish verification: passed on 2026-05-26 for v0.1, refreshed during v0.2 release prep, and covered by the current release-metadata validation script for v0.3 package metadata and release-boundary docs. Isolated local Codex, Claude, Pi, and npm-tarball install/registration smoke checks pass; remote GitHub installs remain deferred.
-- Candidate skill snapshot: 26 runtime/contributor skills. The adaptive revisions and new candidate skills remain Unverified pending behavioral evaluation.
-- Candidate feedback policy: implementation and one sequential self-check—self-verification then, only on support, bounded self-review—are primary; review/verify skills may enhance either inline without creating independence, and repeated failure routes through diagnosis before redesign. Standing authorization covers the `write-spec`-selected artifact route, consequential phase-exit reviews selected by an approved plan, and after final self-check one verifier plus a different reviewer in parallel against the frozen implementation; other independent contexts require scoped user authorization. This policy is Unverified.
-- Command surface: 4 mode commands, 16 direct skill calls, 3 developer/setup calls, and 3 Pi native settings commands.
-- Optional candidates: `migration-work`, `finish-branch`, `release-work`, `launch-work`, and `simplify-code`; `tdd` is an optional execution method.
-- Decision authority: `decision-gate` is the active skill name and runtime path; legacy `IVG-*` IDs and historical reports remain historical evidence for the former `interview-gate` behavior.
-- Native slash handlers: not shipped for Codex/Claude in the current release; Pi exposes direct Freeflow commands through its extension.
-- Runtime context loading: Codex/Claude plugin-bundled hooks and the Pi extension load one canonical compact kernel from `skills/decision-gate/references/runtime-kernel.md`; global installs stay inert until valid `.freeflow/config.json` exists. The full Workflow skill loads once on the first turn, while Mode Contract and other workflow skills remain on demand. Pi keeps the kernel in every system prompt and Workflow in one hidden persistent session message, suppressing that message while Skills are disabled. Deterministic runtime tests cover injection and deduplication; behavioral effectiveness remains Unverified.
-- Active discovery skill: `discover`; deprecated `research-brief`, `grill-context`, and `capture-decisions` live under root `deprecated/skills/` outside the runtime surface.
-- Router runtime source is organized by responsibility under `router/src/` (`tools/`, `transform/`, `evidence/`, `vault/`, `repo/`, `routing/`, `sandbox/`, `config/`, `benchmarks/`, `experiments/`); deprecated router references live under `deprecated/router/`.
-- npm Trusted Publisher: configured for GitHub Actions workflow `.github/workflows/release.yml` with environment `npm`.
-- Enforcement hooks and CLI enforcement: not shipped in the current release.
-- Old Orchestra: prior art and failure evidence, not the release plugin.
+- The npm tarball contains runtime-required files and excludes GitHub-only plugin docs, project docs, `.skill-eval/`, router eval evidence, deprecated historical material, and generated eval runs.
+- Enforcement hooks and CLI enforcement are not shipped.
 
-## Release Boundary
+The Pi formatter/generated-output contract remains deferred until this worktree is merged into a clean `main`-based worktree. Current bounded runtime changes preserve checked-in generated formatting deliberately.
 
-The public repository includes:
+## Evidence Boundary
 
-- Codex marketplace metadata at `.agents/plugins/marketplace.json`.
-- Claude marketplace metadata at `.claude-plugin/marketplace.json`.
-- Pi package metadata in root `package.json`.
-- Plugin runtime under the repo root.
-- Active runtime skills, bundled references, current `.skill-eval/` definitions, router evidence under `router/evals/`, and command-surface metadata.
-- Refined user-facing plugin docs under `plugin-docs/`.
-- Project-development docs under `docs/` for planning, current state, research, and handoffs.
+Historical v0.1 acceptance reports remain documentary evidence for the released predecessor behavior. They do not verify the current adaptive candidate.
 
-The npm runtime tarball excludes `.skill-eval/`, `router/evals/`, `deprecated/`, `plugin-docs/`, and project-development docs; those remain GitHub evidence and documentation surfaces.
+Current deterministic evidence includes:
 
-The public repository excludes:
+- layered Pi repository/personal/session config and mode tests;
+- Codex/Claude lifecycle hook checks;
+- canonical Workflow-bootstrap delivery checks;
+- command-surface and model-discovery checks;
+- Skill Author structure/dependency tests;
+- Evaluate Skill case-schema tests;
+- router retrieval, command-output, observed-routing, storage, transform, and sandbox reports under `router/evals/reports/`.
 
-- Generated router evaluation output under `router/evals/runs/`.
-- Enforcement hooks, CLI enforcement, Codex/Claude native slash handlers, and old Orchestra compatibility.
+Use `.skill-eval/` for current skill-evaluation definitions and accepted bundles. Use `deprecated/skill-evals-v1/` only for historical evidence.
 
-## Evidence
+## Known Deferred Work
 
-Use `.skill-eval/` for current skill-evaluation definitions and accepted evidence, `router/evals/README.md` for router evaluation, and `deprecated/skill-evals-v1/README.md` for the documentary-only legacy skill-evaluation archive.
+- Run behavioral activation, first-read, composition, retained-use, and nearby-pressure evals for the revised skills.
+- Resolve `/freeflow enable` and `/freeflow disable` repository-versus-personal scope through an explicit product decision.
+- Establish the deterministic formatter/generated-output contract after merge.
+- Run fresh GitHub-install smoke checks for Codex, Claude, and Pi before the next release.
+- Consider enforcement only after measured repeated failures show concise guidance is insufficient.
 
-Current high-signal historical and runtime evidence (not behavioral verification of the adaptive candidate):
+## Current Completion Boundary
 
-- `deprecated/skill-evals-v1/reports/acceptance/v0.1-acceptance-report.md`
-- `deprecated/skill-evals-v1/reports/by-skill/discover-1-report.md`
-- `deprecated/skill-evals-v1/reports/by-skill/interview-gate-2-report.md`
-- `deprecated/skill-evals-v1/reports/by-skill/setup-freeflow-5-report.md`
-- `deprecated/skill-evals-v1/reports/by-command-surface/command-surface-matrix.md`
-- `deprecated/skill-evals-v1/reports/runtime/always-on-runtime-1-report.md`
-- `deprecated/skill-evals-v1/reports/runtime/workflow-context-hook-1-report.md`
-- `router/evals/reports/output-router-benchmark-1-report.md`
-- `router/evals/reports/output-router-command-benchmark-1-report.md`
-- `router/evals/reports/pi-observed-routing-eval-1-report.md`
-- `router/evals/reports/vault-index-storage-spike-1-report.md`
-- `router/evals/reports/output-router-transform-eval-1-report.md`
-- `router/evals/reports/storage-policy-benchmark-1-report.md`
-- `router/evals/reports/context-mode-normalized-benchmark-1-report.md`
-- `router/evals/reports/context-mode-real-deep-final-slice-11-report.md`
-- `router/evals/reports/output-router-codex-qa-benchmark-1-report.md`
-- `router/evals/reports/quickjs-wasi-proof-spike-1-report.md`
-- `router/evals/reports/eryx-python-proof-spike-2-report.md`
-- `router/evals/reports/jq-wasm-proof-spike-1-report.md`
-- `router/evals/reports/script-sandbox-probe-resource-hardening-1-report.md`
+Before freezing the candidate:
 
-## Current Next Work
-
-1. Freeze the structurally validated 26-skill adaptive snapshot as Unverified.
-2. Finish the evaluator architecture before running new skill evals.
-3. Add baseline-vs-with-skill behavioral coverage for revised and new skills, including config-only activation, unavailable/untrusted runtime delivery, and composition pressure cases.
-4. Reinstall from the GitHub package path and run Codex, Claude, and fresh Pi install-smoke checks when preparing the next release.
-5. Dogfood in one real repo before making readiness or comparative-superiority claims.
-
-Use this doc for current project status. Use research docs for historical reasoning.
+1. finish active-skill and durable-surface alignment;
+2. pass activation, command, link, structure, focused runtime, and package checks;
+3. preserve remaining unsupported behavioral claims as Unverified;
+4. update the Working Record and present the final S-015 result for user review.

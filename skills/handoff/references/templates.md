@@ -1,109 +1,141 @@
 # Handoff Templates
 
-Use these only after choosing temporary versus repo memory. Include only fields needed for the current continuation risk.
+Read this after the transfer shape, recipient, and purpose are clear. Omit every field that does not change safe continuation.
 
-Handoffs are memory, not authority. Live repo evidence overrides stale handoff text.
+Handoffs are memory, not authority. Live sources and repository state override stale handoff text.
 
-## Temporary Handoff
+## Ephemeral Handoff
 
-Use for immediate continuation after pause, compaction, context pressure, or session change.
+Use in the current response, a host continuation mechanism, or a temporary file for immediate continuation.
 
 ```md
-# Temporary Handoff
+# Continuation Handoff
 
-Date: YYYY-MM-DD
+Generated: <optional reliable date or time>
+Recipient / purpose:
 
-## Goal And Accepted Outcome
+## Goal And Owning Sources
 
-## Current Route
-- Phase / slice:
-- Route: continue | review | verify | commit | diagnose | discover/design | revise spec/plan | decide | stop
+## Current State
+- Workflow route:
+- Working Record, Spec, or Plan pointers:
+- Relevant source or artifact identity:
 
-## Completed And Verified
+## Completed Work And Evidence
+- Result:
+- Evidence:
+- Supports:
+- Does not support:
 
-## Current Worktree / Process Watchouts
+## Decisions And Authority
+- Decision:
+- Established by:
+- Scope:
 
-## Decisions And Source Authority
+## Deviations Or Invalidated Assumptions
 
-## Invalidated Assumptions
+## Worktree, Process, Or Environment Watchouts
 
-## Open Decisions Or Evidence
+## Review Continuity
 
-## Evidence To Reopen
+## Open Decisions, Evidence, Or Blockers
 
-## Next Executable Action
+## Next Action
+- Accepted action:
+- Authority source:
+
+Or, when not approved:
+- Recommended route:
+- Approval or decision needed:
 
 ## Stop Conditions
 ```
 
-Keep worktree details narrow: only paths or processes whose omission could cause loss, overwrite, duplicate work, or an unsafe claim.
+Keep dirty-state details narrow. Include only paths, processes, environments, or artifacts whose omission risks loss, overwrite, duplicate work, or a false claim.
 
-## Repo Memory Handoff
+## Repo-Memory Handoff
 
-Use for durable project continuation under the repo's established handoff location.
+Use for durable project continuation in the repository's established location.
 
 ```md
 # Project Handoff
 
-Date: YYYY-MM-DD
+Generated: <optional reliable date or time>
+Recipient / purpose:
 
-## Purpose
+## Goal And Accepted Outcome
+
+## Owning Sources
 
 ## Stable Context
 
-## Decisions And Source Authority
+## Current State And Evidence
 
-## Evidence And Current Status
+## Working Record, Spec, And Plan Pointers
 
-## Current Executable Horizon
+## Decisions, Authority, And Approval Scope
 
-## Directional Later Work
+## Deviations, Invalidated Assumptions, Or Superseded Direction
 
-## Invalidated, Superseded, Or Deferred
+## Review Continuity
 
-## Open Decisions And Evidence Gaps
+## Open Decisions, Evidence Gaps, And Stop Conditions
 
-## Next Route
+## Next Accepted Action
+- Action:
+- Authority source:
 
-## Stop Conditions
+Or:
+
+## Recommended Next Route
+- Route:
+- Approval or decision needed:
 ```
 
-Do not freeze provisional later phases. Point to the owning spec, plan, decision, review, or verification artifact instead of copying it.
+Do not copy living progress from a Working Record or turn directional Plan content into committed work. Preserve only stable or transfer-critical context that belongs in the handoff.
 
 ## Learning-Slice Addendum
 
-Include when a prototype, benchmark, or experiment changed the route:
+Include when an experiment, prototype, benchmark, or investigation changed the route:
 
 ```md
 Question:
 Competing hypotheses or designs:
 Evidence captured:
-Discard-or-promote result:
+Result: discard | revise | promote | inconclusive
 Exploratory artifacts retained:
-Affected spec / plan / later phases:
-Next route:
+Affected Working Record, Spec, Plan, or later work:
+Next accepted action and authority, or recommended route:
 ```
 
-## Review-Loop Addendum
+Promotion records a decision; it does not itself authorize production implementation.
 
-Include when review history must survive a context change:
+## Review-Continuity Addendum
+
+Include only when review state must survive the transfer:
 
 ```md
-Review pass: 1 | 2 | 3
-Prior findings:
-Parent adjudication: accepted | rejected | question | needs evidence
-Owner clarifications:
-Changed areas:
-Residual risk:
+Review number: 1 | 2 | 3
+Reviewed state identity:
+Reviewer judgment: Pass | Non-blocking | Inconclusive | Blocking
+Adjudicated judgment: Pass | Non-blocking | Inconclusive | Blocking
+Material review items and evidence pointers:
+Active-agent item adjudication:
+- <item>: Accepted | Rejected | Open — <reason>
+Accepted Blocking or Non-blocking Issues:
+Material Open items:
+Changed areas after review:
+Follow-up review status and authority:
 ```
 
-A fresh reviewer continues this history; it does not restart at pass 1.
+Do not copy full reviewer output when a stable pointer exists. A new context or reviewer continues the existing budget; local edits, renamed scope, or a different reviewer do not reset it.
 
 ## Resume Checklist
 
-- Reopen named source truth and live worktree state.
-- Verify completion, review, commit, and test claims.
-- Check whether assumptions, interfaces, scope, or later phases changed.
-- Preserve valid evidence; route only invalidated work backward.
-- Reconstruct the next slice contract before editing.
-- Use the decision gate for user-owned or source-truth conflicts.
+- Reopen named source truth, the Working Record when present, and live worktree state.
+- Confirm artifact, environment, commit, and configuration identity where claims depend on them.
+- Verify important completion and evidence claims before repeating them.
+- Compare decisions, approval scope, review state, and the proposed route with live evidence.
+- Preserve valid context and identify only the invalidated layer.
+- Return the supported route and authority state to Workflow before editing.
+- Use Decision Gate for user-owned choices or source conflicts.

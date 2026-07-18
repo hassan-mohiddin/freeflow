@@ -19,8 +19,8 @@ For each changed path, classify:
 
 - **Checkpoint:** directly implements or proves the intended slice.
 - **Required generated output:** repo convention or task requires it and its generator is known.
-- **Durable source truth:** spec, policy, ADR, or plan describing the same confirmed change.
-- **Durable continuation memory:** handoff describing the same checkpoint without becoming authority over live evidence.
+- **Durable artifact:** Spec, policy, ADR, or Plan that belongs to the same accepted checkpoint while retaining its own authority and lifecycle.
+- **Durable continuation memory:** Working Record or Handoff describing the same checkpoint without becoming authority over live evidence.
 - **Related but separable:** useful work that should remain outside this checkpoint.
 - **Unrelated or user-owned:** not part of the current outcome.
 - **Sensitive or unsafe:** secrets, private data, debug output, destructive state, or unclear generated content.
@@ -31,14 +31,15 @@ Do not infer ownership from staging state.
 
 A narrow commit is safe when:
 
+- an explicit request, user-approved Plan, or explicitly approved discussion authorizes the local checkpoint;
 - its outcome and source requirement are clear;
 - every included path belongs to that outcome;
 - verification supports the claim represented by the commit;
-- required review status is known;
+- selected review status is known and [Workflow](../../workflow/SKILL.md) supports the checkpoint route;
 - excluded changes can remain untouched without loss;
 - the final report names remaining dirty state.
 
-Stage explicit paths or hunks. If narrowing requires unstaging, rearranging, regenerating, or modifying user-owned work, stop unless the user or repo workflow already authorized that operation.
+Plan approval does not prove that every current path belongs. Stage explicit paths or hunks. If narrowing requires unstaging, rearranging, regenerating, or modifying user-owned work, stop unless the user or repo workflow already authorized that operation.
 
 ## Mixed Concerns
 
@@ -61,9 +62,9 @@ Name the generator or command that produced required output. Do not hand-edit ge
 
 ## Durable Artifacts
 
-Specs, ADRs, policies, plans, and handoffs can carry authority or future memory. Include them with code only when they describe the same settled change.
+Specs, policies, and ADRs may govern behavior. Plans preserve approved strategy; Working Records and Handoffs preserve memory. Include any of them with code only when they belong to the same coherent checkpoint and their own maintenance rules support the change.
 
-If a durable artifact changes behavior, ownership, status, policy, API, compatibility, security, privacy, billing, permissions, migration, or data-loss expectations, use the decision gate unless that change is already explicit.
+Do not revise a durable artifact merely to make the commit appear coherent. Return a material inconsistency to [Workflow](../../workflow/SKILL.md); use [Decision Gate](../../decision-gate/SKILL.md) when one user-owned choice or source conflict blocks the checkpoint.
 
 ## Existing Staged State
 

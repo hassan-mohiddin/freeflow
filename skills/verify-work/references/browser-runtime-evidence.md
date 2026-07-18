@@ -39,7 +39,7 @@ A screenshot does not prove semantics, network correctness, console cleanliness,
 5. Exercise required error, loading, empty, permission, offline, or recovery states.
 6. Repeat only when environment or code changed, or variance requires evidence.
 
-For visual changes, compare before/after at the relevant viewport and state. Do not approve from aesthetic preference when a design system, screenshot, or product decision owns the expectation.
+For visual changes, compare before/after at the relevant viewport and state. Aesthetic preference is not evidence when a design system, accepted reference, or product decision defines the expected result.
 
 ## Stop Conditions
 
@@ -52,4 +52,4 @@ Stop or downgrade the claim when:
 - only a nearby path, screenshot, or mocked page was tested;
 - browser evidence contradicts tests, specs, or accepted behavior.
 
-Route unexplained failures to `../../diagnose-failure/SKILL.md` and owner/source conflicts to `../../decision-gate/SKILL.md`.
+Read [Diagnose Failure](../../diagnose-failure/SKILL.md) for unexplained browser failures. Read [Decision Gate](../../decision-gate/SKILL.md) when browser evidence conflicts with accepted behavior or exposes a user-owned decision.

@@ -14,11 +14,14 @@ export const VALID_MODES = new Set([
 ]);
 
 export const WORKFLOW_COMMANDS = [
-	{ command: "discover", skill: "discover" },
+	{ command: "discuss", skill: "discuss" },
+	{ command: "discover", skill: "discuss" },
+	{ command: "track-work", skill: "track-work" },
 	{ command: "write-spec", skill: "write-spec" },
 	{ command: "review-artifact", skill: "review-artifact" },
 	{ command: "write-plan", skill: "write-plan" },
-	{ command: "execute-plan", skill: "execute-plan" },
+	{ command: "execute-work", skill: "execute-work" },
+	{ command: "execute-plan", skill: "execute-work" },
 	{ command: "simplify-code", skill: "simplify-code" },
 	{ command: "migration-work", skill: "migration-work" },
 	{ command: "diagnose-failure", skill: "diagnose-failure" },
@@ -45,9 +48,9 @@ export const FREEFLOW_MODEL_SKILL_NAMES = [
 	"migration-work",
 	"design-for-depth",
 	"diagnose-failure",
-	"discover",
+	"discuss",
 	"evaluate-skill",
-	"execute-plan",
+	"execute-work",
 	"finish-branch",
 	"handoff",
 	"mode-contract",
@@ -58,6 +61,7 @@ export const FREEFLOW_MODEL_SKILL_NAMES = [
 	"launch-work",
 	"simplify-code",
 	"tdd",
+	"track-work",
 	"verify-work",
 	"workflow",
 	"write-plan",
@@ -236,27 +240,7 @@ function isRecord(value) {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function validateFreeflowConfigShape(value) {
-	if (!isRecord(value)) {
-		return "config must be a JSON object";
-	}
-
-	const allowedKeys = new Set([
-		"enabled",
-		"defaultMode",
-		"interactionContract",
-		"skills",
-		"outputRouter",
-		"delegationHarness",
-		"observedRouting",
-		"scriptTransform",
-	]);
-	for (const key of Object.keys(value)) {
-		if (!allowedKeys.has(key)) {
-			return `unsupported top-level config key: ${key}`;
-		}
-	}
-
+function validateCoreConfigFields(value) {
 	if (value.defaultMode !== undefined && !VALID_MODES.has(value.defaultMode)) {
 		return `invalid defaultMode: ${JSON.stringify(value.defaultMode)}`;
 	}
@@ -284,6 +268,33 @@ function validateFreeflowConfigShape(value) {
 		}
 	}
 
+	return null;
+}
+
+function validateFreeflowConfigShape(value) {
+	if (!isRecord(value)) {
+		return "config must be a JSON object";
+	}
+
+	const allowedKeys = new Set([
+		"enabled",
+		"defaultMode",
+		"interactionContract",
+		"skills",
+		"outputRouter",
+		"delegationHarness",
+		"observedRouting",
+		"scriptTransform",
+	]);
+	for (const key of Object.keys(value)) {
+		if (!allowedKeys.has(key)) {
+			return `unsupported top-level config key: ${key}`;
+		}
+	}
+
+	const coreError = validateCoreConfigFields(value);
+	if (coreError) return coreError;
+
 	for (const key of [
 		"outputRouter",
 		"delegationHarness",
@@ -298,12 +309,32 @@ function validateFreeflowConfigShape(value) {
 	return null;
 }
 
-export async function readFreeflowConfigState(cwd) {
-	const path = join(cwd, ".freeflow/config.json");
+function validateFreeflowLocalConfigShape(value) {
+	if (!isRecord(value)) {
+		return "local config must be a JSON object";
+	}
+
+	const allowedKeys = new Set([
+		"enabled",
+		"defaultMode",
+		"interactionContract",
+		"skills",
+		"processing",
+	]);
+	for (const key of Object.keys(value)) {
+		if (!allowedKeys.has(key)) {
+			return `unsupported top-level local config key: ${key}`;
+		}
+	}
+
+	return validateCoreConfigFields(value);
+}
+
+async function readConfigFileState(path, validate) {
 	try {
 		const raw = await readFile(path, "utf8");
 		const parsed = JSON.parse(raw);
-		const validationError = validateFreeflowConfigShape(parsed);
+		const validationError = validate(parsed);
 		if (validationError) {
 			return {
 				path,
@@ -336,46 +367,134 @@ export async function readFreeflowConfigState(cwd) {
 	}
 }
 
+export function readFreeflowConfigState(cwd) {
+	return readConfigFileState(
+		join(cwd, ".freeflow/config.json"),
+		validateFreeflowConfigShape,
+	);
+}
+
+export function readFreeflowLocalConfigState(cwd) {
+	return readConfigFileState(
+		join(cwd, ".freeflow/local.json"),
+		validateFreeflowLocalConfigShape,
+	);
+}
+
 export async function readFreeflowConfig(cwd) {
 	const state = await readFreeflowConfigState(cwd);
 	return state.valid ? state.parsed : {};
 }
 
 export async function readFreeflowLocalConfig(cwd) {
-	try {
-		const raw = await readFile(join(cwd, ".freeflow/local.json"), "utf8");
-		const parsed = JSON.parse(raw);
-		return parsed && typeof parsed === "object" ? parsed : {};
-	} catch {
-		return {};
-	}
+	const state = await readFreeflowLocalConfigState(cwd);
+	return state.valid ? state.parsed : {};
 }
 
-async function readDefaultMode(cwd) {
-	const parsed = await readFreeflowConfig(cwd);
-	return VALID_MODES.has(parsed.defaultMode) ? parsed.defaultMode : "workflow";
+function resolveLayeredValue(repository, local, key, fallback) {
+	if (Object.hasOwn(local, key)) {
+		return { value: local[key], source: "local" };
+	}
+	if (Object.hasOwn(repository, key)) {
+		return { value: repository[key], source: "repository" };
+	}
+	return { value: fallback, source: "builtin" };
+}
+
+function resolveCoreConfig(repository, local) {
+	const enabled = resolveLayeredValue(repository, local, "enabled", true);
+	const interactionContract = resolveLayeredValue(
+		repository,
+		local,
+		"interactionContract",
+		true,
+	);
+	const defaultMode = resolveLayeredValue(
+		repository,
+		local,
+		"defaultMode",
+		"workflow",
+	);
+	const repositorySkills = isRecord(repository.skills) ? repository.skills : {};
+	const localSkills = isRecord(local.skills) ? local.skills : {};
+	const skillsEnabled = resolveLayeredValue(
+		repositorySkills,
+		localSkills,
+		"enabled",
+		true,
+	);
+
+	return {
+		config: {
+			enabled: enabled.value,
+			interactionContract: interactionContract.value,
+			skills: { enabled: skillsEnabled.value },
+			defaultMode: defaultMode.value,
+		},
+		sources: {
+			enabled: enabled.source,
+			interactionContract: interactionContract.source,
+			skillsEnabled: skillsEnabled.source,
+			defaultMode: defaultMode.source,
+		},
+	};
+}
+
+export async function readFreeflowConfigLayers(cwd) {
+	const [repository, local] = await Promise.all([
+		readFreeflowConfigState(cwd),
+		readFreeflowLocalConfigState(cwd),
+	]);
+	const repositoryConfig = repository.valid ? repository.parsed : {};
+	const localConfig = local.valid ? local.parsed : {};
+	const core = resolveCoreConfig(repositoryConfig, localConfig);
+	const localValid = !local.exists || local.valid;
+	const configured = repository.valid && localValid;
+	let blockingState = null;
+	if (!repository.valid) {
+		blockingState = repository;
+	} else if (local.exists && !local.valid) {
+		blockingState = local;
+	}
+
+	return {
+		configured,
+		repositoryConfigured: repository.valid,
+		repository,
+		local,
+		coreConfig: core.config,
+		sources: core.sources,
+		blockingConfigPath: blockingState?.path ?? null,
+		parseError: blockingState?.parseError ?? null,
+	};
 }
 
 export async function readCapabilityState(cwd) {
-	const configState = await readFreeflowConfigState(cwd);
-	const parsed = configState.valid ? configState.parsed : {};
+	const layers = await readFreeflowConfigLayers(cwd);
+	const parsed = layers.repository.valid ? layers.repository.parsed : {};
 	const normalized = normalizeFreeflowConfig(parsed);
-	const configured = configState.valid;
-	const enabled = configured && parsed.enabled !== false;
-	const interactionContractConfigEnabled = parsed.interactionContract !== false;
-	const skillsConfigEnabled =
-		!isRecord(parsed.skills) || parsed.skills.enabled !== false;
+	const enabled = layers.configured && layers.coreConfig.enabled;
+	const interactionContractConfigEnabled =
+		layers.coreConfig.interactionContract;
+	const skillsConfigEnabled = layers.coreConfig.skills.enabled;
 	const delegationConfigEnabled =
 		isRecord(parsed.delegationHarness) &&
 		parsed.delegationHarness.enabled === true;
 	const delegationEnvEnabled = process.env[DELEGATION_HARNESS_ENV_FLAG] === "1";
 	const outputRouterConfigEnabled = normalized.config.outputRouter.enabled;
 	return {
-		configured,
-		configExists: configState.exists,
-		configValid: configState.valid,
-		configPath: configState.path,
-		parseError: configState.parseError,
+		configured: layers.configured,
+		repositoryConfigured: layers.repositoryConfigured,
+		configExists: layers.repository.exists,
+		configValid: layers.configured,
+		configPath: layers.blockingConfigPath ?? layers.repository.path,
+		parseError: layers.parseError,
+		localConfigExists: layers.local.exists,
+		localConfigValid: !layers.local.exists || layers.local.valid,
+		localConfigPath: layers.local.path,
+		localConfigParseError: layers.local.parseError,
+		configSources: layers.sources,
+		defaultMode: layers.coreConfig.defaultMode,
 		enabled,
 		interactionContract: {
 			enabled: interactionContractConfigEnabled,
@@ -491,14 +610,12 @@ export async function handleCapabilityCommand(capability, args, ctx) {
 }
 
 export async function readOutputRouterConfig(cwd) {
-	const [configState, localParsed] = await Promise.all([
-		readFreeflowConfigState(cwd),
-		readFreeflowLocalConfig(cwd),
-	]);
-	const parsed = configState.valid ? configState.parsed : {};
+	const layers = await readFreeflowConfigLayers(cwd);
+	const parsed = layers.repository.valid ? layers.repository.parsed : {};
+	const localParsed = layers.local.valid ? layers.local.parsed : {};
 	const normalized = normalizeFreeflowConfig(parsed);
 	const local = normalizeLocalFreeflowConfig(localParsed);
-	const freeflowEnabled = configState.valid && parsed.enabled !== false;
+	const freeflowEnabled = layers.configured && layers.coreConfig.enabled;
 	const effectiveConfig = freeflowEnabled
 		? normalized.config
 		: {
@@ -514,9 +631,14 @@ export async function readOutputRouterConfig(cwd) {
 				},
 			};
 	const configWarnings = [...normalized.warnings];
-	if (configState.exists && !configState.valid) {
+	if (layers.repository.exists && !layers.repository.valid) {
 		configWarnings.unshift(
-			`.freeflow/config.json could not be parsed; Freeflow runtime is inactive. ${configState.parseError ?? ""}`.trim(),
+			`.freeflow/config.json could not be parsed; Freeflow runtime is inactive. ${layers.repository.parseError ?? ""}`.trim(),
+		);
+	}
+	if (layers.local.exists && !layers.local.valid) {
+		configWarnings.unshift(
+			`.freeflow/local.json could not be parsed; Freeflow runtime is inactive. ${layers.local.parseError ?? ""}`.trim(),
 		);
 	}
 	return {
@@ -559,14 +681,39 @@ export function restoreModeOverride(ctx) {
 }
 
 export async function readModeState(cwd) {
-	const defaultMode = await readDefaultMode(cwd);
-	const currentMode = VALID_MODES.has(currentModeOverride)
+	const layers = await readFreeflowConfigLayers(cwd);
+	const repositoryDefaultMode = VALID_MODES.has(
+		layers.repository.parsed.defaultMode,
+	)
+		? layers.repository.parsed.defaultMode
+		: "workflow";
+	const personalDefaultMode = VALID_MODES.has(layers.local.parsed.defaultMode)
+		? layers.local.parsed.defaultMode
+		: null;
+	const sessionMode = VALID_MODES.has(currentModeOverride)
 		? currentModeOverride
 		: null;
+	const resolvedMode = sessionMode ?? layers.coreConfig.defaultMode;
+	const active =
+		layers.configured &&
+		layers.coreConfig.enabled &&
+		layers.coreConfig.skills.enabled;
+
 	return {
-		defaultMode,
-		currentMode,
-		effectiveMode: currentMode ?? defaultMode,
+		repositoryDefaultMode,
+		repositoryDefaultModeSource: VALID_MODES.has(
+			layers.repository.parsed.defaultMode,
+		)
+			? "repository"
+			: "builtin",
+		personalDefaultMode,
+		defaultMode: layers.coreConfig.defaultMode,
+		defaultModeSource: layers.sources.defaultMode,
+		currentMode: sessionMode,
+		sessionMode,
+		resolvedMode,
+		active,
+		effectiveMode: active ? resolvedMode : null,
 	};
 }
 
@@ -606,11 +753,18 @@ export function setModeStatus(ctx, modeState, capabilityState = undefined) {
 	);
 }
 
+function modeSourceLabel(source) {
+	if (source === "local") return "personal override";
+	if (source === "repository") return "repository default";
+	return "built-in default";
+}
+
 function describeModeState(modeState) {
-	if (modeState.currentMode) {
-		return `current ${modeState.currentMode}; default ${modeState.defaultMode}`;
+	const configuredDefault = `configured default ${modeState.defaultMode} (${modeSourceLabel(modeState.defaultModeSource)})`;
+	if (modeState.sessionMode) {
+		return `session ${modeState.sessionMode}; ${configuredDefault}`;
 	}
-	return `default ${modeState.defaultMode}`;
+	return configuredDefault;
 }
 
 export function skillPrompt(skill, args) {
@@ -682,25 +836,34 @@ function hasModelFacingCapability(capabilityState) {
 }
 
 function activeModeContext(modeState) {
-	const currentMode = modeState.currentMode ?? "none";
-	return `## Repo Setup
+	return `## Freeflow Mode State
 
-Repo default mode from \`.freeflow/config.json\`: \`${modeState.defaultMode}\`.
-Current session mode override: \`${currentMode}\`.
+Repository default mode: \`${modeState.repositoryDefaultMode}\` (${modeState.repositoryDefaultModeSource}).
+Personal default override: \`${modeState.personalDefaultMode ?? "none"}\`.
+Configured default mode: \`${modeState.defaultMode}\` (${modeSourceLabel(modeState.defaultModeSource)}).
+Session mode override: \`${modeState.sessionMode ?? "none"}\`.
+Resolved mode: \`${modeState.resolvedMode}\`.
 Effective Freeflow mode: \`${modeState.effectiveMode}\`.
 
 Mode behavior:
-- \`conversation\`: answer, discuss, critique, and inspect read-only; switch modes before mutating state.
-- \`workflow\`: use the adaptive workflow for normal consequential work.
-- \`strict-workflow\`: strengthen user-owned decisions, review, and verification for high-risk or hard-to-reverse work.
+- \`conversation\`: answer, discuss, critique, and inspect read-only; require a mode change before mutating state.
+- \`workflow\`: use the adaptive workflow for consequential or mutating work.
+- \`strict-workflow\`: use the same workflow with stronger decision, evidence, and checkpoint pressure at high-risk or hard-to-reverse boundaries.
 
-Do not announce the current mode on every reply. Mention it when the user asks, setup/config is discussed, or the mode changes the next action.`;
+Task type, risk classification, and direct skill calls do not change mode. Recommend another mode when useful; the user decides.
+Do not announce mode on every reply. Mention it when the user asks, configuration is discussed, or it changes the next action.`;
 }
 
 function inactiveModeContext(modeState) {
-	return `## Repo Setup
+	return `## Freeflow Mode State
 
-Default mode: \`${modeState.defaultMode}\` (inactive because Skills are disabled).
+Repository default mode: \`${modeState.repositoryDefaultMode}\` (${modeState.repositoryDefaultModeSource}).
+Personal default override: \`${modeState.personalDefaultMode ?? "none"}\`.
+Configured default mode: \`${modeState.defaultMode}\` (${modeSourceLabel(modeState.defaultModeSource)}).
+Session mode override: \`${modeState.sessionMode ?? "none"}\`.
+Resolved mode: \`${modeState.resolvedMode}\` (inactive because Skills are disabled).
+Effective Freeflow mode: \`none\`.
+
 Freeflow workflow modes are dormant until Skills are enabled with \`/freeflow settings\`.`;
 }
 
@@ -801,7 +964,7 @@ export async function handleModeCommand(args, ctx, pi) {
 	if (!capabilityState.skills.effective) {
 		setModeStatus(ctx, inactiveModeState, capabilityState);
 		ctx.ui.notify(
-			`Freeflow modes are inactive because Skills are disabled. Current default mode: ${inactiveModeState.defaultMode}. Enable Skills in /freeflow settings before changing mode.`,
+			`Freeflow modes are inactive because Skills are disabled. Configured default mode: ${inactiveModeState.defaultMode} (${modeSourceLabel(inactiveModeState.defaultModeSource)}). Enable Skills in /freeflow settings before changing mode.`,
 			"warning",
 		);
 		return { changed: false, error: "skills_disabled" };
@@ -811,7 +974,7 @@ export async function handleModeCommand(args, ctx, pi) {
 		const modeState = await setSessionMode(arg, ctx, pi);
 		setModeStatus(ctx, modeState, capabilityState);
 		ctx.ui.notify(
-			`Freeflow mode is now ${modeState.effectiveMode} for this session. Repo default remains ${modeState.defaultMode}.`,
+			`Freeflow mode is now ${modeState.effectiveMode} for this session. Configured default remains ${modeState.defaultMode} (${modeSourceLabel(modeState.defaultModeSource)}).`,
 			"info",
 		);
 		return { changed: true, modeState };
@@ -821,7 +984,7 @@ export async function handleModeCommand(args, ctx, pi) {
 		const modeState = await setSessionMode(null, ctx, pi);
 		setModeStatus(ctx, modeState, capabilityState);
 		ctx.ui.notify(
-			`Freeflow mode reset to repo default: ${modeState.defaultMode}.`,
+			`Freeflow mode reset to configured default: ${modeState.defaultMode} (${modeSourceLabel(modeState.defaultModeSource)}).`,
 			"info",
 		);
 		return { changed: true, modeState };

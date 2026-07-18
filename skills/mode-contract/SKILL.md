@@ -1,88 +1,82 @@
 ---
 name: mode-contract
-description: Use when a user asks to set, change, infer, or discuss conversation/workflow/strict-workflow mode, or when task risk suggests recommending a workflow mode.
+description: Use when choosing, changing, or explaining how Freeflow mode applies to current work.
 ---
 
 # Mode Contract
 
-Use exactly three modes.
+Apply the effective Freeflow mode without inferring a different mode from the task. Freeflow has exactly three mode values: `conversation`, `workflow`, and `strict-workflow`.
 
-## Modes
+A mode changes how work proceeds; it does not authorize work, resolve a user-owned decision, or override live evidence.
 
-**Conversation mode**: non-mutating discussion, explanation, critique, exploration, quick analysis, and planning in chat.
+## Establish The Active Mode
 
-- Answer questions; do not act on them.
-- You may inspect source, read files, and run safe read-only commands when needed for the answer.
-- Do not edit, create, delete, commit, push, run mutating commands, or otherwise change repo/system state.
-- Do not perform implementation or other consequential work that changes files, behavior, source truth, or durable project state.
-- If the user asks for mutating or consequential work, stop and require switching to `workflow` or `strict-workflow` before acting. Do not proceed in conversation mode, even if pressured.
-- No workflow pressure.
-- No required artifacts.
-- No plan/spec file requirement.
-- Ask only when needed for the answer.
+A mode is active only when the host reports that Freeflow Skills are effective. Keep the supplied layers distinct:
 
-**Workflow mode**: normal consequential work.
+- **Repository default:** the shared `defaultMode` from `.freeflow/config.json`.
+- **Personal default override:** an optional per-checkout `defaultMode` from `.freeflow/local.json`.
+- **Session override:** an optional temporary mode managed by the host.
+- **Resolved mode:** session override, otherwise personal default override, otherwise repository or built-in default.
+- **Effective mode:** the resolved mode only while Skills are active; otherwise no Freeflow mode is effective.
 
-- Use the workflow as a guide.
-- Ask or inspect when ambiguity would change the next action.
-- Create artifacts only when they preserve decisions, reduce risk, or enable handoff.
-- Verify before completion claims.
+If runtime reports that modes are inactive, preserve the resolved mode as dormant state without applying it. If effective-mode evidence is missing, do not guess or activate a fallback. Read [Setup Freeflow](../setup-freeflow/SKILL.md) when the user wants to configure, enable, or repair Freeflow.
 
-**Strict-workflow mode**: high-risk or hard-to-reverse work.
+Task shape does not change mode. A question during Workflow stays in Workflow; an implementation request during Conversation stays in Conversation until the user changes mode.
 
-- Use stronger gates.
-- Require explicit decisions for security, privacy, billing, data loss, migrations, public APIs, compatibility, deployment, and large architecture changes.
-- Require explicit confirmation before changing source-of-truth artifacts such as docs, tests, specs, policies, ADRs, or handoffs when they contradict the requested implementation.
-- Recommend this mode when risk warrants it, but do not silently switch unless the user configured it as default.
+## Follow The Effective Mode
 
-## Effective Mode And Recommendations
+### Conversation
 
-Use the effective mode supplied by runtime context or valid repo config. Task type does not silently change it: a conceptual question does not switch to conversation, and an implementation request does not switch to workflow.
+Answer, discuss, critique, explore, and perform requested read-only inspection.
 
-- In conversation mode, answer and inspect read-only. Require an explicit switch before edits, file creation, commits, pushes, or other mutation.
-- In workflow mode, use the adaptive workflow for consequential work.
-- In strict-workflow mode, apply the stronger gates above.
-- For high-risk work, recommend strict-workflow mode and ask for confirmation; do not switch automatically.
-- If implementation would override docs, tests, specs, policies, or established behavior, ask before editing and recommend strict-workflow when the risk warrants it.
+Do not mutate files, repository state, external systems, or durable artifacts. If the user requests mutation, explain the boundary and ask them to switch to `workflow` or `strict-workflow` through the host's mode control before proceeding.
 
-When runtime mode evidence is unavailable, read `.freeflow/config.json`. If it is missing or invalid, fall back to workflow mode and report the config issue when relevant. Do not infer a different mode merely from whether the request is conversational or mutating.
+Ask only what the answer needs. Conversation mode does not require workflow artifacts, checkpoints, plans, specs, or independent review.
 
-## User Control
+### Workflow
 
-The user owns mode changes. You may recommend a mode; the user decides.
+Use the adaptive [Workflow](../workflow/SKILL.md) for consequential or mutating work. Inspect or ask when ambiguity changes the next action, create durable artifacts only when they preserve needed state or decisions, and verify claims against fresh evidence.
 
-## Commands And Defaults
+Workflow mode does not itself authorize a slice or require every lifecycle phase.
 
-Keep two scopes separate:
+### Strict Workflow
 
-- `defaultMode`: persisted repo default in `.freeflow/config.json`.
-- Current mode: task, conversation, or session override. Do not persist it in repo config.
+Use the same adaptive Workflow with stronger decision, evidence, and checkpoint pressure at high-risk or hard-to-reverse boundaries.
 
-Recognize only:
+Apply that pressure when work materially affects security, privacy, billing, data loss, migrations, public interfaces, compatibility, deployment, or architecture. Use [Decision Gate](../decision-gate/SKILL.md) for choices or source conflicts that belong to the user in every mutating mode. Gather evidence for the relevant risk surface before crossing the boundary or claiming success.
+
+Select artifacts, checkpoints, verification, and independent review when they reduce material risk. Do not add them automatically merely because Strict Workflow is active.
+
+Strict Workflow does not grant authority, bypass safety, or turn every implementation detail into a user decision.
+
+## Change Mode Deliberately
+
+The user owns mode changes. Recommend `strict-workflow` when risk warrants it, but continue under the effective mode unless the user changes it or another workflow boundary blocks progress.
+
+A task type, risk classification, direct skill call, or workflow route does not switch mode. Invoking an execution skill during Conversation still does not authorize mutation.
+
+Use host-native mode control when available. In Pi:
 
 ```text
+/freeflow mode
 /freeflow mode conversation
 /freeflow mode workflow
 /freeflow mode strict-workflow
 /freeflow mode reset
 ```
 
-The three mode-setting commands switch mode for the current task, conversation, or host session only. `/freeflow mode reset` clears the current override and returns to `defaultMode`; it is a command, not a fourth mode.
+Pi handles these commands before the model runs. The three setting commands create a session override; `reset` clears it and returns to the configured default, including a personal override when present. `/freeflow mode` inspects or selects mode according to host UI support.
 
-Do not persist current mode, create repo state files, or edit config unless the user explicitly asks to change the repo default.
+For a natural-language request to change Pi session mode, direct the user to the native command. Do not claim runtime state changed until the host reports the new effective mode.
 
-Phrases like "from now on", "until I say otherwise", or "for this repo" still do not persist mode unless paired with an explicit default change request.
+Mention mode only when the user asks, configuration is being discussed, or it changes the next action.
 
-When the repo default matters, read `.freeflow/config.json` and apply the fallback above.
+## Change Defaults Separately
 
-Persist only explicit default requests, such as "make strict-workflow the default for this repo." Update only `defaultMode` while preserving valid existing capability settings. If config does not exist, create the minimal shape:
+A persistent default change is not a session-mode change. An unqualified personal default request targets `.freeflow/local.json`; changing the shared repository default requires explicit repository, team, or shared-default wording.
 
-```json
-{
-  "defaultMode": "strict-workflow"
-}
-```
+In Pi, use `/freeflow settings` for personal overrides and `/freeflow settings repo` for shared defaults. In another host, use its native settings when available or update only the explicitly selected valid layer while preserving unrelated settings.
 
-Do not replace invalid config without resolving that source-truth conflict. Use the requested valid mode. Do not add current mode, task, phase, version, or activation-path fields.
+For agent-performed config edits, obey the effective mode when one exists. Conversation remains read-only. When no mode is effective because Freeflow is unconfigured, inactive, blocked by invalid config, or Skills are dormant, an explicit configuration or [Setup Freeflow](../setup-freeflow/SKILL.md) request governs the selected change; any dormant resolved mode is neither authority nor prohibition. User-operated host controls change their own state before the model continues.
 
-Direct skill calls are manual state selection. If the user calls a workflow segment directly, operate in that segment while still using the decision gate for user-owned decisions.
+A current session override remains effective until reset even when a configured default changes. If repository config is missing or invalid, route to Setup Freeflow; a personal override cannot activate Freeflow. If local config is invalid, report the blocking layer and repair or remove it only with authorization. Do not silently overwrite either source. Use Decision Gate when the requested default conflicts with established source truth or accepted direction.

@@ -79,16 +79,16 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
     });
     const configWarnings = [...normalized.warnings];
     const localConfigWarnings = [...localNormalized.warnings];
-    if (configFile.parseError) {
-        configWarnings.unshift(`.freeflow/config.json could not be parsed; using built-in defaults. ${configFile.parseError}`);
+    if (!runtimeState.repositoryConfigured && configFile.exists) {
+        configWarnings.unshift(`.freeflow/config.json is invalid; Freeflow runtime is inactive. ${runtimeState.parseError ?? configFile.parseError ?? "Unknown config error."}`);
     }
     if (isRecord(configFile.parsed) &&
         configFile.parsed.defaultMode !== undefined &&
         !VALID_MODES.has(configFile.parsed.defaultMode)) {
         configWarnings.push(`Invalid defaultMode=${JSON.stringify(configFile.parsed.defaultMode)}; using workflow.`);
     }
-    if (localConfigFile.parseError) {
-        localConfigWarnings.unshift(`.freeflow/local.json could not be parsed; local unsafe processing opt-ins are disabled. ${localConfigFile.parseError}`);
+    if (runtimeState.localConfigExists && !runtimeState.localConfigValid) {
+        localConfigWarnings.unshift(`.freeflow/local.json is invalid; Freeflow runtime is inactive. ${runtimeState.localConfigParseError ?? localConfigFile.parseError ?? "Unknown local config error."}`);
     }
     const scriptSandboxAdapters = [
         ...(await discoverQuickJsWasiSandboxAdaptersFromEnv()),
@@ -110,12 +110,39 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
         generatedAt: new Date().toISOString(),
         configPath: configFile.path,
         configExists: configFile.exists,
+        configValid: runtimeState.configValid,
+        repositoryConfigValid: runtimeState.repositoryConfigured,
         localConfigPath: localConfigFile.path,
         localConfigExists: localConfigFile.exists,
-        mode: modeState,
+        localConfigValid: runtimeState.localConfigValid,
+        configuration: {
+            repository: {
+                path: configFile.path,
+                exists: configFile.exists,
+                valid: runtimeState.repositoryConfigured,
+                error: runtimeState.repositoryConfigured
+                    ? null
+                    : (runtimeState.parseError ?? configFile.parseError),
+            },
+            personal: {
+                path: localConfigFile.path,
+                exists: localConfigFile.exists,
+                valid: runtimeState.localConfigValid,
+                error: runtimeState.localConfigParseError,
+            },
+            sources: runtimeState.configSources,
+        },
+        mode: {
+            ...modeState,
+            active: modeState.active,
+            resolvedMode: modeState.resolvedMode,
+            defaultModeSource: runtimeState.configSources.defaultMode,
+        },
         effectiveConfig: {
             configured: runtimeState.configured,
             enabled: runtimeState.enabled,
+            defaultMode: runtimeState.defaultMode,
+            sources: runtimeState.configSources,
             interactionContract: runtimeState.interactionContract,
             skills: runtimeState.skills,
             delegationHarness: runtimeState.delegationHarness,
