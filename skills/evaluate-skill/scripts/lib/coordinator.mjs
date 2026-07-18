@@ -30,7 +30,8 @@ function canStartProcess(ledger, maxUsd) {
 function mergeSemanticAssertions(subjectAssertions, semanticIds, semanticValue) {
   const expected = [...semanticIds].sort();
   const actual = (semanticValue?.assertions ?? []).map((item) => item.id).sort();
-  if (JSON.stringify(expected) !== JSON.stringify(actual)) throw new Error(`Semantic assertion IDs do not match: expected ${expected.join(", ")}; got ${actual.join(", ")}`);
+  if (JSON.stringify(expected) !== JSON.stringify(actual))
+    throw new Error(`Semantic assertion IDs do not match: expected ${expected.join(", ")}; got ${actual.join(", ")}`);
   const semantic = new Map(semanticValue.assertions.map((item) => [item.id, item]));
   return subjectAssertions.map((assertion) => {
     const graded = semantic.get(assertion.id);
@@ -75,12 +76,19 @@ export async function coordinateEvaluation(plan, dependencies) {
 
   for (const variant of plan.variants) {
     if (!canStartProcess(ledger, plan.max_usd)) {
-      return incompleteResult(plan, ledger, { primary: `Observed spend ceiling reached before ${variant.role} subject process`, secondary: null }, completed, publishDiagnostic);
+      return incompleteResult(
+        plan,
+        ledger,
+        { primary: `Observed spend ceiling reached before ${variant.role} subject process`, secondary: null },
+        completed,
+        publishDiagnostic,
+      );
     }
 
     const subject = await invokeOperation(runSubject, variant);
     if (subject.execution) ledger.record(subject.execution);
-    if (subject.status === "incomplete") return incompleteResult(plan, ledger, subject.failure, completed, publishDiagnostic);
+    if (subject.status === "incomplete")
+      return incompleteResult(plan, ledger, subject.failure, completed, publishDiagnostic);
 
     let assertions;
     let semanticIds;
@@ -95,35 +103,63 @@ export async function coordinateEvaluation(plan, dependencies) {
     const diagnosticSemantic = assertions.some((assertion) => assertion.verdict === "fail");
     if (semanticIds.length > 0) {
       const completedSubject = [...completed, { id: variant.id, role: variant.role }];
-      if (!runSemantic) return incompleteResult(plan, ledger, { primary: "Semantic assertions require a semantic process", secondary: null }, completedSubject, publishDiagnostic);
+      if (!runSemantic)
+        return incompleteResult(
+          plan,
+          ledger,
+          { primary: "Semantic assertions require a semantic process", secondary: null },
+          completedSubject,
+          publishDiagnostic,
+        );
       if (!canStartProcess(ledger, plan.max_usd)) {
-        return incompleteResult(plan, ledger, { primary: `Observed spend ceiling reached before ${variant.role} semantic process`, secondary: null }, completedSubject, publishDiagnostic);
+        return incompleteResult(
+          plan,
+          ledger,
+          { primary: `Observed spend ceiling reached before ${variant.role} semantic process`, secondary: null },
+          completedSubject,
+          publishDiagnostic,
+        );
       }
-      semantic = await invokeOperation(runSemantic, variant, { assertions, semantic_assertion_ids: semanticIds }, { diagnostic: diagnosticSemantic, promotable: !diagnosticSemantic });
+      semantic = await invokeOperation(
+        runSemantic,
+        variant,
+        { assertions, semantic_assertion_ids: semanticIds },
+        { diagnostic: diagnosticSemantic, promotable: !diagnosticSemantic },
+      );
       if (semantic.execution) ledger.record(semantic.execution);
-      if (semantic.status === "incomplete") return incompleteResult(plan, ledger, semantic.failure, completedSubject, publishDiagnostic);
+      if (semantic.status === "incomplete")
+        return incompleteResult(plan, ledger, semantic.failure, completedSubject, publishDiagnostic);
       semanticValue = { ...semantic.value, diagnostic: diagnosticSemantic, promotable: !diagnosticSemantic };
       try {
         if (!diagnosticSemantic) assertions = mergeSemanticAssertions(assertions, semanticIds, semanticValue);
       } catch (error) {
-        return incompleteResult(plan, ledger, { primary: message(error), secondary: null }, completedSubject, publishDiagnostic);
+        return incompleteResult(
+          plan,
+          ledger,
+          { primary: message(error), secondary: null },
+          completedSubject,
+          publishDiagnostic,
+        );
       }
     }
 
-    completed.push(Object.freeze({
-      id: variant.id,
-      role: variant.role,
-      subject: subject.value,
-      semantic: semanticValue,
-      assertions: Object.freeze(assertions.map((assertion) => Object.freeze({ ...assertion }))),
-    }));
+    completed.push(
+      Object.freeze({
+        id: variant.id,
+        role: variant.role,
+        subject: subject.value,
+        semantic: semanticValue,
+        assertions: Object.freeze(assertions.map((assertion) => Object.freeze({ ...assertion }))),
+      }),
+    );
   }
 
   let decision;
   try {
-    decision = plan.evaluation_kind === "single"
-      ? decideSingle(completed[0].assertions)
-      : decideComparison(completed[0].assertions, completed[1].assertions);
+    decision =
+      plan.evaluation_kind === "single"
+        ? decideSingle(completed[0].assertions)
+        : decideComparison(completed[0].assertions, completed[1].assertions);
   } catch (error) {
     return incompleteResult(plan, ledger, { primary: message(error), secondary: null }, completed, publishDiagnostic);
   }
@@ -142,7 +178,16 @@ export async function coordinateEvaluation(plan, dependencies) {
   });
   const publication = await invokePublication(publishResult, result);
   if (publication.status !== "published") {
-    return incompleteResult(plan, ledger, { primary: `Result publication failed: ${publication.failure.primary}`, secondary: publication.failure.secondary }, completed, publishDiagnostic);
+    return incompleteResult(
+      plan,
+      ledger,
+      {
+        primary: `Result publication failed: ${publication.failure.primary}`,
+        secondary: publication.failure.secondary,
+      },
+      completed,
+      publishDiagnostic,
+    );
   }
   return Object.freeze({
     status: "complete",

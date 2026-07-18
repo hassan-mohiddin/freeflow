@@ -25,7 +25,12 @@
       "kind": "git",
       "revision": "c7cfdba",
       "path": "skills/verify-work",
-      "resources": ["SKILL.md", "references/browser-runtime-evidence.md", "references/integration-evidence.md", "references/performance-evidence.md"]
+      "resources": [
+        "SKILL.md",
+        "references/browser-runtime-evidence.md",
+        "references/integration-evidence.md",
+        "references/performance-evidence.md"
+      ]
     }
   ],
   "composition": {
@@ -48,12 +53,12 @@
       "workflow": "skills/workflow/SKILL.md"
     }
   },
-  "execution": {"host": "pi", "mode": "json", "tools": ["read", "write"]},
+  "execution": { "host": "pi", "mode": "json", "tools": ["read", "write"] },
   "assertions": [
-    {"id": "review-work-read", "type": "component_read", "component": "review-work"},
-    {"id": "target-read", "type": "component_read", "component": "verify-work"},
-    {"id": "only-assessment-created", "type": "changed_paths", "equals": ["assessment.md"]},
-    {"id": "assessment-created", "type": "path_exists", "path": "assessment.md"},
+    { "id": "review-work-read", "type": "component_read", "component": "review-work" },
+    { "id": "target-read", "type": "component_read", "component": "verify-work" },
+    { "id": "only-assessment-created", "type": "changed_paths", "equals": ["assessment.md"] },
+    { "id": "assessment-created", "type": "path_exists", "path": "assessment.md" },
     {
       "id": "proof-boundary-rejected",
       "type": "semantic",

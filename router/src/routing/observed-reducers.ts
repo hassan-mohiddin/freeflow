@@ -68,7 +68,14 @@ const MAX_JSON_ARRAY_ROWS = 3;
 const MAX_JSON_OBJECT_FIELDS = 12;
 
 export function createDefaultObservedReducerRegistry(): ObservedReducerRegistry {
-  const reducers: ObservedReducer[] = [webSearchReducer(), fetchReducer(), codeSearchReducer(), mcpReducer(), jsonReducer(), genericTextReducer()];
+  const reducers: ObservedReducer[] = [
+    webSearchReducer(),
+    fetchReducer(),
+    codeSearchReducer(),
+    mcpReducer(),
+    jsonReducer(),
+    genericTextReducer(),
+  ];
   return {
     names() {
       return reducers.map((reducer) => reducer.name);
@@ -107,7 +114,9 @@ export function webSearchReducer(): ObservedReducer {
       if (!rows) {
         return producerTextFallback(input, "web-search", "web_search output did not expose structured results.");
       }
-      const shown = rows.slice(0, MAX_JSON_ARRAY_ROWS).map((row) => selectFields(row, ["title", "url", "snippet", "citation", "source"]));
+      const shown = rows
+        .slice(0, MAX_JSON_ARRAY_ROWS)
+        .map((row) => selectFields(row, ["title", "url", "snippet", "citation", "source"]));
       const omittedItems = Math.max(0, rows.length - shown.length);
       const excerpt = stableJson({
         type: "web_search_results",
@@ -168,7 +177,9 @@ export function codeSearchReducer(): ObservedReducer {
       if (!rows) {
         return producerTextFallback(input, "code-search", "code_search output did not expose structured results.");
       }
-      const shown = rows.slice(0, MAX_JSON_ARRAY_ROWS).map((row) => selectFields(row, ["repo", "path", "file", "line", "lines", "symbol", "snippet", "code"]));
+      const shown = rows
+        .slice(0, MAX_JSON_ARRAY_ROWS)
+        .map((row) => selectFields(row, ["repo", "path", "file", "line", "lines", "symbol", "snippet", "code"]));
       const omittedItems = Math.max(0, rows.length - shown.length);
       const excerpt = stableJson({
         type: "code_search_results",
@@ -231,7 +242,9 @@ export function genericTextReducer(): ObservedReducer {
         path: `${input.outputId}:observed`,
         lines: line.lines,
         excerpt: line.excerpt,
-        why: bounded.compressed ? "Bounded observed tool output evidence." : "Observed tool output fits within routing caps.",
+        why: bounded.compressed
+          ? "Bounded observed tool output evidence."
+          : "Observed tool output fits within routing caps.",
         window: bounded.compressed ? "section" : "exact",
         expandable: input.source.kind === "vault" && bounded.compressed,
       }));
@@ -304,7 +317,12 @@ function producerTextFallback(input: ObservedReducerInput, reducer: string, reas
   };
 }
 
-function fetchExcerpt(options: { title?: string | undefined; url?: string | undefined; contentType?: string | undefined; content: string }): string {
+function fetchExcerpt(options: {
+  title?: string | undefined;
+  url?: string | undefined;
+  contentType?: string | undefined;
+  content: string;
+}): string {
   const lines = normalizeNewlines(options.content).split("\n");
   const headings = lines.filter((line) => /^#{1,6}\s+/.test(line)).slice(0, 8);
   const codeBlocks = extractCodeBlocks(options.content).slice(0, 3);
@@ -314,7 +332,9 @@ function fetchExcerpt(options: { title?: string | undefined; url?: string | unde
     options.contentType ? `Content-Type: ${options.contentType}` : "",
     headings.length > 0 ? ["Headings:", ...headings].join("\n") : "",
     codeBlocks.length > 0 ? ["Code blocks:", ...codeBlocks].join("\n\n") : "",
-  ].filter(Boolean).join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function extractCodeBlocks(text: string): string[] {
@@ -384,7 +404,11 @@ function reduceMcpJson(input: ObservedReducerInput, value: unknown): ObservedRed
   return mcpGenericTextFallback(input, "MCP JSON payload was scalar; generic text evidence is safer.");
 }
 
-function reduceMcpJsonArray(input: ObservedReducerInput, key: string | undefined, rows: unknown[]): ObservedReducerResult {
+function reduceMcpJsonArray(
+  input: ObservedReducerInput,
+  key: string | undefined,
+  rows: unknown[],
+): ObservedReducerResult {
   const shown = rows.slice(0, MAX_JSON_ARRAY_ROWS).map(compactJsonValue);
   const omittedItems = Math.max(0, rows.length - shown.length);
   const excerpt = stableJson({
@@ -401,9 +425,10 @@ function reduceMcpJsonArray(input: ObservedReducerInput, key: string | undefined
     excerpt,
     partial: omittedItems > 0 || byteLength(input.text) > byteLength(excerpt),
     summary: `MCP ${mcpLabel(input)} JSON array: ${rows.length} item(s).`,
-    reason: omittedItems > 0
-      ? `MCP ${mcpLabel(input)} JSON array was compacted to ${shown.length} row(s); ${omittedItems} item(s) omitted.`
-      : `MCP ${mcpLabel(input)} JSON array was compacted to ${shown.length} row(s).`,
+    reason:
+      omittedItems > 0
+        ? `MCP ${mcpLabel(input)} JSON array was compacted to ${shown.length} row(s); ${omittedItems} item(s) omitted.`
+        : `MCP ${mcpLabel(input)} JSON array was compacted to ${shown.length} row(s).`,
   });
 }
 
@@ -433,17 +458,19 @@ function reduceMcpMixed(input: ObservedReducerInput, payload: McpPayload): Obser
   const jsonValues = payload.jsonValues.map((value) => {
     const unwrapped = unwrapCommonArray(value);
     if (unwrapped) {
-      return { [unwrapped.key]: unwrapped.rows.slice(0, MAX_JSON_ARRAY_ROWS).map(compactJsonValue), itemCount: unwrapped.rows.length };
+      return {
+        [unwrapped.key]: unwrapped.rows.slice(0, MAX_JSON_ARRAY_ROWS).map(compactJsonValue),
+        itemCount: unwrapped.rows.length,
+      };
     }
     if (Array.isArray(value)) {
       return { items: value.slice(0, MAX_JSON_ARRAY_ROWS).map(compactJsonValue), itemCount: value.length };
     }
     return compactJsonValue(value);
   });
-  const excerpt = [
-    text,
-    jsonValues.length > 0 ? stableJson({ jsonBlocks: jsonValues }) : "",
-  ].filter(Boolean).join("\n\n");
+  const excerpt = [text, jsonValues.length > 0 ? stableJson({ jsonBlocks: jsonValues }) : ""]
+    .filter(Boolean)
+    .join("\n\n");
   return mcpEvidenceResult({
     input,
     excerpt,
@@ -462,10 +489,9 @@ function compactMcpTextBlock(text: string): { text: string; compacted: boolean }
   const omittedLines = Math.max(0, lines.length - shown.length);
   const compacted = omittedLines > 0 || byteLength(shown.join("\n")) < byteLength(normalized);
   return {
-    text: [
-      ...shown,
-      omittedLines > 0 ? `[... ${omittedLines} more line(s) omitted from MCP text block ...]` : "",
-    ].filter(Boolean).join("\n"),
+    text: [...shown, omittedLines > 0 ? `[... ${omittedLines} more line(s) omitted from MCP text block ...]` : ""]
+      .filter(Boolean)
+      .join("\n"),
     compacted,
   };
 }
@@ -619,9 +645,10 @@ function reduceJsonArray(input: ObservedReducerInput, rows: unknown[]): Observed
     excerpt,
     partial: omittedItems > 0 || byteLength(input.text) > byteLength(excerpt),
     summary: `JSON array: ${rows.length} item(s).`,
-    reason: omittedItems > 0
-      ? `JSON array output was compacted to ${shown.length} row(s); ${omittedItems} item(s) omitted.`
-      : `JSON array output was compacted to ${shown.length} row(s).`,
+    reason:
+      omittedItems > 0
+        ? `JSON array output was compacted to ${shown.length} row(s); ${omittedItems} item(s) omitted.`
+        : `JSON array output was compacted to ${shown.length} row(s).`,
   });
 }
 

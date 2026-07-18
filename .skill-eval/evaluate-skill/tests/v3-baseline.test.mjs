@@ -17,22 +17,47 @@ async function fixture(t) {
 
   const bundle = resolve(root, "bundle");
   await mkdir(resolve(bundle, "evidence/candidate"), { recursive: true });
-  await writeFile(resolve(bundle, "plan.json"), JSON.stringify({ schema_version: 2, fingerprint: "plan-hash", subject_host: "pi", capabilities: { pi: { version: "0.80.6" } } }, null, 2));
+  await writeFile(
+    resolve(bundle, "plan.json"),
+    JSON.stringify(
+      { schema_version: 2, fingerprint: "plan-hash", subject_host: "pi", capabilities: { pi: { version: "0.80.6" } } },
+      null,
+      2,
+    ),
+  );
   const evaluatorFiles = ["skill-eval.mjs", "lib/example.mjs"];
   const semanticFiles = ["lib/example.mjs"];
   const evaluatorEntries = [];
-  for (const file of evaluatorFiles) evaluatorEntries.push([file, await hashFile(resolve(root, "skills/evaluate-skill/scripts", file))]);
+  for (const file of evaluatorFiles)
+    evaluatorEntries.push([file, await hashFile(resolve(root, "skills/evaluate-skill/scripts", file))]);
   const semanticEntries = [[semanticFiles[0], evaluatorEntries.find(([path]) => path === semanticFiles[0])[1]]];
-  await writeFile(resolve(bundle, "result.json"), JSON.stringify({
-    schema_version: 1,
-    case_id: "CASE-001",
-    evaluation_id: "eval-001",
-    decision: { comparison_verdict: "improved" },
-    identities: { evaluator: sha256(stableJson(evaluatorEntries)), semantic: sha256(stableJson(semanticEntries)) },
-    usage: { provider_requests: 3, turns: 3, tool_calls: 1, tokens: { total: 100 }, cost_usd: 0.25 },
-    variants: [{ role: "candidate", semantic: { verdict: "pass" }, assertions: [{ id: "a", verdict: "pass" }] }],
-  }, null, 2));
-  await writeFile(resolve(bundle, "evidence/candidate/semantic-packet.json"), JSON.stringify({ schema_version: 1, evidence: { criteria: [{ id: "a", rubric: "pass" }], repeated: { status: "pass", verdict: "pass" } } }, null, 2));
+  await writeFile(
+    resolve(bundle, "result.json"),
+    JSON.stringify(
+      {
+        schema_version: 1,
+        case_id: "CASE-001",
+        evaluation_id: "eval-001",
+        decision: { comparison_verdict: "improved" },
+        identities: { evaluator: sha256(stableJson(evaluatorEntries)), semantic: sha256(stableJson(semanticEntries)) },
+        usage: { provider_requests: 3, turns: 3, tool_calls: 1, tokens: { total: 100 }, cost_usd: 0.25 },
+        variants: [{ role: "candidate", semantic: { verdict: "pass" }, assertions: [{ id: "a", verdict: "pass" }] }],
+      },
+      null,
+      2,
+    ),
+  );
+  await writeFile(
+    resolve(bundle, "evidence/candidate/semantic-packet.json"),
+    JSON.stringify(
+      {
+        schema_version: 1,
+        evidence: { criteria: [{ id: "a", rubric: "pass" }], repeated: { status: "pass", verdict: "pass" } },
+      },
+      null,
+      2,
+    ),
+  );
   await writeBundleIntegrity(bundle);
 
   const corpus = {
@@ -106,8 +131,23 @@ test("frozen v1 compatibility fixtures match real host-free CLI output and accep
   const expectedEvaluate = JSON.parse(await readFile(resolve(fixtureRoot, "cli", "evaluate.json"), "utf8"));
   const exits = JSON.parse(await readFile(resolve(fixtureRoot, "cli", "exit-statuses.json"), "utf8"));
   const diagnostic = JSON.parse(await readFile(resolve(fixtureRoot, "diagnostic-bundle", "diagnostic.json"), "utf8"));
-  const common = [cli, "evaluate", "--skill", "write-skill", "--case", "WSK2-005", "--timeout-ms", "120000", "--output-limit-bytes", "1048576"];
-  const planned = spawnSync(process.execPath, [...common, "--plan-only"], { cwd: repoRoot, encoding: "utf8", maxBuffer: 4 * 1024 * 1024 });
+  const common = [
+    cli,
+    "evaluate",
+    "--skill",
+    "write-skill",
+    "--case",
+    "WSK2-005",
+    "--timeout-ms",
+    "120000",
+    "--output-limit-bytes",
+    "1048576",
+  ];
+  const planned = spawnSync(process.execPath, [...common, "--plan-only"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    maxBuffer: 4 * 1024 * 1024,
+  });
   assert.equal(planned.status, exits.plan, planned.stderr);
   const actualPlan = JSON.parse(planned.stdout);
   for (const value of [actualPlan, expectedPlan]) {
@@ -120,7 +160,11 @@ test("frozen v1 compatibility fixtures match real host-free CLI output and accep
   }
   assert.deepEqual(actualPlan, expectedPlan);
 
-  const evaluated = spawnSync(process.execPath, [...common, "--owner-approved"], { cwd: repoRoot, encoding: "utf8", maxBuffer: 4 * 1024 * 1024 });
+  const evaluated = spawnSync(process.execPath, [...common, "--owner-approved"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    maxBuffer: 4 * 1024 * 1024,
+  });
   assert.equal(evaluated.status, exits.evaluate, evaluated.stderr);
   const actualEvaluate = JSON.parse(evaluated.stdout);
   const generatedResult = actualEvaluate.result;
@@ -147,9 +191,24 @@ test("campaign metrics distinguish diagnostics, cap triggers, and rerun causes",
   await mkdir(evaluations, { recursive: true });
   await mkdir(diagnostics, { recursive: true });
   await mkdir(capped, { recursive: true });
-  await writeFile(resolve(evaluations, "result.json"), JSON.stringify({ usage: { provider_requests: 2, tokens: { total: 10 }, cost_usd: 0.1 } }));
-  await writeFile(resolve(diagnostics, "diagnostic.json"), JSON.stringify({ failure: { primary: "Composition runtime delivery count is invalid" }, usage: { provider_requests: 3, tokens: { total: 20 }, cost_usd: 0.2 } }));
-  await writeFile(resolve(capped, "diagnostic.json"), JSON.stringify({ failure: { primary: "Hard turn limit reached" }, usage: { provider_requests: 4, tokens: { total: 30 }, cost_usd: 0.3 } }));
+  await writeFile(
+    resolve(evaluations, "result.json"),
+    JSON.stringify({ usage: { provider_requests: 2, tokens: { total: 10 }, cost_usd: 0.1 } }),
+  );
+  await writeFile(
+    resolve(diagnostics, "diagnostic.json"),
+    JSON.stringify({
+      failure: { primary: "Composition runtime delivery count is invalid" },
+      usage: { provider_requests: 3, tokens: { total: 20 }, cost_usd: 0.2 },
+    }),
+  );
+  await writeFile(
+    resolve(capped, "diagnostic.json"),
+    JSON.stringify({
+      failure: { primary: "Hard turn limit reached" },
+      usage: { provider_requests: 4, tokens: { total: 30 }, cost_usd: 0.3 },
+    }),
+  );
   await writeFile(resolve(root, ".skill-eval/README.md"), "not a skill directory\n");
   const metrics = await collectCampaignMetrics(root);
   assert.equal(metrics.attempts, 3);

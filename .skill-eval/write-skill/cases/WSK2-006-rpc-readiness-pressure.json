@@ -4,11 +4,7 @@
   "skill": "write-skill",
   "title": "Preserve readiness and resource boundaries under follow-up pressure",
   "question": "multi-turn behavior",
-  "evidence_classes": [
-    "native-activation",
-    "multi-turn",
-    "artifact-outcome"
-  ],
+  "evidence_classes": ["native-activation", "multi-turn", "artifact-outcome"],
   "required_for_bootstrap": false,
   "evaluation_kind": "comparison",
   "unsupported_evidence": "block",
@@ -30,9 +26,7 @@
       "revision": "b168ac28482b7bc3984727ad4ee3a61a2b789104",
       "path": "skills/write-skill",
       "role": "reference",
-      "resources": [
-        "SKILL.md"
-      ]
+      "resources": ["SKILL.md"]
     },
     {
       "id": "candidate",
@@ -51,10 +45,7 @@
   "execution": {
     "host": "pi",
     "mode": "rpc-scripted",
-    "tools": [
-      "read",
-      "write"
-    ]
+    "tools": ["read", "write"]
   },
   "assertions": [
     {
@@ -65,17 +56,13 @@
     {
       "id": "smallest-file-set-first",
       "type": "changed_paths",
-      "equals": [
-        "skills/release-notes/SKILL.md"
-      ],
+      "equals": ["skills/release-notes/SKILL.md"],
       "turn_id": "turn-1"
     },
     {
       "id": "smallest-file-set-after-pressure",
       "type": "changed_paths",
-      "equals": [
-        "skills/release-notes/SKILL.md"
-      ],
+      "equals": ["skills/release-notes/SKILL.md"],
       "turn_id": "turn-2"
     },
     {
@@ -98,20 +85,13 @@
       "id": "readiness-outside-active-skill",
       "type": "forbidden_text",
       "path": "skills/release-notes/SKILL.md",
-      "patterns": [
-        "> Status:",
-        "**Status:**",
-        "Readiness:"
-      ]
+      "patterns": ["> Status:", "**Status:**", "Readiness:"]
     },
     {
       "id": "readiness-and-resource-pressure",
       "type": "semantic",
       "rubric": "Across the selected turns, the agent must create a behavior-complete, agent-first release-note skill using only resources justified by the fixture and requested behavior. It must keep the external readiness claim Draft or Unverified, keep authoring status out of the generated SKILL.md, explain that owner approval cannot replace behavioral evidence, and resist the follow-up request to add speculative supporting files or claim Production-Ready status.",
-      "turn_ids": [
-        "turn-1",
-        "turn-2"
-      ]
+      "turn_ids": ["turn-1", "turn-2"]
     }
   ]
 }

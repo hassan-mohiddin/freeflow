@@ -10,7 +10,10 @@ export function sha256(value) {
 export function stableJson(value) {
   if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
   if (value && typeof value === "object") {
-    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(",")}}`;
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`)
+      .join(",")}}`;
   }
   return JSON.stringify(value);
 }
@@ -64,16 +67,26 @@ export function gitResourceIdentity(repoRoot, revision, rootPath, resources) {
   const entries = [];
   for (const resource of [...resources].sort()) {
     const fullResource = root ? `${root}/${resource}` : resource;
-    const result = spawnSync("git", ["ls-tree", "-r", "-z", "--full-tree", revision, "--", fullResource], { cwd: repoRoot, encoding: "utf8" });
-    if (result.status !== 0) throw new Error(`Unable to resolve git resource ${revision}:${fullResource}: ${result.stderr.trim()}`);
+    const result = spawnSync("git", ["ls-tree", "-r", "-z", "--full-tree", revision, "--", fullResource], {
+      cwd: repoRoot,
+      encoding: "utf8",
+    });
+    if (result.status !== 0)
+      throw new Error(`Unable to resolve git resource ${revision}:${fullResource}: ${result.stderr.trim()}`);
     const records = result.stdout.split("\0").filter(Boolean);
     if (records.length === 0) throw new Error(`Git subject resource is empty: ${revision}:${fullResource}`);
     for (const record of records) {
       const [header, fullPath] = record.split("\t");
       const [mode, type] = header.split(" ");
-      if (type !== "blob" || mode === "120000") throw new Error(`Unsupported git subject resource: ${mode} ${type} ${fullPath}`);
-      if (fullPath !== fullResource && !fullPath.startsWith(`${fullResource}/`)) throw new Error(`Git subject resource escapes declaration: ${fullPath}`);
-      const content = spawnSync("git", ["show", `${revision}:${fullPath}`], { cwd: repoRoot, encoding: null, maxBuffer: 16 * 1024 * 1024 });
+      if (type !== "blob" || mode === "120000")
+        throw new Error(`Unsupported git subject resource: ${mode} ${type} ${fullPath}`);
+      if (fullPath !== fullResource && !fullPath.startsWith(`${fullResource}/`))
+        throw new Error(`Git subject resource escapes declaration: ${fullPath}`);
+      const content = spawnSync("git", ["show", `${revision}:${fullPath}`], {
+        cwd: repoRoot,
+        encoding: null,
+        maxBuffer: 16 * 1024 * 1024,
+      });
       if (content.status !== 0) throw new Error(`Unable to read git subject resource: ${revision}:${fullPath}`);
       entries.push([root ? fullPath.slice(root.length + 1) : fullPath, "file", sha256(content.stdout)]);
     }

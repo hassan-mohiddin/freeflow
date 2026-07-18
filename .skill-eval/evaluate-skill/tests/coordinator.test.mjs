@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { coordinateEvaluation } from "../../../skills/evaluate-skill/scripts/lib/coordinator.mjs";
-import { completeOperation, failedPublication, incompleteOperation, publishedPath } from "../../../skills/evaluate-skill/scripts/lib/outcome.mjs";
+import {
+  completeOperation,
+  failedPublication,
+  incompleteOperation,
+  publishedPath,
+} from "../../../skills/evaluate-skill/scripts/lib/outcome.mjs";
 
 function execution(id, role, cost = 0.1) {
   return {
@@ -24,13 +29,17 @@ function plan({ kind = "single", maxUsd = null } = {}) {
     max_usd: maxUsd,
     evidence_support: { required: { "artifact-outcome": "supported" }, requested: {} },
     limitations: [],
-    variants: kind === "single"
-      ? [{ id: "candidate", role: "subject" }]
-      : [{ id: "old", role: "reference" }, { id: "candidate", role: "candidate" }],
+    variants:
+      kind === "single"
+        ? [{ id: "candidate", role: "subject" }]
+        : [
+            { id: "old", role: "reference" },
+            { id: "candidate", role: "candidate" },
+          ],
   };
 }
 
-function completeSubject(role, assertions, { semantic = [] , cost = 0.1 } = {}) {
+function completeSubject(role, assertions, { semantic = [], cost = 0.1 } = {}) {
   return completeOperation({
     execution: execution(`subject-${role}`, role, cost),
     value: { assertions, semantic_assertion_ids: semantic },
@@ -39,10 +48,15 @@ function completeSubject(role, assertions, { semantic = [] , cost = 0.1 } = {}) 
 
 function publishers(log, { diagnosticFailure = false } = {}) {
   return {
-    publishResult: async (result) => { log.push(["result", result]); return publishedPath("runs/evaluations/one/result.json"); },
+    publishResult: async (result) => {
+      log.push(["result", result]);
+      return publishedPath("runs/evaluations/one/result.json");
+    },
     publishDiagnostic: async (diagnostic) => {
       log.push(["diagnostic", diagnostic]);
-      return diagnosticFailure ? failedPublication("diagnostic rename failed") : publishedPath("runs/diagnostics/one/diagnostic.json");
+      return diagnosticFailure
+        ? failedPublication("diagnostic rename failed")
+        : publishedPath("runs/diagnostics/one/diagnostic.json");
     },
   };
 }
@@ -53,7 +67,9 @@ test("comparison executes serially and publishes one improved result", async () 
   const outcome = await coordinateEvaluation(plan({ kind: "comparison" }), {
     runSubject: async (variant) => {
       calls.push(variant.role);
-      return completeSubject(variant.role, [{ id: "quality", verdict: variant.role === "reference" ? "fail" : "pass" }]);
+      return completeSubject(variant.role, [
+        { id: "quality", verdict: variant.role === "reference" ? "fail" : "pass" },
+      ]);
     },
     ...publishers(publication),
   });
@@ -72,20 +88,32 @@ test("behavioral assertion failure remains a complete trustworthy result", async
   });
   assert.equal(outcome.status, "complete");
   assert.equal(outcome.decision.case_verdict, "fail");
-  assert.equal(publication.some(([kind]) => kind === "diagnostic"), false);
+  assert.equal(
+    publication.some(([kind]) => kind === "diagnostic"),
+    false,
+  );
 });
 
 test("semantic execution is recorded before final assertion assembly", async () => {
   const publication = [];
   const outcome = await coordinateEvaluation(plan(), {
-    runSubject: async () => completeSubject("subject", [
-      { id: "structure", verdict: "pass" },
-      { id: "meaning", verdict: "inconclusive" },
-    ], { semantic: ["meaning"] }),
-    runSemantic: async (variant) => completeOperation({
-      execution: execution(`semantic-${variant.role}`, variant.role, 0.2),
-      value: { assertions: [{ id: "meaning", verdict: "pass", evidence: ["specific semantic fact"] }], uncertainty: null },
-    }),
+    runSubject: async () =>
+      completeSubject(
+        "subject",
+        [
+          { id: "structure", verdict: "pass" },
+          { id: "meaning", verdict: "inconclusive" },
+        ],
+        { semantic: ["meaning"] },
+      ),
+    runSemantic: async (variant) =>
+      completeOperation({
+        execution: execution(`semantic-${variant.role}`, variant.role, 0.2),
+        value: {
+          assertions: [{ id: "meaning", verdict: "pass", evidence: ["specific semantic fact"] }],
+          uncertainty: null,
+        },
+      }),
     ...publishers(publication),
   });
   assert.equal(outcome.status, "complete");
@@ -93,22 +121,33 @@ test("semantic execution is recorded before final assertion assembly", async () 
   assert.equal(outcome.usage.provider_requests, 2);
   assert.ok(Math.abs(outcome.usage.cost_usd - 0.3) < 1e-9);
   const result = publication.find(([kind]) => kind === "result")[1];
-  assert.deepEqual(result.variants[0].assertions.find((item) => item.id === "meaning").evidence, ["specific semantic fact"]);
+  assert.deepEqual(result.variants[0].assertions.find((item) => item.id === "meaning").evidence, [
+    "specific semantic fact",
+  ]);
 });
 
 test("objective failure may receive non-promotable diagnostic semantic grading", async () => {
   const publication = [];
   let semanticContext = null;
   const outcome = await coordinateEvaluation(plan(), {
-    runSubject: async () => completeSubject("subject", [
-      { id: "structure", verdict: "fail", evidence: "objective mismatch" },
-      { id: "meaning", verdict: "inconclusive", evidence: "Requires fresh semantic grading" },
-    ], { semantic: ["meaning"] }),
+    runSubject: async () =>
+      completeSubject(
+        "subject",
+        [
+          { id: "structure", verdict: "fail", evidence: "objective mismatch" },
+          { id: "meaning", verdict: "inconclusive", evidence: "Requires fresh semantic grading" },
+        ],
+        { semantic: ["meaning"] },
+      ),
     runSemantic: async (_variant, _subject, context) => {
       semanticContext = context;
       return completeOperation({
         execution: execution("semantic-subject", "subject", 0.2),
-        value: { assertions: [{ id: "meaning", verdict: "pass", evidence: ["diagnostic observation"] }], uncertainty: null, grade: { verdict: "pass" } },
+        value: {
+          assertions: [{ id: "meaning", verdict: "pass", evidence: ["diagnostic observation"] }],
+          uncertainty: null,
+          grade: { verdict: "pass" },
+        },
       });
     },
     ...publishers(publication),
@@ -126,11 +165,17 @@ test("objective failure may receive non-promotable diagnostic semantic grading",
 test("diagnostic semantic failure preserves the complete subject as regradable", async () => {
   const publication = [];
   const outcome = await coordinateEvaluation(plan(), {
-    runSubject: async () => completeSubject("subject", [
-      { id: "structure", verdict: "fail" },
-      { id: "meaning", verdict: "inconclusive" },
-    ], { semantic: ["meaning"] }),
-    runSemantic: async () => incompleteOperation({ execution: execution("semantic-subject", "subject", 0.2), primary: "grader failed" }),
+    runSubject: async () =>
+      completeSubject(
+        "subject",
+        [
+          { id: "structure", verdict: "fail" },
+          { id: "meaning", verdict: "inconclusive" },
+        ],
+        { semantic: ["meaning"] },
+      ),
+    runSemantic: async () =>
+      incompleteOperation({ execution: execution("semantic-subject", "subject", 0.2), primary: "grader failed" }),
     ...publishers(publication),
   });
   assert.equal(outcome.status, "incomplete");
@@ -142,7 +187,12 @@ test("diagnostic semantic failure preserves the complete subject as regradable",
 test("incomplete subject publishes diagnostics with recorded usage and no result", async () => {
   const publication = [];
   const outcome = await coordinateEvaluation(plan(), {
-    runSubject: async () => incompleteOperation({ execution: execution("subject-subject", "subject", 0.4), primary: "subject failed", secondary: "cleanup failed" }),
+    runSubject: async () =>
+      incompleteOperation({
+        execution: execution("subject-subject", "subject", 0.4),
+        primary: "subject failed",
+        secondary: "cleanup failed",
+      }),
     ...publishers(publication),
   });
   assert.equal(outcome.status, "incomplete");
@@ -151,13 +201,17 @@ test("incomplete subject publishes diagnostics with recorded usage and no result
   assert.equal(outcome.failure.primary, "subject failed");
   assert.equal(outcome.failure.secondary, "cleanup failed");
   assert.equal(outcome.diagnostic, "runs/diagnostics/one/diagnostic.json");
-  assert.equal(publication.some(([kind]) => kind === "result"), false);
+  assert.equal(
+    publication.some(([kind]) => kind === "result"),
+    false,
+  );
 });
 
 test("diagnostic publication failure preserves truthful stdout and omits path", async () => {
   const publication = [];
   const outcome = await coordinateEvaluation(plan(), {
-    runSubject: async () => incompleteOperation({ execution: execution("subject-subject", "subject", 0.4), primary: "subject failed" }),
+    runSubject: async () =>
+      incompleteOperation({ execution: execution("subject-subject", "subject", 0.4), primary: "subject failed" }),
     ...publishers(publication, { diagnosticFailure: true }),
   });
   assert.equal(outcome.status, "incomplete");
@@ -171,7 +225,10 @@ test("soft ceiling prevents a later process at the exact observed boundary", asy
   const calls = [];
   const publication = [];
   const outcome = await coordinateEvaluation(plan({ kind: "comparison", maxUsd: 1 }), {
-    runSubject: async (variant) => { calls.push(variant.role); return completeSubject(variant.role, [{ id: "quality", verdict: "pass" }], { cost: 1 }); },
+    runSubject: async (variant) => {
+      calls.push(variant.role);
+      return completeSubject(variant.role, [{ id: "quality", verdict: "pass" }], { cost: 1 });
+    },
     ...publishers(publication),
   });
   assert.deepEqual(calls, ["reference"]);

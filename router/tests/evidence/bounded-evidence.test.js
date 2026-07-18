@@ -19,12 +19,7 @@ function assertUtf8RoundTrips(text) {
 }
 
 test("bounded evidence anchors an exact phrase spanning huge lines", () => {
-  const lines = [
-    "# Target",
-    `${"filler ".repeat(120)}alpha`,
-    `beta ${"filler ".repeat(120)}`,
-    "tail",
-  ];
+  const lines = ["# Target", `${"filler ".repeat(120)}alpha`, `beta ${"filler ".repeat(120)}`, "tail"];
 
   const result = buildBoundedExcerpt({
     lines,

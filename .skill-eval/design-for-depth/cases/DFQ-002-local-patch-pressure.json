@@ -1,1 +1,58 @@
-{"schema_version":1,"id":"DFQ-002","skill":"design-for-depth","title":"Resist a third adapter-local patch","question":"skill composition","evidence_classes":["native-activation","artifact-outcome"],"required_for_bootstrap":false,"evaluation_kind":"comparison","unsupported_evidence":"block","prompt":"The deadline is today. The team proposes copying the direct adapter's validate-before-write fix into `parent_finish` and moving on. Read `system.json` and write only `next-step.json` with the action you recommend and why. Do not modify `system.json`.","fixture":"fixtures/qualification","variants":[{"id":"neutral","role":"reference","kind":"git","revision":"138f16f","path":".skill-eval/qualification/subjects/neutral/design-for-depth","resources":["SKILL.md"]},{"id":"candidate","role":"candidate","kind":"git","revision":"c7cfdba","path":"skills/design-for-depth","resources":["SKILL.md","references/design-pressure-signals.md","references/interface-design-loop.md","references/software-design-philosophy.md"]}],"composition":{"base_stack":[{"name":"qualification-base","kind":"git","revision":"138f16f","path":".skill-eval/qualification/subjects/qualification-base","resources":["SKILL.md"]}],"target_name":"design-for-depth"},"execution":{"host":"pi","mode":"json","tools":["read","write"]},"assertions":[{"id":"target-read","type":"component_read","component":"design-for-depth"},{"id":"next-step-only","type":"changed_paths","equals":["next-step.json"]},{"id":"shared-owner","type":"semantic","rubric":"The recommendation must reject another adapter-local patch because two different local fixes and a third sibling defect expose shared caller knowledge. It must preserve valid work and route to one shared planning-report publication failure unit owning accepted canonical state, rejected diagnostics, and prior-state preservation. Deadline pressure is not evidence for continuing locally."}]}
+{
+  "schema_version": 1,
+  "id": "DFQ-002",
+  "skill": "design-for-depth",
+  "title": "Resist a third adapter-local patch",
+  "question": "skill composition",
+  "evidence_classes": ["native-activation", "artifact-outcome"],
+  "required_for_bootstrap": false,
+  "evaluation_kind": "comparison",
+  "unsupported_evidence": "block",
+  "prompt": "The deadline is today. The team proposes copying the direct adapter's validate-before-write fix into `parent_finish` and moving on. Read `system.json` and write only `next-step.json` with the action you recommend and why. Do not modify `system.json`.",
+  "fixture": "fixtures/qualification",
+  "variants": [
+    {
+      "id": "neutral",
+      "role": "reference",
+      "kind": "git",
+      "revision": "138f16f",
+      "path": ".skill-eval/qualification/subjects/neutral/design-for-depth",
+      "resources": ["SKILL.md"]
+    },
+    {
+      "id": "candidate",
+      "role": "candidate",
+      "kind": "git",
+      "revision": "c7cfdba",
+      "path": "skills/design-for-depth",
+      "resources": [
+        "SKILL.md",
+        "references/design-pressure-signals.md",
+        "references/interface-design-loop.md",
+        "references/software-design-philosophy.md"
+      ]
+    }
+  ],
+  "composition": {
+    "base_stack": [
+      {
+        "name": "qualification-base",
+        "kind": "git",
+        "revision": "138f16f",
+        "path": ".skill-eval/qualification/subjects/qualification-base",
+        "resources": ["SKILL.md"]
+      }
+    ],
+    "target_name": "design-for-depth"
+  },
+  "execution": { "host": "pi", "mode": "json", "tools": ["read", "write"] },
+  "assertions": [
+    { "id": "target-read", "type": "component_read", "component": "design-for-depth" },
+    { "id": "next-step-only", "type": "changed_paths", "equals": ["next-step.json"] },
+    {
+      "id": "shared-owner",
+      "type": "semantic",
+      "rubric": "The recommendation must reject another adapter-local patch because two different local fixes and a third sibling defect expose shared caller knowledge. It must preserve valid work and route to one shared planning-report publication failure unit owning accepted canonical state, rejected diagnostics, and prior-state preservation. Deadline pressure is not evidence for continuing locally."
+    }
+  ]
+}

@@ -22,20 +22,26 @@ function testOutputSample() {
 }
 
 function tableSample() {
-  return [
-    "id,status,duration_ms",
-    "1,success,10",
-    "2,success,20",
-    "3,error,30",
-    "4,timeout,34000",
-  ].join("\n");
+  return ["id,status,duration_ms", "1,success,10", "2,success,20", "3,error,30", "4,timeout,34000"].join("\n");
 }
 
 function mcpToolsSample() {
   return JSON.stringify([
-    { name: "search_codebase", description: "Search code", inputSchema: { type: "object", properties: { pattern: { type: "string" }, path: { type: "string" } }, required: ["pattern"] } },
+    {
+      name: "search_codebase",
+      description: "Search code",
+      inputSchema: {
+        type: "object",
+        properties: { pattern: { type: "string" }, path: { type: "string" } },
+        required: ["pattern"],
+      },
+    },
     { name: "git_status", description: "Git status", inputSchema: { type: "object", properties: {}, required: [] } },
-    { name: "git_diff", description: "Git diff", inputSchema: { type: "object", properties: { cached: { type: "boolean" } }, required: [] } },
+    {
+      name: "git_diff",
+      description: "Git diff",
+      inputSchema: { type: "object", properties: { cached: { type: "boolean" } }, required: [] },
+    },
     { name: "typecheck", description: "Run typecheck", inputSchema: { type: "object", properties: {}, required: [] } },
   ]);
 }
@@ -58,9 +64,9 @@ function browserSnapshotSample() {
     "```yaml",
     "- table [ref=e1]:",
     "  - row [ref=e2]:",
-    "    - link \"Hacker News\" [ref=e3] [cursor=pointer]:",
+    '    - link "Hacker News" [ref=e3] [cursor=pointer]:',
     "      - /url: news",
-    "    - link \"Browser reducer story\" [ref=e4] [cursor=pointer]:",
+    '    - link "Browser reducer story" [ref=e4] [cursor=pointer]:',
     "      - /url: item?id=1",
     "    - text: Story text",
     "```",
@@ -152,13 +158,10 @@ test("processing engine loads repo file sources and returns fact-first source me
     assert.equal(result.source.displayPath, "input.log");
     assert.equal(result.visibleText.split("\n")[0], "source.kind: repo-file");
     assert.doesNotMatch(result.visibleText, /processing source loaded/);
-    assert.deepEqual(result.facts.map((fact) => fact.name), [
-      "source.kind",
-      "source.path",
-      "source.bytes",
-      "source.lines",
-      "source.sha256",
-    ]);
+    assert.deepEqual(
+      result.facts.map((fact) => fact.name),
+      ["source.kind", "source.path", "source.bytes", "source.lines", "source.sha256"],
+    );
     assert.equal(result.reducer.status, "not_selected");
     assert.equal(result.script.status, "not_configured");
   } finally {
@@ -174,7 +177,11 @@ test("processing engine blocks repo path escapes and symlink escapes without rea
     await writeFile(join(outside, "secret.txt"), "OUTSIDE_SECRET_TOKEN\n", "utf8");
     await symlink(join(outside, "secret.txt"), join(root, "secret-link.txt"));
 
-    const parentEscape = await loadProcessingSource({ kind: "repo-file", root, path: relative(root, join(outside, "secret.txt")) });
+    const parentEscape = await loadProcessingSource({
+      kind: "repo-file",
+      root,
+      path: relative(root, join(outside, "secret.txt")),
+    });
     assert.equal(parentEscape.status, "blocked");
     assert.equal(parentEscape.policy, "repo_containment");
     assert.doesNotMatch(parentEscape.reason, /OUTSIDE_SECRET_TOKEN/);
@@ -408,7 +415,10 @@ test("processing engine returns script-unavailable without unsandboxed fallback"
 
     const result = await processSource(
       { kind: "repo-file", root, path: "access.log" },
-      { script: { language: "javascript", code: "SCRIPT_CODE_TOKEN_UNAVAILABLE" }, scriptSandboxAdapters: [unprovenAdapter] },
+      {
+        script: { language: "javascript", code: "SCRIPT_CODE_TOKEN_UNAVAILABLE" },
+        scriptSandboxAdapters: [unprovenAdapter],
+      },
     );
 
     assert.equal(result.status, "ok");
@@ -600,7 +610,12 @@ test("processing engine sanitizes script failure details and does not persist ra
     assert.match(failed.script.reason, /detail omitted/);
     assert.doesNotMatch(JSON.stringify(failed), /RAW_SCRIPT_SECRET_TOKEN_FAILURE/);
     assert.ok(failed.recovery?.outputId);
-    const raw = await readOutputText(createVault({ root: vaultRoot }), "processing-script-failure-test", failed.recovery.outputId, "raw");
+    const raw = await readOutputText(
+      createVault({ root: vaultRoot }),
+      "processing-script-failure-test",
+      failed.recovery.outputId,
+      "raw",
+    );
     assert.doesNotMatch(raw, /RAW_SCRIPT_SECRET_TOKEN_FAILURE/);
 
     const throwingAdapter = provenScriptAdapter({
@@ -611,7 +626,10 @@ test("processing engine sanitizes script failure details and does not persist ra
     });
     const thrown = await processSource(
       { kind: "repo-file", root, path: "input.txt" },
-      { script: { language: "javascript", code: "RAW_SCRIPT_SECRET_TOKEN_THROW" }, scriptSandboxAdapters: [throwingAdapter] },
+      {
+        script: { language: "javascript", code: "RAW_SCRIPT_SECRET_TOKEN_THROW" },
+        scriptSandboxAdapters: [throwingAdapter],
+      },
     );
 
     assert.equal(thrown.status, "ok");
@@ -650,7 +668,12 @@ test("processing engine does not persist raw script text by default", async () =
     assert.ok(result.recovery?.outputId);
     assert.doesNotMatch(JSON.stringify(result), /RAW_SCRIPT_SECRET_TOKEN/);
 
-    const raw = await readOutputText(createVault({ root: vaultRoot }), "processing-script-persist-test", result.recovery.outputId, "raw");
+    const raw = await readOutputText(
+      createVault({ root: vaultRoot }),
+      "processing-script-persist-test",
+      result.recovery.outputId,
+      "raw",
+    );
     assert.match(raw, /computed: 1/);
     assert.doesNotMatch(raw, /RAW_SCRIPT_SECRET_TOKEN/);
   } finally {

@@ -80,14 +80,20 @@ function observedDetails(event: any, routed: any) {
 
 function formatObservedRoutedResult(routed: any): string {
   const evidence = Array.isArray(routed.evidence) ? routed.evidence : [];
-  const evidenceText = evidence.length > 0
-    ? evidence.slice(0, 3).map((packet, index) => [
-        `Evidence ${index + 1}${packet.lines ? ` lines ${packet.lines}` : ""}:`,
-        "```text",
-        packet.excerpt ?? "",
-        "```",
-      ].join("\n")).join("\n")
-    : "No evidence packets returned.";
+  const evidenceText =
+    evidence.length > 0
+      ? evidence
+          .slice(0, 3)
+          .map((packet, index) =>
+            [
+              `Evidence ${index + 1}${packet.lines ? ` lines ${packet.lines}` : ""}:`,
+              "```text",
+              packet.excerpt ?? "",
+              "```",
+            ].join("\n"),
+          )
+          .join("\n")
+      : "No evidence packets returned.";
   const producer = producerLabel(routed.producer);
   const output = routed.outputId ? ` outputId=${routed.outputId}` : "";
   const recovery = routed.recovery?.how ? `\nRecovery: ${routed.recovery.how}` : "";
@@ -102,7 +108,9 @@ function formatObservedRoutedResult(routed: any): string {
     routed.summary ? `Summary: ${routed.summary}` : "",
     recovery,
     evidenceText,
-  ].filter(Boolean).join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function formatObservedFailOpen(routed: any): string {

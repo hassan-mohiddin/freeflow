@@ -10,8 +10,12 @@ export function createStore(initialCanonicalRaw = null) {
   let canonicalRaw = initialCanonicalRaw;
   const rejected = [];
   return {
-    get canonicalRaw() { return canonicalRaw; },
-    get rejected() { return [...rejected]; },
+    get canonicalRaw() {
+      return canonicalRaw;
+    },
+    get rejected() {
+      return [...rejected];
+    },
     publish(taskId, raw) {
       canonicalRaw = raw;
       const result = parse(taskId, raw);

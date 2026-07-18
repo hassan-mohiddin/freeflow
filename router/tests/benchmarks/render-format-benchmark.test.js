@@ -132,7 +132,7 @@ function makeSamples() {
       "tailwind",
       "fixtures/context7-tailwind-docs.md",
       "responsive md lg flex grid classes",
-      "<div class=\"grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4\">\n  responsive cards\n</div>",
+      '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4">\n  responsive cards\n</div>',
       ["md:", "lg:", "grid"],
     ),
     {
@@ -169,7 +169,8 @@ function makeSamples() {
         okCount: 3,
         failedCount: 0,
         concurrency: 3,
-        summary: "Batch completed 3/3 step(s) successfully. query answers mention 4 failed, 88 HTTP 500 rows, and ignore = true cleanup.",
+        summary:
+          "Batch completed 3/3 step(s) successfully. query answers mention 4 failed, 88 HTTP 500 rows, and ignore = true cleanup.",
         queries: [
           {
             status: "answered",
@@ -188,9 +189,47 @@ function makeSamples() {
           },
         ],
         steps: [
-          { index: 0, id: "test-summary", kind: "run", status: "ok", durationMs: 12, result: { routing: { status: "routed" }, outputId: "ffout_batch_test", importantLines: [{ excerpt: "4 failed", lines: "1-1" }], execution: { status: "success" }, summary: "Command success with exitCode=0." } },
-          { index: 1, id: "access-summary", kind: "run", status: "ok", durationMs: 13, result: { routing: { status: "routed" }, outputId: "ffout_batch_access", importantLines: [{ excerpt: "88", lines: "1-1" }], execution: { status: "success" }, summary: "Command success with exitCode=0." } },
-          { index: 2, id: "react-query", kind: "search", status: "ok", durationMs: 8, result: { routing: { status: "routed" }, recovery: { outputId: "ffout_batch_react" }, evidence: [{ excerpt: "ignore = true", lines: "1-1" }], summary: "Retrieved 1 evidence packet." } },
+          {
+            index: 0,
+            id: "test-summary",
+            kind: "run",
+            status: "ok",
+            durationMs: 12,
+            result: {
+              routing: { status: "routed" },
+              outputId: "ffout_batch_test",
+              importantLines: [{ excerpt: "4 failed", lines: "1-1" }],
+              execution: { status: "success" },
+              summary: "Command success with exitCode=0.",
+            },
+          },
+          {
+            index: 1,
+            id: "access-summary",
+            kind: "run",
+            status: "ok",
+            durationMs: 13,
+            result: {
+              routing: { status: "routed" },
+              outputId: "ffout_batch_access",
+              importantLines: [{ excerpt: "88", lines: "1-1" }],
+              execution: { status: "success" },
+              summary: "Command success with exitCode=0.",
+            },
+          },
+          {
+            index: 2,
+            id: "react-query",
+            kind: "search",
+            status: "ok",
+            durationMs: 8,
+            result: {
+              routing: { status: "routed" },
+              recovery: { outputId: "ffout_batch_react" },
+              evidence: [{ excerpt: "ignore = true", lines: "1-1" }],
+              summary: "Retrieved 1 evidence packet.",
+            },
+          },
         ],
       },
     },
@@ -240,7 +279,10 @@ function renderProseBaseline(sample) {
     `freeflow_batch ${result.routing.status} · steps=${result.stepCount} · ok=${result.okCount} · failed=${result.failedCount} · concurrency=${result.concurrency}`,
     `summary: ${result.summary}`,
     ...result.queries.map((answer) => `answer: ${answer.status} ${answer.query}: ${answer.summary}`),
-    ...result.steps.map((step) => `#${step.index + 1} · ${step.id} · ${step.kind} · ${step.status} · routing=${step.result.routing.status} · output=${step.result.outputId ?? step.result.recovery?.outputId} — ${step.result.summary}`),
+    ...result.steps.map(
+      (step) =>
+        `#${step.index + 1} · ${step.id} · ${step.kind} · ${step.status} · routing=${step.result.routing.status} · output=${step.result.outputId ?? step.result.recovery?.outputId} — ${step.result.summary}`,
+    ),
     "details: full child results and query matches are available in details.result / TUI",
   ].join("\n");
 }

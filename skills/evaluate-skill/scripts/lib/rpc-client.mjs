@@ -28,18 +28,24 @@ function processError(message) {
   return error;
 }
 
-export async function startRpcClient(command, args, {
-  cwd,
-  env,
-  timeoutMs = 180000,
-  outputLimitBytes = DEFAULT_OUTPUT_LIMIT_BYTES,
-  transportLimitBytes = outputLimitBytes,
-  signal,
-  recordTransform,
-} = {}) {
+export async function startRpcClient(
+  command,
+  args,
+  {
+    cwd,
+    env,
+    timeoutMs = 180000,
+    outputLimitBytes = DEFAULT_OUTPUT_LIMIT_BYTES,
+    transportLimitBytes = outputLimitBytes,
+    signal,
+    recordTransform,
+  } = {},
+) {
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1) throw new Error("RPC timeoutMs must be a positive integer");
-  if (!Number.isInteger(outputLimitBytes) || outputLimitBytes < 1) throw new Error("RPC outputLimitBytes must be a positive integer");
-  if (!Number.isInteger(transportLimitBytes) || transportLimitBytes < 1) throw new Error("RPC transportLimitBytes must be a positive integer");
+  if (!Number.isInteger(outputLimitBytes) || outputLimitBytes < 1)
+    throw new Error("RPC outputLimitBytes must be a positive integer");
+  if (!Number.isInteger(transportLimitBytes) || transportLimitBytes < 1)
+    throw new Error("RPC transportLimitBytes must be a positive integer");
 
   const child = spawn(command, args, {
     cwd,
@@ -101,7 +107,9 @@ class RpcClient {
     this.externalSignal = signal;
     this.recordTransform = recordTransform;
 
-    this.closePromise = new Promise((resolve) => { this.resolveClose = resolve; });
+    this.closePromise = new Promise((resolve) => {
+      this.resolveClose = resolve;
+    });
     this.timer = setTimeout(() => {
       this.timedOut = true;
       this.fail(processError("RPC process timed out"));
@@ -129,7 +137,9 @@ class RpcClient {
       if (process.platform !== "win32") process.kill(-this.child.pid, "SIGKILL");
       else this.child.kill("SIGKILL");
     } catch {
-      try { this.child.kill("SIGKILL"); } catch {}
+      try {
+        this.child.kill("SIGKILL");
+      } catch {}
     }
   }
 
@@ -207,7 +217,11 @@ class RpcClient {
         return;
       }
       if (record.command !== pending.command) {
-        this.fail(new RpcProtocolError(`RPC response command mismatch for ${record.id}: expected ${pending.command}; got ${record.command}`));
+        this.fail(
+          new RpcProtocolError(
+            `RPC response command mismatch for ${record.id}: expected ${pending.command}; got ${record.command}`,
+          ),
+        );
         return;
       }
       this.pending.delete(record.id);
@@ -242,7 +256,8 @@ class RpcClient {
   }
 
   request(type, fields = {}) {
-    if (typeof type !== "string" || type.length === 0) return Promise.reject(new Error("RPC command type must be non-empty"));
+    if (typeof type !== "string" || type.length === 0)
+      return Promise.reject(new Error("RPC command type must be non-empty"));
     if (this.fatalError) return Promise.reject(this.fatalError);
     if (this.closed || this.disposing) return Promise.reject(processError("RPC process is not available"));
     const id = `rpc-${++this.sequence}`;
@@ -303,9 +318,10 @@ class RpcClient {
 
     const earlyExit = !this.disposing && !this.fatalError;
     if (earlyExit) {
-      const error = this.activeTurn && !this.activeTurn.settled
-        ? processError("RPC process exited before agent_settled")
-        : processError(`RPC process exited before command completion (${code ?? exitSignal ?? "unknown"})`);
+      const error =
+        this.activeTurn && !this.activeTurn.settled
+          ? processError("RPC process exited before agent_settled")
+          : processError(`RPC process exited before command completion (${code ?? exitSignal ?? "unknown"})`);
       this.fatalError = error;
       for (const pending of this.pending.values()) pending.reject(error);
       this.pending.clear();
@@ -340,7 +356,9 @@ class RpcClient {
     this.disposePromise = (async () => {
       if (!this.closed) {
         this.disposing = true;
-        try { this.child.stdin.end(); } catch {}
+        try {
+          this.child.stdin.end();
+        } catch {}
         const cleanupTimer = setTimeout(() => this.terminate(), 250);
         cleanupTimer.unref?.();
         const result = await this.closePromise;

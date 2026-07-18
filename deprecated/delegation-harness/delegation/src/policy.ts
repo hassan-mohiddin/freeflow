@@ -1,10 +1,6 @@
 import { isAbsolute, relative, resolve } from "node:path";
 
-import {
-  getProfileDefinition,
-  isParentControlDelegationTool,
-  resolveProfileForRole,
-} from "./profiles.js";
+import { getProfileDefinition, isParentControlDelegationTool, resolveProfileForRole } from "./profiles.js";
 import type {
   DelegationPolicyReroute,
   DelegationProfile,
@@ -29,15 +25,12 @@ const SECRET_PATH_PATTERNS = [
   /\.(?:pem|key|p12|pfx|crt|cert)$/i,
 ];
 
-const DOC_OR_ARTIFACT_PREFIXES = [
-  "docs/",
-  "plugin-docs/",
-  "evals/",
-  ".freeflow/delegation/",
-];
+const DOC_OR_ARTIFACT_PREFIXES = ["docs/", "plugin-docs/", "evals/", ".freeflow/delegation/"];
 
-const SHELL_WRAPPER_PAYLOAD_RE = /(?:^|[;&|]\s*)(?:env\s+)?(?:bash|sh|zsh|fish)(?:\s+-[A-Za-z]+)*\s+(?:-[A-Za-z]*c[A-Za-z]*|-c)\s+(?:"((?:\\.|[^"\\])*)"|'([^']*)'|([^;&|]+))/g;
-const SHELL_WRAPPER_COMMAND_RE = /(?:^|[;&|]\s*)(?:env\s+)?(?:bash|sh|zsh|fish)(?:\s+-[A-Za-z]+)*\s+(?:-[A-Za-z]*c[A-Za-z]*|-c)(?:\s|$)/;
+const SHELL_WRAPPER_PAYLOAD_RE =
+  /(?:^|[;&|]\s*)(?:env\s+)?(?:bash|sh|zsh|fish)(?:\s+-[A-Za-z]+)*\s+(?:-[A-Za-z]*c[A-Za-z]*|-c)\s+(?:"((?:\\.|[^"\\])*)"|'([^']*)'|([^;&|]+))/g;
+const SHELL_WRAPPER_COMMAND_RE =
+  /(?:^|[;&|]\s*)(?:env\s+)?(?:bash|sh|zsh|fish)(?:\s+-[A-Za-z]+)*\s+(?:-[A-Za-z]*c[A-Za-z]*|-c)(?:\s|$)/;
 const DYNAMIC_SHELL_PAYLOAD_RE = /(^|[^\\])(?:`|\$\(|\$\{|\$[A-Za-z_][A-Za-z0-9_]*)/;
 
 export function evaluatePolicy(input: EvaluatePolicyInput): PolicyDecision {
@@ -52,7 +45,13 @@ export function evaluatePolicy(input: EvaluatePolicyInput): PolicyDecision {
 
   const intent = input.intent;
   if (!isValidIntentShape(intent)) {
-    return block("malformed_intent", "policy intent is malformed", role, profile, definition.defaultPolicy.suggestedReroute);
+    return block(
+      "malformed_intent",
+      "policy intent is malformed",
+      role,
+      profile,
+      definition.defaultPolicy.suggestedReroute,
+    );
   }
 
   if (intent.kind === "tool" && isParentControlDelegationTool(intent.toolName) && definition.kind === "leaf") {
@@ -66,8 +65,18 @@ export function evaluatePolicy(input: EvaluatePolicyInput): PolicyDecision {
     );
   }
 
-  if ((intent.kind === "read" || intent.kind === "write") && definition.defaultPolicy.denySecretPaths && isSecretPath(intent.path)) {
-    return block("secret_path", `access to secret or credential path is blocked: ${intent.path}`, role, profile, definition.defaultPolicy.suggestedReroute);
+  if (
+    (intent.kind === "read" || intent.kind === "write") &&
+    definition.defaultPolicy.denySecretPaths &&
+    isSecretPath(intent.path)
+  ) {
+    return block(
+      "secret_path",
+      `access to secret or credential path is blocked: ${intent.path}`,
+      role,
+      profile,
+      definition.defaultPolicy.suggestedReroute,
+    );
   }
 
   const toolName = inferToolName(intent, definition);
@@ -117,42 +126,48 @@ export function commandMatchesAllowedList(command: string, allowedCommands: read
 }
 
 export function isCommandBlockedAsDestructive(command: string): boolean {
-  return commandInspectionStrings(command).some((candidate) => [
-    /(?:^|[;&|]\s*)(?:sudo\s+)?rm\s+(?=[^;&|]*-[A-Za-z]*[rR])(?=[^;&|]*-[A-Za-z]*[fF])[^;&|]*/,
-    /(?:^|[;&|]\s*)git\s+reset\s+--hard\b/,
-    /(?:^|[;&|]\s*)git\s+clean\s+(?=[^;&|]*-[A-Za-z]*[fF])(?=[^;&|]*-[A-Za-z]*[dD])[^;&|]*/,
-    /(?:^|[;&|]\s*)mkfs(?:\.|\s|$)/,
-    /(?:^|[;&|]\s*)dd\s+[^\n;|&]*\bof=/,
-    /(?:^|[;&|]\s*)chmod\s+-R\s+777\b/,
-    /(?:^|[;&|]\s*)chown\s+-R\b/,
-    /:\(\)\s*\{\s*:\|:\s*&\s*\}\s*;/,
-  ].some((pattern) => pattern.test(candidate)));
+  return commandInspectionStrings(command).some((candidate) =>
+    [
+      /(?:^|[;&|]\s*)(?:sudo\s+)?rm\s+(?=[^;&|]*-[A-Za-z]*[rR])(?=[^;&|]*-[A-Za-z]*[fF])[^;&|]*/,
+      /(?:^|[;&|]\s*)git\s+reset\s+--hard\b/,
+      /(?:^|[;&|]\s*)git\s+clean\s+(?=[^;&|]*-[A-Za-z]*[fF])(?=[^;&|]*-[A-Za-z]*[dD])[^;&|]*/,
+      /(?:^|[;&|]\s*)mkfs(?:\.|\s|$)/,
+      /(?:^|[;&|]\s*)dd\s+[^\n;|&]*\bof=/,
+      /(?:^|[;&|]\s*)chmod\s+-R\s+777\b/,
+      /(?:^|[;&|]\s*)chown\s+-R\b/,
+      /:\(\)\s*\{\s*:\|:\s*&\s*\}\s*;/,
+    ].some((pattern) => pattern.test(candidate)),
+  );
 }
 
 export function isCredentialOrEnvDumpCommand(command: string): boolean {
-  return commandInspectionStrings(command).some((candidate) => [
-    /^(?:env|printenv|set)(?:\s|$)/,
-    /^export\s+-p(?:\s|$)/,
-    /(?:^|[;&|]\s*)cat\s+[^\n;|&]*(?:\.env|\.ssh|credentials?|secrets?)/i,
-    /(?:^|[;&|]\s*)grep\s+[^\n;|&]*(?:\.env|credentials?|secrets?|api[_-]?key|token|password)/i,
-    /(?:^|[;&|]\s*)echo\s+\$[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|API_KEY|ACCESS_KEY)[A-Z0-9_]*/,
-    /(?:^|[;&|]\s*)aws\s+configure\s+list\b/,
-    /(?:^|[;&|]\s*)gcloud\s+auth\b/,
-  ].some((pattern) => pattern.test(candidate)));
+  return commandInspectionStrings(command).some((candidate) =>
+    [
+      /^(?:env|printenv|set)(?:\s|$)/,
+      /^export\s+-p(?:\s|$)/,
+      /(?:^|[;&|]\s*)cat\s+[^\n;|&]*(?:\.env|\.ssh|credentials?|secrets?)/i,
+      /(?:^|[;&|]\s*)grep\s+[^\n;|&]*(?:\.env|credentials?|secrets?|api[_-]?key|token|password)/i,
+      /(?:^|[;&|]\s*)echo\s+\$[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|API_KEY|ACCESS_KEY)[A-Z0-9_]*/,
+      /(?:^|[;&|]\s*)aws\s+configure\s+list\b/,
+      /(?:^|[;&|]\s*)gcloud\s+auth\b/,
+    ].some((pattern) => pattern.test(candidate)),
+  );
 }
 
 export function isPublishOrDeployCommand(command: string): boolean {
-  return commandInspectionStrings(command).some((candidate) => [
-    /(?:^|[;&|]\s*)npm\s+publish\b/,
-    /(?:^|[;&|]\s*)pnpm\s+publish\b/,
-    /(?:^|[;&|]\s*)yarn\s+(?:npm\s+)?publish\b/,
-    /(?:^|[;&|]\s*)npm\s+run\s+(?:deploy|release|publish)\b/,
-    /(?:^|[;&|]\s*)pnpm\s+(?:deploy|release)\b/,
-    /(?:^|[;&|]\s*)yarn\s+(?:deploy|release)\b/,
-    /(?:^|[;&|]\s*)gh\s+release\b/,
-    /(?:^|[;&|]\s*)(?:vercel|netlify|firebase|wrangler)\s+deploy\b/,
-    /(?:^|[;&|]\s*)docker\s+push\b/,
-  ].some((pattern) => pattern.test(candidate)));
+  return commandInspectionStrings(command).some((candidate) =>
+    [
+      /(?:^|[;&|]\s*)npm\s+publish\b/,
+      /(?:^|[;&|]\s*)pnpm\s+publish\b/,
+      /(?:^|[;&|]\s*)yarn\s+(?:npm\s+)?publish\b/,
+      /(?:^|[;&|]\s*)npm\s+run\s+(?:deploy|release|publish)\b/,
+      /(?:^|[;&|]\s*)pnpm\s+(?:deploy|release)\b/,
+      /(?:^|[;&|]\s*)yarn\s+(?:deploy|release)\b/,
+      /(?:^|[;&|]\s*)gh\s+release\b/,
+      /(?:^|[;&|]\s*)(?:vercel|netlify|firebase|wrangler)\s+deploy\b/,
+      /(?:^|[;&|]\s*)docker\s+push\b/,
+    ].some((pattern) => pattern.test(candidate)),
+  );
 }
 
 export function isGitPushCommand(command: string): boolean {
@@ -164,11 +179,15 @@ export function isGitCommitCommand(command: string): boolean {
 }
 
 export function isBroadGitStageCommand(command: string): boolean {
-  return commandInspectionStrings(command).some((candidate) => /(?:^|[;&|]\s*)git\s+add\s+(?:\.|-A|--all)(?:\s|$)/.test(candidate));
+  return commandInspectionStrings(command).some((candidate) =>
+    /(?:^|[;&|]\s*)git\s+add\s+(?:\.|-A|--all)(?:\s|$)/.test(candidate),
+  );
 }
 
 export function isGitWorktreeMutationCommand(command: string): boolean {
-  return commandInspectionStrings(command).some((candidate) => /(?:^|[;&|]\s*)git\s+worktree\s+(?:add|remove|move|prune|repair|lock|unlock)\b/.test(candidate));
+  return commandInspectionStrings(command).some((candidate) =>
+    /(?:^|[;&|]\s*)git\s+worktree\s+(?:add|remove|move|prune|repair|lock|unlock)\b/.test(candidate),
+  );
 }
 
 function evaluateWrite(
@@ -190,14 +209,36 @@ function evaluateWrite(
   }
 
   const writeScopes = taskPolicy?.writeScopes ?? [];
-  if (writeScopes.length === 0 && definition.defaultPolicy.productCodeWritesRequireScope && isLikelyProductCodePath(path, taskPolicy?.cwd)) {
-    return block("product_code_write_requires_scope", `product-code write requires explicit write scope: ${path}`, role, profile, definition.defaultPolicy.suggestedReroute);
+  if (
+    writeScopes.length === 0 &&
+    definition.defaultPolicy.productCodeWritesRequireScope &&
+    isLikelyProductCodePath(path, taskPolicy?.cwd)
+  ) {
+    return block(
+      "product_code_write_requires_scope",
+      `product-code write requires explicit write scope: ${path}`,
+      role,
+      profile,
+      definition.defaultPolicy.suggestedReroute,
+    );
   }
   if (writeScopes.length === 0 && definition.defaultPolicy.requireWriteScope) {
-    return block("missing_write_scope", `profile ${profile} requires an explicit write scope before writing ${path}`, role, profile, definition.defaultPolicy.suggestedReroute);
+    return block(
+      "missing_write_scope",
+      `profile ${profile} requires an explicit write scope before writing ${path}`,
+      role,
+      profile,
+      definition.defaultPolicy.suggestedReroute,
+    );
   }
   if (writeScopes.length > 0 && !isPathInsideAnyScope(path, writeScopes, taskPolicy?.cwd)) {
-    return block("write_scope_violation", `write path is outside allowed write scope: ${path}`, role, profile, definition.defaultPolicy.suggestedReroute);
+    return block(
+      "write_scope_violation",
+      `write path is outside allowed write scope: ${path}`,
+      role,
+      profile,
+      definition.defaultPolicy.suggestedReroute,
+    );
   }
   return { allowed: true, status: "allowed", role, profile, reason: "write is inside policy scope" };
 }
@@ -210,50 +251,130 @@ function evaluateCommand(
   definition: DelegationProfileDefinition,
 ): PolicyDecision {
   if (hasUninspectableShellWrapper(command)) {
-    return block("command_not_allowed", "shell wrapper payload is dynamic or not inspectable", role, profile, definition.defaultPolicy.suggestedReroute);
+    return block(
+      "command_not_allowed",
+      "shell wrapper payload is dynamic or not inspectable",
+      role,
+      profile,
+      definition.defaultPolicy.suggestedReroute,
+    );
   }
 
   if (definition.defaultPolicy.denyCredentialEnvDumping && isCredentialOrEnvDumpCommand(command)) {
-    return block("credential_env_dump", "credential or environment dumping command is blocked", role, profile, definition.defaultPolicy.suggestedReroute);
+    return block(
+      "credential_env_dump",
+      "credential or environment dumping command is blocked",
+      role,
+      profile,
+      definition.defaultPolicy.suggestedReroute,
+    );
   }
 
   if (isGitPushCommand(command)) {
     if (role === "orchestrator" && taskPolicy?.allowGitPush === true && taskPolicy.explicitUserConfirmation === true) {
-      return { allowed: true, status: "allowed", role, profile, reason: "git push explicitly confirmed for orchestrator" };
+      return {
+        allowed: true,
+        status: "allowed",
+        role,
+        profile,
+        reason: "git push explicitly confirmed for orchestrator",
+      };
     }
-    return block("git_push_denied", "git push is blocked unless orchestrator has explicit user confirmation", role, profile, "orchestrator");
+    return block(
+      "git_push_denied",
+      "git push is blocked unless orchestrator has explicit user confirmation",
+      role,
+      profile,
+      "orchestrator",
+    );
   }
 
   if (isBroadGitStageCommand(command)) {
-    return block("broad_staging_denied", "broad staging is denied; stage explicit intended files only", role, profile, definition.defaultPolicy.suggestedReroute);
+    return block(
+      "broad_staging_denied",
+      "broad staging is denied; stage explicit intended files only",
+      role,
+      profile,
+      definition.defaultPolicy.suggestedReroute,
+    );
   }
 
   if (isGitWorktreeMutationCommand(command)) {
-    return block("git_operation_unsupported", "actual git worktree mutation is unsupported by delegation policy helpers", role, profile, definition.defaultPolicy.suggestedReroute);
+    return block(
+      "git_operation_unsupported",
+      "actual git worktree mutation is unsupported by delegation policy helpers",
+      role,
+      profile,
+      definition.defaultPolicy.suggestedReroute,
+    );
   }
 
   if (isGitCommitCommand(command)) {
     if (hasValidatedCommitCheckpointApproval(taskPolicy) && (role === "execution-parent" || role === "integrator")) {
-      return { allowed: true, status: "allowed", role, profile, reason: `validated commit checkpoint approval is present for ${taskPolicy.commitCheckpointApproval.packageId}/${taskPolicy.commitCheckpointApproval.checkpointId}` };
+      return {
+        allowed: true,
+        status: "allowed",
+        role,
+        profile,
+        reason: `validated commit checkpoint approval is present for ${taskPolicy.commitCheckpointApproval.packageId}/${taskPolicy.commitCheckpointApproval.checkpointId}`,
+      };
     }
-    return block("unplanned_commit", "commit command is blocked without validated commit checkpoint approval", role, profile, definition.defaultPolicy.suggestedReroute);
+    return block(
+      "unplanned_commit",
+      "commit command is blocked without validated commit checkpoint approval",
+      role,
+      profile,
+      definition.defaultPolicy.suggestedReroute,
+    );
   }
 
-  if (!definition.defaultPolicy.allowDestructiveCommands && taskPolicy?.allowDestructiveCommands !== true && isCommandBlockedAsDestructive(command)) {
-    return block("destructive_command", "destructive shell command is blocked", role, profile, definition.defaultPolicy.suggestedReroute);
+  if (
+    !definition.defaultPolicy.allowDestructiveCommands &&
+    taskPolicy?.allowDestructiveCommands !== true &&
+    isCommandBlockedAsDestructive(command)
+  ) {
+    return block(
+      "destructive_command",
+      "destructive shell command is blocked",
+      role,
+      profile,
+      definition.defaultPolicy.suggestedReroute,
+    );
   }
 
-  if (!definition.defaultPolicy.allowPublishDeploy && taskPolicy?.allowPublishDeploy !== true && isPublishOrDeployCommand(command)) {
-    return block("publish_deploy_denied", "publish/deploy command is blocked unless explicitly allowed", role, profile, definition.defaultPolicy.suggestedReroute);
+  if (
+    !definition.defaultPolicy.allowPublishDeploy &&
+    taskPolicy?.allowPublishDeploy !== true &&
+    isPublishOrDeployCommand(command)
+  ) {
+    return block(
+      "publish_deploy_denied",
+      "publish/deploy command is blocked unless explicitly allowed",
+      role,
+      profile,
+      definition.defaultPolicy.suggestedReroute,
+    );
   }
 
   const allowedCommands = taskPolicy?.allowedCommands ?? [];
   if (allowedCommands.length > 0 && !commandMatchesAllowedList(command, allowedCommands)) {
-    return block("command_not_allowed", `command is not in the allowed command list: ${command}`, role, profile, definition.defaultPolicy.suggestedReroute);
+    return block(
+      "command_not_allowed",
+      `command is not in the allowed command list: ${command}`,
+      role,
+      profile,
+      definition.defaultPolicy.suggestedReroute,
+    );
   }
 
   if (definition.defaultPolicy.commandPolicy === "none") {
-    return block("command_not_allowed", `profile ${profile} does not allow command execution`, role, profile, definition.defaultPolicy.suggestedReroute);
+    return block(
+      "command_not_allowed",
+      `profile ${profile} does not allow command execution`,
+      role,
+      profile,
+      definition.defaultPolicy.suggestedReroute,
+    );
   }
 
   if (definition.defaultPolicy.commandPolicy === "allowed-list" && allowedCommands.length === 0) {
@@ -270,13 +391,19 @@ function evaluateCommand(
   return { allowed: true, status: "allowed", role, profile, reason: "command passed policy guards" };
 }
 
-function hasValidatedCommitCheckpointApproval(taskPolicy: DelegationTaskPolicy | undefined): taskPolicy is DelegationTaskPolicy & { commitCheckpointApproval: NonNullable<DelegationTaskPolicy["commitCheckpointApproval"]> } {
+function hasValidatedCommitCheckpointApproval(
+  taskPolicy: DelegationTaskPolicy | undefined,
+): taskPolicy is DelegationTaskPolicy & {
+  commitCheckpointApproval: NonNullable<DelegationTaskPolicy["commitCheckpointApproval"]>;
+} {
   const approval = taskPolicy?.commitCheckpointApproval;
-  return approval?.validatedBy === "validateCommitCheckpoint"
-    && typeof approval.packageId === "string"
-    && approval.packageId.trim().length > 0
-    && typeof approval.checkpointId === "string"
-    && approval.checkpointId.trim().length > 0;
+  return (
+    approval?.validatedBy === "validateCommitCheckpoint" &&
+    typeof approval.packageId === "string" &&
+    approval.packageId.trim().length > 0 &&
+    typeof approval.checkpointId === "string" &&
+    approval.checkpointId.trim().length > 0
+  );
 }
 
 function inferToolName(intent: PolicyIntent, definition: DelegationProfileDefinition): string | undefined {
@@ -379,7 +506,9 @@ export function isPathInsideScope(path: string, scope: string, cwd: string | und
 
   if (isAbsolute(path) || isAbsolute(scopeWithoutGlob) || cwd !== undefined) {
     const absoluteTarget = isAbsolute(path) ? resolve(path) : resolve(cwd ?? process.cwd(), path);
-    const absoluteScope = isAbsolute(scopeWithoutGlob) ? resolve(scopeWithoutGlob) : resolve(cwd ?? process.cwd(), scopeWithoutGlob);
+    const absoluteScope = isAbsolute(scopeWithoutGlob)
+      ? resolve(scopeWithoutGlob)
+      : resolve(cwd ?? process.cwd(), scopeWithoutGlob);
     if (absoluteTarget === absoluteScope) {
       return true;
     }
@@ -396,7 +525,9 @@ export function isPathInsideScope(path: string, scope: string, cwd: string | und
 
 export function isLikelyProductCodePath(path: string, cwd: string | undefined): boolean {
   const relativePath = relativePolicyPath(path, cwd);
-  return !DOC_OR_ARTIFACT_PREFIXES.some((prefix) => relativePath === prefix.slice(0, -1) || relativePath.startsWith(prefix));
+  return !DOC_OR_ARTIFACT_PREFIXES.some(
+    (prefix) => relativePath === prefix.slice(0, -1) || relativePath.startsWith(prefix),
+  );
 }
 
 function relativePolicyPath(path: string, cwd: string | undefined): string {

@@ -2,7 +2,8 @@ function assertionMap(assertions) {
   const map = new Map();
   for (const assertion of assertions) {
     if (!assertion || typeof assertion.id !== "string") throw new Error("Every assertion result needs an ID");
-    if (!new Set(["pass", "fail", "inconclusive"]).has(assertion.verdict)) throw new Error(`Invalid assertion verdict for ${assertion.id}: ${assertion.verdict}`);
+    if (!new Set(["pass", "fail", "inconclusive"]).has(assertion.verdict))
+      throw new Error(`Invalid assertion verdict for ${assertion.id}: ${assertion.verdict}`);
     if (map.has(assertion.id)) throw new Error(`Duplicate assertion ID: ${assertion.id}`);
     map.set(assertion.id, assertion.verdict);
   }
@@ -20,7 +21,8 @@ export function decideComparison(referenceAssertions, candidateAssertions) {
   const candidate = assertionMap(candidateAssertions);
   const referenceIds = [...reference.keys()].sort();
   const candidateIds = [...candidate.keys()].sort();
-  if (JSON.stringify(referenceIds) !== JSON.stringify(candidateIds)) throw new Error("Comparison assertion IDs must match exactly");
+  if (JSON.stringify(referenceIds) !== JSON.stringify(candidateIds))
+    throw new Error("Comparison assertion IDs must match exactly");
   const pairs = referenceIds.map((id) => {
     const from = reference.get(id);
     const to = candidate.get(id);
@@ -31,8 +33,17 @@ export function decideComparison(referenceAssertions, candidateAssertions) {
     return Object.freeze({ id, reference: from, candidate: to, change });
   });
   const changes = new Set(pairs.map((pair) => pair.change));
-  const comparisonVerdict = changes.has("unresolved") || (changes.has("improved") && changes.has("regressed"))
-    ? "inconclusive"
-    : changes.has("regressed") ? "regressed" : changes.has("improved") ? "improved" : "same";
-  return Object.freeze({ evaluation_kind: "comparison", comparison_verdict: comparisonVerdict, pairs: Object.freeze(pairs) });
+  const comparisonVerdict =
+    changes.has("unresolved") || (changes.has("improved") && changes.has("regressed"))
+      ? "inconclusive"
+      : changes.has("regressed")
+        ? "regressed"
+        : changes.has("improved")
+          ? "improved"
+          : "same";
+  return Object.freeze({
+    evaluation_kind: "comparison",
+    comparison_verdict: comparisonVerdict,
+    pairs: Object.freeze(pairs),
+  });
 }

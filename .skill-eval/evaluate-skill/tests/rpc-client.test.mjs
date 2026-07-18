@@ -110,15 +110,15 @@ test("prompt waits for agent_settled rather than agent_end", async (t) => {
   assert.ok(Date.now() - started >= 25);
   assert.equal(turn.turn_id, "turn-1");
   assert.equal(turn.response.success, true);
-  assert.deepEqual(turn.events.map((event) => event.type), ["agent_end", "agent_settled"]);
+  assert.deepEqual(
+    turn.events.map((event) => event.type),
+    ["agent_end", "agent_settled"],
+  );
 });
 
 test("rejected prompt fails without waiting for settlement", async (t) => {
   const client = await fakeClient(t, "reject");
-  await assert.rejects(
-    client.promptAndSettle({ turnId: "turn-1", message: "hello" }),
-    /RPC prompt rejected: rejected/,
-  );
+  await assert.rejects(client.promptAndSettle({ turnId: "turn-1", message: "hello" }), /RPC prompt rejected: rejected/);
 });
 
 test("malformed JSONL is a protocol failure", async (t) => {
@@ -157,7 +157,8 @@ test("record transformation bounds retained evidence without hiding raw transpor
   const client = await fakeClient(t, "compact-output", {
     outputLimitBytes: 2048,
     transportLimitBytes: 512 * 1024,
-    recordTransform: (record) => record.type === "message_update" ? { type: record.type, index: record.index } : record,
+    recordTransform: (record) =>
+      record.type === "message_update" ? { type: record.type, index: record.index } : record,
   });
   await client.promptAndSettle({ turnId: "turn-1", message: "hello" });
   const result = await client.dispose();
@@ -195,13 +196,21 @@ test("timeout terminates the detached RPC process group", { skip: process.platfo
   const client = await fakeClient(t, "tree-timeout", { timeoutMs: 50 });
   const response = await client.request("get_state");
   const pid = response.data.grandchildPid;
-  t.after(() => { try { process.kill(pid, "SIGKILL"); } catch {} });
+  t.after(() => {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {}
+  });
   await new Promise((resolve) => setTimeout(resolve, 80));
   const result = await client.dispose();
   assert.equal(result.timed_out, true);
   let alive = true;
   for (let index = 0; index < 20 && alive; index += 1) {
-    try { process.kill(pid, 0); } catch { alive = false; }
+    try {
+      process.kill(pid, 0);
+    } catch {
+      alive = false;
+    }
     if (alive) await new Promise((resolve) => setTimeout(resolve, 10));
   }
   assert.equal(alive, false);

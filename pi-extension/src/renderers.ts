@@ -46,14 +46,24 @@ function evidenceLabel(evidence) {
     return "no evidence";
   }
   const source = evidence.source;
-  const path = evidence.path ?? (source?.kind === "repo" ? source.path : source?.kind === "local" ? source.path : source?.kind === "vault" ? source.outputId : "evidence");
+  const path =
+    evidence.path ??
+    (source?.kind === "repo"
+      ? source.path
+      : source?.kind === "local"
+        ? source.path
+        : source?.kind === "vault"
+          ? source.outputId
+          : "evidence");
   const lines = evidence.lines ? `:${evidence.lines}` : "";
   return `${shortenMiddle(path, 90)}${lines}`;
 }
 
 function excerptLines(theme, excerpt, indent = "  ", maxLines = 8) {
   const lines = splitLines(String(excerpt ?? ""));
-  const shown = lines.slice(0, maxLines).map((line) => `${indent}${themeFg(theme, "toolOutput", truncateText(line, 140))}`);
+  const shown = lines
+    .slice(0, maxLines)
+    .map((line) => `${indent}${themeFg(theme, "toolOutput", truncateText(line, 140))}`);
   const omitted = lines.length - shown.length;
   if (omitted > 0) {
     shown.push(`${indent}${themeFg(theme, "dim", `… ${omitted} more line(s)`)}`);
@@ -117,7 +127,10 @@ function runScriptProducerLabel(scriptProducer) {
   if (!scriptProducer || typeof scriptProducer !== "object") {
     return "";
   }
-  const parts = [`${scriptProducer.language ?? "script"}:${scriptProducer.status ?? "unknown"}`, `policy=${scriptProducer.policy ?? "sandboxed"}`];
+  const parts = [
+    `${scriptProducer.language ?? "script"}:${scriptProducer.status ?? "unknown"}`,
+    `policy=${scriptProducer.policy ?? "sandboxed"}`,
+  ];
   if (scriptProducer.label) {
     parts.push(`label=${scriptProducer.label}`);
   }
@@ -172,7 +185,9 @@ function appendStorageSection(lines, theme, routed, outputId, title = "Storage")
     lines.push(`  ${themeFg(theme, "muted", "recordId:")} ${themeFg(theme, "accent", routed.recordId)}`);
   }
   if (persistence?.status) {
-    lines.push(`  ${themeFg(theme, "muted", "persistence:")} ${persistence.status} / ${persistence.recoverability ?? "unknown"}`);
+    lines.push(
+      `  ${themeFg(theme, "muted", "persistence:")} ${persistence.status} / ${persistence.recoverability ?? "unknown"}`,
+    );
   }
   if (recoveryOutputId && recoveryOutputId !== outputId) {
     lines.push(`  ${themeFg(theme, "muted", "recoveryOutputId:")} ${themeFg(theme, "accent", recoveryOutputId)}`);
@@ -223,7 +238,9 @@ function exactRetrieveHintFromImportantLines(outputId, importantLines) {
 }
 
 function recoveryStartingPoint(outputId) {
-  return outputId ? `freeflow_search source.kind=vault outputId=${outputId} (choose stream + lineRange, or query/expand)` : "";
+  return outputId
+    ? `freeflow_search source.kind=vault outputId=${outputId} (choose stream + lineRange, or query/expand)`
+    : "";
 }
 
 function routerResultFromToolResult(result) {
@@ -289,10 +306,15 @@ export function renderFreeflowTransformCall(args, theme) {
 export function renderFreeflowBatchCall(args, theme) {
   const title = themeFg(theme, "toolTitle", themeBold(theme, "freeflow_batch"));
   const steps = Array.isArray(args?.steps) ? args.steps : [];
-  const kinds = steps.slice(0, 4).map((step) => step?.kind ?? "step").join(", ");
+  const kinds = steps
+    .slice(0, 4)
+    .map((step) => step?.kind ?? "step")
+    .join(", ");
   const more = steps.length > 4 ? ` +${steps.length - 4}` : "";
   const concurrency = args?.concurrency ? ` ${themeFg(theme, "dim", `(concurrency=${args.concurrency})`)}` : "";
-  return textComponent(`${title} ${themeFg(theme, "accent", `${steps.length} step(s)`)} ${themeFg(theme, "muted", kinds + more)}${concurrency}`);
+  return textComponent(
+    `${title} ${themeFg(theme, "accent", `${steps.length} step(s)`)} ${themeFg(theme, "muted", kinds + more)}${concurrency}`,
+  );
 }
 
 export function renderFreeflowBatchResult(result, { expanded }: any = {}, theme) {
@@ -312,12 +334,24 @@ export function renderFreeflowBatchResult(result, { expanded }: any = {}, theme)
   }
   const queryAnswers = Array.isArray(routed.queries) ? routed.queries : [];
   if (queryAnswers.length > 0) {
-    lines.push(themeFg(theme, "dim", `${queryAnswers.filter((answer) => answer?.status === "answered").length}/${queryAnswers.length} query answer(s) from child evidence handles`));
+    lines.push(
+      themeFg(
+        theme,
+        "dim",
+        `${queryAnswers.filter((answer) => answer?.status === "answered").length}/${queryAnswers.length} query answer(s) from child evidence handles`,
+      ),
+    );
     for (const answer of queryAnswers.slice(0, 3)) {
       lines.push(themeFg(theme, "muted", truncateText(answer?.summary ?? answer?.query ?? "query", 180)));
     }
   }
-  lines.push(themeFg(theme, "dim", `concurrency=${routed.concurrency ?? "?"} • child outputs suppressed; full child results in details.result.steps`));
+  lines.push(
+    themeFg(
+      theme,
+      "dim",
+      `concurrency=${routed.concurrency ?? "?"} • child outputs suppressed; full child results in details.result.steps`,
+    ),
+  );
 
   if (!expanded) {
     lines.push(themeFg(theme, "dim", "ctrl+o to expand child step statuses and recovery pointers"));
@@ -327,13 +361,17 @@ export function renderFreeflowBatchResult(result, { expanded }: any = {}, theme)
   if (queryAnswers.length > 0) {
     lines.push("", themeFg(theme, "toolTitle", "Query answers"));
     queryAnswers.forEach((answer, index) => {
-      lines.push(`  ${themeFg(theme, answer?.status === "answered" ? "accent" : "warning", `#${index + 1} ${answer?.status ?? "unknown"}`)} ${truncateText(answer?.query ?? "query", 120)}`);
+      lines.push(
+        `  ${themeFg(theme, answer?.status === "answered" ? "accent" : "warning", `#${index + 1} ${answer?.status ?? "unknown"}`)} ${truncateText(answer?.query ?? "query", 120)}`,
+      );
       if (answer?.summary) {
         lines.push(`    ${truncateText(answer.summary, 220)}`);
       }
       const matches = Array.isArray(answer?.matches) ? answer.matches : [];
       matches.slice(0, 3).forEach((match) => {
-        lines.push(`    ${themeFg(theme, "muted", `${match.stepId ?? "step"}:`)} ${truncateText(match.excerpt ?? "", 180)}`);
+        lines.push(
+          `    ${themeFg(theme, "muted", `${match.stepId ?? "step"}:`)} ${truncateText(match.excerpt ?? "", 180)}`,
+        );
       });
     });
   }
@@ -362,7 +400,9 @@ export function renderFreeflowBatchResult(result, { expanded }: any = {}, theme)
       if (Array.isArray(child?.importantLines)) {
         pieces.push(`spans=${child.importantLines.length}`);
       }
-      lines.push(`  ${themeFg(theme, status === "failed" ? "warning" : "accent", `#${step.index + 1} ${step.id}`)} ${themeFg(theme, "muted", pieces.join(" • "))}`);
+      lines.push(
+        `  ${themeFg(theme, status === "failed" ? "warning" : "accent", `#${step.index + 1} ${step.id}`)} ${themeFg(theme, "muted", pieces.join(" • "))}`,
+      );
       const message = step.error ?? child?.failure?.message ?? child?.summary ?? child?.routing?.reason;
       if (message) {
         lines.push(`    ${truncateText(message, 180)}`);
@@ -377,7 +417,9 @@ export function renderFreeflowBatchResult(result, { expanded }: any = {}, theme)
   if (routed.recovery?.how) {
     lines.push(`  ${truncateText(routed.recovery.how, 220)}`);
   }
-  lines.push(`  ${themeFg(theme, "dim", "Use details.result.steps for complete child routed results; model-visible output intentionally omits child excerpts.")}`);
+  lines.push(
+    `  ${themeFg(theme, "dim", "Use details.result.steps for complete child routed results; model-visible output intentionally omits child excerpts.")}`,
+  );
   return textComponent(lines.join("\n"));
 }
 
@@ -413,27 +455,51 @@ export function renderFreeflowStatusResult(result, { expanded }: any = {}, theme
   ];
 
   if (!expanded) {
-    lines.push(themeFg(theme, "dim", "ctrl+o to expand configuration sources, effective state, routing, warnings, and migrations"));
+    lines.push(
+      themeFg(
+        theme,
+        "dim",
+        "ctrl+o to expand configuration sources, effective state, routing, warnings, and migrations",
+      ),
+    );
     return textComponent(lines.join("\n"));
   }
 
   const repository = report.configuration?.repository ?? {};
   const personal = report.configuration?.personal ?? {};
   lines.push("", themeFg(theme, "toolTitle", "Configuration"));
-  lines.push(`  ${themeFg(theme, "muted", "repository:")} ${repository.exists ? repository.valid ? "valid" : themeFg(theme, "warning", "invalid") : "missing"} ${themeFg(theme, "dim", shortenMiddle(repository.path ?? report.configPath ?? ".freeflow/config.json", 90))}`);
-  lines.push(`  ${themeFg(theme, "muted", "personal:")} ${personal.exists ? personal.valid ? "valid" : themeFg(theme, "warning", "invalid") : "not set"} ${themeFg(theme, "dim", shortenMiddle(personal.path ?? report.localConfigPath ?? ".freeflow/local.json", 90))}`);
-  lines.push(`  ${themeFg(theme, "muted", "enabled:")} ${String(Boolean(core.enabled))} ${themeFg(theme, "dim", `(${sources.enabled ?? "builtin"})`)}`);
-  lines.push(`  ${themeFg(theme, "muted", "interactionContract:")} ${String(Boolean(core.interactionContract?.enabled))} ${themeFg(theme, "dim", `(${sources.interactionContract ?? "builtin"})`)}`);
-  lines.push(`  ${themeFg(theme, "muted", "skills:")} ${String(Boolean(core.skills?.enabled))} ${themeFg(theme, "dim", `(${sources.skillsEnabled ?? "builtin"})`)}`);
+  lines.push(
+    `  ${themeFg(theme, "muted", "repository:")} ${repository.exists ? (repository.valid ? "valid" : themeFg(theme, "warning", "invalid")) : "missing"} ${themeFg(theme, "dim", shortenMiddle(repository.path ?? report.configPath ?? ".freeflow/config.json", 90))}`,
+  );
+  lines.push(
+    `  ${themeFg(theme, "muted", "personal:")} ${personal.exists ? (personal.valid ? "valid" : themeFg(theme, "warning", "invalid")) : "not set"} ${themeFg(theme, "dim", shortenMiddle(personal.path ?? report.localConfigPath ?? ".freeflow/local.json", 90))}`,
+  );
+  lines.push(
+    `  ${themeFg(theme, "muted", "enabled:")} ${String(Boolean(core.enabled))} ${themeFg(theme, "dim", `(${sources.enabled ?? "builtin"})`)}`,
+  );
+  lines.push(
+    `  ${themeFg(theme, "muted", "interactionContract:")} ${String(Boolean(core.interactionContract?.enabled))} ${themeFg(theme, "dim", `(${sources.interactionContract ?? "builtin"})`)}`,
+  );
+  lines.push(
+    `  ${themeFg(theme, "muted", "skills:")} ${String(Boolean(core.skills?.enabled))} ${themeFg(theme, "dim", `(${sources.skillsEnabled ?? "builtin"})`)}`,
+  );
 
   lines.push("", themeFg(theme, "toolTitle", "Mode"));
   lines.push(`  ${themeFg(theme, "muted", "active:")} ${String(modeActive)}`);
   lines.push(`  ${themeFg(theme, "muted", "effective:")} ${report.mode?.effectiveMode ?? "none"}`);
   lines.push(`  ${themeFg(theme, "muted", "resolved:")} ${resolvedMode}`);
-  lines.push(`  ${themeFg(theme, "muted", "repository default:")} ${report.mode?.repositoryDefaultMode ?? "workflow"} ${themeFg(theme, "dim", `(${report.mode?.repositoryDefaultModeSource ?? "builtin"})`)}`);
-  lines.push(`  ${themeFg(theme, "muted", "personal default override:")} ${report.mode?.personalDefaultMode ?? "none"}`);
-  lines.push(`  ${themeFg(theme, "muted", "configured default:")} ${report.mode?.defaultMode ?? "workflow"} ${themeFg(theme, "dim", `(${report.mode?.defaultModeSource ?? sources.defaultMode ?? "builtin"})`)}`);
-  lines.push(`  ${themeFg(theme, "muted", "session override:")} ${report.mode?.sessionMode ?? report.mode?.currentMode ?? "none"}`);
+  lines.push(
+    `  ${themeFg(theme, "muted", "repository default:")} ${report.mode?.repositoryDefaultMode ?? "workflow"} ${themeFg(theme, "dim", `(${report.mode?.repositoryDefaultModeSource ?? "builtin"})`)}`,
+  );
+  lines.push(
+    `  ${themeFg(theme, "muted", "personal default override:")} ${report.mode?.personalDefaultMode ?? "none"}`,
+  );
+  lines.push(
+    `  ${themeFg(theme, "muted", "configured default:")} ${report.mode?.defaultMode ?? "workflow"} ${themeFg(theme, "dim", `(${report.mode?.defaultModeSource ?? sources.defaultMode ?? "builtin"})`)}`,
+  );
+  lines.push(
+    `  ${themeFg(theme, "muted", "session override:")} ${report.mode?.sessionMode ?? report.mode?.currentMode ?? "none"}`,
+  );
 
   lines.push("", themeFg(theme, "toolTitle", "Router"));
   lines.push(`  ${themeFg(theme, "muted", "enabled:")} ${String(router.enabled !== false)}`);
@@ -448,8 +514,12 @@ export function renderFreeflowStatusResult(result, { expanded }: any = {}, theme
   if (vaultIndex) {
     lines.push("", themeFg(theme, "toolTitle", "Vault index"));
     lines.push(`  ${themeFg(theme, "muted", "engine:")} ${vaultIndex.engine ?? "local-json-sidecar"}`);
-    lines.push(`  ${themeFg(theme, "muted", "available:")} ${String(Boolean(vaultIndex.available))} degraded=${String(Boolean(vaultIndex.degraded))} stale=${String(Boolean(vaultIndex.stale))} rebuildRecommended=${String(Boolean(vaultIndex.rebuildRecommended))}`);
-    lines.push(`  ${themeFg(theme, "muted", "entries:")} ${vaultIndex.entryCount ?? 0} text=${vaultIndex.textEntryCount ?? 0} metadata=${vaultIndex.metadataOnlyEntryCount ?? 0}`);
+    lines.push(
+      `  ${themeFg(theme, "muted", "available:")} ${String(Boolean(vaultIndex.available))} degraded=${String(Boolean(vaultIndex.degraded))} stale=${String(Boolean(vaultIndex.stale))} rebuildRecommended=${String(Boolean(vaultIndex.rebuildRecommended))}`,
+    );
+    lines.push(
+      `  ${themeFg(theme, "muted", "entries:")} ${vaultIndex.entryCount ?? 0} text=${vaultIndex.textEntryCount ?? 0} metadata=${vaultIndex.metadataOnlyEntryCount ?? 0}`,
+    );
     if (vaultIndex.lastError) {
       lines.push(`  ${themeFg(theme, "warning", `lastError: ${truncateText(vaultIndex.lastError, 160)}`)}`);
     }
@@ -460,9 +530,13 @@ export function renderFreeflowStatusResult(result, { expanded }: any = {}, theme
     lines.push("", themeFg(theme, "toolTitle", "Script transform"));
     lines.push(`  ${themeFg(theme, "muted", "enabled:")} ${String(Boolean(scriptTransform.enabled))}`);
     lines.push(`  ${themeFg(theme, "muted", "adapter:")} ${scriptTransform.adapterStatus ?? "unavailable"}`);
-    lines.push(`  ${themeFg(theme, "muted", "languages:")} ${(scriptTransform.configuredLanguages ?? []).join(", ") || "none"}`);
+    lines.push(
+      `  ${themeFg(theme, "muted", "languages:")} ${(scriptTransform.configuredLanguages ?? []).join(", ") || "none"}`,
+    );
     lines.push(`  ${themeFg(theme, "muted", "network:")} ${scriptTransform.network ?? "off"}`);
-    lines.push(`  ${themeFg(theme, "muted", "rawScriptPersistence:")} ${scriptTransform.rawScriptPersistence ?? "disabled"}`);
+    lines.push(
+      `  ${themeFg(theme, "muted", "rawScriptPersistence:")} ${scriptTransform.rawScriptPersistence ?? "disabled"}`,
+    );
     if (scriptTransform.adapterHome) {
       lines.push(`  ${themeFg(theme, "muted", "adapterHome:")} ${shortenMiddle(scriptTransform.adapterHome, 90)}`);
     }
@@ -474,30 +548,50 @@ export function renderFreeflowStatusResult(result, { expanded }: any = {}, theme
   const processing = report.processing?.unsafeUnsandboxed;
   if (processing) {
     lines.push("", themeFg(theme, "toolTitle", "Processing"));
-    lines.push(`  ${themeFg(theme, "muted", "unsafeUnsandboxed:")} ${processing.enabled ? themeFg(theme, "warning", "enabled unsafe/unsandboxed") : "disabled"}`);
+    lines.push(
+      `  ${themeFg(theme, "muted", "unsafeUnsandboxed:")} ${processing.enabled ? themeFg(theme, "warning", "enabled unsafe/unsandboxed") : "disabled"}`,
+    );
     lines.push(`  ${themeFg(theme, "muted", "source:")} ${processing.source ?? ".freeflow/local.json"}`);
     const notes = Array.isArray(processing.notes) ? processing.notes : [];
-    notes.slice(0, 2).forEach((note) => lines.push(`  ${themeFg(theme, processing.enabled ? "warning" : "dim", truncateText(note, 180))}`));
+    notes
+      .slice(0, 2)
+      .forEach((note) =>
+        lines.push(`  ${themeFg(theme, processing.enabled ? "warning" : "dim", truncateText(note, 180))}`),
+      );
   }
 
   lines.push("", themeFg(theme, "toolTitle", "Observed routing"));
   lines.push(`  ${themeFg(theme, "muted", "enabled:")} ${String(Boolean(observedRouting.enabled))}`);
   lines.push(`  ${themeFg(theme, "muted", "onRoutingFailure:")} ${observedRouting.onRoutingFailure ?? "fail-open"}`);
-  lines.push(`  ${themeFg(theme, "muted", "host:")} ${observedRouting.host?.name ?? "pi"} outputReplacement=${observedRouting.host?.outputReplacement ?? "available"}`);
+  lines.push(
+    `  ${themeFg(theme, "muted", "host:")} ${observedRouting.host?.name ?? "pi"} outputReplacement=${observedRouting.host?.outputReplacement ?? "available"}`,
+  );
   lines.push(`  ${themeFg(theme, "muted", "mcp servers:")} ${observedRouting.mcp?.configuredServerCount ?? 0}`);
   if (observedRouting.web || observedRouting.fetch || observedRouting.codeSearch) {
-    lines.push(`  ${themeFg(theme, "muted", "web/fetch/codeSearch:")} web=${observedRouting.web?.enabled ? "on" : "off"} fetch=${observedRouting.fetch?.enabled ? "on" : "off"} codeSearch=${observedRouting.codeSearch?.enabled ? "on" : "off"}`);
+    lines.push(
+      `  ${themeFg(theme, "muted", "web/fetch/codeSearch:")} web=${observedRouting.web?.enabled ? "on" : "off"} fetch=${observedRouting.fetch?.enabled ? "on" : "off"} codeSearch=${observedRouting.codeSearch?.enabled ? "on" : "off"}`,
+    );
   }
 
   if (allWarnings.length > 0) {
     lines.push("", themeFg(theme, "toolTitle", "Warnings"));
-    allWarnings.slice(0, 8).forEach((warning) => lines.push(`  ${themeFg(theme, "warning", truncateText(warning, 180))}`));
+    allWarnings
+      .slice(0, 8)
+      .forEach((warning) => lines.push(`  ${themeFg(theme, "warning", truncateText(warning, 180))}`));
   }
 
   if (recommendations.length > 0) {
     lines.push("", themeFg(theme, "toolTitle", "Migration recommendations"));
-    recommendations.slice(0, 8).forEach((item) => lines.push(`  ${themeFg(theme, "accent", item.path)} ${themeFg(theme, "muted", item.action)} — ${truncateText(item.message, 160)}`));
-    lines.push(`  ${themeFg(theme, "dim", "No config was rewritten; confirmation is required before applying recommendations.")}`);
+    recommendations
+      .slice(0, 8)
+      .forEach((item) =>
+        lines.push(
+          `  ${themeFg(theme, "accent", item.path)} ${themeFg(theme, "muted", item.action)} — ${truncateText(item.message, 160)}`,
+        ),
+      );
+    lines.push(
+      `  ${themeFg(theme, "dim", "No config was rewritten; confirmation is required before applying recommendations.")}`,
+    );
   }
 
   return textComponent(lines.join("\n"));
@@ -525,7 +619,17 @@ function renderFreeflowProcessingResult(result, { expanded }: any = {}, theme) {
     `${themeFg(theme, unsafe ? "warning" : routed.status === "ok" ? "success" : "warning", icon)} ${themeFg(theme, "toolTitle", "freeflow_search")} ${themeFg(theme, "muted", "transform")} • ${formatStatus(theme, routed.status ?? "unknown")}${unsafe ? themeFg(theme, "warning", " • unsafe/unsandboxed") : ""}`,
   ];
   const visibleLines = splitLines(String(routed.visibleText ?? ""));
-  visibleLines.slice(0, expanded ? 20 : 4).forEach((line) => lines.push(themeFg(theme, unsafe && line.includes("unsafe/unsandboxed") ? "warning" : "toolOutput", truncateText(line, 160))));
+  visibleLines
+    .slice(0, expanded ? 20 : 4)
+    .forEach((line) =>
+      lines.push(
+        themeFg(
+          theme,
+          unsafe && line.includes("unsafe/unsandboxed") ? "warning" : "toolOutput",
+          truncateText(line, 160),
+        ),
+      ),
+    );
   if (visibleLines.length > (expanded ? 20 : 4)) {
     lines.push(themeFg(theme, "dim", `… ${visibleLines.length - (expanded ? 20 : 4)} more line(s)`));
   }
@@ -551,7 +655,8 @@ function renderFreeflowProcessingResult(result, { expanded }: any = {}, theme) {
   if (routed.recovery?.how) {
     lines.push("", themeFg(theme, "toolTitle", "Recovery"));
     lines.push(`  ${truncateText(routed.recovery.how, 180)}`);
-    if (routed.recovery.outputId) lines.push(`  ${themeFg(theme, "muted", "outputId:")} ${themeFg(theme, "accent", routed.recovery.outputId)}`);
+    if (routed.recovery.outputId)
+      lines.push(`  ${themeFg(theme, "muted", "outputId:")} ${themeFg(theme, "accent", routed.recovery.outputId)}`);
   }
   return textComponent(lines.join("\n"));
 }
@@ -570,9 +675,13 @@ export function renderFreeflowRetrieveResult(result, { expanded }: any = {}, the
   ];
 
   if (firstEvidence) {
-    lines.push(`${themeFg(theme, "accent", evidenceLabel(firstEvidence))}${firstEvidence.expandable ? themeFg(theme, "dim", " • expandable") : ""}`);
+    lines.push(
+      `${themeFg(theme, "accent", evidenceLabel(firstEvidence))}${firstEvidence.expandable ? themeFg(theme, "dim", " • expandable") : ""}`,
+    );
   } else {
-    lines.push(themeFg(theme, "warning", truncateText(routed.routing?.reason ?? "No matching evidence returned.", 140)));
+    lines.push(
+      themeFg(theme, "warning", truncateText(routed.routing?.reason ?? "No matching evidence returned.", 140)),
+    );
   }
 
   if (!expanded) {
@@ -601,7 +710,9 @@ export function renderFreeflowRetrieveResult(result, { expanded }: any = {}, the
     lines.push(`  ${themeFg(theme, "dim", "No evidence packets returned.")}`);
   } else {
     evidence.forEach((packet, index) => {
-      lines.push(`  ${themeFg(theme, "accent", `#${index + 1} ${evidenceLabel(packet)}`)} ${themeFg(theme, "dim", `window=${packet.window}`)}`);
+      lines.push(
+        `  ${themeFg(theme, "accent", `#${index + 1} ${evidenceLabel(packet)}`)} ${themeFg(theme, "dim", `window=${packet.window}`)}`,
+      );
       if (packet.id) {
         lines.push(`    ${themeFg(theme, "muted", "evidenceId:")} ${themeFg(theme, "accent", packet.id)}`);
       }
@@ -632,11 +743,15 @@ export function renderFreeflowRetrieveResult(result, { expanded }: any = {}, the
     if (exactHint) {
       lines.push(`  ${themeFg(theme, "muted", "exact search:")} ${exactHint}`);
     } else if (routed.recovery.outputId) {
-      lines.push(`  ${themeFg(theme, "muted", "recovery starting point:")} ${recoveryStartingPoint(routed.recovery.outputId)}`);
+      lines.push(
+        `  ${themeFg(theme, "muted", "recovery starting point:")} ${recoveryStartingPoint(routed.recovery.outputId)}`,
+      );
     }
     if (routed.recovery.evidenceId) {
       lines.push(`  ${themeFg(theme, "muted", "evidenceId:")} ${themeFg(theme, "accent", routed.recovery.evidenceId)}`);
-      lines.push(`  ${themeFg(theme, "muted", "expand hint:")} freeflow_search action=expand evidenceId=${routed.recovery.evidenceId}`);
+      lines.push(
+        `  ${themeFg(theme, "muted", "expand hint:")} freeflow_search action=expand evidenceId=${routed.recovery.evidenceId}`,
+      );
     }
   }
 
@@ -666,7 +781,9 @@ export function renderFreeflowRunResult(result, { expanded }: any = {}, theme, c
     statusParts.push(`${routed.execution.durationMs}ms`);
   }
   if (outputId) {
-    statusParts.push(`${routed.persistence?.recoverability === "metadata_only" ? "metadataId" : "outputId"} ${outputId}`);
+    statusParts.push(
+      `${routed.persistence?.recoverability === "metadata_only" ? "metadataId" : "outputId"} ${outputId}`,
+    );
   }
   if (exactRecoveryOutputId && exactRecoveryOutputId !== outputId) {
     statusParts.push(`exact ${exactRecoveryOutputId}`);
@@ -686,7 +803,13 @@ export function renderFreeflowRunResult(result, { expanded }: any = {}, theme, c
   if (routed.summary) {
     lines.push(themeFg(theme, "muted", truncateText(routed.summary, 140)));
   }
-  lines.push(themeFg(theme, "dim", `${importantLines.length} important span(s) • ${exactRecoveryOutputId ? (routed.scriptFilter?.outputId ? "raw and script output recoverable from vault" : routed.reducer?.outputId ? "raw and reducer output recoverable from vault" : "raw output recoverable from vault") : "metadata-only record; exact raw output not vaulted"}`));
+  lines.push(
+    themeFg(
+      theme,
+      "dim",
+      `${importantLines.length} important span(s) • ${exactRecoveryOutputId ? (routed.scriptFilter?.outputId ? "raw and script output recoverable from vault" : routed.reducer?.outputId ? "raw and reducer output recoverable from vault" : "raw output recoverable from vault") : "metadata-only record; exact raw output not vaulted"}`,
+    ),
+  );
 
   if (!expanded) {
     lines.push(themeFg(theme, "dim", "ctrl+o to expand status, evidence, and vault recovery"));
@@ -728,7 +851,9 @@ export function renderFreeflowRunResult(result, { expanded }: any = {}, theme, c
     lines.push("", themeFg(theme, "toolTitle", "Script producer"));
     lines.push(`  ${truncateText(runScriptProducerLabel(routed.scriptProducer), 220)}`);
     if (routed.scriptProducer.operation) {
-      lines.push(`  ${themeFg(theme, "muted", "operation:")} ${truncateText(JSON.stringify(routed.scriptProducer.operation), 180)}`);
+      lines.push(
+        `  ${themeFg(theme, "muted", "operation:")} ${truncateText(JSON.stringify(routed.scriptProducer.operation), 180)}`,
+      );
     }
     if (routed.scriptProducer.failure?.message) {
       lines.push(`  ${themeFg(theme, "warning", truncateText(routed.scriptProducer.failure.message, 180))}`);
@@ -737,9 +862,13 @@ export function renderFreeflowRunResult(result, { expanded }: any = {}, theme, c
 
   if (routed.reducer) {
     lines.push("", themeFg(theme, "toolTitle", "Reducer"));
-    lines.push(`  ${routed.reducer.name}@${routed.reducer.version} confidence=${Number(routed.reducer.confidence ?? 0).toFixed(2)} status=${routed.reducer.status}`);
+    lines.push(
+      `  ${routed.reducer.name}@${routed.reducer.version} confidence=${Number(routed.reducer.confidence ?? 0).toFixed(2)} status=${routed.reducer.status}`,
+    );
     if (routed.reducer.rawOutputId) {
-      lines.push(`  ${themeFg(theme, "muted", "rawOutputId:")} ${themeFg(theme, "accent", routed.reducer.rawOutputId)}`);
+      lines.push(
+        `  ${themeFg(theme, "muted", "rawOutputId:")} ${themeFg(theme, "accent", routed.reducer.rawOutputId)}`,
+      );
     }
     if (routed.reducer.outputId) {
       lines.push(`  ${themeFg(theme, "muted", "outputId:")} ${themeFg(theme, "accent", routed.reducer.outputId)}`);
@@ -753,13 +882,17 @@ export function renderFreeflowRunResult(result, { expanded }: any = {}, theme, c
     lines.push("", themeFg(theme, "toolTitle", "Script filter"));
     lines.push(`  ${truncateText(runScriptFilterLabel(routed.scriptFilter), 220)}`);
     if (routed.scriptFilter.rawOutputId) {
-      lines.push(`  ${themeFg(theme, "muted", "rawOutputId:")} ${themeFg(theme, "accent", routed.scriptFilter.rawOutputId)}`);
+      lines.push(
+        `  ${themeFg(theme, "muted", "rawOutputId:")} ${themeFg(theme, "accent", routed.scriptFilter.rawOutputId)}`,
+      );
     }
     if (Array.isArray(routed.scriptFilter.sourceAliases)) {
       lines.push(`  ${themeFg(theme, "muted", "sources:")} ${routed.scriptFilter.sourceAliases.join(", ")}`);
     }
     if (routed.scriptFilter.operation) {
-      lines.push(`  ${themeFg(theme, "muted", "operation:")} ${truncateText(JSON.stringify(routed.scriptFilter.operation), 180)}`);
+      lines.push(
+        `  ${themeFg(theme, "muted", "operation:")} ${truncateText(JSON.stringify(routed.scriptFilter.operation), 180)}`,
+      );
     }
     if (routed.scriptFilter.failure?.message) {
       lines.push(`  ${themeFg(theme, "warning", truncateText(routed.scriptFilter.failure.message, 180))}`);
@@ -776,7 +909,12 @@ export function renderFreeflowRunResult(result, { expanded }: any = {}, theme, c
       lines.push(`  ${themeFg(theme, "muted", "counts:")} ${truncateText(JSON.stringify(routed.parser.counts), 160)}`);
     }
     if (Array.isArray(routed.parser.references) && routed.parser.references.length > 0) {
-      const refs = routed.parser.references.slice(0, 3).map((ref) => `${ref.path}${ref.line ? `:${ref.line}${ref.column ? `:${ref.column}` : ""}` : ""}${ref.code ? ` ${ref.code}` : ""}`);
+      const refs = routed.parser.references
+        .slice(0, 3)
+        .map(
+          (ref) =>
+            `${ref.path}${ref.line ? `:${ref.line}${ref.column ? `:${ref.column}` : ""}` : ""}${ref.code ? ` ${ref.code}` : ""}`,
+        );
       lines.push(`  ${themeFg(theme, "muted", "references:")} ${truncateText(refs.join(", "), 180)}`);
     }
   }
@@ -802,13 +940,18 @@ export function renderFreeflowRunResult(result, { expanded }: any = {}, theme, c
     const evidenceOutputId = routed.scriptFilter?.outputId ?? routed.reducer?.outputId ?? exactRecoveryOutputId;
     const exactHint = exactRetrieveHintFromImportantLines(evidenceOutputId, importantLines);
     if (exactHint) {
-      const hint = routed.scriptFilter?.outputId || routed.reducer?.outputId ? exactHint.replace(/stream=(stdout|stderr|combined)/, "stream=raw") : exactHint;
+      const hint =
+        routed.scriptFilter?.outputId || routed.reducer?.outputId
+          ? exactHint.replace(/stream=(stdout|stderr|combined)/, "stream=raw")
+          : exactHint;
       lines.push(`  ${themeFg(theme, "muted", "exact search:")} ${hint}`);
       if ((routed.scriptFilter?.outputId || routed.reducer?.outputId) && outputId) {
         lines.push(`  ${themeFg(theme, "muted", "raw command starting point:")} ${recoveryStartingPoint(outputId)}`);
       }
     } else if (exactRecoveryOutputId) {
-      lines.push(`  ${themeFg(theme, "muted", "recovery starting point:")} ${recoveryStartingPoint(exactRecoveryOutputId)}`);
+      lines.push(
+        `  ${themeFg(theme, "muted", "recovery starting point:")} ${recoveryStartingPoint(exactRecoveryOutputId)}`,
+      );
     }
     lines.push(`  ${themeFg(theme, "dim", "Full structured result remains available in details.result.")}`);
   }
@@ -816,7 +959,12 @@ export function renderFreeflowRunResult(result, { expanded }: any = {}, theme, c
   return textComponent(lines.join("\n"));
 }
 
-export function renderFreeflowTransformResult(result, { expanded }: any = {}, theme, toolTitle = "freeflow_search action=transform") {
+export function renderFreeflowTransformResult(
+  result,
+  { expanded }: any = {},
+  theme,
+  toolTitle = "freeflow_search action=transform",
+) {
   const routed = routerResultFromToolResult(result);
   if (!routed) {
     return textComponent(fallbackResultText(result));
@@ -854,7 +1002,13 @@ export function renderFreeflowTransformResult(result, { expanded }: any = {}, th
   } else if (routed.summary) {
     lines.push(themeFg(theme, "muted", truncateText(routed.summary, 140)));
   }
-  lines.push(themeFg(theme, "dim", `${evidence.length} evidence packet(s)${outputId ? " • transformed output recoverable from vault" : ""}`));
+  lines.push(
+    themeFg(
+      theme,
+      "dim",
+      `${evidence.length} evidence packet(s)${outputId ? " • transformed output recoverable from vault" : ""}`,
+    ),
+  );
 
   if (!expanded) {
     lines.push(themeFg(theme, "dim", "ctrl+o to expand source, operation, lineage, evidence, and recovery details"));
@@ -864,11 +1018,15 @@ export function renderFreeflowTransformResult(result, { expanded }: any = {}, th
   lines.push("", themeFg(theme, "toolTitle", "Status"));
   lines.push(`  ${themeFg(theme, "muted", "toolStatus:")} ${formatStatus(theme, routed.toolStatus)}`);
   if (routed.transformExecution?.status) {
-    lines.push(`  ${themeFg(theme, "muted", "transformExecution.status:")} ${formatStatus(theme, routed.transformExecution.status)}`);
+    lines.push(
+      `  ${themeFg(theme, "muted", "transformExecution.status:")} ${formatStatus(theme, routed.transformExecution.status)}`,
+    );
   }
   lines.push(`  ${themeFg(theme, "muted", "routing.status:")} ${formatStatus(theme, routed.routing?.status)}`);
   if (routed.persistence?.status) {
-    lines.push(`  ${themeFg(theme, "muted", "persistence:")} ${routed.persistence.status} / ${routed.persistence.recoverability}`);
+    lines.push(
+      `  ${themeFg(theme, "muted", "persistence:")} ${routed.persistence.status} / ${routed.persistence.recoverability}`,
+    );
   }
   if (routed.routing?.reason) {
     lines.push(`  ${themeFg(theme, "muted", "reason:")} ${truncateText(routed.routing.reason, 180)}`);
@@ -907,7 +1065,9 @@ export function renderFreeflowTransformResult(result, { expanded }: any = {}, th
     lines.push(`  ${themeFg(theme, "dim", "No evidence packets returned.")}`);
   } else {
     evidence.forEach((packet, index) => {
-      lines.push(`  ${themeFg(theme, "accent", `#${index + 1} ${evidenceLabel(packet)}`)} ${themeFg(theme, "dim", `window=${packet.window}`)}`);
+      lines.push(
+        `  ${themeFg(theme, "accent", `#${index + 1} ${evidenceLabel(packet)}`)} ${themeFg(theme, "dim", `window=${packet.window}`)}`,
+      );
       if (packet.id) {
         lines.push(`    ${themeFg(theme, "muted", "evidenceId:")} ${themeFg(theme, "accent", packet.id)}`);
       }

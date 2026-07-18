@@ -4,10 +4,7 @@
   "skill": "evaluate-skill",
   "title": "Restart an infrastructure-incomplete comparison without partial reuse",
   "question": "fixture/repo behavior",
-  "evidence_classes": [
-    "explicit-instruction",
-    "artifact-outcome"
-  ],
+  "evidence_classes": ["explicit-instruction", "artifact-outcome"],
   "required_for_bootstrap": false,
   "evaluation_kind": "comparison",
   "unsupported_evidence": "block",
@@ -20,11 +17,7 @@
       "revision": "b168ac28482b7bc3984727ad4ee3a61a2b789104",
       "path": "skills/evaluate-skill",
       "role": "reference",
-      "resources": [
-        "SKILL.md",
-        "references/eval-patterns.md",
-        "references/grading-priority.md"
-      ]
+      "resources": ["SKILL.md", "references/eval-patterns.md", "references/grading-priority.md"]
     },
     {
       "id": "candidate",
@@ -45,10 +38,7 @@
   "execution": {
     "host": "pi",
     "mode": "json",
-    "tools": [
-      "read",
-      "write"
-    ]
+    "tools": ["read", "write"]
   },
   "assertions": [
     {
@@ -58,9 +48,7 @@
     {
       "id": "only-manifest-created",
       "type": "changed_paths",
-      "equals": [
-        ".skill-eval/review-pr/rerun.json"
-      ]
+      "equals": [".skill-eval/review-pr/rerun.json"]
     },
     {
       "id": "whole-case-scope",

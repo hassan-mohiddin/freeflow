@@ -53,15 +53,7 @@ const BROAD_SKIP_DIRS = new Set([
   "generated",
 ]);
 
-const SECRET_DIRS = new Set([
-  ".aws",
-  ".azure",
-  ".docker",
-  ".gnupg",
-  ".kube",
-  ".password-store",
-  ".ssh",
-]);
+const SECRET_DIRS = new Set([".aws", ".azure", ".docker", ".gnupg", ".kube", ".password-store", ".ssh"]);
 
 const BROAD_SKIP_FILE_EXTENSIONS = new Set([
   ".7z",
@@ -162,7 +154,9 @@ async function resolveLocalRoot(root: string): Promise<string> {
 
   const broadRootReason = broadRootRejectionReason(rootRealPath);
   if (broadRootReason) {
-    throw new Error(`Local source.root is too broad: ${rootRealPath}. ${broadRootReason} Choose a narrower explicit docs/source directory.`);
+    throw new Error(
+      `Local source.root is too broad: ${rootRealPath}. ${broadRootReason} Choose a narrower explicit docs/source directory.`,
+    );
   }
 
   return rootRealPath;
@@ -173,7 +167,8 @@ async function resolveLocalRequestedPath(rootRealPath: string, requestedPath?: s
     throw new Error(`Local source.path must be relative to source.root: ${requestedPath}`);
   }
 
-  const requestedAbsolutePath = requestedPath && requestedPath !== "" ? resolve(rootRealPath, requestedPath) : rootRealPath;
+  const requestedAbsolutePath =
+    requestedPath && requestedPath !== "" ? resolve(rootRealPath, requestedPath) : rootRealPath;
   const requestedRealPath = await realpath(requestedAbsolutePath);
 
   if (!isPathInsideRoot(rootRealPath, requestedRealPath)) {
@@ -257,7 +252,9 @@ async function collectTextFileRefs(options: CollectTextFileRefsOptions): Promise
 function noteDirectory(budget: LocalTraversalBudget) {
   budget.directories += 1;
   if (budget.directories > LOCAL_SCAN_MAX_DIRECTORIES) {
-    throw new Error(`Local broad scan exceeded directory budget (${LOCAL_SCAN_MAX_DIRECTORIES}); narrow source.root or source.path.`);
+    throw new Error(
+      `Local broad scan exceeded directory budget (${LOCAL_SCAN_MAX_DIRECTORIES}); narrow source.root or source.path.`,
+    );
   }
 }
 
@@ -265,10 +262,14 @@ function noteFile(budget: LocalTraversalBudget, size: number) {
   budget.files += 1;
   budget.bytes += size;
   if (budget.files > LOCAL_SCAN_MAX_FILES) {
-    throw new Error(`Local broad scan exceeded file budget (${LOCAL_SCAN_MAX_FILES}); narrow source.root or source.path.`);
+    throw new Error(
+      `Local broad scan exceeded file budget (${LOCAL_SCAN_MAX_FILES}); narrow source.root or source.path.`,
+    );
   }
   if (budget.bytes > LOCAL_SCAN_MAX_TOTAL_BYTES) {
-    throw new Error(`Local broad scan exceeded byte budget (${LOCAL_SCAN_MAX_TOTAL_BYTES}); narrow source.root or source.path.`);
+    throw new Error(
+      `Local broad scan exceeded byte budget (${LOCAL_SCAN_MAX_TOTAL_BYTES}); narrow source.root or source.path.`,
+    );
   }
 }
 
@@ -327,12 +328,21 @@ function isSensitivePath(path: string): boolean {
   if (!path || path === ".") {
     return false;
   }
-  const segments = normalizeRelativePath(path).split("/").map((segment) => segment.toLowerCase());
+  const segments = normalizeRelativePath(path)
+    .split("/")
+    .map((segment) => segment.toLowerCase());
   return segments.some((segment) => SECRET_DIRS.has(segment)) || hasSecretFileName(segments.at(-1) ?? "");
 }
 
 function hasSecretFileName(name: string): boolean {
-  return SECRET_FILE_NAMES.has(name) || name.startsWith(".env.") || name.endsWith(".pem") || name.endsWith(".key") || name.endsWith(".p12") || name.endsWith(".pfx");
+  return (
+    SECRET_FILE_NAMES.has(name) ||
+    name.startsWith(".env.") ||
+    name.endsWith(".pem") ||
+    name.endsWith(".key") ||
+    name.endsWith(".p12") ||
+    name.endsWith(".pfx")
+  );
 }
 
 function hasBroadSkippedFileExtension(name: string): boolean {
@@ -397,7 +407,10 @@ function safeNormalizeAbsolutePath(path: string): string | null {
 
 function isPathInsideRoot(root: string, absolutePath: string): boolean {
   const relativePath = relative(root, absolutePath);
-  return relativePath === "" || (!relativePath.startsWith("..") && !relativePath.startsWith("/") && !/^[A-Za-z]:/.test(relativePath));
+  return (
+    relativePath === "" ||
+    (!relativePath.startsWith("..") && !relativePath.startsWith("/") && !/^[A-Za-z]:/.test(relativePath))
+  );
 }
 
 function normalizeRelativePath(path: string): string {

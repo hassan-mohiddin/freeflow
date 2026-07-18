@@ -140,7 +140,12 @@ export function parseProtocolText(rawText: string, options: ParseProtocolOptions
         continue;
       }
       if (isBlockStart(trimmed)) {
-        errors.push({ lineNumber, message: `nested protocol block ${trimmed} is not allowed`, raw: line, blockKind: openBlock.kind });
+        errors.push({
+          lineNumber,
+          message: `nested protocol block ${trimmed} is not allowed`,
+          raw: line,
+          blockKind: openBlock.kind,
+        });
         continue;
       }
       try {
@@ -213,7 +218,14 @@ export function planningReportPlanArtifactPath(report: ParsedParentReport): stri
 }
 
 function planningPlanArtifactPathFromFields(fields: ProtocolFieldMap): string | undefined {
-  const explicitPaths = [...new Set((fields.PLAN_ARTIFACT_PATH ?? []).flatMap((row) => row).map((value) => value.trim()).filter(Boolean))];
+  const explicitPaths = [
+    ...new Set(
+      (fields.PLAN_ARTIFACT_PATH ?? [])
+        .flatMap((row) => row)
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  ];
   if (explicitPaths.length > 0) return explicitPaths.length === 1 ? explicitPaths[0] : undefined;
   const artifactPaths = splitListField(fields, "ARTIFACT_PATHS");
   const planCandidates = artifactPaths.filter((path) => /(?:^|\/)plans?(?:\/|$)/.test(path));
@@ -221,7 +233,11 @@ function planningPlanArtifactPathFromFields(fields: ProtocolFieldMap): string | 
   return artifactPaths.length === 1 ? artifactPaths[0] : undefined;
 }
 
-function buildBlock(openBlock: OpenBlock, endLine: number, errors: ProtocolParseError[]): ParsedProtocolBlock | undefined {
+function buildBlock(
+  openBlock: OpenBlock,
+  endLine: number,
+  errors: ProtocolParseError[],
+): ParsedProtocolBlock | undefined {
   if (openBlock.rows.length === 0) {
     errors.push({
       lineNumber: openBlock.startLine,
@@ -336,11 +352,21 @@ function hasNonEmptyField(fields: ProtocolFieldMap, tag: string): boolean {
 function parseResultBlock(block: ParsedProtocolBlock, errors: ProtocolParseError[]): ParsedFFResult | undefined {
   const rawStatus = firstScalar(block.fields, "STATUS");
   if (rawStatus === undefined) {
-    errors.push({ lineNumber: block.startLine, message: "FFRESULT missing STATUS row", blockKind: "FFRESULT", raw: block.rawText });
+    errors.push({
+      lineNumber: block.startLine,
+      message: "FFRESULT missing STATUS row",
+      blockKind: "FFRESULT",
+      raw: block.rawText,
+    });
     return undefined;
   }
   if (!RESULT_STATUSES.has(rawStatus as ResultStatus)) {
-    errors.push({ lineNumber: block.startLine, message: `FFRESULT has unknown STATUS: ${rawStatus}`, blockKind: "FFRESULT", raw: block.rawText });
+    errors.push({
+      lineNumber: block.startLine,
+      message: `FFRESULT has unknown STATUS: ${rawStatus}`,
+      blockKind: "FFRESULT",
+      raw: block.rawText,
+    });
     return undefined;
   }
 
@@ -386,7 +412,11 @@ function parseSignal(
       attributes: parseAttributes(row.fields.slice(2)),
     };
   } catch (error) {
-    errors.push({ lineNumber, message: error instanceof Error ? error.message : `invalid ${expectedTag} row`, raw: line });
+    errors.push({
+      lineNumber,
+      message: error instanceof Error ? error.message : `invalid ${expectedTag} row`,
+      raw: line,
+    });
     return undefined;
   }
 }
@@ -410,7 +440,11 @@ function rowsWithTag(rows: ProtocolRow[], tag: string): ProtocolRow[] {
 
 function splitListField(fields: ProtocolFieldMap, tag: string): string[] {
   const rows = fields[tag] ?? [];
-  return rows.flatMap((rowFields) => rowFields).flatMap((field) => field.split(",")).map((value) => value.trim()).filter(Boolean);
+  return rows
+    .flatMap((rowFields) => rowFields)
+    .flatMap((field) => field.split(","))
+    .map((value) => value.trim())
+    .filter(Boolean);
 }
 
 function parseBlockerRow(row: ProtocolRow): ParsedBlocker {

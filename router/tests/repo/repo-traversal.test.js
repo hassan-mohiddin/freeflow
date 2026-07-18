@@ -62,11 +62,11 @@ test("repo traversal skips configured generated glob broadly but allows explicit
     });
     const explicitPaths = explicit.map((file) => file.path).sort();
 
-    assert.deepEqual(explicitPaths, [
-      "custom-generated/nested/deeper/decoy.md",
-      "custom-generated/nested/keep.txt",
-    ]);
-    assert.equal(explicit.find((file) => file.path === "custom-generated/nested/deeper/decoy.md")?.sizeBytes, Buffer.byteLength("generated markdown decoy", "utf8"));
+    assert.deepEqual(explicitPaths, ["custom-generated/nested/deeper/decoy.md", "custom-generated/nested/keep.txt"]);
+    assert.equal(
+      explicit.find((file) => file.path === "custom-generated/nested/deeper/decoy.md")?.sizeBytes,
+      Buffer.byteLength("generated markdown decoy", "utf8"),
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }

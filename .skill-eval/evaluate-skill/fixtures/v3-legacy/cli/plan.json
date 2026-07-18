@@ -51,12 +51,12 @@
       "case": "e78190e5ed84a7d265c84bad72bf249ce2790d122c1f8963b02df3f083a07366",
       "case_source": {
         "path": ".skill-eval/write-skill/cases/WSK2-005-self-contained.json",
-        "sha256": "6e5c10b47ec4acf79f10d116232dcb570da034b80ece901066fdb72d0237d9da"
+        "sha256": "56f2e6e97d02d7d50d4d1af9e11c51f99a52a822cdc5a7bc82fe93d2ffacd27b"
       },
       "fixture": "9ea2a1265c40313c6a8b7651db9d9f4c8f6beb56e345c90ea7800e655e063ffc",
       "subjects": {
         "reference": "c241dee701dd5d7fb9dd0f50337e7653b334cc72eef5a9bef45e5b076bfa958b",
-        "candidate": "d2e8f97489b3a4f37359275714385857a3bf1f4e4c8848ea9ebf6be0b57bdabb"
+        "candidate": "cc234b3b01820137c70dc9921ca8dd3584efb74dc24a868daeda17b88ec12492"
       },
       "composition": null,
       "evaluator": "a5c9e8812b3b0d45797eba40613674e69f574a2db9bbc5b7528add5575b9c4ce",

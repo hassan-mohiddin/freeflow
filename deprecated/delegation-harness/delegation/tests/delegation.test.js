@@ -76,7 +76,22 @@ function packageMetadata(overrides = {}) {
 }
 
 test("safe ids reject empty, traversal, separators, absolute paths, and unsafe names", () => {
-  for (const value of ["", " ", ".", "..", "../task", "task/child", "task\\child", "/abs", "task name", "task:1", ".hidden", "hidden.", "task|pipe", "task..id"]) {
+  for (const value of [
+    "",
+    " ",
+    ".",
+    "..",
+    "../task",
+    "task/child",
+    "task\\child",
+    "/abs",
+    "task name",
+    "task:1",
+    ".hidden",
+    "hidden.",
+    "task|pipe",
+    "task..id",
+  ]) {
     assert.throws(() => validateSafeId(value, "task id"), /task id/);
   }
 
@@ -115,10 +130,20 @@ test("store appends task and agent events as JSONL", async () => {
     await store.registerAgent({ taskId: "TASK-2", agentId: "worker-2", role: "worker" });
 
     await store.appendTaskEvent("TASK-2", { type: "task-created", message: "ready" });
-    await store.appendAgentEvent("TASK-2", "worker-2", { type: "agent-running", state: "running", data: { pane: "p7" } });
+    await store.appendAgentEvent("TASK-2", "worker-2", {
+      type: "agent-running",
+      state: "running",
+      data: { pane: "p7" },
+    });
 
-    const taskEvents = (await readFile(store.pathsForTask("TASK-2").eventsJsonl, "utf8")).trim().split("\n").map(JSON.parse);
-    const agentEvents = (await readFile(store.pathsForAgent("TASK-2", "worker-2").eventsJsonl, "utf8")).trim().split("\n").map(JSON.parse);
+    const taskEvents = (await readFile(store.pathsForTask("TASK-2").eventsJsonl, "utf8"))
+      .trim()
+      .split("\n")
+      .map(JSON.parse);
+    const agentEvents = (await readFile(store.pathsForAgent("TASK-2", "worker-2").eventsJsonl, "utf8"))
+      .trim()
+      .split("\n")
+      .map(JSON.parse);
 
     assert.equal(taskEvents.length, 1);
     assert.equal(taskEvents[0].scope, "task");
@@ -137,9 +162,30 @@ test("store queues sparse parent alerts and coalesces duplicate unread lifecycle
     const store = createDelegationStore({ root, now: fixedNow });
     await store.registerAgent({ taskId: "TASK-ALERT", agentId: "worker-1", role: "worker", parentAgentId: "parent-1" });
 
-    const first = await store.queueParentAlert("TASK-ALERT", { agentId: "worker-1", outcome: "completed", state: "completed", eventType: "agent-result", sourceEventId: "evt-1", message: "done" });
-    const duplicate = await store.queueParentAlert("TASK-ALERT", { agentId: "worker-1", outcome: "completed", state: "completed", eventType: "agent-result", sourceEventId: "evt-1", message: "done again" });
-    const second = await store.queueParentAlert("TASK-ALERT", { agentId: "worker-1", outcome: "failed", state: "failed", eventType: "agent-result", sourceEventId: "evt-2", message: "failed" });
+    const first = await store.queueParentAlert("TASK-ALERT", {
+      agentId: "worker-1",
+      outcome: "completed",
+      state: "completed",
+      eventType: "agent-result",
+      sourceEventId: "evt-1",
+      message: "done",
+    });
+    const duplicate = await store.queueParentAlert("TASK-ALERT", {
+      agentId: "worker-1",
+      outcome: "completed",
+      state: "completed",
+      eventType: "agent-result",
+      sourceEventId: "evt-1",
+      message: "done again",
+    });
+    const second = await store.queueParentAlert("TASK-ALERT", {
+      agentId: "worker-1",
+      outcome: "failed",
+      state: "failed",
+      eventType: "agent-result",
+      sourceEventId: "evt-2",
+      message: "failed",
+    });
 
     assert.equal(first.queued, true);
     assert.equal(duplicate.queued, false);
@@ -148,11 +194,17 @@ test("store queues sparse parent alerts and coalesces duplicate unread lifecycle
     assert.equal(unread.length, 2);
     assert.equal(unread[0].parentAgentId, "parent-1");
     assert.equal(unread[0].message, "done again");
-    assert.deepEqual(unread.map((alert) => alert.outcome), ["completed", "failed"]);
+    assert.deepEqual(
+      unread.map((alert) => alert.outcome),
+      ["completed", "failed"],
+    );
 
     await store.markParentAlertsRead("TASK-ALERT", [unread[0].alertId]);
     const remaining = await store.readParentAlerts("TASK-ALERT", { unreadOnly: true });
-    assert.deepEqual(remaining.map((alert) => alert.outcome), ["failed"]);
+    assert.deepEqual(
+      remaining.map((alert) => alert.outcome),
+      ["failed"],
+    );
   });
 });
 
@@ -185,12 +237,18 @@ test("store persists execution map work package metadata and blocks duplicate wr
     assert.equal(first.executionMap.integrationOrder.length, 0);
     assert.match(store.pathsForTask("TASK-P5").executionMapJson, /execution-map\.json$/);
 
-    const duplicate = await store.upsertWorkPackage("TASK-P5", packageMetadata({ packageId: "P5B", checkoutPath: "/repo-worktrees/p5a", expectedWriteScopes: ["/repo/other"] }));
+    const duplicate = await store.upsertWorkPackage(
+      "TASK-P5",
+      packageMetadata({ packageId: "P5B", checkoutPath: "/repo-worktrees/p5a", expectedWriteScopes: ["/repo/other"] }),
+    );
     assert.equal(duplicate.decision.allowed, false);
     assert.equal(duplicate.decision.code, "one_writer_violation");
 
     const stored = await store.readExecutionMap("TASK-P5");
-    assert.deepEqual(stored.packages.map((pkg) => pkg.packageId), ["P5A"]);
+    assert.deepEqual(
+      stored.packages.map((pkg) => pkg.packageId),
+      ["P5A"],
+    );
   });
 });
 
@@ -199,11 +257,17 @@ test("store persists declared integration order instead of upsert insertion orde
     const store = createDelegationStore({ root, now: fixedNow });
     await store.initTask({ taskId: "TASK-P5-ORDER" });
 
-    const second = await store.upsertWorkPackage("TASK-P5-ORDER", packageMetadata({ packageId: "P5B", checkoutPath: "/repo-worktrees/p5b", integrationOrder: 1 }));
+    const second = await store.upsertWorkPackage(
+      "TASK-P5-ORDER",
+      packageMetadata({ packageId: "P5B", checkoutPath: "/repo-worktrees/p5b", integrationOrder: 1 }),
+    );
     assert.equal(second.decision.allowed, true, second.decision.reason);
     assert.deepEqual((await store.readExecutionMap("TASK-P5-ORDER")).integrationOrder, ["P5B"]);
 
-    const first = await store.upsertWorkPackage("TASK-P5-ORDER", packageMetadata({ packageId: "P5A", checkoutPath: "/repo-worktrees/p5a", integrationOrder: 0 }));
+    const first = await store.upsertWorkPackage(
+      "TASK-P5-ORDER",
+      packageMetadata({ packageId: "P5A", checkoutPath: "/repo-worktrees/p5a", integrationOrder: 0 }),
+    );
     assert.equal(first.decision.allowed, true, first.decision.reason);
 
     const stored = await store.readExecutionMap("TASK-P5-ORDER");
@@ -213,7 +277,13 @@ test("store persists declared integration order instead of upsert insertion orde
 
 test("worktree branch helpers validate safe ids and preserve branch metadata without git side effects", () => {
   assert.equal(buildWorktreeBranchName({ taskId: "TASK-P5", packageId: "P5A" }), "freeflow/TASK-P5/P5A");
-  const metadata = createWorktreeMetadata({ taskId: "TASK-P5", packageId: "P5A", path: "/repo-worktrees/p5a", baseBranch: "main", baseCommit: "2fa33ea" });
+  const metadata = createWorktreeMetadata({
+    taskId: "TASK-P5",
+    packageId: "P5A",
+    path: "/repo-worktrees/p5a",
+    baseBranch: "main",
+    baseCommit: "2fa33ea",
+  });
   assert.deepEqual(metadata, {
     path: "/repo-worktrees/p5a",
     branchName: "freeflow/TASK-P5/P5A",
@@ -221,7 +291,10 @@ test("worktree branch helpers validate safe ids and preserve branch metadata wit
     baseCommit: "2fa33ea",
   });
   assert.throws(() => buildWorktreeBranchName({ taskId: "../TASK", packageId: "P5A" }), /task id/);
-  assert.throws(() => createWorktreeMetadata({ taskId: "TASK-P5", packageId: "P5A", path: "relative-worktree" }), /worktree path must be an absolute path/);
+  assert.throws(
+    () => createWorktreeMetadata({ taskId: "TASK-P5", packageId: "P5A", path: "relative-worktree" }),
+    /worktree path must be an absolute path/,
+  );
 });
 
 test("execution helpers block unsatisfied dependencies and integration order conflicts", () => {
@@ -232,7 +305,12 @@ test("execution helpers block unsatisfied dependencies and integration order con
     integrationOrder: ["P5A", "P5B"],
     packages: [
       packageMetadata({ packageId: "P5A", state: "completed", checkoutPath: "/repo-worktrees/p5a" }),
-      packageMetadata({ packageId: "P5B", dependencies: ["P5A"], state: "completed", checkoutPath: "/repo-worktrees/p5b" }),
+      packageMetadata({
+        packageId: "P5B",
+        dependencies: ["P5A"],
+        state: "completed",
+        checkoutPath: "/repo-worktrees/p5b",
+      }),
     ],
   };
 
@@ -281,31 +359,139 @@ test("commit checkpoint validation allows only planned reviewed verified explici
   for (const status of ["blocked", "committed", "allowed"]) {
     const nonPlanned = structuredClone(executionMap);
     nonPlanned.packages[0].commitCheckpoints[0].status = status;
-    const decision = validateCommitCheckpoint({ executionMap: nonPlanned, packageId: "P5A", checkpointId: "P5A-checkpoint", role: "execution-parent", changedFiles: [] });
+    const decision = validateCommitCheckpoint({
+      executionMap: nonPlanned,
+      packageId: "P5A",
+      checkpointId: "P5A-checkpoint",
+      role: "execution-parent",
+      changedFiles: [],
+    });
     assert.equal(decision.allowed, false);
     assert.equal(decision.code, "checkpoint_status_not_planned");
   }
 
-  assert.equal(validateCommitCheckpoint({ executionMap, packageId: "P5A", checkpointId: "missing", role: "execution-parent", changedFiles: [] }).code, "not_found");
-  assert.equal(validateCommitCheckpoint({ executionMap, packageId: "P5A", checkpointId: "P5A-checkpoint", role: "worker", changedFiles: [] }).code, "worker_commit_blocked");
-  assert.equal(validateCommitCheckpoint({ executionMap, packageId: "P5A", checkpointId: "P5A-checkpoint", role: "execution-parent", changedFiles: [], stagingCommand: "git add ." }).code, "broad_staging_denied");
-  assert.equal(validateCommitCheckpoint({ executionMap, packageId: "P5A", checkpointId: "P5A-checkpoint", role: "execution-parent", changedFiles: [], commitCommand: "git push origin main" }).code, "push_denied");
-  assert.equal(validateCommitCheckpoint({ executionMap, packageId: "P5A", checkpointId: "P5A-checkpoint", role: "execution-parent", changedFiles: [], stagingCommand: "git worktree add ../wt branch" }).code, "git_operation_unsupported");
-  assert.equal(validateCommitCheckpoint({ executionMap, packageId: "P5A", checkpointId: "P5A-checkpoint", role: "execution-parent", changedFiles: [{ path: "delegation/dist/index.js", generated: true }] }).code, "unexpected_generated_file");
-  assert.equal(validateCommitCheckpoint({ executionMap, packageId: "P5A", checkpointId: "P5A-checkpoint", role: "execution-parent", changedFiles: [{ path: "notes/private.md", userOwned: true }] }).code, "unexpected_user_owned_file");
-  assert.equal(validateCommitCheckpoint({ executionMap, packageId: "P5A", checkpointId: "P5A-checkpoint", role: "execution-parent", changedFiles: [{ path: ".env", sensitive: true }] }).code, "unexpected_sensitive_file");
+  assert.equal(
+    validateCommitCheckpoint({
+      executionMap,
+      packageId: "P5A",
+      checkpointId: "missing",
+      role: "execution-parent",
+      changedFiles: [],
+    }).code,
+    "not_found",
+  );
+  assert.equal(
+    validateCommitCheckpoint({
+      executionMap,
+      packageId: "P5A",
+      checkpointId: "P5A-checkpoint",
+      role: "worker",
+      changedFiles: [],
+    }).code,
+    "worker_commit_blocked",
+  );
+  assert.equal(
+    validateCommitCheckpoint({
+      executionMap,
+      packageId: "P5A",
+      checkpointId: "P5A-checkpoint",
+      role: "execution-parent",
+      changedFiles: [],
+      stagingCommand: "git add .",
+    }).code,
+    "broad_staging_denied",
+  );
+  assert.equal(
+    validateCommitCheckpoint({
+      executionMap,
+      packageId: "P5A",
+      checkpointId: "P5A-checkpoint",
+      role: "execution-parent",
+      changedFiles: [],
+      commitCommand: "git push origin main",
+    }).code,
+    "push_denied",
+  );
+  assert.equal(
+    validateCommitCheckpoint({
+      executionMap,
+      packageId: "P5A",
+      checkpointId: "P5A-checkpoint",
+      role: "execution-parent",
+      changedFiles: [],
+      stagingCommand: "git worktree add ../wt branch",
+    }).code,
+    "git_operation_unsupported",
+  );
+  assert.equal(
+    validateCommitCheckpoint({
+      executionMap,
+      packageId: "P5A",
+      checkpointId: "P5A-checkpoint",
+      role: "execution-parent",
+      changedFiles: [{ path: "delegation/dist/index.js", generated: true }],
+    }).code,
+    "unexpected_generated_file",
+  );
+  assert.equal(
+    validateCommitCheckpoint({
+      executionMap,
+      packageId: "P5A",
+      checkpointId: "P5A-checkpoint",
+      role: "execution-parent",
+      changedFiles: [{ path: "notes/private.md", userOwned: true }],
+    }).code,
+    "unexpected_user_owned_file",
+  );
+  assert.equal(
+    validateCommitCheckpoint({
+      executionMap,
+      packageId: "P5A",
+      checkpointId: "P5A-checkpoint",
+      role: "execution-parent",
+      changedFiles: [{ path: ".env", sensitive: true }],
+    }).code,
+    "unexpected_sensitive_file",
+  );
 
   const missingReview = structuredClone(executionMap);
   missingReview.packages[0].review = { required: true, status: "pending" };
-  assert.equal(validateCommitCheckpoint({ executionMap: missingReview, packageId: "P5A", checkpointId: "P5A-checkpoint", role: "execution-parent", changedFiles: [] }).code, "review_missing");
+  assert.equal(
+    validateCommitCheckpoint({
+      executionMap: missingReview,
+      packageId: "P5A",
+      checkpointId: "P5A-checkpoint",
+      role: "execution-parent",
+      changedFiles: [],
+    }).code,
+    "review_missing",
+  );
 
   const missingVerification = structuredClone(executionMap);
   missingVerification.packages[0].verification = { required: true, status: "pending" };
-  assert.equal(validateCommitCheckpoint({ executionMap: missingVerification, packageId: "P5A", checkpointId: "P5A-checkpoint", role: "execution-parent", changedFiles: [] }).code, "verification_missing");
+  assert.equal(
+    validateCommitCheckpoint({
+      executionMap: missingVerification,
+      packageId: "P5A",
+      checkpointId: "P5A-checkpoint",
+      role: "execution-parent",
+      changedFiles: [],
+    }).code,
+    "verification_missing",
+  );
 
   const noFiles = structuredClone(executionMap);
   noFiles.packages[0].commitCheckpoints[0].intendedFiles = [];
-  assert.equal(validateCommitCheckpoint({ executionMap: noFiles, packageId: "P5A", checkpointId: "P5A-checkpoint", role: "execution-parent", changedFiles: [] }).code, "intended_files_missing");
+  assert.equal(
+    validateCommitCheckpoint({
+      executionMap: noFiles,
+      packageId: "P5A",
+      checkpointId: "P5A-checkpoint",
+      role: "execution-parent",
+      changedFiles: [],
+    }).code,
+    "intended_files_missing",
+  );
 });
 
 test("store preserves raw model result text before writing parsed JSON", async () => {
@@ -417,70 +603,80 @@ test("protocol parser reports parent report blocks with missing required fields 
 
   const kickoffProbe = parseModelText("EXECUTION_KICKOFF\nTASK_GOAL|g\nEND_EXECUTION_KICKOFF");
   assert.equal(kickoffProbe.ok, false);
-  assert.ok(kickoffProbe.errors.some((error) => error.message === "EXECUTION_KICKOFF missing required row SOURCE_TRUTH"));
+  assert.ok(
+    kickoffProbe.errors.some((error) => error.message === "EXECUTION_KICKOFF missing required row SOURCE_TRUTH"),
+  );
 
   const executionProbe = parseModelText("EXECUTION_REPORT\nSTATUS|completed\nSUMMARY|done\nEND_EXECUTION_REPORT");
   assert.equal(executionProbe.ok, false);
-  assert.ok(executionProbe.errors.some((error) => error.message === "EXECUTION_REPORT missing required row SOURCE_REFERENCES"));
+  assert.ok(
+    executionProbe.errors.some((error) => error.message === "EXECUTION_REPORT missing required row SOURCE_REFERENCES"),
+  );
 });
 
 test("protocol parser rejects ready planning reports without one effective plan identity", () => {
-  const conflictingExplicit = parseModelText([
-    "PLANNING_REPORT",
-    "STATUS|ready",
-    "GOAL|Implement the harness.",
-    "PLAN_ARTIFACT_PATH|docs/plans/first.md",
-    "PLAN_ARTIFACT_PATH|docs/plans/second.md",
-    "ARTIFACT_PATHS|docs/plans/first.md,docs/plans/second.md",
-    "REVIEW_STATUS|passed",
-    "SETTLED_DECISIONS|none",
-    "OPEN_QUESTIONS|none",
-    "EXECUTION_AUTONOMY|bounded",
-    "USER_CHECKPOINTS|authorization",
-    "EXECUTION_GUIDANCE|follow the plan",
-    "RISKS|none",
-    "EVIDENCE|tests",
-    "END_PLANNING_REPORT",
-  ].join("\n"));
+  const conflictingExplicit = parseModelText(
+    [
+      "PLANNING_REPORT",
+      "STATUS|ready",
+      "GOAL|Implement the harness.",
+      "PLAN_ARTIFACT_PATH|docs/plans/first.md",
+      "PLAN_ARTIFACT_PATH|docs/plans/second.md",
+      "ARTIFACT_PATHS|docs/plans/first.md,docs/plans/second.md",
+      "REVIEW_STATUS|passed",
+      "SETTLED_DECISIONS|none",
+      "OPEN_QUESTIONS|none",
+      "EXECUTION_AUTONOMY|bounded",
+      "USER_CHECKPOINTS|authorization",
+      "EXECUTION_GUIDANCE|follow the plan",
+      "RISKS|none",
+      "EVIDENCE|tests",
+      "END_PLANNING_REPORT",
+    ].join("\n"),
+  );
   assert.equal(conflictingExplicit.ok, false);
   assert.match(conflictingExplicit.errors[0].message, /exactly one plan artifact/i);
   assert.equal(planningReportPlanArtifactPath(conflictingExplicit.planningReports[0]), undefined);
 
-  const ambiguousLegacy = parseModelText([
-    "PLANNING_REPORT",
-    "STATUS|ready_with_open_questions",
-    "GOAL|Implement the harness.",
-    "ARTIFACT_PATHS|docs/plans/first.md,docs/plans/second.md",
-    "REVIEW_STATUS|pending",
-    "SETTLED_DECISIONS|none",
-    "OPEN_QUESTIONS|one",
-    "EXECUTION_AUTONOMY|bounded",
-    "USER_CHECKPOINTS|authorization",
-    "EXECUTION_GUIDANCE|follow the selected plan",
-    "RISKS|identity ambiguity",
-    "EVIDENCE|tests",
-    "END_PLANNING_REPORT",
-  ].join("\n"));
+  const ambiguousLegacy = parseModelText(
+    [
+      "PLANNING_REPORT",
+      "STATUS|ready_with_open_questions",
+      "GOAL|Implement the harness.",
+      "ARTIFACT_PATHS|docs/plans/first.md,docs/plans/second.md",
+      "REVIEW_STATUS|pending",
+      "SETTLED_DECISIONS|none",
+      "OPEN_QUESTIONS|one",
+      "EXECUTION_AUTONOMY|bounded",
+      "USER_CHECKPOINTS|authorization",
+      "EXECUTION_GUIDANCE|follow the selected plan",
+      "RISKS|identity ambiguity",
+      "EVIDENCE|tests",
+      "END_PLANNING_REPORT",
+    ].join("\n"),
+  );
   assert.equal(ambiguousLegacy.ok, false);
   assert.match(ambiguousLegacy.errors[0].message, /exactly one plan artifact/i);
 });
 
 test("protocol parser reports invalid parent report statuses deterministically", () => {
-  const planningProbe = parseModelText([
-    "PLANNING_REPORT",
-    "STATUS|done",
-    "GOAL|g",
-    "ARTIFACT_PATHS|docs/spec.md",
-    "REVIEW_STATUS|passed",
-    "SETTLED_DECISIONS|decision",
-    "OPEN_QUESTIONS|none",
-    "EXECUTION_AUTONOMY|medium",
-    "USER_CHECKPOINTS|none",
-    "EXECUTION_GUIDANCE|execute",
-    "RISKS|none",
-    "EVIDENCE|docs/spec.md|1|source",
-    "END_PLANNING_REPORT",
-  ].join("\n"));
+  const planningProbe = parseModelText(
+    [
+      "PLANNING_REPORT",
+      "STATUS|done",
+      "GOAL|g",
+      "ARTIFACT_PATHS|docs/spec.md",
+      "REVIEW_STATUS|passed",
+      "SETTLED_DECISIONS|decision",
+      "OPEN_QUESTIONS|none",
+      "EXECUTION_AUTONOMY|medium",
+      "USER_CHECKPOINTS|none",
+      "EXECUTION_GUIDANCE|execute",
+      "RISKS|none",
+      "EVIDENCE|docs/spec.md|1|source",
+      "END_PLANNING_REPORT",
+    ].join("\n"),
+  );
   assert.equal(planningProbe.ok, false);
   assert.ok(planningProbe.errors.some((error) => error.message === "PLANNING_REPORT has unknown STATUS: done"));
 });
@@ -518,21 +714,53 @@ test("profile registry gives parent-control tools only to orchestrator and paren
   const parentProfiles = ["planning-parent", "execution-parent"];
 
   for (const definition of leafProfiles) {
-    assert.equal(definition.activeTools.some((tool) => PARENT_CONTROL_TOOL_NAMES.includes(tool)), false, `${definition.profile} must not include parent-control delegation tools`);
-    assert.equal(definition.activeTools.includes("delegate_route"), false, `${definition.profile} must not include delegate_route`);
-    assert.equal(definition.activeTools.includes("delegate_apply_route"), false, `${definition.profile} must not include delegate_apply_route`);
-    assert.equal(CHILD_LIFECYCLE_TOOL_NAMES.every((tool) => definition.activeTools.includes(tool)), true, `${definition.profile} should include scoped lifecycle tools`);
+    assert.equal(
+      definition.activeTools.some((tool) => PARENT_CONTROL_TOOL_NAMES.includes(tool)),
+      false,
+      `${definition.profile} must not include parent-control delegation tools`,
+    );
+    assert.equal(
+      definition.activeTools.includes("delegate_route"),
+      false,
+      `${definition.profile} must not include delegate_route`,
+    );
+    assert.equal(
+      definition.activeTools.includes("delegate_apply_route"),
+      false,
+      `${definition.profile} must not include delegate_apply_route`,
+    );
+    assert.equal(
+      CHILD_LIFECYCLE_TOOL_NAMES.every((tool) => definition.activeTools.includes(tool)),
+      true,
+      `${definition.profile} should include scoped lifecycle tools`,
+    );
     assert.equal(definition.skills.hardGated, false);
   }
 
   const orchestrator = getProfileDefinition("orchestrator");
-  assert.equal(DELEGATION_TOOL_NAMES.every((tool) => orchestrator.activeTools.includes(tool)), true, "orchestrator must include every delegation tool");
+  assert.equal(
+    DELEGATION_TOOL_NAMES.every((tool) => orchestrator.activeTools.includes(tool)),
+    true,
+    "orchestrator must include every delegation tool",
+  );
   for (const profile of parentProfiles) {
     const definition = getProfileDefinition(profile);
-    assert.equal(PARENT_CONTROL_TOOL_NAMES.every((tool) => definition.activeTools.includes(tool)), true, `${profile} must include parent-control delegation tools`);
-    assert.equal(ORCHESTRATOR_ONLY_TOOL_NAMES.some((tool) => definition.activeTools.includes(tool)), false, `${profile} must exclude orchestrator-only delegation tools`);
+    assert.equal(
+      PARENT_CONTROL_TOOL_NAMES.every((tool) => definition.activeTools.includes(tool)),
+      true,
+      `${profile} must include parent-control delegation tools`,
+    );
+    assert.equal(
+      ORCHESTRATOR_ONLY_TOOL_NAMES.some((tool) => definition.activeTools.includes(tool)),
+      false,
+      `${profile} must exclude orchestrator-only delegation tools`,
+    );
     assert.equal(definition.activeTools.includes("delegate_route"), true, `${profile} must include delegate_route`);
-    assert.equal(definition.activeTools.includes("delegate_apply_route"), true, `${profile} must include delegate_apply_route`);
+    assert.equal(
+      definition.activeTools.includes("delegate_apply_route"),
+      true,
+      `${profile} must include delegate_apply_route`,
+    );
   }
 
   assert.equal(resolveProfileForRole("worker", "write-scoped").profile, "write-scoped");
@@ -556,10 +784,7 @@ test("policy evaluator allows safe representative reads and scoped writes", () =
 });
 
 test("policy evaluator blocks secret paths, writes outside scope, and capability gaps", () => {
-  assertBlocked(
-    evaluatePolicy({ role: "researcher", intent: { kind: "read", path: "/repo/.env" } }),
-    "secret_path",
-  );
+  assertBlocked(evaluatePolicy({ role: "researcher", intent: { kind: "read", path: "/repo/.env" } }), "secret_path");
 
   assertBlocked(
     evaluatePolicy({
@@ -617,11 +842,19 @@ test("policy evaluator blocks forbidden commands and allows explicit safe except
   );
 
   assertBlocked(
-    evaluatePolicy({ role: "worker", intent: { kind: "command", command: "git push origin main" }, taskPolicy: { allowedCommands: ["git push origin main"] } }),
+    evaluatePolicy({
+      role: "worker",
+      intent: { kind: "command", command: "git push origin main" },
+      taskPolicy: { allowedCommands: ["git push origin main"] },
+    }),
     "git_push_denied",
   );
   assertBlocked(
-    evaluatePolicy({ role: "worker", intent: { kind: "command", command: "bash -lc \"git push origin main\"" }, taskPolicy: { allowedCommands: ["bash -lc \"git push origin main\""] } }),
+    evaluatePolicy({
+      role: "worker",
+      intent: { kind: "command", command: 'bash -lc "git push origin main"' },
+      taskPolicy: { allowedCommands: ['bash -lc "git push origin main"'] },
+    }),
     "git_push_denied",
   );
 
@@ -630,15 +863,27 @@ test("policy evaluator blocks forbidden commands and allows explicit safe except
     "unplanned_commit",
   );
   assertBlocked(
-    evaluatePolicy({ role: "execution-parent", intent: { kind: "command", command: "git commit -m checkpoint" }, taskPolicy: { plannedCommit: true } }),
+    evaluatePolicy({
+      role: "execution-parent",
+      intent: { kind: "command", command: "git commit -m checkpoint" },
+      taskPolicy: { plannedCommit: true },
+    }),
     "unplanned_commit",
   );
   assertBlocked(
-    evaluatePolicy({ role: "execution-parent", intent: { kind: "command", command: "git commit -m checkpoint" }, taskPolicy: { allowCommits: true } }),
+    evaluatePolicy({
+      role: "execution-parent",
+      intent: { kind: "command", command: "git commit -m checkpoint" },
+      taskPolicy: { allowCommits: true },
+    }),
     "unplanned_commit",
   );
   assertBlocked(
-    evaluatePolicy({ role: "integrator", intent: { kind: "command", command: "git commit -m checkpoint" }, taskPolicy: { plannedCommit: true, allowedCommands: ["git commit -m checkpoint"] } }),
+    evaluatePolicy({
+      role: "integrator",
+      intent: { kind: "command", command: "git commit -m checkpoint" },
+      taskPolicy: { plannedCommit: true, allowedCommands: ["git commit -m checkpoint"] },
+    }),
     "unplanned_commit",
   );
   assertAllowed(
@@ -646,53 +891,113 @@ test("policy evaluator blocks forbidden commands and allows explicit safe except
       role: "execution-parent",
       intent: { kind: "command", command: "git commit -m checkpoint" },
       taskPolicy: {
-        commitCheckpointApproval: commitCheckpointApprovalFromDecision({ allowed: true, status: "allowed", code: "allowed", reason: "validated checkpoint", packageId: "P5A", checkpointId: "P5A-checkpoint" }),
+        commitCheckpointApproval: commitCheckpointApprovalFromDecision({
+          allowed: true,
+          status: "allowed",
+          code: "allowed",
+          reason: "validated checkpoint",
+          packageId: "P5A",
+          checkpointId: "P5A-checkpoint",
+        }),
       },
     }),
   );
   assertBlocked(
-    evaluatePolicy({ role: "worker", intent: { kind: "command", command: "git commit -m checkpoint" }, taskPolicy: { commitCheckpointApproval: commitCheckpointApprovalFromDecision({ allowed: true, status: "allowed", code: "allowed", reason: "validated checkpoint", packageId: "P5A", checkpointId: "P5A-checkpoint" }) } }),
+    evaluatePolicy({
+      role: "worker",
+      intent: { kind: "command", command: "git commit -m checkpoint" },
+      taskPolicy: {
+        commitCheckpointApproval: commitCheckpointApprovalFromDecision({
+          allowed: true,
+          status: "allowed",
+          code: "allowed",
+          reason: "validated checkpoint",
+          packageId: "P5A",
+          checkpointId: "P5A-checkpoint",
+        }),
+      },
+    }),
     "unplanned_commit",
   );
   assertBlocked(
-    evaluatePolicy({ role: "execution-parent", intent: { kind: "command", command: "git add ." }, taskPolicy: { plannedCommit: true } }),
+    evaluatePolicy({
+      role: "execution-parent",
+      intent: { kind: "command", command: "git add ." },
+      taskPolicy: { plannedCommit: true },
+    }),
     "broad_staging_denied",
   );
   assertBlocked(
-    evaluatePolicy({ role: "execution-parent", intent: { kind: "command", command: "git worktree add ../worker branch" }, taskPolicy: { allowedCommands: ["git worktree add ../worker branch"] } }),
+    evaluatePolicy({
+      role: "execution-parent",
+      intent: { kind: "command", command: "git worktree add ../worker branch" },
+      taskPolicy: { allowedCommands: ["git worktree add ../worker branch"] },
+    }),
     "git_operation_unsupported",
   );
   assertBlocked(
-    evaluatePolicy({ role: "execution-parent", intent: { kind: "command", command: "git worktree lock ../worker" }, taskPolicy: { allowedCommands: ["git worktree lock ../worker"] } }),
+    evaluatePolicy({
+      role: "execution-parent",
+      intent: { kind: "command", command: "git worktree lock ../worker" },
+      taskPolicy: { allowedCommands: ["git worktree lock ../worker"] },
+    }),
     "git_operation_unsupported",
   );
   assertBlocked(
-    evaluatePolicy({ role: "execution-parent", intent: { kind: "command", command: "git worktree unlock ../worker" }, taskPolicy: { allowedCommands: ["git worktree unlock ../worker"] } }),
+    evaluatePolicy({
+      role: "execution-parent",
+      intent: { kind: "command", command: "git worktree unlock ../worker" },
+      taskPolicy: { allowedCommands: ["git worktree unlock ../worker"] },
+    }),
     "git_operation_unsupported",
   );
 
   assertBlocked(
-    evaluatePolicy({ role: "worker", intent: { kind: "command", command: "rm -rf ." }, taskPolicy: { allowedCommands: ["rm -rf ."] } }),
+    evaluatePolicy({
+      role: "worker",
+      intent: { kind: "command", command: "rm -rf ." },
+      taskPolicy: { allowedCommands: ["rm -rf ."] },
+    }),
     "destructive_command",
   );
   assertBlocked(
-    evaluatePolicy({ role: "worker", intent: { kind: "command", command: "rm -fr ." }, taskPolicy: { allowedCommands: ["rm -fr ."] } }),
+    evaluatePolicy({
+      role: "worker",
+      intent: { kind: "command", command: "rm -fr ." },
+      taskPolicy: { allowedCommands: ["rm -fr ."] },
+    }),
     "destructive_command",
   );
   assertBlocked(
-    evaluatePolicy({ role: "worker", intent: { kind: "command", command: "rm -Rf ." }, taskPolicy: { allowedCommands: ["rm -Rf ."] } }),
+    evaluatePolicy({
+      role: "worker",
+      intent: { kind: "command", command: "rm -Rf ." },
+      taskPolicy: { allowedCommands: ["rm -Rf ."] },
+    }),
     "destructive_command",
   );
   assertBlocked(
-    evaluatePolicy({ role: "worker", intent: { kind: "command", command: "sh -c 'rm -fr .'" }, taskPolicy: { allowedCommands: ["sh -c 'rm -fr .'"] } }),
+    evaluatePolicy({
+      role: "worker",
+      intent: { kind: "command", command: "sh -c 'rm -fr .'" },
+      taskPolicy: { allowedCommands: ["sh -c 'rm -fr .'"] },
+    }),
     "destructive_command",
   );
   assertBlocked(
-    evaluatePolicy({ role: "worker", intent: { kind: "command", command: "env | sort" }, taskPolicy: { allowedCommands: ["env | sort"] } }),
+    evaluatePolicy({
+      role: "worker",
+      intent: { kind: "command", command: "env | sort" },
+      taskPolicy: { allowedCommands: ["env | sort"] },
+    }),
     "credential_env_dump",
   );
   assertBlocked(
-    evaluatePolicy({ role: "worker", intent: { kind: "command", command: "bash -lc \"printenv\"" }, taskPolicy: { allowedCommands: ["bash -lc \"printenv\""] } }),
+    evaluatePolicy({
+      role: "worker",
+      intent: { kind: "command", command: 'bash -lc "printenv"' },
+      taskPolicy: { allowedCommands: ['bash -lc "printenv"'] },
+    }),
     "credential_env_dump",
   );
   assertBlocked(
@@ -700,14 +1005,22 @@ test("policy evaluator blocks forbidden commands and allows explicit safe except
     "publish_deploy_denied",
   );
   assertBlocked(
-    evaluatePolicy({ role: "execution-parent", intent: { kind: "command", command: "bash -lc \"npm publish\"" } }),
+    evaluatePolicy({ role: "execution-parent", intent: { kind: "command", command: 'bash -lc "npm publish"' } }),
     "publish_deploy_denied",
   );
   assertAllowed(
-    evaluatePolicy({ role: "execution-parent", intent: { kind: "command", command: "npm publish" }, taskPolicy: { allowPublishDeploy: true } }),
+    evaluatePolicy({
+      role: "execution-parent",
+      intent: { kind: "command", command: "npm publish" },
+      taskPolicy: { allowPublishDeploy: true },
+    }),
   );
   assertAllowed(
-    evaluatePolicy({ role: "orchestrator", intent: { kind: "command", command: "git push origin main" }, taskPolicy: { allowGitPush: true, explicitUserConfirmation: true } }),
+    evaluatePolicy({
+      role: "orchestrator",
+      intent: { kind: "command", command: "git push origin main" },
+      taskPolicy: { allowGitPush: true, explicitUserConfirmation: true },
+    }),
   );
 });
 
@@ -740,15 +1053,26 @@ test("task packet compiler renders readable Markdown with scoped lifecycle retur
     cwd: "/repo",
     objective: "Implement P2|P3\ncore interface foundation.",
     sourcePointers: [
-      { kind: "spec", path: "docs/specs/delegation/freeflow-pi-pane-delegation-harness-spec.md", note: "Task packet requirements" },
-      { kind: "plan", path: "docs/plans/delegation/2026-07-01-freeflow-pi-pane-delegation-harness-implementation-plan.md" },
+      {
+        kind: "spec",
+        path: "docs/specs/delegation/freeflow-pi-pane-delegation-harness-spec.md",
+        note: "Task packet requirements",
+      },
+      {
+        kind: "plan",
+        path: "docs/plans/delegation/2026-07-01-freeflow-pi-pane-delegation-harness-implementation-plan.md",
+      },
     ],
     inScope: ["profiles|policy", "packet compiler"],
     outOfScope: ["cmux\nadapter", "Pi runtime"],
     writeScope: ["/repo/delegation/src", "/repo/delegation/tests"],
     allowedCommands: ["npm run test:delegation", "npm run build"],
     evidence: [
-      { label: "handoff", path: "docs/handoffs/delegation/2026-07-02-manual-cmux-delegation-harness-dogfood.md", note: "Manual P2|P3 lessons\nonly" },
+      {
+        label: "handoff",
+        path: "docs/handoffs/delegation/2026-07-02-manual-cmux-delegation-harness-dogfood.md",
+        note: "Manual P2|P3 lessons\nonly",
+      },
       { label: "prior-check", outputId: "ffout_123", lines: "1-5", note: "prior verification pointer" },
     ],
     stopConditions: ["Spec conflict", "Need out-of-scope cmux work"],
@@ -758,21 +1082,32 @@ test("task packet compiler renders readable Markdown with scoped lifecycle retur
 
   assert.equal(packet.role, "worker");
   assert.equal(packet.profile, "worker");
-  assert.equal(packet.tools.some((tool) => PARENT_CONTROL_TOOL_NAMES.includes(tool)), false);
+  assert.equal(
+    packet.tools.some((tool) => PARENT_CONTROL_TOOL_NAMES.includes(tool)),
+    false,
+  );
   assert.equal(packet.tools.includes("delegate_finish"), true);
   assert.match(packet.text, /^# Delegated task: worker-9\n/);
   assert.doesNotMatch(packet.text, /^FREEFLOW_TASK_PACKET/m);
   assert.ok(packet.text.includes("- task: TASK-9"));
   assert.ok(packet.text.includes("- role/profile: worker / worker"));
   assert.ok(packet.text.includes("Implement P2|P3\ncore interface foundation."));
-  assert.ok(packet.text.includes("- spec: docs/specs/delegation/freeflow-pi-pane-delegation-harness-spec.md — Task packet requirements"));
+  assert.ok(
+    packet.text.includes(
+      "- spec: docs/specs/delegation/freeflow-pi-pane-delegation-harness-spec.md — Task packet requirements",
+    ),
+  );
   assert.ok(packet.text.includes("- profiles|policy"));
   assert.ok(packet.text.includes("- cmux\nadapter"));
   assert.ok(packet.text.includes("- delegate_finish"));
   assert.ok(packet.text.includes("- commands_require_ALLOWED_COMMAND_rows"));
   assert.ok(packet.text.includes("- /repo/delegation/src"));
   assert.ok(packet.text.includes("- npm run test:delegation"));
-  assert.ok(packet.text.includes("- handoff: path=docs/handoffs/delegation/2026-07-02-manual-cmux-delegation-harness-dogfood.md — Manual P2|P3 lessons\nonly"));
+  assert.ok(
+    packet.text.includes(
+      "- handoff: path=docs/handoffs/delegation/2026-07-02-manual-cmux-delegation-harness-dogfood.md — Manual P2|P3 lessons\nonly",
+    ),
+  );
   assert.ok(packet.text.includes("- prior-check: outputId=ffout_123 — lines=1-5 — prior verification pointer"));
   assert.ok(packet.text.includes("- Spec conflict"));
   assert.ok(packet.text.includes("- DELEGATE_FINISH_REQUIRED"));
@@ -826,14 +1161,33 @@ test("task packet compiler rejects malformed required input without side effects
   assert.throws(() => compileTaskPacket({ ...base, cwd: "repo" }), /cwd must be an absolute path/);
   assert.throws(() => compileTaskPacket({ ...base, profile: "reviewer" }), /cannot be used for role worker/);
   assert.throws(() => compileTaskPacket({ ...base, writeScope: undefined }), /requires at least one write scope/);
-  assert.throws(() => compileTaskPacket({ ...base, writeScope: "may touch delegation\/\*\*, pi-extension\/\*\*" }), /path or glob scope only/);
-  assert.throws(() => compileTaskPacket({ ...base, writeScope: "delegation\/\*\*,pi-extension\/\*\*" }), /path or glob scope only/);
-  assert.throws(() => compileTaskPacket({ ...base, tools: ["read", "edit", "write"], returnProtocol: ["DELEGATE_FINISH_REQUIRED"] }), /delegate_finish.*active/);
+  assert.throws(
+    () => compileTaskPacket({ ...base, writeScope: "may touch delegation\/\*\*, pi-extension\/\*\*" }),
+    /path or glob scope only/,
+  );
+  assert.throws(
+    () => compileTaskPacket({ ...base, writeScope: "delegation\/\*\*,pi-extension\/\*\*" }),
+    /path or glob scope only/,
+  );
+  assert.throws(
+    () =>
+      compileTaskPacket({ ...base, tools: ["read", "edit", "write"], returnProtocol: ["DELEGATE_FINISH_REQUIRED"] }),
+    /delegate_finish.*active/,
+  );
   assert.throws(() => compileTaskPacket({ ...base, tracePath: undefined }), /trace path is required/);
   assert.throws(() => compileTaskPacket({ ...base, resultPath: undefined }), /result path is required/);
-  assert.throws(() => compileTaskPacket({ ...base, allowedCommands: ["npm run build\nnpm test"] }), /allowed command 1 must not contain newlines/);
-  assert.throws(() => compileTaskPacket({ ...base, evidence: [{ label: "raw dump" }] }), /must reference a path or outputId/);
-  assert.throws(() => compileTaskPacket({ ...base, tools: ["read", "delegate_spawn"] }), /not active for profile worker|cannot receive delegation/);
+  assert.throws(
+    () => compileTaskPacket({ ...base, allowedCommands: ["npm run build\nnpm test"] }),
+    /allowed command 1 must not contain newlines/,
+  );
+  assert.throws(
+    () => compileTaskPacket({ ...base, evidence: [{ label: "raw dump" }] }),
+    /must reference a path or outputId/,
+  );
+  assert.throws(
+    () => compileTaskPacket({ ...base, tools: ["read", "delegate_spawn"] }),
+    /not active for profile worker|cannot receive delegation/,
+  );
 });
 
 function assertAllowed(decision) {

@@ -53,10 +53,15 @@ export async function resolveScriptTransformAdapterRoot(
 }
 
 export function defaultScriptTransformNodeBinary(env: NodeJS.ProcessEnv = process.env): string {
-  return env[SCRIPT_TRANSFORM_NODE_ENV] || join(defaultScriptTransformAdaptersHome(env), "node_modules", "node", "bin", "node");
+  return (
+    env[SCRIPT_TRANSFORM_NODE_ENV] ||
+    join(defaultScriptTransformAdaptersHome(env), "node_modules", "node", "bin", "node")
+  );
 }
 
-export function scriptTransformAdapterInstallSpecs(languages: readonly ScriptTransformAdapterLanguage[] = ["javascript", "jq", "python"]): string[] {
+export function scriptTransformAdapterInstallSpecs(
+  languages: readonly ScriptTransformAdapterLanguage[] = ["javascript", "jq", "python"],
+): string[] {
   const specs = languages.map((language) => {
     const adapter = SCRIPT_TRANSFORM_ADAPTER_PACKAGES[language];
     return `${adapter.packageName}@${adapter.version}`;

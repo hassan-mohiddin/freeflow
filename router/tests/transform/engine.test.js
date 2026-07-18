@@ -25,9 +25,12 @@ async function withTempVault(fn) {
   }
 }
 
-const HAS_ERYX_ADAPTER = Boolean(process.env.FREEFLOW_ERYX_ROOT)
-  || existsSync(join(homedir(), ".cache", "freeflow-script-adapters", "node_modules", "@bsull", "eryx", "package.json"));
-const ERYX_INTEGRATION_SKIP_REASON = HAS_ERYX_ADAPTER ? false : "No Eryx adapter package root found in FREEFLOW_ERYX_ROOT or the global Freeflow adapter cache.";
+const HAS_ERYX_ADAPTER =
+  Boolean(process.env.FREEFLOW_ERYX_ROOT) ||
+  existsSync(join(homedir(), ".cache", "freeflow-script-adapters", "node_modules", "@bsull", "eryx", "package.json"));
+const ERYX_INTEGRATION_SKIP_REASON = HAS_ERYX_ADAPTER
+  ? false
+  : "No Eryx adapter package root found in FREEFLOW_ERYX_ROOT or the global Freeflow adapter cache.";
 
 test("validateTransformInput accepts vault regex filter and count operations", () => {
   const regexFilter = validateTransformInput({
@@ -146,15 +149,21 @@ test("validateTransformInput accepts URL, citation, and stats operations", () =>
 
   assert.equal(citations.ok, true);
 
-  assert.equal(validateTransformInput({
-    source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
-    operation: { kind: "lineStats" },
-  }).ok, true);
+  assert.equal(
+    validateTransformInput({
+      source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
+      operation: { kind: "lineStats" },
+    }).ok,
+    true,
+  );
 
-  assert.equal(validateTransformInput({
-    source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
-    operation: { kind: "sizeStats" },
-  }).ok, true);
+  assert.equal(
+    validateTransformInput({
+      source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
+      operation: { kind: "sizeStats" },
+    }).ok,
+    true,
+  );
 
   const invalid = validateTransformInput({
     source: { kind: "vault", outputId: "ffout_source", stream: "stdout" },
@@ -178,7 +187,9 @@ test("validateTransformInput accepts script operation shape and rejects unsafe s
 
   assert.equal(valid.ok, true);
   assert.equal(valid.value.operation.kind, "script");
-  assert.deepEqual(valid.value.sources, [{ kind: "vault", outputId: "ffout_source", stream: "combined", alias: "test_log" }]);
+  assert.deepEqual(valid.value.sources, [
+    { kind: "vault", outputId: "ffout_source", stream: "combined", alias: "test_log" },
+  ]);
 
   const invalid = validateTransformInput({
     sources: [
@@ -385,7 +396,7 @@ test("freeflowTransform script operation executes jq through a registered proof-
       },
       scriptSandboxAdapters: [adapter],
       sources: [{ kind: "vault", outputId: source.outputId, stream: "stdout", alias: "log" }],
-      operation: { kind: "script", language: "jq", code: '.log # RAW_JQ_SCRIPT_SENTINEL' },
+      operation: { kind: "script", language: "jq", code: ".log # RAW_JQ_SCRIPT_SENTINEL" },
       limits: { maxInputBytes: 1024, maxOutputBytes: 4096 },
     });
 
@@ -403,46 +414,56 @@ test("freeflowTransform script operation executes jq through a registered proof-
   });
 });
 
-test("freeflowTransform script operation executes Python through discovered Eryx adapter when configured", { skip: ERYX_INTEGRATION_SKIP_REASON }, async () => {
-  await withTempVault(async (vault) => {
-    const source = await storeCommandOutput(vault, {
-      sessionId: "script-eryx-execute-session",
-      command: "printf log",
-      stdout: "alpha",
-      stderr: "",
-      executionStatus: "success",
-      exitCode: 0,
-      createdAt: "2026-06-24T00:00:00.000Z",
-    });
-    const adapters = await discoverEryxPythonSandboxAdaptersFromEnv({ FREEFLOW_ERYX_ROOT: process.env.FREEFLOW_ERYX_ROOT });
+test(
+  "freeflowTransform script operation executes Python through discovered Eryx adapter when configured",
+  { skip: ERYX_INTEGRATION_SKIP_REASON },
+  async () => {
+    await withTempVault(async (vault) => {
+      const source = await storeCommandOutput(vault, {
+        sessionId: "script-eryx-execute-session",
+        command: "printf log",
+        stdout: "alpha",
+        stderr: "",
+        executionStatus: "success",
+        exitCode: 0,
+        createdAt: "2026-06-24T00:00:00.000Z",
+      });
+      const adapters = await discoverEryxPythonSandboxAdaptersFromEnv({
+        FREEFLOW_ERYX_ROOT: process.env.FREEFLOW_ERYX_ROOT,
+      });
 
-    const result = await freeflowTransform({
-      sessionId: "script-eryx-execute-session",
-      vaultRoot: vault.root,
-      scriptTransform: {
-        enabled: true,
-        sandbox: "auto",
-        languages: ["python"],
-        network: "off",
+      const result = await freeflowTransform({
+        sessionId: "script-eryx-execute-session",
+        vaultRoot: vault.root,
+        scriptTransform: {
+          enabled: true,
+          sandbox: "auto",
+          languages: ["python"],
+          network: "off",
+          limits: { timeoutMs: 1000, maxInputBytes: 1024, maxOutputBytes: 4096 },
+          rawScriptPersistence: "disabled",
+        },
+        scriptSandboxAdapters: adapters,
+        sources: [{ kind: "vault", outputId: source.outputId, stream: "stdout", alias: "log" }],
+        operation: {
+          kind: "script",
+          language: "python",
+          code: "write_text(read_text('log').upper())\n# RAW_PYTHON_SCRIPT_SENTINEL",
+        },
         limits: { timeoutMs: 1000, maxInputBytes: 1024, maxOutputBytes: 4096 },
-        rawScriptPersistence: "disabled",
-      },
-      scriptSandboxAdapters: adapters,
-      sources: [{ kind: "vault", outputId: source.outputId, stream: "stdout", alias: "log" }],
-      operation: { kind: "script", language: "python", code: "write_text(read_text('log').upper())\n# RAW_PYTHON_SCRIPT_SENTINEL" },
-      limits: { timeoutMs: 1000, maxInputBytes: 1024, maxOutputBytes: 4096 },
-    });
+      });
 
-    assert.equal(result.toolStatus, "ok");
-    assert.equal(result.operation.kind, "script");
-    assert.equal(result.operation.language, "python");
-    assert.match(result.operation.codeSha256, /^sha256_[0-9a-f]{64}$/);
-    assert.doesNotMatch(JSON.stringify(result), /RAW_PYTHON_SCRIPT_SENTINEL/);
-    const transformed = await readOutputText(vault, "script-eryx-execute-session", result.outputId, "raw");
-    assert.equal(transformed, "ALPHA");
-    validateRoutedResult(result);
-  });
-});
+      assert.equal(result.toolStatus, "ok");
+      assert.equal(result.operation.kind, "script");
+      assert.equal(result.operation.language, "python");
+      assert.match(result.operation.codeSha256, /^sha256_[0-9a-f]{64}$/);
+      assert.doesNotMatch(JSON.stringify(result), /RAW_PYTHON_SCRIPT_SENTINEL/);
+      const transformed = await readOutputText(vault, "script-eryx-execute-session", result.outputId, "raw");
+      assert.equal(transformed, "ALPHA");
+      validateRoutedResult(result);
+    });
+  },
+);
 
 test("freeflowTransform script operation returns structured failure for adapter execution failures", async () => {
   await withTempVault(async (vault) => {
@@ -764,7 +785,7 @@ test("freeflowTransform groupByRegex groups matching lines by capture", async ()
 
     assert.equal(result.toolStatus, "ok");
     assert.equal(result.producer.name, "groupByRegex");
-    assert.equal(result.summary, "Transformed groupByRegex from vaulted stdout output: 3 group(s), 4 matched line(s)." );
+    assert.equal(result.summary, "Transformed groupByRegex from vaulted stdout output: 3 group(s), 4 matched line(s).");
     assert.deepEqual(result.lineage.sourceOutputIds, [source.outputId]);
     const raw = await readOutputText(vault, "transform-group-session", result.outputId, "raw");
     assert.match(raw, /# freeflow_search action=transform groupByRegex/);
@@ -797,7 +818,10 @@ test("freeflowTransform dedupe returns first-seen unique lines", async () => {
     });
 
     assert.equal(result.toolStatus, "ok");
-    assert.equal(result.summary, "Transformed dedupe from vaulted stdout output: 3 unique line(s), 3 duplicate line(s) removed.");
+    assert.equal(
+      result.summary,
+      "Transformed dedupe from vaulted stdout output: 3 unique line(s), 3 duplicate line(s) removed.",
+    );
     assert.deepEqual(result.lineage.sourceOutputIds, [source.outputId]);
     const raw = await readOutputText(vault, "transform-dedupe-session", result.outputId, "raw");
     assert.match(raw, /# freeflow_search action=transform dedupe/);
@@ -870,7 +894,10 @@ test("freeflowTransform extractUrls returns bounded URL evidence", async () => {
 
     assert.equal(result.toolStatus, "ok");
     assert.equal(result.producer.name, "extractUrls");
-    assert.equal(result.summary, "Transformed extractUrls from vaulted stdout output: 3 URL(s) returned from 4 match(es).");
+    assert.equal(
+      result.summary,
+      "Transformed extractUrls from vaulted stdout output: 3 URL(s) returned from 4 match(es).",
+    );
     assert.deepEqual(result.lineage.sourceOutputIds, [source.outputId]);
     const raw = await readOutputText(vault, "transform-urls-session", result.outputId, "raw");
     assert.match(raw, /# freeflow_search action=transform extractUrls/);
@@ -939,7 +966,10 @@ test("freeflowTransform lineStats and sizeStats summarize vaulted text", async (
     });
 
     assert.equal(lineStats.toolStatus, "ok");
-    assert.equal(lineStats.summary, "Transformed lineStats from vaulted stdout output: 3 line(s), 2 non-empty, 1 blank.");
+    assert.equal(
+      lineStats.summary,
+      "Transformed lineStats from vaulted stdout output: 3 line(s), 2 non-empty, 1 blank.",
+    );
     const lineRaw = await readOutputText(vault, "transform-stats-session", lineStats.outputId, "raw");
     assert.match(lineRaw, /# freeflow_search action=transform lineStats/);
     assert.match(lineRaw, /lines: 3/);
@@ -956,7 +986,10 @@ test("freeflowTransform lineStats and sizeStats summarize vaulted text", async (
     });
 
     assert.equal(sizeStats.toolStatus, "ok");
-    assert.equal(sizeStats.summary, "Transformed sizeStats from vaulted stdout output: 13 byte(s), 12 code unit(s), 3 line(s).");
+    assert.equal(
+      sizeStats.summary,
+      "Transformed sizeStats from vaulted stdout output: 13 byte(s), 12 code unit(s), 3 line(s).",
+    );
     assert.deepEqual(sizeStats.lineage.sourceOutputIds, [source.outputId]);
     const sizeRaw = await readOutputText(vault, "transform-stats-session", sizeStats.outputId, "raw");
     assert.match(sizeRaw, /# freeflow_search action=transform sizeStats/);

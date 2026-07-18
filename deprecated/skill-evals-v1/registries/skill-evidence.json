@@ -36,43 +36,20 @@
   ],
   "skills": {
     "bypass": {
-      "evals": [
-        "BYP-001",
-        "BYP-002"
-      ],
+      "evals": ["BYP-001", "BYP-002"],
       "status": "unverified"
     },
     "commit-work": {
-      "evals": [
-        "CMT-001",
-        "CMT-002",
-        "CMT-003",
-        "CMT-004",
-        "CMT-005"
-      ],
+      "evals": ["CMT-001", "CMT-002", "CMT-003", "CMT-004", "CMT-005"],
       "status": "unverified"
     },
     "decision-gate": {
       "status": "unverified",
       "evals": [],
-      "historical_evals": [
-        "IVG-001",
-        "IVG-002",
-        "IVG-003",
-        "IVG-004",
-        "IVG-005"
-      ]
+      "historical_evals": ["IVG-001", "IVG-002", "IVG-003", "IVG-004", "IVG-005"]
     },
     "delegation-harness": {
-      "evals": [
-        "DEL-001",
-        "DEL-002",
-        "DEL-003",
-        "DEL-004",
-        "DEL-005",
-        "DEL-006",
-        "DEL-007"
-      ],
+      "evals": ["DEL-001", "DEL-002", "DEL-003", "DEL-004", "DEL-005", "DEL-006", "DEL-007"],
       "status": "unverified"
     },
     "migration-work": {
@@ -80,38 +57,19 @@
       "evals": []
     },
     "design-for-depth": {
-      "evals": [
-        "DFD-001",
-        "DFD-002",
-        "DFD-003"
-      ],
+      "evals": ["DFD-001", "DFD-002", "DFD-003"],
       "status": "unverified"
     },
     "diagnose-failure": {
-      "evals": [
-        "DIA-001",
-        "DIA-002",
-        "DIA-003"
-      ],
+      "evals": ["DIA-001", "DIA-002", "DIA-003"],
       "status": "unverified"
     },
     "discover": {
-      "evals": [
-        "DIS-001",
-        "DIS-002",
-        "DIS-003",
-        "DIS-004",
-        "CMD-012",
-        "IVG-005"
-      ],
+      "evals": ["DIS-001", "DIS-002", "DIS-003", "DIS-004", "CMD-012", "IVG-005"],
       "status": "unverified"
     },
     "evaluate-skill": {
-      "evals": [
-        "ESK-001",
-        "ESK-002",
-        "ESK-003"
-      ],
+      "evals": ["ESK-001", "ESK-002", "ESK-003"],
       "status": "unverified",
       "readiness_transition": {
         "reason": "evaluator-v3-runtime-source-change",
@@ -148,15 +106,7 @@
       }
     },
     "execute-plan": {
-      "evals": [
-        "XPL-001",
-        "XPL-002",
-        "XPL-003",
-        "XPL-004",
-        "XPL-005",
-        "XPL-006",
-        "XPL-007"
-      ],
+      "evals": ["XPL-001", "XPL-002", "XPL-003", "XPL-004", "XPL-005", "XPL-006", "XPL-007"],
       "status": "unverified"
     },
     "finish-branch": {
@@ -164,34 +114,15 @@
       "evals": []
     },
     "handoff": {
-      "evals": [
-        "HOF-001",
-        "HOF-002",
-        "HOF-003",
-        "HOF-004",
-        "HOF-005"
-      ],
+      "evals": ["HOF-001", "HOF-002", "HOF-003", "HOF-004", "HOF-005"],
       "status": "unverified"
     },
     "mode-contract": {
-      "evals": [
-        "MODE-001",
-        "MODE-002",
-        "MODE-003",
-        "MODE-004",
-        "MODE-005",
-        "MODE-006",
-        "MODE-007"
-      ],
+      "evals": ["MODE-001", "MODE-002", "MODE-003", "MODE-004", "MODE-005", "MODE-006", "MODE-007"],
       "status": "unverified"
     },
     "output-router": {
-      "evals": [
-        "OTR-001",
-        "OTR-002",
-        "OTR-003",
-        "CMD-016"
-      ],
+      "evals": ["OTR-001", "OTR-002", "OTR-003", "CMD-016"],
       "status": "unverified"
     },
     "release-work": {
@@ -199,25 +130,11 @@
       "evals": []
     },
     "review-artifact": {
-      "evals": [
-        "RAR-001",
-        "RAR-002",
-        "RAR-003",
-        "RAR-004",
-        "RAR-005"
-      ],
+      "evals": ["RAR-001", "RAR-002", "RAR-003", "RAR-004", "RAR-005"],
       "status": "unverified"
     },
     "review-work": {
-      "evals": [
-        "REV-001",
-        "REV-002",
-        "REV-003",
-        "REV-004",
-        "REV-005",
-        "REV-006",
-        "REV-007"
-      ],
+      "evals": ["REV-001", "REV-002", "REV-003", "REV-004", "REV-005", "REV-006", "REV-007"],
       "status": "unverified"
     },
     "setup-freeflow": {
@@ -235,9 +152,7 @@
         "STP-012"
       ],
       "status": "unverified",
-      "historical_evals": [
-        "STP-004"
-      ]
+      "historical_evals": ["STP-004"]
     },
     "launch-work": {
       "status": "unverified",
@@ -252,39 +167,19 @@
       "evals": []
     },
     "verify-work": {
-      "evals": [
-        "CMD-005",
-        "VFY-001",
-        "VFY-002",
-        "VFY-003",
-        "VFY-004"
-      ],
+      "evals": ["CMD-005", "VFY-001", "VFY-002", "VFY-003", "VFY-004"],
       "status": "unverified"
     },
     "workflow": {
-      "evals": [
-        "WRC-001",
-        "WRC-002",
-        "FX-004",
-        "IVG-005"
-      ],
+      "evals": ["WRC-001", "WRC-002", "FX-004", "IVG-005"],
       "status": "unverified"
     },
     "write-plan": {
-      "evals": [
-        "WPL-001",
-        "WPL-002",
-        "WPL-003",
-        "WPL-004",
-        "WPL-005",
-        "WPL-006"
-      ],
+      "evals": ["WPL-001", "WPL-002", "WPL-003", "WPL-004", "WPL-005", "WPL-006"],
       "status": "unverified"
     },
     "write-skill": {
-      "evals": [
-        "WSK-001"
-      ],
+      "evals": ["WSK-001"],
       "status": "production-ready",
       "readiness": {
         "support_id": "pi-0.80.6-openai-codex-gpt-5.5-high",
@@ -293,18 +188,9 @@
         "provider": "openai-codex",
         "model": "gpt-5.5",
         "thinking": "high",
-        "execution_modes": [
-          "one-shot",
-          "fixed-script-two-turn"
-        ],
+        "execution_modes": ["one-shot", "fixed-script-two-turn"],
         "report": ".skill-eval/evaluate-skill/reports/production-readiness.md",
-        "unsupported": [
-          "other-hosts",
-          "other-models",
-          "other-pi-versions",
-          "adaptive-conversation",
-          "session-recovery"
-        ]
+        "unsupported": ["other-hosts", "other-models", "other-pi-versions", "adaptive-conversation", "session-recovery"]
       }
     },
     "write-spec": {

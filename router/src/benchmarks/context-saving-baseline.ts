@@ -149,11 +149,7 @@ const GUARDED_FIXTURES: ContextSavingGuardrail[] = [
   },
   {
     path: "router/tests/pi-extension.test.js",
-    behaviors: [
-      "public Pi tool schemas",
-      "content/details result contract",
-      "compact and expanded TUI renderers",
-    ],
+    behaviors: ["public Pi tool schemas", "content/details result contract", "compact and expanded TUI renderers"],
   },
   {
     path: "router/tests/pi/pi-extension-search.test.js",
@@ -429,7 +425,9 @@ function makeObservation(input: ObservationInput): ContextSavingBaselineObservat
     modelVisibleTokensApprox: approximateTokens(modelVisibleBytes),
     detailsPayloadTokensApprox: approximateTokens(detailsPayloadBytes),
     modelVisibleReductionPercent: reductionPercent(input.rawBytes, modelVisibleBytes),
-    factsPreserved: input.requiredFacts.every((fact) => modelVisibleText.includes(fact) || detailsPayloadText.includes(fact)),
+    factsPreserved: input.requiredFacts.every(
+      (fact) => modelVisibleText.includes(fact) || detailsPayloadText.includes(fact),
+    ),
     recoveryAvailable: Boolean(recoveryHint || outputId || evidenceLocations.length > 0),
     recoveryHint,
     status: resultStatus(input.result),
@@ -442,7 +440,9 @@ function makeObservation(input: ObservationInput): ContextSavingBaselineObservat
   return observation;
 }
 
-function summarizeObservations(observations: readonly ContextSavingBaselineObservation[]): ContextSavingBaselineSummary {
+function summarizeObservations(
+  observations: readonly ContextSavingBaselineObservation[],
+): ContextSavingBaselineSummary {
   const totalRawBytes = observations.reduce((sum, observation) => sum + observation.rawBytes, 0);
   const totalModelVisibleBytes = observations.reduce((sum, observation) => sum + observation.modelVisibleBytes, 0);
   const totalDetailsPayloadBytes = observations.reduce((sum, observation) => sum + observation.detailsPayloadBytes, 0);
@@ -500,7 +500,11 @@ function resultEvidenceLocations(result: unknown): string[] {
     if (!record) {
       continue;
     }
-    const path = stringAt(record, "path") ?? stringAt(asRecord(record.source), "path") ?? stringAt(asRecord(record.source), "outputId") ?? "evidence";
+    const path =
+      stringAt(record, "path") ??
+      stringAt(asRecord(record.source), "path") ??
+      stringAt(asRecord(record.source), "outputId") ??
+      "evidence";
     const lines = stringAt(record, "lines");
     locations.push(lines ? `${path}:${lines}` : path);
   }
@@ -550,7 +554,9 @@ function defaultReportPath(): string {
 }
 
 async function runCli() {
-  const { reportPath, jsonReportPath } = parseBenchmarkCliArgs(process.argv.slice(2), { reportPath: defaultReportPath() });
+  const { reportPath, jsonReportPath } = parseBenchmarkCliArgs(process.argv.slice(2), {
+    reportPath: defaultReportPath(),
+  });
   const report = await runContextSavingBaseline();
   const reports = await writeContextSavingBaselineReport(report, reportPath, {
     jsonReportPath: jsonReportPath === undefined ? defaultJsonRunReportPath(reportPath) : jsonReportPath,
@@ -563,7 +569,10 @@ async function runCli() {
   if (reports.json) {
     console.log(`JSON run data: ${reports.json}`);
   }
-  if (report.summary.factsPreserved !== report.summary.fixtures || report.summary.recoveryAvailable !== report.summary.fixtures) {
+  if (
+    report.summary.factsPreserved !== report.summary.fixtures ||
+    report.summary.recoveryAvailable !== report.summary.fixtures
+  ) {
     process.exitCode = 1;
   }
 }

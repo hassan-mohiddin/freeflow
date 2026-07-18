@@ -18,7 +18,11 @@ async function withVault(name, run) {
 function base(producer) {
   return {
     sessionId: `producer-${producer.kind}`,
-    host: { name: "pi", toolName: producer.kind === "code_search" ? "code_search" : producer.kind === "fetch" ? "fetch_content" : "web_search" },
+    host: {
+      name: "pi",
+      toolName:
+        producer.kind === "code_search" ? "code_search" : producer.kind === "fetch" ? "fetch_content" : "web_search",
+    },
     producer,
     persistence: "exact",
   };
@@ -29,13 +33,27 @@ test("web_search reducer preserves titles, URLs, snippets, and citations", async
     const rawResult = {
       query: "Freeflow observed routing",
       results: [
-        { title: "Observed Routing", url: "https://example.test/observed", snippet: "Routes tool output after execution.", citation: "[1]" },
-        { title: "Vault Recovery", url: "https://example.test/vault", snippet: "Exact recovery with outputId.", citation: "[2]" },
+        {
+          title: "Observed Routing",
+          url: "https://example.test/observed",
+          snippet: "Routes tool output after execution.",
+          citation: "[1]",
+        },
+        {
+          title: "Vault Recovery",
+          url: "https://example.test/vault",
+          snippet: "Exact recovery with outputId.",
+          citation: "[2]",
+        },
         { title: "Long Noise", url: "https://example.test/noise", snippet: "x".repeat(500), citation: "[3]" },
       ],
     };
 
-    const result = await routeObservedToolOutput({ ...base({ kind: "web", tool: "web_search" }), rawResult, vaultRoot });
+    const result = await routeObservedToolOutput({
+      ...base({ kind: "web", tool: "web_search" }),
+      rawResult,
+      vaultRoot,
+    });
 
     assert.match(result.summary, /web_search results: 3 item/);
     assert.match(result.evidence[0].excerpt, /Observed Routing/);
@@ -71,7 +89,11 @@ test("fetch reducer preserves headings, code blocks, URL, and title", async () =
       ].join("\n"),
     };
 
-    const result = await routeObservedToolOutput({ ...base({ kind: "fetch", tool: "fetch_content" }), rawResult, vaultRoot });
+    const result = await routeObservedToolOutput({
+      ...base({ kind: "fetch", tool: "fetch_content" }),
+      rawResult,
+      vaultRoot,
+    });
 
     assert.match(result.summary, /fetch_content fetched content/);
     assert.match(result.evidence[0].excerpt, /https:\/\/docs\.example\.test\/freeflow/);
@@ -88,13 +110,29 @@ test("code_search reducer preserves repo, path, line numbers, symbols, and exact
     const rawResult = {
       query: "routeObservedToolOutput",
       results: [
-        { repo: "acme/freeflow", path: "router/src/routing/observed-routing.ts", line: 41, symbol: "routeObservedToolOutput", snippet: "export async function routeObservedToolOutput(options) {" },
-        { repo: "acme/freeflow", path: "router/tests/observed-routing.test.js", line: 30, symbol: "test", snippet: "routeObservedToolOutput stores exact observed text" },
+        {
+          repo: "acme/freeflow",
+          path: "router/src/routing/observed-routing.ts",
+          line: 41,
+          symbol: "routeObservedToolOutput",
+          snippet: "export async function routeObservedToolOutput(options) {",
+        },
+        {
+          repo: "acme/freeflow",
+          path: "router/tests/observed-routing.test.js",
+          line: 30,
+          symbol: "test",
+          snippet: "routeObservedToolOutput stores exact observed text",
+        },
         { repo: "acme/freeflow", path: "generated/huge.ts", line: 999, symbol: "decoy", snippet: "x".repeat(500) },
       ],
     };
 
-    const result = await routeObservedToolOutput({ ...base({ kind: "code_search", tool: "code_search" }), rawResult, vaultRoot });
+    const result = await routeObservedToolOutput({
+      ...base({ kind: "code_search", tool: "code_search" }),
+      rawResult,
+      vaultRoot,
+    });
 
     assert.match(result.summary, /code_search results: 3 item/);
     assert.match(result.evidence[0].excerpt, /router\/src\/routing\/observed-routing\.ts/);

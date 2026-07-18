@@ -22,7 +22,16 @@ export interface ProcessingReducerResult {
   reason: string;
   facts: ProcessingReducerFact[];
   visibleText: string;
-  details: AccessLogReducerDetails | TestOutputReducerDetails | BuildOutputReducerDetails | DiagnosticsReducerDetails | McpToolsReducerDetails | JsonQueryReducerDetails | TableReducerDetails | BrowserSnapshotReducerDetails | GitLogReducerDetails;
+  details:
+    | AccessLogReducerDetails
+    | TestOutputReducerDetails
+    | BuildOutputReducerDetails
+    | DiagnosticsReducerDetails
+    | McpToolsReducerDetails
+    | JsonQueryReducerDetails
+    | TableReducerDetails
+    | BrowserSnapshotReducerDetails
+    | GitLogReducerDetails;
 }
 
 export type ProcessingReducerSelection =
@@ -285,7 +294,8 @@ const ACCESS_LOG_REDUCER = {
 const MIN_ACCESS_LOG_LINES = 5;
 const MIN_ACCESS_LOG_CONFIDENCE = 0.8;
 const SLOW_REQUEST_THRESHOLD_MS = 1_000;
-const ACCESS_LOG_LINE = /^(\S+)\s+\S+\s+\S+\s+\[[^\]]+\]\s+"([A-Z]+)\s+([^"\s]+)\s+HTTP\/[^"\s]+"\s+(\d{3})\s+(?:\d+|-)\s+(\d+)ms\s*$/;
+const ACCESS_LOG_LINE =
+  /^(\S+)\s+\S+\s+\S+\s+\[[^\]]+\]\s+"([A-Z]+)\s+([^"\s]+)\s+HTTP\/[^"\s]+"\s+(\d{3})\s+(?:\d+|-)\s+(\d+)ms\s*$/;
 
 export function selectProcessingReducer(input: ProcessingReducerInput): ProcessingReducerSelection {
   const testOutput = reduceTestOutput(input.text);
@@ -297,8 +307,28 @@ export function selectProcessingReducer(input: ProcessingReducerInput): Processi
   const browserSnapshot = reduceBrowserSnapshotOutput(input.text);
   const gitLog = reduceGitLogOutput(input.text);
   const accessLog = reduceAccessLog(input.text);
-  const candidates = [testOutput.candidate, buildOutput.candidate, diagnostics.candidate, mcpTools.candidate, jsonQuery.candidate, table.candidate, browserSnapshot.candidate, gitLog.candidate, accessLog.candidate];
-  const selected = [testOutput, buildOutput, diagnostics, mcpTools, jsonQuery, table, browserSnapshot, gitLog, accessLog].find((reduced) => reduced.result !== undefined);
+  const candidates = [
+    testOutput.candidate,
+    buildOutput.candidate,
+    diagnostics.candidate,
+    mcpTools.candidate,
+    jsonQuery.candidate,
+    table.candidate,
+    browserSnapshot.candidate,
+    gitLog.candidate,
+    accessLog.candidate,
+  ];
+  const selected = [
+    testOutput,
+    buildOutput,
+    diagnostics,
+    mcpTools,
+    jsonQuery,
+    table,
+    browserSnapshot,
+    gitLog,
+    accessLog,
+  ].find((reduced) => reduced.result !== undefined);
   if (selected?.result) {
     return {
       status: "selected",
@@ -316,12 +346,20 @@ export function selectProcessingReducer(input: ProcessingReducerInput): Processi
   };
 }
 
-export function reduceTestOutput(text: string): { candidate: ProcessingReducerCandidate; result?: ProcessingReducerResult } {
+export function reduceTestOutput(text: string): {
+  candidate: ProcessingReducerCandidate;
+  result?: ProcessingReducerResult;
+} {
   const lines = text.split(/\r?\n/);
   const testFiles = findTestCounts(lines, "Test Files");
   const tests = findTestCounts(lines, "Tests");
-  const failedFiles = uniqueStrings(lines.map(parseFailedTestFile).filter((file): file is string => file !== undefined));
-  const failedTests = lines.map(parseFailedTestName).filter((name): name is string => name !== undefined).slice(0, 8);
+  const failedFiles = uniqueStrings(
+    lines.map(parseFailedTestFile).filter((file): file is string => file !== undefined),
+  );
+  const failedTests = lines
+    .map(parseFailedTestName)
+    .filter((name): name is string => name !== undefined)
+    .slice(0, 8);
   const confidence = testOutputConfidence({ testFiles, tests, failedFiles, failedTests, text });
   const candidate: ProcessingReducerCandidate = {
     ...TEST_OUTPUT_REDUCER,
@@ -487,9 +525,14 @@ function uniqueStrings(values: readonly string[]): string[] {
   return [...new Set(values)];
 }
 
-export function reduceBuildOutput(text: string): { candidate: ProcessingReducerCandidate; result?: ProcessingReducerResult } {
+export function reduceBuildOutput(text: string): {
+  candidate: ProcessingReducerCandidate;
+  result?: ProcessingReducerResult;
+} {
   const lines = text.split(/\r?\n/);
-  const finalStatus = lines.map((line) => stripAnsi(line).trim()).find((line) => /\bBuild completed with\b/i.test(line));
+  const finalStatus = lines
+    .map((line) => stripAnsi(line).trim())
+    .find((line) => /\bBuild completed with\b/i.test(line));
   const errors = lines.map(parseBuildError).filter((issue): issue is BuildIssueSummary => issue !== undefined);
   const warnings = lines.map(parseBuildWarning).filter((issue): issue is BuildIssueSummary => issue !== undefined);
   const compiledCount = lines.filter((line) => /^\s*✓\s+Compiled\s+/.test(stripAnsi(line))).length;
@@ -591,7 +634,11 @@ function buildOutputConfidence(input: {
   if (input.compiledCount > 0) {
     confidence += 0.1;
   }
-  if (/\b(?:Creating an optimized production build|Route \(app\)|First Load JS|next\.js|webpack|compiled)\b/i.test(input.text)) {
+  if (
+    /\b(?:Creating an optimized production build|Route \(app\)|First Load JS|next\.js|webpack|compiled)\b/i.test(
+      input.text,
+    )
+  ) {
     confidence += 0.15;
   }
   return Math.min(1, roundConfidence(confidence));
@@ -609,10 +656,7 @@ function buildOutputFacts(details: BuildOutputReducerDetails): ProcessingReducer
 }
 
 function renderBuildOutputSummary(details: BuildOutputReducerDetails): string {
-  const lines = [
-    "build summary",
-    `build: ${details.errorCount} errors, ${details.warningCount} warnings`,
-  ];
+  const lines = ["build summary", `build: ${details.errorCount} errors, ${details.warningCount} warnings`];
   const files = uniqueStrings([...details.errorFiles, ...details.warningFiles].map(basename));
   if (files.length > 0) {
     lines.push(`files: ${files.slice(0, 6).join(", ")}`);
@@ -623,7 +667,10 @@ function renderBuildOutputSummary(details: BuildOutputReducerDetails): string {
   return lines.join("\n");
 }
 
-export function reduceDiagnosticsOutput(text: string): { candidate: ProcessingReducerCandidate; result?: ProcessingReducerResult } {
+export function reduceDiagnosticsOutput(text: string): {
+  candidate: ProcessingReducerCandidate;
+  result?: ProcessingReducerResult;
+} {
   const diagnostics = parseDiagnostics(text);
   const confidence = diagnosticsConfidence(diagnostics, text);
   const candidate: ProcessingReducerCandidate = {
@@ -668,7 +715,8 @@ function parseDiagnostics(text: string): DiagnosticSummary[] {
       continue;
     }
 
-    const compactLint = /^(.+?\.[cm]?[jt]sx?):(\d+):(\d+):\s+(error|warning)\s+(.+?)(?:\s+([@A-Za-z0-9_/-]+))?\s*$/.exec(line);
+    const compactLint =
+      /^(.+?\.[cm]?[jt]sx?):(\d+):(\d+):\s+(error|warning)\s+(.+?)(?:\s+([@A-Za-z0-9_/-]+))?\s*$/.exec(line);
     if (compactLint) {
       diagnostics.push({
         file: compactLint[1] ?? "unknown",
@@ -704,7 +752,9 @@ function parseDiagnostics(text: string): DiagnosticSummary[] {
 
 function diagnosticsConfidence(diagnostics: readonly DiagnosticSummary[], text: string): number {
   const hasTsCodes = diagnostics.some((diagnostic) => diagnostic.code?.startsWith("TS"));
-  const hasLintRules = diagnostics.some((diagnostic) => diagnostic.code !== undefined && !diagnostic.code.startsWith("TS"));
+  const hasLintRules = diagnostics.some(
+    (diagnostic) => diagnostic.code !== undefined && !diagnostic.code.startsWith("TS"),
+  );
   const hasDiagnosticSummary = /\b(?:error TS\d+|problems?\s+\(|eslint|\d+\s+errors?)\b/i.test(text);
   if (diagnostics.length >= 3 && hasTsCodes) {
     return 1;
@@ -759,10 +809,22 @@ function diagnosticsFacts(details: DiagnosticsReducerDetails): ProcessingReducer
     facts.push({ name: "warnings", value: details.warningCount });
   }
   if (details.topFiles.length > 0) {
-    facts.push({ name: "topFiles", value: details.topFiles.slice(0, 3).map(({ file, count }) => `${basename(file)}:${count}`).join(", ") });
+    facts.push({
+      name: "topFiles",
+      value: details.topFiles
+        .slice(0, 3)
+        .map(({ file, count }) => `${basename(file)}:${count}`)
+        .join(", "),
+    });
   }
   if (details.topCodes.length > 0) {
-    facts.push({ name: "topCodes", value: details.topCodes.slice(0, 3).map(({ code, count }) => `${code}:${count}`).join(", ") });
+    facts.push({
+      name: "topCodes",
+      value: details.topCodes
+        .slice(0, 3)
+        .map(({ code, count }) => `${code}:${count}`)
+        .join(", "),
+    });
   }
   return facts;
 }
@@ -786,13 +848,18 @@ function renderDiagnosticsSummary(details: DiagnosticsReducerDetails): string {
   return lines.join("\n");
 }
 
-function topCounts(map: ReadonlyMap<string, number>, tieBreaker: "file" | "code"): Array<{ key: string; count: number }> {
+function topCounts(
+  map: ReadonlyMap<string, number>,
+  tieBreaker: "file" | "code",
+): Array<{ key: string; count: number }> {
   return [...map.entries()]
     .sort(([leftKey, leftCount], [rightKey, rightCount]) => {
       if (rightCount !== leftCount) {
         return rightCount - leftCount;
       }
-      return tieBreaker === "file" ? leftKey.localeCompare(rightKey) : leftKey.localeCompare(rightKey, undefined, { numeric: true });
+      return tieBreaker === "file"
+        ? leftKey.localeCompare(rightKey)
+        : leftKey.localeCompare(rightKey, undefined, { numeric: true });
     })
     .slice(0, 5)
     .map(([key, count]) => ({ key, count }));
@@ -806,15 +873,19 @@ function basename(path: string): string {
   return path.split(/[\\/]/).pop() || path;
 }
 
-export function reduceMcpToolsOutput(text: string): { candidate: ProcessingReducerCandidate; result?: ProcessingReducerResult } {
+export function reduceMcpToolsOutput(text: string): {
+  candidate: ProcessingReducerCandidate;
+  result?: ProcessingReducerResult;
+} {
   const tools = parseMcpToolsList(text);
   const confidence = mcpToolsConfidence(tools);
   const candidate: ProcessingReducerCandidate = {
     ...MCP_TOOLS_REDUCER,
     confidence,
-    reason: tools === undefined
-      ? "No MCP tools/list JSON shape detected."
-      : `Detected MCP tools/list JSON with ${tools.length} tool(s).`,
+    reason:
+      tools === undefined
+        ? "No MCP tools/list JSON shape detected."
+        : `Detected MCP tools/list JSON with ${tools.length} tool(s).`,
   };
 
   if (tools === undefined || confidence < 0.8) {
@@ -863,7 +934,10 @@ function parseMcpToolsList(text: string): ParsedMcpTool[] | undefined {
     if (!isMcpToolName(name) || !isJsonObject(tool.inputSchema)) {
       return undefined;
     }
-    const description = typeof tool.description === "string" && tool.description.trim().length > 0 ? oneLine(tool.description, 160) : undefined;
+    const description =
+      typeof tool.description === "string" && tool.description.trim().length > 0
+        ? oneLine(tool.description, 160)
+        : undefined;
     tools.push({
       name,
       ...(description !== undefined ? { description } : {}),
@@ -890,7 +964,9 @@ function mcpToolsConfidence(tools: readonly ParsedMcpTool[] | undefined): number
 function summarizeMcpTools(tools: readonly ParsedMcpTool[]): McpToolsReducerDetails {
   const signatures = tools.map((tool) => {
     const required = schemaRequiredProperties(tool.inputSchema);
-    const parameters = schemaPropertyNames(tool.inputSchema).map((property) => required.includes(property) ? property : `${property}?`);
+    const parameters = schemaPropertyNames(tool.inputSchema).map((property) =>
+      required.includes(property) ? property : `${property}?`,
+    );
     return {
       name: tool.name,
       category: mcpToolCategory(tool.name),
@@ -902,7 +978,10 @@ function summarizeMcpTools(tools: readonly ParsedMcpTool[]): McpToolsReducerDeta
   return {
     kind: "mcp-tools",
     toolCount: tools.length,
-    categories: countValues(signatures.map((signature) => signature.category)).map(({ value, count }) => ({ category: value, count })),
+    categories: countValues(signatures.map((signature) => signature.category)).map(({ value, count }) => ({
+      category: value,
+      count,
+    })),
     signatures,
   };
 }
@@ -933,7 +1012,11 @@ function schemaPropertyNames(schema: Record<string, unknown>): string[] {
 }
 
 function schemaRequiredProperties(schema: Record<string, unknown>): string[] {
-  return Array.isArray(schema.required) ? schema.required.filter((property): property is string => typeof property === "string" && isMcpParameterName(property)) : [];
+  return Array.isArray(schema.required)
+    ? schema.required.filter(
+        (property): property is string => typeof property === "string" && isMcpParameterName(property),
+      )
+    : [];
 }
 
 function mcpToolCategory(name: string): string {
@@ -953,7 +1036,10 @@ function oneLine(text: string, maxChars: number): string {
   return compact.length <= maxChars ? compact : `${compact.slice(0, maxChars - 1)}…`;
 }
 
-export function reduceJsonQueryOutput(text: string, goal?: string): { candidate: ProcessingReducerCandidate; result?: ProcessingReducerResult } {
+export function reduceJsonQueryOutput(
+  text: string,
+  goal?: string,
+): { candidate: ProcessingReducerCandidate; result?: ProcessingReducerResult } {
   const indexed = indexJsonForQuery(text);
   const goalTokens = tokenizeGoal(goal ?? "");
   const details = indexed ? summarizeJsonQuery(indexed, goalTokens) : undefined;
@@ -961,9 +1047,10 @@ export function reduceJsonQueryOutput(text: string, goal?: string): { candidate:
   const candidate: ProcessingReducerCandidate = {
     ...JSON_QUERY_REDUCER,
     confidence,
-    reason: indexed === undefined
-      ? "No JSON object/array shape detected."
-      : `Indexed ${indexed.rootKind} JSON with ${indexed.entries.length} primitive value(s), ${details?.matchedPaths.length ?? 0} matched path(s), and ${goalTokens.size} goal token(s).`,
+    reason:
+      indexed === undefined
+        ? "No JSON object/array shape detected."
+        : `Indexed ${indexed.rootKind} JSON with ${indexed.entries.length} primitive value(s), ${details?.matchedPaths.length ?? 0} matched path(s), and ${goalTokens.size} goal token(s).`,
   };
 
   if (indexed === undefined || details === undefined || confidence < 0.8) {
@@ -1059,9 +1146,17 @@ function summarizeJsonQuery(index: JsonQueryIndex, goalTokens: Set<string>): Jso
   const mentions = summarizeJsonMentions(index.entries);
   const samples = summarizeJsonSamples(index.rootItems);
   const matchedPaths = [
-    ...categorical.slice(0, 5).map((summary) => ({ path: summary.path, score: summary.score, reason: "categorical path/value overlap" })),
-    ...numeric.slice(0, 3).map((summary) => ({ path: summary.path, score: summary.score, reason: "numeric path/value overlap" })),
-    ...mentions.slice(0, 3).map((mention) => ({ path: `mentions.${mention.kind}`, score: 10, reason: "structured mention extracted from JSON string values" })),
+    ...categorical
+      .slice(0, 5)
+      .map((summary) => ({ path: summary.path, score: summary.score, reason: "categorical path/value overlap" })),
+    ...numeric
+      .slice(0, 3)
+      .map((summary) => ({ path: summary.path, score: summary.score, reason: "numeric path/value overlap" })),
+    ...mentions.slice(0, 3).map((mention) => ({
+      path: `mentions.${mention.kind}`,
+      score: 10,
+      reason: "structured mention extracted from JSON string values",
+    })),
   ].sort((left, right) => right.score - left.score || left.path.localeCompare(right.path));
 
   return {
@@ -1076,8 +1171,15 @@ function summarizeJsonQuery(index: JsonQueryIndex, goalTokens: Set<string>): Jso
   };
 }
 
-function summarizeJsonCategorical(entries: readonly JsonPrimitiveEntry[], goalTokens: Set<string>): JsonQueryCategoricalSummary[] {
-  const byPath = groupJsonEntriesByPath(entries.filter((entry) => typeof entry.value === "string" || typeof entry.value === "boolean" || entry.value === null));
+function summarizeJsonCategorical(
+  entries: readonly JsonPrimitiveEntry[],
+  goalTokens: Set<string>,
+): JsonQueryCategoricalSummary[] {
+  const byPath = groupJsonEntriesByPath(
+    entries.filter(
+      (entry) => typeof entry.value === "string" || typeof entry.value === "boolean" || entry.value === null,
+    ),
+  );
   const summaries: JsonQueryCategoricalSummary[] = [];
   for (const [path, pathEntries] of byPath) {
     const values = pathEntries.map((entry) => String(entry.value ?? "null")).filter((value) => value.length > 0);
@@ -1086,10 +1188,18 @@ function summarizeJsonCategorical(entries: readonly JsonPrimitiveEntry[], goalTo
     }
     const averageLength = values.reduce((sum, value) => sum + value.length, 0) / values.length;
     const counts = countValues(values);
-    if (counts.length > 50 || (counts.length === values.length && !jsonPathIsSampleField(path)) || averageLength > 160) {
+    if (
+      counts.length > 50 ||
+      (counts.length === values.length && !jsonPathIsSampleField(path)) ||
+      averageLength > 160
+    ) {
       continue;
     }
-    const score = jsonPathScore(path, counts.map((count) => count.value), goalTokens);
+    const score = jsonPathScore(
+      path,
+      counts.map((count) => count.value),
+      goalTokens,
+    );
     if (score <= 0 && !isHighSignalJsonPath(path)) {
       continue;
     }
@@ -1098,8 +1208,13 @@ function summarizeJsonCategorical(entries: readonly JsonPrimitiveEntry[], goalTo
   return summaries.sort((left, right) => right.score - left.score || left.path.localeCompare(right.path)).slice(0, 8);
 }
 
-function summarizeJsonNumeric(entries: readonly JsonPrimitiveEntry[], goalTokens: Set<string>): JsonQueryNumericSummary[] {
-  const byPath = groupJsonEntriesByPath(entries.filter((entry) => typeof entry.value === "number" && Number.isFinite(entry.value)));
+function summarizeJsonNumeric(
+  entries: readonly JsonPrimitiveEntry[],
+  goalTokens: Set<string>,
+): JsonQueryNumericSummary[] {
+  const byPath = groupJsonEntriesByPath(
+    entries.filter((entry) => typeof entry.value === "number" && Number.isFinite(entry.value)),
+  );
   const summaries: JsonQueryNumericSummary[] = [];
   for (const [path, pathEntries] of byPath) {
     const numbers = pathEntries.map((entry) => Number(entry.value)).filter((value) => Number.isFinite(value));
@@ -1116,7 +1231,9 @@ function summarizeJsonNumeric(entries: readonly JsonPrimitiveEntry[], goalTokens
       score,
     });
   }
-  return summaries.sort((left, right) => right.score - left.score || right.max - left.max || left.path.localeCompare(right.path)).slice(0, 5);
+  return summaries
+    .sort((left, right) => right.score - left.score || right.max - left.max || left.path.localeCompare(right.path))
+    .slice(0, 5);
 }
 
 function summarizeJsonMentions(entries: readonly JsonPrimitiveEntry[]): JsonQueryMention[] {
@@ -1138,7 +1255,12 @@ function summarizeJsonMentions(entries: readonly JsonPrimitiveEntry[]): JsonQuer
     }
   }
   return [...repoMentions.entries()]
-    .map(([value, mention]) => ({ kind: "githubRepo" as const, value, count: mention.count, paths: [...mention.paths].slice(0, 5) }))
+    .map(([value, mention]) => ({
+      kind: "githubRepo" as const,
+      value,
+      count: mention.count,
+      paths: [...mention.paths].slice(0, 5),
+    }))
     .sort((left, right) => right.count - left.count || left.value.localeCompare(right.value))
     .slice(0, 5);
 }
@@ -1171,28 +1293,42 @@ function summarizeJsonSamples(items: readonly unknown[]): JsonQuerySample[] {
   return samples;
 }
 
-function jsonQueryConfidence(index: JsonQueryIndex | undefined, details: JsonQueryReducerDetails | undefined, goalTokens: Set<string>): number {
+function jsonQueryConfidence(
+  index: JsonQueryIndex | undefined,
+  details: JsonQueryReducerDetails | undefined,
+  goalTokens: Set<string>,
+): number {
   if (index === undefined || details === undefined || goalTokens.size === 0) {
     return 0;
   }
   if (details.mentions.some((mention) => jsonMentionOverlapsGoal(mention, goalTokens))) {
     return 0.95;
   }
-  if (details.categorical.some((summary) => jsonCategoricalSummaryOverlapsGoal(summary, goalTokens)) || details.numeric.some((summary) => jsonPathOverlapsGoal(summary.path, [], goalTokens))) {
+  if (
+    details.categorical.some((summary) => jsonCategoricalSummaryOverlapsGoal(summary, goalTokens)) ||
+    details.numeric.some((summary) => jsonPathOverlapsGoal(summary.path, [], goalTokens))
+  ) {
     return 0.9;
   }
   return 0.6;
 }
 
 function jsonMentionOverlapsGoal(mention: JsonQueryMention, goalTokens: Set<string>): boolean {
-  if (mention.kind === "githubRepo" && (goalTokens.has("github") || goalTokens.has("repo") || goalTokens.has("repository"))) {
+  if (
+    mention.kind === "githubRepo" &&
+    (goalTokens.has("github") || goalTokens.has("repo") || goalTokens.has("repository"))
+  ) {
     return true;
   }
   return overlapCount(tokenizeGoal(mention.value), goalTokens) > 0;
 }
 
 function jsonCategoricalSummaryOverlapsGoal(summary: JsonQueryCategoricalSummary, goalTokens: Set<string>): boolean {
-  return jsonPathOverlapsGoal(summary.path, summary.counts.map((count) => count.value), goalTokens);
+  return jsonPathOverlapsGoal(
+    summary.path,
+    summary.counts.map((count) => count.value),
+    goalTokens,
+  );
 }
 
 function jsonPathOverlapsGoal(path: string, values: readonly string[], goalTokens: Set<string>): boolean {
@@ -1210,11 +1346,17 @@ function jsonQueryFacts(details: JsonQueryReducerDetails): ProcessingReducerFact
   }
   const repoMentions = details.mentions.filter((mention) => mention.kind === "githubRepo");
   if (repoMentions.length > 0) {
-    facts.push({ name: "githubRepo", value: repoMentions.map((mention) => `${mention.value}:${mention.count}`).join(", ") });
+    facts.push({
+      name: "githubRepo",
+      value: repoMentions.map((mention) => `${mention.value}:${mention.count}`).join(", "),
+    });
   }
   const categorical = details.categorical[0];
   if (categorical) {
-    facts.push({ name: categorical.path, value: categorical.counts.map(({ value, count }) => `${value}:${count}`).join(", ") });
+    facts.push({
+      name: categorical.path,
+      value: categorical.counts.map(({ value, count }) => `${value}:${count}`).join(", "),
+    });
   }
   const sample = details.samples[0];
   if (sample) {
@@ -1241,7 +1383,12 @@ function renderJsonQuerySummary(details: JsonQueryReducerDetails): string {
     lines.push(`${summary.path}: min=${summary.min}, max=${summary.max}, avg=${summary.average}`);
   }
   if (details.samples.length > 0) {
-    lines.push(`samples: ${details.samples.slice(0, 3).map((sample) => sample.label).join(" | ")}`);
+    lines.push(
+      `samples: ${details.samples
+        .slice(0, 3)
+        .map((sample) => sample.label)
+        .join(" | ")}`,
+    );
   }
   return lines.join("\n");
 }
@@ -1290,7 +1437,12 @@ function jsonPathIsSampleField(path: string): boolean {
 }
 
 function tokenizeGoal(text: string): Set<string> {
-  return new Set(text.toLowerCase().split(/[^a-z0-9]+/).filter((token) => token.length > 1 && !JSON_STOP_TOKENS.has(token)));
+  return new Set(
+    text
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((token) => token.length > 1 && !JSON_STOP_TOKENS.has(token)),
+  );
 }
 
 const JSON_STOP_TOKENS = new Set(["json", "the", "and", "for", "with", "from"]);
@@ -1315,15 +1467,19 @@ function primitiveSampleValue(value: unknown): string | number | boolean | undef
   return undefined;
 }
 
-export function reduceTableOutput(text: string): { candidate: ProcessingReducerCandidate; result?: ProcessingReducerResult } {
+export function reduceTableOutput(text: string): {
+  candidate: ProcessingReducerCandidate;
+  result?: ProcessingReducerResult;
+} {
   const parsed = parseTable(text);
   const confidence = tableConfidence(parsed);
   const candidate: ProcessingReducerCandidate = {
     ...TABLE_REDUCER,
     confidence,
-    reason: parsed === undefined
-      ? "No CSV table shape detected."
-      : `Detected ${parsed.format} table with ${parsed.rows.length} row(s) and ${parsed.columns.length} column(s).`,
+    reason:
+      parsed === undefined
+        ? "No CSV table shape detected."
+        : `Detected ${parsed.format} table with ${parsed.rows.length} row(s) and ${parsed.columns.length} column(s).`,
   };
 
   if (parsed === undefined || confidence < 0.8) {
@@ -1355,7 +1511,10 @@ function parseTable(text: string): ParsedTable | undefined {
 }
 
 function parseCsvTable(text: string): ParsedTable | undefined {
-  const lines = text.trim().split(/\r?\n/).filter((line) => line.trim().length > 0);
+  const lines = text
+    .trim()
+    .split(/\r?\n/)
+    .filter((line) => line.trim().length > 0);
   if (lines.length < 3 || !lines[0]?.includes(",")) {
     return undefined;
   }
@@ -1369,9 +1528,10 @@ function parseCsvTable(text: string): ParsedTable | undefined {
     if (rawValues.length < columns.length) {
       return undefined;
     }
-    const values = rawValues.length === columns.length
-      ? rawValues
-      : [...rawValues.slice(0, columns.length - 1), rawValues.slice(columns.length - 1).join(",")];
+    const values =
+      rawValues.length === columns.length
+        ? rawValues
+        : [...rawValues.slice(0, columns.length - 1), rawValues.slice(columns.length - 1).join(",")];
     rows.push(Object.fromEntries(columns.map((column, index) => [column, values[index] ?? ""])));
   }
   return rows.length >= 2 ? { format: "csv", columns, rows } : undefined;
@@ -1414,7 +1574,12 @@ function summarizeCategoricalColumns(table: ParsedTable): TableCategoricalSummar
     }
     summaries.push({ column, counts: counts.slice(0, 8) });
   }
-  return summaries.sort((left, right) => categoricalPriority(left.column) - categoricalPriority(right.column) || left.counts.length - right.counts.length || left.column.localeCompare(right.column));
+  return summaries.sort(
+    (left, right) =>
+      categoricalPriority(left.column) - categoricalPriority(right.column) ||
+      left.counts.length - right.counts.length ||
+      left.column.localeCompare(right.column),
+  );
 }
 
 function summarizeNumericColumns(table: ParsedTable): TableNumericSummary[] {
@@ -1425,16 +1590,31 @@ function summarizeNumericColumns(table: ParsedTable): TableNumericSummary[] {
       continue;
     }
     const total = numbers.reduce((sum, value) => sum + value, 0);
-    summaries.push({ column, min: Math.min(...numbers), max: Math.max(...numbers), average: Math.round((total / numbers.length) * 10) / 10 });
+    summaries.push({
+      column,
+      min: Math.min(...numbers),
+      max: Math.max(...numbers),
+      average: Math.round((total / numbers.length) * 10) / 10,
+    });
   }
-  return summaries.sort((left, right) => numericPriority(left.column) - numericPriority(right.column) || right.max - left.max || left.column.localeCompare(right.column)).slice(0, 5);
+  return summaries
+    .sort(
+      (left, right) =>
+        numericPriority(left.column) - numericPriority(right.column) ||
+        right.max - left.max ||
+        left.column.localeCompare(right.column),
+    )
+    .slice(0, 5);
 }
 
 function tableFacts(details: TableReducerDetails): ProcessingReducerFact[] {
   const facts: ProcessingReducerFact[] = [{ name: "rows", value: details.rowCount }];
   const categorical = details.categorical[0];
   if (categorical) {
-    facts.push({ name: categorical.column, value: categorical.counts.map(({ value, count }) => `${value}:${count}`).join(", ") });
+    facts.push({
+      name: categorical.column,
+      value: categorical.counts.map(({ value, count }) => `${value}:${count}`).join(", "),
+    });
   }
   const numeric = details.numeric[0];
   if (numeric) {
@@ -1447,7 +1627,9 @@ function renderTableSummary(details: TableReducerDetails): string {
   const lines = ["table summary", `rows: ${details.rowCount}`];
   const categorical = details.categorical[0];
   if (categorical) {
-    lines.push(`${categorical.column}: ${categorical.counts.map(({ value, count }) => `${value}:${count}`).join(", ")}`);
+    lines.push(
+      `${categorical.column}: ${categorical.counts.map(({ value, count }) => `${value}:${count}`).join(", ")}`,
+    );
   }
   const numeric = details.numeric[0];
   if (numeric) {
@@ -1488,7 +1670,10 @@ function countValues(values: readonly string[]): Array<{ value: string; count: n
     counts.set(value, (counts.get(value) ?? 0) + 1);
   }
   return [...counts.entries()]
-    .sort(([leftValue, leftCount], [rightValue, rightCount]) => rightCount - leftCount || leftValue.localeCompare(rightValue))
+    .sort(
+      ([leftValue, leftCount], [rightValue, rightCount]) =>
+        rightCount - leftCount || leftValue.localeCompare(rightValue),
+    )
     .map(([value, count]) => ({ value, count }));
 }
 
@@ -1518,15 +1703,19 @@ function isJsonObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export function reduceBrowserSnapshotOutput(text: string): { candidate: ProcessingReducerCandidate; result?: ProcessingReducerResult } {
+export function reduceBrowserSnapshotOutput(text: string): {
+  candidate: ProcessingReducerCandidate;
+  result?: ProcessingReducerResult;
+} {
   const parsed = parseBrowserSnapshot(text);
   const confidence = browserSnapshotConfidence(parsed);
   const candidate: ProcessingReducerCandidate = {
     ...BROWSER_SNAPSHOT_REDUCER,
     confidence,
-    reason: parsed === undefined
-      ? "No Playwright/accessibility snapshot shape detected."
-      : `Detected browser snapshot with ${parsed.refCount} ref(s), ${parsed.namedLinks.length} named link(s), and ${parsed.lineCount} line(s).`,
+    reason:
+      parsed === undefined
+        ? "No Playwright/accessibility snapshot shape detected."
+        : `Detected browser snapshot with ${parsed.refCount} ref(s), ${parsed.namedLinks.length} named link(s), and ${parsed.lineCount} line(s).`,
   };
 
   if (parsed === undefined || confidence < 0.8) {
@@ -1559,7 +1748,9 @@ interface ParsedBrowserSnapshot {
 
 function parseBrowserSnapshot(text: string): ParsedBrowserSnapshot | undefined {
   const lines = text.split(/\r?\n/);
-  const snapshotStartIndex = lines.findIndex((line) => /^###\s+Snapshot\s*$/i.test(line.trim()) || /^```ya?ml\s*$/i.test(line.trim()));
+  const snapshotStartIndex = lines.findIndex(
+    (line) => /^###\s+Snapshot\s*$/i.test(line.trim()) || /^```ya?ml\s*$/i.test(line.trim()),
+  );
   const hasSnapshotMarker = snapshotStartIndex !== -1;
   const pageTitle = firstMatch(text, /^- Page Title:\s*(.+)$/m);
   const pageUrl = firstMatch(text, /^- Page URL:\s*(.+)$/m);
@@ -1625,7 +1816,9 @@ function summarizeBrowserSnapshot(parsed: ParsedBrowserSnapshot): BrowserSnapsho
     textNodeCount: parsed.roleCounts.get("text") ?? parsed.textNodes.length,
     storyLikeLinkCount: Math.min(storyLikeLinks.length, 30),
     roleCounts: [...parsed.roleCounts.entries()]
-      .sort(([leftRole, leftCount], [rightRole, rightCount]) => rightCount - leftCount || leftRole.localeCompare(rightRole))
+      .sort(
+        ([leftRole, leftCount], [rightRole, rightCount]) => rightCount - leftCount || leftRole.localeCompare(rightRole),
+      )
       .map(([role, count]) => ({ role, count })),
     topInteractiveNodes: parsed.namedLinks.slice(0, 8),
     topTextNodes: parsed.textNodes.filter((node) => node.length > 0).slice(0, 8),
@@ -1642,8 +1835,20 @@ function browserSnapshotFacts(details: BrowserSnapshotReducerDetails): Processin
   if (details.pageTitle !== undefined) {
     facts.push({ name: "title", value: details.pageTitle });
   }
-  facts.push({ name: "roles", value: details.roleCounts.slice(0, 8).map(({ role, count }) => `${role}:${count}`).join(", ") });
-  facts.push({ name: "topLinks", value: details.topInteractiveNodes.slice(0, 5).map((node) => node.name).join(" | ") });
+  facts.push({
+    name: "roles",
+    value: details.roleCounts
+      .slice(0, 8)
+      .map(({ role, count }) => `${role}:${count}`)
+      .join(", "),
+  });
+  facts.push({
+    name: "topLinks",
+    value: details.topInteractiveNodes
+      .slice(0, 5)
+      .map((node) => node.name)
+      .join(" | "),
+  });
   return facts;
 }
 
@@ -1658,8 +1863,18 @@ function renderBrowserSnapshotSummary(details: BrowserSnapshotReducerDetails): s
   if (details.pageTitle !== undefined) {
     lines.push(`title: ${details.pageTitle}`);
   }
-  lines.push(`roles: ${details.roleCounts.slice(0, 8).map(({ role, count }) => `${role}:${count}`).join(", ")}`);
-  lines.push(`topLinks: ${details.topInteractiveNodes.slice(0, 5).map((node) => node.name).join(" | ")}`);
+  lines.push(
+    `roles: ${details.roleCounts
+      .slice(0, 8)
+      .map(({ role, count }) => `${role}:${count}`)
+      .join(", ")}`,
+  );
+  lines.push(
+    `topLinks: ${details.topInteractiveNodes
+      .slice(0, 5)
+      .map((node) => node.name)
+      .join(" | ")}`,
+  );
   if (details.topTextNodes.length > 0) {
     lines.push(`topText: ${details.topTextNodes.slice(0, 5).join(" | ")}`);
   }
@@ -1700,7 +1915,10 @@ function isStoryLikeLink(value: string): boolean {
   return value.length > 10 && !/^https?:\/\//i.test(value);
 }
 
-export function reduceGitLogOutput(text: string): { candidate: ProcessingReducerCandidate; result?: ProcessingReducerResult } {
+export function reduceGitLogOutput(text: string): {
+  candidate: ProcessingReducerCandidate;
+  result?: ProcessingReducerResult;
+} {
   const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
   const commits = lines.map(parseGitLogLine).filter((commit): commit is GitLogCommitSummary => commit !== undefined);
   const parseRatio = lines.length === 0 ? 0 : commits.length / lines.length;
@@ -1730,7 +1948,10 @@ export function reduceGitLogOutput(text: string): { candidate: ProcessingReducer
 }
 
 function parseGitLogLine(line: string): GitLogCommitSummary | undefined {
-  const match = /^([0-9a-f]{7,40})(?:\s+(\d{4}-\d{2}-\d{2}))?\s+(.+?)\s+([A-Za-z][A-Za-z0-9-]*)(?:\(([^)]+)\))?!?:\s+(.+)$/.exec(line.trim());
+  const match =
+    /^([0-9a-f]{7,40})(?:\s+(\d{4}-\d{2}-\d{2}))?\s+(.+?)\s+([A-Za-z][A-Za-z0-9-]*)(?:\(([^)]+)\))?!?:\s+(.+)$/.exec(
+      line.trim(),
+    );
   if (!match?.[1] || !match[4] || !match[6]) {
     return undefined;
   }
@@ -1763,8 +1984,12 @@ function summarizeGitLog(commits: readonly GitLogCommitSummary[]): GitLogReducer
     kind: "git-log",
     commitCount: commits.length,
     typeCounts: countValues(commits.map((commit) => commit.type)).map(({ value, count }) => ({ type: value, count })),
-    scopeCounts: countValues(commits.map((commit) => commit.scope ?? "unscoped")).map(({ value, count }) => ({ scope: value, count })).slice(0, 8),
-    authorCounts: countValues(commits.map((commit) => commit.author ?? "unknown")).map(({ value, count }) => ({ author: value, count })).slice(0, 8),
+    scopeCounts: countValues(commits.map((commit) => commit.scope ?? "unscoped"))
+      .map(({ value, count }) => ({ scope: value, count }))
+      .slice(0, 8),
+    authorCounts: countValues(commits.map((commit) => commit.author ?? "unknown"))
+      .map(({ value, count }) => ({ author: value, count }))
+      .slice(0, 8),
     recentCommits: commits.slice(0, 8),
   };
 }
@@ -1773,7 +1998,13 @@ function gitLogFacts(details: GitLogReducerDetails): ProcessingReducerFact[] {
   return [
     { name: "commits", value: details.commitCount },
     { name: "types", value: details.typeCounts.map(({ type, count }) => `${type}:${count}`).join(", ") },
-    { name: "authors", value: details.authorCounts.slice(0, 5).map(({ author, count }) => `${author}:${count}`).join(", ") },
+    {
+      name: "authors",
+      value: details.authorCounts
+        .slice(0, 5)
+        .map(({ author, count }) => `${author}:${count}`)
+        .join(", "),
+    },
     { name: "recent", value: details.recentCommits.slice(0, 5).map(renderGitCommit).join(" | ") },
   ];
 }
@@ -1783,7 +2014,10 @@ function renderGitLogSummary(details: GitLogReducerDetails): string {
     "git log summary",
     `commits: ${details.commitCount}`,
     `types: ${details.typeCounts.map(({ type, count }) => `${type}:${count}`).join(", ")}`,
-    `authors: ${details.authorCounts.slice(0, 5).map(({ author, count }) => `${author}:${count}`).join(", ")}`,
+    `authors: ${details.authorCounts
+      .slice(0, 5)
+      .map(({ author, count }) => `${author}:${count}`)
+      .join(", ")}`,
     `recent: ${details.recentCommits.slice(0, 5).map(renderGitCommit).join(" | ")}`,
   ].join("\n");
 }
@@ -1793,7 +2027,10 @@ function renderGitCommit(commit: GitLogCommitSummary): string {
   return `${commit.hash} ${commit.type}${scope}: ${commit.subject}`;
 }
 
-export function reduceAccessLog(text: string): { candidate: ProcessingReducerCandidate; result?: ProcessingReducerResult } {
+export function reduceAccessLog(text: string): {
+  candidate: ProcessingReducerCandidate;
+  result?: ProcessingReducerResult;
+} {
   const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
   const entries: AccessLogEntry[] = [];
   for (const line of lines) {
@@ -1903,7 +2140,9 @@ function renderAccessLogSummary(details: AccessLogReducerDetails): string {
     `errors: ${details.errorCount} (${details.errorRatePercent.toFixed(1)}%)`,
     `avgLatencyMs: ${details.averageLatencyMs}`,
     `slow>=${details.slowThresholdMs}ms: ${details.slowRequestCount}`,
-    `status: ${Object.entries(details.statusCounts).map(([status, count]) => `${status}:${count}`).join(", ")}`,
+    `status: ${Object.entries(details.statusCounts)
+      .map(([status, count]) => `${status}:${count}`)
+      .join(", ")}`,
   ];
 
   if (details.slowExamples.length > 0) {

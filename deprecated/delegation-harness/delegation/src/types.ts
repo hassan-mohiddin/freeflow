@@ -101,9 +101,11 @@ export type DelegationAssignmentState =
   | "failed"
   | "cancelled";
 
-export type DelegationRoleAssessmentStatus = "pass" | "pass_with_non_blocking" | "fail" | "blocked" | "not_run" | "accepted_not_run";
+export type DelegationRoleAssessmentStatus =
+  "pass" | "pass_with_non_blocking" | "fail" | "blocked" | "not_run" | "accepted_not_run";
 
-export type DelegationPaneState = "not_started" | "opening" | "active" | "idle" | "retained" | "stale" | "closing" | "closed" | "open_failed" | "lost";
+export type DelegationPaneState =
+  "not_started" | "opening" | "active" | "idle" | "retained" | "stale" | "closing" | "closed" | "open_failed" | "lost";
 
 export type DelegationRouteApplicationState = "pending" | "applied" | "already_applied" | "failed" | "cancelled";
 
@@ -152,11 +154,13 @@ export interface DelegationActiveLeaseView {
 
 export type DelegationRouteDecisionKind = "inline_allowed" | "route_required" | "ask_user" | "blocked";
 
-export type DelegationRouteActionKind = "plan" | "implement" | "research" | "review" | "verify" | "fix" | "spawn" | "ask_user" | "close";
+export type DelegationRouteActionKind =
+  "plan" | "implement" | "research" | "review" | "verify" | "fix" | "spawn" | "ask_user" | "close";
 
 export type DelegationRouteBreadth = "tiny" | "single_file" | "multi_file" | "broad";
 
-export type DelegationRouteRiskFlag = "user_owned_decision" | "public_api" | "security" | "privacy" | "data_loss" | "irreversible" | "unknown";
+export type DelegationRouteRiskFlag =
+  "user_owned_decision" | "public_api" | "security" | "privacy" | "data_loss" | "irreversible" | "unknown";
 
 export interface DelegationRouteAction {
   kind: DelegationRouteActionKind;
@@ -230,7 +234,11 @@ export interface DelegationBlockedRouteDecision {
   suggestedReroute?: DelegationRole;
 }
 
-export type DelegationRouteDecision = DelegationInlineAllowedDecision | DelegationRouteRequiredDecision | DelegationAskUserDecision | DelegationBlockedRouteDecision;
+export type DelegationRouteDecision =
+  | DelegationInlineAllowedDecision
+  | DelegationRouteRequiredDecision
+  | DelegationAskUserDecision
+  | DelegationBlockedRouteDecision;
 
 export interface DelegationRouteApplication {
   applicationId: string;
@@ -328,7 +336,8 @@ export interface DelegationWakeAttempt {
   message?: string;
 }
 
-export type DelegationResultView = "alert" | "summary" | "default" | "findings" | "checks" | "files" | "evidence" | "risks" | "diff" | "full" | "raw";
+export type DelegationResultView =
+  "alert" | "summary" | "default" | "findings" | "checks" | "files" | "evidence" | "risks" | "diff" | "full" | "raw";
 
 export type DelegationModelVisibleOutputFormat = "compact_text" | "markdown" | "pipe_rows";
 
@@ -340,7 +349,8 @@ export interface DelegationResultViewRequest {
   maxBytes?: number;
 }
 
-export type DelegationExecutionAuthorizationEventType = "planning_report.ready" | "plan.approved" | "execution.authorized";
+export type DelegationExecutionAuthorizationEventType =
+  "planning_report.ready" | "plan.approved" | "execution.authorized";
 
 export type ParentAlertOutcome =
   | "completed"

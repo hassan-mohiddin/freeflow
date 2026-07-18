@@ -4,9 +4,7 @@
   "skill": "evaluate-skill",
   "title": "Native activation for skill behavior evaluation",
   "question": "automatic activation",
-  "evidence_classes": [
-    "native-activation"
-  ],
+  "evidence_classes": ["native-activation"],
   "required_for_bootstrap": true,
   "prompt": "I have a preserved failure from an agent skill and a candidate rewrite. How should I compare the exact old version against the candidate without letting either subject see the pass criteria?",
   "fixture": null,
@@ -30,9 +28,7 @@
   "execution": {
     "host": "pi",
     "mode": "json",
-    "tools": [
-      "read"
-    ]
+    "tools": ["read"]
   },
   "assertions": [
     {

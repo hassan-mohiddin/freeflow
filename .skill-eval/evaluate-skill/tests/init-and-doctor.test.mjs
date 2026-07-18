@@ -19,10 +19,12 @@ test("init creates only suite and first case source", async (t) => {
 
 test("Codex public capability probe runs version only and remains diagnostic", () => {
   const calls = [];
-  const codex = probeCodex({ run: (command, args) => {
-    calls.push({ command, args });
-    return { status: 0, stdout: "codex-cli 0.144.1\n", stderr: "", error: null };
-  } });
+  const codex = probeCodex({
+    run: (command, args) => {
+      calls.push({ command, args });
+      return { status: 0, stdout: "codex-cli 0.144.1\n", stderr: "", error: null };
+    },
+  });
   assert.deepEqual(calls, [{ command: "codex", args: ["--version"] }]);
   assert.equal(codex.fidelity, "diagnostic");
   assert.equal(codex.capabilities.strict_filesystem_isolation, true);

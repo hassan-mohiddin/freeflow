@@ -38,7 +38,12 @@ test("router contract validates vault retention policies", () => {
   assert.deepEqual(validateVaultRetentionPolicy({ strategy: "manual" }, "$.vault.retention"), []);
   assert.deepEqual(validateVaultRetentionPolicy({ strategy: "ttl", ttlDays: 7 }, "$.vault.retention"), []);
 
-  for (const value of [null, { strategy: "ttl", ttlDays: 0 }, { strategy: "ttl", ttlDays: 1.5 }, { strategy: "forever" }]) {
+  for (const value of [
+    null,
+    { strategy: "ttl", ttlDays: 0 },
+    { strategy: "ttl", ttlDays: 1.5 },
+    { strategy: "forever" },
+  ]) {
     const issues = validateVaultRetentionPolicy(value, "$.vault.retention");
     assert.ok(issues.length > 0, `expected issue for ${JSON.stringify(value)}`);
   }
@@ -46,9 +51,18 @@ test("router contract validates vault retention policies", () => {
 
 test("router contract validates normalized hints shape", () => {
   assert.deepEqual(validateNormalizedRouterHints(undefined, "$.hints"), []);
-  assert.deepEqual(validateNormalizedRouterHints({ generatedPathGlobs: ["dist/**"], noisyCommandPatterns: ["test"] }, "$.hints"), []);
+  assert.deepEqual(
+    validateNormalizedRouterHints({ generatedPathGlobs: ["dist/**"], noisyCommandPatterns: ["test"] }, "$.hints"),
+    [],
+  );
 
-  for (const value of [null, [], { generatedPathGlobs: "dist/**" }, { generatedPathGlobs: ["dist/**", 1] }, { noisyCommandPatterns: [""] }]) {
+  for (const value of [
+    null,
+    [],
+    { generatedPathGlobs: "dist/**" },
+    { generatedPathGlobs: ["dist/**", 1] },
+    { noisyCommandPatterns: [""] },
+  ]) {
     const issues = validateNormalizedRouterHints(value, "$.hints");
     assert.ok(issues.length > 0, `expected issue for ${JSON.stringify(value)}`);
   }

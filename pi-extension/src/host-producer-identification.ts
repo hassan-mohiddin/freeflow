@@ -126,7 +126,13 @@ export function identifyPiMcpProducer(event: any) {
     return undefined;
   }
 
-  if (toolName !== "mcp" && !toolName.startsWith("mcp__") && !detailMcp.server && detailProducer.kind !== "mcp" && inputProducer.kind !== "mcp") {
+  if (
+    toolName !== "mcp" &&
+    !toolName.startsWith("mcp__") &&
+    !detailMcp.server &&
+    detailProducer.kind !== "mcp" &&
+    inputProducer.kind !== "mcp"
+  ) {
     return undefined;
   }
 
@@ -150,18 +156,34 @@ export function classifyObservedProducerRisk(producer: any, event?: any) {
   }
 
   if (producer?.kind === "web" || producer?.kind === "fetch" || producer?.kind === "code_search") {
-    return { classification: "read", source: "manifest", reason: `${producer.kind} is treated as a read-only Pi evidence producer.` };
+    return {
+      classification: "read",
+      source: "manifest",
+      reason: `${producer.kind} is treated as a read-only Pi evidence producer.`,
+    };
   }
 
   const tool = typeof producer?.tool === "string" ? producer.tool : "";
   if (matchesVerb(tool, WRITE_VERBS)) {
-    return { classification: "write", source: "heuristic", reason: `MCP tool name ${tool} matched a write-like verb heuristic.` };
+    return {
+      classification: "write",
+      source: "heuristic",
+      reason: `MCP tool name ${tool} matched a write-like verb heuristic.`,
+    };
   }
   if (matchesVerb(tool, READ_VERBS)) {
-    return { classification: "read", source: "heuristic", reason: `MCP tool name ${tool} matched a read-like verb heuristic.` };
+    return {
+      classification: "read",
+      source: "heuristic",
+      reason: `MCP tool name ${tool} matched a read-like verb heuristic.`,
+    };
   }
 
-  return { classification: "unknown", source: "unknown", reason: "No configured risk, MCP annotation, manifest entry, or deterministic name heuristic matched." };
+  return {
+    classification: "unknown",
+    source: "unknown",
+    reason: "No configured risk, MCP annotation, manifest entry, or deterministic name heuristic matched.",
+  };
 }
 
 function configuredRisk(event: any) {
@@ -185,10 +207,18 @@ function mcpAnnotationRisk(event: any) {
     return undefined;
   }
   if (annotations.destructiveHint === true || annotations.write === true || annotations.mutating === true) {
-    return { classification: "write", source: "mcp_annotation", reason: "MCP annotations indicate a mutating/destructive operation." };
+    return {
+      classification: "write",
+      source: "mcp_annotation",
+      reason: "MCP annotations indicate a mutating/destructive operation.",
+    };
   }
   if (annotations.readOnlyHint === true || annotations.readOnly === true) {
-    return { classification: "read", source: "mcp_annotation", reason: "MCP annotations indicate a read-only operation." };
+    return {
+      classification: "read",
+      source: "mcp_annotation",
+      reason: "MCP annotations indicate a read-only operation.",
+    };
   }
   return undefined;
 }

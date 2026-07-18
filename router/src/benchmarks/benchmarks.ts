@@ -167,7 +167,17 @@ interface TempResource {
 
 const DEFAULT_ITERATIONS = 3;
 const DEFAULT_CONTEXT_LINES = 2;
-const LEGACY_SKIP_DIRS = new Set([".git", "node_modules", "dist", "build", "out", ".next", ".nuxt", "coverage", "target"]);
+const LEGACY_SKIP_DIRS = new Set([
+  ".git",
+  "node_modules",
+  "dist",
+  "build",
+  "out",
+  ".next",
+  ".nuxt",
+  "coverage",
+  "target",
+]);
 const GENERATED_DIRS = new Set([
   ".git",
   "node_modules",
@@ -187,7 +197,10 @@ const GENERATED_DIRS = new Set([
 ]);
 const EXTERNAL_TOOL_SKIPS: SkippedExternalTool[] = [
   { name: "Graphify", reason: "Optional external comparator is not required for CI-friendly router benchmarks." },
-  { name: "Claude Context", reason: "Optional semantic/hybrid search comparator is skipped unless configured separately." },
+  {
+    name: "Claude Context",
+    reason: "Optional semantic/hybrid search comparator is skipped unless configured separately.",
+  },
   { name: "RTK", reason: "Command-output comparator belongs to the later command benchmark track." },
   { name: "Squeez", reason: "Session-efficiency comparator belongs to the later command/session benchmark track." },
 ];
@@ -274,7 +287,7 @@ export function renderRouterBenchmarkReport(report: RouterBenchmarkReport): stri
     for (const result of fixture.results) {
       const correctness = result.skipped ? "skipped" : result.correctness.passed ? "pass" : "fail";
       const recovery = result.recovery.status;
-      const notes = result.notes.length ? result.notes.join("; ") : result.skipReason ?? "";
+      const notes = result.notes.length ? result.notes.join("; ") : (result.skipReason ?? "");
       const checks = formatCorrectnessChecks(result.correctness);
       lines.push(
         `| ${escapeTable(fixture.id)} | ${escapeTable(result.mode)} | ${correctness} | ${escapeTable(checks)} | ${escapeTable(result.actualPath ?? "-")} | ${escapeTable(
@@ -403,7 +416,9 @@ function summarizeReport(fixtures: RouterBenchmarkFixtureResult[]): RouterBenchm
     nativeBaseline,
     freeflowBaseline,
     generatedFalsePositiveCount,
-    sandboxFailureFixed: Boolean(sandboxImproved?.correctness.passed && !sandboxImproved.correctness.generatedFalsePositive),
+    sandboxFailureFixed: Boolean(
+      sandboxImproved?.correctness.passed && !sandboxImproved.correctness.generatedFalsePositive,
+    ),
   };
 }
 
@@ -491,11 +506,7 @@ async function createBenchmarkFixtures(): Promise<BenchmarkFixture[]> {
 
 async function createExactCopiedTextFixture(): Promise<BenchmarkFixture> {
   const repo = await createTempRepo({
-    "target.md": [
-      "# Target",
-      "",
-      "The output router vault preserves exact failure evidence for review.",
-    ].join("\n"),
+    "target.md": ["# Target", "", "The output router vault preserves exact failure evidence for review."].join("\n"),
     "notes.md": "vault evidence evidence evidence without the exact sentence",
   });
 
@@ -570,11 +581,9 @@ async function createGeneratedArtifactDecoyFixture(): Promise<BenchmarkFixture> 
 
 async function createHugeSingleLineDecoyFixture(): Promise<BenchmarkFixture> {
   const repo = await createTempRepo({
-    "docs/router.md": [
-      "# Router",
-      "",
-      "HUGE_MARKER belongs in bounded target evidence, not generated logs.",
-    ].join("\n"),
+    "docs/router.md": ["# Router", "", "HUGE_MARKER belongs in bounded target evidence, not generated logs."].join(
+      "\n",
+    ),
     "debug.log": `${"HUGE_MARKER generated log noise ".repeat(6000)}HUGE_LOG_TAIL`,
   });
 
@@ -643,31 +652,37 @@ async function createVaultedOutputFixture(): Promise<BenchmarkFixture> {
     kind: "vault-query",
     expected,
     modes: {
-      "native-baseline-proxy": async () => directTextSearchObservation({
-        toolPathUsed: "native-baseline-proxy: direct command output text search",
-        text: stderr,
-        path: `${record.outputId}:stderr`,
-        query: "ASSERTION_FAILED payments badge",
-        recovery: { status: "not-applicable", detail: "Native direct output has no Freeflow vault recovery contract." },
-      }),
-      "pre-hardening-freeflow-proxy": async () => directTextSearchObservation({
-        toolPathUsed: "pre-hardening-freeflow-proxy: simple vaulted line scanner",
-        text: stderr,
-        path: `${record.outputId}:stderr`,
-        query: "ASSERTION_FAILED payments badge",
-        recovery: { status: "failed", detail: "Baseline proxy does not expose structured recovery metadata." },
-      }),
-      "improved-freeflow-router": async () => improvedRetrieveObservation(
-        await freeflowSearch({
-          action: "query",
-          source: { kind: "vault", root: vaultRoot.path, sessionId, outputId: record.outputId, stream: "stderr" },
+      "native-baseline-proxy": async () =>
+        directTextSearchObservation({
+          toolPathUsed: "native-baseline-proxy: direct command output text search",
+          text: stderr,
+          path: `${record.outputId}:stderr`,
           query: "ASSERTION_FAILED payments badge",
-          preserve: "important",
+          recovery: {
+            status: "not-applicable",
+            detail: "Native direct output has no Freeflow vault recovery contract.",
+          },
         }),
-        "improved-freeflow-router: freeflow_search vault query",
-        stderr,
-        (result) => verifyVaultEvidenceRecovery(vaultRoot.path, sessionId, result),
-      ),
+      "pre-hardening-freeflow-proxy": async () =>
+        directTextSearchObservation({
+          toolPathUsed: "pre-hardening-freeflow-proxy: simple vaulted line scanner",
+          text: stderr,
+          path: `${record.outputId}:stderr`,
+          query: "ASSERTION_FAILED payments badge",
+          recovery: { status: "failed", detail: "Baseline proxy does not expose structured recovery metadata." },
+        }),
+      "improved-freeflow-router": async () =>
+        improvedRetrieveObservation(
+          await freeflowSearch({
+            action: "query",
+            source: { kind: "vault", root: vaultRoot.path, sessionId, outputId: record.outputId, stream: "stderr" },
+            query: "ASSERTION_FAILED payments badge",
+            preserve: "important",
+          }),
+          "improved-freeflow-router: freeflow_search vault query",
+          stderr,
+          (result) => verifyVaultEvidenceRecovery(vaultRoot.path, sessionId, result),
+        ),
     },
     cleanup: vaultRoot.cleanup,
   };
@@ -698,15 +713,17 @@ async function createExpansionFixture(): Promise<BenchmarkFixture> {
     kind: "repo-expand",
     expected,
     modes: {
-      "native-baseline-proxy": async () => directFileObservation(repo.path, "target.md", {
-        toolPathUsed: "native-baseline-proxy: direct whole-file read",
-        recovery: { status: "not-applicable", detail: "Native read is exact direct output, not routed recovery." },
-      }),
-      "pre-hardening-freeflow-proxy": async () => repoBaselineObservation(repo.path, query, {
-        toolPathUsed: "pre-hardening-freeflow-proxy: narrow lexical line window without expansion",
-        skipDirs: LEGACY_SKIP_DIRS,
-        recovery: { status: "failed", detail: "Baseline proxy does not expose structured expansion recovery." },
-      }),
+      "native-baseline-proxy": async () =>
+        directFileObservation(repo.path, "target.md", {
+          toolPathUsed: "native-baseline-proxy: direct whole-file read",
+          recovery: { status: "not-applicable", detail: "Native read is exact direct output, not routed recovery." },
+        }),
+      "pre-hardening-freeflow-proxy": async () =>
+        repoBaselineObservation(repo.path, query, {
+          toolPathUsed: "pre-hardening-freeflow-proxy: narrow lexical line window without expansion",
+          skipDirs: LEGACY_SKIP_DIRS,
+          recovery: { status: "failed", detail: "Baseline proxy does not expose structured expansion recovery." },
+        }),
       "improved-freeflow-router": async () => {
         const queryResult = await freeflowSearch({
           action: "query",
@@ -751,27 +768,33 @@ function repoQueryFixture(
     kind: "repo-query",
     expected: options.expected,
     modes: {
-      "native-baseline-proxy": async () => repoBaselineObservation(repo.path, options.query, {
-        toolPathUsed: "native-baseline-proxy: recursive text scan (rg/read proxy)",
-        skipDirs: new Set<string>(),
-        recovery: { status: "not-applicable", detail: "Native proxy returns direct text without Freeflow recovery metadata." },
-      }),
-      "pre-hardening-freeflow-proxy": async () => repoBaselineObservation(repo.path, options.query, {
-        toolPathUsed: "pre-hardening-freeflow-proxy: legacy line scorer",
-        skipDirs: LEGACY_SKIP_DIRS,
-        recovery: { status: "failed", detail: "Baseline proxy does not expose structured recovery metadata." },
-      }),
-      "improved-freeflow-router": async () => improvedRetrieveObservation(
-        await freeflowSearch({
-          action: "query",
-          source: { kind: "repo", root: repo.path },
-          query: options.query,
-          preserve: "important",
+      "native-baseline-proxy": async () =>
+        repoBaselineObservation(repo.path, options.query, {
+          toolPathUsed: "native-baseline-proxy: recursive text scan (rg/read proxy)",
+          skipDirs: new Set<string>(),
+          recovery: {
+            status: "not-applicable",
+            detail: "Native proxy returns direct text without Freeflow recovery metadata.",
+          },
         }),
-        "improved-freeflow-router: freeflow_search query",
-        await readRepoBytes(repo.path),
-        (result) => verifyRepoEvidenceRecovery(repo.path, result),
-      ),
+      "pre-hardening-freeflow-proxy": async () =>
+        repoBaselineObservation(repo.path, options.query, {
+          toolPathUsed: "pre-hardening-freeflow-proxy: legacy line scorer",
+          skipDirs: LEGACY_SKIP_DIRS,
+          recovery: { status: "failed", detail: "Baseline proxy does not expose structured recovery metadata." },
+        }),
+      "improved-freeflow-router": async () =>
+        improvedRetrieveObservation(
+          await freeflowSearch({
+            action: "query",
+            source: { kind: "repo", root: repo.path },
+            query: options.query,
+            preserve: "important",
+          }),
+          "improved-freeflow-router: freeflow_search query",
+          await readRepoBytes(repo.path),
+          (result) => verifyRepoEvidenceRecovery(repo.path, result),
+        ),
     },
     cleanup: repo.cleanup,
   };
@@ -871,7 +894,8 @@ async function improvedRetrieveObservation(
   const evidence = result.evidence?.[0];
   const excerpt = result.evidence?.map((packet) => packet.excerpt).join("\n") ?? "";
   const recoveryGuidancePresent = Boolean(
-    result.recovery?.how && (result.recovery.outputId || result.recovery.evidenceId || result.evidence?.some((packet) => packet.expandable)),
+    result.recovery?.how &&
+    (result.recovery.outputId || result.recovery.evidenceId || result.evidence?.some((packet) => packet.expandable)),
   );
   const notes = [result.routing.reason];
   if (result.evidence && result.evidence.length > 1) {
@@ -969,10 +993,12 @@ function verifyRecoveredEvidence(
 }
 
 function firstRecoveryAnchor(excerpt: string): string {
-  return splitLines(excerpt)
-    .map((line) => line.trim())
-    .find((line) => line.length > 0)
-    ?.slice(0, 80) ?? "";
+  return (
+    splitLines(excerpt)
+      .map((line) => line.trim())
+      .find((line) => line.length > 0)
+      ?.slice(0, 80) ?? ""
+  );
 }
 
 function scoreCorrectness(expected: BenchmarkExpected, observation: BenchmarkObservation): CorrectnessResult {
@@ -1035,7 +1061,12 @@ async function collectTextFiles(root: string, skipDirs: ReadonlySet<string>): Pr
   return files.sort((a, b) => a.path.localeCompare(b.path));
 }
 
-async function collectTextFilesInto(root: string, currentPath: string, skipDirs: ReadonlySet<string>, files: TextFile[]) {
+async function collectTextFilesInto(
+  root: string,
+  currentPath: string,
+  skipDirs: ReadonlySet<string>,
+  files: TextFile[],
+) {
   const currentStat = await stat(currentPath);
   const name = currentPath.split(/[\\/]+/).at(-1) ?? currentPath;
   if (currentStat.isDirectory()) {
@@ -1125,7 +1156,13 @@ function isGeneratedBenchmarkPath(path: string): boolean {
   }
 
   const name = segments.at(-1)?.toLowerCase() ?? path.toLowerCase();
-  return name.endsWith(".log") || name.endsWith(".map") || name.endsWith(".min.js") || name.endsWith(".min.css") || name.includes(".bundle.");
+  return (
+    name.endsWith(".log") ||
+    name.endsWith(".map") ||
+    name.endsWith(".min.js") ||
+    name.endsWith(".min.css") ||
+    name.includes(".bundle.")
+  );
 }
 
 function scoreText(text: string, tokens: readonly string[]): number {
@@ -1188,7 +1225,10 @@ function skippedObservation(toolPathUsed: string, reason: string): BenchmarkObse
 }
 
 function normalizeRelativePath(path: string): string {
-  return path.split(/[/\\]+/).filter(Boolean).join("/");
+  return path
+    .split(/[/\\]+/)
+    .filter(Boolean)
+    .join("/");
 }
 
 function defaultReportPath(): string {
@@ -1196,7 +1236,9 @@ function defaultReportPath(): string {
 }
 
 async function runCli() {
-  const { iterations, reportPath, jsonReportPath } = parseBenchmarkCliArgs(process.argv.slice(2), { reportPath: defaultReportPath() });
+  const { iterations, reportPath, jsonReportPath } = parseBenchmarkCliArgs(process.argv.slice(2), {
+    reportPath: defaultReportPath(),
+  });
   const options: RunRouterBenchmarksOptions = {};
   if (iterations !== undefined) {
     options.iterations = iterations;
@@ -1206,7 +1248,9 @@ async function runCli() {
     jsonReportPath: jsonReportPath === undefined ? defaultJsonRunReportPath(reportPath) : jsonReportPath,
   });
   const shortId = createHash("sha256").update(JSON.stringify(report.summary)).digest("hex").slice(0, 8);
-  console.log(`Freeflow router benchmark ${shortId}: improved ${report.summary.improved.passed}/${report.summary.fixtures} pass`);
+  console.log(
+    `Freeflow router benchmark ${shortId}: improved ${report.summary.improved.passed}/${report.summary.fixtures} pass`,
+  );
   console.log(`Markdown report: ${reports.markdown}`);
   if (reports.json) {
     console.log(`JSON run data: ${reports.json}`);

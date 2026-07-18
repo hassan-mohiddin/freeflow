@@ -75,11 +75,7 @@ export default async function rootGuard(pi) {
       return { block: true, reason: `${event.toolName} is disabled in isolated skill evals` };
     }
 
-    const operation = WRITE_TOOLS.has(event.toolName)
-      ? "write"
-      : READ_TOOLS.has(event.toolName)
-        ? "read"
-        : null;
+    const operation = WRITE_TOOLS.has(event.toolName) ? "write" : READ_TOOLS.has(event.toolName) ? "read" : null;
 
     if (!operation) {
       return { block: true, reason: `Tool is not allowed by the skill-eval root guard: ${event.toolName}` };

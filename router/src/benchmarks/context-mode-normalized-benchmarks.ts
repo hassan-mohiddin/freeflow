@@ -145,16 +145,26 @@ const BUILD_STDERR = [
 
 const SERVICE_LOG = [
   "2026-06-26T10:00:00Z service=payments status=starting",
-  ...Array.from({ length: 120 }, (_, index) => `2026-06-26T10:00:${String(index + 1).padStart(2, "0")}Z heartbeat worker=${index % 4} status=ok`),
+  ...Array.from(
+    { length: 120 },
+    (_, index) => `2026-06-26T10:00:${String(index + 1).padStart(2, "0")}Z heartbeat worker=${index % 4} status=ok`,
+  ),
   "2026-06-26T10:05:00Z service=payments error=RATE_LIMIT retryAfter=30 requestId=req_critical_42",
-  ...Array.from({ length: 80 }, (_, index) => `2026-06-26T10:06:${String(index + 1).padStart(2, "0")}Z heartbeat worker=${index % 4} status=ok`),
+  ...Array.from(
+    { length: 80 },
+    (_, index) => `2026-06-26T10:06:${String(index + 1).padStart(2, "0")}Z heartbeat worker=${index % 4} status=ok`,
+  ),
 ].join("\n");
 
 const JSON_TABLE = JSON.stringify(
   {
     status: "ok",
     marker: "JSON_TABLE_NEEDLE invoice_total=12345",
-    rows: Array.from({ length: 80 }, (_, index) => ({ id: index + 1, value: `row-${index + 1}`, amount: index === 41 ? 12345 : index })),
+    rows: Array.from({ length: 80 }, (_, index) => ({
+      id: index + 1,
+      value: `row-${index + 1}`,
+      amount: index === 41 ? 12345 : index,
+    })),
   },
   null,
   2,
@@ -335,19 +345,21 @@ function commandFixture(env: BenchmarkEnvironment): ContextModeFixtureDefinition
     rawBytes: byteLength(raw),
     expectedFacts,
     modes: {
-      "context-mode-normalized-proxy": async () => contextModeProxyObservation(env, {
-        id: "command-test-build-output",
-        raw,
-        expectedFacts,
-        toolCalls: 1,
-        title: "run command and store raw output",
-      }),
-      "freeflow-owned-tools": async () => freeflowRunObservation(env, {
-        command: "npm test -- --runInBand",
-        raw,
-        expectedFacts,
-        goal: "verification",
-      }),
+      "context-mode-normalized-proxy": async () =>
+        contextModeProxyObservation(env, {
+          id: "command-test-build-output",
+          raw,
+          expectedFacts,
+          toolCalls: 1,
+          title: "run command and store raw output",
+        }),
+      "freeflow-owned-tools": async () =>
+        freeflowRunObservation(env, {
+          command: "npm test -- --runInBand",
+          raw,
+          expectedFacts,
+          goal: "verification",
+        }),
     },
   };
 }
@@ -361,18 +373,20 @@ function docsFixture(env: BenchmarkEnvironment): ContextModeFixtureDefinition {
     rawBytes: byteLength(DOC_TEXT),
     expectedFacts,
     modes: {
-      "context-mode-normalized-proxy": async () => contextModeProxyObservation(env, {
-        id: "docs-markdown-query",
-        raw: DOC_TEXT,
-        expectedFacts,
-        toolCalls: 1,
-        title: "read markdown and store raw document",
-      }),
-      "freeflow-owned-tools": async () => freeflowSearchObservation(env, {
-        rawBytes: byteLength(DOC_TEXT),
-        expectedFacts,
-        query: "outputId line-range recovery Metadata-only exact raw recovery",
-      }),
+      "context-mode-normalized-proxy": async () =>
+        contextModeProxyObservation(env, {
+          id: "docs-markdown-query",
+          raw: DOC_TEXT,
+          expectedFacts,
+          toolCalls: 1,
+          title: "read markdown and store raw document",
+        }),
+      "freeflow-owned-tools": async () =>
+        freeflowSearchObservation(env, {
+          rawBytes: byteLength(DOC_TEXT),
+          expectedFacts,
+          query: "outputId line-range recovery Metadata-only exact raw recovery",
+        }),
     },
   };
 }
@@ -386,20 +400,22 @@ function logsFixture(env: BenchmarkEnvironment): ContextModeFixtureDefinition {
     rawBytes: byteLength(SERVICE_LOG),
     expectedFacts,
     modes: {
-      "context-mode-normalized-proxy": async () => contextModeProxyObservation(env, {
-        id: "large-log-search",
-        raw: SERVICE_LOG,
-        expectedFacts,
-        toolCalls: 1,
-        title: "search log and store raw log",
-      }),
-      "freeflow-owned-tools": async () => freeflowRunObservation(env, {
-        command: "tail -n 250 service.log",
-        raw: SERVICE_LOG,
-        expectedFacts,
-        goal: "diagnose rate limit log spike",
-        filters: { include: ["RATE_LIMIT", "req_critical_42"], maxLines: 5 },
-      }),
+      "context-mode-normalized-proxy": async () =>
+        contextModeProxyObservation(env, {
+          id: "large-log-search",
+          raw: SERVICE_LOG,
+          expectedFacts,
+          toolCalls: 1,
+          title: "search log and store raw log",
+        }),
+      "freeflow-owned-tools": async () =>
+        freeflowRunObservation(env, {
+          command: "tail -n 250 service.log",
+          raw: SERVICE_LOG,
+          expectedFacts,
+          goal: "diagnose rate limit log spike",
+          filters: { include: ["RATE_LIMIT", "req_critical_42"], maxLines: 5 },
+        }),
     },
   };
 }
@@ -413,20 +429,22 @@ function jsonTableFixture(env: BenchmarkEnvironment): ContextModeFixtureDefiniti
     rawBytes: byteLength(JSON_TABLE),
     expectedFacts,
     modes: {
-      "context-mode-normalized-proxy": async () => contextModeProxyObservation(env, {
-        id: "json-table-output",
-        raw: JSON_TABLE,
-        expectedFacts,
-        toolCalls: 1,
-        title: "summarize JSON/table and store raw payload",
-      }),
-      "freeflow-owned-tools": async () => freeflowRunObservation(env, {
-        command: "node scripts/dump-invoices.js",
-        raw: JSON_TABLE,
-        expectedFacts,
-        goal: "inspect invoice JSON table",
-        filters: { include: ["JSON_TABLE_NEEDLE", "12345"], maxLines: 8 },
-      }),
+      "context-mode-normalized-proxy": async () =>
+        contextModeProxyObservation(env, {
+          id: "json-table-output",
+          raw: JSON_TABLE,
+          expectedFacts,
+          toolCalls: 1,
+          title: "summarize JSON/table and store raw payload",
+        }),
+      "freeflow-owned-tools": async () =>
+        freeflowRunObservation(env, {
+          command: "node scripts/dump-invoices.js",
+          raw: JSON_TABLE,
+          expectedFacts,
+          goal: "inspect invoice JSON table",
+          filters: { include: ["JSON_TABLE_NEEDLE", "12345"], maxLines: 8 },
+        }),
     },
   };
 }
@@ -441,19 +459,21 @@ function repoSearchFixture(env: BenchmarkEnvironment): ContextModeFixtureDefinit
     rawBytes,
     expectedFacts,
     modes: {
-      "context-mode-normalized-proxy": async () => contextModeProxyObservation(env, {
-        id: "repo-text-search-generated-decoy",
-        raw: REPO_CODE,
-        rawBytes,
-        expectedFacts,
-        toolCalls: 1,
-        title: "repo search result stored by proxy",
-      }),
-      "freeflow-owned-tools": async () => freeflowSearchObservation(env, {
-        rawBytes,
-        expectedFacts,
-        query: "RequireEscalated approval required WithAdditionalPermissions",
-      }),
+      "context-mode-normalized-proxy": async () =>
+        contextModeProxyObservation(env, {
+          id: "repo-text-search-generated-decoy",
+          raw: REPO_CODE,
+          rawBytes,
+          expectedFacts,
+          toolCalls: 1,
+          title: "repo search result stored by proxy",
+        }),
+      "freeflow-owned-tools": async () =>
+        freeflowSearchObservation(env, {
+          rawBytes,
+          expectedFacts,
+          query: "RequireEscalated approval required WithAdditionalPermissions",
+        }),
     },
   };
 }
@@ -468,17 +488,19 @@ function batchFixture(env: BenchmarkEnvironment): ContextModeFixtureDefinition {
     rawBytes: byteLength(raw),
     expectedFacts,
     modes: {
-      "context-mode-normalized-proxy": async () => contextModeProxyObservation(env, {
-        id: "batch-multi-command-query",
-        raw,
-        expectedFacts: ["AUTH_TOKEN scoped", "RATE_LIMIT", "Recovery Contract"],
-        toolCalls: 3,
-        title: "three independent stored context operations",
-      }),
-      "freeflow-owned-tools": async () => freeflowBatchObservation(env, {
-        rawBytes: byteLength(raw),
-        expectedFacts,
-      }),
+      "context-mode-normalized-proxy": async () =>
+        contextModeProxyObservation(env, {
+          id: "batch-multi-command-query",
+          raw,
+          expectedFacts: ["AUTH_TOKEN scoped", "RATE_LIMIT", "Recovery Contract"],
+          toolCalls: 3,
+          title: "three independent stored context operations",
+        }),
+      "freeflow-owned-tools": async () =>
+        freeflowBatchObservation(env, {
+          rawBytes: byteLength(raw),
+          expectedFacts,
+        }),
     },
   };
 }
@@ -535,7 +557,14 @@ async function runFixtureMode(
 
 async function contextModeProxyObservation(
   env: BenchmarkEnvironment,
-  options: { id: string; title: string; raw: string; rawBytes?: number; expectedFacts: readonly string[]; toolCalls: number },
+  options: {
+    id: string;
+    title: string;
+    raw: string;
+    rawBytes?: number;
+    expectedFacts: readonly string[];
+    toolCalls: number;
+  },
 ): Promise<FixtureObservation> {
   const outputId = contextOutputId(options.id, options.raw);
   const path = join(env.contextStoreRoot, `${outputId}.txt`);
@@ -562,7 +591,13 @@ async function contextModeProxyObservation(
 
 async function freeflowRunObservation(
   env: BenchmarkEnvironment,
-  options: { command: string; raw: string; expectedFacts: readonly string[]; goal: string; filters?: Record<string, unknown> },
+  options: {
+    command: string;
+    raw: string;
+    expectedFacts: readonly string[];
+    goal: string;
+    filters?: Record<string, unknown>;
+  },
 ): Promise<FixtureObservation> {
   const before = await directoryByteSize(env.vaultRoot);
   const result = await freeflowRun(
@@ -629,8 +664,25 @@ async function freeflowBatchObservation(
       concurrency: 3,
       steps: [
         { id: "test", kind: "run", input: { command: "npm test -- --runInBand", goal: "verification" } },
-        { id: "log", kind: "run", input: { command: "tail -n 250 service.log", goal: "diagnose rate limit log spike", filters: { include: ["RATE_LIMIT", "req_critical_42"], maxLines: 5 } } },
-        { id: "doc", kind: "search", input: { action: "query", source: { kind: "repo", root: env.repoRoot }, query: "Recovery Contract outputId line-range", topK: 1 } },
+        {
+          id: "log",
+          kind: "run",
+          input: {
+            command: "tail -n 250 service.log",
+            goal: "diagnose rate limit log spike",
+            filters: { include: ["RATE_LIMIT", "req_critical_42"], maxLines: 5 },
+          },
+        },
+        {
+          id: "doc",
+          kind: "search",
+          input: {
+            action: "query",
+            source: { kind: "repo", root: env.repoRoot },
+            query: "Recovery Contract outputId line-range",
+            topK: 1,
+          },
+        },
       ],
     },
     env.commandRunner,
@@ -776,10 +828,7 @@ function fixtureCommandRunner(): HostCommandRunner {
 }
 
 function freeflowVisibleText(result: RoutedResult | BatchRoutedResult | RetrievalRoutedResult): string {
-  const lines = [
-    resultSummary(result),
-    result.routing?.reason ?? "",
-  ];
+  const lines = [resultSummary(result), result.routing?.reason ?? ""];
   if ("importantLines" in result && Array.isArray(result.importantLines)) {
     lines.push(...result.importantLines.map((line: ImportantLine) => line.excerpt));
   }
@@ -853,7 +902,7 @@ async function readDirectoryRecursive(path: string): Promise<string[]> {
   for (const entry of entries) {
     const child = join(path, entry.name);
     if (entry.isDirectory()) {
-      files.push(...await readDirectoryRecursive(child));
+      files.push(...(await readDirectoryRecursive(child)));
     } else if (entry.isFile()) {
       const childStat = await stat(child);
       if (childStat.size <= 2_000_000) {
@@ -891,7 +940,9 @@ function defaultReportPath(): string {
 }
 
 async function runCli() {
-  const { iterations, reportPath, jsonReportPath } = parseBenchmarkCliArgs(process.argv.slice(2), { reportPath: defaultReportPath() });
+  const { iterations, reportPath, jsonReportPath } = parseBenchmarkCliArgs(process.argv.slice(2), {
+    reportPath: defaultReportPath(),
+  });
   const options: RunContextModeNormalizedBenchmarksOptions = {};
   if (iterations !== undefined) {
     options.iterations = iterations;
@@ -901,7 +952,9 @@ async function runCli() {
     jsonReportPath: jsonReportPath === undefined ? defaultJsonRunReportPath(reportPath) : jsonReportPath,
   });
   const shortId = createHash("sha256").update(JSON.stringify(report.summary)).digest("hex").slice(0, 8);
-  console.log(`Freeflow Context Mode normalized benchmark ${shortId}: freeflow ${report.summary.freeflow.passed}/${report.summary.fixtures}, proxy ${report.summary.contextModeProxy.passed}/${report.summary.fixtures}`);
+  console.log(
+    `Freeflow Context Mode normalized benchmark ${shortId}: freeflow ${report.summary.freeflow.passed}/${report.summary.fixtures}, proxy ${report.summary.contextModeProxy.passed}/${report.summary.fixtures}`,
+  );
   console.log(`Markdown report: ${reports.markdown}`);
   if (reports.json) {
     console.log(`JSON run data: ${reports.json}`);

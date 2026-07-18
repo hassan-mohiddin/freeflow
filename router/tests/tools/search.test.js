@@ -4,7 +4,14 @@ import { join, parse, relative } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
 
-import { createVault, freeflowSearch, storeCommandOutput, storeMetadataOutput, storeRepoFileReference, storeTextOutput } from "../../dist/index.js";
+import {
+  createVault,
+  freeflowSearch,
+  storeCommandOutput,
+  storeMetadataOutput,
+  storeRepoFileReference,
+  storeTextOutput,
+} from "../../dist/index.js";
 
 function assertUtf8RoundTrips(text) {
   assert.equal(Buffer.from(text, "utf8").toString("utf8"), text);
@@ -138,7 +145,13 @@ test("vault-wide query finds indexed chunks across output ids with exact recover
     const [start, end] = evidence.lines.split("-").map(Number);
     const recovered = await freeflowSearch({
       action: "retrieve",
-      source: { kind: "vault", root: vault.root, sessionId: "vault-wide-query-session", outputId: command.outputId, stream: "combined" },
+      source: {
+        kind: "vault",
+        root: vault.root,
+        sessionId: "vault-wide-query-session",
+        outputId: command.outputId,
+        stream: "combined",
+      },
       lineRange: { start, end },
       preserve: "full",
     });
@@ -1127,11 +1140,7 @@ test("repo scanner boosts explicit path intent for thin entrypoint modules", asy
     await mkdir(join(root, "codex-rs/core/src"), { recursive: true });
     await writeFile(
       join(root, "codex-rs/prompts/src/lib.rs"),
-      [
-        "mod apply_patch;",
-        "",
-        "pub use apply_patch::APPLY_PATCH_TOOL_INSTRUCTIONS;",
-      ].join("\n"),
+      ["mod apply_patch;", "", "pub use apply_patch::APPLY_PATCH_TOOL_INSTRUCTIONS;"].join("\n"),
       "utf8",
     );
     await writeFile(
@@ -1454,11 +1463,7 @@ test("preserve full over cap with one huge line returns bounded head and tail ch
 test("preserve full over cap keeps multibyte previews well-formed", async () => {
   const root = await mkdtemp(join(tmpdir(), "freeflow-router-full-multibyte-cap-"));
   try {
-    await writeFile(
-      join(root, "emoji-line.md"),
-      `${"🙂".repeat(10_000)}TAIL_SENTINEL`,
-      "utf8",
-    );
+    await writeFile(join(root, "emoji-line.md"), `${"🙂".repeat(10_000)}TAIL_SENTINEL`, "utf8");
 
     const result = await freeflowSearch({
       action: "retrieve",

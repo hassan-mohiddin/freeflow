@@ -65,17 +65,23 @@ function renderOkLines(input: ProcessingRenderInput): string[] {
   const scriptLines = scriptOutputLines(input.script);
   const visibleFacts = scriptLines.length > 0 ? scriptLines : visibleFactLines(input.facts, input.reducer);
   const policyLine = processingScriptPolicyLine(input.script);
-  const unsafeScriptRequested = input.script && "policy" in input.script && input.script.policy === "unsafe-unsandboxed";
-  const lines = unsafeScriptRequested && policyLine
-    ? [policyLine, ...(visibleFacts.length > 0 ? visibleFacts : [`status: ${input.status}`])]
-    : (visibleFacts.length > 0 ? visibleFacts : [`status: ${input.status}`]);
+  const unsafeScriptRequested =
+    input.script && "policy" in input.script && input.script.policy === "unsafe-unsandboxed";
+  const lines =
+    unsafeScriptRequested && policyLine
+      ? [policyLine, ...(visibleFacts.length > 0 ? visibleFacts : [`status: ${input.status}`])]
+      : visibleFacts.length > 0
+        ? visibleFacts
+        : [`status: ${input.status}`];
   lines.push(`source: ${sourcePointer(input.source, input.stats)}`);
   lines.push(`recovery: ${recoveryClass}`);
   if (!unsafeScriptRequested && policyLine) {
     lines.push(policyLine);
   }
   if (input.reducer?.status === "selected") {
-    lines.push(`reducer: ${input.reducer.selected.name}@${input.reducer.selected.version} confidence=${input.reducer.selected.confidence.toFixed(2)}`);
+    lines.push(
+      `reducer: ${input.reducer.selected.name}@${input.reducer.selected.version} confidence=${input.reducer.selected.confidence.toFixed(2)}`,
+    );
   }
   return lines;
 }

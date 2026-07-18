@@ -25,7 +25,8 @@ const reducer = {
     confidence: 1,
     reason: "matched",
     facts: [],
-    visibleText: "access-log summary\nrequests: 500\nerrors: 88\nsource recovery: Recover processing result with freeflow_search ...",
+    visibleText:
+      "access-log summary\nrequests: 500\nerrors: 88\nsource recovery: Recover processing result with freeflow_search ...",
     details: {},
   },
   reason: "matched",
@@ -80,6 +81,9 @@ test("processing renderer keeps blocked failure reason visible", () => {
 test("processing recovery classification distinguishes result, source, metadata, and none", () => {
   assert.equal(classifyProcessingRecovery({ resultWillBePersisted: true }), "exact-result");
   assert.equal(classifyProcessingRecovery({ recovery: { how: "retrieve", outputId: "ffout_source" } }), "exact-source");
-  assert.equal(classifyProcessingRecovery({ persistence: { status: "metadata_only", recoverability: "metadata_only" } }), "metadata-only");
+  assert.equal(
+    classifyProcessingRecovery({ persistence: { status: "metadata_only", recoverability: "metadata_only" } }),
+    "metadata-only",
+  );
   assert.equal(classifyProcessingRecovery({}), "none");
 });

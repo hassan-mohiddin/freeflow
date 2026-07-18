@@ -220,15 +220,31 @@ test("route decision contract normalizes all public decision shapes", () => {
     "inline_allowed",
   );
   assert.equal(
-    normalizeDelegationRouteDecision({ kind: "route_required", routeId: "route-parent", targetRole: "planning-parent", reasonCodes: ["broad"] }).targetRole,
+    normalizeDelegationRouteDecision({
+      kind: "route_required",
+      routeId: "route-parent",
+      targetRole: "planning-parent",
+      reasonCodes: ["broad"],
+    }).targetRole,
     "planning-parent",
   );
   assert.equal(
-    normalizeDelegationRouteDecision({ kind: "ask_user", routeId: "route-user", question: "Approve plan?", reasonCodes: ["decision"] }).question,
+    normalizeDelegationRouteDecision({
+      kind: "ask_user",
+      routeId: "route-user",
+      question: "Approve plan?",
+      reasonCodes: ["decision"],
+    }).question,
     "Approve plan?",
   );
   assert.equal(
-    normalizeDelegationRouteDecision({ kind: "blocked", routeId: "route-block", reason: "leaf cannot spawn", suggestedReroute: "execution-parent", reasonCodes: ["leaf_spawn"] }).suggestedReroute,
+    normalizeDelegationRouteDecision({
+      kind: "blocked",
+      routeId: "route-block",
+      reason: "leaf cannot spawn",
+      suggestedReroute: "execution-parent",
+      reasonCodes: ["leaf_spawn"],
+    }).suggestedReroute,
     "execution-parent",
   );
 });
@@ -250,7 +266,13 @@ test("state vocabulary constants expose separated V1 lifecycle states", () => {
   ]);
   assert.ok(DELEGATION_ASSIGNMENT_STATES.includes("result_malformed"));
   assert.ok(DELEGATION_PANE_STATES.includes("open_failed"));
-  assert.deepEqual(DELEGATION_ROUTE_APPLICATION_STATES, ["pending", "applied", "already_applied", "failed", "cancelled"]);
+  assert.deepEqual(DELEGATION_ROUTE_APPLICATION_STATES, [
+    "pending",
+    "applied",
+    "already_applied",
+    "failed",
+    "cancelled",
+  ]);
   assert.deepEqual(DELEGATION_ALERT_STATES, ["queued", "delivered", "seen", "acked", "resolved", "escalated"]);
   assert.deepEqual(DELEGATION_ALERT_PRIORITIES, ["P0", "P1", "P2", "P3"]);
 });
@@ -280,10 +302,14 @@ test("approval event constants preserve stored authorization chain and role asse
     "plan.approved",
     "execution.authorized",
   ]);
-  assert.deepEqual(DELEGATION_ROLE_ASSESSMENT_STATUSES, ["pass", "pass_with_non_blocking", "fail", "blocked", "not_run", "accepted_not_run"]);
+  assert.deepEqual(DELEGATION_ROLE_ASSESSMENT_STATUSES, [
+    "pass",
+    "pass_with_non_blocking",
+    "fail",
+    "blocked",
+    "not_run",
+    "accepted_not_run",
+  ]);
 
-  assert.equal(
-    hasExecutionAuthorizationEvidence(storedExecutionAuthorization),
-    true,
-  );
+  assert.equal(hasExecutionAuthorizationEvidence(storedExecutionAuthorization), true);
 });

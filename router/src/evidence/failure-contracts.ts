@@ -144,7 +144,10 @@ function executionFailure(
   return { status, failureKind, message };
 }
 
-function normalizePersistence(persistence: EvidencePersistence | undefined, outputId: string | undefined): EvidencePersistence {
+function normalizePersistence(
+  persistence: EvidencePersistence | undefined,
+  outputId: string | undefined,
+): EvidencePersistence {
   const candidate = persistence ?? noPersistence();
   if (candidate.recoverability !== "exact" && candidate.recoverability !== "redacted") {
     return candidate;
@@ -195,7 +198,11 @@ function recoveryHintForPersistence(persistence: EvidencePersistence): RecoveryH
 }
 
 function defaultExecutionStatus(kind: RouterFailureKind): FailureExecutionStatus {
-  if (kind === "adapter_unavailable" || kind === "transform_source_unavailable" || kind === "script_transform_disabled") {
+  if (
+    kind === "adapter_unavailable" ||
+    kind === "transform_source_unavailable" ||
+    kind === "script_transform_disabled"
+  ) {
     return "unavailable";
   }
   if (kind === "transform_validation_failure") {
@@ -214,15 +221,17 @@ function failureReason(
 }
 
 function failureDecisionId(options: FailureResultOptions): string {
-  return `ffdec_${hash(JSON.stringify([
-    "failure",
-    options.kind,
-    options.operation,
-    options.recordId ?? null,
-    options.outputId ?? null,
-    options.decisionSeed ?? null,
-    options.message,
-  ])).slice(0, 16)}`;
+  return `ffdec_${hash(
+    JSON.stringify([
+      "failure",
+      options.kind,
+      options.operation,
+      options.recordId ?? null,
+      options.outputId ?? null,
+      options.decisionSeed ?? null,
+      options.message,
+    ]),
+  ).slice(0, 16)}`;
 }
 
 function hash(value: string): string {

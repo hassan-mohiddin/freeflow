@@ -3,7 +3,11 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir, homedir } from "node:os";
 import { resolve } from "node:path";
-import { assertSafeOwnedRoot, authorizeToolPath, createRootPolicy } from "../../../skills/evaluate-skill/scripts/lib/path-policy.mjs";
+import {
+  assertSafeOwnedRoot,
+  authorizeToolPath,
+  createRootPolicy,
+} from "../../../skills/evaluate-skill/scripts/lib/path-policy.mjs";
 import { loadSkillWorkspace, resolveInside } from "../../../skills/evaluate-skill/scripts/lib/workspace.mjs";
 
 test("resolveInside rejects traversal and absolute paths", () => {
@@ -27,23 +31,37 @@ test("workspace loader rejects fixture symlink escapes", async (t) => {
   await mkdir(resolve(skillRoot, "cases"), { recursive: true });
   await mkdir(outside);
   await writeFile(resolve(root, ".skill-eval", "config.json"), "{}\n");
-  await writeFile(resolve(skillRoot, "suite.json"), JSON.stringify({ schema_version: 1, skill: "sample-skill", cases: ["cases/SAMPLE-001.json"] }));
-  await writeFile(resolve(skillRoot, "cases", "SAMPLE-001.json"), JSON.stringify({
-    schema_version: 1,
-    id: "SAMPLE-001",
-    skill: "sample-skill",
-    title: "escape",
-    question: "fixture/repo behavior",
-    evidence_classes: ["artifact-outcome"],
-    required_for_bootstrap: false,
-    evaluation_kind: "single",
-    unsupported_evidence: "block",
-    prompt: "x",
-    fixture: "fixtures/escape",
-    variants: [{ id: "candidate", role: "subject", kind: "working-tree", path: "skills/sample-skill", resources: ["SKILL.md"] }],
-    execution: { host: "pi", mode: "json", tools: ["read"], timeout_ms: 1 },
-    assertions: [{ id: "x", type: "path_exists", path: "x" }],
-  }));
+  await writeFile(
+    resolve(skillRoot, "suite.json"),
+    JSON.stringify({ schema_version: 1, skill: "sample-skill", cases: ["cases/SAMPLE-001.json"] }),
+  );
+  await writeFile(
+    resolve(skillRoot, "cases", "SAMPLE-001.json"),
+    JSON.stringify({
+      schema_version: 1,
+      id: "SAMPLE-001",
+      skill: "sample-skill",
+      title: "escape",
+      question: "fixture/repo behavior",
+      evidence_classes: ["artifact-outcome"],
+      required_for_bootstrap: false,
+      evaluation_kind: "single",
+      unsupported_evidence: "block",
+      prompt: "x",
+      fixture: "fixtures/escape",
+      variants: [
+        {
+          id: "candidate",
+          role: "subject",
+          kind: "working-tree",
+          path: "skills/sample-skill",
+          resources: ["SKILL.md"],
+        },
+      ],
+      execution: { host: "pi", mode: "json", tools: ["read"], timeout_ms: 1 },
+      assertions: [{ id: "x", type: "path_exists", path: "x" }],
+    }),
+  );
   await mkdir(resolve(skillRoot, "fixtures"));
   await symlink(outside, resolve(skillRoot, "fixtures", "escape"));
   await assert.rejects(() => loadSkillWorkspace(root, "sample-skill"), /symlink/);
@@ -60,24 +78,41 @@ test("workspace loader rejects nested fixture symlinks", async (t) => {
   await writeFile(outside, "outside\n");
   await symlink(outside, resolve(fixture, "nested-escape"));
   await writeFile(resolve(root, ".skill-eval", "config.json"), "{}\n");
-  await writeFile(resolve(skillRoot, "suite.json"), JSON.stringify({ schema_version: 1, skill: "sample-skill", cases: ["cases/SAMPLE-001.json"] }));
-  await writeFile(resolve(skillRoot, "cases", "SAMPLE-001.json"), JSON.stringify({
-    schema_version: 1,
-    id: "SAMPLE-001",
-    skill: "sample-skill",
-    title: "escape",
-    question: "fixture/repo behavior",
-    evidence_classes: ["artifact-outcome"],
-    required_for_bootstrap: false,
-    evaluation_kind: "single",
-    unsupported_evidence: "block",
-    prompt: "x",
-    fixture: "fixtures/input",
-    variants: [{ id: "candidate", role: "subject", kind: "working-tree", path: "skills/sample-skill", resources: ["SKILL.md"] }],
-    execution: { host: "pi", mode: "json", tools: ["read"] },
-    assertions: [{ id: "x", type: "path_exists", path: "x" }],
-  }));
-  await assert.rejects(() => loadSkillWorkspace(root, "sample-skill"), /nested-escape.*symlink|symlink.*nested-escape/i);
+  await writeFile(
+    resolve(skillRoot, "suite.json"),
+    JSON.stringify({ schema_version: 1, skill: "sample-skill", cases: ["cases/SAMPLE-001.json"] }),
+  );
+  await writeFile(
+    resolve(skillRoot, "cases", "SAMPLE-001.json"),
+    JSON.stringify({
+      schema_version: 1,
+      id: "SAMPLE-001",
+      skill: "sample-skill",
+      title: "escape",
+      question: "fixture/repo behavior",
+      evidence_classes: ["artifact-outcome"],
+      required_for_bootstrap: false,
+      evaluation_kind: "single",
+      unsupported_evidence: "block",
+      prompt: "x",
+      fixture: "fixtures/input",
+      variants: [
+        {
+          id: "candidate",
+          role: "subject",
+          kind: "working-tree",
+          path: "skills/sample-skill",
+          resources: ["SKILL.md"],
+        },
+      ],
+      execution: { host: "pi", mode: "json", tools: ["read"] },
+      assertions: [{ id: "x", type: "path_exists", path: "x" }],
+    }),
+  );
+  await assert.rejects(
+    () => loadSkillWorkspace(root, "sample-skill"),
+    /nested-escape.*symlink|symlink.*nested-escape/i,
+  );
 });
 
 test("root policy blocks snapshot writes, traversal, and symlink escapes", async (t) => {
@@ -95,10 +130,30 @@ test("root policy blocks snapshot writes, traversal, and symlink escapes", async
   await symlink(resolve(denied, "answer.txt"), resolve(fixture, "escape"));
 
   const policy = await createRootPolicy({ readRoots: [fixture, snapshot], writeRoots: [fixture] });
-  assert.equal((await authorizeToolPath({ inputPath: "file.txt", cwd: fixture, operation: "read", policy })).allowed, true);
-  assert.equal((await authorizeToolPath({ inputPath: "new.txt", cwd: fixture, operation: "write", policy })).allowed, true);
-  assert.equal((await authorizeToolPath({ inputPath: resolve(snapshot, "SKILL.md"), cwd: fixture, operation: "read", policy })).allowed, true);
-  assert.equal((await authorizeToolPath({ inputPath: resolve(snapshot, "SKILL.md"), cwd: fixture, operation: "write", policy })).allowed, false);
-  assert.equal((await authorizeToolPath({ inputPath: "../denied/answer.txt", cwd: fixture, operation: "read", policy })).allowed, false);
-  assert.equal((await authorizeToolPath({ inputPath: "escape", cwd: fixture, operation: "read", policy })).allowed, false);
+  assert.equal(
+    (await authorizeToolPath({ inputPath: "file.txt", cwd: fixture, operation: "read", policy })).allowed,
+    true,
+  );
+  assert.equal(
+    (await authorizeToolPath({ inputPath: "new.txt", cwd: fixture, operation: "write", policy })).allowed,
+    true,
+  );
+  assert.equal(
+    (await authorizeToolPath({ inputPath: resolve(snapshot, "SKILL.md"), cwd: fixture, operation: "read", policy }))
+      .allowed,
+    true,
+  );
+  assert.equal(
+    (await authorizeToolPath({ inputPath: resolve(snapshot, "SKILL.md"), cwd: fixture, operation: "write", policy }))
+      .allowed,
+    false,
+  );
+  assert.equal(
+    (await authorizeToolPath({ inputPath: "../denied/answer.txt", cwd: fixture, operation: "read", policy })).allowed,
+    false,
+  );
+  assert.equal(
+    (await authorizeToolPath({ inputPath: "escape", cwd: fixture, operation: "read", policy })).allowed,
+    false,
+  );
 });

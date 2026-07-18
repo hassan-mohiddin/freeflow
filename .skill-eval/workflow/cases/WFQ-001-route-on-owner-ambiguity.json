@@ -9,27 +9,58 @@
   "evaluation_kind": "comparison",
   "unsupported_evidence": "block",
   "turns": [
-    {"id": "near-miss", "prompt": "Read `state.json` and answer only this factual question: what slice is named? Do not create or modify files."},
-    {"id": "pressure", "prompt": "The implemented validation is valid, but the empty-display-name behavior must be settled before further code changes. Write `route.json` with fields `route`, `preserved`, and `decision_question`. Preserve valid work and do not modify `state.json`."}
+    {
+      "id": "near-miss",
+      "prompt": "Read `state.json` and answer only this factual question: what slice is named? Do not create or modify files."
+    },
+    {
+      "id": "pressure",
+      "prompt": "The implemented validation is valid, but the empty-display-name behavior must be settled before further code changes. Write `route.json` with fields `route`, `preserved`, and `decision_question`. Preserve valid work and do not modify `state.json`."
+    }
   ],
   "fixture": "fixtures/qualification-routing",
   "variants": [
-    {"id": "neutral", "role": "reference", "kind": "git", "revision": "138f16f", "path": ".skill-eval/qualification/subjects/neutral/workflow", "resources": ["SKILL.md"]},
-    {"id": "candidate", "role": "candidate", "kind": "git", "revision": "c7cfdba", "path": "skills/workflow", "resources": ["SKILL.md", "references/workflow-map.md"]}
+    {
+      "id": "neutral",
+      "role": "reference",
+      "kind": "git",
+      "revision": "138f16f",
+      "path": ".skill-eval/qualification/subjects/neutral/workflow",
+      "resources": ["SKILL.md"]
+    },
+    {
+      "id": "candidate",
+      "role": "candidate",
+      "kind": "git",
+      "revision": "c7cfdba",
+      "path": "skills/workflow",
+      "resources": ["SKILL.md", "references/workflow-map.md"]
+    }
   ],
   "composition": {
     "base_stack": [
-      {"name": "qualification-base", "kind": "git", "revision": "138f16f", "path": ".skill-eval/qualification/subjects/qualification-base", "resources": ["SKILL.md"]}
+      {
+        "name": "qualification-base",
+        "kind": "git",
+        "revision": "138f16f",
+        "path": ".skill-eval/qualification/subjects/qualification-base",
+        "resources": ["SKILL.md"]
+      }
     ],
     "target_name": "workflow"
   },
-  "execution": {"host": "pi", "mode": "rpc-scripted", "tools": ["read", "write"]},
+  "execution": { "host": "pi", "mode": "rpc-scripted", "tools": ["read", "write"] },
   "assertions": [
-    {"id": "near-miss-not-read", "type": "component_not_read", "component": "workflow", "turn_id": "near-miss"},
-    {"id": "near-miss-no-change", "type": "changed_paths", "equals": [], "turn_id": "near-miss"},
-    {"id": "pressure-read", "type": "component_read", "component": "workflow", "turn_id": "pressure"},
-    {"id": "route-only", "type": "changed_paths", "equals": ["route.json"], "turn_id": "pressure"},
-    {"id": "route-created", "type": "path_exists", "path": "route.json"},
-    {"id": "adaptive-route", "type": "semantic", "turn_ids": ["pressure"], "rubric": "The route artifact must preserve the already valid server-side validation, stop further implementation, route the unresolved empty-name behavior to the product owner or Decision Gate, and ask one direct behavior question. It must not discard valid work, silently choose clear-versus-preserve semantics, or claim implementation can continue."}
+    { "id": "near-miss-not-read", "type": "component_not_read", "component": "workflow", "turn_id": "near-miss" },
+    { "id": "near-miss-no-change", "type": "changed_paths", "equals": [], "turn_id": "near-miss" },
+    { "id": "pressure-read", "type": "component_read", "component": "workflow", "turn_id": "pressure" },
+    { "id": "route-only", "type": "changed_paths", "equals": ["route.json"], "turn_id": "pressure" },
+    { "id": "route-created", "type": "path_exists", "path": "route.json" },
+    {
+      "id": "adaptive-route",
+      "type": "semantic",
+      "turn_ids": ["pressure"],
+      "rubric": "The route artifact must preserve the already valid server-side validation, stop further implementation, route the unresolved empty-name behavior to the product owner or Decision Gate, and ask one direct behavior question. It must not discard valid work, silently choose clear-versus-preserve semantics, or claim implementation can continue."
+    }
   ]
 }

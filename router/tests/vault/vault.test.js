@@ -171,7 +171,8 @@ test("session index keeps cross-process command output records", async () => {
   await withTempVault(async (vault) => {
     const releasePath = join(vault.root, "cross-process-release");
     const distIndexUrl = new URL("../../dist/index.js", import.meta.url).href;
-    const childCode = `
+    const childCode =
+      `
       import { access } from "node:fs/promises";
       import { createVault, storeCommandOutput } from ${JSON.stringify(distIndexUrl)};
       const [root, releasePath, index] = process.argv.slice(1);
@@ -186,17 +187,25 @@ test("session index keeps cross-process command output records", async () => {
       const vault = createVault({ root });
       await storeCommandOutput(vault, {
         sessionId: "cross-process-session",
-        command: ` + "`cmd-${index}`" + `,
-        stdout: ` + "`out-${index}\\n`" + `,
+        command: ` +
+      "`cmd-${index}`" +
+      `,
+        stdout: ` +
+      "`out-${index}\\n`" +
+      `,
         stderr: "",
         executionStatus: "success",
         exitCode: 0,
-        createdAt: ` + "`2026-06-16T00:01:${String(index).padStart(2, \"0\")}.000Z`" + `,
+        createdAt: ` +
+      '`2026-06-16T00:01:${String(index).padStart(2, "0")}.000Z`' +
+      `,
       });
     `;
 
     const childCount = 12;
-    const children = Array.from({ length: childCount }, (_, index) => runNodeModuleSnippet(childCode, [vault.root, releasePath, String(index)]));
+    const children = Array.from({ length: childCount }, (_, index) =>
+      runNodeModuleSnippet(childCode, [vault.root, releasePath, String(index)]),
+    );
     await writeFile(releasePath, "go", "utf8");
     await Promise.all(children);
 
@@ -207,7 +216,11 @@ test("session index keeps cross-process command output records", async () => {
     const vaultIndex = createLocalVaultIndex(vault);
     const indexStatus = await vaultIndex.status();
     assert.equal(indexStatus.outputCount, childCount);
-    const indexedMatches = await vaultIndex.queryVault("out-", { sessionId: "cross-process-session" }, { topK: childCount });
+    const indexedMatches = await vaultIndex.queryVault(
+      "out-",
+      { sessionId: "cross-process-session" },
+      { topK: childCount },
+    );
     assert.equal(new Set(indexedMatches.matches.map((match) => match.outputId)).size, childCount);
   });
 });
@@ -238,7 +251,10 @@ test("vault appends are indexed automatically without changing raw recovery", as
     const textQuery = await index.queryVault("AUTO_INDEX_TEXT_TARGET", { sessionId: "auto-index-session" });
     assert.equal(textQuery.matches[0]?.outputId, text.outputId);
     assert.equal(textQuery.matches[0]?.stream, "raw");
-    assert.equal(await readOutputText(vault, "auto-index-session", command.outputId, "stdout"), "AUTO_INDEX_COMMAND_TARGET exact stdout");
+    assert.equal(
+      await readOutputText(vault, "auto-index-session", command.outputId, "stdout"),
+      "AUTO_INDEX_COMMAND_TARGET exact stdout",
+    );
   });
 });
 
@@ -256,11 +272,16 @@ test("automatic vault indexing keeps metadata-only raw content out of the index"
     });
 
     const index = createLocalVaultIndex(vault);
-    const metadataQuery = await index.queryVault("AUTO_INDEX_METADATA_TARGET", { sessionId: "auto-index-sensitive-session" });
+    const metadataQuery = await index.queryVault("AUTO_INDEX_METADATA_TARGET", {
+      sessionId: "auto-index-sensitive-session",
+    });
     assert.equal(metadataQuery.matches[0]?.outputId, metadata.outputId);
     assert.equal(metadataQuery.matches[0]?.metadataOnly, true);
     assert.equal(metadataQuery.matches[0]?.stream, undefined);
-    assert.equal((await index.queryVault("CUSTOMER_RAW_SECRET", { sessionId: "auto-index-sensitive-session" })).matches.length, 0);
+    assert.equal(
+      (await index.queryVault("CUSTOMER_RAW_SECRET", { sessionId: "auto-index-sensitive-session" })).matches.length,
+      0,
+    );
   });
 });
 
@@ -290,15 +311,19 @@ test("index failures do not break vault persistence", async () => {
 
 test("store helpers reject no-persist records instead of storing raw content with misleading persistence", async () => {
   await withTempVault(async (vault) => {
-    await assert.rejects(() => storeCommandOutput(vault, {
-      sessionId: "no-persist-session",
-      command: "echo secret",
-      stdout: "raw secret",
-      stderr: "",
-      executionStatus: "success",
-      exitCode: 0,
-      persistence: { status: "not_persisted", recoverability: "none" },
-    }), /Cannot store output with persistence recoverability none/);
+    await assert.rejects(
+      () =>
+        storeCommandOutput(vault, {
+          sessionId: "no-persist-session",
+          command: "echo secret",
+          stdout: "raw secret",
+          stderr: "",
+          executionStatus: "success",
+          exitCode: 0,
+          persistence: { status: "not_persisted", recoverability: "none" },
+        }),
+      /Cannot store output with persistence recoverability none/,
+    );
 
     const sessionIndex = await readSessionIndex(vault, "no-persist-session");
     assert.equal(sessionIndex.outputs.length, 0);
@@ -321,13 +346,16 @@ test("text output records store exact raw text", async () => {
     assert.equal(record.producer.kind, "native");
     assert.equal(record.persistence.recoverability, "exact");
     assert.equal(record.persistence.recoveryOutputId, record.outputId);
-    assert.equal(await readOutputLines(vault, {
-      sessionId: "session-text",
-      outputId: record.outputId,
-      stream: "raw",
-      startLine: 2,
-      endLine: 2,
-    }), "beta");
+    assert.equal(
+      await readOutputLines(vault, {
+        sessionId: "session-text",
+        outputId: record.outputId,
+        stream: "raw",
+        startLine: 2,
+        endLine: 2,
+      }),
+      "beta",
+    );
   });
 });
 
@@ -372,7 +400,9 @@ test("repo file references write metadata only by default", async () => {
     assert.equal(record.producer.kind, "repo");
     assert.deepEqual(record.persistence, { status: "metadata_only", recoverability: "metadata_only" });
     assert.equal(record.path, "docs/specs/output-router/freeflow-output-router-design.md");
-    const pathQuery = await createLocalVaultIndex(vault).queryVault("freeflow-output-router-design", { sessionId: "session-repo" });
+    const pathQuery = await createLocalVaultIndex(vault).queryVault("freeflow-output-router-design", {
+      sessionId: "session-repo",
+    });
     assert.equal(pathQuery.matches[0]?.outputId, record.outputId);
     assert.equal(pathQuery.matches[0]?.metadataOnly, true);
     const objectFiles = await readdir(join(vault.root, "objects", record.objectId));

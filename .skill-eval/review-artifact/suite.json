@@ -1,7 +1,5 @@
 {
   "schema_version": 1,
   "skill": "review-artifact",
-  "cases": [
-    "cases/RAQ-001-failure-unit-review.json"
-  ]
+  "cases": ["cases/RAQ-001-failure-unit-review.json"]
 }

@@ -51,41 +51,141 @@ export const DELEGATION_ASSIGNMENT_STATES = [
   "cancelled",
 ] as const satisfies readonly DelegationAssignmentState[];
 
-export const DELEGATION_PANE_STATES = ["not_started", "opening", "active", "idle", "retained", "stale", "closing", "closed", "open_failed", "lost"] as const satisfies readonly DelegationPaneState[];
+export const DELEGATION_PANE_STATES = [
+  "not_started",
+  "opening",
+  "active",
+  "idle",
+  "retained",
+  "stale",
+  "closing",
+  "closed",
+  "open_failed",
+  "lost",
+] as const satisfies readonly DelegationPaneState[];
 
-export const DELEGATION_ROUTE_APPLICATION_STATES = ["pending", "applied", "already_applied", "failed", "cancelled"] as const satisfies readonly DelegationRouteApplicationState[];
+export const DELEGATION_ROUTE_APPLICATION_STATES = [
+  "pending",
+  "applied",
+  "already_applied",
+  "failed",
+  "cancelled",
+] as const satisfies readonly DelegationRouteApplicationState[];
 
-export const DELEGATION_ALERT_STATES = ["queued", "delivered", "seen", "acked", "resolved", "escalated"] as const satisfies readonly DelegationAlertState[];
+export const DELEGATION_ALERT_STATES = [
+  "queued",
+  "delivered",
+  "seen",
+  "acked",
+  "resolved",
+  "escalated",
+] as const satisfies readonly DelegationAlertState[];
 
-export const DELEGATION_ALERT_PRIORITIES = ["P0", "P1", "P2", "P3"] as const satisfies readonly DelegationAlertPriority[];
+export const DELEGATION_ALERT_PRIORITIES = [
+  "P0",
+  "P1",
+  "P2",
+  "P3",
+] as const satisfies readonly DelegationAlertPriority[];
 
-export const DELEGATION_ROUTE_DECISION_KINDS = ["inline_allowed", "route_required", "ask_user", "blocked"] as const satisfies readonly DelegationRouteDecisionKind[];
+export const DELEGATION_ROUTE_DECISION_KINDS = [
+  "inline_allowed",
+  "route_required",
+  "ask_user",
+  "blocked",
+] as const satisfies readonly DelegationRouteDecisionKind[];
 
-export const DELEGATION_ROUTE_ACTION_KINDS = ["plan", "implement", "research", "review", "verify", "fix", "spawn", "ask_user", "close"] as const satisfies readonly DelegationRouteActionKind[];
+export const DELEGATION_ROUTE_ACTION_KINDS = [
+  "plan",
+  "implement",
+  "research",
+  "review",
+  "verify",
+  "fix",
+  "spawn",
+  "ask_user",
+  "close",
+] as const satisfies readonly DelegationRouteActionKind[];
 
-export const DELEGATION_ROUTE_BREADTHS = ["tiny", "single_file", "multi_file", "broad"] as const satisfies readonly DelegationRouteBreadth[];
+export const DELEGATION_ROUTE_BREADTHS = [
+  "tiny",
+  "single_file",
+  "multi_file",
+  "broad",
+] as const satisfies readonly DelegationRouteBreadth[];
 
-export const DELEGATION_ROUTE_RISK_FLAGS = ["user_owned_decision", "public_api", "security", "privacy", "data_loss", "irreversible", "unknown"] as const satisfies readonly DelegationRouteRiskFlag[];
+export const DELEGATION_ROUTE_RISK_FLAGS = [
+  "user_owned_decision",
+  "public_api",
+  "security",
+  "privacy",
+  "data_loss",
+  "irreversible",
+  "unknown",
+] as const satisfies readonly DelegationRouteRiskFlag[];
 
-export const DELEGATION_EXECUTION_AUTHORIZATION_EVENT_TYPES = ["planning_report.ready", "plan.approved", "execution.authorized"] as const;
+export const DELEGATION_EXECUTION_AUTHORIZATION_EVENT_TYPES = [
+  "planning_report.ready",
+  "plan.approved",
+  "execution.authorized",
+] as const;
 
-export const DELEGATION_ROLE_ASSESSMENT_STATUSES = ["pass", "pass_with_non_blocking", "fail", "blocked", "not_run", "accepted_not_run"] as const satisfies readonly DelegationRoleAssessmentStatus[];
+export const DELEGATION_ROLE_ASSESSMENT_STATUSES = [
+  "pass",
+  "pass_with_non_blocking",
+  "fail",
+  "blocked",
+  "not_run",
+  "accepted_not_run",
+] as const satisfies readonly DelegationRoleAssessmentStatus[];
 
-const DELEGATION_ROLES = ["orchestrator", "planning-parent", "execution-parent", "researcher", "worker", "reviewer", "verifier", "integrator"] as const satisfies readonly DelegationRole[];
-const LEAF_DELEGATION_ROLES = ["researcher", "worker", "reviewer", "verifier", "integrator"] as const satisfies readonly DelegationRole[];
-const NON_IMPLEMENTING_LEAF_ROLES = ["researcher", "reviewer", "verifier", "integrator"] as const satisfies readonly DelegationRole[];
-const INLINE_BLOCKING_RISK_FLAGS = ["user_owned_decision", "public_api", "security", "privacy", "data_loss", "irreversible", "unknown"] as const satisfies readonly DelegationRouteRiskFlag[];
+const DELEGATION_ROLES = [
+  "orchestrator",
+  "planning-parent",
+  "execution-parent",
+  "researcher",
+  "worker",
+  "reviewer",
+  "verifier",
+  "integrator",
+] as const satisfies readonly DelegationRole[];
+const LEAF_DELEGATION_ROLES = [
+  "researcher",
+  "worker",
+  "reviewer",
+  "verifier",
+  "integrator",
+] as const satisfies readonly DelegationRole[];
+const NON_IMPLEMENTING_LEAF_ROLES = [
+  "researcher",
+  "reviewer",
+  "verifier",
+  "integrator",
+] as const satisfies readonly DelegationRole[];
+const INLINE_BLOCKING_RISK_FLAGS = [
+  "user_owned_decision",
+  "public_api",
+  "security",
+  "privacy",
+  "data_loss",
+  "irreversible",
+  "unknown",
+] as const satisfies readonly DelegationRouteRiskFlag[];
 
 export function routeDelegationRequest(input: DelegationRouteRequest): DelegationRouteDecision {
   const request = normalizeDelegationRouteRequest(input);
   const routeId = routeIdFor(request);
 
   if (request.action.kind === "ask_user") {
-    return askUserDecision(routeId, "Ask the user before continuing with this delegation route.", ["ask_user_requested"]);
+    return askUserDecision(routeId, "Ask the user before continuing with this delegation route.", [
+      "ask_user_requested",
+    ]);
   }
 
   if (hasRiskFlag(request, "user_owned_decision")) {
-    return askUserDecision(routeId, "Resolve the user-owned decision before routing execution or edits.", ["user_owned_decision_unresolved"]);
+    return askUserDecision(routeId, "Resolve the user-owned decision before routing execution or edits.", [
+      "user_owned_decision_unresolved",
+    ]);
   }
 
   if (request.action.kind === "spawn") {
@@ -116,7 +216,9 @@ export function normalizeDelegationRouteRequest(input: DelegationRouteRequest): 
   if (input.executionAuthorization !== undefined) {
     const authorization = normalizeExecutionAuthorizationEvidence(input.executionAuthorization);
     if (authorization.taskId !== normalized.taskId) {
-      throw new Error(`execution authorization task id ${authorization.taskId} does not match route task ${normalized.taskId}`);
+      throw new Error(
+        `execution authorization task id ${authorization.taskId} does not match route task ${normalized.taskId}`,
+      );
     }
     normalized.executionAuthorization = authorization;
   }
@@ -127,7 +229,9 @@ export function normalizeDelegationRouteRequest(input: DelegationRouteRequest): 
     normalized.writeScopes = uniqueNonEmptyStrings(input.writeScopes, "write scope");
   }
   if (input.riskFlags !== undefined) {
-    normalized.riskFlags = [...new Set(input.riskFlags.map((flag) => oneOf(flag, DELEGATION_ROUTE_RISK_FLAGS, "risk flag")))];
+    normalized.riskFlags = [
+      ...new Set(input.riskFlags.map((flag) => oneOf(flag, DELEGATION_ROUTE_RISK_FLAGS, "risk flag"))),
+    ];
   }
 
   return normalized;
@@ -146,11 +250,21 @@ export function normalizeDelegationRouteDecision(input: DelegationRouteDecision)
       return normalized;
     }
     case "route_required":
-      return { kind: "route_required", routeId, targetRole: oneOf(input.targetRole, DELEGATION_ROLES, "target role"), reasonCodes };
+      return {
+        kind: "route_required",
+        routeId,
+        targetRole: oneOf(input.targetRole, DELEGATION_ROLES, "target role"),
+        reasonCodes,
+      };
     case "ask_user":
       return { kind: "ask_user", routeId, question: nonEmptyString(input.question, "question"), reasonCodes };
     case "blocked": {
-      const normalized: DelegationRouteDecision = { kind: "blocked", routeId, reason: nonEmptyString(input.reason, "blocked reason"), reasonCodes };
+      const normalized: DelegationRouteDecision = {
+        kind: "blocked",
+        routeId,
+        reason: nonEmptyString(input.reason, "blocked reason"),
+        reasonCodes,
+      };
       if (input.suggestedReroute !== undefined) {
         normalized.suggestedReroute = oneOf(input.suggestedReroute, DELEGATION_ROLES, "suggested reroute");
       }
@@ -190,7 +304,9 @@ export function normalizeDelegationRouteApplication(input: DelegationRouteApplic
   return normalized;
 }
 
-export function hasExecutionAuthorizationEvidence(evidence: DelegationExecutionAuthorizationEvidence | undefined): boolean {
+export function hasExecutionAuthorizationEvidence(
+  evidence: DelegationExecutionAuthorizationEvidence | undefined,
+): boolean {
   if (evidence === undefined) {
     return false;
   }
@@ -198,7 +314,9 @@ export function hasExecutionAuthorizationEvidence(evidence: DelegationExecutionA
   return normalizeExecutionAuthorizationEvidence(evidence).taskState === "ready_for_execution";
 }
 
-export function normalizeExecutionAuthorizationEvidence(input: DelegationExecutionAuthorizationEvidence): DelegationExecutionAuthorizationEvidence {
+export function normalizeExecutionAuthorizationEvidence(
+  input: DelegationExecutionAuthorizationEvidence,
+): DelegationExecutionAuthorizationEvidence {
   if (input.schemaVersion !== 1) {
     throw new Error(`unsupported execution authorization schema version: ${String(input.schemaVersion)}`);
   }
@@ -246,7 +364,11 @@ function routeImplementationIntent(request: DelegationRouteRequest, routeId: str
 
   if (request.role === "execution-parent") {
     if (isTinySingleFileInlineAllowed(request)) {
-      return inlineAllowedDecision(routeId, ["tiny_single_file_inline_allowed", "execution_parent_tiny_inline_allowed"], request);
+      return inlineAllowedDecision(
+        routeId,
+        ["tiny_single_file_inline_allowed", "execution_parent_tiny_inline_allowed"],
+        request,
+      );
     }
 
     if (isBroadImplementationScope(request)) {
@@ -258,7 +380,11 @@ function routeImplementationIntent(request: DelegationRouteRequest, routeId: str
 
   if (request.role === "orchestrator") {
     if (isTinySingleFileInlineAllowed(request)) {
-      return inlineAllowedDecision(routeId, ["tiny_single_file_inline_allowed", "orchestrator_tiny_inline_allowed"], request);
+      return inlineAllowedDecision(
+        routeId,
+        ["tiny_single_file_inline_allowed", "orchestrator_tiny_inline_allowed"],
+        request,
+      );
     }
 
     if (hasStoredAuthorization) {
@@ -296,10 +422,16 @@ function routeSpawnIntent(request: DelegationRouteRequest, routeId: string): Del
   }
 
   if (hasExecutionAuthorizationEvidence(request.executionAuthorization)) {
-    return routeRequiredDecision(routeId, "execution-parent", ["orchestrator_spawn_routes_execution_parent", "stored_execution_authorization_present"]);
+    return routeRequiredDecision(routeId, "execution-parent", [
+      "orchestrator_spawn_routes_execution_parent",
+      "stored_execution_authorization_present",
+    ]);
   }
 
-  return routeRequiredDecision(routeId, "planning-parent", ["orchestrator_spawn_routes_planning_parent", ...missingAuthorizationReasonCodes(request)]);
+  return routeRequiredDecision(routeId, "planning-parent", [
+    "orchestrator_spawn_routes_planning_parent",
+    ...missingAuthorizationReasonCodes(request),
+  ]);
 }
 
 function routeNonImplementationIntent(request: DelegationRouteRequest, routeId: string): DelegationRouteDecision {
@@ -327,7 +459,9 @@ function routeNonImplementationIntent(request: DelegationRouteRequest, routeId: 
     case "close":
       return inlineAllowedDecision(routeId, ["close_inline_allowed"]);
     case "ask_user":
-      return askUserDecision(routeId, "Ask the user before continuing with this delegation route.", ["ask_user_requested"]);
+      return askUserDecision(routeId, "Ask the user before continuing with this delegation route.", [
+        "ask_user_requested",
+      ]);
     case "spawn":
       return routeSpawnIntent(request, routeId);
     case "implement":
@@ -336,8 +470,16 @@ function routeNonImplementationIntent(request: DelegationRouteRequest, routeId: 
   }
 }
 
-function inlineAllowedDecision(routeId: string, reasonCodes: readonly string[], request?: DelegationRouteRequest): DelegationRouteDecision {
-  const decision: DelegationRouteDecision = { kind: "inline_allowed", routeId, reasonCodes: normalizeReasonCodes(reasonCodes) };
+function inlineAllowedDecision(
+  routeId: string,
+  reasonCodes: readonly string[],
+  request?: DelegationRouteRequest,
+): DelegationRouteDecision {
+  const decision: DelegationRouteDecision = {
+    kind: "inline_allowed",
+    routeId,
+    reasonCodes: normalizeReasonCodes(reasonCodes),
+  };
   const lease = request === undefined ? undefined : deriveDelegationInlineLease(request, routeId);
   if (lease !== undefined) {
     decision.lease = lease;
@@ -351,10 +493,15 @@ export function deriveDelegationInlineLease(input: DelegationRouteRequest, route
   if (!isImplementationAction(request.action.kind)) {
     return undefined;
   }
-  if (request.role !== "orchestrator" && request.role !== "execution-parent" && request.role !== "worker" && request.role !== "integrator") {
+  if (
+    request.role !== "orchestrator" &&
+    request.role !== "execution-parent" &&
+    request.role !== "worker" &&
+    request.role !== "integrator"
+  ) {
     return undefined;
   }
-  const writeScopes = request.writeScopes?.length ? request.writeScopes : request.targetFiles ?? [];
+  const writeScopes = request.writeScopes?.length ? request.writeScopes : (request.targetFiles ?? []);
   if (writeScopes.length === 0) {
     return undefined;
   }
@@ -373,16 +520,40 @@ export function deriveDelegationInlineLease(input: DelegationRouteRequest, route
   });
 }
 
-function routeRequiredDecision(routeId: string, targetRole: DelegationRole, reasonCodes: readonly string[]): DelegationRouteDecision {
-  return normalizeDelegationRouteDecision({ kind: "route_required", routeId, targetRole, reasonCodes: normalizeReasonCodes(reasonCodes) });
+function routeRequiredDecision(
+  routeId: string,
+  targetRole: DelegationRole,
+  reasonCodes: readonly string[],
+): DelegationRouteDecision {
+  return normalizeDelegationRouteDecision({
+    kind: "route_required",
+    routeId,
+    targetRole,
+    reasonCodes: normalizeReasonCodes(reasonCodes),
+  });
 }
 
 function askUserDecision(routeId: string, question: string, reasonCodes: readonly string[]): DelegationRouteDecision {
-  return normalizeDelegationRouteDecision({ kind: "ask_user", routeId, question, reasonCodes: normalizeReasonCodes(reasonCodes) });
+  return normalizeDelegationRouteDecision({
+    kind: "ask_user",
+    routeId,
+    question,
+    reasonCodes: normalizeReasonCodes(reasonCodes),
+  });
 }
 
-function blockedDecision(routeId: string, reason: string, reasonCodes: readonly string[], suggestedReroute?: DelegationRole): DelegationRouteDecision {
-  const decision: DelegationRouteDecision = { kind: "blocked", routeId, reason, reasonCodes: normalizeReasonCodes(reasonCodes) };
+function blockedDecision(
+  routeId: string,
+  reason: string,
+  reasonCodes: readonly string[],
+  suggestedReroute?: DelegationRole,
+): DelegationRouteDecision {
+  const decision: DelegationRouteDecision = {
+    kind: "blocked",
+    routeId,
+    reason,
+    reasonCodes: normalizeReasonCodes(reasonCodes),
+  };
   if (suggestedReroute !== undefined) {
     decision.suggestedReroute = suggestedReroute;
   }
@@ -426,14 +597,25 @@ function isImplementationAction(kind: DelegationRouteActionKind): boolean {
 }
 
 function isBroadImplementationScope(request: DelegationRouteRequest): boolean {
-  return request.action.breadth === "broad" || request.action.breadth === "multi_file" || (request.targetFiles?.length ?? 0) > 1 || (request.writeScopes?.length ?? 0) > 1;
+  return (
+    request.action.breadth === "broad" ||
+    request.action.breadth === "multi_file" ||
+    (request.targetFiles?.length ?? 0) > 1 ||
+    (request.writeScopes?.length ?? 0) > 1
+  );
 }
 
 function isTinySingleFileInlineAllowed(request: DelegationRouteRequest): boolean {
   const targetFileCount = request.targetFiles?.length ?? 0;
   const writeScopeCount = request.writeScopes?.length ?? 0;
   const hasKnownSingleFileScope = targetFileCount === 1 || writeScopeCount === 1;
-  return request.action.breadth === "tiny" && hasKnownSingleFileScope && targetFileCount <= 1 && writeScopeCount <= 1 && !hasAnyRiskFlag(request, INLINE_BLOCKING_RISK_FLAGS);
+  return (
+    request.action.breadth === "tiny" &&
+    hasKnownSingleFileScope &&
+    targetFileCount <= 1 &&
+    writeScopeCount <= 1 &&
+    !hasAnyRiskFlag(request, INLINE_BLOCKING_RISK_FLAGS)
+  );
 }
 
 function hasRiskFlag(request: DelegationRouteRequest, riskFlag: DelegationRouteRiskFlag): boolean {

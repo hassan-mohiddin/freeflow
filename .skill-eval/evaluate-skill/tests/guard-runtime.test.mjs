@@ -19,19 +19,33 @@ test("guard observes provider requests and applies the hard per-process turn lim
     turns: process.env.FREEFLOW_EVAL_MAX_TURNS,
   };
   t.after(() => {
-    if (previous.policy === undefined) delete process.env.FREEFLOW_EVAL_ROOT_POLICY; else process.env.FREEFLOW_EVAL_ROOT_POLICY = previous.policy;
-    if (previous.counter === undefined) delete process.env.FREEFLOW_EVAL_COUNTER_PATH; else process.env.FREEFLOW_EVAL_COUNTER_PATH = previous.counter;
-    if (previous.turns === undefined) delete process.env.FREEFLOW_EVAL_MAX_TURNS; else process.env.FREEFLOW_EVAL_MAX_TURNS = previous.turns;
+    if (previous.policy === undefined) delete process.env.FREEFLOW_EVAL_ROOT_POLICY;
+    else process.env.FREEFLOW_EVAL_ROOT_POLICY = previous.policy;
+    if (previous.counter === undefined) delete process.env.FREEFLOW_EVAL_COUNTER_PATH;
+    else process.env.FREEFLOW_EVAL_COUNTER_PATH = previous.counter;
+    if (previous.turns === undefined) delete process.env.FREEFLOW_EVAL_MAX_TURNS;
+    else process.env.FREEFLOW_EVAL_MAX_TURNS = previous.turns;
   });
   process.env.FREEFLOW_EVAL_ROOT_POLICY = JSON.stringify({ read_roots: [fixture, snapshot], write_roots: [fixture] });
   process.env.FREEFLOW_EVAL_COUNTER_PATH = counter;
   process.env.FREEFLOW_EVAL_MAX_TURNS = "1";
 
   const handlers = {};
-  await rootGuard({ on(name, handler) { handlers[name] = handler; } });
+  await rootGuard({
+    on(name, handler) {
+      handlers[name] = handler;
+    },
+  });
   let aborts = 0;
   await handlers.before_provider_request();
-  await handlers.turn_start({}, { abort() { aborts += 1; } });
+  await handlers.turn_start(
+    {},
+    {
+      abort() {
+        aborts += 1;
+      },
+    },
+  );
   await assert.rejects(() => handlers.before_provider_request(), /hard turn limit/i);
 
   const observed = JSON.parse(await readFile(counter, "utf8"));

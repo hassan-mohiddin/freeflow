@@ -181,13 +181,20 @@ const BROAD_SKIP_FILE_EXTENSIONS = new Set([
 
 export function defaultExperimentalIndexCacheRoot(): string {
   const xdgCache = process.env.XDG_CACHE_HOME;
-  return resolve(xdgCache && xdgCache.trim() ? xdgCache : join(homedir(), ".cache"), "freeflow-router", "experimental-index");
+  return resolve(
+    xdgCache && xdgCache.trim() ? xdgCache : join(homedir(), ".cache"),
+    "freeflow-router",
+    "experimental-index",
+  );
 }
 
 export async function experimentalIndexCachePath(options: ExperimentalLocalIndexOptions): Promise<string> {
   const root = await realpath(resolve(options.root));
   const cacheRoot = resolve(options.cacheRoot ?? defaultExperimentalIndexCacheRoot());
-  return join(cacheRoot, `${hash(JSON.stringify({ root, generatedPathGlobs: options.generatedPathGlobs ?? [] })).slice(0, 24)}.json`);
+  return join(
+    cacheRoot,
+    `${hash(JSON.stringify({ root, generatedPathGlobs: options.generatedPathGlobs ?? [] })).slice(0, 24)}.json`,
+  );
 }
 
 export async function buildOrLoadExperimentalRepoIndex(
@@ -326,7 +333,11 @@ function staleReason(index: ExperimentalRepoIndex, scannedFiles: readonly Scanne
   return parts.length ? parts.join(", ") : "cache metadata changed";
 }
 
-function buildIndexFromScannedFiles(root: string, cachePath: string, scannedFiles: readonly ScannedTextFile[]): ExperimentalRepoIndex {
+function buildIndexFromScannedFiles(
+  root: string,
+  cachePath: string,
+  scannedFiles: readonly ScannedTextFile[],
+): ExperimentalRepoIndex {
   const chunks: ExperimentalIndexedChunk[] = [];
   const files: Record<string, ExperimentalIndexedFile> = {};
 
@@ -419,7 +430,10 @@ async function collectTextFiles(
       return;
     }
     visitedDirectories.add(currentRealPath);
-    if (relativePath !== "" && (shouldSkipBroadDirectory(currentRealPath) || matchesGeneratedPathHint(relativePath, generatedPathGlobs))) {
+    if (
+      relativePath !== "" &&
+      (shouldSkipBroadDirectory(currentRealPath) || matchesGeneratedPathHint(relativePath, generatedPathGlobs))
+    ) {
       return;
     }
 
@@ -434,7 +448,10 @@ async function collectTextFiles(
     return;
   }
 
-  if (shouldSkipBroadFile(relativePath, currentStat.size) || matchesGeneratedPathHint(relativePath, generatedPathGlobs)) {
+  if (
+    shouldSkipBroadFile(relativePath, currentStat.size) ||
+    matchesGeneratedPathHint(relativePath, generatedPathGlobs)
+  ) {
     return;
   }
 
@@ -730,11 +747,17 @@ function byteLength(text: string): number {
 
 function isPathInsideRoot(root: string, absolutePath: string): boolean {
   const relativePath = relative(root, absolutePath);
-  return relativePath === "" || (!relativePath.startsWith("..") && !relativePath.startsWith("/") && !/^[A-Za-z]:/.test(relativePath));
+  return (
+    relativePath === "" ||
+    (!relativePath.startsWith("..") && !relativePath.startsWith("/") && !/^[A-Za-z]:/.test(relativePath))
+  );
 }
 
 function normalizeRelativePath(path: string): string {
-  return path.split(/[\\/]+/).filter(Boolean).join("/");
+  return path
+    .split(/[\\/]+/)
+    .filter(Boolean)
+    .join("/");
 }
 
 function hash(value: string): string {

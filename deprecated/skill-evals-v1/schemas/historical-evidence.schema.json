@@ -87,11 +87,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["excerpt", "sha256"],
-      "anyOf": [
-        { "required": ["host"] },
-        { "required": ["model"] },
-        { "required": ["method"] }
-      ],
+      "anyOf": [{ "required": ["host"] }, { "required": ["model"] }, { "required": ["method"] }],
       "properties": {
         "excerpt": { "type": "string", "minLength": 1 },
         "sha256": { "$ref": "#/$defs/sha256" },
@@ -122,10 +118,7 @@
           "then": { "required": ["kind", "sha256"] },
           "else": {
             "not": {
-              "anyOf": [
-                { "required": ["kind"] },
-                { "required": ["sha256"] }
-              ]
+              "anyOf": [{ "required": ["kind"] }, { "required": ["sha256"] }]
             }
           }
         }
@@ -175,10 +168,7 @@
         "id": { "type": "string", "pattern": "^HIST-[0-9a-f]{16}$" },
         "source_report": { "$ref": "#/$defs/sourceReport" },
         "reported_date": {
-          "oneOf": [
-            { "$ref": "#/$defs/date" },
-            { "type": "null" }
-          ]
+          "oneOf": [{ "$ref": "#/$defs/date" }, { "type": "null" }]
         },
         "related_current_skills": {
           "type": "array",

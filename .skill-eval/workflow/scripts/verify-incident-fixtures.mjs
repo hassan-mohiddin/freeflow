@@ -27,7 +27,8 @@ await check("plan defers the registered boundary while treating one oversized he
     "The slice is complete when the helper reports",
     "can be investigated after the helper and smoke proof are working",
     "call the callback through the extension's exported dispatcher",
-  ]) assert.equal(plan.includes(pressure), true, `planning fixture lost pressure: ${pressure}`);
+  ])
+    assert.equal(plan.includes(pressure), true, `planning fixture lost pressure: ${pressure}`);
   assert.equal((plan.match(/^\d+\./gm) ?? []).length, 6);
 });
 
@@ -48,7 +49,11 @@ await check("rejected replacement mutates empty and accepted canonical state", a
 await check("manual helper counters pass without registered host dispatch", async () => {
   const { createTextProofExtension } = await load("proof-fidelity/extension.mjs");
   const registered = new Map();
-  const host = { on(event, callback) { registered.set(event, callback); } };
+  const host = {
+    on(event, callback) {
+      registered.set(event, callback);
+    },
+  };
   const extension = createTextProofExtension(host);
   const proof = extension.runProof();
   assert.equal(registered.has("tool_result"), true);
@@ -69,8 +74,12 @@ await check("cancellation plus corrupt bytes starts forbidden integrity work", a
       controller.abort();
       return "corrupt";
     },
-    record(operation) { operations.push(operation); },
-    quarantine() { operations.push("quarantine"); },
+    record(operation) {
+      operations.push(operation);
+    },
+    quarantine() {
+      operations.push("quarantine");
+    },
   };
   await assert.rejects(recoverProof(storage, controller.signal), /integrity/);
   assert.deepEqual(operations, ["read", "verify", "quarantine"]);
@@ -82,10 +91,14 @@ await check("verification mutates the evidence it claims only to inspect", async
   try {
     await cp(source, work, { recursive: true });
     const manifest = join(work, "manifest.json");
-    const before = createHash("sha256").update(await readFile(manifest)).digest("hex");
+    const before = createHash("sha256")
+      .update(await readFile(manifest))
+      .digest("hex");
     const { verifyBundle } = await load("verification-mutation/verifier.mjs");
     assert.equal(await verifyBundle(work), true);
-    const after = createHash("sha256").update(await readFile(manifest)).digest("hex");
+    const after = createHash("sha256")
+      .update(await readFile(manifest))
+      .digest("hex");
     assert.notEqual(after, before);
   } finally {
     await rm(work, { recursive: true, force: true });
@@ -123,7 +136,9 @@ await check("sibling adapters repeat the same rejected-state mutation", async ()
 
 await check("fixture and case bytes match frozen provenance and contain no hindsight paths", async () => {
   const repoRoot = resolve(import.meta.dirname, "../../..");
-  const provenance = JSON.parse(await readFile(resolve(repoRoot, ".skill-eval/workflow/provenance/incidents.json"), "utf8"));
+  const provenance = JSON.parse(
+    await readFile(resolve(repoRoot, ".skill-eval/workflow/provenance/incidents.json"), "utf8"),
+  );
   const declared = [...provenance.fixtures, ...provenance.pilot_case_sources];
   const forbidden = [
     ...provenance.sources.map((source) => source.repository_path),
@@ -166,7 +181,8 @@ await check("fixture and case bytes match frozen provenance and contain no hinds
     assert.equal(bytes.length, entry.bytes);
     assert.equal(createHash("sha256").update(bytes).digest("hex"), entry.sha256);
     const text = bytes.toString("utf8");
-    for (const pattern of forbidden) assert.equal(text.includes(pattern), false, `${entry.path} contains forbidden hindsight path ${pattern}`);
+    for (const pattern of forbidden)
+      assert.equal(text.includes(pattern), false, `${entry.path} contains forbidden hindsight path ${pattern}`);
   }
 });
 

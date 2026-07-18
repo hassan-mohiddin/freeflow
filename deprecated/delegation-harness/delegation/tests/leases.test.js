@@ -53,7 +53,14 @@ test("lease authorization requires one matching active lease for scoped edits", 
   const allowed = authorizeDelegationLease({ ...base, activeLeases: [matching] });
   assert.equal(allowed.allowed, true);
   assert.equal(allowed.authorizingLeaseId, "lease-matching");
-  assert.equal(authorizeDelegationLease({ ...base, intent: { kind: "write", path: "/repo/docs/spec.md" }, activeLeases: [matching] }).allowed, false);
+  assert.equal(
+    authorizeDelegationLease({
+      ...base,
+      intent: { kind: "write", path: "/repo/docs/spec.md" },
+      activeLeases: [matching],
+    }).allowed,
+    false,
+  );
 
   for (const wrong of [
     { ...matching, leaseId: "lease-wrong-task", taskId: "TASK-OTHER" },
@@ -89,9 +96,27 @@ test("lease authorization binds consequential authority to one assignment attemp
   };
 
   assert.equal(authorizeDelegationLease({ ...input, activeLeases: [baseLease] }).allowed, true);
-  assert.equal(authorizeDelegationLease({ ...input, activeLeases: [{ ...baseLease, leaseId: "lease-old-attempt", attemptId: "attempt-old" }] }).allowed, false);
-  assert.equal(authorizeDelegationLease({ ...input, activeLeases: [{ ...baseLease, leaseId: "lease-missing-attempt", attemptId: undefined }] }).allowed, false);
-  assert.equal(authorizeDelegationLease({ ...input, activeLeases: [{ ...baseLease, leaseId: "lease-wrong-assignment", assignmentId: "worker-old" }] }).allowed, false);
+  assert.equal(
+    authorizeDelegationLease({
+      ...input,
+      activeLeases: [{ ...baseLease, leaseId: "lease-old-attempt", attemptId: "attempt-old" }],
+    }).allowed,
+    false,
+  );
+  assert.equal(
+    authorizeDelegationLease({
+      ...input,
+      activeLeases: [{ ...baseLease, leaseId: "lease-missing-attempt", attemptId: undefined }],
+    }).allowed,
+    false,
+  );
+  assert.equal(
+    authorizeDelegationLease({
+      ...input,
+      activeLeases: [{ ...baseLease, leaseId: "lease-wrong-assignment", assignmentId: "worker-old" }],
+    }).allowed,
+    false,
+  );
 });
 
 test("lease authorization never unions action with scope or command across leases", () => {
@@ -117,13 +142,34 @@ test("lease authorization never unions action with scope or command across lease
     allowedCommands: ["npm run build"],
     expires: "on_assignment_terminal",
   });
-  const common = { taskId: "TASK-LEASE", agentId: "worker-1", role: "worker", cwd: "/repo", activeLeases: [actionOnly, resourceOnly] };
+  const common = {
+    taskId: "TASK-LEASE",
+    agentId: "worker-1",
+    role: "worker",
+    cwd: "/repo",
+    activeLeases: [actionOnly, resourceOnly],
+  };
 
-  assert.equal(authorizeDelegationLease({ ...common, intent: { kind: "write", path: "/repo/src/index.ts" } }).allowed, false);
-  assert.equal(authorizeDelegationLease({ ...common, intent: { kind: "command", command: "npm run build" } }).allowed, false);
+  assert.equal(
+    authorizeDelegationLease({ ...common, intent: { kind: "write", path: "/repo/src/index.ts" } }).allowed,
+    false,
+  );
+  assert.equal(
+    authorizeDelegationLease({ ...common, intent: { kind: "command", command: "npm run build" } }).allowed,
+    false,
+  );
 
-  const commandLease = normalizeDelegationLease({ ...resourceOnly, leaseId: "lease-command", actions: ["run_allowlisted"], allowedCommands: ["npm   run build"] });
-  const allowed = authorizeDelegationLease({ ...common, intent: { kind: "command", command: " npm run build " }, activeLeases: [commandLease] });
+  const commandLease = normalizeDelegationLease({
+    ...resourceOnly,
+    leaseId: "lease-command",
+    actions: ["run_allowlisted"],
+    allowedCommands: ["npm   run build"],
+  });
+  const allowed = authorizeDelegationLease({
+    ...common,
+    intent: { kind: "command", command: " npm run build " },
+    activeLeases: [commandLease],
+  });
   assert.equal(allowed.allowed, true);
   assert.equal(allowed.authorizingLeaseId, "lease-command");
 });
@@ -140,27 +186,48 @@ test("lease authorization preserves planning-parent and read-only edit boundarie
     allowedCommands: [],
     expires: "on_assignment_terminal",
   });
-  assert.equal(authorizeDelegationLease({
-    taskId: "TASK-LEASE",
-    agentId: "planning-1",
-    role: "planning-parent",
-    cwd: "/repo",
-    intent: { kind: "write", path: "/repo/src/runtime.ts" },
-    activeLeases: [broadPlanningLease],
-  }).allowed, false);
+  assert.equal(
+    authorizeDelegationLease({
+      taskId: "TASK-LEASE",
+      agentId: "planning-1",
+      role: "planning-parent",
+      cwd: "/repo",
+      intent: { kind: "write", path: "/repo/src/runtime.ts" },
+      activeLeases: [broadPlanningLease],
+    }).allowed,
+    false,
+  );
 
-  const reviewerLease = normalizeDelegationLease({ ...broadPlanningLease, leaseId: "lease-reviewer-edit", agentId: "reviewer-1", role: "reviewer", writeScopes: ["docs/**"] });
-  assert.equal(authorizeDelegationLease({
-    taskId: "TASK-LEASE",
+  const reviewerLease = normalizeDelegationLease({
+    ...broadPlanningLease,
+    leaseId: "lease-reviewer-edit",
     agentId: "reviewer-1",
     role: "reviewer",
-    cwd: "/repo",
-    intent: { kind: "write", path: "/repo/docs/review.md" },
-    activeLeases: [reviewerLease],
-  }).allowed, false);
+    writeScopes: ["docs/**"],
+  });
+  assert.equal(
+    authorizeDelegationLease({
+      taskId: "TASK-LEASE",
+      agentId: "reviewer-1",
+      role: "reviewer",
+      cwd: "/repo",
+      intent: { kind: "write", path: "/repo/docs/review.md" },
+      activeLeases: [reviewerLease],
+    }).allowed,
+    false,
+  );
 
-  const broadExecutionLease = normalizeDelegationLease({ ...broadPlanningLease, leaseId: "lease-execution-broad", agentId: "execution-1", role: "execution-parent" });
-  const narrowExecutionLease = normalizeDelegationLease({ ...broadExecutionLease, leaseId: "lease-execution-narrow", writeScopes: ["src/integration.ts"] });
+  const broadExecutionLease = normalizeDelegationLease({
+    ...broadPlanningLease,
+    leaseId: "lease-execution-broad",
+    agentId: "execution-1",
+    role: "execution-parent",
+  });
+  const narrowExecutionLease = normalizeDelegationLease({
+    ...broadExecutionLease,
+    leaseId: "lease-execution-narrow",
+    writeScopes: ["src/integration.ts"],
+  });
   const executionInput = {
     taskId: "TASK-LEASE",
     agentId: "execution-1",
@@ -210,7 +277,10 @@ test("active lease view matches spec shape and returns active leases only", () =
     },
   });
 
-  assert.deepEqual(activeLeasesForAgent(view, "worker-1").map((lease) => lease.leaseId), ["lease-active"]);
+  assert.deepEqual(
+    activeLeasesForAgent(view, "worker-1").map((lease) => lease.leaseId),
+    ["lease-active"],
+  );
   assert.throws(
     () => normalizeDelegationActiveLeaseView({ ...view, activeLeaseIdsByAgent: { "worker-1": ["missing-lease"] } }),
     /active lease id missing/,

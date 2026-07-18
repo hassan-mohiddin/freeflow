@@ -9,7 +9,14 @@ import {
   storeTextOutput,
 } from "../vault/vault.js";
 import { DEFAULT_ROUTER_THRESHOLDS, DEFAULT_STORAGE_POLICY } from "../config/config.js";
-import { executeSandboxedScriptOperation, freeflowTransform, validateTransformInput, type ScriptTransformLimitsInput, type ScriptTransformOperation, type SandboxedScriptOperationResult } from "../transform/engine.js";
+import {
+  executeSandboxedScriptOperation,
+  freeflowTransform,
+  validateTransformInput,
+  type ScriptTransformLimitsInput,
+  type ScriptTransformOperation,
+  type SandboxedScriptOperationResult,
+} from "../transform/engine.js";
 import { assembleTextEvidence, byteLength, countLines, type BoundedEvidence } from "../evidence/evidence.js";
 import { parseCommandOutput, type ParsedCommandOutput } from "../routing/parsers.js";
 import {
@@ -117,7 +124,10 @@ export async function freeflowRun(
   }
   const runProducer = producerValidation.producer;
   const command = runProducer.command;
-  const validationProducer: ProducerDescriptor = runProducer.kind === "script" ? { kind: "script", name: `script:${runProducer.script.language}` } : runProducer.producer;
+  const validationProducer: ProducerDescriptor =
+    runProducer.kind === "script"
+      ? { kind: "script", name: `script:${runProducer.script.language}` }
+      : runProducer.producer;
 
   const filterValidation = normalizeRunOutputFilters(options.filters);
   if (!filterValidation.ok) {
@@ -152,7 +162,10 @@ export async function freeflowRun(
   const vault = createVault(vaultOptions);
 
   let runResult: HostCommandRunResult;
-  let producer: ProducerDescriptor = runProducer.kind === "command" ? runProducer.producer : { kind: "script", name: `script:${runProducer.script.language}` };
+  let producer: ProducerDescriptor =
+    runProducer.kind === "command"
+      ? runProducer.producer
+      : { kind: "script", name: `script:${runProducer.script.language}` };
   let scriptProducer: CommandRoutedResult["scriptProducer"];
   if (runProducer.kind === "command") {
     try {
@@ -317,9 +330,10 @@ export async function freeflowRun(
     if (options.cwd !== undefined) {
       Object.assign(metadataStoreOptions, { cwd: options.cwd });
     }
-    record = storageDecision.mode === "exact"
-      ? await storeCommandOutput(vault, storeOptions)
-      : await storeCommandMetadataOutput(metadataStoreOptions);
+    record =
+      storageDecision.mode === "exact"
+        ? await storeCommandOutput(vault, storeOptions)
+        : await storeCommandMetadataOutput(metadataStoreOptions);
 
     const routeOptions: RouteCommandOutputOptions = {
       outputId: record.outputId,
@@ -343,7 +357,8 @@ export async function freeflowRun(
       routeOptions.reducer = reducerRoute;
     }
     let routing: CommandRoutingOutcome;
-    const duplicateForRouting = duplicate && preserve !== "full" && filters === undefined && scriptFilter === undefined ? duplicate : undefined;
+    const duplicateForRouting =
+      duplicate && preserve !== "full" && filters === undefined && scriptFilter === undefined ? duplicate : undefined;
     if (duplicateForRouting) {
       routing = routeDuplicateCommandOutput({
         outputId: record.outputId,
@@ -372,7 +387,11 @@ export async function freeflowRun(
       }
       routing = await routeScriptFilteredOutput(scriptRouteOptions);
     } else {
-      if (routeOptions.reducer?.status === "selected" && record.kind === "command" && storageDecision.mode === "exact") {
+      if (
+        routeOptions.reducer?.status === "selected" &&
+        record.kind === "command" &&
+        storageDecision.mode === "exact"
+      ) {
         routeOptions.reducerRecord = await storeReducerOutput({
           vault,
           sessionId: options.sessionId,
@@ -392,7 +411,11 @@ export async function freeflowRun(
       execution,
       producer: record.producer,
       persistence: record.persistence,
-      ...(routing.lineage !== undefined ? { lineage: routing.lineage } : record.lineage !== undefined ? { lineage: record.lineage } : {}),
+      ...(routing.lineage !== undefined
+        ? { lineage: routing.lineage }
+        : record.lineage !== undefined
+          ? { lineage: record.lineage }
+          : {}),
       ...(routing.failure !== undefined ? { failure: routing.failure } : {}),
       ...(routing.transformExecution !== undefined ? { transformExecution: routing.transformExecution } : {}),
       ...(routing.evidence !== undefined ? { evidence: routing.evidence } : {}),
@@ -551,7 +574,12 @@ function decideCommandStorage(options: {
 }): CommandStorageDecision {
   const exactnessSensitive = commandOutputIsExactnessSensitive(options);
   if (options.policy === "store-everything") {
-    return { policy: options.policy, mode: "exact", exactnessSensitive, reason: "storagePolicy=store-everything stores every run output exactly." };
+    return {
+      policy: options.policy,
+      mode: "exact",
+      exactnessSensitive,
+      reason: "storagePolicy=store-everything stores every run output exactly.",
+    };
   }
   if (!exactnessSensitive) {
     return {
@@ -592,13 +620,22 @@ function commandOutputIsExactnessSensitive(options: {
   hasScriptFilter: boolean;
   hasReducer: boolean;
 }): boolean {
-  if (options.preserve === "full" || options.executionStatus !== "success" || options.hasFilters || options.hasScriptFilter || options.hasReducer) {
+  if (
+    options.preserve === "full" ||
+    options.executionStatus !== "success" ||
+    options.hasFilters ||
+    options.hasScriptFilter ||
+    options.hasReducer
+  ) {
     return true;
   }
   if (options.producerKind === "script") {
     return true;
   }
-  if (options.outputBytes > options.thresholds.largeOutputBytes || options.outputLines > options.thresholds.largeOutputLines) {
+  if (
+    options.outputBytes > options.thresholds.largeOutputBytes ||
+    options.outputLines > options.thresholds.largeOutputLines
+  ) {
     return true;
   }
   const goalText = `${options.goal ?? ""} ${commandText(options.command)}`.toLowerCase();
@@ -657,15 +694,17 @@ async function storeCommandMetadataOutput(options: {
     rawLineCount: countLines(options.combined),
     rawByteCount: byteLength(options.combined),
     rawSha256: hash(options.combined),
-    decisionIds: [decisionId("run-metadata", commandText(options.command), options.sessionId, options.storageDecision.mode)],
+    decisionIds: [
+      decisionId("run-metadata", commandText(options.command), options.sessionId, options.storageDecision.mode),
+    ],
     producer: options.producer,
     metadata,
   });
 }
 
-function normalizeRunProducer(options: FreeflowRunOptions):
-  | { ok: true; producer: NormalizedRunProducer }
-  | { ok: false; path: string; message: string } {
+function normalizeRunProducer(
+  options: FreeflowRunOptions,
+): { ok: true; producer: NormalizedRunProducer } | { ok: false; path: string; message: string } {
   const hasCommand = options.command !== undefined && options.command !== null;
   const hasScript = options.script !== undefined && options.script !== null;
   if (hasCommand === hasScript) {
@@ -686,10 +725,18 @@ function normalizeRunProducer(options: FreeflowRunOptions):
       }
       return { ok: true, producer: { kind: "command", command, producer: { kind: "command" } } };
     }
-    if (Array.isArray(command) && command.length > 0 && command.every((part) => typeof part === "string" && part.length > 0)) {
+    if (
+      Array.isArray(command) &&
+      command.length > 0 &&
+      command.every((part) => typeof part === "string" && part.length > 0)
+    ) {
       return { ok: true, producer: { kind: "command", command, producer: { kind: "command" } } };
     }
-    return { ok: false, path: "$.command", message: "Expected non-empty shell command string or command argument array." };
+    return {
+      ok: false,
+      path: "$.command",
+      message: "Expected non-empty shell command string or command argument array.",
+    };
   }
 
   const scriptValidation = normalizeRunScriptProducer(options.script);
@@ -706,9 +753,9 @@ function normalizeRunProducer(options: FreeflowRunOptions):
   };
 }
 
-function normalizeRunScriptProducer(input: unknown):
-  | { ok: true; script: RunScriptProducerInput }
-  | { ok: false; path: string; message: string } {
+function normalizeRunScriptProducer(
+  input: unknown,
+): { ok: true; script: RunScriptProducerInput } | { ok: false; path: string; message: string } {
   if (!isRecord(input)) {
     return { ok: false, path: "$.script", message: "freeflow_run script must be an object." };
   }
@@ -765,7 +812,10 @@ function runScriptProducerOperation(script: RunScriptProducerInput): ScriptTrans
   return operation;
 }
 
-function scriptProducerLimits(script: RunScriptProducerInput, timeoutMs: number | undefined): ScriptTransformLimitsInput | undefined {
+function scriptProducerLimits(
+  script: RunScriptProducerInput,
+  timeoutMs: number | undefined,
+): ScriptTransformLimitsInput | undefined {
   if (timeoutMs === undefined || script.limits?.timeoutMs !== undefined) {
     return script.limits;
   }
@@ -784,7 +834,9 @@ function scriptExecutionResult(execution: Extract<SandboxedScriptOperationResult
   };
 }
 
-function scriptExecutionStatus(status: Extract<SandboxedScriptOperationResult, { ok: true }>["result"]["status"]): ExecutionStatus {
+function scriptExecutionStatus(
+  status: Extract<SandboxedScriptOperationResult, { ok: true }>["result"]["status"],
+): ExecutionStatus {
   if (status === "success") {
     return "success";
   }
@@ -799,7 +851,11 @@ function runScriptProducerMetadata(
   execution: SandboxedScriptOperationResult,
 ): NonNullable<CommandRoutedResult["scriptProducer"]> {
   const metadata: NonNullable<CommandRoutedResult["scriptProducer"]> = {
-    status: execution.ok ? execution.result.status : execution.executionStatus === "unavailable" ? "unavailable" : "failed",
+    status: execution.ok
+      ? execution.result.status
+      : execution.executionStatus === "unavailable"
+        ? "unavailable"
+        : "failed",
     language: script.language,
     policy: "sandboxed",
     rawScriptPersistence: "disabled",
@@ -841,7 +897,10 @@ function runScriptProducerMetadata(
   return metadata;
 }
 
-function scriptProducerDescriptor(script: RunScriptProducerInput, execution: SandboxedScriptOperationResult): ProducerDescriptor {
+function scriptProducerDescriptor(
+  script: RunScriptProducerInput,
+  execution: SandboxedScriptOperationResult,
+): ProducerDescriptor {
   const descriptor: ProducerDescriptor = {
     kind: "script",
     name: script.label ?? `script:${script.language}`,
@@ -897,7 +956,12 @@ function scriptProducerExecutionFailureResult(options: {
 }): CommandRoutedResult {
   return {
     toolStatus: "error",
-    decisionId: decisionId("run-script-producer", commandText(options.command), options.execution.failureKind, options.execution.message),
+    decisionId: decisionId(
+      "run-script-producer",
+      commandText(options.command),
+      options.execution.failureKind,
+      options.execution.message,
+    ),
     outputId: "",
     preserve: options.preserve,
     execution: { status: "failed", exitCode: null },
@@ -1050,7 +1114,8 @@ function commandRoutingFailureResult(options: {
 function routeCommandOutput(options: RouteCommandOutputOptions): CommandRoutingOutcome {
   const outputBytes = byteLength(options.combined);
   const outputLines = countLines(options.combined);
-  const isLarge = outputBytes > options.thresholds.largeOutputBytes || outputLines > options.thresholds.largeOutputLines;
+  const isLarge =
+    outputBytes > options.thresholds.largeOutputBytes || outputLines > options.thresholds.largeOutputLines;
   const parseInput = {
     command: options.command,
     executionStatus: options.executionStatus,
@@ -1121,7 +1186,13 @@ function routeReducedCommandOutput(
   const importantLines = reducerImportantLines(options.reducer);
   const parser = parserWithReducer(parsed.parser, options.reducer);
   return {
-    decisionId: decisionId("run-route", options.outputId, "reducer", options.reducer.result.name, options.reducer.result.version),
+    decisionId: decisionId(
+      "run-route",
+      options.outputId,
+      "reducer",
+      options.reducer.result.name,
+      options.reducer.result.version,
+    ),
     routingStatus: "partial",
     reason: `Reducer ${options.reducer.result.name}@${options.reducer.result.version} selected for successful run output (${statusText}); raw output was vaulted before deterministic reduction (${parserTextFor(parser)}).`,
     summary: options.reducer.result.visibleText,
@@ -1235,7 +1306,13 @@ async function routeScriptFilteredOutput(options: {
     };
 
     return {
-      decisionId: decisionId("run-route", rawRecord.outputId, "script-filter", scriptResult.outputId, scriptFilter.language),
+      decisionId: decisionId(
+        "run-route",
+        rawRecord.outputId,
+        "script-filter",
+        scriptResult.outputId,
+        scriptFilter.language,
+      ),
       routingStatus: scriptResult.routing.status,
       reason: `Run output was vaulted as outputId=${rawRecord.outputId} before a sandboxed ${scriptFilter.language} script filter ran over captured stdout/stderr/combined. ${scriptResult.routing.reason}`,
       summary: `${baseRouting.summary} Script filter completed; transformed outputId=${scriptResult.outputId}.`,
@@ -1252,7 +1329,13 @@ async function routeScriptFilteredOutput(options: {
   const failureMessage = scriptResult.failure?.message ?? scriptResult.routing.reason;
   return {
     ...baseRouting,
-    decisionId: decisionId("run-route", rawRecord.outputId, "script-filter-failed", scriptFilter.language, failureMessage),
+    decisionId: decisionId(
+      "run-route",
+      rawRecord.outputId,
+      "script-filter-failed",
+      scriptFilter.language,
+      failureMessage,
+    ),
     routingStatus: baseRouting.routingStatus === "failed" ? "failed" : "partial",
     reason: `Run producer executed and raw output was vaulted as outputId=${rawRecord.outputId}, but the sandboxed ${scriptFilter.language} script filter did not produce transformed output: ${failureMessage} Base run evidence was returned instead.`,
     summary: `${baseRouting.summary} Script filter did not produce transformed output: ${failureMessage}`,
@@ -1341,8 +1424,15 @@ function runScriptFilterSources(outputId: string) {
   ];
 }
 
-function isSuccessfulScriptFilterResult(result: TransformRoutedResult | FailureRoutedResult): result is TransformRoutedResult {
-  return result.toolStatus === "ok" && result.failure === undefined && typeof result.outputId === "string" && result.outputId.length > 0;
+function isSuccessfulScriptFilterResult(
+  result: TransformRoutedResult | FailureRoutedResult,
+): result is TransformRoutedResult {
+  return (
+    result.toolStatus === "ok" &&
+    result.failure === undefined &&
+    typeof result.outputId === "string" &&
+    result.outputId.length > 0
+  );
 }
 
 function runScriptFilterMetadata(
@@ -1351,7 +1441,7 @@ function runScriptFilterMetadata(
   rawOutputId: string,
 ): NonNullable<CommandRoutedResult["scriptFilter"]> {
   const metadata: NonNullable<CommandRoutedResult["scriptFilter"]> = {
-    status: isSuccessfulScriptFilterResult(result) ? "success" : result.transformExecution?.status ?? "failed",
+    status: isSuccessfulScriptFilterResult(result) ? "success" : (result.transformExecution?.status ?? "failed"),
     language: input.language,
     sourceAliases: ["stdout", "stderr", "combined"],
     rawOutputId,
@@ -1410,13 +1500,22 @@ function storeReducerOutput(options: {
     sessionId: options.sessionId,
     raw: options.reducer.result.visibleText,
     sourceKind: "transform",
-    decisionIds: [decisionId("run-reducer", options.rawRecord.outputId, options.reducer.result.name, options.reducer.result.version)],
+    decisionIds: [
+      decisionId(
+        "run-reducer",
+        options.rawRecord.outputId,
+        options.reducer.result.name,
+        options.reducer.result.version,
+      ),
+    ],
     producer: { kind: "transform", name: "freeflow_run reducer" },
     lineage: {
       sourceRecordIds: [options.rawRecord.recordId],
       sourceOutputIds: [options.rawRecord.outputId],
       operation,
-      operationHash: hash(JSON.stringify({ operation, sourceOutputId: options.rawRecord.outputId, facts: options.reducer.result.facts })),
+      operationHash: hash(
+        JSON.stringify({ operation, sourceOutputId: options.rawRecord.outputId, facts: options.reducer.result.facts }),
+      ),
     },
   });
 }
@@ -1434,12 +1533,14 @@ function runReducerMetadata(
     rawOutputId,
     summary: reducer.result.visibleText,
     facts: reducer.result.facts,
-    ...(reducerRecord !== undefined ? {
-      outputId: reducerRecord.outputId,
-      recordId: reducerRecord.recordId,
-      persistence: reducerRecord.persistence,
-      lineage: reducerRecord.lineage,
-    } : {}),
+    ...(reducerRecord !== undefined
+      ? {
+          outputId: reducerRecord.outputId,
+          recordId: reducerRecord.recordId,
+          persistence: reducerRecord.persistence,
+          lineage: reducerRecord.lineage,
+        }
+      : {}),
   };
 }
 
@@ -1469,9 +1570,9 @@ function commandScriptFilterRecoveryHint(rawOutputId: string, transformedOutputI
   };
 }
 
-function normalizeRunScriptFilter(input: unknown):
-  | { ok: true; scriptFilter?: RunScriptFilterInput }
-  | { ok: false; path: string; message: string } {
+function normalizeRunScriptFilter(
+  input: unknown,
+): { ok: true; scriptFilter?: RunScriptFilterInput } | { ok: false; path: string; message: string } {
   if (input === undefined || input === null) {
     return { ok: true };
   }

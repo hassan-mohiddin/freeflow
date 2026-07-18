@@ -6,16 +6,36 @@ import { hashFile, sha256, stableJson } from "../../../skills/evaluate-skill/scr
 import { verifyBundleIntegrity } from "../../../skills/evaluate-skill/scripts/lib/integrity.mjs";
 
 const EVALUATOR_SOURCE_FILES = [
-  "skill-eval.mjs", "pi-composition-runtime.mjs", "pi-root-guard.mjs",
-  "lib/args.mjs", "lib/capabilities.mjs", "lib/coordinator.mjs", "lib/codex-adapter.mjs",
-  "lib/decision.mjs", "lib/evaluate.mjs", "lib/grade.mjs", "lib/outcome.mjs", "lib/hash.mjs",
-  "lib/integrity.mjs", "lib/materialize.mjs", "lib/path-policy.mjs", "lib/pi-adapter.mjs",
-  "lib/plan.mjs", "lib/process-outcome.mjs", "lib/process.mjs", "lib/rpc-client.mjs",
-  "lib/publication.mjs", "lib/workspace.mjs",
+  "skill-eval.mjs",
+  "pi-composition-runtime.mjs",
+  "pi-root-guard.mjs",
+  "lib/args.mjs",
+  "lib/capabilities.mjs",
+  "lib/coordinator.mjs",
+  "lib/codex-adapter.mjs",
+  "lib/decision.mjs",
+  "lib/evaluate.mjs",
+  "lib/grade.mjs",
+  "lib/outcome.mjs",
+  "lib/hash.mjs",
+  "lib/integrity.mjs",
+  "lib/materialize.mjs",
+  "lib/path-policy.mjs",
+  "lib/pi-adapter.mjs",
+  "lib/plan.mjs",
+  "lib/process-outcome.mjs",
+  "lib/process.mjs",
+  "lib/rpc-client.mjs",
+  "lib/publication.mjs",
+  "lib/workspace.mjs",
 ];
 const SEMANTIC_SOURCE_FILES = [
-  "pi-root-guard.mjs", "lib/outcome.mjs", "lib/pi-adapter.mjs",
-  "lib/process-outcome.mjs", "lib/process.mjs", "lib/semantic.mjs",
+  "pi-root-guard.mjs",
+  "lib/outcome.mjs",
+  "lib/pi-adapter.mjs",
+  "lib/process-outcome.mjs",
+  "lib/process.mjs",
+  "lib/semantic.mjs",
 ];
 
 function portable(path) {
@@ -35,7 +55,8 @@ async function contained(root, candidate, label) {
   const canonicalRoot = await realpath(absoluteRoot);
   const canonical = await realpath(absolute);
   const canonicalRel = relative(canonicalRoot, canonical);
-  if (canonicalRel === ".." || canonicalRel.startsWith(`..${sep}`)) throw new Error(`${label} escapes repository root through symlink: ${candidate}`);
+  if (canonicalRel === ".." || canonicalRel.startsWith(`..${sep}`))
+    throw new Error(`${label} escapes repository root through symlink: ${candidate}`);
   return absolute;
 }
 
@@ -61,7 +82,10 @@ async function listFiles(root) {
 function structuralKeyBytes(value) {
   if (Array.isArray(value)) return value.reduce((sum, item) => sum + structuralKeyBytes(item), 0);
   if (!value || typeof value !== "object") return 0;
-  return Object.entries(value).reduce((sum, [key, child]) => sum + Buffer.byteLength(JSON.stringify(key)) + 1 + structuralKeyBytes(child), 0);
+  return Object.entries(value).reduce(
+    (sum, [key, child]) => sum + Buffer.byteLength(JSON.stringify(key)) + 1 + structuralKeyBytes(child),
+    0,
+  );
 }
 
 async function sourceFingerprint(root, files) {
@@ -111,8 +135,17 @@ function resultExpectation(result) {
   };
 }
 
-export async function buildBaselineLock({ repoRoot, corpus, evaluatorFiles = EVALUATOR_SOURCE_FILES, semanticFiles = SEMANTIC_SOURCE_FILES }) {
-  if (corpus?.schema_version !== 1 || corpus?.authority !== "preliminary-baseline-only" || !Array.isArray(corpus.bundles)) {
+export async function buildBaselineLock({
+  repoRoot,
+  corpus,
+  evaluatorFiles = EVALUATOR_SOURCE_FILES,
+  semanticFiles = SEMANTIC_SOURCE_FILES,
+}) {
+  if (
+    corpus?.schema_version !== 1 ||
+    corpus?.authority !== "preliminary-baseline-only" ||
+    !Array.isArray(corpus.bundles)
+  ) {
     throw new Error("Invalid v3 baseline corpus declaration");
   }
   const evaluator = await evaluatorIdentity(repoRoot, evaluatorFiles, semanticFiles);
@@ -156,7 +189,9 @@ export async function buildBaselineLock({ repoRoot, corpus, evaluatorFiles = EVA
         semantic: result.identities?.semantic ?? null,
       },
       expected: resultExpectation(result),
-      semantic_packets: await Promise.all((descriptor.semantic_packets ?? []).map((path) => semanticPacketIdentity(bundleRoot, path))),
+      semantic_packets: await Promise.all(
+        (descriptor.semantic_packets ?? []).map((path) => semanticPacketIdentity(bundleRoot, path)),
+      ),
     });
   }
   return {
@@ -189,7 +224,9 @@ export function collectBaselineMetrics(lock) {
 
 async function artifactFiles(repoRoot, kind, filename) {
   let evalRoot;
-  try { evalRoot = await contained(repoRoot, ".skill-eval", "campaign eval root"); } catch (error) {
+  try {
+    evalRoot = await contained(repoRoot, ".skill-eval", "campaign eval root");
+  } catch (error) {
     if (error.code === "ENOENT") return [];
     throw error;
   }
@@ -199,14 +236,18 @@ async function artifactFiles(repoRoot, kind, filename) {
     const skillRoot = await contained(evalRoot, skillName, "campaign skill root");
     if (!(await lstat(skillRoot)).isDirectory()) continue;
     let root;
-    try { root = await contained(skillRoot, `runs/${kind}`, "campaign runs root"); } catch (error) {
+    try {
+      root = await contained(skillRoot, `runs/${kind}`, "campaign runs root");
+    } catch (error) {
       if (error.code === "ENOENT") continue;
       throw error;
     }
     if (!(await lstat(root)).isDirectory()) continue;
     for (const runName of (await readdir(root)).sort()) {
       let path;
-      try { path = await contained(root, `${runName}/${filename}`, "campaign artifact"); } catch (error) {
+      try {
+        path = await contained(root, `${runName}/${filename}`, "campaign artifact");
+      } catch (error) {
         if (error.code === "ENOENT") continue;
         throw error;
       }
@@ -219,7 +260,8 @@ async function artifactFiles(repoRoot, kind, filename) {
 function rerunCause(message) {
   const text = String(message ?? "").toLowerCase();
   if (/runtime delivery|delivery count/.test(text)) return "runtime_delivery";
-  if (/hard.{0,20}limit|turn.{0,20}limit|timeout|timed out|output limit|transport limit|exhaust/.test(text)) return "limit";
+  if (/hard.{0,20}limit|turn.{0,20}limit|timeout|timed out|output limit|transport limit|exhaust/.test(text))
+    return "limit";
   if (/semantic|grader/.test(text)) return "semantic_grader";
   if (/objective/.test(text)) return "objective_grader";
   if (/integrity|publication/.test(text)) return "integrity_publication";
@@ -258,10 +300,15 @@ export async function collectCampaignMetrics(repoRoot) {
 
 export function renderBaselineReport(lock, campaign = null) {
   const metrics = collectBaselineMetrics(lock);
-  const packetRows = lock.bundles.flatMap((bundle) => bundle.semantic_packets.map((packet) =>
-    `| ${bundle.case_id} | ${packet.path.includes("candidate") ? "candidate" : "reference"} | ${packet.bytes} | ${packet.minified_bytes} | ${packet.whitespace_bytes} | ${packet.structural_key_bytes} |`,
-  ));
-  const campaignSection = campaign ? `\n## Local Campaign Attempt Snapshot\n\n- Complete evaluation bundles: ${campaign.accepted_bundles}\n- Diagnostic attempts: ${campaign.diagnostics}\n- Total attempts: ${campaign.attempts}\n- Cap-trigger diagnostics: ${campaign.cap_triggers} (${(campaign.cap_trigger_rate * 100).toFixed(2)}%)\n- Provider requests: ${campaign.provider_requests}\n- Tokens: ${campaign.tokens}\n- Cost: $${campaign.cost_usd.toFixed(6)}\n- Diagnostic causes: \`${JSON.stringify(campaign.rerun_causes)}\`\n\nThis snapshot includes every local result/diagnostic JSON currently retained under \`.skill-eval/*/runs/\`. It is diagnostic accounting, not the immutable acceptance corpus.\n` : "";
+  const packetRows = lock.bundles.flatMap((bundle) =>
+    bundle.semantic_packets.map(
+      (packet) =>
+        `| ${bundle.case_id} | ${packet.path.includes("candidate") ? "candidate" : "reference"} | ${packet.bytes} | ${packet.minified_bytes} | ${packet.whitespace_bytes} | ${packet.structural_key_bytes} |`,
+    ),
+  );
+  const campaignSection = campaign
+    ? `\n## Local Campaign Attempt Snapshot\n\n- Complete evaluation bundles: ${campaign.accepted_bundles}\n- Diagnostic attempts: ${campaign.diagnostics}\n- Total attempts: ${campaign.attempts}\n- Cap-trigger diagnostics: ${campaign.cap_triggers} (${(campaign.cap_trigger_rate * 100).toFixed(2)}%)\n- Provider requests: ${campaign.provider_requests}\n- Tokens: ${campaign.tokens}\n- Cost: $${campaign.cost_usd.toFixed(6)}\n- Diagnostic causes: \`${JSON.stringify(campaign.rerun_causes)}\`\n\nThis snapshot includes every local result/diagnostic JSON currently retained under \`.skill-eval/*/runs/\`. It is diagnostic accounting, not the immutable acceptance corpus.\n`
+    : "";
   return `# Evaluator v3 Baseline\n\n> **Status:** Provider-free saved-artifact measurement\n> **Authority:** Preliminary cost/context baseline only; cannot authorize execution or establish v3 savings\n> **Corpus:** \`${lock.corpus_sha256}\`\n> **Evaluator:** \`${lock.evaluator.fingerprint}\`\n> **Semantic grader implementation:** \`${lock.evaluator.semantic_fingerprint}\`\n\n## Exact Corpus Totals\n\n- Bundles: ${metrics.bundles}\n- Provider requests / turns: ${metrics.provider_requests} / ${metrics.turns}\n- Tool calls: ${metrics.tool_calls}\n- Tokens: ${metrics.tokens}\n- Cost: $${metrics.cost_usd.toFixed(6)}\n- Canonical bundle bytes: ${metrics.bundle_bytes}\n- Saved semantic packets: ${metrics.semantic_packets}\n- Semantic packet bytes: ${metrics.semantic_packet_bytes}\n- Minified semantic packet bytes: ${metrics.semantic_packet_minified_bytes}\n- JSON whitespace bytes: ${metrics.semantic_packet_whitespace_bytes}\n- Structural key bytes (all occurrences): ${metrics.semantic_packet_structural_key_bytes}\n\n## Semantic Packet Detail\n\n| Case | Variant | Canonical bytes | Minified bytes | Whitespace bytes | Structural key bytes (all occurrences) |\n| --- | --- | ---: | ---: | ---: | ---: |\n${packetRows.join("\n")}\n${campaignSection}\n## Evidence Boundary\n\nThis report measures exact saved bundle usage and saved \`semantic-packet.json\` bytes. It does not reconstruct unsaved provider prefixes, prove future CEV reduction, or treat observed spend as a hard cap. WFC2 composition bundles contain no saved semantic grader packet and therefore contribute usage/bundle totals but not grader-packet totals. Diagnostic cause classification uses failure text and does not establish root cause beyond that text.\n`;
 }
 
@@ -276,7 +323,9 @@ async function main() {
   await mkdir(dirname(reportPath), { recursive: true });
   await writeFile(lockPath, `${JSON.stringify(lock, null, 2)}\n`);
   await writeFile(reportPath, renderBaselineReport(lock, campaign));
-  process.stdout.write(`${JSON.stringify({ status: "written", lock: portable(relative(repoRoot, lockPath)), report: portable(relative(repoRoot, reportPath)), metrics: collectBaselineMetrics(lock), campaign })}\n`);
+  process.stdout.write(
+    `${JSON.stringify({ status: "written", lock: portable(relative(repoRoot, lockPath)), report: portable(relative(repoRoot, reportPath)), metrics: collectBaselineMetrics(lock), campaign })}\n`,
+  );
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

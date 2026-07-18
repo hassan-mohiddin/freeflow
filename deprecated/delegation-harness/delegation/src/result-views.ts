@@ -19,10 +19,15 @@ export const DELEGATION_RESULT_VIEWS = [
   "raw",
 ] as const satisfies readonly DelegationResultView[];
 
-export const DELEGATION_MODEL_VISIBLE_OUTPUT_FORMATS = ["compact_text", "markdown", "pipe_rows"] as const satisfies readonly DelegationModelVisibleOutputFormat[];
+export const DELEGATION_MODEL_VISIBLE_OUTPUT_FORMATS = [
+  "compact_text",
+  "markdown",
+  "pipe_rows",
+] as const satisfies readonly DelegationModelVisibleOutputFormat[];
 
 export function normalizeDelegationResultViewRequest(
-  input: Omit<DelegationResultViewRequest, "view" | "outputFormat"> & Partial<Pick<DelegationResultViewRequest, "view" | "outputFormat">>,
+  input: Omit<DelegationResultViewRequest, "view" | "outputFormat"> &
+    Partial<Pick<DelegationResultViewRequest, "view" | "outputFormat">>,
 ): DelegationResultViewRequest {
   const normalized: DelegationResultViewRequest = {
     taskId: validateSafeId(input.taskId, "task id"),

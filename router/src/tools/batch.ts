@@ -93,11 +93,21 @@ export async function freeflowBatch(
   const queryAnswers = await answerBatchQueries(validation.value, steps);
   const routingStatus = failedCount === 0 ? "routed" : okCount === 0 ? "failed" : "partial";
   const durationMs = Date.now() - startedAt;
-  const queryReason = queryAnswers.length > 0 ? ` Aggregated ${queryAnswers.filter((answer) => answer.status === "answered").length}/${queryAnswers.length} query answer(s) from child evidence handles.` : "";
+  const queryReason =
+    queryAnswers.length > 0
+      ? ` Aggregated ${queryAnswers.filter((answer) => answer.status === "answered").length}/${queryAnswers.length} query answer(s) from child evidence handles.`
+      : "";
 
   return {
     toolStatus: failedCount === 0 ? "ok" : "error",
-    decisionId: decisionId("batch", validation.value.sessionId, String(steps.length), String(failedCount), stepDecisionSeed(steps), queryDecisionSeed(queryAnswers)),
+    decisionId: decisionId(
+      "batch",
+      validation.value.sessionId,
+      String(steps.length),
+      String(failedCount),
+      stepDecisionSeed(steps),
+      queryDecisionSeed(queryAnswers),
+    ),
     preserve: validation.value.preserve,
     producer: { kind: "other", name: "batch" },
     persistence: { status: "not_persisted", recoverability: "none" },
@@ -109,7 +119,13 @@ export async function freeflowBatch(
           ? `Ran ${steps.length} independent Freeflow-owned step(s) with concurrency=${validation.value.concurrency}; child results are available in details.result.steps.${queryReason}`
           : `Ran ${steps.length} independent Freeflow-owned step(s) with concurrency=${validation.value.concurrency}; ${failedCount} step(s) failed and ${okCount} step(s) completed. Child results are available in details.result.steps.${queryReason}`,
     },
-    summary: renderBatchSummary({ okCount, stepCount: steps.length, durationMs, concurrency: validation.value.concurrency, queryAnswers }),
+    summary: renderBatchSummary({
+      okCount,
+      stepCount: steps.length,
+      durationMs,
+      concurrency: validation.value.concurrency,
+      queryAnswers,
+    }),
     concurrency: validation.value.concurrency,
     stepCount: steps.length,
     okCount,
@@ -122,7 +138,9 @@ export async function freeflowBatch(
   };
 }
 
-function validateBatchInput(value: FreeflowBatchOptions): { ok: true; value: NormalizedBatchOptions } | { ok: false; issues: BatchValidationIssue[] } {
+function validateBatchInput(
+  value: FreeflowBatchOptions,
+): { ok: true; value: NormalizedBatchOptions } | { ok: false; issues: BatchValidationIssue[] } {
   const issues: BatchValidationIssue[] = [];
   if (!isRecord(value)) {
     return { ok: false, issues: [{ path: "$", message: "Expected batch input object." }] };
@@ -139,7 +157,12 @@ function validateBatchInput(value: FreeflowBatchOptions): { ok: true; value: Nor
   if (!concurrency.ok) {
     issues.push({ path: "$.concurrency", message: concurrency.message });
   }
-  if (value.preserve !== undefined && value.preserve !== "summary" && value.preserve !== "important" && value.preserve !== "full") {
+  if (
+    value.preserve !== undefined &&
+    value.preserve !== "summary" &&
+    value.preserve !== "important" &&
+    value.preserve !== "full"
+  ) {
     issues.push({ path: "$.preserve", message: "Expected preserve mode summary, important, or full." });
   }
   const normalizedQueries = normalizeBatchQueries(value.queries, issues);
@@ -213,7 +236,10 @@ function normalizeBatchQueries(value: readonly string[] | undefined, issues: Bat
       return;
     }
     if (query.length > MAX_BATCH_QUERY_LENGTH) {
-      issues.push({ path: `$.queries[${index}]`, message: `Expected query length at most ${MAX_BATCH_QUERY_LENGTH} characters.` });
+      issues.push({
+        path: `$.queries[${index}]`,
+        message: `Expected query length at most ${MAX_BATCH_QUERY_LENGTH} characters.`,
+      });
       return;
     }
     normalized.push(query.trim());
@@ -258,17 +284,22 @@ async function executeStepResult(
   runner: HostCommandRunner,
 ): Promise<RoutedResult> {
   if (step.kind === "run") {
-    return freeflowRun({
-      ...(step.input as Omit<FreeflowRunOptions, "sessionId">),
-      preserve: (step.input.preserve as PreserveMode | undefined) ?? options.preserve,
-      sessionId: options.sessionId,
-      ...(options.vaultRoot !== undefined ? { vaultRoot: options.vaultRoot } : {}),
-      ...(options.vaultRetention !== undefined ? { vaultRetention: options.vaultRetention } : {}),
-      ...(options.thresholds !== undefined ? { thresholds: options.thresholds } : {}),
-      ...(options.scriptTransform !== undefined ? { scriptTransform: options.scriptTransform } : {}),
-      ...(options.scriptSandboxAdapters !== undefined ? { scriptSandboxAdapters: options.scriptSandboxAdapters } : {}),
-      ...(options.storagePolicy !== undefined ? { storagePolicy: options.storagePolicy } : {}),
-    } as FreeflowRunOptions, runner);
+    return freeflowRun(
+      {
+        ...(step.input as Omit<FreeflowRunOptions, "sessionId">),
+        preserve: (step.input.preserve as PreserveMode | undefined) ?? options.preserve,
+        sessionId: options.sessionId,
+        ...(options.vaultRoot !== undefined ? { vaultRoot: options.vaultRoot } : {}),
+        ...(options.vaultRetention !== undefined ? { vaultRetention: options.vaultRetention } : {}),
+        ...(options.thresholds !== undefined ? { thresholds: options.thresholds } : {}),
+        ...(options.scriptTransform !== undefined ? { scriptTransform: options.scriptTransform } : {}),
+        ...(options.scriptSandboxAdapters !== undefined
+          ? { scriptSandboxAdapters: options.scriptSandboxAdapters }
+          : {}),
+        ...(options.storagePolicy !== undefined ? { storagePolicy: options.storagePolicy } : {}),
+      } as FreeflowRunOptions,
+      runner,
+    );
   }
 
   return freeflowSearch({
@@ -287,7 +318,10 @@ function isFailedChildResult(result: RoutedResult, kind: BatchStepKind): boolean
   return false;
 }
 
-async function answerBatchQueries(options: NormalizedBatchOptions, steps: readonly BatchStepRoutedResult[]): Promise<BatchQueryAnswer[]> {
+async function answerBatchQueries(
+  options: NormalizedBatchOptions,
+  steps: readonly BatchStepRoutedResult[],
+): Promise<BatchQueryAnswer[]> {
   if (options.queries.length === 0) {
     return [];
   }
@@ -306,7 +340,11 @@ async function answerBatchQueries(options: NormalizedBatchOptions, steps: readon
   return answers;
 }
 
-async function collectBatchQueryMatches(options: NormalizedBatchOptions, steps: readonly BatchStepRoutedResult[], query: string): Promise<BatchQueryMatch[]> {
+async function collectBatchQueryMatches(
+  options: NormalizedBatchOptions,
+  steps: readonly BatchStepRoutedResult[],
+  query: string,
+): Promise<BatchQueryMatch[]> {
   const matches: BatchQueryMatch[] = [];
   const seenVaultQueries = new Set<string>();
   const tokens = tokenizeQuery(query);
@@ -331,7 +369,13 @@ async function collectBatchQueryMatches(options: NormalizedBatchOptions, steps: 
       seenVaultQueries.add(`${query}:${key}`);
       const routed = await freeflowSearch({
         action: "query",
-        source: { kind: "vault", root: options.vaultRoot, sessionId: options.sessionId, outputId: ref.outputId, stream: ref.stream },
+        source: {
+          kind: "vault",
+          root: options.vaultRoot,
+          sessionId: options.sessionId,
+          outputId: ref.outputId,
+          stream: ref.stream,
+        },
         query,
         topK: 1,
         preserve: "summary",
@@ -345,7 +389,13 @@ async function collectBatchQueryMatches(options: NormalizedBatchOptions, steps: 
   return dedupeQueryMatches(matches);
 }
 
-function collectStructuredQueryMatches(matches: BatchQueryMatch[], step: BatchStepRoutedResult, result: RoutedResult, query: string, tokens: readonly string[]): void {
+function collectStructuredQueryMatches(
+  matches: BatchQueryMatch[],
+  step: BatchStepRoutedResult,
+  result: RoutedResult,
+  query: string,
+  tokens: readonly string[],
+): void {
   for (const packet of result.evidence ?? []) {
     addEvidenceQueryMatch(matches, step, packet, query, tokens, "child evidence");
   }
@@ -443,7 +493,9 @@ function renderBatchSummary(options: {
   concurrency: number;
   queryAnswers: readonly BatchQueryAnswer[];
 }): string {
-  const lines = [`Batch completed ${options.okCount}/${options.stepCount} step(s) successfully in ${options.durationMs}ms with concurrency=${options.concurrency}.`];
+  const lines = [
+    `Batch completed ${options.okCount}/${options.stepCount} step(s) successfully in ${options.durationMs}ms with concurrency=${options.concurrency}.`,
+  ];
   if (options.queryAnswers.length > 0) {
     lines.push(renderBatchQueryAnswers(options.queryAnswers));
   }
@@ -494,10 +546,39 @@ function sourceKey(source: SourceRef): string {
 }
 
 function tokenizeQuery(query: string): string[] {
-  return Array.from(new Set(query.toLowerCase().split(/[^a-z0-9_./:-]+/).filter((token) => token.length >= 2 && !BATCH_QUERY_STOPWORDS.has(token))));
+  return Array.from(
+    new Set(
+      query
+        .toLowerCase()
+        .split(/[^a-z0-9_./:-]+/)
+        .filter((token) => token.length >= 2 && !BATCH_QUERY_STOPWORDS.has(token)),
+    ),
+  );
 }
 
-const BATCH_QUERY_STOPWORDS = new Set(["a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "in", "is", "it", "of", "on", "or", "that", "the", "this", "to", "with"]);
+const BATCH_QUERY_STOPWORDS = new Set([
+  "a",
+  "an",
+  "and",
+  "are",
+  "as",
+  "at",
+  "be",
+  "by",
+  "for",
+  "from",
+  "in",
+  "is",
+  "it",
+  "of",
+  "on",
+  "or",
+  "that",
+  "the",
+  "this",
+  "to",
+  "with",
+]);
 
 function scoreQueryText(text: string, query: string, tokens: readonly string[]): number {
   const lowerText = text.toLowerCase();
@@ -591,7 +672,12 @@ function truncateBytes(text: string, maxBytes: number): string {
 }
 
 function queryDecisionSeed(answers: readonly BatchQueryAnswer[]): string {
-  return answers.map((answer) => `${answer.query}:${answer.status}:${answer.matches.map((match) => `${match.stepId}:${match.score}:${match.lines ?? ""}`).join(",")}`).join("|");
+  return answers
+    .map(
+      (answer) =>
+        `${answer.query}:${answer.status}:${answer.matches.map((match) => `${match.stepId}:${match.score}:${match.lines ?? ""}`).join(",")}`,
+    )
+    .join("|");
 }
 
 async function mapWithConcurrency<TItem, TResult>(
@@ -640,7 +726,9 @@ function batchValidationFailure(preserve: PreserveMode, issues: readonly BatchVa
 }
 
 function stepDecisionSeed(steps: readonly BatchStepRoutedResult[]): string {
-  return steps.map((step) => `${step.index}:${step.kind}:${step.status}:${step.result?.decisionId ?? step.error ?? "none"}`).join("|");
+  return steps
+    .map((step) => `${step.index}:${step.kind}:${step.status}:${step.result?.decisionId ?? step.error ?? "none"}`)
+    .join("|");
 }
 
 function validationMessage(issues: readonly BatchValidationIssue[]): string {

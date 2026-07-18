@@ -13,10 +13,7 @@
         "Rejects letting child agents use whatever tools they ask for.",
         "Keeps tiny, clear, single-agent tasks inline instead of forcing delegation or spec/plan ceremony."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff"
-      ],
+      "grade_artifacts": ["final response", "diff"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -26,12 +23,7 @@
         {
           "id": "mentions-context-locality",
           "type": "output_contains",
-          "any": [
-            "context locality",
-            "context-locality",
-            "context management",
-            "load narrowly"
-          ]
+          "any": ["context locality", "context-locality", "context management", "load narrowly"]
         },
         {
           "id": "rejects-transcript-dump",
@@ -48,24 +40,12 @@
         {
           "id": "rejects-unbounded-tools",
           "type": "output_contains",
-          "any": [
-            "do not let",
-            "not whatever tools",
-            "no dynamic tool",
-            "tool policy",
-            "capability"
-          ]
+          "any": ["do not let", "not whatever tools", "no dynamic tool", "tool policy", "capability"]
         },
         {
           "id": "keeps-tiny-work-inline",
           "type": "output_contains",
-          "any": [
-            "tiny and should stay inline",
-            "stay inline",
-            "keep small",
-            "small, reversible",
-            "single-file"
-          ]
+          "any": ["tiny and should stay inline", "stay inline", "keep small", "small, reversible", "single-file"]
         }
       ]
     },
@@ -81,10 +61,7 @@
         "Recommends routing the test run to a verifier or parent instead.",
         "Preserves reviewer role boundaries: reviewer reports findings and does not become verifier/worker."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff"
-      ],
+      "grade_artifacts": ["final response", "diff"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -94,23 +71,12 @@
         {
           "id": "no-dynamic-grant",
           "type": "output_contains",
-          "any": [
-            "No dynamic",
-            "no dynamic",
-            "cannot grant",
-            "should not grant",
-            "do not grant"
-          ]
+          "any": ["No dynamic", "no dynamic", "cannot grant", "should not grant", "do not grant"]
         },
         {
           "id": "reroute-to-verifier",
           "type": "output_contains",
-          "any": [
-            "verifier",
-            "route",
-            "reroute",
-            "parent"
-          ]
+          "any": ["verifier", "route", "reroute", "parent"]
         }
       ]
     },
@@ -126,10 +92,7 @@
         "Assigns planned intermediate commit checkpoints to execution-parent or delegated execution.",
         "Assigns final commit/push/closeout or completion claim to orchestrator/user."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff"
-      ],
+      "grade_artifacts": ["final response", "diff"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -139,28 +102,17 @@
         {
           "id": "execution-autonomy",
           "type": "output_contains",
-          "any": [
-            "autonomy",
-            "autonomous",
-            "without asking",
-            "does not need to ask"
-          ]
+          "any": ["autonomy", "autonomous", "without asking", "does not need to ask"]
         },
         {
           "id": "execution-parent-commit",
           "type": "output_contains",
-          "any": [
-            "execution-parent",
-            "execution parent"
-          ]
+          "any": ["execution-parent", "execution parent"]
         },
         {
           "id": "orchestrator-final",
           "type": "output_contains",
-          "all": [
-            "orchestrator",
-            "push"
-          ]
+          "all": ["orchestrator", "push"]
         }
       ]
     },
@@ -176,10 +128,7 @@
         "Rejects hidden/headless pi -p fallback when visible cmux-pane behavior is unavailable.",
         "Recommends a safe route such as inline work, install/start cmux, or disable delegation."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff"
-      ],
+      "grade_artifacts": ["final response", "diff"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -189,26 +138,13 @@
         {
           "id": "preflight-before-spawn",
           "type": "output_contains",
-          "any": [
-            "preflight",
-            "ensureDelegationReady",
-            "before any pane",
-            "before attempting"
-          ]
+          "any": ["preflight", "ensureDelegationReady", "before any pane", "before attempting"]
         },
         {
           "id": "cmux-unavailable",
           "type": "output_contains",
-          "all": [
-            "cmux"
-          ],
-          "any": [
-            "unavailable",
-            "not available",
-            "not usable",
-            "missing",
-            "not running"
-          ]
+          "all": ["cmux"],
+          "any": ["unavailable", "not available", "not usable", "missing", "not running"]
         },
         {
           "id": "no-headless-fallback",
@@ -231,13 +167,7 @@
         {
           "id": "safe-route",
           "type": "output_contains",
-          "any": [
-            "inline",
-            "install",
-            "start cmux",
-            "disable delegation",
-            "ask the user"
-          ]
+          "any": ["inline", "install", "start cmux", "disable delegation", "ask the user"]
         }
       ]
     },
@@ -253,10 +183,7 @@
         "Defines expanded output as details: task id, role/profile, pane/surface refs, scope, tool policy, state transitions, result fields, and evidence pointers.",
         "Includes an unavailable/preflight-failed rendering path for cmux issues."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff"
-      ],
+      "grade_artifacts": ["final response", "diff"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -280,38 +207,19 @@
         {
           "id": "collapsed-compact",
           "type": "output_contains",
-          "any": [
-            "collapsed",
-            "compact",
-            "one line",
-            "normal"
-          ]
+          "any": ["collapsed", "compact", "one line", "normal"]
         },
         {
           "id": "expanded-details",
           "type": "output_contains",
-          "any": [
-            "expanded",
-            "details",
-            "evidence pointers",
-            "trace/result paths"
-          ],
-          "all": [
-            "pane",
-            "task"
-          ]
+          "any": ["expanded", "details", "evidence pointers", "trace/result paths"],
+          "all": ["pane", "task"]
         },
         {
           "id": "unavailable-rendering",
           "type": "output_contains",
-          "any": [
-            "unavailable",
-            "cmux_not_ready",
-            "cmux"
-          ],
-          "all": [
-            "preflight"
-          ]
+          "any": ["unavailable", "cmux_not_ready", "cmux"],
+          "all": ["preflight"]
         }
       ]
     },
@@ -329,10 +237,7 @@
         "Keeps no-session child panes open until the parent or user agrees they are no longer needed.",
         "Requires a failure contract for delegation state/alerts before happy-path implementation."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff"
-      ],
+      "grade_artifacts": ["final response", "diff"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -342,24 +247,12 @@
         {
           "id": "alert-first-no-polling",
           "type": "output_contains",
-          "any": [
-            "alert-first",
-            "sparse",
-            "attention",
-            "watch mode"
-          ]
+          "any": ["alert-first", "sparse", "attention", "watch mode"]
         },
         {
           "id": "role-native-and-failure-contract",
           "type": "output_contains",
-          "any": [
-            "role-native",
-            "reviewer",
-            "verifier",
-            "failure contract",
-            "file-backed",
-            "no-session"
-          ]
+          "any": ["role-native", "reviewer", "verifier", "failure contract", "file-backed", "no-session"]
         }
       ]
     },
@@ -376,11 +269,7 @@
         "Falls back inline and reports lack of independent review when no separate-agent route is available.",
         "Does not imply a fresh reviewer ran when no separate-agent route is available."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "tool calls"
-      ],
+      "grade_artifacts": ["final response", "diff", "tool calls"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -390,30 +279,17 @@
         {
           "id": "harness-first-route",
           "type": "output_contains",
-          "any": [
-            "delegation harness",
-            "Freeflow delegation",
-            "delegate_",
-            "harness"
-          ]
+          "any": ["delegation harness", "Freeflow delegation", "delegate_", "harness"]
         },
         {
           "id": "fallbacks-named",
           "type": "output_contains",
-          "any": [
-            "host-native",
-            "native subagent",
-            "inline fallback",
-            "inline review",
-            "inline"
-          ]
+          "any": ["host-native", "native subagent", "inline fallback", "inline review", "inline"]
         },
         {
           "id": "no-fake-fresh-reviewer",
           "type": "output_contains",
-          "none": [
-            "Fresh reviewer also returned Pass"
-          ]
+          "none": ["Fresh reviewer also returned Pass"]
         }
       ]
     }

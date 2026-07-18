@@ -15,12 +15,14 @@ function requireNonEmptyString(value, label) {
 }
 
 function normalizeExecution(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("settled execution must be an object");
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error("settled execution must be an object");
   requireNonEmptyString(value.id, "settled execution id");
   if (!EXECUTION_KINDS.has(value.kind)) throw new Error(`unknown settled execution kind: ${value.kind}`);
   requireNonEmptyString(value.role, "settled execution role");
   if (!value.process || typeof value.process !== "object") throw new Error("settled execution process is required");
-  if (!value.runtime_counters || typeof value.runtime_counters !== "object") throw new Error("settled execution runtime_counters are required");
+  if (!value.runtime_counters || typeof value.runtime_counters !== "object")
+    throw new Error("settled execution runtime_counters are required");
   if (value.usage !== null && (typeof value.usage !== "object" || Array.isArray(value.usage))) {
     throw new Error("settled execution usage must be an object or null");
   }

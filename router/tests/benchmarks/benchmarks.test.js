@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { renderRouterBenchmarkReport, runRouterBenchmarks, writeRouterBenchmarkReports } from "../../dist/benchmarks/benchmarks.js";
+import {
+  renderRouterBenchmarkReport,
+  runRouterBenchmarks,
+  writeRouterBenchmarkReports,
+} from "../../dist/benchmarks/benchmarks.js";
 
 test("router benchmark harness compares internal modes and gates improved retrieval", async () => {
   const report = await runRouterBenchmarks({ iterations: 1, generatedAt: "2026-06-16T00:00:00.000Z" });
@@ -37,7 +41,11 @@ test("router benchmark harness compares internal modes and gates improved retrie
   assert.equal(sandboxImproved.correctness.generatedFalsePositive, false);
   assert.ok(sandboxImproved.byteReductionPercent > 99);
   assert.match(sandboxImproved.recovery.detail, /Verified/);
-  assert.ok(sandbox.results.some((result) => result.mode !== "improved-freeflow-router" && result.correctness.generatedFalsePositive));
+  assert.ok(
+    sandbox.results.some(
+      (result) => result.mode !== "improved-freeflow-router" && result.correctness.generatedFalsePositive,
+    ),
+  );
 
   const rendered = renderRouterBenchmarkReport(report);
   assert.match(rendered, /byte\/token reduction/);

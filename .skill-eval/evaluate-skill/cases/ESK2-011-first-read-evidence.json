@@ -4,9 +4,7 @@
   "skill": "evaluate-skill",
   "title": "Evaluate first-read activation and retained use",
   "question": "conversational behavior",
-  "evidence_classes": [
-    "native-activation"
-  ],
+  "evidence_classes": ["native-activation"],
   "required_for_bootstrap": false,
   "prompt": "Design the smallest valid evaluation for a revised skill description that should load at the first useful prompt. I need to distinguish: whether the natural description activates, whether the body is understandable on first read without undeclared vocabulary, whether a nearby prompt is handled safely even if the skill loads, and whether the method remains available on a later turn. Explain which claims need native activation, explicit body delivery, composition, or multi-turn evidence, and what a one-shot case cannot prove.",
   "fixture": null,
@@ -46,9 +44,7 @@
   "execution": {
     "host": "pi",
     "mode": "json",
-    "tools": [
-      "read"
-    ]
+    "tools": ["read"]
   },
   "assertions": [
     {

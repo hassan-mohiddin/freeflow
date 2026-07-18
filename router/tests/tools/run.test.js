@@ -227,13 +227,9 @@ test("small successful parsed output remains near-raw", async () => {
 
 test("freeflowRun routes explicit summary goals through reducers with raw and transformed recovery", async () => {
   await withTempVault(async (vault) => {
-    const stdout = [
-      "id,status,duration_ms",
-      "1,success,10",
-      "2,success,20",
-      "3,error,30",
-      "4,timeout,34000",
-    ].join("\n");
+    const stdout = ["id,status,duration_ms", "1,success,10", "2,success,20", "3,error,30", "4,timeout,34000"].join(
+      "\n",
+    );
     const runner = {
       async run() {
         return {
@@ -271,7 +267,10 @@ test("freeflowRun routes explicit summary goals through reducers with raw and tr
     assert.match(result.recovery?.how ?? "", new RegExp(`outputId=${result.outputId}`));
     assert.match(result.recovery?.how ?? "", new RegExp(`outputId=${result.reducer.outputId}`));
     assert.equal(await readOutputText(vault, "run-reducer-session", result.outputId, "stdout"), stdout);
-    assert.equal(await readOutputText(vault, "run-reducer-session", result.reducer.outputId, "raw"), result.reducer.summary);
+    assert.equal(
+      await readOutputText(vault, "run-reducer-session", result.reducer.outputId, "raw"),
+      result.reducer.summary,
+    );
   });
 });
 
@@ -279,8 +278,18 @@ test("query-aware JSON reducer routes nested issue summaries with raw and transf
   await withTempVault(async (vault) => {
     const stdout = JSON.stringify([
       { number: 1, title: "Bug A", body: "repo:facebook/react", labels: [{ name: "Type: Bug" }] },
-      { number: 2, title: "Bug B", body: "https://github.com/facebook/react/issues/2", labels: [{ name: "Status: Unconfirmed" }] },
-      { number: 3, title: "Bug C", body: "repo:facebook/react", labels: [{ name: "Type: Bug" }, { name: "Status: Unconfirmed" }] },
+      {
+        number: 2,
+        title: "Bug B",
+        body: "https://github.com/facebook/react/issues/2",
+        labels: [{ name: "Status: Unconfirmed" }],
+      },
+      {
+        number: 3,
+        title: "Bug C",
+        body: "repo:facebook/react",
+        labels: [{ name: "Type: Bug" }, { name: "Status: Unconfirmed" }],
+      },
     ]);
     const runner = {
       async run() {
@@ -314,7 +323,10 @@ test("query-aware JSON reducer routes nested issue summaries with raw and transf
     assert.match(result.recovery?.how ?? "", new RegExp(`outputId=${result.outputId}`));
     assert.match(result.recovery?.how ?? "", new RegExp(`outputId=${result.reducer.outputId}`));
     assert.equal(await readOutputText(vault, "run-reducer-json-query-session", result.outputId, "stdout"), stdout);
-    assert.equal(await readOutputText(vault, "run-reducer-json-query-session", result.reducer.outputId, "raw"), result.reducer.summary);
+    assert.equal(
+      await readOutputText(vault, "run-reducer-json-query-session", result.reducer.outputId, "raw"),
+      result.reducer.summary,
+    );
   });
 });
 
@@ -356,12 +368,7 @@ test("weak generic JSON summary remains near-raw when query-aware reducer has no
 
 test("preserve full bypasses reducer routing and returns exact command output", async () => {
   await withTempVault(async (vault) => {
-    const stdout = [
-      "id,status,duration_ms",
-      "1,success,10",
-      "2,success,20",
-      "3,error,30",
-    ].join("\n");
+    const stdout = ["id,status,duration_ms", "1,success,10", "2,success,20", "3,error,30"].join("\n");
     const runner = {
       async run() {
         return {
@@ -676,9 +683,18 @@ test("freeflowRun script producer runs through the sandbox and stores stdout std
     assert.equal(result.persistence?.recoverability, "exact");
     assert.equal(result.importantLines?.[0].stream, "combined");
     assert.match(result.importantLines?.[0].excerpt ?? "", /hello from script/);
-    assert.equal(await readOutputText(vault, "run-script-producer-session", result.outputId, "stdout"), "hello from script\n");
-    assert.equal(await readOutputText(vault, "run-script-producer-session", result.outputId, "stderr"), "warn from script\n");
-    assert.equal(await readOutputText(vault, "run-script-producer-session", result.outputId, "combined"), "[stdout]\nhello from script\n\n[stderr]\nwarn from script\n");
+    assert.equal(
+      await readOutputText(vault, "run-script-producer-session", result.outputId, "stdout"),
+      "hello from script\n",
+    );
+    assert.equal(
+      await readOutputText(vault, "run-script-producer-session", result.outputId, "stderr"),
+      "warn from script\n",
+    );
+    assert.equal(
+      await readOutputText(vault, "run-script-producer-session", result.outputId, "combined"),
+      "[stdout]\nhello from script\n\n[stderr]\nwarn from script\n",
+    );
   });
 });
 
@@ -726,8 +742,14 @@ test("freeflowRun script producer captures failed sandbox execution output", asy
     assert.equal(result.persistence?.recoverability, "exact");
     assert.match(result.summary ?? "", /failed/i);
     assert.match(result.importantLines?.[0].excerpt ?? "", /script error/);
-    assert.equal(await readOutputText(vault, "run-script-producer-failure-session", result.outputId, "stdout"), "partial output\n");
-    assert.equal(await readOutputText(vault, "run-script-producer-failure-session", result.outputId, "stderr"), "script error\n");
+    assert.equal(
+      await readOutputText(vault, "run-script-producer-failure-session", result.outputId, "stdout"),
+      "partial output\n",
+    );
+    assert.equal(
+      await readOutputText(vault, "run-script-producer-failure-session", result.outputId, "stderr"),
+      "script error\n",
+    );
   });
 });
 
@@ -818,7 +840,10 @@ test("freeflowRun script filter runs command once, sees captured streams, and st
       assert.equal(request.language, "javascript");
       assert.equal(request.network, "off");
       assert.equal(request.sources.length, 3);
-      assert.deepEqual(request.sources.map((source) => source.alias), ["stdout", "stderr", "combined"]);
+      assert.deepEqual(
+        request.sources.map((source) => source.alias),
+        ["stdout", "stderr", "combined"],
+      );
       const stdoutText = await readFile(request.sources.find((source) => source.alias === "stdout").path, "utf8");
       const stderrText = await readFile(request.sources.find((source) => source.alias === "stderr").path, "utf8");
       const combinedText = await readFile(request.sources.find((source) => source.alias === "combined").path, "utf8");
@@ -870,7 +895,10 @@ test("freeflowRun script filter runs command once, sees captured streams, and st
     assert.match(result.summary ?? "", /transformed outputId=ffout_/);
     assert.match(result.importantLines?.[0].excerpt ?? "", /SCRIPT:TARGET stdout:warn stderr:true/);
     assert.equal(await readOutputText(vault, "run-script-filter-session", result.outputId, "stdout"), stdout);
-    assert.equal(await readOutputText(vault, "run-script-filter-session", result.scriptFilter.outputId, "raw"), "SCRIPT:TARGET stdout:warn stderr:true");
+    assert.equal(
+      await readOutputText(vault, "run-script-filter-session", result.scriptFilter.outputId, "raw"),
+      "SCRIPT:TARGET stdout:warn stderr:true",
+    );
     assert.match(result.recovery?.how ?? "", new RegExp(`outputId=${result.outputId}`));
     assert.match(result.recovery?.how ?? "", new RegExp(`outputId=${result.scriptFilter.outputId}`));
   });
@@ -912,7 +940,10 @@ test("freeflowRun script filter disabled preserves base command result and raw r
     assert.equal(result.scriptFilter?.outputId, undefined);
     assert.doesNotMatch(JSON.stringify(result), /RAW_SCRIPT_SENTINEL/);
     assert.equal(result.importantLines?.[0].excerpt, "base output\n");
-    assert.equal(await readOutputText(vault, "run-script-disabled-session", result.outputId, "stdout"), "base output\n");
+    assert.equal(
+      await readOutputText(vault, "run-script-disabled-session", result.outputId, "stdout"),
+      "base output\n",
+    );
   });
 });
 
@@ -993,7 +1024,10 @@ test("freeflowRun script filter output caps and timeouts do not hide raw command
     assert.equal(overCap.scriptFilter?.status, "failed");
     assert.equal(overCap.scriptFilter?.outputId, undefined);
     assert.match(overCap.failure?.message ?? "", /maxOutputBytes 10/);
-    assert.equal(await readOutputText(vault, "run-script-overcap-session", overCap.outputId, "stdout"), "raw before script failure\n");
+    assert.equal(
+      await readOutputText(vault, "run-script-overcap-session", overCap.outputId, "stdout"),
+      "raw before script failure\n",
+    );
 
     const timeoutAdapter = availableScriptAdapter(async () => ({
       status: "timed_out",
@@ -1026,7 +1060,10 @@ test("freeflowRun script filter output caps and timeouts do not hide raw command
     assert.equal(timeout.failure?.kind, "transform_execution_failure");
     assert.equal(timeout.scriptFilter?.status, "failed");
     assert.match(timeout.failure?.message ?? "", /timed_out/);
-    assert.equal(await readOutputText(vault, "run-script-timeout-session", timeout.outputId, "stdout"), "raw before script failure\n");
+    assert.equal(
+      await readOutputText(vault, "run-script-timeout-session", timeout.outputId, "stdout"),
+      "raw before script failure\n",
+    );
   });
 });
 
@@ -1123,7 +1160,7 @@ test("non-test commands mentioning Tests use generic fallback", async () => {
 
     const result = await freeflowRun(
       {
-        command: "rg \"Tests:\" docs",
+        command: 'rg "Tests:" docs',
         sessionId: "rg-tests-session",
         vaultRoot: vault.root,
         preserve: "important",
@@ -1140,7 +1177,7 @@ test("non-test commands mentioning Tests use generic fallback", async () => {
 
 test("successful non-test commands mentioning FAIL use generic fallback", () => {
   const parsed = parseCommandOutput({
-    command: "rg \"^FAIL\" docs",
+    command: 'rg "^FAIL" docs',
     executionStatus: "success",
     exitCode: 0,
     stdout: "docs/example.md:FAIL is a literal example",
@@ -1162,7 +1199,7 @@ test("non-tool command output does not claim specialized parser semantics", () =
       combined: "Traceback (most recent call last):\nValueError: nope",
     },
     {
-      command: "rg \"files changed\" docs",
+      command: 'rg "files changed" docs',
       executionStatus: "success",
       exitCode: 0,
       stdout: "docs/example.md: 3 files changed",
@@ -1170,7 +1207,7 @@ test("non-tool command output does not claim specialized parser semantics", () =
       combined: "docs/example.md: 3 files changed",
     },
     {
-      command: "rg \"Build failed\" docs",
+      command: 'rg "Build failed" docs',
       executionStatus: "success",
       exitCode: 0,
       stdout: "docs/example.md: Build failed is an example",
@@ -1178,7 +1215,7 @@ test("non-tool command output does not claim specialized parser semantics", () =
       combined: "docs/example.md: Build failed is an example",
     },
     {
-      command: "rg \"TS2322\" docs",
+      command: 'rg "TS2322" docs',
       executionStatus: "success",
       exitCode: 0,
       stdout: "docs/example.md: src/a.ts(1,2): error TS2322: example",
@@ -1189,7 +1226,11 @@ test("non-tool command output does not claim specialized parser semantics", () =
 
   for (const probe of cases) {
     assert.equal(parseCommandOutput(probe).parser.name, "generic", probe.command);
-    assert.equal(parseCommandOutput({ ...probe, goal: "verify" }).parser.name, "generic", `${probe.command} with verify goal`);
+    assert.equal(
+      parseCommandOutput({ ...probe, goal: "verify" }).parser.name,
+      "generic",
+      `${probe.command} with verify goal`,
+    );
   }
 });
 
@@ -1369,11 +1410,9 @@ test("ESLint stylish diagnostics parser preserves exact file references", async 
 
 test("build parser preserves toolchain error blocks without test-runner mislabeling", async () => {
   await withTempVault(async (vault) => {
-    const stderr = [
-      "Build failed",
-      "Error: Cannot find module '@freeflow/router'",
-      "    at src/index.ts:1:1",
-    ].join("\n");
+    const stderr = ["Build failed", "Error: Cannot find module '@freeflow/router'", "    at src/index.ts:1:1"].join(
+      "\n",
+    );
     const runner = {
       async run() {
         return {
@@ -1404,10 +1443,7 @@ test("build parser preserves toolchain error blocks without test-runner mislabel
 
 test("build parser matches npm ERR toolchain failures", async () => {
   await withTempVault(async (vault) => {
-    const stderr = [
-      "npm ERR! code ERESOLVE",
-      "npm ERR! ERESOLVE unable to resolve dependency tree",
-    ].join("\n");
+    const stderr = ["npm ERR! code ERESOLVE", "npm ERR! ERESOLVE unable to resolve dependency tree"].join("\n");
     const runner = {
       async run() {
         return {
@@ -1691,7 +1727,10 @@ test("generic failed command returns late diagnostic evidence", async () => {
     assert.equal(result.importantLines?.[0].stream, "stderr");
     const evidenceText = result.importantLines?.map((line) => line.excerpt).join("\n") ?? "";
     assert.match(evidenceText, /FATAL_ROOT_CAUSE unique failure diagnostic/);
-    assert.doesNotMatch(evidenceText, /setup line 1\nsetup line 2\nsetup line 3\nsetup line 4\nsetup line 5\nsetup line 6\nsetup line 7\nsetup line 8/);
+    assert.doesNotMatch(
+      evidenceText,
+      /setup line 1\nsetup line 2\nsetup line 3\nsetup line 4\nsetup line 5\nsetup line 6\nsetup line 7\nsetup line 8/,
+    );
     assert.equal(await readOutputText(vault, "generic-late-failure-session", result.outputId, "stderr"), stderr);
   });
 });
@@ -1728,10 +1767,7 @@ test("failed command returns exact stderr evidence and raw output id", async () 
     assert.equal(result.parser?.name, "test-runner");
     assert.ok((result.parser?.confidence ?? 0) >= 0.9);
     assert.equal(result.importantLines?.[0].stream, "stderr");
-    assert.equal(
-      result.importantLines?.[0].excerpt,
-      "FAIL target test\nexpected true to equal false\nstack line\n",
-    );
+    assert.equal(result.importantLines?.[0].excerpt, "FAIL target test\nexpected true to equal false\nstack line\n");
     assert.equal(result.recovery?.outputId, result.outputId);
     assert.equal(
       await readOutputText(vault, "failed-session", result.outputId, "stderr"),

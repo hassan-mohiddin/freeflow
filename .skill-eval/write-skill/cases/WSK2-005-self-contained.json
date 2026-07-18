@@ -4,9 +4,7 @@
   "skill": "write-skill",
   "title": "Self-contained authoring instructions",
   "question": "structural validity",
-  "evidence_classes": [
-    "structure"
-  ],
+  "evidence_classes": ["structure"],
   "required_for_bootstrap": true,
   "prompt": "",
   "fixture": null,
@@ -17,9 +15,7 @@
       "revision": "b168ac28482b7bc3984727ad4ee3a61a2b789104",
       "path": "skills/write-skill",
       "role": "reference",
-      "resources": [
-        "SKILL.md"
-      ]
+      "resources": ["SKILL.md"]
     },
     {
       "id": "candidate",
@@ -45,12 +41,7 @@
       "id": "no-external-authority",
       "type": "forbidden_text",
       "path": "SKILL.md",
-      "patterns": [
-        "Anthropic/Claude",
-        "skill-creator",
-        "Matt Pocock",
-        "Superpowers"
-      ]
+      "patterns": ["Anthropic/Claude", "skill-creator", "Matt Pocock", "Superpowers"]
     },
     {
       "id": "valid-skill",

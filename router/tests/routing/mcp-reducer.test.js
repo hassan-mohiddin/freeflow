@@ -49,10 +49,38 @@ test("MCP reducer compacts GitHub issue search JSON with exact recovery", async 
           type: "json",
           json: {
             items: [
-              { id: 101, number: 1, title: "Alpha bug", state: "open", html_url: "https://github.com/acme/repo/issues/1", body: "x".repeat(200) },
-              { id: 102, number: 2, title: "Beta bug", state: "closed", html_url: "https://github.com/acme/repo/issues/2", body: "y".repeat(200) },
-              { id: 103, number: 3, title: "Gamma bug", state: "open", html_url: "https://github.com/acme/repo/issues/3", body: "z".repeat(200) },
-              { id: 104, number: 4, title: "Delta bug", state: "open", html_url: "https://github.com/acme/repo/issues/4", body: "w".repeat(200) },
+              {
+                id: 101,
+                number: 1,
+                title: "Alpha bug",
+                state: "open",
+                html_url: "https://github.com/acme/repo/issues/1",
+                body: "x".repeat(200),
+              },
+              {
+                id: 102,
+                number: 2,
+                title: "Beta bug",
+                state: "closed",
+                html_url: "https://github.com/acme/repo/issues/2",
+                body: "y".repeat(200),
+              },
+              {
+                id: 103,
+                number: 3,
+                title: "Gamma bug",
+                state: "open",
+                html_url: "https://github.com/acme/repo/issues/3",
+                body: "z".repeat(200),
+              },
+              {
+                id: 104,
+                number: 4,
+                title: "Delta bug",
+                state: "open",
+                html_url: "https://github.com/acme/repo/issues/4",
+                body: "w".repeat(200),
+              },
             ],
           },
         },
@@ -121,7 +149,10 @@ test("MCP reducer honors metadata-only persistence for sensitive Gmail output", 
   await withVault("freeflow-mcp-gmail-sensitive-", async (vaultRoot) => {
     const rawResult = {
       content: [
-        { type: "text", text: `Subject: Customer secret renewal\nFrom: private@example.test\nSnippet: token should not be vaulted\n${"noise ".repeat(2000)}` },
+        {
+          type: "text",
+          text: `Subject: Customer secret renewal\nFrom: private@example.test\nSnippet: token should not be vaulted\n${"noise ".repeat(2000)}`,
+        },
       ],
     };
     const result = await routeObservedToolOutput({

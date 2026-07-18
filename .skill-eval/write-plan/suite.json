@@ -1,7 +1,5 @@
 {
   "schema_version": 1,
   "skill": "write-plan",
-  "cases": [
-    "cases/WPQ-001-bounded-diagnosis-plan.json"
-  ]
+  "cases": ["cases/WPQ-001-bounded-diagnosis-plan.json"]
 }

@@ -13,8 +13,24 @@ import {
   type ProcessingScriptRequest,
   type ProcessingScriptResult,
 } from "./scripts.js";
-import { createVault, readOutputText, readVaultRecord, storeRepoFileReference, storeTextOutput } from "../vault/vault.js";
-import type { EvidenceLineage, EvidencePersistence, LocalFreeflowConfig, OutputStream, RecoveryHint, ScriptTransformConfig, SourceRef, VaultRecord, VaultRetentionPolicy } from "../config/types.js";
+import {
+  createVault,
+  readOutputText,
+  readVaultRecord,
+  storeRepoFileReference,
+  storeTextOutput,
+} from "../vault/vault.js";
+import type {
+  EvidenceLineage,
+  EvidencePersistence,
+  LocalFreeflowConfig,
+  OutputStream,
+  RecoveryHint,
+  ScriptTransformConfig,
+  SourceRef,
+  VaultRecord,
+  VaultRetentionPolicy,
+} from "../config/types.js";
 import type { ScriptSandboxAdapter } from "../sandbox/script-sandbox.js";
 
 export const PROCESSING_ENGINE_IMPLEMENTATION = "processing-engine-skeleton-v1";
@@ -65,7 +81,11 @@ export interface CapturedCommandOutputProcessingSource {
   outputId?: string;
 }
 
-export type ProcessingSourceInput = RepoFileProcessingSource | VaultOutputProcessingSource | LocalFileProcessingSource | CapturedCommandOutputProcessingSource;
+export type ProcessingSourceInput =
+  | RepoFileProcessingSource
+  | VaultOutputProcessingSource
+  | LocalFileProcessingSource
+  | CapturedCommandOutputProcessingSource;
 
 export interface ProcessingSourceStats {
   bytes: number;
@@ -175,7 +195,10 @@ export async function processSource(
   const limits = normalizeLimits(options.limits);
   const reducer = notSelectedReducer("Source was not loaded; reducer selection was skipped.");
   const script = options.script
-    ? processingScriptUnavailableForUnloadedSource(options.script, "Source was not loaded; script processing was skipped.")
+    ? processingScriptUnavailableForUnloadedSource(
+        options.script,
+        "Source was not loaded; script processing was skipped.",
+      )
     : processingScriptNotConfigured();
 
   if (loaded.status === "blocked") {
@@ -229,7 +252,10 @@ export async function processSource(
   const selectedReducer = scriptSkipsReducer(selectedScript)
     ? notSelectedReducer(scriptReducerSkipReason(selectedScript))
     : selectProcessingReducer({ text: loaded.text, ...(options.goal !== undefined ? { goal: options.goal } : {}) });
-  const facts = selectedReducer.status === "selected" ? [...selectedReducer.result.facts, ...sourceFacts(loaded)] : sourceFacts(loaded);
+  const facts =
+    selectedReducer.status === "selected"
+      ? [...selectedReducer.result.facts, ...sourceFacts(loaded)]
+      : sourceFacts(loaded);
   const visibleText = renderProcessingResult({
     status: "ok",
     source: loaded.source,
@@ -250,11 +276,18 @@ export async function processSource(
     resultText: selectedScript.status === "executed" ? selectedScript.outputText : visibleText,
     loaded,
     options,
-    operation: selectedScript.status === "executed" ? `processing-script:${selectedScript.language}` : "processing-fact-summary",
-    producerName: selectedScript.status === "executed" ? `processing-script:${selectedScript.language}` : "processing-engine",
-    operationHashSeed: selectedScript.status === "executed"
-      ? { source: loaded.source, stats: loaded.stats, script: { language: selectedScript.language, codeHashSha256: selectedScript.codeHashSha256 } }
-      : { source: loaded.source, stats: loaded.stats },
+    operation:
+      selectedScript.status === "executed" ? `processing-script:${selectedScript.language}` : "processing-fact-summary",
+    producerName:
+      selectedScript.status === "executed" ? `processing-script:${selectedScript.language}` : "processing-engine",
+    operationHashSeed:
+      selectedScript.status === "executed"
+        ? {
+            source: loaded.source,
+            stats: loaded.stats,
+            script: { language: selectedScript.language, codeHashSha256: selectedScript.codeHashSha256 },
+          }
+        : { source: loaded.source, stats: loaded.stats },
   });
 
   const result: ProcessingOkResult = {
@@ -302,7 +335,11 @@ async function loadRepoFileSource(
   const resolvedDescriptor = repoSourceDescriptor(resolved.relativePath || ".");
   const fileStat = await stat(resolved.absolutePath);
   if (!fileStat.isFile()) {
-    return { status: "unavailable", source: resolvedDescriptor, reason: `Repo source is not a file: ${resolved.relativePath || "."}` };
+    return {
+      status: "unavailable",
+      source: resolvedDescriptor,
+      reason: `Repo source is not a file: ${resolved.relativePath || "."}`,
+    };
   }
   if (fileStat.size > limits.maxSourceBytes) {
     return {
@@ -336,7 +373,11 @@ async function loadLocalFileSource(
     resolved = await resolveLocalPath(source.root, source.path);
   } catch (error) {
     const message = errorMessage(error);
-    const blocked = message.includes("escapes root") || message.includes("absolute path") || message.includes("too broad") || message.includes("source.root");
+    const blocked =
+      message.includes("escapes root") ||
+      message.includes("absolute path") ||
+      message.includes("too broad") ||
+      message.includes("source.root");
     return blocked
       ? { status: "blocked", source: descriptor, policy: "repo_containment", reason: message }
       : { status: "unavailable", source: descriptor, reason: message };
@@ -345,7 +386,11 @@ async function loadLocalFileSource(
   const resolvedDescriptor = localSourceDescriptor(resolved.root, resolved.relativePath || ".");
   const fileStat = await stat(resolved.absolutePath);
   if (!fileStat.isFile()) {
-    return { status: "unavailable", source: resolvedDescriptor, reason: `Local source is not a file: ${resolved.relativePath || "."}` };
+    return {
+      status: "unavailable",
+      source: resolvedDescriptor,
+      reason: `Local source is not a file: ${resolved.relativePath || "."}`,
+    };
   }
   if (fileStat.size > limits.maxSourceBytes) {
     return {
@@ -364,7 +409,9 @@ async function loadLocalFileSource(
     source: resolvedDescriptor,
     text,
     stats,
-    recovery: { how: `Recover source with freeflow_search action=retrieve source.kind=local root=${resolved.root} path=${resolved.relativePath}.` },
+    recovery: {
+      how: `Recover source with freeflow_search action=retrieve source.kind=local root=${resolved.root} path=${resolved.relativePath}.`,
+    },
   };
 }
 
@@ -428,7 +475,10 @@ async function loadVaultOutputSource(
       text,
       stats,
       lineage,
-      recovery: { how: `Recover source with freeflow_search action=retrieve outputId=${source.outputId} stream=${stream}.`, outputId: source.outputId },
+      recovery: {
+        how: `Recover source with freeflow_search action=retrieve outputId=${source.outputId} stream=${stream}.`,
+        outputId: source.outputId,
+      },
     };
   } catch (error) {
     return { status: "unavailable", source: descriptor, reason: errorMessage(error) };
@@ -484,7 +534,12 @@ function loadCapturedCommandOutputSource(
     stats,
     ...(lineage !== undefined ? { lineage } : {}),
     ...(source.outputId !== undefined
-      ? { recovery: { how: `Recover source from captured command outputId=${source.outputId} stream=${stream}.`, outputId: source.outputId } }
+      ? {
+          recovery: {
+            how: `Recover source from captured command outputId=${source.outputId} stream=${stream}.`,
+            outputId: source.outputId,
+          },
+        }
       : {}),
   };
 }
@@ -539,8 +594,12 @@ async function persistProcessingResultText(input: {
     vaultOptions.retention = input.options.vaultRetention;
   }
   const lineage: EvidenceLineage = {
-    ...(input.loaded.lineage?.sourceRecordIds !== undefined ? { sourceRecordIds: input.loaded.lineage.sourceRecordIds } : {}),
-    ...(input.loaded.lineage?.sourceOutputIds !== undefined ? { sourceOutputIds: input.loaded.lineage.sourceOutputIds } : {}),
+    ...(input.loaded.lineage?.sourceRecordIds !== undefined
+      ? { sourceRecordIds: input.loaded.lineage.sourceRecordIds }
+      : {}),
+    ...(input.loaded.lineage?.sourceOutputIds !== undefined
+      ? { sourceOutputIds: input.loaded.lineage.sourceOutputIds }
+      : {}),
     operation: input.operation,
     operationHash: sha256(JSON.stringify(input.operationHashSeed)),
   };
@@ -556,7 +615,10 @@ async function persistProcessingResultText(input: {
   return {
     lineage,
     persistence,
-    recovery: { how: `Recover processing result with freeflow_search action=retrieve outputId=${record.outputId} stream=raw.`, outputId: record.outputId },
+    recovery: {
+      how: `Recover processing result with freeflow_search action=retrieve outputId=${record.outputId} stream=raw.`,
+      outputId: record.outputId,
+    },
   };
 }
 
@@ -592,7 +654,10 @@ function sourceFacts(loaded: LoadedProcessingSource): ProcessingFact[] {
   ];
 }
 
-function commandOutputStreamText(source: CapturedCommandOutputProcessingSource, stream: Exclude<OutputStream, "raw">): string {
+function commandOutputStreamText(
+  source: CapturedCommandOutputProcessingSource,
+  stream: Exclude<OutputStream, "raw">,
+): string {
   if (stream === "stdout") {
     return source.stdout ?? "";
   }
@@ -683,5 +748,8 @@ function errorMessage(error: unknown): string {
 
 export function isProcessingPathInsideRoot(root: string, absolutePath: string): boolean {
   const relativePath = relative(root, absolutePath);
-  return relativePath === "" || (!relativePath.startsWith("..") && !relativePath.startsWith("/") && !/^[A-Za-z]:/.test(relativePath));
+  return (
+    relativePath === "" ||
+    (!relativePath.startsWith("..") && !relativePath.startsWith("/") && !/^[A-Za-z]:/.test(relativePath))
+  );
 }

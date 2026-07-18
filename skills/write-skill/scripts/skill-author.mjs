@@ -10,15 +10,23 @@ function parse(argv) {
   const positionals = [];
   for (let index = 0; index < rest.length; index += 1) {
     const token = rest[index];
-    if (!token.startsWith("--")) { positionals.push(token); continue; }
+    if (!token.startsWith("--")) {
+      positionals.push(token);
+      continue;
+    }
     const key = token.slice(2).replaceAll("-", "_");
     if (rest[index + 1] === undefined || rest[index + 1].startsWith("--")) options[key] = true;
-    else { options[key] = rest[index + 1]; index += 1; }
+    else {
+      options[key] = rest[index + 1];
+      index += 1;
+    }
   }
   return { command, options, positionals };
 }
 
-function output(value) { process.stdout.write(`${JSON.stringify(value, null, 2)}\n`); }
+function output(value) {
+  process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+}
 
 export async function main(argv = process.argv.slice(2)) {
   const { command, options, positionals } = parse(argv);
@@ -47,8 +55,13 @@ export async function main(argv = process.argv.slice(2)) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  main().then((code) => { process.exitCode = code; }, (error) => {
-    process.stderr.write(`skill-author: ${error.message}\n`);
-    process.exitCode = 1;
-  });
+  main().then(
+    (code) => {
+      process.exitCode = code;
+    },
+    (error) => {
+      process.stderr.write(`skill-author: ${error.message}\n`);
+      process.exitCode = 1;
+    },
+  );
 }

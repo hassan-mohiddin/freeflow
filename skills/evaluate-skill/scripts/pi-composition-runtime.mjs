@@ -1,6 +1,10 @@
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { runtimeContext, workflowBootstrapMessage, WORKFLOW_BOOTSTRAP_MESSAGE_TYPE } from "../../../pi-extension/dist/runtime-context.js";
+import {
+  runtimeContext,
+  workflowBootstrapMessage,
+  WORKFLOW_BOOTSTRAP_MESSAGE_TYPE,
+} from "../../../pi-extension/dist/runtime-context.js";
 import { sha256, stableJson } from "./lib/hash.mjs";
 
 export const COMPOSITION_RUNTIME_PROFILE = "freeflow-interaction-workflow-v1";
@@ -20,11 +24,14 @@ export function buildCompositionRuntimeContext(freeflowContext) {
 }
 
 export function buildCompositionWorkflowEnvelope(workflowSkill) {
-  return workflowBootstrapMessage(
-    { workflowSkill },
-    capabilityState,
-    { buildContextEntries() { return []; }, getEntries() { return []; } },
-  );
+  return workflowBootstrapMessage({ workflowSkill }, capabilityState, {
+    buildContextEntries() {
+      return [];
+    },
+    getEntries() {
+      return [];
+    },
+  });
 }
 
 async function appendEvidence(path, record) {
@@ -38,10 +45,13 @@ export function createCompositionRuntimeExtension({
   workflowPath = process.env.FREEFLOW_EVAL_RUNTIME_WORKFLOW,
   evidencePath = process.env.FREEFLOW_EVAL_RUNTIME_EVIDENCE,
 } = {}) {
-  if (!interactionContractPath || !workflowPath) throw new Error("Composition runtime requires declared Interaction Contract and Workflow paths");
+  if (!interactionContractPath || !workflowPath)
+    throw new Error("Composition runtime requires declared Interaction Contract and Workflow paths");
   let resourcesPromise;
   const resources = () => {
-    resourcesPromise ??= Promise.all([readFile(interactionContractPath, "utf8"), readFile(workflowPath, "utf8")]).then(([interactionContract, workflowSkill]) => ({ interactionContract, workflowSkill }));
+    resourcesPromise ??= Promise.all([readFile(interactionContractPath, "utf8"), readFile(workflowPath, "utf8")]).then(
+      ([interactionContract, workflowSkill]) => ({ interactionContract, workflowSkill }),
+    );
     return resourcesPromise;
   };
 
@@ -53,7 +63,9 @@ export function createCompositionRuntimeExtension({
       const message = workflowBootstrapMessage(freeflowContext, capabilityState, ctx.sessionManager);
       const systemPrompt = `${event.systemPrompt}\n\n${contextText}`;
       const deliveryReason = message
-        ? (beforeAgentStarts === 0 ? "initial" : "active-marker-missing")
+        ? beforeAgentStarts === 0
+          ? "initial"
+          : "active-marker-missing"
         : "suppressed-active-marker";
       beforeAgentStarts += 1;
       await appendEvidence(evidencePath, {

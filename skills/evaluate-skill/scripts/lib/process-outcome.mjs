@@ -27,12 +27,14 @@ function executionFromPi({ id, kind, role, result }) {
 }
 
 function failedProcess(result) {
-  return result.process.code !== 0
-    || result.process.timed_out
-    || result.process.output_limit_exceeded
-    || result.process.transport_limit_exceeded
-    || result.runtime_counters.hard_turn_limit_reached
-    || result.parsed.parse_errors.length > 0;
+  return (
+    result.process.code !== 0 ||
+    result.process.timed_out ||
+    result.process.output_limit_exceeded ||
+    result.process.transport_limit_exceeded ||
+    result.runtime_counters.hard_turn_limit_reached ||
+    result.parsed.parse_errors.length > 0
+  );
 }
 
 export async function runPiProcessOutcome({

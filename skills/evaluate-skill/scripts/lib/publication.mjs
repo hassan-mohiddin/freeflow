@@ -33,7 +33,8 @@ export async function createStagingDirectory(path, operations = {}) {
 export async function publishResult({ stagingDir, destinationDir, prepare, verify, operations = {} }) {
   const fs = fsOperations(operations);
   try {
-    if (await destinationExists(destinationDir, fs)) throw new Error(`Result destination already exists: ${destinationDir}`);
+    if (await destinationExists(destinationDir, fs))
+      throw new Error(`Result destination already exists: ${destinationDir}`);
     await prepare(stagingDir);
     await verify(stagingDir);
     await fs.mkdir(dirname(destinationDir), { recursive: true });
@@ -47,7 +48,8 @@ export async function publishResult({ stagingDir, destinationDir, prepare, verif
 export async function publishDiagnostic({ stagingDir, destinationDir, writeDiagnostic, operations = {} }) {
   const fs = fsOperations(operations);
   try {
-    if (await destinationExists(destinationDir, fs)) throw new Error(`Diagnostic destination already exists: ${destinationDir}`);
+    if (await destinationExists(destinationDir, fs))
+      throw new Error(`Diagnostic destination already exists: ${destinationDir}`);
     await writeDiagnostic(stagingDir);
     await fs.mkdir(dirname(destinationDir), { recursive: true });
     await fs.rename(stagingDir, destinationDir);

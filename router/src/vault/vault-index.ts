@@ -88,8 +88,16 @@ export interface VaultIndexStatus {
 }
 
 export interface VaultIndexEngine {
-  indexRecord(record: VaultRecord, text: string | undefined, metadata: VaultIndexRecordMetadata): Promise<VaultIndexRecordResult>;
-  queryVault(query: string, filters?: VaultIndexQueryFilters, caps?: VaultIndexQueryCaps): Promise<VaultIndexQueryResult>;
+  indexRecord(
+    record: VaultRecord,
+    text: string | undefined,
+    metadata: VaultIndexRecordMetadata,
+  ): Promise<VaultIndexRecordResult>;
+  queryVault(
+    query: string,
+    filters?: VaultIndexQueryFilters,
+    caps?: VaultIndexQueryCaps,
+  ): Promise<VaultIndexQueryResult>;
   deleteExpired(options?: VaultIndexDeleteExpiredOptions): Promise<VaultIndexDeleteExpiredResult>;
   status(): Promise<VaultIndexStatus>;
 }
@@ -140,7 +148,10 @@ const LOCAL_INDEX_LOCK_RETRY_MS = 10;
 const LOCAL_INDEX_LOCK_TIMEOUT_MS = 5_000;
 const localIndexWriteLocks = new Map<string, Promise<void>>();
 
-export function createLocalVaultIndex(vault: VaultHandle, options: Partial<LocalVaultIndexOptions> = {}): VaultIndexEngine {
+export function createLocalVaultIndex(
+  vault: VaultHandle,
+  options: Partial<LocalVaultIndexOptions> = {},
+): VaultIndexEngine {
   return new LocalVaultIndex({ root: join(vault.root, "index", "v1"), ...options });
 }
 
@@ -164,10 +175,16 @@ export class LocalVaultIndex implements VaultIndexEngine {
     this.now = options.now ?? (() => new Date().toISOString());
   }
 
-  async indexRecord(record: VaultRecord, text: string | undefined, metadata: VaultIndexRecordMetadata): Promise<VaultIndexRecordResult> {
+  async indexRecord(
+    record: VaultRecord,
+    text: string | undefined,
+    metadata: VaultIndexRecordMetadata,
+  ): Promise<VaultIndexRecordResult> {
     return withLocalIndexWriteLock(this.root, async () => {
       const state = await this.readState();
-      state.entries = state.entries.filter((entry) => !(entry.sessionId === metadata.sessionId && entry.outputId === record.outputId));
+      state.entries = state.entries.filter(
+        (entry) => !(entry.sessionId === metadata.sessionId && entry.outputId === record.outputId),
+      );
 
       if (record.persistence.recoverability === "none") {
         await this.writeState({ ...state, updatedAt: this.now() });
@@ -189,24 +206,38 @@ export class LocalVaultIndex implements VaultIndexEngine {
         indexed: entries.length > 0,
         outputId: record.outputId,
         entriesWritten: entries.length,
-        reason: record.persistence.recoverability === "metadata_only"
-          ? "Indexed metadata-only record without raw content."
-          : "Indexed exact record text chunks and metadata.",
+        reason:
+          record.persistence.recoverability === "metadata_only"
+            ? "Indexed metadata-only record without raw content."
+            : "Indexed exact record text chunks and metadata.",
       };
     });
   }
 
-  async queryVault(query: string, filters: VaultIndexQueryFilters = {}, caps: VaultIndexQueryCaps = {}): Promise<VaultIndexQueryResult> {
+  async queryVault(
+    query: string,
+    filters: VaultIndexQueryFilters = {},
+    caps: VaultIndexQueryCaps = {},
+  ): Promise<VaultIndexQueryResult> {
     const state = await this.readState();
     const terms = tokenize(query);
     const topK = boundedPositiveInteger(caps.topK, DEFAULT_TOP_K, MAX_TOP_K);
-    const maxExcerptBytes = boundedPositiveInteger(caps.maxExcerptBytes, DEFAULT_EXCERPT_BYTES, DEFAULT_EXCERPT_BYTES * 8);
+    const maxExcerptBytes = boundedPositiveInteger(
+      caps.maxExcerptBytes,
+      DEFAULT_EXCERPT_BYTES,
+      DEFAULT_EXCERPT_BYTES * 8,
+    );
 
     const matches = state.entries
       .filter((entry) => entryMatchesFilters(entry, filters))
       .map((entry) => ({ entry, score: scoreEntry(entry, terms) }))
-      .filter((scored) => terms.length === 0 ? false : scored.score > 0)
-      .sort((a, b) => b.score - a.score || a.entry.createdAt.localeCompare(b.entry.createdAt) || a.entry.entryId.localeCompare(b.entry.entryId))
+      .filter((scored) => (terms.length === 0 ? false : scored.score > 0))
+      .sort(
+        (a, b) =>
+          b.score - a.score ||
+          a.entry.createdAt.localeCompare(b.entry.createdAt) ||
+          a.entry.entryId.localeCompare(b.entry.entryId),
+      )
       .slice(0, topK)
       .map(({ entry, score }) => entryToMatch(entry, score, maxExcerptBytes));
 
@@ -275,7 +306,10 @@ export class LocalVaultIndex implements VaultIndexEngine {
       metadataOnlyEntryCount: state.entries.filter((entry) => entry.metadataOnly).length,
       outputCount: new Set(state.entries.map((entry) => `${entry.sessionId}:${entry.outputId}`)).size,
     };
-    const lastIndexedAt = state.entries.map((entry) => entry.indexedAt).sort().at(-1);
+    const lastIndexedAt = state.entries
+      .map((entry) => entry.indexedAt)
+      .sort()
+      .at(-1);
     if (lastIndexedAt !== undefined) {
       status.lastIndexedAt = lastIndexedAt;
     }
@@ -309,13 +343,15 @@ export class LocalVaultIndex implements VaultIndexEngine {
     const metadataText = metadataSearchText(record, metadata);
 
     if (record.persistence.recoverability !== "exact" || text === undefined || text.length === 0) {
-      return [{
-        ...base,
-        entryId: entryId(record, metadata.sessionId, "metadata", 0),
-        chunkId: "metadata",
-        metadataText,
-        metadataOnly: true,
-      }];
+      return [
+        {
+          ...base,
+          entryId: entryId(record, metadata.sessionId, "metadata", 0),
+          chunkId: "metadata",
+          metadataText,
+          metadataOnly: true,
+        },
+      ];
     }
 
     return chunkText(text, this.chunkLineCount, this.chunkMaxBytes).map((chunk, index) => ({
@@ -548,10 +584,12 @@ function sortJsonKeys(_key: string, value: unknown): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return value;
   }
-  return Object.keys(value).sort().reduce<Record<string, unknown>>((sorted, key) => {
-    sorted[key] = (value as Record<string, unknown>)[key];
-    return sorted;
-  }, {});
+  return Object.keys(value)
+    .sort()
+    .reduce<Record<string, unknown>>((sorted, key) => {
+      sorted[key] = (value as Record<string, unknown>)[key];
+      return sorted;
+    }, {});
 }
 
 function truncateUtf8(text: string, maxBytes: number): string {

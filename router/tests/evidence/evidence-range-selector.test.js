@@ -66,7 +66,7 @@ test("evidence range selector narrows long symbol exact phrase ranges around the
   for (let index = 0; index < 76; index += 1) {
     lines.push(`    let filler_${index} = \"${"alpha filler ".repeat(12)}\";`);
   }
-  lines.push("    let marker = \"omega beta exact phrase lives here\";");
+  lines.push('    let marker = "omega beta exact phrase lives here";');
   lines.push("}");
 
   const selection = selectEvidenceRangeForChunk({
@@ -146,7 +146,11 @@ test("evidence range selector expands section coverage to include introduced fen
 });
 
 test("evidence range selector returns capped coverage instead of tiny fallback when split terms exceed cap", () => {
-  const lines = ["# alpha heading", ...Array.from({ length: 118 }, (_, index) => `filler ${index}`), "omega appears late"];
+  const lines = [
+    "# alpha heading",
+    ...Array.from({ length: 118 }, (_, index) => `filler ${index}`),
+    "omega appears late",
+  ];
 
   const selection = selectEvidenceRangeForChunk({
     lines,
@@ -164,7 +168,13 @@ test("evidence range selector returns capped coverage instead of tiny fallback w
 });
 
 test("evidence range selector does not expand oversized fenced code blocks past cap", () => {
-  const lines = ["# Target", "alpha beta", "```js", ...Array.from({ length: 20 }, (_, index) => `line ${index}`), "```"];
+  const lines = [
+    "# Target",
+    "alpha beta",
+    "```js",
+    ...Array.from({ length: 20 }, (_, index) => `line ${index}`),
+    "```",
+  ];
 
   const selection = selectEvidenceRangeForChunk({
     lines,

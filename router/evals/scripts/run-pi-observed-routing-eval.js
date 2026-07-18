@@ -79,10 +79,12 @@ function sortJsonKeys(_key, value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return value;
   }
-  return Object.keys(value).sort().reduce((sorted, key) => {
-    sorted[key] = value[key];
-    return sorted;
-  }, {});
+  return Object.keys(value)
+    .sort()
+    .reduce((sorted, key) => {
+      sorted[key] = value[key];
+      return sorted;
+    }, {});
 }
 
 function normalizeFixtureRaw(value) {
@@ -91,13 +93,15 @@ function normalizeFixtureRaw(value) {
   }
   if (value && typeof value === "object" && !Array.isArray(value)) {
     if (Array.isArray(value.content)) {
-      return value.content.map((block) => {
-        if (typeof block === "string") return block;
-        if (!block || typeof block !== "object") return String(block);
-        if (typeof block.text === "string") return block.text;
-        if (block.json !== undefined) return stableJson(block.json);
-        return stableJson(block);
-      }).join("\n");
+      return value.content
+        .map((block) => {
+          if (typeof block === "string") return block;
+          if (!block || typeof block !== "object") return String(block);
+          if (typeof block.text === "string") return block.text;
+          if (block.json !== undefined) return stableJson(block.json);
+          return stableJson(block);
+        })
+        .join("\n");
     }
     if (typeof value.text === "string") {
       return value.text;
@@ -167,7 +171,16 @@ function builtInEvent(toolName, rawResult) {
   };
 }
 
-async function runObservedFixture({ tmpRoot, id, config, event, criticalFacts, shouldReduce = true, recoverability = "exact", metadataOnly = false }) {
+async function runObservedFixture({
+  tmpRoot,
+  id,
+  config,
+  event,
+  criticalFacts,
+  shouldReduce = true,
+  recoverability = "exact",
+  metadataOnly = false,
+}) {
   const cwd = join(tmpRoot, id);
   const vaultRoot = join(cwd, "vault");
   const sessionId = `${id}-session`;
@@ -194,11 +207,15 @@ async function runObservedFixture({ tmpRoot, id, config, event, criticalFacts, s
   }
 
   const gates = {
-    routedByPiHook: Boolean(observed && observed.route === "observed" && /Freeflow routed this observed/.test(routedText)),
+    routedByPiHook: Boolean(
+      observed && observed.route === "observed" && /Freeflow routed this observed/.test(routedText),
+    ),
     boundedOutput: shouldReduce ? bytes(routedText) < bytes(rawText) : bytes(routedText) > 0,
     criticalFactsPreserved: criticalFacts.every((pattern) => pattern.test(routedText)),
     recoverabilityAccurate: metadataOnly
-      ? observed.persistence.recoverability === "metadata_only" && /No raw content stream is recoverable/.test(observed.recovery.how) && /metadata only/i.test(recoveryError ?? "")
+      ? observed.persistence.recoverability === "metadata_only" &&
+        /No raw content stream is recoverable/.test(observed.recovery.how) &&
+        /metadata only/i.test(recoveryError ?? "")
       : observed.persistence.recoverability === recoverability && recoveredText === rawText,
   };
 
@@ -246,20 +263,36 @@ async function runStatusFixture(tmpRoot) {
   const { tools } = loadExtension();
   const statusTool = tools.find((tool) => tool.name === "freeflow_status");
   assert.ok(statusTool);
-  const result = await statusTool.execute("pi-observed-status", { action: "status" }, undefined, undefined, context(cwd, "status-session"));
+  const result = await statusTool.execute(
+    "pi-observed-status",
+    { action: "status" },
+    undefined,
+    undefined,
+    context(cwd, "status-session"),
+  );
   const report = JSON.parse(result.content[0].text);
   const gates = {
-    hostCapabilityReported: report.observedRouting.host.name === "pi" && report.observedRouting.host.outputReplacement === "available",
-    persistenceModesReported: ["exact", "metadata-only", "none"].every((mode) => report.observedRouting.persistenceModes.includes(mode)),
+    hostCapabilityReported:
+      report.observedRouting.host.name === "pi" && report.observedRouting.host.outputReplacement === "available",
+    persistenceModesReported: ["exact", "metadata-only", "none"].every((mode) =>
+      report.observedRouting.persistenceModes.includes(mode),
+    ),
     unsupportedRedactedReported: report.observedRouting.unsupportedPersistenceModes.includes("redacted"),
-    configuredProducerReported: report.observedRouting.mcp.servers.some((server) => server.id === "github" && server.persistence === "exact") && report.observedRouting.web.enabled === true,
+    configuredProducerReported:
+      report.observedRouting.mcp.servers.some((server) => server.id === "github" && server.persistence === "exact") &&
+      report.observedRouting.web.enabled === true,
   };
 
   return {
     id: "pi-capability-status",
     producer: "status",
     raw: { bytes: 0, lines: 0, items: 0 },
-    routed: { bytes: bytes(result.content[0].text), lines: lineCount(result.content[0].text), evidencePackets: 0, recoverability: "n/a" },
+    routed: {
+      bytes: bytes(result.content[0].text),
+      lines: lineCount(result.content[0].text),
+      evidencePackets: 0,
+      recoverability: "n/a",
+    },
     gates,
   };
 }
@@ -278,10 +311,14 @@ function renderReport(results) {
   const reductionRows = results.filter((result) => result.raw.bytes > 0);
   const totalRawBytes = reductionRows.reduce((total, result) => total + result.raw.bytes, 0);
   const totalRoutedBytes = reductionRows.reduce((total, result) => total + result.routed.bytes, 0);
-  const rows = results.map((result) => {
-    const gates = Object.entries(result.gates).map(([name, passed]) => `${name} ${passed ? "✓" : "✗"}`).join("; ");
-    return `| ${result.id} | ${result.producer} | ${result.raw.bytes} / ${result.raw.lines} / ${result.raw.items} | ${result.routed.bytes} / ${result.routed.lines} / ${result.routed.evidencePackets} | ${reductionPercent(result.raw.bytes, result.routed.bytes)} | ${result.routed.recoverability} | ${passMark(Object.values(result.gates).every(Boolean))} | ${gates} |`;
-  }).join("\n");
+  const rows = results
+    .map((result) => {
+      const gates = Object.entries(result.gates)
+        .map(([name, passed]) => `${name} ${passed ? "✓" : "✗"}`)
+        .join("; ");
+      return `| ${result.id} | ${result.producer} | ${result.raw.bytes} / ${result.raw.lines} / ${result.raw.items} | ${result.routed.bytes} / ${result.routed.lines} / ${result.routed.evidencePackets} | ${reductionPercent(result.raw.bytes, result.routed.bytes)} | ${result.routed.recoverability} | ${passMark(Object.values(result.gates).every(Boolean))} | ${gates} |`;
+    })
+    .join("\n");
 
   return `# Pi Observed Routing Eval - Iteration 1
 
@@ -346,10 +383,38 @@ async function main() {
           type: "json",
           json: {
             items: [
-              { id: 101, number: 1, title: "Observed routing bug", state: "open", html_url: "https://github.com/acme/freeflow/issues/101", body: "diagnostic noise ".repeat(120) },
-              { id: 102, number: 2, title: "Vault recovery docs", state: "closed", html_url: "https://github.com/acme/freeflow/issues/102", body: "release chatter ".repeat(120) },
-              { id: 103, number: 3, title: "Reducer fixture", state: "open", html_url: "https://github.com/acme/freeflow/issues/103", body: "triage details ".repeat(120) },
-              { id: 104, number: 4, title: "Large output follow-up", state: "open", html_url: "https://github.com/acme/freeflow/issues/104", body: "followup details ".repeat(120) },
+              {
+                id: 101,
+                number: 1,
+                title: "Observed routing bug",
+                state: "open",
+                html_url: "https://github.com/acme/freeflow/issues/101",
+                body: "diagnostic noise ".repeat(120),
+              },
+              {
+                id: 102,
+                number: 2,
+                title: "Vault recovery docs",
+                state: "closed",
+                html_url: "https://github.com/acme/freeflow/issues/102",
+                body: "release chatter ".repeat(120),
+              },
+              {
+                id: 103,
+                number: 3,
+                title: "Reducer fixture",
+                state: "open",
+                html_url: "https://github.com/acme/freeflow/issues/103",
+                body: "triage details ".repeat(120),
+              },
+              {
+                id: 104,
+                number: 4,
+                title: "Large output follow-up",
+                state: "open",
+                html_url: "https://github.com/acme/freeflow/issues/104",
+                body: "followup details ".repeat(120),
+              },
             ],
           },
         },
@@ -389,10 +454,30 @@ async function main() {
     const webSearch = {
       query: "Freeflow observed routing",
       results: [
-        { title: "Observed Routing Design", url: "https://example.test/freeflow/observed", snippet: "Routes completed tool output after host execution.", citation: "[1]" },
-        { title: "Vault Recovery", url: "https://example.test/freeflow/vault", snippet: "Exact recovery uses outputId and raw streams.", citation: "[2]" },
-        { title: "Reducer Registry", url: "https://example.test/freeflow/reducers", snippet: "Producer reducers keep critical URLs and snippets.", citation: "[3]" },
-        { title: "Long Result", url: "https://example.test/freeflow/noise", snippet: "noise ".repeat(160), citation: "[4]" },
+        {
+          title: "Observed Routing Design",
+          url: "https://example.test/freeflow/observed",
+          snippet: "Routes completed tool output after host execution.",
+          citation: "[1]",
+        },
+        {
+          title: "Vault Recovery",
+          url: "https://example.test/freeflow/vault",
+          snippet: "Exact recovery uses outputId and raw streams.",
+          citation: "[2]",
+        },
+        {
+          title: "Reducer Registry",
+          url: "https://example.test/freeflow/reducers",
+          snippet: "Producer reducers keep critical URLs and snippets.",
+          citation: "[3]",
+        },
+        {
+          title: "Long Result",
+          url: "https://example.test/freeflow/noise",
+          snippet: "noise ".repeat(160),
+          citation: "[4]",
+        },
       ],
     };
 
@@ -405,7 +490,7 @@ async function main() {
         "Intro noise ".repeat(80),
         "## Configure",
         "```json",
-        "{ \"outputRouter\": { \"enabled\": true, \"observedRouting\": { \"enabled\": true } } }",
+        '{ "outputRouter": { "enabled": true, "observedRouting": { "enabled": true } } }',
         "```",
         "## Recover",
         "```sh",
@@ -418,56 +503,94 @@ async function main() {
     const codeSearch = {
       query: "routeObservedToolOutput",
       results: [
-        { repo: "acme/freeflow", path: "router/src/observed-routing.ts", line: 41, symbol: "routeObservedToolOutput", snippet: "export async function routeObservedToolOutput(options) {" },
-        { repo: "acme/freeflow", path: "pi-extension/src/observed-tool-routing.ts", line: 6, symbol: "handleObservedToolRouting", snippet: "export async function handleObservedToolRouting(event, ctx) {" },
-        { repo: "acme/freeflow", path: "generated/noise.ts", line: 999, symbol: "decoy", snippet: "generated noise ".repeat(500) },
+        {
+          repo: "acme/freeflow",
+          path: "router/src/observed-routing.ts",
+          line: 41,
+          symbol: "routeObservedToolOutput",
+          snippet: "export async function routeObservedToolOutput(options) {",
+        },
+        {
+          repo: "acme/freeflow",
+          path: "pi-extension/src/observed-tool-routing.ts",
+          line: 6,
+          symbol: "handleObservedToolRouting",
+          snippet: "export async function handleObservedToolRouting(event, ctx) {",
+        },
+        {
+          repo: "acme/freeflow",
+          path: "generated/noise.ts",
+          line: 999,
+          symbol: "decoy",
+          snippet: "generated noise ".repeat(500),
+        },
       ],
     };
 
     const results = [];
-    results.push(await runObservedFixture({
-      tmpRoot,
-      id: "mcp-github-search-exact",
-      config: commonObserved,
-      event: mcpEvent("github", "search_issues", githubSearch),
-      criticalFacts: [/Observed routing bug/, /https:\/\/github\.com\/acme\/freeflow\/issues\/101/, /Vault recovery docs/],
-    }));
-    results.push(await runObservedFixture({
-      tmpRoot,
-      id: "mcp-github-create-mutating",
-      config: commonObserved,
-      event: mcpEvent("github", "create_issue", githubCreate, { mcp: { annotations: { destructiveHint: true } } }),
-      criticalFacts: [/Created by observed routing eval/, /https:\/\/github\.com\/acme\/freeflow\/issues\/22/],
-    }));
-    results.push(await runObservedFixture({
-      tmpRoot,
-      id: "mcp-gmail-search-metadata-only",
-      config: commonObserved,
-      event: mcpEvent("gmail", "search", gmailSearch),
-      criticalFacts: [/Customer secret renewal/, /metadata_only|metadata-only/i],
-      metadataOnly: true,
-    }));
-    results.push(await runObservedFixture({
-      tmpRoot,
-      id: "pi-web-search-exact",
-      config: commonObserved,
-      event: builtInEvent("web_search", webSearch),
-      criticalFacts: [/Observed Routing Design/, /https:\/\/example\.test\/freeflow\/observed/, /\[1\]/],
-    }));
-    results.push(await runObservedFixture({
-      tmpRoot,
-      id: "pi-fetch-content-exact",
-      config: commonObserved,
-      event: builtInEvent("fetch_content", fetchResult),
-      criticalFacts: [/Observed Routing Docs/, /## Configure/, /freeflow_search action=retrieve source\.kind=vault/],
-    }));
-    results.push(await runObservedFixture({
-      tmpRoot,
-      id: "pi-code-search-exact",
-      config: commonObserved,
-      event: builtInEvent("code_search", codeSearch),
-      criticalFacts: [/plugins\/freeflow\/router\/src\/observed-routing\.ts/, /"line": 41/, /routeObservedToolOutput/],
-    }));
+    results.push(
+      await runObservedFixture({
+        tmpRoot,
+        id: "mcp-github-search-exact",
+        config: commonObserved,
+        event: mcpEvent("github", "search_issues", githubSearch),
+        criticalFacts: [
+          /Observed routing bug/,
+          /https:\/\/github\.com\/acme\/freeflow\/issues\/101/,
+          /Vault recovery docs/,
+        ],
+      }),
+    );
+    results.push(
+      await runObservedFixture({
+        tmpRoot,
+        id: "mcp-github-create-mutating",
+        config: commonObserved,
+        event: mcpEvent("github", "create_issue", githubCreate, { mcp: { annotations: { destructiveHint: true } } }),
+        criticalFacts: [/Created by observed routing eval/, /https:\/\/github\.com\/acme\/freeflow\/issues\/22/],
+      }),
+    );
+    results.push(
+      await runObservedFixture({
+        tmpRoot,
+        id: "mcp-gmail-search-metadata-only",
+        config: commonObserved,
+        event: mcpEvent("gmail", "search", gmailSearch),
+        criticalFacts: [/Customer secret renewal/, /metadata_only|metadata-only/i],
+        metadataOnly: true,
+      }),
+    );
+    results.push(
+      await runObservedFixture({
+        tmpRoot,
+        id: "pi-web-search-exact",
+        config: commonObserved,
+        event: builtInEvent("web_search", webSearch),
+        criticalFacts: [/Observed Routing Design/, /https:\/\/example\.test\/freeflow\/observed/, /\[1\]/],
+      }),
+    );
+    results.push(
+      await runObservedFixture({
+        tmpRoot,
+        id: "pi-fetch-content-exact",
+        config: commonObserved,
+        event: builtInEvent("fetch_content", fetchResult),
+        criticalFacts: [/Observed Routing Docs/, /## Configure/, /freeflow_search action=retrieve source\.kind=vault/],
+      }),
+    );
+    results.push(
+      await runObservedFixture({
+        tmpRoot,
+        id: "pi-code-search-exact",
+        config: commonObserved,
+        event: builtInEvent("code_search", codeSearch),
+        criticalFacts: [
+          /plugins\/freeflow\/router\/src\/observed-routing\.ts/,
+          /"line": 41/,
+          /routeObservedToolOutput/,
+        ],
+      }),
+    );
     results.push(await runStatusFixture(tmpRoot));
 
     assertAllPassed(results);

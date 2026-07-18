@@ -23,30 +23,82 @@ export async function compileCaseFeasibility(evalCase, context) {
   const tools = new Set(evalCase.execution?.tools ?? []);
   const declaration = evalCase.feasibility ?? {};
 
-  const missingEvidence = (declaration.required_evidence_paths ?? []).filter((path) => !(context.fixtureFiles ?? []).includes(path));
-  if (missingEvidence.length > 0) findings.push(finding("FEAS-EVIDENCE-MISSING", "case.feasibility.required_evidence_paths", { missing_paths: missingEvidence, fixture_files: context.fixtureFiles ?? [] }, "Required rubric evidence is absent from the fixture."));
+  const missingEvidence = (declaration.required_evidence_paths ?? []).filter(
+    (path) => !(context.fixtureFiles ?? []).includes(path),
+  );
+  if (missingEvidence.length > 0)
+    findings.push(
+      finding(
+        "FEAS-EVIDENCE-MISSING",
+        "case.feasibility.required_evidence_paths",
+        { missing_paths: missingEvidence, fixture_files: context.fixtureFiles ?? [] },
+        "Required rubric evidence is absent from the fixture.",
+      ),
+    );
   const unnamedEvidence = (declaration.required_evidence_paths ?? []).filter((path) => !promptText.includes(path));
   if (unnamedEvidence.length > 0 && !tools.has("ls") && !tools.has("find")) {
-    findings.push(finding("FEAS-EVIDENCE-DISCOVERY", "case.feasibility.required_evidence_paths", { unnamed_paths: unnamedEvidence, tools: [...tools] }, "Required evidence is unnamed and the subject cannot list fixture contents."));
+    findings.push(
+      finding(
+        "FEAS-EVIDENCE-DISCOVERY",
+        "case.feasibility.required_evidence_paths",
+        { unnamed_paths: unnamedEvidence, tools: [...tools] },
+        "Required evidence is unnamed and the subject cannot list fixture contents.",
+      ),
+    );
   }
-  const requiredReads = [...new Set([
-    ...(declaration.required_evidence_paths ?? []),
-    ...(declaration.literal_requirements ?? []).map((item) => item.source?.startsWith("fixture:") ? item.source.slice("fixture:".length) : null).filter(Boolean),
-  ])].sort();
+  const requiredReads = [
+    ...new Set([
+      ...(declaration.required_evidence_paths ?? []),
+      ...(declaration.literal_requirements ?? [])
+        .map((item) => (item.source?.startsWith("fixture:") ? item.source.slice("fixture:".length) : null))
+        .filter(Boolean),
+    ]),
+  ].sort();
   if (context.modelDriven !== false && requiredReads.length > 0 && !tools.has("read")) {
-    findings.push(finding("FEAS-EVIDENCE-READ", "case.execution.tools", { required_paths: requiredReads, tools: [...tools] }, "Declared fixture evidence exists but the subject has no read tool."));
+    findings.push(
+      finding(
+        "FEAS-EVIDENCE-READ",
+        "case.execution.tools",
+        { required_paths: requiredReads, tools: [...tools] },
+        "Declared fixture evidence exists but the subject has no read tool.",
+      ),
+    );
   }
 
   for (let index = 0; index < (declaration.literal_requirements ?? []).length; index += 1) {
     const requirement = declaration.literal_requirements[index];
     let source = null;
     if (requirement.source === "prompt") source = promptText;
-    else if (typeof requirement.source === "string" && requirement.source.startsWith("fixture:")) source = await context.readFixture(requirement.source.slice("fixture:".length));
-    if (requirement.equivalence_class && !(declaration.accepted_equivalences ?? []).includes(requirement.equivalence_class)) {
-      findings.push(finding("FEAS-EQUIVALENCE", `case.feasibility.literal_requirements[${index}].equivalence_class`, { equivalence_class: requirement.equivalence_class, accepted: declaration.accepted_equivalences ?? [] }, "A semantic/setup equivalence is required but not declared as accepted."));
+    else if (typeof requirement.source === "string" && requirement.source.startsWith("fixture:"))
+      source = await context.readFixture(requirement.source.slice("fixture:".length));
+    if (
+      requirement.equivalence_class &&
+      !(declaration.accepted_equivalences ?? []).includes(requirement.equivalence_class)
+    ) {
+      findings.push(
+        finding(
+          "FEAS-EQUIVALENCE",
+          `case.feasibility.literal_requirements[${index}].equivalence_class`,
+          { equivalence_class: requirement.equivalence_class, accepted: declaration.accepted_equivalences ?? [] },
+          "A semantic/setup equivalence is required but not declared as accepted.",
+        ),
+      );
     }
     if (typeof source !== "string" || !source.includes(requirement.value)) {
-      findings.push(finding("FEAS-LITERAL-SOURCE", `case.feasibility.literal_requirements[${index}]`, { value: requirement.value, source: requirement.source, source_sha256: typeof source === "string" ? sha256(source) : null, source_bytes: typeof source === "string" ? Buffer.byteLength(source) : null, matched: false }, "An exact literal requirement is not supported by its declared source."));
+      findings.push(
+        finding(
+          "FEAS-LITERAL-SOURCE",
+          `case.feasibility.literal_requirements[${index}]`,
+          {
+            value: requirement.value,
+            source: requirement.source,
+            source_sha256: typeof source === "string" ? sha256(source) : null,
+            source_bytes: typeof source === "string" ? Buffer.byteLength(source) : null,
+            matched: false,
+          },
+          "An exact literal requirement is not supported by its declared source.",
+        ),
+      );
     }
   }
 
@@ -59,36 +111,107 @@ export async function compileCaseFeasibility(evalCase, context) {
     changedByScope.set(scope, values);
   }
   for (const [scope, values] of changedByScope) {
-    if (new Set(values).size > 1) findings.push(finding("FEAS-CHANGED-PATH-CONFLICT", "case.assertions", { scope, changed_path_expectations: values.map((value) => JSON.parse(value)) }, "Changed-path assertions define conflicting output contracts for one evidence scope."));
+    if (new Set(values).size > 1)
+      findings.push(
+        finding(
+          "FEAS-CHANGED-PATH-CONFLICT",
+          "case.assertions",
+          { scope, changed_path_expectations: values.map((value) => JSON.parse(value)) },
+          "Changed-path assertions define conflicting output contracts for one evidence scope.",
+        ),
+      );
   }
   const writes = assertedWrites(evalCase);
   if (context.modelDriven !== false && writes.length > 0 && !tools.has("write")) {
-    findings.push(finding("FEAS-OUTPUT-TOOL", "case.execution.tools", { asserted_writes: writes, tools: [...tools] }, "Assertions require written output but the subject has no write tool."));
+    findings.push(
+      finding(
+        "FEAS-OUTPUT-TOOL",
+        "case.execution.tools",
+        { asserted_writes: writes, tools: [...tools] },
+        "Assertions require written output but the subject has no write tool.",
+      ),
+    );
   }
 
   const active = new Set(declaration.active_context_components ?? []);
   for (const assertion of evalCase.assertions ?? []) {
-    if (assertion.turn_id && ["component_read", "skill_read"].includes(assertion.type) && ((assertion.type === "skill_read" && declaration.active_context_skill === true) || active.has(assertion.component))) {
+    if (
+      assertion.turn_id &&
+      ["component_read", "skill_read"].includes(assertion.type) &&
+      ((assertion.type === "skill_read" && declaration.active_context_skill === true) ||
+        active.has(assertion.component))
+    ) {
       const turnIndex = (evalCase.turns ?? []).findIndex((turn) => turn.id === assertion.turn_id);
-      if (turnIndex > 0) findings.push(finding("FEAS-REDUNDANT-REREAD", `case.assertions.${assertion.id}`, { assertion, active_context_components: [...active] }, "A later-turn reread is required even though active-context presence is the intended evidence."));
+      if (turnIndex > 0)
+        findings.push(
+          finding(
+            "FEAS-REDUNDANT-REREAD",
+            `case.assertions.${assertion.id}`,
+            { assertion, active_context_components: [...active] },
+            "A later-turn reread is required even though active-context presence is the intended evidence.",
+          ),
+        );
     }
   }
 
   for (const assertion of (evalCase.assertions ?? []).filter((item) => item.type === "semantic")) {
     const leakedTurn = prompts.findIndex((prompt) => assertion.rubric && prompt.includes(assertion.rubric));
-    if (leakedTurn >= 0) findings.push(finding("FEAS-RUBRIC-LEAK", Object.hasOwn(evalCase, "prompt") ? "case.prompt" : `case.turns[${leakedTurn}].prompt`, { assertion_id: assertion.id }, "The fixed grader rubric is visible to the subject."));
+    if (leakedTurn >= 0)
+      findings.push(
+        finding(
+          "FEAS-RUBRIC-LEAK",
+          Object.hasOwn(evalCase, "prompt") ? "case.prompt" : `case.turns[${leakedTurn}].prompt`,
+          { assertion_id: assertion.id },
+          "The fixed grader rubric is visible to the subject.",
+        ),
+      );
   }
 
   const scriptedTurns = Object.hasOwn(evalCase, "prompt") ? 1 : (evalCase.turns ?? []).length;
   const requiredTurns = scriptedTurns + Number(declaration.expected_tool_round_trips ?? 0);
-  if (context.modelDriven !== false && Number(declaration.expected_tool_round_trips ?? 0) > 0 && context.maxTurns < requiredTurns) findings.push(finding("FEAS-TURN-BUDGET", "limits.max_turns_per_process", { supplied: context.maxTurns, required: requiredTurns, scripted_turns: scriptedTurns }, "The hard turn budget cannot cover scripted turns plus declared tool round trips."));
-  if (context.modelDriven !== false && context.estimatedCompactBytes > context.outputLimitBytes) findings.push(finding("FEAS-COMPACT-LIMIT", "limits.output_limit_bytes", { estimated: context.estimatedCompactBytes, limit: context.outputLimitBytes }, "The compact model packet exceeds its retained-output limit."));
-  if (context.modelDriven !== false && context.estimatedTransportBytes > context.transportLimitBytes) findings.push(finding("FEAS-TRANSPORT-LIMIT", "limits.transport_limit_bytes", { estimated: context.estimatedTransportBytes, limit: context.transportLimitBytes }, "Raw transport exceeds its separate safeguard."));
+  if (
+    context.modelDriven !== false &&
+    Number(declaration.expected_tool_round_trips ?? 0) > 0 &&
+    context.maxTurns < requiredTurns
+  )
+    findings.push(
+      finding(
+        "FEAS-TURN-BUDGET",
+        "limits.max_turns_per_process",
+        { supplied: context.maxTurns, required: requiredTurns, scripted_turns: scriptedTurns },
+        "The hard turn budget cannot cover scripted turns plus declared tool round trips.",
+      ),
+    );
+  if (context.modelDriven !== false && context.estimatedCompactBytes > context.outputLimitBytes)
+    findings.push(
+      finding(
+        "FEAS-COMPACT-LIMIT",
+        "limits.output_limit_bytes",
+        { estimated: context.estimatedCompactBytes, limit: context.outputLimitBytes },
+        "The compact model packet exceeds its retained-output limit.",
+      ),
+    );
+  if (context.modelDriven !== false && context.estimatedTransportBytes > context.transportLimitBytes)
+    findings.push(
+      finding(
+        "FEAS-TRANSPORT-LIMIT",
+        "limits.transport_limit_bytes",
+        { estimated: context.estimatedTransportBytes, limit: context.transportLimitBytes },
+        "Raw transport exceeds its separate safeguard.",
+      ),
+    );
 
   if (declaration.fixture_oracle) {
     const outcome = context.runOracle ? await context.runOracle(declaration.fixture_oracle) : null;
     if (!outcome?.passed) {
-      findings.push(finding("FEAS-FIXTURE-ORACLE", "case.feasibility.fixture_oracle", { checks: declaration.fixture_oracle.checks, observed: outcome ?? null }, "The declarative fixture oracle does not establish the declared pressure."));
+      findings.push(
+        finding(
+          "FEAS-FIXTURE-ORACLE",
+          "case.feasibility.fixture_oracle",
+          { checks: declaration.fixture_oracle.checks, observed: outcome ?? null },
+          "The declarative fixture oracle does not establish the declared pressure.",
+        ),
+      );
     }
   }
 
@@ -96,5 +219,9 @@ export async function compileCaseFeasibility(evalCase, context) {
 }
 
 export function renderFeasibilityRows(result) {
-  return result.findings.map((item) => `BLOCK|${item.id}|${item.source_span}|${item.blocking_reason.replaceAll("|", "\\|")}`).join("\n") + (result.findings.length ? "\n" : "");
+  return (
+    result.findings
+      .map((item) => `BLOCK|${item.id}|${item.source_span}|${item.blocking_reason.replaceAll("|", "\\|")}`)
+      .join("\n") + (result.findings.length ? "\n" : "")
+  );
 }

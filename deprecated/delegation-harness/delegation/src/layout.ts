@@ -12,17 +12,50 @@ import { validateSafeId } from "./paths.js";
 
 export const DELEGATION_LAYOUT_PRESETS = ["default-v1"] as const satisfies readonly DelegationLayoutPreset[];
 
-export const DELEGATION_LAYOUT_GROUPS = ["planning", "execution", "review", "scratch"] as const satisfies readonly DelegationLayoutGroup[];
+export const DELEGATION_LAYOUT_GROUPS = [
+  "planning",
+  "execution",
+  "review",
+  "scratch",
+] as const satisfies readonly DelegationLayoutGroup[];
 
-export const DELEGATION_LAYOUT_REUSE_POLICIES = ["reuse_role_pane", "new_surface", "new_pane", "none"] as const satisfies readonly DelegationLayoutReusePolicy[];
+export const DELEGATION_LAYOUT_REUSE_POLICIES = [
+  "reuse_role_pane",
+  "new_surface",
+  "new_pane",
+  "none",
+] as const satisfies readonly DelegationLayoutReusePolicy[];
 
-export const DELEGATION_LAYOUT_SLOTS = ["inline", "right-top", "right-bottom", "right-surface-overflow"] as const satisfies readonly DelegationLayoutSlot[];
+export const DELEGATION_LAYOUT_SLOTS = [
+  "inline",
+  "right-top",
+  "right-bottom",
+  "right-surface-overflow",
+] as const satisfies readonly DelegationLayoutSlot[];
 
-export const DELEGATION_LAYOUT_INTENT_KINDS = ["inline", "agent"] as const satisfies readonly DelegationLayoutIntentKind[];
+export const DELEGATION_LAYOUT_INTENT_KINDS = [
+  "inline",
+  "agent",
+] as const satisfies readonly DelegationLayoutIntentKind[];
 
-const DELEGATION_ROLES = ["orchestrator", "planning-parent", "execution-parent", "researcher", "worker", "reviewer", "verifier", "integrator"] as const satisfies readonly DelegationRole[];
+const DELEGATION_ROLES = [
+  "orchestrator",
+  "planning-parent",
+  "execution-parent",
+  "researcher",
+  "worker",
+  "reviewer",
+  "verifier",
+  "integrator",
+] as const satisfies readonly DelegationRole[];
 const PARENT_LAYOUT_ROLES = ["planning-parent", "execution-parent"] as const satisfies readonly DelegationRole[];
-const SECONDARY_CHILD_ROLES = ["researcher", "worker", "reviewer", "verifier", "integrator"] as const satisfies readonly DelegationRole[];
+const SECONDARY_CHILD_ROLES = [
+  "researcher",
+  "worker",
+  "reviewer",
+  "verifier",
+  "integrator",
+] as const satisfies readonly DelegationRole[];
 const READ_ONLY_CHILD_ROLES = ["researcher", "reviewer", "verifier"] as const satisfies readonly DelegationRole[];
 
 export interface PlanDelegationLayoutAllocationInput {
@@ -75,9 +108,14 @@ export function normalizeDelegationLayoutIntent(input: DelegationLayoutIntentInp
 
 export function planDelegationLayoutAllocation(input: PlanDelegationLayoutAllocationInput): DelegationLayoutAllocation {
   const intent = normalizeDelegationLayoutIntent(input.intent);
-  const existingAllocations = (input.existingAllocations ?? []).map((allocation) => normalizeDelegationLayoutAllocation(allocation));
+  const existingAllocations = (input.existingAllocations ?? []).map((allocation) =>
+    normalizeDelegationLayoutAllocation(allocation),
+  );
   const existing = existingAllocations.find(
-    (allocation) => allocation.taskId === intent.taskId && allocation.assignmentId === intent.assignmentId && allocation.role === intent.role,
+    (allocation) =>
+      allocation.taskId === intent.taskId &&
+      allocation.assignmentId === intent.assignmentId &&
+      allocation.role === intent.role,
   );
 
   if (existing !== undefined) {
@@ -103,7 +141,10 @@ export function planDelegationLayoutAllocation(input: PlanDelegationLayoutAlloca
     created: slotPlan.slot !== "inline",
     reused: false,
     preserveFocus: true,
-    reasonCodes: uniqueNonEmptyStrings([...slotPlan.reasonCodes, workspace.reasonCode, "preserve_focus_default"], "reason code"),
+    reasonCodes: uniqueNonEmptyStrings(
+      [...slotPlan.reasonCodes, workspace.reasonCode, "preserve_focus_default"],
+      "reason code",
+    ),
   };
 
   if (slotPlan.slot !== "inline") {
@@ -169,7 +210,10 @@ function allocationIdFor(intent: DelegationLayoutIntent): string {
   return validateSafeId(`layout-${intent.assignmentId}-${intent.role}`, "layout allocation id");
 }
 
-function slotForIntent(intent: DelegationLayoutIntent, existingAllocations: readonly DelegationLayoutAllocation[]): { slot: DelegationLayoutSlot; reasonCodes: string[] } {
+function slotForIntent(
+  intent: DelegationLayoutIntent,
+  existingAllocations: readonly DelegationLayoutAllocation[],
+): { slot: DelegationLayoutSlot; reasonCodes: string[] } {
   if (intent.intentKind === "inline" || intent.role === "orchestrator") {
     return { slot: "inline", reasonCodes: ["layout_inline_no_pane"] };
   }
@@ -178,7 +222,10 @@ function slotForIntent(intent: DelegationLayoutIntent, existingAllocations: read
     return { slot: "right-top", reasonCodes: ["layout_parent_right_top"] };
   }
 
-  if (roleIn(intent.role, READ_ONLY_CHILD_ROLES) && readOnlyChildAllocationCount(intent.taskId, intent.preset, existingAllocations) >= 2) {
+  if (
+    roleIn(intent.role, READ_ONLY_CHILD_ROLES) &&
+    readOnlyChildAllocationCount(intent.taskId, intent.preset, existingAllocations) >= 2
+  ) {
     return { slot: "right-surface-overflow", reasonCodes: ["layout_read_only_child_overflow"] };
   }
 
@@ -189,7 +236,11 @@ function slotForIntent(intent: DelegationLayoutIntent, existingAllocations: read
   return { slot: "right-bottom", reasonCodes: ["layout_secondary_child_right_bottom"] };
 }
 
-function readOnlyChildAllocationCount(taskId: string, preset: DelegationLayoutPreset, existingAllocations: readonly DelegationLayoutAllocation[]): number {
+function readOnlyChildAllocationCount(
+  taskId: string,
+  preset: DelegationLayoutPreset,
+  existingAllocations: readonly DelegationLayoutAllocation[],
+): number {
   return existingAllocations.filter(
     (allocation) =>
       allocation.taskId === taskId &&
@@ -199,7 +250,10 @@ function readOnlyChildAllocationCount(taskId: string, preset: DelegationLayoutPr
   ).length;
 }
 
-function workspaceRefFor(intent: DelegationLayoutIntent, refsWorkspaceRef: string | undefined): { workspaceRef: string; reasonCode: string } {
+function workspaceRefFor(
+  intent: DelegationLayoutIntent,
+  refsWorkspaceRef: string | undefined,
+): { workspaceRef: string; reasonCode: string } {
   if (intent.callerWorkspaceRef !== undefined) {
     return { workspaceRef: intent.callerWorkspaceRef, reasonCode: "workspace_ref_from_intent" };
   }

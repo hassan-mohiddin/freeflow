@@ -14,7 +14,14 @@ import {
   writeBenchmarkReportPair,
 } from "./benchmark-harness.js";
 import { createLocalVaultIndex } from "../vault/vault-index.js";
-import { createVault, readOutputText, storeCommandOutput, storeMetadataOutput, storeTextOutput, type VaultHandle } from "../vault/vault.js";
+import {
+  createVault,
+  readOutputText,
+  storeCommandOutput,
+  storeMetadataOutput,
+  storeTextOutput,
+  type VaultHandle,
+} from "../vault/vault.js";
 import type { MetadataOutputRecord, OutputStream, TextOutputRecord, VaultRecord } from "../config/types.js";
 
 export interface RunVaultIndexStorageBenchmarkOptions {
@@ -73,7 +80,9 @@ interface BenchmarkFixture {
 const DEFAULT_ITERATIONS = 3;
 const REPORT_PATH = "router/evals/reports/vault-index-storage-spike-1-report.md";
 
-export async function runVaultIndexStorageBenchmark(options: RunVaultIndexStorageBenchmarkOptions = {}): Promise<VaultIndexStorageBenchmarkReport> {
+export async function runVaultIndexStorageBenchmark(
+  options: RunVaultIndexStorageBenchmarkOptions = {},
+): Promise<VaultIndexStorageBenchmarkReport> {
   const iterations = normalizeIterations(options.iterations, DEFAULT_ITERATIONS);
   const localAppendLatencies: number[] = [];
   const localQueryLatencies: number[] = [];
@@ -101,7 +110,11 @@ export async function runVaultIndexStorageBenchmark(options: RunVaultIndexStorag
         localQueryLatencies.push(performance.now() - visibilityStarted);
         localPassed &&= visible.matches.some((match) => match.outputId === fixture.expectedOutputId);
         if (fixture.forbiddenQuery) {
-          const forbidden = await index.queryVault(fixture.forbiddenQuery, { sessionId: "vault-index-benchmark" }, { topK: 3 });
+          const forbidden = await index.queryVault(
+            fixture.forbiddenQuery,
+            { sessionId: "vault-index-benchmark" },
+            { topK: 3 },
+          );
           localPassed &&= forbidden.matches.length === 0;
         }
       }
@@ -117,7 +130,10 @@ export async function runVaultIndexStorageBenchmark(options: RunVaultIndexStorag
       }
 
       const queryResult = await index.queryVault("target", { sessionId: "vault-index-benchmark" }, { topK: 10 });
-      localRawBytes += fixtures.reduce((total, fixture) => total + Buffer.byteLength(fixture.text ?? JSON.stringify(fixture.record), "utf8"), 0);
+      localRawBytes += fixtures.reduce(
+        (total, fixture) => total + Buffer.byteLength(fixture.text ?? JSON.stringify(fixture.record), "utf8"),
+        0,
+      );
       localResultBytes += Buffer.byteLength(JSON.stringify(queryResult.matches), "utf8");
     } finally {
       await rm(tmpRoot, { recursive: true, force: true });
@@ -145,7 +161,9 @@ export async function runVaultIndexStorageBenchmark(options: RunVaultIndexStorag
         "metadata-only raw content is not indexed",
         "no native dependency",
       ],
-      notes: ["Selected for the Slice 11 interface and exercised through the Slice 12 write path because it is portable and dependency-free."],
+      notes: [
+        "Selected for the Slice 11 interface and exercised through the Slice 12 write path because it is portable and dependency-free.",
+      ],
     },
     {
       candidate: "vault-session-scan-baseline",
@@ -160,7 +178,9 @@ export async function runVaultIndexStorageBenchmark(options: RunVaultIndexStorag
       status: sqliteStatus,
       adopted: false,
       checks: ["not introduced during Slice 11"],
-      notes: ["Deferred: adding a native dependency or relying on experimental runtime SQLite needs explicit owner approval."],
+      notes: [
+        "Deferred: adding a native dependency or relying on experimental runtime SQLite needs explicit owner approval.",
+      ],
     },
   ];
 
@@ -169,7 +189,8 @@ export async function runVaultIndexStorageBenchmark(options: RunVaultIndexStorag
     iterations,
     summary: {
       selectedEngine: "local-json-sidecar",
-      selectedReason: "Portable deterministic sidecar files satisfy automatic incremental write-through semantics without adding a native dependency.",
+      selectedReason:
+        "Portable deterministic sidecar files satisfy automatic incremental write-through semantics without adding a native dependency.",
       fixtures: fixtureCount,
       localSidecarPassed: localPassed,
       scannerBaselinePassed: scanPassed,
@@ -230,15 +251,38 @@ async function createBenchmarkFixtures(vault: VaultHandle, iteration: number): P
   const metadataAppendMs = performance.now() - started;
 
   return [
-    { record: command, appendMs: commandAppendMs, text: commandText, stream: "combined", query: "alpha target", expectedOutputId: command.outputId },
-    { record: observed, appendMs: observedAppendMs, text: observedText, stream: "raw", query: "beta target github", expectedOutputId: observed.outputId },
-    { record: metadata, appendMs: metadataAppendMs, query: "gmail gamma target", expectedOutputId: metadata.outputId, forbiddenQuery: "PRIVATE_RAW_SECRET" },
+    {
+      record: command,
+      appendMs: commandAppendMs,
+      text: commandText,
+      stream: "combined",
+      query: "alpha target",
+      expectedOutputId: command.outputId,
+    },
+    {
+      record: observed,
+      appendMs: observedAppendMs,
+      text: observedText,
+      stream: "raw",
+      query: "beta target github",
+      expectedOutputId: observed.outputId,
+    },
+    {
+      record: metadata,
+      appendMs: metadataAppendMs,
+      query: "gmail gamma target",
+      expectedOutputId: metadata.outputId,
+      forbiddenQuery: "PRIVATE_RAW_SECRET",
+    },
   ];
 }
 
 async function scanVaultFixture(vault: VaultHandle, fixture: BenchmarkFixture): Promise<boolean> {
   const text = await textForScan(vault, fixture.record, fixture.stream);
-  return fixture.query.toLowerCase().split(/\s+/).every((term) => text.toLowerCase().includes(term));
+  return fixture.query
+    .toLowerCase()
+    .split(/\s+/)
+    .every((term) => text.toLowerCase().includes(term));
 }
 
 async function textForScan(vault: VaultHandle, record: VaultRecord, stream?: OutputStream): Promise<string> {
@@ -289,17 +333,24 @@ export function renderVaultIndexStorageBenchmarkReport(report: VaultIndexStorage
   ];
 
   for (const candidate of report.candidates) {
-    lines.push([
-      escapeTable(candidate.candidate),
-      candidate.status,
-      candidate.adopted ? "yes" : "no",
-      candidate.appendMs ? `${candidate.appendMs.p50.toFixed(2)}/${candidate.appendMs.p95.toFixed(2)}` : "-",
-      candidate.queryMs ? `${candidate.queryMs.p50.toFixed(2)}/${candidate.queryMs.p95.toFixed(2)}` : "-",
-      candidate.rawBytes !== undefined && candidate.resultBytes !== undefined ? `${candidate.rawBytes}/${candidate.resultBytes}` : "-",
-      candidate.reductionPercent !== undefined ? formatPercent(candidate.reductionPercent) : "-",
-      escapeTable(candidate.checks.join("; ")),
-      escapeTable(candidate.notes.join("; ")),
-    ].join(" | ").replace(/^/, "| ").replace(/$/, " |"));
+    lines.push(
+      [
+        escapeTable(candidate.candidate),
+        candidate.status,
+        candidate.adopted ? "yes" : "no",
+        candidate.appendMs ? `${candidate.appendMs.p50.toFixed(2)}/${candidate.appendMs.p95.toFixed(2)}` : "-",
+        candidate.queryMs ? `${candidate.queryMs.p50.toFixed(2)}/${candidate.queryMs.p95.toFixed(2)}` : "-",
+        candidate.rawBytes !== undefined && candidate.resultBytes !== undefined
+          ? `${candidate.rawBytes}/${candidate.resultBytes}`
+          : "-",
+        candidate.reductionPercent !== undefined ? formatPercent(candidate.reductionPercent) : "-",
+        escapeTable(candidate.checks.join("; ")),
+        escapeTable(candidate.notes.join("; ")),
+      ]
+        .join(" | ")
+        .replace(/^/, "| ")
+        .replace(/$/, " |"),
+    );
   }
 
   lines.push(
@@ -313,7 +364,10 @@ export function renderVaultIndexStorageBenchmarkReport(report: VaultIndexStorage
   return lines.join("\n");
 }
 
-export async function writeVaultIndexStorageBenchmarkReport(report: VaultIndexStorageBenchmarkReport, reportPath: string): Promise<void> {
+export async function writeVaultIndexStorageBenchmarkReport(
+  report: VaultIndexStorageBenchmarkReport,
+  reportPath: string,
+): Promise<void> {
   await mkdir(dirname(reportPath), { recursive: true });
   await writeFile(reportPath, renderVaultIndexStorageBenchmarkReport(report), "utf8");
 }
@@ -336,7 +390,11 @@ async function main() {
   const benchmarkOptions = args.iterations === undefined ? {} : { iterations: args.iterations };
   const report = await runVaultIndexStorageBenchmark(benchmarkOptions);
   const writeOptions = args.jsonReportPath === undefined ? {} : { jsonReportPath: args.jsonReportPath };
-  const written = await writeVaultIndexStorageBenchmarkReports(report, resolve(process.cwd(), args.reportPath), writeOptions);
+  const written = await writeVaultIndexStorageBenchmarkReports(
+    report,
+    resolve(process.cwd(), args.reportPath),
+    writeOptions,
+  );
   console.log(`Wrote ${written.markdown}`);
   if (written.json) {
     console.log(`Wrote ${written.json}`);

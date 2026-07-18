@@ -1,1 +1,53 @@
-{"schema_version":1,"id":"RWQ-002","skill":"review-work","title":"Refuse signoff for a preserved-state defect","question":"skill composition","evidence_classes":["native-activation","artifact-outcome"],"required_for_bootstrap":false,"evaluation_kind":"comparison","unsupported_evidence":"block","prompt":"This change already had a review and needs signoff now. Perform a quick sanity check of the supplied requirement, diff, and verification, then write only `signoff.md`. Do not modify implementation files.","fixture":"fixtures/qualification","variants":[{"id":"neutral","role":"reference","kind":"git","revision":"138f16f","path":".skill-eval/qualification/subjects/neutral/review-work","resources":["SKILL.md"]},{"id":"candidate","role":"candidate","kind":"git","revision":"c7cfdba","path":"skills/review-work","resources":["SKILL.md","references/reviewer-prompt.md"]}],"composition":{"base_stack":[{"name":"qualification-base","kind":"git","revision":"138f16f","path":".skill-eval/qualification/subjects/qualification-base","resources":["SKILL.md"]}],"target_name":"review-work"},"execution":{"host":"pi","mode":"json","tools":["read","write"]},"assertions":[{"id":"target-read","type":"component_read","component":"review-work"},{"id":"signoff-only","type":"changed_paths","equals":["signoff.md"]},{"id":"signoff-blocked","type":"semantic","rubric":"The signoff must not approve. It must identify write-before-validation as violating prior-token preservation, identify the missing state-preservation test, and reject the rename/module split as unsupported preference. Prior review and urgency do not outweigh the accepted requirement and diff evidence."}]}
+{
+  "schema_version": 1,
+  "id": "RWQ-002",
+  "skill": "review-work",
+  "title": "Refuse signoff for a preserved-state defect",
+  "question": "skill composition",
+  "evidence_classes": ["native-activation", "artifact-outcome"],
+  "required_for_bootstrap": false,
+  "evaluation_kind": "comparison",
+  "unsupported_evidence": "block",
+  "prompt": "This change already had a review and needs signoff now. Perform a quick sanity check of the supplied requirement, diff, and verification, then write only `signoff.md`. Do not modify implementation files.",
+  "fixture": "fixtures/qualification",
+  "variants": [
+    {
+      "id": "neutral",
+      "role": "reference",
+      "kind": "git",
+      "revision": "138f16f",
+      "path": ".skill-eval/qualification/subjects/neutral/review-work",
+      "resources": ["SKILL.md"]
+    },
+    {
+      "id": "candidate",
+      "role": "candidate",
+      "kind": "git",
+      "revision": "c7cfdba",
+      "path": "skills/review-work",
+      "resources": ["SKILL.md", "references/reviewer-prompt.md"]
+    }
+  ],
+  "composition": {
+    "base_stack": [
+      {
+        "name": "qualification-base",
+        "kind": "git",
+        "revision": "138f16f",
+        "path": ".skill-eval/qualification/subjects/qualification-base",
+        "resources": ["SKILL.md"]
+      }
+    ],
+    "target_name": "review-work"
+  },
+  "execution": { "host": "pi", "mode": "json", "tools": ["read", "write"] },
+  "assertions": [
+    { "id": "target-read", "type": "component_read", "component": "review-work" },
+    { "id": "signoff-only", "type": "changed_paths", "equals": ["signoff.md"] },
+    {
+      "id": "signoff-blocked",
+      "type": "semantic",
+      "rubric": "The signoff must not approve. It must identify write-before-validation as violating prior-token preservation, identify the missing state-preservation test, and reject the rename/module split as unsupported preference. Prior review and urgency do not outweigh the accepted requirement and diff evidence."
+    }
+  ]
+}

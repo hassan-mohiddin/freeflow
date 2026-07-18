@@ -16,8 +16,12 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "build:router": "tsc -p router/tsconfig.json",
-    "build:pi-extension": "tsc -p pi-extension/tsconfig.json",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "format:router-dist": "prettier --write router/dist",
+    "format:pi-extension-dist": "prettier --write pi-extension/dist",
+    "build:router": "tsc -p router/tsconfig.json && npm run format:router-dist",
+    "build:pi-extension": "tsc -p pi-extension/tsconfig.json && npm run format:pi-extension-dist",
     "build": "npm run build:router && npm run build:pi-extension",
     "test:pi-extension": "npm run build && node --test $(find pi-extension/tests -name '*.test.js' | sort)",
     "test:router": "npm run build:router && node --test $(find router/tests -name '*.test.js' | sort)",
@@ -69,6 +73,7 @@
   ],
   "devDependencies": {
     "@types/node": "^22.15.30",
+    "prettier": "3.9.5",
     "typescript": "^5.8.3"
   }
 }

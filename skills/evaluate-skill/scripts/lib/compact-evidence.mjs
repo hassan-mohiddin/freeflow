@@ -77,7 +77,8 @@ function scalar(value, label) {
 
 function requireField(record, name) {
   const value = record.fields?.[name];
-  if (value === undefined || value === null || String(value).length === 0) throw new Error(`${record.type} record requires ${name}`);
+  if (value === undefined || value === null || String(value).length === 0)
+    throw new Error(`${record.type} record requires ${name}`);
   return String(value);
 }
 
@@ -103,7 +104,8 @@ function validateRecords(records) {
     if (record.type === "S") {
       const id = requireField(record, "id");
       requireField(record, "kind");
-      if (record.fields.path === undefined && record.fields.output === undefined) throw new Error("S record requires path or output");
+      if (record.fields.path === undefined && record.fields.output === undefined)
+        throw new Error("S record requires path or output");
       if (!HASH.test(requireField(record, "sha256"))) throw new Error("S record requires a SHA-256 identity");
       const bytes = Number(requireField(record, "bytes"));
       if (!Number.isSafeInteger(bytes) || bytes < 0) throw new Error("S record bytes must be a non-negative integer");
@@ -119,7 +121,8 @@ function validateRecords(records) {
       requireField(record, "value");
       const sourceId = requireField(record, "source");
       requireField(record, "span");
-      if (!OPERATION.test(requireField(record, "op"))) throw new Error("F record op must include an operation SHA-256 identity");
+      if (!OPERATION.test(requireField(record, "op")))
+        throw new Error("F record op must include an operation SHA-256 identity");
       const factRecovery = recovery(requireField(record, "recovery"), "F record");
       const source = sources.get(sourceId);
       if (!source) throw new Error(`F record references unknown source: ${sourceId}`);
@@ -129,14 +132,17 @@ function validateRecords(records) {
       requireField(record, "kind");
       requireField(record, "reason");
       const omittedBytes = Number(requireField(record, "omittedBytes"));
-      if (!Number.isSafeInteger(omittedBytes) || omittedBytes < 1) throw new Error("O record omittedBytes must be a positive integer");
+      if (!Number.isSafeInteger(omittedBytes) || omittedBytes < 1)
+        throw new Error("O record omittedBytes must be a positive integer");
       const sourceId = requireField(record, "source");
       requireField(record, "span");
-      if (!OPERATION.test(requireField(record, "op"))) throw new Error("O record op must include an operation SHA-256 identity");
+      if (!OPERATION.test(requireField(record, "op")))
+        throw new Error("O record op must include an operation SHA-256 identity");
       const omissionRecovery = recovery(requireField(record, "recovery"), "O record");
       const source = sources.get(sourceId);
       if (!source) throw new Error(`O record references unknown source: ${sourceId}`);
-      if (omissionRecovery > recovery(String(source.fields.recovery), "S record")) throw new Error("Omission recoverability cannot exceed source recoverability");
+      if (omissionRecovery > recovery(String(source.fields.recovery), "S record"))
+        throw new Error("Omission recoverability cannot exceed source recoverability");
     } else if (record.type === "R") {
       requireField(record, "bundle");
       if (!HASH.test(requireField(record, "canonicalSha256"))) throw new Error("R record requires canonicalSha256");
@@ -162,24 +168,28 @@ export function decodeCev1(text) {
   if (typeof text !== "string" || !text.endsWith("\n")) throw new Error("CEV1 must end with a newline");
   for (const character of text) {
     const code = character.codePointAt(0);
-    if ((code < 0x20 && character !== "\n") || code === 0x7f) throw new Error("CEV1 contains an unescaped control byte");
+    if ((code < 0x20 && character !== "\n") || code === 0x7f)
+      throw new Error("CEV1 contains an unescaped control byte");
   }
-  const records = text.slice(0, -1).split("\n").map((line) => {
-    const parts = splitRecord(line);
-    const type = parts.shift();
-    const record = { type, fields: {} };
-    if (type === "H") {
-      record.schema = parts.shift();
-    }
-    for (const part of parts) {
-      const separator = part.indexOf("=");
-      if (separator <= 0) throw new Error(`Invalid CEV1 field: ${part}`);
-      const key = part.slice(0, separator);
-      if (Object.hasOwn(record.fields, key)) throw new Error(`Duplicate CEV1 field: ${key}`);
-      record.fields[key] = unescapeValue(part.slice(separator + 1));
-    }
-    return record;
-  });
+  const records = text
+    .slice(0, -1)
+    .split("\n")
+    .map((line) => {
+      const parts = splitRecord(line);
+      const type = parts.shift();
+      const record = { type, fields: {} };
+      if (type === "H") {
+        record.schema = parts.shift();
+      }
+      for (const part of parts) {
+        const separator = part.indexOf("=");
+        if (separator <= 0) throw new Error(`Invalid CEV1 field: ${part}`);
+        const key = part.slice(0, separator);
+        if (Object.hasOwn(record.fields, key)) throw new Error(`Duplicate CEV1 field: ${key}`);
+        record.fields[key] = unescapeValue(part.slice(separator + 1));
+      }
+      return record;
+    });
   return validateRecords(records);
 }
 
@@ -191,9 +201,12 @@ export function renderCompactEvidence({ canonical, records }) {
   let sourceOmitted = 0;
   try {
     compactText = encodeCev1(records);
-    sourceOmitted = records.filter((record) => record.type === "O").reduce((sum, record) => sum + Number(record.fields.omittedBytes), 0);
+    sourceOmitted = records
+      .filter((record) => record.type === "O")
+      .reduce((sum, record) => sum + Number(record.fields.omittedBytes), 0);
     const recoveryRecord = records.at(-1);
-    if (String(recoveryRecord.fields.canonicalSha256) !== canonicalSha256) throw new Error("R canonicalSha256 does not match canonical evidence");
+    if (String(recoveryRecord.fields.canonicalSha256) !== canonicalSha256)
+      throw new Error("R canonicalSha256 does not match canonical evidence");
   } catch (error) {
     return {
       format: "canonical-json",
@@ -218,7 +231,12 @@ export function renderCompactEvidence({ canonical, records }) {
     format: "cev1",
     content: compactText,
     reason: "compact-smaller",
-    bytes: { canonical: canonicalBytes, compact: compactBytes, savings: canonicalBytes - compactBytes, source_omitted: sourceOmitted },
+    bytes: {
+      canonical: canonicalBytes,
+      compact: compactBytes,
+      savings: canonicalBytes - compactBytes,
+      source_omitted: sourceOmitted,
+    },
     recovery: { class: "exact", canonical_sha256: canonicalSha256 },
   };
 }

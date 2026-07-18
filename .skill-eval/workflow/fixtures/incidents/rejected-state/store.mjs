@@ -15,8 +15,12 @@ export function createPlanningStore(initialCanonicalRaw = null) {
   let canonicalRaw = initialCanonicalRaw;
   const rejected = [];
   return {
-    get canonicalRaw() { return canonicalRaw; },
-    get rejectedPublications() { return [...rejected]; },
+    get canonicalRaw() {
+      return canonicalRaw;
+    },
+    get rejectedPublications() {
+      return [...rejected];
+    },
     publish(expectedTaskId, raw) {
       canonicalRaw = raw;
       const result = parsePlanningReport(expectedTaskId, raw);

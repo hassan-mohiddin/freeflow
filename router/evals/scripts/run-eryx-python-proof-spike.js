@@ -27,10 +27,14 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const root = args.eryxRoot ?? process.env.ERYX_ROOT;
   if (!root) {
-    throw new Error("Missing --eryx-root or ERYX_ROOT. Install @bsull/eryx in a temp directory and pass its package root.");
+    throw new Error(
+      "Missing --eryx-root or ERYX_ROOT. Install @bsull/eryx in a temp directory and pass its package root.",
+    );
   }
   if (!process.execArgv.includes("--experimental-wasm-jspi")) {
-    throw new Error("Eryx requires Node to be started with --experimental-wasm-jspi; Worker execArgv cannot add it later.");
+    throw new Error(
+      "Eryx requires Node to be started with --experimental-wasm-jspi; Worker execArgv cannot add it later.",
+    );
   }
 
   const reportPath = args.report ?? DEFAULT_REPORT_PATH;
@@ -118,7 +122,9 @@ async function createPatchedPackageTree({ packageRoot, preview2ShimRoot }) {
 }
 
 async function writeInstrumentedNetworkDenyShim(eryxRoot) {
-  await writeFile(join(eryxRoot, "shims", "net.js"), `
+  await writeFile(
+    join(eryxRoot, "shims", "net.js"),
+    `
 const recordNetworkDeny = (kind, operation) => {
   globalThis.__freeflowEryxNetworkEvents ??= [];
   globalThis.__freeflowEryxNetworkEvents.push({ kind, operation, decision: "not-permitted" });
@@ -161,7 +167,9 @@ export const tls = {
     recordNetworkDeny("tls", "close");
   },
 };
-`, "utf8");
+`,
+    "utf8",
+  );
 }
 
 async function collectPackageFiles(packageRoot) {
@@ -319,17 +327,44 @@ async function runEryxWorker({ eryxEntryUrl, mode, code, timeoutMs, outputBytes 
     };
     const timer = setTimeout(() => {
       if (settled) return;
-      finish({ status: "timed_out", stdout: "", stderr: "", exitCode: null, rawStdoutBytes: 0, rawStderrBytes: 0, stdoutBytes: 0, stderrBytes: 0, outputBytes: 0, truncated: false });
+      finish({
+        status: "timed_out",
+        stdout: "",
+        stderr: "",
+        exitCode: null,
+        rawStdoutBytes: 0,
+        rawStderrBytes: 0,
+        stdoutBytes: 0,
+        stderrBytes: 0,
+        outputBytes: 0,
+        truncated: false,
+      });
       void worker.terminate();
     }, timeoutMs);
     worker.on("message", (message) => finish(message));
     worker.on("error", (error) => {
       const message = String(error?.message ?? error);
-      finish({ status: "error", stdout: "", stderr: message, exitCode: null, rawStdoutBytes: 0, rawStderrBytes: Buffer.byteLength(message, "utf8"), truncated: false });
+      finish({
+        status: "error",
+        stdout: "",
+        stderr: message,
+        exitCode: null,
+        rawStdoutBytes: 0,
+        rawStderrBytes: Buffer.byteLength(message, "utf8"),
+        truncated: false,
+      });
     });
     worker.on("exit", (code) => {
       if (!settled && code !== 0) {
-        finish({ status: "error", stdout: "", stderr: `worker exited with code ${code}`, exitCode: code, rawStdoutBytes: 0, rawStderrBytes: 0, truncated: false });
+        finish({
+          status: "error",
+          stdout: "",
+          stderr: `worker exited with code ${code}`,
+          exitCode: code,
+          rawStdoutBytes: 0,
+          rawStderrBytes: 0,
+          truncated: false,
+        });
       }
     });
   });
@@ -379,30 +414,61 @@ function assessProof(proof, run, limits) {
   switch (proof) {
     case "env_access_denied":
       return passIf(
-        !combined.includes(SECRET_SENTINEL) && !combined.includes(HOST_HOME) && !combined.includes("process.env") && !combined.match(/AWS_|GITHUB_|TOKEN|SECRET/i),
+        !combined.includes(SECRET_SENTINEL) &&
+          !combined.includes(HOST_HOME) &&
+          !combined.includes("process.env") &&
+          !combined.match(/AWS_|GITHUB_|TOKEN|SECRET/i),
         "ambient host environment and secret sentinel were not exposed",
       );
     case "home_access_denied":
-      return passIf(!combined.includes(HOST_HOME) && !combined.match(/PRIVATE KEY|FREEFLOW_SANDBOX_SECRET/), "home directory was unavailable and home/secret file contents were not exposed");
+      return passIf(
+        !combined.includes(HOST_HOME) && !combined.match(/PRIVATE KEY|FREEFLOW_SANDBOX_SECRET/),
+        "home directory was unavailable and home/secret file contents were not exposed",
+      );
     case "repo_access_denied":
-      return passIf(!combined.includes("@hassangameryt/freeflow") && !combined.includes("@earendil-works/freeflow") && !combined.includes('"scripts"'), "repo file contents were not exposed");
+      return passIf(
+        !combined.includes("@hassangameryt/freeflow") &&
+          !combined.includes("@earendil-works/freeflow") &&
+          !combined.includes('"scripts"'),
+        "repo file contents were not exposed",
+      );
     case "vault_access_denied":
       return passIf(!combined.includes("ffout_") && !combined.includes("ffrec_"), "vault records were not exposed");
     case "network_access_denied": {
-      const deniedByShim = Array.isArray(run.networkEvents) && run.networkEvents.some((event) => event?.decision === "not-permitted" && (event?.kind === "tcp" || event?.kind === "tls"));
-      return passIf(run.status !== "success" && deniedByShim && !combined.includes("Example Domain"), "outbound network attempt reached the instrumented Eryx shim and was denied as not-permitted");
+      const deniedByShim =
+        Array.isArray(run.networkEvents) &&
+        run.networkEvents.some(
+          (event) => event?.decision === "not-permitted" && (event?.kind === "tcp" || event?.kind === "tls"),
+        );
+      return passIf(
+        run.status !== "success" && deniedByShim && !combined.includes("Example Domain"),
+        "outbound network attempt reached the instrumented Eryx shim and was denied as not-permitted",
+      );
     }
     case "input_read_only":
-      return passIf(run.status !== "success" && !combined.includes("mutated"), "input mutation was not possible through filesystem paths");
+      return passIf(
+        run.status !== "success" && !combined.includes("mutated"),
+        "input mutation was not possible through filesystem paths",
+      );
     case "output_escape_denied":
-      return passIf(!combined.includes("/etc/passwd") && Array.isArray(run.outputFiles) && run.outputFiles.length === 0, "output symlink attempt stayed inside ignored in-memory filesystem and no output files were collected");
+      return passIf(
+        !combined.includes("/etc/passwd") && Array.isArray(run.outputFiles) && run.outputFiles.length === 0,
+        "output symlink attempt stayed inside ignored in-memory filesystem and no output files were collected",
+      );
     case "stdout_stderr_bounded":
       return passIf(
-        run.status !== "error" && run.truncated && run.outputBytes <= limits.outputBytes && run.rawStdoutBytes > limits.outputBytes && run.rawStderrBytes > limits.outputBytes,
+        run.status !== "error" &&
+          run.truncated &&
+          run.outputBytes <= limits.outputBytes &&
+          run.rawStdoutBytes > limits.outputBytes &&
+          run.rawStderrBytes > limits.outputBytes,
         "stdout/stderr flood was capped before crossing from Worker to parent",
       );
     case "timeout_enforced":
-      return passIf(run.status === "timed_out" && run.durationMs < limits.timeoutMs * 5, "infinite loop was stopped by Worker termination");
+      return passIf(
+        run.status === "timed_out" && run.durationMs < limits.timeoutMs * 5,
+        "infinite loop was stopped by Worker termination",
+      );
     default:
       return { ok: false, reason: `No assessment rule for proof ${proof}` };
   }
@@ -417,7 +483,12 @@ function renderReport(data) {
   lines.push("# Eryx Python Sandbox Proof Spike 2 Report");
   lines.push("");
   lines.push(`> **Date:** ${new Date().toISOString().slice(0, 10)}`);
-  lines.push("> **Status:** " + (data.failed.length === 0 ? "Passed temp-patched proof spike for Python candidate" : "Failed temp-patched proof spike for Python candidate"));
+  lines.push(
+    "> **Status:** " +
+      (data.failed.length === 0
+        ? "Passed temp-patched proof spike for Python candidate"
+        : "Failed temp-patched proof spike for Python candidate"),
+  );
   lines.push("> **Scope:** Proof-only evaluation. No Freeflow script execution path is enabled.");
   lines.push("");
   lines.push("## Candidate");
@@ -449,21 +520,31 @@ function renderReport(data) {
   lines.push("");
   lines.push("## Import Patch");
   lines.push("");
-  lines.push("The runner copies `@bsull/eryx` and `@bytecodealliance/preview2-shim` into a temp `node_modules` tree, then rewrites Eryx's generated preview2-shim imports from bare package subpaths to explicit browser/in-memory shim files:");
+  lines.push(
+    "The runner copies `@bsull/eryx` and `@bytecodealliance/preview2-shim` into a temp `node_modules` tree, then rewrites Eryx's generated preview2-shim imports from bare package subpaths to explicit browser/in-memory shim files:",
+  );
   lines.push("");
   for (const [from, to] of PREVIEW2_IMPORTS) {
     lines.push(`- \`${from}\` → \`${to}\``);
   }
   lines.push("");
-  lines.push("This avoids Node resolving `@bytecodealliance/preview2-shim/filesystem` to the host-filesystem-oriented Node shim that lacks `_setFileData`.");
+  lines.push(
+    "This avoids Node resolving `@bytecodealliance/preview2-shim/filesystem` to the host-filesystem-oriented Node shim that lacks `_setFileData`.",
+  );
   lines.push("");
-  lines.push("The runner also replaces the temp-copied Eryx `shims/net.js` with an equivalent deny-only shim that records TCP/TLS attempts and returns `not-permitted`. This makes the network proof check the wrapper denial event instead of accepting any generic socket failure.");
+  lines.push(
+    "The runner also replaces the temp-copied Eryx `shims/net.js` with an equivalent deny-only shim that records TCP/TLS attempts and returns `not-permitted`. This makes the network proof check the wrapper denial event instead of accepting any generic socket failure.",
+  );
   lines.push("");
   lines.push("## Import Probe");
   lines.push("");
   lines.push(`- Status: ${data.importProbe.status}`);
-  lines.push(`- Exports: ${Array.isArray(data.importProbe.exports) ? data.importProbe.exports.map((name) => `\`${name}\``).join(", ") : "unavailable"}`);
-  lines.push(`- Error: ${data.importProbe.errorMessage ? `\`${escapeInline(data.importProbe.errorMessage)}\`` : "none"}`);
+  lines.push(
+    `- Exports: ${Array.isArray(data.importProbe.exports) ? data.importProbe.exports.map((name) => `\`${name}\``).join(", ") : "unavailable"}`,
+  );
+  lines.push(
+    `- Error: ${data.importProbe.errorMessage ? `\`${escapeInline(data.importProbe.errorMessage)}\`` : "none"}`,
+  );
   lines.push("");
   lines.push("## Positive API Probe");
   lines.push("");
@@ -496,15 +577,33 @@ function renderReport(data) {
   lines.push("");
   lines.push("## Notes");
   lines.push("");
-  lines.push("- This proof runner uses a temporary installed `@bsull/eryx` package root passed explicitly by the caller.");
-  lines.push("- It does not add repo dependencies and does not wire Python into `freeflow_search action=transform` execution.");
-  lines.push("- It performs a temp-copy import rewrite and deny-only network-shim replacement. A product adapter would need an explicit package-root wrapper and focused security review before enabling this path.");
-  lines.push("- Timeout proof uses Node Worker termination because Eryx's high-level JS API does not expose timeout or fuel controls.");
-  lines.push("- Output proof caps what crosses from Worker to parent; Eryx/Python can still materialize large strings inside the Worker before the wrapper truncates them.");
-  lines.push("- The runner intentionally collects no output files, matching the current QuickJS/jq product adapters. In-memory filesystem writes and symlink attempts are ignored unless their contents reach stdout/stderr.");
-  lines.push("- The runner returns bounded error messages rather than JS host stack traces so proof output does not leak repo/home paths through adapter diagnostics.");
-  lines.push("- The runner overrides Worker `console` before importing Eryx so preview2 browser shim debug logs are captured and bounded instead of inherited by host stdout.");
-  lines.push("- Passing this spike supports candidate feasibility only. Product execution still requires adapter implementation, probe caching, review, and runtime-status wiring.");
+  lines.push(
+    "- This proof runner uses a temporary installed `@bsull/eryx` package root passed explicitly by the caller.",
+  );
+  lines.push(
+    "- It does not add repo dependencies and does not wire Python into `freeflow_search action=transform` execution.",
+  );
+  lines.push(
+    "- It performs a temp-copy import rewrite and deny-only network-shim replacement. A product adapter would need an explicit package-root wrapper and focused security review before enabling this path.",
+  );
+  lines.push(
+    "- Timeout proof uses Node Worker termination because Eryx's high-level JS API does not expose timeout or fuel controls.",
+  );
+  lines.push(
+    "- Output proof caps what crosses from Worker to parent; Eryx/Python can still materialize large strings inside the Worker before the wrapper truncates them.",
+  );
+  lines.push(
+    "- The runner intentionally collects no output files, matching the current QuickJS/jq product adapters. In-memory filesystem writes and symlink attempts are ignored unless their contents reach stdout/stderr.",
+  );
+  lines.push(
+    "- The runner returns bounded error messages rather than JS host stack traces so proof output does not leak repo/home paths through adapter diagnostics.",
+  );
+  lines.push(
+    "- The runner overrides Worker `console` before importing Eryx so preview2 browser shim debug logs are captured and bounded instead of inherited by host stdout.",
+  );
+  lines.push(
+    "- Passing this spike supports candidate feasibility only. Product execution still requires adapter implementation, probe caching, review, and runtime-status wiring.",
+  );
   lines.push("");
   lines.push("## Required Proof Set");
   lines.push("");
@@ -518,11 +617,15 @@ function formatNetworkEvents(events) {
   if (!Array.isArray(events) || events.length === 0) {
     return "none";
   }
-  return events.map((event) => `${event.kind ?? "unknown"}.${event.operation ?? "unknown"}:${event.decision ?? "unknown"}`).join(",");
+  return events
+    .map((event) => `${event.kind ?? "unknown"}.${event.operation ?? "unknown"}:${event.decision ?? "unknown"}`)
+    .join(",");
 }
 
 function escapeInline(value) {
-  return String(value ?? "").replaceAll("`", "\\`").replaceAll("\n", "\\n");
+  return String(value ?? "")
+    .replaceAll("`", "\\`")
+    .replaceAll("\n", "\\n");
 }
 
 function escapeTable(value) {

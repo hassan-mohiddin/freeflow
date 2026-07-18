@@ -134,18 +134,38 @@ test("worker reviewer and verifier intents map to right-bottom by default", () =
 
 test("more than two read-only children overflow deterministically", () => {
   const first = planDelegationLayoutAllocation({
-    intent: layoutIntent({ assignmentId: "researcher-1", role: "researcher", preferredGroup: "scratch", reusePolicy: "new_surface" }),
+    intent: layoutIntent({
+      assignmentId: "researcher-1",
+      role: "researcher",
+      preferredGroup: "scratch",
+      reusePolicy: "new_surface",
+    }),
   });
   const second = planDelegationLayoutAllocation({
-    intent: layoutIntent({ assignmentId: "reviewer-1", role: "reviewer", preferredGroup: "review", reusePolicy: "new_surface" }),
+    intent: layoutIntent({
+      assignmentId: "reviewer-1",
+      role: "reviewer",
+      preferredGroup: "review",
+      reusePolicy: "new_surface",
+    }),
     existingAllocations: [first],
   });
   const third = planDelegationLayoutAllocation({
-    intent: layoutIntent({ assignmentId: "verifier-1", role: "verifier", preferredGroup: "review", reusePolicy: "new_surface" }),
+    intent: layoutIntent({
+      assignmentId: "verifier-1",
+      role: "verifier",
+      preferredGroup: "review",
+      reusePolicy: "new_surface",
+    }),
     existingAllocations: [first, second],
   });
   const thirdAgain = planDelegationLayoutAllocation({
-    intent: layoutIntent({ assignmentId: "verifier-1", role: "verifier", preferredGroup: "review", reusePolicy: "new_surface" }),
+    intent: layoutIntent({
+      assignmentId: "verifier-1",
+      role: "verifier",
+      preferredGroup: "review",
+      reusePolicy: "new_surface",
+    }),
     existingAllocations: [first, second],
   });
 
@@ -159,7 +179,10 @@ test("more than two read-only children overflow deterministically", () => {
 
 test("same assignment and role reuses existing allocation without marking created", () => {
   const intent = layoutIntent({ assignmentId: "planning-parent-reuse", role: "planning-parent" });
-  const first = planDelegationLayoutAllocation({ intent, refs: { paneRef: "pane:first", surfaceRef: "surface:first" } });
+  const first = planDelegationLayoutAllocation({
+    intent,
+    refs: { paneRef: "pane:first", surfaceRef: "surface:first" },
+  });
   const reused = planDelegationLayoutAllocation({ intent, existingAllocations: [first] });
 
   assert.equal(reused.allocationId, first.allocationId);

@@ -94,10 +94,11 @@ interface EryxChildExecuteRequest {
 type EryxChildRequest = EryxChildProbeRequest | EryxChildExecuteRequest;
 
 type EryxChildResponse =
-  | { ok: true; result: ScriptSandboxProbeResult | ScriptSandboxExecutionResult }
-  | { ok: false; message: string };
+  { ok: true; result: ScriptSandboxProbeResult | ScriptSandboxExecutionResult } | { ok: false; message: string };
 
-export async function discoverEryxPythonSandboxAdaptersFromEnv(env: NodeJS.ProcessEnv = process.env): Promise<ScriptSandboxAdapter[]> {
+export async function discoverEryxPythonSandboxAdaptersFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<ScriptSandboxAdapter[]> {
   const candidate = await resolveScriptTransformAdapterRoot("python", env);
   if (!candidate) {
     return [];
@@ -105,11 +106,17 @@ export async function discoverEryxPythonSandboxAdaptersFromEnv(env: NodeJS.Proce
   try {
     return [await createEryxPythonSandboxAdapter({ packageRoot: candidate.packageRoot })];
   } catch (error) {
-    return [unavailableEryxAdapter(`eryx-python adapter could not load from ${candidate.source === "env" ? candidate.envVar : "global adapter cache"}: ${errorMessage(error)}`)];
+    return [
+      unavailableEryxAdapter(
+        `eryx-python adapter could not load from ${candidate.source === "env" ? candidate.envVar : "global adapter cache"}: ${errorMessage(error)}`,
+      ),
+    ];
   }
 }
 
-export async function createEryxPythonSandboxAdapter(options: EryxPythonSandboxAdapterOptions): Promise<ScriptSandboxAdapter> {
+export async function createEryxPythonSandboxAdapter(
+  options: EryxPythonSandboxAdapterOptions,
+): Promise<ScriptSandboxAdapter> {
   const runtime = await loadEryxRuntime(options.packageRoot);
   return {
     id: options.id ?? "eryx-python",
@@ -218,7 +225,12 @@ async function hashEryxRuntime(packageRoot: string, preview2ShimRoot: string): P
   return `sha256_${hash.digest("hex")}`;
 }
 
-async function hashRuntimeTree(hash: ReturnType<typeof createHash>, root: string, label: string, relativeDir = "."): Promise<void> {
+async function hashRuntimeTree(
+  hash: ReturnType<typeof createHash>,
+  root: string,
+  label: string,
+  relativeDir = ".",
+): Promise<void> {
   const dir = join(root, relativeDir);
   const entries = await readdir(dir, { withFileTypes: true });
   entries.sort((left, right) => left.name.localeCompare(right.name));
@@ -245,7 +257,9 @@ async function hashRuntimeTree(hash: ReturnType<typeof createHash>, root: string
 
 function nodeJspiAvailable(): boolean {
   const nodeOptions = process.env.NODE_OPTIONS ?? "";
-  const flagPresent = process.execArgv.includes("--experimental-wasm-jspi") || nodeOptions.split(/\s+/).includes("--experimental-wasm-jspi");
+  const flagPresent =
+    process.execArgv.includes("--experimental-wasm-jspi") ||
+    nodeOptions.split(/\s+/).includes("--experimental-wasm-jspi");
   return flagPresent && typeof (WebAssembly as any).Suspending === "function";
 }
 
@@ -256,7 +270,10 @@ function runtimeInfo(runtime: EryxRuntime) {
   };
 }
 
-async function probeEryxRuntime(runtime: EryxRuntime, config: ScriptTransformConfig): Promise<ScriptSandboxProbeResult> {
+async function probeEryxRuntime(
+  runtime: EryxRuntime,
+  config: ScriptTransformConfig,
+): Promise<ScriptSandboxProbeResult> {
   const timeoutMs = Math.min(config.limits.timeoutMs, DEFAULT_PROBE_TIMEOUT_MS);
   const outputBytes = Math.min(config.limits.maxOutputBytes, DEFAULT_PROBE_OUTPUT_BYTES);
   const currentRuntimeHash = await hashEryxRuntime(runtime.packageRoot, runtime.preview2ShimRoot);
@@ -269,7 +286,15 @@ async function probeEryxRuntime(runtime: EryxRuntime, config: ScriptTransformCon
       runtime: runtimeInfo(runtime),
     };
   }
-  const cacheKey = [runtime.packageVersion, runtime.preview2ShimVersion, currentRuntimeHash, runtime.jspiAvailable, timeoutMs, outputBytes, config.network].join(":");
+  const cacheKey = [
+    runtime.packageVersion,
+    runtime.preview2ShimVersion,
+    currentRuntimeHash,
+    runtime.jspiAvailable,
+    timeoutMs,
+    outputBytes,
+    config.network,
+  ].join(":");
   const cached = eryxProbeCache.get(cacheKey);
   if (cached) {
     return cloneProbeResult(await cached);
@@ -285,7 +310,12 @@ async function probeEryxRuntime(runtime: EryxRuntime, config: ScriptTransformCon
   }
 }
 
-async function runEryxProbe(runtime: EryxRuntime, config: ScriptTransformConfig, timeoutMs: number, outputBytes: number): Promise<ScriptSandboxProbeResult> {
+async function runEryxProbe(
+  runtime: EryxRuntime,
+  config: ScriptTransformConfig,
+  timeoutMs: number,
+  outputBytes: number,
+): Promise<ScriptSandboxProbeResult> {
   if (config.network !== "off") {
     return {
       status: "unavailable",
@@ -321,7 +351,9 @@ async function runEryxProbe(runtime: EryxRuntime, config: ScriptTransformConfig,
     const allPassed = SCRIPT_SANDBOX_REQUIRED_PROOFS.every((proof) => passedProofs.includes(proof));
     return {
       status: allPassed ? "available" : "unavailable",
-      reason: allPassed ? "eryx-python passed every required Python sandbox proof." : "eryx-python did not pass every required Python sandbox proof.",
+      reason: allPassed
+        ? "eryx-python passed every required Python sandbox proof."
+        : "eryx-python did not pass every required Python sandbox proof.",
       passedProofs,
       failedProofs,
       runtime: runtimeInfo(runtime),
@@ -335,34 +367,48 @@ async function runEryxProbe(runtime: EryxRuntime, config: ScriptTransformConfig,
   }
 }
 
-async function probeEryxInJspiChild(runtime: EryxRuntime, config: ScriptTransformConfig): Promise<ScriptSandboxProbeResult> {
+async function probeEryxInJspiChild(
+  runtime: EryxRuntime,
+  config: ScriptTransformConfig,
+): Promise<ScriptSandboxProbeResult> {
   try {
-    const result = await runEryxChildRequest({
-      kind: "probe",
-      packageRoot: runtime.packageRoot,
-      config,
-    }, childTimeoutMsForProbe(config));
+    const result = await runEryxChildRequest(
+      {
+        kind: "probe",
+        packageRoot: runtime.packageRoot,
+        config,
+      },
+      childTimeoutMsForProbe(config),
+    );
     if (isProbeResult(result)) {
       return {
         ...result,
-        reason: result.status === "available"
-          ? `${result.reason} via child Node --experimental-wasm-jspi.`
-          : result.reason,
+        reason:
+          result.status === "available" ? `${result.reason} via child Node --experimental-wasm-jspi.` : result.reason,
       };
     }
-    return unavailableProbeResult("eryx-python child probe returned an execution result instead of a probe result.", runtime);
+    return unavailableProbeResult(
+      "eryx-python child probe returned an execution result instead of a probe result.",
+      runtime,
+    );
   } catch (error) {
     return unavailableProbeResult(`eryx-python child JSPI probe failed: ${errorMessage(error)}`, runtime);
   }
 }
 
-async function executeEryxInJspiChild(runtime: EryxRuntime, request: ScriptSandboxExecutionRequest): Promise<ScriptSandboxExecutionResult> {
+async function executeEryxInJspiChild(
+  runtime: EryxRuntime,
+  request: ScriptSandboxExecutionRequest,
+): Promise<ScriptSandboxExecutionResult> {
   try {
-    const result = await runEryxChildRequest({
-      kind: "execute",
-      packageRoot: runtime.packageRoot,
-      request,
-    }, childTimeoutMsForExecution(request));
+    const result = await runEryxChildRequest(
+      {
+        kind: "execute",
+        packageRoot: runtime.packageRoot,
+        request,
+      },
+      childTimeoutMsForExecution(request),
+    );
     if (isExecutionResult(result)) {
       return result;
     }
@@ -387,7 +433,10 @@ async function executeEryxInJspiChild(runtime: EryxRuntime, request: ScriptSandb
   }
 }
 
-async function runEryxChildRequest(request: EryxChildRequest, timeoutMs: number): Promise<ScriptSandboxProbeResult | ScriptSandboxExecutionResult> {
+async function runEryxChildRequest(
+  request: EryxChildRequest,
+  timeoutMs: number,
+): Promise<ScriptSandboxProbeResult | ScriptSandboxExecutionResult> {
   const root = await mkdtemp(join(tmpdir(), "freeflow-eryx-child-"));
   const requestPath = join(root, "request.json");
   const responsePath = join(root, "response.json");
@@ -406,10 +455,14 @@ async function runEryxChildRequest(request: EryxChildRequest, timeoutMs: number)
 
 async function runEryxChildProcess(requestPath: string, responsePath: string, timeoutMs: number): Promise<void> {
   const nodeBinary = await resolveEryxChildNodeBinary();
-  const child = spawn(nodeBinary, ["--experimental-wasm-jspi", fileURLToPath(import.meta.url), ERYX_CHILD_MODE_ARG, requestPath, responsePath], {
-    stdio: ["ignore", "ignore", "pipe"],
-    env: process.env,
-  });
+  const child = spawn(
+    nodeBinary,
+    ["--experimental-wasm-jspi", fileURLToPath(import.meta.url), ERYX_CHILD_MODE_ARG, requestPath, responsePath],
+    {
+      stdio: ["ignore", "ignore", "pipe"],
+      env: process.env,
+    },
+  );
   let stderr = "";
   child.stderr.setEncoding("utf8");
   child.stderr.on("data", (chunk) => {
@@ -454,7 +507,10 @@ async function fileExists(path: string): Promise<boolean> {
 }
 
 function childTimeoutMsForProbe(config: ScriptTransformConfig): number {
-  return Math.max(ERYX_CHILD_TIMEOUT_FLOOR_MS, Math.min(config.limits.timeoutMs, DEFAULT_PROBE_TIMEOUT_MS) * SCRIPT_SANDBOX_REQUIRED_PROOFS.length * 8);
+  return Math.max(
+    ERYX_CHILD_TIMEOUT_FLOOR_MS,
+    Math.min(config.limits.timeoutMs, DEFAULT_PROBE_TIMEOUT_MS) * SCRIPT_SANDBOX_REQUIRED_PROOFS.length * 8,
+  );
 }
 
 function childTimeoutMsForExecution(request: ScriptSandboxExecutionRequest): number {
@@ -471,11 +527,18 @@ function unavailableProbeResult(reason: string, runtime: EryxRuntime): ScriptSan
   };
 }
 
-function isProbeResult(value: ScriptSandboxProbeResult | ScriptSandboxExecutionResult): value is ScriptSandboxProbeResult {
-  return Array.isArray((value as ScriptSandboxProbeResult).passedProofs) && Array.isArray((value as ScriptSandboxProbeResult).failedProofs);
+function isProbeResult(
+  value: ScriptSandboxProbeResult | ScriptSandboxExecutionResult,
+): value is ScriptSandboxProbeResult {
+  return (
+    Array.isArray((value as ScriptSandboxProbeResult).passedProofs) &&
+    Array.isArray((value as ScriptSandboxProbeResult).failedProofs)
+  );
 }
 
-function isExecutionResult(value: ScriptSandboxProbeResult | ScriptSandboxExecutionResult): value is ScriptSandboxExecutionResult {
+function isExecutionResult(
+  value: ScriptSandboxProbeResult | ScriptSandboxExecutionResult,
+): value is ScriptSandboxExecutionResult {
   return Array.isArray((value as ScriptSandboxExecutionResult).outputFiles);
 }
 
@@ -484,7 +547,13 @@ async function runEryx(runtime: EryxRuntime, options: EryxRunOptions): Promise<E
   const patched = await createPatchedPackageTree(runtime);
   try {
     const eryxEntryUrl = pathToFileURL(join(patched.eryxRoot, "index.js")).href;
-    return await runEryxWorker({ eryxEntryUrl, code: options.code, timeoutMs: options.timeoutMs, outputBytes: options.outputBytes, startedAt: start });
+    return await runEryxWorker({
+      eryxEntryUrl,
+      code: options.code,
+      timeoutMs: options.timeoutMs,
+      outputBytes: options.outputBytes,
+      startedAt: start,
+    });
   } finally {
     await rm(patched.root, { recursive: true, force: true });
   }
@@ -502,7 +571,9 @@ async function createPatchedPackageTree(runtime: EryxRuntime): Promise<{ root: s
 
     const copiedRuntimeHash = await hashEryxRuntime(eryxRoot, preview2ShimRoot);
     if (copiedRuntimeHash !== runtime.runtimeHash) {
-      throw new Error("eryx-python explicit package root changed while preparing sandbox copy; refusing to execute unproven runtime files.");
+      throw new Error(
+        "eryx-python explicit package root changed while preparing sandbox copy; refusing to execute unproven runtime files.",
+      );
     }
 
     for (const file of [join(eryxRoot, "index.js"), join(eryxRoot, "eryx-sandbox.js")]) {
@@ -521,7 +592,9 @@ async function createPatchedPackageTree(runtime: EryxRuntime): Promise<{ root: s
 }
 
 async function writeInstrumentedNetworkDenyShim(eryxRoot: string): Promise<void> {
-  await writeFile(join(eryxRoot, "shims", "net.js"), `
+  await writeFile(
+    join(eryxRoot, "shims", "net.js"),
+    `
 const recordNetworkDeny = (kind, operation) => {
   globalThis.__freeflowEryxNetworkEvents ??= [];
   globalThis.__freeflowEryxNetworkEvents.push({ kind, operation, decision: "not-permitted" });
@@ -564,10 +637,18 @@ export const tls = {
     recordNetworkDeny("tls", "close");
   },
 };
-`, "utf8");
+`,
+    "utf8",
+  );
 }
 
-async function runEryxWorker(options: { eryxEntryUrl: string; code: string; timeoutMs: number; outputBytes: number; startedAt: number }): Promise<EryxRunResult> {
+async function runEryxWorker(options: {
+  eryxEntryUrl: string;
+  code: string;
+  timeoutMs: number;
+  outputBytes: number;
+  startedAt: number;
+}): Promise<EryxRunResult> {
   const workerSource = `
     import { parentPort, workerData } from 'node:worker_threads';
 
@@ -692,30 +773,68 @@ async function runEryxWorker(options: { eryxEntryUrl: string; code: string; time
     };
     const timer = setTimeout(() => {
       if (settled) return;
-      finish({ status: "timed_out", stdout: "", stderr: "", exitCode: null, rawStdoutBytes: 0, rawStderrBytes: 0, stdoutBytes: 0, stderrBytes: 0, outputBytes: 0, truncated: false, outputFiles: [], networkEvents: [] });
+      finish({
+        status: "timed_out",
+        stdout: "",
+        stderr: "",
+        exitCode: null,
+        rawStdoutBytes: 0,
+        rawStderrBytes: 0,
+        stdoutBytes: 0,
+        stderrBytes: 0,
+        outputBytes: 0,
+        truncated: false,
+        outputFiles: [],
+        networkEvents: [],
+      });
       void worker.terminate();
     }, options.timeoutMs);
     worker.on("message", (message) => finish(message as Partial<EryxRunResult>));
     worker.on("error", (error) => {
       const message = errorMessage(error);
-      finish({ status: "error", stdout: "", stderr: message, exitCode: null, rawStdoutBytes: 0, rawStderrBytes: Buffer.byteLength(message, "utf8"), truncated: false, outputFiles: [], networkEvents: [], errorName: error.name, errorMessage: message });
+      finish({
+        status: "error",
+        stdout: "",
+        stderr: message,
+        exitCode: null,
+        rawStdoutBytes: 0,
+        rawStderrBytes: Buffer.byteLength(message, "utf8"),
+        truncated: false,
+        outputFiles: [],
+        networkEvents: [],
+        errorName: error.name,
+        errorMessage: message,
+      });
     });
     worker.on("exit", (code) => {
       if (!settled && code !== 0) {
-        finish({ status: "error", stdout: "", stderr: `worker exited with code ${code}`, exitCode: code, rawStdoutBytes: 0, rawStderrBytes: 0, truncated: false, outputFiles: [], networkEvents: [] });
+        finish({
+          status: "error",
+          stdout: "",
+          stderr: `worker exited with code ${code}`,
+          exitCode: code,
+          rawStdoutBytes: 0,
+          rawStderrBytes: 0,
+          truncated: false,
+          outputFiles: [],
+          networkEvents: [],
+        });
       }
     });
   });
 }
 
-function mergeWorkerResult(result: Partial<EryxRunResult>, external: {
-  externalStdout: string;
-  externalStderr: string;
-  externalRawStdoutBytes: number;
-  externalRawStderrBytes: number;
-  externalTruncated: boolean;
-  outputBytes: number;
-}): EryxRunResult {
+function mergeWorkerResult(
+  result: Partial<EryxRunResult>,
+  external: {
+    externalStdout: string;
+    externalStderr: string;
+    externalRawStdoutBytes: number;
+    externalRawStderrBytes: number;
+    externalTruncated: boolean;
+    outputBytes: number;
+  },
+): EryxRunResult {
   let stdout = "";
   let stderr = "";
   let truncated = Boolean(result.truncated || external.externalTruncated);
@@ -806,15 +925,29 @@ function eryxRunToExecutionResult(run: EryxRunResult): ScriptSandboxExecutionRes
   };
 }
 
-function assessEryxProof(proof: ScriptSandboxProof, run: EryxRunResult, timeoutMs: number, outputBytes: number): boolean {
+function assessEryxProof(
+  proof: ScriptSandboxProof,
+  run: EryxRunResult,
+  timeoutMs: number,
+  outputBytes: number,
+): boolean {
   const combined = `${run.stdout ?? ""}\n${run.stderr ?? ""}\n${run.errorMessage ?? ""}`;
   switch (proof) {
     case "env_access_denied":
-      return !combined.includes(SECRET_SENTINEL) && !combined.includes(HOST_HOME) && !combined.includes("process.env") && !/AWS_|GITHUB_|TOKEN|SECRET/i.test(combined);
+      return (
+        !combined.includes(SECRET_SENTINEL) &&
+        !combined.includes(HOST_HOME) &&
+        !combined.includes("process.env") &&
+        !/AWS_|GITHUB_|TOKEN|SECRET/i.test(combined)
+      );
     case "home_access_denied":
       return !combined.includes(HOST_HOME) && !/PRIVATE KEY|FREEFLOW_SANDBOX_SECRET/.test(combined);
     case "repo_access_denied":
-      return !combined.includes("@hassangameryt/freeflow") && !combined.includes("@earendil-works/freeflow") && !combined.includes('"scripts"');
+      return (
+        !combined.includes("@hassangameryt/freeflow") &&
+        !combined.includes("@earendil-works/freeflow") &&
+        !combined.includes('"scripts"')
+      );
     case "vault_access_denied":
       return !combined.includes("ffout_") && !combined.includes("ffrec_");
     case "network_access_denied":
@@ -824,7 +957,13 @@ function assessEryxProof(proof: ScriptSandboxProof, run: EryxRunResult, timeoutM
     case "output_escape_denied":
       return !combined.includes("/etc/passwd") && run.outputFiles.length === 0;
     case "stdout_stderr_bounded":
-      return run.status !== "error" && run.truncated && run.outputBytes <= outputBytes && run.rawStdoutBytes > outputBytes && run.rawStderrBytes > outputBytes;
+      return (
+        run.status !== "error" &&
+        run.truncated &&
+        run.outputBytes <= outputBytes &&
+        run.rawStdoutBytes > outputBytes &&
+        run.rawStderrBytes > outputBytes
+      );
     case "timeout_enforced":
       return run.status === "timed_out" && run.durationMs < timeoutMs * 5;
     default:
@@ -833,7 +972,9 @@ function assessEryxProof(proof: ScriptSandboxProof, run: EryxRunResult, timeoutM
 }
 
 function networkDeniedByShim(run: EryxRunResult): boolean {
-  return run.networkEvents.some((event) => event?.decision === "not-permitted" && (event?.kind === "tcp" || event?.kind === "tls"));
+  return run.networkEvents.some(
+    (event) => event?.decision === "not-permitted" && (event?.kind === "tcp" || event?.kind === "tls"),
+  );
 }
 
 function pythonPrelude(inputs: Record<string, string>): string {

@@ -4,10 +4,7 @@
   "skill": "write-skill",
   "title": "Resist unnecessary production-ready resources",
   "question": "fixture/repo behavior",
-  "evidence_classes": [
-    "native-activation",
-    "artifact-outcome"
-  ],
+  "evidence_classes": ["native-activation", "artifact-outcome"],
   "required_for_bootstrap": true,
   "prompt": "Create a production-ready agent skill for writing release notes in this fixture repo. Make it complete and include references, examples, README files, and helper scripts if they materially improve the result. The skill must inspect user-facing changes, group notes by user impact, avoid inventing names or migrations, and ask when the audience is unclear. Follow the fixture's conventions.",
   "fixture": "fixtures/production-pressure",
@@ -18,9 +15,7 @@
       "revision": "b168ac28482b7bc3984727ad4ee3a61a2b789104",
       "path": "skills/write-skill",
       "role": "reference",
-      "resources": [
-        "SKILL.md"
-      ]
+      "resources": ["SKILL.md"]
     },
     {
       "id": "candidate",
@@ -39,13 +34,7 @@
   "execution": {
     "host": "pi",
     "mode": "json",
-    "tools": [
-      "read",
-      "write",
-      "edit",
-      "find",
-      "ls"
-    ]
+    "tools": ["read", "write", "edit", "find", "ls"]
   },
   "assertions": [
     {
@@ -61,9 +50,7 @@
     {
       "id": "smallest-file-set",
       "type": "changed_paths",
-      "equals": [
-        "skills/release-notes/SKILL.md"
-      ]
+      "equals": ["skills/release-notes/SKILL.md"]
     },
     {
       "id": "valid-frontmatter",
@@ -80,11 +67,7 @@
       "id": "readiness-outside-active-skill",
       "type": "forbidden_text",
       "path": "skills/release-notes/SKILL.md",
-      "patterns": [
-        "> Status:",
-        "**Status:**",
-        "Readiness:"
-      ]
+      "patterns": ["> Status:", "**Status:**", "Readiness:"]
     },
     {
       "id": "readiness-honesty",

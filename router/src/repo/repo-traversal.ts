@@ -307,7 +307,10 @@ function isLockfile(name: string): boolean {
 
 function isPathInsideRoot(root: string, absolutePath: string): boolean {
   const relativePath = relative(root, absolutePath);
-  return relativePath === "" || (!relativePath.startsWith("..") && !relativePath.startsWith("/") && !/^[A-Za-z]:/.test(relativePath));
+  return (
+    relativePath === "" ||
+    (!relativePath.startsWith("..") && !relativePath.startsWith("/") && !/^[A-Za-z]:/.test(relativePath))
+  );
 }
 
 function normalizeRelativePath(path: string): string {

@@ -135,8 +135,10 @@ interface CodexQaObservation {
 const SANDBOX_DOC_PATH = "evals/fixtures/output-router-corpus/sandbox-permissions.md";
 const GENERATED_GRAPH_PATH = "graphify-out/graph.html";
 
-const SANDBOX_QUESTION = "Find the Sandbox Permissions section, report file/lines, and explain UseDefault, RequireEscalated, and WithAdditionalPermissions.";
-const SANDBOX_QUERY = "Sandbox Permissions SandboxPermissions UseDefault RequireEscalated WithAdditionalPermissions Plain-language meaning";
+const SANDBOX_QUESTION =
+  "Find the Sandbox Permissions section, report file/lines, and explain UseDefault, RequireEscalated, and WithAdditionalPermissions.";
+const SANDBOX_QUERY =
+  "Sandbox Permissions SandboxPermissions UseDefault RequireEscalated WithAdditionalPermissions Plain-language meaning";
 
 const SANDBOX_REQUIRED_EVIDENCE = [
   "SandboxPermissions is a per-command request shape",
@@ -236,40 +238,38 @@ export function renderCodexQaBenchmarkReport(report: CodexQaBenchmarkReport): st
 
   for (const fixture of report.fixtures) {
     for (const result of fixture.results) {
-      lines.push([
-        fixture.id,
-        result.mode,
-        result.correctness.passed ? "pass" : "fail",
-        `answer ${mark(result.correctness.answerCorrect)} citation ${mark(result.correctness.citationCorrect)} evidence ${mark(result.correctness.evidenceCorrect)} gen-fp ${mark(!result.correctness.generatedFalsePositive)}`,
-        result.actualPath ?? "-",
-        result.actualLines ?? "-",
-        `${result.rawBytes}/${result.rawTokensApprox}`,
-        `${result.contextBytes}/${result.contextTokensApprox}`,
-        `${formatPercent(result.byteReductionPercent)}/${formatPercent(result.tokenReductionPercent)}`,
-        `${result.latencyMs.p50.toFixed(2)}/${result.latencyMs.p95.toFixed(2)}`,
-        String(result.proxyCalls),
-        result.answer,
-        result.notes.join("; "),
-      ].map((cell) => escapeTable(String(cell))).join(" | ").replace(/^/, "|").replace(/$/, " |"));
+      lines.push(
+        [
+          fixture.id,
+          result.mode,
+          result.correctness.passed ? "pass" : "fail",
+          `answer ${mark(result.correctness.answerCorrect)} citation ${mark(result.correctness.citationCorrect)} evidence ${mark(result.correctness.evidenceCorrect)} gen-fp ${mark(!result.correctness.generatedFalsePositive)}`,
+          result.actualPath ?? "-",
+          result.actualLines ?? "-",
+          `${result.rawBytes}/${result.rawTokensApprox}`,
+          `${result.contextBytes}/${result.contextTokensApprox}`,
+          `${formatPercent(result.byteReductionPercent)}/${formatPercent(result.tokenReductionPercent)}`,
+          `${result.latencyMs.p50.toFixed(2)}/${result.latencyMs.p95.toFixed(2)}`,
+          String(result.proxyCalls),
+          result.answer,
+          result.notes.join("; "),
+        ]
+          .map((cell) => escapeTable(String(cell)))
+          .join(" | ")
+          .replace(/^/, "|")
+          .replace(/$/, " |"),
+      );
     }
   }
 
-  lines.push(
-    "",
-    "## Fixture Questions",
-    "",
-  );
+  lines.push("", "## Fixture Questions", "");
   for (const fixture of report.fixtures) {
     lines.push(`- ${fixture.id}: ${fixture.question}`);
     lines.push(`  - expected doc: \`${fixture.expected.path}\``);
     lines.push(`  - upstream source citation comparison: ${fixture.expected.sourceCitationStatus}`);
   }
 
-  lines.push(
-    "",
-    "## Skipped External Comparators",
-    "",
-  );
+  lines.push("", "## Skipped External Comparators", "");
   for (const skipped of report.skippedExternalTools) {
     lines.push(`- ${skipped.name}: ${skipped.reason}`);
   }
@@ -286,9 +286,10 @@ async function runModeIterations(
   let firstObservation: CodexQaObservation | undefined;
   for (let index = 0; index < iterations; index += 1) {
     const startedAt = performance.now();
-    const observation = mode === "native-broad-search-proxy"
-      ? await nativeBroadSearchObservation(fixture)
-      : await improvedFreeflowObservation(fixture);
+    const observation =
+      mode === "native-broad-search-proxy"
+        ? await nativeBroadSearchObservation(fixture)
+        : await improvedFreeflowObservation(fixture);
     latencies.push(performance.now() - startedAt);
     firstObservation ??= observation;
   }
@@ -308,7 +309,10 @@ async function runModeIterations(
     contextBytes: firstObservation.contextBytes,
     contextTokensApprox: approximateTokens(firstObservation.contextBytes),
     byteReductionPercent: reductionPercent(firstObservation.rawBytes, firstObservation.contextBytes),
-    tokenReductionPercent: reductionPercent(approximateTokens(firstObservation.rawBytes), approximateTokens(firstObservation.contextBytes)),
+    tokenReductionPercent: reductionPercent(
+      approximateTokens(firstObservation.rawBytes),
+      approximateTokens(firstObservation.contextBytes),
+    ),
     latencyMs: latencySummary(latencies),
     ...(firstObservation.actualPath !== undefined ? { actualPath: firstObservation.actualPath } : {}),
     ...(firstObservation.actualLines !== undefined ? { actualLines: firstObservation.actualLines } : {}),
@@ -330,12 +334,12 @@ async function improvedFreeflowObservation(fixture: CodexQaFixture): Promise<Cod
   const seedEvidence = queryResult.evidence?.[0];
   const expandedResult = seedEvidence
     ? await freeflowSearch({
-      action: "expand",
-      source: { kind: "repo", root: fixture.root },
-      evidence: seedEvidence,
-      expansion: "lines_30",
-      preserve: "important",
-    })
+        action: "expand",
+        source: { kind: "repo", root: fixture.root },
+        evidence: seedEvidence,
+        expansion: "lines_30",
+        preserve: "important",
+      })
     : undefined;
   const evidence = expandedResult?.evidence?.[0] ?? seedEvidence;
   const evidenceExcerpt = evidence?.excerpt ?? "";
@@ -348,7 +352,10 @@ async function improvedFreeflowObservation(fixture: CodexQaFixture): Promise<Cod
     ...(evidence?.lines !== undefined ? { actualLines: evidence.lines } : {}),
     evidenceExcerpt,
     answer: answerFromEvidence(evidence, evidenceExcerpt),
-    notes: [queryResult.routing.reason, ...(expandedResult ? [expandedResult.routing.reason] : ["expand skipped: no seed evidence"])],
+    notes: [
+      queryResult.routing.reason,
+      ...(expandedResult ? [expandedResult.routing.reason] : ["expand skipped: no seed evidence"]),
+    ],
   };
 }
 
@@ -369,15 +376,23 @@ async function nativeBroadSearchObservation(fixture: CodexQaFixture): Promise<Co
     ...(selected?.path !== undefined ? { actualPath: selected.path } : {}),
     ...(selected ? { actualLines: `1-${selected.lineCount}` } : {}),
     evidenceExcerpt,
-    answer: answerFromEvidence(selected ? { path: selected.path, lines: `1-${selected.lineCount}` } : undefined, evidenceExcerpt),
+    answer: answerFromEvidence(
+      selected ? { path: selected.path, lines: `1-${selected.lineCount}` } : undefined,
+      evidenceExcerpt,
+    ),
     notes: selected ? [`lexical score=${selected.score}`] : ["no native match"],
   };
 }
 
 function gradeObservation(fixture: CodexQaFixture, observation: CodexQaObservation): CodexQaCorrectness {
-  const answerCorrect = fixture.expected.requiredAnswer.every((phrase) => includesNormalized(observation.answer, phrase));
-  const citationCorrect = observation.actualPath === fixture.expected.path && typeof observation.actualLines === "string";
-  const evidenceCorrect = fixture.expected.requiredEvidence.every((phrase) => includesNormalized(observation.evidenceExcerpt, phrase));
+  const answerCorrect = fixture.expected.requiredAnswer.every((phrase) =>
+    includesNormalized(observation.answer, phrase),
+  );
+  const citationCorrect =
+    observation.actualPath === fixture.expected.path && typeof observation.actualLines === "string";
+  const evidenceCorrect = fixture.expected.requiredEvidence.every((phrase) =>
+    includesNormalized(observation.evidenceExcerpt, phrase),
+  );
   const generatedFalsePositive = observation.actualPath?.startsWith("graphify-out/") ?? false;
   return {
     passed: answerCorrect && citationCorrect && evidenceCorrect && !generatedFalsePositive,
@@ -533,7 +548,9 @@ function answerFromEvidence(evidence: Pick<EvidencePacket, "path" | "lines"> | u
   return `Sandbox Permissions are documented at ${citation}. ${facts.join(". ")}.`;
 }
 
-async function readRepoTextFiles(root: string): Promise<Array<{ path: string; text: string; bytes: number; lineCount: number }>> {
+async function readRepoTextFiles(
+  root: string,
+): Promise<Array<{ path: string; text: string; bytes: number; lineCount: number }>> {
   const files: Array<{ path: string; text: string; bytes: number; lineCount: number }> = [];
   await walk(root, async (absolutePath) => {
     const text = await readFile(absolutePath, "utf8");
@@ -623,7 +640,9 @@ function defaultReportPath(): string {
 }
 
 async function main(): Promise<void> {
-  const { iterations, reportPath, jsonReportPath } = parseBenchmarkCliArgs(process.argv.slice(2), { reportPath: defaultReportPath() });
+  const { iterations, reportPath, jsonReportPath } = parseBenchmarkCliArgs(process.argv.slice(2), {
+    reportPath: defaultReportPath(),
+  });
   const options: RunCodexQaBenchmarksOptions = {};
   if (iterations !== undefined) {
     options.iterations = iterations;

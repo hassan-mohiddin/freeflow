@@ -33,11 +33,10 @@ test("evidence search prefers exact phrase evidence over high-frequency fallback
 test("evidence search prefers symbol definitions over repeated usage decoys", () => {
   const candidates = searchRepoEvidenceCandidates({
     files: [
-      file("src/evidence-search.ts", [
-        "function EvidenceSearchCandidate() {",
-        "  return buildCandidateFromSymbolDefinition();",
-        "}",
-      ].join("\n")),
+      file(
+        "src/evidence-search.ts",
+        ["function EvidenceSearchCandidate() {", "  return buildCandidateFromSymbolDefinition();", "}"].join("\n"),
+      ),
       file("tests/evidence-search.test.ts", "EvidenceSearchCandidate ".repeat(80)),
     ],
     query: "EvidenceSearchCandidate implementation",
@@ -51,13 +50,24 @@ test("evidence search prefers symbol definitions over repeated usage decoys", ()
 test("evidence search source and test priors follow query intent", () => {
   const files = [
     file("src/parser.ts", ["# Parser", "", "Parser facts emitted by source implementation."].join("\n")),
-    file("tests/parser.test.ts", ["# Parser test", "", "Parser facts emitted should match expected output."].join("\n")),
+    file(
+      "tests/parser.test.ts",
+      ["# Parser test", "", "Parser facts emitted should match expected output."].join("\n"),
+    ),
   ];
 
-  const sourceCandidates = searchRepoEvidenceCandidates({ files, query: "Parser facts emitted implementation", topK: 1 });
+  const sourceCandidates = searchRepoEvidenceCandidates({
+    files,
+    query: "Parser facts emitted implementation",
+    topK: 1,
+  });
   assert.equal(sourceCandidates[0].file.path, "src/parser.ts");
 
-  const testCandidates = searchRepoEvidenceCandidates({ files, query: "Parser facts emitted test should expected", topK: 1 });
+  const testCandidates = searchRepoEvidenceCandidates({
+    files,
+    query: "Parser facts emitted test should expected",
+    topK: 1,
+  });
   assert.equal(testCandidates[0].file.path, "tests/parser.test.ts");
 });
 
@@ -65,11 +75,10 @@ test("evidence search prefers implementation modules over thin re-exports for co
   const candidates = searchRepoEvidenceCandidates({
     files: [
       file("src/index.ts", "export { searchRepoEvidenceCandidates } from './evidence-search';"),
-      file("src/evidence-search.ts", [
-        "function searchRepoEvidenceCandidates() {",
-        "  return implementationCandidateSearch();",
-        "}",
-      ].join("\n")),
+      file(
+        "src/evidence-search.ts",
+        ["function searchRepoEvidenceCandidates() {", "  return implementationCandidateSearch();", "}"].join("\n"),
+      ),
     ],
     query: "searchRepoEvidenceCandidates implementation module",
     topK: 1,
@@ -88,26 +97,32 @@ test("evidence search de-dupes topK results by path", () => {
     topK: 2,
   });
 
-  assert.deepEqual(candidates.map((candidate) => candidate.file.path), ["docs/target.md", "docs/other.md"]);
+  assert.deepEqual(
+    candidates.map((candidate) => candidate.file.path),
+    ["docs/target.md", "docs/other.md"],
+  );
 });
 
 test("evidence search includes nearby fenced code for documentation prose matches", () => {
   const candidates = searchRepoEvidenceCandidates({
     files: [
-      file("fixtures/context7-react-docs.md", [
-        "### Fetch Data with Cleanup Function in React useEffect",
-        "",
-        "Demonstrates a React useEffect hook that uses cleanup and an ignore flag for stale responses.",
-        "",
-        "```javascript",
-        "useEffect(() => {",
-        "  let ignore = false;",
-        "  return () => {",
-        "    ignore = true;",
-        "  };",
-        "}, [userId]);",
-        "```",
-      ].join("\n")),
+      file(
+        "fixtures/context7-react-docs.md",
+        [
+          "### Fetch Data with Cleanup Function in React useEffect",
+          "",
+          "Demonstrates a React useEffect hook that uses cleanup and an ignore flag for stale responses.",
+          "",
+          "```javascript",
+          "useEffect(() => {",
+          "  let ignore = false;",
+          "  return () => {",
+          "    ignore = true;",
+          "  };",
+          "}, [userId]);",
+          "```",
+        ].join("\n"),
+      ),
     ],
     query: "useEffect cleanup ignore stale responses",
     topK: 1,
@@ -123,22 +138,25 @@ test("evidence search prefers content coverage over stale short path-only docs",
   const candidates = searchRepoEvidenceCandidates({
     files: [
       file("docs/stale.md", ["# Cache Policy", "", "OLD_CACHE_POLICY_TOKEN says cache for 5 seconds."].join("\n")),
-      file("fixtures/context7-nextjs-docs.md", [
-        "### generateStaticParams with cache controls",
-        "",
-        "Use generateStaticParams with revalidate when static params need cached regeneration.",
-        "",
-        "```typescript",
-        "export const revalidate = 60;",
-        "export async function generateStaticParams() {",
-        "  return [{ slug: 'a' }];",
-        "}",
-        "export default async function Page() {",
-        "  const res = await fetch('https://...', { cache: 'no-store' });",
-        "  return <div />;",
-        "}",
-        "```",
-      ].join("\n")),
+      file(
+        "fixtures/context7-nextjs-docs.md",
+        [
+          "### generateStaticParams with cache controls",
+          "",
+          "Use generateStaticParams with revalidate when static params need cached regeneration.",
+          "",
+          "```typescript",
+          "export const revalidate = 60;",
+          "export async function generateStaticParams() {",
+          "  return [{ slug: 'a' }];",
+          "}",
+          "export default async function Page() {",
+          "  const res = await fetch('https://...', { cache: 'no-store' });",
+          "  return <div />;",
+          "}",
+          "```",
+        ].join("\n"),
+      ),
     ],
     query: "cache revalidate no-store generateStaticParams",
     topK: 1,
@@ -157,17 +175,20 @@ test("evidence search returns responsive Tailwind code evidence with breakpoint 
   const candidates = searchRepoEvidenceCandidates({
     files: [
       file("docs/stale.md", ["# Cache Policy", "", "OLD_CACHE_POLICY_TOKEN says cache for 5 seconds."].join("\n")),
-      file("fixtures/context7-tailwind-docs.md", [
-        "### Create responsive grid layouts with breakpoint variants",
-        "",
-        "Use Tailwind's responsive variants (md, lg, etc.) to apply grid classes at viewport breakpoints.",
-        "",
-        "```html",
-        "<div class=\"grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6\">",
-        "  <!-- ... -->",
-        "</div>",
-        "```",
-      ].join("\n")),
+      file(
+        "fixtures/context7-tailwind-docs.md",
+        [
+          "### Create responsive grid layouts with breakpoint variants",
+          "",
+          "Use Tailwind's responsive variants (md, lg, etc.) to apply grid classes at viewport breakpoints.",
+          "",
+          "```html",
+          '<div class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6">',
+          "  <!-- ... -->",
+          "</div>",
+          "```",
+        ].join("\n"),
+      ),
     ],
     query: "responsive md lg flex grid classes",
     topK: 1,

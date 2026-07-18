@@ -8,12 +8,7 @@ import {
   type ImportantStream,
   type LineEntry,
 } from "../evidence/evidence.js";
-import type {
-  CommandParserMetadata,
-  CommandParserReference,
-  ExecutionStatus,
-  ImportantLine,
-} from "../config/types.js";
+import type { CommandParserMetadata, CommandParserReference, ExecutionStatus, ImportantLine } from "../config/types.js";
 
 export interface CommandParseInput {
   command: string | readonly string[];
@@ -73,7 +68,10 @@ function parseTestRunnerOutput(input: CommandParseInput): ParsedCommandOutput | 
   }
 
   const evidenceBlocks: BoundedEvidence[] = [];
-  const failureBlock = firstFailureBlock(input.stderr, "stderr") ?? firstFailureBlock(input.stdout, "stdout") ?? firstFailureBlock(input.combined, "combined");
+  const failureBlock =
+    firstFailureBlock(input.stderr, "stderr") ??
+    firstFailureBlock(input.stdout, "stdout") ??
+    firstFailureBlock(input.combined, "combined");
   if (failureBlock) {
     evidenceBlocks.push(failureBlock);
   }
@@ -148,7 +146,9 @@ function parseTypeScriptOrLintOutput(input: CommandParseInput): ParsedCommandOut
 function parseGitOutput(input: CommandParseInput): ParsedCommandOutput | null {
   const command = commandText(input.command);
   const text = input.combined;
-  const commandLooksLikeStatusOrDiffstat = /^\s*git\s+(status\b|diff\b.*--stat|show\b.*--stat|diffstat\b)/i.test(command);
+  const commandLooksLikeStatusOrDiffstat = /^\s*git\s+(status\b|diff\b.*--stat|show\b.*--stat|diffstat\b)/i.test(
+    command,
+  );
   if (!commandLooksLikeStatusOrDiffstat) {
     return null;
   }
@@ -257,9 +257,12 @@ function selectGenericImportantLines(input: CommandParseInput): BoundedEvidence 
 
 function firstFailureBlock(text: string, stream: ImportantStream): BoundedEvidence | null {
   const entries = lineEntries(text);
-  const firstFailureIndex = entries.findIndex((entry) =>
-    /^\s*(FAIL|FAILED|FAILURES)(?:\s|$)/i.test(entry.line) ||
-    /(?:\bAssertionError\b|assertion failed|\bexpected\b|\bExpected\b|\bReceived\b|\bstack\b|\bTraceback\b|\bError:|\bfatal(?:\b|_)|\bpanic\b|\bexception\b)/i.test(entry.line),
+  const firstFailureIndex = entries.findIndex(
+    (entry) =>
+      /^\s*(FAIL|FAILED|FAILURES)(?:\s|$)/i.test(entry.line) ||
+      /(?:\bAssertionError\b|assertion failed|\bexpected\b|\bExpected\b|\bReceived\b|\bstack\b|\bTraceback\b|\bError:|\bfatal(?:\b|_)|\bpanic\b|\bexception\b)/i.test(
+        entry.line,
+      ),
   );
   if (firstFailureIndex === -1) {
     return null;
@@ -270,24 +273,41 @@ function firstFailureBlock(text: string, stream: ImportantStream): BoundedEviden
 }
 
 function testSummaryEvidence(text: string): BoundedEvidence | null {
-  const matches = lineEntries(text).filter((entry) =>
-    /\b(Test Suites?:|Tests?:|FAILURES)/i.test(entry.line) ||
-    /^\s*FAILED\s+.+\btests?\b/i.test(entry.line) ||
-    /^\s*(?:\d+\s+(?:failed|passed|skipped|deselected|xfailed|xpassed|errors?)(?:,?\s+|$))+in\s+[\d.]+s\b/i.test(entry.line) ||
-    /^\s*(?:ℹ\s*)?(?:tests?|pass|fail|cancelled|skipped|todo)\s+\d+\b/i.test(entry.line),
+  const matches = lineEntries(text).filter(
+    (entry) =>
+      /\b(Test Suites?:|Tests?:|FAILURES)/i.test(entry.line) ||
+      /^\s*FAILED\s+.+\btests?\b/i.test(entry.line) ||
+      /^\s*(?:\d+\s+(?:failed|passed|skipped|deselected|xfailed|xpassed|errors?)(?:,?\s+|$))+in\s+[\d.]+s\b/i.test(
+        entry.line,
+      ) ||
+      /^\s*(?:ℹ\s*)?(?:tests?|pass|fail|cancelled|skipped|todo)\s+\d+\b/i.test(entry.line),
   );
-  const evidence = assembleImportantLines({ stream: "combined", entries: matches.slice(0, MAX_IMPORTANT_LINES), sourceText: text });
+  const evidence = assembleImportantLines({
+    stream: "combined",
+    entries: matches.slice(0, MAX_IMPORTANT_LINES),
+    sourceText: text,
+  });
   return evidence.importantLines.length > 0 ? evidence : null;
 }
 
 function verificationSummaryEvidence(text: string): BoundedEvidence | null {
-  const matches = lineEntries(text).filter((entry) => /\b(Tests?|Test Suites?|passed|failed|total)\b/i.test(entry.line));
-  const evidence = assembleImportantLines({ stream: "combined", entries: matches.slice(0, MAX_IMPORTANT_LINES), sourceText: text });
+  const matches = lineEntries(text).filter((entry) =>
+    /\b(Tests?|Test Suites?|passed|failed|total)\b/i.test(entry.line),
+  );
+  const evidence = assembleImportantLines({
+    stream: "combined",
+    entries: matches.slice(0, MAX_IMPORTANT_LINES),
+    sourceText: text,
+  });
   return evidence.importantLines.length > 0 ? evidence : null;
 }
 
 function firstNonEmptyImportantLine(text: string, stream: ImportantStream): BoundedEvidence | null {
-  const evidence = assembleImportantLines({ stream, entries: nonEmptyLineEntries(text).slice(0, MAX_IMPORTANT_LINES), sourceText: text });
+  const evidence = assembleImportantLines({
+    stream,
+    entries: nonEmptyLineEntries(text).slice(0, MAX_IMPORTANT_LINES),
+    sourceText: text,
+  });
   return evidence.importantLines.length > 0 ? evidence : null;
 }
 
@@ -307,7 +327,10 @@ function firstAndLastNonEmptyImportantLines(text: string, stream: ImportantStrea
   return evidence.importantLines.length > 0 ? evidence : null;
 }
 
-function selectEvidenceLines(evidenceBlocks: readonly BoundedEvidence[], maxImportantLines: number): {
+function selectEvidenceLines(
+  evidenceBlocks: readonly BoundedEvidence[],
+  maxImportantLines: number,
+): {
   importantLines: ImportantLine[];
   fidelity: "exact" | "lossy";
   compressed: boolean;
@@ -350,7 +373,9 @@ function emptyEvidence(sourceText: string): BoundedEvidence {
 
 function isGitEvidenceLine(line: string): boolean {
   return (
-    /\b(On branch|Your branch|Changes to be committed|Changes not staged|Untracked files|modified:|new file:|deleted:|files? changed|insertions?\(\+\)|deletions?\(-\))\b/i.test(line) ||
+    /\b(On branch|Your branch|Changes to be committed|Changes not staged|Untracked files|modified:|new file:|deleted:|files? changed|insertions?\(\+\)|deletions?\(-\))\b/i.test(
+      line,
+    ) ||
     /^([ MARCUD?!]{2})\s+/.test(line) ||
     /\|\s+\d+\s+[+\-]+/.test(line)
   );
@@ -418,7 +443,10 @@ function testCounts(text: string): Record<string, number> {
     if ((kind === "failed" || kind === "error" || kind === "errors") && counts.testsFailed === undefined) {
       counts.testsFailed = value;
     }
-    if ((kind === "skipped" || kind === "deselected" || kind === "xfailed" || kind === "xpassed") && counts.testsSkipped === undefined) {
+    if (
+      (kind === "skipped" || kind === "deselected" || kind === "xfailed" || kind === "xpassed") &&
+      counts.testsSkipped === undefined
+    ) {
       counts.testsSkipped = value;
     }
   }

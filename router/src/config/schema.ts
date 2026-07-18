@@ -33,9 +33,7 @@ export interface ValidationIssue {
   message: string;
 }
 
-export type ValidationResult<T> =
-  | { ok: true; value: T }
-  | { ok: false; issues: ValidationIssue[] };
+export type ValidationResult<T> = { ok: true; value: T } | { ok: false; issues: ValidationIssue[] };
 
 type MutableIssues = ValidationIssue[];
 
@@ -67,12 +65,7 @@ function requireBoolean(record: Record<string, unknown>, key: string, path: stri
   }
 }
 
-function requireNonNegativeNumber(
-  record: Record<string, unknown>,
-  key: string,
-  path: string,
-  issues: MutableIssues,
-) {
+function requireNonNegativeNumber(record: Record<string, unknown>, key: string, path: string, issues: MutableIssues) {
   if (typeof record[key] !== "number" || !Number.isFinite(record[key]) || record[key] < 0) {
     issues.push({ path: `${path}.${key}`, message: "Expected a non-negative finite number." });
   }
@@ -84,12 +77,7 @@ function requireInteger(record: Record<string, unknown>, key: string, path: stri
   }
 }
 
-function requireNullableInteger(
-  record: Record<string, unknown>,
-  key: string,
-  path: string,
-  issues: MutableIssues,
-) {
+function requireNullableInteger(record: Record<string, unknown>, key: string, path: string, issues: MutableIssues) {
   if (record[key] !== null && !Number.isInteger(record[key])) {
     issues.push({ path: `${path}.${key}`, message: "Expected an integer or null." });
   }
@@ -254,7 +242,12 @@ function validateParserMetadata(value: unknown, path: string, issues: MutableIss
   }
 
   requireString(value, "name", path, issues);
-  if (typeof value.confidence !== "number" || !Number.isFinite(value.confidence) || value.confidence < 0 || value.confidence > 1) {
+  if (
+    typeof value.confidence !== "number" ||
+    !Number.isFinite(value.confidence) ||
+    value.confidence < 0 ||
+    value.confidence > 1
+  ) {
     issues.push({ path: `${path}.confidence`, message: "Expected confidence between 0 and 1." });
   }
   if (value.fidelity !== "exact" && value.fidelity !== "lossy") {
@@ -278,7 +271,9 @@ function validateParserMetadata(value: unknown, path: string, issues: MutableIss
     if (!Array.isArray(value.references)) {
       issues.push({ path: `${path}.references`, message: "Expected parser references array." });
     } else {
-      value.references.forEach((reference, index) => validateParserReference(reference, `${path}.references[${index}]`, issues));
+      value.references.forEach((reference, index) =>
+        validateParserReference(reference, `${path}.references[${index}]`, issues),
+      );
     }
   }
 }
@@ -295,7 +290,10 @@ function validateRunOutputFilterMetadata(value: unknown, path: string, issues: M
     issues.push({ path: `${path}.stream`, message: "Expected stdout, stderr, or combined stream." });
   }
   for (const key of ["include", "exclude"] as const) {
-    if (value[key] !== undefined && (!Array.isArray(value[key]) || !value[key].every((item) => typeof item === "string"))) {
+    if (
+      value[key] !== undefined &&
+      (!Array.isArray(value[key]) || !value[key].every((item) => typeof item === "string"))
+    ) {
       issues.push({ path: `${path}.${key}`, message: "Expected string array when present." });
     }
   }
@@ -304,11 +302,17 @@ function validateRunOutputFilterMetadata(value: unknown, path: string, issues: M
   }
   for (const key of ["head", "tail", "maxLines", "maxBytes", "sourceLines", "selectedLines"] as const) {
     const numericValue = value[key];
-    if (numericValue !== undefined && (typeof numericValue !== "number" || !Number.isInteger(numericValue) || numericValue < 0)) {
+    if (
+      numericValue !== undefined &&
+      (typeof numericValue !== "number" || !Number.isInteger(numericValue) || numericValue < 0)
+    ) {
       issues.push({ path: `${path}.${key}`, message: "Expected non-negative integer when present." });
     }
   }
-  if (value.fallbackPreservedFailureEvidence !== undefined && typeof value.fallbackPreservedFailureEvidence !== "boolean") {
+  if (
+    value.fallbackPreservedFailureEvidence !== undefined &&
+    typeof value.fallbackPreservedFailureEvidence !== "boolean"
+  ) {
     issues.push({ path: `${path}.fallbackPreservedFailureEvidence`, message: "Expected boolean when present." });
   }
 }
@@ -373,7 +377,12 @@ function validateParserReference(value: unknown, path: string, issues: MutableIs
   if (value.code !== undefined && typeof value.code !== "string") {
     issues.push({ path: `${path}.code`, message: "Expected parser reference code string." });
   }
-  if (value.severity !== undefined && value.severity !== "error" && value.severity !== "warning" && value.severity !== "info") {
+  if (
+    value.severity !== undefined &&
+    value.severity !== "error" &&
+    value.severity !== "warning" &&
+    value.severity !== "info"
+  ) {
     issues.push({ path: `${path}.severity`, message: "Expected parser reference severity error, warning, or info." });
   }
 }
@@ -489,7 +498,9 @@ export function validatePreserveMode(value: unknown): ValidationResult<PreserveM
 
 export function validateRetrievalAction(value: unknown): ValidationResult<RetrievalAction> {
   if (!isOneOf(value, RETRIEVAL_ACTIONS)) {
-    return failure([{ path: "$", message: "Expected retrieval action query, locate, get, retrieve, expand, or explain." }]);
+    return failure([
+      { path: "$", message: "Expected retrieval action query, locate, get, retrieve, expand, or explain." },
+    ]);
   }
   return success(value);
 }
@@ -526,7 +537,12 @@ export function validateEvidencePacket(value: unknown): ValidationResult<Evidenc
       if (!["exact_phrase", "lexical", "metadata"].includes(String(value.match.type))) {
         issues.push({ path: "$.match.type", message: "Expected known match type." });
       }
-      if (typeof value.match.confidence !== "number" || !Number.isFinite(value.match.confidence) || value.match.confidence < 0 || value.match.confidence > 1) {
+      if (
+        typeof value.match.confidence !== "number" ||
+        !Number.isFinite(value.match.confidence) ||
+        value.match.confidence < 0 ||
+        value.match.confidence > 1
+      ) {
         issues.push({ path: "$.match.confidence", message: "Expected match confidence between 0 and 1." });
       }
     }
@@ -646,8 +662,12 @@ export function validateRouterConfig(value: unknown): ValidationResult<RouterCon
   if (!isRecord(value.thresholds)) {
     issues.push({ path: "$.thresholds", message: "Expected thresholds object." });
   } else {
-    issues.push(...validatePositiveIntegerThreshold(value.thresholds.largeOutputBytes, "$.thresholds.largeOutputBytes"));
-    issues.push(...validatePositiveIntegerThreshold(value.thresholds.largeOutputLines, "$.thresholds.largeOutputLines"));
+    issues.push(
+      ...validatePositiveIntegerThreshold(value.thresholds.largeOutputBytes, "$.thresholds.largeOutputBytes"),
+    );
+    issues.push(
+      ...validatePositiveIntegerThreshold(value.thresholds.largeOutputLines, "$.thresholds.largeOutputLines"),
+    );
   }
 
   if (!isRecord(value.vault)) {

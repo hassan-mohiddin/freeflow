@@ -59,7 +59,9 @@ interface JqRunResult {
   errorMessage?: string;
 }
 
-export async function discoverJqWasmSandboxAdaptersFromEnv(env: NodeJS.ProcessEnv = process.env): Promise<ScriptSandboxAdapter[]> {
+export async function discoverJqWasmSandboxAdaptersFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<ScriptSandboxAdapter[]> {
   const candidate = await resolveScriptTransformAdapterRoot("jq", env);
   if (!candidate) {
     return [];
@@ -67,7 +69,11 @@ export async function discoverJqWasmSandboxAdaptersFromEnv(env: NodeJS.ProcessEn
   try {
     return [await createJqWasmSandboxAdapter({ packageRoot: candidate.packageRoot })];
   } catch (error) {
-    return [unavailableJqAdapter(`jq-wasm adapter could not load from ${candidate.source === "env" ? candidate.envVar : "global adapter cache"}: ${errorMessage(error)}`)];
+    return [
+      unavailableJqAdapter(
+        `jq-wasm adapter could not load from ${candidate.source === "env" ? candidate.envVar : "global adapter cache"}: ${errorMessage(error)}`,
+      ),
+    ];
   }
 }
 
@@ -216,7 +222,10 @@ async function loadJqRuntime(packageRoot: string): Promise<JqWasmRuntime> {
   };
 }
 
-async function probeJqRuntime(runtime: JqWasmRuntime, config: ScriptTransformConfig): Promise<ScriptSandboxProbeResult> {
+async function probeJqRuntime(
+  runtime: JqWasmRuntime,
+  config: ScriptTransformConfig,
+): Promise<ScriptSandboxProbeResult> {
   const timeoutMs = Math.min(config.limits.timeoutMs, DEFAULT_PROBE_TIMEOUT_MS);
   const outputBytes = Math.min(config.limits.maxOutputBytes, DEFAULT_PROBE_OUTPUT_BYTES);
   const cacheKey = [runtime.packageVersion, runtime.entrySha256, timeoutMs, outputBytes, config.network].join(":");
@@ -235,7 +244,11 @@ async function probeJqRuntime(runtime: JqWasmRuntime, config: ScriptTransformCon
   }
 }
 
-async function runJqProbe(runtime: JqWasmRuntime, timeoutMs: number, outputBytes: number): Promise<ScriptSandboxProbeResult> {
+async function runJqProbe(
+  runtime: JqWasmRuntime,
+  timeoutMs: number,
+  outputBytes: number,
+): Promise<ScriptSandboxProbeResult> {
   const previousSecret = process.env.FREEFLOW_SANDBOX_SECRET_SENTINEL;
   process.env.FREEFLOW_SANDBOX_SECRET_SENTINEL = SECRET_SENTINEL;
   try {
@@ -259,7 +272,9 @@ async function runJqProbe(runtime: JqWasmRuntime, timeoutMs: number, outputBytes
     const allPassed = SCRIPT_SANDBOX_REQUIRED_PROOFS.every((proof) => passedProofs.includes(proof));
     return {
       status: allPassed ? "available" : "unavailable",
-      reason: allPassed ? "jq-wasm passed every required jq sandbox proof." : "jq-wasm did not pass every required jq sandbox proof.",
+      reason: allPassed
+        ? "jq-wasm passed every required jq sandbox proof."
+        : "jq-wasm did not pass every required jq sandbox proof.",
       passedProofs,
       failedProofs,
       runtime: runtimeInfo(runtime),
@@ -428,7 +443,9 @@ async function runJq(runtime: JqWasmRuntime, options: JqRunOptions): Promise<JqR
   });
 }
 
-function normalizeWorkerMessage(message: any): Omit<JqRunResult, "durationMs" | "stdoutBytes" | "stderrBytes" | "outputBytes"> {
+function normalizeWorkerMessage(
+  message: any,
+): Omit<JqRunResult, "durationMs" | "stdoutBytes" | "stderrBytes" | "outputBytes"> {
   return {
     status: isJqRunStatus(message?.status) ? message.status : "error",
     stdout: typeof message?.stdout === "string" ? message.stdout : "",
@@ -463,7 +480,15 @@ function assessJqProof(proof: ScriptSandboxProof, run: JqRunResult, timeoutMs: n
     case "output_escape_denied":
       return run.exitCode !== 0 && combined.includes("module not found");
     case "stdout_stderr_bounded":
-      return run.status !== "error" && run.truncated && run.outputBytes <= outputBytes && run.stdoutBytes > 0 && run.stderrBytes > 0 && run.rawStdoutBytes > outputBytes && run.rawStderrBytes > outputBytes;
+      return (
+        run.status !== "error" &&
+        run.truncated &&
+        run.outputBytes <= outputBytes &&
+        run.stdoutBytes > 0 &&
+        run.stderrBytes > 0 &&
+        run.rawStdoutBytes > outputBytes &&
+        run.rawStderrBytes > outputBytes
+      );
     case "timeout_enforced":
       return run.status === "timed_out" && run.durationMs < timeoutMs * 5;
   }

@@ -27,38 +27,63 @@ export async function probeRootGuard() {
     const probes = {
       fixture_read: await authorizeToolPath({ inputPath: "allowed.txt", cwd: fixture, operation: "read", policy }),
       fixture_write: await authorizeToolPath({ inputPath: "new.txt", cwd: fixture, operation: "write", policy }),
-      snapshot_read: await authorizeToolPath({ inputPath: resolve(snapshot, "SKILL.md"), cwd: fixture, operation: "read", policy }),
-      snapshot_write: await authorizeToolPath({ inputPath: resolve(snapshot, "SKILL.md"), cwd: fixture, operation: "write", policy }),
-      denied_read: await authorizeToolPath({ inputPath: resolve(denied, "answers.json"), cwd: fixture, operation: "read", policy }),
-      traversal_read: await authorizeToolPath({ inputPath: "../denied/answers.json", cwd: fixture, operation: "read", policy }),
+      snapshot_read: await authorizeToolPath({
+        inputPath: resolve(snapshot, "SKILL.md"),
+        cwd: fixture,
+        operation: "read",
+        policy,
+      }),
+      snapshot_write: await authorizeToolPath({
+        inputPath: resolve(snapshot, "SKILL.md"),
+        cwd: fixture,
+        operation: "write",
+        policy,
+      }),
+      denied_read: await authorizeToolPath({
+        inputPath: resolve(denied, "answers.json"),
+        cwd: fixture,
+        operation: "read",
+        policy,
+      }),
+      traversal_read: await authorizeToolPath({
+        inputPath: "../denied/answers.json",
+        cwd: fixture,
+        operation: "read",
+        policy,
+      }),
       symlink_read: await authorizeToolPath({ inputPath: "escape-link", cwd: fixture, operation: "read", policy }),
     };
 
-    const modulePolicyPass = probes.fixture_read.allowed
-      && probes.fixture_write.allowed
-      && probes.snapshot_read.allowed
-      && !probes.snapshot_write.allowed
-      && !probes.denied_read.allowed
-      && !probes.traversal_read.allowed
-      && !probes.symlink_read.allowed;
+    const modulePolicyPass =
+      probes.fixture_read.allowed &&
+      probes.fixture_write.allowed &&
+      probes.snapshot_read.allowed &&
+      !probes.snapshot_write.allowed &&
+      !probes.denied_read.allowed &&
+      !probes.traversal_read.allowed &&
+      !probes.symlink_read.allowed;
 
     const env = {
       ...process.env,
       FREEFLOW_EVAL_ROOT_POLICY: JSON.stringify({ read_roots: [fixture, snapshot], write_roots: [fixture] }),
       FREEFLOW_EVAL_GUARD_PROBE: "1",
     };
-    const load = spawnSync("pi", [
-      "--no-extensions",
-      "--no-skills",
-      "--no-prompt-templates",
-      "--no-themes",
-      "--no-context-files",
-      "--no-approve",
-      "--offline",
-      "--extension",
-      guardPath,
-      "--list-models",
-    ], { encoding: "utf8", env });
+    const load = spawnSync(
+      "pi",
+      [
+        "--no-extensions",
+        "--no-skills",
+        "--no-prompt-templates",
+        "--no-themes",
+        "--no-context-files",
+        "--no-approve",
+        "--offline",
+        "--extension",
+        guardPath,
+        "--list-models",
+      ],
+      { encoding: "utf8", env },
+    );
     const explicitLoadPass = load.status === 0 && load.stderr.includes("FREEFLOW_EVAL_GUARD_LOADED");
 
     return {
@@ -88,7 +113,8 @@ export async function doctorReport() {
     model_requests: 0,
     ready_for_planning: nodeSupported && pi.available && rootGuard.available,
     ready_for_rpc_planning: nodeSupported && pi.available && pi.capabilities.rpc_jsonl && rootGuard.available,
-    ready_for_codex_diagnostic_planning: nodeSupported && codex.available && codex.capabilities.strict_filesystem_isolation,
+    ready_for_codex_diagnostic_planning:
+      nodeSupported && codex.available && codex.capabilities.strict_filesystem_isolation,
     ready_for_codex_model_execution: false,
   };
 }

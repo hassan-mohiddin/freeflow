@@ -17,7 +17,9 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const root = args.quickjsWasiRoot ?? process.env.QUICKJS_WASI_ROOT;
   if (!root) {
-    throw new Error("Missing --quickjs-wasi-root or QUICKJS_WASI_ROOT. Install quickjs-wasi in a temp directory and pass its package root.");
+    throw new Error(
+      "Missing --quickjs-wasi-root or QUICKJS_WASI_ROOT. Install quickjs-wasi in a temp directory and pass its package root.",
+    );
   }
 
   const reportPath = args.report ?? DEFAULT_REPORT_PATH;
@@ -190,26 +192,51 @@ function assessProof(proof, run, limits) {
   const combined = `${run.output}\n${run.errorMessage ?? ""}`;
   switch (proof) {
     case "env_access_denied":
-      return passIf(!combined.includes(SECRET_SENTINEL) && !combined.includes("process.env"), "ambient environment was not exposed");
+      return passIf(
+        !combined.includes(SECRET_SENTINEL) && !combined.includes("process.env"),
+        "ambient environment was not exposed",
+      );
     case "home_access_denied":
-      return passIf(!combined.includes(process.env.HOME ?? "__no_home__") && !combined.match(/PRIVATE KEY|\.ssh/), "home/secret paths were not exposed");
+      return passIf(
+        !combined.includes(process.env.HOME ?? "__no_home__") && !combined.match(/PRIVATE KEY|\.ssh/),
+        "home/secret paths were not exposed",
+      );
     case "repo_access_denied":
-      return passIf(!combined.includes("@hassangameryt/freeflow") && !combined.includes("package.json"), "repo files were not exposed");
+      return passIf(
+        !combined.includes("@hassangameryt/freeflow") && !combined.includes("package.json"),
+        "repo files were not exposed",
+      );
     case "vault_access_denied":
       return passIf(!combined.includes("ffout_") && !combined.includes("ffrec_"), "vault records were not exposed");
     case "network_access_denied":
-      return passIf(combined.includes("fetch unavailable") || combined.includes("fetch is not defined"), "network/fetch capability was absent");
+      return passIf(
+        combined.includes("fetch unavailable") || combined.includes("fetch is not defined"),
+        "network/fetch capability was absent",
+      );
     case "input_read_only":
-      return passIf(!combined.includes("mutated") || combined.includes("fs unavailable"), "input mutation was not possible through host filesystem APIs");
+      return passIf(
+        !combined.includes("mutated") || combined.includes("fs unavailable"),
+        "input mutation was not possible through host filesystem APIs",
+      );
     case "output_escape_denied":
-      return passIf(!combined.includes("escape attempted") || combined.includes("fs unavailable"), "output symlink/file escape was not possible through host filesystem APIs");
+      return passIf(
+        !combined.includes("escape attempted") || combined.includes("fs unavailable"),
+        "output symlink/file escape was not possible through host filesystem APIs",
+      );
     case "stdout_stderr_bounded":
       return passIf(
-        run.status !== "error" && run.truncated && run.outputBytes <= limits.outputBytes && run.stdoutBytes > 0 && run.stderrBytes > 0,
+        run.status !== "error" &&
+          run.truncated &&
+          run.outputBytes <= limits.outputBytes &&
+          run.stdoutBytes > 0 &&
+          run.stderrBytes > 0,
         "stdout and stderr flood capture was truncated within the cap",
       );
     case "timeout_enforced":
-      return passIf(run.status === "timed_out" && run.durationMs < limits.timeoutMs * 5, "infinite loop was interrupted by runtime timeout");
+      return passIf(
+        run.status === "timed_out" && run.durationMs < limits.timeoutMs * 5,
+        "infinite loop was interrupted by runtime timeout",
+      );
     default:
       return { ok: false, reason: `No assessment rule for proof ${proof}` };
   }
@@ -220,16 +247,18 @@ function passIf(condition, reason) {
 }
 
 function formatHostArgs(vm, args) {
-  return args.map((arg) => {
-    try {
-      const dumped = vm.dump(arg);
-      if (typeof dumped === "string") return dumped;
-      if (dumped === undefined) return "undefined";
-      return JSON.stringify(dumped);
-    } catch {
-      return arg?.toString() ?? "";
-    }
-  }).join(" ");
+  return args
+    .map((arg) => {
+      try {
+        const dumped = vm.dump(arg);
+        if (typeof dumped === "string") return dumped;
+        if (dumped === undefined) return "undefined";
+        return JSON.stringify(dumped);
+      } catch {
+        return arg?.toString() ?? "";
+      }
+    })
+    .join(" ");
 }
 
 function renderReport(data) {
@@ -237,7 +266,12 @@ function renderReport(data) {
   lines.push("# QuickJS WASI Sandbox Proof Spike Report");
   lines.push("");
   lines.push(`> **Date:** ${new Date().toISOString().slice(0, 10)}`);
-  lines.push("> **Status:** " + (data.failed.length === 0 ? "Passed proof spike for JavaScript candidate" : "Failed proof spike for JavaScript candidate"));
+  lines.push(
+    "> **Status:** " +
+      (data.failed.length === 0
+        ? "Passed proof spike for JavaScript candidate"
+        : "Failed proof spike for JavaScript candidate"),
+  );
   lines.push("> **Scope:** Proof-only evaluation. No Freeflow script execution path is enabled.");
   lines.push("");
   lines.push("## Candidate");
@@ -271,16 +305,26 @@ function renderReport(data) {
       `stderrBytes=${result.run.stderrBytes}`,
       `truncated=${result.run.truncated}`,
       result.run.errorMessage ? `error=${result.run.errorMessage}` : undefined,
-    ].filter(Boolean).join("; ");
+    ]
+      .filter(Boolean)
+      .join("; ");
     lines.push(`| ${result.fixture.proof} | ${result.pass.ok ? "pass" : "fail"} | ${escapeTable(evidence)} |`);
   }
   lines.push("");
   lines.push("## Notes");
   lines.push("");
-  lines.push("- This proof runner uses a temporary installed `quickjs-wasi` package root passed explicitly by the caller.");
-  lines.push("- It does not add repo dependencies and does not wire the adapter into `freeflow_search action=transform` execution.");
-  lines.push("- Passing this spike only supports JavaScript adapter feasibility; Python and jq remain unavailable until their own proof slices pass.");
-  lines.push("- Before product execution, this must still go through implementation/security review and source-plan update.");
+  lines.push(
+    "- This proof runner uses a temporary installed `quickjs-wasi` package root passed explicitly by the caller.",
+  );
+  lines.push(
+    "- It does not add repo dependencies and does not wire the adapter into `freeflow_search action=transform` execution.",
+  );
+  lines.push(
+    "- Passing this spike only supports JavaScript adapter feasibility; Python and jq remain unavailable until their own proof slices pass.",
+  );
+  lines.push(
+    "- Before product execution, this must still go through implementation/security review and source-plan update.",
+  );
   lines.push("");
   lines.push("## Required Proof Set");
   lines.push("");

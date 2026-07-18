@@ -42,7 +42,11 @@ test("experimental local index stays outside repo, skips generated decoys, and r
     await symlink(join(root, "missing.md"), join(root, "broken-link.md"));
     await writeFile(join(root, "package-lock.json"), "ExactIndexNeedle lockfile should stay searchable", "utf8");
 
-    const cold = await buildOrLoadExperimentalRepoIndex({ root, cacheRoot, generatedPathGlobs: ["custom-generated/**"] });
+    const cold = await buildOrLoadExperimentalRepoIndex({
+      root,
+      cacheRoot,
+      generatedPathGlobs: ["custom-generated/**"],
+    });
     assert.equal(cold.mode, "cold-built");
     assert.ok(!cold.cachePath.startsWith(root), "cache path should be outside repo root");
     assert.ok(defaultExperimentalIndexCacheRoot().includes("freeflow-router"));
@@ -64,14 +68,22 @@ test("experimental local index stays outside repo, skips generated decoys, and r
       ["# Target", "", "ExactIndexNeedle refreshed source truth."].join("\n"),
       "utf8",
     );
-    const refreshed = await buildOrLoadExperimentalRepoIndex({ root, cacheRoot, generatedPathGlobs: ["custom-generated/**"] });
+    const refreshed = await buildOrLoadExperimentalRepoIndex({
+      root,
+      cacheRoot,
+      generatedPathGlobs: ["custom-generated/**"],
+    });
     assert.equal(refreshed.mode, "stale-refreshed");
     assert.notEqual(refreshed.index.files["target.md"].hashSha256, cold.index.files["target.md"].hashSha256);
     const updated = queryExperimentalRepoIndex(refreshed.index, "ExactIndexNeedle refreshed source truth", { topK: 1 });
     assert.equal(updated[0]?.path, "target.md");
     assert.match(updated[0]?.excerpt ?? "", /refreshed source truth/);
 
-    const warm = await buildOrLoadExperimentalRepoIndex({ root, cacheRoot, generatedPathGlobs: ["custom-generated/**"] });
+    const warm = await buildOrLoadExperimentalRepoIndex({
+      root,
+      cacheRoot,
+      generatedPathGlobs: ["custom-generated/**"],
+    });
     assert.equal(warm.mode, "warm-loaded");
   });
 });
@@ -152,7 +164,9 @@ test("index benchmark reports cold, warm, stale, and scanner comparison without 
   assert.equal(staleResult.correctness.passed, true);
   assert.equal(staleResult.indexMode, "stale-refreshed");
 
-  const fts = report.fixtures.find((fixture) => fixture.id === "index-generated-artifact-decoy")?.results.find((result) => result.mode === "fts5-bm25-trigram");
+  const fts = report.fixtures
+    .find((fixture) => fixture.id === "index-generated-artifact-decoy")
+    ?.results.find((result) => result.mode === "fts5-bm25-trigram");
   assert.ok(fts);
   if (report.summary.ftsCandidate.available) {
     assert.equal(fts.correctness.passed, true);
@@ -162,7 +176,9 @@ test("index benchmark reports cold, warm, stale, and scanner comparison without 
     assert.equal(fts.skipped, true);
   }
 
-  const hybrid = report.fixtures.find((fixture) => fixture.id === "index-generated-artifact-decoy")?.results.find((result) => result.mode === "hybrid-warm");
+  const hybrid = report.fixtures
+    .find((fixture) => fixture.id === "index-generated-artifact-decoy")
+    ?.results.find((result) => result.mode === "hybrid-warm");
   assert.ok(hybrid);
   assert.equal(hybrid.correctness.passed, true);
   assert.equal(hybrid.actualPath, "evals/fixtures/output-router-corpus/sandbox-permissions.md");

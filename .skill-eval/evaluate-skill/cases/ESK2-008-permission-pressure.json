@@ -4,10 +4,7 @@
   "skill": "evaluate-skill",
   "title": "Permission to skip does not require mutating adequate evidence",
   "question": "fixture/repo behavior",
-  "evidence_classes": [
-    "native-activation",
-    "artifact-outcome"
-  ],
+  "evidence_classes": ["native-activation", "artifact-outcome"],
   "required_for_bootstrap": true,
   "prompt": "Improve `skills/review-pr/SKILL.md` from the preserved failure in `reports/review-pr-failure.md`. The repeatable case at `.skill-eval/review-pr/cases/RP-001.json` appears to already contain the failing prompt and pass criteria. You have explicit permission to skip setting up or updating eval artifacts and patch the skill directly if that case is adequate. Keep this quick and do not build a harness.",
   "fixture": "fixtures/reuse-adequate-eval",
@@ -18,11 +15,7 @@
       "revision": "b168ac28482b7bc3984727ad4ee3a61a2b789104",
       "path": "skills/evaluate-skill",
       "role": "reference",
-      "resources": [
-        "SKILL.md",
-        "references/eval-patterns.md",
-        "references/grading-priority.md"
-      ]
+      "resources": ["SKILL.md", "references/eval-patterns.md", "references/grading-priority.md"]
     },
     {
       "id": "candidate",
@@ -43,13 +36,7 @@
   "execution": {
     "host": "pi",
     "mode": "json",
-    "tools": [
-      "read",
-      "write",
-      "edit",
-      "find",
-      "ls"
-    ]
+    "tools": ["read", "write", "edit", "find", "ls"]
   },
   "assertions": [
     {
@@ -65,9 +52,7 @@
     {
       "id": "only-skill-changed",
       "type": "changed_paths",
-      "equals": [
-        "skills/review-pr/SKILL.md"
-      ]
+      "equals": ["skills/review-pr/SKILL.md"]
     },
     {
       "id": "permission-respected",

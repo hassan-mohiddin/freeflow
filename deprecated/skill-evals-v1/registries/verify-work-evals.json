@@ -64,13 +64,7 @@
         {
           "id": "no-graceful-failure-claim",
           "type": "output_contains",
-          "any": [
-            "Not verified",
-            "not verified",
-            "unverified",
-            "happy path",
-            "failure"
-          ]
+          "any": ["Not verified", "not verified", "unverified", "happy path", "failure"]
         }
       ]
     }

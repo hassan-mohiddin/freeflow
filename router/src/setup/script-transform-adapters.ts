@@ -4,10 +4,7 @@ import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  DEFAULT_SCRIPT_TRANSFORM_CONFIG,
-  SCRIPT_TRANSFORM_LANGUAGES,
-} from "../config/config.js";
+import { DEFAULT_SCRIPT_TRANSFORM_CONFIG, SCRIPT_TRANSFORM_LANGUAGES } from "../config/config.js";
 import type { ScriptTransformLanguage } from "../config/types.js";
 import {
   defaultScriptTransformAdaptersHome,
@@ -87,7 +84,9 @@ export async function installOrInspect(options: InstallerOptions): Promise<Insta
     "Freeflow auto-discovers this global cache; the env file is provided for shells or hosts that prefer explicit roots.",
   ];
   if (unavailableLanguages.some((entry) => entry.language === "python")) {
-    notes.push("Python/Eryx uses a child Node process launched with --experimental-wasm-jspi; if this Node binary cannot run that flag, setup reports Python unavailable instead of enabling it.");
+    notes.push(
+      "Python/Eryx uses a child Node process launched with --experimental-wasm-jspi; if this Node binary cannot run that flag, setup reports Python unavailable instead of enabling it.",
+    );
   }
   if (configuredLanguages.length === 0) {
     notes.push("No adapter passed sandbox proofs, so scriptTransform config was not enabled.");
@@ -144,7 +143,10 @@ async function probeInstalledAdapters(languages: readonly ScriptTransformAdapter
   });
 }
 
-export async function enableScriptTransformConfig(configPath: string, languages: readonly ScriptTransformLanguage[]): Promise<void> {
+export async function enableScriptTransformConfig(
+  configPath: string,
+  languages: readonly ScriptTransformLanguage[],
+): Promise<void> {
   await mkdir(dirname(configPath), { recursive: true });
   const parsed = await readJsonObject(configPath);
   if (parsed.defaultMode === undefined) {
@@ -231,7 +233,10 @@ function parseArgs(argv: string[]): InstallerOptions {
 }
 
 function parseLanguages(value: string): ScriptTransformAdapterLanguage[] {
-  const requested = value.split(",").map((entry) => entry.trim()).filter(Boolean);
+  const requested = value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
   const invalid = requested.filter((entry) => !isScriptTransformAdapterLanguage(entry));
   if (invalid.length > 0) {
     throw new Error(`Unsupported script transform adapter language(s): ${invalid.join(", ")}`);
@@ -306,7 +311,9 @@ function printHumanReport(report: InstallReport): void {
   console.log(`envFile=${report.envFile}`);
   console.log(`available=${report.availableLanguages.join(",") || "none"}`);
   if (report.configPath) {
-    console.log(`config=${report.configPath} updated=${String(report.configUpdated)} languages=${report.configuredLanguages.join(",") || "none"}`);
+    console.log(
+      `config=${report.configPath} updated=${String(report.configUpdated)} languages=${report.configuredLanguages.join(",") || "none"}`,
+    );
   }
   for (const unavailable of report.unavailableLanguages) {
     console.log(`unavailable ${unavailable.language}: ${unavailable.reason ?? "unknown"}`);
@@ -315,7 +322,9 @@ function printHumanReport(report: InstallReport): void {
 }
 
 function printUsageAndExit(): never {
-  console.log(`Usage: node router/dist/setup/script-transform-adapters.js [install|status] [--config .freeflow/config.json] [--home PATH] [--languages javascript,jq,python] [--json]\n\nInstalls Freeflow script transform adapters into a user-global cache and optionally enables scriptTransform for proof-passing languages in a repo config.`);
+  console.log(
+    `Usage: node router/dist/setup/script-transform-adapters.js [install|status] [--config .freeflow/config.json] [--home PATH] [--languages javascript,jq,python] [--json]\n\nInstalls Freeflow script transform adapters into a user-global cache and optionally enables scriptTransform for proof-passing languages in a repo config.`,
+  );
   process.exit(0);
 }
 

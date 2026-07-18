@@ -23,6 +23,10 @@ test("index benchmark imports capsule while product runtime avoids local index e
 
   for (const path of ["router/src/tools/search.ts", "router/src/tools/run.ts"]) {
     const source = await readFile(path, "utf8");
-    assert.doesNotMatch(source, /experimental-local-index|experiments\/local-index/, `${path} must not import local index experiment`);
+    assert.doesNotMatch(
+      source,
+      /experimental-local-index|experiments\/local-index/,
+      `${path} must not import local index experiment`,
+    );
   }
 });

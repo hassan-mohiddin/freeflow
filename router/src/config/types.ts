@@ -19,7 +19,18 @@ export type RouteKind = (typeof ROUTE_KINDS)[number];
 export const BATCH_STEP_KINDS = ["run", "search"] as const;
 export type BatchStepKind = (typeof BATCH_STEP_KINDS)[number];
 
-export const PRODUCER_KINDS = ["command", "script", "native", "repo", "web", "fetch", "code_search", "mcp", "transform", "other"] as const;
+export const PRODUCER_KINDS = [
+  "command",
+  "script",
+  "native",
+  "repo",
+  "web",
+  "fetch",
+  "code_search",
+  "mcp",
+  "transform",
+  "other",
+] as const;
 export type ProducerKind = (typeof PRODUCER_KINDS)[number];
 
 export const PERSISTENCE_STATUSES = ["vaulted", "redacted", "metadata_only", "not_persisted"] as const;
@@ -292,7 +303,13 @@ export interface ObservedHostDescriptor {
 export const OBSERVED_PRODUCER_RISK_CLASSES = ["read", "write", "unknown"] as const;
 export type ObservedProducerRiskClass = (typeof OBSERVED_PRODUCER_RISK_CLASSES)[number];
 
-export const OBSERVED_PRODUCER_RISK_SOURCES = ["configured", "mcp_annotation", "manifest", "heuristic", "unknown"] as const;
+export const OBSERVED_PRODUCER_RISK_SOURCES = [
+  "configured",
+  "mcp_annotation",
+  "manifest",
+  "heuristic",
+  "unknown",
+] as const;
 export type ObservedProducerRiskSource = (typeof OBSERVED_PRODUCER_RISK_SOURCES)[number];
 
 export interface ObservedProducerRisk {
@@ -372,7 +389,13 @@ export interface FailureRoutedResult extends RoutedResultBase {
   outputId?: string;
 }
 
-export type RoutedResult = RetrievalRoutedResult | CommandRoutedResult | ObservedRoutedResult | TransformRoutedResult | BatchRoutedResult | FailureRoutedResult;
+export type RoutedResult =
+  | RetrievalRoutedResult
+  | CommandRoutedResult
+  | ObservedRoutedResult
+  | TransformRoutedResult
+  | BatchRoutedResult
+  | FailureRoutedResult;
 
 export interface LineByteCounts {
   lines: number;
@@ -509,7 +532,6 @@ export interface VaultSessionIndex {
   timedOut: string[];
   cancelled: string[];
 }
-
 
 export interface DecisionRecord {
   decisionId: string;

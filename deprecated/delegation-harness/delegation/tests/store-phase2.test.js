@@ -25,7 +25,10 @@ async function withTempStore(fn) {
 
 const fixedNow = () => "2026-07-09T00:00:00.000Z";
 
-function planningReportRaw({ status = "ready", identityRows = ["PLAN_ARTIFACT_PATH|docs/plans/canonical.md", "ARTIFACT_PATHS|docs/plans/canonical.md"] } = {}) {
+function planningReportRaw({
+  status = "ready",
+  identityRows = ["PLAN_ARTIFACT_PATH|docs/plans/canonical.md", "ARTIFACT_PATHS|docs/plans/canonical.md"],
+} = {}) {
   return [
     "PLANNING_REPORT",
     `STATUS|${status}`,
@@ -50,7 +53,10 @@ async function publishReadyEvent(store, taskId, planArtifactPath) {
     }),
     source: { transport: "delegate_record_report" },
   });
-  const events = (await readFile(store.pathsForTask(taskId).eventsJsonl, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
+  const events = (await readFile(store.pathsForTask(taskId).eventsJsonl, "utf8"))
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
   return events.find((event) => event.eventId === publication.planningReadyEventId);
 }
 
@@ -108,9 +114,12 @@ test("terminal publication rejects malformed role evidence without claiming the 
       state: "running",
     });
 
-    const rejected = await store.publishTerminalOutcome(taskId, terminalOutcomeInput(manifest, {
-      evidence: { summary: "Claimed verification without check evidence." },
-    }));
+    const rejected = await store.publishTerminalOutcome(
+      taskId,
+      terminalOutcomeInput(manifest, {
+        evidence: { summary: "Claimed verification without check evidence." },
+      }),
+    );
 
     assert.equal(rejected.status, "rejected");
     assert.match(rejected.reason, /verifier checks/i);
@@ -121,7 +130,11 @@ test("terminal publication rejects malformed role evidence without claiming the 
     assert.equal(rejectedRecord.assignmentId, manifest.assignmentId);
     assert.equal(rejectedRecord.attemptId, manifest.attemptId);
 
-    const terminalRoot = join(store.pathsForTask(taskId).terminalOutcomesDir, manifest.assignmentId, manifest.attemptId);
+    const terminalRoot = join(
+      store.pathsForTask(taskId).terminalOutcomesDir,
+      manifest.assignmentId,
+      manifest.attemptId,
+    );
     await assert.rejects(() => readFile(join(terminalRoot, "claim.json"), "utf8"), { code: "ENOENT" });
     await assert.rejects(() => readFile(join(terminalRoot, "terminal.accepted.json"), "utf8"), { code: "ENOENT" });
 
@@ -163,16 +176,22 @@ test("planning-parent terminal acceptance binds the latest delegated planning pu
       },
     });
 
-    const accepted = await store.publishTerminalOutcome(taskId, terminalOutcomeInput(manifest, {
-      evidence: {
-        summary: "Planning report is ready for owner authorization.",
-        reportName: "planning-report",
-        reportStatus: publication.reportStatus,
-        planningPublicationId: publication.publicationId,
-      },
-    }));
+    const accepted = await store.publishTerminalOutcome(
+      taskId,
+      terminalOutcomeInput(manifest, {
+        evidence: {
+          summary: "Planning report is ready for owner authorization.",
+          reportName: "planning-report",
+          reportStatus: publication.reportStatus,
+          planningPublicationId: publication.publicationId,
+        },
+      }),
+    );
     assert.equal(accepted.status, "accepted");
-    assert.equal(JSON.parse(await readFile(accepted.jsonPath, "utf8")).evidence.planningPublicationId, publication.publicationId);
+    assert.equal(
+      JSON.parse(await readFile(accepted.jsonPath, "utf8")).evidence.planningPublicationId,
+      publication.publicationId,
+    );
 
     const otherTaskId = "TASK-TERMINAL-PLANNING-PARENT-INVALID";
     const otherManifest = await store.registerAgent({
@@ -182,17 +201,24 @@ test("planning-parent terminal acceptance binds the latest delegated planning pu
       profile: "planning-parent",
       state: "running",
     });
-    const rejected = await store.publishTerminalOutcome(otherTaskId, terminalOutcomeInput(otherManifest, {
-      evidence: {
-        summary: "Unbound planning result.",
-        reportName: "planning-report",
-        reportStatus: "ready",
-        planningPublicationId: publication.publicationId,
-      },
-    }));
+    const rejected = await store.publishTerminalOutcome(
+      otherTaskId,
+      terminalOutcomeInput(otherManifest, {
+        evidence: {
+          summary: "Unbound planning result.",
+          reportName: "planning-report",
+          reportStatus: "ready",
+          planningPublicationId: publication.publicationId,
+        },
+      }),
+    );
     assert.equal(rejected.status, "rejected");
     assert.match(rejected.reason, /latest accepted planning publication/);
-    const otherRoot = join(store.pathsForTask(otherTaskId).terminalOutcomesDir, otherManifest.assignmentId, otherManifest.attemptId);
+    const otherRoot = join(
+      store.pathsForTask(otherTaskId).terminalOutcomesDir,
+      otherManifest.assignmentId,
+      otherManifest.attemptId,
+    );
     await assert.rejects(() => readFile(join(otherRoot, "claim.json"), "utf8"), { code: "ENOENT" });
   });
 });
@@ -209,15 +235,22 @@ test("terminal publication stores malformed source envelopes as rejected diagnos
       state: "running",
     });
 
-    const rejected = await store.publishTerminalOutcome(taskId, terminalOutcomeInput(manifest, {
-      source: { transport: "assistant_guess" },
-    }));
+    const rejected = await store.publishTerminalOutcome(
+      taskId,
+      terminalOutcomeInput(manifest, {
+        source: { transport: "assistant_guess" },
+      }),
+    );
 
     assert.equal(rejected.status, "rejected");
     assert.match(rejected.reason, /unsupported terminal outcome source transport/);
     const record = JSON.parse(await readFile(rejected.jsonPath, "utf8"));
     assert.deepEqual(record.source, { transport: "assistant_guess" });
-    const terminalRoot = join(store.pathsForTask(taskId).terminalOutcomesDir, manifest.assignmentId, manifest.attemptId);
+    const terminalRoot = join(
+      store.pathsForTask(taskId).terminalOutcomesDir,
+      manifest.assignmentId,
+      manifest.attemptId,
+    );
     await assert.rejects(() => readFile(join(terminalRoot, "claim.json"), "utf8"), { code: "ENOENT" });
     await assert.rejects(() => readFile(join(terminalRoot, "terminal.accepted.json"), "utf8"), { code: "ENOENT" });
   });
@@ -251,12 +284,15 @@ test("terminal publication makes the first accepted outcome immutable across ide
     assert.equal(await readFile(accepted.rawPath, "utf8"), acceptedRawBytes);
     assert.equal(await readFile(accepted.claimPath, "utf8"), claimBytes);
 
-    const conflicting = await store.publishTerminalOutcome(taskId, terminalOutcomeInput(manifest, {
-      rawText: "FFRESULT\nSTATUS|failed\nSUMMARY|Conflicting later result.\nEND_FFRESULT",
-      status: "failed",
-      evidence: { summary: "Conflicting later result." },
-      source: { transport: "runtime_parser" },
-    }));
+    const conflicting = await store.publishTerminalOutcome(
+      taskId,
+      terminalOutcomeInput(manifest, {
+        rawText: "FFRESULT\nSTATUS|failed\nSUMMARY|Conflicting later result.\nEND_FFRESULT",
+        status: "failed",
+        evidence: { summary: "Conflicting later result." },
+        source: { transport: "runtime_parser" },
+      }),
+    );
     assert.equal(conflicting.status, "rejected");
     assert.match(conflicting.reason, new RegExp(accepted.outcomeId));
     assert.equal(JSON.parse(await readFile(conflicting.jsonPath, "utf8")).disposition, "rejected");
@@ -316,20 +352,30 @@ test("terminal publication rejects stale assignment-attempt evidence without acc
       attemptId: "attempt-current",
     });
 
-    const stale = await store.publishTerminalOutcome(taskId, terminalOutcomeInput(manifest, {
-      attemptId: "attempt-stale",
-    }));
+    const stale = await store.publishTerminalOutcome(
+      taskId,
+      terminalOutcomeInput(manifest, {
+        attemptId: "attempt-stale",
+      }),
+    );
 
     assert.equal(stale.status, "rejected");
     assert.match(stale.reason, /attempt-stale.*attempt-current/);
-    const terminalRoot = join(store.pathsForTask(taskId).terminalOutcomesDir, manifest.assignmentId, manifest.attemptId);
+    const terminalRoot = join(
+      store.pathsForTask(taskId).terminalOutcomesDir,
+      manifest.assignmentId,
+      manifest.attemptId,
+    );
     await assert.rejects(() => readFile(join(terminalRoot, "claim.json"), "utf8"), { code: "ENOENT" });
     await assert.rejects(() => readFile(join(terminalRoot, "terminal.accepted.json"), "utf8"), { code: "ENOENT" });
     assert.equal(JSON.parse(await readFile(stale.jsonPath, "utf8")).submittedAttemptId, "attempt-stale");
 
-    const crossAssignment = await store.publishTerminalOutcome(taskId, terminalOutcomeInput(manifest, {
-      assignmentId: "worker-forged",
-    }));
+    const crossAssignment = await store.publishTerminalOutcome(
+      taskId,
+      terminalOutcomeInput(manifest, {
+        assignmentId: "worker-forged",
+      }),
+    );
     assert.equal(crossAssignment.status, "rejected");
     assert.match(crossAssignment.reason, /worker-forged.*worker-1/);
     await assert.rejects(() => readFile(join(terminalRoot, "claim.json"), "utf8"), { code: "ENOENT" });
@@ -355,7 +401,10 @@ test("concurrent terminal publications converge on one immutable accepted outcom
       firstStore.publishTerminalOutcome(taskId, equivalent),
       secondStore.publishTerminalOutcome(taskId, equivalent),
     ]);
-    assert.deepEqual(equivalentResults.map((result) => result.status), ["accepted", "accepted"]);
+    assert.deepEqual(
+      equivalentResults.map((result) => result.status),
+      ["accepted", "accepted"],
+    );
     assert.equal(equivalentResults[0].outcomeId, equivalentResults[1].outcomeId);
 
     const conflictTaskId = "TASK-TERMINAL-CONCURRENT-CONFLICT";
@@ -367,15 +416,21 @@ test("concurrent terminal publications converge on one immutable accepted outcom
       state: "running",
     });
     const conflictResults = await Promise.all([
-      firstStore.publishTerminalOutcome(conflictTaskId, terminalOutcomeInput(conflictManifest, {
-        status: "completed",
-        evidence: { summary: "Concurrent outcome A." },
-      })),
-      secondStore.publishTerminalOutcome(conflictTaskId, terminalOutcomeInput(conflictManifest, {
-        status: "failed",
-        evidence: { summary: "Concurrent outcome B." },
-        source: { transport: "runtime_parser" },
-      })),
+      firstStore.publishTerminalOutcome(
+        conflictTaskId,
+        terminalOutcomeInput(conflictManifest, {
+          status: "completed",
+          evidence: { summary: "Concurrent outcome A." },
+        }),
+      ),
+      secondStore.publishTerminalOutcome(
+        conflictTaskId,
+        terminalOutcomeInput(conflictManifest, {
+          status: "failed",
+          evidence: { summary: "Concurrent outcome B." },
+          source: { transport: "runtime_parser" },
+        }),
+      ),
     ]);
 
     assert.deepEqual(conflictResults.map((result) => result.status).sort(), ["accepted", "rejected"]);
@@ -398,7 +453,11 @@ test("terminal publication adopts an identical stale claim and abandons a dead c
       profile: "worker",
       state: "running",
     });
-    const terminalRoot = join(store.pathsForTask(taskId).terminalOutcomesDir, manifest.assignmentId, manifest.attemptId);
+    const terminalRoot = join(
+      store.pathsForTask(taskId).terminalOutcomesDir,
+      manifest.assignmentId,
+      manifest.attemptId,
+    );
     const acceptedRawPath = join(terminalRoot, "terminal.accepted.raw.txt");
     await mkdir(acceptedRawPath, { recursive: true });
     const firstInput = terminalOutcomeInput(manifest, {
@@ -423,7 +482,11 @@ test("terminal publication adopts an identical stale claim and abandons a dead c
       profile: "worker",
       state: "running",
     });
-    const secondRoot = join(store.pathsForTask(secondTaskId).terminalOutcomesDir, secondManifest.assignmentId, secondManifest.attemptId);
+    const secondRoot = join(
+      store.pathsForTask(secondTaskId).terminalOutcomesDir,
+      secondManifest.assignmentId,
+      secondManifest.attemptId,
+    );
     const secondAcceptedRaw = join(secondRoot, "terminal.accepted.raw.txt");
     await mkdir(secondAcceptedRaw, { recursive: true });
     const abandonedInput = terminalOutcomeInput(secondManifest, {
@@ -437,10 +500,13 @@ test("terminal publication adopts an identical stale claim and abandons a dead c
     await writeFile(abandonedClaimPath, `${JSON.stringify(abandonedClaim, null, 2)}\n`, "utf8");
     await rm(secondAcceptedRaw, { recursive: true, force: true });
 
-    const replacement = await store.publishTerminalOutcome(secondTaskId, terminalOutcomeInput(secondManifest, {
-      rawText: "replacement evidence",
-      evidence: { summary: "Replacement after dead claim owner." },
-    }));
+    const replacement = await store.publishTerminalOutcome(
+      secondTaskId,
+      terminalOutcomeInput(secondManifest, {
+        rawText: "replacement evidence",
+        evidence: { summary: "Replacement after dead claim owner." },
+      }),
+    );
     assert.equal(replacement.status, "accepted");
     assert.notEqual(replacement.contentHash, abandonedClaim.contentHash);
     const abandonmentPath = join(secondRoot, "abandoned", `${abandonedClaim.claimId}.json`);
@@ -490,8 +556,10 @@ test("terminal publication reports post-acceptance projection failure and reconc
     assert.equal(repeatedFailure.outcomeId, incomplete.outcomeId);
     assert.equal(repeatedFailure.commitState, "committed_incomplete");
     assert.equal(await readFile(incomplete.jsonPath, "utf8"), acceptedBytes);
-    const invariantAlerts = (await store.readParentAlerts(taskId)).filter((alert) =>
-      alert.eventType === "terminal-publication-incomplete" && alert.data?.terminalOutcomeId === incomplete.outcomeId);
+    const invariantAlerts = (await store.readParentAlerts(taskId)).filter(
+      (alert) =>
+        alert.eventType === "terminal-publication-incomplete" && alert.data?.terminalOutcomeId === incomplete.outcomeId,
+    );
     assert.equal(invariantAlerts.length, 1);
     assert.deepEqual(invariantAlerts[0].data.pendingEffects, ["result_projection", "publication_status"]);
 
@@ -507,18 +575,44 @@ test("terminal publication reports post-acceptance projection failure and reconc
     assert.equal(resultProjection.terminalOutcomeId, incomplete.outcomeId);
     assert.equal((await store.readAgentStatus(taskId, manifest.agentId)).state, "completed");
     assert.equal((await store.readAgentStatus(taskId, manifest.agentId)).terminalOutcomeId, incomplete.outcomeId);
-    const agentEvents = (await readFile(agentPaths.eventsJsonl, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
-    const taskEvents = (await readFile(store.pathsForTask(taskId).eventsJsonl, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
+    const agentEvents = (await readFile(agentPaths.eventsJsonl, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    const taskEvents = (await readFile(store.pathsForTask(taskId).eventsJsonl, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
     assert.equal(agentEvents.filter((event) => event.data?.terminalOutcomeId === incomplete.outcomeId).length, 1);
     assert.equal(taskEvents.filter((event) => event.data?.terminalOutcomeId === incomplete.outcomeId).length, 1);
     const alerts = await store.readParentAlerts(taskId);
-    assert.equal(alerts.filter((alert) => alert.eventType === "agent-result" && alert.data?.terminalOutcomeId === incomplete.outcomeId).length, 1);
-    assert.equal(alerts.filter((alert) => alert.eventType === "terminal-publication-incomplete" && alert.data?.terminalOutcomeId === incomplete.outcomeId).length, 1);
+    assert.equal(
+      alerts.filter(
+        (alert) => alert.eventType === "agent-result" && alert.data?.terminalOutcomeId === incomplete.outcomeId,
+      ).length,
+      1,
+    );
+    assert.equal(
+      alerts.filter(
+        (alert) =>
+          alert.eventType === "terminal-publication-incomplete" &&
+          alert.data?.terminalOutcomeId === incomplete.outcomeId,
+      ).length,
+      1,
+    );
   });
 });
 
 test("terminal publication reconciles interruption at every materialized effect without duplicates", async (t) => {
-  const effectNames = ["result_projection", "assignment_status", "lease_termination", "agent_event", "task_event", "parent_alert", "publication_status"];
+  const effectNames = [
+    "result_projection",
+    "assignment_status",
+    "lease_termination",
+    "agent_event",
+    "task_event",
+    "parent_alert",
+    "publication_status",
+  ];
   for (const [effectIndex, blockedEffect] of effectNames.entries()) {
     await t.test(blockedEffect, async () => {
       await withTempStore(async (root) => {
@@ -533,12 +627,15 @@ test("terminal publication reconciles interruption at every materialized effect 
           parentAgentId: "execution-parent-1",
         });
         if (blockedEffect === "lease_termination") {
-          await store.ensureLeaseActive(taskId, activeWorkerLease({
+          await store.ensureLeaseActive(
             taskId,
-            agentId: manifest.agentId,
-            assignmentId: manifest.assignmentId,
-            attemptId: manifest.attemptId,
-          }));
+            activeWorkerLease({
+              taskId,
+              agentId: manifest.agentId,
+              assignmentId: manifest.assignmentId,
+              attemptId: manifest.attemptId,
+            }),
+          );
         }
         const agent = store.pathsForAgent(taskId, manifest.agentId);
         const task = store.pathsForTask(taskId);
@@ -549,11 +646,18 @@ test("terminal publication reconciles interruption at every materialized effect 
           agent_event: agent.eventsJsonl,
           task_event: task.eventsJsonl,
           parent_alert: task.parentAlertsJson,
-          publication_status: join(task.terminalOutcomesDir, manifest.assignmentId, manifest.attemptId, "terminal.reconciled.json"),
+          publication_status: join(
+            task.terminalOutcomesDir,
+            manifest.assignmentId,
+            manifest.attemptId,
+            "terminal.reconciled.json",
+          ),
         }[blockedEffect];
-        const restore = blockedEffect === "result_projection" || blockedEffect === "publication_status"
-          ? (await mkdir(blockerPath, { recursive: true }), async () => rm(blockerPath, { recursive: true, force: true }))
-          : await replaceFileWithDirectory(blockerPath);
+        const restore =
+          blockedEffect === "result_projection" || blockedEffect === "publication_status"
+            ? (await mkdir(blockerPath, { recursive: true }),
+              async () => rm(blockerPath, { recursive: true, force: true }))
+            : await replaceFileWithDirectory(blockerPath);
         const input = terminalOutcomeInput(manifest, { evidence: { summary: `Recover ${blockedEffect}.` } });
 
         const incomplete = await store.publishTerminalOutcome(taskId, input);
@@ -574,14 +678,34 @@ test("terminal publication reconciles interruption at every materialized effect 
 
         const agentEventsText = await readFile(agent.eventsJsonl, "utf8");
         const taskEventsText = await readFile(task.eventsJsonl, "utf8");
-        const agentEvents = agentEventsText.trim() === "" ? [] : agentEventsText.trim().split("\n").map((line) => JSON.parse(line));
-        const taskEvents = taskEventsText.trim() === "" ? [] : taskEventsText.trim().split("\n").map((line) => JSON.parse(line));
+        const agentEvents =
+          agentEventsText.trim() === ""
+            ? []
+            : agentEventsText
+                .trim()
+                .split("\n")
+                .map((line) => JSON.parse(line));
+        const taskEvents =
+          taskEventsText.trim() === ""
+            ? []
+            : taskEventsText
+                .trim()
+                .split("\n")
+                .map((line) => JSON.parse(line));
         assert.equal(agentEvents.filter((event) => event.data?.terminalOutcomeId === incomplete.outcomeId).length, 1);
         assert.equal(taskEvents.filter((event) => event.data?.terminalOutcomeId === incomplete.outcomeId).length, 1);
-        assert.equal((await store.readParentAlerts(taskId)).filter((alert) => alert.data?.terminalOutcomeId === incomplete.outcomeId).length, 1);
+        assert.equal(
+          (await store.readParentAlerts(taskId)).filter(
+            (alert) => alert.data?.terminalOutcomeId === incomplete.outcomeId,
+          ).length,
+          1,
+        );
         if (blockedEffect === "lease_termination") {
           const leaseEvents = await store.readLeaseEvents(taskId);
-          assert.equal(leaseEvents.filter((event) => event.leaseId === "lease-worker" && event.state === "exhausted").length, 1);
+          assert.equal(
+            leaseEvents.filter((event) => event.leaseId === "lease-worker" && event.state === "exhausted").length,
+            1,
+          );
         }
       });
     });
@@ -602,22 +726,41 @@ test("a synthetic legacy terminal outcome remains retryable after its status bec
       launchCommand: "pi worker-legacy",
       parentAgentId: "execution-parent-1",
     });
-    const { schemaVersion, identitySchemaVersion, profileSchemaVersion, protocolVersion, assignmentId, attemptId, attemptSource, ...legacyManifest } = versioned;
-    await writeFile(store.pathsForAgent(taskId, versioned.agentId).manifestJson, `${JSON.stringify(legacyManifest, null, 2)}\n`, "utf8");
+    const {
+      schemaVersion,
+      identitySchemaVersion,
+      profileSchemaVersion,
+      protocolVersion,
+      assignmentId,
+      attemptId,
+      attemptSource,
+      ...legacyManifest
+    } = versioned;
+    await writeFile(
+      store.pathsForAgent(taskId, versioned.agentId).manifestJson,
+      `${JSON.stringify(legacyManifest, null, 2)}\n`,
+      "utf8",
+    );
     const runningStatus = await store.readAgentStatus(taskId, versioned.agentId);
     const synthetic = resolveAssignmentAttemptIdentity({ manifest: legacyManifest, status: runningStatus });
-    await store.ensureLeaseActive(taskId, activeWorkerLease({
-      leaseId: "lease-worker-legacy",
+    await store.ensureLeaseActive(
       taskId,
-      agentId: versioned.agentId,
-      assignmentId: synthetic.assignmentId,
-      attemptId: synthetic.attemptId,
-    }));
-    const input = terminalOutcomeInput({
-      ...legacyManifest,
-      assignmentId: synthetic.assignmentId,
-      attemptId: synthetic.attemptId,
-    }, { evidence: { summary: "Legacy result remains recoverable." } });
+      activeWorkerLease({
+        leaseId: "lease-worker-legacy",
+        taskId,
+        agentId: versioned.agentId,
+        assignmentId: synthetic.assignmentId,
+        attemptId: synthetic.attemptId,
+      }),
+    );
+    const input = terminalOutcomeInput(
+      {
+        ...legacyManifest,
+        assignmentId: synthetic.assignmentId,
+        attemptId: synthetic.attemptId,
+      },
+      { evidence: { summary: "Legacy result remains recoverable." } },
+    );
 
     const accepted = await store.publishTerminalOutcome(taskId, input);
     assert.equal(accepted.status, "accepted");
@@ -644,7 +787,9 @@ test("acknowledging a terminal alert cannot let an identical retry create anothe
     });
     const input = terminalOutcomeInput(manifest, { evidence: { summary: "One terminal alert only." } });
     const accepted = await store.publishTerminalOutcome(taskId, input);
-    const [alert] = (await store.readParentAlerts(taskId)).filter((candidate) => candidate.data?.terminalOutcomeId === accepted.outcomeId);
+    const [alert] = (await store.readParentAlerts(taskId)).filter(
+      (candidate) => candidate.data?.terminalOutcomeId === accepted.outcomeId,
+    );
     assert.ok(alert);
     await store.markParentAlertsRead(taskId, [alert.alertId]);
 
@@ -652,7 +797,9 @@ test("acknowledging a terminal alert cannot let an identical retry create anothe
 
     assert.equal(retry.status, "accepted");
     assert.equal(retry.outcomeId, accepted.outcomeId);
-    const alerts = (await store.readParentAlerts(taskId)).filter((candidate) => candidate.data?.terminalOutcomeId === accepted.outcomeId);
+    const alerts = (await store.readParentAlerts(taskId)).filter(
+      (candidate) => candidate.data?.terminalOutcomeId === accepted.outcomeId,
+    );
     assert.equal(alerts.length, 1);
     assert.equal(alerts[0].alertId, alert.alertId);
     assert.ok(alerts[0].readAt);
@@ -666,7 +813,8 @@ test("bare planning readiness cannot create new authorization authority", async 
     await store.initTask({ taskId });
 
     await assert.rejects(
-      () => store.recordPlanningReportReady(taskId, { eventId: "evt.bare.ready", planArtifactPath: "docs/plans/bare.md" }),
+      () =>
+        store.recordPlanningReportReady(taskId, { eventId: "evt.bare.ready", planArtifactPath: "docs/plans/bare.md" }),
       /publishPlanningReport/,
     );
 
@@ -700,32 +848,45 @@ test("planning report publication verifies delegated source role and current att
     const crossTaskId = "TASK-PLANNING-SOURCE-FORGED-TARGET";
 
     await assert.rejects(
-      () => store.publishPlanningReport(crossTaskId, {
-        rawText,
-        source: {
-          transport: "delegate_finish",
-          agentId: planning.agentId,
-          assignmentId: planning.assignmentId,
-          attemptId: planning.attemptId,
-        },
-      }),
+      () =>
+        store.publishPlanningReport(crossTaskId, {
+          rawText,
+          source: {
+            transport: "delegate_finish",
+            agentId: planning.agentId,
+            assignmentId: planning.assignmentId,
+            attemptId: planning.attemptId,
+          },
+        }),
       /ENOENT|no such file/i,
     );
     await assert.rejects(() => readFile(store.pathsForTask(crossTaskId).taskJson, "utf8"), { code: "ENOENT" });
     assert.equal(await readFile(join(root, "index.json"), "utf8"), indexBeforeCrossTaskRejection);
 
     await assert.rejects(
-      () => store.publishPlanningReport(taskId, {
-        rawText,
-        source: { transport: "runtime_parser", agentId: planning.agentId, assignmentId: planning.assignmentId, attemptId: "attempt-stale" },
-      }),
+      () =>
+        store.publishPlanningReport(taskId, {
+          rawText,
+          source: {
+            transport: "runtime_parser",
+            agentId: planning.agentId,
+            assignmentId: planning.assignmentId,
+            attemptId: "attempt-stale",
+          },
+        }),
       /attempt.*does not match manifest attempt/i,
     );
     await assert.rejects(
-      () => store.publishPlanningReport(taskId, {
-        rawText,
-        source: { transport: "delegate_finish", agentId: execution.agentId, assignmentId: execution.assignmentId, attemptId: execution.attemptId },
-      }),
+      () =>
+        store.publishPlanningReport(taskId, {
+          rawText,
+          source: {
+            transport: "delegate_finish",
+            agentId: execution.agentId,
+            assignmentId: execution.assignmentId,
+            attemptId: execution.attemptId,
+          },
+        }),
       /planning-parent role/,
     );
     const events = await readFile(store.pathsForTask(taskId).eventsJsonl, "utf8");
@@ -739,34 +900,47 @@ test("planning artifact integrity gates approval, authorization write, and recon
 
     const missingTask = "TASK-PLANNING-EVIDENCE-MISSING";
     const missing = await store.publishPlanningReport(missingTask, {
-      rawText: planningReportRaw({ identityRows: ["PLAN_ARTIFACT_PATH|docs/plans/missing.md", "ARTIFACT_PATHS|docs/plans/missing.md"] }),
+      rawText: planningReportRaw({
+        identityRows: ["PLAN_ARTIFACT_PATH|docs/plans/missing.md", "ARTIFACT_PATHS|docs/plans/missing.md"],
+      }),
       source: { transport: "delegate_record_report" },
     });
     await rm(missing.rawPath, { force: true });
-    await assert.rejects(() => store.readExecutionApprovalRequest(missingTask), /accepted planning publication evidence/i);
+    await assert.rejects(
+      () => store.readExecutionApprovalRequest(missingTask),
+      /accepted planning publication evidence/i,
+    );
 
     const writeTask = "TASK-PLANNING-EVIDENCE-WRITE";
     const beforeWrite = await store.publishPlanningReport(writeTask, {
-      rawText: planningReportRaw({ identityRows: ["PLAN_ARTIFACT_PATH|docs/plans/write.md", "ARTIFACT_PATHS|docs/plans/write.md"] }),
+      rawText: planningReportRaw({
+        identityRows: ["PLAN_ARTIFACT_PATH|docs/plans/write.md", "ARTIFACT_PATHS|docs/plans/write.md"],
+      }),
       source: { transport: "delegate_record_report" },
     });
     const writePreview = await store.readExecutionApprovalRequest(writeTask);
     const tamperedRecord = JSON.parse(await readFile(beforeWrite.jsonPath, "utf8"));
     tamperedRecord.contentHash = "0".repeat(64);
     await writeFile(beforeWrite.jsonPath, `${JSON.stringify(tamperedRecord, null, 2)}\n`, "utf8");
-    await assert.rejects(() => store.readTaskReport(writeTask, "planning-report"), /accepted planning publication evidence/i);
     await assert.rejects(
-      () => store.recordPlanApproved(writeTask, {
-        planningReportReadyEventId: writePreview.planningReportReadyEventId,
-        planArtifactPath: writePreview.planArtifactPath,
-        approvedBy: "user",
-      }),
+      () => store.readTaskReport(writeTask, "planning-report"),
+      /accepted planning publication evidence/i,
+    );
+    await assert.rejects(
+      () =>
+        store.recordPlanApproved(writeTask, {
+          planningReportReadyEventId: writePreview.planningReportReadyEventId,
+          planArtifactPath: writePreview.planArtifactPath,
+          approvedBy: "user",
+        }),
       /accepted planning publication evidence/i,
     );
 
     const authorizationWriteTask = "TASK-PLANNING-EVIDENCE-AUTH-WRITE";
     const beforeAuthorizationWrite = await store.publishPlanningReport(authorizationWriteTask, {
-      rawText: planningReportRaw({ identityRows: ["PLAN_ARTIFACT_PATH|docs/plans/auth-write.md", "ARTIFACT_PATHS|docs/plans/auth-write.md"] }),
+      rawText: planningReportRaw({
+        identityRows: ["PLAN_ARTIFACT_PATH|docs/plans/auth-write.md", "ARTIFACT_PATHS|docs/plans/auth-write.md"],
+      }),
       source: { transport: "delegate_record_report" },
     });
     const authorizationWritePreview = await store.readExecutionApprovalRequest(authorizationWriteTask);
@@ -777,17 +951,20 @@ test("planning artifact integrity gates approval, authorization write, and recon
     });
     await writeFile(beforeAuthorizationWrite.rawPath, "tampered before authorization write", "utf8");
     await assert.rejects(
-      () => store.recordExecutionAuthorized(authorizationWriteTask, {
-        planningReportReadyEventId: authorizationWritePreview.planningReportReadyEventId,
-        planApprovedEventId: authorizationWriteApproval.eventId,
-        planArtifactPath: authorizationWritePreview.planArtifactPath,
-      }),
+      () =>
+        store.recordExecutionAuthorized(authorizationWriteTask, {
+          planningReportReadyEventId: authorizationWritePreview.planningReportReadyEventId,
+          planApprovedEventId: authorizationWriteApproval.eventId,
+          planArtifactPath: authorizationWritePreview.planArtifactPath,
+        }),
       /accepted planning publication evidence/i,
     );
 
     const reconstructionTask = "TASK-PLANNING-EVIDENCE-RECONSTRUCT";
     const beforeReconstruction = await store.publishPlanningReport(reconstructionTask, {
-      rawText: planningReportRaw({ identityRows: ["PLAN_ARTIFACT_PATH|docs/plans/reconstruct.md", "ARTIFACT_PATHS|docs/plans/reconstruct.md"] }),
+      rawText: planningReportRaw({
+        identityRows: ["PLAN_ARTIFACT_PATH|docs/plans/reconstruct.md", "ARTIFACT_PATHS|docs/plans/reconstruct.md"],
+      }),
       source: { transport: "delegate_record_report" },
     });
     const reconstructionPreview = await store.readExecutionApprovalRequest(reconstructionTask);
@@ -797,13 +974,17 @@ test("planning artifact integrity gates approval, authorization write, and recon
 
     const coherentTask = "TASK-PLANNING-EVIDENCE-COHERENT-TAMPER";
     const beforeCoherentTamper = await store.publishPlanningReport(coherentTask, {
-      rawText: planningReportRaw({ identityRows: ["PLAN_ARTIFACT_PATH|docs/plans/coherent.md", "ARTIFACT_PATHS|docs/plans/coherent.md"] }),
+      rawText: planningReportRaw({
+        identityRows: ["PLAN_ARTIFACT_PATH|docs/plans/coherent.md", "ARTIFACT_PATHS|docs/plans/coherent.md"],
+      }),
       source: { transport: "delegate_record_report" },
     });
     const coherentPreview = await store.readExecutionApprovalRequest(coherentTask);
     await store.approveAndAuthorizeExecution(coherentTask, coherentPreview);
-    const coherentlyTamperedRaw = (await readFile(beforeCoherentTamper.rawPath, "utf8"))
-      .replace("GOAL|Publish one canonical planning report.", "GOAL|Coherently altered planning report.");
+    const coherentlyTamperedRaw = (await readFile(beforeCoherentTamper.rawPath, "utf8")).replace(
+      "GOAL|Publish one canonical planning report.",
+      "GOAL|Coherently altered planning report.",
+    );
     const coherentlyTamperedReport = parseProtocolText(coherentlyTamperedRaw).planningReports[0];
     assert.ok(coherentlyTamperedReport);
     const coherentlyTamperedHash = createHash("sha256").update(coherentlyTamperedRaw, "utf8").digest("hex");
@@ -813,19 +994,33 @@ test("planning artifact integrity gates approval, authorization write, and recon
     await writeFile(beforeCoherentTamper.rawPath, coherentlyTamperedRaw, "utf8");
     await writeFile(beforeCoherentTamper.jsonPath, `${JSON.stringify(coherentlyTamperedRecord, null, 2)}\n`, "utf8");
     const coherentEventsPath = store.pathsForTask(coherentTask).eventsJsonl;
-    const coherentlyTamperedEvents = (await readFile(coherentEventsPath, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
+    const coherentlyTamperedEvents = (await readFile(coherentEventsPath, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
     const coherentAcceptedEvent = coherentlyTamperedEvents.find((event) => event.type === "planning_report.accepted");
     coherentAcceptedEvent.data.contentHash = coherentlyTamperedHash;
-    await writeFile(coherentEventsPath, `${coherentlyTamperedEvents.map((event) => JSON.stringify(event)).join("\n")}\n`, "utf8");
+    await writeFile(
+      coherentEventsPath,
+      `${coherentlyTamperedEvents.map((event) => JSON.stringify(event)).join("\n")}\n`,
+      "utf8",
+    );
 
-    await assert.rejects(() => store.readExecutionApprovalRequest(coherentTask), /accepted planning publication evidence/i);
-    await assert.rejects(() => store.readTaskReport(coherentTask, "planning-report"), /accepted planning publication evidence/i);
     await assert.rejects(
-      () => store.recordPlanApproved(coherentTask, {
-        planningReportReadyEventId: coherentPreview.planningReportReadyEventId,
-        planArtifactPath: coherentPreview.planArtifactPath,
-        approvedBy: "user",
-      }),
+      () => store.readExecutionApprovalRequest(coherentTask),
+      /accepted planning publication evidence/i,
+    );
+    await assert.rejects(
+      () => store.readTaskReport(coherentTask, "planning-report"),
+      /accepted planning publication evidence/i,
+    );
+    await assert.rejects(
+      () =>
+        store.recordPlanApproved(coherentTask, {
+          planningReportReadyEventId: coherentPreview.planningReportReadyEventId,
+          planArtifactPath: coherentPreview.planArtifactPath,
+          approvedBy: "user",
+        }),
       /accepted planning publication evidence/i,
     );
     assert.equal(await store.readExecutionAuthorization(coherentTask), undefined);
@@ -854,7 +1049,10 @@ test("planning report publication keeps rejected evidence diagnostic and preserv
     assert.notEqual(rejectedFresh.rawPath, store.pathsForTask(taskId).planningReportRaw);
     assert.notEqual(rejectedFresh.jsonPath, store.pathsForTask(taskId).planningReportJson);
     assert.equal(await readFile(rejectedFresh.rawPath, "utf8"), conflicting);
-    assert.equal((await readFile(store.pathsForTask(taskId).eventsJsonl, "utf8")).includes("planning_report.ready"), false);
+    assert.equal(
+      (await readFile(store.pathsForTask(taskId).eventsJsonl, "utf8")).includes("planning_report.ready"),
+      false,
+    );
 
     const accepted = await store.publishPlanningReport(taskId, {
       rawText: planningReportRaw(),
@@ -884,14 +1082,22 @@ test("blocked planning publication supersedes ready state and invalidates earlie
     const store = createDelegationStore({ root, now: fixedNow });
     const taskId = "TASK-PLANNING-BLOCKED";
     const ready = await store.publishPlanningReport(taskId, {
-      rawText: planningReportRaw({ identityRows: ["PLAN_ARTIFACT_PATH|docs/plans/ready-a.md", "ARTIFACT_PATHS|docs/plans/ready-a.md"] }),
+      rawText: planningReportRaw({
+        identityRows: ["PLAN_ARTIFACT_PATH|docs/plans/ready-a.md", "ARTIFACT_PATHS|docs/plans/ready-a.md"],
+      }),
       source: { transport: "delegate_record_report" },
     });
     const preview = await store.readExecutionApprovalRequest(taskId);
     const authorized = await store.approveAndAuthorizeExecution(taskId, preview);
-    assert.equal((await store.readExecutionAuthorization(taskId)).executionAuthorizedEventId, authorized.authorization.eventId);
+    assert.equal(
+      (await store.readExecutionAuthorization(taskId)).executionAuthorizedEventId,
+      authorized.authorization.eventId,
+    );
 
-    const blockedRaw = planningReportRaw({ status: "blocked", identityRows: ["ARTIFACT_PATHS|docs/notes/planning-blocker.md"] });
+    const blockedRaw = planningReportRaw({
+      status: "blocked",
+      identityRows: ["ARTIFACT_PATHS|docs/notes/planning-blocker.md"],
+    });
     const blocked = await store.publishPlanningReport(taskId, {
       rawText: blockedRaw,
       source: { transport: "delegate_record_report" },
@@ -910,7 +1116,9 @@ test("blocked planning publication supersedes ready state and invalidates earlie
     assert.equal(blockedRetry.publicationId, blocked.publicationId);
 
     const corrected = await store.publishPlanningReport(taskId, {
-      rawText: planningReportRaw({ identityRows: ["PLAN_ARTIFACT_PATH|docs/plans/ready-b.md", "ARTIFACT_PATHS|docs/plans/ready-b.md"] }),
+      rawText: planningReportRaw({
+        identityRows: ["PLAN_ARTIFACT_PATH|docs/plans/ready-b.md", "ARTIFACT_PATHS|docs/plans/ready-b.md"],
+      }),
       source: { transport: "delegate_record_report" },
     });
     assert.notEqual(corrected.planningReadyEventId, ready.planningReadyEventId);
@@ -931,7 +1139,9 @@ test("planning report publication reports committed projection failure and recon
     await mkdir(paths.planningReportRaw, { recursive: true });
 
     const committed = await store.publishPlanningReport(taskId, {
-      rawText: planningReportRaw({ identityRows: ["PLAN_ARTIFACT_PATH|docs/plans/recovery.md", "ARTIFACT_PATHS|docs/plans/recovery.md"] }),
+      rawText: planningReportRaw({
+        identityRows: ["PLAN_ARTIFACT_PATH|docs/plans/recovery.md", "ARTIFACT_PATHS|docs/plans/recovery.md"],
+      }),
       source: { transport: "delegate_record_report" },
     });
 
@@ -939,11 +1149,16 @@ test("planning report publication reports committed projection failure and recon
     assert.equal(committed.commitState, "committed_incomplete");
     assert.match(committed.recoveryReason, /directory|EISDIR|rename/i);
     assert.equal((await store.readTaskReport(taskId, "planning-report")).exists, true);
-    assert.equal((await store.readExecutionApprovalRequest(taskId)).planningReportReadyEventId, committed.planningReadyEventId);
+    assert.equal(
+      (await store.readExecutionApprovalRequest(taskId)).planningReportReadyEventId,
+      committed.planningReadyEventId,
+    );
 
     await rm(paths.planningReportRaw, { recursive: true, force: true });
     const reconciled = await store.publishPlanningReport(taskId, {
-      rawText: planningReportRaw({ identityRows: ["PLAN_ARTIFACT_PATH|docs/plans/recovery.md", "ARTIFACT_PATHS|docs/plans/recovery.md"] }),
+      rawText: planningReportRaw({
+        identityRows: ["PLAN_ARTIFACT_PATH|docs/plans/recovery.md", "ARTIFACT_PATHS|docs/plans/recovery.md"],
+      }),
       source: { transport: "delegate_record_report" },
     });
     assert.equal(reconciled.publicationId, committed.publicationId);
@@ -968,7 +1183,10 @@ test("store appends route decisions and records route applications idempotently"
     assert.equal(storedRoute.decision.kind, "route_required");
     assert.match(store.pathsForTask("TASK-ROUTE-STORE").routesJsonl, /routes\.jsonl$/);
     const legacyRouteRecords = await store.readRouteDecisions("TASK-ROUTE-STORE");
-    assert.deepEqual(legacyRouteRecords.map((record) => record.routeId), ["route-planning-1"]);
+    assert.deepEqual(
+      legacyRouteRecords.map((record) => record.routeId),
+      ["route-planning-1"],
+    );
     assert.equal(legacyRouteRecords[0].request, undefined);
 
     const firstApply = await store.recordRouteApplication({
@@ -998,7 +1216,10 @@ test("store appends route decisions and records route applications idempotently"
     assert.equal(duplicateApply.application.state, "pending");
     assert.equal(duplicateApply.application.applicationId, "apply-route-planning-1");
     assert.equal(duplicateApply.application.spawned, undefined);
-    assert.deepEqual((await store.readRouteApplications("TASK-ROUTE-STORE")).map((application) => application.applicationId), ["apply-route-planning-1"]);
+    assert.deepEqual(
+      (await store.readRouteApplications("TASK-ROUTE-STORE")).map((application) => application.applicationId),
+      ["apply-route-planning-1"],
+    );
   });
 });
 
@@ -1007,23 +1228,27 @@ test("store writes and reads normalized route request evidence", async () => {
     const store = createDelegationStore({ root, now: fixedNow });
     await store.initTask({ taskId: "TASK-ROUTE-REQUEST" });
 
-    const storedRoute = await store.appendRouteDecision("TASK-ROUTE-REQUEST", {
-      kind: "route_required",
-      routeId: "route-request-evidence",
-      targetRole: "worker",
-      reasonCodes: ["execution_parent_implementation_routes_worker"],
-    }, {
-      request: {
-        taskId: "TASK-ROUTE-REQUEST",
-        agentId: "execution-parent-1",
-        role: "execution-parent",
-        action: { kind: "implement", breadth: "multi_file", description: "Implement stored route evidence." },
-        targetFiles: ["delegation/src/store.ts", "delegation/src/types.ts", "delegation/src/store.ts"],
-        writeScopes: ["delegation/src/**", "delegation/tests/**", "delegation/src/**"],
-        riskFlags: ["unknown", "security", "unknown"],
+    const storedRoute = await store.appendRouteDecision(
+      "TASK-ROUTE-REQUEST",
+      {
+        kind: "route_required",
         routeId: "route-request-evidence",
+        targetRole: "worker",
+        reasonCodes: ["execution_parent_implementation_routes_worker"],
       },
-    });
+      {
+        request: {
+          taskId: "TASK-ROUTE-REQUEST",
+          agentId: "execution-parent-1",
+          role: "execution-parent",
+          action: { kind: "implement", breadth: "multi_file", description: "Implement stored route evidence." },
+          targetFiles: ["delegation/src/store.ts", "delegation/src/types.ts", "delegation/src/store.ts"],
+          writeScopes: ["delegation/src/**", "delegation/tests/**", "delegation/src/**"],
+          riskFlags: ["unknown", "security", "unknown"],
+          routeId: "route-request-evidence",
+        },
+      },
+    );
 
     assert.deepEqual(storedRoute.request, {
       taskId: "TASK-ROUTE-REQUEST",
@@ -1070,9 +1295,18 @@ test("store fails closed for conflicting stored route request evidence", async (
     },
   };
 
-  await assertRejectsRecord({ ...baseRecord, request: { ...baseRecord.request, taskId: "TASK-OTHER" } }, /route request task id TASK-OTHER does not match task TASK-ROUTE-CONFLICT/);
-  await assertRejectsRecord({ ...baseRecord, request: { ...baseRecord.request, routeId: "route-other" } }, /route request route id route-other does not match route route-conflict/);
-  await assertRejectsRecord({ ...baseRecord, decision: { ...baseRecord.decision, routeId: "route-other" } }, /route decision route id route-other does not match record route route-conflict/);
+  await assertRejectsRecord(
+    { ...baseRecord, request: { ...baseRecord.request, taskId: "TASK-OTHER" } },
+    /route request task id TASK-OTHER does not match task TASK-ROUTE-CONFLICT/,
+  );
+  await assertRejectsRecord(
+    { ...baseRecord, request: { ...baseRecord.request, routeId: "route-other" } },
+    /route request route id route-other does not match route route-conflict/,
+  );
+  await assertRejectsRecord(
+    { ...baseRecord, decision: { ...baseRecord.decision, routeId: "route-other" } },
+    /route decision route id route-other does not match record route route-conflict/,
+  );
 });
 
 test("store authorizes one immutable execution identity only from its ordered predecessor chain", async () => {
@@ -1095,21 +1329,23 @@ test("store authorizes one immutable execution identity only from its ordered pr
     });
 
     await assert.rejects(
-      () => store.recordExecutionAuthorized(taskId, {
-        eventId: "evt.execution.before-approval",
-        planningReportReadyEventId: ready.eventId,
-        planApprovedEventId: "evt.plan.missing",
-        planArtifactPath,
-      }),
+      () =>
+        store.recordExecutionAuthorized(taskId, {
+          eventId: "evt.execution.before-approval",
+          planningReportReadyEventId: ready.eventId,
+          planApprovedEventId: "evt.plan.missing",
+          planArtifactPath,
+        }),
       /plan-approved predecessor event .* does not exist/,
     );
     await assert.rejects(
-      () => store.recordPlanApproved(taskId, {
-        eventId: "evt.plan.cross-task",
-        planningReportReadyEventId: otherReady.eventId,
-        planArtifactPath,
-        approvedBy: "user",
-      }),
+      () =>
+        store.recordPlanApproved(taskId, {
+          eventId: "evt.plan.cross-task",
+          planningReportReadyEventId: otherReady.eventId,
+          planArtifactPath,
+          approvedBy: "user",
+        }),
       /planning-ready predecessor event .* does not exist/,
     );
 
@@ -1134,38 +1370,69 @@ test("store authorizes one immutable execution identity only from its ordered pr
     const invalidAuthorizations = [
       {
         name: "missing planning predecessor",
-        input: { planningReportReadyEventId: "evt.plan.missing", planApprovedEventId: approval.eventId, planArtifactPath },
+        input: {
+          planningReportReadyEventId: "evt.plan.missing",
+          planApprovedEventId: approval.eventId,
+          planArtifactPath,
+        },
         pattern: /planning-ready predecessor event .* does not exist/,
       },
       {
         name: "cross-task approval predecessor",
-        input: { planningReportReadyEventId: ready.eventId, planApprovedEventId: otherApproval.eventId, planArtifactPath },
+        input: {
+          planningReportReadyEventId: ready.eventId,
+          planApprovedEventId: otherApproval.eventId,
+          planArtifactPath,
+        },
         pattern: /plan-approved predecessor event .* does not exist/,
       },
       {
         name: "changed bound plan identity",
-        input: { planningReportReadyEventId: ready.eventId, planApprovedEventId: approval.eventId, planArtifactPath: "docs/plans/delegation/other-plan.md" },
+        input: {
+          planningReportReadyEventId: ready.eventId,
+          planApprovedEventId: approval.eventId,
+          planArtifactPath: "docs/plans/delegation/other-plan.md",
+        },
         pattern: /plan artifact identity does not match predecessor chain/,
       },
       {
         name: "wrong execution id",
-        input: { planningReportReadyEventId: ready.eventId, planApprovedEventId: approval.eventId, planArtifactPath, executionId: "execution-wrong" },
+        input: {
+          planningReportReadyEventId: ready.eventId,
+          planApprovedEventId: approval.eventId,
+          planArtifactPath,
+          executionId: "execution-wrong",
+        },
         pattern: /execution id does not match canonical envelope/,
       },
       {
         name: "wrong execution map path",
-        input: { planningReportReadyEventId: ready.eventId, planApprovedEventId: approval.eventId, planArtifactPath, executionMapPath: ".freeflow/delegation/tasks/OTHER/execution-map.json" },
+        input: {
+          planningReportReadyEventId: ready.eventId,
+          planApprovedEventId: approval.eventId,
+          planArtifactPath,
+          executionMapPath: ".freeflow/delegation/tasks/OTHER/execution-map.json",
+        },
         pattern: /execution map path does not match canonical task path/,
       },
       {
         name: "wrong execution schema version",
-        input: { planningReportReadyEventId: ready.eventId, planApprovedEventId: approval.eventId, planArtifactPath, schemaVersion: 2 },
+        input: {
+          planningReportReadyEventId: ready.eventId,
+          planApprovedEventId: approval.eventId,
+          planArtifactPath,
+          schemaVersion: 2,
+        },
         pattern: /unsupported execution envelope schema version/,
       },
     ];
     for (const invalid of invalidAuthorizations) {
       await assert.rejects(
-        () => store.recordExecutionAuthorized(taskId, { eventId: `evt.execution.invalid-${invalid.name.replaceAll(" ", "-")}`, ...invalid.input }),
+        () =>
+          store.recordExecutionAuthorized(taskId, {
+            eventId: `evt.execution.invalid-${invalid.name.replaceAll(" ", "-")}`,
+            ...invalid.input,
+          }),
         invalid.pattern,
         invalid.name,
       );
@@ -1208,8 +1475,13 @@ test("store authorizes one immutable execution identity only from its ordered pr
       planApprovedEventId: approval.eventId,
       createdAt: fixedNow(),
     });
-    const causalEvents = (await readFile(paths.eventsJsonl, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
-    const envelopeEventIndex = causalEvents.findIndex((event) => event.type === "execution.envelope.created" && event.data?.executionId === envelope.executionId);
+    const causalEvents = (await readFile(paths.eventsJsonl, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    const envelopeEventIndex = causalEvents.findIndex(
+      (event) => event.type === "execution.envelope.created" && event.data?.executionId === envelope.executionId,
+    );
     const authorizationEventIndex = causalEvents.findIndex((event) => event.eventId === authorization.eventId);
     assert.ok(envelopeEventIndex > causalEvents.findIndex((event) => event.eventId === approval.eventId));
     assert.ok(authorizationEventIndex > envelopeEventIndex);
@@ -1231,18 +1503,20 @@ test("store authorizes one immutable execution identity only from its ordered pr
     await store.writeExecutionMap(taskId, {
       version: 1,
       taskId,
-      packages: [{
-        packageId: "review-package",
-        role: "reviewer",
-        dependencies: [],
-        expectedWriteScopes: [],
-        checkoutPath: root,
-        allowedCommands: [],
-        state: "planned",
-        review: { status: "pending" },
-        verification: { status: "pending" },
-        commitCheckpoints: [],
-      }],
+      packages: [
+        {
+          packageId: "review-package",
+          role: "reviewer",
+          dependencies: [],
+          expectedWriteScopes: [],
+          checkoutPath: root,
+          allowedCommands: [],
+          state: "planned",
+          review: { status: "pending" },
+          verification: { status: "pending" },
+          commitCheckpoints: [],
+        },
+      ],
       integrationOrder: [],
       updatedAt: "2026-07-09T01:00:00.000Z",
     });
@@ -1299,7 +1573,11 @@ test("store reconstruction rejects malformed authorization chains and envelopes"
       name: "predecessor task identity",
       mutate: async ({ store, taskId, events }) => {
         events[0].taskId = "TASK-OTHER";
-        await writeFile(store.pathsForTask(taskId).eventsJsonl, `${events.map((event) => JSON.stringify(event)).join("\n")}\n`, "utf8");
+        await writeFile(
+          store.pathsForTask(taskId).eventsJsonl,
+          `${events.map((event) => JSON.stringify(event)).join("\n")}\n`,
+          "utf8",
+        );
       },
     },
     {
@@ -1307,7 +1585,11 @@ test("store reconstruction rejects malformed authorization chains and envelopes"
       mutate: async ({ store, taskId, authorization }) => {
         const path = join(store.pathsForTask(taskId).executionEnvelopesDir, `${authorization.data.executionId}.json`);
         const envelope = JSON.parse(await readFile(path, "utf8"));
-        await writeFile(path, `${JSON.stringify({ ...envelope, planArtifactPath: "docs/plans/tampered.md" }, null, 2)}\n`, "utf8");
+        await writeFile(
+          path,
+          `${JSON.stringify({ ...envelope, planArtifactPath: "docs/plans/tampered.md" }, null, 2)}\n`,
+          "utf8",
+        );
       },
     },
   ];
@@ -1318,9 +1600,22 @@ test("store reconstruction rejects malformed authorization chains and envelopes"
       const taskId = `TASK-AUTH-MALFORMED-${testCase.name.replaceAll(" ", "-").toUpperCase()}`;
       const planArtifactPath = "docs/plans/delegation/approved-plan.md";
       const ready = await publishReadyEvent(store, taskId, planArtifactPath);
-      const approval = await store.recordPlanApproved(taskId, { eventId: "evt.plan.approved", planningReportReadyEventId: ready.eventId, planArtifactPath, approvedBy: "user" });
-      const authorization = await store.recordExecutionAuthorized(taskId, { eventId: "evt.execution.authorized", planningReportReadyEventId: ready.eventId, planApprovedEventId: approval.eventId, planArtifactPath });
-      const events = (await readFile(store.pathsForTask(taskId).eventsJsonl, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
+      const approval = await store.recordPlanApproved(taskId, {
+        eventId: "evt.plan.approved",
+        planningReportReadyEventId: ready.eventId,
+        planArtifactPath,
+        approvedBy: "user",
+      });
+      const authorization = await store.recordExecutionAuthorized(taskId, {
+        eventId: "evt.execution.authorized",
+        planningReportReadyEventId: ready.eventId,
+        planApprovedEventId: approval.eventId,
+        planArtifactPath,
+      });
+      const events = (await readFile(store.pathsForTask(taskId).eventsJsonl, "utf8"))
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line));
       await testCase.mutate({ store, taskId, events, authorization });
       assert.equal(await store.readExecutionAuthorization(taskId), undefined, testCase.name);
     });
@@ -1361,9 +1656,22 @@ test("store owner transition authorizes only the confirmed latest planning prede
     assert.equal(first.evidence.planArtifactPath, "docs/plans/latest.md");
     assert.equal((await store.readTask(taskId)).state, "ready_for_execution");
 
-    const events = (await readFile(store.pathsForTask(taskId).eventsJsonl, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
-    assert.equal(events.filter((event) => event.type === "plan.approved" && event.data?.planningReportReadyEventId === latestReady.eventId).length, 1);
-    assert.equal(events.filter((event) => event.type === "execution.authorized" && event.data?.planApprovedEventId === first.approval.eventId).length, 1);
+    const events = (await readFile(store.pathsForTask(taskId).eventsJsonl, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.equal(
+      events.filter(
+        (event) => event.type === "plan.approved" && event.data?.planningReportReadyEventId === latestReady.eventId,
+      ).length,
+      1,
+    );
+    assert.equal(
+      events.filter(
+        (event) => event.type === "execution.authorized" && event.data?.planApprovedEventId === first.approval.eventId,
+      ).length,
+      1,
+    );
 
     await publishReadyEvent(store, taskId, "docs/plans/after-authorization.md");
     assert.equal(await store.readExecutionAuthorization(taskId), undefined);
@@ -1388,7 +1696,10 @@ test("store owner transition reconciles authorization committed before task proj
     assert.match(result.recoveryReason, /injected task projection failure/);
     assert.equal(result.evidence.approvedBy, "user");
     assert.equal((await store.readTask(taskId)).state, "created");
-    assert.equal((await store.readExecutionAuthorization(taskId)).executionAuthorizedEventId, result.authorization.eventId);
+    assert.equal(
+      (await store.readExecutionAuthorization(taskId)).executionAuthorizedEventId,
+      result.authorization.eventId,
+    );
   });
 });
 
@@ -1403,14 +1714,22 @@ test("store owner transition marks post-commit recovery failure indeterminate", 
       if (task.state === "ready_for_execution") throw new Error("injected task projection failure");
       return originalWriteTask(task);
     };
-    store.readExecutionAuthorization = async () => { throw new Error("injected reconciliation read failure"); };
+    store.readExecutionAuthorization = async () => {
+      throw new Error("injected reconciliation read failure");
+    };
 
     await assert.rejects(
       () => store.approveAndAuthorizeExecution(taskId, preview),
       (error) => error.commitState === "indeterminate" && /may have committed/.test(error.message),
     );
-    const events = (await readFile(store.pathsForTask(taskId).eventsJsonl, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
-    assert.equal(events.some((event) => event.type === "execution.authorized"), true);
+    const events = (await readFile(store.pathsForTask(taskId).eventsJsonl, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.equal(
+      events.some((event) => event.type === "execution.authorized"),
+      true,
+    );
   });
 });
 
@@ -1431,8 +1750,14 @@ test("store owner transition marks missing post-commit reconciliation evidence i
       () => store.approveAndAuthorizeExecution(taskId, preview),
       (error) => error.commitState === "indeterminate" && /may have committed/.test(error.message),
     );
-    const events = (await readFile(store.pathsForTask(taskId).eventsJsonl, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
-    assert.equal(events.some((event) => event.type === "execution.authorized"), true);
+    const events = (await readFile(store.pathsForTask(taskId).eventsJsonl, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.equal(
+      events.some((event) => event.type === "execution.authorized"),
+      true,
+    );
   });
 });
 
@@ -1451,11 +1776,27 @@ test("store rebuilds active leases from lease events and fails closed on stale o
     });
     await store.appendLeaseEvent("TASK-LEASE-STORE", {
       eventId: "lease_evt_003",
-      lease: activeWorkerLease({ leaseId: "lease-reviewer", agentId: "reviewer-1", role: "reviewer", state: "issued", actions: ["read", "review"], writeScopes: [], allowedCommands: [] }),
+      lease: activeWorkerLease({
+        leaseId: "lease-reviewer",
+        agentId: "reviewer-1",
+        role: "reviewer",
+        state: "issued",
+        actions: ["read", "review"],
+        writeScopes: [],
+        allowedCommands: [],
+      }),
     });
     await store.appendLeaseEvent("TASK-LEASE-STORE", {
       eventId: "lease_evt_004",
-      lease: activeWorkerLease({ leaseId: "lease-reviewer", agentId: "reviewer-1", role: "reviewer", state: "active", actions: ["read", "review"], writeScopes: [], allowedCommands: [] }),
+      lease: activeWorkerLease({
+        leaseId: "lease-reviewer",
+        agentId: "reviewer-1",
+        role: "reviewer",
+        state: "active",
+        actions: ["read", "review"],
+        writeScopes: [],
+        allowedCommands: [],
+      }),
     });
     await store.transitionLease("TASK-LEASE-STORE", "lease-reviewer", "revoked", { eventId: "lease_evt_005" });
 
@@ -1463,7 +1804,9 @@ test("store rebuilds active leases from lease events and fails closed on stale o
     assert.equal(rebuilt.rebuiltFrom.eventCount, 5);
     assert.equal(rebuilt.rebuiltFrom.lastEventId, "lease_evt_005");
     assert.deepEqual(rebuilt.activeLeaseIdsByAgent, { "worker-1": ["lease-worker"] });
-    assert.deepEqual((await store.readActiveLeaseView("TASK-LEASE-STORE")).activeLeaseIdsByAgent, { "worker-1": ["lease-worker"] });
+    assert.deepEqual((await store.readActiveLeaseView("TASK-LEASE-STORE")).activeLeaseIdsByAgent, {
+      "worker-1": ["lease-worker"],
+    });
 
     const paths = store.pathsForTask("TASK-LEASE-STORE");
     const corruptView = structuredClone(rebuilt);
@@ -1495,26 +1838,47 @@ test("store activates deterministic leases idempotently and ends assignment auth
     assert.equal(first.changed, true);
     assert.equal(second.changed, false);
     await assert.rejects(
-      () => store.ensureLeaseActive("TASK-LEASE-LIFECYCLE", { ...lease, attemptId: "attempt-replacement" }, "replacement must use new lease id"),
+      () =>
+        store.ensureLeaseActive(
+          "TASK-LEASE-LIFECYCLE",
+          { ...lease, attemptId: "attempt-replacement" },
+          "replacement must use new lease id",
+        ),
       /lease authority conflict/,
     );
     assert.equal((await store.readLeaseEvents("TASK-LEASE-LIFECYCLE")).length, 2);
-    assert.deepEqual((await store.readActiveLeaseView("TASK-LEASE-LIFECYCLE")).activeLeaseIdsByAgent, { "worker-1": ["lease-worker"] });
+    assert.deepEqual((await store.readActiveLeaseView("TASK-LEASE-LIFECYCLE")).activeLeaseIdsByAgent, {
+      "worker-1": ["lease-worker"],
+    });
     await assert.rejects(
-      () => store.transitionLease("TASK-LEASE-LIFECYCLE", lease.leaseId, "active", { eventId: "lease-active-not-an-identical-observation" }),
+      () =>
+        store.transitionLease("TASK-LEASE-LIFECYCLE", lease.leaseId, "active", {
+          eventId: "lease-active-not-an-identical-observation",
+        }),
       /non-monotonic lease transition/i,
     );
     await assert.rejects(
-      () => store.appendLeaseEvent("TASK-LEASE-LIFECYCLE", {
-        eventId: "lease-cannot-begin-active",
-        lease: { ...lease, leaseId: "lease-unissued", state: "active" },
-      }),
+      () =>
+        store.appendLeaseEvent("TASK-LEASE-LIFECYCLE", {
+          eventId: "lease-cannot-begin-active",
+          lease: { ...lease, leaseId: "lease-unissued", state: "active" },
+        }),
       /must begin in issued state/i,
     );
     assert.equal((await store.readLeaseEvents("TASK-LEASE-LIFECYCLE")).length, 2);
 
-    const ended = await store.endActiveAssignmentLeases("TASK-LEASE-LIFECYCLE", "worker-1", "exhausted", "terminal result");
-    const duplicateEnd = await store.endActiveAssignmentLeases("TASK-LEASE-LIFECYCLE", "worker-1", "exhausted", "terminal retry");
+    const ended = await store.endActiveAssignmentLeases(
+      "TASK-LEASE-LIFECYCLE",
+      "worker-1",
+      "exhausted",
+      "terminal result",
+    );
+    const duplicateEnd = await store.endActiveAssignmentLeases(
+      "TASK-LEASE-LIFECYCLE",
+      "worker-1",
+      "exhausted",
+      "terminal retry",
+    );
     assert.deepEqual(ended.leaseIds, ["lease-worker"]);
     assert.equal(duplicateEnd.changed, false);
     const exhaustedEvents = await store.readLeaseEvents("TASK-LEASE-LIFECYCLE");
@@ -1526,11 +1890,13 @@ test("store activates deterministic leases idempotently and ends assignment auth
       /terminal lease.*cannot transition|non-monotonic lease transition/i,
     );
     await assert.rejects(
-      () => store.transitionLease("TASK-LEASE-LIFECYCLE", lease.leaseId, "issued", { eventId: "lease-terminal-to-issued" }),
+      () =>
+        store.transitionLease("TASK-LEASE-LIFECYCLE", lease.leaseId, "issued", { eventId: "lease-terminal-to-issued" }),
       /terminal lease.*cannot transition|non-monotonic lease transition/i,
     );
     await assert.rejects(
-      () => store.transitionLease("TASK-LEASE-LIFECYCLE", lease.leaseId, "active", { eventId: "lease-terminal-to-active" }),
+      () =>
+        store.transitionLease("TASK-LEASE-LIFECYCLE", lease.leaseId, "active", { eventId: "lease-terminal-to-active" }),
       /terminal lease.*cannot transition|non-monotonic lease transition/i,
     );
     assert.deepEqual(await store.readLeaseEvents("TASK-LEASE-LIFECYCLE"), exhaustedEvents);
@@ -1547,17 +1913,22 @@ test("store activates deterministic leases idempotently and ends assignment auth
       });
       const beforeRejectedReactivation = await store.readLeaseEvents("TASK-LEASE-LIFECYCLE");
       await assert.rejects(
-        () => store.ensureLeaseActive("TASK-LEASE-LIFECYCLE", terminalLease, `${terminalState} lease cannot reactivate`),
+        () =>
+          store.ensureLeaseActive("TASK-LEASE-LIFECYCLE", terminalLease, `${terminalState} lease cannot reactivate`),
         /terminal lease.*cannot transition|non-monotonic lease transition/i,
       );
       assert.deepEqual(await store.readLeaseEvents("TASK-LEASE-LIFECYCLE"), beforeRejectedReactivation);
     }
 
-    const replacement = await store.ensureLeaseActive("TASK-LEASE-LIFECYCLE", {
-      ...lease,
-      leaseId: "lease-worker-replacement",
-      attemptId: "attempt-replacement",
-    }, "new attempt uses a new lease id");
+    const replacement = await store.ensureLeaseActive(
+      "TASK-LEASE-LIFECYCLE",
+      {
+        ...lease,
+        leaseId: "lease-worker-replacement",
+        attemptId: "attempt-replacement",
+      },
+      "new attempt uses a new lease id",
+    );
     assert.equal(replacement.lease.state, "active");
     assert.equal(replacement.changed, true);
     assert.deepEqual(replacement.view.activeLeaseIdsByAgent, { "worker-1": ["lease-worker-replacement"] });
@@ -1572,8 +1943,22 @@ test("concurrent first initialization cannot truncate accepted terminal lease hi
     const lease = activeWorkerLease({ taskId, state: "issued" });
     const acceptedHistory = [
       { eventId: "lease-race-issued", timestamp: fixedNow(), taskId, leaseId: lease.leaseId, state: "issued", lease },
-      { eventId: "lease-race-active", timestamp: fixedNow(), taskId, leaseId: lease.leaseId, state: "active", lease: { ...lease, state: "active" } },
-      { eventId: "lease-race-revoked", timestamp: fixedNow(), taskId, leaseId: lease.leaseId, state: "revoked", lease: { ...lease, state: "revoked" } },
+      {
+        eventId: "lease-race-active",
+        timestamp: fixedNow(),
+        taskId,
+        leaseId: lease.leaseId,
+        state: "active",
+        lease: { ...lease, state: "active" },
+      },
+      {
+        eventId: "lease-race-revoked",
+        timestamp: fixedNow(),
+        taskId,
+        leaseId: lease.leaseId,
+        state: "revoked",
+        lease: { ...lease, state: "revoked" },
+      },
     ];
     const acceptedBytes = `${acceptedHistory.map((event) => JSON.stringify(event)).join("\n")}\n`;
     const childScript = String.raw`
@@ -1612,24 +1997,36 @@ test("concurrent first initialization cannot truncate accepted terminal lease hi
       await store.initTask({ taskId });
       process.stdout.write("DONE\\n");
     `;
-    const child = spawn(process.execPath, [
-      "--input-type=module",
-      "--eval",
-      childScript,
-      new URL("../dist/index.js", import.meta.url).href,
-      root,
-      taskId,
-      leasesPath,
-    ], { stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn(
+      process.execPath,
+      [
+        "--input-type=module",
+        "--eval",
+        childScript,
+        new URL("../dist/index.js", import.meta.url).href,
+        root,
+        taskId,
+        leasesPath,
+      ],
+      { stdio: ["pipe", "pipe", "pipe"] },
+    );
     const childExit = new Promise((resolve) => child.once("exit", resolve));
     let stdout = "";
     let stderr = "";
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
-    child.stdout.on("data", (chunk) => { stdout += chunk; });
-    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
     await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error(`initializer child did not reach file-creation gate; stdout=${stdout}; stderr=${stderr}`)), 10_000);
+      const timeout = setTimeout(
+        () =>
+          reject(new Error(`initializer child did not reach file-creation gate; stdout=${stdout}; stderr=${stderr}`)),
+        10_000,
+      );
       const observe = (chunk) => {
         if (!String(chunk).includes("GATE:")) return;
         clearTimeout(timeout);
@@ -1671,11 +2068,10 @@ test("store rejects persisted non-monotonic lease history without replacing the 
       state: "active",
       lease: { ...terminal.lease, state: "active" },
     };
-    await writeFile(
-      store.pathsForTask(taskId).leasesJsonl,
-      `${JSON.stringify(forgedReactivation)}\n`,
-      { encoding: "utf8", flag: "a" },
-    );
+    await writeFile(store.pathsForTask(taskId).leasesJsonl, `${JSON.stringify(forgedReactivation)}\n`, {
+      encoding: "utf8",
+      flag: "a",
+    });
 
     await assert.rejects(() => store.readLeaseEvents(taskId), /terminal lease.*cannot transition/i);
     await assert.rejects(() => store.rebuildActiveLeaseView(taskId), /terminal lease.*cannot transition/i);
@@ -1729,11 +2125,10 @@ test("store replay rejects repeated physical lease event ids and preserves the l
     await store.ensureLeaseActive(exactTaskId, exactLease, "exact duplicate fixture");
     const exactViewBytes = await readFile(store.pathsForTask(exactTaskId).activeLeasesJson, "utf8");
     const exactEvents = await store.readLeaseEvents(exactTaskId);
-    await writeFile(
-      store.pathsForTask(exactTaskId).leasesJsonl,
-      `${JSON.stringify(exactEvents[1])}\n`,
-      { encoding: "utf8", flag: "a" },
-    );
+    await writeFile(store.pathsForTask(exactTaskId).leasesJsonl, `${JSON.stringify(exactEvents[1])}\n`, {
+      encoding: "utf8",
+      flag: "a",
+    });
     await assert.rejects(() => store.readLeaseEvents(exactTaskId), /duplicate lease event id/i);
     await assert.rejects(() => store.rebuildActiveLeaseView(exactTaskId), /duplicate lease event id/i);
     assert.equal(await readFile(store.pathsForTask(exactTaskId).activeLeasesJson, "utf8"), exactViewBytes);
@@ -1758,11 +2153,21 @@ test("store rejects forged active lease views even when rebuild metadata matches
 
     await store.appendLeaseEvent("TASK-FORGED-LEASE", {
       eventId: "lease_evt_001",
-      lease: activeWorkerLease({ taskId: "TASK-FORGED-LEASE", leaseId: "lease-worker", agentId: "worker-1", state: "issued" }),
+      lease: activeWorkerLease({
+        taskId: "TASK-FORGED-LEASE",
+        leaseId: "lease-worker",
+        agentId: "worker-1",
+        state: "issued",
+      }),
     });
     await store.appendLeaseEvent("TASK-FORGED-LEASE", {
       eventId: "lease_evt_002",
-      lease: activeWorkerLease({ taskId: "TASK-FORGED-LEASE", leaseId: "lease-worker", agentId: "worker-1", state: "active" }),
+      lease: activeWorkerLease({
+        taskId: "TASK-FORGED-LEASE",
+        leaseId: "lease-worker",
+        agentId: "worker-1",
+        state: "active",
+      }),
     });
 
     const rebuilt = await store.rebuildActiveLeaseView("TASK-FORGED-LEASE");
@@ -1780,7 +2185,10 @@ test("store rejects forged active lease views even when rebuild metadata matches
     });
     broadenedView.activeLeaseIdsByAgent["worker-evil"] = ["lease-forged"];
     await writeFile(paths.activeLeasesJson, `${JSON.stringify(broadenedView, null, 2)}\n`, "utf8");
-    await assert.rejects(() => store.readActiveLeaseView("TASK-FORGED-LEASE"), /active lease view does not match lease log/);
+    await assert.rejects(
+      () => store.readActiveLeaseView("TASK-FORGED-LEASE"),
+      /active lease view does not match lease log/,
+    );
 
     const crossAgentView = structuredClone(rebuilt);
     crossAgentView.activeLeaseIdsByAgent = { "worker-2": ["lease-worker"] };
@@ -1792,7 +2200,12 @@ test("store rejects forged active lease views even when rebuild metadata matches
 test("store records layout allocations and wake attempts without acknowledging alerts", async () => {
   await withTempStore(async (root) => {
     const store = createDelegationStore({ root, now: fixedNow });
-    await store.registerAgent({ taskId: "TASK-WAKE-STORE", agentId: "worker-1", role: "worker", parentAgentId: "parent-1" });
+    await store.registerAgent({
+      taskId: "TASK-WAKE-STORE",
+      agentId: "worker-1",
+      role: "worker",
+      parentAgentId: "parent-1",
+    });
 
     await store.recordLayoutAllocation({
       allocationId: "layout-worker-1",
@@ -1813,7 +2226,10 @@ test("store records layout allocations and wake attempts without acknowledging a
     });
 
     const layout = await store.readLayoutState("TASK-WAKE-STORE");
-    assert.deepEqual(layout.allocations.map((allocation) => allocation.allocationId), ["layout-worker-1"]);
+    assert.deepEqual(
+      layout.allocations.map((allocation) => allocation.allocationId),
+      ["layout-worker-1"],
+    );
 
     const queued = await store.queueParentAlert("TASK-WAKE-STORE", {
       agentId: "worker-1",
@@ -1850,13 +2266,44 @@ test("parent alert priority persists P0-P3 without trusting arbitrary child text
   await withTempStore(async (root) => {
     const store = createDelegationStore({ root, now: fixedNow });
     await store.initTask({ taskId: "TASK-PRIORITY" });
-    const p0 = await store.queueParentAlert("TASK-PRIORITY", { parentAgentId: "orchestrator", outcome: "user_attention", eventType: "user-attention", sourceEventId: "evt-p0", message: "user decision" });
-    const p1 = await store.queueParentAlert("TASK-PRIORITY", { parentAgentId: "orchestrator", outcome: "attention", eventType: "agent-attention", sourceEventId: "evt-p1", message: "parent action" });
-    const p2 = await store.queueParentAlert("TASK-PRIORITY", { parentAgentId: "orchestrator", outcome: "completed", eventType: "agent-result", sourceEventId: "evt-p2", message: "P0 SAFETY in arbitrary child text", data: { claimedPriority: "P0" } });
-    const p3 = await store.queueParentAlert("TASK-PRIORITY", { parentAgentId: "orchestrator", outcome: "info", eventType: "agent-info", sourceEventId: "evt-p3", message: "progress" });
+    const p0 = await store.queueParentAlert("TASK-PRIORITY", {
+      parentAgentId: "orchestrator",
+      outcome: "user_attention",
+      eventType: "user-attention",
+      sourceEventId: "evt-p0",
+      message: "user decision",
+    });
+    const p1 = await store.queueParentAlert("TASK-PRIORITY", {
+      parentAgentId: "orchestrator",
+      outcome: "attention",
+      eventType: "agent-attention",
+      sourceEventId: "evt-p1",
+      message: "parent action",
+    });
+    const p2 = await store.queueParentAlert("TASK-PRIORITY", {
+      parentAgentId: "orchestrator",
+      outcome: "completed",
+      eventType: "agent-result",
+      sourceEventId: "evt-p2",
+      message: "P0 SAFETY in arbitrary child text",
+      data: { claimedPriority: "P0" },
+    });
+    const p3 = await store.queueParentAlert("TASK-PRIORITY", {
+      parentAgentId: "orchestrator",
+      outcome: "info",
+      eventType: "agent-info",
+      sourceEventId: "evt-p3",
+      message: "progress",
+    });
 
-    assert.deepEqual([p0.alert.priority, p1.alert.priority, p2.alert.priority, p3.alert.priority], ["P0", "P1", "P2", "P3"]);
-    assert.deepEqual((await store.readWakeAttempts("TASK-PRIORITY")).map((attempt) => attempt.priority), ["P0", "P1", "P2"]);
+    assert.deepEqual(
+      [p0.alert.priority, p1.alert.priority, p2.alert.priority, p3.alert.priority],
+      ["P0", "P1", "P2", "P3"],
+    );
+    assert.deepEqual(
+      (await store.readWakeAttempts("TASK-PRIORITY")).map((attempt) => attempt.priority),
+      ["P0", "P1", "P2"],
+    );
   });
 });
 
@@ -1922,7 +2369,9 @@ test("stronger duplicate evidence promotes one unread alert and ack persists ack
     });
     assert.equal((await store.readParentAlerts("TASK-PROMOTE", { unreadOnly: true })).length, 1);
     assert.deepEqual(
-      (await store.readWakeAttempts("TASK-PROMOTE")).filter((attempt) => attempt.outcome === "queued").map((attempt) => attempt.priority),
+      (await store.readWakeAttempts("TASK-PROMOTE"))
+        .filter((attempt) => attempt.outcome === "queued")
+        .map((attempt) => attempt.priority),
       ["P2", "P1"],
     );
     assert.equal(repeated.alert.readAt, undefined);
@@ -1943,7 +2392,11 @@ test("wake attempt write failure degrades without acknowledging or dropping the 
     await rm(store.pathsForTask("TASK-WAKE-DEGRADED").wakeAttemptsJsonl, { force: true });
     await mkdir(store.pathsForTask("TASK-WAKE-DEGRADED").wakeAttemptsJsonl);
 
-    const queued = await store.queueParentAlert("TASK-WAKE-DEGRADED", { parentAgentId: "orchestrator", outcome: "attention", message: "wake evidence path broken" });
+    const queued = await store.queueParentAlert("TASK-WAKE-DEGRADED", {
+      parentAgentId: "orchestrator",
+      outcome: "attention",
+      message: "wake evidence path broken",
+    });
     assert.equal(queued.queued, true);
     assert.match(queued.wakeAttemptError, /EISDIR|illegal operation on a directory/i);
     const unread = await store.readParentAlerts("TASK-WAKE-DEGRADED", { unreadOnly: true });
@@ -1958,9 +2411,19 @@ test("task-local lock ignores a crashed unique owner generation without deleting
     const store = createDelegationStore({ root, now: fixedNow });
     await store.initTask({ taskId: "TASK-STALE-LOCK" });
     const lockPath = `${store.pathsForTask("TASK-STALE-LOCK").parentAlertsJson}.lock`;
-    const staleOwnerPath = await writeLockOwner(lockPath, { pid: 2147483647, token: "dead-owner", choosing: false, ticket: 1 });
+    const staleOwnerPath = await writeLockOwner(lockPath, {
+      pid: 2147483647,
+      token: "dead-owner",
+      choosing: false,
+      ticket: 1,
+    });
 
-    const queued = await store.queueParentAlert("TASK-STALE-LOCK", { parentAgentId: "orchestrator", outcome: "info", sourceEventId: "evt-stale", message: "survived stale lock" });
+    const queued = await store.queueParentAlert("TASK-STALE-LOCK", {
+      parentAgentId: "orchestrator",
+      outcome: "info",
+      sourceEventId: "evt-stale",
+      message: "survived stale lock",
+    });
     assert.equal(queued.queued, true);
     assert.equal((await store.readParentAlerts("TASK-STALE-LOCK", { unreadOnly: true })).length, 1);
     assert.equal(JSON.parse(await readFile(staleOwnerPath, "utf8")).token, "dead-owner");
@@ -1993,21 +2456,38 @@ test("concurrent first-init actionable alerts preserve every queued wake attempt
   await withTempStore(async (root) => {
     const store = createDelegationStore({ root });
     const taskId = "TASK-FIRST-WAKE-INIT";
-    await Promise.all(Array.from({ length: 12 }, (_, index) => queueAlertInChild(root, taskId, {
-      parentAgentId: "orchestrator",
-      outcome: index % 2 === 0 ? "attention" : "completed",
-      state: index % 2 === 0 ? "attention" : "completed",
-      eventType: index % 2 === 0 ? "agent-attention" : "agent-result",
-      sourceEventId: `evt-first-wake-${index}`,
-      message: `first wake ${index}`,
-    })));
+    await Promise.all(
+      Array.from({ length: 12 }, (_, index) =>
+        queueAlertInChild(root, taskId, {
+          parentAgentId: "orchestrator",
+          outcome: index % 2 === 0 ? "attention" : "completed",
+          state: index % 2 === 0 ? "attention" : "completed",
+          eventType: index % 2 === 0 ? "agent-attention" : "agent-result",
+          sourceEventId: `evt-first-wake-${index}`,
+          message: `first wake ${index}`,
+        }),
+      ),
+    );
 
     const unread = await store.readParentAlerts(taskId, { unreadOnly: true });
     const attempts = (await store.readWakeAttempts(taskId)).filter((attempt) => attempt.outcome === "queued");
     assert.equal(unread.length, 12);
     assert.equal(attempts.length, 12);
     assert.equal(new Set(attempts.flatMap((attempt) => attempt.alertIds)).size, 12);
-    assert.deepEqual(attempts.map((attempt) => attempt.priority).sort(), ["P1", "P1", "P1", "P1", "P1", "P1", "P2", "P2", "P2", "P2", "P2", "P2"]);
+    assert.deepEqual(attempts.map((attempt) => attempt.priority).sort(), [
+      "P1",
+      "P1",
+      "P1",
+      "P1",
+      "P1",
+      "P1",
+      "P2",
+      "P2",
+      "P2",
+      "P2",
+      "P2",
+      "P2",
+    ]);
   });
 });
 
@@ -2016,15 +2496,27 @@ test("multi-process stale-owner replacement race never steals the live generatio
     const store = createDelegationStore({ root, now: fixedNow });
     await store.initTask({ taskId: "TASK-OWNER-RACE" });
     const lockPath = `${store.pathsForTask("TASK-OWNER-RACE").parentAlertsJson}.lock`;
-    const staleOwnerPath = await writeLockOwner(lockPath, { pid: 2147483647, token: "stale-generation", choosing: false, ticket: 1 });
-    const liveOwnerPath = await writeLockOwner(lockPath, { pid: process.pid, token: "live-replacement", choosing: false, ticket: 1 });
-    const waiters = Array.from({ length: 8 }, (_, index) => queueAlertInChild(root, "TASK-OWNER-RACE", {
-      parentAgentId: "orchestrator",
-      outcome: "info",
-      eventType: "agent-info",
-      sourceEventId: `evt-owner-race-${index}`,
-      message: `owner race ${index}`,
-    }));
+    const staleOwnerPath = await writeLockOwner(lockPath, {
+      pid: 2147483647,
+      token: "stale-generation",
+      choosing: false,
+      ticket: 1,
+    });
+    const liveOwnerPath = await writeLockOwner(lockPath, {
+      pid: process.pid,
+      token: "live-replacement",
+      choosing: false,
+      ticket: 1,
+    });
+    const waiters = Array.from({ length: 8 }, (_, index) =>
+      queueAlertInChild(root, "TASK-OWNER-RACE", {
+        parentAgentId: "orchestrator",
+        outcome: "info",
+        eventType: "agent-info",
+        sourceEventId: `evt-owner-race-${index}`,
+        message: `owner race ${index}`,
+      }),
+    );
 
     await sleep(100);
     assert.equal(JSON.parse(await readFile(liveOwnerPath, "utf8")).token, "live-replacement");
@@ -2040,24 +2532,56 @@ test("multi-process stale-owner replacement race never steals the live generatio
 test("closed-parent escalation coalesces distinct source alerts per proof epoch", async () => {
   await withTempStore(async (root) => {
     const store = createDelegationStore({ root, now: fixedNow });
-    await store.registerAgent({ taskId: "TASK-ESCALATION-DEDUPE", agentId: "grandparent-1", role: "execution-parent", profile: "execution-parent", state: "running", parentAgentId: "orchestrator" });
-    await store.registerAgent({ taskId: "TASK-ESCALATION-DEDUPE", agentId: "parent-1", role: "execution-parent", profile: "execution-parent", state: "closed", parentAgentId: "grandparent-1" });
+    await store.registerAgent({
+      taskId: "TASK-ESCALATION-DEDUPE",
+      agentId: "grandparent-1",
+      role: "execution-parent",
+      profile: "execution-parent",
+      state: "running",
+      parentAgentId: "orchestrator",
+    });
+    await store.registerAgent({
+      taskId: "TASK-ESCALATION-DEDUPE",
+      agentId: "parent-1",
+      role: "execution-parent",
+      profile: "execution-parent",
+      state: "closed",
+      parentAgentId: "grandparent-1",
+    });
 
-    const first = await store.queueParentAlert("TASK-ESCALATION-DEDUPE", { agentId: "worker-1", parentAgentId: "parent-1", outcome: "completed", eventType: "agent-result", sourceEventId: "evt-source-1", message: "first source" });
-    const second = await store.queueParentAlert("TASK-ESCALATION-DEDUPE", { agentId: "worker-2", parentAgentId: "parent-1", outcome: "attention", eventType: "agent-attention", sourceEventId: "evt-source-2", message: "second source" });
+    const first = await store.queueParentAlert("TASK-ESCALATION-DEDUPE", {
+      agentId: "worker-1",
+      parentAgentId: "parent-1",
+      outcome: "completed",
+      eventType: "agent-result",
+      sourceEventId: "evt-source-1",
+      message: "first source",
+    });
+    const second = await store.queueParentAlert("TASK-ESCALATION-DEDUPE", {
+      agentId: "worker-2",
+      parentAgentId: "parent-1",
+      outcome: "attention",
+      eventType: "agent-attention",
+      sourceEventId: "evt-source-2",
+      message: "second source",
+    });
 
     const unread = await store.readParentAlerts("TASK-ESCALATION-DEDUPE", { unreadOnly: true });
     const escalations = unread.filter((alert) => alert.eventType === "parent-unavailable-escalation");
     assert.equal(escalations.length, 1);
     assert.equal(escalations[0].priority, "P0");
     assert.equal(escalations[0].parentAgentId, "grandparent-1");
-    assert.deepEqual(escalations[0].data.sourceAlerts.map((source) => source.alertId).sort(), [first.alert.alertId, second.alert.alertId].sort());
+    assert.deepEqual(
+      escalations[0].data.sourceAlerts.map((source) => source.alertId).sort(),
+      [first.alert.alertId, second.alert.alertId].sort(),
+    );
     assert.equal(escalations[0].data.sourceAlerts.length, 2);
     assert.equal(escalations[0].escalationProof.proofEpoch, fixedNow());
     assert.ok(unread.find((alert) => alert.alertId === first.alert.alertId && alert.readAt === undefined));
     assert.ok(unread.find((alert) => alert.alertId === second.alert.alertId && alert.readAt === undefined));
-    const escalationWakeAttempts = (await store.readWakeAttempts("TASK-ESCALATION-DEDUPE"))
-      .filter((attempt) => attempt.priority === "P0" && attempt.alertIds.includes(escalations[0].alertId));
+    const escalationWakeAttempts = (await store.readWakeAttempts("TASK-ESCALATION-DEDUPE")).filter(
+      (attempt) => attempt.priority === "P0" && attempt.alertIds.includes(escalations[0].alertId),
+    );
     assert.equal(escalationWakeAttempts.length, 1);
   });
 });
@@ -2066,26 +2590,38 @@ test("concurrent child processes preserve distinct alerts and coalesce one dupli
   await withTempStore(async (root) => {
     const store = createDelegationStore({ root });
     await store.initTask({ taskId: "TASK-CONCURRENT-DISTINCT" });
-    await Promise.all(Array.from({ length: 10 }, (_, index) => queueAlertInChild(root, "TASK-CONCURRENT-DISTINCT", {
-      parentAgentId: "orchestrator",
-      outcome: "info",
-      eventType: "agent-info",
-      sourceEventId: `evt-distinct-${index}`,
-      message: `distinct ${index}`,
-    })));
+    await Promise.all(
+      Array.from({ length: 10 }, (_, index) =>
+        queueAlertInChild(root, "TASK-CONCURRENT-DISTINCT", {
+          parentAgentId: "orchestrator",
+          outcome: "info",
+          eventType: "agent-info",
+          sourceEventId: `evt-distinct-${index}`,
+          message: `distinct ${index}`,
+        }),
+      ),
+    );
     assert.equal((await store.readParentAlerts("TASK-CONCURRENT-DISTINCT", { unreadOnly: true })).length, 10);
 
     await store.initTask({ taskId: "TASK-CONCURRENT-DUPLICATE" });
-    await Promise.all(Array.from({ length: 10 }, () => queueAlertInChild(root, "TASK-CONCURRENT-DUPLICATE", {
-      parentAgentId: "orchestrator",
-      outcome: "attention",
-      eventType: "agent-attention",
-      sourceEventId: "evt-duplicate",
-      message: "same event",
-    })));
+    await Promise.all(
+      Array.from({ length: 10 }, () =>
+        queueAlertInChild(root, "TASK-CONCURRENT-DUPLICATE", {
+          parentAgentId: "orchestrator",
+          outcome: "attention",
+          eventType: "agent-attention",
+          sourceEventId: "evt-duplicate",
+          message: "same event",
+        }),
+      ),
+    );
     const duplicateAlerts = await store.readParentAlerts("TASK-CONCURRENT-DUPLICATE", { unreadOnly: true });
     assert.equal(duplicateAlerts.length, 1);
-    assert.equal((await store.readWakeAttempts("TASK-CONCURRENT-DUPLICATE")).filter((attempt) => attempt.outcome === "queued").length, 1);
+    assert.equal(
+      (await store.readWakeAttempts("TASK-CONCURRENT-DUPLICATE")).filter((attempt) => attempt.outcome === "queued")
+        .length,
+      1,
+    );
   });
 });
 
@@ -2108,10 +2644,16 @@ async function queueAlertInChild(root, taskId, input) {
   const moduleUrl = new URL("../dist/index.js", import.meta.url).href;
   const source = `import { createDelegationStore } from ${JSON.stringify(moduleUrl)};\nconst [root, taskId, raw] = process.argv.slice(1);\nawait createDelegationStore({ root }).queueParentAlert(taskId, JSON.parse(raw));`;
   await new Promise((resolvePromise, rejectPromise) => {
-    const child = spawn(process.execPath, ["--input-type=module", "--eval", source, root, taskId, JSON.stringify(input)], { stdio: ["ignore", "ignore", "pipe"] });
+    const child = spawn(
+      process.execPath,
+      ["--input-type=module", "--eval", source, root, taskId, JSON.stringify(input)],
+      { stdio: ["ignore", "ignore", "pipe"] },
+    );
     let stderr = "";
     child.stderr.setEncoding("utf8");
-    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
     child.on("error", rejectPromise);
     child.on("exit", (code) => {
       if (code === 0) resolvePromise();

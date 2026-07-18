@@ -34,7 +34,9 @@ export function createPlanningSystem() {
   }
 
   return {
-    get canonicalRaw() { return canonicalRaw; },
+    get canonicalRaw() {
+      return canonicalRaw;
+    },
     direct,
     runtime,
     finishParent,

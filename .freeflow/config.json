@@ -2,9 +2,7 @@
   "defaultMode": "workflow",
   "outputRouter": {
     "hints": {
-      "generatedPathGlobs": [
-        "graphify-out/**"
-      ]
+      "generatedPathGlobs": ["graphify-out/**"]
     },
     "scriptTransform": {
       "enabled": true

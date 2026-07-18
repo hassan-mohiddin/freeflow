@@ -264,5 +264,7 @@ function lineRange(entries: readonly LineEntry[]): string {
   if (!first || !last) {
     return "1-1";
   }
-  return first.lineNumber === last.lineNumber ? `${first.lineNumber}-${first.lineNumber}` : `${first.lineNumber}-${last.lineNumber}`;
+  return first.lineNumber === last.lineNumber
+    ? `${first.lineNumber}-${first.lineNumber}`
+    : `${first.lineNumber}-${last.lineNumber}`;
 }

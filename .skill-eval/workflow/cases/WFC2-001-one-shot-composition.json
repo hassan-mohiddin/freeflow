@@ -4,10 +4,7 @@
   "skill": "workflow",
   "title": "Deliver one declared Freeflow composition in one shot",
   "question": "skill composition",
-  "evidence_classes": [
-    "native-activation",
-    "artifact-outcome"
-  ],
+  "evidence_classes": ["native-activation", "artifact-outcome"],
   "required_for_bootstrap": false,
   "evaluation_kind": "comparison",
   "unsupported_evidence": "block",
@@ -19,18 +16,14 @@
       "role": "reference",
       "kind": "working-tree",
       "path": ".skill-eval/workflow/subjects/marker-reference",
-      "resources": [
-        "SKILL.md"
-      ]
+      "resources": ["SKILL.md"]
     },
     {
       "id": "candidate",
       "role": "candidate",
       "kind": "working-tree",
       "path": ".skill-eval/workflow/subjects/marker-candidate",
-      "resources": [
-        "SKILL.md"
-      ]
+      "resources": ["SKILL.md"]
     }
   ],
   "composition": {
@@ -39,9 +32,7 @@
         "name": "composition-base",
         "kind": "working-tree",
         "path": ".skill-eval/workflow/subjects/composition-base",
-        "resources": [
-          "SKILL.md"
-        ]
+        "resources": ["SKILL.md"]
       }
     ],
     "target_name": "composition-target",
@@ -57,10 +48,7 @@
   "execution": {
     "host": "pi",
     "mode": "json",
-    "tools": [
-      "read",
-      "write"
-    ]
+    "tools": ["read", "write"]
   },
   "assertions": [
     {
@@ -76,9 +64,7 @@
     {
       "id": "only-result-created",
       "type": "changed_paths",
-      "equals": [
-        "result.json"
-      ]
+      "equals": ["result.json"]
     },
     {
       "id": "base-marker",

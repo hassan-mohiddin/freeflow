@@ -76,8 +76,15 @@ test("Pi observed producer detection identifies web, fetch, and code search tool
     risk: { classification: "read", source: "manifest", reason: "Pi web_search is a read-only evidence producer." },
   });
 
-  assert.equal(resolvePiObservedRoutingDecision({ toolName: "fetch_content", input: { url: "https://example.test" } }, config).producer.kind, "fetch");
-  assert.equal(resolvePiObservedRoutingDecision({ toolName: "code_search", input: { query: "api" } }, config).producer.kind, "code_search");
+  assert.equal(
+    resolvePiObservedRoutingDecision({ toolName: "fetch_content", input: { url: "https://example.test" } }, config)
+      .producer.kind,
+    "fetch",
+  );
+  assert.equal(
+    resolvePiObservedRoutingDecision({ toolName: "code_search", input: { query: "api" } }, config).producer.kind,
+    "code_search",
+  );
 });
 
 test("Pi observed producer detection leaves disabled or ambiguous producers unchanged", () => {
@@ -96,10 +103,8 @@ test("Pi observed producer detection leaves disabled or ambiguous producers unch
     false,
   );
   assert.equal(
-    resolvePiObservedRoutingDecision(
-      { toolName: "mcp", input: { tool: "search_without_server" } },
-      observedConfig(),
-    ).route,
+    resolvePiObservedRoutingDecision({ toolName: "mcp", input: { tool: "search_without_server" } }, observedConfig())
+      .route,
     false,
   );
   assert.equal(
@@ -112,7 +117,16 @@ test("Pi observed producer detection leaves disabled or ambiguous producers unch
 });
 
 test("classifyObservedProducerRisk supports deterministic MCP name heuristics", () => {
-  assert.equal(classifyObservedProducerRisk({ kind: "mcp", server: "github", tool: "list_issues" }).classification, "read");
-  assert.equal(classifyObservedProducerRisk({ kind: "mcp", server: "github", tool: "delete_issue" }).classification, "write");
-  assert.equal(classifyObservedProducerRisk({ kind: "mcp", server: "github", tool: "frobnicate" }).classification, "unknown");
+  assert.equal(
+    classifyObservedProducerRisk({ kind: "mcp", server: "github", tool: "list_issues" }).classification,
+    "read",
+  );
+  assert.equal(
+    classifyObservedProducerRisk({ kind: "mcp", server: "github", tool: "delete_issue" }).classification,
+    "write",
+  );
+  assert.equal(
+    classifyObservedProducerRisk({ kind: "mcp", server: "github", tool: "frobnicate" }).classification,
+    "unknown",
+  );
 });

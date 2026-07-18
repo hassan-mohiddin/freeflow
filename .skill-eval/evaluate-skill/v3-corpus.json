@@ -18,19 +18,13 @@
       "id": "rejected-state-tdd",
       "case_id": "WFI-002",
       "path": ".skill-eval/workflow/runs/evaluations/20260712174026240-wfi-002-a533c790e6",
-      "semantic_packets": [
-        "evidence/reference/semantic-packet.json",
-        "evidence/candidate/semantic-packet.json"
-      ]
+      "semantic_packets": ["evidence/reference/semantic-packet.json", "evidence/candidate/semantic-packet.json"]
     },
     {
       "id": "proof-fidelity",
       "case_id": "WFI-003",
       "path": ".skill-eval/workflow/runs/evaluations/20260712173020819-wfi-003-92e364fe99",
-      "semantic_packets": [
-        "evidence/reference/semantic-packet.json",
-        "evidence/candidate/semantic-packet.json"
-      ]
+      "semantic_packets": ["evidence/reference/semantic-packet.json", "evidence/candidate/semantic-packet.json"]
     }
   ]
 }

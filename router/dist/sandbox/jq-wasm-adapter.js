@@ -12,230 +12,231 @@ const SECRET_SENTINEL = "FREEFLOW_SANDBOX_SECRET_SENTINEL_VALUE";
 export const JQ_WASM_ROOT_ENV = "FREEFLOW_JQ_WASM_ROOT";
 const jqProbeCache = new Map();
 export async function discoverJqWasmSandboxAdaptersFromEnv(env = process.env) {
-    const candidate = await resolveScriptTransformAdapterRoot("jq", env);
-    if (!candidate) {
-        return [];
-    }
-    try {
-        return [await createJqWasmSandboxAdapter({ packageRoot: candidate.packageRoot })];
-    }
-    catch (error) {
-        return [unavailableJqAdapter(`jq-wasm adapter could not load from ${candidate.source === "env" ? candidate.envVar : "global adapter cache"}: ${errorMessage(error)}`)];
-    }
+  const candidate = await resolveScriptTransformAdapterRoot("jq", env);
+  if (!candidate) {
+    return [];
+  }
+  try {
+    return [await createJqWasmSandboxAdapter({ packageRoot: candidate.packageRoot })];
+  } catch (error) {
+    return [
+      unavailableJqAdapter(
+        `jq-wasm adapter could not load from ${candidate.source === "env" ? candidate.envVar : "global adapter cache"}: ${errorMessage(error)}`,
+      ),
+    ];
+  }
 }
 export async function createJqWasmSandboxAdapter(options) {
-    const runtime = await loadJqRuntime(options.packageRoot);
-    return {
-        id: options.id ?? "jq-wasm",
-        version: options.version ?? runtime.packageVersion,
-        languages: ["jq"],
-        async probe(language, config) {
-            if (language !== "jq") {
-                return {
-                    status: "unavailable",
-                    reason: `jq-wasm supports jq, not ${language}.`,
-                    passedProofs: [],
-                    failedProofs: [...SCRIPT_SANDBOX_REQUIRED_PROOFS],
-                    runtime: runtimeInfo(runtime),
-                };
-            }
-            return probeJqRuntime(runtime, config);
-        },
-        async execute(request) {
-            if (request.language !== "jq") {
-                return {
-                    status: "policy_violation",
-                    stdout: "",
-                    stderr: "",
-                    outputFiles: [],
-                    exitCode: null,
-                    reason: `jq-wasm supports jq, not ${request.language}.`,
-                };
-            }
-            if (request.network !== "off") {
-                return {
-                    status: "policy_violation",
-                    stdout: "",
-                    stderr: "",
-                    outputFiles: [],
-                    exitCode: null,
-                    reason: "jq-wasm adapter only supports network=off.",
-                };
-            }
-            const json = {};
-            for (const source of request.sources) {
-                json[source.alias] = await readFile(source.path, "utf8");
-            }
-            const run = await runJq(runtime, {
-                query: request.code,
-                json,
-                timeoutMs: request.limits.timeoutMs,
-                outputBytes: request.limits.maxOutputBytes,
-            });
-            if (run.status === "timed_out") {
-                return {
-                    status: "timed_out",
-                    stdout: run.stdout,
-                    stderr: run.stderr,
-                    outputFiles: [],
-                    exitCode: null,
-                    durationMs: run.durationMs,
-                    reason: "jq-wasm execution exceeded timeoutMs.",
-                };
-            }
-            if (run.truncated || run.status === "output_limit_exceeded") {
-                return {
-                    status: "failed",
-                    stdout: run.stdout,
-                    stderr: run.stderr,
-                    outputFiles: [],
-                    exitCode: run.exitCode,
-                    durationMs: run.durationMs,
-                    reason: "jq-wasm execution exceeded maxOutputBytes.",
-                };
-            }
-            if (run.status === "error") {
-                return {
-                    status: "failed",
-                    stdout: run.stdout,
-                    stderr: run.stderr || run.errorMessage || "jq-wasm execution failed.",
-                    outputFiles: [],
-                    exitCode: run.exitCode,
-                    durationMs: run.durationMs,
-                    reason: "jq-wasm execution failed.",
-                };
-            }
-            if (run.exitCode !== 0) {
-                return {
-                    status: "failed",
-                    stdout: run.stdout,
-                    stderr: run.stderr,
-                    outputFiles: [],
-                    exitCode: run.exitCode,
-                    durationMs: run.durationMs,
-                    reason: `jq-wasm execution exited with code ${run.exitCode}.`,
-                };
-            }
-            return {
-                status: "success",
-                stdout: run.stdout,
-                stderr: run.stderr,
-                outputFiles: [],
-                exitCode: 0,
-                durationMs: run.durationMs,
-            };
-        },
-    };
+  const runtime = await loadJqRuntime(options.packageRoot);
+  return {
+    id: options.id ?? "jq-wasm",
+    version: options.version ?? runtime.packageVersion,
+    languages: ["jq"],
+    async probe(language, config) {
+      if (language !== "jq") {
+        return {
+          status: "unavailable",
+          reason: `jq-wasm supports jq, not ${language}.`,
+          passedProofs: [],
+          failedProofs: [...SCRIPT_SANDBOX_REQUIRED_PROOFS],
+          runtime: runtimeInfo(runtime),
+        };
+      }
+      return probeJqRuntime(runtime, config);
+    },
+    async execute(request) {
+      if (request.language !== "jq") {
+        return {
+          status: "policy_violation",
+          stdout: "",
+          stderr: "",
+          outputFiles: [],
+          exitCode: null,
+          reason: `jq-wasm supports jq, not ${request.language}.`,
+        };
+      }
+      if (request.network !== "off") {
+        return {
+          status: "policy_violation",
+          stdout: "",
+          stderr: "",
+          outputFiles: [],
+          exitCode: null,
+          reason: "jq-wasm adapter only supports network=off.",
+        };
+      }
+      const json = {};
+      for (const source of request.sources) {
+        json[source.alias] = await readFile(source.path, "utf8");
+      }
+      const run = await runJq(runtime, {
+        query: request.code,
+        json,
+        timeoutMs: request.limits.timeoutMs,
+        outputBytes: request.limits.maxOutputBytes,
+      });
+      if (run.status === "timed_out") {
+        return {
+          status: "timed_out",
+          stdout: run.stdout,
+          stderr: run.stderr,
+          outputFiles: [],
+          exitCode: null,
+          durationMs: run.durationMs,
+          reason: "jq-wasm execution exceeded timeoutMs.",
+        };
+      }
+      if (run.truncated || run.status === "output_limit_exceeded") {
+        return {
+          status: "failed",
+          stdout: run.stdout,
+          stderr: run.stderr,
+          outputFiles: [],
+          exitCode: run.exitCode,
+          durationMs: run.durationMs,
+          reason: "jq-wasm execution exceeded maxOutputBytes.",
+        };
+      }
+      if (run.status === "error") {
+        return {
+          status: "failed",
+          stdout: run.stdout,
+          stderr: run.stderr || run.errorMessage || "jq-wasm execution failed.",
+          outputFiles: [],
+          exitCode: run.exitCode,
+          durationMs: run.durationMs,
+          reason: "jq-wasm execution failed.",
+        };
+      }
+      if (run.exitCode !== 0) {
+        return {
+          status: "failed",
+          stdout: run.stdout,
+          stderr: run.stderr,
+          outputFiles: [],
+          exitCode: run.exitCode,
+          durationMs: run.durationMs,
+          reason: `jq-wasm execution exited with code ${run.exitCode}.`,
+        };
+      }
+      return {
+        status: "success",
+        stdout: run.stdout,
+        stderr: run.stderr,
+        outputFiles: [],
+        exitCode: 0,
+        durationMs: run.durationMs,
+      };
+    },
+  };
 }
 function unavailableJqAdapter(reason) {
-    return {
-        id: "jq-wasm",
-        version: "unavailable",
-        languages: ["jq"],
-        async probe() {
-            return {
-                status: "unavailable",
-                reason,
-                passedProofs: [],
-                failedProofs: [...SCRIPT_SANDBOX_REQUIRED_PROOFS],
-            };
-        },
-        async execute() {
-            return {
-                status: "policy_violation",
-                stdout: "",
-                stderr: "",
-                outputFiles: [],
-                exitCode: null,
-                reason,
-            };
-        },
-    };
+  return {
+    id: "jq-wasm",
+    version: "unavailable",
+    languages: ["jq"],
+    async probe() {
+      return {
+        status: "unavailable",
+        reason,
+        passedProofs: [],
+        failedProofs: [...SCRIPT_SANDBOX_REQUIRED_PROOFS],
+      };
+    },
+    async execute() {
+      return {
+        status: "policy_violation",
+        stdout: "",
+        stderr: "",
+        outputFiles: [],
+        exitCode: null,
+        reason,
+      };
+    },
+  };
 }
 async function loadJqRuntime(packageRoot) {
-    const resolvedRoot = resolve(packageRoot);
-    const packageJson = JSON.parse(await readFile(join(resolvedRoot, "package.json"), "utf8"));
-    const jqPath = join(resolvedRoot, String(packageJson.main ?? "dist/index.js"));
-    const entry = await readFile(jqPath);
-    return {
-        packageName: String(packageJson.name ?? "jq-wasm"),
-        packageVersion: String(packageJson.version ?? "unknown"),
-        entrySha256: createHash("sha256").update(entry).digest("hex"),
-        jqPath,
-    };
+  const resolvedRoot = resolve(packageRoot);
+  const packageJson = JSON.parse(await readFile(join(resolvedRoot, "package.json"), "utf8"));
+  const jqPath = join(resolvedRoot, String(packageJson.main ?? "dist/index.js"));
+  const entry = await readFile(jqPath);
+  return {
+    packageName: String(packageJson.name ?? "jq-wasm"),
+    packageVersion: String(packageJson.version ?? "unknown"),
+    entrySha256: createHash("sha256").update(entry).digest("hex"),
+    jqPath,
+  };
 }
 async function probeJqRuntime(runtime, config) {
-    const timeoutMs = Math.min(config.limits.timeoutMs, DEFAULT_PROBE_TIMEOUT_MS);
-    const outputBytes = Math.min(config.limits.maxOutputBytes, DEFAULT_PROBE_OUTPUT_BYTES);
-    const cacheKey = [runtime.packageVersion, runtime.entrySha256, timeoutMs, outputBytes, config.network].join(":");
-    const cached = jqProbeCache.get(cacheKey);
-    if (cached) {
-        return cloneProbeResult(await cached);
-    }
-    const probePromise = runJqProbe(runtime, timeoutMs, outputBytes);
-    jqProbeCache.set(cacheKey, probePromise);
-    try {
-        return cloneProbeResult(await probePromise);
-    }
-    catch (error) {
-        jqProbeCache.delete(cacheKey);
-        throw error;
-    }
+  const timeoutMs = Math.min(config.limits.timeoutMs, DEFAULT_PROBE_TIMEOUT_MS);
+  const outputBytes = Math.min(config.limits.maxOutputBytes, DEFAULT_PROBE_OUTPUT_BYTES);
+  const cacheKey = [runtime.packageVersion, runtime.entrySha256, timeoutMs, outputBytes, config.network].join(":");
+  const cached = jqProbeCache.get(cacheKey);
+  if (cached) {
+    return cloneProbeResult(await cached);
+  }
+  const probePromise = runJqProbe(runtime, timeoutMs, outputBytes);
+  jqProbeCache.set(cacheKey, probePromise);
+  try {
+    return cloneProbeResult(await probePromise);
+  } catch (error) {
+    jqProbeCache.delete(cacheKey);
+    throw error;
+  }
 }
 async function runJqProbe(runtime, timeoutMs, outputBytes) {
-    const previousSecret = process.env.FREEFLOW_SANDBOX_SECRET_SENTINEL;
-    process.env.FREEFLOW_SANDBOX_SECRET_SENTINEL = SECRET_SENTINEL;
-    try {
-        const passedProofs = [];
-        const failedProofs = [];
-        const fixtures = scriptSandboxProofFixturesForLanguage("jq");
-        for (const fixture of fixtures) {
-            const run = await runJq(runtime, {
-                query: fixture.program,
-                json: { test_log: "INFO setup\nERROR target\n" },
-                timeoutMs,
-                outputBytes,
-            });
-            const assessment = assessJqProof(fixture.proof, run, timeoutMs, outputBytes);
-            if (assessment) {
-                passedProofs.push(fixture.proof);
-            }
-            else {
-                failedProofs.push(fixture.proof);
-            }
-        }
-        const allPassed = SCRIPT_SANDBOX_REQUIRED_PROOFS.every((proof) => passedProofs.includes(proof));
-        return {
-            status: allPassed ? "available" : "unavailable",
-            reason: allPassed ? "jq-wasm passed every required jq sandbox proof." : "jq-wasm did not pass every required jq sandbox proof.",
-            passedProofs,
-            failedProofs,
-            runtime: runtimeInfo(runtime),
-        };
+  const previousSecret = process.env.FREEFLOW_SANDBOX_SECRET_SENTINEL;
+  process.env.FREEFLOW_SANDBOX_SECRET_SENTINEL = SECRET_SENTINEL;
+  try {
+    const passedProofs = [];
+    const failedProofs = [];
+    const fixtures = scriptSandboxProofFixturesForLanguage("jq");
+    for (const fixture of fixtures) {
+      const run = await runJq(runtime, {
+        query: fixture.program,
+        json: { test_log: "INFO setup\nERROR target\n" },
+        timeoutMs,
+        outputBytes,
+      });
+      const assessment = assessJqProof(fixture.proof, run, timeoutMs, outputBytes);
+      if (assessment) {
+        passedProofs.push(fixture.proof);
+      } else {
+        failedProofs.push(fixture.proof);
+      }
     }
-    finally {
-        if (previousSecret === undefined) {
-            delete process.env.FREEFLOW_SANDBOX_SECRET_SENTINEL;
-        }
-        else {
-            process.env.FREEFLOW_SANDBOX_SECRET_SENTINEL = previousSecret;
-        }
+    const allPassed = SCRIPT_SANDBOX_REQUIRED_PROOFS.every((proof) => passedProofs.includes(proof));
+    return {
+      status: allPassed ? "available" : "unavailable",
+      reason: allPassed
+        ? "jq-wasm passed every required jq sandbox proof."
+        : "jq-wasm did not pass every required jq sandbox proof.",
+      passedProofs,
+      failedProofs,
+      runtime: runtimeInfo(runtime),
+    };
+  } finally {
+    if (previousSecret === undefined) {
+      delete process.env.FREEFLOW_SANDBOX_SECRET_SENTINEL;
+    } else {
+      process.env.FREEFLOW_SANDBOX_SECRET_SENTINEL = previousSecret;
     }
+  }
 }
 function cloneProbeResult(result) {
-    const clone = {
-        ...result,
-        passedProofs: [...result.passedProofs],
-        failedProofs: [...result.failedProofs],
-    };
-    if (result.runtime) {
-        clone.runtime = { ...result.runtime };
-    }
-    return clone;
+  const clone = {
+    ...result,
+    passedProofs: [...result.passedProofs],
+    failedProofs: [...result.failedProofs],
+  };
+  if (result.runtime) {
+    clone.runtime = { ...result.runtime };
+  }
+  return clone;
 }
 async function runJq(runtime, options) {
-    const start = Date.now();
-    const workerSource = `
+  const start = Date.now();
+  const workerSource = `
     (async () => {
     const { parentPort, workerData } = await import('node:worker_threads');
     const { createRequire } = await import('node:module');
@@ -302,120 +303,127 @@ async function runJq(runtime, options) {
       }
     })();
   `;
-    const worker = new Worker(workerSource, {
-        eval: true,
-        workerData: {
-            jqPath: runtime.jqPath,
-            query: options.query,
-            json: options.json,
-            outputBytes: options.outputBytes,
-        },
-        resourceLimits: {
-            maxOldGenerationSizeMb: DEFAULT_WORKER_OLD_GENERATION_MB,
-            maxYoungGenerationSizeMb: DEFAULT_WORKER_YOUNG_GENERATION_MB,
-        },
+  const worker = new Worker(workerSource, {
+    eval: true,
+    workerData: {
+      jqPath: runtime.jqPath,
+      query: options.query,
+      json: options.json,
+      outputBytes: options.outputBytes,
+    },
+    resourceLimits: {
+      maxOldGenerationSizeMb: DEFAULT_WORKER_OLD_GENERATION_MB,
+      maxYoungGenerationSizeMb: DEFAULT_WORKER_YOUNG_GENERATION_MB,
+    },
+  });
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      void worker.terminate();
+      const stdout = result.stdout ?? "";
+      const stderr = result.stderr ?? "";
+      resolve({
+        ...result,
+        stdout,
+        stderr,
+        stdoutBytes: Buffer.byteLength(stdout, "utf8"),
+        stderrBytes: Buffer.byteLength(stderr, "utf8"),
+        outputBytes: Buffer.byteLength(stdout, "utf8") + Buffer.byteLength(stderr, "utf8"),
+        durationMs: Date.now() - start,
+      });
+    };
+    const timer = setTimeout(() => {
+      finish({
+        status: "timed_out",
+        stdout: "",
+        stderr: "",
+        exitCode: null,
+        truncated: false,
+        rawStdoutBytes: 0,
+        rawStderrBytes: 0,
+      });
+    }, options.timeoutMs);
+    worker.on("message", (message) => finish(normalizeWorkerMessage(message)));
+    worker.on("error", (error) => {
+      const message = String(error?.stack ?? error);
+      finish({
+        status: "error",
+        stdout: "",
+        stderr: message,
+        exitCode: null,
+        truncated: false,
+        rawStdoutBytes: 0,
+        rawStderrBytes: Buffer.byteLength(message, "utf8"),
+        errorMessage: message,
+      });
     });
-    return new Promise((resolve) => {
-        let settled = false;
-        const finish = (result) => {
-            if (settled)
-                return;
-            settled = true;
-            clearTimeout(timer);
-            void worker.terminate();
-            const stdout = result.stdout ?? "";
-            const stderr = result.stderr ?? "";
-            resolve({
-                ...result,
-                stdout,
-                stderr,
-                stdoutBytes: Buffer.byteLength(stdout, "utf8"),
-                stderrBytes: Buffer.byteLength(stderr, "utf8"),
-                outputBytes: Buffer.byteLength(stdout, "utf8") + Buffer.byteLength(stderr, "utf8"),
-                durationMs: Date.now() - start,
-            });
-        };
-        const timer = setTimeout(() => {
-            finish({
-                status: "timed_out",
-                stdout: "",
-                stderr: "",
-                exitCode: null,
-                truncated: false,
-                rawStdoutBytes: 0,
-                rawStderrBytes: 0,
-            });
-        }, options.timeoutMs);
-        worker.on("message", (message) => finish(normalizeWorkerMessage(message)));
-        worker.on("error", (error) => {
-            const message = String(error?.stack ?? error);
-            finish({
-                status: "error",
-                stdout: "",
-                stderr: message,
-                exitCode: null,
-                truncated: false,
-                rawStdoutBytes: 0,
-                rawStderrBytes: Buffer.byteLength(message, "utf8"),
-                errorMessage: message,
-            });
+    worker.on("exit", (code) => {
+      if (!settled && code !== 0) {
+        finish({
+          status: "error",
+          stdout: "",
+          stderr: `worker exited with code ${code}`,
+          exitCode: code,
+          truncated: false,
+          rawStdoutBytes: 0,
+          rawStderrBytes: 0,
         });
-        worker.on("exit", (code) => {
-            if (!settled && code !== 0) {
-                finish({
-                    status: "error",
-                    stdout: "",
-                    stderr: `worker exited with code ${code}`,
-                    exitCode: code,
-                    truncated: false,
-                    rawStdoutBytes: 0,
-                    rawStderrBytes: 0,
-                });
-            }
-        });
+      }
     });
+  });
 }
 function normalizeWorkerMessage(message) {
-    return {
-        status: isJqRunStatus(message?.status) ? message.status : "error",
-        stdout: typeof message?.stdout === "string" ? message.stdout : "",
-        stderr: typeof message?.stderr === "string" ? message.stderr : "",
-        exitCode: Number.isInteger(message?.exitCode) ? Number(message.exitCode) : null,
-        truncated: Boolean(message?.truncated),
-        rawStdoutBytes: Number.isFinite(message?.rawStdoutBytes) ? Number(message.rawStdoutBytes) : 0,
-        rawStderrBytes: Number.isFinite(message?.rawStderrBytes) ? Number(message.rawStderrBytes) : 0,
-        errorMessage: typeof message?.errorMessage === "string" ? message.errorMessage : undefined,
-    };
+  return {
+    status: isJqRunStatus(message?.status) ? message.status : "error",
+    stdout: typeof message?.stdout === "string" ? message.stdout : "",
+    stderr: typeof message?.stderr === "string" ? message.stderr : "",
+    exitCode: Number.isInteger(message?.exitCode) ? Number(message.exitCode) : null,
+    truncated: Boolean(message?.truncated),
+    rawStdoutBytes: Number.isFinite(message?.rawStdoutBytes) ? Number(message.rawStdoutBytes) : 0,
+    rawStderrBytes: Number.isFinite(message?.rawStderrBytes) ? Number(message.rawStderrBytes) : 0,
+    errorMessage: typeof message?.errorMessage === "string" ? message.errorMessage : undefined,
+  };
 }
 function isJqRunStatus(value) {
-    return value === "success" || value === "error" || value === "timed_out" || value === "output_limit_exceeded";
+  return value === "success" || value === "error" || value === "timed_out" || value === "output_limit_exceeded";
 }
 function assessJqProof(proof, run, timeoutMs, outputBytes) {
-    const combined = `${run.stdout}\n${run.stderr}\n${run.errorMessage ?? ""}`;
-    switch (proof) {
-        case "env_access_denied":
-            return !combined.includes(SECRET_SENTINEL) && !combined.includes("process.env");
-        case "home_access_denied":
-            return !combined.includes(process.env.HOME ?? "__no_home__") && !combined.match(/PRIVATE KEY|\.ssh/);
-        case "repo_access_denied":
-            return !combined.includes("@hassangameryt/freeflow") && !combined.includes("package.json");
-        case "vault_access_denied":
-            return !combined.includes("ffout_") && !combined.includes("ffrec_");
-        case "network_access_denied":
-            return run.exitCode !== 0 && combined.includes("network unavailable");
-        case "input_read_only":
-            return run.exitCode !== 0 && combined.includes("module not found");
-        case "output_escape_denied":
-            return run.exitCode !== 0 && combined.includes("module not found");
-        case "stdout_stderr_bounded":
-            return run.status !== "error" && run.truncated && run.outputBytes <= outputBytes && run.stdoutBytes > 0 && run.stderrBytes > 0 && run.rawStdoutBytes > outputBytes && run.rawStderrBytes > outputBytes;
-        case "timeout_enforced":
-            return run.status === "timed_out" && run.durationMs < timeoutMs * 5;
-    }
+  const combined = `${run.stdout}\n${run.stderr}\n${run.errorMessage ?? ""}`;
+  switch (proof) {
+    case "env_access_denied":
+      return !combined.includes(SECRET_SENTINEL) && !combined.includes("process.env");
+    case "home_access_denied":
+      return !combined.includes(process.env.HOME ?? "__no_home__") && !combined.match(/PRIVATE KEY|\.ssh/);
+    case "repo_access_denied":
+      return !combined.includes("@hassangameryt/freeflow") && !combined.includes("package.json");
+    case "vault_access_denied":
+      return !combined.includes("ffout_") && !combined.includes("ffrec_");
+    case "network_access_denied":
+      return run.exitCode !== 0 && combined.includes("network unavailable");
+    case "input_read_only":
+      return run.exitCode !== 0 && combined.includes("module not found");
+    case "output_escape_denied":
+      return run.exitCode !== 0 && combined.includes("module not found");
+    case "stdout_stderr_bounded":
+      return (
+        run.status !== "error" &&
+        run.truncated &&
+        run.outputBytes <= outputBytes &&
+        run.stdoutBytes > 0 &&
+        run.stderrBytes > 0 &&
+        run.rawStdoutBytes > outputBytes &&
+        run.rawStderrBytes > outputBytes
+      );
+    case "timeout_enforced":
+      return run.status === "timed_out" && run.durationMs < timeoutMs * 5;
+  }
 }
 function runtimeInfo(runtime) {
-    return { name: runtime.packageName, version: `${runtime.packageVersion} entry:${runtime.entrySha256.slice(0, 12)}` };
+  return { name: runtime.packageName, version: `${runtime.packageVersion} entry:${runtime.entrySha256.slice(0, 12)}` };
 }
 function errorMessage(error) {
-    return error instanceof Error ? error.message : String(error);
+  return error instanceof Error ? error.message : String(error);
 }

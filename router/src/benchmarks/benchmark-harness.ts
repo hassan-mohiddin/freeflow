@@ -76,7 +76,9 @@ export function escapeMarkdownTableCell(value: string): string {
 
 export function defaultJsonRunReportPath(markdownReportPath: string): string {
   const markdownName = basename(markdownReportPath);
-  const jsonName = markdownName.endsWith(".md") ? `${markdownName.slice(0, -".md".length)}.json` : `${markdownName}.json`;
+  const jsonName = markdownName.endsWith(".md")
+    ? `${markdownName.slice(0, -".md".length)}.json`
+    : `${markdownName}.json`;
   return resolve(process.cwd(), "router/evals/runs", jsonName);
 }
 

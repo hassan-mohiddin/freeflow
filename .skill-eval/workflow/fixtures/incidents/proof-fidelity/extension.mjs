@@ -24,10 +24,7 @@ export function createTextProofExtension(host) {
       observedToolResultHandler(event);
       return {
         ...counters,
-        claimedIntegrated:
-          counters.producerCalls === 1 &&
-          counters.callbackCalls === 1 &&
-          counters.storeWrites === 1,
+        claimedIntegrated: counters.producerCalls === 1 && counters.callbackCalls === 1 && counters.storeWrites === 1,
       };
     },
   };

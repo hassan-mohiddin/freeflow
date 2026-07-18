@@ -35,9 +35,15 @@ test("result view contract covers V1 views and defaults to compact model-visible
 });
 
 test("result view contract requires explicit full/raw and validates maxBytes", () => {
-  assert.equal(normalizeDelegationResultViewRequest({ taskId: "TASK-RESULT", agentId: "worker-1", view: "raw" }).view, "raw");
+  assert.equal(
+    normalizeDelegationResultViewRequest({ taskId: "TASK-RESULT", agentId: "worker-1", view: "raw" }).view,
+    "raw",
+  );
   assert.equal(normalizeModelVisibleOutputFormat(undefined), "compact_text");
   assert.equal(normalizeModelVisibleOutputFormat("pipe_rows"), "pipe_rows");
-  assert.throws(() => normalizeDelegationResultViewRequest({ taskId: "TASK-RESULT", agentId: "worker-1", maxBytes: 0 }), /maxBytes/);
+  assert.throws(
+    () => normalizeDelegationResultViewRequest({ taskId: "TASK-RESULT", agentId: "worker-1", maxBytes: 0 }),
+    /maxBytes/,
+  );
   assert.throws(() => normalizeModelVisibleOutputFormat("json"), /output format/);
 });

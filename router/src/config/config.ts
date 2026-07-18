@@ -43,7 +43,8 @@ export const DEFAULT_ROUTER_THRESHOLDS = {
 } as const satisfies RouterThresholds;
 
 export const DEFAULT_OBSERVED_ROUTING_PERSISTENCE = "none" as const satisfies ObservedRoutingPersistenceMode;
-export const SAFE_OBSERVED_ROUTING_PERSISTENCE_FALLBACK = "metadata-only" as const satisfies ObservedRoutingPersistenceMode;
+export const SAFE_OBSERVED_ROUTING_PERSISTENCE_FALLBACK =
+  "metadata-only" as const satisfies ObservedRoutingPersistenceMode;
 
 export const DEFAULT_OBSERVED_ROUTING_CONFIG = {
   enabled: false,
@@ -54,7 +55,11 @@ export const DEFAULT_OBSERVED_ROUTING_CONFIG = {
   codeSearch: { enabled: false, persistence: DEFAULT_OBSERVED_ROUTING_PERSISTENCE },
 } as const satisfies ObservedRoutingConfig;
 
-export const SCRIPT_TRANSFORM_LANGUAGES = ["javascript", "python", "jq"] as const satisfies readonly ScriptTransformLanguage[];
+export const SCRIPT_TRANSFORM_LANGUAGES = [
+  "javascript",
+  "python",
+  "jq",
+] as const satisfies readonly ScriptTransformLanguage[];
 
 export const DEFAULT_SCRIPT_TRANSFORM_LIMITS = {
   timeoutMs: 5_000,
@@ -147,7 +152,15 @@ export function normalizeRouterConfig(input: unknown): NormalizeRouterConfigResu
   applyRouterEnabled(config, warnings, input.enabled);
   applyRouterProfile(config, warnings, input.profile);
   applyPostToolRouting(config, warnings, input.postToolRouting);
-  applyStringEnum(config, warnings, input.storagePolicy, "storagePolicy", "outputRouter.storagePolicy", STORAGE_POLICY_MODES, DEFAULT_STORAGE_POLICY);
+  applyStringEnum(
+    config,
+    warnings,
+    input.storagePolicy,
+    "storagePolicy",
+    "outputRouter.storagePolicy",
+    STORAGE_POLICY_MODES,
+    DEFAULT_STORAGE_POLICY,
+  );
   applyRouterThresholds(config, warnings, input);
   applyRouterVault(config, warnings, input);
   applyRouterHints(config, warnings, input);
@@ -215,9 +228,33 @@ export function normalizeScriptTransformConfig(input: unknown): NormalizeScriptT
     }
   }
 
-  applyStringEnum(config, warnings, input.sandbox, "sandbox", "scriptTransform.sandbox", ["auto"] as const, DEFAULT_SCRIPT_TRANSFORM_CONFIG.sandbox);
-  applyStringEnum(config, warnings, input.network, "network", "scriptTransform.network", ["off"] as const, DEFAULT_SCRIPT_TRANSFORM_CONFIG.network);
-  applyStringEnum(config, warnings, input.rawScriptPersistence, "rawScriptPersistence", "scriptTransform.rawScriptPersistence", ["disabled"] as const, DEFAULT_SCRIPT_TRANSFORM_CONFIG.rawScriptPersistence);
+  applyStringEnum(
+    config,
+    warnings,
+    input.sandbox,
+    "sandbox",
+    "scriptTransform.sandbox",
+    ["auto"] as const,
+    DEFAULT_SCRIPT_TRANSFORM_CONFIG.sandbox,
+  );
+  applyStringEnum(
+    config,
+    warnings,
+    input.network,
+    "network",
+    "scriptTransform.network",
+    ["off"] as const,
+    DEFAULT_SCRIPT_TRANSFORM_CONFIG.network,
+  );
+  applyStringEnum(
+    config,
+    warnings,
+    input.rawScriptPersistence,
+    "rawScriptPersistence",
+    "scriptTransform.rawScriptPersistence",
+    ["disabled"] as const,
+    DEFAULT_SCRIPT_TRANSFORM_CONFIG.rawScriptPersistence,
+  );
   applyScriptTransformLanguages(config, warnings, input.languages);
   applyScriptTransformLimits(config, warnings, input.limits);
 
@@ -253,7 +290,9 @@ export function normalizeLocalFreeflowConfig(input: unknown): NormalizeLocalFree
     return { config, warnings };
   }
   if (!isRecord(unsafe)) {
-    warnings.push("Invalid local processing.unsafeUnsandboxed config; expected an object with enabled boolean. unsafeUnsandboxed remains disabled.");
+    warnings.push(
+      "Invalid local processing.unsafeUnsandboxed config; expected an object with enabled boolean. unsafeUnsandboxed remains disabled.",
+    );
     return { config, warnings };
   }
   if (typeof unsafe.enabled === "boolean") {
@@ -283,27 +322,29 @@ export function normalizeFreeflowConfig(input: unknown): NormalizeFreeflowConfig
 
   const source = isRecord(input) ? input : {};
   if (source.processing !== undefined) {
-    warnings.push(".freeflow/config.json processing config is ignored; unsafe unsandboxed processing must be enabled in local-only .freeflow/local.json.");
+    warnings.push(
+      ".freeflow/config.json processing config is ignored; unsafe unsandboxed processing must be enabled in local-only .freeflow/local.json.",
+    );
   }
   const routerSource = source.outputRouter;
   const routerSourceRecord = isRecord(routerSource) ? routerSource : {};
   const router = normalizeRouterConfig(routerSource);
 
-  const observedRoutingSource = routerSourceRecord.observedRouting !== undefined
-    ? routerSourceRecord.observedRouting
-    : source.observedRouting;
+  const observedRoutingSource =
+    routerSourceRecord.observedRouting !== undefined ? routerSourceRecord.observedRouting : source.observedRouting;
   const observedRouting = normalizeObservedRoutingConfig(observedRoutingSource);
-  const observedRoutingWarnings = routerSourceRecord.observedRouting !== undefined
-    ? prefixConfigWarnings(observedRouting.warnings, "observedRouting", "outputRouter.observedRouting")
-    : observedRouting.warnings;
+  const observedRoutingWarnings =
+    routerSourceRecord.observedRouting !== undefined
+      ? prefixConfigWarnings(observedRouting.warnings, "observedRouting", "outputRouter.observedRouting")
+      : observedRouting.warnings;
 
-  const scriptTransformSource = routerSourceRecord.scriptTransform !== undefined
-    ? routerSourceRecord.scriptTransform
-    : source.scriptTransform;
+  const scriptTransformSource =
+    routerSourceRecord.scriptTransform !== undefined ? routerSourceRecord.scriptTransform : source.scriptTransform;
   const scriptTransform = normalizeScriptTransformConfig(scriptTransformSource);
-  const scriptTransformWarnings = routerSourceRecord.scriptTransform !== undefined
-    ? prefixConfigWarnings(scriptTransform.warnings, "scriptTransform", "outputRouter.scriptTransform")
-    : scriptTransform.warnings;
+  const scriptTransformWarnings =
+    routerSourceRecord.scriptTransform !== undefined
+      ? prefixConfigWarnings(scriptTransform.warnings, "scriptTransform", "outputRouter.scriptTransform")
+      : scriptTransform.warnings;
 
   const effectiveObservedRouting = router.config.enabled
     ? observedRouting.config
@@ -383,14 +424,18 @@ function applyRouterThresholds(config: RouterConfig, warnings: string[], input: 
     warnings,
     thresholdRecord.largeOutputBytes ?? input.largeOutputBytes,
     "largeOutputBytes",
-    thresholdRecord.largeOutputBytes !== undefined ? "outputRouter.thresholds.largeOutputBytes" : "outputRouter.largeOutputBytes",
+    thresholdRecord.largeOutputBytes !== undefined
+      ? "outputRouter.thresholds.largeOutputBytes"
+      : "outputRouter.largeOutputBytes",
   );
   applyPositiveInteger(
     config.thresholds,
     warnings,
     thresholdRecord.largeOutputLines ?? input.largeOutputLines,
     "largeOutputLines",
-    thresholdRecord.largeOutputLines !== undefined ? "outputRouter.thresholds.largeOutputLines" : "outputRouter.largeOutputLines",
+    thresholdRecord.largeOutputLines !== undefined
+      ? "outputRouter.thresholds.largeOutputLines"
+      : "outputRouter.largeOutputLines",
   );
 }
 
@@ -455,7 +500,9 @@ function applyVaultRoot(config: RouterConfig, warnings: string[], value: unknown
 
 function applyVaultRetentionPolicy(config: RouterConfig, warnings: string[], value: unknown) {
   if (!isRecord(value)) {
-    warnings.push("Invalid outputRouter.vault.retention; expected { strategy: 'ttl', ttlDays } or { strategy: 'manual' }.");
+    warnings.push(
+      "Invalid outputRouter.vault.retention; expected { strategy: 'ttl', ttlDays } or { strategy: 'manual' }.",
+    );
     return;
   }
   if (value.strategy === "manual") {
@@ -466,7 +513,9 @@ function applyVaultRetentionPolicy(config: RouterConfig, warnings: string[], val
     applyVaultRetentionDays(config, warnings, value.ttlDays, "outputRouter.vault.retention.ttlDays");
     return;
   }
-  warnings.push(`Invalid outputRouter.vault.retention.strategy=${JSON.stringify(value.strategy)}; using ${DEFAULT_VAULT_RETENTION.strategy}.`);
+  warnings.push(
+    `Invalid outputRouter.vault.retention.strategy=${JSON.stringify(value.strategy)}; using ${DEFAULT_VAULT_RETENTION.strategy}.`,
+  );
 }
 
 function applyVaultRetentionDays(config: RouterConfig, warnings: string[], value: unknown, path: string) {
@@ -486,7 +535,9 @@ function applyRouterHints(config: RouterConfig, warnings: string[], input: Recor
   const hintsInput = input.hints;
   const hintsRecord = isRecord(hintsInput) ? hintsInput : {};
   if (hintsInput !== undefined && !isRecord(hintsInput)) {
-    warnings.push("Invalid outputRouter.hints; expected an object with generatedPathGlobs/noisyCommandPatterns arrays.");
+    warnings.push(
+      "Invalid outputRouter.hints; expected an object with generatedPathGlobs/noisyCommandPatterns arrays.",
+    );
   }
 
   const generatedPaths = hintsRecord.generatedPathGlobs ?? input.generatedPaths;
@@ -496,7 +547,9 @@ function applyRouterHints(config: RouterConfig, warnings: string[], input: Recor
   if (generatedPaths !== undefined) {
     const parsed = parseStringArray(
       generatedPaths,
-      hintsRecord.generatedPathGlobs !== undefined ? "outputRouter.hints.generatedPathGlobs" : "outputRouter.generatedPaths",
+      hintsRecord.generatedPathGlobs !== undefined
+        ? "outputRouter.hints.generatedPathGlobs"
+        : "outputRouter.generatedPaths",
       warnings,
     );
     if (parsed) {
@@ -507,7 +560,9 @@ function applyRouterHints(config: RouterConfig, warnings: string[], input: Recor
   if (noisyCommandHints !== undefined) {
     const parsed = parseStringArray(
       noisyCommandHints,
-      hintsRecord.noisyCommandPatterns !== undefined ? "outputRouter.hints.noisyCommandPatterns" : "outputRouter.noisyCommandHints",
+      hintsRecord.noisyCommandPatterns !== undefined
+        ? "outputRouter.hints.noisyCommandPatterns"
+        : "outputRouter.noisyCommandHints",
       warnings,
     );
     if (parsed) {
@@ -536,7 +591,9 @@ function applyScriptTransformLanguages(config: ScriptTransformConfig, warnings: 
         languages.push(item);
       }
     } else {
-      warnings.push(`Invalid scriptTransform.languages entry=${JSON.stringify(item)}; supported languages are ${SCRIPT_TRANSFORM_LANGUAGES.join(", ")}.`);
+      warnings.push(
+        `Invalid scriptTransform.languages entry=${JSON.stringify(item)}; supported languages are ${SCRIPT_TRANSFORM_LANGUAGES.join(", ")}.`,
+      );
     }
   }
 
@@ -559,7 +616,12 @@ function applyScriptTransformLimits(config: ScriptTransformConfig, warnings: str
   applyScriptLimit(config, warnings, value.maxOutputBytes, "maxOutputBytes");
 }
 
-function applyScriptLimit(config: ScriptTransformConfig, warnings: string[], value: unknown, key: keyof ScriptTransformConfig["limits"]) {
+function applyScriptLimit(
+  config: ScriptTransformConfig,
+  warnings: string[],
+  value: unknown,
+  key: keyof ScriptTransformConfig["limits"],
+) {
   if (value === undefined) {
     return;
   }
@@ -568,7 +630,9 @@ function applyScriptLimit(config: ScriptTransformConfig, warnings: string[], val
     config.limits[key] = Number(value);
     return;
   }
-  warnings.push(`Invalid scriptTransform.limits.${key}=${JSON.stringify(value)}; using ${DEFAULT_SCRIPT_TRANSFORM_LIMITS[key]}.`);
+  warnings.push(
+    `Invalid scriptTransform.limits.${key}=${JSON.stringify(value)}; using ${DEFAULT_SCRIPT_TRANSFORM_LIMITS[key]}.`,
+  );
 }
 
 function applyStringEnum<TConfig extends object, TValue extends string>(
@@ -613,7 +677,9 @@ function applyObservedRoutingEnabled(config: ObservedRoutingConfig, warnings: st
     return;
   }
 
-  warnings.push(`Invalid observedRouting.enabled=${JSON.stringify(value)}; using ${DEFAULT_OBSERVED_ROUTING_CONFIG.enabled}.`);
+  warnings.push(
+    `Invalid observedRouting.enabled=${JSON.stringify(value)}; using ${DEFAULT_OBSERVED_ROUTING_CONFIG.enabled}.`,
+  );
 }
 
 function applyObservedMcpConfig(config: ObservedRoutingConfig, warnings: string[], value: unknown) {
@@ -622,7 +688,9 @@ function applyObservedMcpConfig(config: ObservedRoutingConfig, warnings: string[
   }
 
   if (!isRecord(value)) {
-    warnings.push("Invalid observedRouting.mcp; expected an object with explicit servers. MCP observed routing remains disabled.");
+    warnings.push(
+      "Invalid observedRouting.mcp; expected an object with explicit servers. MCP observed routing remains disabled.",
+    );
     return;
   }
 
@@ -656,7 +724,9 @@ function parseObservedProducerConfig(value: unknown, path: string, warnings: str
   }
 
   if (!isRecord(value)) {
-    warnings.push(`Invalid ${path}; expected an object with enabled and persistence. Observed routing remains disabled for this producer.`);
+    warnings.push(
+      `Invalid ${path}; expected an object with enabled and persistence. Observed routing remains disabled for this producer.`,
+    );
     return fallback;
   }
 
@@ -686,7 +756,9 @@ function parseObservedPersistence(
 ): ObservedRoutingPersistenceMode {
   if (value === undefined) {
     if (enabled) {
-      warnings.push(`Missing ${path}; setup must choose persistence explicitly. Using ${SAFE_OBSERVED_ROUTING_PERSISTENCE_FALLBACK}.`);
+      warnings.push(
+        `Missing ${path}; setup must choose persistence explicitly. Using ${SAFE_OBSERVED_ROUTING_PERSISTENCE_FALLBACK}.`,
+      );
       return SAFE_OBSERVED_ROUTING_PERSISTENCE_FALLBACK;
     }
     return DEFAULT_OBSERVED_ROUTING_PERSISTENCE;
@@ -697,7 +769,9 @@ function parseObservedPersistence(
   }
 
   if (isStringIn(value, RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES)) {
-    warnings.push(`Unsupported ${path}=${JSON.stringify(value)}; redacted persistence is reserved for future work. Using ${SAFE_OBSERVED_ROUTING_PERSISTENCE_FALLBACK}.`);
+    warnings.push(
+      `Unsupported ${path}=${JSON.stringify(value)}; redacted persistence is reserved for future work. Using ${SAFE_OBSERVED_ROUTING_PERSISTENCE_FALLBACK}.`,
+    );
     return SAFE_OBSERVED_ROUTING_PERSISTENCE_FALLBACK;
   }
 
@@ -707,7 +781,11 @@ function parseObservedPersistence(
 }
 
 function parseConfigString(value: unknown, path: string, warnings: string[]): string | undefined {
-  if (typeof value !== "string" || value.trim().length === 0 || /[\u0000-\u001F\u007F-\u009F\u2028\u2029]/.test(value)) {
+  if (
+    typeof value !== "string" ||
+    value.trim().length === 0 ||
+    /[\u0000-\u001F\u007F-\u009F\u2028\u2029]/.test(value)
+  ) {
     warnings.push(`Invalid ${path}; expected a non-empty single-line string.`);
     return undefined;
   }

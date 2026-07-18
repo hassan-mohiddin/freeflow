@@ -1,20 +1,30 @@
-import type { EvidenceLineage, EvidencePacket, EvidencePersistence, FailureExecutionStatus, FailureRoutedResult, PreserveMode, RouterFailureKind, RoutingStatus, ToolStatus } from "../config/types.js";
+import type {
+  EvidenceLineage,
+  EvidencePacket,
+  EvidencePersistence,
+  FailureExecutionStatus,
+  FailureRoutedResult,
+  PreserveMode,
+  RouterFailureKind,
+  RoutingStatus,
+  ToolStatus,
+} from "../config/types.js";
 export type FailureOperationKind = "transform";
 export interface FailureResultOptions {
-    kind: RouterFailureKind;
-    operation: FailureOperationKind;
-    message: string;
-    preserve?: PreserveMode;
-    executionStatus?: FailureExecutionStatus;
-    toolStatus?: ToolStatus;
-    routingStatus?: RoutingStatus;
-    routingReason?: string;
-    persistence?: EvidencePersistence;
-    recordId?: string;
-    outputId?: string;
-    lineage?: EvidenceLineage;
-    evidence?: EvidencePacket[];
-    decisionSeed?: string;
+  kind: RouterFailureKind;
+  operation: FailureOperationKind;
+  message: string;
+  preserve?: PreserveMode;
+  executionStatus?: FailureExecutionStatus;
+  toolStatus?: ToolStatus;
+  routingStatus?: RoutingStatus;
+  routingReason?: string;
+  persistence?: EvidencePersistence;
+  recordId?: string;
+  outputId?: string;
+  lineage?: EvidenceLineage;
+  evidence?: EvidencePacket[];
+  decisionSeed?: string;
 }
 export type TransformFailureOptions = Omit<FailureResultOptions, "kind" | "operation" | "executionStatus">;
 export type StorageFailureOptions = Omit<FailureResultOptions, "kind" | "operation" | "executionStatus">;

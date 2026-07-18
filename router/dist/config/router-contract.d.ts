@@ -1,7 +1,7 @@
 import type { PostToolRoutingMode } from "./types.js";
 export interface RouterContractIssue {
-    path: string;
-    message: string;
+  path: string;
+  message: string;
 }
 export declare function isValidPostToolRoutingMode(value: unknown): value is PostToolRoutingMode;
 export declare function isNativeSafetyNetEnabled(value: unknown): boolean;

@@ -20,15 +20,9 @@ export const PARENT_CONTROL_TOOL_NAMES = [
   "delegate_update_execution_map",
 ] as const;
 
-export const ORCHESTRATOR_ONLY_TOOL_NAMES = [
-  "delegate_request_execution_authorization",
-] as const;
+export const ORCHESTRATOR_ONLY_TOOL_NAMES = ["delegate_request_execution_authorization"] as const;
 
-export const CHILD_LIFECYCLE_TOOL_NAMES = [
-  "delegate_finish",
-  "delegate_attention",
-  "delegate_progress",
-] as const;
+export const CHILD_LIFECYCLE_TOOL_NAMES = ["delegate_finish", "delegate_attention", "delegate_progress"] as const;
 
 export const READ_RECOVERY_TOOL_NAMES = [
   "delegate_status",
@@ -62,13 +56,17 @@ export const PARENT_TOOL_NAMES = [
   ...DELEGATION_TOOL_NAMES.filter((toolName) => !ORCHESTRATOR_ONLY_TOOL_NAMES.includes(toolName as any)),
 ] as const;
 
-export const ORCHESTRATOR_TOOL_NAMES = [
-  ...PARENT_TOOL_NAMES,
-  ...ORCHESTRATOR_ONLY_TOOL_NAMES,
-] as const;
+export const ORCHESTRATOR_TOOL_NAMES = [...PARENT_TOOL_NAMES, ...ORCHESTRATOR_ONLY_TOOL_NAMES] as const;
 
 export const WRITER_TOOL_NAMES = ["read", "bash", "edit", "write", ...ROUTED_EVIDENCE_TOOL_NAMES] as const;
-export const READ_ONLY_TOOL_NAMES = ["read", ...ROUTED_EVIDENCE_TOOL_NAMES, "web_search", "fetch_content", "get_search_content", "mcp"] as const;
+export const READ_ONLY_TOOL_NAMES = [
+  "read",
+  ...ROUTED_EVIDENCE_TOOL_NAMES,
+  "web_search",
+  "fetch_content",
+  "get_search_content",
+  "mcp",
+] as const;
 export const CHECK_RUNNER_TOOL_NAMES = ["read", "bash", ...ROUTED_EVIDENCE_TOOL_NAMES] as const;
 
 const LEAF_LIFECYCLE_TOOL_NAMES = [...CHILD_LIFECYCLE_TOOL_NAMES, "delegate_status", "delegate_result"] as const;
@@ -119,7 +117,7 @@ function definition(input: {
 }
 
 export const PROFILE_REGISTRY: Record<DelegationProfile, DelegationProfileDefinition> = {
-  "orchestrator": definition({
+  orchestrator: definition({
     profile: "orchestrator",
     displayName: "Orchestrator",
     kind: "orchestrator",
@@ -143,7 +141,12 @@ export const PROFILE_REGISTRY: Record<DelegationProfile, DelegationProfileDefini
       "Use researchers for broad/deep evidence and reviewers for artifacts.",
       "Product-code edits require explicit scope; do not silently turn planning into implementation.",
     ],
-    defaultPolicy: policy({ requireWriteScope: false, productCodeWritesRequireScope: true, commandPolicy: "guarded", suggestedReroute: "orchestrator" }),
+    defaultPolicy: policy({
+      requireWriteScope: false,
+      productCodeWritesRequireScope: true,
+      commandPolicy: "guarded",
+      suggestedReroute: "orchestrator",
+    }),
   }),
   "execution-parent": definition({
     profile: "execution-parent",
@@ -160,7 +163,7 @@ export const PROFILE_REGISTRY: Record<DelegationProfile, DelegationProfileDefini
     ],
     defaultPolicy: policy({ requireWriteScope: false, commandPolicy: "guarded", suggestedReroute: "orchestrator" }),
   }),
-  "researcher": definition({
+  researcher: definition({
     profile: "researcher",
     displayName: "Researcher",
     kind: "leaf",
@@ -174,7 +177,7 @@ export const PROFILE_REGISTRY: Record<DelegationProfile, DelegationProfileDefini
     ],
     defaultPolicy: policy({ requireWriteScope: true, commandPolicy: "allowed-list", suggestedReroute: "parent" }),
   }),
-  "worker": definition({
+  worker: definition({
     profile: "worker",
     displayName: "Worker",
     kind: "leaf",
@@ -188,7 +191,7 @@ export const PROFILE_REGISTRY: Record<DelegationProfile, DelegationProfileDefini
     ],
     defaultPolicy: policy({ requireWriteScope: true, commandPolicy: "allowed-list", suggestedReroute: "parent" }),
   }),
-  "reviewer": definition({
+  reviewer: definition({
     profile: "reviewer",
     displayName: "Reviewer",
     kind: "leaf",
@@ -202,7 +205,7 @@ export const PROFILE_REGISTRY: Record<DelegationProfile, DelegationProfileDefini
     ],
     defaultPolicy: policy({ requireWriteScope: true, commandPolicy: "allowed-list", suggestedReroute: "verifier" }),
   }),
-  "verifier": definition({
+  verifier: definition({
     profile: "verifier",
     displayName: "Verifier",
     kind: "leaf",
@@ -216,7 +219,7 @@ export const PROFILE_REGISTRY: Record<DelegationProfile, DelegationProfileDefini
     ],
     defaultPolicy: policy({ requireWriteScope: true, commandPolicy: "allowed-list", suggestedReroute: "parent" }),
   }),
-  "integrator": definition({
+  integrator: definition({
     profile: "integrator",
     displayName: "Integrator",
     kind: "leaf",
@@ -228,7 +231,11 @@ export const PROFILE_REGISTRY: Record<DelegationProfile, DelegationProfileDefini
       "No push; commits only when explicitly assigned by execution-parent policy.",
       "Use delegate_finish when complete, delegate_attention when blocked, and delegate_progress for store-only updates.",
     ],
-    defaultPolicy: policy({ requireWriteScope: true, commandPolicy: "allowed-list", suggestedReroute: "execution-parent" }),
+    defaultPolicy: policy({
+      requireWriteScope: true,
+      commandPolicy: "allowed-list",
+      suggestedReroute: "execution-parent",
+    }),
   }),
   "write-scoped": definition({
     profile: "write-scoped",
@@ -283,7 +290,10 @@ export function getProfileDefinition(profile: DelegationProfile): DelegationProf
   return cloneProfileDefinition(definition);
 }
 
-export function resolveProfileForRole(role: DelegationRole, profile: DelegationProfile = role): DelegationProfileDefinition {
+export function resolveProfileForRole(
+  role: DelegationRole,
+  profile: DelegationProfile = role,
+): DelegationProfileDefinition {
   if (!isKnownRole(role)) {
     throw new Error(`unknown delegation role: ${role}`);
   }
@@ -299,7 +309,10 @@ export function isDelegationTool(toolName: string): boolean {
 }
 
 export function isParentControlDelegationTool(toolName: string): boolean {
-  return PARENT_CONTROL_TOOL_NAMES.includes(toolName as (typeof PARENT_CONTROL_TOOL_NAMES)[number]) || toolName === "delegate_wait";
+  return (
+    PARENT_CONTROL_TOOL_NAMES.includes(toolName as (typeof PARENT_CONTROL_TOOL_NAMES)[number]) ||
+    toolName === "delegate_wait"
+  );
 }
 
 export function isChildLifecycleDelegationTool(toolName: string): boolean {
@@ -344,29 +357,73 @@ export function defaultDenySummaryForProfile(profile: DelegationProfile): string
   return deny;
 }
 
-export function defaultReturnProtocolForRole(role: DelegationRole): { returnProtocol: string[]; returnFields: string[] } {
+export function defaultReturnProtocolForRole(role: DelegationRole): {
+  returnProtocol: string[];
+  returnFields: string[];
+} {
   if (role === "planning-parent") {
     return {
       returnProtocol: ["PLANNING_REPORT_REQUIRED", "DELEGATE_FINISH_SUPPORTED"],
-      returnFields: ["status", "goal", "artifact_paths", "review_status", "settled_decisions", "open_questions", "execution_autonomy", "user_checkpoints", "execution_guidance", "risks", "evidence"],
+      returnFields: [
+        "status",
+        "goal",
+        "artifact_paths",
+        "review_status",
+        "settled_decisions",
+        "open_questions",
+        "execution_autonomy",
+        "user_checkpoints",
+        "execution_guidance",
+        "risks",
+        "evidence",
+      ],
     };
   }
   if (role === "execution-parent") {
     return {
       returnProtocol: ["EXECUTION_REPORT_REQUIRED", "DELEGATE_FINISH_SUPPORTED"],
-      returnFields: ["status", "summary", "source_references", "work_packages", "commits", "reviews", "checks", "files_changed", "plan_deviations", "stop_conditions_hit", "open_questions", "risks", "final_recommendation", "evidence"],
+      returnFields: [
+        "status",
+        "summary",
+        "source_references",
+        "work_packages",
+        "commits",
+        "reviews",
+        "checks",
+        "files_changed",
+        "plan_deviations",
+        "stop_conditions_hit",
+        "open_questions",
+        "risks",
+        "final_recommendation",
+        "evidence",
+      ],
     };
   }
   if (role === "reviewer") {
     return {
       returnProtocol: ["DELEGATE_FINISH_REVIEWER_RESULT", "LEGACY_FFRESULT_BLOCKER_FALLBACK"],
-      returnFields: ["status", "summary", "findings(severity,location,problem,recommendation,evidence)", "assessment", "residual_risk", "evidence"],
+      returnFields: [
+        "status",
+        "summary",
+        "findings(severity,location,problem,recommendation,evidence)",
+        "assessment",
+        "residual_risk",
+        "evidence",
+      ],
     };
   }
   if (role === "verifier") {
     return {
       returnProtocol: ["DELEGATE_FINISH_VERIFICATION_RESULT", "LEGACY_FFRESULT_BLOCKER_FALLBACK"],
-      returnFields: ["status", "summary", "checks(name,status,outputId,evidence)", "unverified_areas", "completion_claim_supported", "evidence"],
+      returnFields: [
+        "status",
+        "summary",
+        "checks(name,status,outputId,evidence)",
+        "unverified_areas",
+        "completion_claim_supported",
+        "evidence",
+      ],
     };
   }
   return {
@@ -398,7 +455,16 @@ export function assertLeafProfilesDoNotIncludeDelegationTools(): void {
 }
 
 function isKnownRole(role: string): role is DelegationRole {
-  return ["orchestrator", "planning-parent", "execution-parent", "researcher", "worker", "reviewer", "verifier", "integrator"].includes(role);
+  return [
+    "orchestrator",
+    "planning-parent",
+    "execution-parent",
+    "researcher",
+    "worker",
+    "reviewer",
+    "verifier",
+    "integrator",
+  ].includes(role);
 }
 
 function cloneProfileDefinition(definition: DelegationProfileDefinition): DelegationProfileDefinition {

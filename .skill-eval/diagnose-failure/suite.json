@@ -1,1 +1,5 @@
-{"schema_version":1,"skill":"diagnose-failure","cases":["cases/DQ-001-invalidation-root-cause.json","cases/DQ-002-guessed-fix-pressure.json"]}
+{
+  "schema_version": 1,
+  "skill": "diagnose-failure",
+  "cases": ["cases/DQ-001-invalidation-root-cause.json", "cases/DQ-002-guessed-fix-pressure.json"]
+}

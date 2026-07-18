@@ -15,9 +15,7 @@ export interface ResolveExactLineRangeOptions {
   invalidReason: string;
 }
 
-export type ResolveExactLineRangeResult =
-  | { ok: true; range: ExactLineRange }
-  | { ok: false; reason: string };
+export type ResolveExactLineRangeResult = { ok: true; range: ExactLineRange } | { ok: false; reason: string };
 
 export function resolveExactLineRange(options: ResolveExactLineRangeOptions): ResolveExactLineRangeResult {
   const { requested, lineCount, availableLabel, invalidReason } = options;

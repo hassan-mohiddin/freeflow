@@ -47,9 +47,10 @@ export function buildBoundedEdgeChunks(options: {
   caps: BoundedEvidenceCaps;
 }): BoundedEdgeChunk[] {
   return overCapEdgeRanges(options.lines, options.range, options.caps).map((range) => {
-    const excerpt = range.edge === "tail"
-      ? truncateTailToUtf8Bytes(linesForRange(options.lines, range), options.caps.exactChunkMaxBytes)
-      : truncateToUtf8Bytes(linesForRange(options.lines, range), options.caps.exactChunkMaxBytes);
+    const excerpt =
+      range.edge === "tail"
+        ? truncateTailToUtf8Bytes(linesForRange(options.lines, range), options.caps.exactChunkMaxBytes)
+        : truncateToUtf8Bytes(linesForRange(options.lines, range), options.caps.exactChunkMaxBytes);
     return {
       range: { start: range.start, end: range.end },
       linesLabel: `${range.start}-${range.end}`,
@@ -76,9 +77,12 @@ export function buildBoundedExcerpt(options: BuildBoundedExcerptOptions): Bounde
     }
   }
 
-  const previewedLines = maxBytes !== null
-    ? selected.map((line) => truncateLinePreview(line, options.caps.linePreviewMaxBytes, options.exactNormalizedPhrase))
-    : selected;
+  const previewedLines =
+    maxBytes !== null
+      ? selected.map((line) =>
+          truncateLinePreview(line, options.caps.linePreviewMaxBytes, options.exactNormalizedPhrase),
+        )
+      : selected;
   const uncappedExcerpt = previewedLines.join("\n");
   const excerpt = maxBytes === null ? uncappedExcerpt : truncateToUtf8Bytes(uncappedExcerpt, maxBytes);
   return {
@@ -127,7 +131,8 @@ function shrinkRangeToMaxBytes(
 ): LineRange {
   let current = range;
   while (current.end > current.start && byteLength(linesForRange(lines, current)) > caps.exactChunkMaxBytes) {
-    current = edge === "head" ? { start: current.start, end: current.end - 1 } : { start: current.start + 1, end: current.end };
+    current =
+      edge === "head" ? { start: current.start, end: current.end - 1 } : { start: current.start + 1, end: current.end };
   }
   return current;
 }

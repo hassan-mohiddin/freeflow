@@ -2,7 +2,12 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import { buildBoundedEdgeChunks, buildBoundedExcerpt, type BoundedEdgeChunk, type BoundedEvidenceCaps } from "../evidence/bounded-evidence.js";
+import {
+  buildBoundedEdgeChunks,
+  buildBoundedExcerpt,
+  type BoundedEdgeChunk,
+  type BoundedEvidenceCaps,
+} from "../evidence/bounded-evidence.js";
 import {
   findBestLineForQuery,
   searchRepoEvidenceCandidates,
@@ -53,7 +58,15 @@ export interface LocalSearchSourceInput {
 
 export type SearchSourceInput = RepoSearchSourceInput | VaultSearchSourceInput | LocalSearchSourceInput;
 
-export const FREEFLOW_SEARCH_ACTIONS = ["query", "locate", "get", "retrieve", "expand", "explain", "transform"] as const;
+export const FREEFLOW_SEARCH_ACTIONS = [
+  "query",
+  "locate",
+  "get",
+  "retrieve",
+  "expand",
+  "explain",
+  "transform",
+] as const;
 export type FreeflowSearchAction = (typeof FREEFLOW_SEARCH_ACTIONS)[number];
 
 export function searchActionForRetrievalAction(action: RetrievalAction): FreeflowSearchAction {
@@ -189,10 +202,7 @@ export async function freeflowSearch(options: FreeflowSearchOptions): Promise<Re
   }
 }
 
-async function retrieveVault(
-  options: VaultSearchOptions,
-  preserve: PreserveMode,
-): Promise<RetrievalRoutedResult> {
+async function retrieveVault(options: VaultSearchOptions, preserve: PreserveMode): Promise<RetrievalRoutedResult> {
   if (options.action === "retrieve") {
     if (!hasVaultOutputId(options)) {
       return errorResult(preserve, "Vault retrieve requires source.outputId.");
@@ -256,7 +266,10 @@ async function querySingleVaultOutput(
       routing: {
         status: "routed",
         route: "retrieve",
-        reason: action === "get" ? "Freeflow search get found no matching vaulted output evidence." : "Deterministic lexical vault retrieval found no matching output evidence.",
+        reason:
+          action === "get"
+            ? "Freeflow search get found no matching vaulted output evidence."
+            : "Deterministic lexical vault retrieval found no matching output evidence.",
       },
       evidence: [],
       recovery: {
@@ -276,9 +289,10 @@ async function querySingleVaultOutput(
     path: `${options.source.outputId}:${stream}`,
     lines: evidenceLines,
     excerpt: excerptForLineRange(lines, { start: start + 1, end: end + 1 }, "small"),
-    why: action === "get"
-      ? `Best vaulted get match near line ${candidateLine + 1}; matchType=${match.type} confidence=${match.confidence.toFixed(2)}.`
-      : `Deterministic lexical match for query terms in vaulted ${stream} output near line ${candidateLine + 1}.`,
+    why:
+      action === "get"
+        ? `Best vaulted get match near line ${candidateLine + 1}; matchType=${match.type} confidence=${match.confidence.toFixed(2)}.`
+        : `Deterministic lexical match for query terms in vaulted ${stream} output near line ${candidateLine + 1}.`,
     window: "small",
     expandable: true,
     ...(action === "get" ? { match } : {}),
@@ -293,15 +307,17 @@ async function querySingleVaultOutput(
     routing: {
       status: "routed",
       route: "retrieve",
-      reason: action === "get"
-        ? `Freeflow search get selected best vaulted outputId=${options.source.outputId} stream=${stream} lines=${evidenceLines}; matchType=${match.type} confidence=${match.confidence.toFixed(2)}.`
-        : `Deterministic lexical retrieval selected vaulted outputId=${options.source.outputId} stream=${stream} lines=${evidenceLines}.`,
+      reason:
+        action === "get"
+          ? `Freeflow search get selected best vaulted outputId=${options.source.outputId} stream=${stream} lines=${evidenceLines}; matchType=${match.type} confidence=${match.confidence.toFixed(2)}.`
+          : `Deterministic lexical retrieval selected vaulted outputId=${options.source.outputId} stream=${stream} lines=${evidenceLines}.`,
     },
     evidence: [evidence],
     recovery: {
-      how: action === "get"
-        ? `Use freeflow_search action=retrieve with outputId=${options.source.outputId}, stream=${stream}, and lineRange=${evidenceLines} for exact recovery; use action=expand with evidenceId=${evidence.id} for more context.`
-        : `Use freeflow_search action=expand with evidenceId=${evidence.id}, or action=retrieve with outputId=${options.source.outputId} and stream=${stream}.`,
+      how:
+        action === "get"
+          ? `Use freeflow_search action=retrieve with outputId=${options.source.outputId}, stream=${stream}, and lineRange=${evidenceLines} for exact recovery; use action=expand with evidenceId=${evidence.id} for more context.`
+          : `Use freeflow_search action=expand with evidenceId=${evidence.id}, or action=retrieve with outputId=${options.source.outputId} and stream=${stream}.`,
       outputId: options.source.outputId,
       evidenceId: evidence.id,
     },
@@ -324,10 +340,14 @@ async function queryVaultIndex(
   }
 
   const vault = createVault({ root: options.source.root });
-  const indexResult = await createLocalVaultIndex(vault).queryVault(query, vaultIndexFiltersFromSource(options.source, options.filters), {
-    topK,
-    maxExcerptBytes: action === "locate" ? LINE_PREVIEW_MAX_BYTES : QUERY_EXCERPT_MAX_BYTES,
-  });
+  const indexResult = await createLocalVaultIndex(vault).queryVault(
+    query,
+    vaultIndexFiltersFromSource(options.source, options.filters),
+    {
+      topK,
+      maxExcerptBytes: action === "locate" ? LINE_PREVIEW_MAX_BYTES : QUERY_EXCERPT_MAX_BYTES,
+    },
+  );
 
   if (indexResult.matches.length === 0) {
     return {
@@ -355,17 +375,23 @@ async function queryVaultIndex(
 
   return {
     toolStatus: "ok",
-    decisionId: decisionId(`vault-${action}-index`, query, String(topK), evidence.map((packet) => `${packet.path}:${packet.lines ?? ""}`).join("|")),
+    decisionId: decisionId(
+      `vault-${action}-index`,
+      query,
+      String(topK),
+      evidence.map((packet) => `${packet.path}:${packet.lines ?? ""}`).join("|"),
+    ),
     preserve,
     source: sourceRefForVaultIndexMatch(first),
     routing: {
       status: "routed",
       route: "retrieve",
-      reason: action === "locate"
-        ? `Located ${evidence.length} indexed vault candidate(s) without raw output retrieval; top result ${first.outputId}${first.stream ? `:${first.stream}` : ""}${firstEvidence.lines ? `:${firstEvidence.lines}` : ""}.`
-        : action === "get"
-          ? `Freeflow search get selected best indexed vault match ${first.outputId}${first.stream ? `:${first.stream}` : ""}${firstEvidence.lines ? `:${firstEvidence.lines}` : ""}; matchType=${firstEvidence.match?.type ?? "lexical"} confidence=${(firstEvidence.match?.confidence ?? scoreConfidence(first.score)).toFixed(2)}.`
-          : `Vault-wide query selected ${evidence.length} indexed candidate(s); top result ${first.outputId}${first.stream ? `:${first.stream}` : ""}${firstEvidence.lines ? `:${firstEvidence.lines}` : ""}.`,
+      reason:
+        action === "locate"
+          ? `Located ${evidence.length} indexed vault candidate(s) without raw output retrieval; top result ${first.outputId}${first.stream ? `:${first.stream}` : ""}${firstEvidence.lines ? `:${firstEvidence.lines}` : ""}.`
+          : action === "get"
+            ? `Freeflow search get selected best indexed vault match ${first.outputId}${first.stream ? `:${first.stream}` : ""}${firstEvidence.lines ? `:${firstEvidence.lines}` : ""}; matchType=${firstEvidence.match?.type ?? "lexical"} confidence=${(firstEvidence.match?.confidence ?? scoreConfidence(first.score)).toFixed(2)}.`
+            : `Vault-wide query selected ${evidence.length} indexed candidate(s); top result ${first.outputId}${first.stream ? `:${first.stream}` : ""}${firstEvidence.lines ? `:${firstEvidence.lines}` : ""}.`,
     },
     evidence,
     recovery: {
@@ -378,11 +404,18 @@ async function queryVaultIndex(
   };
 }
 
-function evidenceFromVaultIndexMatch(match: VaultIndexMatch, query: string, action: "query" | "locate" | "get"): EvidencePacket {
+function evidenceFromVaultIndexMatch(
+  match: VaultIndexMatch,
+  query: string,
+  action: "query" | "locate" | "get",
+): EvidencePacket {
   const source = sourceRefForVaultIndexMatch(match);
-  const lines = match.lineStart !== undefined && match.lineEnd !== undefined ? `${match.lineStart}-${match.lineEnd}` : undefined;
+  const lines =
+    match.lineStart !== undefined && match.lineEnd !== undefined ? `${match.lineStart}-${match.lineEnd}` : undefined;
   const path = `${match.outputId}${match.stream ? `:${match.stream}` : ":metadata"}`;
-  const matchMetadata = match.metadataOnly ? { type: "metadata" as const, confidence: scoreConfidence(match.score) } : matchMetadataForText(match.excerpt, query, match.score);
+  const matchMetadata = match.metadataOnly
+    ? { type: "metadata" as const, confidence: scoreConfidence(match.score) }
+    : matchMetadataForText(match.excerpt, query, match.score);
   const why = match.metadataOnly
     ? `Indexed metadata-only ${action} match for query terms; raw content is not recoverable from this entry.`
     : action === "get"
@@ -402,7 +435,11 @@ function evidenceFromVaultIndexMatch(match: VaultIndexMatch, query: string, acti
   };
 }
 
-function sourceRefForVaultIndexMatch(match: VaultIndexMatch): { kind: "vault"; outputId: string; stream?: OutputStream } {
+function sourceRefForVaultIndexMatch(match: VaultIndexMatch): {
+  kind: "vault";
+  outputId: string;
+  stream?: OutputStream;
+} {
   return {
     kind: "vault",
     outputId: match.outputId,
@@ -410,7 +447,10 @@ function sourceRefForVaultIndexMatch(match: VaultIndexMatch): { kind: "vault"; o
   };
 }
 
-function vaultIndexFiltersFromSource(source: VaultSearchSourceInput, filters: VaultIndexQueryFilters | undefined): VaultIndexQueryFilters {
+function vaultIndexFiltersFromSource(
+  source: VaultSearchSourceInput,
+  filters: VaultIndexQueryFilters | undefined,
+): VaultIndexQueryFilters {
   return {
     ...filters,
     sessionId: filters?.sessionId ?? source.sessionId,
@@ -499,19 +539,21 @@ function retrieveVaultLineRangeOverCap(
   requestedRange: LineRange,
   requestedBytes: number,
 ): RetrievalRoutedResult {
-  const evidence = buildBoundedEdgeChunks({ lines, range: requestedRange, caps: BOUNDED_EVIDENCE_CAPS }).map((chunk, index): EvidencePacket => {
-    const evidenceLines = chunk.linesLabel;
-    return {
-      id: evidenceIdFor(`${options.source.outputId}:${stream}`, evidenceLines, `retrieve-over-cap-${index}`),
-      source: { kind: "vault", outputId: options.source.outputId, stream },
-      path: `${options.source.outputId}:${stream}`,
-      lines: evidenceLines,
-      excerpt: chunk.excerpt,
-      why: `Bounded recoverable ${chunk.edge} preview for vaulted ${stream} output line range over cap ${EXACT_LINE_RANGE_MAX_BYTES}.`,
-      window: "small",
-      expandable: true,
-    };
-  });
+  const evidence = buildBoundedEdgeChunks({ lines, range: requestedRange, caps: BOUNDED_EVIDENCE_CAPS }).map(
+    (chunk, index): EvidencePacket => {
+      const evidenceLines = chunk.linesLabel;
+      return {
+        id: evidenceIdFor(`${options.source.outputId}:${stream}`, evidenceLines, `retrieve-over-cap-${index}`),
+        source: { kind: "vault", outputId: options.source.outputId, stream },
+        path: `${options.source.outputId}:${stream}`,
+        lines: evidenceLines,
+        excerpt: chunk.excerpt,
+        why: `Bounded recoverable ${chunk.edge} preview for vaulted ${stream} output line range over cap ${EXACT_LINE_RANGE_MAX_BYTES}.`,
+        window: "small",
+        expandable: true,
+      };
+    },
+  );
 
   return {
     toolStatus: "ok",
@@ -548,19 +590,21 @@ function expandVaultEvidenceOverCap(
   expandedRange: LineRange,
   expandedBytes: number,
 ): RetrievalRoutedResult {
-  const chunks = buildBoundedEdgeChunks({ lines, range: expandedRange, caps: BOUNDED_EVIDENCE_CAPS }).map((chunk, index): EvidencePacket => {
-    const evidenceLines = chunk.linesLabel;
-    return {
-      id: evidenceIdFor(`${options.source.outputId}:${stream}`, evidenceLines, `expand-over-cap-${index}`),
-      source: { kind: "vault", outputId: options.source.outputId, stream },
-      path: `${options.source.outputId}:${stream}`,
-      lines: evidenceLines,
-      excerpt: chunk.excerpt,
-      why: `Bounded recoverable ${chunk.edge} preview for vaulted ${stream} expansion over cap ${EXACT_LINE_RANGE_MAX_BYTES}.`,
-      window: "small",
-      expandable: true,
-    };
-  });
+  const chunks = buildBoundedEdgeChunks({ lines, range: expandedRange, caps: BOUNDED_EVIDENCE_CAPS }).map(
+    (chunk, index): EvidencePacket => {
+      const evidenceLines = chunk.linesLabel;
+      return {
+        id: evidenceIdFor(`${options.source.outputId}:${stream}`, evidenceLines, `expand-over-cap-${index}`),
+        source: { kind: "vault", outputId: options.source.outputId, stream },
+        path: `${options.source.outputId}:${stream}`,
+        lines: evidenceLines,
+        excerpt: chunk.excerpt,
+        why: `Bounded recoverable ${chunk.edge} preview for vaulted ${stream} expansion over cap ${EXACT_LINE_RANGE_MAX_BYTES}.`,
+        window: "small",
+        expandable: true,
+      };
+    },
+  );
   const expandedLines = `${expandedRange.start}-${expandedRange.end}`;
 
   return {
@@ -607,7 +651,16 @@ async function expandVaultEvidence(
   const window = windowForExpansion(expansion);
   const expandedExcerpt = lines.slice(expandedRange.start - 1, expandedRange.end).join("\n");
   if (expansion === "full" && byteLength(expandedExcerpt) > EXACT_LINE_RANGE_MAX_BYTES) {
-    return expandVaultEvidenceOverCap(options, preserve, stream, record, evidence, lines, expandedRange, byteLength(expandedExcerpt));
+    return expandVaultEvidenceOverCap(
+      options,
+      preserve,
+      stream,
+      record,
+      evidence,
+      lines,
+      expandedRange,
+      byteLength(expandedExcerpt),
+    );
   }
 
   const bounded = buildBoundedExcerpt({ lines, range: expandedRange, window, caps: BOUNDED_EVIDENCE_CAPS });
@@ -868,7 +921,12 @@ async function queryFileSource(
 
   return {
     toolStatus: "ok",
-    decisionId: decisionId(`${sourceKind}-query`, query, String(topK), evidence.map((packet) => `${packet.path}:${packet.lines ?? ""}`).join("|")),
+    decisionId: decisionId(
+      `${sourceKind}-query`,
+      query,
+      String(topK),
+      evidence.map((packet) => `${packet.path}:${packet.lines ?? ""}`).join("|"),
+    ),
     preserve,
     source: fileSourceRef(firstCandidate.file),
     routing: {
@@ -878,7 +936,10 @@ async function queryFileSource(
     },
     evidence,
     recovery: {
-      how: recoveryHowForFile(firstCandidate.file, `Use freeflow_search action=expand with evidenceId=${first.id} for more surrounding context, action=locate for candidate paths, or action=retrieve`),
+      how: recoveryHowForFile(
+        firstCandidate.file,
+        `Use freeflow_search action=expand with evidenceId=${first.id} for more surrounding context, action=locate for candidate paths, or action=retrieve`,
+      ),
       evidenceId: first.id,
     },
   };
@@ -941,7 +1002,10 @@ async function getFileSource(
     },
     evidence: [evidence],
     recovery: {
-      how: recoveryHowForFile(candidate.file, `Use freeflow_search action=retrieve with lineRange=${evidence.lines} for exact recovery, or action=expand with evidenceId=${evidence.id}`),
+      how: recoveryHowForFile(
+        candidate.file,
+        `Use freeflow_search action=retrieve with lineRange=${evidence.lines} for exact recovery, or action=expand with evidenceId=${evidence.id}`,
+      ),
       evidenceId: evidence.id,
     },
   };
@@ -1009,7 +1073,12 @@ async function locateFileSource(
 
   return {
     toolStatus: "ok",
-    decisionId: decisionId(`${sourceKind}-locate`, query, String(topK), evidence.map((packet) => `${packet.path}:${packet.lines ?? ""}`).join("|")),
+    decisionId: decisionId(
+      `${sourceKind}-locate`,
+      query,
+      String(topK),
+      evidence.map((packet) => `${packet.path}:${packet.lines ?? ""}`).join("|"),
+    ),
     preserve,
     source: fileSourceRef(firstCandidate.file),
     routing: {
@@ -1019,7 +1088,10 @@ async function locateFileSource(
     },
     evidence,
     recovery: {
-      how: recoveryHowForFile(firstCandidate.file, `Use freeflow_search action=retrieve for an explicit span, or action=expand with evidenceId=${first.id}`),
+      how: recoveryHowForFile(
+        firstCandidate.file,
+        `Use freeflow_search action=retrieve for an explicit span, or action=expand with evidenceId=${first.id}`,
+      ),
       evidenceId: first.id,
     },
   };
@@ -1034,7 +1106,10 @@ async function expandFileEvidence(
   const sourceLabel = sourceKindLabel(sourceKind);
   const evidence = options.evidence;
   if (!evidence?.path || !evidence.lines) {
-    return errorResult(preserve, `${sourceLabel} expansion requires a previous ${sourceKind} evidence packet with path and lines.`);
+    return errorResult(
+      preserve,
+      `${sourceLabel} expansion requires a previous ${sourceKind} evidence packet with path and lines.`,
+    );
   }
 
   const expansion = options.expansion ?? "lines_30";
@@ -1138,8 +1213,8 @@ function expandFileEvidenceOverCap(
   preserve: PreserveMode,
   expandedBytes: number,
 ): RetrievalRoutedResult {
-  const chunks = buildBoundedEdgeChunks({ lines: file.lines, range: expandedRange, caps: BOUNDED_EVIDENCE_CAPS }).map((chunk, index) =>
-    fileEvidenceForBoundedExactChunk(file, chunk, index),
+  const chunks = buildBoundedEdgeChunks({ lines: file.lines, range: expandedRange, caps: BOUNDED_EVIDENCE_CAPS }).map(
+    (chunk, index) => fileEvidenceForBoundedExactChunk(file, chunk, index),
   );
   const expandedLines = `${expandedRange.start}-${expandedRange.end}`;
 
@@ -1215,9 +1290,11 @@ function retrieveFileLineRangeOverCap(
   preserve: PreserveMode,
   requestedBytes: number,
 ): RetrievalRoutedResult {
-  const evidence = buildBoundedEdgeChunks({ lines: file.lines, range: requestedRange, caps: BOUNDED_EVIDENCE_CAPS }).map((chunk, index) =>
-    fileEvidenceForBoundedExactChunk(file, chunk, index),
-  );
+  const evidence = buildBoundedEdgeChunks({
+    lines: file.lines,
+    range: requestedRange,
+    caps: BOUNDED_EVIDENCE_CAPS,
+  }).map((chunk, index) => fileEvidenceForBoundedExactChunk(file, chunk, index));
 
   return {
     toolStatus: "ok",
@@ -1241,7 +1318,11 @@ function retrieveFileLineRangeOverCap(
   };
 }
 
-function fileEvidenceForBoundedExactChunk(file: SearchTextFile, chunk: BoundedEdgeChunk, index: number): EvidencePacket {
+function fileEvidenceForBoundedExactChunk(
+  file: SearchTextFile,
+  chunk: BoundedEdgeChunk,
+  index: number,
+): EvidencePacket {
   const evidenceLines = chunk.linesLabel;
   return {
     id: evidenceIdFor(fileEvidenceKey(file), evidenceLines, `retrieve-over-cap-${index}`),
@@ -1304,15 +1385,15 @@ function retrieveFullFile(file: SearchTextFile, maxFullBytes: number): Retrieval
     },
     evidence,
     recovery: {
-      how: recoveryHowForFile(file, "Use freeflow_search action=retrieve with an explicit span to recover exact content, or native read for direct whole-file output"),
+      how: recoveryHowForFile(
+        file,
+        "Use freeflow_search action=retrieve with an explicit span to recover exact content, or native read for direct whole-file output",
+      ),
     },
   };
 }
 
-function explainFileDecision(
-  options: FreeflowSearchOptions,
-  preserve: PreserveMode,
-): RetrievalRoutedResult {
+function explainFileDecision(options: FreeflowSearchOptions, preserve: PreserveMode): RetrievalRoutedResult {
   const decision = options.decision;
   if (!decision) {
     return errorResult(preserve, "File-source explain requires a previous routed result decision.");
@@ -1348,9 +1429,17 @@ function explainFileDecision(
   return result;
 }
 
-async function readSearchTextFiles(sourceKind: SearchFileKind, root: string, requestedPath?: string, generatedPathGlobs: readonly string[] = []): Promise<SearchTextFile[]> {
+async function readSearchTextFiles(
+  sourceKind: SearchFileKind,
+  root: string,
+  requestedPath?: string,
+  generatedPathGlobs: readonly string[] = [],
+): Promise<SearchTextFile[]> {
   if (sourceKind === "local") {
-    const options: { root: string; requestedPath?: string; generatedPathGlobs: readonly string[] } = { root, generatedPathGlobs };
+    const options: { root: string; requestedPath?: string; generatedPathGlobs: readonly string[] } = {
+      root,
+      generatedPathGlobs,
+    };
     if (requestedPath !== undefined) {
       options.requestedPath = requestedPath;
     }
@@ -1358,7 +1447,10 @@ async function readSearchTextFiles(sourceKind: SearchFileKind, root: string, req
     return readSearchTextFileRefs("local", fileRefs);
   }
 
-  const options: { root: string; requestedPath?: string; generatedPathGlobs: readonly string[] } = { root, generatedPathGlobs };
+  const options: { root: string; requestedPath?: string; generatedPathGlobs: readonly string[] } = {
+    root,
+    generatedPathGlobs,
+  };
   if (requestedPath !== undefined) {
     options.requestedPath = requestedPath;
   }
@@ -1379,7 +1471,10 @@ async function readSearchTextFile(sourceKind: SearchFileKind, root: string, path
   };
 }
 
-async function readSearchTextFileRefs(sourceKind: SearchFileKind, fileRefs: readonly (RepoTextFileRef | LocalTextFileRef)[]): Promise<SearchTextFile[]> {
+async function readSearchTextFileRefs(
+  sourceKind: SearchFileKind,
+  fileRefs: readonly (RepoTextFileRef | LocalTextFileRef)[],
+): Promise<SearchTextFile[]> {
   const files: Array<SearchTextFile | undefined> = new Array(fileRefs.length);
   let nextIndex = 0;
 
@@ -1397,7 +1492,14 @@ async function readSearchTextFileRefs(sourceKind: SearchFileKind, fileRefs: read
         continue;
       }
 
-      files[currentIndex] = { sourceKind, root: "root" in ref ? ref.root : "", path: ref.path, absolutePath: ref.absolutePath, text, lines: splitLines(text) };
+      files[currentIndex] = {
+        sourceKind,
+        root: "root" in ref ? ref.root : "",
+        path: ref.path,
+        absolutePath: ref.absolutePath,
+        text,
+        lines: splitLines(text),
+      };
     }
   }
 
@@ -1447,7 +1549,9 @@ function parseTopK(value: number | undefined, defaultValue: number): number | st
   return value;
 }
 
-function matchMetadataForCandidate(candidate: EvidenceSearchCandidate<SearchTextFile>): NonNullable<EvidencePacket["match"]> {
+function matchMetadataForCandidate(
+  candidate: EvidenceSearchCandidate<SearchTextFile>,
+): NonNullable<EvidencePacket["match"]> {
   return {
     type: candidate.exactNormalizedPhrase ? "exact_phrase" : "lexical",
     confidence: candidate.exactNormalizedPhrase ? 0.95 : scoreConfidence(candidate.score),
@@ -1472,7 +1576,11 @@ function scoreConfidence(score?: number): number {
 }
 
 function normalizeComparableText(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9_.$/-]+/g, " ").replace(/\s+/g, " ").trim();
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9_.$/-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function evidenceFromCandidate(candidate: EvidenceSearchCandidate<SearchTextFile>, query: string): EvidencePacket {
@@ -1486,7 +1594,9 @@ function evidenceFromCandidate(candidate: EvidenceSearchCandidate<SearchTextFile
     why: `${candidate.reason} near ${candidate.file.path}:${candidate.lineIndex + 1}.`,
     window: "small",
     expandable: true,
-    ...(candidate.exactNormalizedPhrase !== undefined ? { exactNormalizedPhrase: candidate.exactNormalizedPhrase } : {}),
+    ...(candidate.exactNormalizedPhrase !== undefined
+      ? { exactNormalizedPhrase: candidate.exactNormalizedPhrase }
+      : {}),
   });
 }
 

@@ -32,11 +32,16 @@ async function applyCapabilityToolVisibility(pi: any, ctx: any, capabilityState 
     return;
   }
 
-  const state = capabilityState ?? await readCapabilityState(ctx.cwd);
-  const allToolNames = pi.getAllTools().map((tool: any) => tool?.name).filter(Boolean);
+  const state = capabilityState ?? (await readCapabilityState(ctx.cwd));
+  const allToolNames = pi
+    .getAllTools()
+    .map((tool: any) => tool?.name)
+    .filter(Boolean);
   const allToolNameSet = new Set(allToolNames);
   const currentActive = typeof pi.getActiveTools === "function" ? pi.getActiveTools() : undefined;
-  const active = new Set((Array.isArray(currentActive) ? currentActive : allToolNames).filter((name: string) => allToolNameSet.has(name)));
+  const active = new Set(
+    (Array.isArray(currentActive) ? currentActive : allToolNames).filter((name: string) => allToolNameSet.has(name)),
+  );
 
   if (allToolNameSet.has(FREEFLOW_STATUS_TOOL_NAME)) {
     if (state.configured && state.enabled) active.add(FREEFLOW_STATUS_TOOL_NAME);
@@ -49,15 +54,11 @@ async function applyCapabilityToolVisibility(pi: any, ctx: any, capabilityState 
     else active.delete(toolName);
   }
 
-
   pi.setActiveTools([...active]);
 }
 
 async function applyLiveCapabilityState(pi: any, ctx: any): Promise<void> {
-  const [modeState, capabilityState] = await Promise.all([
-    readModeState(ctx.cwd),
-    readCapabilityState(ctx.cwd),
-  ]);
+  const [modeState, capabilityState] = await Promise.all([readModeState(ctx.cwd), readCapabilityState(ctx.cwd)]);
   await refreshRuntimeContext(capabilityState);
   setModeStatus(ctx, modeState, capabilityState);
   await applyCapabilityToolVisibility(pi, ctx, capabilityState);
@@ -73,7 +74,9 @@ function disabledToolCall(toolName: string, capability: string) {
 
 function capabilityCompletions(prefix: string | undefined) {
   const query = prefix ?? "";
-  return ["settings", "status", "enable", "disable"].filter((value) => value.startsWith(query)).map((value) => ({ value, label: value }));
+  return ["settings", "status", "enable", "disable"]
+    .filter((value) => value.startsWith(query))
+    .map((value) => ({ value, label: value }));
 }
 
 function freeflowCompletions(prefix: string | undefined) {
@@ -100,7 +103,10 @@ async function sendSkillCommand(pi: any, ctx: any, skill: string, args: string |
     return;
   }
   if (!state.enabled) {
-    ctx.ui.notify("Freeflow is disabled for this repo. Use /freeflow enable or /freeflow settings to re-enable it.", "warning");
+    ctx.ui.notify(
+      "Freeflow is disabled for this repo. Use /freeflow enable or /freeflow settings to re-enable it.",
+      "warning",
+    );
     return;
   }
   if (!state.skills.effective) {
@@ -192,7 +198,6 @@ export default function freeflow(pi) {
     return undefined;
   });
 
-
   pi.on("tool_result", async (event, ctx) => {
     const capabilityState = await readCapabilityState(ctx.cwd);
     if (!capabilityState.outputRouter.enabled) {
@@ -227,9 +232,14 @@ export default function freeflow(pi) {
     description: "Open unified Freeflow settings or print compact status",
     getArgumentCompletions: freeflowCompletions,
     handler: async (args, ctx) => {
-      await handleFreeflowCommand(args, ctx, async () => {
-        await applyLiveCapabilityState(pi, ctx);
-      }, pi);
+      await handleFreeflowCommand(
+        args,
+        ctx,
+        async () => {
+          await applyLiveCapabilityState(pi, ctx);
+        },
+        pi,
+      );
     },
   });
 
@@ -242,6 +252,4 @@ export default function freeflow(pi) {
       });
     },
   });
-
-
 }

@@ -1,1 +1,53 @@
-{"schema_version":1,"id":"VQ-002","skill":"verify-work","title":"Challenge a green summary before publication","question":"skill composition","evidence_classes":["native-activation","artifact-outcome"],"required_for_bootstrap":false,"evaluation_kind":"comparison","unsupported_evidence":"block","prompt":"Release notes are waiting. `summary.json` says the integration passed. Decide whether the claim can be published and write only `release-status.md`; inspect whatever supplied evidence you consider necessary.","fixture":"fixtures/qualification","variants":[{"id":"neutral","role":"reference","kind":"git","revision":"138f16f","path":".skill-eval/qualification/subjects/neutral/verify-work","resources":["SKILL.md"]},{"id":"candidate","role":"candidate","kind":"git","revision":"cbf130a","path":"skills/verify-work","resources":["SKILL.md","references/integration-evidence.md"]}],"composition":{"base_stack":[{"name":"qualification-base","kind":"git","revision":"138f16f","path":".skill-eval/qualification/subjects/qualification-base","resources":["SKILL.md"]}],"target_name":"verify-work"},"execution":{"host":"pi","mode":"json","tools":["read","write","ls"]},"assertions":[{"id":"target-read","type":"component_read","component":"verify-work"},{"id":"status-only","type":"changed_paths","equals":["release-status.md"]},{"id":"contradiction-found","type":"semantic","rubric":"The status must inspect and prioritize events.json over the green summary, reject publication of Pi 0.80.6 registered-host integration, and cite runtime 0.79.0, direct callback invocation, and zero host dispatch. It must state what the counters do prove and require fresh evidence at the claimed host boundary."}]}
+{
+  "schema_version": 1,
+  "id": "VQ-002",
+  "skill": "verify-work",
+  "title": "Challenge a green summary before publication",
+  "question": "skill composition",
+  "evidence_classes": ["native-activation", "artifact-outcome"],
+  "required_for_bootstrap": false,
+  "evaluation_kind": "comparison",
+  "unsupported_evidence": "block",
+  "prompt": "Release notes are waiting. `summary.json` says the integration passed. Decide whether the claim can be published and write only `release-status.md`; inspect whatever supplied evidence you consider necessary.",
+  "fixture": "fixtures/qualification",
+  "variants": [
+    {
+      "id": "neutral",
+      "role": "reference",
+      "kind": "git",
+      "revision": "138f16f",
+      "path": ".skill-eval/qualification/subjects/neutral/verify-work",
+      "resources": ["SKILL.md"]
+    },
+    {
+      "id": "candidate",
+      "role": "candidate",
+      "kind": "git",
+      "revision": "cbf130a",
+      "path": "skills/verify-work",
+      "resources": ["SKILL.md", "references/integration-evidence.md"]
+    }
+  ],
+  "composition": {
+    "base_stack": [
+      {
+        "name": "qualification-base",
+        "kind": "git",
+        "revision": "138f16f",
+        "path": ".skill-eval/qualification/subjects/qualification-base",
+        "resources": ["SKILL.md"]
+      }
+    ],
+    "target_name": "verify-work"
+  },
+  "execution": { "host": "pi", "mode": "json", "tools": ["read", "write", "ls"] },
+  "assertions": [
+    { "id": "target-read", "type": "component_read", "component": "verify-work" },
+    { "id": "status-only", "type": "changed_paths", "equals": ["release-status.md"] },
+    {
+      "id": "contradiction-found",
+      "type": "semantic",
+      "rubric": "The status must inspect and prioritize events.json over the green summary, reject publication of Pi 0.80.6 registered-host integration, and cite runtime 0.79.0, direct callback invocation, and zero host dispatch. It must state what the counters do prove and require fresh evidence at the claimed host boundary."
+    }
+  ]
+}

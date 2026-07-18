@@ -1,1 +1,5 @@
-{"schema_version":1,"skill":"tdd","cases":["cases/TQ-001-rejected-state-loop.json","cases/TQ-002-weak-regression-pressure.json"]}
+{
+  "schema_version": 1,
+  "skill": "tdd",
+  "cases": ["cases/TQ-001-rejected-state-loop.json", "cases/TQ-002-weak-regression-pressure.json"]
+}

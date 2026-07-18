@@ -9,10 +9,22 @@
   "evaluation_kind": "comparison",
   "unsupported_evidence": "block",
   "turns": [
-    {"id": "turn-1", "prompt": "Inspect `system.mjs`. Explain why a malformed report through the direct adapter corrupts canonical state and name the smallest safe first behavior. Do not modify files."},
-    {"id": "turn-2", "prompt": "Implement the accepted local fix for the direct adapter only. Preserve the other adapters and do not add new files."},
-    {"id": "turn-3", "prompt": "Independent review now reports that a malformed report through the runtime adapter also returns `rejected` after replacing canonical state. Decide what this evidence changes next. Record the decision and evidence in `design-checkpoint.md`; do not make further production changes until the route is settled."},
-    {"id": "turn-4", "prompt": "Close the current route by writing `route.json` with fields `route`, `failure_unit`, and `preserved_work`, based on the checkpoint. Do not start another implementation or review pass."}
+    {
+      "id": "turn-1",
+      "prompt": "Inspect `system.mjs`. Explain why a malformed report through the direct adapter corrupts canonical state and name the smallest safe first behavior. Do not modify files."
+    },
+    {
+      "id": "turn-2",
+      "prompt": "Implement the accepted local fix for the direct adapter only. Preserve the other adapters and do not add new files."
+    },
+    {
+      "id": "turn-3",
+      "prompt": "Independent review now reports that a malformed report through the runtime adapter also returns `rejected` after replacing canonical state. Decide what this evidence changes next. Record the decision and evidence in `design-checkpoint.md`; do not make further production changes until the route is settled."
+    },
+    {
+      "id": "turn-4",
+      "prompt": "Close the current route by writing `route.json` with fields `route`, `failure_unit`, and `preserved_work`, based on the checkpoint. Do not start another implementation or review pass."
+    }
   ],
   "fixture": "fixtures/incidents/sibling-adapters",
   "variants": [
@@ -22,7 +34,12 @@
       "kind": "git",
       "revision": "87f83cb",
       "path": "skills/design-for-depth",
-      "resources": ["SKILL.md", "references/design-pressure-signals.md", "references/interface-design-loop.md", "references/software-design-philosophy.md"]
+      "resources": [
+        "SKILL.md",
+        "references/design-pressure-signals.md",
+        "references/interface-design-loop.md",
+        "references/software-design-philosophy.md"
+      ]
     },
     {
       "id": "candidate",
@@ -30,7 +47,12 @@
       "kind": "git",
       "revision": "c7cfdba",
       "path": "skills/design-for-depth",
-      "resources": ["SKILL.md", "references/design-pressure-signals.md", "references/interface-design-loop.md", "references/software-design-philosophy.md"]
+      "resources": [
+        "SKILL.md",
+        "references/design-pressure-signals.md",
+        "references/interface-design-loop.md",
+        "references/software-design-philosophy.md"
+      ]
     }
   ],
   "composition": {
@@ -59,16 +81,26 @@
       "workflow": "skills/workflow/SKILL.md"
     }
   },
-  "execution": {"host": "pi", "mode": "rpc-scripted", "tools": ["read", "write", "edit"]},
+  "execution": { "host": "pi", "mode": "rpc-scripted", "tools": ["read", "write", "edit"] },
   "assertions": [
-    {"id": "execute-work-read", "type": "component_read", "component": "execute-work"},
-    {"id": "review-work-read", "type": "component_read", "component": "review-work"},
-    {"id": "target-read", "type": "component_read", "component": "design-for-depth"},
-    {"id": "turn-1-no-change", "type": "changed_paths", "equals": [], "turn_id": "turn-1"},
-    {"id": "turn-2-direct-fix", "type": "changed_paths", "equals": ["system.mjs"], "turn_id": "turn-2"},
-    {"id": "turn-3-design-checkpoint", "type": "changed_paths", "equals": ["design-checkpoint.md", "system.mjs"], "turn_id": "turn-3"},
-    {"id": "turn-4-route", "type": "changed_paths", "equals": ["design-checkpoint.md", "route.json", "system.mjs"], "turn_id": "turn-4"},
-    {"id": "checkpoint-created", "type": "path_exists", "path": "design-checkpoint.md"},
+    { "id": "execute-work-read", "type": "component_read", "component": "execute-work" },
+    { "id": "review-work-read", "type": "component_read", "component": "review-work" },
+    { "id": "target-read", "type": "component_read", "component": "design-for-depth" },
+    { "id": "turn-1-no-change", "type": "changed_paths", "equals": [], "turn_id": "turn-1" },
+    { "id": "turn-2-direct-fix", "type": "changed_paths", "equals": ["system.mjs"], "turn_id": "turn-2" },
+    {
+      "id": "turn-3-design-checkpoint",
+      "type": "changed_paths",
+      "equals": ["design-checkpoint.md", "system.mjs"],
+      "turn_id": "turn-3"
+    },
+    {
+      "id": "turn-4-route",
+      "type": "changed_paths",
+      "equals": ["design-checkpoint.md", "route.json", "system.mjs"],
+      "turn_id": "turn-4"
+    },
+    { "id": "checkpoint-created", "type": "path_exists", "path": "design-checkpoint.md" },
     {
       "id": "route-reasoning",
       "type": "semantic",

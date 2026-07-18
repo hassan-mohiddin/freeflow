@@ -1,7 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { reduceAccessLog, reduceBrowserSnapshotOutput, reduceBuildOutput, reduceDiagnosticsOutput, reduceGitLogOutput, reduceJsonQueryOutput, reduceMcpToolsOutput, reduceTableOutput, reduceTestOutput, selectProcessingReducer } from "../../dist/processing/reducers.js";
+import {
+  reduceAccessLog,
+  reduceBrowserSnapshotOutput,
+  reduceBuildOutput,
+  reduceDiagnosticsOutput,
+  reduceGitLogOutput,
+  reduceJsonQueryOutput,
+  reduceMcpToolsOutput,
+  reduceTableOutput,
+  reduceTestOutput,
+  selectProcessingReducer,
+} from "../../dist/processing/reducers.js";
 
 function syntheticAccessLogFixture() {
   const lines = [];
@@ -22,7 +33,9 @@ function syntheticAccessLogFixture() {
       const method = index % 3 === 0 ? "POST" : "GET";
       const route = index % 25 === 0 ? "/api/uploads" : `/api/items/${index}`;
       const latency = index <= 25 ? 1_000 + index : 262;
-      lines.push(`192.168.1.${index % 255} - - [23/Feb/2026:10:00:01 +0000] "${method} ${route} HTTP/1.1" ${status} 892 ${latency}ms`);
+      lines.push(
+        `192.168.1.${index % 255} - - [23/Feb/2026:10:00:01 +0000] "${method} ${route} HTTP/1.1" ${status} 892 ${latency}ms`,
+      );
     }
   }
   return lines.join("\n");
@@ -40,8 +53,18 @@ function syntheticCsvTableFixture() {
 
 function syntheticGitHubIssuesFixture() {
   return JSON.stringify([
-    { number: 35855, title: "Bug: ViewTransition cleanup", body: "repo:facebook/react", labels: [{ name: "Status: Unconfirmed" }, { name: "Type: Bug" }] },
-    { number: 35856, title: "Bug: Suspense fallback", body: "see https://github.com/facebook/react/issues/1", labels: [{ name: "Status: Unconfirmed" }] },
+    {
+      number: 35855,
+      title: "Bug: ViewTransition cleanup",
+      body: "repo:facebook/react",
+      labels: [{ name: "Status: Unconfirmed" }, { name: "Type: Bug" }],
+    },
+    {
+      number: 35856,
+      title: "Bug: Suspense fallback",
+      body: "see https://github.com/facebook/react/issues/1",
+      labels: [{ name: "Status: Unconfirmed" }],
+    },
     { number: 35857, title: "Feature request", body: "repo:facebook/react", labels: [{ name: "Type: Bug" }] },
   ]);
 }
@@ -86,13 +109,13 @@ function syntheticBrowserSnapshotFixture() {
     "- table [ref=e1]:",
     "  - row [ref=e2]:",
     "    - cell [ref=e3]:",
-    "      - link \"Hacker News\" [ref=e4] [cursor=pointer]:",
+    '      - link "Hacker News" [ref=e4] [cursor=pointer]:',
     "        - /url: news",
-    "      - link \"A very interesting story\" [ref=e5] [cursor=pointer]:",
+    '      - link "A very interesting story" [ref=e5] [cursor=pointer]:',
     "        - /url: item?id=1",
-    "      - link \"Another browser story\" [ref=e6] [cursor=pointer]:",
+    '      - link "Another browser story" [ref=e6] [cursor=pointer]:',
     "        - /url: item?id=2",
-    "      - textbox \"Search\" [ref=e7]",
+    '      - textbox "Search" [ref=e7]',
     "      - text: Welcome to Hacker News",
     "```",
   ].join("\n");
@@ -167,7 +190,7 @@ function syntheticTestOutputFixture() {
     " ✗ src/components/UserList.test.tsx (4 tests) 234ms",
     "   ✓ renders user list 23ms",
     "   ✗ handles empty state 156ms",
-    "     → expected: \"No users found\"",
+    '     → expected: "No users found"',
     " ✗ src/components/DataGrid.test.tsx (5 tests) 345ms",
     "   ✓ renders columns 19ms",
     "   ✗ filters with complex queries 198ms",
@@ -193,8 +216,14 @@ test("test output reducer computes summary counts and failed file facts", () => 
   assert.equal(reduced.result.details.tests.total, 112);
   assert.equal(reduced.result.details.testFiles.failed, 4);
   assert.equal(reduced.result.details.testFiles.passed, 26);
-  assert.deepEqual(reduced.result.details.failedFiles.slice(0, 2), ["src/components/UserList.test.tsx", "src/components/DataGrid.test.tsx"]);
-  assert.deepEqual(reduced.result.details.failedTests.slice(0, 2), ["handles empty state", "filters with complex queries"]);
+  assert.deepEqual(reduced.result.details.failedFiles.slice(0, 2), [
+    "src/components/UserList.test.tsx",
+    "src/components/DataGrid.test.tsx",
+  ]);
+  assert.deepEqual(reduced.result.details.failedTests.slice(0, 2), [
+    "handles empty state",
+    "filters with complex queries",
+  ]);
   assert.match(reduced.result.visibleText, /tests: 4 failed, 108 passed, \(112\)/);
   assert.match(reduced.result.visibleText, /UserList\.test\.tsx/);
   assert.match(reduced.result.visibleText, /DataGrid\.test\.tsx/);
@@ -205,7 +234,20 @@ test("processing reducer registry selects test output before other reducers", ()
 
   assert.equal(selected.status, "selected");
   assert.equal(selected.selected.name, "test-output");
-  assert.deepEqual(selected.candidates.map((candidate) => candidate.name), ["test-output", "build-output", "diagnostics", "mcp-tools", "json-query", "table", "browser-snapshot", "git-log", "access-log"]);
+  assert.deepEqual(
+    selected.candidates.map((candidate) => candidate.name),
+    [
+      "test-output",
+      "build-output",
+      "diagnostics",
+      "mcp-tools",
+      "json-query",
+      "table",
+      "browser-snapshot",
+      "git-log",
+      "access-log",
+    ],
+  );
 });
 
 test("mcp tools reducer computes tool count, categories, and signatures", () => {
@@ -266,8 +308,14 @@ test("browser snapshot reducer computes lines, links, title, roles, and story-li
     { role: "cell", count: 1 },
     { role: "row", count: 1 },
   ]);
-  assert.deepEqual(reduced.result.details.topInteractiveNodes.slice(0, 2).map((node) => node.name), ["Hacker News", "A very interesting story"]);
-  assert.deepEqual(reduced.result.details.topInteractiveNodes.slice(0, 2).map((node) => node.ref), ["e4", "e5"]);
+  assert.deepEqual(
+    reduced.result.details.topInteractiveNodes.slice(0, 2).map((node) => node.name),
+    ["Hacker News", "A very interesting story"],
+  );
+  assert.deepEqual(
+    reduced.result.details.topInteractiveNodes.slice(0, 2).map((node) => node.ref),
+    ["e4", "e5"],
+  );
   assert.match(reduced.result.visibleText, /lines: 17/);
   assert.match(reduced.result.visibleText, /links: 3/);
   assert.match(reduced.result.visibleText, /title: Hacker News/);
@@ -376,7 +424,11 @@ test("build output reducer computes build errors, warnings, and files", () => {
   assert.equal(reduced.result.details.kind, "build-output");
   assert.equal(reduced.result.details.errorCount, 3);
   assert.equal(reduced.result.details.warningCount, 12);
-  assert.deepEqual(reduced.result.details.errorFiles, ["src/api/trpc/routers/user.ts", "src/middleware.ts", "src/components/DataGrid.tsx"]);
+  assert.deepEqual(reduced.result.details.errorFiles, [
+    "src/api/trpc/routers/user.ts",
+    "src/middleware.ts",
+    "src/components/DataGrid.tsx",
+  ]);
   assert.deepEqual(reduced.result.details.warningFiles, ["src/components/DataGrid.tsx", "src/middleware.ts"]);
   assert.match(reduced.result.visibleText, /build: 3 errors, 12 warnings/);
   assert.match(reduced.result.visibleText, /DataGrid\.tsx/);
@@ -438,6 +490,19 @@ test("processing reducer registry does not select low-confidence prose", () => {
   const selected = selectProcessingReducer({ text: "hello\nnot an access log\n" });
 
   assert.equal(selected.status, "not_selected");
-  assert.deepEqual(selected.candidates.map((candidate) => candidate.name), ["test-output", "build-output", "diagnostics", "mcp-tools", "json-query", "table", "browser-snapshot", "git-log", "access-log"]);
+  assert.deepEqual(
+    selected.candidates.map((candidate) => candidate.name),
+    [
+      "test-output",
+      "build-output",
+      "diagnostics",
+      "mcp-tools",
+      "json-query",
+      "table",
+      "browser-snapshot",
+      "git-log",
+      "access-log",
+    ],
+  );
   assert.ok(selected.candidates.every((candidate) => candidate.confidence < 0.8));
 });

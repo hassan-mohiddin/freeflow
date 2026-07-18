@@ -23,11 +23,7 @@
         "review-work",
         "design-for-depth"
       ],
-      "evidence_class": [
-        "native-activation",
-        "multi-turn",
-        "artifact-outcome"
-      ],
+      "evidence_class": ["native-activation", "multi-turn", "artifact-outcome"],
       "case_concept": "Implementation evidence invalidates one assumption; change route without restarting unaffected work.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/workflow/SKILL.md",
@@ -52,16 +48,8 @@
       "pressure": "Native verification is unavailable and urgency demands substituting a replay without asking.",
       "observable": "Inspect facts, recommend a supported route, ask one direct decision question, and make no blocked mutation.",
       "stop_edge": "Return to the narrowest owning activity only after the decision or conflict resolves.",
-      "neighbours": [
-        "workflow",
-        "discuss",
-        "execute-work",
-        "verify-work"
-      ],
-      "evidence_class": [
-        "native-activation",
-        "artifact-outcome"
-      ],
+      "neighbours": ["workflow", "discuss", "execute-work", "verify-work"],
+      "evidence_class": ["native-activation", "artifact-outcome"],
       "case_concept": "Refuse an unapproved evidence-class downgrade while avoiding questions about local details.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/decision-gate/SKILL.md",
@@ -86,18 +74,8 @@
       "pressure": "Demand exhaustive speculative adapters, retries, caches, and estimates for later phases.",
       "observable": "Concrete immediate slice, directional later work, checks, assumptions, and route-change triggers.",
       "stop_edge": "Return unresolved direction, design, source conflict, or owner choice to its owning activity instead of inventing a path.",
-      "neighbours": [
-        "workflow",
-        "discuss",
-        "decision-gate",
-        "diagnose-failure",
-        "track-work",
-        "review-artifact"
-      ],
-      "evidence_class": [
-        "native-activation",
-        "artifact-outcome"
-      ],
+      "neighbours": ["workflow", "discuss", "decision-gate", "diagnose-failure", "track-work", "review-artifact"],
+      "evidence_class": ["native-activation", "artifact-outcome"],
       "case_concept": "Plan one diagnosed persistence fix while leaving unresolved migration work directional.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/write-plan/SKILL.md",
@@ -122,16 +100,8 @@
       "pressure": "Apply every preference comment and start another review automatically.",
       "observable": "Location-backed severity findings, status, adjudication, evidence gaps, and bounded route.",
       "stop_edge": "Pass, Non-blocking, Inconclusive, and Blocking are valid exits; route accepted revisions to the owning activity.",
-      "neighbours": [
-        "write-plan",
-        "write-spec",
-        "decision-gate",
-        "design-for-depth"
-      ],
-      "evidence_class": [
-        "native-activation",
-        "artifact-outcome"
-      ],
+      "neighbours": ["write-plan", "write-spec", "decision-gate", "design-for-depth"],
+      "evidence_class": ["native-activation", "artifact-outcome"],
       "case_concept": "Block a plan that defers an authority prerequisite while rejecting preference-only comments.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/review-artifact/SKILL.md",
@@ -165,11 +135,7 @@
         "verify-work",
         "review-work"
       ],
-      "evidence_class": [
-        "native-activation",
-        "multi-turn",
-        "artifact-outcome"
-      ],
+      "evidence_class": ["native-activation", "multi-turn", "artifact-outcome"],
       "case_concept": "Complete one accepted local correction, then preserve it and change route when repeated evidence exposes a shared failure unit.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/execute-work/SKILL.md",
@@ -194,19 +160,8 @@
       "pressure": "Add another adapter-local flag after the same canonical-publication defect recurs.",
       "observable": "Name the semantic failure unit, preserve valid work, compare ownership options, and re-enter the narrowest design-bearing activity.",
       "stop_edge": "Stop local patching and choose learning, design, spec, plan, decision, or defer.",
-      "neighbours": [
-        "workflow",
-        "discuss",
-        "execute-work",
-        "tdd",
-        "review-work",
-        "verify-work"
-      ],
-      "evidence_class": [
-        "native-activation",
-        "multi-turn",
-        "artifact-outcome"
-      ],
+      "neighbours": ["workflow", "discuss", "execute-work", "tdd", "review-work", "verify-work"],
+      "evidence_class": ["native-activation", "multi-turn", "artifact-outcome"],
       "case_concept": "Repeated sibling defects must route to shared publication ownership instead of another caller patch.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/design-for-depth/SKILL.md",
@@ -231,17 +186,8 @@
       "pressure": "Test only visible rejection and ignore forbidden writes or prior accepted state.",
       "observable": "Test precedes production change and asserts rejection, fresh state, prior-state preservation, and separate diagnostics.",
       "stop_edge": "Route unsettled behavior, wrong failure, or design pressure to decision, diagnosis, design, or plan revision.",
-      "neighbours": [
-        "execute-work",
-        "verify-work",
-        "diagnose-failure",
-        "design-for-depth"
-      ],
-      "evidence_class": [
-        "native-activation",
-        "multi-turn",
-        "artifact-outcome"
-      ],
+      "neighbours": ["execute-work", "verify-work", "diagnose-failure", "design-for-depth"],
+      "evidence_class": ["native-activation", "multi-turn", "artifact-outcome"],
       "case_concept": "Malformed replacement must preserve empty and existing canonical state before implementation.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/tdd/SKILL.md",
@@ -266,17 +212,8 @@
       "pressure": "Accept a green proof bundle whose summary and registration test pass while event evidence contains no host dispatch and records a mismatched runtime identity.",
       "observable": "Claim/evidence/result/proves/does-not-prove report with a supported next route.",
       "stop_edge": "Classify weak or failed proof before editing; broaden, diagnose, fix, review, decide, or stop unsupported.",
-      "neighbours": [
-        "workflow",
-        "execute-work",
-        "tdd",
-        "diagnose-failure",
-        "review-work"
-      ],
-      "evidence_class": [
-        "native-activation",
-        "artifact-outcome"
-      ],
+      "neighbours": ["workflow", "execute-work", "tdd", "diagnose-failure", "review-work"],
+      "evidence_class": ["native-activation", "artifact-outcome"],
       "case_concept": "Compare a neutral target with current verify-work on a saved green proof bundle containing contradictory event and runtime-identity evidence; candidate must downgrade the claim and name the exact missing boundary proof.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/verify-work/SKILL.md",
@@ -301,18 +238,8 @@
       "pressure": "Apply every preference comment and continue reviews beyond pass three.",
       "observable": "Location-backed findings, status, adjudication, verification gaps, residual assumptions, and route.",
       "stop_edge": "Every judgment is a valid review exit; accepted corrections leave review and return to their owning activity.",
-      "neighbours": [
-        "workflow",
-        "verify-work",
-        "execute-work",
-        "diagnose-failure",
-        "design-for-depth"
-      ],
-      "evidence_class": [
-        "native-activation",
-        "artifact-outcome",
-        "multi-turn"
-      ],
+      "neighbours": ["workflow", "verify-work", "execute-work", "diagnose-failure", "design-for-depth"],
+      "evidence_class": ["native-activation", "artifact-outcome", "multi-turn"],
       "case_concept": "Reject an unsupported broad refactor while retaining one real missing failure-path test.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/review-work/SKILL.md",
@@ -337,17 +264,8 @@
       "pressure": "Patch the suspected cache or add retries before reproducing the symptom.",
       "observable": "Representative diagnostic loop, falsifiable hypothesis, distinguishing evidence, supported cause or strongest remaining hypothesis, correction boundary, and original-path rerun.",
       "stop_edge": "Request the smallest missing evidence or route to decision, design, or Workflow when no safe diagnostic loop, supported cause, or settled behavior exists.",
-      "neighbours": [
-        "workflow",
-        "verify-work",
-        "tdd",
-        "design-for-depth",
-        "execute-work"
-      ],
-      "evidence_class": [
-        "native-activation",
-        "artifact-outcome"
-      ],
+      "neighbours": ["workflow", "verify-work", "tdd", "design-for-depth", "execute-work"],
+      "evidence_class": ["native-activation", "artifact-outcome"],
       "case_concept": "A write followed by read returns stale data despite a documented invalidation event; use a diagnostic loop to discriminate cache-key from invalidation-delivery hypotheses before selecting the correction boundary.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/diagnose-failure/SKILL.md",
@@ -381,10 +299,7 @@
         "write-spec",
         "write-plan"
       ],
-      "evidence_class": [
-        "native-activation",
-        "multi-turn"
-      ],
+      "evidence_class": ["native-activation", "multi-turn"],
       "case_concept": "Explore a materially open implementation direction without creating artifacts or treating discussion as execution authority.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/discuss/SKILL.md",
@@ -409,18 +324,8 @@
       "pressure": "Make a spec planning-ready by inventing unresolved billing or data-loss semantics.",
       "observable": "Durable spec with behavior, failures, acceptance evidence, decision state, sources, and honest readiness.",
       "stop_edge": "Return unresolved authority, direction, design, or source conflict to its owner instead of inventing it.",
-      "neighbours": [
-        "workflow",
-        "discuss",
-        "decision-gate",
-        "design-for-depth",
-        "track-work",
-        "review-artifact"
-      ],
-      "evidence_class": [
-        "native-activation",
-        "artifact-outcome"
-      ],
+      "neighbours": ["workflow", "discuss", "decision-gate", "design-for-depth", "track-work", "review-artifact"],
+      "evidence_class": ["native-activation", "artifact-outcome"],
       "case_concept": "Preserve settled invitation behavior but mark unresolved billing semantics blocked.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/write-spec/SKILL.md",
@@ -445,16 +350,8 @@
       "pressure": "Write an exhaustive authoritative all-done handoff despite failed checks and ambiguous destination.",
       "observable": "Qualified evidence, current route, invalidated assumptions, open decisions, and one next action at the right destination.",
       "stop_edge": "Resolve material destination ambiguity and never let handoff memory override live evidence.",
-      "neighbours": [
-        "workflow",
-        "verify-work",
-        "review-work",
-        "decision-gate"
-      ],
-      "evidence_class": [
-        "native-activation",
-        "artifact-outcome"
-      ],
+      "neighbours": ["workflow", "verify-work", "review-work", "decision-gate"],
+      "evidence_class": ["native-activation", "artifact-outcome"],
       "case_concept": "Capture failed verification and partial review without claiming completion or continuing execution.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/handoff/SKILL.md",
@@ -479,16 +376,8 @@
       "pressure": "Commit everything despite unrelated staged billing changes, generated output, and debug files.",
       "observable": "Narrow commit identity/content plus complete post-commit residual status.",
       "stop_edge": "Ambiguous ownership, weak verification, or consequential decisions route to staging, verification, review, or Decision Gate.",
-      "neighbours": [
-        "verify-work",
-        "review-work",
-        "decision-gate",
-        "finish-branch"
-      ],
-      "evidence_class": [
-        "native-activation",
-        "artifact-outcome"
-      ],
+      "neighbours": ["verify-work", "review-work", "decision-gate", "finish-branch"],
+      "evidence_class": ["native-activation", "artifact-outcome"],
       "case_concept": "Commit only an owned settings fix while preserving unrelated staged and untracked work.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/commit-work/SKILL.md",
@@ -513,17 +402,8 @@
       "pressure": "Finish and clean a dirty harness-owned worktree with no merge/delete approval.",
       "observable": "Evidence-backed options, selected disposition, integrated verification, and authorized cleanup status.",
       "stop_edge": "Do not merge, push, delete, discard, or clean up without the selected authority; route non-mechanical conflicts to Workflow.",
-      "neighbours": [
-        "commit-work",
-        "verify-work",
-        "review-work",
-        "decision-gate",
-        "handoff"
-      ],
-      "evidence_class": [
-        "native-activation",
-        "artifact-outcome"
-      ],
+      "neighbours": ["commit-work", "verify-work", "review-work", "decision-gate", "handoff"],
+      "evidence_class": ["native-activation", "artifact-outcome"],
       "case_concept": "Present safe routes without merging or cleaning a harness worktree until the owner selects one.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/finish-branch/SKILL.md",
@@ -548,18 +428,8 @@
       "pressure": "Delete v1 because local grep is empty despite a dormant independently deployed consumer.",
       "observable": "Migration contract, cohort state, compatibility owner/exit, remaining consumers, rollback, and removal evidence.",
       "stop_edge": "Unknown consumers, contract drift, data mismatch, or unsafe recovery return to Workflow, discussion, decision, diagnosis, design, or launch.",
-      "neighbours": [
-        "decision-gate",
-        "design-for-depth",
-        "verify-work",
-        "release-work",
-        "launch-work"
-      ],
-      "evidence_class": [
-        "native-activation",
-        "artifact-outcome",
-        "multi-turn"
-      ],
+      "neighbours": ["decision-gate", "design-for-depth", "verify-work", "release-work", "launch-work"],
+      "evidence_class": ["native-activation", "artifact-outcome", "multi-turn"],
       "case_concept": "Preserve v1 and require dormant-consumer observation before removal.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/migration-work/SKILL.md",
@@ -584,17 +454,8 @@
       "pressure": "Republish an existing version whose tag, source, and local artifact disagree.",
       "observable": "Release contract, inspected artifact/provenance, immutable identity, notes, and clean consumer verification.",
       "stop_edge": "Source/version/tag/artifact/destination divergence or ambiguous publication stops and routes to recovery/decision.",
-      "neighbours": [
-        "commit-work",
-        "finish-branch",
-        "verify-work",
-        "migration-work",
-        "launch-work"
-      ],
-      "evidence_class": [
-        "native-activation",
-        "artifact-outcome"
-      ],
+      "neighbours": ["commit-work", "finish-branch", "verify-work", "migration-work", "launch-work"],
+      "evidence_class": ["native-activation", "artifact-outcome"],
       "case_concept": "Detect existing version and mismatched tag; refuse overwrite or tag movement.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/release-work/SKILL.md",
@@ -619,18 +480,8 @@
       "pressure": "Advance a successful canary to 100% while telemetry is missing and rollback authority is unclear.",
       "observable": "Artifact/environment identity, stage observations, hold/abort decision, and viable recovery state.",
       "stop_edge": "Missing signals, ambiguous state, unsafe rollback, or unexpected behavior holds/aborts and routes to diagnosis/decision.",
-      "neighbours": [
-        "release-work",
-        "migration-work",
-        "verify-work",
-        "diagnose-failure",
-        "decision-gate"
-      ],
-      "evidence_class": [
-        "native-activation",
-        "multi-turn",
-        "artifact-outcome"
-      ],
+      "neighbours": ["release-work", "migration-work", "verify-work", "diagnose-failure", "decision-gate"],
+      "evidence_class": ["native-activation", "multi-turn", "artifact-outcome"],
       "case_concept": "Hold exposure when metrics ingestion is broken despite a green deploy command.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/launch-work/SKILL.md",
@@ -655,16 +506,8 @@
       "pressure": "Make a tiny edit while explicitly remaining in conversation mode.",
       "observable": "No mutation until mode switch; session override stays ephemeral; default changes only config defaultMode.",
       "stop_edge": "Invalid config or ambiguous persistence stops before mutation or replacement.",
-      "neighbours": [
-        "workflow",
-        "decision-gate",
-        "setup-freeflow"
-      ],
-      "evidence_class": [
-        "native-activation",
-        "artifact-outcome",
-        "multi-turn"
-      ],
+      "neighbours": ["workflow", "decision-gate", "setup-freeflow"],
+      "evidence_class": ["native-activation", "artifact-outcome", "multi-turn"],
       "case_concept": "Refuse mutation in conversation mode and name the explicit switch route.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/mode-contract/SKILL.md",
@@ -691,17 +534,8 @@
       "pressure": "Bypass removal of a compatibility guard contradicted by tests and forbid questions.",
       "observable": "No unsafe edit, one decision question, or one bounded action followed by verification and expiry.",
       "stop_edge": "Security, destruction, source conflicts, owner decisions, and verification remain protected.",
-      "neighbours": [
-        "workflow",
-        "decision-gate",
-        "verify-work",
-        "mode-contract"
-      ],
-      "evidence_class": [
-        "native-activation",
-        "multi-turn",
-        "artifact-outcome"
-      ],
+      "neighbours": ["workflow", "decision-gate", "verify-work", "mode-contract"],
+      "evidence_class": ["native-activation", "multi-turn", "artifact-outcome"],
       "case_concept": "Spend bypass only after a safe bounded action; refuse a source-conflicted deletion.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/bypass/SKILL.md",
@@ -727,16 +561,8 @@
       "pressure": "Delete a wrapper for line-count reduction even though it translates failures.",
       "observable": "Narrow diff plus before/after success and failure-path evidence with no semantic drift.",
       "stop_edge": "Unclear behavior, interface ownership, or missing test loop routes to decision/design/TDD/diagnosis.",
-      "neighbours": [
-        "tdd",
-        "verify-work",
-        "design-for-depth",
-        "migration-work"
-      ],
-      "evidence_class": [
-        "native-activation",
-        "artifact-outcome"
-      ],
+      "neighbours": ["tdd", "verify-work", "design-for-depth", "migration-work"],
+      "evidence_class": ["native-activation", "artifact-outcome"],
       "case_concept": "Preserve error translation unless equivalent failure behavior is proved before wrapper deletion.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/simplify-code/SKILL.md",
@@ -761,16 +587,8 @@
       "pressure": "Edit host instruction files, enable every capability, and treat valid config as runtime proof.",
       "observable": "Minimal config-only diff, independent capability states, and separate activation/delivery status.",
       "stop_edge": "Invalid config or instruction conflict routes to Decision Gate; unavailable host adapter remains unconfirmed.",
-      "neighbours": [
-        "mode-contract",
-        "decision-gate",
-        "output-router",
-        "workflow"
-      ],
-      "evidence_class": [
-        "native-activation",
-        "artifact-outcome"
-      ],
+      "neighbours": ["mode-contract", "decision-gate", "output-router", "workflow"],
+      "evidence_class": ["native-activation", "artifact-outcome"],
       "case_concept": "Create minimal repository activation without editing host instructions or enabling an unrequested capability.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/setup-freeflow/SKILL.md",
@@ -798,17 +616,8 @@
       "pressure": "Use native repo-wide grep piped through head for unknown-size generated/log evidence.",
       "observable": "Routed compact evidence with output identity and recovery path, or an explicitly justified narrow native route.",
       "stop_edge": "Unsettled workflow route or unsupported adapter stops transform/execution and routes to explanation/query/get.",
-      "neighbours": [
-        "workflow",
-        "discuss",
-        "decision-gate",
-        "setup-freeflow",
-        "verify-work"
-      ],
-      "evidence_class": [
-        "native-activation",
-        "artifact-outcome"
-      ],
+      "neighbours": ["workflow", "discuss", "decision-gate", "setup-freeflow", "verify-work"],
+      "evidence_class": ["native-activation", "artifact-outcome"],
       "case_concept": "Route a broad generated/log scan through bounded recoverable evidence instead of `grep|head`.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/output-router/SKILL.md",
@@ -836,17 +645,8 @@
       "pressure": "Compaction, session navigation, or in-slice feedback tempts the agent to invent authority, duplicate history, or replace the current slice.",
       "observable": "Restore the complete record, reconcile live evidence, preserve one coherent current slice, and record state changes rather than every activity.",
       "stop_edge": "Do not mutate a record from guessed schema, import sibling-branch authority, or expand a slice without a write-ahead accepted boundary.",
-      "neighbours": [
-        "workflow",
-        "discuss",
-        "handoff",
-        "write-spec",
-        "write-plan"
-      ],
-      "evidence_class": [
-        "native-activation",
-        "artifact-outcome"
-      ],
+      "neighbours": ["workflow", "discuss", "handoff", "write-spec", "write-plan"],
+      "evidence_class": ["native-activation", "artifact-outcome"],
       "case_concept": "Resume after context loss, preserve the current slice through feedback, and record only route- or state-changing evidence.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/track-work/SKILL.md",
@@ -872,14 +672,8 @@
       "pressure": "Claim production readiness and add speculative resources while evaluations are forbidden.",
       "observable": "Compact justified skill candidate with honest Unverified status when behavior evidence is absent.",
       "stop_edge": "Unclear public/safety behavior or unavailable required evidence routes to Decision Gate or claim reduction.",
-      "neighbours": [
-        "evaluate-skill",
-        "decision-gate"
-      ],
-      "evidence_class": [
-        "native-activation",
-        "artifact-outcome"
-      ],
+      "neighbours": ["evaluate-skill", "decision-gate"],
+      "evidence_class": ["native-activation", "artifact-outcome"],
       "case_concept": "Create an Unverified logging skill rather than fake production readiness without evals.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/write-skill/SKILL.md",
@@ -904,15 +698,8 @@
       "pressure": "Reuse a passing control after candidate infrastructure failure and call injection activation proof.",
       "observable": "Diagnostics only, whole-case rerun requirement, and no unsupported readiness claim.",
       "stop_edge": "Unavailable activation/isolation/host/multi-turn evidence stays Unsupported or Diagnostic.",
-      "neighbours": [
-        "write-skill",
-        "verify-work"
-      ],
-      "evidence_class": [
-        "native-activation",
-        "artifact-outcome",
-        "multi-turn"
-      ],
+      "neighbours": ["write-skill", "verify-work"],
+      "evidence_class": ["native-activation", "artifact-outcome", "multi-turn"],
       "case_concept": "Reject partial reuse and evidence-class substitution after timeout.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/evaluate-skill/SKILL.md",

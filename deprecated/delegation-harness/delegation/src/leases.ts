@@ -9,19 +9,41 @@ import {
   type PolicyIntent,
 } from "./types.js";
 import { validateSafeId } from "./paths.js";
-import {
-  isLikelyProductCodePath,
-  isPathInsideScope,
-  normalizeCommand,
-} from "./policy.js";
+import { isLikelyProductCodePath, isPathInsideScope, normalizeCommand } from "./policy.js";
 
-export const DELEGATION_LEASE_STATES = ["issued", "active", "exhausted", "expired", "revoked"] as const satisfies readonly DelegationLeaseState[];
+export const DELEGATION_LEASE_STATES = [
+  "issued",
+  "active",
+  "exhausted",
+  "expired",
+  "revoked",
+] as const satisfies readonly DelegationLeaseState[];
 
-export const DELEGATION_LEASE_ACTIONS = ["read", "edit", "run_allowlisted", "route", "spawn", "review", "verify"] as const satisfies readonly DelegationLeaseAction[];
+export const DELEGATION_LEASE_ACTIONS = [
+  "read",
+  "edit",
+  "run_allowlisted",
+  "route",
+  "spawn",
+  "review",
+  "verify",
+] as const satisfies readonly DelegationLeaseAction[];
 
-export const DELEGATION_LEASE_EXPIRIES = ["on_assignment_terminal", "on_task_terminal"] as const satisfies readonly DelegationLeaseExpiry[];
+export const DELEGATION_LEASE_EXPIRIES = [
+  "on_assignment_terminal",
+  "on_task_terminal",
+] as const satisfies readonly DelegationLeaseExpiry[];
 
-const DELEGATION_ROLES = ["orchestrator", "planning-parent", "execution-parent", "researcher", "worker", "reviewer", "verifier", "integrator"] as const satisfies readonly DelegationRole[];
+const DELEGATION_ROLES = [
+  "orchestrator",
+  "planning-parent",
+  "execution-parent",
+  "researcher",
+  "worker",
+  "reviewer",
+  "verifier",
+  "integrator",
+] as const satisfies readonly DelegationRole[];
 
 export function normalizeDelegationLease(input: DelegationLease): DelegationLease {
   const normalized: DelegationLease = {
@@ -89,7 +111,9 @@ export function normalizeDelegationActiveLeaseView(input: DelegationActiveLeaseV
   const activeLeaseIdsByAgent: Record<string, string[]> = {};
   for (const [agentId, leaseIds] of Object.entries(input.activeLeaseIdsByAgent)) {
     const normalizedAgentId = validateSafeId(agentId, "agent id");
-    const normalizedLeaseIds = leaseIds.map((leaseId, index) => validateSafeId(leaseId, `active lease id ${index + 1}`));
+    const normalizedLeaseIds = leaseIds.map((leaseId, index) =>
+      validateSafeId(leaseId, `active lease id ${index + 1}`),
+    );
     for (const leaseId of normalizedLeaseIds) {
       const lease = leasesById[leaseId];
       if (lease === undefined) {
@@ -123,7 +147,9 @@ export function activeLeasesForAgent(view: DelegationActiveLeaseView, agentId: s
   const normalized = normalizeDelegationActiveLeaseView(view);
   const normalizedAgentId = validateSafeId(agentId, "agent id");
   const leaseIds = normalized.activeLeaseIdsByAgent[normalizedAgentId] ?? [];
-  return leaseIds.map((leaseId) => normalized.leasesById[leaseId]).filter((lease): lease is DelegationLease => lease !== undefined && lease.state === "active");
+  return leaseIds
+    .map((leaseId) => normalized.leasesById[leaseId])
+    .filter((lease): lease is DelegationLease => lease !== undefined && lease.state === "active");
 }
 
 export function findActiveLegacyAssignmentLease(input: {
@@ -140,12 +166,15 @@ export function findActiveLegacyAssignmentLease(input: {
   const syntheticAttemptId = validateSafeId(input.syntheticAttemptId, "synthetic attempt id");
   return input.activeLeases
     .map((lease) => normalizeDelegationLease(lease))
-    .filter((lease) => lease.state === "active"
-      && lease.taskId === taskId
-      && lease.agentId === agentId
-      && lease.role === input.role
-      && (lease.assignmentId === undefined || lease.assignmentId === assignmentId)
-      && (lease.attemptId === undefined || lease.attemptId === syntheticAttemptId))
+    .filter(
+      (lease) =>
+        lease.state === "active" &&
+        lease.taskId === taskId &&
+        lease.agentId === agentId &&
+        lease.role === input.role &&
+        (lease.assignmentId === undefined || lease.assignmentId === assignmentId) &&
+        (lease.attemptId === undefined || lease.attemptId === syntheticAttemptId),
+    )
     .sort((left, right) => left.leaseId.localeCompare(right.leaseId))[0];
 }
 
@@ -162,19 +191,19 @@ export interface AuthorizeDelegationLeaseInput {
 
 export type DelegationLeaseAuthorization =
   | {
-    allowed: true;
-    status: "allowed";
-    reason: string;
-    authorizingLeaseId?: string;
-  }
+      allowed: true;
+      status: "allowed";
+      reason: string;
+      authorizingLeaseId?: string;
+    }
   | {
-    allowed: false;
-    status: "blocked";
-    code: PolicyBlockCode;
-    reason: string;
-    suggestedReroute: "parent" | "orchestrator" | "execution-parent";
-    request: { kind: "policy_block" | "capability_gap"; detail: string };
-  };
+      allowed: false;
+      status: "blocked";
+      code: PolicyBlockCode;
+      reason: string;
+      suggestedReroute: "parent" | "orchestrator" | "execution-parent";
+      request: { kind: "policy_block" | "capability_gap"; detail: string };
+    };
 
 /**
  * Dynamic policy layer for one already-statically-allowed intent.
@@ -187,29 +216,45 @@ export function authorizeDelegationLease(input: AuthorizeDelegationLeaseInput): 
   if ((input.assignmentId === undefined) !== (input.attemptId === undefined)) {
     return leaseBlock("malformed_intent", "lease authorization requires assignmentId and attemptId together", "parent");
   }
-  const assignmentId = input.assignmentId === undefined ? undefined : validateSafeId(input.assignmentId, "assignment id");
+  const assignmentId =
+    input.assignmentId === undefined ? undefined : validateSafeId(input.assignmentId, "assignment id");
   const attemptId = input.attemptId === undefined ? undefined : validateSafeId(input.attemptId, "attempt id");
 
   if (input.intent.kind !== "write" && input.intent.kind !== "command") {
-    return { allowed: true, status: "allowed", reason: `${input.intent.kind} intent does not require a lease in Phase 5` };
+    return {
+      allowed: true,
+      status: "allowed",
+      reason: `${input.intent.kind} intent does not require a lease in Phase 5`,
+    };
   }
 
   if (input.intent.kind === "write") {
     if (input.role === "researcher" || input.role === "reviewer" || input.role === "verifier") {
-      return leaseBlock("capability_gap", `${input.role} is read-only and cannot receive edit lease authority`, "parent");
+      return leaseBlock(
+        "capability_gap",
+        `${input.role} is read-only and cannot receive edit lease authority`,
+        "parent",
+      );
     }
     if (input.role === "planning-parent" && isLikelyProductCodePath(input.intent.path, input.cwd)) {
-      return leaseBlock("product_code_write_requires_scope", `planning-parent cannot edit product/runtime implementation: ${input.intent.path}`, "execution-parent");
+      return leaseBlock(
+        "product_code_write_requires_scope",
+        `planning-parent cannot edit product/runtime implementation: ${input.intent.path}`,
+        "execution-parent",
+      );
     }
   }
 
   const matchingIdentity = input.activeLeases
     .map((lease) => normalizeDelegationLease(lease))
-    .filter((lease) => lease.state === "active"
-      && lease.taskId === taskId
-      && lease.agentId === agentId
-      && lease.role === input.role
-      && (assignmentId === undefined || (lease.assignmentId === assignmentId && lease.attemptId === attemptId)))
+    .filter(
+      (lease) =>
+        lease.state === "active" &&
+        lease.taskId === taskId &&
+        lease.agentId === agentId &&
+        lease.role === input.role &&
+        (assignmentId === undefined || (lease.assignmentId === assignmentId && lease.attemptId === attemptId)),
+    )
     .sort((left, right) => left.leaseId.localeCompare(right.leaseId));
 
   if (input.intent.kind === "write") {

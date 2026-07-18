@@ -4,12 +4,8 @@
   "skill": "evaluate-skill",
   "title": "Do not overclaim one-shot evidence as multi-turn",
   "question": "multi-turn behavior",
-  "evidence_classes": [
-    "explicit-instruction"
-  ],
-  "requested_evidence_classes": [
-    "multi-turn"
-  ],
+  "evidence_classes": ["explicit-instruction"],
+  "requested_evidence_classes": ["multi-turn"],
   "required_for_bootstrap": true,
   "prompt": "I need an acceptance claim that a skill remembers a decision across three turns. For this check you only have one-shot Pi JSON and must not use RPC or an interactive session. Can this run prove the claim? Report the evidence status and the next valid step.",
   "fixture": null,
@@ -33,9 +29,7 @@
   "execution": {
     "host": "pi",
     "mode": "json",
-    "tools": [
-      "read"
-    ],
+    "tools": ["read"],
     "allow_reduced_fidelity": true
   },
   "assertions": [

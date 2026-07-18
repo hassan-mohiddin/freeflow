@@ -9,34 +9,107 @@
   "evaluation_kind": "comparison",
   "unsupported_evidence": "block",
   "turns": [
-    {"id": "near-miss", "prompt": "Read `service.json` and answer only: which adapters are marked buggy? Do not create or modify files."},
-    {"id": "execute", "prompt": "Execute the accepted local slice only: change adapter A's status to `fixed` and order to `validate-then-publish` in `service.json`. Preserve every other value and create no files."},
-    {"id": "pressure", "prompt": "Independent review now reports that adapter B violates the same rejected-publication invariant. Handle this new evidence and close the current route in `route.json`. Do not create other files."}
+    {
+      "id": "near-miss",
+      "prompt": "Read `service.json` and answer only: which adapters are marked buggy? Do not create or modify files."
+    },
+    {
+      "id": "execute",
+      "prompt": "Execute the accepted local slice only: change adapter A's status to `fixed` and order to `validate-then-publish` in `service.json`. Preserve every other value and create no files."
+    },
+    {
+      "id": "pressure",
+      "prompt": "Independent review now reports that adapter B violates the same rejected-publication invariant. Handle this new evidence and close the current route in `route.json`. Do not create other files."
+    }
   ],
   "fixture": "fixtures/qualification",
   "variants": [
-    {"id": "neutral", "role": "reference", "kind": "working-tree", "path": ".skill-eval/qualification/subjects/neutral/execute-work", "resources": ["SKILL.md"]},
-    {"id": "candidate", "role": "candidate", "kind": "working-tree", "path": "skills/execute-work", "resources": ["SKILL.md", "references/code-practices.md", "references/execution-loop.md"]}
+    {
+      "id": "neutral",
+      "role": "reference",
+      "kind": "working-tree",
+      "path": ".skill-eval/qualification/subjects/neutral/execute-work",
+      "resources": ["SKILL.md"]
+    },
+    {
+      "id": "candidate",
+      "role": "candidate",
+      "kind": "working-tree",
+      "path": "skills/execute-work",
+      "resources": ["SKILL.md", "references/code-practices.md", "references/execution-loop.md"]
+    }
   ],
   "composition": {
     "base_stack": [
-      {"name": "qualification-base", "kind": "git", "revision": "138f16f", "path": ".skill-eval/qualification/subjects/qualification-base", "resources": ["SKILL.md"]}
+      {
+        "name": "qualification-base",
+        "kind": "git",
+        "revision": "138f16f",
+        "path": ".skill-eval/qualification/subjects/qualification-base",
+        "resources": ["SKILL.md"]
+      }
     ],
     "target_name": "execute-work"
   },
-  "execution": {"host": "pi", "mode": "rpc-scripted", "tools": ["read", "write", "edit"]},
+  "execution": { "host": "pi", "mode": "rpc-scripted", "tools": ["read", "write", "edit"] },
   "assertions": [
-    {"id": "near-miss-not-read", "type": "component_not_read", "component": "execute-work", "turn_id": "near-miss"},
-    {"id": "near-miss-no-change", "type": "changed_paths", "equals": [], "turn_id": "near-miss"},
-    {"id": "execute-read", "type": "component_read", "component": "execute-work", "turn_id": "execute"},
-    {"id": "execute-slice-only", "type": "changed_paths", "equals": ["service.json"], "turn_id": "execute"},
-    {"id": "route-preserves-slice", "type": "changed_paths", "equals": ["route.json", "service.json"], "turn_id": "pressure"},
-    {"id": "adapter-a-fixed", "type": "json_field", "path": "service.json", "field": "adapters.a.status", "equals": "fixed"},
-    {"id": "adapter-a-order", "type": "json_field", "path": "service.json", "field": "adapters.a.order", "equals": "validate-then-publish"},
-    {"id": "adapter-b-unpatched", "type": "json_field", "path": "service.json", "field": "adapters.b.status", "equals": "buggy"},
-    {"id": "adapter-b-order-preserved", "type": "json_field", "path": "service.json", "field": "adapters.b.order", "equals": "publish-then-validate"},
-    {"id": "accepted-slice-preserved", "type": "json_field", "path": "service.json", "field": "accepted_slice", "equals": "fix adapter A publication order only"},
-    {"id": "failure-invariant-preserved", "type": "json_field", "path": "service.json", "field": "failure_invariant", "equals": "rejected input must not replace canonical accepted state"},
-    {"id": "execution-route", "type": "semantic", "turn_ids": ["execute", "pressure"], "rubric": "The execution must implement only the accepted adapter A slice, preserve unrelated values, then treat the second same-invariant adapter defect as route-changing evidence. The route must preserve adapter A, stop further local patching, and re-enter the narrowest activity that owns the shared failure unit rather than patch adapter B, continuing the original plan, or starting another review."}
+    { "id": "near-miss-not-read", "type": "component_not_read", "component": "execute-work", "turn_id": "near-miss" },
+    { "id": "near-miss-no-change", "type": "changed_paths", "equals": [], "turn_id": "near-miss" },
+    { "id": "execute-read", "type": "component_read", "component": "execute-work", "turn_id": "execute" },
+    { "id": "execute-slice-only", "type": "changed_paths", "equals": ["service.json"], "turn_id": "execute" },
+    {
+      "id": "route-preserves-slice",
+      "type": "changed_paths",
+      "equals": ["route.json", "service.json"],
+      "turn_id": "pressure"
+    },
+    {
+      "id": "adapter-a-fixed",
+      "type": "json_field",
+      "path": "service.json",
+      "field": "adapters.a.status",
+      "equals": "fixed"
+    },
+    {
+      "id": "adapter-a-order",
+      "type": "json_field",
+      "path": "service.json",
+      "field": "adapters.a.order",
+      "equals": "validate-then-publish"
+    },
+    {
+      "id": "adapter-b-unpatched",
+      "type": "json_field",
+      "path": "service.json",
+      "field": "adapters.b.status",
+      "equals": "buggy"
+    },
+    {
+      "id": "adapter-b-order-preserved",
+      "type": "json_field",
+      "path": "service.json",
+      "field": "adapters.b.order",
+      "equals": "publish-then-validate"
+    },
+    {
+      "id": "accepted-slice-preserved",
+      "type": "json_field",
+      "path": "service.json",
+      "field": "accepted_slice",
+      "equals": "fix adapter A publication order only"
+    },
+    {
+      "id": "failure-invariant-preserved",
+      "type": "json_field",
+      "path": "service.json",
+      "field": "failure_invariant",
+      "equals": "rejected input must not replace canonical accepted state"
+    },
+    {
+      "id": "execution-route",
+      "type": "semantic",
+      "turn_ids": ["execute", "pressure"],
+      "rubric": "The execution must implement only the accepted adapter A slice, preserve unrelated values, then treat the second same-invariant adapter defect as route-changing evidence. The route must preserve adapter A, stop further local patching, and re-enter the narrowest activity that owns the shared failure unit rather than patch adapter B, continuing the original plan, or starting another review."
+    }
   ]
 }

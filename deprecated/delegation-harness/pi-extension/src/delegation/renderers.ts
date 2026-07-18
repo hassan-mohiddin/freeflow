@@ -22,13 +22,25 @@ export function renderDelegationCall(toolName: string, args: any, theme: any) {
 export function renderDelegationResult(toolName: string, result: any, { expanded }: any = {}, theme: any) {
   const payload = result?.details?.result;
   if (!payload) {
-    return textComponent(truncateText(extractTextContent(result?.content) ?? "No delegation result details available.", 220));
+    return textComponent(
+      truncateText(extractTextContent(result?.content) ?? "No delegation result details available.", 220),
+    );
   }
 
   const status = payload.status ?? payload.toolStatus ?? "unknown";
   const failed = payload.toolStatus === "error" || status === "error" || status === "DELEGATION_UNAVAILABLE";
-  const icon = failed ? "✗" : status === "running" || status === "sent" || status === "captured" || status === "closed" || status === "created" ? "✓" : "!";
-  const handle = [payload.taskId ? `task ${payload.taskId}` : undefined, payload.agentId ? `agent ${payload.agentId}` : undefined, payload.cmux?.surfaceRef ? `surface ${payload.cmux.surfaceRef}` : undefined].filter(Boolean).join(" • ");
+  const icon = failed
+    ? "✗"
+    : status === "running" || status === "sent" || status === "captured" || status === "closed" || status === "created"
+      ? "✓"
+      : "!";
+  const handle = [
+    payload.taskId ? `task ${payload.taskId}` : undefined,
+    payload.agentId ? `agent ${payload.agentId}` : undefined,
+    payload.cmux?.surfaceRef ? `surface ${payload.cmux.surfaceRef}` : undefined,
+  ]
+    .filter(Boolean)
+    .join(" • ");
   const lines = [
     `${themeFg(theme, failed ? "warning" : "success", icon)} ${themeFg(theme, "toolTitle", toolName)} ${formatStatus(theme, status)}${handle ? themeFg(theme, "dim", ` • ${handle}`) : ""}`,
   ];
@@ -39,7 +51,11 @@ export function renderDelegationResult(toolName: string, result: any, { expanded
     lines.push(themeFg(theme, "muted", truncateText(String(payload.actionTaken), 180)));
   }
   if (payload.decision?.kind) {
-    const target = payload.decision.targetRole ? ` → ${payload.decision.targetRole}` : payload.decision.suggestedReroute ? ` → ${payload.decision.suggestedReroute}` : "";
+    const target = payload.decision.targetRole
+      ? ` → ${payload.decision.targetRole}`
+      : payload.decision.suggestedReroute
+        ? ` → ${payload.decision.suggestedReroute}`
+        : "";
     lines.push(themeFg(theme, "accent", `route: ${payload.decision.kind}${target}`));
   }
   if (payload.layout?.slot) {
@@ -47,7 +63,9 @@ export function renderDelegationResult(toolName: string, result: any, { expanded
   }
 
   if (payload.delivery?.fileBacked) {
-    lines.push(themeFg(theme, "accent", `file-backed delivery: ${shortenMiddle(payload.delivery.packetPath ?? "packet", 100)}`));
+    lines.push(
+      themeFg(theme, "accent", `file-backed delivery: ${shortenMiddle(payload.delivery.packetPath ?? "packet", 100)}`),
+    );
   }
   if (payload.snapshot?.screenPath) {
     lines.push(themeFg(theme, "accent", `screen snapshot saved: ${shortenMiddle(payload.snapshot.screenPath, 100)}`));
@@ -56,7 +74,9 @@ export function renderDelegationResult(toolName: string, result: any, { expanded
     lines.push(themeFg(theme, "warning", `${payload.unreadParentAlerts.length} unread parent alert(s)`));
   }
   if (payload.heartbeat?.state) {
-    lines.push(themeFg(theme, "muted", `heartbeat: ${payload.heartbeat.state}${payload.route ? ` • ${payload.route}` : ""}`));
+    lines.push(
+      themeFg(theme, "muted", `heartbeat: ${payload.heartbeat.state}${payload.route ? ` • ${payload.route}` : ""}`),
+    );
   }
   if (payload.result?.results?.[0]?.summary) {
     lines.push(themeFg(theme, "accent", truncateText(payload.result.results[0].summary, 180)));
@@ -126,7 +146,14 @@ export function renderDelegationResult(toolName: string, result: any, { expanded
     lines.push("", themeFg(theme, "toolTitle", "Capture"));
     pushField(lines, theme, "screen", payload.snapshot.screenPath);
     pushField(lines, theme, "captured at", payload.snapshot.capturedAt);
-    pushField(lines, theme, "lines", payload.snapshot.capturedLines !== undefined ? `${payload.snapshot.capturedLines} captured / ${payload.snapshot.linesRequested} requested` : undefined);
+    pushField(
+      lines,
+      theme,
+      "lines",
+      payload.snapshot.capturedLines !== undefined
+        ? `${payload.snapshot.capturedLines} captured / ${payload.snapshot.linesRequested} requested`
+        : undefined,
+    );
     pushField(lines, theme, "bytes", payload.snapshot.bytes);
     lines.push(`  ${themeFg(theme, "dim", "raw screen is stored in screen.log; normal renderer does not dump it")}`);
   }
@@ -148,7 +175,12 @@ export function renderDelegationResult(toolName: string, result: any, { expanded
       pushField(lines, theme, "summary", first.summary);
       pushField(lines, theme, "files changed", listText(first.filesChanged));
       pushField(lines, theme, "checks", Array.isArray(first.checks) ? `${first.checks.length} row(s)` : undefined);
-      pushField(lines, theme, "blockers", Array.isArray(first.blockers) ? `${first.blockers.length} blocker(s)` : undefined);
+      pushField(
+        lines,
+        theme,
+        "blockers",
+        Array.isArray(first.blockers) ? `${first.blockers.length} blocker(s)` : undefined,
+      );
       pushField(lines, theme, "recommendation", first.recommendation);
     }
     if (Array.isArray(payload.result.errors) && payload.result.errors.length > 0) {
@@ -159,9 +191,13 @@ export function renderDelegationResult(toolName: string, result: any, { expanded
   if (Array.isArray(payload.reports)) {
     lines.push("", themeFg(theme, "toolTitle", "Reports"));
     for (const report of payload.reports) {
-      lines.push(`  ${themeFg(theme, report.exists ? "accent" : "muted", report.reportName)} ${themeFg(theme, "muted", report.status)}${report.report?.status ? ` — ${report.report.status}` : ""}`);
+      lines.push(
+        `  ${themeFg(theme, report.exists ? "accent" : "muted", report.reportName)} ${themeFg(theme, "muted", report.status)}${report.report?.status ? ` — ${report.report.status}` : ""}`,
+      );
       if (report.paths?.json) {
-        lines.push(`    ${themeFg(theme, "muted", "json:")} ${themeFg(theme, "accent", shortenMiddle(report.paths.json, 110))}`);
+        lines.push(
+          `    ${themeFg(theme, "muted", "json:")} ${themeFg(theme, "accent", shortenMiddle(report.paths.json, 110))}`,
+        );
       }
     }
   }
@@ -171,23 +207,39 @@ export function renderDelegationResult(toolName: string, result: any, { expanded
     pushField(lines, theme, "integration order", listText(payload.executionMap.integrationOrder));
     if (Array.isArray(payload.executionMap.packages)) {
       for (const pkg of payload.executionMap.packages.slice(0, 12)) {
-        lines.push(`  ${themeFg(theme, "accent", pkg.packageId)} ${themeFg(theme, "muted", `${pkg.role}/${pkg.state}`)}${pkg.agentId ? ` • ${pkg.agentId}` : ""}`);
-        if (pkg.checkoutPath) lines.push(`    ${themeFg(theme, "muted", "checkout:")} ${themeFg(theme, "accent", shortenMiddle(pkg.checkoutPath, 110))}`);
+        lines.push(
+          `  ${themeFg(theme, "accent", pkg.packageId)} ${themeFg(theme, "muted", `${pkg.role}/${pkg.state}`)}${pkg.agentId ? ` • ${pkg.agentId}` : ""}`,
+        );
+        if (pkg.checkoutPath)
+          lines.push(
+            `    ${themeFg(theme, "muted", "checkout:")} ${themeFg(theme, "accent", shortenMiddle(pkg.checkoutPath, 110))}`,
+          );
         if (Array.isArray(pkg.commitCheckpoints) && pkg.commitCheckpoints.length > 0) {
-          lines.push(`    ${themeFg(theme, "muted", "commit checkpoints:")} ${pkg.commitCheckpoints.map((checkpoint: any) => `${checkpoint.checkpointId}:${checkpoint.status}`).join(", ")}`);
+          lines.push(
+            `    ${themeFg(theme, "muted", "commit checkpoints:")} ${pkg.commitCheckpoints.map((checkpoint: any) => `${checkpoint.checkpointId}:${checkpoint.status}`).join(", ")}`,
+          );
         }
       }
     }
   }
 
   if (payload.preflight) {
-    lines.push("", themeFg(theme, payload.preflight.ok ? "toolTitle" : "warning", payload.preflight.ok ? "Preflight" : "Delegation unavailable"));
+    lines.push(
+      "",
+      themeFg(
+        theme,
+        payload.preflight.ok ? "toolTitle" : "warning",
+        payload.preflight.ok ? "Preflight" : "Delegation unavailable",
+      ),
+    );
     pushField(lines, theme, "status", payload.preflight.status);
     pushField(lines, theme, "reason", payload.preflight.reason);
     pushField(lines, theme, "action taken", payload.preflight.actionTaken);
     if (Array.isArray(payload.preflight.checks)) {
       for (const check of payload.preflight.checks) {
-        lines.push(`  ${themeFg(theme, check.status === "ok" ? "accent" : "warning", check.name)} ${themeFg(theme, "muted", check.status)} — ${truncateText(check.message, 160)}`);
+        lines.push(
+          `  ${themeFg(theme, check.status === "ok" ? "accent" : "warning", check.name)} ${themeFg(theme, "muted", check.status)} — ${truncateText(check.message, 160)}`,
+        );
       }
     }
     if (Array.isArray(payload.preflight.safeRoutes)) {
@@ -213,9 +265,27 @@ export function renderDelegationResult(toolName: string, result: any, { expanded
 
   if (payload.task || payload.agentStatus || payload.registry) {
     lines.push("", themeFg(theme, "toolTitle", "Stored state"));
-    if (payload.task) pushField(lines, theme, "task state", `${payload.task.state}${payload.task.goal ? ` — ${payload.task.goal}` : ""}`);
-    if (payload.agentStatus) pushField(lines, theme, "agent state", `${payload.agentStatus.state}${payload.agentStatus.message ? ` — ${payload.agentStatus.message}` : ""}`);
-    if (payload.registry?.agents) pushField(lines, theme, "agents", payload.registry.agents.map((agent: any) => `${agent.agentId}:${agent.state}`).join(", "));
+    if (payload.task)
+      pushField(
+        lines,
+        theme,
+        "task state",
+        `${payload.task.state}${payload.task.goal ? ` — ${payload.task.goal}` : ""}`,
+      );
+    if (payload.agentStatus)
+      pushField(
+        lines,
+        theme,
+        "agent state",
+        `${payload.agentStatus.state}${payload.agentStatus.message ? ` — ${payload.agentStatus.message}` : ""}`,
+      );
+    if (payload.registry?.agents)
+      pushField(
+        lines,
+        theme,
+        "agents",
+        payload.registry.agents.map((agent: any) => `${agent.agentId}:${agent.state}`).join(", "),
+      );
   }
 
   if (payload.unreadParentAlerts) {
@@ -225,9 +295,13 @@ export function renderDelegationResult(toolName: string, result: any, { expanded
         pushField(lines, theme, "unread", "none");
       } else {
         for (const alert of payload.unreadParentAlerts.slice(0, 10)) {
-          lines.push(`  ${themeFg(theme, "warning", alert.outcome ?? "alert")} ${themeFg(theme, "muted", alert.agentId ?? alert.taskId ?? "task")} — ${truncateText(alert.message ?? alert.state ?? "", 160)}`);
+          lines.push(
+            `  ${themeFg(theme, "warning", alert.outcome ?? "alert")} ${themeFg(theme, "muted", alert.agentId ?? alert.taskId ?? "task")} — ${truncateText(alert.message ?? alert.state ?? "", 160)}`,
+          );
           if (alert.evidence?.jsonPath) {
-            lines.push(`    ${themeFg(theme, "muted", "json:")} ${themeFg(theme, "accent", shortenMiddle(alert.evidence.jsonPath, 110))}`);
+            lines.push(
+              `    ${themeFg(theme, "muted", "json:")} ${themeFg(theme, "accent", shortenMiddle(alert.evidence.jsonPath, 110))}`,
+            );
           }
         }
       }
@@ -236,7 +310,10 @@ export function renderDelegationResult(toolName: string, result: any, { expanded
     }
   }
 
-  lines.push("", themeFg(theme, "dim", "No raw transcript or full screen dump is rendered here; use evidence paths for recovery."));
+  lines.push(
+    "",
+    themeFg(theme, "dim", "No raw transcript or full screen dump is rendered here; use evidence paths for recovery."),
+  );
   return textComponent(lines.join("\n"));
 }
 

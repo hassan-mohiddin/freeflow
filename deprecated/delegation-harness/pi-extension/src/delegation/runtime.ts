@@ -54,7 +54,8 @@ const TERMINAL_RESULT_STATUS_TO_STATE = {
   cancelled: "cancelled",
 };
 
-const MUTATING_MCP_TOOL_RE = /(?:^|_)(?:create|update|edit|write|delete|remove|close|merge|push|publish|deploy|send|post|mutate|apply)(?:_|$)/i;
+const MUTATING_MCP_TOOL_RE =
+  /(?:^|_)(?:create|update|edit|write|delete|remove|close|merge|push|publish|deploy|send|post|mutate|apply)(?:_|$)/i;
 
 const startupEventKeys = new Set<string>();
 const notificationKeys = new Set<string>();
@@ -139,7 +140,12 @@ export async function handleDelegationSessionStart(pi: any, ctx: any) {
   await recordStartupState(setup, ctx);
 }
 
-export async function appendDelegatedRuntimeContext(pi: any, event: any, ctx: any, systemPrompt: string): Promise<string> {
+export async function appendDelegatedRuntimeContext(
+  pi: any,
+  event: any,
+  ctx: any,
+  systemPrompt: string,
+): Promise<string> {
   const setup = await prepareDelegatedRuntime(pi, ctx);
   if (setup.detection.mode === "normal") {
     return systemPrompt;
@@ -174,10 +180,12 @@ export async function appendUnreadDelegationAlertSummary(ctx: any, systemPrompt:
       for (const taskId of taskIds) {
         try {
           const alerts = await store.readParentAlerts(taskId, { unreadOnly: true });
-          scopedAlerts.push(...alerts
-            .filter((alert: any) => isRootSummaryAlert(alert))
-            .map((alert: any) => normalizeSummaryAlert(alert))
-            .filter(Boolean));
+          scopedAlerts.push(
+            ...alerts
+              .filter((alert: any) => isRootSummaryAlert(alert))
+              .map((alert: any) => normalizeSummaryAlert(alert))
+              .filter(Boolean),
+          );
         } catch {
           // One malformed task queue must not break root runtime context or mark anything delivered.
         }
@@ -212,18 +220,22 @@ export async function handleDelegatedToolCall(event: any, ctx: any, pi?: any) {
   }
 
   if (setup.detection.mode === "blocked" || setup.blockers.length > 0) {
-    const reason = setup.blockers.length > 0
-      ? setup.blockers.join("; ")
-      : setup.detection.errors.join("; ");
+    const reason = setup.blockers.length > 0 ? setup.blockers.join("; ") : setup.detection.errors.join("; ");
     await recordPolicyBlockedToolCall(setup, event, {
       allowed: false,
       status: "blocked",
       code: "malformed_intent",
       reason: `delegated runtime unavailable: ${reason}`,
       suggestedReroute: "parent",
-      request: { kind: "policy_block", detail: "respawn delegated pane with valid runtime env and supported Pi active-tool API" },
+      request: {
+        kind: "policy_block",
+        detail: "respawn delegated pane with valid runtime env and supported Pi active-tool API",
+      },
     });
-    return { block: true, reason: formatPolicyDeniedReason({ code: "delegated_runtime_unavailable", reason, suggestedReroute: "parent" }) };
+    return {
+      block: true,
+      reason: formatPolicyDeniedReason({ code: "delegated_runtime_unavailable", reason, suggestedReroute: "parent" }),
+    };
   }
 
   const scopedDelegationDecision = validateScopedDelegationToolCall(setup, event);
@@ -279,7 +291,10 @@ export async function handleDelegatedToolCall(event: any, ctx: any, pi?: any) {
       code: "capability_gap",
       reason: `active lease policy state is unavailable (${errorClass}): ${messageFrom(error)}`,
       suggestedReroute: "parent",
-      request: { kind: "policy_block", detail: "repair/rebuild active-leases.json separately, then retry the tool call" },
+      request: {
+        kind: "policy_block",
+        detail: "repair/rebuild active-leases.json separately, then retry the tool call",
+      },
     };
   }
 
@@ -305,15 +320,25 @@ function validateScopedDelegationToolCall(setup: any, event: any): any | undefin
 
   if (isChildLifecycleDelegationTool(toolName)) {
     if (requestedTaskId !== setup.detection.taskId || requestedAgentId !== setup.detection.agentId) {
-      return scopedBlock(toolName, `lifecycle tool can only target current agent ${setup.detection.taskId}/${setup.detection.agentId}`);
+      return scopedBlock(
+        toolName,
+        `lifecycle tool can only target current agent ${setup.detection.taskId}/${setup.detection.agentId}`,
+      );
     }
     return undefined;
   }
 
   if (isReadRecoveryDelegationTool(toolName)) {
     if (toolName === "delegate_status" || toolName === "delegate_result") {
-      if (requestedTaskId !== setup.detection.taskId || requestedAgentId !== setup.detection.agentId || !stringInput(input.agentId)) {
-        return scopedBlock(toolName, `leaf read/recovery tool must include its own taskId and agentId (${setup.detection.taskId}/${setup.detection.agentId})`);
+      if (
+        requestedTaskId !== setup.detection.taskId ||
+        requestedAgentId !== setup.detection.agentId ||
+        !stringInput(input.agentId)
+      ) {
+        return scopedBlock(
+          toolName,
+          `leaf read/recovery tool must include its own taskId and agentId (${setup.detection.taskId}/${setup.detection.agentId})`,
+        );
       }
       return undefined;
     }
@@ -351,7 +376,8 @@ export async function handleDelegatedAssistantMessageEnd(event: any, ctx: any) {
 
   const rawText = extractAssistantText(message);
   const isFinal = isFinalAssistantMessage(message);
-  const hasProtocolLikeText = /(?:^|\n)(?:FFRESULT|PLANNING_REPORT|EXECUTION_KICKOFF|EXECUTION_REPORT|FFSTATUS\||FFATTENTION\|)/.test(rawText);
+  const hasProtocolLikeText =
+    /(?:^|\n)(?:FFRESULT|PLANNING_REPORT|EXECUTION_KICKOFF|EXECUTION_REPORT|FFSTATUS\||FFATTENTION\|)/.test(rawText);
   if (!isFinal && !hasProtocolLikeText) {
     return undefined;
   }
@@ -367,7 +393,11 @@ export async function handleDelegatedAssistantMessageEnd(event: any, ctx: any) {
     await store.appendAgentEvent(setup.detection.taskId, setup.detection.agentId, {
       type: "assistant-terminal-identity-rejected",
       message: "assistant terminal evidence preserved but not accepted because assignment attempt identity was invalid",
-      data: { rawPath: rawSnapshotPath, blockers: setup.blockers, terminalIdentityBlocker: setup.terminalIdentityBlocker },
+      data: {
+        rawPath: rawSnapshotPath,
+        blockers: setup.blockers,
+        terminalIdentityBlocker: setup.terminalIdentityBlocker,
+      },
     });
     return undefined;
   }
@@ -410,7 +440,10 @@ export async function handleDelegatedAssistantMessageEnd(event: any, ctx: any) {
   await recordAttentionSignals(store, setup, parsed, resultPaths);
 
   if (!parsed.ok) {
-    if (setup.detection.role === "planning-parent" && (parsed.planningReports.length > 0 || /(?:^|\n)PLANNING_REPORT(?:\n|$)/.test(rawText))) {
+    if (
+      setup.detection.role === "planning-parent" &&
+      (parsed.planningReports.length > 0 || /(?:^|\n)PLANNING_REPORT(?:\n|$)/.test(rawText))
+    ) {
       await store.publishPlanningReport(setup.detection.taskId, {
         rawText,
         source: {
@@ -518,7 +551,8 @@ async function prepareDelegatedRuntime(pi: any, ctx: any, options: { applyActive
             activeLeases: activeLeasesForAgent(view, detection.agentId),
           });
           if (legacyLease === undefined) {
-            setup.terminalIdentityBlocker = "synthetic legacy completion requires an existing same-assignment active lease";
+            setup.terminalIdentityBlocker =
+              "synthetic legacy completion requires an existing same-assignment active lease";
           }
         } catch (error) {
           setup.terminalIdentityBlocker = `synthetic legacy completion requires readable existing active lease evidence: ${messageFrom(error)}`;
@@ -530,7 +564,9 @@ async function prepareDelegatedRuntime(pi: any, ctx: any, options: { applyActive
         }
         const canonicalPacketPath = store.pathsForAgent(detection.taskId, detection.agentId).taskPacketRaw;
         if (setup.manifest.modelTaskPacketPath !== canonicalPacketPath) {
-          throw new Error(`manifest task packet path ${setup.manifest.modelTaskPacketPath} does not match canonical ${canonicalPacketPath}`);
+          throw new Error(
+            `manifest task packet path ${setup.manifest.modelTaskPacketPath} does not match canonical ${canonicalPacketPath}`,
+          );
         }
         setup.packetIdentity = validateTaskPacketIdentity(await readFile(canonicalPacketPath, "utf8"), {
           taskId: setup.manifest.taskId,
@@ -560,7 +596,12 @@ async function prepareDelegatedRuntime(pi: any, ctx: any, options: { applyActive
 async function applyActiveTools(pi: any, ctx: any, setup: any): Promise<void> {
   if (typeof pi?.setActiveTools !== "function") {
     setup.blockers.push("Pi active-tool API unavailable; delegated runtime cannot apply profile tools");
-    notifyOnce(ctx, "active-tools-unavailable", "Freeflow delegation blocked: Pi active-tool API unavailable.", "error");
+    notifyOnce(
+      ctx,
+      "active-tools-unavailable",
+      "Freeflow delegation blocked: Pi active-tool API unavailable.",
+      "error",
+    );
     return;
   }
 
@@ -574,10 +615,11 @@ async function applyActiveTools(pi: any, ctx: any, setup: any): Promise<void> {
 
   const requestedTools = setup.detection.profileDefinition.activeTools;
   const allTools = typeof pi.getAllTools === "function" ? pi.getAllTools() : undefined;
-  const availableNames = Array.isArray(allTools) ? new Set(allTools.map((tool) => tool?.name).filter(Boolean)) : undefined;
-  const activeTools = availableNames === undefined
-    ? requestedTools
-    : requestedTools.filter((tool) => availableNames.has(tool));
+  const availableNames = Array.isArray(allTools)
+    ? new Set(allTools.map((tool) => tool?.name).filter(Boolean))
+    : undefined;
+  const activeTools =
+    availableNames === undefined ? requestedTools : requestedTools.filter((tool) => availableNames.has(tool));
 
   pi.setActiveTools(activeTools);
   setup.activeTools = activeTools;
@@ -605,7 +647,11 @@ function validateConsequentialManifestIdentity(setup: any): any | undefined {
       code: "capability_gap",
       reason: "synthetic legacy attempt is finish-only and cannot gain consequential edit or command authority",
       suggestedReroute: "parent",
-      request: { kind: "policy_block", detail: "finish existing legacy work through lifecycle result or route new work through a new versioned attempt" },
+      request: {
+        kind: "policy_block",
+        detail:
+          "finish existing legacy work through lifecycle result or route new work through a new versioned attempt",
+      },
     };
   }
   const mismatches: string[] = [];
@@ -632,11 +678,21 @@ function leaseViewErrorClass(error: unknown): "missing" | "stale" | "malformed" 
   const message = messageFrom(error).toLowerCase();
   if (message.includes("enoent") || message.includes("no such file")) return "missing";
   if (message.includes("stale active lease view")) return "stale";
-  if (message.includes("does not match lease log") || message.includes("agent mismatch") || message.includes("task id mismatch")) return "forged";
+  if (
+    message.includes("does not match lease log") ||
+    message.includes("agent mismatch") ||
+    message.includes("task id mismatch")
+  )
+    return "forged";
   return "malformed";
 }
 
-async function queueLeasePolicyAttentionBestEffort(setup: any, event: any, errorClass: string, error: unknown): Promise<void> {
+async function queueLeasePolicyAttentionBestEffort(
+  setup: any,
+  event: any,
+  errorClass: string,
+  error: unknown,
+): Promise<void> {
   if (!canAddressAgentStore(setup.detection)) return;
   try {
     const store = createDelegationStore({ root: setup.detection.storeRoot });
@@ -648,7 +704,13 @@ async function queueLeasePolicyAttentionBestEffort(setup: any, event: any, error
       eventType: "lease-policy-state-invalid",
       status: "blocked",
       message: `Lease policy blocked ${event?.toolName ?? "unknown"}: ${errorClass}`,
-      dedupeKey: ["lease-policy", setup.detection.taskId, setup.detection.agentId, event?.toolName ?? "unknown", errorClass].join(":"),
+      dedupeKey: [
+        "lease-policy",
+        setup.detection.taskId,
+        setup.detection.agentId,
+        event?.toolName ?? "unknown",
+        errorClass,
+      ].join(":"),
       data: {
         taskId: setup.detection.taskId,
         agentId: setup.detection.agentId,
@@ -673,7 +735,10 @@ async function loadTaskPolicy(setup: any, ctx: any) {
   let manifest = setup.manifest;
   if (manifest === undefined) {
     try {
-      manifest = await createDelegationStore({ root: setup.detection.storeRoot }).readAgentManifest(setup.detection.taskId, setup.detection.agentId);
+      manifest = await createDelegationStore({ root: setup.detection.storeRoot }).readAgentManifest(
+        setup.detection.taskId,
+        setup.detection.agentId,
+      );
       setup.manifest = manifest;
     } catch {
       manifest = undefined;
@@ -689,7 +754,9 @@ async function loadTaskPolicy(setup: any, ctx: any) {
 
 function manifestWriteScopes(manifest: any): string[] {
   if (Array.isArray(manifest?.writeScopes)) {
-    return manifest.writeScopes.filter((scope: unknown): scope is string => typeof scope === "string" && scope.length > 0);
+    return manifest.writeScopes.filter(
+      (scope: unknown): scope is string => typeof scope === "string" && scope.length > 0,
+    );
   }
   return typeof manifest?.writeScope === "string" && manifest.writeScope.length > 0 ? [manifest.writeScope] : [];
 }
@@ -703,14 +770,20 @@ function delegatedRuntimePrompt(setup: any): string {
   const profile = detection.profileDefinition;
   const activeToolList = setup.activeTools.length > 0 ? setup.activeTools : profile.activeTools;
   const defaultReturnSpec = defaultReturnProtocolForRole(detection.role);
-  const returnSpec = { ...defaultReturnSpec, returnProtocol: returnProtocolForActiveTools(detection.role, activeToolList) };
+  const returnSpec = {
+    ...defaultReturnSpec,
+    returnProtocol: returnProtocolForActiveTools(detection.role, activeToolList),
+  };
   const writeScopes = manifestWriteScopes(setup.manifest);
-  const writeScope = writeScopes.length > 0 ? writeScopes.join(", ") : "none recorded; write/command policy may fail closed";
-  const allowedCommands = Array.isArray(setup.manifest?.allowedCommands) && setup.manifest.allowedCommands.length > 0
-    ? setup.manifest.allowedCommands.join(", ")
-    : "none recorded";
+  const writeScope =
+    writeScopes.length > 0 ? writeScopes.join(", ") : "none recorded; write/command policy may fail closed";
+  const allowedCommands =
+    Array.isArray(setup.manifest?.allowedCommands) && setup.manifest.allowedCommands.length > 0
+      ? setup.manifest.allowedCommands.join(", ")
+      : "none recorded";
   const activeTools = activeToolList.join(", ");
-  const warnings = setup.warnings.length > 0 ? `\nWarnings:\n${setup.warnings.map((warning) => `- ${warning}`).join("\n")}` : "";
+  const warnings =
+    setup.warnings.length > 0 ? `\nWarnings:\n${setup.warnings.map((warning) => `- ${warning}`).join("\n")}` : "";
 
   return `# Freeflow Delegated Runtime Context
 
@@ -762,9 +835,13 @@ function blockedRuntimePrompt(setup: any): string {
     detection.taskId ? `- task: ${detection.taskId}` : undefined,
     detection.agentId ? `- agent: ${detection.agentId}` : undefined,
     detection.parentAgentId ? `- parent: ${detection.parentAgentId}` : undefined,
-    detection.role || detection.profile ? `- role/profile: ${detection.role ?? "unknown"} / ${detection.profile ?? "unknown"}` : undefined,
+    detection.role || detection.profile
+      ? `- role/profile: ${detection.role ?? "unknown"} / ${detection.profile ?? "unknown"}`
+      : undefined,
     detection.storeRoot ? `- store: ${detection.storeRoot}` : undefined,
-  ].filter(Boolean).join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   return `# Freeflow Delegated Runtime Context
 
@@ -846,7 +923,13 @@ async function recordStatusSignals(store: any, setup: any, parsed: any, resultPa
         type: "agent-status-malformed",
         state: "attention",
         message,
-        data: { rawPath: resultPaths.rawPath, lineNumber: signal.lineNumber, raw: signal.raw, fields: signal.fields, attributes: signal.attributes },
+        data: {
+          rawPath: resultPaths.rawPath,
+          lineNumber: signal.lineNumber,
+          raw: signal.raw,
+          fields: signal.fields,
+          attributes: signal.attributes,
+        },
         taskEvent: true,
       });
       await writeAgentStatusIfPossible(store, setup.detection.taskId, setup.detection.agentId, {
@@ -861,7 +944,12 @@ async function recordStatusSignals(store: any, setup: any, parsed: any, resultPa
       type: "agent-status",
       ...(state !== undefined ? { state } : {}),
       message: signal.message ?? signal.state ?? "status",
-      data: { rawPath: resultPaths.rawPath, lineNumber: signal.lineNumber, fields: signal.fields, attributes: signal.attributes },
+      data: {
+        rawPath: resultPaths.rawPath,
+        lineNumber: signal.lineNumber,
+        fields: signal.fields,
+        attributes: signal.attributes,
+      },
       taskEvent: state !== undefined && shouldParentSeeState(state),
     };
     if (eventInput.taskEvent) {
@@ -890,10 +978,18 @@ async function recordAttentionSignals(store: any, setup: any, parsed: any, resul
       type: "agent-attention",
       state: "attention",
       message,
-      data: { rawPath: resultPaths.rawPath, lineNumber: signal.lineNumber, fields: signal.fields, attributes: signal.attributes },
+      data: {
+        rawPath: resultPaths.rawPath,
+        lineNumber: signal.lineNumber,
+        fields: signal.fields,
+        attributes: signal.attributes,
+      },
       taskEvent: true,
     });
-    await writeAgentStatusIfPossible(store, setup.detection.taskId, setup.detection.agentId, { state: "waiting_for_parent", message });
+    await writeAgentStatusIfPossible(store, setup.detection.taskId, setup.detection.agentId, {
+      state: "waiting_for_parent",
+      message,
+    });
   }
 }
 
@@ -918,7 +1014,11 @@ async function recordParsedReports(store: any, setup: any, parsed: any, resultPa
         type: "planning-report-publication-incomplete",
         state: "attention",
         message: publication.recoveryReason ?? "accepted planning report requires publication recovery",
-        data: { publicationId: publication.publicationId, rawPath: publication.rawPath, jsonPath: publication.jsonPath },
+        data: {
+          publicationId: publication.publicationId,
+          rawPath: publication.rawPath,
+          jsonPath: publication.jsonPath,
+        },
         taskEvent: true,
       });
       await writeAgentStatusIfPossible(store, setup.detection.taskId, setup.detection.agentId, {
@@ -934,12 +1034,25 @@ async function recordParsedReports(store: any, setup: any, parsed: any, resultPa
   return planningPublications;
 }
 
-async function appendKickoffEvent(store: any, setup: any, status: string | undefined, paths: any, resultPaths: any): Promise<void> {
+async function appendKickoffEvent(
+  store: any,
+  setup: any,
+  status: string | undefined,
+  paths: any,
+  resultPaths: any,
+): Promise<void> {
   await appendStoreEvents(store, setup.detection.taskId, setup.detection.agentId, {
     type: "task-execution-kickoff",
     state: "running",
     message: `execution-kickoff recorded${status ? `: ${status}` : ""}`,
-    data: { role: setup.detection.role, reportName: "execution-kickoff", status, rawPath: paths.rawPath, jsonPath: paths.jsonPath, agentRawPath: resultPaths.rawPath },
+    data: {
+      role: setup.detection.role,
+      reportName: "execution-kickoff",
+      status,
+      rawPath: paths.rawPath,
+      jsonPath: paths.jsonPath,
+      agentRawPath: resultPaths.rawPath,
+    },
     taskEvent: true,
   });
 }
@@ -967,11 +1080,16 @@ async function recordParsedTerminalOutcome(
     };
   } else if (role === "execution-parent" && parsed.executionReports.length > 0) {
     const report = parsed.executionReports[0];
-    status = TERMINAL_RESULT_STATUS_TO_STATE[report.status] === "failed" ? "failed"
-      : report.status === "blocked" ? "blocked"
-      : report.status === "cancelled" ? "cancelled"
-      : report.status === "completed_with_risks" ? "completed_with_risks"
-      : "completed";
+    status =
+      TERMINAL_RESULT_STATUS_TO_STATE[report.status] === "failed"
+        ? "failed"
+        : report.status === "blocked"
+          ? "blocked"
+          : report.status === "cancelled"
+            ? "cancelled"
+            : report.status === "completed_with_risks"
+              ? "completed_with_risks"
+              : "completed";
     evidence = {
       summary: `Execution report ${report.status ?? "accepted"}.`,
       reportName: "execution-report",
@@ -993,7 +1111,9 @@ async function recordParsedTerminalOutcome(
       findings: policyEvidence.findings,
       blockers: result.blockers,
       requests: result.requests,
-      ...(policyEvidence.completionClaimSupported === undefined ? {} : { completionClaimSupported: policyEvidence.completionClaimSupported }),
+      ...(policyEvidence.completionClaimSupported === undefined
+        ? {}
+        : { completionClaimSupported: policyEvidence.completionClaimSupported }),
       resultProjection: JSON.parse(JSON.stringify(parsed)),
     };
   } else {
@@ -1021,24 +1141,30 @@ async function recordParsedTerminalOutcome(
       rejectionId: publication.rejectionId,
       checks: evidence.checks,
       findings: evidence.findings,
-      ...(evidence.completionClaimSupported === undefined ? {} : { completionClaimSupported: evidence.completionClaimSupported }),
+      ...(evidence.completionClaimSupported === undefined
+        ? {}
+        : { completionClaimSupported: evidence.completionClaimSupported }),
     },
     taskEvent: true,
   });
   return true;
 }
 
-function normalizeParsedResultAlertEvidence(result: any, role: string): { checks: any[]; findings: any[]; completionClaimSupported?: boolean } {
+function normalizeParsedResultAlertEvidence(
+  result: any,
+  role: string,
+): { checks: any[]; findings: any[]; completionClaimSupported?: boolean } {
   const checks: any[] = [];
   const findings = Array.isArray(result?.blockers)
     ? result.blockers
-      .filter((blocker: any) => blocker?.kind !== "capability_gap")
-      .map((blocker: any) => ({
-        severity: "blocking",
-        problem: typeof blocker?.message === "string" && blocker.message.length > 0
-          ? blocker.message
-          : `Blocking result evidence: ${typeof blocker?.kind === "string" ? blocker.kind : "unknown"}`,
-      }))
+        .filter((blocker: any) => blocker?.kind !== "capability_gap")
+        .map((blocker: any) => ({
+          severity: "blocking",
+          problem:
+            typeof blocker?.message === "string" && blocker.message.length > 0
+              ? blocker.message
+              : `Blocking result evidence: ${typeof blocker?.kind === "string" ? blocker.kind : "unknown"}`,
+        }))
     : [];
   let malformedCheckEvidence = false;
   for (const row of Array.isArray(result?.checks) ? result.checks : []) {
@@ -1046,9 +1172,9 @@ function normalizeParsedResultAlertEvidence(result: any, role: string): { checks
     const name = fields[0];
     const status = fields[1];
     if (
-      typeof name !== "string"
-      || name.trim().length === 0
-      || (status !== "pass" && status !== "fail" && status !== "skipped" && status !== "not_run")
+      typeof name !== "string" ||
+      name.trim().length === 0 ||
+      (status !== "pass" && status !== "fail" && status !== "skipped" && status !== "not_run")
     ) {
       malformedCheckEvidence = true;
       continue;
@@ -1058,9 +1184,10 @@ function normalizeParsedResultAlertEvidence(result: any, role: string): { checks
   if (malformedCheckEvidence) {
     findings.push({ severity: "blocking", problem: "Malformed CHECK evidence in parsed terminal result." });
   }
-  const verifierCompletionWithoutChecks = role === "verifier"
-    && (result?.status === "completed" || result?.status === "completed_with_risks")
-    && checks.length === 0;
+  const verifierCompletionWithoutChecks =
+    role === "verifier" &&
+    (result?.status === "completed" || result?.status === "completed_with_risks") &&
+    checks.length === 0;
   if (verifierCompletionWithoutChecks) {
     findings.push({ severity: "blocking", problem: "Verifier completion lacks valid CHECK evidence." });
   }
@@ -1071,8 +1198,15 @@ function normalizeParsedResultAlertEvidence(result: any, role: string): { checks
   };
 }
 
-async function recordMalformedAssistantOutput(store: any, setup: any, parsed: any, resultPaths: any, _state: "failed" | "attention"): Promise<void> {
-  const message = parsed.errors.map((error) => error.message).join("; ") || "assistant output did not match delegation protocol";
+async function recordMalformedAssistantOutput(
+  store: any,
+  setup: any,
+  parsed: any,
+  resultPaths: any,
+  _state: "failed" | "attention",
+): Promise<void> {
+  const message =
+    parsed.errors.map((error) => error.message).join("; ") || "assistant output did not match delegation protocol";
   const publication = await recordRejectedRuntimeTerminalEvidence(store, setup, parsed.rawText ?? "", {
     parseErrors: JSON.parse(JSON.stringify(parsed.errors ?? [])),
   });
@@ -1089,10 +1223,21 @@ async function recordMalformedAssistantOutput(store: any, setup: any, parsed: an
     },
     taskEvent: true,
   });
-  await writeAgentStatusIfPossible(store, setup.detection.taskId, setup.detection.agentId, { state: "attention", message, reason: "malformed delegated output" });
+  await writeAgentStatusIfPossible(store, setup.detection.taskId, setup.detection.agentId, {
+    state: "attention",
+    message,
+    reason: "malformed delegated output",
+  });
 }
 
-async function recordMissingRequiredOutput(store: any, setup: any, parsed: any, resultPaths: any, _state: "failed" | "attention", stopReason?: string): Promise<void> {
+async function recordMissingRequiredOutput(
+  store: any,
+  setup: any,
+  parsed: any,
+  resultPaths: any,
+  _state: "failed" | "attention",
+  stopReason?: string,
+): Promise<void> {
   const expected = expectedTerminalOutput(setup);
   const message = `required delegated terminal output was not found: ${expected.join(" or ")}`;
   const publication = await recordRejectedRuntimeTerminalEvidence(store, setup, parsed.rawText ?? "", {
@@ -1113,10 +1258,19 @@ async function recordMissingRequiredOutput(store: any, setup: any, parsed: any, 
     },
     taskEvent: true,
   });
-  await writeAgentStatusIfPossible(store, setup.detection.taskId, setup.detection.agentId, { state: "attention", message, reason: "missing required delegated output" });
+  await writeAgentStatusIfPossible(store, setup.detection.taskId, setup.detection.agentId, {
+    state: "attention",
+    message,
+    reason: "missing required delegated output",
+  });
 }
 
-async function recordRejectedRuntimeTerminalEvidence(store: any, setup: any, rawText: string, evidence: any): Promise<any> {
+async function recordRejectedRuntimeTerminalEvidence(
+  store: any,
+  setup: any,
+  rawText: string,
+  evidence: any,
+): Promise<any> {
   const publication = await store.publishTerminalOutcome(setup.detection.taskId, {
     agentId: setup.detection.agentId,
     assignmentId: setup.identity.assignmentId,
@@ -1156,7 +1310,16 @@ async function appendStoreEvents(store: any, taskId: string, agentId: string, in
         status: input.data?.resultStatus ?? input.data?.status,
         eventType: input.type,
         sourceEventId: taskEvent.eventId ?? agentEvent.eventId,
-        dedupeKey: ["runtime", taskId, agentId, outcome, input.state ?? "", input.data?.resultStatus ?? input.data?.status ?? "", input.type, input.message ?? ""].join(":"),
+        dedupeKey: [
+          "runtime",
+          taskId,
+          agentId,
+          outcome,
+          input.state ?? "",
+          input.data?.resultStatus ?? input.data?.status ?? "",
+          input.type,
+          input.message ?? "",
+        ].join(":"),
         message: input.message,
         evidence: evidenceForAlert(input.data),
         data: alertData(input.data),
@@ -1212,10 +1375,12 @@ async function hasStoredDelegateFinishResult(store: any, taskId: string, agentId
   try {
     const record = await store.readAgentResult(taskId, agentId);
     const direct = (record.parsed as any)?.direct;
-    return record.exists === true
-      && (record.parsed as any)?.transport === "delegate_finish"
-      && typeof direct?.status === "string"
-      && typeof direct?.summary === "string";
+    return (
+      record.exists === true &&
+      (record.parsed as any)?.transport === "delegate_finish" &&
+      typeof direct?.status === "string" &&
+      typeof direct?.summary === "string"
+    );
   } catch {
     return false;
   }
@@ -1258,7 +1423,12 @@ function extractAssistantText(message: any): string {
 }
 
 function isFinalAssistantMessage(message: any): boolean {
-  return message.stopReason === "stop" || message.stopReason === "length" || message.stopReason === "error" || message.stopReason === undefined;
+  return (
+    message.stopReason === "stop" ||
+    message.stopReason === "length" ||
+    message.stopReason === "error" ||
+    message.stopReason === undefined
+  );
 }
 
 function formatPolicyDeniedReason(decision: any): string {
@@ -1321,7 +1491,14 @@ function canAddressAgentStore(detection: any): boolean {
 }
 
 function shouldParentSeeState(state: string): boolean {
-  return state === "completed" || state === "blocked" || state === "failed" || state === "cancelled" || state === "attention" || state === "waiting_for_parent";
+  return (
+    state === "completed" ||
+    state === "blocked" ||
+    state === "failed" ||
+    state === "cancelled" ||
+    state === "attention" ||
+    state === "waiting_for_parent"
+  );
 }
 
 function parentAlertOutcomeForEvent(state: string | undefined, data: any): any {
@@ -1339,9 +1516,13 @@ function parentAlertOutcomeForEvent(state: string | undefined, data: any): any {
 function hasCapabilityGap(data: any): boolean {
   const blockers = Array.isArray(data?.blockers) ? data.blockers : [];
   const requests = Array.isArray(data?.requests) ? data.requests : [];
-  return blockers.some((blocker: any) => blocker?.kind === "capability_gap")
-    || requests.some((request: any) => request?.attributes?.kind === "capability_gap" || request?.action === "capability_gap")
-    || data?.code === "capability_gap";
+  return (
+    blockers.some((blocker: any) => blocker?.kind === "capability_gap") ||
+    requests.some(
+      (request: any) => request?.attributes?.kind === "capability_gap" || request?.action === "capability_gap",
+    ) ||
+    data?.code === "capability_gap"
+  );
 }
 
 function evidenceForAlert(data: any): any {
@@ -1354,7 +1535,21 @@ function evidenceForAlert(data: any): any {
 function alertData(data: any): any {
   if (!data || typeof data !== "object") return undefined;
   const output: any = {};
-  for (const key of ["role", "resultStatus", "status", "reportName", "filesChanged", "findings", "checks", "completionClaimSupported", "blockers", "requests", "errors", "code", "suggestedReroute"]) {
+  for (const key of [
+    "role",
+    "resultStatus",
+    "status",
+    "reportName",
+    "filesChanged",
+    "findings",
+    "checks",
+    "completionClaimSupported",
+    "blockers",
+    "requests",
+    "errors",
+    "code",
+    "suggestedReroute",
+  ]) {
     if (data[key] !== undefined) output[key] = data[key];
   }
   return Object.keys(output).length > 0 ? output : undefined;
@@ -1377,9 +1572,10 @@ function normalizeSummaryAlert(alert: any): any | undefined {
     const taskId = validateSafeId(alert.taskId, "alert task id");
     const alertId = validateSafeId(alert.alertId, "alert id");
     const agentId = typeof alert.agentId === "string" ? validateSafeId(alert.agentId, "alert agent id") : undefined;
-    const priority = alert.priority === "P0" || alert.priority === "P1" || alert.priority === "P2" || alert.priority === "P3"
-      ? alert.priority
-      : priorityForParentAlert(alert);
+    const priority =
+      alert.priority === "P0" || alert.priority === "P1" || alert.priority === "P2" || alert.priority === "P3"
+        ? alert.priority
+        : priorityForParentAlert(alert);
     return {
       taskId,
       alertId,
@@ -1387,7 +1583,8 @@ function normalizeSummaryAlert(alert: any): any | undefined {
       priority,
       alertState: typeof alert.alertState === "string" ? alert.alertState : "queued",
       outcome: typeof alert.outcome === "string" ? alert.outcome : "info",
-      status: typeof alert.status === "string" ? alert.status : typeof alert.state === "string" ? alert.state : "unknown",
+      status:
+        typeof alert.status === "string" ? alert.status : typeof alert.state === "string" ? alert.state : "unknown",
       message: typeof alert.message === "string" ? alert.message : "No summary provided.",
       createdAt: typeof alert.createdAt === "string" ? alert.createdAt : "",
     };

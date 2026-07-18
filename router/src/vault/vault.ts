@@ -316,10 +316,7 @@ export async function storeCommandOutput(
   return record;
 }
 
-export async function storeTextOutput(
-  vault: VaultHandle,
-  options: StoreTextOutputOptions,
-): Promise<TextOutputRecord> {
+export async function storeTextOutput(vault: VaultHandle, options: StoreTextOutputOptions): Promise<TextOutputRecord> {
   assertStorablePersistence(options.persistence);
   const createdAt = options.createdAt ?? new Date().toISOString();
   const decisionIds = options.decisionIds ?? [];
@@ -495,11 +492,7 @@ export async function storeRepoFileReference(
   return record;
 }
 
-export async function readVaultRecord(
-  vault: VaultHandle,
-  sessionId: string,
-  outputId: string,
-): Promise<VaultRecord> {
+export async function readVaultRecord(vault: VaultHandle, sessionId: string, outputId: string): Promise<VaultRecord> {
   const index = await readSessionIndex(vault, sessionId);
   const entry = index.records[outputId];
   if (!entry) {
@@ -529,7 +522,9 @@ export async function readOutputLines(vault: VaultHandle, options: ReadOutputLin
   }
 
   const text = await readOutputText(vault, options.sessionId, options.outputId, options.stream);
-  return splitLines(text).slice(options.startLine - 1, options.endLine).join("\n");
+  return splitLines(text)
+    .slice(options.startLine - 1, options.endLine)
+    .join("\n");
 }
 
 export async function readSessionIndex(vault: VaultHandle, sessionId: string): Promise<VaultSessionIndex> {
@@ -608,7 +603,11 @@ async function addRecordToSessionIndex(vault: VaultHandle, sessionId: string, re
   });
 }
 
-async function withSessionIndexWriteLock<T>(vault: VaultHandle, sessionId: string, operation: () => Promise<T>): Promise<T> {
+async function withSessionIndexWriteLock<T>(
+  vault: VaultHandle,
+  sessionId: string,
+  operation: () => Promise<T>,
+): Promise<T> {
   const key = `${vault.root}:${safeSegment(sessionId)}`;
   const previous = sessionIndexWriteLocks.get(key) ?? Promise.resolve();
   let releaseCurrent!: () => void;
@@ -629,7 +628,11 @@ async function withSessionIndexWriteLock<T>(vault: VaultHandle, sessionId: strin
   }
 }
 
-async function withSessionIndexFileLock<T>(vault: VaultHandle, sessionId: string, operation: () => Promise<T>): Promise<T> {
+async function withSessionIndexFileLock<T>(
+  vault: VaultHandle,
+  sessionId: string,
+  operation: () => Promise<T>,
+): Promise<T> {
   const path = sessionIndexLockPath(vault, sessionId);
   await mkdir(dirname(path), { recursive: true });
   const startedAt = Date.now();

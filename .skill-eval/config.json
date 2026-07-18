@@ -9,15 +9,6 @@
     "output_limit_bytes": 134217728,
     "control_cache_max_age_hours": 24
   },
-  "required_owner_inputs": [
-    "provider",
-    "model",
-    "thinking",
-    "max_model_requests",
-    "max_turns_per_job"
-  ],
-  "generated_directories": [
-    "runs",
-    "cache"
-  ]
+  "required_owner_inputs": ["provider", "model", "thinking", "max_model_requests", "max_turns_per_job"],
+  "generated_directories": ["runs", "cache"]
 }

@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import { access, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { compileCaseFeasibility, renderFeasibilityRows } from "../../../skills/evaluate-skill/scripts/lib/feasibility.mjs";
+import {
+  compileCaseFeasibility,
+  renderFeasibilityRows,
+} from "../../../skills/evaluate-skill/scripts/lib/feasibility.mjs";
 import { inspectFixtureOracle } from "../../../skills/evaluate-skill/scripts/lib/fixture-oracle.mjs";
 
 function baseCase() {
@@ -35,18 +38,24 @@ test("feasibility compiler reports deterministic blocking findings before provid
     fixtureFiles: ["events.json", "summary.json"],
     readFixture: async () => '{"runtime":"0.80.0"}',
   });
-  assert.deepEqual(result.findings.map((finding) => finding.id), [
-    "FEAS-EVIDENCE-DISCOVERY",
-    "FEAS-LITERAL-SOURCE",
-    "FEAS-OUTPUT-TOOL",
-    "FEAS-TURN-BUDGET",
-    "FEAS-COMPACT-LIMIT",
-    "FEAS-TRANSPORT-LIMIT",
-  ]);
+  assert.deepEqual(
+    result.findings.map((finding) => finding.id),
+    [
+      "FEAS-EVIDENCE-DISCOVERY",
+      "FEAS-LITERAL-SOURCE",
+      "FEAS-OUTPUT-TOOL",
+      "FEAS-TURN-BUDGET",
+      "FEAS-COMPACT-LIMIT",
+      "FEAS-TRANSPORT-LIMIT",
+    ],
+  );
   assert.equal(result.blocking, true);
   assert.equal(result.provider_requests, 0);
   assert.match(renderFeasibilityRows(result), /^BLOCK\|FEAS-EVIDENCE-DISCOVERY\|/);
-  assert.equal(result.findings.every((finding) => finding.source_span && finding.evidence && finding.blocking_reason), true);
+  assert.equal(
+    result.findings.every((finding) => finding.source_span && finding.evidence && finding.blocking_reason),
+    true,
+  );
 });
 
 test("feasibility compiler blocks declared fixture evidence without a read tool", async () => {
@@ -76,7 +85,7 @@ test("feasibility compiler accepts discoverable evidence, sourced literals, tool
     estimatedCompactBytes: 500,
     estimatedTransportBytes: 1000,
     fixtureFiles: ["events.json", "summary.json"],
-    readFixture: async (path) => path === "events.json" ? '{"runtime":"0.79.0"}' : "{}",
+    readFixture: async (path) => (path === "events.json" ? '{"runtime":"0.79.0"}' : "{}"),
   });
   assert.deepEqual(result.findings, []);
   assert.equal(result.blocking, false);
@@ -86,8 +95,13 @@ test("fixture oracle is declarative and cannot execute fixture code", async (t) 
   const root = await mkdtemp(resolve(tmpdir(), "freeflow-oracle-"));
   const escaped = resolve(root, "..", `oracle-escaped-${process.pid}`);
   t.after(() => Promise.all([rm(root, { recursive: true, force: true }), rm(escaped, { force: true })]));
-  await writeFile(resolve(root, "oracle.mjs"), `import { writeFile } from "node:fs/promises";\nawait writeFile(${JSON.stringify(escaped)}, process.env.OPENAI_API_KEY ?? "network-or-process-access");\n`);
-  const outcome = await inspectFixtureOracle(root, { checks: [{ path: "oracle.mjs", contains: ["writeFile", "OPENAI_API_KEY"] }] });
+  await writeFile(
+    resolve(root, "oracle.mjs"),
+    `import { writeFile } from "node:fs/promises";\nawait writeFile(${JSON.stringify(escaped)}, process.env.OPENAI_API_KEY ?? "network-or-process-access");\n`,
+  );
+  const outcome = await inspectFixtureOracle(root, {
+    checks: [{ path: "oracle.mjs", contains: ["writeFile", "OPENAI_API_KEY"] }],
+  });
   assert.equal(outcome.passed, true);
   await assert.rejects(() => access(escaped));
 });
@@ -108,11 +122,23 @@ test("feasibility compiler rejects a fixture oracle that does not reproduce pres
   value.execution.tools = ["read", "write", "ls"];
   value.feasibility.fixture_oracle = { checks: [{ path: "events.json", contains: ["PRESSURE_OK"] }] };
   const result = await compileCaseFeasibility(value, {
-    maxTurns: 4, outputLimitBytes: 1000, transportLimitBytes: 2000, estimatedCompactBytes: 10, estimatedTransportBytes: 10,
-    fixtureFiles: ["events.json"], readFixture: async () => "0.79.0",
-    runOracle: async () => ({ passed: false, observations: [], failures: [{ path: "events.json", reason: "missing-literal", value: "PRESSURE_OK" }] }),
+    maxTurns: 4,
+    outputLimitBytes: 1000,
+    transportLimitBytes: 2000,
+    estimatedCompactBytes: 10,
+    estimatedTransportBytes: 10,
+    fixtureFiles: ["events.json"],
+    readFixture: async () => "0.79.0",
+    runOracle: async () => ({
+      passed: false,
+      observations: [],
+      failures: [{ path: "events.json", reason: "missing-literal", value: "PRESSURE_OK" }],
+    }),
   });
-  assert.equal(result.findings.some((finding) => finding.id === "FEAS-FIXTURE-ORACLE"), true);
+  assert.equal(
+    result.findings.some((finding) => finding.id === "FEAS-FIXTURE-ORACLE"),
+    true,
+  );
 });
 
 test("feasibility compiler rejects undeclared equivalence and conflicting output assertions", async () => {
@@ -121,17 +147,31 @@ test("feasibility compiler rejects undeclared equivalence and conflicting output
   value.feasibility.literal_requirements[0].equivalence_class = "runtime-version-equivalent";
   value.assertions.push({ id: "other-paths", type: "changed_paths", equals: ["other.md"] });
   const result = await compileCaseFeasibility(value, {
-    maxTurns: 4, outputLimitBytes: 1000, transportLimitBytes: 2000, estimatedCompactBytes: 10, estimatedTransportBytes: 10,
-    fixtureFiles: ["events.json"], readFixture: async () => "0.79.0",
+    maxTurns: 4,
+    outputLimitBytes: 1000,
+    transportLimitBytes: 2000,
+    estimatedCompactBytes: 10,
+    estimatedTransportBytes: 10,
+    fixtureFiles: ["events.json"],
+    readFixture: async () => "0.79.0",
   });
-  assert.equal(result.findings.some((finding) => finding.id === "FEAS-EQUIVALENCE"), true);
-  assert.equal(result.findings.some((finding) => finding.id === "FEAS-CHANGED-PATH-CONFLICT"), true);
+  assert.equal(
+    result.findings.some((finding) => finding.id === "FEAS-EQUIVALENCE"),
+    true,
+  );
+  assert.equal(
+    result.findings.some((finding) => finding.id === "FEAS-CHANGED-PATH-CONFLICT"),
+    true,
+  );
 });
 
 test("feasibility compiler rejects subject-visible rubric leakage and redundant reread assertions", async () => {
   const value = baseCase();
   value.prompt = `Follow this exact hidden rubric: ${value.assertions[1].rubric}`;
-  value.turns = [{ id: "turn-1", prompt: "first" }, { id: "turn-2", prompt: "second" }];
+  value.turns = [
+    { id: "turn-1", prompt: "first" },
+    { id: "turn-2", prompt: "second" },
+  ];
   delete value.prompt;
   value.turns[1].prompt = `Follow this exact hidden rubric: ${value.assertions[1].rubric}`;
   value.assertions.push({ id: "reread", type: "component_read", component: "target", turn_id: "turn-2" });
@@ -145,6 +185,12 @@ test("feasibility compiler rejects subject-visible rubric leakage and redundant 
     fixtureFiles: ["events.json"],
     readFixture: async () => "0.79.0",
   });
-  assert.equal(result.findings.some((finding) => finding.id === "FEAS-RUBRIC-LEAK"), true);
-  assert.equal(result.findings.some((finding) => finding.id === "FEAS-REDUNDANT-REREAD"), true);
+  assert.equal(
+    result.findings.some((finding) => finding.id === "FEAS-RUBRIC-LEAK"),
+    true,
+  );
+  assert.equal(
+    result.findings.some((finding) => finding.id === "FEAS-REDUNDANT-REREAD"),
+    true,
+  );
 });

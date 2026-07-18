@@ -8,14 +8,7 @@ import {
   textOutputFingerprints,
 } from "../../router/dist/index.js";
 import { readOutputRouterConfig, notifyRouterConfigWarnings } from "./runtime-context.js";
-import {
-  byteLength,
-  extractTextContent,
-  getRouterSessionId,
-  splitLines,
-  stableHash,
-  truncateText,
-} from "./utils.js";
+import { byteLength, extractTextContent, getRouterSessionId, splitLines, stableHash, truncateText } from "./utils.js";
 
 const SAFETY_NET_NATIVE_TOOLS = new Set(["read", "bash"]);
 const SAFETY_NET_EXCERPT_LINES = 8;
@@ -244,7 +237,10 @@ export async function handleNativeToolSafetyNet(event, ctx) {
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    ctx.ui.notify(`Freeflow safety-net routing failed; passing native ${event.toolName} output through. ${message}`, "warning");
+    ctx.ui.notify(
+      `Freeflow safety-net routing failed; passing native ${event.toolName} output through. ${message}`,
+      "warning",
+    );
     return {
       content: appendSafetyNetWarning(event, message),
     };

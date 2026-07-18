@@ -1,11 +1,7 @@
 import { isAbsolute, resolve } from "node:path";
 
 import { validateSafeId } from "./paths.js";
-import {
-  isBroadGitStageCommand,
-  isGitPushCommand,
-  isGitWorktreeMutationCommand,
-} from "./policy.js";
+import { isBroadGitStageCommand, isGitPushCommand, isGitWorktreeMutationCommand } from "./policy.js";
 import type {
   CommitCheckpointMetadata,
   CommitCheckpointPolicyApproval,
@@ -33,7 +29,9 @@ export function emptyExecutionMap(taskId: string, updatedAt: string): ExecutionM
 
 export function normalizeWorkPackageMetadata(input: WorkPackageMetadata): WorkPackageMetadata {
   const packageId = validateSafeId(input.packageId, "package id");
-  const dependencies = [...new Set((input.dependencies ?? []).map((dependency) => validateSafeId(dependency, "package dependency id")))];
+  const dependencies = [
+    ...new Set((input.dependencies ?? []).map((dependency) => validateSafeId(dependency, "package dependency id"))),
+  ];
   if (dependencies.includes(packageId)) {
     throw new Error(`work package ${packageId} cannot depend on itself`);
   }
@@ -82,12 +80,13 @@ export function normalizeExecutionMap(input: ExecutionMapMetadata, updatedAt = i
   }
   const packages = input.packages.map(normalizeWorkPackageMetadata);
   const packageIds = new Set(packages.map((pkg) => pkg.packageId));
-  const integrationOrder = input.integrationOrder.length > 0
-    ? input.integrationOrder.map((packageId) => validateSafeId(packageId, "integration package id"))
-    : packages
-      .filter((pkg) => pkg.integrationOrder !== undefined)
-      .sort((left, right) => (left.integrationOrder ?? 0) - (right.integrationOrder ?? 0))
-      .map((pkg) => pkg.packageId);
+  const integrationOrder =
+    input.integrationOrder.length > 0
+      ? input.integrationOrder.map((packageId) => validateSafeId(packageId, "integration package id"))
+      : packages
+          .filter((pkg) => pkg.integrationOrder !== undefined)
+          .sort((left, right) => (left.integrationOrder ?? 0) - (right.integrationOrder ?? 0))
+          .map((pkg) => pkg.packageId);
 
   for (const packageId of integrationOrder) {
     if (!packageIds.has(packageId)) {
@@ -115,12 +114,25 @@ export function validateExecutionMap(input: ExecutionMapMetadata): ExecutionDeci
   const packageIds = new Set<string>();
   for (const pkg of executionMap.packages) {
     if (packageIds.has(pkg.packageId)) {
-      return block("invalid_metadata", `duplicate work package id: ${pkg.packageId}`, "execution-parent", pkg.packageId);
+      return block(
+        "invalid_metadata",
+        `duplicate work package id: ${pkg.packageId}`,
+        "execution-parent",
+        pkg.packageId,
+      );
     }
     packageIds.add(pkg.packageId);
     for (const dependency of pkg.dependencies) {
-      if (!packageIds.has(dependency) && !executionMap.packages.some((candidate) => candidate.packageId === dependency)) {
-        return block("not_found", `work package ${pkg.packageId} depends on unknown package ${dependency}`, "execution-parent", pkg.packageId);
+      if (
+        !packageIds.has(dependency) &&
+        !executionMap.packages.some((candidate) => candidate.packageId === dependency)
+      ) {
+        return block(
+          "not_found",
+          `work package ${pkg.packageId} depends on unknown package ${dependency}`,
+          "execution-parent",
+          pkg.packageId,
+        );
       }
     }
   }
@@ -154,7 +166,10 @@ export function validateOneWriterPerCheckout(packages: readonly WorkPackageMetad
   return allow("one-writer-per-checkout metadata is valid");
 }
 
-export function validateWorkPackageReady(input: { executionMap: ExecutionMapMetadata; packageId: string }): ExecutionDecision {
+export function validateWorkPackageReady(input: {
+  executionMap: ExecutionMapMetadata;
+  packageId: string;
+}): ExecutionDecision {
   const packageId = validateSafeId(input.packageId, "package id");
   const pkg = findPackage(input.executionMap, packageId);
   if (pkg === undefined) {
@@ -180,7 +195,10 @@ export function validateWorkPackageReady(input: { executionMap: ExecutionMapMeta
   return allow(`work package ${packageId} dependencies are satisfied`, packageId);
 }
 
-export function validateIntegrationOrder(input: { executionMap: ExecutionMapMetadata; packageId: string }): ExecutionDecision {
+export function validateIntegrationOrder(input: {
+  executionMap: ExecutionMapMetadata;
+  packageId: string;
+}): ExecutionDecision {
   const packageId = validateSafeId(input.packageId, "package id");
   const pkg = findPackage(input.executionMap, packageId);
   if (pkg === undefined) {
@@ -201,7 +219,12 @@ export function validateIntegrationOrder(input: { executionMap: ExecutionMapMeta
   for (const earlierPackageId of order.slice(0, index)) {
     const earlier = findPackage(input.executionMap, earlierPackageId);
     if (earlier === undefined) {
-      return block("not_found", `integration order references unknown package ${earlierPackageId}`, "execution-parent", packageId);
+      return block(
+        "not_found",
+        `integration order references unknown package ${earlierPackageId}`,
+        "execution-parent",
+        packageId,
+      );
     }
     if (earlier.state !== "integrated") {
       return block(
@@ -259,46 +282,114 @@ export function validateCommitCheckpoint(input: CommitCheckpointValidationInput)
   }
   const checkpoint = pkg.commitCheckpoints.find((candidate) => candidate.checkpointId === checkpointId);
   if (checkpoint === undefined || checkpoint.planned !== true) {
-    return block("not_found", `commit checkpoint not found in approved execution map: ${checkpointId}`, "execution-parent", packageId, checkpointId);
+    return block(
+      "not_found",
+      `commit checkpoint not found in approved execution map: ${checkpointId}`,
+      "execution-parent",
+      packageId,
+      checkpointId,
+    );
   }
   if (checkpoint.status !== "planned") {
-    return block("checkpoint_status_not_planned", `commit checkpoint ${checkpointId} is ${checkpoint.status}; only status planned may transition to an intermediate commit`, "execution-parent", packageId, checkpointId);
+    return block(
+      "checkpoint_status_not_planned",
+      `commit checkpoint ${checkpointId} is ${checkpoint.status}; only status planned may transition to an intermediate commit`,
+      "execution-parent",
+      packageId,
+      checkpointId,
+    );
   }
 
-  const commands = [input.stagingCommand, input.commitCommand].filter((command): command is string => command !== undefined && command.trim().length > 0);
+  const commands = [input.stagingCommand, input.commitCommand].filter(
+    (command): command is string => command !== undefined && command.trim().length > 0,
+  );
   if (commands.some(isGitPushCommand)) {
-    return block("push_denied", "push remains denied for delegation commit checkpoints", "orchestrator", packageId, checkpointId);
+    return block(
+      "push_denied",
+      "push remains denied for delegation commit checkpoints",
+      "orchestrator",
+      packageId,
+      checkpointId,
+    );
   }
   if (commands.some(isGitWorktreeMutationCommand)) {
-    return block("git_operation_unsupported", "actual git worktree operations are unsupported in execution helper policy", "execution-parent", packageId, checkpointId);
+    return block(
+      "git_operation_unsupported",
+      "actual git worktree operations are unsupported in execution helper policy",
+      "execution-parent",
+      packageId,
+      checkpointId,
+    );
   }
   if (commands.some(isBroadGitStageCommand)) {
-    return block("broad_staging_denied", "broad staging is denied; stage explicit intended files only", "execution-parent", packageId, checkpointId);
+    return block(
+      "broad_staging_denied",
+      "broad staging is denied; stage explicit intended files only",
+      "execution-parent",
+      packageId,
+      checkpointId,
+    );
   }
 
   if (input.role === "worker") {
-    return block("worker_commit_blocked", "worker commits remain blocked by default", "execution-parent", packageId, checkpointId);
+    return block(
+      "worker_commit_blocked",
+      "worker commits remain blocked by default",
+      "execution-parent",
+      packageId,
+      checkpointId,
+    );
   }
   if (input.role !== "execution-parent" && input.role !== "integrator") {
-    return block("role_not_allowed", `planned intermediate commit checkpoints are limited to execution-parent or integrator, not ${input.role}`, "execution-parent", packageId, checkpointId);
+    return block(
+      "role_not_allowed",
+      `planned intermediate commit checkpoints are limited to execution-parent or integrator, not ${input.role}`,
+      "execution-parent",
+      packageId,
+      checkpointId,
+    );
   }
 
   if (!isPackageComplete(pkg)) {
-    return block("package_incomplete", `work package ${packageId} is not complete`, "execution-parent", packageId, checkpointId);
+    return block(
+      "package_incomplete",
+      `work package ${packageId} is not complete`,
+      "execution-parent",
+      packageId,
+      checkpointId,
+    );
   }
 
-  const reviewDecision = requiredCheckpointSatisfied("review", pkg.review, checkpoint.reviewRequired, packageId, checkpointId);
+  const reviewDecision = requiredCheckpointSatisfied(
+    "review",
+    pkg.review,
+    checkpoint.reviewRequired,
+    packageId,
+    checkpointId,
+  );
   if (!reviewDecision.allowed) {
     return reviewDecision;
   }
-  const verificationDecision = requiredCheckpointSatisfied("verification", pkg.verification, checkpoint.verificationRequired, packageId, checkpointId);
+  const verificationDecision = requiredCheckpointSatisfied(
+    "verification",
+    pkg.verification,
+    checkpoint.verificationRequired,
+    packageId,
+    checkpointId,
+  );
   if (!verificationDecision.allowed) {
     return verificationDecision;
   }
 
   const intendedFiles = normalizeFileList(checkpoint.intendedFiles, "checkpoint intended file");
   if (intendedFiles.length === 0) {
-    return block("intended_files_missing", `commit checkpoint ${checkpointId} must list intended files explicitly`, "execution-parent", packageId, checkpointId);
+    return block(
+      "intended_files_missing",
+      `commit checkpoint ${checkpointId} must list intended files explicitly`,
+      "execution-parent",
+      packageId,
+      checkpointId,
+    );
   }
 
   const intendedSet = new Set(intendedFiles);
@@ -306,25 +397,59 @@ export function validateCommitCheckpoint(input: CommitCheckpointValidationInput)
     const normalized = normalizeFilePath(file.path, "changed file");
     const isIntended = intendedSet.has(normalized);
     if (file.sensitive === true) {
-      return block("unexpected_sensitive_file", `sensitive file cannot be included in checkpoint: ${normalized}`, "orchestrator", packageId, checkpointId, normalized);
+      return block(
+        "unexpected_sensitive_file",
+        `sensitive file cannot be included in checkpoint: ${normalized}`,
+        "orchestrator",
+        packageId,
+        checkpointId,
+        normalized,
+      );
     }
     if (!isIntended && file.generated === true) {
-      return block("unexpected_generated_file", `unexpected generated file in checkpoint: ${normalized}`, "execution-parent", packageId, checkpointId, normalized);
+      return block(
+        "unexpected_generated_file",
+        `unexpected generated file in checkpoint: ${normalized}`,
+        "execution-parent",
+        packageId,
+        checkpointId,
+        normalized,
+      );
     }
     if (!isIntended && file.userOwned === true) {
-      return block("unexpected_user_owned_file", `unexpected user-owned file in checkpoint: ${normalized}`, "orchestrator", packageId, checkpointId, normalized);
+      return block(
+        "unexpected_user_owned_file",
+        `unexpected user-owned file in checkpoint: ${normalized}`,
+        "orchestrator",
+        packageId,
+        checkpointId,
+        normalized,
+      );
     }
     if (!isIntended) {
-      return block("unexpected_file", `changed file is outside intended checkpoint file list: ${normalized}`, "execution-parent", packageId, checkpointId, normalized);
+      return block(
+        "unexpected_file",
+        `changed file is outside intended checkpoint file list: ${normalized}`,
+        "execution-parent",
+        packageId,
+        checkpointId,
+        normalized,
+      );
     }
   }
 
-  return allow(`commit checkpoint ${checkpointId} is allowed for ${packageId}; execute explicit staging only and do not push`, packageId, checkpointId);
+  return allow(
+    `commit checkpoint ${checkpointId} is allowed for ${packageId}; execute explicit staging only and do not push`,
+    packageId,
+    checkpointId,
+  );
 }
 
 export function commitCheckpointApprovalFromDecision(decision: ExecutionDecision): CommitCheckpointPolicyApproval {
   if (!decision.allowed || decision.packageId === undefined || decision.checkpointId === undefined) {
-    throw new Error("commit checkpoint approval requires an allowed checkpoint validation decision with package and checkpoint ids");
+    throw new Error(
+      "commit checkpoint approval requires an allowed checkpoint validation decision with package and checkpoint ids",
+    );
   }
   return {
     validatedBy: "validateCommitCheckpoint",
@@ -369,7 +494,9 @@ function normalizeCheckpointState(input: PackageCheckpointState, label: string):
     normalized.evidencePaths = normalizePathList(input.evidencePaths, `${label} evidence path`);
   }
   if (input.outputIds !== undefined) {
-    normalized.outputIds = input.outputIds.map((outputId, index) => validateNonEmptyString(outputId, `${label} output id ${index + 1}`));
+    normalized.outputIds = input.outputIds.map((outputId, index) =>
+      validateNonEmptyString(outputId, `${label} output id ${index + 1}`),
+    );
   }
   if (input.notes !== undefined) {
     normalized.notes = validateNonEmptyString(input.notes, `${label} notes`);
@@ -377,7 +504,10 @@ function normalizeCheckpointState(input: PackageCheckpointState, label: string):
   return normalized;
 }
 
-function normalizeCommitCheckpoints(checkpoints: readonly CommitCheckpointMetadata[], packageId: string): CommitCheckpointMetadata[] {
+function normalizeCommitCheckpoints(
+  checkpoints: readonly CommitCheckpointMetadata[],
+  packageId: string,
+): CommitCheckpointMetadata[] {
   const seen = new Set<string>();
   return checkpoints.map((checkpoint) => {
     const checkpointId = validateSafeId(checkpoint.checkpointId, "checkpoint id");
@@ -408,10 +538,15 @@ function normalizeCommitCheckpoints(checkpoints: readonly CommitCheckpointMetada
       normalized.verificationRequired = checkpoint.verificationRequired;
     }
     if (checkpoint.evidencePaths !== undefined) {
-      normalized.evidencePaths = normalizePathList(checkpoint.evidencePaths, `checkpoint ${checkpointId} evidence path`);
+      normalized.evidencePaths = normalizePathList(
+        checkpoint.evidencePaths,
+        `checkpoint ${checkpointId} evidence path`,
+      );
     }
     if (checkpoint.outputIds !== undefined) {
-      normalized.outputIds = checkpoint.outputIds.map((outputId, index) => validateNonEmptyString(outputId, `checkpoint ${checkpointId} output id ${index + 1}`));
+      normalized.outputIds = checkpoint.outputIds.map((outputId, index) =>
+        validateNonEmptyString(outputId, `checkpoint ${checkpointId} output id ${index + 1}`),
+      );
     }
     return normalized;
   });
@@ -430,19 +565,41 @@ function requiredCheckpointSatisfied(
   }
 
   if (kind === "verification" && checkpoint.status !== "passed") {
-    return block("verification_missing", `verification evidence is required before checkpoint ${checkpointId}`, "verifier", packageId, checkpointId);
+    return block(
+      "verification_missing",
+      `verification evidence is required before checkpoint ${checkpointId}`,
+      "verifier",
+      packageId,
+      checkpointId,
+    );
   }
   if (kind === "review" && checkpoint.status !== "passed") {
-    return block("review_missing", `review evidence is required before checkpoint ${checkpointId}`, "execution-parent", packageId, checkpointId);
+    return block(
+      "review_missing",
+      `review evidence is required before checkpoint ${checkpointId}`,
+      "execution-parent",
+      packageId,
+      checkpointId,
+    );
   }
   if (!hasCheckpointEvidence(checkpoint)) {
-    return block(kind === "review" ? "review_missing" : "verification_missing", `${kind} checkpoint ${checkpointId} has status ${checkpoint.status} but no evidence pointer`, kind === "review" ? "execution-parent" : "verifier", packageId, checkpointId);
+    return block(
+      kind === "review" ? "review_missing" : "verification_missing",
+      `${kind} checkpoint ${checkpointId} has status ${checkpoint.status} but no evidence pointer`,
+      kind === "review" ? "execution-parent" : "verifier",
+      packageId,
+      checkpointId,
+    );
   }
   return allow(`${kind} checkpoint is satisfied for ${packageId}`, packageId, checkpointId);
 }
 
 function hasCheckpointEvidence(checkpoint: PackageCheckpointState): boolean {
-  return (checkpoint.evidencePaths?.length ?? 0) > 0 || (checkpoint.outputIds?.length ?? 0) > 0 || (checkpoint.notes?.trim().length ?? 0) > 0;
+  return (
+    (checkpoint.evidencePaths?.length ?? 0) > 0 ||
+    (checkpoint.outputIds?.length ?? 0) > 0 ||
+    (checkpoint.notes?.trim().length ?? 0) > 0
+  );
 }
 
 function findPackage(executionMap: ExecutionMapMetadata, packageId: string): WorkPackageMetadata | undefined {
@@ -523,13 +680,17 @@ function validatePathLike(value: string, label: string): string {
 }
 
 function normalizeCommandList(values: readonly string[], label: string): string[] {
-  return [...new Set((values ?? []).map((value, index) => {
-    const command = validateNonEmptyString(value, `${label} ${index + 1}`).trim();
-    if (/\r|\n/.test(command)) {
-      throw new Error(`${label} ${index + 1} must not contain newlines`);
-    }
-    return command;
-  }))];
+  return [
+    ...new Set(
+      (values ?? []).map((value, index) => {
+        const command = validateNonEmptyString(value, `${label} ${index + 1}`).trim();
+        if (/\r|\n/.test(command)) {
+          throw new Error(`${label} ${index + 1} must not contain newlines`);
+        }
+        return command;
+      }),
+    ),
+  ];
 }
 
 function validateBranchPrefix(value: string): string {
@@ -542,7 +703,14 @@ function validateBranchPrefix(value: string): string {
 
 function validateBranchName(value: string, label = "branch name"): string {
   const branch = validateNonEmptyString(value, label);
-  if (/\s|\\|\.\.|@\{|\0/.test(branch) || branch.startsWith("-") || branch.endsWith("/") || branch.endsWith(".") || branch.includes("//") || branch.endsWith(".lock")) {
+  if (
+    /\s|\\|\.\.|@\{|\0/.test(branch) ||
+    branch.startsWith("-") ||
+    branch.endsWith("/") ||
+    branch.endsWith(".") ||
+    branch.includes("//") ||
+    branch.endsWith(".lock")
+  ) {
     throw new Error(`${label} is not a safe git branch name`);
   }
   if (!/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(branch)) {

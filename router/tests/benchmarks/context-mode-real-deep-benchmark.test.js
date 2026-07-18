@@ -75,5 +75,8 @@ test("committed real Context Mode baseline markdown preserves current failure cl
 test("committed runtime reports stay markdown-only", async () => {
   const { readdir } = await import("node:fs/promises");
   const entries = await readdir("router/evals/reports");
-  assert.deepEqual(entries.filter((entry) => entry.endsWith(".json")), []);
+  assert.deepEqual(
+    entries.filter((entry) => entry.endsWith(".json")),
+    [],
+  );
 });

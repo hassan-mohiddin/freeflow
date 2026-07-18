@@ -45,13 +45,13 @@ test("script sandbox proof fixtures cover every required proof for every target 
 
   for (const language of SCRIPT_TRANSFORM_LANGUAGES) {
     const fixtures = scriptSandboxProofFixturesForLanguage(language);
-    assert.deepEqual(
-      fixtures.map((fixture) => fixture.proof).sort(),
-      [...SCRIPT_SANDBOX_REQUIRED_PROOFS].sort(),
-    );
+    assert.deepEqual(fixtures.map((fixture) => fixture.proof).sort(), [...SCRIPT_SANDBOX_REQUIRED_PROOFS].sort());
     for (const fixture of fixtures) {
       assert.equal(typeof fixture.program, "string");
-      assert.ok(fixture.program.length > 0, `${language} fixture ${fixture.proof} should include an adversarial program`);
+      assert.ok(
+        fixture.program.length > 0,
+        `${language} fixture ${fixture.proof} should include an adversarial program`,
+      );
       assert.ok(fixture.adapterAssertion.length > 0, `${fixture.proof} should describe the adapter-level assertion`);
       assert.ok(fixture.expected.length > 0, `${fixture.proof} should describe expected behavior`);
     }
@@ -68,7 +68,9 @@ test("script sandbox stdout/stderr proof fixtures avoid runaway flood counts", (
 });
 
 test("script sandbox probe reports all configured languages unavailable when no adapter is registered", async () => {
-  const report = await probeScriptSandboxAdapters({ config: config({ enabled: true, languages: ["javascript", "python", "jq"] }) });
+  const report = await probeScriptSandboxAdapters({
+    config: config({ enabled: true, languages: ["javascript", "python", "jq"] }),
+  });
 
   assert.equal(report.contractVersion, 1);
   assert.equal(report.adapterAvailable, false);
@@ -79,10 +81,22 @@ test("script sandbox probe reports all configured languages unavailable when no 
   assert.deepEqual(report.requiredProofs, [...SCRIPT_SANDBOX_REQUIRED_PROOFS]);
   assert.equal(report.unavailableLanguages.length, 3);
   assert.ok(report.unavailableLanguages.every((entry) => entry.status === "unavailable"));
-  assert.ok(report.unavailableLanguages.every((entry) => entry.reason.includes("No script transform sandbox adapter is registered")));
-  assert.ok(report.unavailableLanguages.every((entry) => entry.failedProofs.length === SCRIPT_SANDBOX_REQUIRED_PROOFS.length));
-  assert.ok(report.candidateMechanisms.some((candidate) => candidate.id === "node-vm" && candidate.status === "rejected"));
-  assert.ok(report.candidateMechanisms.some((candidate) => candidate.id === "os-sandbox-adapter" && candidate.status === "candidate_unproven"));
+  assert.ok(
+    report.unavailableLanguages.every((entry) =>
+      entry.reason.includes("No script transform sandbox adapter is registered"),
+    ),
+  );
+  assert.ok(
+    report.unavailableLanguages.every((entry) => entry.failedProofs.length === SCRIPT_SANDBOX_REQUIRED_PROOFS.length),
+  );
+  assert.ok(
+    report.candidateMechanisms.some((candidate) => candidate.id === "node-vm" && candidate.status === "rejected"),
+  );
+  assert.ok(
+    report.candidateMechanisms.some(
+      (candidate) => candidate.id === "os-sandbox-adapter" && candidate.status === "candidate_unproven",
+    ),
+  );
 });
 
 test("script sandbox probe requires every adversarial proof before a language becomes available", async () => {
@@ -98,13 +112,20 @@ test("script sandbox probe requires every adversarial proof before a language be
     },
   });
 
-  const report = await probeScriptSandboxAdapters({ config: config({ enabled: true, languages: ["javascript"] }), adapters: [partialAdapter] });
+  const report = await probeScriptSandboxAdapters({
+    config: config({ enabled: true, languages: ["javascript"] }),
+    adapters: [partialAdapter],
+  });
   assert.equal(report.adapterAvailable, false);
   assert.equal(report.unavailableLanguages[0].adapterId, "fake-sandbox");
   assert.deepEqual(report.unavailableLanguages[0].passedProofs, ["env_access_denied", "network_access_denied"]);
   assert.ok(report.unavailableLanguages[0].failedProofs.includes("home_access_denied"));
 
-  const selected = await selectScriptSandboxAdapter("javascript", config({ enabled: true, languages: ["javascript"] }), [partialAdapter]);
+  const selected = await selectScriptSandboxAdapter(
+    "javascript",
+    config({ enabled: true, languages: ["javascript"] }),
+    [partialAdapter],
+  );
   assert.equal(selected.ok, false);
   assert.equal(selected.status.status, "unavailable");
 });
@@ -148,7 +169,11 @@ test("script sandbox probe keeps trying adapters until one passes every proof", 
   assert.equal(report.languages[0].adapterId, "proven-after-partial");
   assert.equal(report.languages[0].runtime.name, "fake-js");
 
-  const selected = await selectScriptSandboxAdapter("javascript", config({ enabled: true, languages: ["javascript"] }), [partialAdapter, provenAdapter]);
+  const selected = await selectScriptSandboxAdapter(
+    "javascript",
+    config({ enabled: true, languages: ["javascript"] }),
+    [partialAdapter, provenAdapter],
+  );
   assert.equal(selected.ok, true);
   assert.equal(selected.adapter.id, "proven-after-partial");
 });
@@ -168,31 +193,43 @@ test("script sandbox probe can select a registered adapter only after all proofs
     },
   });
 
-  const report = await probeScriptSandboxAdapters({ config: config({ enabled: false, languages: ["javascript", "jq"] }), adapters: [provenAdapter] });
+  const report = await probeScriptSandboxAdapters({
+    config: config({ enabled: false, languages: ["javascript", "jq"] }),
+    adapters: [provenAdapter],
+  });
   assert.equal(report.adapterAvailable, true);
   assert.deepEqual(report.availableLanguages, ["javascript", "jq"]);
   assert.deepEqual(report.unavailableLanguages, []);
   assert.equal(report.languages[0].adapterId, "proven-test-sandbox");
   assert.equal(report.languages[0].runtime.name, "fake-javascript");
 
-  const selected = await selectScriptSandboxAdapter("jq", config({ enabled: false, languages: ["javascript", "jq"] }), [provenAdapter]);
+  const selected = await selectScriptSandboxAdapter("jq", config({ enabled: false, languages: ["javascript", "jq"] }), [
+    provenAdapter,
+  ]);
   assert.equal(selected.ok, true);
   assert.equal(selected.adapter.id, "proven-test-sandbox");
   assert.equal(selected.status.status, "available");
 });
 
 test("QuickJS discovery reports unavailable for invalid explicit package roots", async () => {
-  const adapters = await discoverQuickJsWasiSandboxAdaptersFromEnv({ FREEFLOW_QUICKJS_WASI_ROOT: "/tmp/freeflow-missing-quickjs-wasi-root" });
+  const adapters = await discoverQuickJsWasiSandboxAdaptersFromEnv({
+    FREEFLOW_QUICKJS_WASI_ROOT: "/tmp/freeflow-missing-quickjs-wasi-root",
+  });
   assert.equal(adapters.length, 1);
 
-  const report = await probeScriptSandboxAdapters({ config: config({ enabled: true, languages: ["javascript"] }), adapters });
+  const report = await probeScriptSandboxAdapters({
+    config: config({ enabled: true, languages: ["javascript"] }),
+    adapters,
+  });
   assert.equal(report.adapterAvailable, false);
   assert.equal(report.unavailableLanguages[0].adapterId, "quickjs-wasi");
   assert.match(report.unavailableLanguages[0].reason, /could not load/);
 });
 
 test("jq-wasm discovery reports unavailable for invalid explicit package roots", async () => {
-  const adapters = await discoverJqWasmSandboxAdaptersFromEnv({ FREEFLOW_JQ_WASM_ROOT: "/tmp/freeflow-missing-jq-wasm-root" });
+  const adapters = await discoverJqWasmSandboxAdaptersFromEnv({
+    FREEFLOW_JQ_WASM_ROOT: "/tmp/freeflow-missing-jq-wasm-root",
+  });
   assert.equal(adapters.length, 1);
 
   const report = await probeScriptSandboxAdapters({ config: config({ enabled: true, languages: ["jq"] }), adapters });
@@ -202,10 +239,15 @@ test("jq-wasm discovery reports unavailable for invalid explicit package roots",
 });
 
 test("Eryx Python discovery reports unavailable for invalid explicit package roots", async () => {
-  const adapters = await discoverEryxPythonSandboxAdaptersFromEnv({ FREEFLOW_ERYX_ROOT: "/tmp/freeflow-missing-eryx-root" });
+  const adapters = await discoverEryxPythonSandboxAdaptersFromEnv({
+    FREEFLOW_ERYX_ROOT: "/tmp/freeflow-missing-eryx-root",
+  });
   assert.equal(adapters.length, 1);
 
-  const report = await probeScriptSandboxAdapters({ config: config({ enabled: true, languages: ["python"] }), adapters });
+  const report = await probeScriptSandboxAdapters({
+    config: config({ enabled: true, languages: ["python"] }),
+    adapters,
+  });
   assert.equal(report.adapterAvailable, false);
   assert.equal(report.unavailableLanguages[0].adapterId, "eryx-python");
   assert.match(report.unavailableLanguages[0].reason, /could not load/);
@@ -226,7 +268,9 @@ test("script sandbox selection respects scriptTransform.languages before probing
     },
   });
 
-  const selected = await selectScriptSandboxAdapter("python", config({ enabled: true, languages: ["javascript"] }), [adapter]);
+  const selected = await selectScriptSandboxAdapter("python", config({ enabled: true, languages: ["javascript"] }), [
+    adapter,
+  ]);
   assert.equal(selected.ok, false);
   assert.equal(probed, false);
   assert.match(selected.status.reason, /not enabled by scriptTransform\.languages/);

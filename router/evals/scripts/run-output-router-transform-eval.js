@@ -4,12 +4,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import {
-  createVault,
-  freeflowTransform,
-  readOutputText,
-  storeCommandOutput,
-} from "../../dist/index.js";
+import { createVault, freeflowTransform, readOutputText, storeCommandOutput } from "../../dist/index.js";
 
 const REPORT_PATH = "router/evals/reports/output-router-transform-eval-1-report.md";
 const DATE = "2026-06-28";
@@ -64,7 +59,8 @@ async function runTransformComparison(vaultRoot) {
   const recoveredFiltered = await readOutputText(vault, "transform-long-log-eval", filtered.outputId, "raw");
   const gates = {
     manualBaselineWouldReadWholeLog: bytes(log) > evidenceBytes(filtered),
-    filteredTargetFacts: recoveredFiltered.includes("ERROR target alpha") && recoveredFiltered.includes("ERROR target beta"),
+    filteredTargetFacts:
+      recoveredFiltered.includes("ERROR target alpha") && recoveredFiltered.includes("ERROR target beta"),
     countMatches: /matches: 2\b/.test(await readOutputText(vault, "transform-long-log-eval", counted.outputId, "raw")),
     lineage: filtered.lineage.sourceOutputIds.includes(source.outputId),
   };
@@ -88,10 +84,14 @@ function assertAllPassed(results) {
 function renderReport(results) {
   const totalGates = results.reduce((count, result) => count + Object.keys(result.gates).length, 0);
   const passedGates = results.reduce((count, result) => count + Object.values(result.gates).filter(Boolean).length, 0);
-  const rows = results.map((result) => {
-    const gates = Object.entries(result.gates).map(([name, passed]) => `${name} ${passed ? "✓" : "✗"}`).join("; ");
-    return `| ${result.id} | ${result.baseline} | ${result.freeflow} | ${passMark(Object.values(result.gates).every(Boolean))} | ${gates} |`;
-  }).join("\n");
+  const rows = results
+    .map((result) => {
+      const gates = Object.entries(result.gates)
+        .map(([name, passed]) => `${name} ${passed ? "✓" : "✗"}`)
+        .join("; ");
+      return `| ${result.id} | ${result.baseline} | ${result.freeflow} | ${passMark(Object.values(result.gates).every(Boolean))} | ${gates} |`;
+    })
+    .join("\n");
 
   return `# Output Router Transform Eval - Iteration 1\n\nDate: ${DATE}\n\n## Scope\n\nTargeted deterministic eval for transformed-output routing. It compares direct/manual long-log inspection against explicit Freeflow transform operations.\n\n## Command\n\n\`\`\`sh\nnpm run build && node router/evals/scripts/run-output-router-transform-eval.js\n\`\`\`\n\n## Summary\n\n- Fixtures: ${results.length}\n- Objective gates passed: ${passedGates}/${totalGates}\n\n## Results\n\n| fixture | direct/raw baseline | Freeflow routed behavior | status | gates |\n| --- | --- | --- | --- | --- |\n${rows}\n\n## Result\n\nAll targeted transform gates passed for these deterministic fixtures.\n`;
 }

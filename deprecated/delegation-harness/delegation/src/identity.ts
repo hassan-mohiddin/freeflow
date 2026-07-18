@@ -14,7 +14,12 @@ export const CURRENT_DELEGATION_MANIFEST_SCHEMA_VERSION = 1 as const;
 export const CURRENT_DELEGATION_PROFILE_SCHEMA_VERSION = 1 as const;
 export const CURRENT_DELEGATION_PROTOCOL_VERSION = 1 as const;
 
-const ATTEMPT_SOURCES = ["routed", "routed_recovery", "direct_compat_adapter", "legacy_synthetic"] as const satisfies readonly DelegationAttemptSource[];
+const ATTEMPT_SOURCES = [
+  "routed",
+  "routed_recovery",
+  "direct_compat_adapter",
+  "legacy_synthetic",
+] as const satisfies readonly DelegationAttemptSource[];
 const LEGACY_ACTIVE_STATES = new Set(["running", "waiting_for_parent", "attention", "attention_required"]);
 const IDENTITY_FIELDS = [
   "schemaVersion",
@@ -27,7 +32,18 @@ const IDENTITY_FIELDS = [
 ] as const;
 
 export interface ResolveAssignmentAttemptIdentityInput {
-  manifest: Partial<AgentManifest> & Pick<AgentManifest, "taskId" | "agentId" | "role" | "profile" | "createdAt" | "modelTaskPacketPath" | "resultRawPath" | "resultJsonPath">;
+  manifest: Partial<AgentManifest> &
+    Pick<
+      AgentManifest,
+      | "taskId"
+      | "agentId"
+      | "role"
+      | "profile"
+      | "createdAt"
+      | "modelTaskPacketPath"
+      | "resultRawPath"
+      | "resultJsonPath"
+    >;
   status: Pick<AgentStatus, "taskId" | "agentId" | "state">;
   environmentAttemptId?: string;
 }
@@ -55,23 +71,39 @@ export function currentAssignmentAttemptIdentity(input: {
     protocolVersion: CURRENT_DELEGATION_PROTOCOL_VERSION,
     assignmentId: agentId,
     attemptId: validateSafeId(input.attemptId, "attempt id"),
-    attemptSource: oneOf(input.attemptSource, ATTEMPT_SOURCES.filter((source) => source !== "legacy_synthetic"), "attempt source"),
+    attemptSource: oneOf(
+      input.attemptSource,
+      ATTEMPT_SOURCES.filter((source) => source !== "legacy_synthetic"),
+      "attempt source",
+    ),
   };
 }
 
-export function resolveAssignmentAttemptIdentity(input: ResolveAssignmentAttemptIdentityInput): ResolvedDelegationAssignmentAttemptIdentity {
+export function resolveAssignmentAttemptIdentity(
+  input: ResolveAssignmentAttemptIdentityInput,
+): ResolvedDelegationAssignmentAttemptIdentity {
   validateManifestStatusIdentity(input.manifest, input.status);
   const presentIdentityFields = IDENTITY_FIELDS.filter((field) => input.manifest[field] !== undefined);
   if (presentIdentityFields.length === 0) {
     return resolveLegacySyntheticIdentity(input);
   }
   if (presentIdentityFields.length !== IDENTITY_FIELDS.length) {
-    throw new Error(`partial assignment attempt identity: found ${presentIdentityFields.join(", ")}; expected ${IDENTITY_FIELDS.join(", ")}`);
+    throw new Error(
+      `partial assignment attempt identity: found ${presentIdentityFields.join(", ")}; expected ${IDENTITY_FIELDS.join(", ")}`,
+    );
   }
 
   requireCurrentVersion(input.manifest.schemaVersion, CURRENT_DELEGATION_MANIFEST_SCHEMA_VERSION, "manifest schema");
-  requireCurrentVersion(input.manifest.identitySchemaVersion, CURRENT_DELEGATION_IDENTITY_SCHEMA_VERSION, "identity schema");
-  requireCurrentVersion(input.manifest.profileSchemaVersion, CURRENT_DELEGATION_PROFILE_SCHEMA_VERSION, "profile schema");
+  requireCurrentVersion(
+    input.manifest.identitySchemaVersion,
+    CURRENT_DELEGATION_IDENTITY_SCHEMA_VERSION,
+    "identity schema",
+  );
+  requireCurrentVersion(
+    input.manifest.profileSchemaVersion,
+    CURRENT_DELEGATION_PROFILE_SCHEMA_VERSION,
+    "profile schema",
+  );
   requireCurrentVersion(input.manifest.protocolVersion, CURRENT_DELEGATION_PROTOCOL_VERSION, "protocol");
 
   const assignmentId = validateSafeId(String(input.manifest.assignmentId), "assignment id");
@@ -96,7 +128,9 @@ export function resolveAssignmentAttemptIdentity(input: ResolveAssignmentAttempt
   };
 }
 
-function resolveLegacySyntheticIdentity(input: ResolveAssignmentAttemptIdentityInput): ResolvedDelegationAssignmentAttemptIdentity {
+function resolveLegacySyntheticIdentity(
+  input: ResolveAssignmentAttemptIdentityInput,
+): ResolvedDelegationAssignmentAttemptIdentity {
   const manifest = input.manifest;
   if (!LEGACY_ACTIVE_STATES.has(input.status.state)) {
     throw new Error(`synthetic legacy attempt requires an active legacy assignment; got ${input.status.state}`);
@@ -122,10 +156,16 @@ function resolveLegacySyntheticIdentity(input: ResolveAssignmentAttemptIdentityI
   };
 }
 
-function validateManifestStatusIdentity(manifest: ResolveAssignmentAttemptIdentityInput["manifest"], status: ResolveAssignmentAttemptIdentityInput["status"]): void {
+function validateManifestStatusIdentity(
+  manifest: ResolveAssignmentAttemptIdentityInput["manifest"],
+  status: ResolveAssignmentAttemptIdentityInput["status"],
+): void {
   const taskId = validateSafeId(manifest.taskId, "manifest task id");
   const agentId = validateSafeId(manifest.agentId, "manifest agent id");
-  if (validateSafeId(status.taskId, "status task id") !== taskId || validateSafeId(status.agentId, "status agent id") !== agentId) {
+  if (
+    validateSafeId(status.taskId, "status task id") !== taskId ||
+    validateSafeId(status.agentId, "status agent id") !== agentId
+  ) {
     throw new Error("manifest/status assignment identity mismatch");
   }
 }

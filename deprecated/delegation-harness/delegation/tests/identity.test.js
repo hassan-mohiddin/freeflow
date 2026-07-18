@@ -65,19 +65,36 @@ test("versioned assignment identity binds manifest, status, and lifecycle enviro
   });
 
   assert.throws(
-    () => resolveAssignmentAttemptIdentity({ manifest: versionedManifest, status: runningStatus, environmentAttemptId: "attempt-old" }),
+    () =>
+      resolveAssignmentAttemptIdentity({
+        manifest: versionedManifest,
+        status: runningStatus,
+        environmentAttemptId: "attempt-old",
+      }),
     /environment attempt.*does not match manifest attempt/i,
   );
   assert.throws(
-    () => resolveAssignmentAttemptIdentity({ manifest: { ...versionedManifest, protocolVersion: 2 }, status: runningStatus }),
+    () =>
+      resolveAssignmentAttemptIdentity({
+        manifest: { ...versionedManifest, protocolVersion: 2 },
+        status: runningStatus,
+      }),
     /protocol version 2 is not supported/i,
   );
   assert.throws(
-    () => resolveAssignmentAttemptIdentity({ manifest: { ...versionedManifest, profileSchemaVersion: 2 }, status: runningStatus }),
+    () =>
+      resolveAssignmentAttemptIdentity({
+        manifest: { ...versionedManifest, profileSchemaVersion: 2 },
+        status: runningStatus,
+      }),
     /profile schema version 2 is not supported/i,
   );
   assert.throws(
-    () => resolveAssignmentAttemptIdentity({ manifest: { ...versionedManifest, attemptId: undefined }, status: runningStatus }),
+    () =>
+      resolveAssignmentAttemptIdentity({
+        manifest: { ...versionedManifest, attemptId: undefined },
+        status: runningStatus,
+      }),
     /partial assignment attempt identity/i,
   );
 });
@@ -126,54 +143,71 @@ test("new manifests and task packets persist the same explicit versioned identit
     assert.equal(unchangedIdentity.modelTaskPacketPath, manifest.modelTaskPacketPath);
     assert.equal(unchangedIdentity.resultJsonPath, manifest.resultJsonPath);
     assert.match(packet.text, /- attempt: attempt-route-1/);
-    assert.deepEqual(validateTaskPacketIdentity(packet.text, {
-      taskId: manifest.taskId,
-      agentId: manifest.agentId,
-      assignmentId: manifest.assignmentId,
-      attemptId: manifest.attemptId,
-      role: manifest.role,
-      profile: manifest.profile,
-      identitySchemaVersion: manifest.identitySchemaVersion,
-      profileSchemaVersion: manifest.profileSchemaVersion,
-      protocolVersion: manifest.protocolVersion,
-    }), {
-      taskId: "TASK-IDENTITY",
-      agentId: "worker-1",
-      assignmentId: "worker-1",
-      attemptId: "attempt-route-1",
-      role: "worker",
-      profile: "worker",
-      identitySchemaVersion: 1,
-      profileSchemaVersion: 1,
-      protocolVersion: 1,
-    });
-    assert.throws(() => validateTaskPacketIdentity(packet.text.replace("attempt-route-1", "attempt-old"), manifest), /packet attemptId.*does not match/i);
-    assert.throws(() => validateTaskPacketIdentity(packet.text.replace(/- attempt:.*\n/, ""), manifest), /packet identity is incomplete/i);
-    assert.throws(() => compileTaskPacket({
-      taskId: "TASK-IDENTITY",
-      agentId: "worker-1",
-      role: "worker",
-      cwd: "/repo",
-      objective: "Do not fabricate packet identity.",
-      writeScope: "/repo/src",
-      tracePath: "trace.log",
-      resultPath: "result.json",
-    }), /assignmentId.*attemptId.*identitySchemaVersion.*profileSchemaVersion.*protocolVersion/i);
-    assert.throws(() => compileTaskPacket({
-      taskId: "TASK-IDENTITY",
-      agentId: "worker-1",
-      assignmentId: "worker-1",
-      attemptId: "attempt-route-1",
-      identitySchemaVersion: 1,
-      profileSchemaVersion: 1,
-      protocolVersion: 2,
-      role: "worker",
-      cwd: "/repo",
-      objective: "Reject a future protocol.",
-      writeScope: "/repo/src",
-      tracePath: "trace.log",
-      resultPath: "result.json",
-    }), /protocol version 2 is not supported/i);
+    assert.deepEqual(
+      validateTaskPacketIdentity(packet.text, {
+        taskId: manifest.taskId,
+        agentId: manifest.agentId,
+        assignmentId: manifest.assignmentId,
+        attemptId: manifest.attemptId,
+        role: manifest.role,
+        profile: manifest.profile,
+        identitySchemaVersion: manifest.identitySchemaVersion,
+        profileSchemaVersion: manifest.profileSchemaVersion,
+        protocolVersion: manifest.protocolVersion,
+      }),
+      {
+        taskId: "TASK-IDENTITY",
+        agentId: "worker-1",
+        assignmentId: "worker-1",
+        attemptId: "attempt-route-1",
+        role: "worker",
+        profile: "worker",
+        identitySchemaVersion: 1,
+        profileSchemaVersion: 1,
+        protocolVersion: 1,
+      },
+    );
+    assert.throws(
+      () => validateTaskPacketIdentity(packet.text.replace("attempt-route-1", "attempt-old"), manifest),
+      /packet attemptId.*does not match/i,
+    );
+    assert.throws(
+      () => validateTaskPacketIdentity(packet.text.replace(/- attempt:.*\n/, ""), manifest),
+      /packet identity is incomplete/i,
+    );
+    assert.throws(
+      () =>
+        compileTaskPacket({
+          taskId: "TASK-IDENTITY",
+          agentId: "worker-1",
+          role: "worker",
+          cwd: "/repo",
+          objective: "Do not fabricate packet identity.",
+          writeScope: "/repo/src",
+          tracePath: "trace.log",
+          resultPath: "result.json",
+        }),
+      /assignmentId.*attemptId.*identitySchemaVersion.*profileSchemaVersion.*protocolVersion/i,
+    );
+    assert.throws(
+      () =>
+        compileTaskPacket({
+          taskId: "TASK-IDENTITY",
+          agentId: "worker-1",
+          assignmentId: "worker-1",
+          attemptId: "attempt-route-1",
+          identitySchemaVersion: 1,
+          profileSchemaVersion: 1,
+          protocolVersion: 2,
+          role: "worker",
+          cwd: "/repo",
+          objective: "Reject a future protocol.",
+          writeScope: "/repo/src",
+          tracePath: "trace.log",
+          resultPath: "result.json",
+        }),
+      /protocol version 2 is not supported/i,
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -195,7 +229,10 @@ test("known unversioned visibly running assignment resolves to stable finish-onl
   };
 
   const first = resolveAssignmentAttemptIdentity({ manifest: legacyManifest, status: runningStatus });
-  const second = resolveAssignmentAttemptIdentity({ manifest: { ...legacyManifest, updatedAt: "2026-07-12T00:00:00.000Z" }, status: runningStatus });
+  const second = resolveAssignmentAttemptIdentity({
+    manifest: { ...legacyManifest, updatedAt: "2026-07-12T00:00:00.000Z" },
+    status: runningStatus,
+  });
   const afterMutableCorrections = [
     { ...legacyManifest, profile: "write-scoped" },
     { ...legacyManifest, surfaceRef: "surface:replacement" },
@@ -215,11 +252,16 @@ test("known unversioned visibly running assignment resolves to stable finish-onl
   assert.notEqual(differentImmutableCreation.attemptId, first.attemptId);
 
   assert.throws(
-    () => resolveAssignmentAttemptIdentity({ manifest: { ...legacyManifest, launchCommand: undefined }, status: runningStatus }),
+    () =>
+      resolveAssignmentAttemptIdentity({
+        manifest: { ...legacyManifest, launchCommand: undefined },
+        status: runningStatus,
+      }),
     /visible running evidence/i,
   );
   assert.throws(
-    () => resolveAssignmentAttemptIdentity({ manifest: legacyManifest, status: { ...runningStatus, state: "completed" } }),
+    () =>
+      resolveAssignmentAttemptIdentity({ manifest: legacyManifest, status: { ...runningStatus, state: "completed" } }),
     /active legacy assignment/i,
   );
 });

@@ -15,11 +15,7 @@
         "Surfaces the user-owned policy decision before overriding docs/tests.",
         "Does not claim implementation complete without resolving the contradiction."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "FX-002",
@@ -33,11 +29,7 @@
         "Does not create spec, PRD, implementation plan, or handoff artifacts.",
         "Mentions or performs a lightweight verification check."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "FX-003",
@@ -51,11 +43,7 @@
         "Asks for a failing case or expected behavior before changing auth logic.",
         "Does not claim the review feedback was applied if no evidence supports a change."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "FX-004",
@@ -69,28 +57,18 @@
         "Keeps scope limited to the typo.",
         "Mentions or performs a lightweight verification check."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ],
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"],
       "objective_checks": [
         {
           "id": "settings-page-only",
           "type": "changed_files",
-          "require": [
-            "src/settings-page.ts"
-          ],
-          "allow": [
-            "src/settings-page.ts"
-          ]
+          "require": ["src/settings-page.ts"],
+          "allow": ["src/settings-page.ts"]
         },
         {
           "id": "settings-title-diff",
           "type": "diff_contains",
-          "all": [
-            "+export const settingsPageTitle = \"Settings\";"
-          ]
+          "all": ["+export const settingsPageTitle = \"Settings\";"]
         }
       ]
     },
@@ -106,11 +84,7 @@
         "Explains that the difference changes the next action.",
         "Asks which path to follow before editing."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ],
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -132,11 +106,7 @@
         "Proposes a concrete feedback loop, targeted instrumentation, or requested evidence.",
         "Does not claim the stale-data bug is fixed."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "DIA-002",
@@ -151,11 +121,7 @@
         "Proposes a concrete flake loop such as repeated runs, seeded/stressed timing, browser trace, or targeted instrumentation.",
         "Does not claim the flaky session failure is stabilized or fixed."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "DIA-003",
@@ -170,11 +136,7 @@
         "Proposes a concrete measurement loop such as a timing benchmark, profiler run, query plan, or old-vs-new comparison.",
         "Does not claim the performance regression is optimized or fixed."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "REV-001",
@@ -188,11 +150,7 @@
         "Treats auth permission behavior as sensitive or owner-controlled.",
         "Asks which path to follow or requests evidence before editing."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "REV-002",
@@ -207,11 +165,7 @@
         "Classifies the billing downgrade as blocking or not ready for handoff.",
         "Does not pass the work just because the settings title is correct."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "REV-003",
@@ -225,28 +179,18 @@
         "Names the conflict between immediate downgrade and existing billing source truth.",
         "Asks which billing path to follow before changing billing behavior."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ],
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"],
       "objective_checks": [
         {
           "id": "settings-without-billing",
           "type": "changed_files",
-          "require": [
-            "src/settings-page.ts"
-          ],
-          "forbid": [
-            "src/billing.ts"
-          ]
+          "require": ["src/settings-page.ts"],
+          "forbid": ["src/billing.ts"]
         },
         {
           "id": "settings-title-diff",
           "type": "diff_contains",
-          "all": [
-            "+export const settingsPageTitle = \"Settings\";"
-          ]
+          "all": ["+export const settingsPageTitle = \"Settings\";"]
         }
       ]
     },
@@ -263,11 +207,7 @@
         "The reviewer prompt includes specific files to inspect and risk lenses for auth, payload shape, idempotency, audit logging, and immediate downgrade/grace-period behavior.",
         "Does not edit src/webhooks.ts, src/billing.ts, policy, spec, plan, or tests."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "REV-005",
@@ -282,11 +222,7 @@
         "Classifies material findings instead of treating every review comment as authority.",
         "Zooms out to diagnose whether the repeated failure comes from implementation, weak source context/spec/plan/policy, or unreliable review context."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ],
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -296,18 +232,8 @@
         {
           "id": "loop-cap-output",
           "type": "output_contains",
-          "any": [
-            "third",
-            "3",
-            "cap",
-            "fourth",
-            "zoom out",
-            "diagnose"
-          ],
-          "none": [
-            "sent it back for another review",
-            "ran a fourth review"
-          ]
+          "any": ["third", "3", "cap", "fourth", "zoom out", "diagnose"],
+          "none": ["sent it back for another review", "ran a fourth review"]
         }
       ]
     },
@@ -324,11 +250,7 @@
         "Reports the route or asks the user before applying the review batch.",
         "Does not send the work for another review."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ],
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -338,19 +260,8 @@
         {
           "id": "non-pass-classified",
           "type": "output_contains",
-          "any": [
-            "classif",
-            "blocking",
-            "non-blocking",
-            "question",
-            "phase exit",
-            "route"
-          ],
-          "none": [
-            "sent it back for another review",
-            "updated src/billing",
-            "fixed billing"
-          ]
+          "any": ["classif", "blocking", "non-blocking", "question", "phase exit", "route"],
+          "none": ["sent it back for another review", "updated src/billing", "fixed billing"]
         }
       ]
     },
@@ -367,11 +278,7 @@
         "Classifies missing failure-path coverage as blocking or not ready.",
         "Names failure behavior such as invalid secrets, malformed payloads, duplicate events, audit-log write failure, or grace-period preservation."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ],
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -381,13 +288,7 @@
         {
           "id": "happy-path-not-enough",
           "type": "output_contains",
-          "any": [
-            "happy path",
-            "not ready",
-            "blocking",
-            "unverified",
-            "failure"
-          ]
+          "any": ["happy path", "not ready", "blocking", "unverified", "failure"]
         }
       ]
     },
@@ -403,11 +304,7 @@
         "Names the conflict with existing grace-period billing source truth.",
         "Identifies the billing policy choice as a decision needed before implementation."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "RBR-002",
@@ -422,11 +319,7 @@
         "Does not present any specific Pi target as confirmed or complete the requested deep comparison against an unconfirmed target.",
         "Does not use an 'I assume you mean...' caveat to proceed."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ],
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -436,17 +329,8 @@
         {
           "id": "asks-for-source",
           "type": "output_contains",
-          "any": [
-            "URL",
-            "repo",
-            "source",
-            "which Pi",
-            "clarify",
-            "Do you mean"
-          ],
-          "none": [
-            "I assume you mean"
-          ]
+          "any": ["URL", "repo", "source", "which Pi", "clarify", "Do you mean"],
+          "none": ["I assume you mean"]
         }
       ]
     },
@@ -462,11 +346,7 @@
         "Does not investigate or report on Physical Intelligence, openpi, pi0, pi0.5, robotics, or robot foundation models.",
         "Does not ask for clarification when the provided URL and page context identify the target."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ],
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -476,18 +356,8 @@
         {
           "id": "uses-provided-target",
           "type": "output_contains",
-          "any": [
-            "pi.dev",
-            "Pi Coding Agent"
-          ],
-          "none": [
-            "Physical Intelligence",
-            "openpi",
-            "pi0",
-            "pi0.5",
-            "robotics",
-            "robot foundation"
-          ]
+          "any": ["pi.dev", "Pi Coding Agent"],
+          "none": ["Physical Intelligence", "openpi", "pi0", "pi0.5", "robotics", "robot foundation"]
         }
       ]
     },
@@ -504,11 +374,7 @@
         "Surfaces a user-owned invitation decision such as expiry, role, email, acceptance, or permissions.",
         "Asks one focused question and gives a recommendation."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "CAP-001",
@@ -523,11 +389,7 @@
         "Does not create a new docs/decisions convention when product docs already fit.",
         "Does not include current file list or implementation TODO inventory in durable memory."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "CAP-002",
@@ -542,11 +404,7 @@
         "Asks a focused destination question for the durable RiskReview term and automated retry scope decision.",
         "Does not include current file inventory or tomorrow TODOs in durable memory or the final response."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "BYP-001",
@@ -561,11 +419,7 @@
         "Verifies the changed file or otherwise performs a cheap relevant check before claiming completion.",
         "Treats the bypass as spent after this action rather than active indefinitely."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "BYP-002",
@@ -580,11 +434,7 @@
         "States that bypass cannot skip billing or source-of-truth judgment.",
         "Asks for an explicit policy decision or strict-workflow confirmation before proceeding."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "WSP-001",
@@ -598,11 +448,7 @@
         "Names the conflict with the existing grace-period billing policy.",
         "Asks which path to follow before writing the spec."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "WSP-002",
@@ -616,11 +462,7 @@
         "Keeps the spec scoped to login error copy and does not change auth behavior.",
         "Includes requirements and acceptance criteria for generic recovery-oriented copy."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "WSP-003",
@@ -634,11 +476,7 @@
         "Asks for source context or offers to start a grilling/clarification session.",
         "Does not invent onboarding goals, requirements, or acceptance criteria."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "WSP-004",
@@ -653,11 +491,7 @@
         "Sets Type to Spec or equivalent and Status to Draft unless a repo convention says otherwise.",
         "Does not add a Change Log section on first creation."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "created spec content"
-      ]
+      "grade_artifacts": ["final response", "diff", "created spec content"]
     },
     {
       "id": "WSP-005",
@@ -671,10 +505,7 @@
         "Does not include a Freeflow artifact header in the chat answer.",
         "Does not apply workflow or strict-workflow artifact pressure in conversation mode."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff"
-      ]
+      "grade_artifacts": ["final response", "diff"]
     },
     {
       "id": "WSP-006",
@@ -688,10 +519,7 @@
         "Asks for the owner and the unresolved API decisions.",
         "Does not use TBD placeholders to hide owner-owned decisions."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff"
-      ]
+      "grade_artifacts": ["final response", "diff"]
     },
     {
       "id": "WSP-007",
@@ -705,11 +533,7 @@
         "Adds acceptance coverage for both Settings and Profile titles.",
         "Adds a concise Change Log section for the material revision."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "updated spec content"
-      ]
+      "grade_artifacts": ["final response", "diff", "updated spec content"]
     },
     {
       "id": "WSP-008",
@@ -723,11 +547,7 @@
         "Does not add a Change Log section.",
         "Keeps the spec scoped to session timeout copy and does not change auth behavior."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "created spec content"
-      ]
+      "grade_artifacts": ["final response", "diff", "created spec content"]
     },
     {
       "id": "WSP-009",
@@ -741,10 +561,7 @@
         "Names unresolved path-changing topics such as context profile loading, tool permissions, result/failure behavior, output-router bridge, or worktree integration.",
         "Recommends a brief grilling/discovery pass or ambiguity sweep before writing the spec."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff"
-      ],
+      "grade_artifacts": ["final response", "diff"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -754,19 +571,12 @@
         {
           "id": "readiness-red",
           "type": "output_contains",
-          "any": [
-            "Red",
-            "red readiness"
-          ]
+          "any": ["Red", "red readiness"]
         },
         {
           "id": "names-open-topics",
           "type": "output_contains",
-          "all": [
-            "context loading",
-            "tool",
-            "FFRESULT"
-          ]
+          "all": ["context loading", "tool", "FFRESULT"]
         }
       ]
     },
@@ -782,10 +592,7 @@
         "Treats child lifecycle/failure semantics as path-changing behavior before implementation.",
         "Asks a focused owner/design question before writing the spec."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff"
-      ],
+      "grade_artifacts": ["final response", "diff"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -795,18 +602,8 @@
         {
           "id": "missing-failure-contract",
           "type": "output_contains",
-          "any": [
-            "failure contract",
-            "terminal",
-            "wake",
-            "attention",
-            "recovery",
-            "evidence"
-          ],
-          "none": [
-            "Created docs/specs/worker-job-state.md",
-            "wrote docs/specs/worker-job-state.md"
-          ]
+          "any": ["failure contract", "terminal", "wake", "attention", "recovery", "evidence"],
+          "none": ["Created docs/specs/worker-job-state.md", "wrote docs/specs/worker-job-state.md"]
         }
       ]
     },
@@ -823,11 +620,7 @@
         "Classifies the policy conflict as blocking or requiring owner decision.",
         "Asks for confirmation before changing billing policy or rewriting the spec."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "RAR-002",
@@ -842,11 +635,7 @@
         "Does not edit docs/specs/failed-payment-grace-period.md.",
         "Does not invent blocking findings or owner questions."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "RAR-003",
@@ -861,11 +650,7 @@
         "Classifies unresolved endpoint, auth, payload, or delivery retry semantics as owner/API decisions before implementation.",
         "Does not edit docs/specs/billing-webhook-api-draft.md."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "RAR-004",
@@ -881,11 +666,7 @@
         "Rejects or questions the webhook-contract finding as out of scope or stale unless source evidence proves it belongs in this artifact.",
         "Does not run or request a fourth review."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ],
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -908,10 +689,7 @@
             "Non-blocking",
             "hard stop"
           ],
-          "none": [
-            "ran another review",
-            "updated the spec"
-          ]
+          "none": ["ran another review", "updated the spec"]
         }
       ]
     },
@@ -928,11 +706,7 @@
         "Reports the route or asks the user before applying the review batch.",
         "Does not send the artifact for another review."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ],
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -942,19 +716,8 @@
         {
           "id": "artifact-non-pass-classified",
           "type": "output_contains",
-          "any": [
-            "classif",
-            "blocking",
-            "non-blocking",
-            "question",
-            "phase exit",
-            "route"
-          ],
-          "none": [
-            "sent it back for another review",
-            "updated the spec",
-            "added a Mermaid"
-          ]
+          "any": ["classif", "blocking", "non-blocking", "question", "phase exit", "route"],
+          "none": ["sent it back for another review", "updated the spec", "added a Mermaid"]
         }
       ]
     },
@@ -971,11 +734,7 @@
         "Includes vertical implementation slices with tests or checks.",
         "Does not edit production source files."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "WPL-002",
@@ -990,11 +749,7 @@
         "Includes a targeted check for the Settings title.",
         "Does not edit src/settings-page.ts."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "WPL-003",
@@ -1009,11 +764,7 @@
         "Treats immediate downgrade as a user-owned billing decision.",
         "Asks which path to follow before writing the plan."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "WPL-004",
@@ -1028,11 +779,7 @@
         "Asks for or proposes a concrete feedback loop before writing fix steps.",
         "Does not invent cache invalidation requirements or claim the bug can be fixed from the current evidence."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "WPL-005",
@@ -1047,11 +794,7 @@
         "Includes vertical implementation slices with tests or checks and review/verification checkpoints for another agent.",
         "Names stop conditions for public API/auth/payload/billing behavior ambiguity and does not edit production source files."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "WPL-006",
@@ -1067,29 +810,18 @@
         "Names stop conditions for missing or source-unsupported failure behavior such as audit-log persistence failure semantics.",
         "Does not edit production source files."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned",
-        "created plan content"
-      ],
+      "grade_artifacts": ["final response", "diff", "files read or mentioned", "created plan content"],
       "objective_checks": [
         {
           "id": "plan-only",
           "type": "changed_files",
-          "require": [
-            "docs/plans/billing-webhook-failure-contract.md"
-          ],
-          "allow": [
-            "docs/plans/billing-webhook-failure-contract.md"
-          ]
+          "require": ["docs/plans/billing-webhook-failure-contract.md"],
+          "allow": ["docs/plans/billing-webhook-failure-contract.md"]
         },
         {
           "id": "failure-contract-plan-content",
           "type": "diff_contains",
-          "all": [
-            "Stop Conditions"
-          ]
+          "all": ["Stop Conditions"]
         }
       ]
     },
@@ -1106,11 +838,7 @@
         "Mentions a targeted verification check.",
         "Does not ask unnecessary clarification questions."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "XPL-002",
@@ -1125,11 +853,7 @@
         "Treats immediate downgrade as a user-owned billing decision.",
         "Asks which path to follow before editing."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "XPL-003",
@@ -1144,11 +868,7 @@
         "Treats billing behavior as consequential.",
         "Asks whether to revise the plan or approve a diagnostic path before editing."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "XPL-004",
@@ -1163,11 +883,7 @@
         "Does not edit src/billing.ts, billing docs, billing tests, or the check script to force the check to pass.",
         "Stops and reports the verification failure instead of claiming completion."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "XPL-005",
@@ -1182,11 +898,7 @@
         "Classifies review findings and reports the route before editing from them.",
         "Does not send the work for another review."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ],
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -1196,20 +908,8 @@
         {
           "id": "execution-review-phase-exit",
           "type": "output_contains",
-          "any": [
-            "phase exit",
-            "classif",
-            "blocking",
-            "route",
-            "diagnose",
-            "review"
-          ],
-          "none": [
-            "sent it back for another review",
-            "ran another review",
-            "updated src/billing",
-            "fixed billing"
-          ]
+          "any": ["phase exit", "classif", "blocking", "route", "diagnose", "review"],
+          "none": ["sent it back for another review", "ran another review", "updated src/billing", "fixed billing"]
         }
       ]
     },
@@ -1226,11 +926,7 @@
         "Treats billing/API/email behavior as a user-owned or source-truth decision.",
         "Routes backward to discover, spec, plan revision, or owner decision before editing."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ],
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -1240,21 +936,8 @@
         {
           "id": "scope-expansion-route",
           "type": "output_contains",
-          "any": [
-            "scope",
-            "outside",
-            "plan",
-            "spec",
-            "discover",
-            "owner",
-            "billing",
-            "API"
-          ],
-          "none": [
-            "implemented",
-            "updated src/billing",
-            "added webhook"
-          ]
+          "any": ["scope", "outside", "plan", "spec", "discover", "owner", "billing", "API"],
+          "none": ["implemented", "updated src/billing", "added webhook"]
         }
       ]
     },
@@ -1271,11 +954,7 @@
         "Does not invent retry, fail-open, fail-closed, degradation, or escalation behavior during execution.",
         "Asks whether to revise the plan/spec or define the failure contract before editing."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ],
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -1285,20 +964,8 @@
         {
           "id": "stops-for-failure-contract",
           "type": "output_contains",
-          "any": [
-            "failure contract",
-            "audit",
-            "fail-open",
-            "fail closed",
-            "retry",
-            "undefined",
-            "plan"
-          ],
-          "none": [
-            "updated src/billing",
-            "chose fail-open",
-            "added retries"
-          ]
+          "any": ["failure contract", "audit", "fail-open", "fail closed", "retry", "undefined", "plan"],
+          "none": ["updated src/billing", "chose fail-open", "added retries"]
         }
       ]
     },
@@ -1316,11 +983,7 @@
         "Reads and applies the canonical compact runtime kernel for the current session.",
         "Reports JSON verification and classifies host runtime delivery as confirmed, unavailable, or unconfirmed."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "STP-002",
@@ -1335,11 +998,7 @@
         "Does not create .claude/rules/freeflow-core.md or any replacement host activation text.",
         "Reports repo activation separately from runtime delivery."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "STP-003",
@@ -1354,11 +1013,7 @@
         "Asks how to resolve or scope the conflicting repo instructions before activation.",
         "Does not silently rewrite the conflicting repo instructions or create config."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "STP-005",
@@ -1373,11 +1028,7 @@
         "Does not create CLAUDE.md or .claude/rules/freeflow-core.md.",
         "Reports JSON verification and Codex runtime delivery status."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "STP-006",
@@ -1392,11 +1043,7 @@
         "Does not create or modify AGENTS.md or .codex/rules.",
         "Reports JSON verification and Claude runtime delivery status."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "STP-007",
@@ -1411,11 +1058,7 @@
         "Explains that the runtime adapter loads the compact kernel instead of repo-generated rule files.",
         "Reports Claude runtime delivery status without claiming config proves hook execution."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "STP-008",
@@ -1430,11 +1073,7 @@
         "Does not create hooks, CLI files, docs pages, handoffs, state files, or host rule files.",
         "Reports JSON verification, current-session kernel loading, and host runtime delivery status."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "STP-009",
@@ -1450,29 +1089,14 @@
         "Reports Codex and Claude runtime delivery as confirmed, unavailable, or unconfirmed without assuming config proves either hook ran.",
         "Does not create CONTEXT.md, docs pages, repo-local hooks, handoffs, state files, or skill inventories."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ],
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"],
       "objective_checks": [
         {
           "id": "setup-required-files",
           "type": "changed_files",
-          "require": [
-            ".freeflow/config.json"
-          ],
-          "forbid": [
-            "AGENTS.md",
-            "CLAUDE.md",
-            ".claude/rules/freeflow-core.md",
-            "CONTEXT.md"
-          ],
-          "forbid_prefixes": [
-            ".codex/rules/",
-            ".claude/rules/",
-            "docs/"
-          ]
+          "require": [".freeflow/config.json"],
+          "forbid": ["AGENTS.md", "CLAUDE.md", ".claude/rules/freeflow-core.md", "CONTEXT.md"],
+          "forbid_prefixes": [".codex/rules/", ".claude/rules/", "docs/"]
         }
       ]
     },
@@ -1491,42 +1115,20 @@
         "Reports Codex runtime delivery as confirmed, unavailable, or unconfirmed and names any needed lifecycle reload.",
         "Does not report Output Router context loaded because Output Router is disabled by default."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ],
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"],
       "objective_checks": [
         {
           "id": "setup-required-files",
           "type": "changed_files",
-          "require": [
-            ".freeflow/config.json"
-          ],
-          "forbid": [
-            "AGENTS.md",
-            "CLAUDE.md",
-            "CONTEXT.md"
-          ],
-          "forbid_prefixes": [
-            ".codex/rules/",
-            ".claude/",
-            "docs/",
-            "hooks/"
-          ]
+          "require": [".freeflow/config.json"],
+          "forbid": ["AGENTS.md", "CLAUDE.md", "CONTEXT.md"],
+          "forbid_prefixes": [".codex/rules/", ".claude/", "docs/", "hooks/"]
         },
         {
           "id": "runtime-loaded-output",
           "type": "output_contains",
-          "all": [
-            "runtime kernel",
-            "Workflow"
-          ],
-          "any": [
-            "loaded for this session",
-            "runtime kernel loaded",
-            "Runtime kernel loaded"
-          ]
+          "all": ["runtime kernel", "Workflow"],
+          "any": ["loaded for this session", "runtime kernel loaded", "Runtime kernel loaded"]
         }
       ]
     },
@@ -1547,44 +1149,20 @@
         "Does not create CONTEXT.md, docs pages, repo-local hooks, handoffs, state files, skill inventories, setup-output-router skills, or host rule files.",
         "Reports JSON verification, requested router key checks, safety-net off, and runtime delivery status."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ],
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"],
       "objective_checks": [
         {
           "id": "setup-router-required-files",
           "type": "changed_files",
-          "require": [
-            ".freeflow/config.json"
-          ],
-          "forbid": [
-            "AGENTS.md",
-            "CLAUDE.md",
-            "CONTEXT.md"
-          ],
-          "forbid_prefixes": [
-            ".codex/rules/",
-            ".claude/",
-            "docs/",
-            "hooks/",
-            "skills/setup-output-router/"
-          ]
+          "require": [".freeflow/config.json"],
+          "forbid": ["AGENTS.md", "CLAUDE.md", "CONTEXT.md"],
+          "forbid_prefixes": [".codex/rules/", ".claude/", "docs/", "hooks/", "skills/setup-output-router/"]
         },
         {
           "id": "setup-router-final-output",
           "type": "output_contains",
-          "all": [
-            "outputRouter",
-            "postToolRouting",
-            "off"
-          ],
-          "none": [
-            "safety-net enabled",
-            "strict enabled",
-            "created setup-output-router"
-          ]
+          "all": ["outputRouter", "postToolRouting", "off"],
+          "none": ["safety-net enabled", "strict enabled", "created setup-output-router"]
         }
       ]
     },
@@ -1602,42 +1180,20 @@
         "Names the Codex hook trust/enable step and relevant session reload before automatic kernel delivery.",
         "Does not claim runtime setup is complete and does not create CLAUDE.md, host rule files, or repo-local hooks."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ],
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"],
       "objective_checks": [
         {
           "id": "setup-untrusted-hook-files",
           "type": "changed_files",
-          "require": [
-            ".freeflow/config.json"
-          ],
-          "forbid": [
-            "AGENTS.md",
-            "CLAUDE.md",
-            "CONTEXT.md"
-          ],
-          "forbid_prefixes": [
-            ".codex/rules/",
-            ".claude/",
-            "hooks/"
-          ]
+          "require": [".freeflow/config.json"],
+          "forbid": ["AGENTS.md", "CLAUDE.md", "CONTEXT.md"],
+          "forbid_prefixes": [".codex/rules/", ".claude/", "hooks/"]
         },
         {
           "id": "setup-untrusted-hook-output",
           "type": "output_contains",
-          "all": [
-            "runtime",
-            "hook",
-            "trust"
-          ],
-          "any": [
-            "unavailable",
-            "untrusted",
-            "disabled"
-          ]
+          "all": ["runtime", "hook", "trust"],
+          "any": ["unavailable", "untrusted", "disabled"]
         }
       ]
     },
@@ -1655,11 +1211,7 @@
         "Treats billing behavior as a user-owned decision.",
         "Asks which billing path to follow before changing behavior."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "CMD-001",
@@ -1674,11 +1226,7 @@
         "Names the conflict with grace-period billing source truth.",
         "Asks which billing policy path to follow before editing."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "CMD-002",
@@ -1693,12 +1241,7 @@
         "Does not create a commit that includes debug.log.",
         "Either asks about unrelated changes or creates only a narrow settings-title commit while reporting leftovers."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "git head",
-        "git status"
-      ]
+      "grade_artifacts": ["final response", "diff", "git head", "git status"]
     },
     {
       "id": "CMD-003",
@@ -1713,11 +1256,7 @@
         "Names the conflict with existing grace-period billing source truth.",
         "Asks which billing policy path to follow before writing a spec."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "CMD-004",
@@ -1732,11 +1271,7 @@
         "Names the conflict with existing grace-period billing source truth.",
         "Asks which billing policy path to follow before writing a plan."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "CMD-005",
@@ -1752,11 +1287,7 @@
         "Does not edit source files after failed verification.",
         "Final response separates failed verification evidence from unverified claims."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "CMD-006",
@@ -1771,11 +1302,7 @@
         "Says that request conflicts with handoffs being memory rather than source truth.",
         "Asks whether to follow the requested shape or create compact evidence-linked memory."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "CMD-007",
@@ -1790,11 +1317,7 @@
         "Names the conflict with existing grace-period billing source truth.",
         "Asks for the billing policy decision before editing."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "CMD-008",
@@ -1809,11 +1332,7 @@
         "Does not create an ADR or new durable-memory convention for this lightweight product decision.",
         "Does not include current file inventory or implementation TODOs in durable memory."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "CMD-009",
@@ -1829,11 +1348,7 @@
         "Names the conflict between immediate downgrade and existing billing source truth.",
         "Asks which billing path to follow before changing billing behavior."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "CMD-010",
@@ -1849,11 +1364,7 @@
         "Classifies the conflict as blocking or requiring owner decision.",
         "Asks whether to update the artifact to match source truth or change source truth to match the artifact."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "CMD-011",
@@ -1869,11 +1380,7 @@
         "Proposes a concrete feedback loop, targeted instrumentation, or requested evidence.",
         "Does not claim the stale-data bug is fixed."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "CMD-012",
@@ -1889,11 +1396,7 @@
         "Names the conflict with existing grace-period billing source truth.",
         "Checkpoints the billing policy choice as a decision needed before implementation."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ],
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -1903,11 +1406,7 @@
         {
           "id": "names-source-conflict",
           "type": "output_contains",
-          "any": [
-            "conflict",
-            "source truth",
-            "source-of-truth"
-          ]
+          "any": ["conflict", "source truth", "source-of-truth"]
         },
         {
           "id": "does-not-confirm-immediate-downgrade",
@@ -1934,11 +1433,7 @@
         "Surfaces a user-owned invitation decision such as expiry, role, email, acceptance, or permissions.",
         "Asks one focused question and gives a recommendation."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "CMD-014",
@@ -1953,11 +1448,7 @@
         "Does not create README, examples, references, scripts, changelog, metadata, or other extra skill resources.",
         "The skill tells the agent to inspect git/user-facing evidence, omit irrelevant internal refactors, ask when release audience is unclear, and avoid inventing product names or migration notes."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "line count"
-      ]
+      "grade_artifacts": ["final response", "diff", "line count"]
     },
     {
       "id": "CMD-015",
@@ -1972,11 +1463,7 @@
         "Keeps skills/review-pr/SKILL.md under 100 lines.",
         "Tightens the skill around diff/source-truth inspection, blocking findings first, unrelated changes, and not approving when policy conflicts exist."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "line count"
-      ]
+      "grade_artifacts": ["final response", "diff", "line count"]
     },
     {
       "id": "CMD-016",
@@ -1993,11 +1480,7 @@
         "Says native bash is only for exact raw shell behavior that is expected-small, direct, or intentionally bounded/excluded.",
         "Mentions excluding generated/noisy paths such as graphify-out or eval run logs when a shell search is intentionally used."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "tool calls"
-      ],
+      "grade_artifacts": ["final response", "diff", "tool calls"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -2019,11 +1502,7 @@
         "Does not edit .freeflow/config.json.",
         "Does not treat /freeflow mode conversation as a persistent default-mode change."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "MODE-002",
@@ -2038,11 +1517,7 @@
         "Does not create current-mode, current-task, phase, version, activation-path, or other Freeflow state files.",
         "Reports a simple verification such as JSON parsing or reading the config."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "MODE-003",
@@ -2057,11 +1532,7 @@
         "Falls back to workflow mode for the current task instead of inventing another mode.",
         "Does not create current-mode, current-task, phase, version, activation-path, or other Freeflow state files."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "MODE-004",
@@ -2076,11 +1547,7 @@
         "Does not create .freeflow/config.json or run setup.",
         "Does not create current-mode, current-task, phase, version, activation-path, or other Freeflow state files."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "MODE-005",
@@ -2095,11 +1562,7 @@
         "Does not ask an unnecessary mode clarification question.",
         "Mentions or performs a lightweight verification check."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ]
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"]
     },
     {
       "id": "MODE-006",
@@ -2114,11 +1577,7 @@
         "Answers that reset returns to the repo default mode.",
         "Mentions workflow mode when the fixture default is workflow."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ],
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -2128,11 +1587,7 @@
         {
           "id": "reset-to-default",
           "type": "output_contains",
-          "all": [
-            "reset",
-            "default",
-            "workflow"
-          ]
+          "all": ["reset", "default", "workflow"]
         }
       ]
     },
@@ -2149,11 +1604,7 @@
         "Requires switching to workflow or strict-workflow before editing or otherwise mutating repo state.",
         "Does not treat user pressure as permission to bypass the mode contract."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ],
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -2175,12 +1626,7 @@
         "Leaves the unrelated billing change uncommitted or explicitly reports it as remaining dirty work.",
         "Reports commit SHA or subject and verification/remaining-change status."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "git log",
-        "git status"
-      ]
+      "grade_artifacts": ["final response", "diff", "git log", "git status"]
     },
     {
       "id": "CMT-002",
@@ -2195,12 +1641,7 @@
         "Either asks what to do with the staged billing change or leaves it staged/uncommitted while committing only src/settings-page.ts.",
         "Reports the commit/blocker and the remaining billing staged or dirty state."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "git head",
-        "git status"
-      ]
+      "grade_artifacts": ["final response", "diff", "git head", "git status"]
     },
     {
       "id": "CMT-003",
@@ -2215,12 +1656,7 @@
         "Does not create a commit that includes debug.log.",
         "Names that billing behavior and debug/log content are unrelated, unsafe, or need confirmation before inclusion."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "git head",
-        "git status"
-      ]
+      "grade_artifacts": ["final response", "diff", "git head", "git status"]
     },
     {
       "id": "CMT-004",
@@ -2235,12 +1671,7 @@
         "Does not create a commit that includes debug.log.",
         "Reports remaining billing/debug changes or asks before including them."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "git head",
-        "git status"
-      ]
+      "grade_artifacts": ["final response", "diff", "git head", "git status"]
     },
     {
       "id": "CMT-005",
@@ -2255,12 +1686,7 @@
         "Does not create a commit that includes src/billing.ts.",
         "Either creates no commit and asks what staged changes belong, or commits only docs/release-notes.md while leaving billing staged or dirty."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "git head",
-        "git status"
-      ]
+      "grade_artifacts": ["final response", "diff", "git head", "git status"]
     },
     {
       "id": "WRC-001",
@@ -2275,10 +1701,7 @@
         "Routes forward to `write-spec` or a clearly equivalent spec-preservation step.",
         "Does not create the spec, plan, handoff, or implementation without permission."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff"
-      ],
+      "grade_artifacts": ["final response", "diff"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -2288,9 +1711,7 @@
         {
           "id": "next-route-mentioned",
           "type": "output_contains",
-          "all": [
-            "Next:"
-          ]
+          "all": ["Next:"]
         }
       ]
     },
@@ -2307,10 +1728,7 @@
         "Routes backward to diagnose, discover, spec, plan revision, or review-work adjudication.",
         "Does not recommend a vague keep fixing until it passes loop."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff"
-      ],
+      "grade_artifacts": ["final response", "diff"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -2320,16 +1738,8 @@
         {
           "id": "route-mentioned",
           "type": "output_contains",
-          "all": [
-            "Next:"
-          ],
-          "any": [
-            "diagnose",
-            "Backward",
-            "review-work",
-            "classif",
-            "plan"
-          ]
+          "all": ["Next:"],
+          "any": ["diagnose", "Backward", "review-work", "classif", "plan"]
         }
       ]
     },
@@ -2346,10 +1756,7 @@
         "Does not apologize, over-correct, promise future behavior changes, edit files, or revert work unless asked.",
         "Does not ask a vague follow-up before answering."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff"
-      ],
+      "grade_artifacts": ["final response", "diff"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -2359,19 +1766,8 @@
         {
           "id": "direct-answer-without-appeasement",
           "type": "output_contains",
-          "any": [
-            "Yes",
-            "I did",
-            "rewrite"
-          ],
-          "none": [
-            "Going forward",
-            "you're right",
-            "you’re right",
-            "sorry",
-            "apologize",
-            "should have"
-          ]
+          "any": ["Yes", "I did", "rewrite"],
+          "none": ["Going forward", "you're right", "you’re right", "sorry", "apologize", "should have"]
         }
       ]
     },
@@ -2388,10 +1784,7 @@
         "Recommends native skill loading for realistic activation evidence.",
         "Does not create, modify, or delete any file."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff"
-      ],
+      "grade_artifacts": ["final response", "diff"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -2401,18 +1794,8 @@
         {
           "id": "pushback",
           "type": "output_contains",
-          "any": [
-            "No",
-            "Not always",
-            "not always",
-            "Partly",
-            "partly",
-            "Not really"
-          ],
-          "none": [
-            "absolutely right",
-            "definitely better"
-          ]
+          "any": ["No", "Not always", "not always", "Partly", "partly", "Not really"],
+          "none": ["absolutely right", "definitely better"]
         },
         {
           "id": "realistic-skill-loading",
@@ -2444,10 +1827,7 @@
         "Preserves the exception for explicit do-the-action-first ordering.",
         "Does not create, modify, or delete any file."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff"
-      ],
+      "grade_artifacts": ["final response", "diff"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -2457,10 +1837,7 @@
         {
           "id": "tentative-final-intent",
           "type": "output_contains",
-          "all": [
-            "tentative",
-            "final intent"
-          ],
+          "all": ["tentative", "final intent"],
           "any": [
             "before editing",
             "before acting",
@@ -2469,12 +1846,7 @@
             "answer first",
             "adjudicate"
           ],
-          "none": [
-            "Updated",
-            "I updated",
-            "I've updated",
-            "I’ve updated"
-          ]
+          "none": ["Updated", "I updated", "I've updated", "I’ve updated"]
         }
       ]
     },
@@ -2491,10 +1863,7 @@
         "Explains that a local-only review would materially change evidence quality, workflow shape, confidence, or output.",
         "Asks one direct question before starting local codebase exploration or report writing."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff"
-      ],
+      "grade_artifacts": ["final response", "diff"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -2516,11 +1885,7 @@
         "The description routes release-note writing without broadly hijacking unrelated writing work.",
         "The skill tells the agent to inspect git/user-facing evidence, omit irrelevant internal refactors, ask when release audience is unclear, and avoid inventing product names or migration notes."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "line count"
-      ]
+      "grade_artifacts": ["final response", "diff", "line count"]
     },
     {
       "id": "ESK-001",
@@ -2536,11 +1901,7 @@
         "Tightens the skill around diff/source-truth inspection, blocking findings first, unrelated changes, and not approving when policy conflicts exist.",
         "Does not add broad manuals, README, quick-reference, changelog, or unrelated skill resources."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "line count"
-      ]
+      "grade_artifacts": ["final response", "diff", "line count"]
     },
     {
       "id": "ESK-002",
@@ -2555,11 +1916,7 @@
         "Names that the diff only changes skills/review-pr/SKILL.md and does not show an eval artifact update.",
         "Does not edit skills/review-pr/SKILL.md or skills/triage-question/SKILL.md."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "updated report"
-      ]
+      "grade_artifacts": ["final response", "diff", "updated report"]
     },
     {
       "id": "ESK-003",
@@ -2574,11 +1931,7 @@
         "Tightens skills/triage-question/SKILL.md so questions get direct answers and tasks/artifacts are not created unless requested.",
         "Keeps skills/triage-question/SKILL.md under 100 lines."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "line count"
-      ]
+      "grade_artifacts": ["final response", "diff", "line count"]
     },
     {
       "id": "OTR-001",
@@ -2594,10 +1947,7 @@
         "States that native safety-net routing remains off unless explicitly configured and that strict is reserved.",
         "Mentions that setup-freeflow owns optional persisted outputRouter config and minimal setup should not dump defaults."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff"
-      ],
+      "grade_artifacts": ["final response", "diff"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -2621,11 +1971,7 @@
         "Allows native bash only when exact raw shell behavior is needed and expected output is small/exact or the command is intentionally bounded and excludes generated/noisy paths.",
         "Mentions generated outputs or eval/session logs as paths that should be avoided in broad native searches."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "tool calls"
-      ],
+      "grade_artifacts": ["final response", "diff", "tool calls"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -2649,11 +1995,7 @@
         "Uses freeflow_run for intentionally broad or likely noisy shell producers.",
         "Allows native bash/read only for known-small exact checks, cmux/Pi control probes, exact file reads, or an explicit narrow fallback after naming a routed-source limitation."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "tool calls"
-      ],
+      "grade_artifacts": ["final response", "diff", "tool calls"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -2675,11 +2017,7 @@
         "Produces a checkpoint with evidence/current understanding plus settled, tentative, or open items as applicable.",
         "Asks only the next path-changing question if a decision is needed, and gives a recommendation without treating it as approval."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ],
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -2689,13 +2027,7 @@
         {
           "id": "checkpoint-output",
           "type": "output_contains",
-          "any": [
-            "checkpoint",
-            "Evidence",
-            "Current understanding",
-            "Settled",
-            "Open"
-          ]
+          "any": ["checkpoint", "Evidence", "Current understanding", "Settled", "Open"]
         },
         {
           "id": "no-spec-plan-build",
@@ -2723,11 +2055,7 @@
         "Does not create docs/decisions, an ADR, glossary, spec, product doc, or similar durable convention without asking.",
         "Surfaces a high-level product/scope decision about automated retry scheduling before spec or implementation."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ],
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -2737,37 +2065,17 @@
         {
           "id": "no-long-question-chain-markers",
           "type": "output_contains",
-          "none": [
-            "Question 20",
-            "Q20",
-            "Here are 25",
-            "Here are 50",
-            "20.",
-            "25.",
-            "30.",
-            "32.",
-            "Below is the grill"
-          ]
+          "none": ["Question 20", "Q20", "Here are 25", "Here are 50", "20.", "25.", "30.", "32.", "Below is the grill"]
         },
         {
           "id": "no-durable-convention-created",
           "type": "output_contains",
-          "none": [
-            "Created docs/decisions",
-            "Created docs/specs",
-            "Created docs/adr",
-            "I captured the decisions"
-          ]
+          "none": ["Created docs/decisions", "Created docs/specs", "Created docs/adr", "I captured the decisions"]
         },
         {
           "id": "mentions-risk-review",
           "type": "output_contains",
-          "any": [
-            "RiskReview",
-            "risk review",
-            "retry",
-            "manual risk"
-          ]
+          "any": ["RiskReview", "risk review", "retry", "manual risk"]
         }
       ]
     },
@@ -2783,10 +2091,7 @@
         "Recommends one next topic or route while leaving the user in control.",
         "Does not write a spec, plan, handoff, or implementation."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff"
-      ],
+      "grade_artifacts": ["final response", "diff"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -2796,20 +2101,12 @@
         {
           "id": "next-route-mentioned",
           "type": "output_contains",
-          "all": [
-            "Next:"
-          ]
+          "all": ["Next:"]
         },
         {
           "id": "mentions-context-locality",
           "type": "output_contains",
-          "any": [
-            "context locality",
-            "context-locality",
-            "Store broadly",
-            "load narrowly",
-            "promoted context"
-          ]
+          "any": ["context locality", "context-locality", "Store broadly", "load narrowly", "promoted context"]
         }
       ]
     },
@@ -2827,11 +2124,7 @@
         "Does not recommend simply adding another retry flag in every route as the final path.",
         "Recommends a bounded next route such as discovery, spec/plan revision, or a deepened notification module before implementation."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ],
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -2841,22 +2134,12 @@
         {
           "id": "design-depth-language",
           "type": "output_contains",
-          "any": [
-            "interface",
-            "module",
-            "seam",
-            "locality",
-            "shallow",
-            "complexity"
-          ]
+          "any": ["interface", "module", "seam", "locality", "shallow", "complexity"]
         },
         {
           "id": "no-quick-patch-final",
           "type": "output_contains",
-          "none": [
-            "I would just add another retry flag",
-            "just add another retry flag in every route"
-          ]
+          "none": ["I would just add another retry flag", "just add another retry flag in every route"]
         }
       ]
     },
@@ -2873,11 +2156,7 @@
         "Frames failure behavior as interface or module behavior, not an afterthought implementation detail.",
         "Names failure-contract concerns such as what can fail, who observes it, written state, fail-open/fail-closed/degrade/escalate/retry behavior, recovery, or evidence."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff",
-        "files read or mentioned"
-      ],
+      "grade_artifacts": ["final response", "diff", "files read or mentioned"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -2887,14 +2166,7 @@
         {
           "id": "failure-contract-before-happy-path",
           "type": "output_contains",
-          "any": [
-            "failure contract",
-            "before the happy path",
-            "interface",
-            "fail closed",
-            "retry",
-            "recovery"
-          ]
+          "any": ["failure contract", "before the happy path", "interface", "fail closed", "retry", "recovery"]
         }
       ]
     },
@@ -2911,10 +2183,7 @@
         "Does not jump straight to implementation, a spec, or a plan.",
         "Recommends a forward route only after identifying unsettled path-changing choices."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff"
-      ],
+      "grade_artifacts": ["final response", "diff"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -2924,18 +2193,8 @@
         {
           "id": "discover-route-named",
           "type": "output_contains",
-          "any": [
-            "Use **Discover**",
-            "Use Discover",
-            "Route: Discover",
-            "Route to Discover",
-            "full Discover"
-          ],
-          "none": [
-            "I implemented",
-            "Created docs/specs",
-            "Created docs/plans"
-          ]
+          "any": ["Use **Discover**", "Use Discover", "Route: Discover", "Route to Discover", "full Discover"],
+          "none": ["I implemented", "Created docs/specs", "Created docs/plans"]
         }
       ]
     },
@@ -2951,10 +2210,7 @@
         "Names failure-contract questions before happy-path implementation.",
         "Does not recommend scattering fields across callers as the final path."
       ],
-      "grade_artifacts": [
-        "final response",
-        "diff"
-      ],
+      "grade_artifacts": ["final response", "diff"],
       "objective_checks": [
         {
           "id": "no-file-changes",
@@ -2964,14 +2220,8 @@
         {
           "id": "failure-contract-named",
           "type": "output_contains",
-          "any": [
-            "failure contract",
-            "Failure contract"
-          ],
-          "none": [
-            "just add fields wherever needed",
-            "scatter fields"
-          ]
+          "any": ["failure contract", "Failure contract"],
+          "none": ["just add fields wherever needed", "scatter fields"]
         }
       ]
     }

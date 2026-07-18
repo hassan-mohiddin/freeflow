@@ -1,14 +1,49 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { sha256 } from "../../../skills/evaluate-skill/scripts/lib/hash.mjs";
-import { decodeCev1, encodeCev1, renderCompactEvidence } from "../../../skills/evaluate-skill/scripts/lib/compact-evidence.mjs";
+import {
+  decodeCev1,
+  encodeCev1,
+  renderCompactEvidence,
+} from "../../../skills/evaluate-skill/scripts/lib/compact-evidence.mjs";
 
 function exactRecords(canonicalText, value = "pass") {
   return [
     { type: "H", schema: "CEV1", fields: { case: "CASE-1", role: "candidate" } },
-    { type: "S", fields: { id: "s1", kind: "file", path: "result.json", sha256: sha256(canonicalText), bytes: Buffer.byteLength(canonicalText), recovery: "exact" } },
-    { type: "F", fields: { name: "verdict", value, source: "s1", span: "json:/verdict", op: `json-pointer@${"a".repeat(64)}`, recovery: "exact-source" } },
-    { type: "O", fields: { kind: "omitted", reason: "irrelevant-to-fixed-criteria", omittedBytes: 3, source: "s1", span: "json:/unrelated", op: `omit@${"b".repeat(64)}`, recovery: "exact-source" } },
+    {
+      type: "S",
+      fields: {
+        id: "s1",
+        kind: "file",
+        path: "result.json",
+        sha256: sha256(canonicalText),
+        bytes: Buffer.byteLength(canonicalText),
+        recovery: "exact",
+      },
+    },
+    {
+      type: "F",
+      fields: {
+        name: "verdict",
+        value,
+        source: "s1",
+        span: "json:/verdict",
+        op: `json-pointer@${"a".repeat(64)}`,
+        recovery: "exact-source",
+      },
+    },
+    {
+      type: "O",
+      fields: {
+        kind: "omitted",
+        reason: "irrelevant-to-fixed-criteria",
+        omittedBytes: 3,
+        source: "s1",
+        span: "json:/unrelated",
+        op: `omit@${"b".repeat(64)}`,
+        recovery: "exact-source",
+      },
+    },
     { type: "R", fields: { bundle: "bundle-1", canonicalSha256: sha256(canonicalText), recovery: "exact" } },
   ];
 }
@@ -33,7 +68,10 @@ test("CEV1 rejects raw controls and uses locale-independent field ordering", () 
   assert.equal(encoded.split("\n")[0], "H|CEV1|I=upper|alpha=first|i=lower");
   assert.throws(() => decodeCev1(encoded.replace("upper", "upper\tunsafe")), /unescaped control/i);
   assert.throws(() => decodeCev1(encoded.replace("upper", "upper\runsafe")), /unescaped control/i);
-  assert.throws(() => decodeCev1(encoded.replace("upper", `upper${String.fromCodePoint(0x7f)}unsafe`)), /unescaped control/i);
+  assert.throws(
+    () => decodeCev1(encoded.replace("upper", `upper${String.fromCodePoint(0x7f)}unsafe`)),
+    /unescaped control/i,
+  );
 });
 
 test("CEV1 rejects missing or overstated fact lineage", () => {

@@ -31,18 +31,30 @@ test("feasibility blockers stop planning before host capability access", async (
     feasibility: { required_evidence_paths: ["unnamed-evidence.json"], expected_tool_round_trips: 5 },
   };
   let capabilityCalls = 0;
-  const result = await buildEvaluationPlan({ ...workspace, cases: workspace.cases.map((item) => item.id === changed.id ? changed : item) }, {
-    case: changed.id,
-    ...hardLimits,
-    provider: "p",
-    model: "m",
-    thinking: "low",
-    max_turns_per_process: 4,
-    plan_only: true,
-  }, { capabilitiesFor: async () => { capabilityCalls += 1; throw new Error("capabilities must not run"); } });
+  const result = await buildEvaluationPlan(
+    { ...workspace, cases: workspace.cases.map((item) => (item.id === changed.id ? changed : item)) },
+    {
+      case: changed.id,
+      ...hardLimits,
+      provider: "p",
+      model: "m",
+      thinking: "low",
+      max_turns_per_process: 4,
+      plan_only: true,
+    },
+    {
+      capabilitiesFor: async () => {
+        capabilityCalls += 1;
+        throw new Error("capabilities must not run");
+      },
+    },
+  );
   assert.equal(result.status, "blocked");
   assert.equal(capabilityCalls, 0);
-  assert.deepEqual(result.summary.feasibility.findings.map((finding) => finding.id), ["FEAS-EVIDENCE-MISSING", "FEAS-EVIDENCE-DISCOVERY", "FEAS-OUTPUT-TOOL", "FEAS-TURN-BUDGET"]);
+  assert.deepEqual(
+    result.summary.feasibility.findings.map((finding) => finding.id),
+    ["FEAS-EVIDENCE-MISSING", "FEAS-EVIDENCE-DISCOVERY", "FEAS-OUTPUT-TOOL", "FEAS-TURN-BUDGET"],
+  );
   assert.equal(result.summary.feasibility.provider_requests, 0);
   assert.match(result.summary.feasibility.rows, /^BLOCK\|FEAS-EVIDENCE-MISSING/);
 });
@@ -109,7 +121,7 @@ test("fixed-script RPC preflight binds turns, capability handshake, and existing
     execution: { ...source.execution, mode: "rpc-scripted" },
     assertions: [{ id: "state", type: "semantic", rubric: "Remembers alpha.", turn_ids: ["turn-1", "turn-2"] }],
   };
-  const cases = workspace.cases.map((item) => item.id === rpc.id ? Object.freeze(rpc) : item);
+  const cases = workspace.cases.map((item) => (item.id === rpc.id ? Object.freeze(rpc) : item));
   const capabilities = {
     id: "pi",
     available: true,
@@ -134,7 +146,9 @@ test("fixed-script RPC preflight binds turns, capability handshake, and existing
     max_turns_per_process: 4,
     owner_approved: true,
   };
-  const result = await buildEvaluationPlan({ ...workspace, cases }, options, { capabilitiesFor: async () => capabilities });
+  const result = await buildEvaluationPlan({ ...workspace, cases }, options, {
+    capabilitiesFor: async () => capabilities,
+  });
   assert.equal(result.status, "ready");
   assert.equal(result.summary.scripted_user_turns, 2);
   assert.equal(result.summary.pi_processes.subject, 1);
@@ -146,7 +160,10 @@ test("fixed-script RPC preflight binds turns, capability handshake, and existing
   assert.match(result.summary.limitations.join("\n"), /complete RPC process/);
 
   const blocked = await buildEvaluationPlan({ ...workspace, cases }, options, {
-    capabilitiesFor: async () => ({ ...capabilities, capabilities: { ...capabilities.capabilities, rpc_jsonl: false, multi_turn: false } }),
+    capabilitiesFor: async () => ({
+      ...capabilities,
+      capabilities: { ...capabilities.capabilities, rpc_jsonl: false, multi_turn: false },
+    }),
   });
   assert.equal(blocked.status, "blocked");
   assert.deepEqual(blocked.summary.capabilities.missing.slice().sort(), ["multi_turn", "rpc_jsonl"]);
@@ -171,8 +188,21 @@ test("composition preflight fingerprints every declared component and enforces s
     fixture: null,
     turns,
     variants: [
-      { id: "reference", role: "reference", kind: "git", revision: "87f83cb", path: "skills/design-for-depth", resources: ["SKILL.md"] },
-      { id: "candidate", role: "candidate", kind: "working-tree", path: "skills/design-for-depth", resources: ["SKILL.md", "references/design-pressure-signals.md"] },
+      {
+        id: "reference",
+        role: "reference",
+        kind: "git",
+        revision: "87f83cb",
+        path: "skills/design-for-depth",
+        resources: ["SKILL.md"],
+      },
+      {
+        id: "candidate",
+        role: "candidate",
+        kind: "working-tree",
+        path: "skills/design-for-depth",
+        resources: ["SKILL.md", "references/design-pressure-signals.md"],
+      },
     ],
     composition: {
       base_stack: [
@@ -189,7 +219,14 @@ test("composition preflight fingerprints every declared component and enforces s
       },
     },
     execution: { host: "pi", mode: "rpc-scripted", tools: ["read"] },
-    assertions: [{ id: "route", type: "semantic", rubric: "Re-enters the narrowest owning activity.", turn_ids: turns.map((turn) => turn.id) }],
+    assertions: [
+      {
+        id: "route",
+        type: "semantic",
+        rubric: "Re-enters the narrowest owning activity.",
+        turn_ids: turns.map((turn) => turn.id),
+      },
+    ],
     source_path: source.source_path,
   };
   const cases = [...workspace.cases, Object.freeze(compositionCase)];
@@ -220,16 +257,27 @@ test("composition preflight fingerprints every declared component and enforces s
     max_turns_per_process: 8,
     plan_only: true,
   };
-  const result = await buildEvaluationPlan({ ...workspace, cases }, options, { capabilitiesFor: async () => capabilities });
+  const result = await buildEvaluationPlan({ ...workspace, cases }, options, {
+    capabilitiesFor: async () => capabilities,
+  });
   assert.equal(result.status, "planned");
   assert.equal(result.summary.scripted_user_turns, 4);
   assert.deepEqual(result.summary.composition.skills, ["execute-work", "tdd", "design-for-depth"]);
   assert.equal(result.summary.composition.runtime_profile, "freeflow-interaction-workflow-v1");
-  assert.deepEqual(result.plan_inputs.identities.composition.base_stack.map((item) => item.name), ["execute-work", "tdd"]);
+  assert.deepEqual(
+    result.plan_inputs.identities.composition.base_stack.map((item) => item.name),
+    ["execute-work", "tdd"],
+  );
   assert.match(result.plan_inputs.identities.composition.runtime.interaction_contract.sha256, /^[a-f0-9]{64}$/);
   assert.match(result.plan_inputs.identities.composition.runtime.workflow.sha256, /^[a-f0-9]{64}$/);
-  assert.match(result.plan_inputs.identities.composition.runtime.implementation.evaluator_extension.sha256, /^[a-f0-9]{64}$/);
-  assert.match(result.plan_inputs.identities.composition.runtime.implementation.production_helper.sha256, /^[a-f0-9]{64}$/);
+  assert.match(
+    result.plan_inputs.identities.composition.runtime.implementation.evaluator_extension.sha256,
+    /^[a-f0-9]{64}$/,
+  );
+  assert.match(
+    result.plan_inputs.identities.composition.runtime.implementation.production_helper.sha256,
+    /^[a-f0-9]{64}$/,
+  );
   for (const component of result.plan_inputs.identities.composition.base_stack) {
     assert.match(component.identity.aggregate_sha256, /^[a-f0-9]{64}$/);
     assert.ok(component.identity.entries.length >= 1);
@@ -239,10 +287,18 @@ test("composition preflight fingerprints every declared component and enforces s
     ...compositionCase,
     composition: { ...compositionCase.composition, base_stack: [...compositionCase.composition.base_stack].reverse() },
   };
-  const reorderedResult = await buildEvaluationPlan({ ...workspace, cases: [...workspace.cases, Object.freeze(reordered)] }, options, { capabilitiesFor: async () => capabilities });
+  const reorderedResult = await buildEvaluationPlan(
+    { ...workspace, cases: [...workspace.cases, Object.freeze(reordered)] },
+    options,
+    { capabilitiesFor: async () => capabilities },
+  );
   assert.notEqual(reorderedResult.fingerprint, result.fingerprint);
 
-  const underBudget = await buildEvaluationPlan({ ...workspace, cases }, { ...options, max_turns_per_process: 3 }, { capabilitiesFor: async () => capabilities });
+  const underBudget = await buildEvaluationPlan(
+    { ...workspace, cases },
+    { ...options, max_turns_per_process: 3 },
+    { capabilitiesFor: async () => capabilities },
+  );
   assert.equal(underBudget.status, "blocked");
   assert.ok(underBudget.summary.blocked_reasons.includes("max-turns-below-scripted-user-turns"));
 
@@ -255,18 +311,27 @@ test("composition preflight fingerprints every declared component and enforces s
   };
   delete oneShot.turns;
   let probedMode = null;
-  const oneShotResult = await buildEvaluationPlan({ ...workspace, cases: [...workspace.cases, Object.freeze(oneShot)] }, options, {
-    capabilitiesFor: async (_host, mode) => {
-      probedMode = mode;
-      return { ...capabilities, capabilities: { ...capabilities.capabilities, one_shot_json: true } };
+  const oneShotResult = await buildEvaluationPlan(
+    { ...workspace, cases: [...workspace.cases, Object.freeze(oneShot)] },
+    options,
+    {
+      capabilitiesFor: async (_host, mode) => {
+        probedMode = mode;
+        return { ...capabilities, capabilities: { ...capabilities.capabilities, one_shot_json: true } };
+      },
     },
-  });
+  );
   assert.equal(oneShotResult.status, "planned", JSON.stringify(oneShotResult.summary.blocked_reasons));
   assert.equal(probedMode, "rpc-scripted");
 
-  const wrongTarget = { ...compositionCase, composition: { ...compositionCase.composition, target_name: "wrong-target" } };
+  const wrongTarget = {
+    ...compositionCase,
+    composition: { ...compositionCase.composition, target_name: "wrong-target" },
+  };
   await assert.rejects(
-    buildEvaluationPlan({ ...workspace, cases: [...workspace.cases, Object.freeze(wrongTarget)] }, options, { capabilitiesFor: async () => capabilities }),
+    buildEvaluationPlan({ ...workspace, cases: [...workspace.cases, Object.freeze(wrongTarget)] }, options, {
+      capabilitiesFor: async () => capabilities,
+    }),
     /target name mismatch/,
   );
 });
@@ -278,7 +343,7 @@ test("portable Codex planning is role-qualified, fingerprinted, and execution-bl
     ...source,
     execution: { host: "portable", allowed_hosts: ["pi", "codex"], mode: "one-shot", tools: ["read", "write"] },
   };
-  const cases = workspace.cases.map((item) => item.id === portable.id ? Object.freeze(portable) : item);
+  const cases = workspace.cases.map((item) => (item.id === portable.id ? Object.freeze(portable) : item));
   const capabilities = {
     id: "codex",
     available: true,
@@ -312,7 +377,9 @@ test("portable Codex planning is role-qualified, fingerprinted, and execution-bl
     max_turns_per_process: 4,
     plan_only: true,
   };
-  const result = await buildEvaluationPlan({ ...workspace, cases }, options, { capabilitiesFor: async () => capabilities });
+  const result = await buildEvaluationPlan({ ...workspace, cases }, options, {
+    capabilitiesFor: async () => capabilities,
+  });
   assert.equal(result.status, "blocked");
   assert.equal(result.plan_inputs.subject_host, "codex");
   assert.equal(result.plan_inputs.adapter_version, "codex-exec-diagnostic-v1");
@@ -326,11 +393,19 @@ test("portable Codex planning is role-qualified, fingerprinted, and execution-bl
   assert.equal(result.summary.worst_case_approved_turns, null);
 
   await assert.rejects(
-    buildEvaluationPlan({ ...workspace, cases }, { ...options, subject_provider: "custom" }, { capabilitiesFor: async () => capabilities }),
+    buildEvaluationPlan(
+      { ...workspace, cases },
+      { ...options, subject_provider: "custom" },
+      { capabilitiesFor: async () => capabilities },
+    ),
     /subject-provider.*openai/i,
   );
   await assert.rejects(
-    buildEvaluationPlan({ ...workspace, cases }, { ...options, provider: "legacy" }, { capabilitiesFor: async () => capabilities }),
+    buildEvaluationPlan(
+      { ...workspace, cases },
+      { ...options, provider: "legacy" },
+      { capabilitiesFor: async () => capabilities },
+    ),
     /legacy|mixed/i,
   );
 });
@@ -372,8 +447,14 @@ test("fingerprint binds evaluator and semantic implementation identities", async
     path: ".skill-eval/evaluate-skill/cases/ESK2-001-reuse-adequate-eval.json",
     sha256: await hashFile(result.eval_case.source_path),
   });
-  const changedEvaluator = { ...result.plan_inputs, identities: { ...result.plan_inputs.identities, evaluator: "0".repeat(64) } };
-  const changedSemantic = { ...result.plan_inputs, identities: { ...result.plan_inputs.identities, semantic: "1".repeat(64) } };
+  const changedEvaluator = {
+    ...result.plan_inputs,
+    identities: { ...result.plan_inputs.identities, evaluator: "0".repeat(64) },
+  };
+  const changedSemantic = {
+    ...result.plan_inputs,
+    identities: { ...result.plan_inputs.identities, semantic: "1".repeat(64) },
+  };
   assert.notEqual(sha256(stableJson(changedEvaluator)), result.fingerprint);
   assert.notEqual(sha256(stableJson(changedSemantic)), result.fingerprint);
 });
@@ -383,14 +464,19 @@ test("preflight rejects a missing declared Git subject resource", async () => {
   const source = workspace.cases.find((item) => item.id === "WSK2-005");
   const changedCase = {
     ...source,
-    variants: source.variants.map((variant, index) => index === 0 ? { ...variant, resources: ["MISSING.md"] } : variant),
+    variants: source.variants.map((variant, index) =>
+      index === 0 ? { ...variant, resources: ["MISSING.md"] } : variant,
+    ),
   };
   await assert.rejects(
-    buildEvaluationPlan({ ...workspace, cases: workspace.cases.map((item) => item.id === changedCase.id ? changedCase : item) }, {
-      case: "WSK2-005",
-      ...hardLimits,
-      plan_only: true,
-    }),
+    buildEvaluationPlan(
+      { ...workspace, cases: workspace.cases.map((item) => (item.id === changedCase.id ? changedCase : item)) },
+      {
+        case: "WSK2-005",
+        ...hardLimits,
+        plan_only: true,
+      },
+    ),
     /missing git subject resource/i,
   );
 });

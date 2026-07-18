@@ -15,15 +15,22 @@ function validSkillFrontmatter(text) {
   const match = text.match(/^---\n([\s\S]*?)\n---\n/);
   if (!match) return false;
   const lines = match[1].split("\n");
-  const fields = Object.fromEntries(lines.map((line) => {
-    const index = line.indexOf(":");
-    return index < 0 ? [line.trim(), ""] : [line.slice(0, index).trim(), line.slice(index + 1).trim()];
-  }));
+  const fields = Object.fromEntries(
+    lines.map((line) => {
+      const index = line.indexOf(":");
+      return index < 0 ? [line.trim(), ""] : [line.slice(0, index).trim(), line.slice(index + 1).trim()];
+    }),
+  );
   return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(fields.name ?? "") && Boolean(fields.description);
 }
 
 async function readOptional(path) {
-  try { return await readFile(path, "utf8"); } catch (error) { if (error.code === "ENOENT") return null; throw error; }
+  try {
+    return await readFile(path, "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  }
 }
 
 export async function gradeObjectiveRun(runDir) {
@@ -33,7 +40,8 @@ export async function gradeObjectiveRun(runDir) {
   const after = await readJson(resolve(runDir, "after-manifest.json"));
   const changedPaths = metadata.changed_paths ?? [];
   const assertionRoot = resolve(runDir, metadata.assertion_root === "skill" ? "inputs/skill" : "artifacts/workspace");
-  const transcript = metadata.execution_mode === "rpc-scripted" ? await readJson(resolve(runDir, "transcript.json")) : null;
+  const transcript =
+    metadata.execution_mode === "rpc-scripted" ? await readJson(resolve(runDir, "transcript.json")) : null;
   const turnsById = new Map((transcript?.turns ?? []).map((turn) => [turn.id, turn]));
   const results = [];
 
@@ -65,12 +73,15 @@ export async function gradeObjectiveRun(runDir) {
       case "component_not_read": {
         const reads = turn ? turn.skill_reads : metadata.activation?.skill_reads;
         const observed = Boolean(reads?.[assertion.component]);
-        state = assertion.type === "component_read" ? (observed ? "pass" : "fail") : (observed ? "fail" : "pass");
+        state = assertion.type === "component_read" ? (observed ? "pass" : "fail") : observed ? "fail" : "pass";
         evidence = { component: assertion.component, observed, turn_id: assertion.turn_id ?? null };
         break;
       }
       case "path_exists":
-        state = scopedAfter.files[assertion.path]?.type === "file" || scopedAfter.files[assertion.path]?.type === "symlink" ? "pass" : "fail";
+        state =
+          scopedAfter.files[assertion.path]?.type === "file" || scopedAfter.files[assertion.path]?.type === "symlink"
+            ? "pass"
+            : "fail";
         evidence = scopedAfter.files[assertion.path] ?? null;
         break;
       case "changed_paths": {
@@ -95,7 +106,9 @@ export async function gradeObjectiveRun(runDir) {
         break;
       }
       case "line_count": {
-        const entry = scopedAfter.files[assertion.path] ?? (metadata.assertion_root === "skill" ? metadata.skill_manifest?.files?.[assertion.path] : null);
+        const entry =
+          scopedAfter.files[assertion.path] ??
+          (metadata.assertion_root === "skill" ? metadata.skill_manifest?.files?.[assertion.path] : null);
         state = entry?.type === "file" && entry.lines <= assertion.max ? "pass" : "fail";
         evidence = { actual: entry?.lines ?? null, max: assertion.max };
         break;
@@ -108,14 +121,20 @@ export async function gradeObjectiveRun(runDir) {
       }
       case "forbidden_text": {
         const text = await readOptional(resolve(assertionRoot, assertion.path));
-        const matches = text === null ? ["<missing-file>"] : assertion.patterns.filter((pattern) => text.toLowerCase().includes(pattern.toLowerCase()));
+        const matches =
+          text === null
+            ? ["<missing-file>"]
+            : assertion.patterns.filter((pattern) => text.toLowerCase().includes(pattern.toLowerCase()));
         state = matches.length === 0 ? "pass" : "fail";
         evidence = { matches };
         break;
       }
       case "file_contains": {
         const text = await readOptional(resolve(assertionRoot, assertion.path));
-        const missing = text === null ? assertion.patterns : assertion.patterns.filter((pattern) => !text.toLowerCase().includes(pattern.toLowerCase()));
+        const missing =
+          text === null
+            ? assertion.patterns
+            : assertion.patterns.filter((pattern) => !text.toLowerCase().includes(pattern.toLowerCase()));
         state = missing.length === 0 ? "pass" : "fail";
         evidence = { missing };
         break;
@@ -123,7 +142,9 @@ export async function gradeObjectiveRun(runDir) {
       case "json_field": {
         const text = await readOptional(resolve(assertionRoot, assertion.path));
         let actual = null;
-        try { actual = getField(JSON.parse(text), assertion.field); } catch {}
+        try {
+          actual = getField(JSON.parse(text), assertion.field);
+        } catch {}
         state = actual === assertion.equals ? "pass" : "fail";
         evidence = { actual, expected: assertion.equals };
         break;
@@ -131,7 +152,9 @@ export async function gradeObjectiveRun(runDir) {
       case "json_field_in": {
         const text = await readOptional(resolve(assertionRoot, assertion.path));
         let actual = null;
-        try { actual = getField(JSON.parse(text), assertion.field); } catch {}
+        try {
+          actual = getField(JSON.parse(text), assertion.field);
+        } catch {}
         state = assertion.values.includes(actual) ? "pass" : "fail";
         evidence = { actual, expected_one_of: assertion.values };
         break;

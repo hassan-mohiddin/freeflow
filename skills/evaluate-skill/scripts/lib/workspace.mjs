@@ -78,7 +78,8 @@ export async function readJson(path) {
 }
 
 export function resolveInside(root, candidate, label = "path") {
-  if (typeof candidate !== "string" || candidate.length === 0) throw new Error(`${label} must be a non-empty relative path`);
+  if (typeof candidate !== "string" || candidate.length === 0)
+    throw new Error(`${label} must be a non-empty relative path`);
   if (candidate.includes("\0") || isAbsolute(candidate)) throw new Error(`${label} must be relative: ${candidate}`);
   const absoluteRoot = resolve(root);
   const absolute = resolve(absoluteRoot, candidate);
@@ -108,8 +109,10 @@ function requireString(value, label, { allowEmpty = false } = {}) {
 }
 
 function validateEvidenceClasses(values, label) {
-  if (!Array.isArray(values) || values.length === 0) throw new Error(`${label} must contain at least one evidence class`);
-  for (const value of values) if (!EVIDENCE_CLASSES.has(value)) throw new Error(`${label} contains unknown evidence class: ${value}`);
+  if (!Array.isArray(values) || values.length === 0)
+    throw new Error(`${label} must contain at least one evidence class`);
+  for (const value of values)
+    if (!EVIDENCE_CLASSES.has(value)) throw new Error(`${label} contains unknown evidence class: ${value}`);
   if (new Set(values).size !== values.length) throw new Error(`${label} contains duplicate evidence classes`);
 }
 
@@ -123,75 +126,128 @@ function validateCompositionSource(source, label, { nameRequired = true } = {}) 
   requireString(source.path, `${label}.path`);
   resolveInside("/composition", source.path, `${label}.path`);
   if (source.kind === "git") requireString(source.revision, `${label}.revision`);
-  if (!Array.isArray(source.resources) || source.resources.length === 0) throw new Error(`${label}.resources must not be empty`);
-  if (new Set(source.resources).size !== source.resources.length) throw new Error(`${label}.resources contains duplicates`);
+  if (!Array.isArray(source.resources) || source.resources.length === 0)
+    throw new Error(`${label}.resources must not be empty`);
+  if (new Set(source.resources).size !== source.resources.length)
+    throw new Error(`${label}.resources contains duplicates`);
   for (const resource of source.resources) resolveInside("/subject", resource, `${label}.resource`);
 }
 
 function validateFeasibility(feasibility, path) {
-  if (!feasibility || typeof feasibility !== "object" || Array.isArray(feasibility)) throw new Error(`${path}.feasibility must be an object`);
-  const allowed = new Set(["required_evidence_paths", "literal_requirements", "accepted_equivalences", "active_context_components", "active_context_skill", "expected_tool_round_trips", "fixture_oracle"]);
-  for (const key of Object.keys(feasibility)) if (!allowed.has(key)) throw new Error(`${path}.feasibility has unknown field: ${key}`);
+  if (!feasibility || typeof feasibility !== "object" || Array.isArray(feasibility))
+    throw new Error(`${path}.feasibility must be an object`);
+  const allowed = new Set([
+    "required_evidence_paths",
+    "literal_requirements",
+    "accepted_equivalences",
+    "active_context_components",
+    "active_context_skill",
+    "expected_tool_round_trips",
+    "fixture_oracle",
+  ]);
+  for (const key of Object.keys(feasibility))
+    if (!allowed.has(key)) throw new Error(`${path}.feasibility has unknown field: ${key}`);
   const stringArray = (value, label, { paths = false } = {}) => {
-    if (!Array.isArray(value) || value.length === 0 || value.some((item) => typeof item !== "string" || item.length === 0)) throw new Error(`${label} must be a non-empty string array`);
+    if (
+      !Array.isArray(value) ||
+      value.length === 0 ||
+      value.some((item) => typeof item !== "string" || item.length === 0)
+    )
+      throw new Error(`${label} must be a non-empty string array`);
     if (new Set(value).size !== value.length) throw new Error(`${label} contains duplicates`);
     if (paths) for (const item of value) resolveInside("/fixture", item, label);
   };
-  if (feasibility.required_evidence_paths !== undefined) stringArray(feasibility.required_evidence_paths, `${path}.feasibility.required_evidence_paths`, { paths: true });
-  if (feasibility.accepted_equivalences !== undefined) stringArray(feasibility.accepted_equivalences, `${path}.feasibility.accepted_equivalences`);
-  if (feasibility.active_context_components !== undefined) stringArray(feasibility.active_context_components, `${path}.feasibility.active_context_components`);
-  if (feasibility.active_context_skill !== undefined && typeof feasibility.active_context_skill !== "boolean") throw new Error(`${path}.feasibility.active_context_skill must be boolean`);
-  if (feasibility.expected_tool_round_trips !== undefined && (!Number.isInteger(feasibility.expected_tool_round_trips) || feasibility.expected_tool_round_trips < 0)) throw new Error(`${path}.feasibility.expected_tool_round_trips must be a non-negative integer`);
+  if (feasibility.required_evidence_paths !== undefined)
+    stringArray(feasibility.required_evidence_paths, `${path}.feasibility.required_evidence_paths`, { paths: true });
+  if (feasibility.accepted_equivalences !== undefined)
+    stringArray(feasibility.accepted_equivalences, `${path}.feasibility.accepted_equivalences`);
+  if (feasibility.active_context_components !== undefined)
+    stringArray(feasibility.active_context_components, `${path}.feasibility.active_context_components`);
+  if (feasibility.active_context_skill !== undefined && typeof feasibility.active_context_skill !== "boolean")
+    throw new Error(`${path}.feasibility.active_context_skill must be boolean`);
+  if (
+    feasibility.expected_tool_round_trips !== undefined &&
+    (!Number.isInteger(feasibility.expected_tool_round_trips) || feasibility.expected_tool_round_trips < 0)
+  )
+    throw new Error(`${path}.feasibility.expected_tool_round_trips must be a non-negative integer`);
   if (feasibility.literal_requirements !== undefined) {
-    if (!Array.isArray(feasibility.literal_requirements) || feasibility.literal_requirements.length === 0) throw new Error(`${path}.feasibility.literal_requirements must be non-empty`);
+    if (!Array.isArray(feasibility.literal_requirements) || feasibility.literal_requirements.length === 0)
+      throw new Error(`${path}.feasibility.literal_requirements must be non-empty`);
     for (const [index, item] of feasibility.literal_requirements.entries()) {
-      if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error(`${path}.feasibility.literal_requirements[${index}] must be an object`);
-      for (const key of Object.keys(item)) if (!["value", "source", "equivalence_class"].includes(key)) throw new Error(`${path}.feasibility.literal_requirements[${index}] has unknown field: ${key}`);
+      if (!item || typeof item !== "object" || Array.isArray(item))
+        throw new Error(`${path}.feasibility.literal_requirements[${index}] must be an object`);
+      for (const key of Object.keys(item))
+        if (!["value", "source", "equivalence_class"].includes(key))
+          throw new Error(`${path}.feasibility.literal_requirements[${index}] has unknown field: ${key}`);
       requireString(item.value, `${path}.feasibility.literal_requirements[${index}].value`);
       requireString(item.source, `${path}.feasibility.literal_requirements[${index}].source`);
-      if (item.source !== "prompt" && !item.source.startsWith("fixture:")) throw new Error(`${path}.feasibility.literal_requirements[${index}].source must be prompt or fixture:path`);
-      if (item.source.startsWith("fixture:")) resolveInside("/fixture", item.source.slice("fixture:".length), `${path}.feasibility.literal_requirements[${index}].source`);
-      if (item.equivalence_class !== undefined) requireString(item.equivalence_class, `${path}.feasibility.literal_requirements[${index}].equivalence_class`);
+      if (item.source !== "prompt" && !item.source.startsWith("fixture:"))
+        throw new Error(`${path}.feasibility.literal_requirements[${index}].source must be prompt or fixture:path`);
+      if (item.source.startsWith("fixture:"))
+        resolveInside(
+          "/fixture",
+          item.source.slice("fixture:".length),
+          `${path}.feasibility.literal_requirements[${index}].source`,
+        );
+      if (item.equivalence_class !== undefined)
+        requireString(item.equivalence_class, `${path}.feasibility.literal_requirements[${index}].equivalence_class`);
     }
   }
   if (feasibility.fixture_oracle !== undefined) {
     const oracle = feasibility.fixture_oracle;
-    if (!oracle || typeof oracle !== "object" || Array.isArray(oracle)) throw new Error(`${path}.feasibility.fixture_oracle must be an object`);
-    for (const key of Object.keys(oracle)) if (key !== "checks") throw new Error(`${path}.feasibility.fixture_oracle has unknown field: ${key}`);
-    if (!Array.isArray(oracle.checks) || oracle.checks.length === 0) throw new Error(`${path}.feasibility.fixture_oracle.checks must be a non-empty array`);
+    if (!oracle || typeof oracle !== "object" || Array.isArray(oracle))
+      throw new Error(`${path}.feasibility.fixture_oracle must be an object`);
+    for (const key of Object.keys(oracle))
+      if (key !== "checks") throw new Error(`${path}.feasibility.fixture_oracle has unknown field: ${key}`);
+    if (!Array.isArray(oracle.checks) || oracle.checks.length === 0)
+      throw new Error(`${path}.feasibility.fixture_oracle.checks must be a non-empty array`);
     for (const [index, check] of oracle.checks.entries()) {
       const label = `${path}.feasibility.fixture_oracle.checks[${index}]`;
       if (!check || typeof check !== "object" || Array.isArray(check)) throw new Error(`${label} must be an object`);
-      for (const key of Object.keys(check)) if (!["path", "contains", "not_contains", "sha256"].includes(key)) throw new Error(`${label} has unknown field: ${key}`);
+      for (const key of Object.keys(check))
+        if (!["path", "contains", "not_contains", "sha256"].includes(key))
+          throw new Error(`${label} has unknown field: ${key}`);
       requireString(check.path, `${label}.path`);
       resolveInside("/fixture", check.path, `${label}.path`);
       if (check.contains !== undefined) stringArray(check.contains, `${label}.contains`);
       if (check.not_contains !== undefined) stringArray(check.not_contains, `${label}.not_contains`);
-      if (check.sha256 !== undefined && !/^[a-f0-9]{64}$/.test(check.sha256)) throw new Error(`${label}.sha256 must be a lowercase SHA-256`);
-      if (check.contains === undefined && check.not_contains === undefined && check.sha256 === undefined) throw new Error(`${label} requires contains, not_contains, or sha256`);
+      if (check.sha256 !== undefined && !/^[a-f0-9]{64}$/.test(check.sha256))
+        throw new Error(`${label}.sha256 must be a lowercase SHA-256`);
+      if (check.contains === undefined && check.not_contains === undefined && check.sha256 === undefined)
+        throw new Error(`${label} requires contains, not_contains, or sha256`);
     }
   }
 }
 
 function validateComposition(composition, value, path) {
-  if (!composition || typeof composition !== "object" || Array.isArray(composition)) throw new Error(`${path}.composition must be an object`);
-  if (value.evaluation_kind !== "comparison") throw new Error(`${path} composition requires comparison evaluation_kind`);
-  if (!Array.isArray(composition.base_stack) || composition.base_stack.length === 0) throw new Error(`${path}.composition.base_stack must not be empty`);
+  if (!composition || typeof composition !== "object" || Array.isArray(composition))
+    throw new Error(`${path}.composition must be an object`);
+  if (value.evaluation_kind !== "comparison")
+    throw new Error(`${path} composition requires comparison evaluation_kind`);
+  if (!Array.isArray(composition.base_stack) || composition.base_stack.length === 0)
+    throw new Error(`${path}.composition.base_stack must not be empty`);
   requireString(composition.target_name, `${path}.composition.target_name`);
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(composition.target_name)) throw new Error(`${path}.composition.target_name must be a skill name`);
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(composition.target_name))
+    throw new Error(`${path}.composition.target_name must be a skill name`);
   const names = new Set();
   for (const component of composition.base_stack) {
     validateCompositionSource(component, `${path}.composition.base_stack component`);
-    if (!component.resources.includes("SKILL.md")) throw new Error(`${path}.composition base component must declare SKILL.md: ${component.name}`);
-    if (names.has(component.name)) throw new Error(`${path}.composition has duplicate component name: ${component.name}`);
+    if (!component.resources.includes("SKILL.md"))
+      throw new Error(`${path}.composition base component must declare SKILL.md: ${component.name}`);
+    if (names.has(component.name))
+      throw new Error(`${path}.composition has duplicate component name: ${component.name}`);
     names.add(component.name);
   }
-  if (names.has(composition.target_name)) throw new Error(`${path}.composition.target_name collides with base component: ${composition.target_name}`);
+  if (names.has(composition.target_name))
+    throw new Error(`${path}.composition.target_name collides with base component: ${composition.target_name}`);
   if (composition.runtime !== undefined && composition.runtime !== null) {
     const runtime = composition.runtime;
-    if (!runtime || typeof runtime !== "object" || Array.isArray(runtime)) throw new Error(`${path}.composition.runtime must be an object or null`);
-    if (!COMPOSITION_RUNTIME_PROFILES.has(runtime.profile)) throw new Error(`${path}.composition has unknown runtime profile: ${runtime.profile}`);
-    if (!COMPOSITION_KINDS.has(runtime.kind)) throw new Error(`${path}.composition.runtime has unknown component kind: ${runtime.kind}`);
+    if (!runtime || typeof runtime !== "object" || Array.isArray(runtime))
+      throw new Error(`${path}.composition.runtime must be an object or null`);
+    if (!COMPOSITION_RUNTIME_PROFILES.has(runtime.profile))
+      throw new Error(`${path}.composition has unknown runtime profile: ${runtime.profile}`);
+    if (!COMPOSITION_KINDS.has(runtime.kind))
+      throw new Error(`${path}.composition.runtime has unknown component kind: ${runtime.kind}`);
     requireString(runtime.path, `${path}.composition.runtime.path`);
     resolveInside("/composition", runtime.path, `${path}.composition.runtime.path`);
     if (runtime.kind === "git") requireString(runtime.revision, `${path}.composition.runtime.revision`);
@@ -199,10 +255,12 @@ function validateComposition(composition, value, path) {
       requireString(runtime[field], `${path}.composition.runtime.${field}`);
       resolveInside("/runtime", runtime[field], `${path}.composition.runtime.${field}`);
     }
-    if (runtime.interaction_contract === runtime.workflow) throw new Error(`${path}.composition runtime Interaction Contract and Workflow must differ`);
+    if (runtime.interaction_contract === runtime.workflow)
+      throw new Error(`${path}.composition runtime Interaction Contract and Workflow must differ`);
   }
   for (const variant of value.variants) {
-    if (!variant.resources.includes("SKILL.md")) throw new Error(`${path} composition target must declare SKILL.md: ${variant.id}`);
+    if (!variant.resources.includes("SKILL.md"))
+      throw new Error(`${path} composition target must declare SKILL.md: ${variant.id}`);
     if (variant.kind === "none") throw new Error(`${path} composition target variants cannot use kind none`);
     if (["composition", "base_stack", "runtime", "target_name"].some((key) => Object.hasOwn(variant, key))) {
       throw new Error(`${path}.${variant.id} mixes shared composition fields into a target variant`);
@@ -221,7 +279,8 @@ export function validateCase(value, { path = "case" } = {}) {
   if (hasPrompt) requireString(value.prompt, `${path}.prompt`, { allowEmpty: true });
   const turnIds = new Set();
   if (hasTurns) {
-    if (!Array.isArray(value.turns) || value.turns.length === 0) throw new Error(`${path}.turns must be a non-empty array`);
+    if (!Array.isArray(value.turns) || value.turns.length === 0)
+      throw new Error(`${path}.turns must be a non-empty array`);
     for (const turn of value.turns) {
       if (!turn || typeof turn !== "object" || Array.isArray(turn)) throw new Error(`${path}.turn must be an object`);
       requireString(turn.id, `${path}.turn.id`);
@@ -230,14 +289,20 @@ export function validateCase(value, { path = "case" } = {}) {
       turnIds.add(turn.id);
     }
   }
-  if (typeof value.required_for_bootstrap !== "boolean") throw new Error(`${path}.required_for_bootstrap must be boolean`);
-  if (!EVALUATION_KINDS.has(value.evaluation_kind)) throw new Error(`${path} has unknown evaluation_kind: ${value.evaluation_kind}`);
-  if (!UNSUPPORTED_EVIDENCE_POLICIES.has(value.unsupported_evidence)) throw new Error(`${path} has unknown unsupported_evidence policy: ${value.unsupported_evidence}`);
+  if (typeof value.required_for_bootstrap !== "boolean")
+    throw new Error(`${path}.required_for_bootstrap must be boolean`);
+  if (!EVALUATION_KINDS.has(value.evaluation_kind))
+    throw new Error(`${path} has unknown evaluation_kind: ${value.evaluation_kind}`);
+  if (!UNSUPPORTED_EVIDENCE_POLICIES.has(value.unsupported_evidence))
+    throw new Error(`${path} has unknown unsupported_evidence policy: ${value.unsupported_evidence}`);
   validateEvidenceClasses(value.evidence_classes, `${path}.evidence_classes`);
-  if (value.requested_evidence_classes !== undefined) validateEvidenceClasses(value.requested_evidence_classes, `${path}.requested_evidence_classes`);
+  if (value.requested_evidence_classes !== undefined)
+    validateEvidenceClasses(value.requested_evidence_classes, `${path}.requested_evidence_classes`);
   if (value.feasibility !== undefined) validateFeasibility(value.feasibility, path);
-  if (value.fixture !== null && typeof value.fixture !== "string") throw new Error(`${path}.fixture must be a string or null`);
-  if (!Array.isArray(value.variants) || value.variants.length === 0) throw new Error(`${path}.variants must not be empty`);
+  if (value.fixture !== null && typeof value.fixture !== "string")
+    throw new Error(`${path}.fixture must be a string or null`);
+  if (!Array.isArray(value.variants) || value.variants.length === 0)
+    throw new Error(`${path}.variants must not be empty`);
   const variantIds = new Set();
   for (const variant of value.variants) {
     requireString(variant.id, `${path}.variant.id`);
@@ -247,15 +312,23 @@ export function validateCase(value, { path = "case" } = {}) {
     if (!VARIANT_ROLES.has(variant.role)) throw new Error(`${path}.${variant.id} has unknown role: ${variant.role}`);
     requireString(variant.path, `${path}.${variant.id}.path`);
     if (variant.kind === "git") requireString(variant.revision, `${path}.${variant.id}.revision`);
-    if (!Array.isArray(variant.resources) || variant.resources.length === 0) throw new Error(`${path}.${variant.id}.resources must not be empty`);
-    if (new Set(variant.resources).size !== variant.resources.length) throw new Error(`${path}.${variant.id}.resources contains duplicates`);
+    if (!Array.isArray(variant.resources) || variant.resources.length === 0)
+      throw new Error(`${path}.${variant.id}.resources must not be empty`);
+    if (new Set(variant.resources).size !== variant.resources.length)
+      throw new Error(`${path}.${variant.id}.resources contains duplicates`);
     for (const resource of variant.resources) resolveInside("/subject", resource, `${path}.${variant.id}.resource`);
   }
   if (value.composition !== undefined) validateComposition(value.composition, value, path);
   if (value.feasibility?.active_context_components !== undefined) {
-    if (value.composition === undefined) throw new Error(`${path}.feasibility.active_context_components requires composition`);
-    const componentNames = new Set([...value.composition.base_stack.map((component) => component.name), value.composition.target_name]);
-    for (const name of value.feasibility.active_context_components) if (!componentNames.has(name)) throw new Error(`${path}.feasibility.active_context_components names unknown component: ${name}`);
+    if (value.composition === undefined)
+      throw new Error(`${path}.feasibility.active_context_components requires composition`);
+    const componentNames = new Set([
+      ...value.composition.base_stack.map((component) => component.name),
+      value.composition.target_name,
+    ]);
+    for (const name of value.feasibility.active_context_components)
+      if (!componentNames.has(name))
+        throw new Error(`${path}.feasibility.active_context_components names unknown component: ${name}`);
   }
   const expectedRoles = value.evaluation_kind === "single" ? ["subject"] : ["reference", "candidate"];
   const actualRoles = value.variants.map((variant) => variant.role);
@@ -264,29 +337,43 @@ export function validateCase(value, { path = "case" } = {}) {
   }
   if (!value.execution || !HOSTS.has(value.execution.host)) throw new Error(`${path} has unknown execution host`);
   if (value.execution.host === "portable") {
-    if (value.execution.mode !== "one-shot" || !hasPrompt) throw new Error(`${path} portable execution requires one-shot mode and prompt`);
-    if (!Array.isArray(value.execution.allowed_hosts) || value.execution.allowed_hosts.length === 0) throw new Error(`${path}.execution.allowed_hosts must be non-empty`);
-    if (new Set(value.execution.allowed_hosts).size !== value.execution.allowed_hosts.length) throw new Error(`${path}.execution.allowed_hosts contains duplicate host`);
-    for (const host of value.execution.allowed_hosts) if (!PORTABLE_HOSTS.has(host)) throw new Error(`${path}.execution.allowed_hosts contains unknown allowed host: ${host}`);
+    if (value.execution.mode !== "one-shot" || !hasPrompt)
+      throw new Error(`${path} portable execution requires one-shot mode and prompt`);
+    if (!Array.isArray(value.execution.allowed_hosts) || value.execution.allowed_hosts.length === 0)
+      throw new Error(`${path}.execution.allowed_hosts must be non-empty`);
+    if (new Set(value.execution.allowed_hosts).size !== value.execution.allowed_hosts.length)
+      throw new Error(`${path}.execution.allowed_hosts contains duplicate host`);
+    for (const host of value.execution.allowed_hosts)
+      if (!PORTABLE_HOSTS.has(host))
+        throw new Error(`${path}.execution.allowed_hosts contains unknown allowed host: ${host}`);
   } else if (value.execution.allowed_hosts !== undefined) {
     throw new Error(`${path}.execution.allowed_hosts is only valid for portable execution`);
   }
-  if (value.execution.host === "pi" && !new Set(["json", "rpc-scripted"]).has(value.execution.mode)) throw new Error(`${path} Pi execution must use json or rpc-scripted mode`);
-  if (value.execution.host === "pi" && value.execution.mode === "json" && !hasPrompt) throw new Error(`${path} Pi json execution requires prompt`);
-  if (value.execution.host === "pi" && value.execution.mode === "rpc-scripted" && !hasTurns) throw new Error(`${path} Pi rpc-scripted execution requires turns`);
+  if (value.execution.host === "pi" && !new Set(["json", "rpc-scripted"]).has(value.execution.mode))
+    throw new Error(`${path} Pi execution must use json or rpc-scripted mode`);
+  if (value.execution.host === "pi" && value.execution.mode === "json" && !hasPrompt)
+    throw new Error(`${path} Pi json execution requires prompt`);
+  if (value.execution.host === "pi" && value.execution.mode === "rpc-scripted" && !hasTurns)
+    throw new Error(`${path} Pi rpc-scripted execution requires turns`);
   if (value.composition !== undefined) {
     if (value.execution.host !== "pi") throw new Error(`${path} composition execution requires Pi`);
     if (value.execution.mode === "rpc-scripted" && (value.turns.length < 2 || value.turns.length > 4)) {
       throw new Error(`${path} composition rpc-scripted execution requires two to four turns`);
     }
   }
-  if (value.execution.host === "none" && (value.execution.mode !== "deterministic" || !hasPrompt)) throw new Error(`${path} deterministic execution must use none host and prompt`);
+  if (value.execution.host === "none" && (value.execution.mode !== "deterministic" || !hasPrompt))
+    throw new Error(`${path} deterministic execution must use none host and prompt`);
   if (!Array.isArray(value.execution.tools)) throw new Error(`${path}.execution.tools must be an array`);
   if (value.execution.tools.includes("bash")) throw new Error(`${path} cannot expose unrestricted bash`);
-  if (value.execution.host === "portable" && value.execution.allowed_hosts.includes("codex") && JSON.stringify(value.execution.tools) !== JSON.stringify(["read", "write"])) {
+  if (
+    value.execution.host === "portable" &&
+    value.execution.allowed_hosts.includes("codex") &&
+    JSON.stringify(value.execution.tools) !== JSON.stringify(["read", "write"])
+  ) {
     throw new Error(`${path} portable Codex tools must be exactly read, write`);
   }
-  if (!Array.isArray(value.assertions) || value.assertions.length === 0) throw new Error(`${path}.assertions must not be empty`);
+  if (!Array.isArray(value.assertions) || value.assertions.length === 0)
+    throw new Error(`${path}.assertions must not be empty`);
   const assertionIds = new Set();
   let semanticTurnScope = null;
   for (const assertion of value.assertions) {
@@ -298,14 +385,18 @@ export function validateCase(value, { path = "case" } = {}) {
     if (assertion.type === "semantic") {
       requireString(assertion.rubric, `${path}.${assertion.id}.rubric`);
       if (value.execution.mode === "rpc-scripted") {
-        if (!Array.isArray(assertion.turn_ids) || assertion.turn_ids.length === 0) throw new Error(`${path}.${assertion.id}.turn_ids must be a non-empty array`);
-        if (new Set(assertion.turn_ids).size !== assertion.turn_ids.length) throw new Error(`${path}.${assertion.id}.turn_ids contains duplicates`);
+        if (!Array.isArray(assertion.turn_ids) || assertion.turn_ids.length === 0)
+          throw new Error(`${path}.${assertion.id}.turn_ids must be a non-empty array`);
+        if (new Set(assertion.turn_ids).size !== assertion.turn_ids.length)
+          throw new Error(`${path}.${assertion.id}.turn_ids contains duplicates`);
         for (const turnId of assertion.turn_ids) {
           requireString(turnId, `${path}.${assertion.id}.turn_id`);
-          if (!turnIds.has(turnId)) throw new Error(`${path}.${assertion.id}.turn_ids contains unknown turn id: ${turnId}`);
+          if (!turnIds.has(turnId))
+            throw new Error(`${path}.${assertion.id}.turn_ids contains unknown turn id: ${turnId}`);
         }
         const scope = JSON.stringify(assertion.turn_ids);
-        if (semanticTurnScope !== null && semanticTurnScope !== scope) throw new Error(`${path} semantic assertions must use the same ordered turn_ids`);
+        if (semanticTurnScope !== null && semanticTurnScope !== scope)
+          throw new Error(`${path} semantic assertions must use the same ordered turn_ids`);
         semanticTurnScope = scope;
       } else if (assertion.turn_ids !== undefined) {
         throw new Error(`${path}.${assertion.id}.turn_ids is only valid for rpc-scripted execution`);
@@ -313,45 +404,80 @@ export function validateCase(value, { path = "case" } = {}) {
     }
     if (assertion.type === "component_read" || assertion.type === "component_not_read") {
       requireString(assertion.component, `${path}.${assertion.id}.component`);
-      if (value.composition === undefined) throw new Error(`${path}.${assertion.id} component assertions require composition`);
-      const componentNames = new Set([...value.composition.base_stack.map((component) => component.name), value.composition.target_name]);
-      if (!componentNames.has(assertion.component)) throw new Error(`${path}.${assertion.id} names unknown composition component: ${assertion.component}`);
+      if (value.composition === undefined)
+        throw new Error(`${path}.${assertion.id} component assertions require composition`);
+      const componentNames = new Set([
+        ...value.composition.base_stack.map((component) => component.name),
+        value.composition.target_name,
+      ]);
+      if (!componentNames.has(assertion.component))
+        throw new Error(`${path}.${assertion.id} names unknown composition component: ${assertion.component}`);
     }
     if (assertion.type === "turn_text_contains") {
-      if (assertion.turn_id === undefined) throw new Error(`${path}.${assertion.id} turn_text_contains requires turn_id`);
+      if (assertion.turn_id === undefined)
+        throw new Error(`${path}.${assertion.id} turn_text_contains requires turn_id`);
       const common = assertion.contains;
       const byRole = assertion.contains_by_role;
-      if ((common === undefined) === (byRole === undefined)) throw new Error(`${path}.${assertion.id} must declare exactly one of contains or contains_by_role`);
+      if ((common === undefined) === (byRole === undefined))
+        throw new Error(`${path}.${assertion.id} must declare exactly one of contains or contains_by_role`);
       const validatePatterns = (patterns, label) => {
-        if (!Array.isArray(patterns) || patterns.length === 0 || patterns.some((pattern) => typeof pattern !== "string" || pattern.length === 0)) throw new Error(`${label} must be a non-empty string array`);
+        if (
+          !Array.isArray(patterns) ||
+          patterns.length === 0 ||
+          patterns.some((pattern) => typeof pattern !== "string" || pattern.length === 0)
+        )
+          throw new Error(`${label} must be a non-empty string array`);
       };
       if (common !== undefined) validatePatterns(common, `${path}.${assertion.id}.contains`);
       if (byRole !== undefined) {
-        if (!byRole || typeof byRole !== "object" || Array.isArray(byRole)) throw new Error(`${path}.${assertion.id}.contains_by_role must be an object`);
-        if (JSON.stringify(Object.keys(byRole).sort()) !== JSON.stringify([...expectedRoles].sort())) throw new Error(`${path}.${assertion.id}.contains_by_role must match variant roles`);
-        for (const role of expectedRoles) validatePatterns(byRole[role], `${path}.${assertion.id}.contains_by_role.${role}`);
+        if (!byRole || typeof byRole !== "object" || Array.isArray(byRole))
+          throw new Error(`${path}.${assertion.id}.contains_by_role must be an object`);
+        if (JSON.stringify(Object.keys(byRole).sort()) !== JSON.stringify([...expectedRoles].sort()))
+          throw new Error(`${path}.${assertion.id}.contains_by_role must match variant roles`);
+        for (const role of expectedRoles)
+          validatePatterns(byRole[role], `${path}.${assertion.id}.contains_by_role.${role}`);
       }
       if (assertion.forbids !== undefined) validatePatterns(assertion.forbids, `${path}.${assertion.id}.forbids`);
       if (assertion.forbids_by_role !== undefined) {
         const forbidden = assertion.forbids_by_role;
-        if (!forbidden || typeof forbidden !== "object" || Array.isArray(forbidden)) throw new Error(`${path}.${assertion.id}.forbids_by_role must be an object`);
-        if (JSON.stringify(Object.keys(forbidden).sort()) !== JSON.stringify([...expectedRoles].sort())) throw new Error(`${path}.${assertion.id}.forbids_by_role must match variant roles`);
-        for (const role of expectedRoles) validatePatterns(forbidden[role], `${path}.${assertion.id}.forbids_by_role.${role}`);
+        if (!forbidden || typeof forbidden !== "object" || Array.isArray(forbidden))
+          throw new Error(`${path}.${assertion.id}.forbids_by_role must be an object`);
+        if (JSON.stringify(Object.keys(forbidden).sort()) !== JSON.stringify([...expectedRoles].sort()))
+          throw new Error(`${path}.${assertion.id}.forbids_by_role must match variant roles`);
+        for (const role of expectedRoles)
+          validatePatterns(forbidden[role], `${path}.${assertion.id}.forbids_by_role.${role}`);
       }
     }
     if (assertion.type !== "semantic" && assertion.turn_id !== undefined) {
       requireString(assertion.turn_id, `${path}.${assertion.id}.turn_id`);
-      if (value.execution.mode !== "rpc-scripted") throw new Error(`${path}.${assertion.id}.turn_id is only valid for rpc-scripted execution`);
-      if (!TURN_SCOPED_ASSERTION_TYPES.has(assertion.type)) throw new Error(`${path}.${assertion.id} type ${assertion.type} does not support turn_id`);
-      if (!turnIds.has(assertion.turn_id)) throw new Error(`${path}.${assertion.id}.turn_id names unknown turn id: ${assertion.turn_id}`);
+      if (value.execution.mode !== "rpc-scripted")
+        throw new Error(`${path}.${assertion.id}.turn_id is only valid for rpc-scripted execution`);
+      if (!TURN_SCOPED_ASSERTION_TYPES.has(assertion.type))
+        throw new Error(`${path}.${assertion.id} type ${assertion.type} does not support turn_id`);
+      if (!turnIds.has(assertion.turn_id))
+        throw new Error(`${path}.${assertion.id}.turn_id names unknown turn id: ${assertion.turn_id}`);
     }
-    if (new Set(["path_exists", "skill_frontmatter", "line_count", "path_unchanged", "file_contains", "json_field", "json_field_in", "forbidden_text"]).has(assertion.type)) {
+    if (
+      new Set([
+        "path_exists",
+        "skill_frontmatter",
+        "line_count",
+        "path_unchanged",
+        "file_contains",
+        "json_field",
+        "json_field_in",
+        "forbidden_text",
+      ]).has(assertion.type)
+    ) {
       requireString(assertion.path, `${path}.${assertion.id}.path`);
       resolveInside("/owned", assertion.path, `${path}.${assertion.id}.path`);
     }
-    if (assertion.type === "changed_paths" && !Array.isArray(assertion.equals)) throw new Error(`${path}.${assertion.id}.equals must be an array`);
-    if (assertion.type === "line_count" && (!Number.isInteger(assertion.max) || assertion.max < 1)) throw new Error(`${path}.${assertion.id}.max must be positive`);
-    if (assertion.type === "json_field_in" && (!Array.isArray(assertion.values) || assertion.values.length === 0)) throw new Error(`${path}.${assertion.id}.values must be a non-empty array`);
+    if (assertion.type === "changed_paths" && !Array.isArray(assertion.equals))
+      throw new Error(`${path}.${assertion.id}.equals must be an array`);
+    if (assertion.type === "line_count" && (!Number.isInteger(assertion.max) || assertion.max < 1))
+      throw new Error(`${path}.${assertion.id}.max must be positive`);
+    if (assertion.type === "json_field_in" && (!Array.isArray(assertion.values) || assertion.values.length === 0))
+      throw new Error(`${path}.${assertion.id}.values must be a non-empty array`);
   }
   return value;
 }
@@ -370,7 +496,8 @@ export async function loadSkillWorkspace(repoRoot, skill) {
   for (const caseRef of suite.cases) {
     const casePath = resolveInside(skillRoot, caseRef, "case path");
     const canonicalCasePath = await realpath(casePath);
-    if (!isWithin(await realpath(skillRoot), canonicalCasePath)) throw new Error(`Case path escapes through symlink: ${caseRef}`);
+    if (!isWithin(await realpath(skillRoot), canonicalCasePath))
+      throw new Error(`Case path escapes through symlink: ${caseRef}`);
     const evalCase = validateCase(await readJson(casePath), { path: caseRef });
     if (evalCase.skill !== skill) throw new Error(`${caseRef} targets ${evalCase.skill}, expected ${skill}`);
     if (evalCase.fixture !== null) {
@@ -385,8 +512,10 @@ export async function loadSkillWorkspace(repoRoot, skill) {
     }
     for (const variant of evalCase.variants) resolveInside(repoRoot, variant.path, `${evalCase.id}.${variant.id}.path`);
     if (evalCase.composition !== undefined) {
-      for (const component of evalCase.composition.base_stack) resolveInside(repoRoot, component.path, `${evalCase.id}.composition.${component.name}.path`);
-      if (evalCase.composition.runtime) resolveInside(repoRoot, evalCase.composition.runtime.path, `${evalCase.id}.composition.runtime.path`);
+      for (const component of evalCase.composition.base_stack)
+        resolveInside(repoRoot, component.path, `${evalCase.id}.composition.${component.name}.path`);
+      if (evalCase.composition.runtime)
+        resolveInside(repoRoot, evalCase.composition.runtime.path, `${evalCase.id}.composition.runtime.path`);
     }
     cases.push(Object.freeze({ ...evalCase, source_path: casePath }));
   }
@@ -420,7 +549,9 @@ export async function initSkillWorkspace({ root, skill }) {
     unsupported_evidence: "block",
     prompt: "Replace with a natural pressure prompt.",
     fixture: null,
-    variants: [{ id: "candidate", role: "subject", kind: "working-tree", path: `skills/${skill}`, resources: ["SKILL.md"] }],
+    variants: [
+      { id: "candidate", role: "subject", kind: "working-tree", path: `skills/${skill}`, resources: ["SKILL.md"] },
+    ],
     execution: { host: "pi", mode: "json", tools: ["read"] },
     assertions: [{ id: "behavior", type: "semantic", rubric: "Replace with fixed pre-run criteria." }],
   };

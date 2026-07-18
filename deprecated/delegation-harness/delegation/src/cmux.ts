@@ -203,10 +203,24 @@ export async function ensureDelegationReady(input: EnsureDelegationReadyInput): 
   }
   const missingCommands = requiredCommands.filter((command) => !cmuxHelpMentionsCommand(help.stdout, command));
   if (missingCommands.length > 0) {
-    checks.push({ name: "cmux_required_commands", status: "failed", message: `missing cmux command(s): ${missingCommands.join(", ")}`, command: helpCommand });
-    return unavailable("cmux_command_unavailable", `cmux is missing required command(s): ${missingCommands.join(", ")}`, checks);
+    checks.push({
+      name: "cmux_required_commands",
+      status: "failed",
+      message: `missing cmux command(s): ${missingCommands.join(", ")}`,
+      command: helpCommand,
+    });
+    return unavailable(
+      "cmux_command_unavailable",
+      `cmux is missing required command(s): ${missingCommands.join(", ")}`,
+      checks,
+    );
   }
-  checks.push({ name: "cmux_required_commands", status: "ok", message: `found ${requiredCommands.join(", ")}`, command: helpCommand });
+  checks.push({
+    name: "cmux_required_commands",
+    status: "ok",
+    message: `found ${requiredCommands.join(", ")}`,
+    command: helpCommand,
+  });
 
   if (hasUsableCmuxEnv(env)) {
     checks.push({ name: "cmux_context", status: "ok", message: "usable cmux context detected from CMUX_* env" });
@@ -214,10 +228,20 @@ export async function ensureDelegationReady(input: EnsureDelegationReadyInput): 
     const identifyCommand = ["cmux", "identify"];
     const identify = await runCheck(input.runner, identifyCommand, cmuxRunOptions({ cwd, env, timeoutMs }));
     if (!isRunOk(identify) || !cmuxIdentifyLooksUsable(identify.stdout)) {
-      checks.push({ name: "cmux_context", status: "failed", message: summarizeRunFailure(identify) || "cmux identify returned no usable workspace/surface", command: identifyCommand });
+      checks.push({
+        name: "cmux_context",
+        status: "failed",
+        message: summarizeRunFailure(identify) || "cmux identify returned no usable workspace/surface",
+        command: identifyCommand,
+      });
       return unavailable("cmux_context_unavailable", "current terminal is not in a usable cmux context", checks);
     }
-    checks.push({ name: "cmux_context", status: "ok", message: "cmux identify returned a usable context", command: identifyCommand });
+    checks.push({
+      name: "cmux_context",
+      status: "ok",
+      message: "cmux identify returned a usable context",
+      command: identifyCommand,
+    });
   }
 
   const piAvailable = await runAvailabilityCheck(input.runner, "child_pi_command", childPiCommand, cwd, env, timeoutMs);
@@ -307,7 +331,11 @@ export function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
-function unavailable(code: DelegationUnavailableCode, reason: string, checks: DelegationPreflightCheck[]): DelegationPreflightUnavailable {
+function unavailable(
+  code: DelegationUnavailableCode,
+  reason: string,
+  checks: DelegationPreflightCheck[],
+): DelegationPreflightUnavailable {
   return {
     ok: false,
     status: "unavailable",
@@ -332,7 +360,10 @@ async function runAvailabilityCheck(
   if (isRunOk(result) && result.stdout.trim().length > 0) {
     return { ok: true, check: { name, status: "ok", message: `${executable} found`, command } };
   }
-  return { ok: false, check: { name, status: "failed", message: summarizeRunFailure(result) || `${executable} not found`, command } };
+  return {
+    ok: false,
+    check: { name, status: "failed", message: summarizeRunFailure(result) || `${executable} not found`, command },
+  };
 }
 
 async function runCheck(runner: CmuxCommandRunner, command: string[], options: CmuxRunOptions): Promise<CmuxRunResult> {
@@ -370,12 +401,16 @@ function summarizeRunFailure(result: CmuxRunResult): string {
 
 function cmuxHelpMentionsCommand(help: string, command: string): boolean {
   const escaped = command.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(?:^|\\n)\\s{2}${escaped}(?:\\s|$)`, "m").test(help)
-    || new RegExp(`(?:^|\\n)\\s*${escaped}(?:\\s|$)`, "m").test(help);
+  return (
+    new RegExp(`(?:^|\\n)\\s{2}${escaped}(?:\\s|$)`, "m").test(help) ||
+    new RegExp(`(?:^|\\n)\\s*${escaped}(?:\\s|$)`, "m").test(help)
+  );
 }
 
 function hasUsableCmuxEnv(env: Record<string, string | undefined>): boolean {
-  return [env.CMUX_WORKSPACE_ID, env.CMUX_SURFACE_ID, env.CMUX_WINDOW_ID].some((value) => typeof value === "string" && value.trim().length > 0);
+  return [env.CMUX_WORKSPACE_ID, env.CMUX_SURFACE_ID, env.CMUX_WINDOW_ID].some(
+    (value) => typeof value === "string" && value.trim().length > 0,
+  );
 }
 
 function cmuxIdentifyLooksUsable(stdout: string): boolean {
@@ -392,7 +427,11 @@ async function checkStoreWritability(storeRoot: string): Promise<DelegationPrefl
     const rootStat = await stat(resolved).catch(() => undefined);
     if (rootStat !== undefined) {
       if (!rootStat.isDirectory()) {
-        return { name: "delegation_store", status: "failed", message: `delegation store exists but is not a directory: ${resolved}` };
+        return {
+          name: "delegation_store",
+          status: "failed",
+          message: `delegation store exists but is not a directory: ${resolved}`,
+        };
       }
       await access(resolved, constants.W_OK);
       return { name: "delegation_store", status: "ok", message: `delegation store is writable: ${resolved}` };
@@ -402,7 +441,11 @@ async function checkStoreWritability(storeRoot: string): Promise<DelegationPrefl
     await access(ancestor, constants.W_OK);
     return { name: "delegation_store", status: "ok", message: `delegation store ancestor is writable: ${ancestor}` };
   } catch (error) {
-    return { name: "delegation_store", status: "failed", message: `delegation store is not writable: ${error instanceof Error ? error.message : String(error)}` };
+    return {
+      name: "delegation_store",
+      status: "failed",
+      message: `delegation store is not writable: ${error instanceof Error ? error.message : String(error)}`,
+    };
   }
 }
 
@@ -485,7 +528,12 @@ function appendOptionalRef(command: string[], flag: string, value: string | unde
   }
 }
 
-function cmuxRunOptions(input: { cwd?: string | undefined; env?: Record<string, string | undefined> | undefined; timeoutMs?: number | undefined; signal?: AbortSignal | undefined }): CmuxRunOptions {
+function cmuxRunOptions(input: {
+  cwd?: string | undefined;
+  env?: Record<string, string | undefined> | undefined;
+  timeoutMs?: number | undefined;
+  signal?: AbortSignal | undefined;
+}): CmuxRunOptions {
   const output: CmuxRunOptions = {};
   if (input.cwd !== undefined) output.cwd = input.cwd;
   if (input.env !== undefined) output.env = input.env;

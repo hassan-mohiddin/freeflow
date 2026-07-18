@@ -5,17 +5,28 @@ export const EXECUTION_STATUSES = ["success", "failed", "timed_out", "cancelled"
 export const ROUTING_STATUSES = ["routed", "passed_through", "partial", "failed"];
 export const ROUTE_KINDS = ["retrieve", "run", "transform", "batch", "observed", "safety-net", "pass-through"];
 export const BATCH_STEP_KINDS = ["run", "search"];
-export const PRODUCER_KINDS = ["command", "script", "native", "repo", "web", "fetch", "code_search", "mcp", "transform", "other"];
+export const PRODUCER_KINDS = [
+  "command",
+  "script",
+  "native",
+  "repo",
+  "web",
+  "fetch",
+  "code_search",
+  "mcp",
+  "transform",
+  "other",
+];
 export const PERSISTENCE_STATUSES = ["vaulted", "redacted", "metadata_only", "not_persisted"];
 export const RECOVERABILITY_MODES = ["exact", "redacted", "metadata_only", "none"];
 export const ROUTER_FAILURE_KINDS = [
-    "adapter_unavailable",
-    "storage_failure",
-    "observed_routing_failure",
-    "script_transform_disabled",
-    "transform_source_unavailable",
-    "transform_validation_failure",
-    "transform_execution_failure",
+  "adapter_unavailable",
+  "storage_failure",
+  "observed_routing_failure",
+  "script_transform_disabled",
+  "transform_source_unavailable",
+  "transform_validation_failure",
+  "transform_execution_failure",
 ];
 export const FAILURE_EXECUTION_STATUSES = ["unavailable", "unsupported", "rejected", "failed", "partial"];
 export const EVIDENCE_WINDOWS = ["exact", "small", "lines_30", "lines_80", "section", "full"];

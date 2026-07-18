@@ -43,7 +43,15 @@ function relation(recordIdValue, evidencePath, evidenceText, evidenceHash) {
 async function fixture(t) {
   const root = await mkdtemp(resolve(tmpdir(), "freeflow-historical-audit-"));
   t.after(() => rm(root, { recursive: true, force: true }));
-  for (const path of [...includedRoots, ...excludedRoots, "evals/registries", "evals/schemas", "evals/runs/sample", "evals/runs/tree/nested", "skills/sample-skill"]) {
+  for (const path of [
+    ...includedRoots,
+    ...excludedRoots,
+    "evals/registries",
+    "evals/schemas",
+    "evals/runs/sample",
+    "evals/runs/tree/nested",
+    "skills/sample-skill",
+  ]) {
     await mkdir(resolve(root, path), { recursive: true });
   }
   await cp(schemaSource, resolve(root, "evals/schemas/historical-evidence.schema.json"));
@@ -69,7 +77,13 @@ async function fixture(t) {
   const treeFileHash = sha("tree artifact\n");
   const treeManifest = `nested/a.txt ${treeFileHash}\n`;
 
-  const fixed = { indexing_revision: 1, indexed_on: indexedOn, authority: "historical-documentary-only", readiness_eligible: false, convertible_to_current_result: false };
+  const fixed = {
+    indexing_revision: 1,
+    indexed_on: indexedOn,
+    authority: "historical-documentary-only",
+    readiness_eligible: false,
+    convertible_to_current_result: false,
+  };
   const records = [
     {
       id: newerId,
@@ -79,7 +93,13 @@ async function fixture(t) {
       reported_eval_ids: [],
       reported_outcome: { label: "reported-not-regraded", excerpt: newerOutcome, sha256: sha(newerOutcome) },
       referenced_artifacts: [],
-      limitations: ["current-skill-not-mapped", "host-not-stated", "method-not-stated", "model-not-stated", "reported-only"],
+      limitations: [
+        "current-skill-not-mapped",
+        "host-not-stated",
+        "method-not-stated",
+        "model-not-stated",
+        "reported-only",
+      ],
       supersedes: [relation(olderId, newerPath, supersessionExcerpt, newerHash)],
       superseded_by: [],
       ...fixed,
@@ -93,10 +113,29 @@ async function fixture(t) {
       reported_outcome: { label: "reported-not-regraded", excerpt: olderOutcome, sha256: sha(olderOutcome) },
       referenced_artifacts: [
         { source_tokens: ["runs/absent/output.md"], path: "evals/runs/absent/output.md", status: "ignored" },
-        { source_tokens: ["runs/sample/output.txt"], path: "evals/runs/sample/output.txt", status: "present", kind: "file", sha256: fileHash },
-        { source_tokens: ["evals/runs/tree/"], path: "evals/runs/tree", status: "present", kind: "directory", sha256: sha(treeManifest) },
+        {
+          source_tokens: ["runs/sample/output.txt"],
+          path: "evals/runs/sample/output.txt",
+          status: "present",
+          kind: "file",
+          sha256: fileHash,
+        },
+        {
+          source_tokens: ["evals/runs/tree/"],
+          path: "evals/runs/tree",
+          status: "present",
+          kind: "directory",
+          sha256: sha(treeManifest),
+        },
       ],
-      limitations: ["artifacts-ignored", "host-not-stated", "method-not-stated", "model-not-stated", "reported-only", "superseded"],
+      limitations: [
+        "artifacts-ignored",
+        "host-not-stated",
+        "method-not-stated",
+        "model-not-stated",
+        "reported-only",
+        "superseded",
+      ],
       supersedes: [],
       superseded_by: [relation(newerId, newerPath, supersessionExcerpt, newerHash)],
       ...fixed,
@@ -130,7 +169,15 @@ test("historical audit accepts complete documentary evidence without granting au
   const { root } = await fixture(t);
   const result = run(root);
   assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(JSON.parse(result.stdout), { status: "ok", records: 2, present_artifacts: 2, ignored_artifacts: 1, missing_artifacts: 0, supersession_relations: 1, model_requests: 0 });
+  assert.deepEqual(JSON.parse(result.stdout), {
+    status: "ok",
+    records: 2,
+    present_artifacts: 2,
+    ignored_artifacts: 1,
+    missing_artifacts: 0,
+    supersession_relations: 1,
+    model_requests: 0,
+  });
 });
 
 test("historical audit treats JSON object property order as non-semantic", async (t) => {
@@ -162,13 +209,60 @@ test("historical audit treats JSON object property order as non-semantic", async
 
 test("historical audit fails closed on authority, source, identity, artifact, mapping, normalization, and relation drift", async (t) => {
   const mutations = [
-    ["authority", (value) => { value.records[0].readiness_eligible = true; }],
-    ["source", async (value, state) => { await writeFile(resolve(state.root, state.olderPath), `${await readFile(resolve(state.root, state.olderPath), "utf8")}drift\n`); }],
-    ["identity", (value) => { value.records[0].id = "HIST-0000000000000000"; }],
-    ["artifact", (value) => { value.records.find((record) => record.referenced_artifacts.length > 0).referenced_artifacts[1].sha256 = "0".repeat(64); }],
-    ["mapping", (value) => { value.records[0].related_current_skills = ["missing-skill"]; value.records[0].limitations = value.records[0].limitations.filter((item) => item !== "current-skill-not-mapped"); }],
-    ["normalization", (value) => { value.records.find((record) => record.referenced_artifacts.length > 0).referenced_artifacts[1].source_tokens = ["evals/runs/sample/output.txt"]; }],
-    ["reciprocity", (value) => { value.records.find((record) => record.superseded_by.length > 0).superseded_by = []; value.records.find((record) => record.superseded_by.length === 0).limitations = value.records.find((record) => record.superseded_by.length === 0).limitations.filter((item) => item !== "superseded"); }],
+    [
+      "authority",
+      (value) => {
+        value.records[0].readiness_eligible = true;
+      },
+    ],
+    [
+      "source",
+      async (value, state) => {
+        await writeFile(
+          resolve(state.root, state.olderPath),
+          `${await readFile(resolve(state.root, state.olderPath), "utf8")}drift\n`,
+        );
+      },
+    ],
+    [
+      "identity",
+      (value) => {
+        value.records[0].id = "HIST-0000000000000000";
+      },
+    ],
+    [
+      "artifact",
+      (value) => {
+        value.records.find((record) => record.referenced_artifacts.length > 0).referenced_artifacts[1].sha256 =
+          "0".repeat(64);
+      },
+    ],
+    [
+      "mapping",
+      (value) => {
+        value.records[0].related_current_skills = ["missing-skill"];
+        value.records[0].limitations = value.records[0].limitations.filter(
+          (item) => item !== "current-skill-not-mapped",
+        );
+      },
+    ],
+    [
+      "normalization",
+      (value) => {
+        value.records.find((record) => record.referenced_artifacts.length > 0).referenced_artifacts[1].source_tokens = [
+          "evals/runs/sample/output.txt",
+        ];
+      },
+    ],
+    [
+      "reciprocity",
+      (value) => {
+        value.records.find((record) => record.superseded_by.length > 0).superseded_by = [];
+        value.records.find((record) => record.superseded_by.length === 0).limitations = value.records
+          .find((record) => record.superseded_by.length === 0)
+          .limitations.filter((item) => item !== "superseded");
+      },
+    ],
   ];
   for (const [name, mutate] of mutations) {
     await t.test(name, async (t) => {

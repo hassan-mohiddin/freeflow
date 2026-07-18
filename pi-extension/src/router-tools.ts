@@ -1,4 +1,13 @@
-import { discoverEryxPythonSandboxAdaptersFromEnv, discoverJqWasmSandboxAdaptersFromEnv, discoverQuickJsWasiSandboxAdaptersFromEnv, freeflowBatch, freeflowTransform, freeflowSearch, freeflowRun, processSource } from "../../router/dist/index.js";
+import {
+  discoverEryxPythonSandboxAdaptersFromEnv,
+  discoverJqWasmSandboxAdaptersFromEnv,
+  discoverQuickJsWasiSandboxAdaptersFromEnv,
+  freeflowBatch,
+  freeflowTransform,
+  freeflowSearch,
+  freeflowRun,
+  processSource,
+} from "../../router/dist/index.js";
 import { buildFreeflowStatusReport } from "./status.js";
 import {
   renderFreeflowBatchCall,
@@ -11,8 +20,19 @@ import {
   renderFreeflowStatusResult,
 } from "./renderers.js";
 import { readOutputRouterConfig, notifyRouterConfigWarnings } from "./runtime-context.js";
-import { FREEFLOW_BATCH_PARAMETERS, FREEFLOW_RUN_PARAMETERS, FREEFLOW_SEARCH_PARAMETERS, FREEFLOW_STATUS_PARAMETERS } from "./schemas.js";
-import { compactBatchToolText, compactRunToolText, compactSearchToolText, getRouterSessionId, routedToolText } from "./utils.js";
+import {
+  FREEFLOW_BATCH_PARAMETERS,
+  FREEFLOW_RUN_PARAMETERS,
+  FREEFLOW_SEARCH_PARAMETERS,
+  FREEFLOW_STATUS_PARAMETERS,
+} from "./schemas.js";
+import {
+  compactBatchToolText,
+  compactRunToolText,
+  compactSearchToolText,
+  getRouterSessionId,
+  routedToolText,
+} from "./utils.js";
 
 function normalizeTransformOperation(operation) {
   if (!operation || typeof operation !== "object" || Array.isArray(operation)) {
@@ -70,7 +90,7 @@ async function normalizeTransformParams(params, ctx) {
 }
 
 async function normalizeSearchEvidenceParams(params, ctx, providedRouterConfigResult = undefined) {
-  const routerConfigResult = providedRouterConfigResult ?? await readOutputRouterConfig(ctx.cwd);
+  const routerConfigResult = providedRouterConfigResult ?? (await readOutputRouterConfig(ctx.cwd));
   if (!providedRouterConfigResult) {
     notifyRouterConfigWarnings(ctx, routerConfigResult);
   }
@@ -161,7 +181,9 @@ async function normalizeSearchTransformProcessingParams(params, ctx, routerConfi
       throw new Error("freeflow_search action=transform source.kind=local requires an explicit absolute source.root.");
     }
     if (!source.path) {
-      throw new Error("freeflow_search action=transform source.kind=local requires source.path for an explicit local file.");
+      throw new Error(
+        "freeflow_search action=transform source.kind=local requires source.path for an explicit local file.",
+      );
     }
     return {
       source: { kind: "local-file", root: source.root, path: source.path },
@@ -224,13 +246,14 @@ async function executeSearch(params, ctx, routerConfigResult) {
   if (params.action === "transform") {
     if (params.operation) {
       const normalized = await normalizeTransformParams(params, ctx);
-      const scriptSandboxAdapters = normalized.operation?.kind === "script"
-        ? [
-            ...(await discoverQuickJsWasiSandboxAdaptersFromEnv()),
-            ...(await discoverJqWasmSandboxAdaptersFromEnv()),
-            ...(await discoverEryxPythonSandboxAdaptersFromEnv()),
-          ]
-        : [];
+      const scriptSandboxAdapters =
+        normalized.operation?.kind === "script"
+          ? [
+              ...(await discoverQuickJsWasiSandboxAdaptersFromEnv()),
+              ...(await discoverJqWasmSandboxAdaptersFromEnv()),
+              ...(await discoverEryxPythonSandboxAdaptersFromEnv()),
+            ]
+          : [];
       return freeflowTransform({
         ...normalized,
         sessionId: getRouterSessionId(ctx),
@@ -279,7 +302,9 @@ async function normalizeBatchParams(params, ctx, routerConfigResult) {
     }
     if (step.kind === "search") {
       if (input.action === "transform") {
-        throw new Error("freeflow_batch search transform steps are not public yet; use freeflow_search directly for transform processing.");
+        throw new Error(
+          "freeflow_batch search transform steps are not public yet; use freeflow_search directly for transform processing.",
+        );
       }
       steps.push({
         id: step.id,
@@ -319,10 +344,12 @@ function batchNeedsScriptAdapters(params) {
 
 function disabledByConfigToolResult(toolName) {
   return {
-    content: [{
-      type: "text",
-      text: `${toolName}|disabled_by_config\ncapability|output-router\nroute|configure with /output-router settings`,
-    }],
+    content: [
+      {
+        type: "text",
+        text: `${toolName}|disabled_by_config\ncapability|output-router\nroute|configure with /output-router settings`,
+      },
+    ],
     details: {
       result: {
         toolStatus: "disabled_by_config",
@@ -347,7 +374,9 @@ function createPiCommandRunner(pi, signal) {
       const durationMs = Date.now() - startedAt;
       const killed = Boolean(result.killed);
       const code = typeof result.code === "number" ? result.code : null;
-      const executionStatus = (signal?.aborted ? "cancelled" : killed ? "timed_out" : code === 0 ? "success" : "failed") as "cancelled" | "timed_out" | "success" | "failed";
+      const executionStatus = (
+        signal?.aborted ? "cancelled" : killed ? "timed_out" : code === 0 ? "success" : "failed"
+      ) as "cancelled" | "timed_out" | "success" | "failed";
       return {
         stdout: result.stdout ?? "",
         stderr: result.stderr ?? "",
@@ -365,7 +394,8 @@ export function registerRouterTools(pi) {
     label: "Freeflow Status",
     description:
       "Inspect effective Freeflow router, observed-routing, script-transform, vault, warnings, and non-destructive migration recommendations.",
-    promptSnippet: "Inspect Freeflow effective config, observed routing, script transform, vault status, and migration recommendations.",
+    promptSnippet:
+      "Inspect Freeflow effective config, observed routing, script transform, vault status, and migration recommendations.",
     promptGuidelines: [
       "Use freeflow_status when setup/config/status/doctor evidence is needed.",
       "Status and migration recommendations are read-only; do not rewrite .freeflow/config.json without explicit confirmation.",
@@ -391,7 +421,8 @@ export function registerRouterTools(pi) {
     label: "Freeflow Search",
     description:
       "Search, retrieve, expand, explain, or transform repo, explicit local, and vaulted Freeflow evidence. Returns compact facts with recoverable source pointers.",
-    promptSnippet: "Search repo/local/vault evidence or transform file/output sources with compact recoverable results.",
+    promptSnippet:
+      "Search repo/local/vault evidence or transform file/output sources with compact recoverable results.",
     promptGuidelines: [
       "Use freeflow_search for targeted repo, explicit local, or vault evidence before reading whole files or dumping captured output.",
       "Use freeflow_search with source.kind=vault and an outputId to recover exact output from freeflow_run.",
@@ -437,13 +468,14 @@ export function registerRouterTools(pi) {
         return disabledByConfigToolResult("freeflow_run");
       }
       const runner = createPiCommandRunner(pi, signal);
-      const scriptSandboxAdapters = params.script || params.scriptFilter
-        ? [
-            ...(await discoverQuickJsWasiSandboxAdaptersFromEnv()),
-            ...(await discoverJqWasmSandboxAdaptersFromEnv()),
-            ...(await discoverEryxPythonSandboxAdaptersFromEnv()),
-          ]
-        : [];
+      const scriptSandboxAdapters =
+        params.script || params.scriptFilter
+          ? [
+              ...(await discoverQuickJsWasiSandboxAdaptersFromEnv()),
+              ...(await discoverJqWasmSandboxAdaptersFromEnv()),
+              ...(await discoverEryxPythonSandboxAdaptersFromEnv()),
+            ]
+          : [];
       const result = await freeflowRun(
         {
           command: params.command,
@@ -544,5 +576,4 @@ export function registerRouterTools(pi) {
       return renderFreeflowBatchResult(result, options, theme);
     },
   });
-
 }

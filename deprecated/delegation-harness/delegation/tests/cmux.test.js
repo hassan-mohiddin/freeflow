@@ -66,9 +66,28 @@ test("cmux command builders construct supported visible-pane commands", () => {
     "--focus",
     "true",
   ]);
-  assert.deepEqual(buildCmuxSendCommand({ surfaceRef: "surface:2", text: "echo hello" }), ["cmux", "send", "--surface", "surface:2", "echo hello"]);
-  assert.deepEqual(buildCmuxReadScreenCommand({ surfaceRef: "surface:2", lines: 40, scrollback: true }), ["cmux", "read-screen", "--surface", "surface:2", "--scrollback", "--lines", "40"]);
-  assert.deepEqual(buildCmuxCloseSurfaceCommand({ surfaceRef: "surface:2" }), ["cmux", "close-surface", "--surface", "surface:2"]);
+  assert.deepEqual(buildCmuxSendCommand({ surfaceRef: "surface:2", text: "echo hello" }), [
+    "cmux",
+    "send",
+    "--surface",
+    "surface:2",
+    "echo hello",
+  ]);
+  assert.deepEqual(buildCmuxReadScreenCommand({ surfaceRef: "surface:2", lines: 40, scrollback: true }), [
+    "cmux",
+    "read-screen",
+    "--surface",
+    "surface:2",
+    "--scrollback",
+    "--lines",
+    "40",
+  ]);
+  assert.deepEqual(buildCmuxCloseSurfaceCommand({ surfaceRef: "surface:2" }), [
+    "cmux",
+    "close-surface",
+    "--surface",
+    "surface:2",
+  ]);
 });
 
 test("cmux ref parser extracts refs from text and JSON", () => {
@@ -84,11 +103,18 @@ test("preflight fails closed when cmux is missing before any cmux pane command",
       throw new Error(`unexpected command: ${command.join(" ")}`);
     });
 
-    const result = await ensureDelegationReady({ runner, storeRoot: join(root, ".freeflow", "delegation"), env: { CMUX_WORKSPACE_ID: "workspace:1" } });
+    const result = await ensureDelegationReady({
+      runner,
+      storeRoot: join(root, ".freeflow", "delegation"),
+      env: { CMUX_WORKSPACE_ID: "workspace:1" },
+    });
 
     assert.equal(result.ok, false);
     assert.equal(result.code, "cmux_binary_missing");
-    assert.equal(calls.some((call) => call.command.includes("new-pane")), false);
+    assert.equal(
+      calls.some((call) => call.command.includes("new-pane")),
+      false,
+    );
   });
 });
 
@@ -108,7 +134,10 @@ test("preflight checks cmux commands, context, child pi, and store writability",
     assert.equal(result.ok, true);
     assert.ok(result.checks.some((check) => check.name === "cmux_context" && check.status === "ok"));
     assert.ok(calls.some((call) => call.command.join(" ") === "cmux identify"));
-    assert.equal(calls.some((call) => call.command.includes("new-pane")), false);
+    assert.equal(
+      calls.some((call) => call.command.includes("new-pane")),
+      false,
+    );
   });
 });
 
@@ -130,5 +159,8 @@ test("adapter uses fake runner for new-pane, send, read-screen, and close-surfac
 
   assert.equal(pane.refs.surfaceRef, "surface:3");
   assert.equal(screen.result.stdout, "screen text\n");
-  assert.deepEqual(calls.map((call) => call.command[1]), ["new-pane", "send", "read-screen", "close-surface"]);
+  assert.deepEqual(
+    calls.map((call) => call.command[1]),
+    ["new-pane", "send", "read-screen", "close-surface"],
+  );
 });

@@ -20,7 +20,13 @@ import {
 } from "./benchmark-harness.js";
 import { freeflowRun, type FreeflowRunOptions, type HostCommandRunResult } from "../tools/run.js";
 import { createVault, readOutputText } from "../vault/vault.js";
-import type { CommandParserMetadata, CommandRoutedResult, ExecutionStatus, PreserveMode, RouterThresholds } from "../config/types.js";
+import type {
+  CommandParserMetadata,
+  CommandRoutedResult,
+  ExecutionStatus,
+  PreserveMode,
+  RouterThresholds,
+} from "../config/types.js";
 
 export interface RunCommandBenchmarksOptions {
   iterations?: number;
@@ -208,7 +214,8 @@ const DEFAULT_SKIPPED_EXTERNAL_TOOLS: CommandSkippedExternalTool[] = [
   },
   {
     name: "Squeez",
-    reason: "Optional session/output compressor comparator is skipped unless a caller supplies a configured comparator hook.",
+    reason:
+      "Optional session/output compressor comparator is skipped unless a caller supplies a configured comparator hook.",
   },
 ];
 
@@ -291,19 +298,17 @@ export function renderCommandBenchmarkReport(report: CommandBenchmarkReport): st
       const correctness = result.skipped ? "skipped" : result.correctness.passed ? "pass" : "fail";
       const checks = formatCommandCorrectnessChecks(result.correctness);
       const status = result.executionStatus ? `${result.executionStatus}/${result.exitCode ?? "null"}` : "-";
-      const parser = result.parser ? `${result.parser.name} ${result.parser.confidence.toFixed(2)} ${result.parser.fidelity}` : "-";
-      const notes = result.notes.length ? result.notes.join("; ") : result.skipReason ?? "";
+      const parser = result.parser
+        ? `${result.parser.name} ${result.parser.confidence.toFixed(2)} ${result.parser.fidelity}`
+        : "-";
+      const notes = result.notes.length ? result.notes.join("; ") : (result.skipReason ?? "");
       lines.push(
         `| ${escapeTable(fixture.id)} | ${escapeTable(result.mode)} | ${correctness} | ${escapeTable(checks)} | ${escapeTable(status)} | ${escapeTable(parser)} | ${result.rawBytes}/${result.rawTokensApprox} | ${result.routedBytes}/${result.routedTokensApprox} | ${formatPercent(result.byteReductionPercent)}/${formatPercent(result.tokenReductionPercent)} | ${result.latencyMs.p50.toFixed(2)}/${result.latencyMs.p95.toFixed(2)} | ${escapeTable(result.recovery.status)} | ${escapeTable(result.outputId ?? "-")} | ${escapeTable(notes)} |`,
       );
     }
   }
 
-  lines.push(
-    "",
-    "## Skipped Optional Command Compressors",
-    "",
-  );
+  lines.push("", "## Skipped Optional Command Compressors", "");
   if (report.skippedExternalTools.length === 0) {
     lines.push("- None. All supplied optional comparator hooks ran.");
   } else {
@@ -332,7 +337,10 @@ export async function writeCommandBenchmarkReport(report: CommandBenchmarkReport
   await writeFile(reportPath, renderCommandBenchmarkReport(report), "utf8");
 }
 
-export async function writeCommandBenchmarkJsonReport(report: CommandBenchmarkReport, reportPath: string): Promise<void> {
+export async function writeCommandBenchmarkJsonReport(
+  report: CommandBenchmarkReport,
+  reportPath: string,
+): Promise<void> {
   await mkdir(dirname(reportPath), { recursive: true });
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
 }
@@ -364,7 +372,9 @@ async function runCommandFixtureMode(
   const run = fixture.modes[mode];
 
   if (!run) {
-    observations.push(skippedObservation(`optional comparator ${mode}`, `No command benchmark mode registered for ${mode}.`));
+    observations.push(
+      skippedObservation(`optional comparator ${mode}`, `No command benchmark mode registered for ${mode}.`),
+    );
   } else {
     for (let index = 0; index < iterations; index += 1) {
       const startedAt = performance.now();
@@ -446,7 +456,10 @@ function summarizeCommandReport(fixtures: CommandBenchmarkFixtureResult[]): Comm
   };
 }
 
-function summarizeCommandMode(fixtures: CommandBenchmarkFixtureResult[], mode: CommandBenchmarkMode): CommandModeSummary {
+function summarizeCommandMode(
+  fixtures: CommandBenchmarkFixtureResult[],
+  mode: CommandBenchmarkMode,
+): CommandModeSummary {
   const modeResults = fixtures
     .map((fixture) => fixture.results.find((candidate) => candidate.mode === mode))
     .filter((result): result is CommandBenchmarkModeResult => Boolean(result));
@@ -654,7 +667,9 @@ function commandFixtureDefinitions(): CommandFixtureDefinition[] {
       requiredFacts: ["REPEATED_OUTPUT identical command output stays recoverable"],
       repeatRuns: 2,
       thresholds: { largeOutputLines: 10, largeOutputBytes: 10_000 },
-      notes: ["Exact duplicate detection returns a compact note; current metadata points to the prior exact raw output."],
+      notes: [
+        "Exact duplicate detection returns a compact note; current metadata points to the prior exact raw output.",
+      ],
     },
   ];
 }
@@ -704,7 +719,10 @@ async function nativeCommandObservation(fixture: CommandFixtureDefinition): Prom
   };
 }
 
-async function improvedCommandObservation(fixture: CommandFixtureDefinition, vaultRoot: string): Promise<CommandBenchmarkObservation> {
+async function improvedCommandObservation(
+  fixture: CommandFixtureDefinition,
+  vaultRoot: string,
+): Promise<CommandBenchmarkObservation> {
   const vault = createVault({ root: vaultRoot });
   const sessionId = `command-benchmark-${fixture.id}`;
   const outputIds: string[] = [];
@@ -733,7 +751,13 @@ async function improvedCommandObservation(fixture: CommandFixtureDefinition, vau
     return skippedObservation("improved-freeflow-run", "freeflowRun did not produce a result.");
   }
 
-  const recovery = await verifyCommandRecovery(vault.root, sessionId, result.recovery?.outputId ?? result.outputId, fixture.combined, fixture.requiredFacts);
+  const recovery = await verifyCommandRecovery(
+    vault.root,
+    sessionId,
+    result.recovery?.outputId ?? result.outputId,
+    fixture.combined,
+    fixture.requiredFacts,
+  );
   const notes = [result.routing.reason, ...(fixture.notes ?? [])];
   if (outputIds.length > 1) {
     notes.push(`repeatedRuns=${outputIds.length}`);
@@ -775,7 +799,11 @@ async function externalComparatorObservation(
     requiredFacts: fixture.requiredFacts,
   });
   const latencyMs = observation.latencyMs ?? performance.now() - startedAt;
-  const notes = [`externalComparator=${comparator.name}`, `latencyMs=${latencyMs.toFixed(2)}`, ...(observation.notes ?? [])];
+  const notes = [
+    `externalComparator=${comparator.name}`,
+    `latencyMs=${latencyMs.toFixed(2)}`,
+    ...(observation.notes ?? []),
+  ];
   const benchmarkObservation: CommandBenchmarkObservation = {
     toolPathUsed: `${comparator.name}: configured external command benchmark hook`,
     rawBytes: observation.rawBytes ?? byteLength(fixture.combined),
@@ -855,7 +883,8 @@ function scoreCommandCorrectness(
   const statusCorrect = observation.executionStatus === expected.executionStatus;
   const exitCodeCorrect = observation.exitCode === expected.exitCode;
   const factsInRoutedExcerpt = expected.requiredFacts.every((fact) => observation.routedExcerpt.includes(fact));
-  const duplicateFactsRecoverable = observation.parser?.name === "duplicate-output" && observation.recovery.status === "passed";
+  const duplicateFactsRecoverable =
+    observation.parser?.name === "duplicate-output" && observation.recovery.status === "passed";
   const exactFactsPreserved = factsInRoutedExcerpt || duplicateFactsRecoverable;
   const failedFactsExact = expected.failedFactsMustBeExact ? exactFactsPreserved : true;
   return {
@@ -871,11 +900,19 @@ function routedText(result: CommandRoutedResult): string {
   return result.importantLines?.map((line) => line.excerpt).join("\n") ?? "";
 }
 
-function commandBenchmarkModes(externalComparators: readonly CommandBenchmarkExternalComparator[]): CommandBenchmarkMode[] {
-  return ["native-baseline-proxy", "improved-freeflow-run", ...externalComparators.map((comparator) => comparator.mode)];
+function commandBenchmarkModes(
+  externalComparators: readonly CommandBenchmarkExternalComparator[],
+): CommandBenchmarkMode[] {
+  return [
+    "native-baseline-proxy",
+    "improved-freeflow-run",
+    ...externalComparators.map((comparator) => comparator.mode),
+  ];
 }
 
-function skippedExternalTools(externalComparators: readonly CommandBenchmarkExternalComparator[]): CommandSkippedExternalTool[] {
+function skippedExternalTools(
+  externalComparators: readonly CommandBenchmarkExternalComparator[],
+): CommandSkippedExternalTool[] {
   const configuredNames = new Set(externalComparators.map((comparator) => comparator.name.toLowerCase()));
   return DEFAULT_SKIPPED_EXTERNAL_TOOLS.filter((tool) => !configuredNames.has(tool.name.toLowerCase()));
 }
@@ -920,7 +957,9 @@ function defaultReportPath(): string {
 }
 
 async function runCli() {
-  const { iterations, reportPath, jsonReportPath } = parseBenchmarkCliArgs(process.argv.slice(2), { reportPath: defaultReportPath() });
+  const { iterations, reportPath, jsonReportPath } = parseBenchmarkCliArgs(process.argv.slice(2), {
+    reportPath: defaultReportPath(),
+  });
   const options: RunCommandBenchmarksOptions = {};
   if (iterations !== undefined) {
     options.iterations = iterations;
@@ -930,7 +969,9 @@ async function runCli() {
     jsonReportPath: jsonReportPath === undefined ? defaultJsonRunReportPath(reportPath) : jsonReportPath,
   });
   const shortId = createHash("sha256").update(JSON.stringify(report.summary)).digest("hex").slice(0, 8);
-  console.log(`Freeflow command benchmark ${shortId}: improved ${report.summary.improved.passed}/${report.summary.fixtures} pass`);
+  console.log(
+    `Freeflow command benchmark ${shortId}: improved ${report.summary.improved.passed}/${report.summary.fixtures} pass`,
+  );
   console.log(`Markdown report: ${reports.markdown}`);
   if (reports.json) {
     console.log(`JSON run data: ${reports.json}`);

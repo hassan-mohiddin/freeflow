@@ -15,14 +15,16 @@ function execution(id, { cost = 0.1, usage = true } = {}) {
     role: "subject",
     process: { exit_code: 0, signal: null, timed_out: false, output_limit_exceeded: false },
     runtime_counters: { turns_started: 1, provider_requests: 1, tool_calls: 2, hard_turn_limit_reached: false },
-    usage: usage ? {
-      input: 10,
-      output: 5,
-      cache_read: 2,
-      cache_write: 1,
-      total_tokens: 18,
-      cost: cost === null ? null : { total_usd: cost },
-    } : null,
+    usage: usage
+      ? {
+          input: 10,
+          output: 5,
+          cache_read: 2,
+          cache_write: 1,
+          total_tokens: 18,
+          cost: cost === null ? null : { total_usd: cost },
+        }
+      : null,
   };
 }
 
@@ -30,7 +32,10 @@ test("ledger records settled executions once in append order", () => {
   const ledger = createEvaluationLedger({ modelDriven: true });
   ledger.record(execution("subject-1"));
   ledger.record(execution("semantic-1"));
-  assert.deepEqual(ledger.entries().map((item) => item.id), ["subject-1", "semantic-1"]);
+  assert.deepEqual(
+    ledger.entries().map((item) => item.id),
+    ["subject-1", "semantic-1"],
+  );
   assert.throws(() => ledger.record(execution("subject-1")), /already recorded/i);
 });
 
@@ -43,7 +48,9 @@ test("ledger snapshots records so later mutation cannot rewrite evidence", () =>
   const [recorded] = ledger.entries();
   assert.equal(recorded.runtime_counters.provider_requests, 1);
   assert.equal(recorded.usage.cost.total_usd, 0.1);
-  assert.throws(() => { recorded.runtime_counters.provider_requests = 5; }, TypeError);
+  assert.throws(() => {
+    recorded.runtime_counters.provider_requests = 5;
+  }, TypeError);
 });
 
 test("public usage derives only from recorded executions", () => {
@@ -101,7 +108,11 @@ test("host-free ledger reports no model usage as unavailable", () => {
 
 test("operation outcomes preserve primary and secondary failures", () => {
   const settled = execution("subject-1");
-  const failed = incompleteOperation({ execution: settled, primary: "evidence write failed", secondary: "cleanup failed" });
+  const failed = incompleteOperation({
+    execution: settled,
+    primary: "evidence write failed",
+    secondary: "cleanup failed",
+  });
   assert.equal(failed.status, "incomplete");
   assert.equal(failed.execution.id, "subject-1");
   assert.deepEqual(failed.failure, { primary: "evidence write failed", secondary: "cleanup failed" });

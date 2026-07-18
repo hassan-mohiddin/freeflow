@@ -3,7 +3,12 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { DEFAULT_ROUTER_THRESHOLDS, DEFAULT_SCRIPT_TRANSFORM_CONFIG, MAX_SCRIPT_TRANSFORM_LIMITS, SCRIPT_TRANSFORM_LANGUAGES } from "../config/config.js";
+import {
+  DEFAULT_ROUTER_THRESHOLDS,
+  DEFAULT_SCRIPT_TRANSFORM_CONFIG,
+  MAX_SCRIPT_TRANSFORM_LIMITS,
+  SCRIPT_TRANSFORM_LANGUAGES,
+} from "../config/config.js";
 import { assembleTextEvidence, byteLength, countLines, splitLines } from "../evidence/evidence.js";
 import { selectScriptSandboxAdapter } from "../sandbox/script-sandbox.js";
 import {
@@ -31,7 +36,11 @@ import type {
   VaultRecord,
   VaultRetentionPolicy,
 } from "../config/types.js";
-import type { ScriptSandboxAdapter, ScriptSandboxExecutionResult, ScriptSandboxSourceMount } from "../sandbox/script-sandbox.js";
+import type {
+  ScriptSandboxAdapter,
+  ScriptSandboxExecutionResult,
+  ScriptSandboxSourceMount,
+} from "../sandbox/script-sandbox.js";
 
 export interface TransformVaultSourceInput {
   kind: "vault";
@@ -123,8 +132,16 @@ export interface ScriptTransformOperation {
   label?: string;
 }
 
-type RegexTransformOperation = RegexFilterTransformOperation | CountMatchesTransformOperation | GroupByRegexTransformOperation | TopNTransformOperation;
-type RegexPatternTransformOperation = RegexFilterTransformOperation | CountMatchesTransformOperation | GroupByRegexTransformOperation | (TopNTransformOperation & { pattern: string });
+type RegexTransformOperation =
+  | RegexFilterTransformOperation
+  | CountMatchesTransformOperation
+  | GroupByRegexTransformOperation
+  | TopNTransformOperation;
+type RegexPatternTransformOperation =
+  | RegexFilterTransformOperation
+  | CountMatchesTransformOperation
+  | GroupByRegexTransformOperation
+  | (TopNTransformOperation & { pattern: string });
 export type DeterministicTransformOperation =
   | RegexFilterTransformOperation
   | CountMatchesTransformOperation
@@ -195,8 +212,7 @@ export interface TransformValidationIssue {
 }
 
 export type TransformValidationResult =
-  | { ok: true; value: TransformInput }
-  | { ok: false; issues: TransformValidationIssue[] };
+  { ok: true; value: TransformInput } | { ok: false; issues: TransformValidationIssue[] };
 
 interface CompiledRegexOperation {
   regex: RegExp;
@@ -215,9 +231,7 @@ type PreparedTransformOperation =
   | { kind: "json"; value: PreparedJsonExtractOperation }
   | { kind: "none" };
 
-type JsonSelectorSegment =
-  | { kind: "property"; key: string }
-  | { kind: "index"; index: number };
+type JsonSelectorSegment = { kind: "property"; key: string } | { kind: "index"; index: number };
 
 interface MatchStats {
   matches: number;
@@ -313,11 +327,15 @@ export function validateTransformInput(value: unknown): TransformValidationResul
   return { ok: true, value: input };
 }
 
-export async function freeflowTransform(options: FreeflowTransformOptions): Promise<TransformRoutedResult | FailureRoutedResult> {
+export async function freeflowTransform(
+  options: FreeflowTransformOptions,
+): Promise<TransformRoutedResult | FailureRoutedResult> {
   return executeTransform(options);
 }
 
-async function executeTransform(options: FreeflowTransformOptions): Promise<TransformRoutedResult | FailureRoutedResult> {
+async function executeTransform(
+  options: FreeflowTransformOptions,
+): Promise<TransformRoutedResult | FailureRoutedResult> {
   const preserve = options.preserve ?? "important";
   const inputValidation = validateTransformInput(options);
   if (!inputValidation.ok) {
@@ -423,7 +441,9 @@ async function executeTransform(options: FreeflowTransformOptions): Promise<Tran
       sourceKind: "transform",
       producer,
       lineage,
-      decisionIds: [decisionId("transform-store", source.outputId, stream, operation.kind, lineage.operationHash ?? "")],
+      decisionIds: [
+        decisionId("transform-store", source.outputId, stream, operation.kind, lineage.operationHash ?? ""),
+      ],
     });
   } catch (error) {
     return storageFailure({
@@ -478,7 +498,8 @@ async function handleScriptTransform(options: {
 
   if (!config.enabled) {
     return scriptTransformDisabledFailure({
-      message: "Script transform is disabled by default. Enable scriptTransform.enabled only after a sandbox adapter has passed capability probes and review. No script code was executed.",
+      message:
+        "Script transform is disabled by default. Enable scriptTransform.enabled only after a sandbox adapter has passed capability probes and review. No script code was executed.",
       preserve: options.preserve,
       lineage: initialLineage,
       decisionSeed: "script-transform-disabled",
@@ -505,7 +526,11 @@ async function handleScriptTransform(options: {
     return resolved.failure;
   }
 
-  const adapterSelection = await selectScriptSandboxAdapter(options.input.operation.language, config, options.options.scriptSandboxAdapters ?? []);
+  const adapterSelection = await selectScriptSandboxAdapter(
+    options.input.operation.language,
+    config,
+    options.options.scriptSandboxAdapters ?? [],
+  );
   if (!adapterSelection.ok) {
     return transformAdapterUnavailableFailure({
       message: `${adapterSelection.status.reason} No script code was executed.`,
@@ -549,7 +574,9 @@ async function handleScriptTransform(options: {
       sourceKind: "transform",
       producer,
       lineage,
-      decisionIds: [decisionId("script-transform-store", options.input.operation.language, lineage.operationHash ?? "")],
+      decisionIds: [
+        decisionId("script-transform-store", options.input.operation.language, lineage.operationHash ?? ""),
+      ],
     });
   } catch (error) {
     return storageFailure({
@@ -595,7 +622,10 @@ async function handleScriptTransform(options: {
   };
 }
 
-function primaryScriptSourceRef(resolvedSources: readonly ResolvedScriptSource[], inputSources: readonly ScriptTransformSourceInput[]): Extract<SourceRef, { kind: "vault" }> {
+function primaryScriptSourceRef(
+  resolvedSources: readonly ResolvedScriptSource[],
+  inputSources: readonly ScriptTransformSourceInput[],
+): Extract<SourceRef, { kind: "vault" }> {
   const resolved = resolvedSources[0];
   if (resolved) {
     return { kind: "vault", outputId: resolved.outputId, stream: resolved.stream };
@@ -622,13 +652,18 @@ export async function executeSandboxedScriptOperation(options: {
       ok: false,
       failureKind: "script_transform_disabled",
       executionStatus: "unavailable",
-      message: "Script transform is disabled by default. Enable scriptTransform.enabled only after a sandbox adapter has passed capability probes and review. No script code was executed.",
+      message:
+        "Script transform is disabled by default. Enable scriptTransform.enabled only after a sandbox adapter has passed capability probes and review. No script code was executed.",
       limits,
       operation,
     };
   }
 
-  const adapterSelection = await selectScriptSandboxAdapter(options.operation.language, config, options.scriptSandboxAdapters ?? []);
+  const adapterSelection = await selectScriptSandboxAdapter(
+    options.operation.language,
+    config,
+    options.scriptSandboxAdapters ?? [],
+  );
   if (!adapterSelection.ok) {
     const failure: SandboxedScriptOperationFailure = {
       ok: false,
@@ -698,7 +733,10 @@ async function executeScriptWithAdapter(options: {
   const stderrBytes = byteLength(execution.result.stderr ?? "");
   if (execution.result.status !== "success") {
     const detail = execution.result.reason ? ` ${execution.result.reason}` : "";
-    return { ok: false, message: `Script transform ${options.operation.language} ${execution.result.status}.${detail} stdoutBytes=${stdoutBytes} stderrBytes=${stderrBytes}.` };
+    return {
+      ok: false,
+      message: `Script transform ${options.operation.language} ${execution.result.status}.${detail} stdoutBytes=${stdoutBytes} stderrBytes=${stderrBytes}.`,
+    };
   }
   return { ok: true, result: execution.result };
 }
@@ -724,16 +762,24 @@ async function runScriptAdapter(options: {
       await writeFile(path, source.text, "utf8");
       mounts.push({ alias: source.alias, path, bytes: source.bytes, sha256: source.textSha256 });
     }
-    await writeFile(join(inputDir, "manifest.json"), JSON.stringify({
-      schemaVersion: 1,
-      sources: options.resolvedSources.map((source) => ({
-        alias: source.alias,
-        outputId: source.outputId,
-        stream: source.stream,
-        bytes: source.bytes,
-        sha256: source.textSha256,
-      })),
-    }, null, 2), "utf8");
+    await writeFile(
+      join(inputDir, "manifest.json"),
+      JSON.stringify(
+        {
+          schemaVersion: 1,
+          sources: options.resolvedSources.map((source) => ({
+            alias: source.alias,
+            outputId: source.outputId,
+            stream: source.stream,
+            bytes: source.bytes,
+            sha256: source.textSha256,
+          })),
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
 
     let result: ScriptSandboxExecutionResult;
     try {
@@ -748,13 +794,19 @@ async function runScriptAdapter(options: {
         network: options.config.network,
       });
     } catch (error) {
-      return { ok: false, message: `Script transform adapter ${options.adapter.id} threw before returning a result: ${errorMessage(error)}` };
+      return {
+        ok: false,
+        message: `Script transform adapter ${options.adapter.id} threw before returning a result: ${errorMessage(error)}`,
+      };
     }
 
     const stdoutBytes = byteLength(result.stdout ?? "");
     const stderrBytes = byteLength(result.stderr ?? "");
     if (stdoutBytes + stderrBytes > options.limits.maxOutputBytes) {
-      return { ok: false, message: `Script transform output bytes ${stdoutBytes + stderrBytes} exceed maxOutputBytes ${options.limits.maxOutputBytes}.` };
+      return {
+        ok: false,
+        message: `Script transform output bytes ${stdoutBytes + stderrBytes} exceed maxOutputBytes ${options.limits.maxOutputBytes}.`,
+      };
     }
     return { ok: true, result };
   } finally {
@@ -769,10 +821,7 @@ async function resolveScriptSources(options: {
   maxInputBytes: number;
   operation: ScriptTransformOperation;
   preserve: PreserveMode;
-}): Promise<
-  | { ok: true; sources: ResolvedScriptSource[] }
-  | { ok: false; failure: FailureRoutedResult }
-> {
+}): Promise<{ ok: true; sources: ResolvedScriptSource[] } | { ok: false; failure: FailureRoutedResult }> {
   const resolved: ResolvedScriptSource[] = [];
   let totalBytes = 0;
 
@@ -786,7 +835,10 @@ async function resolveScriptSources(options: {
         failure: transformSourceUnavailableFailure({
           message: `Script transform source alias=${source.alias} outputId=${source.outputId} could not be found or read: ${errorMessage(error)}`,
           preserve: options.preserve,
-          lineage: lineageForScriptInput({ sources: [...options.sources], operation: options.operation }, { maxInputBytes: options.maxInputBytes }),
+          lineage: lineageForScriptInput(
+            { sources: [...options.sources], operation: options.operation },
+            { maxInputBytes: options.maxInputBytes },
+          ),
           decisionSeed: "script-source-record",
         }),
       };
@@ -956,7 +1008,10 @@ function validateTransformOperation(value: unknown, path: string, issues: Transf
 
 function validateScriptOperation(value: Record<string, unknown>, path: string, issues: TransformValidationIssue[]) {
   if (!isStringIn(value.language, SCRIPT_TRANSFORM_LANGUAGES)) {
-    issues.push({ path: `${path}.language`, message: `Expected script language ${SCRIPT_TRANSFORM_LANGUAGES.join(", ")}.` });
+    issues.push({
+      path: `${path}.language`,
+      message: `Expected script language ${SCRIPT_TRANSFORM_LANGUAGES.join(", ")}.`,
+    });
   }
   if (typeof value.code !== "string" || value.code.length === 0) {
     issues.push({ path: `${path}.code`, message: "Expected non-empty script code string." });
@@ -1001,18 +1056,40 @@ function validateScriptTransformLimits(value: unknown, path: string, issues: Tra
     return;
   }
   validateOptionalIntegerRange(value.timeoutMs, `${path}.timeoutMs`, 1, MAX_SCRIPT_TRANSFORM_LIMITS.timeoutMs, issues);
-  validateOptionalIntegerRange(value.maxInputBytes, `${path}.maxInputBytes`, 1, MAX_SCRIPT_TRANSFORM_LIMITS.maxInputBytes, issues);
-  validateOptionalIntegerRange(value.maxOutputBytes, `${path}.maxOutputBytes`, 1, MAX_SCRIPT_TRANSFORM_LIMITS.maxOutputBytes, issues);
+  validateOptionalIntegerRange(
+    value.maxInputBytes,
+    `${path}.maxInputBytes`,
+    1,
+    MAX_SCRIPT_TRANSFORM_LIMITS.maxInputBytes,
+    issues,
+  );
+  validateOptionalIntegerRange(
+    value.maxOutputBytes,
+    `${path}.maxOutputBytes`,
+    1,
+    MAX_SCRIPT_TRANSFORM_LIMITS.maxOutputBytes,
+    issues,
+  );
 }
 
-function validateOptionalIntegerRange(value: unknown, path: string, min: number, max: number, issues: TransformValidationIssue[]) {
+function validateOptionalIntegerRange(
+  value: unknown,
+  path: string,
+  min: number,
+  max: number,
+  issues: TransformValidationIssue[],
+) {
   if (value === undefined) {
     return;
   }
   validateIntegerRange(value, path, min, max, issues);
 }
 
-function validateJsonExtractOperation(value: Record<string, unknown>, path: string, issues: TransformValidationIssue[]) {
+function validateJsonExtractOperation(
+  value: Record<string, unknown>,
+  path: string,
+  issues: TransformValidationIssue[],
+) {
   const hasPointer = value.pointer !== undefined;
   const hasPath = value.path !== undefined;
 
@@ -1060,7 +1137,18 @@ function validateDedupeOperation(value: Record<string, unknown>, path: string, i
     validateIntegerRange(value.maxLines, `${path}.maxLines`, 1, MAX_DEDUPE_LINES, issues);
   }
 
-  for (const key of ["pattern", "flags", "contextLines", "maxMatches", "group", "maxGroups", "maxLinesPerGroup", "limit", "sort", "order"] as const) {
+  for (const key of [
+    "pattern",
+    "flags",
+    "contextLines",
+    "maxMatches",
+    "group",
+    "maxGroups",
+    "maxLinesPerGroup",
+    "limit",
+    "sort",
+    "order",
+  ] as const) {
     if (value[key] !== undefined) {
       issues.push({ path: `${path}.${key}`, message: `Operation dedupe does not accept ${key}.` });
     }
@@ -1093,7 +1181,15 @@ function validateTopNOperation(value: Record<string, unknown>, path: string, iss
     issues.push({ path: `${path}.order`, message: "Expected order asc or desc." });
   }
 
-  for (const key of ["contextLines", "maxMatches", "maxGroups", "maxLinesPerGroup", "trim", "caseSensitive", "maxLines"] as const) {
+  for (const key of [
+    "contextLines",
+    "maxMatches",
+    "maxGroups",
+    "maxLinesPerGroup",
+    "trim",
+    "caseSensitive",
+    "maxLines",
+  ] as const) {
     if (value[key] !== undefined) {
       issues.push({ path: `${path}.${key}`, message: `Operation topN does not accept ${key}.` });
     }
@@ -1111,7 +1207,20 @@ function validateExtractOperation(value: Record<string, unknown>, path: string, 
     issues.push({ path: `${path}.dedupe`, message: "Operation extractCitations does not accept dedupe." });
   }
 
-  for (const key of ["pattern", "flags", "contextLines", "group", "maxGroups", "maxLinesPerGroup", "limit", "sort", "order", "trim", "caseSensitive", "maxLines"] as const) {
+  for (const key of [
+    "pattern",
+    "flags",
+    "contextLines",
+    "group",
+    "maxGroups",
+    "maxLinesPerGroup",
+    "limit",
+    "sort",
+    "order",
+    "trim",
+    "caseSensitive",
+    "maxLines",
+  ] as const) {
     if (value[key] !== undefined) {
       issues.push({ path: `${path}.${key}`, message: `Operation ${value.kind} does not accept ${key}.` });
     }
@@ -1119,7 +1228,22 @@ function validateExtractOperation(value: Record<string, unknown>, path: string, 
 }
 
 function validateStatsOperation(value: Record<string, unknown>, path: string, issues: TransformValidationIssue[]) {
-  for (const key of ["pattern", "flags", "contextLines", "maxMatches", "group", "maxGroups", "maxLinesPerGroup", "limit", "sort", "order", "trim", "caseSensitive", "maxLines", "dedupe"] as const) {
+  for (const key of [
+    "pattern",
+    "flags",
+    "contextLines",
+    "maxMatches",
+    "group",
+    "maxGroups",
+    "maxLinesPerGroup",
+    "limit",
+    "sort",
+    "order",
+    "trim",
+    "caseSensitive",
+    "maxLines",
+    "dedupe",
+  ] as const) {
     if (value[key] !== undefined) {
       issues.push({ path: `${path}.${key}`, message: `Operation ${value.kind} does not accept ${key}.` });
     }
@@ -1220,7 +1344,10 @@ function compileRegexOperation(
   try {
     const zeroWidthCheck = new RegExp(operation.pattern, flags);
     if (zeroWidthCheck.test("")) {
-      return { ok: false, message: `Invalid regex pattern for ${operation.kind}: patterns that match empty strings are not supported.` };
+      return {
+        ok: false,
+        message: `Invalid regex pattern for ${operation.kind}: patterns that match empty strings are not supported.`,
+      };
     }
   } catch (error) {
     return { ok: false, message: `Invalid regex pattern for ${operation.kind}: ${errorMessage(error)}` };
@@ -1320,7 +1447,11 @@ function transformText(options: {
   }
 
   if (options.operation.kind === "extractCitations") {
-    return transformExtractCitations({ text: options.text, sourceLabel: options.sourceLabel, operation: options.operation });
+    return transformExtractCitations({
+      text: options.text,
+      sourceLabel: options.sourceLabel,
+      operation: options.operation,
+    });
   }
 
   if (options.operation.kind === "lineStats") {
@@ -1602,7 +1733,9 @@ function transformTopN(options: {
   const parts = [
     "# freeflow_search action=transform topN",
     `source: ${options.sourceLabel}`,
-    ...(options.compiled !== undefined ? [`pattern: ${formatPattern(options.compiled)}`, `group: ${String(groupSelector)}`] : []),
+    ...(options.compiled !== undefined
+      ? [`pattern: ${formatPattern(options.compiled)}`, `group: ${String(groupSelector)}`]
+      : []),
     `sort: ${sort}`,
     `order: ${order}`,
     `limit: ${options.operation.limit}`,
@@ -2167,7 +2300,10 @@ function parseJsonPathQuotedProperty(
   return { ok: false, message: `Unterminated quoted property at offset ${quoteIndex}.` };
 }
 
-function resolveJsonSelector(value: unknown, segments: readonly JsonSelectorSegment[]): { ok: true; value: unknown } | { ok: false; message: string } {
+function resolveJsonSelector(
+  value: unknown,
+  segments: readonly JsonSelectorSegment[],
+): { ok: true; value: unknown } | { ok: false; message: string } {
   let current = value;
 
   for (const segment of segments) {
@@ -2239,11 +2375,22 @@ function effectiveScriptTransformConfig(config: ScriptTransformConfig | undefine
   };
 }
 
-function effectiveScriptLimits(config: ScriptTransformConfig, input: ScriptTransformLimitsInput | undefined): Required<ScriptTransformLimitsInput> {
+function effectiveScriptLimits(
+  config: ScriptTransformConfig,
+  input: ScriptTransformLimitsInput | undefined,
+): Required<ScriptTransformLimitsInput> {
   return {
     timeoutMs: boundedScriptLimit(input?.timeoutMs, config.limits.timeoutMs, MAX_SCRIPT_TRANSFORM_LIMITS.timeoutMs),
-    maxInputBytes: boundedScriptLimit(input?.maxInputBytes, config.limits.maxInputBytes, MAX_SCRIPT_TRANSFORM_LIMITS.maxInputBytes),
-    maxOutputBytes: boundedScriptLimit(input?.maxOutputBytes, config.limits.maxOutputBytes, MAX_SCRIPT_TRANSFORM_LIMITS.maxOutputBytes),
+    maxInputBytes: boundedScriptLimit(
+      input?.maxInputBytes,
+      config.limits.maxInputBytes,
+      MAX_SCRIPT_TRANSFORM_LIMITS.maxInputBytes,
+    ),
+    maxOutputBytes: boundedScriptLimit(
+      input?.maxOutputBytes,
+      config.limits.maxOutputBytes,
+      MAX_SCRIPT_TRANSFORM_LIMITS.maxOutputBytes,
+    ),
   };
 }
 
@@ -2275,7 +2422,10 @@ function resolveSourceStream(
     return { ok: true, stream };
   }
 
-  return { ok: false, message: "Repo file reference vault records store metadata only and cannot be used as transform text sources." };
+  return {
+    ok: false,
+    message: "Repo file reference vault records store metadata only and cannot be used as transform text sources.",
+  };
 }
 
 function lineageForSource(record: VaultRecord, operation: TransformOperation): EvidenceLineage {
@@ -2287,7 +2437,10 @@ function lineageForSource(record: VaultRecord, operation: TransformOperation): E
   };
 }
 
-function lineageForScriptInput(input: Pick<ScriptTransformInput, "sources" | "operation" | "limits">, limits?: Partial<ScriptTransformLimitsInput>): EvidenceLineage {
+function lineageForScriptInput(
+  input: Pick<ScriptTransformInput, "sources" | "operation" | "limits">,
+  limits?: Partial<ScriptTransformLimitsInput>,
+): EvidenceLineage {
   return {
     sourceOutputIds: input.sources.map((source) => source.outputId),
     operation: `script:${input.operation.language}`,
@@ -2295,7 +2448,11 @@ function lineageForScriptInput(input: Pick<ScriptTransformInput, "sources" | "op
   };
 }
 
-function lineageForResolvedScriptSources(sources: readonly ResolvedScriptSource[], input: ScriptTransformInput, limits: Required<ScriptTransformLimitsInput>): EvidenceLineage {
+function lineageForResolvedScriptSources(
+  sources: readonly ResolvedScriptSource[],
+  input: ScriptTransformInput,
+  limits: Required<ScriptTransformLimitsInput>,
+): EvidenceLineage {
   return {
     sourceRecordIds: sources.map((source) => source.recordId),
     sourceOutputIds: sources.map((source) => source.outputId),
@@ -2311,7 +2468,9 @@ function lineageFromInput(input: unknown): EvidenceLineage | undefined {
 
   if (input.operation.kind === "script" && Array.isArray(input.sources)) {
     const sources = input.sources.filter(isRecord) as Record<string, unknown>[];
-    const outputIds = sources.map((source) => source.outputId).filter((outputId): outputId is string => typeof outputId === "string");
+    const outputIds = sources
+      .map((source) => source.outputId)
+      .filter((outputId): outputId is string => typeof outputId === "string");
     return {
       ...(outputIds.length > 0 ? { sourceOutputIds: outputIds } : {}),
       operation: typeof input.operation.language === "string" ? `script:${input.operation.language}` : "script",
@@ -2423,21 +2582,23 @@ function operationHashForScript(
   limits: Partial<ScriptTransformLimitsInput> | undefined,
   resolvedSources: readonly ResolvedScriptSource[] = [],
 ): string {
-  return `sha256_${hash(JSON.stringify({
-    schemaVersion: 1,
-    operation: scriptOperationSummary(operation),
-    sources: sources.map((source) => ({ alias: source.alias, outputId: source.outputId, stream: source.stream })),
-    resolvedSources: resolvedSources.map((source) => ({
-      alias: source.alias,
-      outputId: source.outputId,
-      recordId: source.recordId,
-      stream: source.stream,
-      bytes: source.bytes,
-      contentHashSha256: source.contentHashSha256,
-      textSha256: source.textSha256,
-    })),
-    limits,
-  }))}`;
+  return `sha256_${hash(
+    JSON.stringify({
+      schemaVersion: 1,
+      operation: scriptOperationSummary(operation),
+      sources: sources.map((source) => ({ alias: source.alias, outputId: source.outputId, stream: source.stream })),
+      resolvedSources: resolvedSources.map((source) => ({
+        alias: source.alias,
+        outputId: source.outputId,
+        recordId: source.recordId,
+        stream: source.stream,
+        bytes: source.bytes,
+        contentHashSha256: source.contentHashSha256,
+        textSha256: source.textSha256,
+      })),
+      limits,
+    }),
+  )}`;
 }
 
 function scriptOperationSummary(operation: ScriptTransformOperation): Record<string, unknown> {

@@ -4,9 +4,7 @@
   "skill": "write-skill",
   "title": "Write descriptions for the first useful read",
   "question": "automatic activation",
-  "evidence_classes": [
-    "native-activation"
-  ],
+  "evidence_classes": ["native-activation"],
   "required_for_bootstrap": false,
   "prompt": "Help me revise this agent-skill description: `Use for sustained collaborative exploration before or during consequential work.` The skill should become available when a user is brainstorming, comparing approaches, shaping an idea, giving an open-ended request, or reopening assumptions after new evidence. Write a concise replacement and explain what makes it a reliable activation description for an agent that has not read the skill body yet.",
   "fixture": null,
@@ -42,9 +40,7 @@
   "execution": {
     "host": "pi",
     "mode": "json",
-    "tools": [
-      "read"
-    ]
+    "tools": ["read"]
   },
   "assertions": [
     {

@@ -4,11 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
 
-import {
-  freeflowBatch,
-  freeflowRun,
-  validateRoutedResult,
-} from "../../dist/index.js";
+import { freeflowBatch, freeflowRun, validateRoutedResult } from "../../dist/index.js";
 
 async function withTempDir(prefix, fn) {
   const root = await mkdtemp(join(tmpdir(), prefix));
@@ -42,16 +38,19 @@ test("freeflowBatch runs multiple run steps with bounded parallelism", async () 
       },
     };
 
-    const result = await freeflowBatch({
-      sessionId: "batch-run",
-      vaultRoot: root,
-      concurrency: 2,
-      steps: [
-        { kind: "run", input: { command: "one" } },
-        { kind: "run", input: { command: "two" } },
-        { kind: "run", input: { command: "three" } },
-      ],
-    }, runner);
+    const result = await freeflowBatch(
+      {
+        sessionId: "batch-run",
+        vaultRoot: root,
+        concurrency: 2,
+        steps: [
+          { kind: "run", input: { command: "one" } },
+          { kind: "run", input: { command: "two" } },
+          { kind: "run", input: { command: "three" } },
+        ],
+      },
+      runner,
+    );
 
     assert.equal(result.toolStatus, "ok");
     assert.equal(result.routing.route, "batch");
@@ -69,22 +68,29 @@ test("freeflowBatch runs multiple search steps", async () => {
     await writeFile(join(root, "alpha.md"), "ALPHA_BATCH_TARGET source truth\n", "utf8");
     await writeFile(join(root, "beta.md"), "BETA_BATCH_TARGET source truth\n", "utf8");
 
-    const result = await freeflowBatch({
-      sessionId: "batch-search",
-      vaultRoot: join(root, "vault"),
-      steps: [
-        {
-          id: "alpha",
-          kind: "search",
-          input: { action: "query", source: { kind: "repo", root }, query: "ALPHA_BATCH_TARGET" },
+    const result = await freeflowBatch(
+      {
+        sessionId: "batch-search",
+        vaultRoot: join(root, "vault"),
+        steps: [
+          {
+            id: "alpha",
+            kind: "search",
+            input: { action: "query", source: { kind: "repo", root }, query: "ALPHA_BATCH_TARGET" },
+          },
+          {
+            id: "beta",
+            kind: "search",
+            input: { action: "query", source: { kind: "repo", root }, query: "BETA_BATCH_TARGET" },
+          },
+        ],
+      },
+      {
+        async run() {
+          throw new Error("runner should not be used");
         },
-        {
-          id: "beta",
-          kind: "search",
-          input: { action: "query", source: { kind: "repo", root }, query: "BETA_BATCH_TARGET" },
-        },
-      ],
-    }, { async run() { throw new Error("runner should not be used"); } });
+      },
+    );
 
     assert.equal(result.toolStatus, "ok");
     assert.equal(result.okCount, 2);
@@ -94,13 +100,20 @@ test("freeflowBatch runs multiple search steps", async () => {
 });
 
 test("freeflowBatch rejects legacy retrieve/transform step kinds", async () => {
-  const result = await freeflowBatch({
-    sessionId: "batch-legacy-kind",
-    steps: [
-      { kind: "retrieve", input: { action: "query", source: { kind: "repo", root: "." }, query: "unused" } },
-      { kind: "transform", input: { operation: { kind: "lineStats" } } },
-    ],
-  }, { async run() { throw new Error("runner should not be used"); } });
+  const result = await freeflowBatch(
+    {
+      sessionId: "batch-legacy-kind",
+      steps: [
+        { kind: "retrieve", input: { action: "query", source: { kind: "repo", root: "." }, query: "unused" } },
+        { kind: "transform", input: { operation: { kind: "lineStats" } } },
+      ],
+    },
+    {
+      async run() {
+        throw new Error("runner should not be used");
+      },
+    },
+  );
 
   assert.equal(result.toolStatus, "error");
   assert.match(result.routing.reason, /steps\[0\]\.kind/);
@@ -114,18 +127,24 @@ test("freeflowBatch supports mixed run and search steps", async () => {
     await mkdir(repoRoot);
     await writeFile(join(repoRoot, "notes.md"), "MIXED_BATCH_REPO_TARGET\n", "utf8");
 
-    const result = await freeflowBatch({
-      sessionId: "batch-mixed",
-      vaultRoot,
-      steps: [
-        { kind: "run", input: { command: "echo batch" } },
-        { kind: "search", input: { action: "query", source: { kind: "repo", root: repoRoot }, query: "MIXED_BATCH_REPO_TARGET" } },
-      ],
-    }, {
-      async run() {
-        return { stdout: "batch run output\n", stderr: "", executionStatus: "success", exitCode: 0 };
+    const result = await freeflowBatch(
+      {
+        sessionId: "batch-mixed",
+        vaultRoot,
+        steps: [
+          { kind: "run", input: { command: "echo batch" } },
+          {
+            kind: "search",
+            input: { action: "query", source: { kind: "repo", root: repoRoot }, query: "MIXED_BATCH_REPO_TARGET" },
+          },
+        ],
       },
-    });
+      {
+        async run() {
+          return { stdout: "batch run output\n", stderr: "", executionStatus: "success", exitCode: 0 };
+        },
+      },
+    );
 
     assert.equal(result.toolStatus, "ok");
     assert.equal(result.steps.map((step) => step.kind).join(","), "run,search");
@@ -155,29 +174,40 @@ test("freeflowBatch answers queries from child evidence handles", async () => {
       "utf8",
     );
 
-    const result = await freeflowBatch({
-      sessionId: "batch-query",
-      vaultRoot,
-      queries: ["failed test files and counts", "useEffect cleanup ignore stale responses"],
-      steps: [
-        { id: "tests", kind: "run", input: { command: "tests", preserve: "full" } },
-        { id: "react-docs", kind: "search", input: { action: "query", source: { kind: "repo", root: repoRoot }, query: "useEffect cleanup ignore stale responses" } },
-      ],
-    }, {
-      async run() {
-        return {
-          stdout: [
-            "test-output summary",
-            "tests: 4 failed, 108 passed, (112)",
-            "testFiles: 4 failed, 26 passed, (30)",
-            "failedFiles: UserList.test.tsx, DataGrid.test.tsx",
-          ].join("\n"),
-          stderr: "",
-          executionStatus: "success",
-          exitCode: 0,
-        };
+    const result = await freeflowBatch(
+      {
+        sessionId: "batch-query",
+        vaultRoot,
+        queries: ["failed test files and counts", "useEffect cleanup ignore stale responses"],
+        steps: [
+          { id: "tests", kind: "run", input: { command: "tests", preserve: "full" } },
+          {
+            id: "react-docs",
+            kind: "search",
+            input: {
+              action: "query",
+              source: { kind: "repo", root: repoRoot },
+              query: "useEffect cleanup ignore stale responses",
+            },
+          },
+        ],
       },
-    });
+      {
+        async run() {
+          return {
+            stdout: [
+              "test-output summary",
+              "tests: 4 failed, 108 passed, (112)",
+              "testFiles: 4 failed, 26 passed, (30)",
+              "failedFiles: UserList.test.tsx, DataGrid.test.tsx",
+            ].join("\n"),
+            stderr: "",
+            executionStatus: "success",
+            exitCode: 0,
+          };
+        },
+      },
+    );
 
     assert.equal(result.toolStatus, "ok");
     assert.equal(result.queries.length, 2);
@@ -196,40 +226,48 @@ test("freeflowBatch answers queries from child evidence handles", async () => {
 test("freeflowBatch query aggregation can use duplicate exact recovery output", async () => {
   await withTempDir("freeflow-router-batch-query-duplicate-", async (root) => {
     const vaultRoot = join(root, "vault");
-    const stdout = Array.from({ length: 20 }, (_, index) => `duplicate fact line ${index + 1}`).join("\n") + "\nDUPLICATE_BATCH_FACT_42\n";
+    const stdout =
+      Array.from({ length: 20 }, (_, index) => `duplicate fact line ${index + 1}`).join("\n") +
+      "\nDUPLICATE_BATCH_FACT_42\n";
     const runner = {
       async run() {
         return { stdout, stderr: "", executionStatus: "success", exitCode: 0 };
       },
     };
 
-    const first = await freeflowRun({
-      command: "npm test -- duplicate-batch",
-      cwd: root,
-      sessionId: "batch-query-duplicate",
-      vaultRoot,
-      preserve: "important",
-      thresholds: { largeOutputLines: 10, largeOutputBytes: 10_000 },
-    }, runner);
+    const first = await freeflowRun(
+      {
+        command: "npm test -- duplicate-batch",
+        cwd: root,
+        sessionId: "batch-query-duplicate",
+        vaultRoot,
+        preserve: "important",
+        thresholds: { largeOutputLines: 10, largeOutputBytes: 10_000 },
+      },
+      runner,
+    );
     assert.equal(first.persistence.recoverability, "exact");
 
-    const result = await freeflowBatch({
-      sessionId: "batch-query-duplicate",
-      vaultRoot,
-      queries: ["DUPLICATE_BATCH_FACT_42"],
-      steps: [
-        {
-          id: "duplicate-run",
-          kind: "run",
-          input: {
-            command: "npm test -- duplicate-batch",
-            cwd: root,
-            preserve: "important",
-            thresholds: { largeOutputLines: 10, largeOutputBytes: 10_000 },
+    const result = await freeflowBatch(
+      {
+        sessionId: "batch-query-duplicate",
+        vaultRoot,
+        queries: ["DUPLICATE_BATCH_FACT_42"],
+        steps: [
+          {
+            id: "duplicate-run",
+            kind: "run",
+            input: {
+              command: "npm test -- duplicate-batch",
+              cwd: root,
+              preserve: "important",
+              thresholds: { largeOutputLines: 10, largeOutputBytes: 10_000 },
+            },
           },
-        },
-      ],
-    }, runner);
+        ],
+      },
+      runner,
+    );
 
     assert.equal(result.steps[0].result.parser.name, "duplicate-output");
     assert.equal(result.steps[0].result.persistence.recoverability, "metadata_only");
@@ -240,11 +278,18 @@ test("freeflowBatch query aggregation can use duplicate exact recovery output", 
 });
 
 test("freeflowBatch validates query input", async () => {
-  const result = await freeflowBatch({
-    sessionId: "batch-query-validation",
-    queries: [""],
-    steps: [{ kind: "run", input: { command: "unused" } }],
-  }, { async run() { throw new Error("runner should not be used"); } });
+  const result = await freeflowBatch(
+    {
+      sessionId: "batch-query-validation",
+      queries: [""],
+      steps: [{ kind: "run", input: { command: "unused" } }],
+    },
+    {
+      async run() {
+        throw new Error("runner should not be used");
+      },
+    },
+  );
 
   assert.equal(result.toolStatus, "error");
   assert.match(result.routing.reason, /queries\[0\]/);
@@ -252,22 +297,25 @@ test("freeflowBatch validates query input", async () => {
 
 test("freeflowBatch reports a failing step without hiding other child results", async () => {
   await withTempDir("freeflow-router-batch-failure-", async (root) => {
-    const result = await freeflowBatch({
-      sessionId: "batch-failure",
-      vaultRoot: root,
-      concurrency: 2,
-      steps: [
-        { id: "throws", kind: "run", input: { command: "throw" } },
-        { id: "ok", kind: "run", input: { command: "ok" } },
-      ],
-    }, {
-      async run(request) {
-        if (request.command === "throw") {
-          throw new Error("runner boom");
-        }
-        return { stdout: "ok output\n", stderr: "", executionStatus: "success", exitCode: 0 };
+    const result = await freeflowBatch(
+      {
+        sessionId: "batch-failure",
+        vaultRoot: root,
+        concurrency: 2,
+        steps: [
+          { id: "throws", kind: "run", input: { command: "throw" } },
+          { id: "ok", kind: "run", input: { command: "ok" } },
+        ],
       },
-    });
+      {
+        async run(request) {
+          if (request.command === "throw") {
+            throw new Error("runner boom");
+          }
+          return { stdout: "ok output\n", stderr: "", executionStatus: "success", exitCode: 0 };
+        },
+      },
+    );
 
     assert.equal(result.toolStatus, "error");
     assert.equal(result.routing.status, "partial");

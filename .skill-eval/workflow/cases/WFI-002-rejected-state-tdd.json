@@ -56,12 +56,17 @@
       "workflow": "skills/workflow/SKILL.md"
     }
   },
-  "execution": {"host": "pi", "mode": "rpc-scripted", "tools": ["read", "write", "edit"]},
+  "execution": { "host": "pi", "mode": "rpc-scripted", "tools": ["read", "write", "edit"] },
   "assertions": [
-    {"id": "target-read", "type": "component_read", "component": "tdd"},
-    {"id": "turn-1-test-only", "type": "changed_paths", "equals": ["store.test.mjs"], "turn_id": "turn-1"},
-    {"id": "turn-2-code-and-test", "type": "changed_paths", "equals": ["store.mjs", "store.test.mjs"], "turn_id": "turn-2"},
-    {"id": "test-created", "type": "path_exists", "path": "store.test.mjs"},
+    { "id": "target-read", "type": "component_read", "component": "tdd" },
+    { "id": "turn-1-test-only", "type": "changed_paths", "equals": ["store.test.mjs"], "turn_id": "turn-1" },
+    {
+      "id": "turn-2-code-and-test",
+      "type": "changed_paths",
+      "equals": ["store.mjs", "store.test.mjs"],
+      "turn_id": "turn-2"
+    },
+    { "id": "test-created", "type": "path_exists", "path": "store.test.mjs" },
     {
       "id": "rejected-state-preserved",
       "type": "semantic",

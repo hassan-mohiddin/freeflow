@@ -32,7 +32,7 @@ export function probePi() {
     id: "pi",
     available,
     version: available ? version.stdout.trim() : null,
-    error: available ? null : version.error ?? version.stderr.trim() ?? help.stderr.trim(),
+    error: available ? null : (version.error ?? version.stderr.trim() ?? help.stderr.trim()),
     rpc_error: null,
     capabilities: {
       one_shot_json: available && text.includes("--mode <mode>") && text.includes("json"),
@@ -62,48 +62,66 @@ export async function probePiRpc(base = probePi(), dependencies = {}) {
     await mkdir(configDir, { recursive: true });
     const alphaSkill = resolve(root, "eval-alpha");
     const betaSkill = resolve(root, "eval-beta");
+    await Promise.all([mkdir(alphaSkill, { recursive: true }), mkdir(betaSkill, { recursive: true })]);
     await Promise.all([
-      mkdir(alphaSkill, { recursive: true }),
-      mkdir(betaSkill, { recursive: true }),
+      writeFile(
+        resolve(alphaSkill, "SKILL.md"),
+        "---\nname: eval-alpha\ndescription: Alpha evaluator probe.\n---\n\n# Alpha\n",
+      ),
+      writeFile(
+        resolve(betaSkill, "SKILL.md"),
+        "---\nname: eval-beta\ndescription: Beta evaluator probe.\n---\n\n# Beta\n",
+      ),
     ]);
-    await Promise.all([
-      writeFile(resolve(alphaSkill, "SKILL.md"), "---\nname: eval-alpha\ndescription: Alpha evaluator probe.\n---\n\n# Alpha\n"),
-      writeFile(resolve(betaSkill, "SKILL.md"), "---\nname: eval-beta\ndescription: Beta evaluator probe.\n---\n\n# Beta\n"),
-    ]);
-    await writeFile(resolve(configDir, "settings.json"), `${JSON.stringify({
-      defaultProjectTrust: "never",
-      enableInstallTelemetry: false,
-      enableUpdateCheck: false,
-      quietStartup: true,
-      retry: { enabled: false, maxRetries: 0, provider: { maxRetries: 0 } },
-    }, null, 2)}\n`);
-    client = await startClient("pi", [
-      "--mode", "rpc",
-      "--no-session",
-      "--no-extensions",
-      "--no-skills",
-      "--no-prompt-templates",
-      "--no-themes",
-      "--no-context-files",
-      "--no-approve",
-      "--offline",
-      "--no-tools",
-      "--extension", compositionRuntimeExtension,
-      "--skill", alphaSkill,
-      "--skill", betaSkill,
-    ], {
-      env: {
-        ...process.env,
-        PI_CODING_AGENT_DIR: configDir,
-        PI_TELEMETRY: "0",
-        FREEFLOW_EVAL_RUNTIME_INTERACTION_CONTRACT: compositionInteractionContract,
-        FREEFLOW_EVAL_RUNTIME_WORKFLOW: compositionWorkflow,
-        FREEFLOW_EVAL_RUNTIME_EVIDENCE: resolve(root, "composition-runtime-evidence.jsonl"),
+    await writeFile(
+      resolve(configDir, "settings.json"),
+      `${JSON.stringify(
+        {
+          defaultProjectTrust: "never",
+          enableInstallTelemetry: false,
+          enableUpdateCheck: false,
+          quietStartup: true,
+          retry: { enabled: false, maxRetries: 0, provider: { maxRetries: 0 } },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    client = await startClient(
+      "pi",
+      [
+        "--mode",
+        "rpc",
+        "--no-session",
+        "--no-extensions",
+        "--no-skills",
+        "--no-prompt-templates",
+        "--no-themes",
+        "--no-context-files",
+        "--no-approve",
+        "--offline",
+        "--no-tools",
+        "--extension",
+        compositionRuntimeExtension,
+        "--skill",
+        alphaSkill,
+        "--skill",
+        betaSkill,
+      ],
+      {
+        env: {
+          ...process.env,
+          PI_CODING_AGENT_DIR: configDir,
+          PI_TELEMETRY: "0",
+          FREEFLOW_EVAL_RUNTIME_INTERACTION_CONTRACT: compositionInteractionContract,
+          FREEFLOW_EVAL_RUNTIME_WORKFLOW: compositionWorkflow,
+          FREEFLOW_EVAL_RUNTIME_EVIDENCE: resolve(root, "composition-runtime-evidence.jsonl"),
+        },
+        timeoutMs: 10000,
+        outputLimitBytes: 1024 * 1024,
+        transportLimitBytes: 2 * 1024 * 1024,
       },
-      timeoutMs: 10000,
-      outputLimitBytes: 1024 * 1024,
-      transportLimitBytes: 2 * 1024 * 1024,
-    });
+    );
     const retry = await client.request("set_auto_retry", { enabled: false });
     const compaction = await client.request("set_auto_compaction", { enabled: false });
     const state = await client.request("get_state");
@@ -111,19 +129,20 @@ export async function probePiRpc(base = probePi(), dependencies = {}) {
     const processResult = await client.dispose();
     const commandNames = new Set(commands.data?.commands?.map((command) => command.name) ?? []);
     const multiSkillLoading = commandNames.has("skill:eval-alpha") && commandNames.has("skill:eval-beta");
-    const supported = retry.success
-      && compaction.success
-      && state.success
-      && commands.success
-      && multiSkillLoading
-      && state.data?.isStreaming === false
-      && state.data?.isCompacting === false
-      && state.data?.messageCount === 0
-      && processResult.code === 0
-      && !processResult.timed_out
-      && !processResult.output_limit_exceeded
-      && !processResult.transport_limit_exceeded
-      && !processResult.protocol_failed;
+    const supported =
+      retry.success &&
+      compaction.success &&
+      state.success &&
+      commands.success &&
+      multiSkillLoading &&
+      state.data?.isStreaming === false &&
+      state.data?.isCompacting === false &&
+      state.data?.messageCount === 0 &&
+      processResult.code === 0 &&
+      !processResult.timed_out &&
+      !processResult.output_limit_exceeded &&
+      !processResult.transport_limit_exceeded &&
+      !processResult.protocol_failed;
     return {
       ...base,
       rpc_error: supported ? null : "Pi RPC handshake returned an unsupported state",
@@ -165,7 +184,7 @@ export function probeCodex(dependencies = {}) {
     id: "codex",
     available,
     version: value,
-    error: available ? null : version.error ?? version.stderr.trim(),
+    error: available ? null : (version.error ?? version.stderr.trim()),
     fidelity: "diagnostic",
     isolation_profile: "codex-diagnostic-macos-v1",
     capabilities: {
@@ -210,6 +229,7 @@ export function supportedEvidenceClasses(host, mode) {
   if (host === "pi" && mode === "rpc-scripted") {
     return new Set(["structure", "explicit-instruction", "native-activation", "artifact-outcome", "multi-turn"]);
   }
-  if (host === "codex" && mode === "exec") return new Set(["structure", "explicit-instruction", "native-activation", "artifact-outcome"]);
+  if (host === "codex" && mode === "exec")
+    return new Set(["structure", "explicit-instruction", "native-activation", "artifact-outcome"]);
   return new Set();
 }

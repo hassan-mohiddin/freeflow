@@ -141,13 +141,15 @@ function markdownPreambleChunk<TFile extends EvidenceSearchFile>(file: TFile): C
   }
 
   const range = { start: 1, end: firstHeadingIndex };
-  return [{
-    file,
-    range,
-    text: file.lines.slice(range.start - 1, range.end).join("\n"),
-    heading: "",
-    kind: "section" as const,
-  }];
+  return [
+    {
+      file,
+      range,
+      text: file.lines.slice(range.start - 1, range.end).join("\n"),
+      heading: "",
+      kind: "section" as const,
+    },
+  ];
 }
 
 function markdownSectionChunks<TFile extends EvidenceSearchFile>(file: TFile): CandidateChunk<TFile>[] {
@@ -214,11 +216,15 @@ function nextSymbolBoundary(
 }
 
 function isTopLevelCodeSymbol(line: string): boolean {
-  return /^(?:pub\s+)?(?:async\s+)?(?:fn|struct|enum|trait|impl|mod|class|interface|type|const|def)\s+([A-Za-z_][A-Za-z0-9_]*)\b/.test(line);
+  return /^(?:pub\s+)?(?:async\s+)?(?:fn|struct|enum|trait|impl|mod|class|interface|type|const|def)\s+([A-Za-z_][A-Za-z0-9_]*)\b/.test(
+    line,
+  );
 }
 
 function codeSymbolMatch(line: string): RegExpExecArray | null {
-  return /^\s*(?:pub\s+)?(?:async\s+)?(?:fn|struct|enum|trait|impl|mod|class|interface|type|const|def)\s+([A-Za-z_][A-Za-z0-9_]*)\b/.exec(line);
+  return /^\s*(?:pub\s+)?(?:async\s+)?(?:fn|struct|enum|trait|impl|mod|class|interface|type|const|def)\s+([A-Za-z_][A-Za-z0-9_]*)\b/.exec(
+    line,
+  );
 }
 
 function lineWindowChunks<TFile extends EvidenceSearchFile>(file: TFile): CandidateChunk<TFile>[] {
@@ -301,9 +307,10 @@ function scoreCandidateChunk<TFile extends EvidenceSearchFile>(
     defaultContextLines: options.defaultContextLines,
     queryCoverageMaxLines: options.queryCoverageMaxLines,
   });
-  const reason = selection.matchKind === "exact-phrase"
-    ? `matched exact normalized query phrase in ${chunk.kind} chunk`
-    : `BM25-style scored ${chunk.kind} chunk with ${matchingTokens.length}/${queryTokens.length} query-token coverage`;
+  const reason =
+    selection.matchKind === "exact-phrase"
+      ? `matched exact normalized query phrase in ${chunk.kind} chunk`
+      : `BM25-style scored ${chunk.kind} chunk with ${matchingTokens.length}/${queryTokens.length} query-token coverage`;
 
   return {
     file: chunk.file,
@@ -315,7 +322,10 @@ function scoreCandidateChunk<TFile extends EvidenceSearchFile>(
   };
 }
 
-function chunkMightMatch<TFile extends EvidenceSearchFile>(chunk: CandidateChunk<TFile>, queryTokens: readonly string[]): boolean {
+function chunkMightMatch<TFile extends EvidenceSearchFile>(
+  chunk: CandidateChunk<TFile>,
+  queryTokens: readonly string[],
+): boolean {
   const path = chunk.file.path.toLowerCase();
   const heading = chunk.heading?.toLowerCase() ?? "";
   const text = chunk.text.toLowerCase();
@@ -348,7 +358,11 @@ function coverageRatio(matchingTokens: readonly string[], queryTokens: readonly 
   return queryTokens.length ? matchingTokens.length / queryTokens.length : 0;
 }
 
-function contentCoverageBoost(matchingTokens: readonly string[], queryTokens: readonly string[], chunkKind: CandidateChunk["kind"]): number {
+function contentCoverageBoost(
+  matchingTokens: readonly string[],
+  queryTokens: readonly string[],
+  chunkKind: CandidateChunk["kind"],
+): number {
   if (queryTokens.length === 0) {
     return 0;
   }
@@ -384,7 +398,11 @@ function missingCoveragePenalty(
   return (queryTokens.length - matchingTokens.length) * 90;
 }
 
-function lowContentCoveragePenalty(matchingTokens: readonly string[], queryTokens: readonly string[], pathScore: number): number {
+function lowContentCoveragePenalty(
+  matchingTokens: readonly string[],
+  queryTokens: readonly string[],
+  pathScore: number,
+): number {
   if (queryTokens.length < 4 || matchingTokens.length >= 2) {
     return 0;
   }
@@ -399,7 +417,9 @@ function exactPhraseBoost(exactPhrase: boolean, path: string, queryTokens: reado
   }
 
   const testPath = isTestPath(path);
-  const testIntent = queryTokens.some((token) => ["test", "tests", "expect", "expected", "should", "emitted"].includes(token));
+  const testIntent = queryTokens.some((token) =>
+    ["test", "tests", "expect", "expected", "should", "emitted"].includes(token),
+  );
   return testPath && !testIntent ? 1_000 : 100_000;
 }
 
@@ -442,7 +462,9 @@ function orderedPhraseBoost(chunkTokens: readonly string[], queryTokens: readonl
 
 function codeDefinitionBoost(text: string, queryTokens: readonly string[]): number {
   const definitionMatches = Array.from(
-    text.matchAll(/^\s*(?:pub\s+)?(?:async\s+)?(?:fn|struct|enum|trait|impl|mod|class|interface|type|const|def)\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm),
+    text.matchAll(
+      /^\s*(?:pub\s+)?(?:async\s+)?(?:fn|struct|enum|trait|impl|mod|class|interface|type|const|def)\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm,
+    ),
     (match) => match[1] ?? "",
   );
   if (!definitionMatches.length) {
@@ -481,7 +503,9 @@ function pathIntentBoost(path: string, queryTokens: readonly string[]): number {
 
 function sourceTestPrior(path: string, queryTokens: readonly string[]): number {
   const testPath = isTestPath(path);
-  const testIntent = queryTokens.some((token) => ["test", "tests", "expect", "expected", "should", "emitted"].includes(token));
+  const testIntent = queryTokens.some((token) =>
+    ["test", "tests", "expect", "expected", "should", "emitted"].includes(token),
+  );
   if (testPath && !testIntent) {
     return -2_000;
   }
@@ -496,10 +520,18 @@ function sourceTestPrior(path: string, queryTokens: readonly string[]): number {
 
 function isTestPath(path: string): boolean {
   const lower = path.toLowerCase();
-  return /(^|\/)(tests?|fixtures?)(\/|$)/.test(lower) || lower.endsWith("_tests.rs") || lower.endsWith(".test.ts") || lower.endsWith(".test.js");
+  return (
+    /(^|\/)(tests?|fixtures?)(\/|$)/.test(lower) ||
+    lower.endsWith("_tests.rs") ||
+    lower.endsWith(".test.ts") ||
+    lower.endsWith(".test.js")
+  );
 }
 
-function hasExactNormalizedPhraseInChunk<TFile extends EvidenceSearchFile>(chunk: CandidateChunk<TFile>, normalizedQueryPhrase: string): boolean {
+function hasExactNormalizedPhraseInChunk<TFile extends EvidenceSearchFile>(
+  chunk: CandidateChunk<TFile>,
+  normalizedQueryPhrase: string,
+): boolean {
   return normalizedQueryPhrase !== "" && phraseSequenceForChunk(chunk).includes(normalizedQueryPhrase);
 }
 

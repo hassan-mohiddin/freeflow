@@ -4,11 +4,7 @@
   "skill": "workflow",
   "title": "Change route after repeated invariant pressure across adapters",
   "question": "skill composition",
-  "evidence_classes": [
-    "native-activation",
-    "multi-turn",
-    "artifact-outcome"
-  ],
+  "evidence_classes": ["native-activation", "multi-turn", "artifact-outcome"],
   "required_for_bootstrap": false,
   "evaluation_kind": "comparison",
   "unsupported_evidence": "block",
@@ -37,18 +33,14 @@
       "role": "reference",
       "kind": "working-tree",
       "path": ".skill-eval/workflow/subjects/route-reference",
-      "resources": [
-        "SKILL.md"
-      ]
+      "resources": ["SKILL.md"]
     },
     {
       "id": "candidate",
       "role": "candidate",
       "kind": "working-tree",
       "path": ".skill-eval/workflow/subjects/route-candidate",
-      "resources": [
-        "SKILL.md"
-      ]
+      "resources": ["SKILL.md"]
     }
   ],
   "composition": {
@@ -58,18 +50,14 @@
         "kind": "git",
         "revision": "d0bf6ee1972222a10e302a5c63f9eb3dc0ef8a82",
         "path": ".skill-eval/workflow/subjects/composition-base",
-        "resources": [
-          "SKILL.md"
-        ]
+        "resources": ["SKILL.md"]
       },
       {
         "name": "evidence-base",
         "kind": "git",
         "revision": "d0bf6ee1972222a10e302a5c63f9eb3dc0ef8a82",
         "path": ".skill-eval/workflow/subjects/evidence-base",
-        "resources": [
-          "SKILL.md"
-        ]
+        "resources": ["SKILL.md"]
       }
     ],
     "target_name": "route-pressure",
@@ -85,10 +73,7 @@
   "execution": {
     "host": "pi",
     "mode": "rpc-scripted",
-    "tools": [
-      "read",
-      "write"
-    ]
+    "tools": ["read", "write"]
   },
   "assertions": [
     {
@@ -115,28 +100,19 @@
     {
       "id": "turn-2-first-fix-only",
       "type": "changed_paths",
-      "equals": [
-        "service.json"
-      ],
+      "equals": ["service.json"],
       "turn_id": "turn-2"
     },
     {
       "id": "turn-3-design-checkpoint",
       "type": "changed_paths",
-      "equals": [
-        "design-checkpoint.md",
-        "service.json"
-      ],
+      "equals": ["design-checkpoint.md", "service.json"],
       "turn_id": "turn-3"
     },
     {
       "id": "turn-4-route-closeout",
       "type": "changed_paths",
-      "equals": [
-        "design-checkpoint.md",
-        "route.json",
-        "service.json"
-      ],
+      "equals": ["design-checkpoint.md", "route.json", "service.json"],
       "turn_id": "turn-4"
     },
     {
@@ -157,9 +133,7 @@
       "id": "failure-unit-checkpoint",
       "type": "file_contains",
       "path": "design-checkpoint.md",
-      "patterns": [
-        "canonical-publication"
-      ]
+      "patterns": ["canonical-publication"]
     },
     {
       "id": "design-route",

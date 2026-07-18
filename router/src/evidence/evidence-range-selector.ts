@@ -142,7 +142,10 @@ function queryCoverageRangeForChunk(options: SelectEvidenceRangeForChunkOptions)
   return boundedCoverageRange(options, matchingLines);
 }
 
-function boundedCoverageRange(options: SelectEvidenceRangeForChunkOptions, matchingLines: readonly number[]): LineRange {
+function boundedCoverageRange(
+  options: SelectEvidenceRangeForChunkOptions,
+  matchingLines: readonly number[],
+): LineRange {
   const firstMatch = Math.min(...matchingLines);
   const lastMatch = Math.max(...matchingLines);
   const start = Math.max(options.chunkRange.start, firstMatch - options.defaultContextLines);
@@ -156,14 +159,19 @@ function boundedCoverageRange(options: SelectEvidenceRangeForChunkOptions, match
   return { start: cappedStart, end: cappedEnd };
 }
 
-function expandSectionRangeToNearbyFencedCodeBlocks(options: SelectEvidenceRangeForChunkOptions, range: LineRange): LineRange {
+function expandSectionRangeToNearbyFencedCodeBlocks(
+  options: SelectEvidenceRangeForChunkOptions,
+  range: LineRange,
+): LineRange {
   if (options.chunkKind !== "section") {
     return range;
   }
 
   let expanded = range;
   for (const block of fencedCodeBlocksInChunk(options)) {
-    const adjacentOrOverlapping = block.start <= expanded.end + options.defaultContextLines && block.end >= expanded.start - options.defaultContextLines;
+    const adjacentOrOverlapping =
+      block.start <= expanded.end + options.defaultContextLines &&
+      block.end >= expanded.start - options.defaultContextLines;
     if (!adjacentOrOverlapping) {
       continue;
     }

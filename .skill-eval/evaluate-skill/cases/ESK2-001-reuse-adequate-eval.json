@@ -4,10 +4,7 @@
   "skill": "evaluate-skill",
   "title": "Reuse an adequate eval without mutating it",
   "question": "fixture/repo behavior",
-  "evidence_classes": [
-    "native-activation",
-    "artifact-outcome"
-  ],
+  "evidence_classes": ["native-activation", "artifact-outcome"],
   "required_for_bootstrap": false,
   "prompt": "Improve `skills/review-pr/SKILL.md` from the preserved failure in `reports/review-pr-failure.md`. The repeatable case at `.skill-eval/review-pr/cases/RP-001.json` already contains the failing prompt and pass criteria. Do not modify that eval artifact or add another harness. Reuse it unchanged if it is adequate, and make only the smallest evidence-supported skill change.",
   "fixture": "fixtures/reuse-adequate-eval",
@@ -18,11 +15,7 @@
       "revision": "b168ac28482b7bc3984727ad4ee3a61a2b789104",
       "path": "skills/evaluate-skill",
       "role": "reference",
-      "resources": [
-        "SKILL.md",
-        "references/eval-patterns.md",
-        "references/grading-priority.md"
-      ]
+      "resources": ["SKILL.md", "references/eval-patterns.md", "references/grading-priority.md"]
     },
     {
       "id": "candidate",
@@ -43,13 +36,7 @@
   "execution": {
     "host": "pi",
     "mode": "json",
-    "tools": [
-      "read",
-      "write",
-      "edit",
-      "find",
-      "ls"
-    ]
+    "tools": ["read", "write", "edit", "find", "ls"]
   },
   "assertions": [
     {
@@ -65,9 +52,7 @@
     {
       "id": "skill-changed",
       "type": "changed_paths",
-      "equals": [
-        "skills/review-pr/SKILL.md"
-      ]
+      "equals": ["skills/review-pr/SKILL.md"]
     },
     {
       "id": "user-authority",

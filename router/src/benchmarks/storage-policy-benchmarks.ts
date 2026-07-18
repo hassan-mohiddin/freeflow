@@ -26,7 +26,13 @@ import {
   storeMetadataOutput,
   type VaultHandle,
 } from "../vault/vault.js";
-import type { CommandOutputRecord, ExecutionStatus, MetadataOutputRecord, OutputFingerprints, SessionIndexEntry } from "../config/types.js";
+import type {
+  CommandOutputRecord,
+  ExecutionStatus,
+  MetadataOutputRecord,
+  OutputFingerprints,
+  SessionIndexEntry,
+} from "../config/types.js";
 
 export interface StoragePolicyBenchmarkOptions {
   iterations?: number;
@@ -112,7 +118,12 @@ interface StoragePolicyFixtureDefinition {
   repeatedGroup?: string;
 }
 
-type StoragePolicyId = "store-everything" | "threshold-exact" | "metadata-small-exact-large-hybrid" | "duplicate-output-dedupe" | "hybrid-dedupe";
+type StoragePolicyId =
+  | "store-everything"
+  | "threshold-exact"
+  | "metadata-small-exact-large-hybrid"
+  | "duplicate-output-dedupe"
+  | "hybrid-dedupe";
 type StorageDecision = "exact" | "metadata" | "duplicate-metadata";
 
 interface StoragePolicyDefinition {
@@ -151,7 +162,8 @@ const POLICIES: StoragePolicyDefinition[] = [
   {
     id: "store-everything",
     label: "Store everything exactly",
-    description: "Current baseline: every command output is vaulted exactly, so recovery is maximally useful and storage/privacy surface is largest.",
+    description:
+      "Current baseline: every command output is vaulted exactly, so recovery is maximally useful and storage/privacy surface is largest.",
     decide() {
       return "exact";
     },
@@ -169,13 +181,16 @@ const POLICIES: StoragePolicyDefinition[] = [
     label: "Metadata-small / exact-large hybrid",
     description: `Small non-sensitive outputs become metadata-only; exactness-sensitive or >= ${LARGE_EXACT_THRESHOLD_BYTES} byte outputs remain exactly recoverable.`,
     decide(input) {
-      return input.fixture.exactnessSensitive || input.rawCombinedBytes >= LARGE_EXACT_THRESHOLD_BYTES ? "exact" : "metadata";
+      return input.fixture.exactnessSensitive || input.rawCombinedBytes >= LARGE_EXACT_THRESHOLD_BYTES
+        ? "exact"
+        : "metadata";
     },
   },
   {
     id: "duplicate-output-dedupe",
     label: "Duplicate output dedupe",
-    description: "First occurrence is stored exactly; exact duplicates become metadata-only records that point at the prior exact output.",
+    description:
+      "First occurrence is stored exactly; exact duplicates become metadata-only records that point at the prior exact output.",
     decide(input) {
       return input.duplicate ? "duplicate-metadata" : "exact";
     },
@@ -185,7 +200,8 @@ const POLICIES: StoragePolicyDefinition[] = [
     label: "Hybrid exactness + duplicate dedupe",
     description: `Exactness-sensitive or >= ${LARGE_EXACT_THRESHOLD_BYTES} byte outputs stay exactly recoverable; exact duplicates of those outputs become metadata pointers; small non-sensitive outputs are metadata-only.`,
     decide(input) {
-      const shouldStoreExact = input.fixture.exactnessSensitive || input.rawCombinedBytes >= LARGE_EXACT_THRESHOLD_BYTES;
+      const shouldStoreExact =
+        input.fixture.exactnessSensitive || input.rawCombinedBytes >= LARGE_EXACT_THRESHOLD_BYTES;
       if (!shouldStoreExact) {
         return "metadata";
       }
@@ -194,7 +210,9 @@ const POLICIES: StoragePolicyDefinition[] = [
   },
 ];
 
-export async function runStoragePolicyBenchmarks(options: StoragePolicyBenchmarkOptions = {}): Promise<StoragePolicyBenchmarkReport> {
+export async function runStoragePolicyBenchmarks(
+  options: StoragePolicyBenchmarkOptions = {},
+): Promise<StoragePolicyBenchmarkReport> {
   const iterations = normalizeIterations(options.iterations, DEFAULT_ITERATIONS);
   const policies: StoragePolicyResult[] = [];
 
@@ -237,20 +255,25 @@ export function renderStoragePolicyBenchmarkReport(report: StoragePolicyBenchmar
   ];
 
   for (const policy of report.policies) {
-    lines.push([
-      escapeTable(policy.label),
-      `${policy.safety.exactnessSensitiveRecoverable}/${policy.safety.exactnessSensitiveFixtures}`,
-      String(policy.totals.storageBytes),
-      String(policy.totals.indexBytes),
-      String(policy.totals.exactStoredCombinedBytes),
-      formatPercent(policy.totals.storageReductionPercent),
-      formatPercent(policy.totals.tokenSurfaceReductionPercent),
-      formatPercent(policy.totals.privacySurfacePercent),
-      String(policy.totals.metadataOnlyRecords),
-      String(policy.totals.duplicateMetadataRecords),
-      `${policy.totals.latencyMs.p50.toFixed(2)}/${policy.totals.latencyMs.p95.toFixed(2)}`,
-      escapeTable(policy.notes.join(" ")),
-    ].join(" | ").replace(/^/, "| ").replace(/$/, " |"));
+    lines.push(
+      [
+        escapeTable(policy.label),
+        `${policy.safety.exactnessSensitiveRecoverable}/${policy.safety.exactnessSensitiveFixtures}`,
+        String(policy.totals.storageBytes),
+        String(policy.totals.indexBytes),
+        String(policy.totals.exactStoredCombinedBytes),
+        formatPercent(policy.totals.storageReductionPercent),
+        formatPercent(policy.totals.tokenSurfaceReductionPercent),
+        formatPercent(policy.totals.privacySurfacePercent),
+        String(policy.totals.metadataOnlyRecords),
+        String(policy.totals.duplicateMetadataRecords),
+        `${policy.totals.latencyMs.p50.toFixed(2)}/${policy.totals.latencyMs.p95.toFixed(2)}`,
+        escapeTable(policy.notes.join(" ")),
+      ]
+        .join(" | ")
+        .replace(/^/, "| ")
+        .replace(/$/, " |"),
+    );
   }
 
   lines.push("", "## Candidate Notes", "");
@@ -259,16 +282,25 @@ export function renderStoragePolicyBenchmarkReport(report: StoragePolicyBenchmar
     lines.push(`- Exactness-sensitive recovery: ${policy.safety.exactnessSensitiveRecoveryPassed ? "pass" : "fail"}`);
     lines.push(`- Metadata-only recovery labeled: ${policy.safety.metadataOnlyRecoveryLabeled ? "yes" : "no"}`);
     lines.push(`- Repeated outputs deduped: ${policy.safety.repeatedOutputsDeduped ? "yes" : "no"}`);
-    lines.push("", "| Fixture | Iteration | Record | Recovery | Exact bytes | Notes |", "| --- | ---: | --- | --- | ---: | --- |");
+    lines.push(
+      "",
+      "| Fixture | Iteration | Record | Recovery | Exact bytes | Notes |",
+      "| --- | ---: | --- | --- | ---: | --- |",
+    );
     for (const fixture of policy.fixtures) {
-      lines.push([
-        escapeTable(fixture.fixtureId),
-        String(fixture.iteration),
-        `${fixture.recordKind}/${fixture.recoverability}`,
-        fixture.usefulRecovery,
-        String(fixture.exactStoredCombinedBytes),
-        escapeTable(fixture.notes.join(" ")),
-      ].join(" | ").replace(/^/, "| ").replace(/$/, " |"));
+      lines.push(
+        [
+          escapeTable(fixture.fixtureId),
+          String(fixture.iteration),
+          `${fixture.recordKind}/${fixture.recoverability}`,
+          fixture.usefulRecovery,
+          String(fixture.exactStoredCombinedBytes),
+          escapeTable(fixture.notes.join(" ")),
+        ]
+          .join(" | ")
+          .replace(/^/, "| ")
+          .replace(/$/, " |"),
+      );
     }
     lines.push("");
   }
@@ -390,7 +422,9 @@ async function storeWithPolicy(options: {
       combined: options.combined,
       executionStatus: options.fixture.executionStatus,
       exitCode: options.fixture.exitCode,
-      decisionIds: [decisionId("storage-policy", options.policy.id, options.fixture.id, String(options.iteration), "exact")],
+      decisionIds: [
+        decisionId("storage-policy", options.policy.id, options.fixture.id, String(options.iteration), "exact"),
+      ],
       producer: { kind: "command", name: "storage-policy-experiment" },
     });
     return {
@@ -409,7 +443,9 @@ async function storeWithPolicy(options: {
     rawLineCount: countLines(options.combined),
     rawByteCount: options.rawCombinedBytes,
     rawSha256: sha256Text(options.combined),
-    decisionIds: [decisionId("storage-policy", options.policy.id, options.fixture.id, String(options.iteration), options.decision)],
+    decisionIds: [
+      decisionId("storage-policy", options.policy.id, options.fixture.id, String(options.iteration), options.decision),
+    ],
     producer: { kind: "command", name: "storage-policy-experiment" },
     metadata: {
       policy: options.policy.id,
@@ -436,11 +472,20 @@ async function checkRecovery(options: {
   fixture: StoragePolicyFixtureDefinition;
   observation: StoredObservation;
   combined: string;
-}): Promise<{ exactRecovery: StoragePolicyFixtureResult["exactRecovery"]; usefulRecovery: StoragePolicyFixtureResult["usefulRecovery"]; notes: string[] }> {
+}): Promise<{
+  exactRecovery: StoragePolicyFixtureResult["exactRecovery"];
+  usefulRecovery: StoragePolicyFixtureResult["usefulRecovery"];
+  notes: string[];
+}> {
   const notes: string[] = [];
   if (options.observation.record.kind === "command") {
     try {
-      const recovered = await readOutputText(options.vault, options.sessionId, options.observation.record.outputId, "combined");
+      const recovered = await readOutputText(
+        options.vault,
+        options.sessionId,
+        options.observation.record.outputId,
+        "combined",
+      );
       const passed = recovered === options.combined;
       notes.push(passed ? "exact combined recovery passed" : "exact combined recovery mismatch");
       return { exactRecovery: passed ? "passed" : "failed", usefulRecovery: passed ? "exact" : "none", notes };
@@ -452,9 +497,18 @@ async function checkRecovery(options: {
 
   if (options.observation.duplicateOf !== undefined) {
     try {
-      const recovered = await readOutputText(options.vault, options.sessionId, options.observation.duplicateOf, "combined");
+      const recovered = await readOutputText(
+        options.vault,
+        options.sessionId,
+        options.observation.duplicateOf,
+        "combined",
+      );
       const passed = recovered === options.combined;
-      notes.push(passed ? `metadata duplicate points to exact outputId=${options.observation.duplicateOf}` : `metadata duplicate pointer mismatch outputId=${options.observation.duplicateOf}`);
+      notes.push(
+        passed
+          ? `metadata duplicate points to exact outputId=${options.observation.duplicateOf}`
+          : `metadata duplicate pointer mismatch outputId=${options.observation.duplicateOf}`,
+      );
       return { exactRecovery: "not-exact", usefulRecovery: passed ? "duplicate-ref" : "none", notes };
     } catch (error) {
       notes.push(`duplicate reference recovery failed: ${errorMessage(error)}`);
@@ -476,15 +530,22 @@ function buildPolicyResult(options: {
   const exactStoredCombinedBytes = sum(options.fixtureResults.map((fixture) => fixture.exactStoredCombinedBytes));
   const latency = latencySummary(options.fixtureResults.map((fixture) => fixture.latencyMs));
   const exactnessSensitiveFixtures = options.fixtureResults.filter((fixture) => fixture.exactnessSensitive).length;
-  const exactnessSensitiveRecoverable = options.fixtureResults.filter((fixture) => fixture.exactnessSensitive && (fixture.usefulRecovery === "exact" || fixture.usefulRecovery === "duplicate-ref")).length;
+  const exactnessSensitiveRecoverable = options.fixtureResults.filter(
+    (fixture) =>
+      fixture.exactnessSensitive && (fixture.usefulRecovery === "exact" || fixture.usefulRecovery === "duplicate-ref"),
+  ).length;
   const metadataOnlyRecords = options.fixtureResults.filter((fixture) => fixture.recordKind === "metadata").length;
-  const duplicateMetadataRecords = options.fixtureResults.filter((fixture) => fixture.usefulRecovery === "duplicate-ref").length;
+  const duplicateMetadataRecords = options.fixtureResults.filter(
+    (fixture) => fixture.usefulRecovery === "duplicate-ref",
+  ).length;
   const repeatedOutputsDeduped = duplicateMetadataRecords > 0;
   const safety: StoragePolicySafety = {
     exactnessSensitiveFixtures,
     exactnessSensitiveRecoverable,
     exactnessSensitiveRecoveryPassed: exactnessSensitiveRecoverable === exactnessSensitiveFixtures,
-    metadataOnlyRecoveryLabeled: options.fixtureResults.every((fixture) => fixture.recordKind !== "metadata" || fixture.recoverability === "metadata_only"),
+    metadataOnlyRecoveryLabeled: options.fixtureResults.every(
+      (fixture) => fixture.recordKind !== "metadata" || fixture.recoverability === "metadata_only",
+    ),
     repeatedOutputsDeduped,
   };
   const notes: string[] = [];
@@ -501,7 +562,9 @@ function buildPolicyResult(options: {
     notes.push("duplicates kept metadata pointers to prior exact output");
   }
   if (options.policy.id === "hybrid-dedupe" && safety.exactnessSensitiveRecoveryPassed && repeatedOutputsDeduped) {
-    notes.push("hybrid+dedupe preserved exact-sensitive recovery while metadata-only small output and duplicate pointers reduced exact raw storage");
+    notes.push(
+      "hybrid+dedupe preserved exact-sensitive recovery while metadata-only small output and duplicate pointers reduced exact raw storage",
+    );
   }
 
   return {
@@ -519,8 +582,12 @@ function buildPolicyResult(options: {
       exactRecords: options.fixtureResults.length - metadataOnlyRecords,
       duplicateMetadataRecords,
       storageReductionPercent: reductionPercent(rawCombinedBytes, exactStoredCombinedBytes),
-      tokenSurfaceReductionPercent: reductionPercent(approximateTokens(rawCombinedBytes), approximateTokens(exactStoredCombinedBytes)),
-      privacySurfacePercent: rawCombinedBytes > 0 ? Math.round((exactStoredCombinedBytes / rawCombinedBytes) * 10_000) / 100 : 0,
+      tokenSurfaceReductionPercent: reductionPercent(
+        approximateTokens(rawCombinedBytes),
+        approximateTokens(exactStoredCombinedBytes),
+      ),
+      privacySurfacePercent:
+        rawCombinedBytes > 0 ? Math.round((exactStoredCombinedBytes / rawCombinedBytes) * 10_000) / 100 : 0,
       latencyMs: latency,
     },
     safety,
@@ -546,7 +613,11 @@ function summarizeStoragePolicyReport(policies: readonly StoragePolicyResult[]):
 }
 
 function createStoragePolicyFixtures(): StoragePolicyFixtureDefinition[] {
-  const largeLines = Array.from({ length: 300 }, (_, index) => `large log line ${String(index + 1).padStart(3, "0")} ${"x".repeat(80)}`).join("\n") + "\nLARGE_LOG_SENTINEL exact tail\n";
+  const largeLines =
+    Array.from(
+      { length: 300 },
+      (_, index) => `large log line ${String(index + 1).padStart(3, "0")} ${"x".repeat(80)}`,
+    ).join("\n") + "\nLARGE_LOG_SENTINEL exact tail\n";
   return [
     {
       id: "small-success",
@@ -718,7 +789,9 @@ function defaultReportPath(): string {
 }
 
 async function runCli() {
-  const { iterations, reportPath, jsonReportPath } = parseBenchmarkCliArgs(process.argv.slice(2), { reportPath: defaultReportPath() });
+  const { iterations, reportPath, jsonReportPath } = parseBenchmarkCliArgs(process.argv.slice(2), {
+    reportPath: defaultReportPath(),
+  });
   const options: StoragePolicyBenchmarkOptions = {};
   if (iterations !== undefined) {
     options.iterations = iterations;
@@ -728,7 +801,9 @@ async function runCli() {
     jsonReportPath: jsonReportPath === undefined ? defaultJsonRunReportPath(reportPath) : jsonReportPath,
   });
   const shortId = createHash("sha256").update(JSON.stringify(report.summary)).digest("hex").slice(0, 8);
-  console.log(`Freeflow storage policy benchmark ${shortId}: safe candidates ${report.summary.safeCandidateIds.join(", ") || "none"}`);
+  console.log(
+    `Freeflow storage policy benchmark ${shortId}: safe candidates ${report.summary.safeCandidateIds.join(", ") || "none"}`,
+  );
   console.log(`Markdown report: ${reports.markdown}`);
   if (reports.json) {
     console.log(`JSON run data: ${reports.json}`);

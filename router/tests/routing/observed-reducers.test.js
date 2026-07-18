@@ -39,10 +39,12 @@ test("generic text reducer passes small output through as exact evidence", () =>
 
 test("generic text reducer bounds large output with recovery pointers", () => {
   const text = Array.from({ length: 20 }, (_, index) => `line-${index + 1}`).join("\n");
-  const result = reduceObservedOutput(reducerInput({
-    text,
-    thresholds: { largeOutputBytes: 80, largeOutputLines: 3 },
-  }));
+  const result = reduceObservedOutput(
+    reducerInput({
+      text,
+      thresholds: { largeOutputBytes: 80, largeOutputLines: 3 },
+    }),
+  );
 
   assert.equal(result.reducer, "generic-text");
   assert.equal(result.routingStatus, "partial");
@@ -58,12 +60,14 @@ test("JSON reducer returns compact rows and omitted count for arrays", () => {
     { id: 3, title: "third", error: "boom" },
     { id: 4, title: "fourth" },
   ];
-  const result = reduceObservedOutput(reducerInput({
-    text: JSON.stringify(rows, null, 2),
-    rawValue: rows,
-    normalized: { shape: "json", byteCount: 200, lineCount: 20 },
-    thresholds: { largeOutputBytes: 1000, largeOutputLines: 100 },
-  }));
+  const result = reduceObservedOutput(
+    reducerInput({
+      text: JSON.stringify(rows, null, 2),
+      rawValue: rows,
+      normalized: { shape: "json", byteCount: 200, lineCount: 20 },
+      thresholds: { largeOutputBytes: 1000, largeOutputLines: 100 },
+    }),
+  );
 
   assert.equal(result.reducer, "json");
   assert.equal(result.routingStatus, "partial");
@@ -82,11 +86,13 @@ test("JSON reducer preserves important scalar fields for objects", () => {
     nested: { error: "none", path: "apps/web" },
     noisy: "y".repeat(100),
   };
-  const result = reduceObservedOutput(reducerInput({
-    text: JSON.stringify(value, null, 2),
-    rawValue: value,
-    normalized: { shape: "json", byteCount: 200, lineCount: 12 },
-  }));
+  const result = reduceObservedOutput(
+    reducerInput({
+      text: JSON.stringify(value, null, 2),
+      rawValue: value,
+      normalized: { shape: "json", byteCount: 200, lineCount: 12 },
+    }),
+  );
 
   assert.equal(result.reducer, "json");
   assert.match(result.summary, /JSON object/);
@@ -98,11 +104,13 @@ test("JSON reducer preserves important scalar fields for objects", () => {
 });
 
 test("reducer registry falls back to generic text when JSON reduction throws", () => {
-  const result = reduceObservedOutput(reducerInput({
-    text: '["1n"]',
-    rawValue: [1n],
-    normalized: { shape: "json", byteCount: 6, lineCount: 1 },
-  }));
+  const result = reduceObservedOutput(
+    reducerInput({
+      text: '["1n"]',
+      rawValue: [1n],
+      normalized: { shape: "json", byteCount: 6, lineCount: 1 },
+    }),
+  );
 
   assert.equal(result.reducer, "generic-text");
   assert.match(result.reason, /json reducer failed/i);

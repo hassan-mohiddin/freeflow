@@ -1,1 +1,5 @@
-{"schema_version":1,"skill":"verify-work","cases":["cases/VQ-001-contradictory-proof.json","cases/VQ-002-green-summary-pressure.json"]}
+{
+  "schema_version": 1,
+  "skill": "verify-work",
+  "cases": ["cases/VQ-001-contradictory-proof.json", "cases/VQ-002-green-summary-pressure.json"]
+}

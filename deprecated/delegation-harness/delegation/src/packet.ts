@@ -96,11 +96,30 @@ export function validateTaskPacketIdentity(text: string, expected: Partial<TaskP
   const assignmentMatch = packetIdentityMatch(text, /^- agent\/assignment: (.+) \/ (.+)$/m, "agentId/assignmentId");
   const agentId = validateRequiredSafeId(assignmentMatch[1] ?? "", "packet agent id");
   const assignmentId = validateRequiredSafeId(assignmentMatch[2] ?? "", "packet assignment id");
-  const attemptId = validateRequiredSafeId(packetIdentityField(text, /^- attempt: (.+)$/m, "attemptId"), "packet attempt id");
-  const versionMatch = packetIdentityMatch(text, /^- identity\/profile\/protocol versions: (\d+) \/ (\d+) \/ (\d+)$/m, "identity/profile/protocol versions");
-  const identitySchemaVersion = currentVersion(Number(versionMatch[1]), CURRENT_DELEGATION_IDENTITY_SCHEMA_VERSION, "packet identity schema");
-  const profileSchemaVersion = currentVersion(Number(versionMatch[2]), CURRENT_DELEGATION_PROFILE_SCHEMA_VERSION, "packet profile schema");
-  const protocolVersion = currentVersion(Number(versionMatch[3]), CURRENT_DELEGATION_PROTOCOL_VERSION, "packet protocol");
+  const attemptId = validateRequiredSafeId(
+    packetIdentityField(text, /^- attempt: (.+)$/m, "attemptId"),
+    "packet attempt id",
+  );
+  const versionMatch = packetIdentityMatch(
+    text,
+    /^- identity\/profile\/protocol versions: (\d+) \/ (\d+) \/ (\d+)$/m,
+    "identity/profile/protocol versions",
+  );
+  const identitySchemaVersion = currentVersion(
+    Number(versionMatch[1]),
+    CURRENT_DELEGATION_IDENTITY_SCHEMA_VERSION,
+    "packet identity schema",
+  );
+  const profileSchemaVersion = currentVersion(
+    Number(versionMatch[2]),
+    CURRENT_DELEGATION_PROFILE_SCHEMA_VERSION,
+    "packet profile schema",
+  );
+  const protocolVersion = currentVersion(
+    Number(versionMatch[3]),
+    CURRENT_DELEGATION_PROTOCOL_VERSION,
+    "packet protocol",
+  );
   const roleProfileMatch = packetIdentityMatch(text, /^- role\/profile: (.+) \/ (.+)$/m, "role/profile");
   const role = roleProfileMatch[1] as CompileTaskPacketInput["role"];
   const profile = roleProfileMatch[2] as DelegationProfile;
@@ -133,7 +152,9 @@ export function renderTaskPacketMarkdown(packet: NormalizedTaskPacket): string {
   lines.push(`- task: ${packet.taskId}`);
   lines.push(`- agent/assignment: ${packet.agentId} / ${packet.assignmentId}`);
   lines.push(`- attempt: ${packet.attemptId}`);
-  lines.push(`- identity/profile/protocol versions: ${packet.identitySchemaVersion} / ${packet.profileSchemaVersion} / ${packet.protocolVersion}`);
+  lines.push(
+    `- identity/profile/protocol versions: ${packet.identitySchemaVersion} / ${packet.profileSchemaVersion} / ${packet.protocolVersion}`,
+  );
   lines.push(`- role/profile: ${packet.role} / ${packet.profile}`);
   lines.push(`- parent: ${packet.parentAgentId ?? "none"}`);
   lines.push(`- cwd: ${packet.cwd}`, "");
@@ -191,7 +212,10 @@ export function renderTaskPacketMarkdown(packet: NormalizedTaskPacket): string {
   lines.push("", "Return fields:");
   for (const field of packet.returnFields) lines.push(`- ${field}`);
   if (packet.tools.includes("delegate_finish")) {
-    lines.push("", "Use `delegate_finish` when complete. It stores the result and alerts the direct parent without echoing the full result in chat.");
+    lines.push(
+      "",
+      "Use `delegate_finish` when complete. It stores the result and alerts the direct parent without echoing the full result in chat.",
+    );
   }
   if (packet.tools.includes("delegate_attention")) {
     lines.push("Use `delegate_attention` when blocked or parent input is needed.");
@@ -213,7 +237,9 @@ export function renderTaskPacketMarkdown(packet: NormalizedTaskPacket): string {
   lines.push(`- result: ${packet.resultPath}`);
   lines.push("");
 
-  lines.push("Do not stage, commit, push, spawn children, or use tools outside this packet unless the parent explicitly sends a new packet.");
+  lines.push(
+    "Do not stage, commit, push, spawn children, or use tools outside this packet unless the parent explicitly sends a new packet.",
+  );
   return `${lines.join("\n")}\n`;
 }
 
@@ -248,8 +274,10 @@ export function renderTaskPacketRows(input: CompileTaskPacketInput): string {
   addRow(rows, "TOOLS", [packet.tools.join(",")]);
   addRow(rows, "DENY", [packet.deny.join(",")]);
   for (const item of packet.policySummary) addRow(rows, "POLICY", [item]);
-  for (const scope of packet.writeScopes.length === 0 ? ["none"] : packet.writeScopes) addRow(rows, "WRITE_SCOPE", [scope]);
-  for (const command of packet.allowedCommands.length === 0 ? ["none"] : packet.allowedCommands) addRow(rows, "ALLOWED_COMMAND", [command]);
+  for (const scope of packet.writeScopes.length === 0 ? ["none"] : packet.writeScopes)
+    addRow(rows, "WRITE_SCOPE", [scope]);
+  for (const command of packet.allowedCommands.length === 0 ? ["none"] : packet.allowedCommands)
+    addRow(rows, "ALLOWED_COMMAND", [command]);
   if (packet.evidence.length === 0) {
     addRow(rows, "EVIDENCE", ["none"]);
   } else {
@@ -273,23 +301,35 @@ export function renderTaskPacketRows(input: CompileTaskPacketInput): string {
 function normalizeTaskPacket(input: CompileTaskPacketInput): NormalizedTaskPacket {
   const taskId = validateRequiredSafeId(input.taskId, "task id");
   const agentId = validateRequiredSafeId(input.agentId, "agent id");
-  const missingIdentity = (["assignmentId", "attemptId", "identitySchemaVersion", "profileSchemaVersion", "protocolVersion"] as const)
-    .filter((field) => input[field] === undefined);
+  const missingIdentity = (
+    ["assignmentId", "attemptId", "identitySchemaVersion", "profileSchemaVersion", "protocolVersion"] as const
+  ).filter((field) => input[field] === undefined);
   if (missingIdentity.length > 0) {
-    throw new Error(`task packet identity requires explicit assignmentId, attemptId, identitySchemaVersion, profileSchemaVersion, protocolVersion; missing ${missingIdentity.join(", ")}`);
+    throw new Error(
+      `task packet identity requires explicit assignmentId, attemptId, identitySchemaVersion, profileSchemaVersion, protocolVersion; missing ${missingIdentity.join(", ")}`,
+    );
   }
   const assignmentId = validateRequiredSafeId(input.assignmentId, "assignment id");
   if (assignmentId !== agentId) {
     throw new Error(`assignment id ${assignmentId} must match agent id ${agentId}`);
   }
   const attemptId = validateRequiredSafeId(input.attemptId, "attempt id");
-  const identitySchemaVersion = currentVersion(input.identitySchemaVersion, CURRENT_DELEGATION_IDENTITY_SCHEMA_VERSION, "identity schema");
-  const profileSchemaVersion = currentVersion(input.profileSchemaVersion, CURRENT_DELEGATION_PROFILE_SCHEMA_VERSION, "profile schema");
+  const identitySchemaVersion = currentVersion(
+    input.identitySchemaVersion,
+    CURRENT_DELEGATION_IDENTITY_SCHEMA_VERSION,
+    "identity schema",
+  );
+  const profileSchemaVersion = currentVersion(
+    input.profileSchemaVersion,
+    CURRENT_DELEGATION_PROFILE_SCHEMA_VERSION,
+    "profile schema",
+  );
   const protocolVersion = currentVersion(input.protocolVersion, CURRENT_DELEGATION_PROTOCOL_VERSION, "protocol");
   const role = input.role;
   const profile = input.profile ?? (role as DelegationProfile);
   const profileDefinition = resolveProfileForRole(role, profile);
-  const parentAgentId = input.parentAgentId !== undefined ? validateRequiredSafeId(input.parentAgentId, "parent agent id") : undefined;
+  const parentAgentId =
+    input.parentAgentId !== undefined ? validateRequiredSafeId(input.parentAgentId, "parent agent id") : undefined;
   const cwd = validateCwd(input.cwd);
   const objective = validatePacketField(input.objective, "objective");
   if (objective.trim().length === 0) {
@@ -298,7 +338,11 @@ function normalizeTaskPacket(input: CompileTaskPacketInput): NormalizedTaskPacke
 
   const tools = normalizeTools(input.tools ?? profileDefinition.activeTools, profileDefinition.activeTools, profile);
   const writeScopes = normalizeWriteScopes(input.writeScope);
-  if (profileDefinition.defaultPolicy.requireWriteScope && profileDefinition.activeTools.some((tool) => tool === "edit" || tool === "write") && writeScopes.length === 0) {
+  if (
+    profileDefinition.defaultPolicy.requireWriteScope &&
+    profileDefinition.activeTools.some((tool) => tool === "edit" || tool === "write") &&
+    writeScopes.length === 0
+  ) {
     throw new Error(`profile ${profile} requires at least one write scope`);
   }
   const defaultReturnSpec = defaultReturnProtocolForRole(role);
@@ -324,7 +368,10 @@ function normalizeTaskPacket(input: CompileTaskPacketInput): NormalizedTaskPacke
     inScope: normalizePacketList(input.inScope ?? ["Use the assigned objective and source pointers only."], "in scope"),
     outOfScope: normalizePacketList(input.outOfScope ?? ["Anything not named in this packet."], "out of scope"),
     deny: normalizePacketList(input.deny ?? defaultDenySummaryForProfile(profile), "deny"),
-    policySummary: normalizePacketList(input.policySummary ?? defaultPolicySummary(profile, profileDefinition.defaultPolicy.commandPolicy), "policy summary"),
+    policySummary: normalizePacketList(
+      input.policySummary ?? defaultPolicySummary(profile, profileDefinition.defaultPolicy.commandPolicy),
+      "policy summary",
+    ),
     evidence: normalizeEvidencePointers(input.evidence ?? []),
     stopConditions: normalizePacketList(input.stopConditions ?? DEFAULT_STOP_CONDITIONS, "stop condition"),
     returnProtocol,
@@ -343,9 +390,13 @@ function packetIdentityField(text: string, pattern: RegExp, label: string): stri
 }
 
 function packetIdentityMatch(text: string, pattern: RegExp, label: string): RegExpMatchArray {
-  const matches = [...text.matchAll(new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`))];
+  const matches = [
+    ...text.matchAll(new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`)),
+  ];
   if (matches.length !== 1) {
-    throw new Error(`task packet identity is incomplete or ambiguous: expected one ${label} field, found ${matches.length}`);
+    throw new Error(
+      `task packet identity is incomplete or ambiguous: expected one ${label} field, found ${matches.length}`,
+    );
   }
   return matches[0] as RegExpMatchArray;
 }
@@ -373,7 +424,11 @@ function validateCwd(value: string): string {
   return cwd;
 }
 
-function normalizeTools(tools: readonly string[], activeTools: readonly string[], profile: DelegationProfile): string[] {
+function normalizeTools(
+  tools: readonly string[],
+  activeTools: readonly string[],
+  profile: DelegationProfile,
+): string[] {
   const normalized = normalizePacketList(tools, "tool");
   for (const tool of normalized) {
     if (!activeTools.includes(tool)) {
@@ -397,12 +452,18 @@ function normalizeWriteScopes(value: string | string[] | undefined): string[] {
   return [...new Set(scopes.map((scope, index) => validateWriteScope(scope, `write scope ${index + 1}`)))];
 }
 
-function normalizeReturnProtocol(input: readonly string[] | undefined, defaultProtocol: readonly string[], role: CompileTaskPacketInput["role"], tools: readonly string[]): string[] {
-  const protocol = input === undefined
-    ? returnProtocolForActiveTools(role, tools)
-    : normalizePacketList(input, "return protocol");
+function normalizeReturnProtocol(
+  input: readonly string[] | undefined,
+  defaultProtocol: readonly string[],
+  role: CompileTaskPacketInput["role"],
+  tools: readonly string[],
+): string[] {
+  const protocol =
+    input === undefined ? returnProtocolForActiveTools(role, tools) : normalizePacketList(input, "return protocol");
   if (!tools.includes("delegate_finish") && protocol.some((item) => item.includes("DELEGATE_FINISH"))) {
-    throw new Error("return protocol must not mention delegate_finish unless delegate_finish is active for this packet");
+    throw new Error(
+      "return protocol must not mention delegate_finish unless delegate_finish is active for this packet",
+    );
   }
   if (input === undefined && protocol.length === 0) {
     return [...defaultProtocol];
@@ -487,7 +548,9 @@ function validateRequiredPath(value: string | undefined, label: string): string 
 function validateWriteScope(value: string, label: string): string {
   const scope = validatePathLike(value, label);
   if (/[,;|]/.test(scope) || /\s/.test(scope)) {
-    throw new Error(`${label} must be a path or glob scope only; pass multiple scopes as an array, not prose or comma-separated text`);
+    throw new Error(
+      `${label} must be a path or glob scope only; pass multiple scopes as an array, not prose or comma-separated text`,
+    );
   }
   return scope;
 }

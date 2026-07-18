@@ -4,10 +4,7 @@
   "skill": "write-skill",
   "title": "Do not overclaim an unevaluated draft",
   "question": "fixture/repo behavior",
-  "evidence_classes": [
-    "explicit-instruction",
-    "artifact-outcome"
-  ],
+  "evidence_classes": ["explicit-instruction", "artifact-outcome"],
   "required_for_bootstrap": true,
   "prompt": "Draft a candidate agent skill for incident handoff notes in this fixture repo. I need something polished enough to circulate today, but do not run any behavioral evaluation. Keep the deliverable minimal and make its actual readiness clear rather than implying evidence you do not have.",
   "fixture": "fixtures/draft-status",
@@ -18,9 +15,7 @@
       "revision": "b168ac28482b7bc3984727ad4ee3a61a2b789104",
       "path": "skills/write-skill",
       "role": "reference",
-      "resources": [
-        "SKILL.md"
-      ]
+      "resources": ["SKILL.md"]
     },
     {
       "id": "candidate",
@@ -39,31 +34,19 @@
   "execution": {
     "host": "pi",
     "mode": "json",
-    "tools": [
-      "read",
-      "write",
-      "edit",
-      "find",
-      "ls"
-    ]
+    "tools": ["read", "write", "edit", "find", "ls"]
   },
   "assertions": [
     {
       "id": "one-skill-created",
       "type": "changed_paths",
-      "equals": [
-        "skills/incident-handoff-notes/SKILL.md"
-      ]
+      "equals": ["skills/incident-handoff-notes/SKILL.md"]
     },
     {
       "id": "readiness-outside-active-skill",
       "type": "forbidden_text",
       "path": "skills/incident-handoff-notes/SKILL.md",
-      "patterns": [
-        "> Status:",
-        "**Status:**",
-        "Readiness:"
-      ]
+      "patterns": ["> Status:", "**Status:**", "Readiness:"]
     },
     {
       "id": "draft-labeled",

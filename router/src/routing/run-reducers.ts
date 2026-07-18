@@ -49,17 +49,25 @@ export function selectRunReducerRoute(options: SelectRunReducerRouteOptions): Ru
 
   const source = reducerSourceText(options.stdout, options.stderr, options.combined);
   if (source === undefined) {
-    return { status: "not_selected", reason: "mixed stdout/stderr success output stays near-raw to avoid hiding warnings." };
+    return {
+      status: "not_selected",
+      reason: "mixed stdout/stderr success output stays near-raw to avoid hiding warnings.",
+    };
   }
 
-  const selection = selectProcessingReducer({ text: source.text, ...(options.goal !== undefined ? { goal: options.goal } : {}) });
+  const selection = selectProcessingReducer({
+    text: source.text,
+    ...(options.goal !== undefined ? { goal: options.goal } : {}),
+  });
   if (selection.status !== "selected") {
     return { status: "not_selected", reason: selection.reason };
   }
 
   const goalText = (options.goal ?? "").toLowerCase();
   const commandTextValue = commandText(options.command).toLowerCase();
-  const outputIsLarge = byteLength(source.text) > options.thresholds.largeOutputBytes || countLines(source.text) > options.thresholds.largeOutputLines;
+  const outputIsLarge =
+    byteLength(source.text) > options.thresholds.largeOutputBytes ||
+    countLines(source.text) > options.thresholds.largeOutputLines;
   const intentAllowsReducer = reducerIntentAllowsSelection(goalText, commandTextValue, selection.result.name);
   const largeOutputAllowsReducer = outputIsLarge && reducerLargeOutputAllowsSelection(goalText, selection.result);
   if (!largeOutputAllowsReducer && !intentAllowsReducer) {
@@ -78,11 +86,13 @@ export function selectRunReducerRoute(options: SelectRunReducerRouteOptions): Ru
 }
 
 export function reducerImportantLines(route: Extract<RunReducerRoute, { status: "selected" }>): ImportantLine[] {
-  return [{
-    stream: route.sourceStream,
-    lines: lineRangeForText(route.result.visibleText),
-    excerpt: route.result.visibleText,
-  }];
+  return [
+    {
+      stream: route.sourceStream,
+      lines: lineRangeForText(route.result.visibleText),
+      excerpt: route.result.visibleText,
+    },
+  ];
 }
 
 export function parserWithReducer(
@@ -102,7 +112,11 @@ export function parserWithReducer(
   };
 }
 
-function reducerSourceText(stdout: string, stderr: string, combined: string): { stream: ImportantLine["stream"]; text: string } | undefined {
+function reducerSourceText(
+  stdout: string,
+  stderr: string,
+  combined: string,
+): { stream: ImportantLine["stream"]; text: string } | undefined {
   if (stdout.length > 0 && stderr.length === 0) {
     return { stream: "stdout", text: stdout };
   }
@@ -130,7 +144,9 @@ function reducerIntentAllowsSelection(goalText: string, commandTextValue: string
     case "mcp-tools":
       return /\b(mcp|tools?|schema|signatures?)\b/.test(goalText);
     case "json-query":
-      return /\b(json|github|issues?|labels?|repo|repository|summary|summarize|summarise|analysis|analyze|analyse)\b/.test(goalText);
+      return /\b(json|github|issues?|labels?|repo|repository|summary|summarize|summarise|analysis|analyze|analyse)\b/.test(
+        goalText,
+      );
     case "browser-snapshot":
       return /\b(browser|snapshot|playwright|accessibility|dom)\b/.test(goalText);
     case "git-log":

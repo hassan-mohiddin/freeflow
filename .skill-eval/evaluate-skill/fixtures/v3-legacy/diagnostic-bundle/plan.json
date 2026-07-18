@@ -42,10 +42,7 @@
   "total_processes": 4,
   "scripted_user_turns": 2,
   "composition": {
-    "skills": [
-      "execute-plan",
-      "tdd"
-    ],
+    "skills": ["execute-plan", "tdd"],
     "target_name": "tdd",
     "runtime_profile": "freeflow-kernel-workflow-v1"
   },
@@ -85,10 +82,7 @@
           "kind": "git",
           "path": "skills/execute-plan",
           "revision": "87f83cb",
-          "resources": [
-            "SKILL.md",
-            "references/execution-map.md"
-          ],
+          "resources": ["SKILL.md", "references/execution-map.md"],
           "identity": {
             "entries": [
               [
@@ -96,11 +90,7 @@
                 "file",
                 "a1f629300b324a61bc9b7c9c1684782ac4cd25a68098322dff252ad6f6d6624e"
               ],
-              [
-                "SKILL.md",
-                "file",
-                "dc2f5c91c5a46aec396181369cc6d6e99e802cf5e16f9444bbd806a62534cddb"
-              ]
+              ["SKILL.md", "file", "dc2f5c91c5a46aec396181369cc6d6e99e802cf5e16f9444bbd806a62534cddb"]
             ],
             "aggregate_sha256": "e75dea3c351cd1e4f741b77a63014ea3f66f2844cac35181675cda88022a5929"
           }
@@ -118,11 +108,7 @@
               "file",
               "9bb3e8b3de4c994dfe8053b7275d489d11f81a3ec5216572093b9058e382210f"
             ],
-            [
-              "skills/workflow/SKILL.md",
-              "file",
-              "7e8e96d58744b1699c9cde4f4cb4216b578fb0c99d49ac4af5687644ba9a4526"
-            ]
+            ["skills/workflow/SKILL.md", "file", "7e8e96d58744b1699c9cde4f4cb4216b578fb0c99d49ac4af5687644ba9a4526"]
           ],
           "aggregate_sha256": "6a00997d0300528ed71589026737e22ab53fae866a3221aa81d80f98e4f49f15"
         },
@@ -151,22 +137,11 @@
           "kind": "git",
           "path": "skills/tdd",
           "revision": "87f83cb",
-          "resources": [
-            "SKILL.md",
-            "references/test-design.md"
-          ],
+          "resources": ["SKILL.md", "references/test-design.md"],
           "identity": {
             "entries": [
-              [
-                "references/test-design.md",
-                "file",
-                "2f7d49567e4be78e86da8f2fbb55989bb438426327454fb49e7a0fb877c929ab"
-              ],
-              [
-                "SKILL.md",
-                "file",
-                "face2bf78c8516020e82b487d07cafa852e39ee87c59f926476bf42896810662"
-              ]
+              ["references/test-design.md", "file", "2f7d49567e4be78e86da8f2fbb55989bb438426327454fb49e7a0fb877c929ab"],
+              ["SKILL.md", "file", "face2bf78c8516020e82b487d07cafa852e39ee87c59f926476bf42896810662"]
             ],
             "aggregate_sha256": "281df88de06d86e5e0e3156b8e8b75bedf8aaf3c8e6a9a28261b0b3e5104bd81"
           }
@@ -176,22 +151,11 @@
           "kind": "git",
           "path": "skills/tdd",
           "revision": "c7cfdba",
-          "resources": [
-            "SKILL.md",
-            "references/test-design.md"
-          ],
+          "resources": ["SKILL.md", "references/test-design.md"],
           "identity": {
             "entries": [
-              [
-                "references/test-design.md",
-                "file",
-                "86f8e279ca800e7616b3158474c848d8cb9779b1420358bb90f7feb9c95d4982"
-              ],
-              [
-                "SKILL.md",
-                "file",
-                "ad7f25b62ef04518579dcb9fb456d5c0e457202e637d57f646d4716d30e682fb"
-              ]
+              ["references/test-design.md", "file", "86f8e279ca800e7616b3158474c848d8cb9779b1420358bb90f7feb9c95d4982"],
+              ["SKILL.md", "file", "ad7f25b62ef04518579dcb9fb456d5c0e457202e637d57f646d4716d30e682fb"]
             ],
             "aggregate_sha256": "7b2df8b11665f34f73bc727fb8ad6e397672b326b091f9039e115ee160709992"
           }

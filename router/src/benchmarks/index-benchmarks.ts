@@ -118,7 +118,8 @@ export interface IndexCorrectnessResult {
   generatedFalsePositive: boolean;
 }
 
-type IndexBenchmarkMode = "scanner-default" | "index-cold" | "index-warm" | "index-stale-refresh" | "fts5-bm25-trigram" | "hybrid-warm";
+type IndexBenchmarkMode =
+  "scanner-default" | "index-cold" | "index-warm" | "index-stale-refresh" | "fts5-bm25-trigram" | "hybrid-warm";
 
 interface IndexFixtureDefinition {
   id: string;
@@ -168,7 +169,12 @@ export async function runIndexBenchmarks(options: RunIndexBenchmarksOptions = {}
     for (const mode of indexBenchmarkModes()) {
       results.push(await runIndexFixtureMode(fixture, mode, iterations));
     }
-    fixtureResults.push({ id: fixture.id, title: fixture.title, expected: fixtureExpectedForMode(fixture, "index-warm"), results });
+    fixtureResults.push({
+      id: fixture.id,
+      title: fixture.title,
+      expected: fixtureExpectedForMode(fixture, "index-warm"),
+      results,
+    });
   }
 
   return {
@@ -293,7 +299,15 @@ async function runIndexFixtureMode(
   }
 
   if (!observation) {
-    observation = { toolPathUsed: mode, skipped: true, skipReason: "No observation was produced.", rawBytes: 0, contextBytes: 0, excerpt: "", notes: ["no observation"] };
+    observation = {
+      toolPathUsed: mode,
+      skipped: true,
+      skipReason: "No observation was produced.",
+      rawBytes: 0,
+      contextBytes: 0,
+      excerpt: "",
+      notes: ["no observation"],
+    };
   }
 
   const correctness = scoreCorrectness(fixtureExpectedForMode(fixture, mode), observation);
@@ -331,7 +345,10 @@ async function runIndexFixtureMode(
   return result;
 }
 
-async function observeIndexFixture(fixture: IndexFixtureDefinition, mode: IndexBenchmarkMode): Promise<IndexObservation> {
+async function observeIndexFixture(
+  fixture: IndexFixtureDefinition,
+  mode: IndexBenchmarkMode,
+): Promise<IndexObservation> {
   const root = await createTempDir("freeflow-router-index-benchmark-repo-");
   const cacheRoot = await createTempDir("freeflow-router-index-benchmark-cache-");
   try {
@@ -342,30 +359,55 @@ async function observeIndexFixture(fixture: IndexFixtureDefinition, mode: IndexB
       return await indexObservation(root.path, cacheRoot.path, fixture.staleQuery ?? fixture.query, mode);
     }
 
-    const finalFiles = mode === "scanner-default" || mode === "index-cold" || mode === "index-warm" || mode === "fts5-bm25-trigram" || mode === "hybrid-warm"
-      ? { ...fixture.files, ...(fixture.staleFiles && fixture.staleExpected ? fixture.staleFiles : {}) }
-      : fixture.files;
+    const finalFiles =
+      mode === "scanner-default" ||
+      mode === "index-cold" ||
+      mode === "index-warm" ||
+      mode === "fts5-bm25-trigram" ||
+      mode === "hybrid-warm"
+        ? { ...fixture.files, ...(fixture.staleFiles && fixture.staleExpected ? fixture.staleFiles : {}) }
+        : fixture.files;
     await writeFixtureFiles(root.path, finalFiles);
 
     if (mode === "scanner-default") {
-      return await scannerObservation(root.path, fixture.staleQuery && fixture.staleExpected ? fixture.staleQuery : fixture.query);
+      return await scannerObservation(
+        root.path,
+        fixture.staleQuery && fixture.staleExpected ? fixture.staleQuery : fixture.query,
+      );
     }
 
     if (mode === "fts5-bm25-trigram") {
-      return await ftsObservation(root.path, fixture.staleQuery && fixture.staleExpected ? fixture.staleQuery : fixture.query);
+      return await ftsObservation(
+        root.path,
+        fixture.staleQuery && fixture.staleExpected ? fixture.staleQuery : fixture.query,
+      );
     }
 
     if (mode === "hybrid-warm") {
       await buildOrLoadExperimentalRepoIndex({ root: root.path, cacheRoot: cacheRoot.path });
-      return await hybridObservation(root.path, cacheRoot.path, fixture.staleQuery && fixture.staleExpected ? fixture.staleQuery : fixture.query);
+      return await hybridObservation(
+        root.path,
+        cacheRoot.path,
+        fixture.staleQuery && fixture.staleExpected ? fixture.staleQuery : fixture.query,
+      );
     }
 
     if (mode === "index-warm") {
       await buildOrLoadExperimentalRepoIndex({ root: root.path, cacheRoot: cacheRoot.path });
-      return await indexObservation(root.path, cacheRoot.path, fixture.staleQuery && fixture.staleExpected ? fixture.staleQuery : fixture.query, mode);
+      return await indexObservation(
+        root.path,
+        cacheRoot.path,
+        fixture.staleQuery && fixture.staleExpected ? fixture.staleQuery : fixture.query,
+        mode,
+      );
     }
 
-    return await indexObservation(root.path, cacheRoot.path, fixture.staleQuery && fixture.staleExpected ? fixture.staleQuery : fixture.query, mode);
+    return await indexObservation(
+      root.path,
+      cacheRoot.path,
+      fixture.staleQuery && fixture.staleExpected ? fixture.staleQuery : fixture.query,
+      mode,
+    );
   } finally {
     await Promise.all([root.cleanup(), cacheRoot.cleanup()]);
   }
@@ -374,7 +416,13 @@ async function observeIndexFixture(fixture: IndexFixtureDefinition, mode: IndexB
 async function scannerObservation(root: string, query: string): Promise<IndexObservation> {
   const rawBytes = await repoRawBytes(root);
   const queryStartedAt = performance.now();
-  const result = await freeflowSearch({ action: "query", source: { kind: "repo", root }, query, preserve: "important", topK: BENCHMARK_TOP_K });
+  const result = await freeflowSearch({
+    action: "query",
+    source: { kind: "repo", root },
+    query,
+    preserve: "important",
+    topK: BENCHMARK_TOP_K,
+  });
   const queryMs = performance.now() - queryStartedAt;
   const evidence = result.evidence?.[0];
   const candidatePaths = uniqueCandidatePaths(result.evidence?.map((packet) => packet.path));
@@ -391,7 +439,12 @@ async function scannerObservation(root: string, query: string): Promise<IndexObs
   };
 }
 
-async function indexObservation(root: string, cacheRoot: string, query: string, mode: IndexBenchmarkMode): Promise<IndexObservation> {
+async function indexObservation(
+  root: string,
+  cacheRoot: string,
+  query: string,
+  mode: IndexBenchmarkMode,
+): Promise<IndexObservation> {
   const rawBytes = await repoRawBytes(root);
   const load = await buildOrLoadExperimentalRepoIndex({ root, cacheRoot });
   const queryStartedAt = performance.now();
@@ -409,7 +462,13 @@ async function indexObservation(root: string, cacheRoot: string, query: string, 
     buildMs: load.buildMs,
     queryMs,
     indexMode: load.mode,
-    notes: candidate ? [candidate.reason, `cachePath=${load.cachePath}`, ...(load.refreshReason ? [`refresh=${load.refreshReason}`] : [])] : ["no index candidate"],
+    notes: candidate
+      ? [
+          candidate.reason,
+          `cachePath=${load.cachePath}`,
+          ...(load.refreshReason ? [`refresh=${load.refreshReason}`] : []),
+        ]
+      : ["no index candidate"],
   };
 }
 
@@ -441,7 +500,9 @@ async function ftsObservation(root: string, query: string): Promise<IndexObserva
     }
     const matchQuery = ftsMatchQuery(query);
     const rows = matchQuery
-      ? db.prepare("SELECT path, bm25(docs) AS rank FROM docs WHERE docs MATCH ? ORDER BY rank LIMIT ?").all(matchQuery, BENCHMARK_TOP_K) as Array<{ path: string; rank: number }>
+      ? (db
+          .prepare("SELECT path, bm25(docs) AS rank FROM docs WHERE docs MATCH ? ORDER BY rank LIMIT ?")
+          .all(matchQuery, BENCHMARK_TOP_K) as Array<{ path: string; rank: number }>)
       : [];
     const queryMs = performance.now() - startedAt;
     const byPath = new Map(files.map((file) => [file.path, file]));
@@ -451,13 +512,15 @@ async function ftsObservation(root: string, query: string): Promise<IndexObserva
         return [];
       }
       const range = bestFtsLineRange(file, query);
-      return [{
-        path: file.path,
-        lines: `${range.start}-${range.end}`,
-        excerpt: file.lines.slice(range.start - 1, range.end).join("\n"),
-        rank: row.rank,
-        reason: `SQLite FTS5 trigram MATCH with bm25 rank ${row.rank.toFixed(6)}`,
-      }];
+      return [
+        {
+          path: file.path,
+          lines: `${range.start}-${range.end}`,
+          excerpt: file.lines.slice(range.start - 1, range.end).join("\n"),
+          rank: row.rank,
+          reason: `SQLite FTS5 trigram MATCH with bm25 rank ${row.rank.toFixed(6)}`,
+        },
+      ];
     });
     const first = candidates[0];
     return {
@@ -484,7 +547,13 @@ async function hybridObservation(root: string, cacheRoot: string, query: string)
   const indexCandidates = queryExperimentalRepoIndex(load.index, query, { topK: BENCHMARK_TOP_K });
   const indexQueryMs = performance.now() - indexStartedAt;
   const scannerStartedAt = performance.now();
-  const scanner = await freeflowSearch({ action: "query", source: { kind: "repo", root }, query, preserve: "important", topK: BENCHMARK_TOP_K });
+  const scanner = await freeflowSearch({
+    action: "query",
+    source: { kind: "repo", root },
+    query,
+    preserve: "important",
+    topK: BENCHMARK_TOP_K,
+  });
   const scannerQueryMs = performance.now() - scannerStartedAt;
   const scannerEvidence = scanner.evidence?.[0];
   const scannerPaths = uniqueCandidatePaths(scanner.evidence?.map((packet) => packet.path));
@@ -605,17 +674,18 @@ function detectFtsCandidateStatus(): FtsCandidateStatus {
     db.exec("CREATE VIRTUAL TABLE docs USING fts5(path UNINDEXED, body, tokenize='trigram')");
     db.exec("INSERT INTO docs(path, body) VALUES ('probe', 'freeflow fts probe')");
     const rows = db.prepare("SELECT path, bm25(docs) AS rank FROM docs WHERE docs MATCH ?").all("freeflow AND probe");
-    cachedFtsCandidateStatus = rows.length > 0
-      ? {
-          available: true,
-          engine: "fts5-bm25-trigram",
-          reason: "Node node:sqlite is available and supports SQLite FTS5 trigram tokenization with bm25 ranking.",
-        }
-      : {
-          available: false,
-          engine: "none",
-          reason: "SQLite FTS5 probe returned no rows for a known trigram query.",
-        };
+    cachedFtsCandidateStatus =
+      rows.length > 0
+        ? {
+            available: true,
+            engine: "fts5-bm25-trigram",
+            reason: "Node node:sqlite is available and supports SQLite FTS5 trigram tokenization with bm25 ranking.",
+          }
+        : {
+            available: false,
+            engine: "none",
+            reason: "SQLite FTS5 probe returned no rows for a known trigram query.",
+          };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     cachedFtsCandidateStatus = {
@@ -653,7 +723,9 @@ async function collectFtsTextFiles(root: string, currentPath: string, files: Fts
     return;
   }
 
-  const path = relative(root, currentPath).split(/[\\/]+/).join("/");
+  const path = relative(root, currentPath)
+    .split(/[\\/]+/)
+    .join("/");
   if (isGeneratedBenchmarkPath(path)) {
     return;
   }
@@ -669,7 +741,9 @@ async function collectFtsTextFiles(root: string, currentPath: string, files: Fts
 }
 
 function ftsMatchQuery(query: string): string {
-  return searchTokens(query).filter((token) => token.length >= 3).join(" AND ");
+  return searchTokens(query)
+    .filter((token) => token.length >= 3)
+    .join(" AND ");
 }
 
 function bestFtsLineRange(file: FtsTextFile, query: string): { start: number; end: number } {
@@ -873,8 +947,12 @@ function scoreCorrectness(expected: IndexBenchmarkExpected, observation: IndexOb
   }
 
   const pathCorrect = observation.actualPath === expected.path;
-  const spanCorrect = expected.lines ? Boolean(observation.actualLines && rangesOverlap(expected.lines, observation.actualLines)) : true;
-  const excerptComplete = expected.requiredExcerpt.every((snippet) => observation.excerpt.toLowerCase().includes(snippet.toLowerCase()));
+  const spanCorrect = expected.lines
+    ? Boolean(observation.actualLines && rangesOverlap(expected.lines, observation.actualLines))
+    : true;
+  const excerptComplete = expected.requiredExcerpt.every((snippet) =>
+    observation.excerpt.toLowerCase().includes(snippet.toLowerCase()),
+  );
   const candidatePaths = observation.candidatePaths ?? [];
   const recallAtK = candidatePaths.length === 0 ? pathCorrect : candidatePaths.includes(expected.path);
   const generatedFalsePositive = observation.actualPath ? isGeneratedBenchmarkPath(observation.actualPath) : false;
@@ -976,7 +1054,13 @@ function isGeneratedBenchmarkPath(path: string): boolean {
     return true;
   }
   const name = segments.at(-1)?.toLowerCase() ?? path.toLowerCase();
-  return name.endsWith(".log") || name.endsWith(".map") || name.endsWith(".min.js") || name.endsWith(".min.css") || name.includes(".bundle.");
+  return (
+    name.endsWith(".log") ||
+    name.endsWith(".map") ||
+    name.endsWith(".min.js") ||
+    name.endsWith(".min.css") ||
+    name.includes(".bundle.")
+  );
 }
 
 function splitLines(text: string): string[] {
@@ -1002,7 +1086,9 @@ function defaultReportPath(): string {
 }
 
 async function runCli() {
-  const { iterations, reportPath, jsonReportPath } = parseBenchmarkCliArgs(process.argv.slice(2), { reportPath: defaultReportPath() });
+  const { iterations, reportPath, jsonReportPath } = parseBenchmarkCliArgs(process.argv.slice(2), {
+    reportPath: defaultReportPath(),
+  });
   const options: RunIndexBenchmarksOptions = {};
   if (iterations !== undefined) {
     options.iterations = iterations;
@@ -1012,12 +1098,19 @@ async function runCli() {
     jsonReportPath: jsonReportPath === undefined ? defaultJsonRunReportPath(reportPath) : jsonReportPath,
   });
   const shortId = createHash("sha256").update(JSON.stringify(report.summary)).digest("hex").slice(0, 8);
-  console.log(`Freeflow repo search backend benchmark ${shortId}: scanner ${report.summary.scanner.passed}/${report.summary.fixtures}, index ${report.summary.index.passed}/${report.summary.fixtures}, fts ${report.summary.fts.passed}/${report.summary.fixtures}, hybrid ${report.summary.hybrid.passed}/${report.summary.fixtures} pass`);
+  console.log(
+    `Freeflow repo search backend benchmark ${shortId}: scanner ${report.summary.scanner.passed}/${report.summary.fixtures}, index ${report.summary.index.passed}/${report.summary.fixtures}, fts ${report.summary.fts.passed}/${report.summary.fixtures}, hybrid ${report.summary.hybrid.passed}/${report.summary.fixtures} pass`,
+  );
   console.log(`Markdown report: ${reports.markdown}`);
   if (reports.json) {
     console.log(`JSON run data: ${reports.json}`);
   }
-  if (report.summary.scanner.failed > 0 || report.summary.index.failed > 0 || report.summary.fts.failed > 0 || report.summary.hybrid.failed > 0) {
+  if (
+    report.summary.scanner.failed > 0 ||
+    report.summary.index.failed > 0 ||
+    report.summary.fts.failed > 0 ||
+    report.summary.hybrid.failed > 0
+  ) {
     process.exitCode = 1;
   }
 }

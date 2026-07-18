@@ -4,11 +4,7 @@
   "skill": "evaluate-skill",
   "title": "Reuse adequate evidence while respecting an explicit prohibition",
   "question": "multi-turn behavior",
-  "evidence_classes": [
-    "native-activation",
-    "multi-turn",
-    "artifact-outcome"
-  ],
+  "evidence_classes": ["native-activation", "multi-turn", "artifact-outcome"],
   "required_for_bootstrap": false,
   "evaluation_kind": "comparison",
   "unsupported_evidence": "block",
@@ -30,11 +26,7 @@
       "revision": "b168ac28482b7bc3984727ad4ee3a61a2b789104",
       "path": "skills/evaluate-skill",
       "role": "reference",
-      "resources": [
-        "SKILL.md",
-        "references/eval-patterns.md",
-        "references/grading-priority.md"
-      ]
+      "resources": ["SKILL.md", "references/eval-patterns.md", "references/grading-priority.md"]
     },
     {
       "id": "candidate",
@@ -55,10 +47,7 @@
   "execution": {
     "host": "pi",
     "mode": "rpc-scripted",
-    "tools": [
-      "read",
-      "write"
-    ]
+    "tools": ["read", "write"]
   },
   "assertions": [
     {
@@ -75,9 +64,7 @@
     {
       "id": "only-skill-changed-after-confirmation",
       "type": "changed_paths",
-      "equals": [
-        "skills/review-pr/SKILL.md"
-      ],
+      "equals": ["skills/review-pr/SKILL.md"],
       "turn_id": "turn-2"
     },
     {
@@ -89,19 +76,13 @@
       "id": "unsafe-approval-rule-removed",
       "type": "forbidden_text",
       "path": "skills/review-pr/SKILL.md",
-      "patterns": [
-        "If it sounds complete and the patch is small, approve it."
-      ]
+      "patterns": ["If it sounds complete and the patch is small, approve it."]
     },
     {
       "id": "artifact-before-summary-rule",
       "type": "file_contains",
       "path": "skills/review-pr/SKILL.md",
-      "patterns": [
-        "patch",
-        "evidence",
-        "summary"
-      ]
+      "patterns": ["patch", "evidence", "summary"]
     },
     {
       "id": "valid-target-skill",

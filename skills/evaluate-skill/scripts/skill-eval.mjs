@@ -12,9 +12,27 @@ const COMMAND_OPTIONS = {
   doctor: new Set(["root", "help"]),
   init: new Set(["skill", "root", "help"]),
   evaluate: new Set([
-    "skill", "case", "host", "timeout_ms", "output_limit_bytes", "provider", "model", "thinking",
-    "subject_provider", "subject_model", "subject_thinking", "grader_provider", "grader_model", "grader_thinking",
-    "max_turns_per_process", "max_usd", "plan_only", "owner_approved", "expect_plan", "root", "help",
+    "skill",
+    "case",
+    "host",
+    "timeout_ms",
+    "output_limit_bytes",
+    "provider",
+    "model",
+    "thinking",
+    "subject_provider",
+    "subject_model",
+    "subject_thinking",
+    "grader_provider",
+    "grader_model",
+    "grader_thinking",
+    "max_turns_per_process",
+    "max_usd",
+    "plan_only",
+    "owner_approved",
+    "expect_plan",
+    "root",
+    "help",
   ]),
 };
 
@@ -39,7 +57,8 @@ function validateOptions(command, options) {
     if (!allowed.has(key)) throw new Error(`Unknown option for ${command}: --${key.replaceAll("_", "-")}`);
   }
   for (const key of ["help", "plan_only", "owner_approved"]) {
-    if (options[key] !== undefined && options[key] !== true) throw new Error(`--${key.replaceAll("_", "-")} does not take a value`);
+    if (options[key] !== undefined && options[key] !== true)
+      throw new Error(`--${key.replaceAll("_", "-")} does not take a value`);
   }
 }
 
@@ -70,7 +89,8 @@ export async function main(argv = process.argv.slice(2)) {
   if (command === "init") {
     if (typeof options.skill !== "string") throw new Error("init requires --skill <name>");
     const root = resolve(options.root ?? process.cwd());
-    if (root === resolve("/") || root === resolve(homedir())) throw new Error(`Refusing destructive init root: ${root}`);
+    if (root === resolve("/") || root === resolve(homedir()))
+      throw new Error(`Refusing destructive init root: ${root}`);
     printJson(await initSkillWorkspace({ root, skill: options.skill }));
     return 0;
   }
@@ -79,8 +99,10 @@ export async function main(argv = process.argv.slice(2)) {
   if (typeof options.case !== "string") throw new Error("evaluate requires --case <id>");
   if (options.timeout_ms === undefined) throw new Error("evaluate requires --timeout-ms <integer>");
   if (options.output_limit_bytes === undefined) throw new Error("evaluate requires --output-limit-bytes <integer>");
-  if (options.plan_only && options.owner_approved) throw new Error("--plan-only and --owner-approved are mutually exclusive");
-  if (options.expect_plan !== undefined && !options.owner_approved) throw new Error("--expect-plan requires --owner-approved");
+  if (options.plan_only && options.owner_approved)
+    throw new Error("--plan-only and --owner-approved are mutually exclusive");
+  if (options.expect_plan !== undefined && !options.owner_approved)
+    throw new Error("--expect-plan requires --owner-approved");
 
   const repoRoot = await findRepoRoot(options.root ?? process.cwd());
   const workspace = await loadSkillWorkspace(repoRoot, options.skill);
@@ -98,7 +120,8 @@ export async function main(argv = process.argv.slice(2)) {
     grader_provider: options.grader_provider,
     grader_model: options.grader_model,
     grader_thinking: options.grader_thinking,
-    max_turns_per_process: options.max_turns_per_process === undefined ? undefined : integerOption(options, "max_turns_per_process"),
+    max_turns_per_process:
+      options.max_turns_per_process === undefined ? undefined : integerOption(options, "max_turns_per_process"),
     max_usd: options.max_usd,
     plan_only: options.plan_only === true,
     owner_approved: options.owner_approved === true,
@@ -118,7 +141,9 @@ export async function main(argv = process.argv.slice(2)) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   main().then(
-    (code) => { process.exitCode = code; },
+    (code) => {
+      process.exitCode = code;
+    },
     (error) => {
       process.stderr.write(`skill-eval: ${error.message}\n`);
       process.exitCode = 1;

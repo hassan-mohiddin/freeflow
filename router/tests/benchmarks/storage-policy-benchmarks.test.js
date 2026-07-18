@@ -29,7 +29,10 @@ test("storage policy benchmark compares candidates without changing defaults", a
   const hybrid = report.policies.find((policy) => policy.policyId === "metadata-small-exact-large-hybrid");
   assert.equal(hybrid.safety.exactnessSensitiveRecoveryPassed, true);
   assert.ok(hybrid.totals.metadataOnlyRecords > 0);
-  assert.ok(hybrid.totals.exactStoredCombinedBytes < report.policies.find((policy) => policy.policyId === "store-everything").totals.exactStoredCombinedBytes);
+  assert.ok(
+    hybrid.totals.exactStoredCombinedBytes <
+      report.policies.find((policy) => policy.policyId === "store-everything").totals.exactStoredCombinedBytes,
+  );
 
   const dedupe = report.policies.find((policy) => policy.policyId === "duplicate-output-dedupe");
   assert.equal(dedupe.safety.repeatedOutputsDeduped, true);

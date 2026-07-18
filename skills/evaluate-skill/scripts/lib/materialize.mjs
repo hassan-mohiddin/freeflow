@@ -5,7 +5,11 @@ import { sha256, stableJson } from "./hash.mjs";
 import { assertNoSymlinkTree } from "./path-policy.mjs";
 
 function runGit(repoRoot, args, options = {}) {
-  const result = spawnSync("git", args, { cwd: repoRoot, encoding: options.encoding ?? "utf8", maxBuffer: 16 * 1024 * 1024 });
+  const result = spawnSync("git", args, {
+    cwd: repoRoot,
+    encoding: options.encoding ?? "utf8",
+    maxBuffer: 16 * 1024 * 1024,
+  });
   if (result.status !== 0) throw new Error(`git ${args[0]} failed: ${String(result.stderr).trim()}`);
   return result.stdout;
 }
@@ -36,18 +40,25 @@ export async function materializeSkillVariant(repoRoot, variant, destination) {
     const prefix = root ? `${root}/` : "";
     for (const resource of resources) {
       const fullResource = root ? `${root}/${resource}` : resource;
-      const raw = runGit(repoRoot, ["ls-tree", "-r", "-z", "--full-tree", variant.revision, "--", fullResource], { encoding: "buffer" });
+      const raw = runGit(repoRoot, ["ls-tree", "-r", "-z", "--full-tree", variant.revision, "--", fullResource], {
+        encoding: "buffer",
+      });
       const records = Buffer.from(raw).toString("utf8").split("\0").filter(Boolean);
       if (records.length === 0) throw new Error(`Missing git subject resource: ${variant.revision}:${fullResource}`);
       for (const record of records) {
         const [header, fullPath] = record.split("\t");
         const [mode, type] = header.split(" ");
-        if (type !== "blob" || mode === "120000") throw new Error(`Unsupported git subject resource: ${mode} ${type} ${fullPath}`);
+        if (type !== "blob" || mode === "120000")
+          throw new Error(`Unsupported git subject resource: ${mode} ${type} ${fullPath}`);
         if (prefix && !fullPath.startsWith(prefix)) throw new Error(`Unexpected git path outside variant: ${fullPath}`);
         const relativePath = prefix ? fullPath.slice(prefix.length) : fullPath;
         const target = resolve(destination, relativePath);
         await mkdir(dirname(target), { recursive: true });
-        const content = spawnSync("git", ["show", `${variant.revision}:${fullPath}`], { cwd: repoRoot, encoding: null, maxBuffer: 16 * 1024 * 1024 });
+        const content = spawnSync("git", ["show", `${variant.revision}:${fullPath}`], {
+          cwd: repoRoot,
+          encoding: null,
+          maxBuffer: 16 * 1024 * 1024,
+        });
         if (content.status !== 0) throw new Error(`Unable to extract ${variant.revision}:${fullPath}`);
         await writeFile(target, content.stdout);
         await chmod(target, mode.endsWith("755") ? 0o755 : 0o644);
@@ -93,26 +104,44 @@ export async function makeReadOnly(path) {
     await chmod(path, 0o555);
     return;
   }
-  if (info.isFile()) await chmod(path, (info.mode & 0o111) ? 0o555 : 0o444);
+  if (info.isFile()) await chmod(path, info.mode & 0o111 ? 0o555 : 0o444);
 }
 
 export async function initializeFixtureGit(workspace) {
   runGit(workspace, ["init", "--quiet"]);
   runGit(workspace, ["add", "--all"]);
-  runGit(workspace, ["-c", "user.name=Freeflow Eval", "-c", "user.email=eval@invalid", "commit", "--quiet", "--allow-empty", "-m", "fixture"]);
+  runGit(workspace, [
+    "-c",
+    "user.name=Freeflow Eval",
+    "-c",
+    "user.email=eval@invalid",
+    "commit",
+    "--quiet",
+    "--allow-empty",
+    "-m",
+    "fixture",
+  ]);
 }
 
 export async function captureGitEvidence(workspace) {
   runGit(workspace, ["add", "--intent-to-add", "--all"]);
   const status = runGit(workspace, ["status", "--short", "--untracked-files=all"]);
   const diff = runGit(workspace, ["diff", "--binary", "--no-ext-diff", "HEAD"]);
-  const changedPaths = status.split("\n").filter(Boolean).map((line) => line.slice(3).replace(/^.* -> /, "")).sort();
+  const changedPaths = status
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => line.slice(3).replace(/^.* -> /, ""))
+    .sort();
   return { status, diff, changedPaths };
 }
 
 export function captureGitEvidenceNonMutating(workspace) {
   const status = runGit(workspace, ["status", "--short", "--untracked-files=all"]);
-  const changedPaths = status.split("\n").filter(Boolean).map((line) => line.slice(3).replace(/^.* -> /, "")).sort();
+  const changedPaths = status
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => line.slice(3).replace(/^.* -> /, ""))
+    .sort();
   const trackedDiff = runGit(workspace, ["diff", "--binary", "--no-ext-diff", "HEAD"]);
   const untrackedDiffs = [];
   for (const line of status.split("\n").filter((item) => item.startsWith("?? "))) {
@@ -122,7 +151,8 @@ export function captureGitEvidenceNonMutating(workspace) {
       encoding: "utf8",
       maxBuffer: 16 * 1024 * 1024,
     });
-    if (result.status !== 0 && result.status !== 1) throw new Error(`Unable to capture untracked diff for ${path}: ${String(result.stderr).trim()}`);
+    if (result.status !== 0 && result.status !== 1)
+      throw new Error(`Unable to capture untracked diff for ${path}: ${String(result.stderr).trim()}`);
     if (result.stdout) untrackedDiffs.push(result.stdout);
   }
   return { status, diff: [trackedDiff, ...untrackedDiffs].filter(Boolean).join("\n"), changedPaths };
@@ -163,7 +193,7 @@ export async function makeWritable(path) {
     await chmod(path, 0o755);
     for (const name of await readdir(path)) await makeWritable(resolve(path, name));
   } else if (!entry.isSymbolicLink()) {
-    await chmod(path, (entry.mode & 0o111) ? 0o755 : 0o644);
+    await chmod(path, entry.mode & 0o111 ? 0o755 : 0o644);
   }
 }
 

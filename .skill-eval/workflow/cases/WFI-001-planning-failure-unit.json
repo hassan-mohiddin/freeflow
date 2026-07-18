@@ -17,7 +17,12 @@
       "kind": "git",
       "revision": "87f83cb",
       "path": "skills/design-for-depth",
-      "resources": ["SKILL.md", "references/design-pressure-signals.md", "references/interface-design-loop.md", "references/software-design-philosophy.md"]
+      "resources": [
+        "SKILL.md",
+        "references/design-pressure-signals.md",
+        "references/interface-design-loop.md",
+        "references/software-design-philosophy.md"
+      ]
     },
     {
       "id": "candidate",
@@ -25,7 +30,12 @@
       "kind": "git",
       "revision": "c7cfdba",
       "path": "skills/design-for-depth",
-      "resources": ["SKILL.md", "references/design-pressure-signals.md", "references/interface-design-loop.md", "references/software-design-philosophy.md"]
+      "resources": [
+        "SKILL.md",
+        "references/design-pressure-signals.md",
+        "references/interface-design-loop.md",
+        "references/software-design-philosophy.md"
+      ]
     }
   ],
   "composition": {
@@ -48,12 +58,12 @@
       "workflow": "skills/workflow/SKILL.md"
     }
   },
-  "execution": {"host": "pi", "mode": "json", "tools": ["read", "write"]},
+  "execution": { "host": "pi", "mode": "json", "tools": ["read", "write"] },
   "assertions": [
-    {"id": "review-artifact-read", "type": "component_read", "component": "review-artifact"},
-    {"id": "target-read", "type": "component_read", "component": "design-for-depth"},
-    {"id": "only-review-created", "type": "changed_paths", "equals": ["review.md"]},
-    {"id": "review-created", "type": "path_exists", "path": "review.md"},
+    { "id": "review-artifact-read", "type": "component_read", "component": "review-artifact" },
+    { "id": "target-read", "type": "component_read", "component": "design-for-depth" },
+    { "id": "only-review-created", "type": "changed_paths", "equals": ["review.md"] },
+    { "id": "review-created", "type": "path_exists", "path": "review.md" },
     {
       "id": "plan-pressure-diagnosed",
       "type": "semantic",

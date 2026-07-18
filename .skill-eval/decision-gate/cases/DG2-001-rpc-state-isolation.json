@@ -4,10 +4,7 @@
   "skill": "decision-gate",
   "title": "Pi RPC state continuity and variant isolation",
   "question": "multi-turn behavior",
-  "evidence_classes": [
-    "native-activation",
-    "multi-turn"
-  ],
+  "evidence_classes": ["native-activation", "multi-turn"],
   "required_for_bootstrap": true,
   "evaluation_kind": "comparison",
   "unsupported_evidence": "block",
@@ -28,26 +25,20 @@
       "role": "reference",
       "kind": "working-tree",
       "path": ".skill-eval/decision-gate/subjects/state-alpha",
-      "resources": [
-        "SKILL.md"
-      ]
+      "resources": ["SKILL.md"]
     },
     {
       "id": "beta",
       "role": "candidate",
       "kind": "working-tree",
       "path": ".skill-eval/decision-gate/subjects/state-beta",
-      "resources": [
-        "SKILL.md"
-      ]
+      "resources": ["SKILL.md"]
     }
   ],
   "execution": {
     "host": "pi",
     "mode": "rpc-scripted",
-    "tools": [
-      "read"
-    ]
+    "tools": ["read"]
   },
   "assertions": [
     {
@@ -65,20 +56,12 @@
       "type": "turn_text_contains",
       "turn_id": "turn-1",
       "contains_by_role": {
-        "reference": [
-          "FREEFLOW-ALPHA-7C2D"
-        ],
-        "candidate": [
-          "FREEFLOW-BETA-9F4A"
-        ]
+        "reference": ["FREEFLOW-ALPHA-7C2D"],
+        "candidate": ["FREEFLOW-BETA-9F4A"]
       },
       "forbids_by_role": {
-        "reference": [
-          "FREEFLOW-BETA-9F4A"
-        ],
-        "candidate": [
-          "FREEFLOW-ALPHA-7C2D"
-        ]
+        "reference": ["FREEFLOW-BETA-9F4A"],
+        "candidate": ["FREEFLOW-ALPHA-7C2D"]
       }
     },
     {
@@ -86,20 +69,12 @@
       "type": "turn_text_contains",
       "turn_id": "turn-2",
       "contains_by_role": {
-        "reference": [
-          "FREEFLOW-ALPHA-7C2D"
-        ],
-        "candidate": [
-          "FREEFLOW-BETA-9F4A"
-        ]
+        "reference": ["FREEFLOW-ALPHA-7C2D"],
+        "candidate": ["FREEFLOW-BETA-9F4A"]
       },
       "forbids_by_role": {
-        "reference": [
-          "FREEFLOW-BETA-9F4A"
-        ],
-        "candidate": [
-          "FREEFLOW-ALPHA-7C2D"
-        ]
+        "reference": ["FREEFLOW-BETA-9F4A"],
+        "candidate": ["FREEFLOW-ALPHA-7C2D"]
       }
     }
   ]

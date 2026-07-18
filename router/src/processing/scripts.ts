@@ -6,8 +6,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { DEFAULT_SCRIPT_TRANSFORM_CONFIG, MAX_SCRIPT_TRANSFORM_LIMITS } from "../config/config.js";
-import { selectScriptSandboxAdapter, type ScriptSandboxAdapter, type ScriptSandboxExecutionResult, type ScriptSandboxSourceMount } from "../sandbox/script-sandbox.js";
-import type { LocalFreeflowConfig, ProcessingScriptPolicy, ScriptTransformConfig, ScriptTransformLanguage } from "../config/types.js";
+import {
+  selectScriptSandboxAdapter,
+  type ScriptSandboxAdapter,
+  type ScriptSandboxExecutionResult,
+  type ScriptSandboxSourceMount,
+} from "../sandbox/script-sandbox.js";
+import type {
+  LocalFreeflowConfig,
+  ProcessingScriptPolicy,
+  ScriptTransformConfig,
+  ScriptTransformLanguage,
+} from "../config/types.js";
 import type { LoadedProcessingSource } from "./engine.js";
 
 export interface ProcessingScriptRequest {
@@ -96,8 +106,15 @@ export function processingScriptNotConfigured(): ProcessingScriptResult {
   };
 }
 
-export function processingScriptUnavailableForUnloadedSource(script: ProcessingScriptRequest, reason: string): ProcessingScriptResult {
-  return unavailableResult(script, reason, "Load the source successfully before running the requested processing script.");
+export function processingScriptUnavailableForUnloadedSource(
+  script: ProcessingScriptRequest,
+  reason: string,
+): ProcessingScriptResult {
+  return unavailableResult(
+    script,
+    reason,
+    "Load the source successfully before running the requested processing script.",
+  );
 }
 
 export async function runProcessingScript(options: RunProcessingScriptOptions): Promise<ProcessingScriptResult> {
@@ -215,17 +232,21 @@ function unavailableResult(
   };
 }
 
-async function runUnsafeUnsandboxedProcessingScript(options: RunProcessingScriptOptions & {
-  config: ScriptTransformConfig;
-  limits: ScriptTransformConfig["limits"];
-}): Promise<ProcessingScriptResult> {
+async function runUnsafeUnsandboxedProcessingScript(
+  options: RunProcessingScriptOptions & {
+    config: ScriptTransformConfig;
+    limits: ScriptTransformConfig["limits"];
+  },
+): Promise<ProcessingScriptResult> {
   if (!options.localConfig?.processing.unsafeUnsandboxed.enabled) {
     return {
       status: "rejected",
       language: options.script.language,
       policy: "unsafe-unsandboxed",
-      reason: "Unsafe unsandboxed processing was requested, but .freeflow/local.json has not enabled processing.unsafeUnsandboxed.enabled. No script code was executed.",
-      recommendation: "Create local-only .freeflow/local.json with processing.unsafeUnsandboxed.enabled=true, then retry with script.policy=unsafe-unsandboxed.",
+      reason:
+        "Unsafe unsandboxed processing was requested, but .freeflow/local.json has not enabled processing.unsafeUnsandboxed.enabled. No script code was executed.",
+      recommendation:
+        "Create local-only .freeflow/local.json with processing.unsafeUnsandboxed.enabled=true, then retry with script.policy=unsafe-unsandboxed.",
       rawScriptPersistence: "disabled",
       codeHashSha256: sha256(options.script.code),
       localOptInRequired: true,
@@ -289,9 +310,11 @@ async function runUnsafeUnsandboxedProcessingScript(options: RunProcessingScript
   };
 }
 
-async function executeUnsafeJavaScriptProcessingScript(options: RunProcessingScriptOptions & {
-  limits: ScriptTransformConfig["limits"];
-}): Promise<
+async function executeUnsafeJavaScriptProcessingScript(
+  options: RunProcessingScriptOptions & {
+    limits: ScriptTransformConfig["limits"];
+  },
+): Promise<
   | { ok: true; stdout: string; stderr: string; durationMs?: number }
   | { ok: false; reason: string; stdoutBytes?: number; stderrBytes?: number }
 > {
@@ -306,17 +329,27 @@ async function executeUnsafeJavaScriptProcessingScript(options: RunProcessingScr
     const manifestPath = join(inputDir, "manifest.json");
     const scriptPath = join(workDir, "script.mjs");
     await writeFile(sourcePath, options.loaded.text, "utf8");
-    await writeFile(manifestPath, JSON.stringify({
-      schemaVersion: 1,
-      unsafeUnsandboxed: true,
-      sources: [{
-        alias,
-        path: sourcePath,
-        source: options.loaded.source,
-        bytes: options.loaded.stats.bytes,
-        sha256: options.loaded.stats.sha256,
-      }],
-    }, null, 2), "utf8");
+    await writeFile(
+      manifestPath,
+      JSON.stringify(
+        {
+          schemaVersion: 1,
+          unsafeUnsandboxed: true,
+          sources: [
+            {
+              alias,
+              path: sourcePath,
+              source: options.loaded.source,
+              bytes: options.loaded.stats.bytes,
+              sha256: options.loaded.stats.sha256,
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
     await writeFile(scriptPath, options.script.code, "utf8");
 
     const startedAt = Date.now();
@@ -350,9 +383,10 @@ async function executeUnsafeJavaScriptProcessingScript(options: RunProcessingScr
       const stderr = String(maybe.stderr ?? "");
       const code = typeof maybe.code === "number" ? maybe.code : "unknown";
       const signal = typeof maybe.signal === "string" ? maybe.signal : undefined;
-      const reason = maybe.killed || signal
-        ? `Unsafe unsandboxed processing script timed out or was terminated. Detail omitted to avoid returning raw script text. stdoutBytes=${byteLength(stdout)} stderrBytes=${byteLength(stderr)}.`
-        : `Unsafe unsandboxed processing script failed with exitCode=${code}. Detail omitted to avoid returning raw script text. stdoutBytes=${byteLength(stdout)} stderrBytes=${byteLength(stderr)}.`;
+      const reason =
+        maybe.killed || signal
+          ? `Unsafe unsandboxed processing script timed out or was terminated. Detail omitted to avoid returning raw script text. stdoutBytes=${byteLength(stdout)} stderrBytes=${byteLength(stderr)}.`
+          : `Unsafe unsandboxed processing script failed with exitCode=${code}. Detail omitted to avoid returning raw script text. stdoutBytes=${byteLength(stdout)} stderrBytes=${byteLength(stderr)}.`;
       return { ok: false, reason, stdoutBytes: byteLength(stdout), stderrBytes: byteLength(stderr) };
     }
   } finally {
@@ -382,21 +416,33 @@ async function executeProcessingScriptWithAdapter(options: {
     const alias = safeAlias(options.script.alias ?? "source");
     const sourcePath = join(inputDir, `${alias}.txt`);
     await writeFile(sourcePath, options.loaded.text, "utf8");
-    const sources: ScriptSandboxSourceMount[] = [{
-      alias,
-      path: sourcePath,
-      bytes: options.loaded.stats.bytes,
-      sha256: options.loaded.stats.sha256,
-    }];
-    await writeFile(join(inputDir, "manifest.json"), JSON.stringify({
-      schemaVersion: 1,
-      sources: [{
+    const sources: ScriptSandboxSourceMount[] = [
+      {
         alias,
-        source: options.loaded.source,
+        path: sourcePath,
         bytes: options.loaded.stats.bytes,
         sha256: options.loaded.stats.sha256,
-      }],
-    }, null, 2), "utf8");
+      },
+    ];
+    await writeFile(
+      join(inputDir, "manifest.json"),
+      JSON.stringify(
+        {
+          schemaVersion: 1,
+          sources: [
+            {
+              alias,
+              source: options.loaded.source,
+              bytes: options.loaded.stats.bytes,
+              sha256: options.loaded.stats.sha256,
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
 
     let result: ScriptSandboxExecutionResult;
     try {
@@ -411,7 +457,10 @@ async function executeProcessingScriptWithAdapter(options: {
         network: options.config.network,
       });
     } catch {
-      return { ok: false, reason: `Processing script adapter ${options.adapter.id} threw before returning a result. Adapter error detail omitted to avoid returning raw script text.` };
+      return {
+        ok: false,
+        reason: `Processing script adapter ${options.adapter.id} threw before returning a result. Adapter error detail omitted to avoid returning raw script text.`,
+      };
     }
 
     const stdoutBytes = byteLength(result.stdout ?? "");
@@ -447,11 +496,22 @@ function effectiveProcessingScriptConfig(config: ScriptTransformConfig | undefin
   };
 }
 
-function effectiveScriptLimits(config: ScriptTransformConfig, input: Partial<ScriptTransformConfig["limits"]> | undefined): ScriptTransformConfig["limits"] {
+function effectiveScriptLimits(
+  config: ScriptTransformConfig,
+  input: Partial<ScriptTransformConfig["limits"]> | undefined,
+): ScriptTransformConfig["limits"] {
   return {
     timeoutMs: boundedScriptLimit(input?.timeoutMs, config.limits.timeoutMs, MAX_SCRIPT_TRANSFORM_LIMITS.timeoutMs),
-    maxInputBytes: boundedScriptLimit(input?.maxInputBytes, config.limits.maxInputBytes, MAX_SCRIPT_TRANSFORM_LIMITS.maxInputBytes),
-    maxOutputBytes: boundedScriptLimit(input?.maxOutputBytes, config.limits.maxOutputBytes, MAX_SCRIPT_TRANSFORM_LIMITS.maxOutputBytes),
+    maxInputBytes: boundedScriptLimit(
+      input?.maxInputBytes,
+      config.limits.maxInputBytes,
+      MAX_SCRIPT_TRANSFORM_LIMITS.maxInputBytes,
+    ),
+    maxOutputBytes: boundedScriptLimit(
+      input?.maxOutputBytes,
+      config.limits.maxOutputBytes,
+      MAX_SCRIPT_TRANSFORM_LIMITS.maxOutputBytes,
+    ),
   };
 }
 

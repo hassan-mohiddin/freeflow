@@ -97,9 +97,7 @@
         "Keeps scope limited to copy, not auth behavior.",
         "Identifies a lightweight verification step."
       ],
-      "files": [
-        "evals/fixtures/copy-conventions.md"
-      ]
+      "files": ["evals/fixtures/copy-conventions.md"]
     },
     {
       "id": "WF-017",

@@ -53,9 +53,7 @@ function loadRuntimeContext(options = {}) {
   const interactionContract = includeInteractionContract
     ? readText(path.join(PLUGIN_ROOT, "runtime", "interaction-contract.md"))
     : null;
-  const workflowSkill = includeSkills
-    ? readText(path.join(PLUGIN_ROOT, "skills", "workflow", "SKILL.md"))
-    : null;
+  const workflowSkill = includeSkills ? readText(path.join(PLUGIN_ROOT, "skills", "workflow", "SKILL.md")) : null;
   const outputRouterSkill = includeOutputRouter
     ? readText(path.join(PLUGIN_ROOT, "skills", "output-router", "SKILL.md"))
     : null;
@@ -72,20 +70,11 @@ function loadRuntimeContext(options = {}) {
 }
 
 function readConfig(root) {
-  const repository = readConfigLayer(
-    path.join(root, ".freeflow", "config.json"),
-    isValidSetupConfig,
-  );
-  const local = readConfigLayer(
-    path.join(root, ".freeflow", "local.json"),
-    isValidLocalConfig,
-  );
+  const repository = readConfigLayer(path.join(root, ".freeflow", "config.json"), isValidSetupConfig);
+  const local = readConfigLayer(path.join(root, ".freeflow", "local.json"), isValidLocalConfig);
   const localValid = !local.exists || local.valid;
   const configured = repository.valid && localValid;
-  const core = resolveCoreConfig(
-    repository.valid ? repository.parsed : {},
-    local.valid ? local.parsed : {},
-  );
+  const core = resolveCoreConfig(repository.valid ? repository.parsed : {}, local.valid ? local.parsed : {});
   const enabled = configured && core.config.enabled;
   const repositoryConfig = repository.valid ? repository.parsed : {};
 
@@ -102,8 +91,7 @@ function readConfig(root) {
     skillsEnabled: enabled && core.config.skills.enabled,
     defaultMode: core.config.defaultMode,
     sources: core.sources,
-    outputRouterEnabled:
-      enabled && repositoryConfig?.outputRouter?.enabled === true,
+    outputRouterEnabled: enabled && repositoryConfig?.outputRouter?.enabled === true,
   };
 }
 
@@ -144,7 +132,10 @@ function validateCoreConfigFields(value) {
   if (Object.prototype.hasOwnProperty.call(value, "enabled") && typeof value.enabled !== "boolean") {
     return "enabled must be a boolean";
   }
-  if (Object.prototype.hasOwnProperty.call(value, "interactionContract") && typeof value.interactionContract !== "boolean") {
+  if (
+    Object.prototype.hasOwnProperty.call(value, "interactionContract") &&
+    typeof value.interactionContract !== "boolean"
+  ) {
     return "interactionContract must be a boolean";
   }
   if (Object.prototype.hasOwnProperty.call(value, "skills")) {
@@ -181,11 +172,7 @@ function isValidSetupConfig(value) {
     return coreError;
   }
 
-  for (const key of [
-    "outputRouter",
-    "observedRouting",
-    "scriptTransform",
-  ]) {
+  for (const key of ["outputRouter", "observedRouting", "scriptTransform"]) {
     if (Object.prototype.hasOwnProperty.call(value, key) && !isRecord(value[key])) {
       return `${key} must be an object`;
     }
@@ -198,13 +185,7 @@ function isValidLocalConfig(value) {
     return "local config must be a JSON object";
   }
 
-  const allowedKeys = new Set([
-    "enabled",
-    "defaultMode",
-    "interactionContract",
-    "skills",
-    "processing",
-  ]);
+  const allowedKeys = new Set(["enabled", "defaultMode", "interactionContract", "skills", "processing"]);
   if (!Object.keys(value).every((key) => allowedKeys.has(key))) {
     return "local config contains unsupported top-level keys";
   }
@@ -227,26 +208,11 @@ function resolveLayeredValue(repository, local, key, fallback) {
 
 function resolveCoreConfig(repository, local) {
   const enabled = resolveLayeredValue(repository, local, "enabled", true);
-  const interactionContract = resolveLayeredValue(
-    repository,
-    local,
-    "interactionContract",
-    true,
-  );
-  const defaultMode = resolveLayeredValue(
-    repository,
-    local,
-    "defaultMode",
-    "workflow",
-  );
+  const interactionContract = resolveLayeredValue(repository, local, "interactionContract", true);
+  const defaultMode = resolveLayeredValue(repository, local, "defaultMode", "workflow");
   const repositorySkills = isRecord(repository.skills) ? repository.skills : {};
   const localSkills = isRecord(local.skills) ? local.skills : {};
-  const skillsEnabled = resolveLayeredValue(
-    repositorySkills,
-    localSkills,
-    "enabled",
-    true,
-  );
+  const skillsEnabled = resolveLayeredValue(repositorySkills, localSkills, "enabled", true);
 
   return {
     config: {
@@ -297,9 +263,7 @@ function buildSetupStatus(root) {
 
   const modeStatus = config.skillsEnabled
     ? modeGuidance(config.defaultMode)
-    : [
-        `Resolved default mode: \`${config.defaultMode}\` (dormant because Skills are disabled).`,
-      ];
+    : [`Resolved default mode: \`${config.defaultMode}\` (dormant because Skills are disabled).`];
   return [
     `Setup status: configured by \`.freeflow/config.json\` with ${configStatus(config)}.`,
     "Runtime delivery: confirmed for this lifecycle-hook invocation.",
@@ -350,25 +314,12 @@ function buildContext(input) {
     skills: setup.config.skillsEnabled,
     outputRouter: setup.config.outputRouterEnabled,
   });
-  const interactionSection = setup.config.interactionContractEnabled
-    ? ["", interactionContract.trim()]
-    : [];
+  const interactionSection = setup.config.interactionContractEnabled ? ["", interactionContract.trim()] : [];
   const skillSections = setup.config.skillsEnabled
-    ? [
-        "",
-        "# Freeflow Workflow Bootstrap",
-        "",
-        workflowSkill.trim(),
-      ]
+    ? ["", "# Freeflow Workflow Bootstrap", "", workflowSkill.trim()]
     : [];
   const outputRouterSection = setup.config.outputRouterEnabled
-    ? [
-        "",
-        "## Loaded Output Router Skill",
-        "```md",
-        outputRouterSkill.trim(),
-        "```",
-      ]
+    ? ["", "## Loaded Output Router Skill", "```md", outputRouterSkill.trim(), "```"]
     : [];
   return [
     "# Freeflow Runtime Context",
@@ -400,9 +351,9 @@ function emitAdditionalContext(eventName, input, additionalContext) {
     `${JSON.stringify({
       hookSpecificOutput: {
         hookEventName: eventName,
-        additionalContext
-      }
-    })}\n`
+        additionalContext,
+      },
+    })}\n`,
   );
 }
 

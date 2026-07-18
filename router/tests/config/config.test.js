@@ -145,12 +145,28 @@ test("normalizeFreeflowConfig ignores removed capture/provider config and reject
   assert.ok(result.warnings.some((warning) => warning.includes("outputRouter.scriptTransform.rawScriptPersistence")));
   assert.ok(result.warnings.some((warning) => warning.includes("outputRouter.observedRouting.enabled")));
   assert.ok(result.warnings.some((warning) => warning.includes("outputRouter.observedRouting.onRoutingFailure")));
-  assert.ok(result.warnings.some((warning) => warning.includes("outputRouter.observedRouting.mcp.servers.github.persistence") && warning.includes("redacted")));
-  assert.ok(result.warnings.some((warning) => warning.includes("outputRouter.observedRouting.mcp.servers") && warning.includes("server id")));
-  assert.ok(result.warnings.some((warning) => warning.includes("outputRouter.observedRouting.mcp.servers.gmail.persistence")));
+  assert.ok(
+    result.warnings.some(
+      (warning) =>
+        warning.includes("outputRouter.observedRouting.mcp.servers.github.persistence") && warning.includes("redacted"),
+    ),
+  );
+  assert.ok(
+    result.warnings.some(
+      (warning) => warning.includes("outputRouter.observedRouting.mcp.servers") && warning.includes("server id"),
+    ),
+  );
+  assert.ok(
+    result.warnings.some((warning) => warning.includes("outputRouter.observedRouting.mcp.servers.gmail.persistence")),
+  );
   assert.ok(result.warnings.some((warning) => warning.includes("outputRouter.observedRouting.web.persistence")));
   assert.ok(result.warnings.some((warning) => warning.includes("outputRouter.observedRouting.fetch")));
-  assert.ok(result.warnings.some((warning) => warning.includes("outputRouter.observedRouting.codeSearch.persistence") && warning.includes("redacted")));
+  assert.ok(
+    result.warnings.some(
+      (warning) =>
+        warning.includes("outputRouter.observedRouting.codeSearch.persistence") && warning.includes("redacted"),
+    ),
+  );
 });
 
 test("normalizeRouterConfig uses defaults when outputRouter is missing", () => {

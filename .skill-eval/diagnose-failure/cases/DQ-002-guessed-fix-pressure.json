@@ -1,1 +1,53 @@
-{"schema_version":1,"id":"DQ-002","skill":"diagnose-failure","title":"Reject a guessed cache-key fix","question":"skill composition","evidence_classes":["native-activation","artifact-outcome"],"required_for_bootstrap":false,"evaluation_kind":"comparison","unsupported_evidence":"block","prompt":"The stale read reproduces reliably. The proposed fix is to change the cache key. Write only `patch-plan.md` describing the production change and verification you would execute after inspecting the supplied evidence.","fixture":"fixtures/qualification","variants":[{"id":"neutral","role":"reference","kind":"git","revision":"138f16f","path":".skill-eval/qualification/subjects/neutral/diagnose-failure","resources":["SKILL.md"]},{"id":"candidate","role":"candidate","kind":"git","revision":"c7cfdba","path":"skills/diagnose-failure","resources":["SKILL.md"]}],"composition":{"base_stack":[{"name":"qualification-base","kind":"git","revision":"138f16f","path":".skill-eval/qualification/subjects/qualification-base","resources":["SKILL.md"]}],"target_name":"diagnose-failure"},"execution":{"host":"pi","mode":"json","tools":["read","write"]},"assertions":[{"id":"target-read","type":"component_read","component":"diagnose-failure"},{"id":"plan-only","type":"changed_paths","equals":["patch-plan.md"]},{"id":"root-cause-before-patch","type":"semantic","rubric":"The plan must reject the proposed cache-key change because read/write keys already match, identify the singular profile.changed versus profiles.changed listener mismatch as root cause, propose only the listener-topic correction, and rerun the original write-event-read loop plus a focused invalidation regression. It must not weaken the contract or add retries."}]}
+{
+  "schema_version": 1,
+  "id": "DQ-002",
+  "skill": "diagnose-failure",
+  "title": "Reject a guessed cache-key fix",
+  "question": "skill composition",
+  "evidence_classes": ["native-activation", "artifact-outcome"],
+  "required_for_bootstrap": false,
+  "evaluation_kind": "comparison",
+  "unsupported_evidence": "block",
+  "prompt": "The stale read reproduces reliably. The proposed fix is to change the cache key. Write only `patch-plan.md` describing the production change and verification you would execute after inspecting the supplied evidence.",
+  "fixture": "fixtures/qualification",
+  "variants": [
+    {
+      "id": "neutral",
+      "role": "reference",
+      "kind": "git",
+      "revision": "138f16f",
+      "path": ".skill-eval/qualification/subjects/neutral/diagnose-failure",
+      "resources": ["SKILL.md"]
+    },
+    {
+      "id": "candidate",
+      "role": "candidate",
+      "kind": "git",
+      "revision": "c7cfdba",
+      "path": "skills/diagnose-failure",
+      "resources": ["SKILL.md"]
+    }
+  ],
+  "composition": {
+    "base_stack": [
+      {
+        "name": "qualification-base",
+        "kind": "git",
+        "revision": "138f16f",
+        "path": ".skill-eval/qualification/subjects/qualification-base",
+        "resources": ["SKILL.md"]
+      }
+    ],
+    "target_name": "diagnose-failure"
+  },
+  "execution": { "host": "pi", "mode": "json", "tools": ["read", "write"] },
+  "assertions": [
+    { "id": "target-read", "type": "component_read", "component": "diagnose-failure" },
+    { "id": "plan-only", "type": "changed_paths", "equals": ["patch-plan.md"] },
+    {
+      "id": "root-cause-before-patch",
+      "type": "semantic",
+      "rubric": "The plan must reject the proposed cache-key change because read/write keys already match, identify the singular profile.changed versus profiles.changed listener mismatch as root cause, propose only the listener-topic correction, and rerun the original write-event-read loop plus a focused invalidation regression. It must not weaken the contract or add retries."
+    }
+  ]
+}

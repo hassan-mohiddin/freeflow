@@ -13,7 +13,16 @@ export function routedToolText(result) {
 }
 
 export function compactBatchToolText(result) {
-  const lines = [row("freeflow_batch", result?.routing?.status ?? result?.toolStatus ?? "unknown", `steps=${result?.stepCount ?? 0}`, `ok=${result?.okCount ?? 0}`, `failed=${result?.failedCount ?? 0}`, `c=${result?.concurrency ?? "?"}`)];
+  const lines = [
+    row(
+      "freeflow_batch",
+      result?.routing?.status ?? result?.toolStatus ?? "unknown",
+      `steps=${result?.stepCount ?? 0}`,
+      `ok=${result?.okCount ?? 0}`,
+      `failed=${result?.failedCount ?? 0}`,
+      `c=${result?.concurrency ?? "?"}`,
+    ),
+  ];
   if (result?.summary) {
     lines.push(row("s", truncateRawLine(result.summary, 220)));
   } else if (result?.routing?.reason) {
@@ -22,7 +31,14 @@ export function compactBatchToolText(result) {
 
   const queries = Array.isArray(result?.queries) ? result.queries : [];
   queries.slice(0, 5).forEach((answer) => {
-    lines.push(row("q", answer?.status ?? "query", truncateRawLine(answer?.query ?? "query", 120), truncateRawLine(answer?.summary ?? "", 700)));
+    lines.push(
+      row(
+        "q",
+        answer?.status ?? "query",
+        truncateRawLine(answer?.query ?? "query", 120),
+        truncateRawLine(answer?.summary ?? "", 700),
+      ),
+    );
   });
   appendOmittedRow(lines, "q", queries.length, 5, "details.result.queries");
 
@@ -37,14 +53,17 @@ export function compactRunToolText(result) {
   const executionStatus = result?.execution?.status ?? result?.toolStatus ?? "unknown";
   const outputId = result?.outputId ?? result?.recovery?.outputId;
   const header = ["freeflow_run", executionStatus];
-  if (result?.execution?.exitCode !== undefined && result?.execution?.exitCode !== null) header.push(`exit=${result.execution.exitCode}`);
+  if (result?.execution?.exitCode !== undefined && result?.execution?.exitCode !== null)
+    header.push(`exit=${result.execution.exitCode}`);
   if (result?.routing?.status) header.push(`route=${result.routing.status}`);
   if (result?.parser?.name) header.push(`parser=${result.parser.name}`);
   const counts = compactParserCounts(result?.parser?.counts);
   if (counts) header.push(counts);
   if (outputId) header.push(`${result?.persistence?.recoverability === "exact" ? "raw" : "metadata"}=${outputId}`);
-  if (result?.persistence?.recoverability !== "exact" && result?.recovery?.outputId) header.push(`exact=${result.recovery.outputId}`);
-  if (result?.scriptProducer?.language) header.push(`script=${result.scriptProducer.language}:${result.scriptProducer.status ?? "unknown"}`);
+  if (result?.persistence?.recoverability !== "exact" && result?.recovery?.outputId)
+    header.push(`exact=${result.recovery.outputId}`);
+  if (result?.scriptProducer?.language)
+    header.push(`script=${result.scriptProducer.language}:${result.scriptProducer.status ?? "unknown"}`);
   if (result?.scriptFilter?.outputId) header.push(`transformed=${result.scriptFilter.outputId}`);
 
   const lines = [row(...header)];
@@ -57,7 +76,11 @@ export function compactRunToolText(result) {
   if (scriptFilterText) lines.push(row("script", scriptFilterText));
 
   const importantLines = Array.isArray(result?.importantLines) ? result.importantLines : [];
-  importantLines.slice(0, 3).forEach((line) => appendExcerptRows(lines, "p", `${line?.stream ?? "stream"}:${line?.lines ?? "?"}`, line?.excerpt, 4));
+  importantLines
+    .slice(0, 3)
+    .forEach((line) =>
+      appendExcerptRows(lines, "p", `${line?.stream ?? "stream"}:${line?.lines ?? "?"}`, line?.excerpt, 4),
+    );
   appendOmittedRow(lines, "p", importantLines.length, 3, "details.result");
   appendRunRecoveryRow(lines, result, outputId, importantLines[0]);
   lines.push(row("details", "details.result"));
@@ -78,7 +101,15 @@ export function compactSearchEvidenceToolText(result, toolName = "freeflow_searc
   const routeStatus = result?.routing?.status ?? result?.toolStatus ?? "unknown";
   const evidence = Array.isArray(result?.evidence) ? result.evidence : [];
   const source = compactSourceLabel(result?.source ?? evidence[0]?.source);
-  const lines = [row(toolName, routeStatus, source, `e=${evidence.length}`, result?.recovery?.outputId ? `out=${result.recovery.outputId}` : "")];
+  const lines = [
+    row(
+      toolName,
+      routeStatus,
+      source,
+      `e=${evidence.length}`,
+      result?.recovery?.outputId ? `out=${result.recovery.outputId}` : "",
+    ),
+  ];
   if (result?.failure?.message) {
     lines.push(row("fail", truncateRawLine(result.failure.message, 220)));
   } else if (result?.routing?.reason) {
@@ -92,7 +123,7 @@ export function compactSearchEvidenceToolText(result, toolName = "freeflow_searc
 
 export function compactTransformToolText(result, toolName = "freeflow_search") {
   const failed = result?.failure || result?.routing?.status === "failed" || result?.toolStatus === "error";
-  const routeStatus = failed ? "failed" : result?.routing?.status ?? result?.toolStatus ?? "unknown";
+  const routeStatus = failed ? "failed" : (result?.routing?.status ?? result?.toolStatus ?? "unknown");
   const evidence = Array.isArray(result?.evidence) ? result.evidence : [];
   const operation = compactOperationLabel(result?.operation ?? { kind: result?.producer?.name });
   const outputId = result?.outputId ?? result?.recovery?.outputId;
@@ -112,8 +143,12 @@ export function compactTransformToolText(result, toolName = "freeflow_search") {
 }
 
 function compactProcessingToolText(result) {
-  const lines = [row("freeflow_search", result?.status ?? "unknown", "transform", compactProcessingSourceLabel(result?.source))];
-  splitLines(String(result?.visibleText ?? "")).slice(0, 8).forEach((line) => lines.push(row(">", truncateRawLine(line, 220))));
+  const lines = [
+    row("freeflow_search", result?.status ?? "unknown", "transform", compactProcessingSourceLabel(result?.source)),
+  ];
+  splitLines(String(result?.visibleText ?? ""))
+    .slice(0, 8)
+    .forEach((line) => lines.push(row(">", truncateRawLine(line, 220))));
   appendOmittedRow(lines, ">", splitLines(String(result?.visibleText ?? "")).length, 8, "details.result.visibleText");
   if (Array.isArray(result?.facts) && result.facts.length > 0) lines.push(row("facts", result.facts.length));
   if (result?.recovery?.outputId) lines.push(row("rec", "vault", result.recovery.outputId));
@@ -128,11 +163,16 @@ function compactProcessingSourceLabel(source) {
 }
 
 function row(...fields) {
-  return fields.filter((field) => field !== undefined && field !== null && String(field).length > 0).map(escapeRowField).join("|");
+  return fields
+    .filter((field) => field !== undefined && field !== null && String(field).length > 0)
+    .map(escapeRowField)
+    .join("|");
 }
 
 function escapeRowField(value) {
-  return String(value ?? "").replace(/\r?\n/g, " ").replace(/\|/g, "¦");
+  return String(value ?? "")
+    .replace(/\r?\n/g, " ")
+    .replace(/\|/g, "¦");
 }
 
 function appendOmittedRow(lines, tag, total, shown, target) {
@@ -153,15 +193,19 @@ function appendEvidenceRows(lines, evidence, maxPackets, maxLines) {
   evidence.slice(0, maxPackets).forEach((packet, index) => {
     const match = packet?.match ? `${packet.match.type}:${Number(packet.match.confidence ?? 0).toFixed(2)}` : "";
     lines.push(row("e", index + 1, compactEvidenceLabel(packet), match));
-    splitLines(String(packet?.excerpt ?? "")).slice(0, maxLines).forEach((excerptLine) => lines.push(row(">", truncateRawLine(excerptLine, 220))));
+    splitLines(String(packet?.excerpt ?? ""))
+      .slice(0, maxLines)
+      .forEach((excerptLine) => lines.push(row(">", truncateRawLine(excerptLine, 220))));
     appendOmittedRow(lines, ">", splitLines(String(packet?.excerpt ?? "")).length, maxLines, "details.result");
   });
   appendOmittedRow(lines, "e", evidence.length, maxPackets, "details.result");
 }
 
 function appendRunRecoveryRow(lines, result, outputId, firstImportantLine) {
-  const exactRecoveryOutputId = result?.scriptFilter?.outputId ?? (result?.persistence?.recoverability === "exact" ? outputId : result?.recovery?.outputId);
-  const evidenceStream = result?.scriptFilter?.outputId ? "raw" : firstImportantLine?.stream ?? "combined";
+  const exactRecoveryOutputId =
+    result?.scriptFilter?.outputId ??
+    (result?.persistence?.recoverability === "exact" ? outputId : result?.recovery?.outputId);
+  const evidenceStream = result?.scriptFilter?.outputId ? "raw" : (firstImportantLine?.stream ?? "combined");
   if (exactRecoveryOutputId && firstImportantLine?.lines) {
     lines.push(row("rec", "vault", exactRecoveryOutputId, evidenceStream, firstImportantLine.lines));
     if (result?.scriptFilter?.outputId && outputId) {
@@ -205,7 +249,13 @@ function appendRecoveryRow(lines, recovery, evidence, fallbackOutputId) {
 function compactBatchStepLine(step) {
   const result = step?.result;
   const outputId = result?.outputId ?? result?.recovery?.outputId;
-  const parts = ["step", Number(step?.index ?? 0) + 1, step?.id ?? "step", step?.kind ?? "step", step?.status ?? "unknown"];
+  const parts = [
+    "step",
+    Number(step?.index ?? 0) + 1,
+    step?.id ?? "step",
+    step?.kind ?? "step",
+    step?.status ?? "unknown",
+  ];
   if (result?.routing?.status) parts.push(`route=${result.routing.status}`);
   if (step?.durationMs !== undefined) parts.push(`${step.durationMs}ms`);
   if (outputId) parts.push(`out=${outputId}`);
@@ -362,7 +412,9 @@ export function textComponent(text) {
   return {
     render(width = 120) {
       const maxWidth = Number.isFinite(width) ? Math.max(1, width) : 120;
-      return String(text).split("\n").map((line) => truncateAnsiToWidth(line, maxWidth));
+      return String(text)
+        .split("\n")
+        .map((line) => truncateAnsiToWidth(line, maxWidth));
     },
     invalidate() {},
   };
@@ -451,7 +503,9 @@ export function statusIcon(status) {
 }
 
 export function oneLine(value) {
-  return String(value ?? "").replace(/\s+/g, " ").trim();
+  return String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function truncateText(value, maxLength = 120) {

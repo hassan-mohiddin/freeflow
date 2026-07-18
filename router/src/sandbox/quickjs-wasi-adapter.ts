@@ -58,7 +58,9 @@ interface QuickJsRunResult {
   errorMessage?: string;
 }
 
-export async function discoverQuickJsWasiSandboxAdaptersFromEnv(env: NodeJS.ProcessEnv = process.env): Promise<ScriptSandboxAdapter[]> {
+export async function discoverQuickJsWasiSandboxAdaptersFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<ScriptSandboxAdapter[]> {
   const candidate = await resolveScriptTransformAdapterRoot("javascript", env);
   if (!candidate) {
     return [];
@@ -66,11 +68,17 @@ export async function discoverQuickJsWasiSandboxAdaptersFromEnv(env: NodeJS.Proc
   try {
     return [await createQuickJsWasiSandboxAdapter({ packageRoot: candidate.packageRoot })];
   } catch (error) {
-    return [unavailableQuickJsAdapter(`quickjs-wasi adapter could not load from ${candidate.source === "env" ? candidate.envVar : "global adapter cache"}: ${errorMessage(error)}`)];
+    return [
+      unavailableQuickJsAdapter(
+        `quickjs-wasi adapter could not load from ${candidate.source === "env" ? candidate.envVar : "global adapter cache"}: ${errorMessage(error)}`,
+      ),
+    ];
   }
 }
 
-export async function createQuickJsWasiSandboxAdapter(options: QuickJsWasiSandboxAdapterOptions): Promise<ScriptSandboxAdapter> {
+export async function createQuickJsWasiSandboxAdapter(
+  options: QuickJsWasiSandboxAdapterOptions,
+): Promise<ScriptSandboxAdapter> {
   const runtime = await loadQuickJsRuntime(options.packageRoot);
   return {
     id: options.id ?? "quickjs-wasi",
@@ -205,7 +213,10 @@ async function loadQuickJsRuntime(packageRoot: string): Promise<QuickJsRuntime> 
   };
 }
 
-async function probeQuickJsRuntime(runtime: QuickJsRuntime, config: ScriptTransformConfig): Promise<ScriptSandboxProbeResult> {
+async function probeQuickJsRuntime(
+  runtime: QuickJsRuntime,
+  config: ScriptTransformConfig,
+): Promise<ScriptSandboxProbeResult> {
   const timeoutMs = Math.min(config.limits.timeoutMs, DEFAULT_PROBE_TIMEOUT_MS);
   const outputBytes = Math.min(config.limits.maxOutputBytes, DEFAULT_PROBE_OUTPUT_BYTES);
   const cacheKey = [runtime.packageVersion, runtime.wasmSha256, timeoutMs, outputBytes, config.network].join(":");
@@ -224,7 +235,11 @@ async function probeQuickJsRuntime(runtime: QuickJsRuntime, config: ScriptTransf
   }
 }
 
-async function runQuickJsProbe(runtime: QuickJsRuntime, timeoutMs: number, outputBytes: number): Promise<ScriptSandboxProbeResult> {
+async function runQuickJsProbe(
+  runtime: QuickJsRuntime,
+  timeoutMs: number,
+  outputBytes: number,
+): Promise<ScriptSandboxProbeResult> {
   const previousSecret = process.env.FREEFLOW_SANDBOX_SECRET_SENTINEL;
   process.env.FREEFLOW_SANDBOX_SECRET_SENTINEL = SECRET_SENTINEL;
   try {
@@ -249,7 +264,9 @@ async function runQuickJsProbe(runtime: QuickJsRuntime, timeoutMs: number, outpu
     const allPassed = SCRIPT_SANDBOX_REQUIRED_PROOFS.every((proof) => passedProofs.includes(proof));
     return {
       status: allPassed ? "available" : "unavailable",
-      reason: allPassed ? "quickjs-wasi passed every required JavaScript sandbox proof." : "quickjs-wasi did not pass every required JavaScript sandbox proof.",
+      reason: allPassed
+        ? "quickjs-wasi passed every required JavaScript sandbox proof."
+        : "quickjs-wasi did not pass every required JavaScript sandbox proof.",
       passedProofs,
       failedProofs,
       runtime: runtimeInfo(runtime),
@@ -325,10 +342,18 @@ async function runQuickJs(runtime: QuickJsRuntime, options: QuickJsRunOptions): 
     const message = error instanceof Error ? error.message : String(error);
     const name = error instanceof Error ? error.name : "Error";
     if (truncated) {
-      return { ...buildRunResult("output_limit_exceeded", stdout, stderr, truncated, start), errorName: name, errorMessage: message };
+      return {
+        ...buildRunResult("output_limit_exceeded", stdout, stderr, truncated, start),
+        errorName: name,
+        errorMessage: message,
+      };
     }
     if (message.includes("interrupted")) {
-      return { ...buildRunResult("timed_out", stdout, stderr, truncated, start), errorName: name, errorMessage: message };
+      return {
+        ...buildRunResult("timed_out", stdout, stderr, truncated, start),
+        errorName: name,
+        errorMessage: message,
+      };
     }
     return { ...buildRunResult("failed", stdout, stderr, truncated, start), errorName: name, errorMessage: message };
   } finally {
@@ -374,7 +399,12 @@ function installHostApi(
   disposeHandle(consoleObject);
 }
 
-function assessQuickJsProof(proof: ScriptSandboxProof, run: QuickJsRunResult, timeoutMs: number, outputBytes: number): boolean {
+function assessQuickJsProof(
+  proof: ScriptSandboxProof,
+  run: QuickJsRunResult,
+  timeoutMs: number,
+  outputBytes: number,
+): boolean {
   const combined = `${run.stdout}\n${run.stderr}\n${run.errorMessage ?? ""}`;
   switch (proof) {
     case "env_access_denied":
@@ -398,7 +428,13 @@ function assessQuickJsProof(proof: ScriptSandboxProof, run: QuickJsRunResult, ti
   }
 }
 
-function buildRunResult(status: QuickJsRunResult["status"], stdout: string, stderr: string, truncated: boolean, start: number): QuickJsRunResult {
+function buildRunResult(
+  status: QuickJsRunResult["status"],
+  stdout: string,
+  stderr: string,
+  truncated: boolean,
+  start: number,
+): QuickJsRunResult {
   return {
     status,
     stdout,
@@ -412,16 +448,18 @@ function buildRunResult(status: QuickJsRunResult["status"], stdout: string, stde
 }
 
 function formatHostArgs(vm: any, args: any[]): string {
-  return args.map((arg) => {
-    try {
-      const dumped = vm.dump(arg);
-      if (typeof dumped === "string") return dumped;
-      if (dumped === undefined) return "undefined";
-      return JSON.stringify(dumped);
-    } catch {
-      return arg?.toString() ?? "";
-    }
-  }).join(" ");
+  return args
+    .map((arg) => {
+      try {
+        const dumped = vm.dump(arg);
+        if (typeof dumped === "string") return dumped;
+        if (dumped === undefined) return "undefined";
+        return JSON.stringify(dumped);
+      } catch {
+        return arg?.toString() ?? "";
+      }
+    })
+    .join(" ");
 }
 
 function runtimeInfo(runtime: QuickJsRuntime) {

@@ -153,11 +153,13 @@ export async function routeObservedToolOutput(options: RouteObservedToolOutputOp
   return result;
 }
 
-async function persistObservedOutput(options: RouteObservedToolOutputOptions & {
-  decisionId: string;
-  normalized: ObservedOutputNormalization;
-  text: string;
-}): Promise<StoredObservedOutput> {
+async function persistObservedOutput(
+  options: RouteObservedToolOutputOptions & {
+    decisionId: string;
+    normalized: ObservedOutputNormalization;
+    text: string;
+  },
+): Promise<StoredObservedOutput> {
   if (options.persistence === "none") {
     return {
       persistence: noPersistence(),
@@ -227,15 +229,17 @@ function observedNormalization(normalizedOutput: NormalizedObservedOutput): Obse
 }
 
 function observedDecisionId(options: RouteObservedToolOutputOptions, text: string): string {
-  return decisionIdFromSeed([
-    "observed",
-    options.sessionId,
-    options.host.name,
-    options.host.toolName,
-    producerLabel(options.producer),
-    options.persistence,
-    sha256Text(text),
-  ].join("|"));
+  return decisionIdFromSeed(
+    [
+      "observed",
+      options.sessionId,
+      options.host.name,
+      options.host.toolName,
+      producerLabel(options.producer),
+      options.persistence,
+      sha256Text(text),
+    ].join("|"),
+  );
 }
 
 function failOpenObservedOutput(options: {
@@ -307,7 +311,11 @@ function normalizeObservedOutput(value: unknown, mediaType?: string): Normalized
     };
   }
 
-  return { text: value === undefined ? "" : String(value), shape: "text", ...(mediaType !== undefined ? { mediaType } : {}) };
+  return {
+    text: value === undefined ? "" : String(value),
+    shape: "text",
+    ...(mediaType !== undefined ? { mediaType } : {}),
+  };
 }
 
 function normalizeStdio(value: Record<string, unknown>): string | undefined {

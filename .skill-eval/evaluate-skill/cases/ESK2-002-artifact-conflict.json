@@ -4,10 +4,7 @@
   "skill": "evaluate-skill",
   "title": "Artifact evidence outranks final prose",
   "question": "fixture/repo behavior",
-  "evidence_classes": [
-    "native-activation",
-    "artifact-outcome"
-  ],
+  "evidence_classes": ["native-activation", "artifact-outcome"],
   "required_for_bootstrap": true,
   "prompt": "Grade the saved review-skill run using `runs/final.md` and `runs/output.diff`. Update `reports/result.md` with the verdict and evidence. Do not rerun anything and do not edit the skill.",
   "fixture": "fixtures/artifact-conflict",
@@ -18,11 +15,7 @@
       "revision": "b168ac28482b7bc3984727ad4ee3a61a2b789104",
       "path": "skills/evaluate-skill",
       "role": "reference",
-      "resources": [
-        "SKILL.md",
-        "references/eval-patterns.md",
-        "references/grading-priority.md"
-      ]
+      "resources": ["SKILL.md", "references/eval-patterns.md", "references/grading-priority.md"]
     },
     {
       "id": "candidate",
@@ -43,13 +36,7 @@
   "execution": {
     "host": "pi",
     "mode": "json",
-    "tools": [
-      "read",
-      "write",
-      "edit",
-      "find",
-      "ls"
-    ]
+    "tools": ["read", "write", "edit", "find", "ls"]
   },
   "assertions": [
     {
@@ -60,17 +47,13 @@
     {
       "id": "only-report-changed",
       "type": "changed_paths",
-      "equals": [
-        "reports/result.md"
-      ]
+      "equals": ["reports/result.md"]
     },
     {
       "id": "failed-verdict",
       "type": "file_contains",
       "path": "reports/result.md",
-      "patterns": [
-        "Fail"
-      ]
+      "patterns": ["Fail"]
     },
     {
       "id": "artifact-first-reasoning",

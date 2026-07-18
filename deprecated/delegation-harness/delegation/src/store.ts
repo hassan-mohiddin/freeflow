@@ -1,5 +1,17 @@
 import { createHash, randomUUID } from "node:crypto";
-import { access, appendFile, link, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import {
+  access,
+  appendFile,
+  link,
+  mkdir,
+  open,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 
@@ -23,7 +35,12 @@ import { currentAssignmentAttemptIdentity, resolveAssignmentAttemptIdentity } fr
 import { normalizeDelegationActiveLeaseView, normalizeDelegationLease } from "./leases.js";
 import { resolveProfileForRole } from "./profiles.js";
 import { parseProtocolText, planningReportPlanArtifactPath } from "./protocol.js";
-import { normalizeDelegationRouteApplication, normalizeDelegationRouteDecision, normalizeDelegationRouteRequest, normalizeExecutionAuthorizationEvidence } from "./routing.js";
+import {
+  normalizeDelegationRouteApplication,
+  normalizeDelegationRouteDecision,
+  normalizeDelegationRouteRequest,
+  normalizeExecutionAuthorizationEvidence,
+} from "./routing.js";
 import type {
   AgentManifest,
   AgentRegistryEntry,
@@ -597,7 +614,24 @@ export class DelegationStore {
     const current = await this.readAgentManifest(taskId, agentId);
     const updated: AgentManifest = { ...current, updatedAt: this.now() };
     for (const [key, value] of Object.entries(patch)) {
-      if (["taskId", "agentId", "createdAt", "updatedAt", "schemaVersion", "identitySchemaVersion", "profileSchemaVersion", "protocolVersion", "assignmentId", "attemptId", "attemptSource", "modelTaskPacketPath", "resultRawPath", "resultJsonPath"].includes(key)) {
+      if (
+        [
+          "taskId",
+          "agentId",
+          "createdAt",
+          "updatedAt",
+          "schemaVersion",
+          "identitySchemaVersion",
+          "profileSchemaVersion",
+          "protocolVersion",
+          "assignmentId",
+          "attemptId",
+          "attemptSource",
+          "modelTaskPacketPath",
+          "resultRawPath",
+          "resultJsonPath",
+        ].includes(key)
+      ) {
         continue;
       }
       if (value !== undefined) {
@@ -608,7 +642,11 @@ export class DelegationStore {
     return updated;
   }
 
-  async writeAgentStatus(taskId: string, agentId: string, status: Omit<AgentStatus, "taskId" | "agentId" | "updatedAt">): Promise<AgentStatus> {
+  async writeAgentStatus(
+    taskId: string,
+    agentId: string,
+    status: Omit<AgentStatus, "taskId" | "agentId" | "updatedAt">,
+  ): Promise<AgentStatus> {
     const ids = { taskId: validateSafeId(taskId, "task id"), agentId: validateSafeId(agentId, "agent id") };
     const updated: AgentStatus = {
       taskId: ids.taskId,
@@ -663,14 +701,22 @@ export class DelegationStore {
     return target;
   }
 
-  async recordAgentResult(taskId: string, agentId: string, rawText: string, parsedResult: unknown): Promise<{ rawPath: string; jsonPath: string }> {
+  async recordAgentResult(
+    taskId: string,
+    agentId: string,
+    rawText: string,
+    parsedResult: unknown,
+  ): Promise<{ rawPath: string; jsonPath: string }> {
     const paths = agentPaths(this.root, taskId, agentId);
     await writeText(paths.resultRaw, rawText);
     await writeJson(paths.resultJson, parsedResult);
     return { rawPath: paths.resultRaw, jsonPath: paths.resultJson };
   }
 
-  async publishTerminalOutcome(taskId: string, input: PublishTerminalOutcomeInput): Promise<TerminalOutcomePublicationResult> {
+  async publishTerminalOutcome(
+    taskId: string,
+    input: PublishTerminalOutcomeInput,
+  ): Promise<TerminalOutcomePublicationResult> {
     const safeTaskId = validateSafeId(taskId, "task id");
     const submittedAgentId = validateSafeId(input.agentId, "terminal source agent id");
     const submittedAssignmentId = validateSafeId(input.assignmentId, "terminal source assignment id");
@@ -691,23 +737,22 @@ export class DelegationStore {
       const currentManifest = await this.readAgentManifest(safeTaskId, submittedAgentId);
       const currentStatus = await this.readAgentStatus(safeTaskId, submittedAgentId);
       const identity = await resolveTerminalPublicationIdentity(currentManifest, currentStatus, taskPathSet);
-      if (
-        identity.assignmentId !== currentIdentity.assignmentId ||
-        identity.attemptId !== currentIdentity.attemptId
-      ) {
+      if (identity.assignmentId !== currentIdentity.assignmentId || identity.attemptId !== currentIdentity.attemptId) {
         throw new Error("terminal assignment identity changed while acquiring publication lock; retry");
       }
       const paths = terminalOutcomeAttemptPaths(taskPathSet, identity.assignmentId, identity.attemptId);
       const normalizedEvidenceResult = normalizeTerminalOutcomeEvidence(input.evidence);
-      let rejectionReason = sourceResult.error ?? terminalOutcomeRejectionReason({
-        manifest: currentManifest,
-        identity,
-        submittedAssignmentId,
-        submittedAttemptId,
-        submittedRole: input.role,
-        submittedStatus: input.status,
-        evidenceResult: normalizedEvidenceResult,
-      });
+      let rejectionReason =
+        sourceResult.error ??
+        terminalOutcomeRejectionReason({
+          manifest: currentManifest,
+          identity,
+          submittedAssignmentId,
+          submittedAttemptId,
+          submittedRole: input.role,
+          submittedStatus: input.status,
+          evidenceResult: normalizedEvidenceResult,
+        });
       if (
         rejectionReason === undefined &&
         input.role === "planning-parent" &&
@@ -953,11 +998,13 @@ export class DelegationStore {
         ...(agentState === undefined ? {} : { agentState }),
         endedLeaseIds,
         ...(eventId === undefined ? {} : { eventId }),
-        ...(alertResult === undefined ? {} : {
-          alert: alertResult.alert,
-          ...(alertResult.wakeAttempt === undefined ? {} : { wakeAttempt: alertResult.wakeAttempt }),
-          ...(alertResult.wakeAttemptError === undefined ? {} : { wakeAttemptError: alertResult.wakeAttemptError }),
-        }),
+        ...(alertResult === undefined
+          ? {}
+          : {
+              alert: alertResult.alert,
+              ...(alertResult.wakeAttempt === undefined ? {} : { wakeAttempt: alertResult.wakeAttempt }),
+              ...(alertResult.wakeAttemptError === undefined ? {} : { wakeAttemptError: alertResult.wakeAttemptError }),
+            }),
       };
     }
     return {
@@ -967,11 +1014,13 @@ export class DelegationStore {
       ...(agentState === undefined ? {} : { agentState }),
       endedLeaseIds,
       ...(eventId === undefined ? {} : { eventId }),
-      ...(alertResult === undefined ? {} : {
-        alert: alertResult.alert,
-        ...(alertResult.wakeAttempt === undefined ? {} : { wakeAttempt: alertResult.wakeAttempt }),
-        ...(alertResult.wakeAttemptError === undefined ? {} : { wakeAttemptError: alertResult.wakeAttemptError }),
-      }),
+      ...(alertResult === undefined
+        ? {}
+        : {
+            alert: alertResult.alert,
+            ...(alertResult.wakeAttempt === undefined ? {} : { wakeAttempt: alertResult.wakeAttempt }),
+            ...(alertResult.wakeAttemptError === undefined ? {} : { wakeAttemptError: alertResult.wakeAttemptError }),
+          }),
     };
   }
 
@@ -1001,7 +1050,7 @@ export class DelegationStore {
       updatedAt: accepted.acceptedAt,
       message: summary,
       terminalOutcomeId: accepted.outcomeId,
-      ...((accepted.status === "blocked" || accepted.status === "failed" || accepted.status === "cancelled")
+      ...(accepted.status === "blocked" || accepted.status === "failed" || accepted.status === "cancelled"
         ? { reason: summary }
         : {}),
     };
@@ -1014,28 +1063,39 @@ export class DelegationStore {
   }
 
   private async ensureTerminalEvent(accepted: StoredTerminalAcceptedOutcome, scope: "agent" | "task"): Promise<void> {
-    const event = this.buildEvent(accepted.taskId, scope, {
-      eventId: terminalEffectEventId(accepted.outcomeId, scope),
-      timestamp: accepted.acceptedAt,
-      type: "agent-result",
-      state: terminalAssignmentState(accepted.status),
-      message: terminalEvidenceSummary(accepted.evidence),
-      data: {
-        terminalOutcomeId: accepted.outcomeId,
-        agentId: accepted.agentId,
-        role: accepted.role,
-        resultStatus: accepted.status,
-        rawPath: accepted.rawPath,
-        jsonPath: accepted.jsonPath,
+    const event = this.buildEvent(
+      accepted.taskId,
+      scope,
+      {
+        eventId: terminalEffectEventId(accepted.outcomeId, scope),
+        timestamp: accepted.acceptedAt,
+        type: "agent-result",
+        state: terminalAssignmentState(accepted.status),
+        message: terminalEvidenceSummary(accepted.evidence),
+        data: {
+          terminalOutcomeId: accepted.outcomeId,
+          agentId: accepted.agentId,
+          role: accepted.role,
+          resultStatus: accepted.status,
+          rawPath: accepted.rawPath,
+          jsonPath: accepted.jsonPath,
+        },
       },
-    }, scope === "agent" ? accepted.agentId : undefined);
-    const path = scope === "agent"
-      ? agentPaths(this.root, accepted.taskId, accepted.agentId).eventsJsonl
-      : taskPaths(this.root, accepted.taskId).eventsJsonl;
+      scope === "agent" ? accepted.agentId : undefined,
+    );
+    const path =
+      scope === "agent"
+        ? agentPaths(this.root, accepted.taskId, accepted.agentId).eventsJsonl
+        : taskPaths(this.root, accepted.taskId).eventsJsonl;
     await ensureDelegationEvent(path, event);
   }
 
-  async appendAgentTextLog(taskId: string, agentId: string, logName: "screen" | "transcript", text: string): Promise<string> {
+  async appendAgentTextLog(
+    taskId: string,
+    agentId: string,
+    logName: "screen" | "transcript",
+    text: string,
+  ): Promise<string> {
     const paths = agentPaths(this.root, taskId, agentId);
     const target = logName === "screen" ? paths.screenLog : paths.transcriptLog;
     await mkdir(parentDirectory(target), { recursive: true });
@@ -1043,7 +1103,10 @@ export class DelegationStore {
     return target;
   }
 
-  async publishPlanningReport(taskId: string, input: PublishPlanningReportInput): Promise<PlanningReportPublicationResult> {
+  async publishPlanningReport(
+    taskId: string,
+    input: PublishPlanningReportInput,
+  ): Promise<PlanningReportPublicationResult> {
     const safeTaskId = validateSafeId(taskId, "task id");
     const rawText = requireStringValue(input.rawText, "planning report raw text");
     const source = normalizePlanningReportPublicationSource(input.source);
@@ -1058,16 +1121,28 @@ export class DelegationStore {
     const report = parsed.planningReports.length === 1 ? parsed.planningReports[0] : undefined;
     const errors = [
       ...parsed.errors.map((error) => ({ lineNumber: error.lineNumber, message: error.message })),
-      ...(parsed.planningReports.length === 0 ? [{ lineNumber: 1, message: "planning-report block was not found" }] : []),
-      ...(parsed.planningReports.length > 1 ? [{ lineNumber: 1, message: "exactly one planning-report block is required" }] : []),
+      ...(parsed.planningReports.length === 0
+        ? [{ lineNumber: 1, message: "planning-report block was not found" }]
+        : []),
+      ...(parsed.planningReports.length > 1
+        ? [{ lineNumber: 1, message: "exactly one planning-report block is required" }]
+        : []),
     ];
     const accepted = parsed.ok && report !== undefined && parsed.planningReports.length === 1;
     const reportStatus = accepted ? report.status : undefined;
-    const planArtifactPath = accepted && (reportStatus === "ready" || reportStatus === "ready_with_open_questions")
-      ? planningReportPlanArtifactPath(report)
-      : undefined;
-    if (accepted && (reportStatus === "ready" || reportStatus === "ready_with_open_questions") && planArtifactPath === undefined) {
-      errors.push({ lineNumber: report.startLine, message: "ready planning report requires exactly one plan artifact identity" });
+    const planArtifactPath =
+      accepted && (reportStatus === "ready" || reportStatus === "ready_with_open_questions")
+        ? planningReportPlanArtifactPath(report)
+        : undefined;
+    if (
+      accepted &&
+      (reportStatus === "ready" || reportStatus === "ready_with_open_questions") &&
+      planArtifactPath === undefined
+    ) {
+      errors.push({
+        lineNumber: report.startLine,
+        message: "ready planning report requires exactly one plan artifact identity",
+      });
     }
     const disposition: "accepted" | "rejected" = accepted && errors.length === 0 ? "accepted" : "rejected";
     const contentHash = createHash("sha256").update(rawText, "utf8").digest("hex");
@@ -1132,7 +1207,10 @@ export class DelegationStore {
         timestamp: stored.recordedAt,
         type: eventType,
         state: disposition === "accepted" ? (stored.reportStatus === "blocked" ? "blocked" : "planning") : "failed",
-        message: disposition === "accepted" ? `planning report accepted: ${stored.reportStatus ?? "unknown"}` : "planning report rejected",
+        message:
+          disposition === "accepted"
+            ? `planning report accepted: ${stored.reportStatus ?? "unknown"}`
+            : "planning report rejected",
         data: eventData,
       });
       const events = await readJsonLines<DelegationEvent>(paths.eventsJsonl);
@@ -1145,7 +1223,8 @@ export class DelegationStore {
       }
 
       let planningReadyEventId: string | undefined;
-      let commitState: PlanningReportPublicationResult["commitState"] = existingEvent === undefined ? "committed" : "committed_reconciled";
+      let commitState: PlanningReportPublicationResult["commitState"] =
+        existingEvent === undefined ? "committed" : "committed_reconciled";
       let recoveryReason: string | undefined;
       try {
         if (disposition === "accepted" && stored.report !== undefined && stored.planArtifactPath !== undefined) {
@@ -1197,7 +1276,12 @@ export class DelegationStore {
     });
   }
 
-  async recordTaskReport(taskId: string, reportName: ParentReportName, rawText: string, parsedReport: unknown): Promise<{ rawPath: string; jsonPath: string }> {
+  async recordTaskReport(
+    taskId: string,
+    reportName: ParentReportName,
+    rawText: string,
+    parsedReport: unknown,
+  ): Promise<{ rawPath: string; jsonPath: string }> {
     const paths = taskPaths(this.root, taskId);
     const rawByName = {
       "planning-report": paths.planningReportRaw,
@@ -1278,7 +1362,9 @@ export class DelegationStore {
     const paths = taskPaths(this.root, taskId);
     if (reportName === "planning-report") {
       const events = await readJsonLines<DelegationEvent>(paths.eventsJsonl);
-      const accepted = [...events].reverse().find((event) => event.type === "planning_report.accepted" && validTaskEventIdentity(event, taskId));
+      const accepted = [...events]
+        .reverse()
+        .find((event) => event.type === "planning_report.accepted" && validTaskEventIdentity(event, taskId));
       if (accepted !== undefined) {
         const stored = await readValidAcceptedPlanningPublication(paths, accepted);
         return { exists: true, rawPath: stored.rawPath, jsonPath: stored.jsonPath, parsed: stored.report };
@@ -1305,9 +1391,10 @@ export class DelegationStore {
   async queueParentAlert(taskId: string, input: QueueParentAlertInput): Promise<QueueParentAlertResult> {
     const result = await this.queueParentAlertRecord(taskId, input);
     const wake = await this.recordQueuedWakeBestEffort(result.alert);
-    const escalation = input.eventType === "parent-unavailable-escalation"
-      ? undefined
-      : await this.maybeEscalateClosedParent(result.alert);
+    const escalation =
+      input.eventType === "parent-unavailable-escalation"
+        ? undefined
+        : await this.maybeEscalateClosedParent(result.alert);
     return {
       ...result,
       ...wake,
@@ -1396,7 +1483,10 @@ export class DelegationStore {
   async writeExecutionMap(taskId: string, executionMap: ExecutionMapMetadata): Promise<ExecutionMapMetadata> {
     const safeTaskId = validateSafeId(taskId, "task id");
     await this.initTask({ taskId: safeTaskId });
-    const normalized = normalizeExecutionMap({ ...executionMap, taskId: safeTaskId, updatedAt: this.now() }, this.now());
+    const normalized = normalizeExecutionMap(
+      { ...executionMap, taskId: safeTaskId, updatedAt: this.now() },
+      this.now(),
+    );
     const decision = validateExecutionMap(normalized);
     if (!decision.allowed) {
       throw new Error(`cannot write invalid execution map: ${decision.reason}`);
@@ -1414,9 +1504,15 @@ export class DelegationStore {
     packages.sort((left, right) => left.packageId.localeCompare(right.packageId));
     const integrationOrder = packages
       .filter((pkg) => pkg.integrationOrder !== undefined)
-      .sort((left, right) => (left.integrationOrder ?? 0) - (right.integrationOrder ?? 0) || left.packageId.localeCompare(right.packageId))
+      .sort(
+        (left, right) =>
+          (left.integrationOrder ?? 0) - (right.integrationOrder ?? 0) || left.packageId.localeCompare(right.packageId),
+      )
       .map((pkg) => pkg.packageId);
-    const candidate = normalizeExecutionMap({ version: 1, taskId: safeTaskId, packages, integrationOrder, updatedAt: this.now() }, this.now());
+    const candidate = normalizeExecutionMap(
+      { version: 1, taskId: safeTaskId, packages, integrationOrder, updatedAt: this.now() },
+      this.now(),
+    );
     const decision = validateExecutionMap(candidate);
     if (!decision.allowed) {
       return { decision };
@@ -1426,12 +1522,20 @@ export class DelegationStore {
       type: "work-package-upserted",
       state: "running",
       message: `work package ${normalizedPackage.packageId} metadata stored`,
-      data: { packageId: normalizedPackage.packageId, role: normalizedPackage.role, checkoutPath: normalizedPackage.checkoutPath },
+      data: {
+        packageId: normalizedPackage.packageId,
+        role: normalizedPackage.role,
+        checkoutPath: normalizedPackage.checkoutPath,
+      },
     });
     return { decision, package: normalizedPackage, executionMap: written };
   }
 
-  async appendRouteDecision(taskId: string, decision: DelegationRouteDecision, options: AppendRouteDecisionOptions = {}): Promise<DelegationRouteDecisionRecord> {
+  async appendRouteDecision(
+    taskId: string,
+    decision: DelegationRouteDecision,
+    options: AppendRouteDecisionOptions = {},
+  ): Promise<DelegationRouteDecisionRecord> {
     const safeTaskId = validateSafeId(taskId, "task id");
     await this.initTask({ taskId: safeTaskId });
     const normalizedDecision = normalizeDelegationRouteDecision(decision);
@@ -1458,7 +1562,9 @@ export class DelegationStore {
   async recordRouteApplication(input: DelegationRouteApplication): Promise<RecordRouteApplicationResult> {
     const application = normalizeDelegationRouteApplication(input);
     await this.initTask({ taskId: application.taskId });
-    const existing = (await this.readRouteApplications(application.taskId)).find((record) => record.routeId === application.routeId);
+    const existing = (await this.readRouteApplications(application.taskId)).find(
+      (record) => record.routeId === application.routeId,
+    );
     if (existing !== undefined) {
       return { application: existing, recorded: false };
     }
@@ -1472,15 +1578,17 @@ export class DelegationStore {
 
   async readRouteApplications(taskId: string): Promise<DelegationRouteApplication[]> {
     const safeTaskId = validateSafeId(taskId, "task id");
-    return (await readJsonLines<DelegationRouteApplication>(taskPaths(this.root, safeTaskId).routeApplicationsJsonl)).map((application) =>
-      normalizeDelegationRouteApplication({ ...application, taskId: safeTaskId }),
-    );
+    return (
+      await readJsonLines<DelegationRouteApplication>(taskPaths(this.root, safeTaskId).routeApplicationsJsonl)
+    ).map((application) => normalizeDelegationRouteApplication({ ...application, taskId: safeTaskId }));
   }
 
   async recordPlanningReportReady(taskId: string, input: PlanningReportReadyInput): Promise<DelegationEvent> {
     validateSafeId(taskId, "task id");
     requireNonEmptyString(input.planArtifactPath, "plan artifact path");
-    throw new Error("bare planning readiness is unsupported; use publishPlanningReport so readiness binds immutable accepted evidence");
+    throw new Error(
+      "bare planning readiness is unsupported; use publishPlanningReport so readiness binds immutable accepted evidence",
+    );
   }
 
   async recordPlanApproved(taskId: string, input: PlanApprovedInput): Promise<DelegationEvent> {
@@ -1496,11 +1604,17 @@ export class DelegationStore {
     if (task.taskId !== safeTaskId) throw new Error("delegation task identity is malformed");
     const events = await readJsonLines<DelegationEvent>(paths.eventsJsonl);
     const request = executionApprovalRequestFromEvents(safeTaskId, paths, events);
-    await validatePlanningReadyPublicationEvidence(paths, planningReadyPublicationBinding(events, lastEventIndexOfType(events, "planning_report.ready"), safeTaskId));
+    await validatePlanningReadyPublicationEvidence(
+      paths,
+      planningReadyPublicationBinding(events, lastEventIndexOfType(events, "planning_report.ready"), safeTaskId),
+    );
     return request;
   }
 
-  async approveAndAuthorizeExecution(taskId: string, expected: ExecutionApprovalRequest): Promise<OwnerExecutionAuthorizationResult> {
+  async approveAndAuthorizeExecution(
+    taskId: string,
+    expected: ExecutionApprovalRequest,
+  ): Promise<OwnerExecutionAuthorizationResult> {
     const safeTaskId = validateSafeId(taskId, "task id");
     if (validateSafeId(expected.taskId, "approval request task id") !== safeTaskId) {
       throw new Error("execution approval request task does not match target task");
@@ -1510,7 +1624,14 @@ export class DelegationStore {
     return this.withExecutionAuthorizationLock(safeTaskId, async () => {
       const currentEvents = await readJsonLines<DelegationEvent>(paths.eventsJsonl);
       const current = executionApprovalRequestFromEvents(safeTaskId, paths, currentEvents);
-      await validatePlanningReadyPublicationEvidence(paths, planningReadyPublicationBinding(currentEvents, lastEventIndexOfType(currentEvents, "planning_report.ready"), safeTaskId));
+      await validatePlanningReadyPublicationEvidence(
+        paths,
+        planningReadyPublicationBinding(
+          currentEvents,
+          lastEventIndexOfType(currentEvents, "planning_report.ready"),
+          safeTaskId,
+        ),
+      );
       if (
         current.planningReportReadyEventId !== expected.planningReportReadyEventId ||
         current.planArtifactPath !== expected.planArtifactPath ||
@@ -1519,7 +1640,12 @@ export class DelegationStore {
         throw new Error("execution approval preview is stale; review the latest planning report before confirming");
       }
       const approval = await this.recordPlanApprovedLocked(safeTaskId, {
-        eventId: stableId("plan_approved", [safeTaskId, current.planningReportReadyEventId, current.planArtifactPath, "user"]),
+        eventId: stableId("plan_approved", [
+          safeTaskId,
+          current.planningReportReadyEventId,
+          current.planArtifactPath,
+          "user",
+        ]),
         planningReportReadyEventId: current.planningReportReadyEventId,
         planArtifactPath: current.planArtifactPath,
         approvedBy: "user",
@@ -1543,18 +1669,36 @@ export class DelegationStore {
             evidence.planApprovedEventId === approval.eventId
           ) {
             const events = await readJsonLines<DelegationEvent>(paths.eventsJsonl);
-            const committed = events.find((event) => event.eventId === evidence.executionAuthorizedEventId && event.type === "execution.authorized");
+            const committed = events.find(
+              (event) => event.eventId === evidence.executionAuthorizedEventId && event.type === "execution.authorized",
+            );
             if (committed !== undefined) {
-              return { approval, authorization: committed, evidence, commitState: "committed_reconciled", recoveryReason: messageFrom(error) };
+              return {
+                approval,
+                authorization: committed,
+                evidence,
+                commitState: "committed_reconciled",
+                recoveryReason: messageFrom(error),
+              };
             }
           }
           recoveryFailure = new Error("committed execution authorization evidence was not recoverable");
         } catch (recoveryError) {
           recoveryFailure = recoveryError;
         }
-        throw executionAuthorizationTransitionError("execution authorization may have committed but could not be reconciled", "indeterminate", error, recoveryFailure);
+        throw executionAuthorizationTransitionError(
+          "execution authorization may have committed but could not be reconciled",
+          "indeterminate",
+          error,
+          recoveryFailure,
+        );
       }
-      return { approval, authorization, evidence: committedExecutionAuthorizationEvidence(approval, authorization), commitState: "committed" };
+      return {
+        approval,
+        authorization,
+        evidence: committedExecutionAuthorizationEvidence(approval, authorization),
+        commitState: "committed",
+      };
     });
   }
 
@@ -1564,8 +1708,15 @@ export class DelegationStore {
     const predecessorId = validateSafeId(input.planningReportReadyEventId, "planning-ready predecessor event id");
     const planningMatches = events.filter((event) => event.eventId === predecessorId);
     const planning = planningMatches[0];
-    if (planningMatches.length !== 1 || planning === undefined || planning.type !== "planning_report.ready" || !validTaskEventIdentity(planning, safeTaskId)) {
-      throw new Error(`planning-ready predecessor event ${predecessorId} does not exist uniquely for task ${safeTaskId}`);
+    if (
+      planningMatches.length !== 1 ||
+      planning === undefined ||
+      planning.type !== "planning_report.ready" ||
+      !validTaskEventIdentity(planning, safeTaskId)
+    ) {
+      throw new Error(
+        `planning-ready predecessor event ${predecessorId} does not exist uniquely for task ${safeTaskId}`,
+      );
     }
     const planArtifactPath = requireNonEmptyString(input.planArtifactPath, "plan artifact path");
     if (planning.state !== "planning" || stringDataField(planning, "planArtifactPath") !== planArtifactPath) {
@@ -1573,7 +1724,10 @@ export class DelegationStore {
     }
     const planningIndex = events.indexOf(planning);
     assertPlanningReadyPublicationIsCurrent(events, planningIndex, safeTaskId);
-    await validatePlanningReadyPublicationEvidence(paths, planningReadyPublicationBinding(events, planningIndex, safeTaskId));
+    await validatePlanningReadyPublicationEvidence(
+      paths,
+      planningReadyPublicationBinding(events, planningIndex, safeTaskId),
+    );
     if (input.approvedBy !== "user" && input.approvedBy !== "orchestrator") {
       throw new Error(`unsupported plan approver: ${String(input.approvedBy)}`);
     }
@@ -1583,7 +1737,9 @@ export class DelegationStore {
       approvedBy: input.approvedBy,
     };
     if (input.constraints !== undefined) {
-      data.constraints = input.constraints.map((constraint, index) => requireNonEmptyString(constraint, `approval constraint ${index + 1}`));
+      data.constraints = input.constraints.map((constraint, index) =>
+        requireNonEmptyString(constraint, `approval constraint ${index + 1}`),
+      );
     }
     const eventInput: AppendEventInput = { type: "plan.approved", state: "awaiting_user_approval", data };
     if (input.eventId !== undefined) eventInput.eventId = validateSafeId(input.eventId, "plan-approved event id");
@@ -1600,124 +1756,146 @@ export class DelegationStore {
   async recordExecutionAuthorized(taskId: string, input: ExecutionAuthorizedInput): Promise<DelegationEvent> {
     const safeTaskId = validateSafeId(taskId, "task id");
     await this.initTask({ taskId: safeTaskId });
-    return this.withExecutionAuthorizationLock(safeTaskId, () => this.recordExecutionAuthorizedLocked(safeTaskId, input));
+    return this.withExecutionAuthorizationLock(safeTaskId, () =>
+      this.recordExecutionAuthorizedLocked(safeTaskId, input),
+    );
   }
 
-  private async recordExecutionAuthorizedLocked(safeTaskId: string, input: ExecutionAuthorizedInput): Promise<DelegationEvent> {
-      const paths = taskPaths(this.root, safeTaskId);
-      const events = await readJsonLines<DelegationEvent>(paths.eventsJsonl);
-      const planningId = validateSafeId(input.planningReportReadyEventId, "planning-ready predecessor event id");
-      const approvalId = validateSafeId(input.planApprovedEventId, "plan-approved predecessor event id");
-      const planArtifactPath = requireNonEmptyString(input.planArtifactPath, "plan artifact path");
-      const predecessors = validateExecutionPredecessors(events, safeTaskId, planningId, approvalId, planArtifactPath);
-      await validatePlanningReadyPublicationEvidence(paths, planningReadyPublicationBinding(events, predecessors.planningIndex, safeTaskId));
+  private async recordExecutionAuthorizedLocked(
+    safeTaskId: string,
+    input: ExecutionAuthorizedInput,
+  ): Promise<DelegationEvent> {
+    const paths = taskPaths(this.root, safeTaskId);
+    const events = await readJsonLines<DelegationEvent>(paths.eventsJsonl);
+    const planningId = validateSafeId(input.planningReportReadyEventId, "planning-ready predecessor event id");
+    const approvalId = validateSafeId(input.planApprovedEventId, "plan-approved predecessor event id");
+    const planArtifactPath = requireNonEmptyString(input.planArtifactPath, "plan artifact path");
+    const predecessors = validateExecutionPredecessors(events, safeTaskId, planningId, approvalId, planArtifactPath);
+    await validatePlanningReadyPublicationEvidence(
+      paths,
+      planningReadyPublicationBinding(events, predecessors.planningIndex, safeTaskId),
+    );
 
-      const schemaVersion = input.schemaVersion ?? CURRENT_EXECUTION_ENVELOPE_SCHEMA_VERSION;
-      if (schemaVersion !== CURRENT_EXECUTION_ENVELOPE_SCHEMA_VERSION) {
-        throw new Error(`unsupported execution envelope schema version: ${schemaVersion}`);
+    const schemaVersion = input.schemaVersion ?? CURRENT_EXECUTION_ENVELOPE_SCHEMA_VERSION;
+    if (schemaVersion !== CURRENT_EXECUTION_ENVELOPE_SCHEMA_VERSION) {
+      throw new Error(`unsupported execution envelope schema version: ${schemaVersion}`);
+    }
+    const executionMapPath = paths.executionMapJson;
+    if (
+      input.executionMapPath !== undefined &&
+      requireNonEmptyString(input.executionMapPath, "execution map path") !== executionMapPath
+    ) {
+      throw new Error("execution map path does not match canonical task path");
+    }
+    const executionId = executionEnvelopeId({
+      taskId: safeTaskId,
+      schemaVersion,
+      executionMapPath,
+      planArtifactPath,
+      planningReportReadyEventId: planningId,
+      planApprovedEventId: approvalId,
+    });
+    if (input.executionId !== undefined && validateSafeId(input.executionId, "execution id") !== executionId) {
+      throw new Error("execution id does not match canonical envelope");
+    }
+    const constraints = input.constraints?.map((constraint, index) =>
+      requireNonEmptyString(constraint, `authorization constraint ${index + 1}`),
+    );
+    const envelopePath = executionEnvelopeFilePath(paths.executionEnvelopesDir, executionId);
+    const candidateEnvelope: DelegationExecutionEnvelope = {
+      schemaVersion: CURRENT_EXECUTION_ENVELOPE_SCHEMA_VERSION,
+      executionId,
+      taskId: safeTaskId,
+      executionMapPath,
+      planArtifactPath,
+      planningReportReadyEventId: planningId,
+      planApprovedEventId: approvalId,
+      createdAt: this.now(),
+    };
+    let envelope = candidateEnvelope;
+    const envelopeFileExists = await fileExists(envelopePath);
+    if (envelopeFileExists) {
+      envelope = normalizeExecutionEnvelope(await readJson<DelegationExecutionEnvelope>(envelopePath));
+      if (!executionEnvelopeIdentityMatches(envelope, candidateEnvelope)) {
+        throw new Error(`execution envelope conflict: ${executionId}`);
       }
-      const executionMapPath = paths.executionMapJson;
-      if (input.executionMapPath !== undefined && requireNonEmptyString(input.executionMapPath, "execution map path") !== executionMapPath) {
-        throw new Error("execution map path does not match canonical task path");
-      }
-      const executionId = executionEnvelopeId({
-        taskId: safeTaskId,
-        schemaVersion,
-        executionMapPath,
-        planArtifactPath,
-        planningReportReadyEventId: planningId,
-        planApprovedEventId: approvalId,
-      });
-      if (input.executionId !== undefined && validateSafeId(input.executionId, "execution id") !== executionId) {
-        throw new Error("execution id does not match canonical envelope");
-      }
-      const constraints = input.constraints?.map((constraint, index) => requireNonEmptyString(constraint, `authorization constraint ${index + 1}`));
-      const envelopePath = executionEnvelopeFilePath(paths.executionEnvelopesDir, executionId);
-      const candidateEnvelope: DelegationExecutionEnvelope = {
-        schemaVersion: CURRENT_EXECUTION_ENVELOPE_SCHEMA_VERSION,
-        executionId,
-        taskId: safeTaskId,
-        executionMapPath,
-        planArtifactPath,
-        planningReportReadyEventId: planningId,
-        planApprovedEventId: approvalId,
-        createdAt: this.now(),
-      };
-      let envelope = candidateEnvelope;
-      const envelopeFileExists = await fileExists(envelopePath);
-      if (envelopeFileExists) {
-        envelope = normalizeExecutionEnvelope(await readJson<DelegationExecutionEnvelope>(envelopePath));
-        if (!executionEnvelopeIdentityMatches(envelope, candidateEnvelope)) {
-          throw new Error(`execution envelope conflict: ${executionId}`);
-        }
-      }
+    }
 
-      const mutableEvents = [...events];
-      const envelopeEventInput: AppendEventInput = {
-        eventId: validateSafeId(`execution-envelope-${executionId}`, "execution envelope event id"),
-        timestamp: envelope.createdAt,
-        type: "execution.envelope.created",
-        state: "awaiting_user_approval",
-        data: envelope as unknown as JsonValue,
-      };
-      const envelopeEvent = this.buildEvent(safeTaskId, "task", envelopeEventInput);
-      const existingEnvelopeEvent = mutableEvents.find((event) => event.eventId === envelopeEvent.eventId);
-      if (existingEnvelopeEvent !== undefined && !taskEventContentMatches(existingEnvelopeEvent, envelopeEvent)) {
-        throw new Error(`execution envelope event id conflict: ${envelopeEvent.eventId}`);
-      }
-      if (!envelopeFileExists) {
-        await writeJsonAtomic(envelopePath, envelope);
-      }
-      if (existingEnvelopeEvent === undefined) {
-        await appendJsonLine(paths.eventsJsonl, envelopeEvent);
-        mutableEvents.push(envelopeEvent);
-      }
+    const mutableEvents = [...events];
+    const envelopeEventInput: AppendEventInput = {
+      eventId: validateSafeId(`execution-envelope-${executionId}`, "execution envelope event id"),
+      timestamp: envelope.createdAt,
+      type: "execution.envelope.created",
+      state: "awaiting_user_approval",
+      data: envelope as unknown as JsonValue,
+    };
+    const envelopeEvent = this.buildEvent(safeTaskId, "task", envelopeEventInput);
+    const existingEnvelopeEvent = mutableEvents.find((event) => event.eventId === envelopeEvent.eventId);
+    if (existingEnvelopeEvent !== undefined && !taskEventContentMatches(existingEnvelopeEvent, envelopeEvent)) {
+      throw new Error(`execution envelope event id conflict: ${envelopeEvent.eventId}`);
+    }
+    if (!envelopeFileExists) {
+      await writeJsonAtomic(envelopePath, envelope);
+    }
+    if (existingEnvelopeEvent === undefined) {
+      await appendJsonLine(paths.eventsJsonl, envelopeEvent);
+      mutableEvents.push(envelopeEvent);
+    }
 
-      const existingAuthorizationIndexes = mutableEvents
-        .map((event, index) => ({ event, index }))
-        .filter(({ event }) => event.type === "execution.authorized" && stringDataField(event, "executionId") === executionId);
-      if (existingAuthorizationIndexes.length > 0) {
-        const existing = existingAuthorizationIndexes.at(-1);
-        if (existing === undefined || reconstructExecutionAuthorization(safeTaskId, paths, mutableEvents, envelope, existing.index) === undefined) {
-          throw new Error(`execution authorization envelope conflict: ${executionId}`);
-        }
-        const existingConstraints = stringArrayDataField(existing.event, "constraints");
-        if (!existingConstraints.valid || JSON.stringify(existingConstraints.value) !== JSON.stringify(constraints)) {
-          throw new Error(`execution authorization constraints conflict: ${executionId}`);
-        }
-        await this.projectTaskReadyAfterAuthorization(safeTaskId);
-        return existing.event;
+    const existingAuthorizationIndexes = mutableEvents
+      .map((event, index) => ({ event, index }))
+      .filter(
+        ({ event }) => event.type === "execution.authorized" && stringDataField(event, "executionId") === executionId,
+      );
+    if (existingAuthorizationIndexes.length > 0) {
+      const existing = existingAuthorizationIndexes.at(-1);
+      if (
+        existing === undefined ||
+        reconstructExecutionAuthorization(safeTaskId, paths, mutableEvents, envelope, existing.index) === undefined
+      ) {
+        throw new Error(`execution authorization envelope conflict: ${executionId}`);
       }
-
-      const data: Record<string, JsonValue> = {
-        schemaVersion,
-        executionId,
-        taskId: safeTaskId,
-        executionMapPath,
-        planArtifactPath,
-        planningReportReadyEventId: planningId,
-        planApprovedEventId: approvalId,
-        taskState: "ready_for_execution",
-      };
-      if (constraints !== undefined) data.constraints = constraints;
-      const eventInput: AppendEventInput = {
-        type: "execution.authorized",
-        state: "ready_for_execution",
-        data,
-      };
-      if (input.eventId !== undefined) eventInput.eventId = validateSafeId(input.eventId, "execution authorization event id");
-      const candidate = this.buildEvent(safeTaskId, "task", eventInput);
-      const existingWithEventId = mutableEvents.find((event) => event.eventId === candidate.eventId);
-      if (existingWithEventId !== undefined) {
-        throw new Error(`execution authorization event id conflict: ${candidate.eventId}`);
+      const existingConstraints = stringArrayDataField(existing.event, "constraints");
+      if (!existingConstraints.valid || JSON.stringify(existingConstraints.value) !== JSON.stringify(constraints)) {
+        throw new Error(`execution authorization constraints conflict: ${executionId}`);
       }
-      const candidateEvents = [...mutableEvents, candidate];
-      if (reconstructExecutionAuthorization(safeTaskId, paths, candidateEvents, envelope, candidateEvents.length - 1) === undefined) {
-        throw new Error("execution authorization candidate failed causal validation");
-      }
-      await appendJsonLine(paths.eventsJsonl, candidate);
       await this.projectTaskReadyAfterAuthorization(safeTaskId);
-      return candidate;
+      return existing.event;
+    }
+
+    const data: Record<string, JsonValue> = {
+      schemaVersion,
+      executionId,
+      taskId: safeTaskId,
+      executionMapPath,
+      planArtifactPath,
+      planningReportReadyEventId: planningId,
+      planApprovedEventId: approvalId,
+      taskState: "ready_for_execution",
+    };
+    if (constraints !== undefined) data.constraints = constraints;
+    const eventInput: AppendEventInput = {
+      type: "execution.authorized",
+      state: "ready_for_execution",
+      data,
+    };
+    if (input.eventId !== undefined)
+      eventInput.eventId = validateSafeId(input.eventId, "execution authorization event id");
+    const candidate = this.buildEvent(safeTaskId, "task", eventInput);
+    const existingWithEventId = mutableEvents.find((event) => event.eventId === candidate.eventId);
+    if (existingWithEventId !== undefined) {
+      throw new Error(`execution authorization event id conflict: ${candidate.eventId}`);
+    }
+    const candidateEvents = [...mutableEvents, candidate];
+    if (
+      reconstructExecutionAuthorization(safeTaskId, paths, candidateEvents, envelope, candidateEvents.length - 1) ===
+      undefined
+    ) {
+      throw new Error("execution authorization candidate failed causal validation");
+    }
+    await appendJsonLine(paths.eventsJsonl, candidate);
+    await this.projectTaskReadyAfterAuthorization(safeTaskId);
+    return candidate;
   }
 
   async readExecutionAuthorization(taskId: string): Promise<DelegationExecutionAuthorizationEvidence | undefined> {
@@ -1736,7 +1914,10 @@ export class DelegationStore {
       if (!(await fileExists(envelopePath))) return undefined;
       const envelope = normalizeExecutionEnvelope(await readJson<DelegationExecutionEnvelope>(envelopePath));
       const planningIndex = events.findIndex((event) => event.eventId === envelope.planningReportReadyEventId);
-      await validatePlanningReadyPublicationEvidence(paths, planningReadyPublicationBinding(events, planningIndex, safeTaskId));
+      await validatePlanningReadyPublicationEvidence(
+        paths,
+        planningReadyPublicationBinding(events, planningIndex, safeTaskId),
+      );
       return reconstructExecutionAuthorization(safeTaskId, paths, events, envelope, authorizationIndex);
     } catch {
       return undefined;
@@ -1783,13 +1964,19 @@ export class DelegationStore {
 
   async readLeaseEvents(taskId: string): Promise<DelegationLeaseEvent[]> {
     const safeTaskId = validateSafeId(taskId, "task id");
-    const events = (await readJsonLines<DelegationLeaseEvent>(taskPaths(this.root, safeTaskId).leasesJsonl))
-      .map((event) => normalizeLeaseEvent(safeTaskId, event));
+    const events = (await readJsonLines<DelegationLeaseEvent>(taskPaths(this.root, safeTaskId).leasesJsonl)).map(
+      (event) => normalizeLeaseEvent(safeTaskId, event),
+    );
     validateLeaseEventSequence(events);
     return events;
   }
 
-  async transitionLease(taskId: string, leaseId: string, state: DelegationLeaseState, options: TransitionLeaseOptions = {}): Promise<DelegationLeaseEvent> {
+  async transitionLease(
+    taskId: string,
+    leaseId: string,
+    state: DelegationLeaseState,
+    options: TransitionLeaseOptions = {},
+  ): Promise<DelegationLeaseEvent> {
     const safeTaskId = validateSafeId(taskId, "task id");
     const safeLeaseId = validateSafeId(leaseId, "lease id");
     const events = await this.readLeaseEvents(safeTaskId);
@@ -1811,7 +1998,11 @@ export class DelegationStore {
     return this.appendLeaseEvent(safeTaskId, eventInput);
   }
 
-  async ensureLeaseActive(taskId: string, input: DelegationLease, reason = "assignment lease activated"): Promise<EnsureActiveLeaseResult> {
+  async ensureLeaseActive(
+    taskId: string,
+    input: DelegationLease,
+    reason = "assignment lease activated",
+  ): Promise<EnsureActiveLeaseResult> {
     const safeTaskId = validateSafeId(taskId, "task id");
     await this.initTask({ taskId: safeTaskId });
     const requested = normalizeDelegationLease({ ...input, taskId: safeTaskId, state: "issued" });
@@ -1871,7 +2062,10 @@ export class DelegationStore {
     let events = await this.readLeaseEvents(safeTaskId);
     const active = [...latestLeaseById(events).values()]
       .map((event) => event.lease)
-      .filter((lease) => lease.agentId === safeAgentId && lease.state === "active" && lease.expires === "on_assignment_terminal")
+      .filter(
+        (lease) =>
+          lease.agentId === safeAgentId && lease.state === "active" && lease.expires === "on_assignment_terminal",
+      )
       .sort((left, right) => left.leaseId.localeCompare(right.leaseId));
     const leaseIds: string[] = [];
     for (const lease of active) {
@@ -1925,8 +2119,15 @@ export class DelegationStore {
     if (existing !== undefined) {
       return existing;
     }
-    const allocations = [...state.allocations, normalized].sort((left, right) => left.allocationId.localeCompare(right.allocationId));
-    await writeJson(taskPaths(this.root, normalized.taskId).layoutJson, { version: 1, taskId: normalized.taskId, allocations, updatedAt: this.now() });
+    const allocations = [...state.allocations, normalized].sort((left, right) =>
+      left.allocationId.localeCompare(right.allocationId),
+    );
+    await writeJson(taskPaths(this.root, normalized.taskId).layoutJson, {
+      version: 1,
+      taskId: normalized.taskId,
+      allocations,
+      updatedAt: this.now(),
+    });
     return normalized;
   }
 
@@ -1987,7 +2188,9 @@ export class DelegationStore {
 
   async readWakeAttempts(taskId: string): Promise<DelegationWakeAttempt[]> {
     const safeTaskId = validateSafeId(taskId, "task id");
-    return (await readJsonLines<DelegationWakeAttempt>(taskPaths(this.root, safeTaskId).wakeAttemptsJsonl)).map((attempt) => normalizeWakeAttempt(safeTaskId, attempt));
+    return (await readJsonLines<DelegationWakeAttempt>(taskPaths(this.root, safeTaskId).wakeAttemptsJsonl)).map(
+      (attempt) => normalizeWakeAttempt(safeTaskId, attempt),
+    );
   }
 
   pathsForTask(taskId: string) {
@@ -2010,10 +2213,14 @@ export class DelegationStore {
     });
   }
 
-  private async queueParentAlertRecord(taskId: string, input: QueueParentAlertInput): Promise<{ alert: ParentAlert; queued: boolean }> {
+  private async queueParentAlertRecord(
+    taskId: string,
+    input: QueueParentAlertInput,
+  ): Promise<{ alert: ParentAlert; queued: boolean }> {
     const safeTaskId = validateSafeId(taskId, "task id");
     const agentId = input.agentId !== undefined ? validateSafeId(input.agentId, "agent id") : undefined;
-    let parentAgentId = input.parentAgentId !== undefined ? validateSafeId(input.parentAgentId, "parent agent id") : undefined;
+    let parentAgentId =
+      input.parentAgentId !== undefined ? validateSafeId(input.parentAgentId, "parent agent id") : undefined;
     if (parentAgentId === undefined && agentId !== undefined) {
       parentAgentId = await this.parentAgentIdFor(safeTaskId, agentId);
     }
@@ -2022,17 +2229,19 @@ export class DelegationStore {
       const queue = await this.readParentAlertQueue(safeTaskId);
       const timestamp = this.now();
       const state = input.state ?? stateForAlertOutcome(input.outcome);
-      const dedupeKey = input.dedupeKey ?? alertDedupeKey({
-        taskId: safeTaskId,
-        agentId,
-        parentAgentId,
-        outcome: input.outcome,
-        state,
-        status: input.status,
-        eventType: input.eventType,
-        sourceEventId: input.sourceEventId,
-        message: input.message,
-      });
+      const dedupeKey =
+        input.dedupeKey ??
+        alertDedupeKey({
+          taskId: safeTaskId,
+          agentId,
+          parentAgentId,
+          outcome: input.outcome,
+          state,
+          status: input.status,
+          eventType: input.eventType,
+          sourceEventId: input.sourceEventId,
+          message: input.message,
+        });
       const candidate: ParentAlert = {
         alertId: alertIdFromParts(timestamp, safeTaskId, agentId, input.outcome, queue.alerts.length + 1),
         dedupeKey,
@@ -2048,14 +2257,17 @@ export class DelegationStore {
       if (input.status !== undefined) candidate.status = input.status;
       if (input.eventType !== undefined) candidate.eventType = input.eventType;
       if (input.message !== undefined) candidate.message = input.message;
-      if (input.evidence !== undefined) candidate.evidence = stripUndefined(input.evidence as Record<string, unknown>) as ParentAlertEvidence;
+      if (input.evidence !== undefined)
+        candidate.evidence = stripUndefined(input.evidence as Record<string, unknown>) as ParentAlertEvidence;
       if (input.data !== undefined) candidate.data = input.data;
-      if (input.escalatedFromAlertId !== undefined) candidate.escalatedFromAlertId = validateSafeId(input.escalatedFromAlertId, "escalated alert id");
+      if (input.escalatedFromAlertId !== undefined)
+        candidate.escalatedFromAlertId = validateSafeId(input.escalatedFromAlertId, "escalated alert id");
       if (input.escalationProof !== undefined) candidate.escalationProof = input.escalationProof;
       candidate.priority = priorityForParentAlert(candidate);
 
-      const existing = queue.alerts.find((alert) =>
-        alert.dedupeKey === dedupeKey && (input.coalesceAcknowledged === true || alert.readAt === undefined));
+      const existing = queue.alerts.find(
+        (alert) => alert.dedupeKey === dedupeKey && (input.coalesceAcknowledged === true || alert.readAt === undefined),
+      );
       if (existing !== undefined) {
         if (existing.readAt !== undefined) {
           return { alert: existing, queued: false };
@@ -2072,7 +2284,9 @@ export class DelegationStore {
     });
   }
 
-  private async recordQueuedWakeBestEffort(alert: ParentAlert): Promise<Pick<QueueParentAlertResult, "wakeAttempt" | "wakeAttemptError">> {
+  private async recordQueuedWakeBestEffort(
+    alert: ParentAlert,
+  ): Promise<Pick<QueueParentAlertResult, "wakeAttempt" | "wakeAttemptError">> {
     const priority = alert.priority ?? priorityForParentAlert(alert);
     if (priority === "P3") {
       return {};
@@ -2093,7 +2307,9 @@ export class DelegationStore {
     }
   }
 
-  private async maybeEscalateClosedParent(sourceAlert: ParentAlert): Promise<QueueParentAlertResult["escalation"] | undefined> {
+  private async maybeEscalateClosedParent(
+    sourceAlert: ParentAlert,
+  ): Promise<QueueParentAlertResult["escalation"] | undefined> {
     const directParentId = sourceAlert.parentAgentId;
     if (directParentId === undefined) {
       return undefined;
@@ -2113,17 +2329,17 @@ export class DelegationStore {
         this.readAgentManifest(sourceAlert.taskId, directParentId),
       ]);
       if (
-        status.taskId !== sourceAlert.taskId
-        || status.agentId !== directParentId
-        || status.state !== "closed"
-        || !isStableTimestamp(status.updatedAt)
-        || manifest.taskId !== sourceAlert.taskId
-        || manifest.agentId !== directParentId
-        || manifest.role !== parentEntry.role
-        || manifest.profile !== parentEntry.profile
-        || manifest.parentAgentId !== parentEntry.parentAgentId
-        || parentEntry.manifestPath !== paths.manifestJson
-        || parentEntry.statusPath !== paths.statusJson
+        status.taskId !== sourceAlert.taskId ||
+        status.agentId !== directParentId ||
+        status.state !== "closed" ||
+        !isStableTimestamp(status.updatedAt) ||
+        manifest.taskId !== sourceAlert.taskId ||
+        manifest.agentId !== directParentId ||
+        manifest.role !== parentEntry.role ||
+        manifest.profile !== parentEntry.profile ||
+        manifest.parentAgentId !== parentEntry.parentAgentId ||
+        parentEntry.manifestPath !== paths.manifestJson ||
+        parentEntry.statusPath !== paths.statusJson
       ) {
         return undefined;
       }
@@ -2151,9 +2367,10 @@ export class DelegationStore {
         agentId: sourceAlert.agentId ?? null,
         outcome: sourceAlert.outcome,
         priority: sourceAlert.priority ?? priorityForParentAlert(sourceAlert),
-        evidence: sourceAlert.evidence === undefined
-          ? null
-          : stripUndefined(sourceAlert.evidence as Record<string, unknown>) as JsonValue,
+        evidence:
+          sourceAlert.evidence === undefined
+            ? null
+            : (stripUndefined(sourceAlert.evidence as Record<string, unknown>) as JsonValue),
       };
       const result = await this.queueParentAlertRecord(sourceAlert.taskId, {
         agentId: directParentId,
@@ -2195,7 +2412,10 @@ export class DelegationStore {
     }
   }
 
-  private async assertDelegatedPlanningReportPublicationSource(taskId: string, source: PlanningReportPublicationSource): Promise<void> {
+  private async assertDelegatedPlanningReportPublicationSource(
+    taskId: string,
+    source: PlanningReportPublicationSource,
+  ): Promise<void> {
     const agentId = source.agentId;
     const assignmentId = source.assignmentId;
     const attemptId = source.attemptId;
@@ -2270,7 +2490,12 @@ export class DelegationStore {
     return resolve(this.root, "index.json");
   }
 
-  private buildEvent(taskId: string, scope: "task" | "agent", input: AppendEventInput, agentId?: string): DelegationEvent {
+  private buildEvent(
+    taskId: string,
+    scope: "task" | "agent",
+    input: AppendEventInput,
+    agentId?: string,
+  ): DelegationEvent {
     const timestamp = input.timestamp ?? this.now();
     const event: DelegationEvent = {
       eventId: input.eventId ?? eventIdFromParts(timestamp, taskId, scope, agentId, input.type),
@@ -2379,7 +2604,10 @@ async function readJsonLines<T>(path: string): Promise<T[]> {
   if (text.trim().length === 0) {
     return [];
   }
-  return text.trim().split("\n").map((line) => JSON.parse(line) as T);
+  return text
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as T);
 }
 
 async function writeJson(path: string, value: unknown): Promise<void> {
@@ -2529,7 +2757,13 @@ async function acquireBoundedFileLock(lockPath: string): Promise<() => Promise<v
   const token = `${process.pid}-${randomUUID()}`;
   const ownerPath = join(ownersDir, `${token}.json`);
   const createdAt = new Date().toISOString();
-  await writeJsonAtomic(ownerPath, { pid: process.pid, token, createdAt, choosing: true, ticket: 0 } satisfies FileLockOwnerRecord);
+  await writeJsonAtomic(ownerPath, {
+    pid: process.pid,
+    token,
+    createdAt,
+    choosing: true,
+    ticket: 0,
+  } satisfies FileLockOwnerRecord);
   let acquired = false;
   try {
     const initialOwners = await readFileLockOwners(ownersDir);
@@ -2538,7 +2772,13 @@ async function acquireBoundedFileLock(lockPath: string): Promise<() => Promise<v
       return Math.max(maximum, owner.record.ticket);
     }, 0);
     const ticket = maxTicket + 1;
-    await writeJsonAtomic(ownerPath, { pid: process.pid, token, createdAt, choosing: false, ticket } satisfies FileLockOwnerRecord);
+    await writeJsonAtomic(ownerPath, {
+      pid: process.pid,
+      token,
+      createdAt,
+      choosing: false,
+      ticket,
+    } satisfies FileLockOwnerRecord);
 
     const startedAt = Date.now();
     while (Date.now() - startedAt <= ALERT_LOCK_TIMEOUT_MS) {
@@ -2590,16 +2830,16 @@ function parseFileLockOwnerRecord(text: string): FileLockOwnerRecord | undefined
   try {
     const record = JSON.parse(text) as Partial<FileLockOwnerRecord>;
     if (
-      typeof record.pid !== "number"
-      || !Number.isInteger(record.pid)
-      || record.pid <= 0
-      || typeof record.token !== "string"
-      || record.token.length === 0
-      || !isStableTimestamp(record.createdAt)
-      || typeof record.choosing !== "boolean"
-      || typeof record.ticket !== "number"
-      || !Number.isInteger(record.ticket)
-      || record.ticket < 0
+      typeof record.pid !== "number" ||
+      !Number.isInteger(record.pid) ||
+      record.pid <= 0 ||
+      typeof record.token !== "string" ||
+      record.token.length === 0 ||
+      !isStableTimestamp(record.createdAt) ||
+      typeof record.choosing !== "boolean" ||
+      typeof record.ticket !== "number" ||
+      !Number.isInteger(record.ticket) ||
+      record.ticket < 0
     ) {
       return undefined;
     }
@@ -2632,8 +2872,15 @@ function stateForAlertOutcome(outcome: ParentAlertOutcome): DelegationState {
   return outcome;
 }
 
-export function priorityForParentAlert(alert: Pick<ParentAlert, "outcome" | "state" | "status" | "eventType" | "data">): DelegationAlertPriority {
-  if (alert.outcome === "user_attention" || alert.eventType === "parent-unavailable-escalation" || alert.eventType === "delegation-invariant-violation" || alert.eventType === "harness-invariant-violation") {
+export function priorityForParentAlert(
+  alert: Pick<ParentAlert, "outcome" | "state" | "status" | "eventType" | "data">,
+): DelegationAlertPriority {
+  if (
+    alert.outcome === "user_attention" ||
+    alert.eventType === "parent-unavailable-escalation" ||
+    alert.eventType === "delegation-invariant-violation" ||
+    alert.eventType === "harness-invariant-violation"
+  ) {
     return "P0";
   }
   const data = jsonRecord(alert.data);
@@ -2643,20 +2890,20 @@ export function priorityForParentAlert(alert: Pick<ParentAlert, "outcome" | "sta
   const hasFailedCheck = checks.some((check) => jsonRecord(check)?.status === "fail");
   const unsupportedCompletion = data?.completionClaimSupported === false;
   if (
-    alert.outcome === "attention"
-    || alert.outcome === "capability_gap"
-    || alert.outcome === "blocked"
-    || alert.outcome === "failed"
-    || alert.state === "attention"
-    || alert.state === "attention_required"
-    || alert.state === "result_malformed"
-    || alert.state === "blocked"
-    || alert.state === "failed"
-    || alert.status === "blocked"
-    || alert.status === "failed"
-    || hasBlockingFinding
-    || hasFailedCheck
-    || unsupportedCompletion
+    alert.outcome === "attention" ||
+    alert.outcome === "capability_gap" ||
+    alert.outcome === "blocked" ||
+    alert.outcome === "failed" ||
+    alert.state === "attention" ||
+    alert.state === "attention_required" ||
+    alert.state === "result_malformed" ||
+    alert.state === "blocked" ||
+    alert.state === "failed" ||
+    alert.status === "blocked" ||
+    alert.status === "failed" ||
+    hasBlockingFinding ||
+    hasFailedCheck ||
+    unsupportedCompletion
   ) {
     return "P1";
   }
@@ -2688,7 +2935,10 @@ function mergeUnreadParentAlert(existing: ParentAlert, candidate: ParentAlert, t
     if (existing.escalatedFromAlertId !== undefined) merged.escalatedFromAlertId = existing.escalatedFromAlertId;
     if (existing.escalationProof !== undefined) merged.escalationProof = existing.escalationProof;
   }
-  if (existing.eventType === "parent-unavailable-escalation" && candidate.eventType === "parent-unavailable-escalation") {
+  if (
+    existing.eventType === "parent-unavailable-escalation" &&
+    candidate.eventType === "parent-unavailable-escalation"
+  ) {
     const existingData = jsonRecord(existing.data) ?? {};
     const candidateData = jsonRecord(candidate.data) ?? {};
     const sources = mergeEscalationSourceLinks(existingData.sourceAlerts, candidateData.sourceAlerts);
@@ -2723,7 +2973,8 @@ function mergeEscalationSourceLinks(left: unknown, right: unknown): Array<Record
 }
 
 function isJsonValue(value: unknown): value is JsonValue {
-  if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") return true;
+  if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean")
+    return true;
   if (Array.isArray(value)) return value.every(isJsonValue);
   return typeof value === "object" && value !== null && Object.values(value).every(isJsonValue);
 }
@@ -2738,15 +2989,27 @@ function alertPriorityRank(priority: DelegationAlertPriority): number {
 
 function jsonRecord(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
+    ? (value as Record<string, unknown>)
     : undefined;
 }
 
-function eventIdFromParts(timestamp: string, taskId: string, scope: string, agentId: string | undefined, type: string): string {
+function eventIdFromParts(
+  timestamp: string,
+  taskId: string,
+  scope: string,
+  agentId: string | undefined,
+  type: string,
+): string {
   return stableId("evt", [timestamp, taskId, scope, agentId ?? "task", type]);
 }
 
-function alertIdFromParts(timestamp: string, taskId: string, agentId: string | undefined, outcome: ParentAlertOutcome, ordinal: number): string {
+function alertIdFromParts(
+  timestamp: string,
+  taskId: string,
+  agentId: string | undefined,
+  outcome: ParentAlertOutcome,
+  ordinal: number,
+): string {
   return stableId("alert", [timestamp, taskId, agentId ?? "task", outcome, String(ordinal)]);
 }
 
@@ -2762,7 +3025,15 @@ function alertDedupeKey(input: {
   message: string | undefined;
 }): string {
   if (input.sourceEventId !== undefined) {
-    return ["event", input.taskId, input.parentAgentId ?? "parent", input.agentId ?? "task", input.outcome, input.state, input.sourceEventId].join(":");
+    return [
+      "event",
+      input.taskId,
+      input.parentAgentId ?? "parent",
+      input.agentId ?? "task",
+      input.outcome,
+      input.state,
+      input.sourceEventId,
+    ].join(":");
   }
   return [
     "state",
@@ -2827,10 +3098,7 @@ function stripUndefined(value: Record<string, unknown>): Record<string, unknown>
 }
 
 function isStableTimestamp(value: unknown): value is string {
-  return typeof value === "string"
-    && value.length > 0
-    && value.trim() === value
-    && Number.isFinite(Date.parse(value));
+  return typeof value === "string" && value.length > 0 && value.trim() === value && Number.isFinite(Date.parse(value));
 }
 
 function messageFrom(error: unknown): string {
@@ -2859,11 +3127,14 @@ async function resolveTerminalPublicationIdentity(
       manifest.attemptId,
       manifest.attemptSource,
     ];
-    const terminalState = ["completed", "completed_with_risks", "blocked", "failed", "cancelled"].includes(status.state);
+    const terminalState = ["completed", "completed_with_risks", "blocked", "failed", "cancelled"].includes(
+      status.state,
+    );
     if (identityFields.some((value) => value !== undefined) || !terminalState) throw error;
     const synthetic = resolveAssignmentAttemptIdentity({ manifest, status: { ...status, state: "running" } });
     const terminalPaths = terminalOutcomeAttemptPaths(paths, synthetic.assignmentId, synthetic.attemptId);
-    if (!(await fileExists(terminalPaths.claimPath)) && !(await fileExists(terminalPaths.acceptedJsonPath))) throw error;
+    if (!(await fileExists(terminalPaths.claimPath)) && !(await fileExists(terminalPaths.acceptedJsonPath)))
+      throw error;
     return synthetic;
   }
 }
@@ -2889,7 +3160,15 @@ interface NormalizedTerminalSourceResult {
   error?: string;
 }
 
-const TERMINAL_ROLES = ["planning-parent", "execution-parent", "researcher", "worker", "reviewer", "verifier", "integrator"] as const;
+const TERMINAL_ROLES = [
+  "planning-parent",
+  "execution-parent",
+  "researcher",
+  "worker",
+  "reviewer",
+  "verifier",
+  "integrator",
+] as const;
 const TERMINAL_STATUSES = ["completed", "completed_with_risks", "blocked", "failed", "cancelled"] as const;
 const TERMINAL_CHECK_STATUSES = ["pass", "fail", "skipped", "not_run"] as const;
 const TERMINAL_FINDING_SEVERITIES = ["blocking", "non_blocking", "question", "needs_evidence"] as const;
@@ -2917,7 +3196,11 @@ function normalizeTerminalOutcomeSource(input: TerminalOutcomePublicationSource)
   if (input === null || typeof input !== "object" || Array.isArray(input)) {
     throw new Error("terminal outcome source must be an object");
   }
-  if (input.transport !== "delegate_finish" && input.transport !== "runtime_parser" && input.transport !== "delegate_record_report") {
+  if (
+    input.transport !== "delegate_finish" &&
+    input.transport !== "runtime_parser" &&
+    input.transport !== "delegate_record_report"
+  ) {
     throw new Error(`unsupported terminal outcome source transport: ${String(input.transport)}`);
   }
   return { transport: input.transport };
@@ -3015,7 +3298,11 @@ function terminalOutcomeRejectionReason(input: {
   }
 
   if (input.submittedRole === "planning-parent") {
-    if (evidence.reportName !== "planning-report" || !nonEmptyJsonString(evidence.reportStatus) || !nonEmptyJsonString(evidence.planningPublicationId)) {
+    if (
+      evidence.reportName !== "planning-report" ||
+      !nonEmptyJsonString(evidence.reportStatus) ||
+      !nonEmptyJsonString(evidence.planningPublicationId)
+    ) {
       return "planning-parent terminal evidence requires reportName, reportStatus, and planningPublicationId";
     }
   }
@@ -3048,7 +3335,9 @@ async function planningParentTerminalEvidenceRejectionReason(
     return "planning-parent terminal evidence requires a valid planning publication identity";
   }
   const events = await readJsonLines<DelegationEvent>(paths.eventsJsonl);
-  const latestAccepted = [...events].reverse().find((event) => event.type === "planning_report.accepted" && validTaskEventIdentity(event, taskId));
+  const latestAccepted = [...events]
+    .reverse()
+    .find((event) => event.type === "planning_report.accepted" && validTaskEventIdentity(event, taskId));
   if (latestAccepted === undefined || stringDataField(latestAccepted, "publicationId") !== publicationId) {
     return "planning-parent terminal evidence does not reference the latest accepted planning publication";
   }
@@ -3089,7 +3378,7 @@ function normalizeCanonicalJsonValue(value: unknown, label: string): JsonValue {
 
 function jsonObjectValue(value: JsonValue): Record<string, JsonValue> | undefined {
   return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, JsonValue>
+    ? (value as Record<string, JsonValue>)
     : undefined;
 }
 
@@ -3177,17 +3466,19 @@ async function readValidTerminalAcceptedOutcome(
   const rawText = await readFile(paths.acceptedRawPath, "utf8");
   const source = normalizeTerminalOutcomeSource(accepted.source);
   const evidence = normalizeCanonicalJsonValue(accepted.evidence, "accepted terminal evidence");
-  const contentHash = sha256(canonicalJson({
-    taskId: accepted.taskId,
-    agentId: accepted.agentId,
-    assignmentId: accepted.assignmentId,
-    attemptId: accepted.attemptId,
-    role: accepted.role,
-    status: accepted.status,
-    source,
-    evidence,
-    rawText,
-  }));
+  const contentHash = sha256(
+    canonicalJson({
+      taskId: accepted.taskId,
+      agentId: accepted.agentId,
+      assignmentId: accepted.assignmentId,
+      attemptId: accepted.attemptId,
+      role: accepted.role,
+      status: accepted.status,
+      source,
+      evidence,
+      rawText,
+    }),
+  );
   if (
     accepted.schemaVersion !== 1 ||
     accepted.recordType !== "terminal.accepted" ||
@@ -3209,7 +3500,10 @@ async function readValidTerminalAcceptedOutcome(
   return accepted;
 }
 
-function terminalAcceptedResult(accepted: StoredTerminalAcceptedOutcome, claimPath: string): TerminalOutcomePublicationResult {
+function terminalAcceptedResult(
+  accepted: StoredTerminalAcceptedOutcome,
+  claimPath: string,
+): TerminalOutcomePublicationResult {
   return {
     status: "accepted",
     taskId: accepted.taskId,
@@ -3225,15 +3519,12 @@ function terminalAcceptedResult(accepted: StoredTerminalAcceptedOutcome, claimPa
 }
 
 function terminalAssignmentState(status: string): DelegationState {
-  return status === "completed" || status === "completed_with_risks" ? "completed" : status as DelegationState;
+  return status === "completed" || status === "completed_with_risks" ? "completed" : (status as DelegationState);
 }
 
 function terminalAlertOutcome(status: string, evidence: JsonValue): ParentAlertOutcome {
   const blockers = jsonObjectValue(evidence)?.blockers;
-  if (
-    Array.isArray(blockers) &&
-    blockers.some((blocker) => jsonObjectValue(blocker)?.kind === "capability_gap")
-  ) {
+  if (Array.isArray(blockers) && blockers.some((blocker) => jsonObjectValue(blocker)?.kind === "capability_gap")) {
     return "capability_gap";
   }
   return status as ParentAlertOutcome;
@@ -3300,7 +3591,16 @@ function terminalResultProjection(accepted: StoredTerminalAcceptedOutcome, rawTe
     status: accepted.status,
     summary: terminalEvidenceSummary(accepted.evidence),
   };
-  for (const key of ["filesChanged", "filesRead", "toolsUsed", "checks", "findings", "evidence", "uncertainty", "recommendation"] as const) {
+  for (const key of [
+    "filesChanged",
+    "filesRead",
+    "toolsUsed",
+    "checks",
+    "findings",
+    "evidence",
+    "uncertainty",
+    "recommendation",
+  ] as const) {
     if (evidence[key] !== undefined) result[key] = evidence[key];
   }
   return {
@@ -3361,20 +3661,22 @@ async function recordTerminalRejection(input: {
   recordedAt: string;
 }): Promise<TerminalOutcomePublicationResult> {
   const evidence = input.evidence ?? null;
-  const contentHash = sha256(canonicalJson({
-    taskId: input.taskId,
-    agentId: input.agentId,
-    assignmentId: input.identity.assignmentId,
-    attemptId: input.identity.attemptId,
-    submittedAssignmentId: input.submittedAssignmentId,
-    submittedAttemptId: input.submittedAttemptId,
-    submittedRole: input.submittedRole,
-    submittedStatus: input.submittedStatus,
-    source: input.source,
-    evidence,
-    rawText: input.rawText,
-    reason: input.reason,
-  }));
+  const contentHash = sha256(
+    canonicalJson({
+      taskId: input.taskId,
+      agentId: input.agentId,
+      assignmentId: input.identity.assignmentId,
+      attemptId: input.identity.attemptId,
+      submittedAssignmentId: input.submittedAssignmentId,
+      submittedAttemptId: input.submittedAttemptId,
+      submittedRole: input.submittedRole,
+      submittedStatus: input.submittedStatus,
+      source: input.source,
+      evidence,
+      rawText: input.rawText,
+      reason: input.reason,
+    }),
+  );
   const rejectionId = validateSafeId(`terminal-rejected-${contentHash}`, "terminal rejection id");
   const rawPath = join(input.paths.rejectedDir, `${rejectionId}.raw.txt`);
   const jsonPath = join(input.paths.rejectedDir, `${rejectionId}.json`);
@@ -3444,14 +3746,25 @@ async function recordTerminalRejection(input: {
   };
 }
 
-function normalizePlanningReportPublicationSource(input: PlanningReportPublicationSource): PlanningReportPublicationSource {
+function normalizePlanningReportPublicationSource(
+  input: PlanningReportPublicationSource,
+): PlanningReportPublicationSource {
   if (input === null || typeof input !== "object") throw new Error("planning report source must be an object");
-  if (input.transport !== "delegate_record_report" && input.transport !== "delegate_finish" && input.transport !== "runtime_parser") {
+  if (
+    input.transport !== "delegate_record_report" &&
+    input.transport !== "delegate_finish" &&
+    input.transport !== "runtime_parser"
+  ) {
     throw new Error(`unsupported planning report source transport: ${String(input.transport)}`);
   }
-  const agentId = input.agentId === undefined ? undefined : validateSafeId(input.agentId, "planning report source agent id");
-  const assignmentId = input.assignmentId === undefined ? undefined : validateSafeId(input.assignmentId, "planning report source assignment id");
-  const attemptId = input.attemptId === undefined ? undefined : validateSafeId(input.attemptId, "planning report source attempt id");
+  const agentId =
+    input.agentId === undefined ? undefined : validateSafeId(input.agentId, "planning report source agent id");
+  const assignmentId =
+    input.assignmentId === undefined
+      ? undefined
+      : validateSafeId(input.assignmentId, "planning report source assignment id");
+  const attemptId =
+    input.attemptId === undefined ? undefined : validateSafeId(input.attemptId, "planning report source attempt id");
   const identityCount = [agentId, assignmentId, attemptId].filter((value) => value !== undefined).length;
   if (identityCount !== 0 && identityCount !== 3) {
     throw new Error("planning report source identity requires agentId, assignmentId, and attemptId together");
@@ -3533,27 +3846,37 @@ function stringArrayDataField(event: DelegationEvent, field: string): { valid: b
   if (data === null || typeof data !== "object" || Array.isArray(data)) return { valid: false };
   const value = data[field];
   if (value === undefined) return { valid: true };
-  if (!Array.isArray(value) || !value.every((item) => typeof item === "string" && item.length > 0 && item.trim() === item)) {
+  if (
+    !Array.isArray(value) ||
+    !value.every((item) => typeof item === "string" && item.length > 0 && item.trim() === item)
+  ) {
     return { valid: false };
   }
   return { valid: true, value: value.map((item) => item as string) };
 }
 
 function validTaskEventIdentity(event: DelegationEvent, taskId: string): boolean {
-  return event.taskId === taskId && event.scope === "task" && event.agentId === undefined && isStableTimestamp(event.timestamp);
+  return (
+    event.taskId === taskId &&
+    event.scope === "task" &&
+    event.agentId === undefined &&
+    isStableTimestamp(event.timestamp)
+  );
 }
 
 function taskEventContentMatches(left: DelegationEvent, right: DelegationEvent): boolean {
-  return isStableTimestamp(left.timestamp)
-    && isStableTimestamp(right.timestamp)
-    && left.eventId === right.eventId
-    && left.taskId === right.taskId
-    && left.type === right.type
-    && left.scope === right.scope
-    && left.agentId === right.agentId
-    && left.state === right.state
-    && left.message === right.message
-    && JSON.stringify(left.data) === JSON.stringify(right.data);
+  return (
+    isStableTimestamp(left.timestamp) &&
+    isStableTimestamp(right.timestamp) &&
+    left.eventId === right.eventId &&
+    left.taskId === right.taskId &&
+    left.type === right.type &&
+    left.scope === right.scope &&
+    left.agentId === right.agentId &&
+    left.state === right.state &&
+    left.message === right.message &&
+    JSON.stringify(left.data) === JSON.stringify(right.data)
+  );
 }
 
 function executionEnvelopeFilePath(directory: string, executionId: string): string {
@@ -3577,14 +3900,19 @@ function normalizeExecutionEnvelope(input: DelegationExecutionEnvelope): Delegat
   };
 }
 
-function executionEnvelopeIdentityMatches(left: DelegationExecutionEnvelope, right: DelegationExecutionEnvelope): boolean {
-  return left.schemaVersion === right.schemaVersion
-    && left.executionId === right.executionId
-    && left.taskId === right.taskId
-    && left.executionMapPath === right.executionMapPath
-    && left.planArtifactPath === right.planArtifactPath
-    && left.planningReportReadyEventId === right.planningReportReadyEventId
-    && left.planApprovedEventId === right.planApprovedEventId;
+function executionEnvelopeIdentityMatches(
+  left: DelegationExecutionEnvelope,
+  right: DelegationExecutionEnvelope,
+): boolean {
+  return (
+    left.schemaVersion === right.schemaVersion &&
+    left.executionId === right.executionId &&
+    left.taskId === right.taskId &&
+    left.executionMapPath === right.executionMapPath &&
+    left.planArtifactPath === right.planArtifactPath &&
+    left.planningReportReadyEventId === right.planningReportReadyEventId &&
+    left.planApprovedEventId === right.planApprovedEventId
+  );
 }
 
 function executionEnvelopeId(input: {
@@ -3632,7 +3960,10 @@ function planningReadyPublicationBinding(
   }
   const acceptedMatches = events
     .map((event, index) => ({ event, index }))
-    .filter(({ event }) => event.type === "planning_report.accepted" && stringDataField(event, "publicationId") === publicationId);
+    .filter(
+      ({ event }) =>
+        event.type === "planning_report.accepted" && stringDataField(event, "publicationId") === publicationId,
+    );
   const acceptedMatch = acceptedMatches[0];
   const accepted = acceptedMatch?.event;
   const acceptedStatus = accepted === undefined ? undefined : stringDataField(accepted, "reportStatus");
@@ -3706,11 +4037,19 @@ async function readValidAcceptedPlanningPublication(
     const parsed = parseProtocolText(rawText);
     const parsedReport = parsed.ok && parsed.planningReports.length === 1 ? parsed.planningReports[0] : undefined;
     const actualContentHash = createHash("sha256").update(rawText, "utf8").digest("hex");
-    const normalizedSource = normalizePlanningReportPublicationSource(source as unknown as PlanningReportPublicationSource);
-    const expectedPublicationId = planningReportPublicationId(accepted.taskId, "accepted", actualContentHash, normalizedSource);
-    const parsedPlanArtifactPath = parsedReport !== undefined && (reportStatus === "ready" || reportStatus === "ready_with_open_questions")
-      ? planningReportPlanArtifactPath(parsedReport)
-      : undefined;
+    const normalizedSource = normalizePlanningReportPublicationSource(
+      source as unknown as PlanningReportPublicationSource,
+    );
+    const expectedPublicationId = planningReportPublicationId(
+      accepted.taskId,
+      "accepted",
+      actualContentHash,
+      normalizedSource,
+    );
+    const parsedPlanArtifactPath =
+      parsedReport !== undefined && (reportStatus === "ready" || reportStatus === "ready_with_open_questions")
+        ? planningReportPlanArtifactPath(parsedReport)
+        : undefined;
     if (
       stored.schemaVersion !== 1 ||
       stored.disposition !== "accepted" ||
@@ -3755,7 +4094,9 @@ async function validatePlanningReadyPublicationEvidence(
     JSON.stringify(stored.source) !== JSON.stringify(binding.source) ||
     binding.planningReady.timestamp !== binding.accepted.timestamp
   ) {
-    throw new Error("accepted planning publication evidence is unavailable or invalid: readiness binding does not match accepted evidence");
+    throw new Error(
+      "accepted planning publication evidence is unavailable or invalid: readiness binding does not match accepted evidence",
+    );
   }
 }
 
@@ -3806,17 +4147,30 @@ function validateExecutionPredecessors(
   approvalId: string,
   planArtifactPath: string,
 ): { planningIndex: number; approvalIndex: number; approvedBy: "user" | "orchestrator" } {
-  const planningMatches = events.map((event, index) => ({ event, index })).filter(({ event }) => event.eventId === planningId);
-  if (planningMatches.length !== 1 || planningMatches[0]?.event.type !== "planning_report.ready" || !validTaskEventIdentity(planningMatches[0].event, taskId)) {
+  const planningMatches = events
+    .map((event, index) => ({ event, index }))
+    .filter(({ event }) => event.eventId === planningId);
+  if (
+    planningMatches.length !== 1 ||
+    planningMatches[0]?.event.type !== "planning_report.ready" ||
+    !validTaskEventIdentity(planningMatches[0].event, taskId)
+  ) {
     throw new Error(`planning-ready predecessor event ${planningId} does not exist uniquely for task ${taskId}`);
   }
-  const approvalMatches = events.map((event, index) => ({ event, index })).filter(({ event }) => event.eventId === approvalId);
-  if (approvalMatches.length !== 1 || approvalMatches[0]?.event.type !== "plan.approved" || !validTaskEventIdentity(approvalMatches[0].event, taskId)) {
+  const approvalMatches = events
+    .map((event, index) => ({ event, index }))
+    .filter(({ event }) => event.eventId === approvalId);
+  if (
+    approvalMatches.length !== 1 ||
+    approvalMatches[0]?.event.type !== "plan.approved" ||
+    !validTaskEventIdentity(approvalMatches[0].event, taskId)
+  ) {
     throw new Error(`plan-approved predecessor event ${approvalId} does not exist uniquely for task ${taskId}`);
   }
   const planning = planningMatches[0];
   const approval = approvalMatches[0];
-  if (planning.index >= approval.index) throw new Error("execution authorization predecessor events are out of causal order");
+  if (planning.index >= approval.index)
+    throw new Error("execution authorization predecessor events are out of causal order");
   assertPlanningReadyPublicationIsCurrent(events, planning.index, taskId);
   if (
     planning.event.state !== "planning" ||
@@ -3835,38 +4189,58 @@ function validateExecutionPredecessors(
   return { planningIndex: planning.index, approvalIndex: approval.index, approvedBy };
 }
 
-function executionAuthorizationEventMatches(event: DelegationEvent, expected: {
-  schemaVersion: number;
-  executionId: string;
-  taskId: string;
-  executionMapPath: string;
-  planArtifactPath: string;
-  planningReportReadyEventId: string;
-  planApprovedEventId: string;
-  constraints: string[] | undefined;
-}): boolean {
+function executionAuthorizationEventMatches(
+  event: DelegationEvent,
+  expected: {
+    schemaVersion: number;
+    executionId: string;
+    taskId: string;
+    executionMapPath: string;
+    planArtifactPath: string;
+    planningReportReadyEventId: string;
+    planApprovedEventId: string;
+    constraints: string[] | undefined;
+  },
+): boolean {
   const data = event.data;
-  if (!validTaskEventIdentity(event, expected.taskId) || event.type !== "execution.authorized" || data === null || typeof data !== "object" || Array.isArray(data)) {
+  if (
+    !validTaskEventIdentity(event, expected.taskId) ||
+    event.type !== "execution.authorized" ||
+    data === null ||
+    typeof data !== "object" ||
+    Array.isArray(data)
+  ) {
     return false;
   }
   const constraints = stringArrayDataField(event, "constraints");
-  return constraints.valid
-    && event.state === "ready_for_execution"
-    && data.schemaVersion === expected.schemaVersion
-    && data.executionId === expected.executionId
-    && data.taskId === expected.taskId
-    && data.executionMapPath === expected.executionMapPath
-    && data.planArtifactPath === expected.planArtifactPath
-    && data.planningReportReadyEventId === expected.planningReportReadyEventId
-    && data.planApprovedEventId === expected.planApprovedEventId
-    && data.taskState === "ready_for_execution"
-    && JSON.stringify(constraints.value) === JSON.stringify(expected.constraints);
+  return (
+    constraints.valid &&
+    event.state === "ready_for_execution" &&
+    data.schemaVersion === expected.schemaVersion &&
+    data.executionId === expected.executionId &&
+    data.taskId === expected.taskId &&
+    data.executionMapPath === expected.executionMapPath &&
+    data.planArtifactPath === expected.planArtifactPath &&
+    data.planningReportReadyEventId === expected.planningReportReadyEventId &&
+    data.planApprovedEventId === expected.planApprovedEventId &&
+    data.taskState === "ready_for_execution" &&
+    JSON.stringify(constraints.value) === JSON.stringify(expected.constraints)
+  );
 }
 
-function committedExecutionAuthorizationEvidence(approval: DelegationEvent, authorization: DelegationEvent): DelegationExecutionAuthorizationEvidence {
+function committedExecutionAuthorizationEvidence(
+  approval: DelegationEvent,
+  authorization: DelegationEvent,
+): DelegationExecutionAuthorizationEvidence {
   const data = authorization.data;
   const approvedBy = stringDataField(approval, "approvedBy");
-  if (data === null || typeof data !== "object" || Array.isArray(data) || data.schemaVersion !== CURRENT_EXECUTION_ENVELOPE_SCHEMA_VERSION || (approvedBy !== "user" && approvedBy !== "orchestrator")) {
+  if (
+    data === null ||
+    typeof data !== "object" ||
+    Array.isArray(data) ||
+    data.schemaVersion !== CURRENT_EXECUTION_ENVELOPE_SCHEMA_VERSION ||
+    (approvedBy !== "user" && approvedBy !== "orchestrator")
+  ) {
     throw new Error("committed execution authorization event is malformed");
   }
   return normalizeExecutionAuthorizationEvidence({
@@ -3883,7 +4257,12 @@ function committedExecutionAuthorizationEvidence(approval: DelegationEvent, auth
   });
 }
 
-function executionAuthorizationTransitionError(message: string, commitState: "indeterminate", cause: unknown, recoveryError: unknown): Error {
+function executionAuthorizationTransitionError(
+  message: string,
+  commitState: "indeterminate",
+  cause: unknown,
+  recoveryError: unknown,
+): Error {
   return Object.assign(new Error(message), {
     commitState,
     causeMessage: messageFrom(cause),
@@ -3903,9 +4282,14 @@ function reconstructExecutionAuthorization(
     if (envelope.taskId !== taskId || envelope.executionMapPath !== paths.executionMapJson) return undefined;
     if (envelope.executionId !== executionEnvelopeId(envelope)) return undefined;
     const authorization = events[authorizationIndex];
-    if (authorization === undefined || events.filter((event) => event.eventId === authorization.eventId).length !== 1) return undefined;
+    if (authorization === undefined || events.filter((event) => event.eventId === authorization.eventId).length !== 1)
+      return undefined;
     const constraints = stringArrayDataField(authorization, "constraints");
-    if (!constraints.valid || !executionAuthorizationEventMatches(authorization, { ...envelope, constraints: constraints.value })) return undefined;
+    if (
+      !constraints.valid ||
+      !executionAuthorizationEventMatches(authorization, { ...envelope, constraints: constraints.value })
+    )
+      return undefined;
     const predecessors = validateExecutionPredecessors(
       events,
       taskId,
@@ -3915,7 +4299,9 @@ function reconstructExecutionAuthorization(
     );
     if (predecessors.planningIndex !== lastEventIndexOfType(events, "planning_report.ready")) return undefined;
     const envelopeEventId = validateSafeId(`execution-envelope-${envelope.executionId}`, "execution envelope event id");
-    const envelopeEventMatches = events.map((event, index) => ({ event, index })).filter(({ event }) => event.eventId === envelopeEventId);
+    const envelopeEventMatches = events
+      .map((event, index) => ({ event, index }))
+      .filter(({ event }) => event.eventId === envelopeEventId);
     const envelopeEvent = envelopeEventMatches[0];
     if (
       envelopeEventMatches.length !== 1 ||
@@ -3947,7 +4333,10 @@ function reconstructExecutionAuthorization(
   }
 }
 
-function normalizeRouteDecisionRecord(taskId: string, input: DelegationRouteDecisionRecord): DelegationRouteDecisionRecord {
+function normalizeRouteDecisionRecord(
+  taskId: string,
+  input: DelegationRouteDecisionRecord,
+): DelegationRouteDecisionRecord {
   const recordTaskId = validateSafeId(input.taskId, "route decision task id");
   if (recordTaskId !== taskId) {
     throw new Error(`route decision task id ${recordTaskId} does not match task ${taskId}`);
@@ -3970,7 +4359,11 @@ function normalizeRouteDecisionRecord(taskId: string, input: DelegationRouteDeci
   return record;
 }
 
-function normalizeRouteDecisionRequestEvidence(taskId: string, routeId: string, input: DelegationRouteRequest | undefined): DelegationRouteRequest | undefined {
+function normalizeRouteDecisionRequestEvidence(
+  taskId: string,
+  routeId: string,
+  input: DelegationRouteRequest | undefined,
+): DelegationRouteRequest | undefined {
   if (input === undefined) {
     return undefined;
   }
@@ -3986,7 +4379,12 @@ function normalizeRouteDecisionRequestEvidence(taskId: string, routeId: string, 
 
 function normalizeLeaseEvent(taskId: string, input: DelegationLeaseEvent): DelegationLeaseEvent {
   const lease = normalizeDelegationLease(input.lease);
-  if (lease.taskId !== taskId || input.taskId !== taskId || input.leaseId !== lease.leaseId || input.state !== lease.state) {
+  if (
+    lease.taskId !== taskId ||
+    input.taskId !== taskId ||
+    input.leaseId !== lease.leaseId ||
+    input.state !== lease.state
+  ) {
     throw new Error("lease event does not match normalized lease");
   }
   const event: DelegationLeaseEvent = {
@@ -4043,7 +4441,9 @@ function assertLeaseEventCanFollow(
     return;
   }
   if (previous.state === "exhausted" || previous.state === "expired" || previous.state === "revoked") {
-    throw new Error(`terminal lease ${candidate.leaseId} cannot transition from ${previous.state} to ${candidate.state}`);
+    throw new Error(
+      `terminal lease ${candidate.leaseId} cannot transition from ${previous.state} to ${candidate.state}`,
+    );
   }
   throw new Error(`non-monotonic lease transition for ${candidate.leaseId}: ${previous.state} -> ${candidate.state}`);
 }
@@ -4056,7 +4456,11 @@ function latestLeaseById(events: readonly DelegationLeaseEvent[]): Map<string, D
   return latest;
 }
 
-function buildActiveLeaseViewFromEvents(taskId: string, events: readonly DelegationLeaseEvent[], generatedAt: string): DelegationActiveLeaseView {
+function buildActiveLeaseViewFromEvents(
+  taskId: string,
+  events: readonly DelegationLeaseEvent[],
+  generatedAt: string,
+): DelegationActiveLeaseView {
   const latest = latestLeaseById(events);
   const leasesById: Record<string, DelegationLease> = {};
   const activeLeaseIdsByAgent: Record<string, string[]> = {};
@@ -4093,7 +4497,9 @@ function activeLeaseViewPolicyContent(view: DelegationActiveLeaseView): Record<s
     version: view.version,
     taskId: view.taskId,
     rebuiltFrom: view.rebuiltFrom,
-    leasesById: Object.fromEntries(Object.entries(view.leasesById).sort(([left], [right]) => left.localeCompare(right))),
+    leasesById: Object.fromEntries(
+      Object.entries(view.leasesById).sort(([left], [right]) => left.localeCompare(right)),
+    ),
     activeLeaseIdsByAgent: Object.fromEntries(
       Object.entries(view.activeLeaseIdsByAgent)
         .sort(([left], [right]) => left.localeCompare(right))

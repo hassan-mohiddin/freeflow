@@ -61,10 +61,13 @@ test("benchmark harness derives generated JSON paths and parses shared CLI args"
   assert.deepEqual(parseBenchmarkCliArgs(["--iterations=0"], { reportPath: defaultReportPath }), {
     reportPath: defaultReportPath,
   });
-  assert.deepEqual(parseBenchmarkCliArgs(["--report=reports/out.md", "--json-report=off"], { reportPath: defaultReportPath }), {
-    reportPath: resolve(process.cwd(), "reports/out.md"),
-    jsonReportPath: false,
-  });
+  assert.deepEqual(
+    parseBenchmarkCliArgs(["--report=reports/out.md", "--json-report=off"], { reportPath: defaultReportPath }),
+    {
+      reportPath: resolve(process.cwd(), "reports/out.md"),
+      jsonReportPath: false,
+    },
+  );
   assert.deepEqual(parseBenchmarkCliArgs(["--json-report=runs/out.json"], { reportPath: defaultReportPath }), {
     reportPath: defaultReportPath,
     jsonReportPath: resolve(process.cwd(), "runs/out.json"),

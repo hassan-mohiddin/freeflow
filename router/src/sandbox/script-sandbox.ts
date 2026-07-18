@@ -115,9 +115,11 @@ export const SCRIPT_SANDBOX_PROOF_FIXTURES: ScriptSandboxProofFixture[] = [
     proof: "env_access_denied",
     description: "Guest code attempts to read ambient environment variables.",
     expected: "The adapter exposes no ambient environment and no secret-bearing host variables.",
-    adapterAssertion: "Do not forward host env; if a runtime requires env, provide only fixed non-secret adapter values.",
+    adapterAssertion:
+      "Do not forward host env; if a runtime requires env, provide only fixed non-secret adapter values.",
     programs: {
-      javascript: "writeText(typeof process === 'undefined' ? String(globalThis.env ?? '') : JSON.stringify(process.env));",
+      javascript:
+        "writeText(typeof process === 'undefined' ? String(globalThis.env ?? '') : JSON.stringify(process.env));",
       python: "import os\nprint(dict(os.environ))",
       jq: "env",
     },
@@ -128,9 +130,10 @@ export const SCRIPT_SANDBOX_PROOF_FIXTURES: ScriptSandboxProofFixture[] = [
     expected: "The adapter denies home directory access and returns bounded failure output.",
     adapterAssertion: "Do not mount the user's home directory or host credential paths.",
     programs: {
-      javascript: "const fs = globalThis.require?.('node:fs'); writeText(fs ? fs.readFileSync('/home/user/.ssh/id_rsa', 'utf8') : 'fs unavailable');",
+      javascript:
+        "const fs = globalThis.require?.('node:fs'); writeText(fs ? fs.readFileSync('/home/user/.ssh/id_rsa', 'utf8') : 'fs unavailable');",
       python: "from pathlib import Path\nprint(Path.home())\nprint(Path('~/.ssh/id_rsa').expanduser().read_text())",
-      jq: "include \"home_escape\"; .",
+      jq: 'include "home_escape"; .',
     },
   },
   {
@@ -139,9 +142,10 @@ export const SCRIPT_SANDBOX_PROOF_FIXTURES: ScriptSandboxProofFixture[] = [
     expected: "The adapter denies repo-root access unless repo content was explicitly captured into vault input.",
     adapterAssertion: "Do not mount the repo root; mount copied input files only.",
     programs: {
-      javascript: "const fs = globalThis.require?.('node:fs'); writeText(fs ? fs.readFileSync('/workspace/package.json', 'utf8') : 'fs unavailable');",
+      javascript:
+        "const fs = globalThis.require?.('node:fs'); writeText(fs ? fs.readFileSync('/workspace/package.json', 'utf8') : 'fs unavailable');",
       python: "from pathlib import Path\nprint(Path('/workspace/package.json').read_text())",
-      jq: "include \"repo_escape\"; .",
+      jq: 'include "repo_escape"; .',
     },
   },
   {
@@ -150,20 +154,23 @@ export const SCRIPT_SANDBOX_PROOF_FIXTURES: ScriptSandboxProofFixture[] = [
     expected: "The adapter denies direct vault-root access.",
     adapterAssertion: "Never mount the vault root; copy selected source streams into the sandbox input surface.",
     programs: {
-      javascript: "const fs = globalThis.require?.('node:fs'); writeText(fs ? fs.readdirSync('/vault').join('\\n') : 'fs unavailable');",
+      javascript:
+        "const fs = globalThis.require?.('node:fs'); writeText(fs ? fs.readdirSync('/vault').join('\\n') : 'fs unavailable');",
       python: "from pathlib import Path\nprint(list(Path('/vault').glob('**/*'))) ",
-      jq: "include \"vault_escape\"; .",
+      jq: 'include "vault_escape"; .',
     },
   },
   {
     proof: "network_access_denied",
     description: "Guest code attempts outbound HTTP/DNS/network access.",
     expected: "The adapter provides no fetch/socket/network capability and outbound attempts fail boundedly.",
-    adapterAssertion: "Disable fetch/network host APIs and use a runtime/container policy that denies outbound network.",
+    adapterAssertion:
+      "Disable fetch/network host APIs and use a runtime/container policy that denies outbound network.",
     programs: {
-      javascript: "if (typeof fetch === 'undefined') { writeText('fetch unavailable'); } else { throw new Error('fetch exposed'); }",
+      javascript:
+        "if (typeof fetch === 'undefined') { writeText('fetch unavailable'); } else { throw new Error('fetch exposed'); }",
       python: "import urllib.request\nprint(urllib.request.urlopen('https://example.com', timeout=1).read())",
-      jq: "def fetch($url): error(\"network unavailable\"); fetch(\"https://example.com\")",
+      jq: 'def fetch($url): error("network unavailable"); fetch("https://example.com")',
     },
   },
   {
@@ -172,9 +179,10 @@ export const SCRIPT_SANDBOX_PROOF_FIXTURES: ScriptSandboxProofFixture[] = [
     expected: "The adapter keeps input files read-only or presents immutable virtual input helpers.",
     adapterAssertion: "Mount input as read-only or expose read-only host helpers; mutation attempts must fail.",
     programs: {
-      javascript: "const fs = globalThis.require?.('node:fs'); if (fs) { fs.writeFileSync('/input/test_log.txt', 'mutated'); writeText('mutated'); } else { writeText('fs unavailable'); }",
+      javascript:
+        "const fs = globalThis.require?.('node:fs'); if (fs) { fs.writeFileSync('/input/test_log.txt', 'mutated'); writeText('mutated'); } else { writeText('fs unavailable'); }",
       python: "from pathlib import Path\nPath('/input/test_log.txt').write_text('mutated')\nprint('mutated')",
-      jq: "include \"input_mutation_escape\"; .",
+      jq: 'include "input_mutation_escape"; .',
     },
   },
   {
@@ -183,27 +191,32 @@ export const SCRIPT_SANDBOX_PROOF_FIXTURES: ScriptSandboxProofFixture[] = [
     expected: "The adapter collects only regular bounded files under output and rejects/ignores escapes.",
     adapterAssertion: "Write collection must resolve real paths and ignore symlinks or files outside output.",
     programs: {
-      javascript: "const fs = globalThis.require?.('node:fs'); if (fs) { fs.symlinkSync('/etc/passwd', '/output/result.txt'); writeText('escape attempted'); } else { writeText('fs unavailable'); }",
-      python: "from pathlib import Path\nPath('/output/result.txt').symlink_to('/etc/passwd')\nprint('escape attempted')",
-      jq: "include \"output_escape\"; .",
+      javascript:
+        "const fs = globalThis.require?.('node:fs'); if (fs) { fs.symlinkSync('/etc/passwd', '/output/result.txt'); writeText('escape attempted'); } else { writeText('fs unavailable'); }",
+      python:
+        "from pathlib import Path\nPath('/output/result.txt').symlink_to('/etc/passwd')\nprint('escape attempted')",
+      jq: 'include "output_escape"; .',
     },
   },
   {
     proof: "stdout_stderr_bounded",
     description: "Guest code floods stdout and stderr.",
     expected: "The adapter enforces stdout/stderr/output byte caps before routing or context injection.",
-    adapterAssertion: "Capture raw output into bounded buffers and mark over-cap results as partial/failed without full exact recovery claims.",
+    adapterAssertion:
+      "Capture raw output into bounded buffers and mark over-cap results as partial/failed without full exact recovery claims.",
     programs: {
       javascript: "for (let i = 0; i < 1000; i++) { console.log('x'.repeat(100)); console.error('e'.repeat(100)); }",
       python: "import sys\nfor _ in range(1000):\n    print('x' * 100)\n    print('e' * 100, file=sys.stderr)",
-      jq: "range(0; 1000) | (\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"), (\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\" | debug | empty)",
+      jq: 'range(0; 1000) | ("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"), ("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" | debug | empty)',
     },
   },
   {
     proof: "timeout_enforced",
     description: "Guest code loops or runs longer than the configured wall-clock timeout.",
-    expected: "The adapter terminates execution at or before the configured timeout and returns structured timeout failure.",
-    adapterAssertion: "Use runtime fuel/interrupts, process timeout, or container kill semantics that cannot be bypassed by guest code.",
+    expected:
+      "The adapter terminates execution at or before the configured timeout and returns structured timeout failure.",
+    adapterAssertion:
+      "Use runtime fuel/interrupts, process timeout, or container kill semantics that cannot be bypassed by guest code.",
     programs: {
       javascript: "while (true) {}",
       python: "while True:\n    pass",
@@ -212,7 +225,9 @@ export const SCRIPT_SANDBOX_PROOF_FIXTURES: ScriptSandboxProofFixture[] = [
   },
 ];
 
-export function scriptSandboxProofFixturesForLanguage(language: ScriptTransformLanguage): Array<Omit<ScriptSandboxProofFixture, "programs"> & { program: string }> {
+export function scriptSandboxProofFixturesForLanguage(
+  language: ScriptTransformLanguage,
+): Array<Omit<ScriptSandboxProofFixture, "programs"> & { program: string }> {
   return SCRIPT_SANDBOX_PROOF_FIXTURES.map((fixture) => ({
     proof: fixture.proof,
     description: fixture.description,
@@ -227,25 +242,29 @@ export const SCRIPT_SANDBOX_CANDIDATE_MECHANISMS: ScriptSandboxCandidateMechanis
     id: "node-vm",
     languages: ["javascript"],
     status: "rejected",
-    reason: "Node vm or an unsandboxed Node subprocess does not isolate filesystem, environment, child process, or network access to the Freeflow contract.",
+    reason:
+      "Node vm or an unsandboxed Node subprocess does not isolate filesystem, environment, child process, or network access to the Freeflow contract.",
   },
   {
     id: "plain-python-subprocess",
     languages: ["python"],
     status: "rejected",
-    reason: "A Python subprocess without OS isolation can access ambient filesystem, environment, imports, and network.",
+    reason:
+      "A Python subprocess without OS isolation can access ambient filesystem, environment, imports, and network.",
   },
   {
     id: "plain-jq-subprocess",
     languages: ["jq"],
     status: "rejected",
-    reason: "A jq subprocess still needs an OS sandbox before Freeflow can prove filesystem, output, and network boundaries.",
+    reason:
+      "A jq subprocess still needs an OS sandbox before Freeflow can prove filesystem, output, and network boundaries.",
   },
   {
     id: "os-sandbox-adapter",
     languages: [...SCRIPT_TRANSFORM_LANGUAGES],
     status: "candidate_unproven",
-    reason: "An OS-level sandbox may be acceptable only after an adapter implementation passes all required adversarial proofs on the target platform.",
+    reason:
+      "An OS-level sandbox may be acceptable only after an adapter implementation passes all required adversarial proofs on the target platform.",
   },
 ];
 
@@ -254,7 +273,9 @@ export interface ProbeScriptSandboxAdaptersOptions {
   adapters?: readonly ScriptSandboxAdapter[];
 }
 
-export async function probeScriptSandboxAdapters(options: ProbeScriptSandboxAdaptersOptions = {}): Promise<ScriptSandboxProbeReport> {
+export async function probeScriptSandboxAdapters(
+  options: ProbeScriptSandboxAdaptersOptions = {},
+): Promise<ScriptSandboxProbeReport> {
   const config = cloneScriptTransformConfig(options.config ?? DEFAULT_SCRIPT_TRANSFORM_CONFIG);
   const adapters = options.adapters ?? [];
   const statuses: ScriptSandboxLanguageStatus[] = [];
@@ -263,7 +284,9 @@ export async function probeScriptSandboxAdapters(options: ProbeScriptSandboxAdap
     statuses.push(await probeLanguage(language, config, adapters));
   }
 
-  const availableLanguages = statuses.filter((status) => status.status === "available").map((status) => status.language);
+  const availableLanguages = statuses
+    .filter((status) => status.status === "available")
+    .map((status) => status.language);
   const unavailableLanguages = statuses.filter((status) => status.status === "unavailable");
 
   return {
@@ -276,9 +299,16 @@ export async function probeScriptSandboxAdapters(options: ProbeScriptSandboxAdap
     availableLanguages,
     unavailableLanguages,
     languages: statuses,
-    registeredAdapters: adapters.map((adapter) => ({ id: adapter.id, version: adapter.version, languages: [...adapter.languages] })),
+    registeredAdapters: adapters.map((adapter) => ({
+      id: adapter.id,
+      version: adapter.version,
+      languages: [...adapter.languages],
+    })),
     requiredProofs: [...SCRIPT_SANDBOX_REQUIRED_PROOFS],
-    candidateMechanisms: SCRIPT_SANDBOX_CANDIDATE_MECHANISMS.map((candidate) => ({ ...candidate, languages: [...candidate.languages] })),
+    candidateMechanisms: SCRIPT_SANDBOX_CANDIDATE_MECHANISMS.map((candidate) => ({
+      ...candidate,
+      languages: [...candidate.languages],
+    })),
     notes: [
       "Script transform has no unsandboxed fallback.",
       "Languages remain unavailable until a registered adapter passes every required proof.",
@@ -325,7 +355,10 @@ async function probeLanguage(
 
   const matchingAdapters = adapters.filter((adapter) => adapter.languages.includes(language));
   if (matchingAdapters.length === 0) {
-    return unavailableLanguageStatus(language, `No script transform sandbox adapter is registered for language ${language}.`);
+    return unavailableLanguageStatus(
+      language,
+      `No script transform sandbox adapter is registered for language ${language}.`,
+    );
   }
 
   const failedStatuses: ScriptSandboxLanguageStatus[] = [];
@@ -366,7 +399,10 @@ async function probeLanguage(
       failedStatuses.push(status);
     } catch (error) {
       failedStatuses.push({
-        ...unavailableLanguageStatus(language, `Adapter ${adapter.id} probe failed for ${language}: ${errorMessage(error)}`),
+        ...unavailableLanguageStatus(
+          language,
+          `Adapter ${adapter.id} probe failed for ${language}: ${errorMessage(error)}`,
+        ),
         adapterId: adapter.id,
         adapterVersion: adapter.version,
       });
@@ -381,10 +417,15 @@ async function probeLanguage(
     };
   }
 
-  return unavailableLanguageStatus(language, `No script transform sandbox adapter passed required proofs for language ${language}.`);
+  return unavailableLanguageStatus(
+    language,
+    `No script transform sandbox adapter passed required proofs for language ${language}.`,
+  );
 }
 
-function bestUnavailableStatus(statuses: readonly ScriptSandboxLanguageStatus[]): ScriptSandboxLanguageStatus | undefined {
+function bestUnavailableStatus(
+  statuses: readonly ScriptSandboxLanguageStatus[],
+): ScriptSandboxLanguageStatus | undefined {
   let best: ScriptSandboxLanguageStatus | undefined;
   for (const status of statuses) {
     if (!best || status.passedProofs.length > best.passedProofs.length) {
@@ -409,7 +450,10 @@ function hasEveryRequiredProof(proofs: readonly ScriptSandboxProof[]): boolean {
   return SCRIPT_SANDBOX_REQUIRED_PROOFS.every((proof) => proofs.includes(proof));
 }
 
-function missingRequiredProofs(passedProofs: readonly ScriptSandboxProof[], failedProofs: readonly ScriptSandboxProof[] = []): ScriptSandboxProof[] {
+function missingRequiredProofs(
+  passedProofs: readonly ScriptSandboxProof[],
+  failedProofs: readonly ScriptSandboxProof[] = [],
+): ScriptSandboxProof[] {
   const missing = SCRIPT_SANDBOX_REQUIRED_PROOFS.filter((proof) => !passedProofs.includes(proof));
   return dedupeProofs([...failedProofs, ...missing]);
 }

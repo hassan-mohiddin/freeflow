@@ -4,7 +4,15 @@ import { runPiProcessOutcome } from "../../../skills/evaluate-skill/scripts/lib/
 
 function piResult({ code = 0, cost = 0.2, transportLimitExceeded = false } = {}) {
   return {
-    process: { code, signal: null, timed_out: false, output_limit_exceeded: false, transport_limit_exceeded: transportLimitExceeded, stdout: "events", stderr: code ? "failed" : "" },
+    process: {
+      code,
+      signal: null,
+      timed_out: false,
+      output_limit_exceeded: false,
+      transport_limit_exceeded: transportLimitExceeded,
+      stdout: "events",
+      stderr: code ? "failed" : "",
+    },
     parsed: {
       parse_errors: [],
       final_text: "answer",
@@ -21,7 +29,9 @@ test("post-settlement persistence failure retains exact execution", async () => 
     kind: "subject",
     role: "subject",
     run: async () => piResult(),
-    persistSettled: async () => { throw new Error("evidence write failed"); },
+    persistSettled: async () => {
+      throw new Error("evidence write failed");
+    },
   });
   assert.equal(outcome.status, "incomplete");
   assert.equal(outcome.execution.id, "subject-1");
@@ -36,8 +46,12 @@ test("cleanup cannot replace a post-settlement primary failure", async () => {
     kind: "semantic",
     role: "subject",
     run: async () => piResult(),
-    finish: async () => { throw new Error("protocol failed"); },
-    cleanup: async () => { throw new Error("cleanup failed"); },
+    finish: async () => {
+      throw new Error("protocol failed");
+    },
+    cleanup: async () => {
+      throw new Error("cleanup failed");
+    },
   });
   assert.equal(outcome.status, "incomplete");
   assert.match(outcome.failure.primary, /protocol failed/);
@@ -52,8 +66,12 @@ test("failed Pi process still attempts evidence persistence and returns usage", 
     kind: "subject",
     role: "candidate",
     run: async () => piResult({ code: 1, cost: 0.3 }),
-    persistSettled: async () => { persisted = true; },
-    finish: async () => { throw new Error("must not grade failed process"); },
+    persistSettled: async () => {
+      persisted = true;
+    },
+    finish: async () => {
+      throw new Error("must not grade failed process");
+    },
   });
   assert.equal(persisted, true);
   assert.equal(outcome.status, "incomplete");
@@ -80,10 +98,20 @@ test("successful process returns completed value after persistence", async () =>
     id: "subject-1",
     kind: "subject",
     role: "subject",
-    run: async () => { order.push("run"); return piResult(); },
-    persistSettled: async () => { order.push("persist"); },
-    finish: async () => { order.push("finish"); return { verdict: "pass" }; },
-    cleanup: async () => { order.push("cleanup"); },
+    run: async () => {
+      order.push("run");
+      return piResult();
+    },
+    persistSettled: async () => {
+      order.push("persist");
+    },
+    finish: async () => {
+      order.push("finish");
+      return { verdict: "pass" };
+    },
+    cleanup: async () => {
+      order.push("cleanup");
+    },
   });
   assert.equal(outcome.status, "complete");
   assert.deepEqual(outcome.value, { verdict: "pass" });
@@ -95,7 +123,9 @@ test("pre-settlement failure has no fabricated execution", async () => {
     id: "subject-1",
     kind: "subject",
     role: "subject",
-    run: async () => { throw new Error("startup failed"); },
+    run: async () => {
+      throw new Error("startup failed");
+    },
   });
   assert.equal(outcome.status, "incomplete");
   assert.equal(outcome.execution, null);

@@ -4,12 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
 
-import {
-  createVault,
-  readOutputText,
-  readVaultRecord,
-  routeObservedToolOutput,
-} from "../../dist/index.js";
+import { createVault, readOutputText, readVaultRecord, routeObservedToolOutput } from "../../dist/index.js";
 
 async function withVault(name, run) {
   const root = await mkdtemp(join(tmpdir(), name));

@@ -1,9 +1,4 @@
-import {
-  assembleImportantLines,
-  lineEntries,
-  type BoundedEvidence,
-  type LineEntry,
-} from "../evidence/evidence.js";
+import { assembleImportantLines, lineEntries, type BoundedEvidence, type LineEntry } from "../evidence/evidence.js";
 import type { ImportantLine, RunOutputFilterMetadata } from "../config/types.js";
 export type { RunOutputFilterMetadata } from "../config/types.js";
 
@@ -40,8 +35,7 @@ export interface RunOutputFilterResult {
 }
 
 export type RunOutputFilterValidationResult =
-  | { ok: true; filters?: NormalizedRunOutputFilters }
-  | { ok: false; message: string; path: string };
+  { ok: true; filters?: NormalizedRunOutputFilters } | { ok: false; message: string; path: string };
 
 export function normalizeRunOutputFilters(input: unknown): RunOutputFilterValidationResult {
   if (input === undefined || input === null) {
@@ -73,7 +67,11 @@ export function normalizeRunOutputFilters(input: unknown): RunOutputFilterValida
   }
 
   if (!/^(?!.*([gimsu]).*\1)[gimsu]*$/.test(filters.flags)) {
-    return { ok: false, path: "$.filters.flags", message: "filters.flags may contain g, i, m, s, or u without duplicates." };
+    return {
+      ok: false,
+      path: "$.filters.flags",
+      message: "filters.flags may contain g, i, m, s, or u without duplicates.",
+    };
   }
 
   for (const key of ["head", "tail", "maxLines", "maxBytes"] as const) {
@@ -96,7 +94,11 @@ export function normalizeRunOutputFilters(input: unknown): RunOutputFilterValida
         new RegExp(pattern, filters.flags);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        return { ok: false, path: `$.filters.${kind}`, message: `Invalid ${kind} regex ${JSON.stringify(pattern)}: ${message}` };
+        return {
+          ok: false,
+          path: `$.filters.${kind}`,
+          message: `Invalid ${kind} regex ${JSON.stringify(pattern)}: ${message}`,
+        };
       }
     }
   }
@@ -104,16 +106,18 @@ export function normalizeRunOutputFilters(input: unknown): RunOutputFilterValida
   return { ok: true, filters };
 }
 
-export function hasRunOutputFilters(filters: NormalizedRunOutputFilters | undefined): filters is NormalizedRunOutputFilters {
+export function hasRunOutputFilters(
+  filters: NormalizedRunOutputFilters | undefined,
+): filters is NormalizedRunOutputFilters {
   return Boolean(
     filters &&
-      (filters.stream ||
-        filters.include.length > 0 ||
-        filters.exclude.length > 0 ||
-        filters.head !== undefined ||
-        filters.tail !== undefined ||
-        filters.maxLines !== undefined ||
-        filters.maxBytes !== undefined),
+    (filters.stream ||
+      filters.include.length > 0 ||
+      filters.exclude.length > 0 ||
+      filters.head !== undefined ||
+      filters.tail !== undefined ||
+      filters.maxLines !== undefined ||
+      filters.maxBytes !== undefined),
   );
 }
 
@@ -217,7 +221,10 @@ export function applyRunOutputFilters(options: {
   };
 }
 
-function normalizeStringList(value: unknown, path: string): { ok: true; values: string[] } | { ok: false; path: string; message: string } {
+function normalizeStringList(
+  value: unknown,
+  path: string,
+): { ok: true; values: string[] } | { ok: false; path: string; message: string } {
   if (value === undefined) {
     return { ok: true, values: [] };
   }

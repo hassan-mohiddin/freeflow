@@ -183,11 +183,7 @@ test("regression fixture: broad query skips media file decoys but explicit paths
   const root = await mkdtemp(join(tmpdir(), "freeflow-router-media-skip-fixture-"));
   try {
     await mkdir(join(root, "assets"), { recursive: true });
-    await writeFile(
-      join(root, "target.md"),
-      "MEDIA_SKIP_MARKER source truth router evidence",
-      "utf8",
-    );
+    await writeFile(join(root, "target.md"), "MEDIA_SKIP_MARKER source truth router evidence", "utf8");
     await writeFile(
       join(root, "assets", "diagram.png"),
       `${"MEDIA_SKIP_MARKER source truth router evidence ".repeat(1000)}pngdecoyonlysentinel`,
@@ -317,11 +313,7 @@ test("regression fixture: exact technical phrase beats repeated loose tokens", a
       ["# Target", "", "`SandboxPermissions` is a per-command request shape."].join("\n"),
       "utf8",
     );
-    await writeFile(
-      join(root, "decoy.md"),
-      `SandboxPermissions per-command request shape `.repeat(800),
-      "utf8",
-    );
+    await writeFile(join(root, "decoy.md"), `SandboxPermissions per-command request shape `.repeat(800), "utf8");
 
     const result = await freeflowSearch({
       action: "query",
@@ -355,11 +347,7 @@ test("regression fixture: multiline heading/body phrase beats repeated loose tok
       ].join("\n"),
       "utf8",
     );
-    await writeFile(
-      join(root, "decoy.md"),
-      `Sandbox meaning Permissions Plain-language `.repeat(800),
-      "utf8",
-    );
+    await writeFile(join(root, "decoy.md"), `Sandbox meaning Permissions Plain-language `.repeat(800), "utf8");
 
     const result = await freeflowSearch({
       action: "query",
@@ -533,7 +521,11 @@ test("regression fixture: implementation module beats thin re-export with comple
 test("regression fixture: exact phrase match evidence includes the exact phrase line", async () => {
   const root = await mkdtemp(join(tmpdir(), "freeflow-router-exact-phrase-range-fixture-"));
   try {
-    const lines = ["# Target", `${"alpha ".repeat(400)}gamma beta separated high frequency line`, "alpha appears early"];
+    const lines = [
+      "# Target",
+      `${"alpha ".repeat(400)}gamma beta separated high frequency line`,
+      "alpha appears early",
+    ];
     for (let index = 0; index < 17; index += 1) {
       lines.push(`filler ${index}`);
     }
@@ -568,7 +560,7 @@ test("regression fixture: long symbol exact phrase evidence includes the exact p
     for (let index = 0; index < 76; index += 1) {
       lines.push(`    let filler_${index} = "${"alpha filler ".repeat(12)}";`);
     }
-    lines.push("    let marker = \"omega beta exact phrase lives here\";");
+    lines.push('    let marker = "omega beta exact phrase lives here";');
     lines.push("}");
     await writeFile(join(root, "src.rs"), lines.join("\n"), "utf8");
 
@@ -629,12 +621,7 @@ test("regression fixture: multiline huge exact phrase evidence includes the phra
   try {
     await writeFile(
       join(root, "target.md"),
-      [
-        "# Target",
-        `${"filler ".repeat(500)}alpha`,
-        `beta ${"filler ".repeat(500)}`,
-        "tail",
-      ].join("\n"),
+      ["# Target", `${"filler ".repeat(500)}alpha`, `beta ${"filler ".repeat(500)}`, "tail"].join("\n"),
       "utf8",
     );
 
@@ -736,11 +723,7 @@ test("regression fixture: section evidence covers spread-out query terms", async
       ].join("\n"),
       "utf8",
     );
-    await writeFile(
-      join(root, "decoy.md"),
-      `${"Sandbox Permissions Plain-language meaning ".repeat(120)}`,
-      "utf8",
-    );
+    await writeFile(join(root, "decoy.md"), `${"Sandbox Permissions Plain-language meaning ".repeat(120)}`, "utf8");
 
     const result = await freeflowSearch({
       action: "query",
@@ -931,7 +914,10 @@ test("regression fixture: Pi safety net labels native output and recovers exact 
     );
     const payload = searched.details.result;
     assert.doesNotMatch(searched.content[0].text, /^\s*\{/);
-    assert.equal(payload.evidence[0].excerpt, "native output fixture line 038\nnative output fixture line 039\nNATIVE_RAW_TAIL_SENTINEL");
+    assert.equal(
+      payload.evidence[0].excerpt,
+      "native output fixture line 038\nnative output fixture line 039\nNATIVE_RAW_TAIL_SENTINEL",
+    );
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

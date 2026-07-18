@@ -4,9 +4,7 @@
   "skill": "evaluate-skill",
   "title": "Do not activate for ordinary code evaluation",
   "question": "automatic activation",
-  "evidence_classes": [
-    "native-activation"
-  ],
+  "evidence_classes": ["native-activation"],
   "required_for_bootstrap": true,
   "prompt": "Evaluate whether this JavaScript expression returns the expected value: `[1, 2, 3].map(x => x * 2)` should produce `[2, 4, 6]`.",
   "fixture": null,
@@ -30,9 +28,7 @@
   "execution": {
     "host": "pi",
     "mode": "json",
-    "tools": [
-      "read"
-    ]
+    "tools": ["read"]
   },
   "assertions": [
     {

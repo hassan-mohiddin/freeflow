@@ -13,11 +13,15 @@ test("script transform adapter setup writes nested outputRouter config", async (
     const configPath = join(cwd, ".freeflow/config.json");
     await writeFile(
       configPath,
-      JSON.stringify({
-        defaultMode: "workflow",
-        outputRouter: { hints: { generatedPathGlobs: ["graphify-out/**"] } },
-        scriptTransform: { limits: { timeoutMs: 1000 } },
-      }, null, 2),
+      JSON.stringify(
+        {
+          defaultMode: "workflow",
+          outputRouter: { hints: { generatedPathGlobs: ["graphify-out/**"] } },
+          scriptTransform: { limits: { timeoutMs: 1000 } },
+        },
+        null,
+        2,
+      ),
       "utf8",
     );
 
