@@ -7,54 +7,73 @@ description: Use when discussing, exploring, shaping, challenging, or revisiting
 
 Build enough shared understanding to choose the next sound action.
 
-Discussion may begin with a fresh request or resume from a spec, plan, implementation, failure, review, or earlier conversation. Start from what is already known. Preserve decisions, evidence, artifacts, and work that still hold.
+Discussion may shape understanding, recommendations, proposed work, and checkpoints. It does not authorize mutation, settle a user-owned choice implicitly, or turn exploratory output into production behavior.
 
-Discussion can alternate with bounded action. Do not wait for a complete spec or plan when a small experiment, prototype, or implementation slice is the clearest way to learn.
+## Follow The Discussion Route
 
-## Use Discuss
+Use this as a directed map, not a checklist:
+
+```text
+[Entry or re-entry]
+-> [Orient from accepted context and live evidence]
+-> [Focus the highest uncertainty that could change the route]
+-> [Inspect facts / ask / compare meaningful paths]
+-> [Route from what is now supported]
+   -> enough understanding -> return direction to Workflow
+   -> one user-owned choice or source conflict -> Decision Gate
+   -> evidence needed -> propose a bounded learning action
+                         -> authorized Execute Work
+                         -> re-enter Discuss with evidence
+   -> unexplained or repeated failure -> Diagnose Failure
+   -> stable accepted content or strategy -> Write Spec / Write Plan
+```
+
+Preserve decisions, evidence, artifacts, and work that still hold whenever discussion re-enters from implementation, verification, review, failure, or another conversation.
+
+## Enter Or Exit Cleanly
 
 Use Discuss when:
 
-- the user is exploring an idea, asking what to build, or discussing how to approach it;
-- an open-ended request leaves important outcomes, boundaries, or alternatives unsettled;
-- a spec, plan, design, or implementation direction needs discussion or revision;
-- materially different approaches or tradeoffs need to be understood;
-- new evidence invalidates an assumption or makes the next approach uncertain.
+- the user is exploring what to build or how to approach it;
+- important outcomes, boundaries, alternatives, or tradeoffs remain open;
+- an artifact, design, implementation direction, or earlier assumption needs reconsideration;
+- new evidence makes the next approach uncertain.
 
-Do not force discussion for a direct factual question or a clear, bounded action whose intended result is already understood. When one known choice or conflict blocks progress, read [Decision Gate](../decision-gate/SKILL.md).
+Do not force discussion for a direct factual question or clear bounded action whose intended result is understood. Feedback alone does not require discussion. Re-enter only when it reopens assumptions, options, or direction.
 
-Feedback from review, verification, or implementation does not require discussion by itself. Use Discuss when that feedback reopens assumptions, alternatives, or direction. When the failure is unexplained or repeated, read [Diagnose Failure](../diagnose-failure/SKILL.md) before treating it as a design problem.
+When one known choice or source conflict blocks progress, use [Decision Gate](../decision-gate/SKILL.md). When a failure lacks a supported cause or keeps recurring, use [Diagnose Failure](../diagnose-failure/SKILL.md) before treating it as a design problem.
 
-## Start From The Current State
+## Orient Without Restarting
 
-Identify:
+Identify only what the next decision needs:
 
-- the goal and current direction;
-- settled facts and decisions;
-- active assumptions or alternatives;
-- the evidence and uncertainty that could change the next action.
+- goal and current direction;
+- settled facts and explicit decisions;
+- tentative assumptions or viable alternatives;
+- evidence and uncertainty that could change the route.
 
-When a Working Record exists, orient from its current state and check important claims against live evidence. Read older history only when the present direction or rationale is unclear.
+When a Working Record exists, orient from its current context and check important claims against live evidence. Read older history only when the present direction or rationale is unclear. Update only what new evidence affects.
 
-For a fresh request, little may be settled. When returning from implementation or another feedback source, update only what the new evidence affects.
+## Focus The Discussion
 
-## Build Shared Understanding
+Stay with the highest unresolved question that could change the outcome, boundary, approach, or acceptance. Leave dependent details until that question is sufficiently understood.
 
-Stay with the highest unresolved question that could change the direction. Leave dependent details until the purpose, scope, boundaries, or approach are clear.
+Inspect code, tests, docs, policies, artifacts, repository state, supplied material, or current primary sources when they can answer factual questions. Ask the user about intent, priorities, constraints, and tradeoffs that evidence cannot decide.
 
-Inspect code, tests, docs, policies, existing artifacts, repository state, provided material, or current primary sources when they can answer factual questions. Ask the user about intent, priorities, constraints, and tradeoffs that evidence cannot decide.
+When materially different paths remain viable:
 
-When materially different paths are viable, compare the few that matter. Include the current approach or waiting when either is a real option. Explain what each path optimizes, its main assumptions and tradeoffs, and what evidence could rule it out. Do not manufacture alternatives for an obvious local choice.
+1. compare only the few that matter, including the current path or waiting when real;
+2. state what each optimizes, its main assumptions and tradeoffs, and evidence that could rule it out;
+3. recommend a direction when evidence supports one and say what could change that recommendation;
+4. leave user-owned choices with the user and do not keep arguing for a rejected path without new evidence.
 
-Ask in natural prose, usually about one main topic at a time. Let each answer shape what comes next. Use a menu only when the choices are genuinely closed.
+Ask in natural prose, usually about one main topic at a time. Use a menu only for genuinely closed choices. Do not manufacture alternatives for an obvious local decision.
 
-Contribute your own judgment. Recommend a direction when evidence supports it, explain why, and state what could change your view. Leave user-owned choices with the user, and do not keep arguing for a rejected path without new evidence.
+When architecture, interfaces, ownership, state, failure contracts, or spreading complexity shape the direction, use [Design for Depth](../design-for-depth/SKILL.md) as a lens and retain it while the boundary remains design-bearing.
 
-When architecture, interfaces, ownership, state, failure contracts, or spreading complexity are central, read [Design for Depth](../design-for-depth/SKILL.md).
+## Learn Through Bounded Action
 
-## Learn Through Action
-
-When discussion alone cannot answer an important question, define the smallest useful learning or delivery slice. When a written shape helps, use:
+When discussion alone cannot answer a material question, propose the smallest useful learning or delivery action:
 
 ```text
 Type: Learning | Delivery | Deepening
@@ -65,47 +84,34 @@ Useful checkpoint, if any:
 Stop, discard, revise, or promote when:
 ```
 
-The slice may produce throwaway code, a prototype, a test, an interface sketch, a benchmark, a design comparison, or working behavior.
+A proposal is not authorization. Before execution, confirm that the action is requested or approved. Use [Track Work](../track-work/SKILL.md) before execution when durable task memory is needed, then route concrete changes through [Execute Work](../execute-work/SKILL.md).
 
-Defining a slice does not authorize it. Before execution, confirm that the user requested or approved the action. When durable task memory is needed, read [Track Work](../track-work/SKILL.md) and record the slice before execution begins.
+Return with the observed result. Treat prototypes, tests, benchmarks, sketches, and working behavior as evidence, not automatic approval of their design or promotion. Preserve what still holds and re-enter only the affected question.
 
-After the slice, return to discussion with the observed result. Treat the output as evidence, not automatic approval of its design or promotion into production. Diverge again when the result opens materially different paths. Update the current understanding, decisions, proposed work, and Working Record only where the result changed them.
+## Preserve Only Useful State
 
-## Shape Useful Checkpoints
-
-A checkpoint is a deliberate boundary before dependent work where the agent observes, judges, decides, preserves, or transfers state.
-
-When discussion shapes a slice, phase, experiment, or execution strategy, help the user consider useful independent reviews, local commits, user decisions, continuity checkpoints, or separately controlled follow-on work. Recommend one only when it reduces material risk, preserves a coherent state, or protects dependent work. State its purpose, when it becomes due, and the conditions that must hold.
-
-Do not add checkpoints after every slice by habit. Normal verification and silent self-review already close each meaningful slice. Explicit approval in discussion authorizes the listed checkpoint only; a local commit does not authorize push or integration, and migration, deprecation, release, or launch remain separate.
-
-Keep an approved checkpoint in conversation while context is sufficient. Use [Write Plan](../write-plan/SKILL.md) when it belongs to a stable ordered strategy or [Track Work](../track-work/SKILL.md) when evolving task state must survive. Discuss does not execute the checkpoint.
-
-## Keep The Discussion Legible
-
-Track only what helps the next action:
+Keep discussion legible as:
 
 - **Settled:** supported fact or explicit decision.
 - **Tentative:** current hypothesis or provisional direction.
 - **Open:** unresolved and capable of changing the next action.
 
-Note an uncertainty assigned to action, a deferred topic, or an invalidated assumption only when it affects the route.
+Keep this state in conversation while context is sufficient. Use Track Work when evolving context must survive compaction, pause, or another session. Use [Write Spec](../write-spec/SKILL.md) for stable accepted content and [Write Plan](../write-plan/SKILL.md) for a stable ordered strategy. Do not create an artifact merely because discussion occurred.
 
-Keep this state in conversation while the context is sufficient. Use a Working Record when the discussion, slices, decisions, or evidence must survive compaction, pause, or a later session. Discuss does not define the Working Record schema or lifecycle; [Track Work](../track-work/SKILL.md) owns that method.
+Recommend independent review, local commit, user decision, or continuity checkpoints only when they protect dependent work or reduce material risk. Discussion may shape and preserve an approved checkpoint, but does not execute it. Normal verification and silent self-review provide the ordinary self-check; Workflow establishes the slice outcome.
 
-## Converge And Return
+Read [discussion checkpoints](references/checkpoints.md) when selecting or preserving a compact discussion checkpoint or re-entry state.
+
+## Return Supported Direction
 
 Converge when the next sound action no longer depends on unresolved direction, not when every future question is answered.
 
-State:
+Return to [Workflow](../workflow/SKILL.md) with:
 
-- the current shared understanding;
+- current shared understanding;
 - settled and tentative direction;
-- open questions that still matter;
-- the recommended next action or bounded slice.
+- open questions that still change the route;
+- recommended next action or bounded proposal;
+- its authority state and any selected checkpoint.
 
-Read [Write Spec](../write-spec/SKILL.md) when stable accepted content needs a separate durable artifact. Read [Write Plan](../write-plan/SKILL.md) when a stable ordered execution strategy needs a separate artifact. Discussion and a Working Record may otherwise continue to guide the task slice by slice.
-
-When later evidence changes the direction, return with the evidence, the invalidated assumption, and what remains valid. Continue the discussion from that state rather than restarting from zero.
-
-Read [discussion checkpoints](references/checkpoints.md) when closing or preserving a compact discussion checkpoint.
+If no action is needed, answer or stop. If work is proposed but unapproved, recommend it and wait.

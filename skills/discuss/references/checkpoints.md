@@ -16,7 +16,8 @@ Tentative:
 Open:
 Evidence or alternatives that matter:
 Approved or proposed checkpoints, if any:
-Recommended next action:
+Recommended or accepted next action:
+Authority source or approval needed:
 ```
 
 Do not turn a checkpoint into a transcript, questionnaire, frozen architecture, automatic spec, or complete plan.
@@ -59,6 +60,7 @@ Invalidated assumption:
 Still valid:
 Decision, slice, or artifact affected:
 Question or experiment now needed:
+Authority or decision needed:
 ```
 
 Do not restart from zero or rewrite unaffected decisions and work.

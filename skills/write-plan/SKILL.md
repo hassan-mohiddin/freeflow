@@ -20,7 +20,7 @@ Write a Plan when:
 - expected checks are known or obtainable;
 - substantial branching or discovery is not expected.
 
-If direction or major alternatives remain unsettled, read [Discuss](../discuss/SKILL.md). If one user-owned choice or source conflict blocks planning, read [Decision Gate](../decision-gate/SKILL.md). If a reported failure lacks a supported cause or feedback loop, read [Diagnose Failure](../diagnose-failure/SKILL.md) instead of planning a guessed fix.
+If direction or major alternatives remain unsettled, read [Discuss](../discuss/SKILL.md). If one user-owned choice or source conflict blocks planning, read [Decision Gate](../decision-gate/SKILL.md). If a reported failure lacks a supported cause or diagnostic loop, read [Diagnose Failure](../diagnose-failure/SKILL.md) instead of planning a guessed fix.
 
 Use [Track Work](../track-work/SKILL.md) when strategy is still evolving or actual execution, evidence, deviations, and current state need durable memory.
 

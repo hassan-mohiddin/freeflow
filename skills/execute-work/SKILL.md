@@ -5,99 +5,95 @@ description: Use when executing or resuming implementation, fixes, prototypes, d
 
 # Execute Work
 
-Carry out concrete work in visible, bounded slices and use evidence before continuing.
+Carry out accepted concrete work through bounded actions and fresh evidence.
 
-A **slice** is one coherent unit of work that can be executed and checked together. Work may come directly from the current conversation or from a Working Record, Spec, Plan, diagnosis, accepted review item, issue, or another established source.
+A **slice** is one coherent result tracked and reviewed as a unit. A **bounded action** is one implementation, experiment, correction, or observation inside that slice. One slice may span multiple Feedback Loop iterations and owning skills while its intended result remains coherent.
 
-Read [the execution loop](references/execution-loop.md) when work spans multiple slices, resumes from prior state, needs a specialized execution method, or reveals approved follow-on work.
+Read [the execution loop](references/execution-loop.md) when work spans multiple actions or slices, resumes from prior state, needs a specialized method, reaches a checkpoint, or reveals follow-on work.
 
-## Establish The Work
+## Follow The Execution Route
 
-Before changing anything, understand:
+Use this as a directed map, not a fixed phase sequence:
 
-- the intended result and source that establishes it;
-- the bounded scope and relevant live state;
-- the direct check or observation that can disagree with the result;
-- any condition that would stop the work or change its route.
+```text
+[Accepted concrete work]
+-> [Orient and establish the current slice]
+-> [Take one bounded action]
+-> [Test or observe]
+-> [Verify what the evidence proves]
+   -> clear local defect -> correct -> test or observe again
+   -> unclear, repeated, or route-changing result -> Workflow
+   -> supported -> silent self-review -> freeze
+-> [Route]
+   -> more accepted work in this slice -> next bounded action
+   -> coherent boundary extension -> approve and record when needed -> next action
+   -> distinct result, authority, or evidence boundary -> Workflow
+   -> approved checkpoint due -> owning skill -> route again
+   -> supported exit -> report
+```
+
+Implementation beginning does not justify continuation. Continue only while authority, evidence, and the current slice remain coherent.
+
+## Orient Before Changing State
+
+Establish:
+
+- intended result and the source that supports it;
+- current slice, accepted scope, and relevant live state;
+- direct check or observation that can disagree with the result;
+- stop conditions, due checkpoints, and authority boundaries.
 
 A clear user request can be enough. Do not require a Spec, Plan, or Working Record for a small self-contained change.
 
-Inspect relevant code, tests, documentation, policies, artifacts, and repository state before relying on remembered or proposed behavior. When sources materially conflict, or the intended result is not clear enough to execute safely, return to [Workflow](../workflow/SKILL.md) with the observed gap rather than silently choosing a path.
+Inspect relevant code, tests, docs, policies, artifacts, repository state, and current external constraints before relying on memory. When sources materially conflict or the intended result is unsafe to infer, return the evidence to [Workflow](../workflow/SKILL.md) rather than choosing silently.
 
-## Bound And Announce The Slice
+When a Working Record exists, use [Track Work](../track-work/SKILL.md) for write-ahead slice state and later reconciliation. Announce the active slice once in a compact line when useful; do not announce every action or manufacture an identifier for a tiny task.
 
-Before each meaningful slice, understand its intended result, bounded scope, direct check, and any stop condition. Keep those details internal or in the Working Record.
+## Bound Each Action
 
-Announce only the active slice in one compact line. Use its existing phase, number, or name when one exists:
+Choose the smallest coherent action that can produce the intended result or useful evidence:
 
-```text
-Slice: Phase 2 — S-2.1 API integration
-```
-
-When no identifier exists, use a short descriptive name. Do not narrate the slice contract, individual edits, or commands. Re-announce only when the active slice changes materially.
-
-For a tiny task, the task itself is one slice. Do not manufacture numbering, categories, or ceremony merely to announce it.
-
-When a Working Record exists, use [Track Work](../track-work/SKILL.md) for its before-and-after slice updates.
-
-## Execute
-
-Make the smallest coherent change that produces the intended result or evidence:
-
-- keep unrelated and later work outside the slice;
+- keep unrelated and later work outside it;
 - choose reversible local details from repository conventions;
-- let a prototype or experiment fail safely and apply its discard, revise, or promote condition.
+- let an experiment fail safely and preserve its discard, revise, or promote condition;
+- use only specialized methods and domain guidance that the concrete boundary needs.
 
-Match the method and evidence to the work. Code may need behavior tests or runtime evidence. Documentation, configuration, generated artifacts, and repository maintenance may need link checks, parsing, builds, diffs, structural inspection, or another direct check instead.
+When an accepted behavior change, bug correction with a supported cause, consequential rule, or behavior-preserving refactor benefits from a failing check first, use [TDD](../tdd/SKILL.md) for that bounded action before changing production behavior.
 
-Do not rewrite tests, checks, Specs, Plans, policies, or accepted behavior merely to make the implementation pass. Establish whether the implementation, evidence, environment, or source is wrong before changing the thing that defines success.
+Before work changes the intended result, scope, authority, evidence boundary, or stop conditions, decide through Workflow whether it is an accepted extension or a new slice. When a Working Record exists, use Track Work to record an accepted extension before executing it. Do not let a series of “small” additions silently replace the original result.
 
-## Write Code For The Next Reader
+## Execute For The Required Boundary
 
-When a slice writes or changes code, read [Code Practices](references/code-practices.md).
+Match implementation and evidence to the work. Code may need behavior tests or runtime observations. Documentation, configuration, generated artifacts, and repository maintenance may need parsing, links, builds, diffs, structural checks, or installed-artifact evidence.
 
-Prefer names and structure that make behavior and ownership clear. Comment only non-obvious why: invariants, constraints, tradeoffs, workarounds, or temporary behavior with a real exit condition. Do not narrate clear code, preserve stale comments, or leave vague promises. Put broad decisions and future work in their owning artifact.
+Do not rewrite tests, checks, Specs, Plans, policies, or accepted behavior merely to make implementation pass. Determine whether the implementation, evidence, environment, or source is wrong before changing what defines success.
 
-## Handle Edge Cases Deliberately
+When writing or changing code, read [Code Practices](references/code-practices.md). Prefer clear ownership, names, and failure behavior. Comment only non-obvious rationale, constraints, invariants, or temporary behavior with a real exit condition.
 
-Handle an edge case when accepted behavior, observed evidence, or material safety requires it. If expected behavior is undefined and would change observable behavior or scope, return it to Workflow. Do not add fallback behavior, states, abstractions, or tests for hypothetical completeness.
+Handle an edge case only when accepted behavior, observed evidence, or material safety requires it. If expected behavior is undefined and would change observable behavior or scope, return it to Workflow. When related patches keep adding states, flags, or caller coordination, stop and return the shared pressure rather than extending the patch stream.
 
-When related cases keep appearing, patches widen, or each fix adds another state or flag, stop patching and return the evidence to Workflow so the shared requirement, cause, ownership, or interface can be reconsidered.
+## Close Each Evidence Iteration
 
-## Close The Feedback Loop
+After each meaningful bounded action:
 
-After each meaningful slice:
+1. run the focused tests or observations appropriate to its claim;
+2. use [Verify Work](../verify-work/SKILL.md) when the claim or observing boundary needs its fuller method;
+3. when supported, use [Review Work](../review-work/SKILL.md) for silent self-review;
+4. correct clear local issues within existing authority and re-verify;
+5. freeze the supported state and return route-changing evidence to Workflow.
 
-1. Run the focused tests or observations appropriate to the result.
-2. Read [Verify Work](../verify-work/SKILL.md) and determine what the evidence proves.
-3. When the result is supported, read [Review Work](../review-work/SKILL.md) and silently self-review the work.
-4. Correct clear local issues and re-verify the affected result.
-5. Return unresolved or route-changing evidence to Workflow.
+A failed or inconclusive check does not prove the design or source is wrong. Correct a clear local defect; use [Diagnose Failure](../diagnose-failure/SKILL.md) when the cause is unclear or failure repeats.
 
-A failed or inconclusive check does not automatically mean the design or source is wrong. Correct a clear local defect; return to Workflow when the cause is unclear, repeated, or produces widening patches.
+Further polish, advisory warnings, unrelated issues, and review findings without mutation authority are feedback to classify, not permission to keep editing.
 
-Once evidence supports the slice and one self-review correction batch has been re-verified, freeze it. Treat further improvements, advisory warnings, and unrelated issues as feedback to classify, not instructions to keep editing. Report or defer them unless another slice is selected.
+## Route Continuation Deliberately
 
-## Keep Artifact Ownership Clear
+Continue inside the current slice when the next bounded action is accepted, its intended result remains coherent, the combined boundary can still be verified as one unit, no stop condition applies, and no checkpoint is due.
 
-A Plan records intended strategy, not execution progress. Do not revise it for completed slices, expected local choices, or status changes. When evidence materially changes the strategy, order, dependencies, mechanism, or checks—or stable accepted content appears to have changed—return the evidence to Workflow so the owning artifact can be handled deliberately.
+Before a distinct result begins, let Workflow establish the current slice outcome, then use Track Work when present to select the next authorized slice. A route through discussion, diagnosis, review, verification, or an approved checkpoint does not itself end or replace the current slice.
 
-## Honor Checkpoints And Follow-On Authority
+A Plan preserves intended strategy, not progress. Return material changes to its order, mechanism, dependencies, slices, or checks to Workflow. Do not add public documentation, migration, deprecation, push, integration, release, launch, or another separately controlled action without its own authority.
 
-Before starting another slice, check the approved Plan, discussion, and Working Record for a due review, local commit, user, or continuity checkpoint. When its conditions hold, use the owning skill before continuing. If live evidence makes it incoherent, do not force it; record the deviation and return it to Workflow.
+## Report The Supported State
 
-Plan approval authorizes listed work, checks, reviews, Working Record updates, and local commits. It does not authorize push, integration, migration, deprecation, release, or launch.
-
-Do not silently add public documentation or other follow-on work outside the accepted scope. Public documentation changes, migration, and deprecation require an explicit user request or approval. Report newly discovered follow-on work so the user may approve or defer it.
-
-When a checkpoint or follow-on route is already requested or approved, use the owning skill or reference listed in the execution loop. When public documentation is itself approved work, update and verify it directly.
-
-## Continue Or Return
-
-Continue with another slice when it is already accepted, remains within scope and authority, no approved checkpoint is due, feedback supports the execution basis, and remaining work is shrinking or becoming clearer.
-
-Return to Workflow when feedback reopens direction, exposes a consequential decision or source conflict, invalidates the execution strategy, reveals material scope growth, or leaves no worthwhile safe continuation.
-
-## Report
-
-Report the supported result, verification evidence, material route changes, updated task state or approved artifacts, and anything that remains unresolved or unverified.
+Report the accepted result, fresh verification evidence and limits, material route changes, current slice or artifact state, and unresolved or unverified work. A supported action is not automatically a completed slice, and a completed slice does not authorize the next one.

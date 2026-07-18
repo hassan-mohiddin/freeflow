@@ -101,7 +101,7 @@
       "case_concept": "Plan one diagnosed persistence fix while leaving unresolved migration work directional.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/write-plan/SKILL.md",
-      "source_sha256": "9a59d3a4cdb3b30cdf237a59cbb4c3ca790260c047374bfee7c25bb0de2ef728",
+      "source_sha256": "86ee5f5b1653e631c4c1e66b211ba903ad37c2380ef9e3b32d94a15089dd491d",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -150,7 +150,7 @@
       }
     },
     "execute-work": {
-      "job": "Carry out concrete work in visible bounded slices and route from evidence.",
+      "job": "Carry out accepted concrete work through bounded actions inside one coherent slice and route from fresh evidence.",
       "positive_trigger": "Implementation, repair, prototype, documentation, or repository maintenance is accepted and ready.",
       "near_miss": "Intent, source truth, or a user-owned decision remains unsettled.",
       "pressure": "A valid local correction is followed by evidence that the shared requirement, cause, ownership, or interface has changed.",
@@ -173,7 +173,7 @@
       "case_concept": "Complete one accepted local correction, then preserve it and change route when repeated evidence exposes a shared failure unit.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/execute-work/SKILL.md",
-      "source_sha256": "fdf52be0fb99368c46a3d28bfc70e0c105e7fbf7cf3ce4d6ddc042189c88961b",
+      "source_sha256": "be180eff3e02912234b029b8c400f8c2c2391e4e364e50996bb319675c7cb7c9",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -225,7 +225,7 @@
       }
     },
     "tdd": {
-      "job": "Drive one accepted behavior through an observed RED, minimal GREEN, refactor, and route check.",
+      "job": "Drive one accepted behavior through observed RED, minimal GREEN, optional behavior-preserving refactor, and return to Execute Work.",
       "positive_trigger": "Behavior change, regression fix, consequential logic, or protected refactor.",
       "near_miss": "Documentation, formatting, generated output, or disposable learning prototype.",
       "pressure": "Test only visible rejection and ignore forbidden writes or prior accepted state.",
@@ -245,7 +245,7 @@
       "case_concept": "Malformed replacement must preserve empty and existing canonical state before implementation.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/tdd/SKILL.md",
-      "source_sha256": "735a980b27322f7bf5327d7570403122d0da490e8c777b982b38f8d928d0dc0f",
+      "source_sha256": "bec52fad4a1a3fb52ca5ed2219f50517c644316796ccb9440a237a3ce28a1eeb",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -331,12 +331,12 @@
       }
     },
     "diagnose-failure": {
-      "job": "Establish a representative repro and root-cause evidence before one production fix.",
+      "job": "Establish the failure boundary, diagnostic loop, and supported cause before selecting a production correction.",
       "positive_trigger": "Bug, failed/flaky test, regression, performance issue, or unexpected behavior.",
       "near_miss": "Product design or artifact review without a concrete failure signal.",
       "pressure": "Patch the suspected cache or add retries before reproducing the symptom.",
-      "observable": "Repro, falsifiable hypothesis, discriminating evidence, root cause, one fix, and original-loop rerun.",
-      "stop_edge": "Request evidence or route to decision/design/spec when no representative loop or settled behavior exists.",
+      "observable": "Representative diagnostic loop, falsifiable hypothesis, distinguishing evidence, supported cause or strongest remaining hypothesis, correction boundary, and original-path rerun.",
+      "stop_edge": "Request the smallest missing evidence or route to decision, design, or Workflow when no safe diagnostic loop, supported cause, or settled behavior exists.",
       "neighbours": [
         "workflow",
         "verify-work",
@@ -348,10 +348,10 @@
         "native-activation",
         "artifact-outcome"
       ],
-      "case_concept": "A write followed by read returns stale data despite a documented invalidation event; reproduce the original symptom and discriminate cache-key from invalidation-delivery hypotheses before one fix.",
+      "case_concept": "A write followed by read returns stale data despite a documented invalidation event; use a diagnostic loop to discriminate cache-key from invalidation-delivery hypotheses before selecting the correction boundary.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/diagnose-failure/SKILL.md",
-      "source_sha256": "195e006cd793e2fa87649177a396928c8c61d748b12b5c822aceff76ae269b10",
+      "source_sha256": "9388a583f16fa7256d045a65d9d21d597d1f8f5b569bca42e8c7c2f169ee1349",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -377,6 +377,7 @@
         "decision-gate",
         "design-for-depth",
         "track-work",
+        "execute-work",
         "write-spec",
         "write-plan"
       ],
@@ -387,7 +388,7 @@
       "case_concept": "Explore a materially open implementation direction without creating artifacts or treating discussion as execution authority.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/discuss/SKILL.md",
-      "source_sha256": "7f7b647b2ae85fe8ce83879b12e88dcd9f6cee785768783cfd0d7ba141433ccd",
+      "source_sha256": "373f4a161b4098a58f2cf843f7f53b8f2317b82d9984da589f3bed0378c14f79",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

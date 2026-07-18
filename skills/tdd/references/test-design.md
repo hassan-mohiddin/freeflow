@@ -2,11 +2,11 @@
 
 Read this when the right test level is unclear, a dependency needs a double, legacy behavior lacks a seam, or test setup starts driving production design.
 
-The goal is confidence in accepted behavior, not maximal isolation or a fixed unit/integration/end-to-end ratio.
+The goal is confidence in accepted behavior, not maximal isolation or a fixed unit/integration/end-to-end ratio. One TDD behavior loop is a bounded action and may remain inside a larger coherent Track Work slice.
 
 ## Choose The Confidence Boundary
 
-Use the smallest test boundary that still contains the real behavior and failure path:
+Start from the highest stable interface used by callers, then choose the smallest test environment that still exercises its real behavior and failure path:
 
 - **Focused behavior test:** deterministic logic or one stable public operation can prove the requirement.
 - **Integration test:** correctness depends on collaborating components, persistence, serialization, process boundaries, or a real adapter contract.
@@ -15,7 +15,7 @@ Use the smallest test boundary that still contains the real behavior and failure
 
 A characterization test records current behavior; it does not make that behavior desired or authoritative. Stop when intended behavior conflicts with source truth or remains user-owned.
 
-Prefer the highest stable interface that gives useful confidence. A smaller test is not better when it mocks away the behavior being claimed. A larger test is not better when its extra environment adds noise without proving more.
+A smaller environment is not better when it mocks away the behavior being claimed. A larger environment is not better when its extra machinery adds noise without proving more.
 
 ## Build An Independent Oracle
 
@@ -77,9 +77,9 @@ Do not add public production methods, flags, branches, or lifecycle operations u
 
 Prefer an existing controllable boundary for clocks, randomness, scheduling, and external events. Do not expose new public test hooks merely to make assertions convenient.
 
-Avoid arbitrary sleeps as proof. Use observable synchronization, deterministic inputs, bounded eventual assertions, or the real failure loop.
+Avoid arbitrary sleeps as proof. Use observable synchronization, deterministic inputs, bounded eventual assertions, or the real diagnostic loop.
 
-When a race or flaky path cannot be made deterministic, use `../../diagnose-failure/SKILL.md` to raise the reproduction rate and gather evidence before changing production behavior.
+When a race or flaky path cannot be made deterministic, use [Diagnose Failure](../../diagnose-failure/SKILL.md) to raise the reproduction rate and gather evidence before changing production behavior.
 
 ## Pressure Signals
 
@@ -93,4 +93,4 @@ Question the seam before adding more test machinery when:
 - integration repeatedly fails despite isolated tests passing;
 - fixtures must know internal states, ordering, or cleanup protocols callers should not coordinate.
 
-A real integration test may be simpler than a network of mocks. If the difficulty reflects caller choreography or a shallow interface, use `../../design-for-depth/SKILL.md` rather than designing production around the test framework.
+A real integration test may be simpler than a network of mocks. If the difficulty reflects caller choreography or a shallow interface, use [Design for Depth](../../design-for-depth/SKILL.md) rather than designing production around the test framework.
