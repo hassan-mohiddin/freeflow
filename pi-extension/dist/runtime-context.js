@@ -161,6 +161,11 @@ function validateCoreConfigFields(value) {
     if (!isRecord(value.skills)) {
       return "skills must be an object";
     }
+    for (const key of Object.keys(value.skills)) {
+      if (key !== "enabled") {
+        return `unsupported skills config key: ${key}`;
+      }
+    }
     if (value.skills.enabled !== undefined && typeof value.skills.enabled !== "boolean") {
       return "skills.enabled must be a boolean";
     }

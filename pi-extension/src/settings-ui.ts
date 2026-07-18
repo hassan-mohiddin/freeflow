@@ -23,6 +23,12 @@ import {
   readModeState,
   VALID_MODES,
 } from "./runtime-context.js";
+import {
+  PiSettingsComponent,
+  type SettingsCommitResult,
+  type SettingsEntry,
+  type SettingsSessionResult,
+} from "./settings-tui.js";
 
 const POST_TOOL_ROUTING_VALUES = ["off", "safety-net", "strict"] as const;
 const STORAGE_POLICY_VALUES = ["hybrid-dedupe", "store-everything"] as const;
@@ -80,8 +86,7 @@ type OpenSettingsOptions = {
   title: string;
   items: SettingsItem[];
   ctx: any;
-  onChange: (item: SettingsItem, value: unknown) => Promise<void>;
-  onClose?: (changed: boolean) => Promise<void> | void;
+  onChange: (item: SettingsItem, value: unknown) => Promise<SettingsCommitResult>;
   initialChoice?: SettingsItem;
 };
 
@@ -1055,68 +1060,6 @@ function valueForDisplay(item: SettingsItem): string {
   return item.displaySuffix ? `${value} ${item.displaySuffix}` : value;
 }
 
-function nextEnumValue(item: SettingsItem): unknown {
-  if (item.kind === "boolean") {
-    return item.value === true ? false : true;
-  }
-  const values = item.values ?? [];
-  const current = String(item.value ?? values[0] ?? "");
-  const index = values.indexOf(current);
-  return values[(index + 1) % values.length] ?? current;
-}
-
-function truncate(text: string, width: number): string {
-  if (width <= 0) return "";
-  if (text.length <= width) return text;
-  return `${text.slice(0, Math.max(0, width - 1))}…`;
-}
-
-function isUp(data: string): boolean {
-  return data === "\u001b[A" || data === "\u001bOA";
-}
-
-function isDown(data: string): boolean {
-  return data === "\u001b[B" || data === "\u001bOB";
-}
-
-function isEnter(data: string): boolean {
-  return data === "\r" || data === "\n";
-}
-
-function isEscape(data: string): boolean {
-  return data === "\u001b" || data === "\u0003";
-}
-
-function isBackspace(data: string): boolean {
-  return data === "\u007f" || data === "\b";
-}
-
-type Keybindings = {
-  matches?: (data: string, keybinding: string) => boolean;
-};
-
-function matchesKeybinding(
-  keybindings: Keybindings | undefined,
-  data: string,
-  keybinding: string,
-  fallback: (data: string) => boolean,
-): boolean {
-  try {
-    if (keybindings?.matches?.(data, keybinding)) return true;
-  } catch {
-    // Fall through to raw escape fallback for tests and older Pi builds.
-  }
-  return fallback(data);
-}
-
-type SettingsFrame = {
-  title: string;
-  items: SettingsItem[];
-  selected: number;
-  search: string;
-  choiceFor?: SettingsItem;
-};
-
 function walkSettingsItems(items: SettingsItem[], visitor: (item: SettingsItem) => void) {
   for (const item of items) {
     visitor(item);
@@ -1133,447 +1076,139 @@ function findSettingsItem(items: SettingsItem[], id: string): SettingsItem | und
   return undefined;
 }
 
-class FreeflowSettingsComponent {
-  private readonly frames: SettingsFrame[];
-  private editItem: SettingsItem | null = null;
-  private editBuffer = "";
-  private message = "";
-  private changed = false;
-  private successfulWrites = 0;
-  private pending = Promise.resolve();
+function refreshSettingsDerivedState(items: SettingsItem[]) {
+  const freeflowItem = findSettingsItem(items, "freeflow.enabled");
+  const freeflowInactive = freeflowItem ? effectiveItemValue(freeflowItem) !== true : false;
+  const skillsItem = findSettingsItem(items, "freeflow.skills.enabled");
+  const skillsEnabled = skillsItem ? effectiveItemValue(skillsItem) === true : true;
+  const routerEnabled = findSettingsItem(items, "outputRouter.enabled")?.value === true;
+  const sessionModeItem = findSettingsItem(items, "freeflow.sessionMode");
+  const defaultModeItem = findSettingsItem(items, "freeflow.defaultMode");
+  const routerGroup = findSettingsItem(items, "outputRouter.group");
 
-  constructor(
-    private readonly options: OpenSettingsOptions,
-    private readonly done: (changed: boolean) => void,
-    private readonly requestRender: () => void,
-    private readonly theme: any,
-    private readonly keybindings?: Keybindings,
-  ) {
-    const initialChoice = options.initialChoice;
-    this.frames = initialChoice
-      ? [
-          {
-            title: options.title,
-            items: [],
-            selected: Math.max(0, initialChoice.values?.indexOf(String(initialChoice.value)) ?? 0),
-            search: "",
-            choiceFor: initialChoice,
-          },
-        ]
-      : [
-          {
-            title: options.title,
-            items: options.items,
-            selected: 0,
-            search: "",
-          },
-        ];
-  }
-
-  render(width: number): string[] {
-    const lines: string[] = [];
-    const frame = this.currentFrame();
-    const title = this.frames.map((candidate) => candidate.title).join(" › ");
-    const titleText = this.theme.fg?.("accent", this.theme.bold?.(title) ?? title) ?? title;
-
-    lines.push(this.border(width));
-    lines.push(titleText);
-    if (frame.choiceFor) {
-      return this.renderChoiceFrame(lines, frame, width);
-    }
-
-    const items = this.displayItems(frame);
-    const hint =
-      this.frames.length > 1
-        ? "  Type to search · Enter/Space to change/open · Esc back"
-        : "  Type to search · Enter/Space to change/open · Esc save & close";
-
-    this.clampSelection(frame, items.length);
-    lines.push(this.searchLine(frame, width));
-    lines.push("");
-
-    if (frame.items.length === 0) {
-      lines.push(this.theme.fg?.("dim", "  No settings available") ?? "  No settings available");
-      lines.push(this.border(width));
-      return lines;
-    }
-    if (items.length === 0) {
-      lines.push(this.theme.fg?.("dim", "  No matching settings") ?? "  No matching settings");
-      lines.push("");
-      lines.push(truncate(this.theme.fg?.("dim", hint) ?? hint, width));
-      lines.push(this.border(width));
-      return lines;
-    }
-
-    const maxLabel = Math.min(34, Math.max(...frame.items.map((item) => item.label.length), 12));
-    const visible = Math.min(items.length, 18);
-    const start = Math.max(0, Math.min(frame.selected - Math.floor(visible / 2), Math.max(0, items.length - visible)));
-    const end = Math.min(items.length, start + visible);
-    for (let index = start; index < end; index++) {
-      const item = items[index]!;
-      const selected = index === frame.selected;
-      const prefix = selected ? "› " : "  ";
-      const label = item.label.padEnd(maxLabel);
-      const value = this.editItem?.id === item.id ? `[${this.editBuffer}]` : valueForDisplay(item);
-      const groupMarker = item.children?.length ? " ›" : "";
-      const inactive = item.inactive ? " inactive" : "";
-      const line = truncate(`${prefix}${label}  ${value}${groupMarker}${inactive}`, width);
-      lines.push(this.styleLine(line, item, selected));
-    }
-    if (items.length > visible) {
-      lines.push(truncate(`  (${frame.selected + 1}/${items.length})`, width));
-    }
-
-    const selectedItem = items[frame.selected];
-    if (selectedItem) {
-      lines.push("");
-      lines.push(
-        ...wrapPlain(selectedItem.description, Math.max(20, width - 2)).map((line) => truncate(`  ${line}`, width)),
-      );
-    }
-    if (this.message) {
-      lines.push("");
-      lines.push(truncate(`  ${this.message}`, width));
-    }
-    lines.push("");
-    lines.push(truncate(this.theme.fg?.("dim", hint) ?? hint, width));
-    lines.push(this.border(width));
-    return lines;
-  }
-
-  invalidate() {}
-
-  handleInput(data: string) {
-    if (this.editItem) {
-      this.handleEditInput(data);
-      this.requestRender();
-      return;
-    }
-
-    const frame = this.currentFrame();
-    if (frame.choiceFor) {
-      this.handleChoiceInput(data, frame);
-      this.requestRender();
-      return;
-    }
-    const items = this.displayItems(frame);
-    this.clampSelection(frame, items.length);
-
-    if (this.matches(data, "tui.editor.deleteCharBackward", isBackspace) && frame.search) {
-      frame.search = frame.search.slice(0, -1);
-      frame.selected = 0;
-    } else if (this.isSearchInput(data)) {
-      frame.search += data;
-      frame.selected = 0;
-      this.message = "";
-    } else if (this.matches(data, "tui.select.up", isUp)) {
-      if (items.length > 0) frame.selected = frame.selected === 0 ? items.length - 1 : frame.selected - 1;
-    } else if (this.matches(data, "tui.select.down", isDown)) {
-      if (items.length > 0) frame.selected = frame.selected === items.length - 1 ? 0 : frame.selected + 1;
-    } else if (this.matches(data, "tui.select.confirm", isEnter) || data === " ") {
-      this.activateSelected();
-    } else if (this.matches(data, "tui.select.cancel", isEscape)) {
-      if (this.frames.length > 1) {
-        this.frames.pop();
-        this.message = "";
-      } else {
-        this.close();
-        return;
-      }
-    }
-    this.requestRender();
-  }
-
-  async waitForWrites() {
-    await this.pending;
-    return this.successfulWrites > 0;
-  }
-
-  private currentFrame(): SettingsFrame {
-    return this.frames[this.frames.length - 1]!;
-  }
-
-  private matches(data: string, keybinding: string, fallback: (data: string) => boolean): boolean {
-    return matchesKeybinding(this.keybindings, data, keybinding, fallback);
-  }
-
-  private border(width: number): string {
-    return this.theme.fg?.("border", "─".repeat(Math.max(1, width))) ?? "─".repeat(Math.max(1, width));
-  }
-
-  private searchLine(frame: SettingsFrame, width: number): string {
-    const cursor = this.theme.fg?.("accent", "█") ?? "█";
-    return truncate(`> ${frame.search}${cursor}`, width);
-  }
-
-  private renderChoiceFrame(lines: string[], frame: SettingsFrame, width: number): string[] {
-    const item = frame.choiceFor!;
-    const values = item.values ?? [];
-    this.clampSelection(frame, values.length);
-    lines.push("");
-    lines.push(...wrapPlain(item.description, Math.max(20, width - 2)).map((line) => truncate(`  ${line}`, width)));
-    lines.push("");
-
-    const labels = values.map((value) => item.valueLabels?.[value] ?? value);
-    const maxLabel = Math.min(34, Math.max(...labels.map((label) => label.length), 12));
-    for (let index = 0; index < values.length; index++) {
-      const value = values[index]!;
-      const selected = index === frame.selected;
-      const prefix = selected ? "› " : "  ";
-      const label = labels[index]!.padEnd(maxLabel);
-      const description = item.valueDescriptions?.[value] ?? "";
-      const line = truncate(`${prefix}${label}  ${description}`, width);
-      lines.push(selected ? (this.theme.fg?.("accent", line) ?? line) : line);
-    }
-
-    lines.push("");
-    lines.push(
-      truncate(
-        this.theme.fg?.("dim", "  Enter to select · Esc to go back") ?? "  Enter to select · Esc to go back",
-        width,
-      ),
+  if (sessionModeItem) {
+    const defaultMode = String(defaultModeItem ? effectiveItemValue(defaultModeItem) : "workflow");
+    const defaultSource = defaultModeItem?.effectiveSource ?? "builtin";
+    sessionModeItem.inactive = freeflowInactive || !skillsEnabled;
+    sessionModeItem.displaySuffix = sessionModeDisplaySuffix(
+      String(sessionModeItem.value),
+      defaultMode,
+      defaultSource,
+      freeflowInactive || !skillsEnabled,
     );
-    lines.push(this.border(width));
-    return lines;
+    sessionModeItem.valueDescriptions = {
+      default: `${defaultMode} from ${defaultSource}`,
+      ...MODE_DESCRIPTIONS,
+    };
   }
 
-  private handleChoiceInput(data: string, frame: SettingsFrame) {
-    const values = frame.choiceFor?.values ?? [];
-    if (this.matches(data, "tui.select.up", isUp)) {
-      if (values.length > 0) frame.selected = frame.selected === 0 ? values.length - 1 : frame.selected - 1;
-      return;
-    }
-    if (this.matches(data, "tui.select.down", isDown)) {
-      if (values.length > 0) frame.selected = frame.selected === values.length - 1 ? 0 : frame.selected + 1;
-      return;
-    }
-    if (this.matches(data, "tui.select.confirm", isEnter) || data === " ") {
-      const value = values[frame.selected];
-      if (value !== undefined && frame.choiceFor) {
-        const item = frame.choiceFor;
-        this.applyValue(item, value);
-        if (this.frames.length > 1) {
-          this.frames.pop();
-        } else {
-          this.close();
-        }
-      }
-      return;
-    }
-    if (this.matches(data, "tui.select.cancel", isEscape)) {
-      if (this.frames.length > 1) {
-        this.frames.pop();
-      } else {
-        this.close();
-      }
-    }
+  if (routerGroup) {
+    routerGroup.value = routerEnabled;
+    routerGroup.inactive = freeflowInactive;
   }
 
-  private displayItems(frame: SettingsFrame): SettingsItem[] {
-    const query = frame.search.trim().toLowerCase();
-    if (!query) return frame.items;
-    return frame.items.filter((item) => {
-      return [item.label, item.description, valueForDisplay(item)].some((text) => text.toLowerCase().includes(query));
-    });
-  }
-
-  private clampSelection(frame: SettingsFrame, itemCount: number) {
-    frame.selected = Math.max(0, Math.min(frame.selected, Math.max(0, itemCount - 1)));
-  }
-
-  private isSearchInput(data: string): boolean {
-    return data.length === 1 && data > " " && data !== "\u007f";
-  }
-
-  private styleLine(line: string, item: SettingsItem, selected: boolean): string {
-    if (item.inactive) return this.theme.fg?.("dim", line) ?? line;
-    if (selected) return this.theme.fg?.("accent", line) ?? line;
-    return line;
-  }
-
-  private activateSelected() {
-    const frame = this.currentFrame();
-    const item = this.displayItems(frame)[frame.selected];
-    if (!item) return;
-    this.message = "";
-    if (item.inactive) {
-      this.message = `${item.label} is inactive. Enable its parent Freeflow setting first.`;
-      return;
-    }
-    if (item.children?.length) {
-      this.frames.push({
-        title: item.label,
-        items: item.children,
-        selected: 0,
-        search: "",
-      });
-      return;
-    }
-    if (item.kind === "boolean") {
-      this.applyValue(item, nextEnumValue(item));
-      return;
-    }
-    if (item.kind === "enum") {
-      if ((item.values?.length ?? 0) >= 3) {
-        this.frames.push({
-          title: item.label,
-          items: [],
-          selected: Math.max(0, item.values?.indexOf(String(item.value)) ?? 0),
-          search: "",
-          choiceFor: item,
-        });
-      } else {
-        this.applyValue(item, nextEnumValue(item));
-      }
-      return;
-    }
-    this.editItem = item;
-    this.editBuffer = valueForDisplay(item);
-  }
-
-  private handleEditInput(data: string) {
-    if (!this.editItem) return;
-    if (this.matches(data, "tui.select.cancel", isEscape)) {
-      this.editItem = null;
-      this.editBuffer = "";
-      this.message = "Edit cancelled.";
-      return;
-    }
-    if (this.matches(data, "tui.input.submit", isEnter) || this.matches(data, "tui.select.confirm", isEnter)) {
-      const item = this.editItem;
-      try {
-        const parsed = item.parse ? item.parse(this.editBuffer) : this.editBuffer;
-        this.editItem = null;
-        this.editBuffer = "";
-        this.applyValue(item, parsed);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        this.message = `Invalid value: ${message}`;
-      }
-      return;
-    }
-    if (this.matches(data, "tui.editor.deleteCharBackward", isBackspace)) {
-      this.editBuffer = this.editBuffer.slice(0, -1);
-      return;
-    }
-    if (data.length === 1 && data >= " ") {
-      this.editBuffer += data;
-    }
-  }
-
-  private applyValue(item: SettingsItem, value: unknown) {
-    updateScopedItemState(item, value);
-    item.value = value;
-    this.refreshDerivedState();
-    this.changed = true;
-    this.message = `${item.label} = ${valueForDisplay(item)}`;
-    this.pending = this.pending
-      .then(async () => {
-        await this.options.onChange(item, value);
-        this.successfulWrites += 1;
-      })
-      .catch((error) => {
-        const message = error instanceof Error ? error.message : String(error);
-        this.message = `Write failed: ${message}`;
-        this.options.ctx?.ui?.notify?.(this.message, "error");
-      });
-  }
-
-  private refreshDerivedState() {
-    const freeflowItem = findSettingsItem(this.options.items, "freeflow.enabled");
-    const freeflowInactive = freeflowItem ? effectiveItemValue(freeflowItem) !== true : false;
-    const skillsItem = findSettingsItem(this.options.items, "freeflow.skills.enabled");
-    const skillsEnabled = skillsItem ? effectiveItemValue(skillsItem) === true : true;
-    const routerEnabled = findSettingsItem(this.options.items, "outputRouter.enabled")?.value === true;
-    const sessionModeItem = findSettingsItem(this.options.items, "freeflow.sessionMode");
-    const defaultModeItem = findSettingsItem(this.options.items, "freeflow.defaultMode");
-    const routerGroup = findSettingsItem(this.options.items, "outputRouter.group");
-
-    if (sessionModeItem) {
-      const defaultMode = String(defaultModeItem ? effectiveItemValue(defaultModeItem) : "workflow");
-      const defaultSource = defaultModeItem?.effectiveSource ?? "builtin";
-      sessionModeItem.inactive = freeflowInactive || !skillsEnabled;
-      sessionModeItem.displaySuffix = sessionModeDisplaySuffix(
-        String(sessionModeItem.value),
-        defaultMode,
-        defaultSource,
-        freeflowInactive || !skillsEnabled,
-      );
-      sessionModeItem.valueDescriptions = {
-        default: `${defaultMode} from ${defaultSource}`,
-        ...MODE_DESCRIPTIONS,
-      };
-    }
-
-    if (routerGroup) {
-      routerGroup.value = routerEnabled;
-      routerGroup.inactive = freeflowInactive;
-    }
-
-    walkSettingsItems(this.options.items, (candidate) => {
-      if (candidate.configScope) {
-        const inactive = candidate.id === "freeflow.enabled" ? false : freeflowInactive;
-        const displayInactive = candidate.id === "freeflow.defaultMode" ? freeflowInactive || !skillsEnabled : inactive;
-        candidate.inactive = inactive;
-        candidate.displaySuffix = coreDisplaySuffix(candidate, displayInactive);
-      } else if (candidate.id === "freeflow.sessionMode") {
-        candidate.inactive = freeflowInactive || !skillsEnabled;
-      } else if (candidate.id === "outputRouter.group") {
-        candidate.inactive = freeflowInactive;
-      } else if (candidate.id === "outputRouter.enabled") {
-        candidate.inactive = freeflowInactive;
-      } else if (candidate.id.startsWith("outputRouter.")) {
-        candidate.inactive = freeflowInactive || !routerEnabled;
-      } else {
-        candidate.inactive = freeflowInactive;
-      }
-    });
-  }
-
-  private close() {
-    this.done(this.changed);
-  }
-}
-
-function wrapPlain(text: string, width: number): string[] {
-  const words = text.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let current = "";
-  for (const word of words) {
-    if (!current) {
-      current = word;
-    } else if (`${current} ${word}`.length <= width) {
-      current = `${current} ${word}`;
+  walkSettingsItems(items, (candidate) => {
+    if (candidate.configScope) {
+      const inactive = candidate.id === "freeflow.enabled" ? false : freeflowInactive;
+      const displayInactive = candidate.id === "freeflow.defaultMode" ? freeflowInactive || !skillsEnabled : inactive;
+      candidate.inactive = inactive;
+      candidate.displaySuffix = coreDisplaySuffix(candidate, displayInactive);
+    } else if (candidate.id === "freeflow.sessionMode") {
+      candidate.inactive = freeflowInactive || !skillsEnabled;
+    } else if (candidate.id === "outputRouter.group") {
+      candidate.inactive = freeflowInactive;
+    } else if (candidate.id === "outputRouter.enabled") {
+      candidate.inactive = freeflowInactive;
+    } else if (candidate.id.startsWith("outputRouter.")) {
+      candidate.inactive = freeflowInactive || !routerEnabled;
     } else {
-      lines.push(current);
-      current = word;
+      candidate.inactive = freeflowInactive;
     }
-  }
-  if (current) lines.push(current);
-  return lines.length ? lines : [""];
+  });
 }
 
-async function openSettings(options: OpenSettingsOptions): Promise<boolean> {
+function settingsChoices(item: SettingsItem) {
+  if (item.kind === "boolean") {
+    return [
+      { key: "true", value: true, label: "enabled", description: "Enable this setting." },
+      { key: "false", value: false, label: "disabled", description: "Disable this setting." },
+    ];
+  }
+  if (item.kind !== "enum") return undefined;
+  return (item.values ?? []).map((value) => ({
+    key: value,
+    value,
+    label: item.valueLabels?.[value] ?? value,
+    description: item.valueDescriptions?.[value],
+  }));
+}
+
+function settingsEntries(
+  items: SettingsItem[],
+  rootItems: SettingsItem[],
+  onChange: OpenSettingsOptions["onChange"],
+): SettingsEntry[] {
+  return items.map((item) => ({
+    id: item.id,
+    label: item.label,
+    description: item.description,
+    currentValue: () => valueForDisplay(item),
+    inactive: () => item.inactive === true,
+    currentChoiceKey: () => String(item.value),
+    choices: settingsChoices(item),
+    children: item.children ? () => settingsEntries(item.children!, rootItems, onChange) : undefined,
+    edit:
+      !item.children && !["boolean", "enum", "group"].includes(item.kind)
+        ? {
+            initialValue: () => valueForDisplay(item),
+            parse: (text: string) => (item.parse ? item.parse(text) : text),
+          }
+        : undefined,
+    commit:
+      item.kind === "group"
+        ? undefined
+        : async (value: unknown) => {
+            if (valuesEqual(item.value, value)) return { changed: false, reloadRequired: false };
+            const outcome = await onChange(item, value);
+            if (outcome.changed) {
+              updateScopedItemState(item, value);
+              item.value = value;
+              refreshSettingsDerivedState(rootItems);
+            }
+            return outcome;
+          },
+  }));
+}
+
+async function openSettings(options: OpenSettingsOptions): Promise<SettingsSessionResult> {
   if (typeof options.ctx?.ui?.custom !== "function") {
     options.ctx?.ui?.notify?.(
       `${options.title} requires Pi TUI mode. Use the status command for a compact summary.`,
       "warning",
     );
-    return false;
+    return { changed: false, configChanged: false, failed: false };
   }
 
-  let component: FreeflowSettingsComponent | undefined;
-  const changed = await options.ctx.ui.custom(
-    (tui: any, theme: any, keybindings: Keybindings, done: (changed: boolean) => void) => {
-      component = new FreeflowSettingsComponent(options, done, () => tui.requestRender(), theme ?? {}, keybindings);
-      return component;
-    },
-  );
+  const entries = settingsEntries(options.items, options.items, options.onChange);
+  const initialChoice = options.initialChoice
+    ? entries.find((entry) => entry.id === options.initialChoice?.id)
+    : undefined;
+  let component: PiSettingsComponent | undefined;
+  await options.ctx.ui.custom((tui: any, theme: any, _keybindings: unknown, done: (value?: undefined) => void) => {
+    component = new PiSettingsComponent({
+      title: options.title,
+      entries,
+      initialChoice,
+      theme: theme ?? {},
+      requestRender: () => tui.requestRender(),
+      notify: (message, level) => options.ctx?.ui?.notify?.(message, level),
+      done,
+    });
+    return component;
+  });
 
-  const wroteSuccessfully = (await component?.waitForWrites()) ?? false;
-  const effectiveChanged = changed === true && wroteSuccessfully;
-  await options.onClose?.(effectiveChanged);
-  return effectiveChanged;
+  await component?.waitForWrites();
+  return component?.sessionResult() ?? { changed: false, configChanged: false, failed: false };
 }
 
 function outputRouterStatusText(rawConfig: Record<string, unknown>): string {
@@ -1609,6 +1244,39 @@ function freeflowStatusText(state: Awaited<ReturnType<typeof readCapabilityState
   ].join("; ");
 }
 
+const NON_TUI_SETTINGS_GUIDANCE =
+  "Freeflow settings require Pi TUI mode. Use /freeflow status to inspect current state; supported non-TUI changes are /freeflow enable, /freeflow disable, and /freeflow mode <conversation|workflow|strict-workflow|reset>.";
+const NON_TUI_MODE_GUIDANCE =
+  "Freeflow mode selector requires Pi TUI mode. Use /freeflow mode conversation, /freeflow mode workflow, /freeflow mode strict-workflow, or /freeflow mode reset.";
+
+function nonTuiGuidance(ctx: any, message: string) {
+  if (ctx?.hasUI === false) throw new Error(message);
+  ctx?.ui?.notify?.(message, "warning");
+  return { changed: false, reloaded: false, error: "tui_required" };
+}
+
+async function finalizeSettingsSession(
+  session: SettingsSessionResult,
+  ctx: any,
+  afterChange: (changed: boolean) => Promise<void> | void,
+  savedMessage: string,
+  reloadWarning = "Run /reload for Freeflow changes to fully apply.",
+) {
+  if (!session.configChanged) return false;
+
+  await afterChange(true);
+  if (session.failed) return false;
+
+  ctx.ui.notify(savedMessage, "info");
+  if (typeof ctx.reload !== "function") {
+    ctx.ui.notify(reloadWarning, "warning");
+    return false;
+  }
+
+  await ctx.reload();
+  return true;
+}
+
 function actionIsMutation(action: string): boolean {
   return action === "" || action === "settings" || ["enable", "on", "true", "disable", "off", "false"].includes(action);
 }
@@ -1642,6 +1310,17 @@ export async function handleFreeflowCommand(
   const input = (args ?? "settings").trim().toLowerCase() || "settings";
   const [action, ...rest] = input.split(/\s+/);
   const actionValue = rest.join(" ");
+  const nonTui = ctx?.mode && ctx.mode !== "tui";
+  if (nonTui && action === "mode" && !actionValue) {
+    return nonTuiGuidance(ctx, NON_TUI_MODE_GUIDANCE);
+  }
+  const settingsSelector =
+    action === "settings" &&
+    (!actionValue || ["local", "personal", "repo", "repository", "shared"].includes(actionValue));
+  if (nonTui && settingsSelector) {
+    return nonTuiGuidance(ctx, NON_TUI_SETTINGS_GUIDANCE);
+  }
+
   const [layers, state, modeState] = await Promise.all([
     readFreeflowConfigLayers(ctx.cwd),
     readCapabilityState(ctx.cwd),
@@ -1676,7 +1355,6 @@ export async function handleFreeflowCommand(
       const result = await handleModeCommand(undefined, ctx, pi);
       return { changed: false, reloaded: false, error: result.error };
     }
-
     if (typeof ctx?.ui?.custom !== "function") {
       const result = await handleModeCommand(undefined, ctx, pi);
       return { changed: false, reloaded: false, error: result.error };
@@ -1686,18 +1364,17 @@ export async function handleFreeflowCommand(
       scope: "local",
       layers,
     }).find((candidate) => candidate.id === "freeflow.sessionMode")!;
-    let modeChanged = false;
-    const changed = await openSettings({
+    const session = await openSettings({
       title: "Freeflow Mode",
       items: [item],
       initialChoice: item,
       ctx,
       onChange: async (_item, value) => {
         const result = await handleModeCommand(String(value), ctx, pi);
-        modeChanged ||= result.changed;
+        return { changed: result.changed, reloadRequired: false };
       },
     });
-    return { changed: changed && modeChanged, reloaded: false };
+    return { changed: session.changed, reloaded: false, error: session.failed ? "write_failed" : undefined };
   }
 
   if (["enable", "on", "true", "disable", "off", "false"].includes(action)) {
@@ -1732,9 +1409,7 @@ export async function handleFreeflowCommand(
     ctx.ui.notify("Usage: /freeflow settings, /freeflow settings local, or /freeflow settings repo", "warning");
     return { changed: false, reloaded: false, error: "invalid_scope" };
   }
-
-  let configChanged = false;
-  const changed = await openSettings({
+  const session = await openSettings({
     title:
       settingsScope === "local"
         ? "Freeflow Settings · Personal overrides"
@@ -1743,33 +1418,22 @@ export async function handleFreeflowCommand(
     ctx,
     onChange: async (item, value) => {
       if (item.id === "freeflow.sessionMode") {
-        await handleModeCommand(String(value), ctx, pi);
-        return;
+        const result = await handleModeCommand(String(value), ctx, pi);
+        return { changed: result.changed, reloadRequired: false };
       }
-      configChanged = true;
       await updateConfig(ctx.cwd, item, value, item.configScope ?? "repository");
-    },
-    onClose: async (settingsChanged) => {
-      if (!settingsChanged) return;
-      if (!configChanged) return;
-      await afterChange(true);
-      ctx.ui.notify(
-        `Freeflow ${
-          settingsScope === "local" ? "personal overrides" : "repository settings"
-        } saved. Reloading Freeflow runtime...`,
-        "info",
-      );
-      if (typeof ctx.reload === "function") {
-        await ctx.reload();
-      } else {
-        ctx.ui.notify("Run /reload for Freeflow changes to fully apply.", "warning");
-      }
+      return { changed: true, reloadRequired: true };
     },
   });
-  return {
-    changed,
-    reloaded: configChanged && typeof ctx.reload === "function",
-  };
+
+  const savedTarget = settingsScope === "local" ? "personal overrides" : "repository settings";
+  const reloaded = await finalizeSettingsSession(
+    session,
+    ctx,
+    afterChange,
+    `Freeflow ${savedTarget} saved. Reloading Freeflow runtime...`,
+  );
+  return { changed: session.changed, reloaded, error: session.failed ? "write_failed" : undefined };
 }
 
 export async function handleOutputRouterCommand(
@@ -1810,21 +1474,22 @@ export async function handleOutputRouterCommand(
     return { changed: false, reloaded: false, error: "invalid_action" };
   }
 
-  const changed = await openSettings({
+  const session = await openSettings({
     title: "Output Router Settings",
     items: outputRouterItems(raw),
     ctx,
-    onChange: (item, value) => updateConfig(ctx.cwd, item, value),
-    onClose: async (settingsChanged) => {
-      if (!settingsChanged) return;
-      await afterChange(true);
-      ctx.ui.notify("Output Router settings saved. Reloading Freeflow runtime...", "info");
-      if (typeof ctx.reload === "function") {
-        await ctx.reload();
-      } else {
-        ctx.ui.notify("Run /reload for Output Router changes to fully apply.", "warning");
-      }
+    onChange: async (item, value) => {
+      await updateConfig(ctx.cwd, item, value);
+      return { changed: true, reloadRequired: true };
     },
   });
-  return { changed, reloaded: changed && typeof ctx.reload === "function" };
+
+  const reloaded = await finalizeSettingsSession(
+    session,
+    ctx,
+    afterChange,
+    "Output Router settings saved. Reloading Freeflow runtime...",
+    "Run /reload for Output Router changes to fully apply.",
+  );
+  return { changed: session.changed, reloaded, error: session.failed ? "write_failed" : undefined };
 }

@@ -71,7 +71,11 @@
     "runtime/**",
     "skills/**"
   ],
+  "peerDependencies": {
+    "@earendil-works/pi-tui": "*"
+  },
   "devDependencies": {
+    "@earendil-works/pi-tui": "0.80.10",
     "@types/node": "^22.15.30",
     "prettier": "3.9.5",
     "typescript": "^5.8.3"

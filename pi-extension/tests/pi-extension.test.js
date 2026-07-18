@@ -233,6 +233,27 @@ test("Pi treats invalid Freeflow setup config as inactive", async () => {
   }
 });
 
+test("Pi rejects unsupported nested skills keys in repository and local config", async () => {
+  for (const configFile of ["config.json", "local.json"]) {
+    const cwd = await mkdtemp(join(tmpdir(), `freeflow-pi-unsupported-skills-${configFile}-`));
+    try {
+      await mkdir(join(cwd, ".freeflow"));
+      if (configFile === "local.json") {
+        await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow" }), "utf8");
+      }
+      await writeFile(join(cwd, `.freeflow/${configFile}`), JSON.stringify({ skills: { enable: false } }), "utf8");
+
+      const layers = await readFreeflowConfigLayers(cwd);
+      const invalidLayer = configFile === "config.json" ? layers.repository : layers.local;
+      assert.equal(invalidLayer.valid, false, `${configFile} should reject unknown nested skills keys`);
+      assert.equal(layers.configured, false);
+      assert.equal(layers.parseError, "unsupported skills config key: enable");
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  }
+});
+
 test("Pi layers local core overrides over repository defaults with source evidence", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-layered-core-"));
   try {
@@ -845,6 +866,142 @@ test("Pi /freeflow mode is the only mode command and opens a dedicated selector"
   }
 });
 
+test("Pi selector commands explain the TUI requirement in RPC mode without mutation", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-rpc-selector-guidance-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    const configPath = join(cwd, ".freeflow/config.json");
+    const configText = JSON.stringify({ defaultMode: "workflow" }, null, 2);
+    await writeFile(configPath, configText, "utf8");
+
+    const { commands } = loadExtension();
+    const freeflowCommand = commands.find((command) => command.name === "freeflow");
+    assert.ok(freeflowCommand);
+
+    for (const args of ["settings", "mode"]) {
+      const ctx = context(cwd);
+      ctx.mode = "rpc";
+      ctx.hasUI = true;
+      let customCalls = 0;
+      ctx.ui.custom = async () => {
+        customCalls += 1;
+      };
+
+      await freeflowCommand.definition.handler(args, ctx);
+
+      assert.equal(customCalls, 0);
+      assert.match(ctx.notifications.at(-1).message, /requires? Pi TUI mode/);
+    }
+
+    assert.equal(await readFile(configPath, "utf8"), configText);
+    assert.equal((await readModeState(cwd)).sessionMode, null);
+
+    const explicitModeCtx = context(cwd);
+    explicitModeCtx.mode = "rpc";
+    explicitModeCtx.hasUI = true;
+    await freeflowCommand.definition.handler("mode conversation", explicitModeCtx);
+    assert.equal((await readModeState(cwd)).sessionMode, "conversation");
+  } finally {
+    restoreModeOverride(context(cwd));
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi selector commands fail explicitly when notifications are unavailable", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-print-selector-guidance-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    const configPath = join(cwd, ".freeflow/config.json");
+    const configText = JSON.stringify({ defaultMode: "workflow" }, null, 2);
+    await writeFile(configPath, configText, "utf8");
+
+    const { commands } = loadExtension();
+    const freeflowCommand = commands.find((command) => command.name === "freeflow");
+    assert.ok(freeflowCommand);
+
+    for (const mode of ["json", "print"]) {
+      for (const args of ["settings", "mode"]) {
+        const ctx = context(cwd);
+        ctx.mode = mode;
+        ctx.hasUI = false;
+        ctx.ui.custom = async () => undefined;
+        await assert.rejects(freeflowCommand.definition.handler(args, ctx), /requires? Pi TUI mode/);
+      }
+    }
+
+    assert.equal(await readFile(configPath, "utf8"), configText);
+    assert.equal((await readModeState(cwd)).sessionMode, null);
+  } finally {
+    restoreModeOverride(context(cwd));
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi non-TUI selector guidance precedes inactive and invalid configuration state", async () => {
+  const cases = [
+    {
+      name: "disabled",
+      args: "mode",
+      repository: JSON.stringify({ enabled: false, defaultMode: "workflow" }),
+    },
+    {
+      name: "skills-off",
+      args: "mode",
+      repository: JSON.stringify({ defaultMode: "workflow", skills: { enabled: false } }),
+    },
+    {
+      name: "invalid-repository",
+      args: "settings",
+      repository: "{ invalid\n",
+    },
+    {
+      name: "invalid-local",
+      args: "settings",
+      repository: JSON.stringify({ defaultMode: "workflow" }),
+      local: "{ invalid\n",
+    },
+  ];
+
+  for (const [index, testCase] of cases.entries()) {
+    const cwd = await mkdtemp(join(tmpdir(), `freeflow-pi-non-tui-${testCase.name}-`));
+    try {
+      await mkdir(join(cwd, ".freeflow"));
+      const configPath = join(cwd, ".freeflow/config.json");
+      const localPath = join(cwd, ".freeflow/local.json");
+      await writeFile(configPath, testCase.repository, "utf8");
+      if (testCase.local) await writeFile(localPath, testCase.local, "utf8");
+
+      const { commands } = loadExtension();
+      const freeflowCommand = commands.find((command) => command.name === "freeflow");
+      assert.ok(freeflowCommand);
+
+      const rpcCtx = context(cwd);
+      rpcCtx.mode = "rpc";
+      rpcCtx.hasUI = true;
+      let customCalls = 0;
+      rpcCtx.ui.custom = async () => {
+        customCalls += 1;
+      };
+      await freeflowCommand.definition.handler(testCase.args, rpcCtx);
+      assert.equal(customCalls, 0);
+      assert.match(rpcCtx.notifications.at(-1).message, /requires? Pi TUI mode/);
+
+      const nonUiCtx = context(cwd);
+      nonUiCtx.mode = index % 2 === 0 ? "json" : "print";
+      nonUiCtx.hasUI = false;
+      nonUiCtx.ui.custom = async () => undefined;
+      await assert.rejects(freeflowCommand.definition.handler(testCase.args, nonUiCtx), /requires? Pi TUI mode/);
+
+      assert.equal(await readFile(configPath, "utf8"), testCase.repository);
+      if (testCase.local) assert.equal(await readFile(localPath, "utf8"), testCase.local);
+      assert.equal((await readModeState(cwd)).sessionMode, null);
+    } finally {
+      restoreModeOverride(context(cwd));
+      await rm(cwd, { recursive: true, force: true });
+    }
+  }
+});
+
 test("Pi statusline reports only effective Freeflow runtime state", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-statusline-state-"));
   try {
@@ -938,11 +1095,11 @@ test("Pi /freeflow command toggles master switch and blocks inactive settings ro
       });
       const rootText = renderText(component);
       assert.match(rootText, /^─+/);
-      assert.match(rootText, /> █/);
       assert.match(rootText, /Freeflow Settings/);
-      assert.match(rootText, /Output Router\s+enabled \(22\) \(repository\) › inactive/);
-      assert.match(rootText, /\[dim\]\s+Interaction Contract/);
-      assert.match(rootText, /\[dim\]\s+Skills/);
+      assert.match(rootText, /\[dim\]Output Router\[\/dim\]/);
+      assert.match(rootText, /enabled \(22\) \(repository\) · inactive/);
+      assert.match(rootText, /\[dim\]Interaction Contract/);
+      assert.match(rootText, /\[dim\]Skills/);
       assert.match(rootText, /\[dim\].*Output Router/);
       assert.doesNotMatch(rootText, /Native safety net/);
       component.handleInput("\u001b[B"); // Interaction Contract row is inactive while Freeflow is off.
@@ -1029,7 +1186,7 @@ test("Pi /freeflow settings marks default mode dormant when Skills are disabled"
       });
       const rootText = renderText(component);
       assert.match(rootText, /Skills\s+disabled \(repository\)/);
-      assert.match(rootText, /Session mode\s+default \(workflow · repository · inactive\).*inactive/);
+      assert.match(rootText, /Session mode\s+default \(workflow · repository · inactive\)/);
       assert.match(rootText, /Default mode\s+workflow \(repository · inactive\)/);
 
       component.handleInput("\u001b[B");
@@ -1186,6 +1343,57 @@ test("Pi personal settings refuse to write a tracked local override", async () =
   }
 });
 
+test("Pi settings do not report save or reload success after a mixed write failure", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-mixed-settings-write-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow" }), "utf8");
+    await writeFile(join(cwd, ".freeflow/local.json"), "{}\n", "utf8");
+    await execFileAsync("git", ["init", "-q", cwd]);
+    await execFileAsync("git", ["-C", cwd, "add", ".freeflow/local.json"]);
+
+    const { commands } = loadExtension();
+    const freeflowCommand = commands.find((command) => command.name === "freeflow");
+    assert.ok(freeflowCommand);
+    const ctx = context(cwd);
+    ctx.ui.custom = async (factory) => {
+      let result;
+      const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
+        result = value;
+      });
+
+      for (let index = 0; index < 3; index++) component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      component.handleInput("\u001b[B");
+      component.handleInput("\r"); // Session mode succeeds.
+      await component.waitForWrites();
+
+      component.handleInput("\u001b[A");
+      component.handleInput("\u001b[A");
+      component.handleInput("\r");
+      component.handleInput("\u001b[B");
+      component.handleInput("\u001b[B");
+      component.handleInput("\r"); // Tracked local config write fails.
+      await component.waitForWrites();
+      component.handleInput("\u001b");
+      return result;
+    };
+
+    await freeflowCommand.definition.handler("settings", ctx);
+    assert.equal((await readModeState(cwd)).sessionMode, "conversation");
+    assert.equal(ctx.reloads.length, 0);
+    assert.match(ctx.notifications.map((notification) => notification.message).join("\n"), /Write failed:/);
+    assert.doesNotMatch(
+      ctx.notifications.map((notification) => notification.message).join("\n"),
+      /personal overrides saved/,
+    );
+    assert.deepEqual(JSON.parse(await readFile(join(cwd, ".freeflow/local.json"), "utf8")), {});
+  } finally {
+    restoreModeOverride(context(cwd));
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 test("Pi /freeflow settings repo edits shared defaults and shows local effective sources", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-repository-settings-"));
   try {
@@ -1262,8 +1470,7 @@ test("Pi /freeflow settings groups capability settings", async () => {
       });
       const rootText = renderText(component);
       assert.match(rootText, /^─+/);
-      assert.match(rootText, /> █/);
-      assert.match(rootText, /Output Router\s+enabled \(22\) \(repository\) ›/);
+      assert.match(rootText, /Output Router\s+enabled \(22\) \(repository\)/);
       assert.doesNotMatch(rootText, /Native safety net/);
 
       for (let index = 0; index < 5; index++) {
@@ -1606,11 +1813,17 @@ test("Pi output-router settings UI toggles multiple config values and reloads on
         result = value;
       });
       assert.match(renderText(component), /Output Router Settings/);
+      component.handleInput("\r");
+      component.handleInput("\u001b[A");
       component.handleInput("\r"); // Output Router enabled
+      await component.waitForWrites();
       for (let index = 0; index < 9; index++) {
         component.handleInput("\u001b[B");
       }
+      component.handleInput("\r");
+      component.handleInput("\u001b[A");
       component.handleInput("\r"); // Script transform enabled
+      await component.waitForWrites();
       component.handleInput("\u001b");
       return result;
     };
