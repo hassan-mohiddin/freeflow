@@ -1,0 +1,1 @@
+We need the Pi TUI behavior for delegation tools before implementation. Should a normal delegation tool result show the full child transcript or screen dump so the user can see everything? What should the collapsed view show, and what should expanded/details view show for spawn/status/result/unavailable cases?

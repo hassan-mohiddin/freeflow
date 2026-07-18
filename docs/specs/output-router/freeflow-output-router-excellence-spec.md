@@ -33,8 +33,8 @@ The first router implementation proves the core shape:
 However, the first broad-retrieval accuracy test found a serious failure:
 
 ```text
-query: find the Sandbox Permissions block in docs/codex-cli-agent-harness
-expected: docs/codex-cli-agent-harness/passes/2026-06-12-pass-3-sandboxing-and-permissions.md:523-546
+query: find the Sandbox Permissions reference fixture
+expected: evals/fixtures/output-router-corpus/sandbox-permissions.md:3-17
 actual:   graphify-out/graph.html:67-71
 ```
 
@@ -83,7 +83,7 @@ In scope:
 - Improve `freeflow_retrieve` accuracy and context bounding.
 - Improve `freeflow_run` compression/extraction while preserving exact recovery.
 - Add benchmark harnesses for before/after comparison.
-- Add a staged Codex CLI agent-harness macro benchmark.
+- Add a staged Output Router macro benchmark.
 - Build and evaluate an optional no-dependency local index first, with SQLite/FTS considered only after benchmark evidence.
 - Add deterministic command parsers where they improve evidence quality.
 - Add session-output dedup/reuse where it saves context without hiding evidence.
@@ -133,7 +133,7 @@ Reference tools researched:
 5. Retrieval stays dependency-light by default. Optional index work starts with a no-dependency local index experiment; SQLite/FTS may be evaluated later only if evidence justifies it.
 6. Optional index adoption requires a combined threshold: no exact-search regression, generated-artifact false positives fixed, better warm broad-query latency, bounded context, measured cold-start/index cost, no external service.
 7. Benchmarks are staged: deterministic tool benchmarks for every relevant change, periodic agent-task evals for release evidence.
-8. The Codex CLI agent-harness study becomes the flagship macro benchmark.
+8. The neutral Output Router corpus becomes the flagship macro benchmark.
 9. Codex benchmark grading uses existing research docs for expected concepts and upstream source citations as stronger truth when available.
 10. Codex macro external comparison includes retrieval tools only: native, Freeflow, Graphify, Claude Context. RTK/Squeez belong in command-output/session-efficiency tracks.
 11. Codex macro success is Pareto improvement: no quality regression, plus improvement in tokens, tools, time, or evidence traceability.
@@ -926,26 +926,15 @@ Every benchmark report should include:
 
 Reports should live under `router/evals/reports/` unless a better eval-specific location is established.
 
-## Codex CLI Agent-Harness Macro Benchmark
+## Output Router Macro Benchmark
 
-The Codex CLI agent-harness research corpus is the flagship macro benchmark because it represents a real expensive research workflow.
+The neutral benchmark corpus under `evals/fixtures/output-router-corpus/` provides stable source documents and generated-artifact decoys for measuring whether Freeflow Router reduces retrieval cost without degrading answer quality.
 
-Existing corpus:
+Current corpus:
 
 ```text
-docs/codex-cli-agent-harness/README.md
-docs/codex-cli-agent-harness/passes/2026-06-12-pass-0-repo-map.md
-docs/codex-cli-agent-harness/passes/2026-06-12-pass-1-turn-loop.md
-docs/codex-cli-agent-harness/passes/2026-06-12-pass-2-tool-system.md
-docs/codex-cli-agent-harness/passes/2026-06-12-pass-3-sandboxing-and-permissions.md
-docs/codex-cli-agent-harness/passes/2026-06-12-pass-4-subagents-and-delegation.md
-docs/codex-cli-agent-harness/passes/2026-06-12-pass-5-model-providers-runtime-adapters.md
-docs/codex-cli-agent-harness/passes/2026-06-12-pass-6-memory-and-context.md
-docs/codex-cli-agent-harness/passes/2026-06-12-pass-7-config-and-extensibility.md
-docs/codex-cli-agent-harness/passes/2026-06-13-pass-8-agent-harness-comparisons.md
+evals/fixtures/output-router-corpus/sandbox-permissions.md
 ```
-
-The original research reportedly took 12+ hours of repeated reads, passes, and subpasses. That makes it a strong real-world target for measuring whether Freeflow Router reduces research cost without degrading quality.
 
 ### Stages
 

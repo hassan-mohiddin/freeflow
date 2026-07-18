@@ -79,11 +79,10 @@ Task type and direct skill calls do not silently switch mode.
 
 ## Skills And Routing
 
-Freeflow ships 27 skill packages:
+Freeflow ships 26 skill packages:
 
 - 25 active model/contributor skills;
-- Output Router as an optional capability loaded only when effective;
-- Delegation Harness as deprecated compatibility state, not an active workflow route.
+- Output Router as an optional capability loaded only when effective.
 
 See the [typed skill routing map](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/skill-routing.md) for every owner, sibling route, and reference dependency. See [Workflow](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/workflow.md) for the lifecycle and [Architecture](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/architecture.md) for delivery and configuration.
 
@@ -255,7 +254,6 @@ Pi-native settings controls:
 ```text
 /freeflow
 /output-router
-/delegation-harness
 ```
 
 `/freeflow settings` edits personal core overrides. `/freeflow settings repo` edits shared settings. `/freeflow mode` manages temporary session mode. Codex and Claude have no native Freeflow slash handlers; canonical names and natural language remain model-routed cues.

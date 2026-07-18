@@ -62,8 +62,6 @@ Do not compensate for unavailable or unconfirmed delivery by copying Freeflow te
 
 Do not ask a generic capability question during normal setup. If Output Router is explicitly requested, use `output-router-setup.md` and keep its config in the shared repository layer unless the documented setting is specifically local-only.
 
-Setup does not offer or add deprecated Delegation Harness config. Preserve valid existing compatibility config unless the user separately authorizes a change.
-
 Do not install repo-local hooks, CLI commands, lint rules, global standards, documentation inventories, or state files during setup.
 
 ## Conflicts

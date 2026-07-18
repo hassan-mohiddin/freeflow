@@ -52,11 +52,11 @@
     ],
     "target_name": "design-for-depth",
     "runtime": {
-      "profile": "freeflow-kernel-workflow-v1",
+      "profile": "freeflow-interaction-workflow-v1",
       "kind": "git",
-      "revision": "87f83cb",
+      "revision": "66a680b",
       "path": ".",
-      "kernel": "skills/decision-gate/references/runtime-kernel.md",
+      "interaction_contract": "runtime/interaction-contract.md",
       "workflow": "skills/workflow/SKILL.md"
     }
   },

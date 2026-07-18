@@ -56,7 +56,7 @@ Pi session mode override
 
 An invalid existing personal layer blocks effective runtime. Interaction Contract and Skills resolve as independent switches. Mode remains resolved but dormant when Skills are ineffective.
 
-Repository-owned Output Router configuration remains in shared config. Deprecated Delegation Harness config may be preserved for compatibility but Setup does not offer or add it.
+Repository-owned Output Router configuration remains in shared config.
 
 ## Runtime Delivery
 
@@ -95,9 +95,9 @@ Supported Exits include answer, wait, pause, handoff, deferment, stop, controlle
 
 Workflow owns routing. Leaf skills own focused methods. Method and domain skills compose without redefining authority or the lifecycle.
 
-The typed public adjacency map lives in `plugin-docs/skill-routing.md`. It distinguishes owners, sibling routes/composition, references, optional capability delivery, and deprecated compatibility.
+The typed public adjacency map lives in `plugin-docs/skill-routing.md`. It distinguishes owners, sibling routes/composition, references, and optional capability delivery.
 
-The package contains 27 skill packages: 25 active model/contributor skills, Output Router as an optional capability, and Delegation Harness as deprecated compatibility state.
+The package contains 26 skill packages: 25 active model/contributor skills and Output Router as an optional capability. Retired Delegation Harness material lives under `deprecated/delegation-harness/` outside the package.
 
 ## Artifact Contract
 

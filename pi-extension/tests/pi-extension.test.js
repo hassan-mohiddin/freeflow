@@ -124,7 +124,6 @@ test("Pi registers capability commands and no public capture tool", () => {
 
 	assert.ok(commandNames.includes("freeflow"));
 	assert.ok(commandNames.includes("output-router"));
-	assert.ok(commandNames.includes("delegation-harness"));
 	for (const command of [
 		"discuss",
 		"discover",
@@ -139,8 +138,6 @@ test("Pi registers capability commands and no public capture tool", () => {
 	assert.ok(toolNames.includes("freeflow_search"));
 	assert.ok(toolNames.includes("freeflow_run"));
 	assert.ok(toolNames.includes("freeflow_batch"));
-	assert.ok(toolNames.includes("delegate_spawn"));
-	assert.ok(toolNames.includes("delegate_result"));
 	assert.ok(!toolNames.includes("freeflow_retrieve"));
 	assert.ok(!toolNames.includes("freeflow_search action=transform"));
 	assert.ok(!toolNames.includes("freeflow_capture"));
@@ -212,7 +209,6 @@ test("Pi keeps Freeflow inactive until setup config exists", async () => {
 		assert.ok(!activeToolNames().includes("freeflow_search"));
 		assert.ok(!activeToolNames().includes("freeflow_run"));
 		assert.ok(!activeToolNames().includes("freeflow_batch"));
-		assert.ok(!activeToolNames().includes("delegate_spawn"));
 	} finally {
 		await rm(cwd, { recursive: true, force: true });
 	}
@@ -231,7 +227,6 @@ test("Pi treats invalid Freeflow setup config as inactive", async () => {
 					interactionContract: "on",
 					skills: { enabled: "no" },
 					outputRouter: { enabled: true },
-					delegationHarness: { enabled: true },
 				},
 				null,
 				2,
@@ -254,7 +249,6 @@ test("Pi treats invalid Freeflow setup config as inactive", async () => {
 		assert.equal(result.systemPrompt, "base prompt");
 		assert.ok(!activeToolNames().includes("freeflow_status"));
 		assert.ok(!activeToolNames().includes("freeflow_search"));
-		assert.ok(!activeToolNames().includes("delegate_spawn"));
 
 		const freeflowCommand = commands.find(
 			(command) => command.name === "freeflow",
@@ -716,7 +710,6 @@ test("Pi local enabled false overrides an enabled repository master switch", asy
 					enabled: true,
 					defaultMode: "workflow",
 					outputRouter: { enabled: true },
-					delegationHarness: { enabled: true },
 				},
 				null,
 				2,
@@ -734,7 +727,6 @@ test("Pi local enabled false overrides an enabled repository master switch", asy
 		assert.equal(state.enabled, false);
 		assert.equal(state.configSources.enabled, "local");
 		assert.equal(state.outputRouter.enabled, false);
-		assert.equal(state.delegationHarness.enabled, false);
 	} finally {
 		await rm(cwd, { recursive: true, force: true });
 	}
@@ -752,7 +744,6 @@ test("Pi master Freeflow toggle disables skills, capabilities, and routing", asy
 					defaultMode: "workflow",
 					skills: { enabled: true },
 					outputRouter: { enabled: true, postToolRouting: "safety-net" },
-					delegationHarness: { enabled: true },
 				},
 				null,
 				2,
@@ -776,13 +767,8 @@ test("Pi master Freeflow toggle disables skills, capabilities, and routing", asy
 		assert.doesNotMatch(result.systemPrompt, /# Freeflow Runtime Kernel/);
 		assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);
 		assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Skill/);
-		assert.doesNotMatch(
-			result.systemPrompt,
-			/## Loaded Delegation Harness Skill/,
-		);
 		assert.ok(!activeToolNames().includes("freeflow_status"));
 		assert.ok(!activeToolNames().includes("freeflow_search"));
-		assert.ok(!activeToolNames().includes("delegate_spawn"));
 
 		const routed = await handlers.get("tool_result")(
 			{
@@ -928,14 +914,9 @@ test("Pi all-disabled capability state injects only Freeflow control-plane statu
 		assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);
 		assert.doesNotMatch(result.systemPrompt, /## Loaded Decision Gate Skill/);
 		assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Skill/);
-		assert.doesNotMatch(
-			result.systemPrompt,
-			/## Loaded Delegation Harness Skill/,
-		);
 		assert.equal(ctx.statuses.at(-1).value, "freeflow: idle");
 		assert.ok(activeToolNames().includes("freeflow_status"));
 		assert.ok(!activeToolNames().includes("freeflow_search"));
-		assert.ok(!activeToolNames().includes("delegate_spawn"));
 
 		const freeflowCommand = commands.find(
 			(command) => command.name === "freeflow",
@@ -1092,16 +1073,15 @@ test("Pi statusline reports only effective Freeflow runtime state", async () => 
 			await statusFor({
 				defaultMode: "workflow",
 				outputRouter: { enabled: true },
-				delegationHarness: { enabled: true },
 			}),
-			"freeflow: interaction · workflow · router · delegation",
+			"freeflow: interaction · workflow · router",
 		);
 
 		const modeCtx = context(cwd);
 		await freeflowCommand.definition.handler("mode conversation", modeCtx);
 		assert.equal(
 			modeCtx.statuses.at(-1).value,
-			"freeflow: interaction · conversation (session) · router · delegation",
+			"freeflow: interaction · conversation (session) · router",
 		);
 		await freeflowCommand.definition.handler("mode reset", context(cwd));
 	} finally {
@@ -1204,7 +1184,6 @@ test("Pi /freeflow disable applies live gates before reload completes", async ()
 				{
 					defaultMode: "workflow",
 					outputRouter: { enabled: true },
-					delegationHarness: { enabled: true },
 				},
 				null,
 				2,
@@ -1218,7 +1197,6 @@ test("Pi /freeflow disable applies live gates before reload completes", async ()
 		);
 		assert.ok(freeflowCommand);
 		assert.ok(activeToolNames().includes("freeflow_search"));
-		assert.ok(activeToolNames().includes("delegate_spawn"));
 
 		const ctx = context(cwd);
 		await freeflowCommand.definition.handler("disable", ctx);
@@ -1228,7 +1206,6 @@ test("Pi /freeflow disable applies live gates before reload completes", async ()
 		assert.ok(!activeToolNames().includes("freeflow_search"));
 		assert.ok(!activeToolNames().includes("freeflow_run"));
 		assert.ok(!activeToolNames().includes("freeflow_batch"));
-		assert.ok(!activeToolNames().includes("delegate_spawn"));
 	} finally {
 		await rm(cwd, { recursive: true, force: true });
 	}
@@ -1625,10 +1602,6 @@ test("Pi /freeflow settings groups capability settings", async () => {
 			assert.match(rootText, /^─+/);
 			assert.match(rootText, /> █/);
 			assert.match(rootText, /Output Router\s+enabled \(22\) \(repository\) ›/);
-			assert.match(
-				rootText,
-				/Delegation Harness\s+disabled \(1\) \(repository\) ›/,
-			);
 			assert.doesNotMatch(rootText, /Native safety net/);
 
 			for (let index = 0; index < 5; index++) {
@@ -1642,10 +1615,6 @@ test("Pi /freeflow settings groups capability settings", async () => {
 			);
 			assert.match(routerText, /Native safety net/);
 			component.handleInput("\u001b");
-			assert.match(
-				renderText(component),
-				/Delegation Harness\s+disabled \(1\) \(repository\) ›/,
-			);
 			component.handleInput("\u001b");
 			return result;
 		};
@@ -1687,20 +1656,7 @@ test("Pi before_agent_start keeps output-router disabled by default", async () =
 		assert.match(result.systemPrompt, /Output router: disabled/);
 		assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Skill/);
 		assert.doesNotMatch(result.systemPrompt, /freeflow_search/);
-		assert.doesNotMatch(
-			result.systemPrompt,
-			/## Loaded Delegation Harness Skill/,
-		);
-		assert.doesNotMatch(result.systemPrompt, /name: delegation-harness/);
-		assert.doesNotMatch(
-			result.systemPrompt,
-			/\.\.\/delegation-harness\/SKILL\.md/,
-		);
-		assert.doesNotMatch(
-			result.systemPrompt,
-			/delegation-harness run inside the current workflow phase/,
-		);
-		assert.doesNotMatch(result.systemPrompt, /delegate_spawn/);
+
 		assert.doesNotMatch(result.systemPrompt, /Legacy `FFRESULT`/);
 		assert.doesNotMatch(result.systemPrompt, /# Context Locality/);
 		assert.doesNotMatch(result.systemPrompt, /freeflow_run/);
@@ -1727,8 +1683,6 @@ test("Pi before_agent_start keeps output-router disabled by default", async () =
 		assert.ok(!activeToolNames().includes("freeflow_search"));
 		assert.ok(!activeToolNames().includes("freeflow_run"));
 		assert.ok(!activeToolNames().includes("freeflow_batch"));
-		assert.ok(!activeToolNames().includes("delegate_spawn"));
-		assert.ok(!activeToolNames().includes("delegate_result"));
 	} finally {
 		await rm(cwd, { recursive: true, force: true });
 	}
@@ -1960,16 +1914,6 @@ test("Pi before_agent_start injects the Freeflow interaction contract on every t
 			);
 			assert.doesNotMatch(
 				result.systemPrompt,
-				/## Loaded Delegation Harness Skill/,
-			);
-			assert.doesNotMatch(result.systemPrompt, /name: delegation-harness/);
-			assert.doesNotMatch(
-				result.systemPrompt,
-				/\.\.\/delegation-harness\/SKILL\.md/,
-			);
-			assert.doesNotMatch(result.systemPrompt, /delegate_result/);
-			assert.doesNotMatch(
-				result.systemPrompt,
 				/## Freeflow Output Router Reminder/,
 			);
 			assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Map/);
@@ -2019,10 +1963,6 @@ test("Pi session_start and session_compact keep the interaction contract on late
 			afterCompact.systemPrompt,
 			/## Loaded Output Router Skill/,
 		);
-		assert.doesNotMatch(
-			afterCompact.systemPrompt,
-			/## Loaded Delegation Harness Skill/,
-		);
 
 		await sessionStart({ reason: "resume" }, context(cwd));
 		const afterResume = await beforeAgentStart(
@@ -2034,10 +1974,6 @@ test("Pi session_start and session_compact keep the interaction contract on late
 		assert.doesNotMatch(
 			afterResume.systemPrompt,
 			/## Loaded Output Router Skill/,
-		);
-		assert.doesNotMatch(
-			afterResume.systemPrompt,
-			/## Loaded Delegation Harness Skill/,
 		);
 	} finally {
 		await rm(cwd, { recursive: true, force: true });
@@ -2097,49 +2033,8 @@ test("Pi capability config disables output-router context, active tools, and exe
 	}
 });
 
-test("Pi capability config blocks delegation tool calls while disabled", async () => {
-	const { handlers } = loadExtension();
-	const guard = handlers.get("tool_call");
-	assert.ok(guard);
 
-	const blocked = await guard({ toolName: "delegate_spawn" }, context());
-	assert.equal(blocked.block, true);
-	assert.match(blocked.reason, /delegate_spawn is disabled by Freeflow config/);
-});
-
-test("Pi capability config enables delegation harness context and active tools", async () => {
-	const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-delegation-enabled-"));
-	try {
-		await mkdir(join(cwd, ".freeflow"));
-		await writeFile(
-			join(cwd, ".freeflow/config.json"),
-			JSON.stringify(
-				{ defaultMode: "workflow", delegationHarness: { enabled: true } },
-				null,
-				2,
-			),
-			"utf8",
-		);
-
-		const { handlers, activeToolNames } = loadExtension();
-		const beforeAgentStart = handlers.get("before_agent_start");
-		assert.ok(beforeAgentStart);
-
-		const result = await beforeAgentStart(
-			{ systemPrompt: "base prompt" },
-			context(cwd),
-		);
-		assert.match(result.systemPrompt, /Delegation harness: enabled/);
-		assert.match(result.systemPrompt, /## Loaded Delegation Harness Skill/);
-		assert.match(result.systemPrompt, /name: delegation-harness/);
-		assert.ok(activeToolNames().includes("delegate_spawn"));
-		assert.ok(activeToolNames().includes("delegate_result"));
-	} finally {
-		await rm(cwd, { recursive: true, force: true });
-	}
-});
-
-test("Pi capability commands update config and reload", async () => {
+test("Pi output-router command updates config and reloads", async () => {
 	const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-capability-command-"));
 	try {
 		await mkdir(join(cwd, ".freeflow"));
@@ -2153,11 +2048,7 @@ test("Pi capability commands update config and reload", async () => {
 		const outputRouterCommand = commands.find(
 			(command) => command.name === "output-router",
 		);
-		const delegationCommand = commands.find(
-			(command) => command.name === "delegation-harness",
-		);
 		assert.ok(outputRouterCommand);
-		assert.ok(delegationCommand);
 
 		const outputCtx = context(cwd);
 		await outputRouterCommand.definition.handler("enable", outputCtx);
@@ -2166,14 +2057,6 @@ test("Pi capability commands update config and reload", async () => {
 		);
 		assert.equal(afterOutput.outputRouter.enabled, true);
 		assert.equal(outputCtx.reloads.length, 1);
-
-		const delegationCtx = context(cwd);
-		await delegationCommand.definition.handler("enable", delegationCtx);
-		const afterDelegation = JSON.parse(
-			await readFile(join(cwd, ".freeflow/config.json"), "utf8"),
-		);
-		assert.equal(afterDelegation.delegationHarness.enabled, true);
-		assert.equal(delegationCtx.reloads.length, 1);
 	} finally {
 		await rm(cwd, { recursive: true, force: true });
 	}
@@ -2285,50 +2168,6 @@ test("Pi output-router status summarizes master and subfeature state", async () 
 	}
 });
 
-test("Pi delegation-harness settings UI toggles config and reloads once", async () => {
-	const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-delegation-settings-"));
-	try {
-		await mkdir(join(cwd, ".freeflow"));
-		await writeFile(
-			join(cwd, ".freeflow/config.json"),
-			JSON.stringify({ defaultMode: "workflow" }, null, 2),
-			"utf8",
-		);
-
-		const { commands } = loadExtension();
-		const delegationCommand = commands.find(
-			(command) => command.name === "delegation-harness",
-		);
-		assert.ok(delegationCommand);
-
-		const ctx = context(cwd);
-		ctx.ui.custom = async (factory) => {
-			let result;
-			const component = factory(
-				{ requestRender() {} },
-				testTheme,
-				{},
-				(value) => {
-					result = value;
-				},
-			);
-			assert.match(renderText(component), /Delegation Harness Settings/);
-			component.handleInput("\r");
-			component.handleInput("\u001b");
-			return result;
-		};
-
-		await delegationCommand.definition.handler("settings", ctx);
-
-		const after = JSON.parse(
-			await readFile(join(cwd, ".freeflow/config.json"), "utf8"),
-		);
-		assert.equal(after.delegationHarness.enabled, true);
-		assert.equal(ctx.reloads.length, 1);
-	} finally {
-		await rm(cwd, { recursive: true, force: true });
-	}
-});
 
 test("Pi freeflow_status reports effective defaults without writing config", async () => {
 	const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-status-minimal-"));

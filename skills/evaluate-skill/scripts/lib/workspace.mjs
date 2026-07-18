@@ -14,7 +14,7 @@ export const EVIDENCE_CLASSES = new Set([
 
 const VARIANT_KINDS = new Set(["working-tree", "git", "none"]);
 const COMPOSITION_KINDS = new Set(["working-tree", "git"]);
-const COMPOSITION_RUNTIME_PROFILES = new Set(["freeflow-kernel-workflow-v1"]);
+const COMPOSITION_RUNTIME_PROFILES = new Set(["freeflow-interaction-workflow-v1"]);
 const EVALUATION_KINDS = new Set(["single", "comparison"]);
 const VARIANT_ROLES = new Set(["subject", "reference", "candidate"]);
 const UNSUPPORTED_EVIDENCE_POLICIES = new Set(["block", "behavior-under-test"]);
@@ -195,11 +195,11 @@ function validateComposition(composition, value, path) {
     requireString(runtime.path, `${path}.composition.runtime.path`);
     resolveInside("/composition", runtime.path, `${path}.composition.runtime.path`);
     if (runtime.kind === "git") requireString(runtime.revision, `${path}.composition.runtime.revision`);
-    for (const field of ["kernel", "workflow"]) {
+    for (const field of ["interaction_contract", "workflow"]) {
       requireString(runtime[field], `${path}.composition.runtime.${field}`);
       resolveInside("/runtime", runtime[field], `${path}.composition.runtime.${field}`);
     }
-    if (runtime.kernel === runtime.workflow) throw new Error(`${path}.composition runtime kernel and workflow must differ`);
+    if (runtime.interaction_contract === runtime.workflow) throw new Error(`${path}.composition runtime Interaction Contract and Workflow must differ`);
   }
   for (const variant of value.variants) {
     if (!variant.resources.includes("SKILL.md")) throw new Error(`${path} composition target must declare SKILL.md: ${variant.id}`);

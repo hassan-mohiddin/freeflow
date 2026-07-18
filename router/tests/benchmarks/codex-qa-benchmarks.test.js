@@ -32,7 +32,7 @@ test("Codex Q&A macro benchmark catches generated Sandbox Permissions decoy", as
   assert.equal(improved.correctness.citationCorrect, true);
   assert.equal(improved.correctness.evidenceCorrect, true);
   assert.equal(improved.correctness.generatedFalsePositive, false);
-  assert.equal(improved.actualPath, "docs/codex-cli-agent-harness/passes/2026-06-12-pass-3-sandboxing-and-permissions.md");
+  assert.equal(improved.actualPath, "evals/fixtures/output-router-corpus/sandbox-permissions.md");
   assert.match(improved.answer, /UseDefault: run with the turn's normal sandbox/);
   assert.match(improved.answer, /RequireEscalated: request unsandboxed execution/);
   assert.match(improved.answer, /WithAdditionalPermissions: stay sandboxed but widen permissions/);
@@ -65,7 +65,7 @@ test("Codex Q&A benchmark writer emits markdown and machine-readable JSON", asyn
     assert.equal(json.fixtures.length, 1);
 
     const rendered = renderCodexQaBenchmarkReport(report);
-    assert.match(rendered, /docs\/codex-cli-agent-harness\/passes\/2026-06-12-pass-3-sandboxing-and-permissions.md/);
+    assert.match(rendered, /evals\/fixtures\/output-router-corpus\/sandbox-permissions.md/);
     assert.match(rendered, /Graphify/);
   } finally {
     await rm(root, { recursive: true, force: true });

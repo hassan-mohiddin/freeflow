@@ -1,0 +1,1 @@
+A Pi user wants to use the delegation harness, but they might not have cmux installed and might not be running Pi inside a usable cmux workspace. Should `delegate_spawn` try to open a pane anyway, or fall back to a hidden/headless `pi -p` child if cmux is unavailable? What should happen before any pane-spawn side effect?

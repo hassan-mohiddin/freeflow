@@ -1,17 +1,16 @@
-We have been brainstorming a Pi + cmux pane delegation harness for Freeflow.
+We have been brainstorming a Pi-based multi-agent workflow for Freeflow.
 
 Settled so far:
-- All visible child panes will run Pi.
-- Use cmux only for pane management; do not add tmux.
-- The harness should expose Pi tools first, not a human CLI first.
-- The orchestrator should keep a saved Pi session; child pane evidence is stored by the harness.
-- Internal state should be JSON/JSONL, but model-visible result/input can use a compact line protocol.
+- Separate agent contexts should be used only for real context boundaries.
+- The main agent preserves the user-facing session and global continuity.
+- Supporting evidence is stored outside the main conversation when it is large.
+- Internal state can be JSON/JSONL, while model-visible input and results stay compact.
 
 Still not deeply discussed:
-- how role-specific context profiles are loaded into child Pi panes;
+- how role-specific context is loaded;
 - which tools are active for each role and how enforcement works;
-- exact FFRESULT/result parsing and failure/timeout behavior;
-- output-router bridge boundaries;
-- how worktrees enter execution workers later.
+- exact result parsing and failure/timeout behavior;
+- output-router boundaries;
+- how worktrees enter execution later.
 
 Should we write the spec now?

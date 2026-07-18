@@ -21,8 +21,6 @@ Supported defaults are `conversation`, `workflow`, and `strict-workflow`. Missin
 
 Repository config may also contain documented Output Router settings. Add optional settings only after an explicit request and preserve valid existing settings during idempotent setup.
 
-An existing valid `delegationHarness` section remains compatibility state: preserve it, but Setup Freeflow does not offer, add, or tune it.
-
 Do not add current mode, task state, phase, file inventories, plans, version metadata, activation paths, empty optional sections, host instruction copies, or generated workflow text.
 
 Missing or invalid repository config means repository activation is absent. A valid config with effective `enabled: false` remains configured but inactive.
@@ -46,7 +44,7 @@ It may override these core values:
 
 Every field is optional. Omission inherits the repository value, then the built-in default. Local core precedence is property-level, not whole-file replacement.
 
-The local file may also contain documented local-only `processing` config. It must not contain repository-owned Output Router or Delegation Harness config.
+The local file may also contain documented local-only `processing` config. It must not contain repository-owned Output Router config.
 
 Keep local config untracked and ignored. In a Git checkout, prefer `.git/info/exclude` or an existing ignore rule over an unsolicited shared `.gitignore` edit. Refuse to write personal overrides to a tracked local file.
 
@@ -70,7 +68,7 @@ Effective Freeflow requires:
 
 The Interaction Contract and Skills are independent resolved switches. When Skills are disabled, the configured mode remains visible as resolved state but no Freeflow mode is effective.
 
-Repository-owned Output Router settings remain independent capability config and take effect only while top-level Freeflow is enabled. Existing deprecated Delegation Harness config follows its runtime compatibility path but is not part of new setup.
+Repository-owned Output Router settings remain independent capability config and take effect only while top-level Freeflow is enabled.
 
 ## Mutation Authority By State
 

@@ -122,7 +122,6 @@ The active plugin runtime ships the current skill set:
 - `mode-contract`
 - `decision-gate`
 - `output-router`
-- `delegation-harness` (deprecated compatibility)
 - `discuss`
 - `track-work`
 - `design-for-depth`
@@ -146,7 +145,7 @@ The active plugin runtime ships the current skill set:
 - `write-skill`
 - `evaluate-skill`
 
-The setup skill uses the public `setup-freeflow` name. It creates required shared `.freeflow/config.json`, may create optional personal `.freeflow/local.json` only when requested, preserves repo-owned host instruction files, and reports host runtime delivery separately from activation. Output Router remains explicit optional setup; deprecated Delegation Harness config is preserved but not offered.
+The setup skill uses the public `setup-freeflow` name. It creates required shared `.freeflow/config.json`, may create optional personal `.freeflow/local.json` only when requested, preserves repo-owned host instruction files, and reports host runtime delivery separately from activation. Output Router remains explicit optional setup.
 
 The current adaptive-workflow revisions are an Unverified candidate pending behavioral evaluation. `migration-work`, `finish-branch`, `release-work`, `launch-work`, and `simplify-code` are optional lifecycle skills; `tdd` is an optional execution method.
 

@@ -45,8 +45,9 @@ Setup reports automatic delivery as confirmed, unavailable, or unconfirmed and d
 The package contains 27 skill packages:
 
 - 25 active model/contributor skills;
-- Output Router as an optional separately gated runtime capability;
-- Delegation Harness as deprecated compatibility state, not offered by Setup or exposed through active model discovery.
+- Output Router as an optional separately gated runtime capability.
+
+Delegation Harness is retired from the live package and preserved only under `deprecated/delegation-harness/`.
 
 Canonical collaboration and execution skills are `discuss`, `track-work`, and `execute-work`. Pi retains `/discover` and `/execute-plan` as Pi-only compatibility aliases without restoring deleted skill identities.
 

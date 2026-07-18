@@ -76,11 +76,11 @@
     ],
     "target_name": "route-pressure",
     "runtime": {
-      "profile": "freeflow-kernel-workflow-v1",
+      "profile": "freeflow-interaction-workflow-v1",
       "kind": "git",
-      "revision": "d0bf6ee1972222a10e302a5c63f9eb3dc0ef8a82",
+      "revision": "66a680b",
       "path": ".",
-      "kernel": "skills/decision-gate/references/runtime-kernel.md",
+      "interaction_contract": "runtime/interaction-contract.md",
       "workflow": "skills/workflow/SKILL.md"
     }
   },

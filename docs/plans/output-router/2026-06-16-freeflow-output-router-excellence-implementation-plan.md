@@ -17,7 +17,7 @@ The first implementation target is the known broad-retrieval failure originally 
 
 ```text
 query: Sandbox Permissions / SandboxPermissions / Plain-language meaning
-expected: docs/codex-cli-agent-harness/passes/2026-06-12-pass-3-sandboxing-and-permissions.md:523-546
+expected: evals/fixtures/output-router-corpus/sandbox-permissions.md:523-546
 bad observed result: graphify-out/graph.html:67-71
 ```
 
@@ -49,8 +49,7 @@ Implementation evidence:
 
 Research benchmark oracle:
 
-- `docs/codex-cli-agent-harness/README.md`
-- `docs/codex-cli-agent-harness/passes/2026-06-12-pass-3-sandboxing-and-permissions.md`
+- `evals/fixtures/output-router-corpus/sandbox-permissions.md`
 
 ## Non-Goals
 
@@ -154,11 +153,11 @@ Purpose: make the known `graphify-out` failure impossible to forget.
 Red tests / fixtures:
 
 1. Add an isolated fixture-backed test for the exact Sandbox Permissions broad query. The fixture should include:
-   - a copied/minimal target markdown file at `docs/codex-cli-agent-harness/passes/2026-06-12-pass-3-sandboxing-and-permissions.md`,
+   - a copied/minimal target markdown file at `evals/fixtures/output-router-corpus/sandbox-permissions.md`,
    - a `graphify-out/graph.html` generated-artifact decoy with a huge repeated-token line,
    - no spec/plan files that contain the benchmark query text.
 2. Expected result:
-   - path is `docs/codex-cli-agent-harness/passes/2026-06-12-pass-3-sandboxing-and-permissions.md`,
+   - path is `evals/fixtures/output-router-corpus/sandbox-permissions.md`,
    - returned span is bounded,
    - excerpt includes `SandboxPermissions` and/or the `Plain-language meaning` block after expansion,
    - result does not select `graphify-out/graph.html`.
@@ -425,9 +424,9 @@ Purpose: start the flagship macro benchmark with a fast, gradeable stage.
 
 Implementation:
 
-1. Add structured Q&A fixtures derived from `docs/codex-cli-agent-harness/`.
+1. Add structured Q&A fixtures under `evals/fixtures/output-router-corpus/`.
 2. First fixture: Sandbox Permissions block.
-3. Use existing docs as oracle scaffolding.
+3. Use stable fixture documents as oracle scaffolding.
 4. Prefer upstream Codex source citations when source snapshots are available; otherwise mark source-citation comparison as skipped or unavailable.
 5. Compare native retrieval and Freeflow retrieval.
 6. Optional Graphify/Claude Context comparison only when configured/fresh enough.

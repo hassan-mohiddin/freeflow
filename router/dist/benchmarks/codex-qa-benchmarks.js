@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { performance } from "node:perf_hooks";
 import { approximateTokens, defaultJsonRunReportPath, escapeMarkdownTableCell as escapeTable, formatPercent, latencySummary, normalizeIterations, parseBenchmarkCliArgs, reductionPercent, writeBenchmarkReportPair, } from "./benchmark-harness.js";
 import { freeflowSearch } from "../tools/search.js";
-const SANDBOX_DOC_PATH = "docs/codex-cli-agent-harness/passes/2026-06-12-pass-3-sandboxing-and-permissions.md";
+const SANDBOX_DOC_PATH = "evals/fixtures/output-router-corpus/sandbox-permissions.md";
 const GENERATED_GRAPH_PATH = "graphify-out/graph.html";
 const SANDBOX_QUESTION = "Find the Sandbox Permissions section, report file/lines, and explain UseDefault, RequireEscalated, and WithAdditionalPermissions.";
 const SANDBOX_QUERY = "Sandbox Permissions SandboxPermissions UseDefault RequireEscalated WithAdditionalPermissions Plain-language meaning";
@@ -67,7 +67,7 @@ export function renderCodexQaBenchmarkReport(report) {
         "",
         "## Scope",
         "",
-        "Fast, deterministic Stage 1 macro benchmark for the Codex CLI agent-harness research corpus. The benchmark asks one structured Q&A question derived from the Sandbox Permissions pass and grades retrieval-backed answer quality, citation quality, evidence quality, context size, and latency.",
+        "Fast, deterministic Stage 1 macro benchmark for the neutral Output Router research corpus. The benchmark asks one structured Q&A question from the Sandbox Permissions fixture and grades retrieval-backed answer quality, citation quality, evidence quality, context size, and latency.",
         "",
         "The fixture uses existing Freeflow research docs as oracle scaffolding and includes a generated `graphify-out` decoy to preserve the original broad-retrieval failure shape. Upstream Codex source citation comparison is marked skipped until a source snapshot is explicitly supplied.",
         "",

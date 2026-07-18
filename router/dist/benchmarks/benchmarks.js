@@ -312,7 +312,7 @@ async function createMarkdownSectionFixture() {
 }
 async function createGeneratedArtifactDecoyFixture() {
     const repo = await createTempRepo({
-        "docs/codex-cli-agent-harness/passes/2026-06-12-pass-3-sandboxing-and-permissions.md": [
+        "evals/fixtures/output-router-corpus/sandbox-permissions.md": [
             "# Pass 3",
             "",
             "### Sandbox Permissions",
@@ -334,7 +334,7 @@ async function createGeneratedArtifactDecoyFixture() {
         title: "Generated-artifact decoy",
         query: "Sandbox Permissions SandboxPermissions Plain-language meaning",
         expected: {
-            path: "docs/codex-cli-agent-harness/passes/2026-06-12-pass-3-sandboxing-and-permissions.md",
+            path: "evals/fixtures/output-router-corpus/sandbox-permissions.md",
             lines: "3-7",
             requiredExcerpt: ["SandboxPermissions", "Plain-language meaning"],
         },

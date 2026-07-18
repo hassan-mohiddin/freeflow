@@ -10,7 +10,6 @@ const TOP_LEVEL_CONFIG_KEYS = new Set([
     "interactionContract",
     "skills",
     "outputRouter",
-    "delegationHarness",
     "observedRouting",
     "scriptTransform",
 ]);
@@ -145,7 +144,6 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
             sources: runtimeState.configSources,
             interactionContract: runtimeState.interactionContract,
             skills: runtimeState.skills,
-            delegationHarness: runtimeState.delegationHarness,
             outputRouter: {
                 enabled: effectiveFreeflowConfig.outputRouter.enabled,
                 profile: effectiveFreeflowConfig.outputRouter.profile,

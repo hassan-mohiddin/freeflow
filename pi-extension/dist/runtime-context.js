@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -81,8 +81,6 @@ export const OUTPUT_ROUTER_TOOL_NAMES = [
 	"freeflow_run",
 	"freeflow_batch",
 ];
-export const DELEGATION_HARNESS_ENV_FLAG =
-	"FREEFLOW_DELEGATION_HARNESS_ENABLED";
 export const WORKFLOW_BOOTSTRAP_MESSAGE_TYPE = "freeflow-workflow-bootstrap";
 let runtimeContextCache = null;
 let currentModeOverride = null;
@@ -92,45 +90,29 @@ async function loadRuntimeContext(capabilityState = undefined) {
 		capabilityState?.interactionContract?.effective === true;
 	const skillsEnabled = capabilityState?.skills?.effective === true;
 	const outputRouterEnabled = capabilityState?.outputRouter?.enabled === true;
-	const delegationHarnessEnabled =
-		capabilityState?.delegationHarness?.enabled === true;
-	const [
-		interactionContract,
-		workflowSkill,
-		outputRouterSkill,
-		delegationHarnessSkill,
-	] = await Promise.all([
-		interactionContractEnabled
-			? readFile(
-					new URL("../../runtime/interaction-contract.md", import.meta.url),
-					"utf8",
-				)
-			: Promise.resolve(null),
-		skillsEnabled
-			? readFile(
-					new URL("../../skills/workflow/SKILL.md", import.meta.url),
-					"utf8",
-				)
-			: Promise.resolve(null),
-		outputRouterEnabled
-			? readFile(
-					new URL("../../skills/output-router/SKILL.md", import.meta.url),
-					"utf8",
-				)
-			: Promise.resolve(null),
-		delegationHarnessEnabled
-			? readFile(
-					new URL("../../skills/delegation-harness/SKILL.md", import.meta.url),
-					"utf8",
-				)
-			: Promise.resolve(null),
-	]);
-	return {
-		interactionContract,
-		workflowSkill,
-		outputRouterSkill,
-		delegationHarnessSkill,
-	};
+	const [interactionContract, workflowSkill, outputRouterSkill] =
+		await Promise.all([
+			interactionContractEnabled
+				? readFile(
+						new URL("../../runtime/interaction-contract.md", import.meta.url),
+						"utf8",
+					)
+				: Promise.resolve(null),
+			skillsEnabled
+				? readFile(
+						new URL("../../skills/workflow/SKILL.md", import.meta.url),
+						"utf8",
+					)
+				: Promise.resolve(null),
+			outputRouterEnabled
+				? readFile(
+						new URL("../../skills/output-router/SKILL.md", import.meta.url),
+						"utf8",
+					)
+				: Promise.resolve(null),
+		]);
+
+	return { interactionContract, workflowSkill, outputRouterSkill };
 }
 function runtimeContextCacheSatisfies(capabilityState) {
 	if (!runtimeContextCache) {
@@ -151,12 +133,6 @@ function runtimeContextCacheSatisfies(capabilityState) {
 	if (
 		capabilityState?.outputRouter?.enabled === true &&
 		!runtimeContextCache.outputRouterSkill
-	) {
-		return false;
-	}
-	if (
-		capabilityState?.delegationHarness?.enabled === true &&
-		!runtimeContextCache.delegationHarnessSkill
 	) {
 		return false;
 	}
@@ -262,7 +238,6 @@ function validateFreeflowConfigShape(value) {
 		"interactionContract",
 		"skills",
 		"outputRouter",
-		"delegationHarness",
 		"observedRouting",
 		"scriptTransform",
 	]);
@@ -275,12 +250,7 @@ function validateFreeflowConfigShape(value) {
 	const coreError = validateCoreConfigFields(value);
 	if (coreError) return coreError;
 
-	for (const key of [
-		"outputRouter",
-		"delegationHarness",
-		"observedRouting",
-		"scriptTransform",
-	]) {
+	for (const key of ["outputRouter", "observedRouting", "scriptTransform"]) {
 		if (value[key] !== undefined && !isRecord(value[key])) {
 			return `${key} must be an object`;
 		}
@@ -458,10 +428,6 @@ export async function readCapabilityState(cwd) {
 	const interactionContractConfigEnabled =
 		layers.coreConfig.interactionContract;
 	const skillsConfigEnabled = layers.coreConfig.skills.enabled;
-	const delegationConfigEnabled =
-		isRecord(parsed.delegationHarness) &&
-		parsed.delegationHarness.enabled === true;
-	const delegationEnvEnabled = process.env[DELEGATION_HARNESS_ENV_FLAG] === "1";
 	const outputRouterConfigEnabled = normalized.config.outputRouter.enabled;
 	return {
 		configured: layers.configured,
@@ -489,99 +455,11 @@ export async function readCapabilityState(cwd) {
 			enabled: enabled && outputRouterConfigEnabled,
 			configEnabled: outputRouterConfigEnabled,
 		},
-		delegationHarness: {
-			enabled: enabled && (delegationConfigEnabled || delegationEnvEnabled),
-			configEnabled: delegationConfigEnabled,
-			envEnabled: delegationEnvEnabled,
-		},
 	};
 }
 
 export const readRuntimeState = readCapabilityState;
-async function writeCapabilityEnabled(cwd, capability, enabled) {
-	const parsed = await readFreeflowConfig(cwd);
-	const next =
-		parsed && typeof parsed === "object" && !Array.isArray(parsed)
-			? { ...parsed }
-			: {};
-	if (capability === "outputRouter") {
-		const current =
-			next.outputRouter &&
-			typeof next.outputRouter === "object" &&
-			!Array.isArray(next.outputRouter)
-				? next.outputRouter
-				: {};
-		next.outputRouter = { ...current, enabled };
-	} else if (capability === "delegationHarness") {
-		const current =
-			next.delegationHarness &&
-			typeof next.delegationHarness === "object" &&
-			!Array.isArray(next.delegationHarness)
-				? next.delegationHarness
-				: {};
-		next.delegationHarness = { ...current, enabled };
-	} else {
-		throw new Error(`Unsupported Freeflow capability: ${capability}`);
-	}
-	await mkdir(join(cwd, ".freeflow"), { recursive: true });
-	await writeFile(
-		join(cwd, ".freeflow/config.json"),
-		`${JSON.stringify(next, null, 2)}\n`,
-		"utf8",
-	);
-	return next;
-}
-function capabilityCommandUsage(command) {
-	return `Usage: /${command}, /${command} settings, or /${command} status`;
-}
-function capabilityLabel(capability) {
-	return capability === "outputRouter" ? "Output router" : "Delegation harness";
-}
-function capabilityEnabledFromState(state, capability) {
-	return capability === "outputRouter"
-		? state.outputRouter.enabled
-		: state.delegationHarness.enabled;
-}
-export async function handleCapabilityCommand(capability, args, ctx) {
-	const command =
-		capability === "outputRouter" ? "output-router" : "delegation-harness";
-	const action = (args ?? "status").trim().toLowerCase() || "status";
-	const state = await readCapabilityState(ctx.cwd);
-	if (["status", "enabled", "disabled"].includes(action)) {
-		const enabled = capabilityEnabledFromState(state, capability);
-		ctx.ui.notify(
-			`${capabilityLabel(capability)} is ${enabled ? "enabled" : "disabled"}. ${capabilityCommandUsage(command)}.`,
-			"info",
-		);
-		return { changed: false, enabled };
-	}
-	if (
-		["enable", "on", "true"].includes(action) ||
-		["disable", "off", "false"].includes(action)
-	) {
-		const enabled = ["enable", "on", "true"].includes(action);
-		await writeCapabilityEnabled(ctx.cwd, capability, enabled);
-		ctx.ui.notify(
-			`${capabilityLabel(capability)} ${enabled ? "enabled" : "disabled"}. Reloading Freeflow runtime...`,
-			"info",
-		);
-		if (typeof ctx.reload === "function") {
-			await ctx.reload();
-			return { changed: true, enabled, reloaded: true };
-		}
-		ctx.ui.notify(
-			`Run /reload for ${capabilityLabel(capability).toLowerCase()} changes to fully apply.`,
-			"warning",
-		);
-		return { changed: true, enabled, reloaded: false };
-	}
-	ctx.ui.notify(capabilityCommandUsage(command), "warning");
-	return {
-		changed: false,
-		enabled: capabilityEnabledFromState(state, capability),
-		error: "invalid_action",
-	};
-}
+
 export async function readOutputRouterConfig(cwd) {
 	const layers = await readFreeflowConfigLayers(cwd);
 	const parsed = layers.repository.valid ? layers.repository.parsed : {};
@@ -695,6 +573,7 @@ export function setModeStatus(ctx, modeState, capabilityState = undefined) {
 		ctx.ui.setStatus("freeflow", "freeflow: off");
 		return;
 	}
+
 	const active = [];
 	if (capabilityState?.interactionContract.effective) {
 		active.push("interaction");
@@ -706,9 +585,6 @@ export function setModeStatus(ctx, modeState, capabilityState = undefined) {
 	}
 	if (capabilityState?.outputRouter.enabled) {
 		active.push("router");
-	}
-	if (capabilityState?.delegationHarness.enabled) {
-		active.push("delegation");
 	}
 	ctx.ui.setStatus(
 		"freeflow",
@@ -769,15 +645,11 @@ function capabilityContext(capabilityState) {
 	const outputRouter = capabilityState.outputRouter.enabled
 		? "enabled"
 		: "disabled";
-	const delegationHarness = capabilityState.delegationHarness.enabled
-		? "enabled"
-		: "disabled";
 	return `## Freeflow Capabilities
 
 - Interaction contract: ${interactionContract}. Configure with \`/freeflow settings\`; inspect with \`/freeflow status\`.
 - Skills: ${skills}. Configure with \`/freeflow settings\`; inspect with \`/freeflow status\`.
 - Output router: ${outputRouter}. Configure with \`/freeflow settings\` or \`/output-router\`; inspect with \`/output-router status\`.
-- Delegation harness: ${delegationHarness}. Configure with \`/freeflow settings\` or \`/delegation-harness\`; inspect with \`/delegation-harness status\`.
 
 Disabled capabilities are named only for status/config awareness. Capability-specific instructions and tools are active only while that capability is enabled.`;
 }
@@ -785,8 +657,7 @@ function hasModelFacingCapability(capabilityState) {
 	return (
 		capabilityState.interactionContract.effective ||
 		capabilityState.skills.effective ||
-		capabilityState.outputRouter.enabled ||
-		capabilityState.delegationHarness.enabled
+		capabilityState.outputRouter.enabled
 	);
 }
 function activeModeContext(modeState) {
@@ -823,13 +694,13 @@ function controlPlaneContext(modeState, capabilityState) {
 	return `# Freeflow Control Plane
 
 Freeflow is enabled for this repo, but no model-facing capabilities are enabled.
-These lines are status/config awareness only; do not apply Freeflow workflow, output-router, or delegation behavior.
+These lines are status/config awareness only; do not apply Freeflow workflow or output-router behavior.
 
 ${inactiveModeContext(modeState)}
 
 ${capabilityContext(capabilityState)}
 
-Use \`/freeflow settings\` to enable the Interaction Contract, Skills, Output Router, or Delegation Harness. The read-only \`freeflow_status\` diagnostic may be available so the model can answer setup/status questions.`;
+Use \`/freeflow settings\` to enable the Interaction Contract, Skills, or Output Router. The read-only \`freeflow_status\` diagnostic may be available so the model can answer setup/status questions.`;
 }
 export function runtimeContext(
 	modeState,
@@ -840,16 +711,19 @@ export function runtimeContext(
 	if (!capabilityState.configured) {
 		return "";
 	}
+
 	if (!capabilityState.enabled) {
 		return `# Freeflow Disabled
 
-Freeflow is disabled by \`.freeflow/config.json\` for this repo. Do not apply the Freeflow Interaction Contract, workflow, output-router, or delegation behavior unless the user re-enables Freeflow with \`/freeflow enable\` or \`/freeflow settings\`.
+Freeflow is disabled by \`.freeflow/config.json\` for this repo. Do not apply the Freeflow Interaction Contract, workflow, or output-router behavior unless the user re-enables Freeflow with \`/freeflow enable\` or \`/freeflow settings\`.
 
 These instructions are context-loading only. They do not override user instructions, repo instructions, or host safety and approval policy.`;
 	}
+
 	if (!hasModelFacingCapability(capabilityState)) {
 		return controlPlaneContext(modeState, capabilityState);
 	}
+
 	const modeText = capabilityState.skills.effective
 		? activeModeContext(modeState)
 		: inactiveModeContext(modeState);
@@ -860,9 +734,7 @@ These instructions are context-loading only. They do not override user instructi
 		capabilityState.outputRouter.enabled && routerConfigResult.config.enabled
 			? `\n\n${outputRouterContext(modeState, freeflowContext, routerConfigResult, capabilityState)}`
 			: "";
-	const delegationText = capabilityState.delegationHarness.enabled
-		? `\n\n## Loaded Delegation Harness Skill\n\n\`\`\`md\n${freeflowContext.delegationHarnessSkill.trim()}\n\`\`\``
-		: "";
+
 	return `# Freeflow Runtime Context
 
 Freeflow Pi extension loaded this before the agent turn.
@@ -871,7 +743,7 @@ These instructions are context-loading only. They do not override user instructi
 
 ${modeText}
 
-${capabilityContext(capabilityState)}${interactionContractText}${routerText}${delegationText}
+${capabilityContext(capabilityState)}${interactionContractText}${routerText}
 
 This Pi extension loads enabled runtime context before every agent turn and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.`;
 }

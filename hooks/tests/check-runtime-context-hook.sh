@@ -69,8 +69,7 @@ for expected in \
 	'Current Freeflow default mode: `workflow`.' \
 	'Interaction Contract: enabled' \
 	'Skills: enabled' \
-	'Output router: disabled' \
-	'Delegation harness: disabled'; do
+	'Output router: disabled'; do
 	assert_contains "$codex_output" "$expected" "Codex config-only context"
 done
 for excluded_heading in \
@@ -80,8 +79,7 @@ for excluded_heading in \
 	"## Loaded Workflow Skill" \
 	"## Loaded Decision Gate Skill" \
 	"## Discovery-light" \
-	"## Loaded Output Router Skill" \
-	"## Loaded Delegation Harness Skill"; do
+	"## Loaded Output Router Skill"; do
 	assert_not_contains "$codex_output" "$excluded_heading" "default context"
 done
 workflow_bootstrap_count="$(grep -Fo '# Freeflow Workflow Bootstrap' <<<"$codex_output" | wc -l | tr -d ' ')"
@@ -191,11 +189,10 @@ rm -rf "$router_dir"
 
 all_dir="$(mktemp -d)"
 mkdir -p "$all_dir/.freeflow"
-printf '{"defaultMode":"strict-workflow","outputRouter":{"enabled":true},"delegationHarness":{"enabled":true}}\n' >"$all_dir/.freeflow/config.json"
+printf '{"defaultMode":"strict-workflow","outputRouter":{"enabled":true}}\n' >"$all_dir/.freeflow/config.json"
 all_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$all_dir" | node "$HOOK_PATH" SessionStart)"
 assert_contains "$all_output" "# Freeflow Interaction Contract" "all-capabilities context"
 assert_contains "$all_output" "## Loaded Output Router Skill" "all-capabilities context"
-assert_contains "$all_output" "## Loaded Delegation Harness Skill" "all-capabilities context"
 assert_contains "$all_output" 'Current Freeflow default mode: `strict-workflow`.' "all-capabilities context"
 rm -rf "$all_dir"
 

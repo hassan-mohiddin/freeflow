@@ -36,7 +36,7 @@ personal override -> repository value -> built-in default
 
 A Pi session mode override sits above configured mode for the current session only. An invalid existing local core layer fails closed instead of silently inheriting repository values.
 
-The Interaction Contract, Skills, and top-level Freeflow switch resolve independently. A mode remains resolved but dormant while Skills are ineffective. Repository-owned Output Router configuration remains separate from local core overrides. Deprecated Delegation Harness configuration may be preserved for compatibility but Setup does not offer or add it.
+The Interaction Contract, Skills, and top-level Freeflow switch resolve independently. A mode remains resolved but dormant while Skills are ineffective. Repository-owned Output Router configuration remains separate from local core overrides.
 
 Do not store task state, active slices, Plans, current session mode, file inventories, or generated workflow instructions in config.
 
@@ -80,8 +80,7 @@ The Pi extension reads both config layers before agent turns. It:
 - restores temporary mode from Pi session entries;
 - refreshes state at session start and compaction;
 - dynamically exposes 25 model/contributor skills;
-- loads Output Router context and tools only when effective;
-- preserves deprecated Delegation Harness compatibility without exposing it as a model skill.
+- loads Output Router context and tools only when effective.
 
 `/freeflow settings` edits personal core overrides. `/freeflow settings repo` edits shared repository settings. `/freeflow mode` owns temporary session mode.
 
@@ -170,10 +169,11 @@ Completion requires fresh active-agent verification, one supported self-review, 
 
 ## Current Package Shape
 
-The package contains 27 skill packages:
+The package contains 26 skill packages:
 
 - 25 active model/contributor skills;
-- Output Router as an optional separately gated capability;
-- Delegation Harness as deprecated compatibility state.
+- Output Router as an optional separately gated capability.
+
+Retired Delegation Harness implementation and evidence remain under `deprecated/delegation-harness/` and are not part of runtime delivery.
 
 The current adaptive candidate remains Unverified pending behavioral evaluation. Context-loading and deterministic runtime tests establish structure and delivery boundaries, not natural activation or retained behavior.

@@ -13,14 +13,14 @@ const marker = {
 test("composition runtime matches the production envelope, suppresses active duplicates, and reloads after compaction", async (t) => {
   const root = await mkdtemp(resolve(tmpdir(), "freeflow-composition-runtime-"));
   t.after(() => rm(root, { recursive: true, force: true }));
-  const kernelPath = resolve(root, "kernel.md");
+  const interactionContractPath = resolve(root, "interaction-contract.md");
   const workflowPath = resolve(root, "workflow.md");
   const evidencePath = resolve(root, "runtime-evidence.jsonl");
-  await writeFile(kernelPath, "# Freeflow Runtime Kernel\n\nKernel rule.\n");
+  await writeFile(interactionContractPath, "# Freeflow Interaction Contract\n\nInteraction rule.\n");
   await writeFile(workflowPath, "---\nname: workflow\ndescription: test\n---\n\n# Workflow\n\nWorkflow rule.\n");
 
   const handlers = new Map();
-  createCompositionRuntimeExtension({ kernelPath, workflowPath, evidencePath })({ on(event, handler) { handlers.set(event, handler); } });
+  createCompositionRuntimeExtension({ interactionContractPath, workflowPath, evidencePath })({ on(event, handler) { handlers.set(event, handler); } });
   const before = handlers.get("before_agent_start");
   let activeEntries = [];
   const persistedEntries = [marker];
@@ -33,7 +33,7 @@ test("composition runtime matches the production envelope, suppresses active dup
 
   const first = await before({ systemPrompt: "base" }, ctx);
   assert.ok(first.systemPrompt.startsWith("base\n\n# Freeflow Runtime Context"));
-  assert.match(first.systemPrompt, /# Freeflow Runtime Kernel/);
+  assert.match(first.systemPrompt, /# Freeflow Interaction Contract/);
   assert.deepEqual(first.message, {
     customType: "freeflow-workflow-bootstrap",
     content: "# Freeflow Workflow Bootstrap\n\n---\nname: workflow\ndescription: test\n---\n\n# Workflow\n\nWorkflow rule.",
@@ -55,6 +55,6 @@ test("composition runtime matches the production envelope, suppresses active dup
   assert.match(records[0].workflow_envelope_sha256, /^[a-f0-9]{64}$/);
   assert.equal(records[1].workflow_envelope_sha256, null);
   assert.equal(records[2].workflow_envelope_sha256, records[0].workflow_envelope_sha256);
-  assert.equal(new Set(records.map((record) => record.kernel_sha256)).size, 1);
+  assert.equal(new Set(records.map((record) => record.interaction_contract_sha256)).size, 1);
   assert.equal(new Set(records.map((record) => record.workflow_sha256)).size, 1);
 });

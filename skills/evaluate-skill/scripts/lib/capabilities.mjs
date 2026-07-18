@@ -7,7 +7,7 @@ import { startRpcClient } from "./rpc-client.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const compositionRuntimeExtension = resolve(here, "..", "pi-composition-runtime.mjs");
-const compositionKernel = resolve(here, "..", "..", "..", "decision-gate", "references", "runtime-kernel.md");
+const compositionInteractionContract = resolve(here, "..", "..", "..", "..", "runtime", "interaction-contract.md");
 const compositionWorkflow = resolve(here, "..", "..", "..", "workflow", "SKILL.md");
 
 function run(command, args, options = {}) {
@@ -96,7 +96,7 @@ export async function probePiRpc(base = probePi(), dependencies = {}) {
         ...process.env,
         PI_CODING_AGENT_DIR: configDir,
         PI_TELEMETRY: "0",
-        FREEFLOW_EVAL_RUNTIME_KERNEL: compositionKernel,
+        FREEFLOW_EVAL_RUNTIME_INTERACTION_CONTRACT: compositionInteractionContract,
         FREEFLOW_EVAL_RUNTIME_WORKFLOW: compositionWorkflow,
         FREEFLOW_EVAL_RUNTIME_EVIDENCE: resolve(root, "composition-runtime-evidence.jsonl"),
       },

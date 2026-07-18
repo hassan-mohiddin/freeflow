@@ -11,8 +11,6 @@ Freeflow tools are the safe first choice for unknown-size, exploratory, repo-wid
 
 Output Router does not classify the task. Workflow, Decision Gate, or Discover decides whether to answer, ask, discover, plan, or stop. Output Router starts after that route is clear.
 
-In delegated work, child/scout/reviewer/verifier panes should use routed evidence first for broad repo/search/test/log/doc evidence. Child transcripts are recoverable evidence, not the handoff. Child results and parent reports should carry compact summaries plus recoverable paths or output IDs.
-
 ## First Decision
 
 Ask what kind of data you need:

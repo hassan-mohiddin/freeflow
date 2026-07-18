@@ -176,20 +176,20 @@ test("composition preflight fingerprints every declared component and enforces s
     ],
     composition: {
       base_stack: [
-        { name: "execute-plan", kind: "working-tree", path: "skills/execute-plan", resources: ["SKILL.md"] },
+        { name: "execute-work", kind: "working-tree", path: "skills/execute-work", resources: ["SKILL.md"] },
         { name: "tdd", kind: "working-tree", path: "skills/tdd", resources: ["SKILL.md", "references/test-design.md"] },
       ],
       target_name: "design-for-depth",
       runtime: {
-        profile: "freeflow-kernel-workflow-v1",
+        profile: "freeflow-interaction-workflow-v1",
         kind: "working-tree",
         path: ".",
-        kernel: "skills/decision-gate/references/runtime-kernel.md",
+        interaction_contract: "runtime/interaction-contract.md",
         workflow: "skills/workflow/SKILL.md",
       },
     },
     execution: { host: "pi", mode: "rpc-scripted", tools: ["read"] },
-    assertions: [{ id: "route", type: "semantic", rubric: "Routes backward.", turn_ids: turns.map((turn) => turn.id) }],
+    assertions: [{ id: "route", type: "semantic", rubric: "Re-enters the narrowest owning activity.", turn_ids: turns.map((turn) => turn.id) }],
     source_path: source.source_path,
   };
   const cases = [...workspace.cases, Object.freeze(compositionCase)];
@@ -223,10 +223,10 @@ test("composition preflight fingerprints every declared component and enforces s
   const result = await buildEvaluationPlan({ ...workspace, cases }, options, { capabilitiesFor: async () => capabilities });
   assert.equal(result.status, "planned");
   assert.equal(result.summary.scripted_user_turns, 4);
-  assert.deepEqual(result.summary.composition.skills, ["execute-plan", "tdd", "design-for-depth"]);
-  assert.equal(result.summary.composition.runtime_profile, "freeflow-kernel-workflow-v1");
-  assert.deepEqual(result.plan_inputs.identities.composition.base_stack.map((item) => item.name), ["execute-plan", "tdd"]);
-  assert.match(result.plan_inputs.identities.composition.runtime.kernel.sha256, /^[a-f0-9]{64}$/);
+  assert.deepEqual(result.summary.composition.skills, ["execute-work", "tdd", "design-for-depth"]);
+  assert.equal(result.summary.composition.runtime_profile, "freeflow-interaction-workflow-v1");
+  assert.deepEqual(result.plan_inputs.identities.composition.base_stack.map((item) => item.name), ["execute-work", "tdd"]);
+  assert.match(result.plan_inputs.identities.composition.runtime.interaction_contract.sha256, /^[a-f0-9]{64}$/);
   assert.match(result.plan_inputs.identities.composition.runtime.workflow.sha256, /^[a-f0-9]{64}$/);
   assert.match(result.plan_inputs.identities.composition.runtime.implementation.evaluator_extension.sha256, /^[a-f0-9]{64}$/);
   assert.match(result.plan_inputs.identities.composition.runtime.implementation.production_helper.sha256, /^[a-f0-9]{64}$/);

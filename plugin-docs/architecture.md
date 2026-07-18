@@ -13,7 +13,7 @@ freeflow/
   hooks/
   pi-extension/
   router/
-  delegation/
+  deprecated/
   command-surface.json
   plugin-docs/
   docs/
@@ -37,7 +37,7 @@ Pi session mode override
 -> built-in default
 ```
 
-An invalid existing personal layer fails closed. Repository-owned Output Router configuration is not copied into the personal layer. Deprecated Delegation Harness configuration may be preserved for compatibility but Setup does not offer or add it.
+An invalid existing personal layer fails closed. Repository-owned Output Router configuration is not copied into the personal layer.
 
 Configuration establishes activation state; it does not prove host runtime delivery.
 
@@ -72,8 +72,7 @@ The Pi extension:
 - restores temporary session mode from Pi session entries;
 - dynamically exposes 25 model/contributor skills;
 - registers canonical direct commands and two Pi-only compatibility aliases;
-- activates Output Router tools and context only when effective;
-- preserves deprecated Delegation Harness compatibility without exposing it as a model skill.
+- activates Output Router tools and context only when effective.
 
 `/freeflow settings` edits personal core overrides. `/freeflow settings repo` edits shared repository settings. `/freeflow mode` changes only temporary Pi session mode.
 
@@ -87,7 +86,7 @@ A skill body is complete on first read with guaranteed context. Conditional dept
 
 See [Skill routing](skill-routing.md) for the typed owner, route, and reference adjacency map.
 
-The active model/contributor surface has 25 skills. Output Router is an optional runtime capability. Delegation Harness is deprecated compatibility state. The package therefore still contains 27 skill packages without treating all 27 as one model-discovery list.
+The active model/contributor surface has 25 skills. Output Router is an optional runtime capability, so the package contains 26 skill packages without treating all 26 as one model-discovery list.
 
 ## Review And Verification Topology
 
@@ -110,7 +109,7 @@ After compaction, summarization, clear, resume, or session navigation, Workflow 
 
 Output Router owns routed retrieval, noisy command execution, observed routing, vault recovery, and optional script transformation. Its detailed runtime and evidence contract lives in [Output Router](output-router.md).
 
-Delegation Harness remains packaged for compatibility but is deprecated in the active workflow. New setup and skill routing do not promote it.
+Delegation Harness is retired from the live package. Its implementation and historical evidence remain under `deprecated/delegation-harness/`.
 
 ## Deferred Enforcement
 

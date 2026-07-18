@@ -3,15 +3,15 @@ import { dirname } from "node:path";
 import { runtimeContext, workflowBootstrapMessage, WORKFLOW_BOOTSTRAP_MESSAGE_TYPE } from "../../../pi-extension/dist/runtime-context.js";
 import { sha256, stableJson } from "./lib/hash.mjs";
 
-export const COMPOSITION_RUNTIME_PROFILE = "freeflow-kernel-workflow-v1";
+export const COMPOSITION_RUNTIME_PROFILE = "freeflow-interaction-workflow-v1";
 
 const modeState = { defaultMode: "workflow", currentMode: null, effectiveMode: "workflow" };
 const capabilityState = {
   configured: true,
   enabled: true,
+  interactionContract: { enabled: true, effective: true },
   skills: { enabled: true, effective: true },
   outputRouter: { enabled: false },
-  delegationHarness: { enabled: false },
 };
 const routerConfigResult = { config: { enabled: false } };
 
@@ -34,14 +34,14 @@ async function appendEvidence(path, record) {
 }
 
 export function createCompositionRuntimeExtension({
-  kernelPath = process.env.FREEFLOW_EVAL_RUNTIME_KERNEL,
+  interactionContractPath = process.env.FREEFLOW_EVAL_RUNTIME_INTERACTION_CONTRACT,
   workflowPath = process.env.FREEFLOW_EVAL_RUNTIME_WORKFLOW,
   evidencePath = process.env.FREEFLOW_EVAL_RUNTIME_EVIDENCE,
 } = {}) {
-  if (!kernelPath || !workflowPath) throw new Error("Composition runtime requires declared kernel and Workflow paths");
+  if (!interactionContractPath || !workflowPath) throw new Error("Composition runtime requires declared Interaction Contract and Workflow paths");
   let resourcesPromise;
   const resources = () => {
-    resourcesPromise ??= Promise.all([readFile(kernelPath, "utf8"), readFile(workflowPath, "utf8")]).then(([runtimeKernel, workflowSkill]) => ({ runtimeKernel, workflowSkill }));
+    resourcesPromise ??= Promise.all([readFile(interactionContractPath, "utf8"), readFile(workflowPath, "utf8")]).then(([interactionContract, workflowSkill]) => ({ interactionContract, workflowSkill }));
     return resourcesPromise;
   };
 
@@ -59,7 +59,7 @@ export function createCompositionRuntimeExtension({
       await appendEvidence(evidencePath, {
         type: "freeflow-composition-runtime-delivery",
         profile: COMPOSITION_RUNTIME_PROFILE,
-        kernel_sha256: sha256(freeflowContext.runtimeKernel),
+        interaction_contract_sha256: sha256(freeflowContext.interactionContract),
         workflow_sha256: sha256(freeflowContext.workflowSkill),
         runtime_context_sha256: sha256(contextText),
         system_prompt_sha256: sha256(systemPrompt),

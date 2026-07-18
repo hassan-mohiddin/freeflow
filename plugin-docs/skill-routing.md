@@ -53,12 +53,12 @@ Workflow chooses the current owner. A linked skill does not run automatically, a
 | [`write-skill`](../skills/write-skill/SKILL.md) | Agent-first skill creation and revision | `evaluate-skill` | [`activation-boundaries`](../skills/write-skill/references/activation-boundaries.md), [`agent-first-instructions`](../skills/write-skill/references/agent-first-instructions.md), [`progressive-disclosure`](../skills/write-skill/references/progressive-disclosure.md), [`development-loop`](../skills/write-skill/references/development-loop.md), [`skill-author`](../skills/write-skill/scripts/skill-author.mjs) |
 | [`evaluate-skill`](../skills/evaluate-skill/SKILL.md) | Behavioral evidence and external readiness claims | `write-skill` | [`evaluation-architecture`](../skills/evaluate-skill/references/evaluation-architecture.md), [`eval-patterns`](../skills/evaluate-skill/references/eval-patterns.md), [`grading-priority`](../skills/evaluate-skill/references/grading-priority.md), [`grading-and-revision`](../skills/evaluate-skill/references/grading-and-revision.md), [`portable-execution`](../skills/evaluate-skill/references/portable-execution.md), [`token-efficient-execution`](../skills/evaluate-skill/references/token-efficient-execution.md), [`skill-eval`](../skills/evaluate-skill/scripts/skill-eval.mjs) |
 
-## Capability And Compatibility Packages
+## Optional Capability And Retired Archive
 
-| Package | Runtime role | Delivery |
+| Package or archive | Role | Delivery |
 | --- | --- | --- |
 | [`output-router`](../skills/output-router/SKILL.md) | Optional routed-evidence capability | Disabled by default; loaded only when repository config and top-level Freeflow make it effective. Setup touches it only after an explicit request. |
-| [`delegation-harness`](../skills/delegation-harness/SKILL.md) | Deprecated compatibility package | Preserved for existing configuration and packaging compatibility; not offered by Setup or exposed through active model-skill discovery. |
+| [`delegation-harness`](../deprecated/delegation-harness/README.md) | Retired implementation and historical evidence | Excluded from the live package, Setup, commands, runtime context, and active model-skill discovery. |
 
 ## Reading The Graph
 
@@ -70,4 +70,4 @@ The table is an adjacency map, not a call graph. Runtime behavior still depends 
 4. the selected skill deciding whether a linked route or reference applies;
 5. evidence returning to Workflow for the next route or Supported Exit.
 
-Run `node scripts/validation/check-skill-routing-doc.mjs` after changing skill dependencies. It compares all 25 active rows with declared sibling routes and direct resource links. Update this map only when ownership, a declared route, or a reference boundary changes—not after ordinary implementation progress.
+Run `node scripts/validation/check-skill-routing-doc.mjs` after changing skill dependencies. It compares all 25 active rows with declared sibling routes and direct resource links and confirms the separately classified Output Router capability. Update this map only when ownership, a declared route, or a reference boundary changes—not after ordinary implementation progress.

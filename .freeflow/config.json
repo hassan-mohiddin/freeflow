@@ -5,6 +5,9 @@
       "generatedPathGlobs": [
         "graphify-out/**"
       ]
+    },
+    "scriptTransform": {
+      "enabled": true
     }
   },
   "skills": {

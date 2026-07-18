@@ -60,7 +60,7 @@ export function validateCompositionRuntimeEvidence(runtime, expected, records, e
   for (const [index, record] of records.entries()) {
     const first = index === 0;
     if (record.profile !== runtime.profile
-      || record.kernel_sha256 !== runtime.kernel_identity.sha256
+      || record.interaction_contract_sha256 !== runtime.interaction_contract_identity.sha256
       || record.workflow_sha256 !== runtime.workflow_identity.sha256
       || record.runtime_context_sha256 !== expected.runtime_context_sha256
       || !/^[a-f0-9]{64}$/.test(record.system_prompt_sha256 ?? "")
@@ -139,14 +139,14 @@ async function executeVariant(workspace, plan, variant, evidenceDir, id, depende
         const hash = await hashDirectory(materialized.runtime.path);
         if (hash !== plan.composition.runtime.snapshot_hash) throw new Error("Materialized composition runtime differs from approved resources");
         compositionHashesBefore.runtime = hash;
-        const kernelPath = resolve(materialized.runtime.path, materialized.runtime.kernel);
+        const interactionContractPath = resolve(materialized.runtime.path, materialized.runtime.interaction_contract);
         const workflowPath = resolve(materialized.runtime.path, materialized.runtime.workflow);
-        const freeflowContext = { runtimeKernel: await readFile(kernelPath, "utf8"), workflowSkill: await readFile(workflowPath, "utf8") };
+        const freeflowContext = { interactionContract: await readFile(interactionContractPath, "utf8"), workflowSkill: await readFile(workflowPath, "utf8") };
         const expectedEnvelope = buildCompositionWorkflowEnvelope(freeflowContext.workflowSkill);
         runtimeDelivery = {
           extension: plan.composition.runtime.extension_path,
           environment: {
-            FREEFLOW_EVAL_RUNTIME_KERNEL: kernelPath,
+            FREEFLOW_EVAL_RUNTIME_INTERACTION_CONTRACT: interactionContractPath,
             FREEFLOW_EVAL_RUNTIME_WORKFLOW: workflowPath,
             FREEFLOW_EVAL_RUNTIME_EVIDENCE: resolve(configRoot, "composition-runtime-evidence.jsonl"),
           },

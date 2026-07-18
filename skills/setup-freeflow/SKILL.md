@@ -68,8 +68,6 @@ If local config is invalid, report that it blocks effective runtime. Repair or r
 
 Do not ask an automatic capabilities question. Configure Output Router only when explicitly requested, using [Output Router setup](references/output-router-setup.md). Preserve valid existing capability config during idempotent setup.
 
-Setup does not offer or add deprecated Delegation Harness config. Preserve an existing valid section unless the user separately authorizes its removal or replacement.
-
 ## Establish Same-Turn Context
 
 After successful verification, apply newly effective context directly for the remainder of the setup turn:

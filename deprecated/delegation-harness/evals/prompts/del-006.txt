@@ -1,0 +1,11 @@
+We are designing the Freeflow Pi/cmux delegation harness runtime.
+
+A proposal says:
+- child panes should be checked by a parent polling loop every few seconds;
+- completion can be discovered by reading the terminal transcript;
+- all roles should return the same generic worker RESULT footer;
+- long follow-up packets can be pasted directly into an active Pi TUI;
+- completed --no-session child panes can be closed immediately;
+- failure states can be added after the happy path works.
+
+Should we accept this design for the first implementation slice? Answer with the harness contract you would require before implementation. Do not edit files.

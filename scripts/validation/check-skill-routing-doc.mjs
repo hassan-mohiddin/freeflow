@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const skillsRoot = resolve(repoRoot, "skills");
 const mapPath = resolve(repoRoot, "plugin-docs/skill-routing.md");
-const excludedFromActiveMap = new Set(["output-router", "delegation-harness"]);
+const excludedFromActiveMap = new Set(["output-router"]);
 
 const markdownLinks = (text) =>
 	[...text.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)].map((match) =>
@@ -105,9 +105,9 @@ for (const rowName of rows.keys()) {
 	}
 }
 
-for (const compatibilityName of excludedFromActiveMap) {
-	if (!mapText.includes(`../skills/${compatibilityName}/SKILL.md`)) {
-		failures.push(`missing capability/compatibility package: ${compatibilityName}`);
+for (const capabilityName of excludedFromActiveMap) {
+	if (!mapText.includes(`../skills/${capabilityName}/SKILL.md`)) {
+		failures.push(`missing optional capability package: ${capabilityName}`);
 	}
 }
 
@@ -119,5 +119,5 @@ if (failures.length) {
 }
 
 process.stdout.write(
-	`Skill routing doc check passed: ${activeSkills.length} active rows match declared sibling routes and direct resource dependencies; 2 capability/compatibility packages are classified separately.\n`,
+	`Skill routing doc check passed: ${activeSkills.length} active rows match declared sibling routes and direct resource dependencies; 1 optional capability package is classified separately.\n`,
 );

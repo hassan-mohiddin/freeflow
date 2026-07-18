@@ -17,10 +17,8 @@
   "type": "module",
   "scripts": {
     "build:router": "tsc -p router/tsconfig.json",
-    "build:delegation": "tsc -p delegation/tsconfig.json",
     "build:pi-extension": "tsc -p pi-extension/tsconfig.json",
-    "build": "npm run build:router && npm run build:delegation && npm run build:pi-extension",
-    "test:delegation": "npm run build:delegation && node --test $(find delegation/tests -name '*.test.js' | sort)",
+    "build": "npm run build:router && npm run build:pi-extension",
     "test:pi-extension": "npm run build && node --test $(find pi-extension/tests -name '*.test.js' | sort)",
     "test:router": "npm run build:router && node --test $(find router/tests -name '*.test.js' | sort)",
     "bench:router": "npm run build:router && node router/dist/benchmarks/benchmarks.js",
@@ -65,7 +63,6 @@
     "command-surface.json",
     "hooks/**",
     "pi-extension/**",
-    "delegation/dist/**",
     "router/dist/**",
     "runtime/**",
     "skills/**"

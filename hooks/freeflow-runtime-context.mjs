@@ -50,7 +50,6 @@ function loadRuntimeContext(options = {}) {
   const includeInteractionContract = options.interactionContract === true;
   const includeSkills = options.skills === true;
   const includeOutputRouter = options.outputRouter === true;
-  const includeDelegationHarness = options.delegationHarness === true;
   const interactionContract = includeInteractionContract
     ? readText(path.join(PLUGIN_ROOT, "runtime", "interaction-contract.md"))
     : null;
@@ -60,25 +59,16 @@ function loadRuntimeContext(options = {}) {
   const outputRouterSkill = includeOutputRouter
     ? readText(path.join(PLUGIN_ROOT, "skills", "output-router", "SKILL.md"))
     : null;
-  const delegationHarnessSkill = includeDelegationHarness
-    ? readText(path.join(PLUGIN_ROOT, "skills", "delegation-harness", "SKILL.md"))
-    : null;
 
   if (
     (includeInteractionContract && !interactionContract) ||
     (includeSkills && !workflowSkill) ||
-    (includeOutputRouter && !outputRouterSkill) ||
-    (includeDelegationHarness && !delegationHarnessSkill)
+    (includeOutputRouter && !outputRouterSkill)
   ) {
     throw new Error("Freeflow runtime context files are missing.");
   }
 
-  return {
-    interactionContract,
-    workflowSkill,
-    outputRouterSkill,
-    delegationHarnessSkill,
-  };
+  return { interactionContract, workflowSkill, outputRouterSkill };
 }
 
 function readConfig(root) {
@@ -114,8 +104,6 @@ function readConfig(root) {
     sources: core.sources,
     outputRouterEnabled:
       enabled && repositoryConfig?.outputRouter?.enabled === true,
-    delegationHarnessEnabled:
-      enabled && repositoryConfig?.delegationHarness?.enabled === true,
   };
 }
 
@@ -181,7 +169,6 @@ function isValidSetupConfig(value) {
     "interactionContract",
     "skills",
     "outputRouter",
-    "delegationHarness",
     "observedRouting",
     "scriptTransform",
   ]);
@@ -198,7 +185,6 @@ function isValidSetupConfig(value) {
     "outputRouter",
     "observedRouting",
     "scriptTransform",
-    "delegationHarness",
   ]) {
     if (Object.prototype.hasOwnProperty.call(value, key) && !isRecord(value[key])) {
       return `${key} must be an object`;
@@ -336,7 +322,6 @@ function capabilityStatus(config) {
     `- Interaction Contract: ${config.interactionContractEnabled ? "enabled" : "disabled"}.`,
     `- Skills: ${config.skillsEnabled ? "enabled" : "disabled"}.`,
     `- Output router: ${config.outputRouterEnabled ? "enabled" : "disabled"}.`,
-    `- Delegation harness: ${config.delegationHarnessEnabled ? "enabled" : "disabled"}.`,
     "",
     "Capability-specific instructions are active only while that capability is enabled.",
   ];
@@ -355,21 +340,15 @@ function buildContext(input) {
       "# Freeflow Disabled",
       "",
       `Freeflow is configured for this repo, but effective \`enabled\` is false from ${setup.config.sources.enabled}.`,
-      "Do not inject the Interaction Contract, Freeflow workflow skills, output routing, delegation guidance, or setup pressure while disabled.",
+      "Do not inject the Interaction Contract, Freeflow workflow skills, output routing, or setup pressure while disabled.",
       "Re-enable only if the user asks; use /freeflow settings for a personal override or /freeflow settings repo for the shared repository default in Pi.",
     ].join("\n");
   }
 
-  const {
-    interactionContract,
-    workflowSkill,
-    outputRouterSkill,
-    delegationHarnessSkill,
-  } = loadRuntimeContext({
+  const { interactionContract, workflowSkill, outputRouterSkill } = loadRuntimeContext({
     interactionContract: setup.config.interactionContractEnabled,
     skills: setup.config.skillsEnabled,
     outputRouter: setup.config.outputRouterEnabled,
-    delegationHarness: setup.config.delegationHarnessEnabled,
   });
   const interactionSection = setup.config.interactionContractEnabled
     ? ["", interactionContract.trim()]
@@ -391,16 +370,6 @@ function buildContext(input) {
         "```",
       ]
     : [];
-  const delegationHarnessSection = setup.config.delegationHarnessEnabled
-    ? [
-        "",
-        "## Loaded Delegation Harness Skill",
-        "```md",
-        delegationHarnessSkill.trim(),
-        "```",
-      ]
-    : [];
-
   return [
     "# Freeflow Runtime Context",
     "",
@@ -414,7 +383,6 @@ function buildContext(input) {
     ...interactionSection,
     ...skillSections,
     ...outputRouterSection,
-    ...delegationHarnessSection,
   ].join("\n");
 }
 

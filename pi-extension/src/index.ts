@@ -1,14 +1,7 @@
 import { handleNativeToolSafetyNet } from "./native-safety-net.js";
 import { handleObservedToolRouting } from "./observed-tool-routing.js";
 import { registerRouterTools } from "./router-tools.js";
-import { handleDelegationHarnessCommand, handleFreeflowCommand, handleOutputRouterCommand } from "./settings-ui.js";
-import { registerDelegation } from "./delegation/index.js";
-import {
-  appendDelegatedRuntimeContext,
-  handleDelegatedAssistantMessageEnd,
-  handleDelegatedToolCall,
-  handleDelegationSessionStart,
-} from "./delegation/runtime.js";
+import { handleFreeflowCommand, handleOutputRouterCommand } from "./settings-ui.js";
 import {
   CONTRIBUTOR_COMMANDS,
   WORKFLOW_COMMANDS,
@@ -29,10 +22,6 @@ import {
   skillPrompt,
   notifyRouterConfigWarnings,
 } from "./runtime-context.js";
-
-function isDelegationToolName(name: string): boolean {
-  return name.startsWith("delegate_");
-}
 
 function isOutputRouterToolName(name: string): boolean {
   return OUTPUT_ROUTER_TOOL_NAMES.includes(name);
@@ -60,10 +49,6 @@ async function applyCapabilityToolVisibility(pi: any, ctx: any, capabilityState 
     else active.delete(toolName);
   }
 
-  for (const toolName of allToolNames.filter(isDelegationToolName)) {
-    if (state.delegationHarness.enabled) active.add(toolName);
-    else active.delete(toolName);
-  }
 
   pi.setActiveTools([...active]);
 }
@@ -127,7 +112,6 @@ async function sendSkillCommand(pi: any, ctx: any, skill: string, args: string |
 
 export default function freeflow(pi) {
   registerRouterTools(pi);
-  registerDelegation(pi);
 
   pi.on("resources_discover", async (event, ctx) => {
     const cwd = ctx?.cwd ?? event?.cwd ?? process.cwd();
@@ -152,9 +136,6 @@ export default function freeflow(pi) {
     setModeStatus(ctx, modeState, capabilityState);
     notifyRouterConfigWarnings(ctx, routerConfigResult);
     await applyCapabilityToolVisibility(pi, ctx, capabilityState);
-    if (capabilityState.delegationHarness.enabled) {
-      await handleDelegationSessionStart(pi, ctx);
-    }
   });
 
   pi.on("session_compact", async (_event, ctx) => {
@@ -167,9 +148,6 @@ export default function freeflow(pi) {
     setModeStatus(ctx, modeState, capabilityState);
     notifyRouterConfigWarnings(ctx, routerConfigResult);
     await applyCapabilityToolVisibility(pi, ctx, capabilityState);
-    if (capabilityState.delegationHarness.enabled) {
-      await handleDelegationSessionStart(pi, ctx);
-    }
   });
 
   pi.on("before_agent_start", async (event, ctx) => {
@@ -187,12 +165,7 @@ export default function freeflow(pi) {
     const systemPrompt = freeflowRuntimeContext
       ? `${event.systemPrompt}\n\n${freeflowRuntimeContext}`
       : event.systemPrompt;
-    return {
-      message: workflowMessage,
-      systemPrompt: capabilityState.delegationHarness.enabled
-        ? await appendDelegatedRuntimeContext(pi, event, ctx, systemPrompt)
-        : systemPrompt,
-    };
+    return { message: workflowMessage, systemPrompt };
   });
 
   pi.on("context", async (event, ctx) => {
@@ -216,22 +189,9 @@ export default function freeflow(pi) {
     if (!capabilityState.outputRouter.enabled && isOutputRouterToolName(toolName)) {
       return disabledToolCall(toolName, "output-router");
     }
-    if (!capabilityState.delegationHarness.enabled && isDelegationToolName(toolName)) {
-      return disabledToolCall(toolName, "delegation-harness");
-    }
-    if (capabilityState.delegationHarness.enabled) {
-      return handleDelegatedToolCall(event, ctx, pi);
-    }
     return undefined;
   });
 
-  pi.on("message_end", async (event, ctx) => {
-    const capabilityState = await readCapabilityState(ctx.cwd);
-    if (!capabilityState.delegationHarness.enabled) {
-      return undefined;
-    }
-    return handleDelegatedAssistantMessageEnd(event, ctx);
-  });
 
   pi.on("tool_result", async (event, ctx) => {
     const capabilityState = await readCapabilityState(ctx.cwd);
@@ -283,14 +243,5 @@ export default function freeflow(pi) {
     },
   });
 
-  pi.registerCommand("delegation-harness", {
-    description: "Open Freeflow Delegation Harness settings or print compact status",
-    getArgumentCompletions: capabilityCompletions,
-    handler: async (args, ctx) => {
-      await handleDelegationHarnessCommand(args, ctx, async () => {
-        await applyLiveCapabilityState(pi, ctx);
-      });
-    },
-  });
 
 }

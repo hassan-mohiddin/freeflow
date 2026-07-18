@@ -128,20 +128,20 @@ function compositionCase(overrides = {}) {
     ],
     composition: {
       base_stack: [
-        { name: "execute-plan", kind: "working-tree", path: "skills/execute-plan", resources: ["SKILL.md"] },
+        { name: "execute-work", kind: "working-tree", path: "skills/execute-work", resources: ["SKILL.md"] },
       ],
       target_name: "design-for-depth",
       runtime: {
-        profile: "freeflow-kernel-workflow-v1",
+        profile: "freeflow-interaction-workflow-v1",
         kind: "working-tree",
         path: ".",
-        kernel: "skills/decision-gate/references/runtime-kernel.md",
+        interaction_contract: "runtime/interaction-contract.md",
         workflow: "skills/workflow/SKILL.md",
       },
     },
     execution: { host: "pi", mode: "rpc-scripted", tools: ["read"] },
     turns,
-    assertions: [{ id: "route", type: "semantic", rubric: "Routes backward after repeated seam pressure.", turn_ids: turns.map((turn) => turn.id) }],
+    assertions: [{ id: "route", type: "semantic", rubric: "Re-enters the narrowest owning activity after repeated seam pressure.", turn_ids: turns.map((turn) => turn.id) }],
     ...overrides,
   };
 }
@@ -161,8 +161,8 @@ test("composition cases require one shared base, one target, exact runtime, and 
   assert.throws(() => validateCase(compositionCase({ composition: {
     ...compositionCase().composition,
     base_stack: [
-      { name: "execute-plan", kind: "working-tree", path: "skills/execute-plan", resources: ["SKILL.md"] },
-      { name: "execute-plan", kind: "working-tree", path: "skills/execute-plan", resources: ["SKILL.md"] },
+      { name: "execute-work", kind: "working-tree", path: "skills/execute-work", resources: ["SKILL.md"] },
+      { name: "execute-work", kind: "working-tree", path: "skills/execute-work", resources: ["SKILL.md"] },
     ],
   } })), /duplicate component name/);
   assert.throws(() => validateCase(compositionCase({ composition: {
@@ -171,11 +171,11 @@ test("composition cases require one shared base, one target, exact runtime, and 
   } })), /target_name collides/);
   assert.throws(() => validateCase(compositionCase({ composition: {
     ...compositionCase().composition,
-    base_stack: [{ name: "execute-plan", kind: "none", path: "skills/execute-plan", resources: ["SKILL.md"] }],
+    base_stack: [{ name: "execute-work", kind: "none", path: "skills/execute-work", resources: ["SKILL.md"] }],
   } })), /unknown component kind/);
   assert.throws(() => validateCase(compositionCase({ composition: {
     ...compositionCase().composition,
-    base_stack: [{ name: "execute-plan", kind: "git", path: "skills/execute-plan", resources: ["SKILL.md"] }],
+    base_stack: [{ name: "execute-work", kind: "git", path: "skills/execute-work", resources: ["SKILL.md"] }],
   } })), /revision/);
   assert.throws(() => validateCase(compositionCase({ execution: { host: "none", mode: "deterministic", tools: [] } })), /composition execution requires Pi/);
   assert.throws(() => validateCase(compositionCase({ turns: [{ id: "turn-1", prompt: "Only one." }] })), /two to four turns/);
@@ -188,7 +188,7 @@ test("composition cases require one shared base, one target, exact runtime, and 
     ...compositionCase().composition,
     runtime: { ...compositionCase().composition.runtime, kind: "git", revision: undefined },
   } })), /runtime.revision/);
-  assert.equal(validateCase(compositionCase({ assertions: [{ id: "read", type: "component_read", component: "execute-plan", turn_id: "turn-1" }] })).assertions[0].component, "execute-plan");
+  assert.equal(validateCase(compositionCase({ assertions: [{ id: "read", type: "component_read", component: "execute-work", turn_id: "turn-1" }] })).assertions[0].component, "execute-work");
   assert.throws(() => validateCase(compositionCase({ assertions: [{ id: "read", type: "component_read", component: "missing", turn_id: "turn-1" }] })), /unknown composition component/);
   assert.throws(() => validateCase(rpcCase({ assertions: [{ id: "read", type: "component_read", component: "sample-skill", turn_id: "turn-1" }] })), /require composition/);
 });

@@ -11,6 +11,18 @@ import { hashFile } from "../../../skills/evaluate-skill/scripts/lib/hash.mjs";
 import { removeWritableTree } from "../../../skills/evaluate-skill/scripts/lib/materialize.mjs";
 import { loadSkillWorkspace } from "../../../skills/evaluate-skill/scripts/lib/workspace.mjs";
 
+function parseJson(text, label) {
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    assert.fail(`Invalid JSON in ${label}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+async function readJson(path) {
+  return parseJson(await readFile(path, "utf8"), path);
+}
+
 function successfulSubject(cost = 0) {
   return {
     invocation: { command: "pi", args: ["prompt"] },
@@ -81,14 +93,14 @@ test("composition evidence validation fails closed on missing skill or runtime d
   assert.throws(() => validateCompositionSkillReads(composition, { target: true }, "candidate"), /missing or ambiguous/);
 
   const runtime = {
-    profile: "freeflow-kernel-workflow-v1",
-    kernel_identity: { sha256: "a".repeat(64) },
+    profile: "freeflow-interaction-workflow-v1",
+    interaction_contract_identity: { sha256: "a".repeat(64) },
     workflow_identity: { sha256: "b".repeat(64) },
   };
   const expected = { runtime_context_sha256: "c".repeat(64), workflow_envelope_sha256: "d".repeat(64) };
   const record = (delivered, index) => ({
     profile: runtime.profile,
-    kernel_sha256: runtime.kernel_identity.sha256,
+    interaction_contract_sha256: runtime.interaction_contract_identity.sha256,
     workflow_sha256: runtime.workflow_identity.sha256,
     runtime_context_sha256: expected.runtime_context_sha256,
     system_prompt_sha256: "e".repeat(64),
@@ -99,7 +111,7 @@ test("composition evidence validation fails closed on missing skill or runtime d
   });
   assert.doesNotThrow(() => validateCompositionRuntimeEvidence(runtime, expected, [record(true, 0), record(false, 1)], 2, "candidate"));
   assert.throws(() => validateCompositionRuntimeEvidence(runtime, expected, [record(true, 0)], 2, "candidate"), /delivery count/);
-  assert.throws(() => validateCompositionRuntimeEvidence(runtime, expected, [record(true, 0), { ...record(false, 1), kernel_sha256: "f".repeat(64) }], 2, "candidate"), /approved profile/);
+  assert.throws(() => validateCompositionRuntimeEvidence(runtime, expected, [record(true, 0), { ...record(false, 1), interaction_contract_sha256: "f".repeat(64) }], 2, "candidate"), /approved profile/);
   assert.throws(() => validateCompositionRuntimeEvidence(runtime, expected, [record(false, 0), record(false, 1)], 2, "candidate"), /approved profile/);
 
   const root = await mkdtemp(resolve(tmpdir(), "freeflow-runtime-implementation-"));
@@ -125,7 +137,7 @@ test("host-free evaluation atomically publishes one complete result", async (t) 
   const outcome = await executeEvaluation(workspace, plan);
   assert.equal(outcome.status, "complete");
   assert.equal(outcome.decision.case_verdict, "pass");
-  const result = JSON.parse(await readFile(resolve(root, outcome.result), "utf8"));
+  const result = await readJson(resolve(root, outcome.result));
   assert.equal(result.evaluation_kind, "single");
   assert.equal(result.decision.case_verdict, "pass");
   assert.equal(result.plan_fingerprint, plan.fingerprint);
@@ -197,12 +209,12 @@ test("fixed-script RPC evaluation publishes frozen intermediate workspace eviden
   assert.equal(outcome.decision.case_verdict, "pass");
   const bundle = resolve(root, outcome.result, "..");
   const transcriptText = await readFile(resolve(bundle, "evidence", "subject", "transcript.json"), "utf8");
-  const transcript = JSON.parse(transcriptText);
+  const transcript = parseJson(transcriptText, "transcript.json");
   assert.deepEqual(transcript.turns[0].workspace.changed_paths, []);
   assert.deepEqual(transcript.turns[1].workspace.changed_paths, ["authorized.txt"]);
-  const result = JSON.parse(await readFile(resolve(bundle, "result.json"), "utf8"));
+  const result = await readJson(resolve(bundle, "result.json"));
   assert.equal(result.variants[0].assertions.every((assertion) => assertion.verdict === "pass"), true);
-  const metadata = JSON.parse(await readFile(resolve(bundle, "evidence", "subject", "metadata.json"), "utf8"));
+  const metadata = await readJson(resolve(bundle, "evidence", "subject", "metadata.json"));
   assert.equal(metadata.execution_mode, "rpc-scripted");
   assert.equal(metadata.adapter_version, "pi-rpc-scripted-v1");
   assert.equal(metadata.process.protocol_failed, false);
@@ -215,7 +227,7 @@ test("four-turn composition evaluation materializes the declared stack and publi
   await mkdir(resolve(root, "skills", "base-skill"), { recursive: true });
   await writeFile(resolve(root, "skills", "base-skill", "SKILL.md"), "---\nname: base-skill\ndescription: Base.\n---\n\n# Base\n");
   await mkdir(resolve(root, "runtime"), { recursive: true });
-  await writeFile(resolve(root, "runtime", "kernel.md"), "# Freeflow Runtime Kernel\n");
+  await writeFile(resolve(root, "runtime", "interaction-contract.md"), "# Freeflow Interaction Contract\n");
   await writeFile(resolve(root, "runtime", "workflow.md"), "---\nname: workflow\ndescription: test\n---\n\n# Workflow\n");
   await mkdir(resolve(root, "pi-extension", "dist"), { recursive: true });
   await writeFile(resolve(root, "pi-extension", "dist", "runtime-context.js"), "export const runtimeContext = () => '';\n");
@@ -231,7 +243,7 @@ test("four-turn composition evaluation materializes the declared stack and publi
     composition: {
       base_stack: [{ name: "base-skill", kind: "working-tree", path: "skills/base-skill", resources: ["SKILL.md"] }],
       target_name: "sample-skill",
-      runtime: { profile: "freeflow-kernel-workflow-v1", kind: "working-tree", path: ".", kernel: "runtime/kernel.md", workflow: "runtime/workflow.md" },
+      runtime: { profile: "freeflow-interaction-workflow-v1", kind: "working-tree", path: ".", interaction_contract: "runtime/interaction-contract.md", workflow: "runtime/workflow.md" },
     },
     assertions: turns.map((turn) => ({ id: `unchanged-${turn.id}`, type: "changed_paths", equals: [], turn_id: turn.id })),
   };
@@ -267,12 +279,12 @@ test("four-turn composition evaluation materializes the declared stack and publi
     runRpcSubject: async ({ turns: declaredTurns, skillSnapshots, runtimeExtension, runtimeEnvironment, runtimeExpected, readRoots, configDir, onTurnSettled }) => {
       assert.deepEqual(skillSnapshots.map((item) => item.name), ["base-skill", "sample-skill"]);
       assert.match(runtimeExtension, /pi-composition-runtime\.mjs$/);
-      assert.ok(readRoots.includes(runtimeEnvironment.FREEFLOW_EVAL_RUNTIME_KERNEL.replace(/\/runtime\/kernel\.md$/, "")) || readRoots.some((path) => runtimeEnvironment.FREEFLOW_EVAL_RUNTIME_KERNEL.startsWith(path)));
+      assert.ok(readRoots.includes(runtimeEnvironment.FREEFLOW_EVAL_RUNTIME_INTERACTION_CONTRACT.replace(/\/runtime\/interaction-contract\.md$/, "")) || readRoots.some((path) => runtimeEnvironment.FREEFLOW_EVAL_RUNTIME_INTERACTION_CONTRACT.startsWith(path)));
       await mkdir(configDir, { recursive: true });
       await writeFile(runtimeEnvironment.FREEFLOW_EVAL_RUNTIME_EVIDENCE, `${declaredTurns.map((_, index) => JSON.stringify({
         type: "freeflow-composition-runtime-delivery",
-        profile: "freeflow-kernel-workflow-v1",
-        kernel_sha256: plan.composition.runtime.kernel_identity.sha256,
+        profile: "freeflow-interaction-workflow-v1",
+        interaction_contract_sha256: plan.composition.runtime.interaction_contract_identity.sha256,
         workflow_sha256: plan.composition.runtime.workflow_identity.sha256,
         runtime_context_sha256: runtimeExpected.runtime_context_sha256,
         system_prompt_sha256: "b".repeat(64),
@@ -301,12 +313,12 @@ test("four-turn composition evaluation materializes the declared stack and publi
   });
   assert.equal(outcome.status, "complete", JSON.stringify(outcome.failure));
   const bundle = resolve(root, outcome.result, "..");
-  const result = JSON.parse(await readFile(resolve(bundle, "result.json"), "utf8"));
+  const result = await readJson(resolve(bundle, "result.json"));
   assert.deepEqual(result.identities.composition.base_stack.map((item) => item.name), ["base-skill"]);
   assert.equal(result.identities.composition.target_name, "sample-skill");
-  const metadata = JSON.parse(await readFile(resolve(bundle, "evidence", "candidate", "metadata.json"), "utf8"));
+  const metadata = await readJson(resolve(bundle, "evidence", "candidate", "metadata.json"));
   assert.deepEqual(metadata.composition.skills, ["base-skill", "sample-skill"]);
-  assert.equal(metadata.composition.runtime.profile, "freeflow-kernel-workflow-v1");
+  assert.equal(metadata.composition.runtime.profile, "freeflow-interaction-workflow-v1");
   assert.deepEqual(metadata.activation.skill_reads, { "base-skill": false, "sample-skill": false });
 });
 
@@ -368,9 +380,9 @@ test("fake Codex subject composes through objective grading with unavailable who
   assert.equal(outcome.usage.provider_requests, null);
   assert.equal(outcome.usage.cost_usd, null);
   const bundle = resolve(root, outcome.result, "..");
-  const result = JSON.parse(await readFile(resolve(bundle, "result.json"), "utf8"));
+  const result = await readJson(resolve(bundle, "result.json"));
   assert.deepEqual(result.unavailable.slice().sort(), ["usage.cost_usd", "usage.provider_requests"]);
-  const metadata = JSON.parse(await readFile(resolve(bundle, "evidence", "subject", "metadata.json"), "utf8"));
+  const metadata = await readJson(resolve(bundle, "evidence", "subject", "metadata.json"));
   assert.equal(metadata.host, "codex");
   assert.equal(metadata.adapter_version, "codex-exec-diagnostic-v1");
   assert.equal(JSON.stringify(metadata.invocation).includes(codexRuntimeWorkspace), false);
@@ -429,7 +441,7 @@ test("Codex failure cleans isolated auth and config while publishing diagnostics
   assert.equal(outcome.usage.cost_usd, null);
   await assert.rejects(() => access(isolatedConfigDir));
   const diagnosticRoot = resolve(root, outcome.diagnostic, "..");
-  const metadata = JSON.parse(await readFile(resolve(diagnosticRoot, "evidence", "subject", "metadata.json"), "utf8"));
+  const metadata = await readJson(resolve(diagnosticRoot, "evidence", "subject", "metadata.json"));
   assert.equal(metadata.process.timed_out, true);
   await assert.rejects(() => access(resolve(diagnosticRoot, "result.json")));
 });
@@ -475,7 +487,7 @@ test("RPC protocol failure publishes diagnostics while preserving settled usage"
   assert.equal(outcome.usage.cost_usd, 0.2);
   assert.match(outcome.failure.primary, /unusable evidence/i);
   const diagnostic = resolve(root, outcome.diagnostic, "..");
-  const metadata = JSON.parse(await readFile(resolve(diagnostic, "evidence", "subject", "metadata.json"), "utf8"));
+  const metadata = await readJson(resolve(diagnostic, "evidence", "subject", "metadata.json"));
   assert.equal(metadata.process.protocol_failed, true);
   await assert.rejects(() => access(resolve(diagnostic, "result.json")));
 });

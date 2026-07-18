@@ -157,7 +157,7 @@ async function resolveComposition(repoRoot, evalCase, variants) {
   let runtime = null;
   if (evalCase.composition.runtime) {
     const source = evalCase.composition.runtime;
-    const resources = [source.kernel, source.workflow];
+    const resources = [source.interaction_contract, source.workflow];
     const resolved = await resolveDeclaredSource(repoRoot, source, "composition.runtime", resources);
     const extensionPath = resolve(scriptsRoot, "pi-composition-runtime.mjs");
     const evaluatorRoot = resolve(scriptsRoot, "..", "..", "..");
@@ -166,7 +166,7 @@ async function resolveComposition(repoRoot, evalCase, variants) {
       ...resolved,
       profile: source.profile,
       extension_path: extensionPath,
-      kernel_identity: { path: source.kernel, sha256: fileHash(resolved.resource_identity, source.kernel, "runtime kernel") },
+      interaction_contract_identity: { path: source.interaction_contract, sha256: fileHash(resolved.resource_identity, source.interaction_contract, "Interaction Contract") },
       workflow_identity: { path: source.workflow, sha256: fileHash(resolved.resource_identity, source.workflow, "runtime workflow") },
       implementation_identity: {
         evaluator_extension: { path: relative(evaluatorRoot, extensionPath).split(sep).join("/"), absolute_path: extensionPath, sha256: await hashFile(extensionPath) },
@@ -205,7 +205,7 @@ function compositionIdentity(composition) {
       path: composition.runtime.path,
       revision: composition.runtime.revision ?? null,
       identity: composition.runtime.resource_identity,
-      kernel: composition.runtime.kernel_identity,
+      interaction_contract: composition.runtime.interaction_contract_identity,
       workflow: composition.runtime.workflow_identity,
       implementation: Object.fromEntries(Object.entries(composition.runtime.implementation_identity).map(([name, identity]) => [name, { path: identity.path, sha256: identity.sha256 }])),
     } : null,

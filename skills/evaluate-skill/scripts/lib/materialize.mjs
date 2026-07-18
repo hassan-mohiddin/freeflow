@@ -76,7 +76,7 @@ export async function materializeCompositionVariant(repoRoot, composition, targe
       profile: composition.runtime.profile,
       path,
       resources: composition.runtime.resources,
-      kernel: composition.runtime.kernel,
+      interaction_contract: composition.runtime.interaction_contract,
       workflow: composition.runtime.workflow,
     };
   }

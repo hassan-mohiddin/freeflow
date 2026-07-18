@@ -6,13 +6,6 @@ export interface FreeflowBatchStepInput {
     kind: BatchStepKind;
     input: Record<string, unknown>;
 }
-export interface DelegationBatchOperationMetadata {
-    readsHarnessState: boolean;
-    writesEvidence: boolean;
-    mutatesHarnessState: boolean;
-    mutatesRepoState: boolean;
-    parallelSafety: "safe" | "conditional" | "denied";
-}
 export interface FreeflowBatchOptions {
     sessionId: string;
     steps: readonly FreeflowBatchStepInput[];
@@ -25,12 +18,5 @@ export interface FreeflowBatchOptions {
     scriptSandboxAdapters?: readonly ScriptSandboxAdapter[];
     storagePolicy?: StoragePolicyMode;
     queries?: readonly string[];
-    delegationExecutor?: (step: {
-        kind: BatchStepKind;
-        input: Record<string, unknown>;
-        id: string;
-        index: number;
-    }) => Promise<unknown>;
 }
-export declare const DELEGATION_BATCH_OPERATION_METADATA: Record<string, DelegationBatchOperationMetadata>;
 export declare function freeflowBatch(options: FreeflowBatchOptions, runner: HostCommandRunner): Promise<BatchRoutedResult>;
