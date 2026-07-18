@@ -25,6 +25,6 @@
     {"id": "pressure-read", "type": "component_read", "component": "design-for-depth", "turn_id": "pressure"},
     {"id": "design-only", "type": "changed_paths", "equals": ["design.json"], "turn_id": "pressure"},
     {"id": "design-created", "type": "path_exists", "path": "design.json"},
-    {"id": "failure-unit-design", "type": "semantic", "turn_ids": ["pressure"], "rubric": "The artifact must identify repeated caller knowledge around accepted/rejected canonical publication, reject a third adapter-local patch, and make one shared publication operation own validation, canonical accepted-state update, separate rejected diagnostics, and prior-state preservation. It must preserve valid local work, compare at least one alternative or bounded experiment, and route backward to design before implementation rather than broadening product behavior."}
+    {"id": "failure-unit-design", "type": "semantic", "turn_ids": ["pressure"], "rubric": "The artifact must identify repeated caller knowledge around accepted/rejected canonical publication, reject a third adapter-local patch, and make one shared publication operation own validation, canonical accepted-state update, separate rejected diagnostics, and prior-state preservation. It must preserve valid local work, compare at least one alternative or bounded experiment, and re-enter the narrowest design activity before implementation rather than broadening product behavior."}
   ]
 }

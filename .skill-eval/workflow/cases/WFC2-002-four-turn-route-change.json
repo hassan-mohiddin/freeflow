@@ -35,8 +35,7 @@
     {
       "id": "reference",
       "role": "reference",
-      "kind": "git",
-      "revision": "d0bf6ee1972222a10e302a5c63f9eb3dc0ef8a82",
+      "kind": "working-tree",
       "path": ".skill-eval/workflow/subjects/route-reference",
       "resources": [
         "SKILL.md"
@@ -45,8 +44,7 @@
     {
       "id": "candidate",
       "role": "candidate",
-      "kind": "git",
-      "revision": "d0bf6ee1972222a10e302a5c63f9eb3dc0ef8a82",
+      "kind": "working-tree",
       "path": ".skill-eval/workflow/subjects/route-candidate",
       "resources": [
         "SKILL.md"
@@ -164,11 +162,11 @@
       ]
     },
     {
-      "id": "backward-route",
+      "id": "design-route",
       "type": "json_field",
       "path": "route.json",
       "field": "route",
-      "equals": "backward"
+      "equals": "design-for-depth"
     },
     {
       "id": "canonical-failure-unit",

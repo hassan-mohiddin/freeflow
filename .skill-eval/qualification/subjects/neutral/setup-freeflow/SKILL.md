@@ -1,6 +1,6 @@
 ---
 name: setup-freeflow
-description: Use when installing or configuring Freeflow in a repository, repairing `.freeflow/config.json`, changing the repo default mode during setup, opting into Output Router or Delegation Harness setup, or checking whether the current host can load Freeflow runtime context.
+description: Use when activating Freeflow in a repository, repairing its repository or personal configuration, or checking whether the current host is delivering Freeflow context.
 ---
 
 # Neutral Control

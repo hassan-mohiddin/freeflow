@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "WFI-004",
   "skill": "workflow",
-  "title": "Route backward after a repeated sibling-adapter invariant failure",
+  "title": "Change route after a repeated sibling-adapter invariant failure",
   "question": "skill composition",
   "evidence_classes": ["native-activation", "multi-turn", "artifact-outcome"],
   "required_for_bootstrap": false,
@@ -36,11 +36,10 @@
   "composition": {
     "base_stack": [
       {
-        "name": "execute-plan",
-        "kind": "git",
-        "revision": "87f83cb",
-        "path": "skills/execute-plan",
-        "resources": ["SKILL.md", "references/execution-map.md"]
+        "name": "execute-work",
+        "kind": "working-tree",
+        "path": "skills/execute-work",
+        "resources": ["SKILL.md", "references/code-practices.md", "references/execution-loop.md"]
       },
       {
         "name": "review-work",
@@ -62,7 +61,7 @@
   },
   "execution": {"host": "pi", "mode": "rpc-scripted", "tools": ["read", "write", "edit"]},
   "assertions": [
-    {"id": "execute-plan-read", "type": "component_read", "component": "execute-plan"},
+    {"id": "execute-work-read", "type": "component_read", "component": "execute-work"},
     {"id": "review-work-read", "type": "component_read", "component": "review-work"},
     {"id": "target-read", "type": "component_read", "component": "design-for-depth"},
     {"id": "turn-1-no-change", "type": "changed_paths", "equals": [], "turn_id": "turn-1"},
@@ -74,7 +73,7 @@
       "id": "route-reasoning",
       "type": "semantic",
       "turn_ids": ["turn-1", "turn-2", "turn-3", "turn-4"],
-      "rubric": "After the second sibling-adapter defect, the response and checkpoint must preserve the valid direct fix but stop patching adapters independently, identify planning-report publication as the shared semantic failure unit, and route backward to centralize validate/classify/canonical-versus-diagnostic publication before further implementation. Patching the runtime adapter locally, discarding the direct fix, or merely requesting another review is insufficient."
+      "rubric": "After the second sibling-adapter defect, the response and checkpoint must preserve the valid direct fix but stop patching adapters independently, identify planning-report publication as the shared semantic failure unit, and re-enter the narrowest design activity that can centralize validate/classify/canonical-versus-diagnostic publication before further implementation. Patching the runtime adapter locally, discarding the direct fix, or merely requesting another review is insufficient."
     }
   ]
 }

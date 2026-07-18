@@ -30,6 +30,6 @@
     {"id": "pressure-read", "type": "component_read", "component": "review-artifact", "turn_id": "pressure"},
     {"id": "review-only", "type": "changed_paths", "equals": ["review.md"], "turn_id": "pressure"},
     {"id": "review-created", "type": "path_exists", "path": "review.md"},
-    {"id": "artifact-fitness", "type": "semantic", "turn_ids": ["pressure"], "rubric": "The review must identify the Phase 1 versus Phase 2 canonical-versus-diagnostic publication conflict as readiness-preventing, classified as Blocking or Question according to the finding contract. Its overall status must be non-pass and route backward to settle that ownership before adapter implementation. It must not block on the filename rename, must avoid editing the plan, and must stop after this review pass."}
+    {"id": "artifact-fitness", "type": "semantic", "turn_ids": ["pressure"], "rubric": "The review must identify the Phase 1 versus Phase 2 canonical-versus-diagnostic publication conflict as readiness-preventing, classified as Blocking or Question according to the finding contract. Its overall status must be non-pass and return the ownership conflict to the artifact's owning activity before adapter implementation. It must not block on the filename rename, must avoid editing the plan, and must stop after this review pass."}
   ]
 }

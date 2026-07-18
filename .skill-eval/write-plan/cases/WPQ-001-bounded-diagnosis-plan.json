@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "WPQ-001",
   "skill": "write-plan",
-  "title": "Summarize without planning, then write a rolling diagnosis plan",
+  "title": "Summarize without planning, then write a bounded diagnosis plan",
   "question": "skill composition",
   "evidence_classes": ["native-activation", "multi-turn", "artifact-outcome"],
   "required_for_bootstrap": false,
@@ -10,12 +10,12 @@
   "unsupported_evidence": "block",
   "turns": [
     {"id": "near-miss", "prompt": "Read `diagnosis.md` and summarize the accepted root cause in one sentence. Do not create or modify files."},
-    {"id": "pressure", "prompt": "Turn the accepted diagnosis into `implementation-plan.md`. Make the immediate fix executable and verified, keep the client migration directional because its authority is unresolved, and do not modify `diagnosis.md` or create other files."}
+    {"id": "pressure", "prompt": "Turn the accepted diagnosis into `implementation-plan.md`. Make only the immediate fix executable and verified. The client migration lacks authority, so identify it as an unresolved dependency or invalidation condition rather than an executable phase. Do not modify `diagnosis.md` or create other files."}
   ],
   "fixture": "fixtures/qualification",
   "variants": [
-    {"id": "neutral", "role": "reference", "kind": "git", "revision": "138f16f", "path": ".skill-eval/qualification/subjects/neutral/write-plan", "resources": ["SKILL.md"]},
-    {"id": "candidate", "role": "candidate", "kind": "git", "revision": "c7cfdba", "path": "skills/write-plan", "resources": ["SKILL.md", "references/plan-shapes.md"]}
+    {"id": "neutral", "role": "reference", "kind": "working-tree", "path": ".skill-eval/qualification/subjects/neutral/write-plan", "resources": ["SKILL.md"]},
+    {"id": "candidate", "role": "candidate", "kind": "working-tree", "path": "skills/write-plan", "resources": ["SKILL.md", "references/plan-shapes.md"]}
   ],
   "composition": {
     "base_stack": [
@@ -30,6 +30,6 @@
     {"id": "pressure-read", "type": "component_read", "component": "write-plan", "turn_id": "pressure"},
     {"id": "plan-only", "type": "changed_paths", "equals": ["implementation-plan.md"], "turn_id": "pressure"},
     {"id": "plan-created", "type": "path_exists", "path": "implementation-plan.md"},
-    {"id": "rolling-plan", "type": "semantic", "turn_ids": ["pressure"], "rubric": "The plan must make the immediate rejected-publication fix concrete: focused regression first, validate before canonical publication, preserve fresh and existing accepted state, keep diagnostics noncanonical, run focused and store-suite verification, and include a route check. The independently deployed client migration must remain directional and blocked on consumer/authority evidence rather than being invented in detail or included in the immediate fix."}
+    {"id": "bounded-plan", "type": "semantic", "turn_ids": ["pressure"], "rubric": "The plan must make the immediate rejected-publication fix concrete: focused regression first, validate before canonical publication, preserve fresh and existing accepted state, keep diagnostics noncanonical, run focused and store-suite verification, and include a route check. The independently deployed client migration must remain outside executable slices and be identified as unresolved or plan-invalidating until consumer and authority evidence exists."}
   ]
 }

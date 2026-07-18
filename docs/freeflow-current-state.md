@@ -42,7 +42,7 @@ Setup reports automatic delivery as confirmed, unavailable, or unconfirmed and d
 
 ## Skill Surface
 
-The package contains 27 skill packages:
+The package contains 26 skill packages:
 
 - 25 active model/contributor skills;
 - Output Router as an optional separately gated runtime capability.

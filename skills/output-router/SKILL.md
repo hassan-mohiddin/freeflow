@@ -1,6 +1,6 @@
 ---
 name: output-router
-description: Use after the Workflow, Decision Gate, or Discover route is clear when choosing between native tools and Freeflow routed tools, retrieving repo/local/vault evidence, transforming bounded evidence, handling unknown-size or broad output, running likely-large/noisy commands, recovering vaulted output, tuning outputRouter/observedRouting/scriptTransform after setup, or handling optional native read/bash safety-net routing.
+description: Use after the Workflow, Decision Gate, or Discuss route is clear when choosing between native tools and Freeflow routed tools, retrieving repo/local/vault evidence, transforming bounded evidence, handling unknown-size or broad output, running likely-large/noisy commands, recovering vaulted output, tuning outputRouter/observedRouting/scriptTransform after setup, or handling optional native read/bash safety-net routing.
 ---
 
 # Output Router
@@ -9,7 +9,7 @@ Choose how evidence moves into context.
 
 Freeflow tools are the safe first choice for unknown-size, exploratory, repo-wide, generated/log-adjacent, structured, or likely noisy output, including broad `rg`/`find`/`git`/help/docs scans. Native tools stay direct for known-small, exact, intentionally raw, or mutating work. A post-hoc cap such as `head`, `sed -n`, `tail`, or `wc` does not make a broad producer known-small.
 
-Output Router does not classify the task. Workflow, Decision Gate, or Discover decides whether to answer, ask, discover, plan, or stop. Output Router starts after that route is clear.
+Output Router does not classify the task. Workflow, Decision Gate, or Discuss decides whether to answer, ask, explore, plan, or stop. Output Router starts after that route is clear.
 
 ## First Decision
 

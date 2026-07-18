@@ -1,7 +1,0 @@
-{
-  "schema_version": 1,
-  "skill": "execute-plan",
-  "cases": [
-    "cases/XPQ-001-repeated-evidence-route.json"
-  ]
-}

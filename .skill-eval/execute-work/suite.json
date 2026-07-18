@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "skill": "execute-work",
+  "cases": [
+    "cases/EWQ-001-repeated-evidence-route.json"
+  ]
+}

@@ -17,8 +17,7 @@
     {
       "id": "reference",
       "role": "reference",
-      "kind": "git",
-      "revision": "d0bf6ee1972222a10e302a5c63f9eb3dc0ef8a82",
+      "kind": "working-tree",
       "path": ".skill-eval/workflow/subjects/marker-reference",
       "resources": [
         "SKILL.md"
@@ -27,8 +26,7 @@
     {
       "id": "candidate",
       "role": "candidate",
-      "kind": "git",
-      "revision": "d0bf6ee1972222a10e302a5c63f9eb3dc0ef8a82",
+      "kind": "working-tree",
       "path": ".skill-eval/workflow/subjects/marker-candidate",
       "resources": [
         "SKILL.md"
@@ -39,8 +37,7 @@
     "base_stack": [
       {
         "name": "composition-base",
-        "kind": "git",
-        "revision": "d0bf6ee1972222a10e302a5c63f9eb3dc0ef8a82",
+        "kind": "working-tree",
         "path": ".skill-eval/workflow/subjects/composition-base",
         "resources": [
           "SKILL.md"
@@ -98,11 +95,11 @@
       "equals": "CANDIDATE-V1"
     },
     {
-      "id": "backward-route",
+      "id": "candidate-route",
       "type": "json_field",
       "path": "result.json",
       "field": "route",
-      "equals": "backward"
+      "equals": "candidate"
     }
   ]
 }

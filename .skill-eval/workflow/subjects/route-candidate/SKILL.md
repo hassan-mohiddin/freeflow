@@ -7,6 +7,6 @@ description: Use when the synthetic adapter fixture reports implementation or re
 
 Fix the first isolated adapter defect and preserve that verified work.
 
-When another adapter exposes the same canonical-publication invariant, stop local patching. Do not edit the second adapter. Write `design-checkpoint.md` naming `canonical-publication` as the failure unit and route backward before more implementation.
+When another adapter exposes the same canonical-publication invariant, stop local patching. Do not edit the second adapter. Write `design-checkpoint.md` naming `canonical-publication` as the failure unit and re-enter Design for Depth before more implementation.
 
-When asked to close the route, write `route.json` with route `backward` and failure unit `canonical-publication`.
+When asked to close the route, write `route.json` with route `design-for-depth` and failure unit `canonical-publication`.

@@ -40,11 +40,10 @@
   "composition": {
     "base_stack": [
       {
-        "name": "execute-plan",
-        "kind": "git",
-        "revision": "87f83cb",
-        "path": "skills/execute-plan",
-        "resources": ["SKILL.md", "references/execution-map.md"]
+        "name": "execute-work",
+        "kind": "working-tree",
+        "path": "skills/execute-work",
+        "resources": ["SKILL.md", "references/code-practices.md", "references/execution-loop.md"]
       }
     ],
     "target_name": "tdd",

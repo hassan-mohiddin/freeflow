@@ -6,7 +6,18 @@ import { access, readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "../..");
-const matrix = JSON.parse(await readFile(resolve(root, ".skill-eval/coverage-matrix.json"), "utf8"));
+const matrixPath = resolve(root, ".skill-eval/coverage-matrix.json");
+let matrix;
+try {
+  matrix = JSON.parse(await readFile(matrixPath, "utf8"));
+} catch (error) {
+  throw new Error(`Cannot parse coverage matrix at ${matrixPath}`, { cause: error });
+}
+assert.equal(matrix.schema_version, 2);
+assert.deepEqual(matrix.source_snapshot, {
+  kind: "same-commit",
+  identity: "Each skill is identified by its source_path and source_sha256.",
+});
 const skillNames = [];
 for (const entry of await readdir(resolve(root, "skills"), { withFileTypes: true })) {
   if (!entry.isDirectory()) continue;
@@ -54,4 +65,4 @@ for (const name of matrixNames) {
   }
 }
 
-console.log(JSON.stringify({ valid: true, skills: matrixNames.length }, null, 2));
+process.stdout.write(`${JSON.stringify({ valid: true, skills: matrixNames.length }, null, 2)}\n`);

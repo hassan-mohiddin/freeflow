@@ -1,6 +1,6 @@
 ---
 name: write-plan
-description: Use when turning a planning-ready spec whose required approval is satisfied, clarified requirements, diagnosis, or validated design direction into a rolling implementation plan of phases and vertical slices, including learning work, verification, checkpoints, and backward routes.
+description: Use when writing or revising an implementation plan, execution plan, remediation plan, migration plan, or similar ordered plan.
 ---
 
 # Neutral Control
