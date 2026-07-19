@@ -92,6 +92,14 @@ function freeflowCompletions(prefix: string | undefined) {
     .map((value) => ({ value, label: value }));
 }
 
+function bypassCompletions(prefix: string | undefined) {
+  const query = prefix ?? "";
+  return [
+    { value: "next", label: "next", description: "Skip one optional step" },
+    { value: "task", label: "task", description: "Reduce optional pressure for the current task" },
+  ].filter((item) => item.value.startsWith(query));
+}
+
 async function sendSkillCommand(pi: any, ctx: any, skill: string, args: string | undefined) {
   const state = await readCapabilityState(ctx.cwd);
   if (skill === "setup-freeflow" && !state.configured) {
@@ -142,6 +150,11 @@ export default function freeflow(pi) {
     setModeStatus(ctx, modeState, capabilityState);
     notifyRouterConfigWarnings(ctx, routerConfigResult);
     await applyCapabilityToolVisibility(pi, ctx, capabilityState);
+  });
+
+  pi.on("session_tree", async (_event, ctx) => {
+    restoreModeOverride(ctx);
+    await applyLiveCapabilityState(pi, ctx);
   });
 
   pi.on("session_compact", async (_event, ctx) => {
@@ -213,6 +226,7 @@ export default function freeflow(pi) {
   for (const { command, skill } of WORKFLOW_COMMANDS) {
     pi.registerCommand(command, {
       description: command === skill ? `Run Freeflow ${skill}` : `Run Freeflow ${skill} via ${command}`,
+      ...(command === "bypass" ? { getArgumentCompletions: bypassCompletions } : {}),
       handler: async (args, ctx) => {
         await sendSkillCommand(pi, ctx, skill, args);
       },

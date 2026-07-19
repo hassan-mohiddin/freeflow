@@ -84,6 +84,8 @@ for excluded_heading in \
 done
 workflow_bootstrap_count="$(grep -Fo '# Freeflow Workflow Bootstrap' <<<"$codex_output" | wc -l | tr -d ' ')"
 [[ "$workflow_bootstrap_count" == "1" ]] || fail "Codex SessionStart should load Workflow exactly once"
+assert_not_contains "$codex_output" "## Conversation Mode Boundary" "workflow context"
+assert_not_contains "$codex_output" "## Strict Workflow Overlay" "workflow context"
 
 claude_output="$(printf '{"hook_event_name":"SessionStart","source":"startup","cwd":"%s"}\n' "$tmp_dir" | node "$HOOK_PATH" SessionStart)"
 assert_contains "$claude_output" '"hookEventName":"SessionStart"' "Claude wrapper"
@@ -124,6 +126,8 @@ printf '{"defaultMode":"strict-workflow"}\n' >"$local_dir/.freeflow/local.json"
 local_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$local_dir" | node "$HOOK_PATH" SessionStart)"
 assert_contains "$local_output" 'Current Freeflow default mode: `strict-workflow`.' "local default override"
 assert_contains "$local_output" 'defaultMode `strict-workflow` from local' "local default source"
+assert_contains "$local_output" "## Strict Workflow Overlay" "local strict overlay"
+assert_contains "$local_output" "security, privacy, billing, data loss, migrations, public interfaces" "local strict overlay"
 assert_contains "$local_output" "# Freeflow Interaction Contract" "local default override"
 assert_contains "$local_output" "# Freeflow Workflow Bootstrap" "local default override"
 rm -rf "$local_dir"
@@ -194,6 +198,7 @@ all_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$all_dir" | node "$HOOK_P
 assert_contains "$all_output" "# Freeflow Interaction Contract" "all-capabilities context"
 assert_contains "$all_output" "## Loaded Output Router Skill" "all-capabilities context"
 assert_contains "$all_output" 'Current Freeflow default mode: `strict-workflow`.' "all-capabilities context"
+assert_contains "$all_output" "## Strict Workflow Overlay" "all-capabilities strict overlay"
 rm -rf "$all_dir"
 
 conversation_dir="$(mktemp -d)"
@@ -202,6 +207,9 @@ printf '{"defaultMode":"conversation"}\n' >"$conversation_dir/.freeflow/config.j
 conversation_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$conversation_dir" | node "$HOOK_PATH" SessionStart)"
 assert_contains "$conversation_output" 'Current Freeflow default mode: `conversation`.' "conversation context"
 assert_contains "$conversation_output" '`conversation`: answer, discuss, critique, and inspect read-only' "conversation context"
+assert_contains "$conversation_output" "## Conversation Mode Boundary" "conversation overlay"
+assert_contains "$conversation_output" "Do not call write, edit, or mutating tools" "conversation overlay"
+assert_contains "$conversation_output" "an execution skill does not override this boundary" "conversation overlay"
 rm -rf "$conversation_dir"
 
 observed_dir="$(mktemp -d)"

@@ -76,7 +76,7 @@ After successful verification, apply newly effective context directly for the re
 - read [Workflow](../workflow/SKILL.md) and [Mode Contract](../mode-contract/SKILL.md) when Skills are effective;
 - read an explicitly configured capability skill only when runtime state says it is effective.
 
-This direct read establishes same-turn guidance; it does not prove that a lifecycle adapter ran. If automatic delivery begins only at a lifecycle boundary, name the required next turn, reload, resume, clear, or compact action without claiming it already occurred.
+This direct read establishes same-turn guidance; it does not prove that a lifecycle adapter ran. After first activation, use [host setup](references/host-setup.md) to name the exact host-native lifecycle action for automatic delivery and resource refresh, state what applies before that boundary, and keep delivery confirmed, unavailable, or unconfirmed from evidence.
 
 ## Verify And Report
 

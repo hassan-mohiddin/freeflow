@@ -454,7 +454,7 @@ export function notifyRouterConfigWarnings(ctx, routerConfigResult) {
 
 export function restoreModeOverride(ctx) {
   currentModeOverride = null;
-  const entries = ctx.sessionManager?.getEntries?.() ?? [];
+  const entries = ctx.sessionManager?.getBranch?.() ?? ctx.sessionManager?.getEntries?.() ?? [];
 
   for (const entry of entries) {
     if (entry.type !== "custom" || entry.customType !== MODE_STATE_ENTRY) {
@@ -581,6 +581,39 @@ function hasModelFacingCapability(capabilityState) {
   );
 }
 
+function modeOverlayContext(mode) {
+  if (mode === "conversation") {
+    return `
+
+## Conversation Mode Boundary
+
+Conversation mode is active and read-only.
+
+Do not call write, edit, or mutating tools. Do not create, delete, commit, push, or change repository, system, external, or durable state.
+
+A mutation request does not switch mode, and an execution skill does not override this boundary. Explain that conversation mode is read-only and ask the user to switch to workflow or strict-workflow.`;
+  }
+
+  if (mode === "strict-workflow") {
+    return `
+
+## Strict Workflow Overlay
+
+Strict Workflow is active. Use the adaptive Workflow, but increase decision, evidence, verification, and checkpoint pressure at high-risk or hard-to-reverse boundaries.
+
+For work affecting security, privacy, billing, data loss, migrations, public interfaces, compatibility, deployment, or architecture:
+
+- stop for any user-owned choice or source conflict;
+- inspect the relevant risk surface before crossing the boundary;
+- select only artifacts, checkpoints, and independent review that materially reduce risk;
+- verify at the affected boundary before claiming success.
+
+Do not manufacture ceremony for low-risk, reversible work. Strict Workflow does not authorize mutation, bypass safety, or make every implementation detail a user decision.`;
+  }
+
+  return "";
+}
+
 function activeModeContext(modeState) {
   return `## Freeflow Mode State
 
@@ -597,7 +630,7 @@ Mode behavior:
 - \`strict-workflow\`: use the same workflow with stronger decision, evidence, and checkpoint pressure at high-risk or hard-to-reverse boundaries.
 
 Task type, risk classification, and direct skill calls do not change mode. Recommend another mode when useful; the user decides.
-Do not announce mode on every reply. Mention it when the user asks, configuration is discussed, or it changes the next action.`;
+Do not announce mode on every reply. Mention it when the user asks, configuration is discussed, or it changes the next action.${modeOverlayContext(modeState.effectiveMode)}`;
 }
 
 function inactiveModeContext(modeState) {
@@ -709,7 +742,7 @@ export async function handleModeCommand(args, ctx, pi) {
     const modeState = await setSessionMode(arg, ctx, pi);
     setModeStatus(ctx, modeState, capabilityState);
     ctx.ui.notify(
-      `Freeflow mode is now ${modeState.effectiveMode} for this session. Configured default remains ${modeState.defaultMode} (${modeSourceLabel(modeState.defaultModeSource)}).`,
+      `Freeflow mode is now ${modeState.effectiveMode} for this Pi session. Stored in Pi session history; .freeflow/local.json and .freeflow/config.json were not changed. Configured default remains ${modeState.defaultMode} (${modeSourceLabel(modeState.defaultModeSource)}).`,
       "info",
     );
     return { changed: true, modeState };
@@ -719,7 +752,7 @@ export async function handleModeCommand(args, ctx, pi) {
     const modeState = await setSessionMode(null, ctx, pi);
     setModeStatus(ctx, modeState, capabilityState);
     ctx.ui.notify(
-      `Freeflow mode reset to configured default: ${modeState.defaultMode} (${modeSourceLabel(modeState.defaultModeSource)}).`,
+      `Freeflow mode reset to configured default: ${modeState.defaultMode} (${modeSourceLabel(modeState.defaultModeSource)}). Session override cleared; .freeflow/local.json and .freeflow/config.json were not changed.`,
       "info",
     );
     return { changed: true, modeState };

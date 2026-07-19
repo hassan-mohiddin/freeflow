@@ -243,6 +243,41 @@ function configStatus(config) {
   return `defaultMode \`${config.defaultMode}\` from ${source}${personal}`;
 }
 
+function modeOverlayGuidance(mode) {
+  if (mode === "conversation") {
+    return [
+      "",
+      "## Conversation Mode Boundary",
+      "",
+      "Conversation mode is active and read-only.",
+      "",
+      "Do not call write, edit, or mutating tools. Do not create, delete, commit, push, or change repository, system, external, or durable state.",
+      "",
+      "A mutation request does not switch mode, and an execution skill does not override this boundary. Explain that conversation mode is read-only and ask the user to switch to workflow or strict-workflow.",
+    ];
+  }
+
+  if (mode === "strict-workflow") {
+    return [
+      "",
+      "## Strict Workflow Overlay",
+      "",
+      "Strict Workflow is active. Use the adaptive Workflow, but increase decision, evidence, verification, and checkpoint pressure at high-risk or hard-to-reverse boundaries.",
+      "",
+      "For work affecting security, privacy, billing, data loss, migrations, public interfaces, compatibility, deployment, or architecture:",
+      "",
+      "- stop for any user-owned choice or source conflict;",
+      "- inspect the relevant risk surface before crossing the boundary;",
+      "- select only artifacts, checkpoints, and independent review that materially reduce risk;",
+      "- verify at the affected boundary before claiming success.",
+      "",
+      "Do not manufacture ceremony for low-risk, reversible work. Strict Workflow does not authorize mutation, bypass safety, or make every implementation detail a user decision.",
+    ];
+  }
+
+  return [];
+}
+
 function modeGuidance(mode) {
   return [
     `Current Freeflow default mode: \`${mode}\`.`,
@@ -252,6 +287,7 @@ function modeGuidance(mode) {
     "- `workflow`: use the adaptive workflow for normal consequential work.",
     "- `strict-workflow`: strengthen user-owned decisions, review, and verification for high-risk or hard-to-reverse work.",
     "Do not announce the current mode on every reply. Mention it when the user asks, setup/config is discussed, or the mode changes the next action.",
+    ...modeOverlayGuidance(mode),
   ];
 }
 

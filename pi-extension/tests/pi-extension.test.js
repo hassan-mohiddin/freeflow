@@ -82,6 +82,9 @@ function context(cwd = process.cwd(), sessionEntries = [], activeSessionEntries 
       getEntries() {
         return sessionEntries;
       },
+      getBranch() {
+        return activeSessionEntries;
+      },
       buildContextEntries() {
         return activeSessionEntries;
       },
@@ -131,6 +134,21 @@ test("Pi registers capability commands and no public capture tool", () => {
   assert.ok(!toolNames.includes("freeflow_retrieve"));
   assert.ok(!toolNames.includes("freeflow_search action=transform"));
   assert.ok(!toolNames.includes("freeflow_capture"));
+});
+
+test("Pi exposes bypass scope argument completions", () => {
+  const { commands } = loadExtension();
+  const bypassCommand = commands.find((command) => command.name === "bypass");
+  assert.ok(bypassCommand);
+
+  assert.deepEqual(bypassCommand.definition.getArgumentCompletions(""), [
+    { value: "next", label: "next", description: "Skip one optional step" },
+    { value: "task", label: "task", description: "Reduce optional pressure for the current task" },
+  ]);
+  assert.deepEqual(bypassCommand.definition.getArgumentCompletions("t"), [
+    { value: "task", label: "task", description: "Reduce optional pressure for the current task" },
+  ]);
+  assert.deepEqual(bypassCommand.definition.getArgumentCompletions("unknown"), []);
 });
 
 test("Pi exposes canonical model skills and maps published command aliases", async () => {
@@ -352,12 +370,19 @@ test("Pi compact mode context distinguishes layered defaults, session state, and
     assert.match(result.systemPrompt, /Resolved mode: `strict-workflow`/);
     assert.match(result.systemPrompt, /Effective Freeflow mode: `strict-workflow`/);
     assert.match(result.systemPrompt, /direct skill calls do not change mode/);
+    assert.match(result.systemPrompt, /## Strict Workflow Overlay/);
+    assert.match(result.systemPrompt, /security, privacy, billing, data loss, migrations, public interfaces/);
+    assert.doesNotMatch(result.systemPrompt, /## Conversation Mode Boundary/);
 
     await freeflowCommand.definition.handler("mode conversation", context(cwd));
     result = await beforeAgentStart({ systemPrompt: "base prompt" }, context(cwd));
     assert.match(result.systemPrompt, /Session mode override: `conversation`/);
     assert.match(result.systemPrompt, /Resolved mode: `conversation`/);
     assert.match(result.systemPrompt, /Effective Freeflow mode: `conversation`/);
+    assert.match(result.systemPrompt, /## Conversation Mode Boundary/);
+    assert.match(result.systemPrompt, /Do not call write, edit, or mutating tools/);
+    assert.match(result.systemPrompt, /an execution skill does not override this boundary/);
+    assert.doesNotMatch(result.systemPrompt, /## Strict Workflow Overlay/);
 
     await freeflowCommand.definition.handler("mode reset", context(cwd));
   } finally {
@@ -438,6 +463,52 @@ test("Pi restores layered session mode on resume and preserves it through compac
     assert.equal(modeState.active, false);
     assert.equal(modeState.effectiveMode, null);
   } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi restores session mode from the active branch on resume and tree navigation", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-mode-active-branch-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow" }, null, 2), "utf8");
+
+    const activeBranchEntries = [
+      {
+        type: "custom",
+        customType: "freeflow-mode",
+        data: { currentMode: "conversation" },
+      },
+    ];
+    const allSessionEntries = [
+      ...activeBranchEntries,
+      {
+        type: "custom",
+        customType: "freeflow-mode",
+        data: { currentMode: "strict-workflow" },
+      },
+    ];
+    const { handlers } = loadExtension();
+    const sessionStart = handlers.get("session_start");
+    const sessionTree = handlers.get("session_tree");
+    assert.ok(sessionStart);
+    assert.ok(sessionTree);
+
+    const ctx = context(cwd, allSessionEntries, activeBranchEntries);
+    await sessionStart({ reason: "resume" }, ctx);
+
+    let modeState = await readModeState(cwd);
+    assert.equal(modeState.sessionMode, "conversation");
+    assert.equal(modeState.effectiveMode, "conversation");
+
+    activeBranchEntries.splice(0, activeBranchEntries.length, allSessionEntries.at(-1));
+    await sessionTree({ newLeafId: "strict-branch" }, ctx);
+
+    modeState = await readModeState(cwd);
+    assert.equal(modeState.sessionMode, "strict-workflow");
+    assert.equal(modeState.effectiveMode, "strict-workflow");
+  } finally {
+    restoreModeOverride(context(cwd));
     await rm(cwd, { recursive: true, force: true });
   }
 });
@@ -842,6 +913,11 @@ test("Pi /freeflow mode is the only mode command and opens a dedicated selector"
     });
     assert.equal(modeCtx.statuses.length, 1);
     assert.equal(modeCtx.statuses.at(-1).value, "freeflow: interaction · strict-workflow (session)");
+    assert.match(modeCtx.notifications.at(-1).message, /Stored in Pi session history/);
+    assert.match(
+      modeCtx.notifications.at(-1).message,
+      /\.freeflow\/local\.json and \.freeflow\/config\.json were not changed/,
+    );
     assert.equal(await readFile(configPath, "utf8"), configText);
     assert.equal(modeCtx.reloads.length, 0);
 
@@ -853,6 +929,11 @@ test("Pi /freeflow mode is the only mode command and opens a dedicated selector"
     });
     assert.equal(resetCtx.statuses.at(-1).value, "freeflow: interaction · workflow");
     assert.match(resetCtx.notifications.at(-1).message, /reset to configured default: workflow \(repository default\)/);
+    assert.match(resetCtx.notifications.at(-1).message, /Session override cleared/);
+    assert.match(
+      resetCtx.notifications.at(-1).message,
+      /\.freeflow\/local\.json and \.freeflow\/config\.json were not changed/,
+    );
 
     const nonTuiCtx = context(cwd);
     await freeflowCommand.definition.handler("mode", nonTuiCtx);
@@ -1548,6 +1629,8 @@ test("Pi before_agent_start keeps the per-turn system context to the compact int
     assert.match(result.systemPrompt, /# Freeflow Interaction Contract/);
     assert.doesNotMatch(result.systemPrompt, /# Freeflow Runtime Kernel/);
     assert.match(result.systemPrompt, /Runtime delivery: confirmed for this Pi `before_agent_start` invocation/);
+    assert.doesNotMatch(result.systemPrompt, /## Conversation Mode Boundary/);
+    assert.doesNotMatch(result.systemPrompt, /## Strict Workflow Overlay/);
     assert.match(result.systemPrompt, /Answer questions without inferring action/);
     assert.match(result.systemPrompt, /enough shared\s+understanding for\s+the next sound action/);
     assert.doesNotMatch(result.systemPrompt, /self-review|final assurance|standing authorization/i);

@@ -36,7 +36,7 @@ Personal settings use omission to inherit. The settings path refuses to overwrit
 
 When effective, Pi's `before_agent_start` path preserves the existing system prompt, adds current layered status and enabled model-facing context, and loads Workflow as one hidden persistent message while Skills are enabled. Interaction Contract delivery is independent from Skills. Mode Contract remains on demand.
 
-A config written during setup is visible to the next agent turn. For the remainder of the setup turn, read newly effective context directly after verification instead of claiming that another `before_agent_start` invocation already occurred.
+A config written during setup is visible to the available Pi adapter on the next agent turn. After first activation, tell the user to run `/reload` so Pi refreshes skills and resources fully. Without reload, the adapter can load core runtime context on the next agent turn, but resource discovery waits for reload. A session-mode command applies before the next model turn and does not require reload. For the remainder of the setup turn, read newly effective context directly after verification instead of claiming that another `before_agent_start` invocation already occurred.
 
 Confirm automatic delivery through current extension status or runtime evidence when available.
 
@@ -46,7 +46,7 @@ The packaged lifecycle hook reads the same repository and local layers at suppor
 
 When top-level Freeflow is effective, the hook loads the Interaction Contract if enabled and the full Workflow bootstrap if Skills are enabled. It reports layered value sources and active or dormant mode state. Optional capabilities remain independently gated by valid repository config and top-level Freeflow.
 
-After first-time setup, use the host's relevant lifecycle action before relying on automatic delivery.
+After first-time setup, tell the user to trigger the least disruptive supported host-native lifecycle boundary: resume, clear, compact, or a new session/startup as available. Name the exact control supported by the current host; do not prescribe Pi's `/reload`. Until that boundary runs, use same-turn direct reads without claiming automatic delivery.
 
 Classify delivery as:
 
