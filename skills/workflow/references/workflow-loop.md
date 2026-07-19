@@ -23,14 +23,17 @@ The **Interaction Lifecycle** is directed and contains the **Feedback Loop**.
 2. FEEDBACK LOOP
    Workflow
    -> Discuss with Design for Depth when design-bearing / Decision Gate / Bypass
-   -> Track Work when durable task memory is needed
+   -> Track Work before Workflow routes concrete work to Execute Work, and whenever durable task memory may be needed
+      -> no record needed or authorized slice selected
+         -> Execute Work only for requested or approved concrete changes when effective mode permits mutation
+            -> TDD / Simplify Code / Design for Depth when useful
+            -> Diagnose Failure when cause is unsupported
+            -> Verify Work
+            -> Review Work for self-review
+      -> record recommendation, record-only approval, or blocked mode
+         -> wait
    -> Write Spec -> Review Artifact -> Workflow
    -> Write Plan -> Review Artifact -> Workflow
-   -> Execute Work
-      -> TDD / Simplify Code / Design for Depth when useful
-      -> Diagnose Failure when cause is unsupported
-      -> Verify Work
-      -> Review Work for self-review
    -> selected independent Review Work or Review Artifact
    -> Workflow routes from the result
    -> continue / correct / gather evidence / revise / re-enter

@@ -19,10 +19,14 @@ Use this as a directed map, not a checklist:
 -> [Focus the highest uncertainty that could change the route]
 -> [Inspect facts / ask / compare meaningful paths]
 -> [Route from what is now supported]
-   -> enough understanding -> return direction to Workflow
+   -> enough understanding
+      -> task-shaped and continuity may matter
+         -> Track Work decides whether to recommend a Working Record
+      -> otherwise -> return direction to Workflow
    -> one user-owned choice or source conflict -> Decision Gate
    -> evidence needed -> propose a bounded learning action
-                         -> authorized Execute Work
+                         -> when authorized -> Track Work
+                            -> Execute Work or wait from its result
                          -> re-enter Discuss with evidence
    -> unexplained or repeated failure -> Diagnose Failure
    -> stable accepted content or strategy -> Write Spec / Write Plan
@@ -84,7 +88,7 @@ Useful checkpoint, if any:
 Stop, discard, revise, or promote when:
 ```
 
-A proposal is not authorization. Before execution, confirm that the action is requested or approved. Use [Track Work](../track-work/SKILL.md) before execution when durable task memory is needed, then route concrete changes through [Execute Work](../execute-work/SKILL.md).
+A proposal is not authorization. Before execution, confirm that the action is requested or approved. When the action is authorized, use [Track Work](../track-work/SKILL.md) to decide whether durable task memory is needed, then follow its result to [Execute Work](../execute-work/SKILL.md) or wait.
 
 Return with the observed result. Treat prototypes, tests, benchmarks, sketches, and working behavior as evidence, not automatic approval of their design or promotion. Preserve what still holds and re-enter only the affected question.
 

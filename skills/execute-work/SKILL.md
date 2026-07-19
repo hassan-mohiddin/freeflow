@@ -5,7 +5,7 @@ description: Use when executing or resuming implementation, fixes, prototypes, d
 
 # Execute Work
 
-Carry out accepted concrete work through bounded actions and fresh evidence.
+Carry out concrete work through bounded actions and fresh evidence only when it was requested or approved and the effective mode permits mutation.
 
 A **slice** is one coherent result tracked and reviewed as a unit. A **bounded action** is one implementation, experiment, correction, or observation inside that slice. One slice may span multiple Feedback Loop iterations and owning skills while its intended result remains coherent.
 
@@ -16,7 +16,7 @@ Read [the execution loop](references/execution-loop.md) when work spans multiple
 Use this as a directed map, not a fixed phase sequence:
 
 ```text
-[Accepted concrete work]
+[Requested or approved concrete work; effective mode permits mutation]
 -> [Orient and establish the current slice]
 -> [Take one bounded action]
 -> [Test or observe]
@@ -43,7 +43,7 @@ Establish:
 - direct check or observation that can disagree with the result;
 - stop conditions, due checkpoints, and authority boundaries.
 
-A clear user request can be enough. Do not require a Spec, Plan, or Working Record for a small self-contained change.
+A clear user request can be enough. A small self-contained change needs no Spec, Plan, or Working Record merely because execution was selected.
 
 Inspect relevant code, tests, docs, policies, artifacts, repository state, and current external constraints before relying on memory. When sources materially conflict or the intended result is unsafe to infer, return the evidence to [Workflow](../workflow/SKILL.md) rather than choosing silently.
 

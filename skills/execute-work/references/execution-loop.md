@@ -5,7 +5,7 @@ Read this when execution spans multiple bounded actions or slices, resumes from 
 ## Directed Execution Graph
 
 ```text
-[Accepted concrete work]
+[Requested or approved concrete work; effective mode permits mutation]
 -> [Orient]
    source + authority + live state + current slice + stop conditions
 -> [Choose one bounded action]

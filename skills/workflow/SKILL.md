@@ -30,7 +30,7 @@ Entry begins with a user turn or new evidence interpreted through the Interactio
 - **Execute and learn:** [Execute Work](../execute-work/SKILL.md) owns bounded concrete changes; [Migration Work](../migration-work/SKILL.md) moves consumers, traffic, configuration, or data; [Diagnose Failure](../diagnose-failure/SKILL.md) establishes unsupported causes; [Verify Work](../verify-work/SKILL.md) checks factual claims; [Review Work](../review-work/SKILL.md) owns implementation self-review and selected independent judgment.
 - **Preserve or close out:** [Commit Work](../commit-work/SKILL.md) owns authorized commits and pushes; [Handoff](../handoff/SKILL.md) transfers continuation context; [Finish Branch](../finish-branch/SKILL.md) owns branch integration or preservation; [Release Work](../release-work/SKILL.md) owns versioned publication; [Launch Work](../launch-work/SKILL.md) owns production deployment and rollout.
 
-These are owners, not mandatory phases. Small, clear, reversible work may move directly from inspection to execution and verification. Create no artifact or checkpoint merely because one exists. Method and domain skills compose inside the selected route without overriding accepted behavior, live evidence, or user authority.
+These are owners, not mandatory phases. Create no artifact or checkpoint merely because one exists. Method and domain skills compose inside the selected route without overriding accepted behavior, live evidence, or user authority.
 
 ## Run The Feedback Loop
 
@@ -52,11 +52,15 @@ If verification fails, correct a clear local defect or diagnose the cause; do no
 
 ## Discuss Before Execution
 
-Before routing to execution, assess whether brief discussion has material decision value. Recommend Discuss when user input could materially change the outcome, boundaries, tradeoffs, approach, or acceptance. When architecture, interfaces, ownership, state, failure contracts, or spreading complexity shape that direction, use [Design for Depth](../design-for-depth/SKILL.md) as a lens during discussion and retain it while the boundary remains design-bearing. Name the question and why it matters, then wait.
+Before implementation or any other state-changing work, confirm that the concrete work was requested or approved and that the effective mode permits mutation. Settled direction alone is not execution authority. Then assess whether brief discussion has material decision value. Recommend Discuss when user input could materially change the outcome, boundaries, tradeoffs, approach, or acceptance. When architecture, interfaces, ownership, state, failure contracts, or spreading complexity shape that direction, use [Design for Depth](../design-for-depth/SKILL.md) as a lens during discussion and retain it while the boundary remains design-bearing. Name the question and why it matters, then wait.
 
 Do not discuss facts that can be inspected, settled direction, or reversible local choices. If the user declines optional discussion and no owner decision, source conflict, or safety boundary remains, proceed within accepted scope. Do not ask again without new evidence. A discussion recommendation creates no artifact, checkpoint, slice, or implementation authority.
 
+When no discussion or decision boundary remains, route the concrete work through Track Work and follow its result to Execute Work or wait.
+
 ## Preserve Context Deliberately
+
+When discussion becomes task-shaped and continuity may matter, use Track Work to decide whether to recommend a Working Record.
 
 Create durable memory only when forgetting would risk misalignment:
 

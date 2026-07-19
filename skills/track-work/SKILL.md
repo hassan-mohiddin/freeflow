@@ -1,11 +1,42 @@
 ---
 name: track-work
-description: Use when creating, resuming, or updating a durable Working Record so ongoing task state, planned actions, decisions, history, and the next action survive execution, pauses, or context loss.
+description: Use when deciding whether proposed or ongoing work needs a durable Working Record, or when creating, resuming, or updating one to preserve task state across execution, pauses, or context loss.
 ---
 
 # Track Work
 
-Maintain living task memory without turning it into a transcript, fixed Plan, or authority over live evidence and user decisions.
+Decide whether proposed or ongoing work needs a durable Working Record, then maintain selected records without turning them into a transcript, fixed Plan, or authority over live evidence and user decisions. Deciding or reading an existing record is read-only; create or update one only when the effective mode permits mutation.
+
+Use this route to decide whether to wait, return to Workflow, or continue through [Execute Work](../execute-work/SKILL.md):
+
+```text
+[Proposed or ongoing work]
+-> existing Working Record owns it
+   -> read the required reference
+   -> maintain it
+   -> select an authorized slice and route to Execute Work, or wait
+-> no existing Working Record
+   -> would losing context, decisions, evidence, or the next action risk misalignment?
+      -> no
+         -> authorized work in a mutation-permitting mode -> Execute Work
+         -> otherwise -> Workflow or wait
+      -> yes, but a record is unapproved
+         -> recommend a Working Record
+         -> wait
+      -> yes, and a record is approved
+         -> mode permits durable mutation
+            -> read the required reference
+            -> create the record
+            -> first slice already requested or approved
+               -> select the slice
+               -> Execute Work
+            -> only record creation was approved
+               -> Current Slice: None
+               -> wait
+         -> mode does not permit durable mutation
+            -> recommend the required mode change
+            -> wait
+```
 
 ## Read The Required Reference
 
@@ -13,7 +44,6 @@ Before creating, resuming, or updating a Working Record, read the complete [Work
 
 ## Core Contract
 
-- A Working Record may guide work without a Spec or Plan. Create one when the user asks or agrees, and recommend one when losing context could misalign later work. A short self-contained action needs none.
 - A record preserves current context, one current slice, revisable proposals, durable history, inert Notes, and one next useful action. It is memory; live evidence and user decisions win.
 - Only the user changes task state. Do not infer `Paused`, `Completed`, `Abandoned`, or renewed `Active` state from inactivity, apparent completion, or failure.
 - A **slice** is one bounded piece of learning, delivery, or structural improvement. One slice may span multiple iterations of [Workflow's](../workflow/SKILL.md) Feedback Loop and calls to other owning skills.
@@ -28,7 +58,7 @@ Before creating, resuming, or updating a Working Record, read the complete [Work
 After reading the required reference:
 
 1. **Create or resume:** use the established task directory, restore task state after context loss, and orient from live evidence.
-2. **Select a slice:** confirm authority, move one proposal into `Current Slice`, assign its chronological `S-` ID, save the write-ahead state, then execute.
+2. **Select or wait:** select a slice only when its concrete work is requested or approved. If only record creation is approved, keep `Current Slice` as `None` and wait. When selected, move one proposal into `Current Slice`, assign its chronological `S-` ID, save the write-ahead state, then route to Execute Work.
 3. **Maintain the slice:** keep small steering out of the event history; record accepted extensions before execution; preserve blockers, review routes, and evidence without replacing a coherent slice.
 4. **Close the slice:** move the Workflow-established outcome to History, preserve the original boundary and accepted extensions, reconcile current state, and set `Current Slice` to `None`.
 5. **Preserve what matters:** keep task-local decisions, selected checkpoints, evidence pointers, and Notes in their schema-owned sections.
