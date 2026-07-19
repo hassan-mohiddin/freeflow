@@ -66,7 +66,12 @@ export function freeflowModelSkillPaths() {
   return FREEFLOW_MODEL_SKILL_NAMES.map((skillName) => freeflowSkillPath(skillName));
 }
 
+type SessionCoreKey = "enabled" | "interactionContract" | "skillsEnabled";
+type SessionCoreOverrides = Partial<Record<SessionCoreKey, boolean>>;
+
 const MODE_STATE_ENTRY = "freeflow-mode";
+const SESSION_OVERRIDES_ENTRY = "freeflow-session-overrides";
+const SESSION_CORE_KEYS = new Set<SessionCoreKey>(["enabled", "interactionContract", "skillsEnabled"]);
 const RESET_MODE_ARGS = new Set(["reset"]);
 
 export const FREEFLOW_STATUS_TOOL_NAME = "freeflow_status";
@@ -75,6 +80,7 @@ export const WORKFLOW_BOOTSTRAP_MESSAGE_TYPE = "freeflow-workflow-bootstrap";
 
 let runtimeContextCache = null;
 let currentModeOverride = null;
+let currentSessionOverrides: SessionCoreOverrides = {};
 let lastRouterConfigWarningKey = null;
 async function loadRuntimeContext(capabilityState = undefined) {
   const interactionContractEnabled = capabilityState?.interactionContract?.effective === true;
@@ -333,6 +339,41 @@ function resolveCoreConfig(repository, local) {
   };
 }
 
+function normalizeSessionOverrides(value): SessionCoreOverrides {
+  if (!isRecord(value)) return {};
+  const overrides: SessionCoreOverrides = {};
+  for (const key of SESSION_CORE_KEYS) {
+    if (typeof value[key] === "boolean") {
+      overrides[key] = value[key];
+    }
+  }
+  return overrides;
+}
+
+function resolveSessionCoreConfig(layers) {
+  const configured = layers.coreConfig;
+  const sources = layers.sources;
+  const enabled = currentSessionOverrides.enabled;
+  const interactionContract = currentSessionOverrides.interactionContract;
+  const skillsEnabled = currentSessionOverrides.skillsEnabled;
+
+  return {
+    config: {
+      enabled: typeof enabled === "boolean" ? enabled : configured.enabled,
+      interactionContract:
+        typeof interactionContract === "boolean" ? interactionContract : configured.interactionContract,
+      skills: { enabled: typeof skillsEnabled === "boolean" ? skillsEnabled : configured.skills.enabled },
+      defaultMode: configured.defaultMode,
+    },
+    sources: {
+      enabled: typeof enabled === "boolean" ? "session" : sources.enabled,
+      interactionContract: typeof interactionContract === "boolean" ? "session" : sources.interactionContract,
+      skillsEnabled: typeof skillsEnabled === "boolean" ? "session" : sources.skillsEnabled,
+      defaultMode: sources.defaultMode,
+    },
+  };
+}
+
 export async function readFreeflowConfigLayers(cwd) {
   const [repository, local] = await Promise.all([readFreeflowConfigState(cwd), readFreeflowLocalConfigState(cwd)]);
   const repositoryConfig = repository.valid ? repository.parsed : {};
@@ -363,9 +404,10 @@ export async function readCapabilityState(cwd) {
   const layers = await readFreeflowConfigLayers(cwd);
   const parsed = layers.repository.valid ? layers.repository.parsed : {};
   const normalized = normalizeFreeflowConfig(parsed);
-  const enabled = layers.configured && layers.coreConfig.enabled;
-  const interactionContractConfigEnabled = layers.coreConfig.interactionContract;
-  const skillsConfigEnabled = layers.coreConfig.skills.enabled;
+  const effectiveCore = resolveSessionCoreConfig(layers);
+  const enabled = layers.configured && effectiveCore.config.enabled;
+  const interactionContractConfigEnabled = effectiveCore.config.interactionContract;
+  const skillsConfigEnabled = effectiveCore.config.skills.enabled;
   const outputRouterConfigEnabled = normalized.config.outputRouter.enabled;
   return {
     configured: layers.configured,
@@ -378,8 +420,11 @@ export async function readCapabilityState(cwd) {
     localConfigValid: !layers.local.exists || layers.local.valid,
     localConfigPath: layers.local.path,
     localConfigParseError: layers.local.parseError,
-    configSources: layers.sources,
-    defaultMode: layers.coreConfig.defaultMode,
+    configuredCoreConfig: layers.coreConfig,
+    configuredSources: layers.sources,
+    sessionOverrides: { ...currentSessionOverrides },
+    configSources: effectiveCore.sources,
+    defaultMode: effectiveCore.config.defaultMode,
     enabled,
     interactionContract: {
       enabled: interactionContractConfigEnabled,
@@ -454,34 +499,37 @@ export function notifyRouterConfigWarnings(ctx, routerConfigResult) {
 
 export function restoreModeOverride(ctx) {
   currentModeOverride = null;
+  currentSessionOverrides = {};
   const entries = ctx.sessionManager?.getBranch?.() ?? ctx.sessionManager?.getEntries?.() ?? [];
 
   for (const entry of entries) {
-    if (entry.type !== "custom" || entry.customType !== MODE_STATE_ENTRY) {
-      continue;
+    if (entry.type !== "custom") continue;
+    if (entry.customType === MODE_STATE_ENTRY) {
+      const mode = entry.data?.currentMode;
+      currentModeOverride = VALID_MODES.has(mode) ? mode : null;
+    } else if (entry.customType === SESSION_OVERRIDES_ENTRY) {
+      currentSessionOverrides = normalizeSessionOverrides(entry.data?.overrides);
     }
-
-    const mode = entry.data?.currentMode;
-    currentModeOverride = VALID_MODES.has(mode) ? mode : null;
   }
 }
 
 export async function readModeState(cwd) {
   const layers = await readFreeflowConfigLayers(cwd);
+  const effectiveCore = resolveSessionCoreConfig(layers);
   const repositoryDefaultMode = VALID_MODES.has(layers.repository.parsed.defaultMode)
     ? layers.repository.parsed.defaultMode
     : "workflow";
   const personalDefaultMode = VALID_MODES.has(layers.local.parsed.defaultMode) ? layers.local.parsed.defaultMode : null;
   const sessionMode = VALID_MODES.has(currentModeOverride) ? currentModeOverride : null;
-  const resolvedMode = sessionMode ?? layers.coreConfig.defaultMode;
-  const active = layers.configured && layers.coreConfig.enabled && layers.coreConfig.skills.enabled;
+  const resolvedMode = sessionMode ?? effectiveCore.config.defaultMode;
+  const active = layers.configured && effectiveCore.config.enabled && effectiveCore.config.skills.enabled;
 
   return {
     repositoryDefaultMode,
     repositoryDefaultModeSource: VALID_MODES.has(layers.repository.parsed.defaultMode) ? "repository" : "builtin",
     personalDefaultMode,
-    defaultMode: layers.coreConfig.defaultMode,
-    defaultModeSource: layers.sources.defaultMode,
+    defaultMode: effectiveCore.config.defaultMode,
+    defaultModeSource: effectiveCore.sources.defaultMode,
     currentMode: sessionMode,
     sessionMode,
     resolvedMode,
@@ -496,16 +544,21 @@ export function setModeStatus(ctx, modeState, capabilityState = undefined) {
     return;
   }
   if (capabilityState && !capabilityState.enabled) {
-    ctx.ui.setStatus("freeflow", "freeflow: off");
+    const source = capabilityState.configSources?.enabled === "session" ? " (session)" : "";
+    ctx.ui.setStatus("freeflow", `freeflow: off${source}`);
     return;
   }
 
   const active: string[] = [];
   if (capabilityState?.interactionContract.effective) {
     active.push("interaction");
+  } else if (capabilityState?.configSources?.interactionContract === "session") {
+    active.push("interaction off (session)");
   }
   if (capabilityState?.skills.effective) {
     active.push(`${modeState.effectiveMode}${modeState.currentMode ? " (session)" : ""}`);
+  } else if (capabilityState?.configSources?.skillsEnabled === "session") {
+    active.push("skills off (session)");
   }
   if (capabilityState?.outputRouter.enabled) {
     active.push("router");
@@ -561,13 +614,18 @@ ${freeflowContext.outputRouterSkill.trim()}
 }
 
 function capabilityContext(capabilityState) {
-  const interactionContract = capabilityState.interactionContract.effective ? "enabled" : "disabled";
-  const skills = capabilityState.skills.effective ? "enabled" : "disabled";
+  const sessionSuffix = (source) => (source === "session" ? " (session override)" : "");
+  const interactionContract = `${capabilityState.interactionContract.effective ? "enabled" : "disabled"}${sessionSuffix(
+    capabilityState.configSources.interactionContract,
+  )}`;
+  const skills = `${capabilityState.skills.effective ? "enabled" : "disabled"}${sessionSuffix(
+    capabilityState.configSources.skillsEnabled,
+  )}`;
   const outputRouter = capabilityState.outputRouter.enabled ? "enabled" : "disabled";
   return `## Freeflow Capabilities
 
-- Interaction contract: ${interactionContract}. Configure with \`/freeflow settings\`; inspect with \`/freeflow status\`.
-- Skills: ${skills}. Configure with \`/freeflow settings\`; inspect with \`/freeflow status\`.
+- Interaction contract: ${interactionContract}. Configure with \`/freeflow settings\` or temporarily with \`/freeflow settings session\`; inspect with \`/freeflow status\`.
+- Skills: ${skills}. Configure with \`/freeflow settings\` or temporarily with \`/freeflow settings session\`; inspect with \`/freeflow status\`.
 - Output router: ${outputRouter}. Configure with \`/freeflow settings\` or \`/output-router\`; inspect with \`/output-router status\`.
 
 Disabled capabilities are named only for status/config awareness. Capability-specific instructions and tools are active only while that capability is enabled.`;
@@ -698,6 +756,57 @@ ${capabilityContext(capabilityState)}${interactionContractText}${routerText}
 This Pi extension loads enabled runtime context before every agent turn and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.`;
 }
 
+export async function setSessionCoreOverride(key: SessionCoreKey, value: boolean | null, ctx, pi) {
+  if (!SESSION_CORE_KEYS.has(key)) {
+    throw new Error(`Invalid Freeflow session override: ${String(key)}`);
+  }
+  if (value !== null && typeof value !== "boolean") {
+    throw new Error(`Invalid Freeflow session override value for ${key}: ${String(value)}`);
+  }
+
+  const hasOverride = Object.hasOwn(currentSessionOverrides, key);
+  if ((value === null && !hasOverride) || (value !== null && hasOverride && currentSessionOverrides[key] === value)) {
+    return { changed: false, sessionOverrides: { ...currentSessionOverrides } };
+  }
+
+  const next = { ...currentSessionOverrides };
+  if (value === null) {
+    delete next[key];
+  } else {
+    next[key] = value;
+  }
+  currentSessionOverrides = next;
+  pi?.appendEntry?.(SESSION_OVERRIDES_ENTRY, { overrides: { ...currentSessionOverrides } });
+  return {
+    changed: true,
+    reloadRequired: key === "enabled" || key === "skillsEnabled",
+    sessionOverrides: { ...currentSessionOverrides },
+    capabilityState: await readCapabilityState(ctx.cwd),
+  };
+}
+
+export async function resetSessionOverrides(ctx, pi) {
+  const hadCoreOverrides = Object.keys(currentSessionOverrides).length > 0;
+  const reloadRequired =
+    Object.hasOwn(currentSessionOverrides, "enabled") || Object.hasOwn(currentSessionOverrides, "skillsEnabled");
+  const hadModeOverride = VALID_MODES.has(currentModeOverride);
+
+  if (hadCoreOverrides) {
+    currentSessionOverrides = {};
+    pi?.appendEntry?.(SESSION_OVERRIDES_ENTRY, { overrides: {} });
+  }
+  if (hadModeOverride) {
+    await setSessionMode(null, ctx, pi);
+  }
+
+  return {
+    changed: hadCoreOverrides || hadModeOverride,
+    reloadRequired,
+    sessionOverrides: { ...currentSessionOverrides },
+    modeState: await readModeState(ctx.cwd),
+  };
+}
+
 export async function setSessionMode(mode, ctx, pi) {
   const nextMode = mode === "default" || mode === "reset" || mode === null ? null : mode;
   if (nextMode !== null && !VALID_MODES.has(nextMode)) {
@@ -739,6 +848,15 @@ export async function handleModeCommand(args, ctx, pi) {
   }
 
   if (VALID_MODES.has(arg)) {
+    if (inactiveModeState.effectiveMode === arg) {
+      setModeStatus(ctx, inactiveModeState, capabilityState);
+      const message = inactiveModeState.sessionMode
+        ? `Freeflow is already in ${arg} mode for this Pi session. No session entry was added. Configured default remains ${inactiveModeState.defaultMode} (${modeSourceLabel(inactiveModeState.defaultModeSource)}).`
+        : `Freeflow is already in ${arg} mode from the configured default (${modeSourceLabel(inactiveModeState.defaultModeSource)}). No session override was created.`;
+      ctx.ui.notify(message, "info");
+      return { changed: false, modeState: inactiveModeState };
+    }
+
     const modeState = await setSessionMode(arg, ctx, pi);
     setModeStatus(ctx, modeState, capabilityState);
     ctx.ui.notify(
@@ -749,6 +867,15 @@ export async function handleModeCommand(args, ctx, pi) {
   }
 
   if (RESET_MODE_ARGS.has(arg) || arg === "default") {
+    if (!inactiveModeState.sessionMode) {
+      setModeStatus(ctx, inactiveModeState, capabilityState);
+      ctx.ui.notify(
+        `Freeflow is already using the configured default: ${inactiveModeState.defaultMode} (${modeSourceLabel(inactiveModeState.defaultModeSource)}). No session override is active.`,
+        "info",
+      );
+      return { changed: false, modeState: inactiveModeState };
+    }
+
     const modeState = await setSessionMode(null, ctx, pi);
     setModeStatus(ctx, modeState, capabilityState);
     ctx.ui.notify(

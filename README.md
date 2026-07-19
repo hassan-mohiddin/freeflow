@@ -180,13 +180,13 @@ Minimal setup creates shared activation:
 Configuration layers are:
 
 ```text
-Pi session mode override
+Pi session capability or mode override
 -> .freeflow/local.json personal core override
 -> .freeflow/config.json shared repository value
 -> built-in default
 ```
 
-`.freeflow/config.json` is required. `.freeflow/local.json` is optional and cannot activate Freeflow by itself. Setup does not write Freeflow instructions into `AGENTS.md`, `CLAUDE.md`, or host rule files.
+`.freeflow/config.json` is required. `.freeflow/local.json` is optional and cannot activate Freeflow by itself. Session overrides live in branch-aware Pi session JSONL, do not mutate config files, and cannot bypass missing or invalid repository activation. Setup does not write Freeflow instructions into `AGENTS.md`, `CLAUDE.md`, or host rule files.
 
 ## Runtime Delivery
 
@@ -256,7 +256,7 @@ Pi-native settings controls:
 /output-router
 ```
 
-`/freeflow settings` edits personal core overrides. `/freeflow settings repo` edits shared settings. `/freeflow mode` manages temporary session mode. Codex and Claude have no native Freeflow slash handlers; canonical names and natural language remain model-routed cues.
+`/freeflow settings` edits personal core overrides. `/freeflow settings session` manages temporary, branch-aware Freeflow, Interaction Contract, Skills, and mode overrides without changing config files. `/freeflow settings repo` edits shared settings. `/freeflow mode` remains the direct temporary mode control. Codex and Claude have no native Freeflow slash handlers; canonical names and natural language remain model-routed cues.
 
 Direct skill calls select a method. They do not change mode, authorize mutation, or create independent review context.
 

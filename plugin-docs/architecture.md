@@ -31,13 +31,13 @@ Freeflow does not ship a CLI, Codex/Claude native slash handlers, enforcement ho
 `.freeflow/config.json` is required shared repository activation. `.freeflow/local.json` is optional per-checkout personal core configuration and cannot activate Freeflow alone.
 
 ```text
-Pi session mode override
+Pi session capability or mode override
 -> personal core override
 -> repository value
 -> built-in default
 ```
 
-An invalid existing personal layer fails closed. Repository-owned Output Router configuration is not copied into the personal layer.
+Pi can temporarily override Freeflow master enablement, Interaction Contract, Skills, and mode. These overrides live in branch-aware Pi session JSONL, never mutate either config file, and cannot bypass missing or invalid repository activation. An invalid existing personal layer fails closed. Repository-owned Output Router configuration is not copied into the personal layer.
 
 Configuration establishes activation state; it does not prove host runtime delivery.
 
@@ -74,7 +74,7 @@ The Pi extension:
 - registers canonical direct commands and two Pi-only compatibility aliases;
 - activates Output Router tools and context only when effective.
 
-`/freeflow settings` edits personal core overrides. `/freeflow settings repo` edits shared repository settings. `/freeflow mode` changes only temporary Pi session mode.
+`/freeflow settings` edits personal core overrides. `/freeflow settings session` manages temporary, branch-aware Freeflow, Interaction Contract, Skills, and mode overrides without changing config files. `/freeflow settings repo` edits shared repository settings. `/freeflow mode` remains the direct temporary mode control.
 
 Pi source lives under `pi-extension/src/`; the package executes built output under `pi-extension/dist/` through `pi-extension/freeflow/index.js`.
 

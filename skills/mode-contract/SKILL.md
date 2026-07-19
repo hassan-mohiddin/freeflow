@@ -75,7 +75,7 @@ Mention mode only when the user asks, configuration is being discussed, or it ch
 
 A persistent default change is not a session-mode change. An unqualified personal default request targets `.freeflow/local.json`; changing the shared repository default requires explicit repository, team, or shared-default wording.
 
-In Pi, use `/freeflow settings` for personal overrides and `/freeflow settings repo` for shared defaults. In another host, use its native settings when available or update only the explicitly selected valid layer while preserving unrelated settings.
+In Pi, use `/freeflow mode` or `/freeflow settings session` for a temporary mode override, `/freeflow settings` for personal overrides, and `/freeflow settings repo` for shared defaults. In another host, use its native settings when available or update only the explicitly selected valid layer while preserving unrelated settings.
 
 For agent-performed config edits, obey the effective mode when one exists. Conversation remains read-only. When no mode is effective because Freeflow is unconfigured, inactive, blocked by invalid config, or Skills are dormant, an explicit configuration or [Setup Freeflow](../setup-freeflow/SKILL.md) request governs the selected change; any dormant resolved mode is neither authority nor prohibition. User-operated host controls change their own state before the model continues.
 

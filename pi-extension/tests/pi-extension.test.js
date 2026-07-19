@@ -12,7 +12,10 @@ import {
   readFreeflowConfigLayers,
   readModeState,
   readOutputRouterConfig,
+  resetSessionOverrides,
   restoreModeOverride,
+  setSessionCoreOverride,
+  setSessionMode,
 } from "../dist/runtime-context.js";
 import { createVault, storeTextOutput } from "../../router/dist/index.js";
 
@@ -57,6 +60,7 @@ function loadExtension() {
 
   freeflowExtension(pi);
   return {
+    pi,
     handlers,
     tools,
     commands,
@@ -149,6 +153,47 @@ test("Pi exposes bypass scope argument completions", () => {
     { value: "task", label: "task", description: "Reduce optional pressure for the current task" },
   ]);
   assert.deepEqual(bypassCommand.definition.getArgumentCompletions("unknown"), []);
+});
+
+test("Pi describes Freeflow and Output Router argument completions", () => {
+  const { commands } = loadExtension();
+  const freeflowCommand = commands.find((command) => command.name === "freeflow");
+  const outputRouterCommand = commands.find((command) => command.name === "output-router");
+  assert.ok(freeflowCommand);
+  assert.ok(outputRouterCommand);
+
+  assert.deepEqual(freeflowCommand.definition.getArgumentCompletions(""), [
+    { value: "settings", label: "settings", description: "Open personal override settings" },
+    { value: "status", label: "status", description: "Show effective Freeflow state" },
+    { value: "mode", label: "mode", description: "Select a temporary session mode" },
+    { value: "enable", label: "enable", description: "Enable Freeflow for this repository" },
+    { value: "disable", label: "disable", description: "Disable Freeflow for this repository" },
+  ]);
+  assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("settings "), [
+    { value: "settings session", label: "session", description: "Override Freeflow for this Pi session" },
+    { value: "settings local", label: "local", description: "Edit personal overrides for this repository" },
+    { value: "settings repo", label: "repo", description: "Edit shared repository settings" },
+  ]);
+  assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("mode "), [
+    { value: "mode conversation", label: "conversation", description: "Read-only discussion and inspection" },
+    { value: "mode workflow", label: "workflow", description: "Adaptive workflow for consequential work" },
+    {
+      value: "mode strict-workflow",
+      label: "strict-workflow",
+      description: "Stronger pressure at high-risk boundaries",
+    },
+    {
+      value: "mode reset",
+      label: "reset",
+      description: "Clear the session override and use the configured default",
+    },
+  ]);
+  assert.deepEqual(outputRouterCommand.definition.getArgumentCompletions(""), [
+    { value: "settings", label: "settings", description: "Open repository Output Router settings" },
+    { value: "status", label: "status", description: "Show effective Output Router state" },
+    { value: "enable", label: "enable", description: "Enable Output Router for this repository" },
+    { value: "disable", label: "disable", description: "Disable Output Router for this repository" },
+  ]);
 });
 
 test("Pi exposes canonical model skills and maps published command aliases", async () => {
@@ -341,6 +386,134 @@ test("Pi layers local core overrides over repository defaults with source eviden
     assert.equal(modeState.active, false);
     assert.equal(modeState.effectiveMode, null);
   } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi layers branch-aware session core overrides above configured values", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-session-core-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    const configPath = join(cwd, ".freeflow/config.json");
+    const configText = JSON.stringify({ defaultMode: "workflow" }, null, 2);
+    await writeFile(configPath, configText, "utf8");
+
+    const { pi, entries } = loadExtension();
+    const ctx = context(cwd);
+
+    let result = await setSessionCoreOverride("enabled", false, ctx, pi);
+    assert.equal(result.changed, true);
+    let capabilityState = await readCapabilityState(cwd);
+    assert.equal(capabilityState.enabled, false);
+    assert.equal(capabilityState.configSources.enabled, "session");
+    assert.deepEqual(capabilityState.sessionOverrides, { enabled: false });
+    assert.deepEqual(entries.at(-1), {
+      customType: "freeflow-session-overrides",
+      data: { overrides: { enabled: false } },
+    });
+
+    result = await setSessionCoreOverride("enabled", false, ctx, pi);
+    assert.equal(result.changed, false);
+    assert.equal(entries.length, 1);
+
+    await setSessionCoreOverride("enabled", null, ctx, pi);
+    await setSessionCoreOverride("interactionContract", false, ctx, pi);
+    await setSessionCoreOverride("skillsEnabled", false, ctx, pi);
+    capabilityState = await readCapabilityState(cwd);
+    assert.equal(capabilityState.enabled, true);
+    assert.equal(capabilityState.interactionContract.effective, false);
+    assert.equal(capabilityState.skills.effective, false);
+    assert.equal((await readModeState(cwd)).effectiveMode, null);
+
+    await setSessionMode("conversation", ctx, pi);
+    const reset = await resetSessionOverrides(ctx, pi);
+    assert.equal(reset.changed, true);
+    assert.equal(reset.reloadRequired, true);
+    capabilityState = await readCapabilityState(cwd);
+    assert.deepEqual(capabilityState.sessionOverrides, {});
+    assert.equal(capabilityState.interactionContract.effective, true);
+    assert.equal(capabilityState.skills.effective, true);
+    assert.equal((await readModeState(cwd)).sessionMode, null);
+    assert.equal(await readFile(configPath, "utf8"), configText);
+  } finally {
+    restoreModeOverride(context(cwd));
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi session enablement can override configured off but cannot bypass activation", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-session-activation-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    const { pi } = loadExtension();
+    const ctx = context(cwd);
+    await setSessionCoreOverride("enabled", true, ctx, pi);
+
+    let capabilityState = await readCapabilityState(cwd);
+    assert.equal(capabilityState.configured, false);
+    assert.equal(capabilityState.enabled, false);
+
+    await writeFile(join(cwd, ".freeflow/config.json"), "{ invalid", "utf8");
+    capabilityState = await readCapabilityState(cwd);
+    assert.equal(capabilityState.configured, false);
+    assert.equal(capabilityState.enabled, false);
+
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({ enabled: false, defaultMode: "workflow" }),
+      "utf8",
+    );
+    capabilityState = await readCapabilityState(cwd);
+    assert.equal(capabilityState.configured, true);
+    assert.equal(capabilityState.enabled, true);
+    assert.equal(capabilityState.configSources.enabled, "session");
+  } finally {
+    restoreModeOverride(context(cwd));
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi restores session core overrides from the active branch", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-session-core-branch-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow" }), "utf8");
+    const activeBranchEntries = [
+      {
+        type: "custom",
+        customType: "freeflow-session-overrides",
+        data: { overrides: { interactionContract: false } },
+      },
+    ];
+    const allEntries = [
+      ...activeBranchEntries,
+      {
+        type: "custom",
+        customType: "freeflow-session-overrides",
+        data: { overrides: { enabled: false } },
+      },
+    ];
+    const { handlers } = loadExtension();
+    await handlers.get("session_start")({ reason: "resume" }, context(cwd, allEntries, activeBranchEntries));
+
+    let capabilityState = await readCapabilityState(cwd);
+    assert.equal(capabilityState.enabled, true);
+    assert.equal(capabilityState.interactionContract.effective, false);
+    assert.deepEqual(capabilityState.sessionOverrides, { interactionContract: false });
+
+    const switchedBranchEntries = [
+      {
+        type: "custom",
+        customType: "freeflow-session-overrides",
+        data: { overrides: { enabled: false } },
+      },
+    ];
+    await handlers.get("session_tree")({}, context(cwd, allEntries, switchedBranchEntries));
+    capabilityState = await readCapabilityState(cwd);
+    assert.equal(capabilityState.enabled, false);
+    assert.deepEqual(capabilityState.sessionOverrides, { enabled: false });
+  } finally {
+    restoreModeOverride(context(cwd));
     await rm(cwd, { recursive: true, force: true });
   }
 });
@@ -887,6 +1060,14 @@ test("Pi /freeflow mode is the only mode command and opens a dedicated selector"
     assert.ok(freeflowCommand);
     assert.ok(!commands.some((command) => command.name === "workflow"));
 
+    const alreadyDefaultCtx = context(cwd);
+    await freeflowCommand.definition.handler("mode workflow", alreadyDefaultCtx);
+    assert.equal(entries.length, 0);
+    assert.match(
+      alreadyDefaultCtx.notifications.at(-1).message,
+      /already in workflow mode from the configured default.*No session override was created/,
+    );
+
     const modeCtx = context(cwd);
     modeCtx.ui.custom = async (factory) => {
       let result;
@@ -921,6 +1102,11 @@ test("Pi /freeflow mode is the only mode command and opens a dedicated selector"
     assert.equal(await readFile(configPath, "utf8"), configText);
     assert.equal(modeCtx.reloads.length, 0);
 
+    const alreadySessionCtx = context(cwd);
+    await freeflowCommand.definition.handler("mode strict-workflow", alreadySessionCtx);
+    assert.equal(entries.length, 1);
+    assert.match(alreadySessionCtx.notifications.at(-1).message, /already in strict-workflow mode for this Pi session/);
+
     const resetCtx = context(cwd);
     await freeflowCommand.definition.handler("mode reset", resetCtx);
     assert.deepEqual(entries.at(-1), {
@@ -934,6 +1120,12 @@ test("Pi /freeflow mode is the only mode command and opens a dedicated selector"
       resetCtx.notifications.at(-1).message,
       /\.freeflow\/local\.json and \.freeflow\/config\.json were not changed/,
     );
+    assert.equal(entries.length, 2);
+
+    const alreadyResetCtx = context(cwd);
+    await freeflowCommand.definition.handler("mode reset", alreadyResetCtx);
+    assert.equal(entries.length, 2);
+    assert.match(alreadyResetCtx.notifications.at(-1).message, /already using the configured default: workflow/);
 
     const nonTuiCtx = context(cwd);
     await freeflowCommand.definition.handler("mode", nonTuiCtx);
@@ -1088,7 +1280,7 @@ test("Pi statusline reports only effective Freeflow runtime state", async () => 
   try {
     await mkdir(join(cwd, ".freeflow"));
     const configPath = join(cwd, ".freeflow/config.json");
-    const { handlers, commands } = loadExtension();
+    const { pi, handlers, commands } = loadExtension();
     const beforeAgentStart = handlers.get("before_agent_start");
     const sessionStart = handlers.get("session_start");
     const freeflowCommand = commands.find((command) => command.name === "freeflow");
@@ -1129,6 +1321,28 @@ test("Pi statusline reports only effective Freeflow runtime state", async () => 
       }),
       "freeflow: interaction · workflow · router",
     );
+
+    const masterOverrideCtx = context(cwd);
+    await setSessionCoreOverride("enabled", false, masterOverrideCtx, pi);
+    await beforeAgentStart({ systemPrompt: "base prompt" }, masterOverrideCtx);
+    assert.equal(masterOverrideCtx.statuses.at(-1).value, "freeflow: off (session)");
+    await resetSessionOverrides(masterOverrideCtx, pi);
+
+    const interactionOverrideCtx = context(cwd);
+    await setSessionCoreOverride("interactionContract", false, interactionOverrideCtx, pi);
+    const interactionRuntime = await beforeAgentStart({ systemPrompt: "base prompt" }, interactionOverrideCtx);
+    assert.match(interactionRuntime.systemPrompt, /Interaction contract: disabled \(session override\)/);
+    assert.equal(
+      interactionOverrideCtx.statuses.at(-1).value,
+      "freeflow: interaction off (session) · workflow · router",
+    );
+    await resetSessionOverrides(interactionOverrideCtx, pi);
+
+    const skillsOverrideCtx = context(cwd);
+    await setSessionCoreOverride("skillsEnabled", false, skillsOverrideCtx, pi);
+    await beforeAgentStart({ systemPrompt: "base prompt" }, skillsOverrideCtx);
+    assert.equal(skillsOverrideCtx.statuses.at(-1).value, "freeflow: interaction · skills off (session) · router");
+    await resetSessionOverrides(skillsOverrideCtx, pi);
 
     const modeCtx = context(cwd);
     await freeflowCommand.definition.handler("mode conversation", modeCtx);
@@ -1359,6 +1573,85 @@ test("Pi /freeflow settings toggles the interaction contract independently", asy
     await assert.rejects(readFile(join(cwd, ".freeflow/local.json"), "utf8"), (error) => error?.code === "ENOENT");
     assert.equal(enableCtx.reloads.length, 1);
   } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi session settings override Freeflow without changing config", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-session-settings-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    const configPath = join(cwd, ".freeflow/config.json");
+    const configText = JSON.stringify({ defaultMode: "workflow" }, null, 2);
+    await writeFile(configPath, configText, "utf8");
+
+    const { commands, entries } = loadExtension();
+    const freeflowCommand = commands.find((command) => command.name === "freeflow");
+    assert.ok(freeflowCommand);
+    const settingsCtx = context(cwd);
+    settingsCtx.ui.custom = async (factory) => {
+      let result;
+      const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
+        result = value;
+      });
+      const rootText = renderText(component);
+      assert.match(rootText, /Freeflow Settings · Session overrides/);
+      assert.match(rootText, /Freeflow\s+enabled \(builtin\)/);
+      assert.match(rootText, /Interaction Contract\s+enabled \(builtin\)/);
+      assert.match(rootText, /Skills\s+enabled \(builtin\)/);
+      assert.match(rootText, /Mode\s+default \(workflow · repository\)/);
+      assert.match(rootText, /Reset session overrides\s+available/);
+
+      component.handleInput("\r");
+      const choices = renderText(component);
+      assert.match(choices, /Inherit configured value/);
+      assert.match(choices, /Enabled for this session/);
+      assert.match(choices, /Disabled for this session/);
+      component.handleInput("\u001b[B");
+      component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      component.handleInput("\u001b");
+      return result;
+    };
+
+    await freeflowCommand.definition.handler("settings session", settingsCtx);
+    const capabilityState = await readCapabilityState(cwd);
+    assert.equal(capabilityState.enabled, false);
+    assert.equal(capabilityState.configSources.enabled, "session");
+    assert.equal(settingsCtx.reloads.length, 1);
+    assert.deepEqual(entries.at(-1), {
+      customType: "freeflow-session-overrides",
+      data: { overrides: { enabled: false } },
+    });
+    assert.equal(await readFile(configPath, "utf8"), configText);
+    await assert.rejects(readFile(join(cwd, ".freeflow/local.json"), "utf8"), (error) => error?.code === "ENOENT");
+
+    const resetCtx = context(cwd);
+    resetCtx.ui.custom = async (factory) => {
+      let result;
+      const component = factory({ requestRender() {} }, testTheme, {}, (value) => {
+        result = value;
+      });
+      const rootText = renderText(component);
+      assert.match(rootText, /Freeflow\s+disabled \(session\)/);
+      assert.match(rootText, /Interaction Contract\s+enabled \(builtin\) · inactive/);
+      for (let index = 0; index < 4; index += 1) component.handleInput("\u001b[B");
+      component.handleInput("\r");
+      assert.match(renderText(component), /Reset all session overrides/);
+      component.handleInput("\r");
+      component.handleInput("\u001b");
+      return result;
+    };
+    await freeflowCommand.definition.handler("settings session", resetCtx);
+    assert.equal((await readCapabilityState(cwd)).enabled, true);
+    assert.equal(resetCtx.reloads.length, 1);
+    assert.deepEqual(entries.at(-1), {
+      customType: "freeflow-session-overrides",
+      data: { overrides: {} },
+    });
+    assert.equal(await readFile(configPath, "utf8"), configText);
+  } finally {
+    restoreModeOverride(context(cwd));
     await rm(cwd, { recursive: true, force: true });
   }
 });

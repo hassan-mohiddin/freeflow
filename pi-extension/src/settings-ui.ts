@@ -21,6 +21,8 @@ import {
   readFreeflowConfigLayers,
   readFreeflowLocalConfig,
   readModeState,
+  resetSessionOverrides,
+  setSessionCoreOverride,
   VALID_MODES,
 } from "./runtime-context.js";
 import {
@@ -52,8 +54,8 @@ const MODE_DESCRIPTIONS = {
 const LOCAL_INHERIT = "inherit";
 const execFileAsync = promisify(execFile);
 
-type ConfigScope = "local" | "repository";
-type ConfigSource = "local" | "repository" | "builtin";
+type ConfigScope = "session" | "local" | "repository";
+type ConfigSource = "session" | "local" | "repository" | "builtin";
 
 type SettingKind = "boolean" | "enum" | "integer" | "string" | "list" | "json" | "group";
 
@@ -80,6 +82,7 @@ type SettingsItem = {
   inheritedValue?: unknown;
   inheritedSource?: ConfigSource;
   localOverrideValue?: unknown;
+  transient?: boolean;
 };
 
 type OpenSettingsOptions = {
@@ -494,9 +497,9 @@ function coreDisplaySuffix(item: SettingsItem, inactive = false): string {
 function updateScopedItemState(item: SettingsItem, value: unknown) {
   if (!item.configScope) return;
   const configValue = configValueForChoice(item, value);
-  if (item.configScope === "local") {
+  if (item.configScope === "session" || item.configScope === "local") {
     item.effectiveValue = configValue === undefined ? item.inheritedValue : configValue;
-    item.effectiveSource = configValue === undefined ? (item.inheritedSource ?? "builtin") : "local";
+    item.effectiveSource = configValue === undefined ? (item.inheritedSource ?? "builtin") : item.configScope;
     return;
   }
   if (item.localOverrideValue !== undefined) {
@@ -689,6 +692,157 @@ function resolveSettingsCoreView(
 
 function groupEnabled(items: SettingsItem[], id: string): boolean {
   return items.find((item) => item.id === id)?.value === true;
+}
+
+function createSessionBooleanItem(options: {
+  id: string;
+  label: string;
+  description: string;
+  key: "enabled" | "interactionContract" | "skillsEnabled";
+  inheritedValue: boolean;
+  inheritedSource: ConfigSource;
+  effectiveValue: boolean;
+  effectiveSource: ConfigSource;
+  sessionOverrides: Record<string, boolean>;
+}): SettingsItem {
+  const override = options.sessionOverrides[options.key];
+  const item: SettingsItem = {
+    id: options.id,
+    label: options.label,
+    description: options.description,
+    kind: "enum",
+    value: typeof override === "boolean" ? String(override) : LOCAL_INHERIT,
+    values: [LOCAL_INHERIT, "true", "false"],
+    valueLabels: {
+      inherit: "Inherit configured value",
+      true: "Enabled for this session",
+      false: "Disabled for this session",
+    },
+    valueDescriptions: {
+      inherit: `Use ${formatCoreValue(options.inheritedValue)} from ${options.inheritedSource}.`,
+      true: "Temporarily enable this setting for the current Pi session.",
+      false: "Temporarily disable this setting for the current Pi session.",
+    },
+    format: (value) => {
+      if (value === LOCAL_INHERIT) return LOCAL_INHERIT;
+      return booleanValue(value === "true");
+    },
+    configScope: "session",
+    configValues: {
+      inherit: undefined,
+      true: true,
+      false: false,
+    },
+    effectiveValue: options.effectiveValue,
+    effectiveSource: options.effectiveSource,
+    inheritedValue: options.inheritedValue,
+    inheritedSource: options.inheritedSource,
+  };
+  item.displaySuffix = coreDisplaySuffix(item);
+  return item;
+}
+
+function sessionFreeflowItems(
+  state: Awaited<ReturnType<typeof readCapabilityState>>,
+  modeState: Awaited<ReturnType<typeof readModeState>>,
+): SettingsItem[] {
+  const sessionOverrides = state.sessionOverrides as Record<string, boolean>;
+  const configured = state.configuredCoreConfig;
+  const configuredSources = state.configuredSources as {
+    enabled: ConfigSource;
+    interactionContract: ConfigSource;
+    skillsEnabled: ConfigSource;
+  };
+  const effectiveSources = state.configSources as {
+    enabled: ConfigSource;
+    interactionContract: ConfigSource;
+    skillsEnabled: ConfigSource;
+  };
+
+  const freeflowItem = createSessionBooleanItem({
+    id: "freeflow.enabled",
+    label: "Freeflow",
+    description: "Temporary master override for this Pi session.",
+    key: "enabled",
+    inheritedValue: configured.enabled,
+    inheritedSource: configuredSources.enabled,
+    effectiveValue: state.enabled,
+    effectiveSource: effectiveSources.enabled,
+    sessionOverrides,
+  });
+  const interactionItem = createSessionBooleanItem({
+    id: "freeflow.interactionContract",
+    label: "Interaction Contract",
+    description: "Temporary Interaction Contract override for this Pi session.",
+    key: "interactionContract",
+    inheritedValue: configured.interactionContract,
+    inheritedSource: configuredSources.interactionContract,
+    effectiveValue: state.interactionContract.enabled,
+    effectiveSource: effectiveSources.interactionContract,
+    sessionOverrides,
+  });
+  const skillsItem = createSessionBooleanItem({
+    id: "freeflow.skills.enabled",
+    label: "Skills",
+    description: "Temporary Freeflow Skills override for this Pi session.",
+    key: "skillsEnabled",
+    inheritedValue: configured.skills.enabled,
+    inheritedSource: configuredSources.skillsEnabled,
+    effectiveValue: state.skills.enabled,
+    effectiveSource: effectiveSources.skillsEnabled,
+    sessionOverrides,
+  });
+
+  const freeflowInactive = !state.enabled;
+  const skillsEnabled = state.skills.enabled;
+  interactionItem.inactive = freeflowInactive;
+  skillsItem.inactive = freeflowInactive;
+
+  const sessionMode = modeState.currentMode ?? "default";
+  const sessionModeItem: SettingsItem = {
+    id: "freeflow.sessionMode",
+    label: "Mode",
+    description: "Temporary mode override for this Pi session.",
+    kind: "enum",
+    value: sessionMode,
+    values: ["default", ...MODE_VALUES],
+    valueLabels: {
+      ...MODE_LABELS,
+      default: "Use configured default",
+    },
+    valueDescriptions: {
+      default: `${modeState.defaultMode} from ${modeState.defaultModeSource}`,
+      ...MODE_DESCRIPTIONS,
+    },
+    inactive: freeflowInactive || !skillsEnabled,
+    displaySuffix: sessionModeDisplaySuffix(
+      sessionMode,
+      modeState.defaultMode,
+      modeState.defaultModeSource,
+      freeflowInactive || !skillsEnabled,
+    ),
+    inheritedValue: modeState.defaultMode,
+    inheritedSource: modeState.defaultModeSource,
+  };
+
+  return [
+    freeflowItem,
+    interactionItem,
+    skillsItem,
+    sessionModeItem,
+    {
+      id: "freeflow.session.reset",
+      label: "Reset session overrides",
+      description: "Clear Freeflow, Interaction Contract, Skills, and mode overrides for this Pi session.",
+      kind: "enum",
+      value: "available",
+      values: ["reset"],
+      valueLabels: { reset: "Reset all session overrides" },
+      valueDescriptions: { reset: "Return every session setting to its configured value." },
+      format: () => "available",
+      transient: true,
+    },
+  ];
 }
 
 function freeflowItems(
@@ -1044,7 +1198,7 @@ async function updateConfig(
 
 function valueForDisplay(item: SettingsItem): string {
   let value: string;
-  if (item.configScope === "local") {
+  if (item.configScope === "local" || item.configScope === "session") {
     value = formatCoreValue(effectiveItemValue(item));
   } else if (item.kind === "boolean") {
     value = booleanValue(item.value);
@@ -1087,8 +1241,10 @@ function refreshSettingsDerivedState(items: SettingsItem[]) {
   const routerGroup = findSettingsItem(items, "outputRouter.group");
 
   if (sessionModeItem) {
-    const defaultMode = String(defaultModeItem ? effectiveItemValue(defaultModeItem) : "workflow");
-    const defaultSource = defaultModeItem?.effectiveSource ?? "builtin";
+    const defaultMode = String(
+      defaultModeItem ? effectiveItemValue(defaultModeItem) : (sessionModeItem.inheritedValue ?? "workflow"),
+    );
+    const defaultSource = defaultModeItem?.effectiveSource ?? sessionModeItem.inheritedSource ?? "builtin";
     sessionModeItem.inactive = freeflowInactive || !skillsEnabled;
     sessionModeItem.displaySuffix = sessionModeDisplaySuffix(
       String(sessionModeItem.value),
@@ -1108,7 +1264,9 @@ function refreshSettingsDerivedState(items: SettingsItem[]) {
   }
 
   walkSettingsItems(items, (candidate) => {
-    if (candidate.configScope) {
+    if (candidate.id === "freeflow.session.reset") {
+      candidate.inactive = false;
+    } else if (candidate.configScope) {
       const inactive = candidate.id === "freeflow.enabled" ? false : freeflowInactive;
       const displayInactive = candidate.id === "freeflow.defaultMode" ? freeflowInactive || !skillsEnabled : inactive;
       candidate.inactive = inactive;
@@ -1143,6 +1301,18 @@ function settingsChoices(item: SettingsItem) {
   }));
 }
 
+function resetSessionItemState(items: SettingsItem[]) {
+  walkSettingsItems(items, (item) => {
+    if (item.configScope === "session") {
+      item.value = LOCAL_INHERIT;
+      item.effectiveValue = item.inheritedValue;
+      item.effectiveSource = item.inheritedSource ?? "builtin";
+    } else if (item.id === "freeflow.sessionMode") {
+      item.value = "default";
+    }
+  });
+}
+
 function settingsEntries(
   items: SettingsItem[],
   rootItems: SettingsItem[],
@@ -1172,7 +1342,11 @@ function settingsEntries(
             const outcome = await onChange(item, value);
             if (outcome.changed) {
               updateScopedItemState(item, value);
-              item.value = value;
+              if (item.id === "freeflow.session.reset") {
+                resetSessionItemState(rootItems);
+              } else if (!item.transient) {
+                item.value = value;
+              }
               refreshSettingsDerivedState(rootItems);
             }
             return outcome;
@@ -1236,10 +1410,15 @@ function freeflowStatusText(state: Awaited<ReturnType<typeof readCapabilityState
       ? `Freeflow: inactive (invalid config: ${state.parseError ?? "unknown parse error"}); run /setup-freeflow or fix .freeflow/config.json`
       : "Freeflow: inactive (repo not set up); run /setup-freeflow";
   }
+  const sessionSuffix = (source: ConfigSource) => (source === "session" ? " (session override)" : "");
   return [
-    `Freeflow: ${state.enabled ? "enabled" : "disabled"}`,
-    `interaction contract: ${state.interactionContract.effective ? "enabled" : "disabled"}`,
-    `skills: ${state.skills.effective ? "enabled" : "disabled (workflow modes inactive)"}`,
+    `Freeflow: ${state.enabled ? "enabled" : "disabled"}${sessionSuffix(state.configSources.enabled as ConfigSource)}`,
+    `interaction contract: ${state.interactionContract.effective ? "enabled" : "disabled"}${sessionSuffix(
+      state.configSources.interactionContract as ConfigSource,
+    )}`,
+    `skills: ${state.skills.effective ? "enabled" : "disabled (workflow modes inactive)"}${sessionSuffix(
+      state.configSources.skillsEnabled as ConfigSource,
+    )}`,
     `output router: ${state.outputRouter.enabled ? "enabled" : "disabled"}`,
   ].join("; ");
 }
@@ -1270,6 +1449,30 @@ async function finalizeSettingsSession(
   ctx.ui.notify(savedMessage, "info");
   if (typeof ctx.reload !== "function") {
     ctx.ui.notify(reloadWarning, "warning");
+    return false;
+  }
+
+  await ctx.reload();
+  return true;
+}
+
+async function finalizeSessionSettings(
+  session: SettingsSessionResult,
+  ctx: any,
+  afterChange: (changed: boolean) => Promise<void> | void,
+) {
+  if (!session.changed) return false;
+
+  await afterChange(true);
+  if (session.failed) return false;
+  if (!session.configChanged) {
+    ctx.ui.notify("Freeflow session overrides updated.", "info");
+    return false;
+  }
+
+  ctx.ui.notify("Freeflow session overrides updated. Reloading skills and resources...", "info");
+  if (typeof ctx.reload !== "function") {
+    ctx.ui.notify("Run /reload for Freeflow session overrides to fully apply.", "warning");
     return false;
   }
 
@@ -1316,7 +1519,7 @@ export async function handleFreeflowCommand(
   }
   const settingsSelector =
     action === "settings" &&
-    (!actionValue || ["local", "personal", "repo", "repository", "shared"].includes(actionValue));
+    (!actionValue || ["session", "local", "personal", "repo", "repository", "shared"].includes(actionValue));
   if (nonTui && settingsSelector) {
     return nonTuiGuidance(ctx, NON_TUI_SETTINGS_GUIDANCE);
   }
@@ -1403,28 +1606,60 @@ export async function handleFreeflowCommand(
   }
 
   let settingsScope: ConfigScope = "local";
-  if (["repo", "repository", "shared"].includes(actionValue)) {
+  if (actionValue === "session") {
+    settingsScope = "session";
+  } else if (["repo", "repository", "shared"].includes(actionValue)) {
     settingsScope = "repository";
   } else if (actionValue && !["local", "personal"].includes(actionValue)) {
-    ctx.ui.notify("Usage: /freeflow settings, /freeflow settings local, or /freeflow settings repo", "warning");
+    ctx.ui.notify(
+      "Usage: /freeflow settings, /freeflow settings session, /freeflow settings local, or /freeflow settings repo",
+      "warning",
+    );
     return { changed: false, reloaded: false, error: "invalid_scope" };
   }
+
+  const items =
+    settingsScope === "session"
+      ? sessionFreeflowItems(state, modeState)
+      : freeflowItems(raw, modeState, { scope: settingsScope, layers });
   const session = await openSettings({
     title:
-      settingsScope === "local"
-        ? "Freeflow Settings · Personal overrides"
-        : "Freeflow Repository Settings · modifies .freeflow/config.json",
-    items: freeflowItems(raw, modeState, { scope: settingsScope, layers }),
+      settingsScope === "session"
+        ? "Freeflow Settings · Session overrides"
+        : settingsScope === "local"
+          ? "Freeflow Settings · Personal overrides"
+          : "Freeflow Repository Settings · modifies .freeflow/config.json",
+    items,
     ctx,
     onChange: async (item, value) => {
       if (item.id === "freeflow.sessionMode") {
         const result = await handleModeCommand(String(value), ctx, pi);
         return { changed: result.changed, reloadRequired: false };
       }
+      if (item.id === "freeflow.session.reset") {
+        const result = await resetSessionOverrides(ctx, pi);
+        return { changed: result.changed, reloadRequired: result.reloadRequired };
+      }
+      if (item.configScope === "session") {
+        const keyById = {
+          "freeflow.enabled": "enabled",
+          "freeflow.interactionContract": "interactionContract",
+          "freeflow.skills.enabled": "skillsEnabled",
+        } as const;
+        const key = keyById[item.id as keyof typeof keyById];
+        const override = value === LOCAL_INHERIT ? null : value === "true";
+        const result = await setSessionCoreOverride(key, override, ctx, pi);
+        return { changed: result.changed, reloadRequired: result.reloadRequired === true };
+      }
       await updateConfig(ctx.cwd, item, value, item.configScope ?? "repository");
       return { changed: true, reloadRequired: true };
     },
   });
+
+  if (settingsScope === "session") {
+    const reloaded = await finalizeSessionSettings(session, ctx, afterChange);
+    return { changed: session.changed, reloaded, error: session.failed ? "write_failed" : undefined };
+  }
 
   const savedTarget = settingsScope === "local" ? "personal overrides" : "repository settings";
   const reloaded = await finalizeSettingsSession(

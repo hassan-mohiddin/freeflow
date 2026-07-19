@@ -74,22 +74,48 @@ function disabledToolCall(toolName: string, capability: string) {
 
 function capabilityCompletions(prefix: string | undefined) {
   const query = prefix ?? "";
-  return ["settings", "status", "enable", "disable"]
-    .filter((value) => value.startsWith(query))
-    .map((value) => ({ value, label: value }));
+  return [
+    { value: "settings", label: "settings", description: "Open repository Output Router settings" },
+    { value: "status", label: "status", description: "Show effective Output Router state" },
+    { value: "enable", label: "enable", description: "Enable Output Router for this repository" },
+    { value: "disable", label: "disable", description: "Disable Output Router for this repository" },
+  ].filter((item) => item.value.startsWith(query));
 }
 
 function freeflowCompletions(prefix: string | undefined) {
   const query = prefix ?? "";
+  if (query.startsWith("settings ")) {
+    const settingsQuery = query.slice("settings ".length);
+    return [
+      { value: "session", label: "session", description: "Override Freeflow for this Pi session" },
+      { value: "local", label: "local", description: "Edit personal overrides for this repository" },
+      { value: "repo", label: "repo", description: "Edit shared repository settings" },
+    ]
+      .filter((item) => item.value.startsWith(settingsQuery))
+      .map((item) => ({ ...item, value: `settings ${item.value}` }));
+  }
   if (query.startsWith("mode ")) {
     const modeQuery = query.slice("mode ".length);
-    return ["conversation", "workflow", "strict-workflow", "reset"]
-      .filter((value) => value.startsWith(modeQuery))
-      .map((value) => ({ value: `mode ${value}`, label: value }));
+    return [
+      { value: "conversation", label: "conversation", description: "Read-only discussion and inspection" },
+      { value: "workflow", label: "workflow", description: "Adaptive workflow for consequential work" },
+      { value: "strict-workflow", label: "strict-workflow", description: "Stronger pressure at high-risk boundaries" },
+      {
+        value: "reset",
+        label: "reset",
+        description: "Clear the session override and use the configured default",
+      },
+    ]
+      .filter((item) => item.value.startsWith(modeQuery))
+      .map((item) => ({ ...item, value: `mode ${item.value}` }));
   }
-  return ["settings", "status", "mode", "enable", "disable"]
-    .filter((value) => value.startsWith(query))
-    .map((value) => ({ value, label: value }));
+  return [
+    { value: "settings", label: "settings", description: "Open personal override settings" },
+    { value: "status", label: "status", description: "Show effective Freeflow state" },
+    { value: "mode", label: "mode", description: "Select a temporary session mode" },
+    { value: "enable", label: "enable", description: "Enable Freeflow for this repository" },
+    { value: "disable", label: "disable", description: "Disable Freeflow for this repository" },
+  ].filter((item) => item.value.startsWith(query));
 }
 
 function bypassCompletions(prefix: string | undefined) {

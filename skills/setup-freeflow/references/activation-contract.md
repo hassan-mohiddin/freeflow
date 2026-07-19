@@ -55,16 +55,16 @@ A missing local file means full inheritance. An invalid existing local file bloc
 Resolve core values in this order:
 
 ```text
-personal override -> repository value -> built-in default
+host session override -> personal override -> repository value -> built-in default
 ```
 
-A Pi session mode override sits above the configured default for mode resolution only. It is host session state, not config.
+Host session overrides, where supported, may temporarily change Freeflow master enablement, Interaction Contract, Skills, and mode. They are host session state, not config, and cannot bypass missing or invalid repository activation.
 
 Effective Freeflow requires:
 
 1. valid repository config;
 2. missing or valid local config;
-3. resolved `enabled: true`.
+3. session-resolved `enabled: true`.
 
 The Interaction Contract and Skills are independent resolved switches. When Skills are disabled, the configured mode remains visible as resolved state but no Freeflow mode is effective.
 

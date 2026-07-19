@@ -31,14 +31,14 @@ Task shape does not silently switch mode. Host permission modes remain separate.
 Core precedence is:
 
 ```text
-personal override -> repository value -> built-in default
+Pi session override -> personal override -> repository value -> built-in default
 ```
 
-A Pi session mode override sits above configured mode for the current session only. An invalid existing local core layer fails closed instead of silently inheriting repository values.
+Pi session overrides can temporarily change Freeflow master enablement, Interaction Contract, Skills, and mode. They live in branch-aware Pi session JSONL, do not mutate config files, and cannot bypass missing or invalid repository activation. An invalid existing local core layer fails closed instead of silently inheriting repository values.
 
 The Interaction Contract, Skills, and top-level Freeflow switch resolve independently. A mode remains resolved but dormant while Skills are ineffective. Repository-owned Output Router configuration remains separate from local core overrides.
 
-Do not store task state, active slices, Plans, current session mode, file inventories, or generated workflow instructions in config.
+Do not store task state, active slices, Plans, current session overrides, file inventories, or generated workflow instructions in config.
 
 ## Activation Versus Delivery
 
@@ -82,7 +82,7 @@ The Pi extension reads both config layers before agent turns. It:
 - dynamically exposes 25 model/contributor skills;
 - loads Output Router context and tools only when effective.
 
-`/freeflow settings` edits personal core overrides. `/freeflow settings repo` edits shared repository settings. `/freeflow mode` owns temporary session mode.
+`/freeflow settings` edits personal core overrides. `/freeflow settings session` manages branch-aware Pi session overrides for Freeflow, Interaction Contract, Skills, and mode without changing config files. `/freeflow settings repo` edits shared repository settings. `/freeflow mode` remains the direct temporary mode control.
 
 ## Same-Turn Setup
 

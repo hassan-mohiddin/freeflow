@@ -23,9 +23,9 @@ The adaptive candidate remains **Unverified** pending current baseline-vs-with-s
 
 ## Runtime And Configuration
 
-`.freeflow/config.json` is required shared repository activation. Optional `.freeflow/local.json` supplies per-checkout personal core overrides and cannot activate Freeflow alone. A Pi session mode override has highest temporary mode precedence.
+`.freeflow/config.json` is required shared repository activation. Optional `.freeflow/local.json` supplies per-checkout personal core overrides and cannot activate Freeflow alone. Branch-aware Pi session overrides have highest temporary precedence for Freeflow master enablement, Interaction Contract, Skills, and mode. They live in Pi session JSONL and do not mutate either config file.
 
-Invalid existing local core config fails closed.
+Invalid existing local core config fails closed, and session enablement cannot bypass missing or invalid repository activation.
 
 When effective, host adapters deliver:
 

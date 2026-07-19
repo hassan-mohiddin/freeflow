@@ -12,18 +12,18 @@ Mode changes do not authorize work or resolve decisions. Task type and direct sk
 
 ## Activation And Configuration
 
-Freeflow requires a valid shared `.freeflow/config.json`. Optional `.freeflow/local.json` supplies per-checkout personal core overrides and cannot activate Freeflow by itself. A Pi session mode override sits above configured defaults temporarily.
+Freeflow requires a valid shared `.freeflow/config.json`. Optional `.freeflow/local.json` supplies per-checkout personal core overrides and cannot activate Freeflow by itself. Pi session overrides sit above configured values temporarily.
 
 ```text
-session mode
--> personal default override
--> repository default
+session capability or mode override
+-> personal override
+-> repository value
 -> built-in default
 ```
 
-A configured mode is dormant while Skills are ineffective. An invalid existing local config fails closed instead of silently inheriting shared settings.
+A configured mode is dormant while Skills are ineffective. An invalid existing local config fails closed instead of silently inheriting shared settings. Session enablement cannot bypass missing or invalid repository activation.
 
-Pi `/freeflow settings` edits personal overrides; `/freeflow settings repo` edits shared configuration. `/freeflow mode` manages only the temporary session override.
+Pi `/freeflow settings` edits personal overrides; `/freeflow settings session` edits branch-aware Pi session overrides for Freeflow, Interaction Contract, Skills, and mode; `/freeflow settings repo` edits shared configuration. Session settings do not mutate either config file. `/freeflow mode` remains the direct temporary mode control.
 
 ## Interaction Lifecycle
 

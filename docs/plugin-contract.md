@@ -48,13 +48,13 @@ Review findings, recommendations, Working Records, Specs, Plans, and Handoffs do
 `.freeflow/config.json` is required shared repository activation. `.freeflow/local.json` is optional per-checkout personal core configuration and cannot activate Freeflow alone.
 
 ```text
-Pi session mode override
+Pi session capability or mode override
 -> personal core override
 -> repository value
 -> built-in default
 ```
 
-An invalid existing personal layer blocks effective runtime. Interaction Contract and Skills resolve as independent switches. Mode remains resolved but dormant when Skills are ineffective.
+Pi session overrides for Freeflow master enablement, Interaction Contract, Skills, and mode live in branch-aware session JSONL and do not mutate config files. They cannot bypass missing or invalid repository activation. An invalid existing personal layer blocks effective runtime. Interaction Contract and Skills resolve as independent switches. Mode remains resolved but dormant when Skills are ineffective.
 
 Repository-owned Output Router configuration remains in shared config.
 

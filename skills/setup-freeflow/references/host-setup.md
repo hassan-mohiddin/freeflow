@@ -27,10 +27,13 @@ The Pi extension reads both config layers before each agent turn. A valid reposi
 Pi provides these settings scopes:
 
 ```text
-/freeflow settings       personal overrides
-/freeflow settings repo  shared repository settings
-/freeflow mode            temporary session mode
+/freeflow settings          personal overrides
+/freeflow settings session  temporary session overrides
+/freeflow settings repo     shared repository settings
+/freeflow mode               direct temporary session mode
 ```
+
+Session settings can temporarily inherit, enable, or disable Freeflow, Interaction Contract, and Skills, and can override mode. One reset action clears all four overrides. They persist in the active Pi session branch JSONL, never write `.freeflow/config.json` or `.freeflow/local.json`, and cannot bypass missing or invalid repository activation. Master or Skills changes reload Pi resources when supported.
 
 Personal settings use omission to inherit. The settings path refuses to overwrite invalid or tracked local config and establishes local Git exclusion when needed. These are user-operated host controls; they update state before the next model turn. Agent-performed file edits still follow Setup Freeflow's mutation-authority rules.
 
