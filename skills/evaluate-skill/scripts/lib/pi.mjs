@@ -1,11 +1,10 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { createWriteStream } from "node:fs";
-import { cp, mkdir, readdir, readFile, realpath, stat } from "node:fs/promises";
+import { realpath } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { sha256 } from "./evidence.mjs";
 import {
   mergeUsage,
   messageText,
@@ -18,8 +17,8 @@ import {
   writeStream,
 } from "./process.mjs";
 import { runRpcBodySession, runRpcDescriptionSession } from "./rpc.mjs";
+import { fingerprintDirectory, materializeEnvironment, materializeFixture, verifyEnvironment } from "./sandbox.mjs";
 
-const VARIANT_TOOLS = new Set(["read", "write", "edit"]);
 const guardExtension = fileURLToPath(new URL("../pi-guard.mjs", import.meta.url));
 
 export class VariantSetupError extends Error {
@@ -29,17 +28,17 @@ export class VariantSetupError extends Error {
   }
 }
 
-export async function runDescription({ group, variant, root, variantDirectory, signal }) {
+export async function runDescription({ group, variant, root, variantDirectory, fixture, signal }) {
   if (group.input.turns !== undefined) {
-    return runPersistentDescription({ group, variant, root, variantDirectory, signal });
+    return runPersistentDescription({ group, variant, root, variantDirectory, fixture, signal });
   }
-  return runOneShotDescription({ group, variant, root, variantDirectory, signal });
+  return runOneShotDescription({ group, variant, root, variantDirectory, fixture, signal });
 }
 
-export async function runBody({ group, variant, root, variantDirectory, signal }) {
-  const options = { group, variant, root, variantDirectory, signal };
+export async function runBody({ group, variant, root, variantDirectory, fixture, signal }) {
+  const options = { group, variant, root, variantDirectory, fixture, signal };
   const subject = await prepareSubject(options, "rpc");
-  const before = await hashDirectory(subject.workspace);
+  const before = await fingerprintDirectory(subject.workspace);
   const declaredPrompts = group.input.prompt === undefined ? [...group.input.turns] : [group.input.prompt];
   const observation = await runRpcBodySession({
     args: subject.args,
@@ -51,7 +50,8 @@ export async function runBody({ group, variant, root, variantDirectory, signal }
     targetPath: subject.environment.targetPath,
     environment: subject.processEnvironment,
   });
-  const after = await hashDirectory(subject.workspace);
+  await verifySubjectResources(subject, observation);
+  const after = await fingerprintDirectory(subject.workspace);
 
   const turns = [];
   for (const [index, turn] of observation.turns.entries()) {
@@ -110,7 +110,11 @@ function subjectRun({ group, variant }, subject, observation) {
       observed: observation.model,
     },
     resources: {
+      fixture: subject.fixture,
+      source: subject.environment.source,
       skills: subject.environment.skills,
+      context: subject.environment.context,
+      contextDelivery: subject.environment.contextDelivery,
       targetPath: subject.environment.targetPath,
     },
     response: observation.response,
@@ -153,6 +157,7 @@ async function runOneShotDescription(options) {
     signal: options.signal,
     environment: subject.processEnvironment,
   });
+  await verifySubjectResources(subject, observation);
   const successfulReadPaths = await canonicalReadPaths(observation.successfulReads, subject.workspace);
   const targetRead =
     subject.environment.targetPath !== null && successfulReadPaths.includes(subject.environment.targetPath);
@@ -178,6 +183,7 @@ async function runPersistentDescription(options) {
     prompts: options.group.input.turns,
     environment: subject.processEnvironment,
   });
+  await verifySubjectResources(subject, observation);
 
   const turns = [];
   for (const turn of observation.turns) {
@@ -210,24 +216,33 @@ async function runPersistentDescription(options) {
   });
 }
 
-async function prepareSubject({ group, variant, root, variantDirectory }, mode) {
+async function prepareSubject({ group, variant, root, variantDirectory, fixture: fixtureSnapshot }, mode) {
   const workspace = path.join(variantDirectory, "workspace");
-  await mkdir(workspace, { recursive: true });
 
   let environment;
+  let fixture;
   try {
-    environment = await prepareEnvironment(group, variant, root);
-    environment = await materializeEnvironment(environment, variantDirectory);
+    environment = await materializeEnvironment({
+      environment: group.variants[variant],
+      root,
+      variantDirectory,
+    });
+    fixture = await materializeFixture({ fixture: fixtureSnapshot, workspace });
   } catch (error) {
     if (error instanceof VariantSetupError) throw error;
     throw new VariantSetupError(error instanceof Error ? error.message : String(error));
   }
 
   const args = piArguments(group, environment, mode);
-  const allowedRoots = [await realpath(workspace), ...environment.skills.map((skill) => skill.path)];
+  const allowedRoots = [
+    await realpath(workspace),
+    ...environment.skills.map((skill) => skill.path),
+    ...environment.context.map((entry) => entry.path),
+  ];
   return {
     args,
     environment,
+    fixture,
     workspace,
     eventsFile: path.join(variantDirectory, "events.jsonl"),
     stderrFile: path.join(variantDirectory, "stderr.log"),
@@ -239,8 +254,21 @@ async function prepareSubject({ group, variant, root, variantDirectory }, mode) 
       SKILL_EVAL_ALLOWED_ROOTS: JSON.stringify(allowedRoots),
       SKILL_EVAL_WRITABLE_ROOT: await realpath(workspace),
       SKILL_EVAL_ALLOWED_TOOLS: JSON.stringify(group.tools),
+      SKILL_EVAL_CONTEXT_MANIFEST: environment.contextDelivery.manifestPath ?? "",
     },
   };
+}
+
+async function verifySubjectResources(subject, observation) {
+  try {
+    await verifyEnvironment(subject.environment);
+  } catch (error) {
+    observation.protocolErrors ??= [];
+    observation.protocolErrors.push({
+      reason: "immutable-resource-changed",
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 function descriptionRun(options, subject, observation, { input, activation }) {
@@ -264,76 +292,6 @@ function subjectRunState(observation) {
     return "complete";
   }
   return "infrastructure-failed";
-}
-
-async function prepareEnvironment(group, variant, root) {
-  const environment = group.variants[variant];
-  if (group.fixture !== null) {
-    throw new VariantSetupError("evaluation execution does not materialize fixtures yet");
-  }
-  if (group.input.prompt === undefined && group.input.turns === undefined) {
-    throw new VariantSetupError("evaluation execution requires input.prompt or input.turns");
-  }
-  if (environment.source.kind !== "working-tree") {
-    throw new VariantSetupError("evaluation execution currently requires working-tree skill sources");
-  }
-  if (environment.context.length > 0) {
-    throw new VariantSetupError("evaluation execution does not deliver declared context yet");
-  }
-  const unsupportedTools = group.tools.filter((tool) => !VARIANT_TOOLS.has(tool));
-  if (unsupportedTools.length > 0) {
-    throw new VariantSetupError(`unsupported evaluation tools: ${unsupportedTools.join(", ")}`);
-  }
-
-  const canonicalRoot = await realpath(root);
-  const skills = [];
-  for (const relativeSkill of environment.skills) {
-    const skillPath = await realpath(path.resolve(root, relativeSkill)).catch(() => null);
-    if (skillPath === null || !isContained(canonicalRoot, skillPath)) {
-      throw new VariantSetupError(`declared skill is missing or escapes the definition root: ${relativeSkill}`);
-    }
-    const skillStat = await stat(skillPath);
-    if (!skillStat.isDirectory()) {
-      throw new VariantSetupError(`declared skill is not a directory: ${relativeSkill}`);
-    }
-    const skillFile = await realpath(path.join(skillPath, "SKILL.md")).catch(() => null);
-    if (skillFile === null || !isContained(skillPath, skillFile)) {
-      throw new VariantSetupError(`declared skill has no contained SKILL.md: ${relativeSkill}`);
-    }
-    skills.push({
-      declaredPath: relativeSkill,
-      path: skillPath,
-      files: await hashDirectory(skillPath),
-    });
-  }
-
-  return { skills, targetIndex: environment.target };
-}
-
-async function materializeEnvironment(environment, variantDirectory) {
-  const skillsRoot = path.join(variantDirectory, "resources", "skills");
-  await mkdir(skillsRoot, { recursive: true });
-  const skills = [];
-  for (const [index, skill] of environment.skills.entries()) {
-    const snapshotPath = path.join(skillsRoot, String(index));
-    await cp(skill.path, snapshotPath, { recursive: true, dereference: true, errorOnExist: true, force: false });
-    const canonicalSnapshot = await realpath(snapshotPath);
-    const files = await hashDirectory(canonicalSnapshot);
-    if (JSON.stringify(files) !== JSON.stringify(skill.files)) {
-      throw new VariantSetupError(`declared skill changed while it was being snapshotted: ${skill.declaredPath}`);
-    }
-    skills.push({
-      declaredPath: skill.declaredPath,
-      sourcePath: skill.path,
-      path: canonicalSnapshot,
-      files,
-    });
-  }
-  const targetPath =
-    environment.targetIndex === null
-      ? null
-      : await realpath(path.join(skills[environment.targetIndex].path, "SKILL.md"));
-  return { skills, targetPath };
 }
 
 function piArguments(group, environment, mode) {
@@ -522,39 +480,4 @@ async function canonicalReadPaths(paths, cwd) {
     if (resolved !== null && !canonical.includes(resolved)) canonical.push(resolved);
   }
   return canonical;
-}
-
-async function hashDirectory(root) {
-  const files = [];
-  const visited = new Set();
-  await walk(root, root, files, visited);
-  return files.sort((left, right) => left.path.localeCompare(right.path));
-}
-
-async function walk(root, directory, files, visited) {
-  const canonicalDirectory = await realpath(directory);
-  if (!isContained(root, canonicalDirectory) || visited.has(canonicalDirectory)) return;
-  visited.add(canonicalDirectory);
-  const entries = await readdir(canonicalDirectory, { withFileTypes: true });
-  for (const entry of entries) {
-    const entryPath = path.join(canonicalDirectory, entry.name);
-    const canonicalEntry = await realpath(entryPath);
-    if (!isContained(root, canonicalEntry)) {
-      throw new VariantSetupError(`skill resource escapes its package: ${entryPath}`);
-    }
-    const entryStat = await stat(canonicalEntry);
-    if (entryStat.isDirectory()) {
-      await walk(root, canonicalEntry, files, visited);
-    } else if (entryStat.isFile()) {
-      files.push({
-        path: path.relative(root, canonicalEntry),
-        sha256: sha256(await readFile(canonicalEntry)),
-      });
-    }
-  }
-}
-
-function isContained(root, target) {
-  const relative = path.relative(root, target);
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }

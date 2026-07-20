@@ -121,13 +121,19 @@ class RpcSession {
     /** @type {any} */
     const response = await this.sendCommand({ type: "get_commands" });
     const commands = Array.isArray(response.data?.commands) ? response.data.commands : [];
+    const registered = [];
     for (const command of commands) {
       const declaredPath = command.path ?? command.sourceInfo?.path;
       if (command.source !== "skill" || typeof command.name !== "string" || typeof declaredPath !== "string") continue;
       const commandPath = await realpath(declaredPath).catch(() => null);
-      if (commandPath === targetPath) return command.name;
+      if (commandPath !== null) registered.push({ name: command.name, path: commandPath });
     }
-    throw new Error(`Pi did not register the exact target skill command: ${targetPath}`);
+    const target = registered.find((command) => command.path === targetPath);
+    if (!target) throw new Error(`Pi did not register the exact target skill command: ${targetPath}`);
+    if (registered.some((command) => command.name === target.name && command.path !== targetPath)) {
+      throw new Error(`Pi registered an ambiguous target skill command: ${target.name}`);
+    }
+    return target.name;
   }
 
   async runTurn(turnNumber, prompt) {

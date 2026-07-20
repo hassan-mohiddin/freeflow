@@ -5,6 +5,7 @@ import { loadDefinition, selectDefinition } from "./definitions.mjs";
 import { createInvocationId, fileIdentity, writeJson, writeText } from "./evidence.mjs";
 import { gradeDeterministic } from "./grade.mjs";
 import { runBody, runDescription, VariantSetupError } from "./pi.mjs";
+import { prepareFixture } from "./sandbox.mjs";
 
 const VARIANTS = ["baseline", "candidate"];
 const DESCRIPTION_TOOLS = new Set(["read"]);
@@ -60,23 +61,8 @@ function assertSupportedSelection(selection) {
       throw new Error("skill-eval run currently supports description and body groups only");
     }
     const supportedTools = group.type === "body" ? BODY_TOOLS : DESCRIPTION_TOOLS;
-    if (group.fixture !== null || group.tools.some((tool) => !supportedTools.has(tool))) {
-      throw new Error(
-        `${group.type} execution currently supports no fixture and only ${[...supportedTools].join(", ")} tools`,
-      );
-    }
-    for (const variant of VARIANTS) {
-      if (selected.variants[variant] === "not-selected") continue;
-      const environment = group.variants[variant];
-      if (environment.source.kind !== "working-tree" || environment.context.length > 0) {
-        throw new Error(`${group.type} execution currently supports working-tree skills without declared context`);
-      }
-      if (group.type === "body") {
-        const expectedSkillCount = environment.target === null ? 0 : 1;
-        if (environment.skills.length !== expectedSkillCount) {
-          throw new Error("body execution currently supports only a no-skill variant or one explicit target skill");
-        }
-      }
+    if (group.tools.some((tool) => !supportedTools.has(tool))) {
+      throw new Error(`${group.type} execution currently supports only ${[...supportedTools].join(", ")} tools`);
     }
   }
 }
@@ -87,6 +73,16 @@ async function runGroup({ selected, root, resultDirectory, signal }) {
   await mkdir(groupDirectory, { recursive: true });
   await writeJson(path.join(groupDirectory, "definition.json"), group);
 
+  let fixture = null;
+  let fixtureError = null;
+  if (!signal?.aborted) {
+    try {
+      fixture = await prepareFixture({ declaredPath: group.fixture, root, groupDirectory });
+    } catch (error) {
+      fixtureError = error instanceof Error ? error.message : String(error);
+    }
+  }
+
   const runs = {};
   const runFiles = {};
   for (const variant of VARIANTS) {
@@ -96,8 +92,10 @@ async function runGroup({ selected, root, resultDirectory, signal }) {
       runs[variant] = notSelectedRun(group, variant);
     } else if (signal?.aborted) {
       runs[variant] = cancelledRun(group, variant);
+    } else if (fixtureError !== null) {
+      runs[variant] = invalidRun(group, variant, fixtureError);
     } else {
-      runs[variant] = await executeVariant({ group, variant, root, variantDirectory, signal });
+      runs[variant] = await executeVariant({ group, variant, root, variantDirectory, fixture, signal });
     }
     runFiles[variant] = await persistRun(variantDirectory, runs[variant]);
   }
@@ -135,10 +133,10 @@ function selectedGroupState(runs, grade) {
   return "partially-complete";
 }
 
-async function executeVariant({ group, variant, root, variantDirectory, signal }) {
+async function executeVariant({ group, variant, root, variantDirectory, fixture, signal }) {
   try {
     const run = group.type === "body" ? runBody : runDescription;
-    return await run({ group, variant, root, variantDirectory, signal });
+    return await run({ group, variant, root, variantDirectory, fixture, signal });
   } catch (error) {
     if (error instanceof VariantSetupError) return invalidRun(group, variant, error.message);
     return infrastructureFailedRun(group, variant, error);

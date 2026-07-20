@@ -15,6 +15,8 @@ test("skill-eval exposes only the fresh command surface", () => {
   assert.match(result.stdout, /--group <id-or-position>/);
   assert.match(result.stdout, /--variant <baseline\|candidate>/);
   assert.match(result.stdout, /Description and explicit-body groups/);
+  assert.match(result.stdout, /Working-tree or Git-backed ordered skills\/context/);
+  assert.match(result.stdout, /optional fresh fixture copies/);
   assert.match(result.stdout, /body tools: read, write, edit/);
   assert.doesNotMatch(result.stdout, /doctor|evaluate|grade|plan-only|semantic/);
 });

@@ -41,12 +41,12 @@ async function readJsonLines(file, label) {
     .map((line, index) => parseJson(line, `${label} line ${index + 1}`));
 }
 
-async function writeSkill(root, relativePath) {
+async function writeSkill(root, relativePath, name = "release-route") {
   const directory = path.join(root, relativePath);
   await mkdir(directory, { recursive: true });
   await writeFile(
     path.join(directory, "SKILL.md"),
-    "---\nname: release-route\ndescription: Use when choosing how to deliver a completed software change.\n---\n\n# Release Route\n",
+    `---\nname: ${name}\ndescription: Use when ${name} guidance is needed.\n---\n\n# ${name}\n`,
   );
   return realpath(directory);
 }
@@ -59,12 +59,12 @@ async function installFakeRpcPi(root) {
     executable,
     `#!/usr/bin/env node
 import { spawn } from "node:child_process";
-import { appendFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 const args = process.argv.slice(2);
 const skills = args.flatMap((arg, index) => arg === "--skill" ? [args[index + 1]] : []);
 const log = (value) => appendFileSync(process.env.FAKE_PI_LOG, JSON.stringify(value) + "\\n");
 const emit = (value) => process.stdout.write(JSON.stringify(value) + "\\n");
-log({ kind: "spawn", args, cwd: process.cwd(), allowedRoots: JSON.parse(process.env.SKILL_EVAL_ALLOWED_ROOTS) });
+log({ kind: "spawn", args, cwd: process.cwd(), allowedRoots: JSON.parse(process.env.SKILL_EVAL_ALLOWED_ROOTS), contextManifest: process.env.SKILL_EVAL_CONTEXT_MANIFEST ?? null });
 if (process.env.FAKE_RPC_EXTENSION_ERROR === "1") {
   emit({
     type: "extension_error",
@@ -108,7 +108,7 @@ process.stdin.on("data", (chunk) => {
     if (command.type === "get_commands") {
       response.data = {
         commands: skills.map((skill) => ({
-          name: "skill:release-route",
+          name: "skill:" + (readFileSync(skill + "/SKILL.md", "utf8").match(/^name: (.+)$/m)?.[1] ?? "unknown"),
           source: "skill",
           sourceInfo: { path: process.env.FAKE_RPC_COMMAND_PATH ?? skill + "/SKILL.md" },
         })),
@@ -336,6 +336,102 @@ test("body evaluation explicitly delivers only the selected target body and pres
     assert.match(viewed.stdout, /delivery: explicit-skill-command on turn 1/);
     assert.match(viewed.stdout, /Candidate body response/);
     assert.doesNotMatch(viewed.stdout, /target-read:/);
+  });
+});
+
+test("body evaluation preserves ordered multi-skill and declared-context materialization", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakeRpcPi(root);
+    await writeSkill(root, "skills/support", "support-guidance");
+    await writeSkill(root, "skills/release-route");
+    await mkdir(path.join(root, "runtime"), { recursive: true });
+    await writeFile(path.join(root, "runtime/interaction-contract.md"), "Preserve the declared rollback boundary.\n");
+    const group = bodyGroup();
+    group.variants.candidate.skills = ["skills/support", "skills/release-route"];
+    group.variants.candidate.target = 1;
+    group.variants.candidate.context = ["runtime/interaction-contract.md"];
+    const definition = await writeJson(root, "groups/body-environment.json", group);
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+      },
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const log = await readJsonLines(fakeLog, "multi-skill fake Pi log");
+    const spawn = log.find((entry) => entry.kind === "spawn");
+    const skillPaths = spawn.args.flatMap((arg, index) => (arg === "--skill" ? [spawn.args[index + 1]] : []));
+    assert.deepEqual(
+      skillPaths.map((skillPath) => path.basename(skillPath)),
+      ["0", "1"],
+    );
+    assert.ok(spawn.contextManifest);
+    assert.equal(spawn.allowedRoots.length, 4);
+    const prompt = log.find((entry) => entry.kind === "command" && entry.command.type === "prompt")?.command.message;
+    assert.equal(prompt, "/skill:release-route Apply the delivery guidance to this change.");
+
+    const run = parseJson(
+      await readFile(path.join(resultDirectory, "groups/body-behavior/candidate/run.json"), "utf8"),
+      "multi-skill body run",
+    );
+    assert.deepEqual(
+      run.resources.skills.map((skill) => skill.declaredPath),
+      ["skills/support", "skills/release-route"],
+    );
+    assert.equal(run.resources.targetPath, path.join(run.resources.skills[1].path, "SKILL.md"));
+    assert.deepEqual(
+      run.resources.context.map((entry) => entry.declaredPath),
+      ["runtime/interaction-contract.md"],
+    );
+    assert.equal(run.resources.contextDelivery.kind, "system-prompt");
+    assert.equal(run.resources.contextDelivery.manifestPath, spawn.contextManifest);
+    assert.match(run.resources.contextDelivery.sha256, /^[a-f0-9]{64}$/);
+  });
+});
+
+test("multi-skill body evaluation fails before prompting when the target command name is ambiguous", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakeRpcPi(root);
+    await writeSkill(root, "skills/support", "release-route");
+    await writeSkill(root, "skills/release-route", "release-route");
+    const group = bodyGroup();
+    group.variants.candidate.skills = ["skills/support", "skills/release-route"];
+    group.variants.candidate.target = 1;
+    const definition = await writeJson(root, "groups/body-ambiguous.json", group);
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+      },
+    });
+
+    assert.equal(result.status, 1, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const run = parseJson(
+      await readFile(path.join(resultDirectory, "groups/body-behavior/candidate/run.json"), "utf8"),
+      "ambiguous body run",
+    );
+    assert.equal(run.state, "infrastructure-failed");
+    assert.match(run.process.protocolErrors[0].message, /ambiguous target skill command/);
+    const log = await readJsonLines(fakeLog, "ambiguous command log");
+    assert.equal(
+      log.some((entry) => entry.kind === "command" && entry.command.type === "prompt"),
+      false,
+    );
   });
 });
 

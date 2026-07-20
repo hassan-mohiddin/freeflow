@@ -1,4 +1,5 @@
-import { lstatSync, realpathSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 
 const PATH_TOOLS = new Set(["read", "write", "edit"]);
@@ -45,7 +46,38 @@ function escapeXml(value) {
   return value.replace(/[&<>"']/g, (character) => entities[character]);
 }
 
-function buildSubjectSystemPrompt(options) {
+function loadDeclaredContext(manifestPath) {
+  if (!manifestPath) return [];
+  let manifest;
+  try {
+    manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  } catch (error) {
+    throw new Error(
+      `Declared context manifest cannot be read: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  if (manifest?.schema_version !== 1 || !Array.isArray(manifest.entries)) {
+    throw new Error("Declared context manifest must use schema_version 1 and contain entries");
+  }
+  for (const entry of manifest.entries) {
+    if (typeof entry?.declaredPath !== "string" || !Array.isArray(entry.files)) {
+      throw new Error("Declared context manifest entry is malformed");
+    }
+    for (const file of entry.files) {
+      if (
+        typeof file?.path !== "string" ||
+        typeof file.sha256 !== "string" ||
+        typeof file.content !== "string" ||
+        createHash("sha256").update(file.content).digest("hex") !== file.sha256
+      ) {
+        throw new Error(`Declared context file is malformed or changed: ${file?.path ?? "unknown"}`);
+      }
+    }
+  }
+  return manifest.entries;
+}
+
+function buildSubjectSystemPrompt(options, declaredContext) {
   const tools = options.selectedTools ?? [];
   const toolLines = tools.map((tool) => `- ${tool}: ${options.toolSnippets?.[tool] ?? "Declared evaluation tool"}`);
   const lines = [
@@ -74,6 +106,17 @@ function buildSubjectSystemPrompt(options) {
     }
     lines.push("</available_skills>");
   }
+  if (declaredContext.length > 0) {
+    lines.push("", "<declared_context>");
+    for (const entry of declaredContext) {
+      lines.push(`  <context declared-path="${escapeXml(entry.declaredPath)}">`);
+      for (const file of entry.files) {
+        lines.push(`    <file path="${escapeXml(file.path)}">\n${file.content}</file>`);
+      }
+      lines.push("  </context>");
+    }
+    lines.push("</declared_context>");
+  }
   lines.push(`Current working directory: ${options.cwd}`);
   return lines.join("\n");
 }
@@ -84,9 +127,10 @@ export default function registerSkillEvalGuard(pi) {
   if (!writableRootValue) throw new Error("SKILL_EVAL_WRITABLE_ROOT is required");
   const writableRoot = realpathSync(writableRootValue);
   const allowedTools = new Set(parseStringArray(process.env.SKILL_EVAL_ALLOWED_TOOLS));
+  const declaredContext = loadDeclaredContext(process.env.SKILL_EVAL_CONTEXT_MANIFEST);
 
   pi.on("before_agent_start", (event) => ({
-    systemPrompt: buildSubjectSystemPrompt(event.systemPromptOptions),
+    systemPrompt: buildSubjectSystemPrompt(event.systemPromptOptions, declaredContext),
   }));
 
   pi.on("tool_call", (event, ctx) => {

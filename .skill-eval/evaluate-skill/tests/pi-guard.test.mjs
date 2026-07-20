@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -70,6 +71,69 @@ test("Pi guard replaces hostile ambient system and append prompts with declared 
       else process.env.SKILL_EVAL_WRITABLE_ROOT = originalWritableRoot;
       if (originalTools === undefined) delete process.env.SKILL_EVAL_ALLOWED_TOOLS;
       else process.env.SKILL_EVAL_ALLOWED_TOOLS = originalTools;
+    }
+  });
+});
+
+test("Pi guard injects exact ordered declared context and ignores ambient context", async () => {
+  await withTempDirectory(async (root) => {
+    const content = "Preserve rollback.\nUse the declared evidence boundary.\n";
+    const manifest = path.join(root, "context-delivery.json");
+    await writeFile(
+      manifest,
+      `${JSON.stringify(
+        {
+          schema_version: 1,
+          entries: [
+            {
+              declaredPath: "runtime/interaction-contract.md",
+              files: [
+                {
+                  path: "interaction-contract.md",
+                  sha256: createHash("sha256").update(content).digest("hex"),
+                  content,
+                },
+              ],
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    const originalRoots = process.env.SKILL_EVAL_ALLOWED_ROOTS;
+    const originalWritableRoot = process.env.SKILL_EVAL_WRITABLE_ROOT;
+    const originalTools = process.env.SKILL_EVAL_ALLOWED_TOOLS;
+    const originalManifest = process.env.SKILL_EVAL_CONTEXT_MANIFEST;
+    process.env.SKILL_EVAL_ALLOWED_ROOTS = JSON.stringify([root]);
+    process.env.SKILL_EVAL_WRITABLE_ROOT = root;
+    process.env.SKILL_EVAL_ALLOWED_TOOLS = JSON.stringify([]);
+    process.env.SKILL_EVAL_CONTEXT_MANIFEST = manifest;
+    try {
+      const beforeAgentStart = installGuard().get("before_agent_start");
+      const result = beforeAgentStart({
+        systemPrompt: "HOSTILE AMBIENT CONTEXT",
+        systemPromptOptions: {
+          selectedTools: [],
+          cwd: root,
+          skills: [],
+          contextFiles: [{ path: "/ambient/AGENTS.md", content: "HOSTILE AMBIENT CONTEXT" }],
+        },
+      });
+      assert.doesNotMatch(result.systemPrompt, /HOSTILE AMBIENT CONTEXT/);
+      assert.match(result.systemPrompt, /<declared_context>/);
+      assert.match(result.systemPrompt, /runtime\/interaction-contract\.md/);
+      assert.match(result.systemPrompt, /interaction-contract\.md/);
+      assert.ok(result.systemPrompt.includes(content));
+    } finally {
+      if (originalRoots === undefined) delete process.env.SKILL_EVAL_ALLOWED_ROOTS;
+      else process.env.SKILL_EVAL_ALLOWED_ROOTS = originalRoots;
+      if (originalWritableRoot === undefined) delete process.env.SKILL_EVAL_WRITABLE_ROOT;
+      else process.env.SKILL_EVAL_WRITABLE_ROOT = originalWritableRoot;
+      if (originalTools === undefined) delete process.env.SKILL_EVAL_ALLOWED_TOOLS;
+      else process.env.SKILL_EVAL_ALLOWED_TOOLS = originalTools;
+      if (originalManifest === undefined) delete process.env.SKILL_EVAL_CONTEXT_MANIFEST;
+      else process.env.SKILL_EVAL_CONTEXT_MANIFEST = originalManifest;
     }
   });
 });

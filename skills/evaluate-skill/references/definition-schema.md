@@ -115,7 +115,19 @@ fixtures, grade evidence, or render results.
 
 ## Current Execution Boundary
 
-`skill-eval run` currently executes selected `description` and `body` groups with working-tree skill sources and no fixture or declared context.
+`skill-eval run` executes selected `description` and `body` groups with optional fixtures, working-tree or Git-backed resources, ordered multi-skill environments, and declared context.
+
+Environment materialization:
+
+- a group fixture is snapshotted once from the working tree, then copied into each selected variant's fresh writable workspace;
+- `working-tree` sources snapshot each declared skill and context path from the definition root;
+- `git` sources resolve `ref` to one commit and materialize each declared skill and context path from that commit without display-oriented path parsing;
+- skill order is preserved through snapshot evidence and repeated Pi `--skill` registration;
+- the target remains the declared zero-based index, so a body group can explicitly deliver one target while other declared skills remain available;
+- declared context may be one UTF-8 text file or a directory of UTF-8 text files; declaration order and deterministic file order are preserved in an evaluator-owned system-prompt manifest;
+- resource declarations, source identity, materialized paths and hashes, context delivery, successful reads, responses, tools, and workspace effects remain separate evidence.
+
+Lexical and canonical containment apply to fixtures, skills, and context. Resource symlink escapes, dangling links, unsupported Git entries, missing `SKILL.md`, invalid UTF-8 context, ambiguous target command registration, and source changes during snapshotting fail closed before trustworthy prompting. Skill/context snapshots and the context-delivery manifest are fingerprinted again after subject execution; mutation becomes infrastructure evidence without erasing the run. Git evidence records both the declared ref and resolved commit. Writable fixture copies are never shared between variants.
 
 Description groups support:
 
@@ -126,7 +138,7 @@ Description groups support:
 Body groups support:
 
 - `input.prompt` or ordered `input.turns` through one persistent RPC process;
-- either no declared skill and a null target, or exactly one declared target skill;
+- no target or one target selected from an exact ordered skill list;
 - no tools or path-guarded `read`, `write`, and `edit`;
 - explicit target delivery on the first declared turn only;
 - exact before/after workspace file identities and created, modified, and deleted paths;
@@ -149,8 +161,8 @@ The supported body response expectation is:
 
 `turn` is optional. When present, it must identify one declared prompt or turn. Without it, the check inspects the final response and records its observed turn. A failed response check leaves a completed subject run complete. A non-body use, out-of-range turn, or other invalid expectation shape produces a separate `grade-error` after run evidence is saved.
 
-Every selected variant receives a fresh empty workspace and Pi process with ambient resources disabled. RPC sessions disable automatic retry and compaction, correlate every request, and wait for `agent_settled` before the next declared turn. The root guard replaces host system, append, and context instructions with evaluator-owned context; any guard extension error fails closed as infrastructure evidence before further prompts. Reads may access the workspace and declared skill snapshots; writes and edits may access only the workspace. Skill snapshots are copied into variant-owned resources and hash-checked before registration.
+Every selected variant receives a fresh fixture-backed or empty workspace and Pi process with ambient resources disabled. RPC sessions disable automatic retry and compaction, correlate every request, and wait for `agent_settled` before the next declared turn. The root guard replaces host system, append, and context instructions with evaluator-owned context containing only declared tools, skills, and exact declared context. Any guard extension error fails closed as infrastructure evidence before further prompts. Reads may access the workspace and declared skill/context snapshots; writes and edits may access only the workspace.
 
-`skill-eval view` renders stored results by complete result, suite group ID or original one-based position, and variant. Description views include declared-turn responses and activation timing. Body views include delivery state, review questions, responses, tools used, workspace changes, and direct paths for canonical artifacts. Use ordinary file tools for raw evidence.
+`skill-eval view` renders stored results by complete result, suite group ID or original one-based position, and variant. Description views include declared-turn responses and activation timing. Body views include explicit-delivery state, review questions, responses, tools used, workspace changes, and direct paths for canonical artifacts. Use ordinary file tools for raw evidence.
 
-The command rejects fixtures, declared context, Git sources, multi-skill body environments, `bash`, end-to-end groups, and broader deterministic assertions before starting subjects. Cancellation persists queued selected variants as `cancelled` without starting additional Pi subjects.
+The command still rejects `bash`, end-to-end execution, and broader deterministic assertions before starting subjects. Cancellation persists queued selected variants as `cancelled` without starting additional Pi subjects.

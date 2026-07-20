@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -51,13 +51,25 @@ async function installFakePi(root) {
     executable,
     `#!/usr/bin/env node
 import { spawn } from "node:child_process";
-import { appendFileSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 const args = process.argv.slice(2);
 const skills = args.flatMap((arg, index) => arg === "--skill" ? [args[index + 1]] : []);
 const skill = skills[0] ?? null;
 const readSkill = skills[Number(process.env.FAKE_PI_READ_SKILL_INDEX ?? 0)] ?? null;
 const fail = skill !== null && process.env.FAKE_PI_FAIL_SKILL === "1";
 appendFileSync(process.env.FAKE_PI_LOG, JSON.stringify({ args, cwd: process.cwd(), allowedRoots: JSON.parse(process.env.SKILL_EVAL_ALLOWED_ROOTS) }) + "\\n");
+if (process.env.FAKE_PI_MUTATE_FIXTURE === "1") {
+  const before = readFileSync("state.txt", "utf8");
+  const variant = skill === null ? "baseline" : "candidate";
+  appendFileSync(process.env.FAKE_PI_LOG, JSON.stringify({ kind: "fixture", variant, before, cwd: process.cwd() }) + "\\n");
+  writeFileSync("state.txt", variant + " mutation\\n");
+  if (skill === null && process.env.FAKE_PI_FIXTURE_SOURCE) {
+    writeFileSync(process.env.FAKE_PI_FIXTURE_SOURCE, "source changed after baseline snapshot\\n");
+  }
+}
+if (process.env.FAKE_PI_MUTATE_SKILL === "1" && skill !== null) {
+  writeFileSync(skill + "/SKILL.md", "tampered snapshot\\n");
+}
 if (process.env.FAKE_PI_DESCENDANT_PID) {
   const descendant = spawn(
     process.execPath,
@@ -105,6 +117,12 @@ if (process.env.FAKE_PI_CANCEL_PARENT === "1") process.kill(process.ppid, "SIGIN
   return bin;
 }
 
+function runGit(root, args) {
+  const result = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+  return result.stdout.trim();
+}
+
 function processExists(pid) {
   try {
     process.kill(pid, 0);
@@ -146,6 +164,206 @@ function descriptionGroup() {
     model: { model: "fake/model", thinking: "low" },
   };
 }
+
+test("fixture copies are fresh per variant and preserve declared materialization evidence", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakePi(root);
+    await writeSkill(root, "skills/release-route", {
+      name: "release-route",
+      description: "Use when choosing how to deliver a completed software change.",
+    });
+    await mkdir(path.join(root, "fixtures/project"), { recursive: true });
+    await writeFile(path.join(root, "fixtures/project/state.txt"), "seed\n");
+    const group = descriptionGroup();
+    group.fixture = "fixtures/project";
+    const definition = await writeJson(root, "groups/fixture.json", group);
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+        FAKE_PI_MUTATE_FIXTURE: "1",
+        FAKE_PI_FIXTURE_SOURCE: path.join(root, "fixtures/project/state.txt"),
+      },
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const logContents = await readFile(fakeLog, "utf8");
+    const log = logContents
+      .trim()
+      .split("\n")
+      .map((line) => parseJson(line, "fake Pi log"));
+    assert.deepEqual(
+      log.filter((entry) => entry.kind === "fixture").map(({ variant, before }) => ({ variant, before })),
+      [
+        { variant: "baseline", before: "seed\n" },
+        { variant: "candidate", before: "seed\n" },
+      ],
+    );
+
+    const runs = await Promise.all(
+      ["baseline", "candidate"].map(async (variant) =>
+        parseJson(
+          await readFile(path.join(resultDirectory, `groups/natural-activation/${variant}/run.json`), "utf8"),
+          `${variant} fixture run`,
+        ),
+      ),
+    );
+    assert.notEqual(runs[0].workspace, runs[1].workspace);
+    assert.equal(runs[0].resources.fixture.declaredPath, "fixtures/project");
+    assert.equal(runs[1].resources.fixture.declaredPath, "fixtures/project");
+    assert.deepEqual(runs[0].resources.fixture.files, runs[1].resources.fixture.files);
+    assert.equal(await readFile(path.join(runs[0].workspace, "state.txt"), "utf8"), "baseline mutation\n");
+    assert.equal(await readFile(path.join(runs[1].workspace, "state.txt"), "utf8"), "candidate mutation\n");
+    assert.equal(
+      await readFile(path.join(root, "fixtures/project/state.txt"), "utf8"),
+      "source changed after baseline snapshot\n",
+    );
+  });
+});
+
+test("immutable declared resources are verified after subject execution", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakePi(root);
+    await writeSkill(root, "skills/release-route", {
+      name: "release-route",
+      description: "Use when choosing how to deliver a completed software change.",
+    });
+    const definition = await writeJson(root, "groups/immutable.json", descriptionGroup());
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+        FAKE_PI_MUTATE_SKILL: "1",
+      },
+    });
+
+    assert.equal(result.status, 1, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const run = parseJson(
+      await readFile(path.join(resultDirectory, "groups/natural-activation/candidate/run.json"), "utf8"),
+      "mutated resource run",
+    );
+    assert.equal(run.state, "infrastructure-failed");
+    assert.equal(run.process.protocolErrors.at(-1)?.reason, "immutable-resource-changed");
+    assert.match(run.process.protocolErrors.at(-1)?.message, /declared skill changed during subject execution/);
+    assert.match(await readFile(path.join(root, "skills/release-route/SKILL.md"), "utf8"), /name: release-route/);
+  });
+});
+
+test("Git-backed skill snapshots use the exact commit and preserve unusual valid paths", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakePi(root);
+    const unusualSkill = "skills/release route\tline\nbreak";
+    const unusualContext = "runtime/context with space\tline\nbreak.md";
+    await writeSkill(root, unusualSkill, {
+      name: "release-route",
+      description: "Use the committed release contract.",
+    });
+    await mkdir(path.dirname(path.join(root, unusualContext)), { recursive: true });
+    await writeFile(path.join(root, unusualContext), "Committed context only.\n");
+    runGit(root, ["init", "--quiet"]);
+    runGit(root, ["config", "user.email", "skill-eval@example.test"]);
+    runGit(root, ["config", "user.name", "Skill Eval"]);
+    runGit(root, ["add", "--", "."]);
+    runGit(root, ["commit", "--quiet", "-m", "fixture"]);
+    const commit = runGit(root, ["rev-parse", "HEAD"]);
+    await writeSkill(root, unusualSkill, {
+      name: "release-route",
+      description: "This working-tree mutation must not enter the snapshot.",
+    });
+    await writeFile(path.join(root, unusualContext), "Mutated working-tree context.\n");
+
+    const group = descriptionGroup();
+    group.variants.candidate.source = { kind: "git", ref: commit };
+    group.variants.candidate.skills = [unusualSkill];
+    group.variants.candidate.context = [unusualContext];
+    const definition = await writeJson(root, "groups/git-source.json", group);
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+      },
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const run = parseJson(
+      await readFile(path.join(resultDirectory, "groups/natural-activation/candidate/run.json"), "utf8"),
+      "Git-backed run",
+    );
+    assert.deepEqual(run.resources.source, { kind: "git", ref: commit, commit });
+    assert.equal(run.resources.skills[0].declaredPath, unusualSkill);
+    assert.equal(run.resources.context[0].declaredPath, unusualContext);
+    const snapshottedSkill = await readFile(path.join(run.resources.skills[0].path, "SKILL.md"), "utf8");
+    assert.match(snapshottedSkill, /Use the committed release contract\./);
+    assert.doesNotMatch(snapshottedSkill, /working-tree mutation/);
+    const contextManifest = parseJson(
+      await readFile(run.resources.contextDelivery.manifestPath, "utf8"),
+      "Git-backed context manifest",
+    );
+    assert.equal(contextManifest.entries[0].files[0].content, "Committed context only.\n");
+    assert.equal(run.activation.targetRead, true);
+  });
+});
+
+test("Git-backed resource symlink escapes fail closed before Pi starts", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakePi(root);
+    await writeSkill(root, "skills/release-route", {
+      name: "release-route",
+      description: "Use the committed release contract.",
+    });
+    await symlink("../../../outside.md", path.join(root, "skills/release-route/escaped.md"));
+    runGit(root, ["init", "--quiet"]);
+    runGit(root, ["config", "user.email", "skill-eval@example.test"]);
+    runGit(root, ["config", "user.name", "Skill Eval"]);
+    runGit(root, ["add", "--", "."]);
+    runGit(root, ["commit", "--quiet", "-m", "escaping fixture"]);
+    const commit = runGit(root, ["rev-parse", "HEAD"]);
+    const group = descriptionGroup();
+    group.variants.candidate.source = { kind: "git", ref: commit };
+    const definition = await writeJson(root, "groups/git-escape.json", group);
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+      },
+    });
+
+    assert.equal(result.status, 1, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const run = parseJson(
+      await readFile(path.join(resultDirectory, "groups/natural-activation/candidate/run.json"), "utf8"),
+      "Git symlink escape run",
+    );
+    assert.equal(run.state, "invalid");
+    assert.match(run.error.message, /resource symlink escapes its declared root/);
+    await assert.rejects(readFile(fakeLog, "utf8"), { code: "ENOENT" });
+  });
+});
 
 test(
   "forced cleanup kills subject descendants that outlive the Pi parent",
