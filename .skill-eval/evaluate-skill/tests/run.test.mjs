@@ -253,7 +253,7 @@ test("run rejects unsupported evaluation types before starting subjects or creat
     });
 
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /supports one-shot description prompts only/);
+    assert.match(result.stderr, /supports description groups only/);
     await assert.rejects(readFile(fakeLog, "utf8"), { code: "ENOENT" });
     await assert.rejects(readFile(path.join(root, ".skill-eval/runs"), "utf8"), { code: "ENOENT" });
   });

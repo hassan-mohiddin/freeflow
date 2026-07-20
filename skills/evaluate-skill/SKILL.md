@@ -32,7 +32,7 @@ Keep equivalent inputs fixed across variants except for the declared target diff
 
 Use Pi as the subject process. One-shot groups settle once; multi-turn groups keep one isolated RPC process per variant and settle each declared turn in order.
 
-The current executable boundary is one-shot description groups with a natural `input.prompt`, working-tree skills, no fixture or declared context, and only the `read` tool when a tool is needed. `run` rejects other accepted definition shapes before starting a subject rather than misreporting them as failed evaluations.
+The current executable boundary is description groups with a natural `input.prompt` or ordered `input.turns`, working-tree skills, no fixture or declared context, and only the `read` tool when a tool is needed. One-shot groups use fresh JSON-mode subjects. Multi-turn groups use one fresh RPC session per variant, disable automatic retry and compaction, correlate every request, and wait for `agent_settled` before sending the next declared turn. `run` rejects other accepted definition shapes before starting a subject rather than misreporting them as failed evaluations.
 
 Run groups serially by default. Persist each selected run before grading or continuing. A variant-local invalid or infrastructure failure must not erase evidence or prevent a safe counterpart or later group from running. Cancellation marks queued selected work `cancelled` without starting more subjects.
 
@@ -50,7 +50,7 @@ Do not launch an automatic semantic grader. For body behavior, preserve criterio
 
 Prefer generated grade-first views for routine inspection. Keep canonical artifacts exact and expose direct paths for the run, events, transcript, final response, stderr, definition, and deterministic grade so ordinary file tools can read them directly. A view may remove transport noise and repeated structure; it must not hide evidence required by the group question.
 
-The canonical [skill-eval entrypoint](scripts/skill-eval.mjs) owns the `run` and `view` command surface. `view` renders stored one-shot results by result, group, and variant. Run the entrypoint with `--help` before relying on an operation. If an operation is outside the executable boundary, execute the declared comparison directly and preserve the same evidence boundary; never invoke archived evaluators.
+The canonical [skill-eval entrypoint](scripts/skill-eval.mjs) owns the `run` and `view` command surface. `view` renders stored description results by result, group, and variant, including declared-turn responses and activation timing. Run the entrypoint with `--help` before relying on an operation. If an operation is outside the executable boundary, execute the declared comparison directly and preserve the same evidence boundary; never invoke archived evaluators.
 
 ## Report
 

@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { createWriteStream } from "node:fs";
 import { cp, mkdir, readdir, readFile, realpath, stat } from "node:fs/promises";
@@ -6,10 +6,20 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { sha256 } from "./evidence.mjs";
+import {
+  mergeUsage,
+  messageText,
+  NO_PROGRESS_MS,
+  pipeStream,
+  processGroupExists,
+  signalProcessTree,
+  TERMINATION_GRACE_MS,
+  waitForForcedKill,
+  writeStream,
+} from "./process.mjs";
+import { runRpcDescriptionSession } from "./rpc.mjs";
 
 const VARIANT_TOOLS = new Set(["read"]);
-const NO_PROGRESS_MS = 30 * 60 * 1000;
-const TERMINATION_GRACE_MS = 5000;
 const guardExtension = fileURLToPath(new URL("../pi-guard.mjs", import.meta.url));
 
 export class VariantSetupError extends Error {
@@ -19,7 +29,81 @@ export class VariantSetupError extends Error {
   }
 }
 
-export async function runOneShotDescription({ group, variant, root, variantDirectory, signal }) {
+export async function runDescription({ group, variant, root, variantDirectory, signal }) {
+  if (group.input.turns !== undefined) {
+    return runPersistentDescription({ group, variant, root, variantDirectory, signal });
+  }
+  return runOneShotDescription({ group, variant, root, variantDirectory, signal });
+}
+
+async function runOneShotDescription(options) {
+  const subject = await prepareDescriptionSubject(options, "json");
+  const observation = await runPiProcess({
+    args: subject.args,
+    cwd: subject.workspace,
+    eventsFile: subject.eventsFile,
+    stderrFile: subject.stderrFile,
+    signal: options.signal,
+    environment: subject.processEnvironment,
+  });
+  const successfulReadPaths = await canonicalReadPaths(observation.successfulReads, subject.workspace);
+  const targetRead =
+    subject.environment.targetPath !== null && successfulReadPaths.includes(subject.environment.targetPath);
+  return descriptionRun(options, subject, observation, {
+    input: { prompt: options.group.input.prompt },
+    activation: {
+      targetRead,
+      firstReadTurn: targetRead ? 1 : null,
+      readTurns: targetRead ? [1] : [],
+      successfulReadPaths,
+    },
+  });
+}
+
+async function runPersistentDescription(options) {
+  const subject = await prepareDescriptionSubject(options, "rpc");
+  const observation = await runRpcDescriptionSession({
+    args: subject.args,
+    cwd: subject.workspace,
+    eventsFile: subject.eventsFile,
+    stderrFile: subject.stderrFile,
+    signal: options.signal,
+    prompts: options.group.input.turns,
+    environment: subject.processEnvironment,
+  });
+
+  const turns = [];
+  for (const turn of observation.turns) {
+    const successfulReadPaths = await canonicalReadPaths(turn.successfulReads, subject.workspace);
+    const targetRead =
+      subject.environment.targetPath !== null && successfulReadPaths.includes(subject.environment.targetPath);
+    turns.push({
+      turn: turn.turn,
+      prompt: turn.prompt,
+      response: turn.response,
+      transcript: turn.transcript,
+      successfulReadPaths,
+      toolActivity: turn.toolActivity,
+      promptAccepted: turn.promptAccepted,
+      usage: turn.usage,
+      assistantError: turn.assistantError,
+      settled: turn.settled,
+      targetRead,
+    });
+  }
+  const readTurns = turns.filter((turn) => turn.targetRead).map((turn) => turn.turn);
+  return descriptionRun(options, subject, observation, {
+    input: { prompt: null, prompts: [...options.group.input.turns], turns },
+    activation: {
+      targetRead: readTurns.length > 0,
+      firstReadTurn: readTurns[0] ?? null,
+      readTurns,
+      successfulReadPaths: [...new Set(turns.flatMap((turn) => turn.successfulReadPaths))],
+    },
+  });
+}
+
+async function prepareDescriptionSubject({ group, variant, root, variantDirectory }, mode) {
   const workspace = path.join(variantDirectory, "workspace");
   await mkdir(workspace, { recursive: true });
 
@@ -31,67 +115,60 @@ export async function runOneShotDescription({ group, variant, root, variantDirec
     if (error instanceof VariantSetupError) throw error;
     throw new VariantSetupError(error instanceof Error ? error.message : String(error));
   }
-  const args = piArguments(group, environment);
-  const eventsFile = path.join(variantDirectory, "events.jsonl");
-  const stderrFile = path.join(variantDirectory, "stderr.log");
+
+  const args = piArguments(group, environment, mode);
   const allowedRoots = [await realpath(workspace), ...environment.skills.map((skill) => skill.path)];
-  const startedAt = new Date().toISOString();
-  const observation = await runPiProcess({
+  return {
     args,
-    cwd: workspace,
-    eventsFile,
-    stderrFile,
-    signal,
-    environment: {
+    environment,
+    workspace,
+    eventsFile: path.join(variantDirectory, "events.jsonl"),
+    stderrFile: path.join(variantDirectory, "stderr.log"),
+    startedAt: new Date().toISOString(),
+    processEnvironment: {
       ...process.env,
       PI_SKIP_VERSION_CHECK: "1",
       PI_TELEMETRY: "0",
       SKILL_EVAL_ALLOWED_ROOTS: JSON.stringify(allowedRoots),
       SKILL_EVAL_ALLOWED_TOOLS: JSON.stringify(group.tools),
     },
-  });
+  };
+}
 
-  const readPaths = await canonicalReadPaths(observation.successfulReads, workspace);
-  const targetRead = environment.targetPath !== null && readPaths.includes(environment.targetPath);
-  const state = subjectRunState(observation);
-
+function descriptionRun({ group, variant }, subject, observation, { input, activation }) {
   return {
     schema_version: 1,
     variant,
-    state,
+    state: subjectRunState(observation),
     evaluationType: "description",
-    startedAt,
+    startedAt: subject.startedAt,
     completedAt: new Date().toISOString(),
-    workspace,
-    prompt: group.input.prompt,
+    workspace: subject.workspace,
+    ...input,
     tools: [...group.tools],
     model: {
       declared: group.model ?? null,
       observed: observation.model,
     },
     resources: {
-      skills: environment.skills,
-      targetPath: environment.targetPath,
+      skills: subject.environment.skills,
+      targetPath: subject.environment.targetPath,
     },
-    activation: {
-      targetRead,
-      firstReadTurn: targetRead ? 1 : null,
-      readTurns: targetRead ? [1] : [],
-      successfulReadPaths: readPaths,
-    },
+    activation,
     response: observation.response,
     transcript: observation.transcript,
     usage: observation.usage,
     process: {
       command: "pi",
-      args,
+      args: subject.args,
       exitCode: observation.exitCode,
       signal: observation.signal,
       settled: observation.settled,
       assistantError: observation.assistantError,
       terminationReason: observation.terminationReason,
       parseErrors: observation.parseErrors,
-      stderr: stderrFile,
+      protocolErrors: observation.protocolErrors ?? [],
+      stderr: subject.stderrFile,
     },
   };
 }
@@ -102,7 +179,8 @@ function subjectRunState(observation) {
     observation.exitCode === 0 &&
     observation.settled &&
     observation.assistantError === null &&
-    observation.parseErrors.length === 0
+    observation.parseErrors.length === 0 &&
+    (observation.protocolErrors?.length ?? 0) === 0
   ) {
     return "complete";
   }
@@ -112,20 +190,20 @@ function subjectRunState(observation) {
 async function prepareEnvironment(group, variant, root) {
   const environment = group.variants[variant];
   if (group.fixture !== null) {
-    throw new VariantSetupError("one-shot description execution does not materialize fixtures yet");
+    throw new VariantSetupError("description execution does not materialize fixtures yet");
   }
-  if (group.input.prompt === undefined) {
-    throw new VariantSetupError("one-shot description execution requires input.prompt");
+  if (group.input.prompt === undefined && group.input.turns === undefined) {
+    throw new VariantSetupError("description execution requires input.prompt or input.turns");
   }
   if (environment.source.kind !== "working-tree") {
-    throw new VariantSetupError("one-shot description execution currently requires working-tree skill sources");
+    throw new VariantSetupError("description execution currently requires working-tree skill sources");
   }
   if (environment.context.length > 0) {
-    throw new VariantSetupError("one-shot description execution does not deliver declared context yet");
+    throw new VariantSetupError("description execution does not deliver declared context yet");
   }
   const unsupportedTools = group.tools.filter((tool) => !VARIANT_TOOLS.has(tool));
   if (unsupportedTools.length > 0) {
-    throw new VariantSetupError(`unsupported one-shot description tools: ${unsupportedTools.join(", ")}`);
+    throw new VariantSetupError(`unsupported description tools: ${unsupportedTools.join(", ")}`);
   }
 
   const canonicalRoot = await realpath(root);
@@ -179,11 +257,10 @@ async function materializeEnvironment(environment, variantDirectory) {
   return { skills, targetPath };
 }
 
-function piArguments(group, environment) {
-  const args = [
-    "--mode",
-    "json",
-    "-p",
+function piArguments(group, environment, mode) {
+  const args = ["--mode", mode];
+  if (mode === "json") args.push("-p");
+  args.push(
     "--no-session",
     "--no-extensions",
     "--extension",
@@ -193,13 +270,13 @@ function piArguments(group, environment) {
     "--no-themes",
     "--no-context-files",
     "--no-approve",
-  ];
+  );
   if (group.tools.length === 0) args.push("--no-tools");
   else args.push("--tools", group.tools.join(","));
   for (const skill of environment.skills) args.push("--skill", skill.path);
   if (group.model?.model) args.push("--model", group.model.model);
   if (group.model?.thinking) args.push("--thinking", group.model.thinking);
-  args.push(group.input.prompt);
+  if (mode === "json") args.push(group.input.prompt);
   return args;
 }
 
@@ -347,47 +424,6 @@ async function runPiProcess({ args, cwd, eventsFile, stderrFile, signal, environ
   };
 }
 
-async function waitForForcedKill(promise) {
-  await promise;
-}
-
-async function pipeStream(source, destination, onActivity) {
-  for await (const chunk of source) {
-    onActivity();
-    await writeStream(destination, chunk);
-  }
-  destination.end();
-  await once(destination, "finish");
-}
-
-async function writeStream(stream, value) {
-  if (!stream.write(value)) await once(stream, "drain");
-}
-
-function signalProcessTree(processGroupId, child, signal) {
-  if (!processGroupId) return;
-  if (process.platform === "win32") {
-    spawnSync("taskkill", ["/pid", String(processGroupId), "/T", "/F"], { stdio: "ignore" });
-    return;
-  }
-  try {
-    process.kill(-processGroupId, signal);
-  } catch (error) {
-    if (error?.code !== "ESRCH" && child.exitCode === null && child.signalCode === null) child.kill(signal);
-  }
-}
-
-function processGroupExists(processGroupId) {
-  if (!processGroupId || process.platform === "win32") return false;
-  try {
-    process.kill(-processGroupId, 0);
-    return true;
-  } catch (error) {
-    if (error?.code === "ESRCH") return false;
-    throw error;
-  }
-}
-
 async function canonicalReadPaths(paths, cwd) {
   const canonical = [];
   for (const rawPath of paths) {
@@ -431,31 +467,4 @@ async function walk(root, directory, files, visited) {
 function isContained(root, target) {
   const relative = path.relative(root, target);
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
-}
-
-function mergeUsage(current, next) {
-  if (!next) return current;
-  const previous = current ?? {};
-  return {
-    input: (previous.input ?? 0) + (next.input ?? 0),
-    output: (previous.output ?? 0) + (next.output ?? 0),
-    cacheRead: (previous.cacheRead ?? 0) + (next.cacheRead ?? 0),
-    cacheWrite: (previous.cacheWrite ?? 0) + (next.cacheWrite ?? 0),
-    cost: {
-      input: (previous.cost?.input ?? 0) + (next.cost?.input ?? 0),
-      output: (previous.cost?.output ?? 0) + (next.cost?.output ?? 0),
-      cacheRead: (previous.cost?.cacheRead ?? 0) + (next.cost?.cacheRead ?? 0),
-      cacheWrite: (previous.cost?.cacheWrite ?? 0) + (next.cost?.cacheWrite ?? 0),
-      total: (previous.cost?.total ?? 0) + (next.cost?.total ?? 0),
-    },
-  };
-}
-
-function messageText(message) {
-  if (typeof message.content === "string") return message.content;
-  if (!Array.isArray(message.content)) return "";
-  return message.content
-    .filter((part) => part?.type === "text" && typeof part.text === "string")
-    .map((part) => part.text)
-    .join("");
 }

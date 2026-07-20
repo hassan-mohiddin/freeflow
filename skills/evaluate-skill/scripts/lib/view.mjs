@@ -3,7 +3,7 @@ import path from "node:path";
 
 const VARIANTS = ["baseline", "candidate"];
 
-export class ViewError extends Error {
+class ViewError extends Error {
   constructor(message) {
     super(message);
     this.name = "ViewError";
@@ -41,11 +41,15 @@ async function renderGroup(resultDirectory, group, selectedVariant) {
   const definition = await readJson(path.join(groupDirectory, "definition.json"), `definition for ${group.id}`);
   const grade = await readJson(path.join(groupDirectory, "deterministic-grade.json"), `grade for ${group.id}`);
   const variants = selectedVariant === null ? VARIANTS : [selectedVariant];
-  const lines = [
-    `Group ${group.id} [${group.state}]`,
-    `Prompt: ${definition.input?.prompt ?? "(unavailable)"}`,
-    `Grade [${grade.state}]`,
-  ];
+  const lines = [`Group ${group.id} [${group.state}]`];
+  if (typeof definition.input?.prompt === "string") {
+    lines.push(`Prompt: ${definition.input.prompt}`);
+  } else {
+    const prompts = Array.isArray(definition.input?.turns) ? definition.input.turns : [];
+    lines.push(`Turns: ${prompts.length}`);
+    for (const [index, prompt] of prompts.entries()) lines.push(`  Turn ${index + 1} prompt: ${prompt}`);
+  }
+  lines.push(`Grade [${grade.state}]`);
   const checks = Array.isArray(grade.checks)
     ? grade.checks.filter((check) => selectedVariant === null || check.variant === selectedVariant)
     : [];
@@ -58,16 +62,7 @@ async function renderGroup(resultDirectory, group, selectedVariant) {
     const runFile = path.join(groupDirectory, variant, "run.json");
     const run = await readJson(runFile, `${variant} run for ${group.id}`);
     lines.push("", `${title(variant)} [${run.state}]`);
-    if (run.state === "complete") {
-      lines.push(
-        `  target-read: ${run.activation?.targetRead === true ? "yes" : "no"}`,
-        `  read-turns: ${(run.activation?.readTurns ?? []).join(",") || "none"}`,
-        "  response:",
-        indent(run.response ?? ""),
-      );
-    } else if (run.error?.message) {
-      lines.push(`  error: ${run.error.message}`);
-    }
+    appendRunEvidence(lines, run);
     const variantDirectory = path.dirname(runFile);
     lines.push(`  run: ${runFile}`);
     if (typeof run.transcript === "string") {
@@ -114,6 +109,52 @@ async function readJson(file, label) {
 
 function title(value) {
   return `${value[0].toUpperCase()}${value.slice(1)}`;
+}
+
+function appendRunEvidence(lines, run) {
+  const turns = Array.isArray(run.turns) ? run.turns : null;
+  const hasObservedTurns = turns !== null && turns.length > 0;
+  if (run.state === "complete" || hasObservedTurns) {
+    const prefix = run.state === "complete" ? "" : "observed ";
+    lines.push(
+      `  ${prefix}target-read: ${run.activation?.targetRead === true ? "yes" : "no"}`,
+      `  ${prefix}read-turns: ${(run.activation?.readTurns ?? []).join(",") || "none"}`,
+    );
+  }
+  if (turns !== null) {
+    for (const turn of turns) {
+      const labels = [turn.settled ? "settled" : "unsettled"];
+      if (turn.targetRead === true) labels.push("target-read");
+      lines.push(`  Turn ${turn.turn} [${labels.join(", ")}]`);
+      appendResponse(lines, turn.response ?? "", "    ");
+    }
+  } else if (run.state === "complete") {
+    lines.push("  response:", indent(run.response ?? ""));
+  }
+  if (run.process?.assistantError) lines.push(`  assistant-error: ${run.process.assistantError}`);
+  if (run.process?.terminationReason) {
+    lines.push(`  termination: ${run.process.terminationReason}`);
+  }
+  if (Array.isArray(run.process?.protocolErrors) && run.process.protocolErrors.length > 0) {
+    lines.push(`  protocol-errors: ${run.process.protocolErrors.length}`);
+  }
+  if (run.error?.message) lines.push(`  error: ${run.error.message}`);
+}
+
+function appendResponse(lines, response, prefix) {
+  const value = String(response);
+  if (!value.includes("\n")) {
+    lines.push(`${prefix}response: ${value}`);
+    return;
+  }
+  lines.push(`${prefix}response:`, indentWith(value, `${prefix}  `));
+}
+
+function indentWith(value, prefix) {
+  return String(value)
+    .split("\n")
+    .map((line) => `${prefix}${line}`)
+    .join("\n");
 }
 
 function indent(value) {

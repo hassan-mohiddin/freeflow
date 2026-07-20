@@ -115,18 +115,22 @@ fixtures, grade evidence, or render results.
 
 ## Current Execution Boundary
 
-`skill-eval run` currently executes selected one-shot `description` groups that use:
+`skill-eval run` currently executes selected `description` groups that use:
 
-- `input.prompt` rather than `input.turns`;
+- a natural `input.prompt` for one-shot execution or ordered natural `input.turns` for persistent multi-turn execution;
 - working-tree skill sources;
 - no fixture or declared context;
 - no tools or only the `read` tool.
 
 The command rejects other structurally accepted group shapes before creating a
 result or starting Pi. Each selected variant receives a fresh empty workspace and
-a fresh Pi JSON-mode process with ambient resources disabled. The root guard
-replaces host system, append, and context instructions with evaluator-owned
-context built only from declared tools and skills. Each working-tree skill is
+a fresh Pi process with ambient resources disabled. One-shot groups use JSON
+mode. Multi-turn groups use one RPC process per variant, disable automatic retry
+and compaction, send each declared turn only after the previous turn emits
+`agent_settled`, and preserve correlated responses plus per-turn evidence. The
+root guard replaces host system, append, and context instructions with
+evaluator-owned context built only from declared tools and skills. Each
+working-tree skill is
 copied into a variant-owned snapshot and its file hashes are checked before that
 snapshot is registered with repeated `--skill`. The natural prompt is passed
 unchanged and never uses `/skill:name`.
@@ -145,11 +149,15 @@ The supported deterministic activation expectation is:
 
 `variant` is `baseline` or `candidate`. `expect` is `never`, `on-turn`,
 `by-turn`, or `not-before-turn`; turn-based forms require a positive integer
-`turn`. One-shot reads occur on turn 1. Other preserved expectation kinds
-currently produce a separate `grade-error` after subject evidence has been saved.
+`turn`. One-shot reads occur on turn 1. Multi-turn runs record the first and all
+declared turns containing an exact successful target read. Other preserved
+expectation kinds currently produce a separate `grade-error` after subject
+evidence has been saved.
 
 `skill-eval view` renders stored results by complete result, suite group ID or
-original one-based position, and variant. It lists direct canonical paths for the
+original one-based position, and variant. Multi-turn views include the shared
+ordered prompts and each selected variant's settled turn responses and target-read
+markers. It lists direct canonical paths for the
 run, events, transcript, final response, stderr, definition, and deterministic
 grade; use ordinary file tools for raw evidence. Cancellation persists queued
 selected variants as `cancelled` without starting additional Pi subjects.

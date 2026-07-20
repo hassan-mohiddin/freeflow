@@ -4,7 +4,7 @@ import path from "node:path";
 import { loadDefinition, selectDefinition } from "./definitions.mjs";
 import { createInvocationId, fileIdentity, writeJson, writeText } from "./evidence.mjs";
 import { gradeActivation } from "./grade.mjs";
-import { runOneShotDescription, VariantSetupError } from "./pi.mjs";
+import { runDescription, VariantSetupError } from "./pi.mjs";
 
 const VARIANTS = ["baseline", "candidate"];
 
@@ -54,19 +54,17 @@ export async function runEvaluation(definitionFile, selectors = {}, { root = pro
 function assertSupportedSelection(selection) {
   for (const selected of selection.groups) {
     const { group } = selected;
-    if (group.type !== "description" || group.input.prompt === undefined) {
-      throw new Error("skill-eval run currently supports one-shot description prompts only");
+    if (group.type !== "description") {
+      throw new Error("skill-eval run currently supports description groups only");
     }
     if (group.fixture !== null || group.tools.some((tool) => tool !== "read")) {
-      throw new Error("one-shot description execution currently supports no fixture and the read tool only");
+      throw new Error("description execution currently supports no fixture and the read tool only");
     }
     for (const variant of VARIANTS) {
       if (selected.variants[variant] === "not-selected") continue;
       const environment = group.variants[variant];
       if (environment.source.kind !== "working-tree" || environment.context.length > 0) {
-        throw new Error(
-          "one-shot description execution currently supports working-tree skills without declared context",
-        );
+        throw new Error("description execution currently supports working-tree skills without declared context");
       }
     }
   }
@@ -128,7 +126,7 @@ function selectedGroupState(runs, grade) {
 
 async function executeVariant({ group, variant, root, variantDirectory, signal }) {
   try {
-    return await runOneShotDescription({ group, variant, root, variantDirectory, signal });
+    return await runDescription({ group, variant, root, variantDirectory, signal });
   } catch (error) {
     if (error instanceof VariantSetupError) return invalidRun(group, variant, error.message);
     return infrastructureFailedRun(group, variant, error);
@@ -144,6 +142,7 @@ async function persistRun(variantDirectory, run) {
   const hasProcessEvidence = run.process !== undefined;
   await writeJson(runFile, {
     ...run,
+    ...(Array.isArray(run.turns) ? { turns: externalizeTurnTranscripts(run.turns) } : {}),
     transcript: "transcript.json",
     artifacts: {
       events: hasProcessEvidence ? "events.jsonl" : null,
@@ -154,6 +153,16 @@ async function persistRun(variantDirectory, run) {
   return runFile;
 }
 
+function externalizeTurnTranscripts(turns) {
+  let offset = 0;
+  return turns.map((turn) => {
+    const length = Array.isArray(turn.transcript) ? turn.transcript.length : 0;
+    const transcript = { file: "transcript.json", start: offset, end: offset + length };
+    offset += length;
+    return { ...turn, transcript };
+  });
+}
+
 function notSelectedRun(group, variant) {
   return {
     schema_version: 1,
@@ -161,6 +170,7 @@ function notSelectedRun(group, variant) {
     state: "not-selected",
     evaluationType: group.type,
     prompt: group.input.prompt ?? null,
+    prompts: group.input.turns ?? null,
     activation: unavailableActivation(),
     response: "",
     transcript: [],
@@ -175,6 +185,7 @@ function cancelledRun(group, variant) {
     state: "cancelled",
     evaluationType: group.type,
     prompt: group.input.prompt ?? null,
+    prompts: group.input.turns ?? null,
     activation: unavailableActivation(),
     response: "",
     transcript: [],
@@ -189,6 +200,7 @@ function invalidRun(group, variant, message) {
     state: "invalid",
     evaluationType: group.type,
     prompt: group.input.prompt ?? null,
+    prompts: group.input.turns ?? null,
     activation: unavailableActivation(),
     response: "",
     transcript: [],
@@ -203,6 +215,7 @@ function infrastructureFailedRun(group, variant, error) {
     state: "infrastructure-failed",
     evaluationType: group.type,
     prompt: group.input.prompt ?? null,
+    prompts: group.input.turns ?? null,
     activation: unavailableActivation(),
     response: "",
     transcript: [],

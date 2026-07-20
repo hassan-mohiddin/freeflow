@@ -14,6 +14,7 @@ test("skill-eval exposes only the fresh command surface", () => {
   assert.match(result.stdout, /skill-eval <run\|view>/);
   assert.match(result.stdout, /--group <id-or-position>/);
   assert.match(result.stdout, /--variant <baseline\|candidate>/);
+  assert.match(result.stdout, /persistent multi-turn description groups/);
   assert.doesNotMatch(result.stdout, /doctor|evaluate|grade|plan-only|semantic/);
 });
 
