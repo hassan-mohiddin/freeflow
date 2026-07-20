@@ -163,9 +163,12 @@ If context is too thin, recommend discussion first. If the user still wants a re
 ### Current Context
 
 - Keep only context that still affects interpretation or later action.
+- Treat `Current understanding` as a present-state summary, not a running task summary or compressed transcript. Rewrite it from what remains true instead of appending completed events.
+- Remove completed-slice narration, superseded failures and corrections, per-review findings, test inventories, hashes, and live-run detail once their active consequence is captured and History owns the evidence.
 - `Current direction` describes remaining strategy, not completed phases.
 - Summarize active decisions by ID; preserve rationale and lineage in History.
 - Update facts when live evidence changes. Moving obsolete context does not require deleting useful history.
+- Use no arbitrary size cap. Keep detail only when removing it could cause the next reader to choose the wrong route.
 
 ### Task State
 
@@ -282,8 +285,9 @@ When closing:
 2. Move the slice to History with the established state.
 3. Preserve the original boundary and every accepted extension with its authority.
 4. Record work performed, result, task effect, evidence boundaries, and useful stable pointers.
-5. Reconcile current understanding, decisions, hypotheses, proposals, blockers, and next action only where feedback changed them.
-6. Set `Current Slice` to `None`.
+5. Rewrite current understanding from the resulting present state. Remove completed-event detail now owned by History rather than appending another slice or review summary.
+6. Reconcile decisions, hypotheses, proposals, blockers, and the next action only where feedback changed them.
+7. Set `Current Slice` to `None`.
 
 A learning slice may complete by disproving its hypothesis.
 
@@ -319,7 +323,7 @@ Keep pending checkpoints under Current Work with their approved source and condi
 
 ## Evidence And History
 
-Keep evidence with the slice that produced or used it. Preserve enough detail to recover:
+Give each detailed fact one owner. Keep evidence with the slice that produced or used it; when checkpoint history also records that event, one entry owns the findings and exact evidence while the other gives a concise result and pointer rather than duplicating them. Preserve enough detail to recover:
 
 - what was checked or observed;
 - what the result supports and does not support;
@@ -358,7 +362,8 @@ Keep Notes last and read them as part of the complete record without treating th
 
 Before relying on or finishing an update, confirm:
 
-- Current Context agrees with recent evidence and contains only active decision summaries.
+- Current Context agrees with recent evidence, describes the present state rather than accumulated events, and contains only active decision summaries.
+- Completed slice, review, test, hash, and live-run detail has one History owner and is not duplicated in Current Context or parallel history entries.
 - Current Work names no more than one slice and its authority source is clear.
 - Every current or historical slice keeps one stable `S-` ID.
 - Discussion, review, correction, small steering, and in-slice checkpoints do not replace a coherent Current Slice.

@@ -90,7 +90,7 @@ Do not demand exhaustive edge cases. A possible condition is not an Issue unless
 
 If an upstream issue invalidates downstream assumptions, mark the affected material contingent instead of generating exhaustive downstream items.
 
-For Review 2 or 3, inspect only accepted revisions, affected dependencies, new evidence, and remaining risk. Do not reopen Rejected items without contradictory evidence. If another related omission suggests one unclear cause, report that pattern rather than proposing another patch. Review 3 is final for this cycle; do not recommend Review 4.
+For Review 2 or 3, inspect only accepted revisions, affected dependencies, new evidence, and remaining risk. Do not reopen Rejected items without contradictory evidence. For every new Blocking Issue, state whether it repeats, extends, invalidates, or exposes another consequence of a prior revision; is independent; or cannot yet be related from the evidence. Report a related pattern rather than proposing another revision. Review 3 is final for this cycle; do not recommend Review 4.
 
 ## Classify Review Items
 
@@ -118,6 +118,7 @@ Intended use: [reviewed boundary]
 Reviewed state: [state identity]
 Judgment: Pass | Non-blocking | Inconclusive | Blocking
 Reasoning: [concise evidence-backed judgment]
+Relationship to prior items (Review 2 or 3 only): [related consequence | independent defect | unclear, with evidence]
 
 ### Review Items
 

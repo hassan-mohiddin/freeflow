@@ -96,7 +96,7 @@ A requested patch may instead be an authorized learning action. Its result can s
 
 ## Return The Supported Result
 
-When evidence supports a cause, return the failure boundary, diagnostic loop, causal explanation, regression signal, and smallest coherent correction to Workflow. Return an authorized implementation correction to [Execute Work](../execute-work/SKILL.md); use [TDD](../tdd/SKILL.md) when the diagnostic loop provides a failing behavior check that should guide it. The correction may remain in the current Track Work slice while that slice still has one coherent result.
+When evidence supports a cause, return the failure boundary, diagnostic loop, causal explanation, regression signal, and smallest coherent correction to Workflow. Return an authorized implementation correction to [Execute Work](../execute-work/SKILL.md); use [TDD](../tdd/SKILL.md) when the diagnostic loop provides a failing behavior check that should guide it. Use [Simplify Code](../simplify-code/SKILL.md) when the supported cause shows that obsolete, duplicated, or workaround machinery can be removed while preserving accepted behavior. Mess left by unsuccessful attempts is not enough: settle any behavior or contract change through Workflow first, and do not use cleanup in place of correcting the supported failure or while its evidence remains unresolved. The correction may remain in the current Track Work slice while that slice still has one coherent result.
 
 After correction, use [Verify Work](../verify-work/SKILL.md) to rerun both the minimized regression signal and the original reported path or strongest available observer. If correction fails or exposes related shared-state consequences, re-enter diagnosis before another patch.
 

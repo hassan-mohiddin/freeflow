@@ -96,7 +96,9 @@ When correction authority is not already explicit, ask once for either:
 - the accepted corrections plus one warranted focused follow-up review; or
 - the accepted corrections alone when direct evidence can settle the changed boundary.
 
-Verify corrections. Run a follow-up only when the changed boundary still needs independent judgment and that dispatch is authorized. Do not change tests, Specs, policies, or accepted behavior merely to satisfy a reviewer or obtain Pass.
+Then wait for the user's response. Do not correct or dispatch a follow-up from the request, and do not ask again when existing authority already covers the bounded correction or review.
+
+Verify authorized corrections. Run a follow-up only when the changed boundary still needs independent judgment and that dispatch is authorized. Do not change tests, Specs, policies, or accepted behavior merely to satisfy a reviewer or obtain Pass.
 
 ## Limit The Review Cycle
 
@@ -108,7 +110,12 @@ For one independently reviewed work state and boundary:
 
 The budget is a cap, not dispatch authority. Do not request Review 4. At the cap, adjudicate and return control to Workflow; the work may proceed, remain blocked, re-enter another owner, defer, or stop.
 
-When follow-up reveals another consequence of the same unclear cause, stop the review-correction loop and diagnose before another patch. Workflow may later establish a new cycle only for a materially new reviewed state and boundary; local fixes, a different reviewer, or renamed scope do not reset it.
+After Review 2 is adjudicated Blocking, stop before proposing another correction or Review 3. Classify its relationship to the prior correction:
+
+- If the blocker repeats, extends, invalidates, or exposes another consequence of the prior correction, or its cause remains unsupported, read [Diagnose Failure](../diagnose-failure/SKILL.md) and diagnose the shared cause before another patch.
+- If it is an independent clear local defect with a supported cause, return directly to its owning activity and state why diagnosis is unnecessary.
+
+A reviewer judgment alone does not trigger diagnosis; active-agent adjudication and evidence do. Review 3 is final judgment after the cause and correction boundary are understood, not a third attempt to discover the cause through patches. Workflow may later establish a new cycle only for a materially new reviewed state and boundary; local fixes, a different reviewer, or renamed scope do not reset it.
 
 ## Report
 

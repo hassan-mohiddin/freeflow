@@ -9,7 +9,7 @@ Commit an intended, coherent checkpoint. A commit preserves rollback and provena
 
 This skill covers commits and simple pushes, not branch integration, release, or deployment orchestration. Use [Finish Branch](../finish-branch/SKILL.md), [Release Work](../release-work/SKILL.md), or [Launch Work](../launch-work/SKILL.md) for those later jobs.
 
-A local commit is authorized by an explicit user request, a checkpoint in a user-approved Plan, or a checkpoint explicitly approved during discussion. A Working Record may preserve that authorization but cannot create it. Plan approval does not authorize push, integration, migration, deprecation, release, or launch.
+A local commit is authorized by an explicit user request, a checkpoint whose local-commit authority was explicitly granted through a user-approved Plan, or a checkpoint explicitly approved during discussion. A Working Record may preserve that authorization but cannot create it. Plan acceptance does not authorize push, integration, migration, deprecation, release, or launch.
 
 A planned checkpoint remains conditional on live state. Do not force it when its intended outcome, evidence, review status, or change boundary no longer holds; return the deviation to [Workflow](../workflow/SKILL.md).
 

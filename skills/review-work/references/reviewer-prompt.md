@@ -78,7 +78,7 @@ Do not search for unrelated issues. Report an out-of-scope issue only when it ma
 
 A possible edge case is not an Issue without accepted behavior, observed reachability, or material risk. Use Question when expected behavior is unclear, Needs evidence when reachability or consequence is unsupported, and Improvement for useful resilience not required by the boundary.
 
-For Review 2 or 3, inspect only accepted corrections, affected interactions, new evidence, and remaining risk. Do not reopen Rejected items without contradictory evidence. If another related case suggests one unclear cause, report that pattern rather than proposing another patch. Review 3 is final for this cycle; do not recommend Review 4.
+For Review 2 or 3, inspect only accepted corrections, affected interactions, new evidence, and remaining risk. Do not reopen Rejected items without contradictory evidence. For every new Blocking Issue, state whether it repeats, extends, invalidates, or exposes another consequence of a prior correction; is independent; or cannot yet be related from the evidence. Report a related pattern rather than proposing another patch. Review 3 is final for this cycle; do not recommend Review 4.
 
 ## Classify Review Items
 
@@ -105,6 +105,7 @@ Boundary: [reviewed work and future action]
 Reviewed state: [state identity]
 Judgment: Pass | Non-blocking | Inconclusive | Blocking
 Reasoning: [concise evidence-backed judgment]
+Relationship to prior items (Review 2 or 3 only): [related consequence | independent defect | unclear, with evidence]
 
 ### Review Items
 

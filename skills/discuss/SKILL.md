@@ -118,4 +118,4 @@ Return to [Workflow](../workflow/SKILL.md) with:
 - recommended next action or bounded proposal;
 - its authority state and any selected checkpoint.
 
-If no action is needed, answer or stop. If work is proposed but unapproved, recommend it and wait.
+If no action is needed, answer or stop. If work is proposed but unapproved, recommend the exact action and wait for the user's response.

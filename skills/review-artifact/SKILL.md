@@ -96,6 +96,8 @@ When revision authority is not already explicit, ask once for either:
 - the accepted revisions plus one warranted focused follow-up review; or
 - the accepted revisions alone when direct source evidence can settle the changed boundary.
 
+Then wait for the user's response. Do not revise or dispatch a follow-up from the request, and do not ask again when existing authority already covers the bounded revision or review.
+
 Run a follow-up only when the changed boundary or affected dependencies still need independent judgment and that dispatch is authorized. Do not revise source truth, accepted intent, or owner decisions merely to satisfy a reviewer or obtain Pass.
 
 ## Limit The Review Cycle
@@ -108,7 +110,12 @@ For one independently reviewed artifact state and intended-use boundary:
 
 The budget is a cap, not dispatch authority. Do not request Review 4. At the cap, adjudicate and return control to Workflow; the artifact may be used, remain blocked, re-enter its owner, defer, or stop.
 
-When follow-up reveals another consequence of the same unclear cause, stop the review-revision loop and diagnose before another patch. Workflow may later establish a new cycle only for a materially new artifact state and intended-use boundary; local edits, a different reviewer, or renamed scope do not reset it.
+After Review 2 is adjudicated Blocking, stop before proposing another revision or Review 3. Classify its relationship to the prior revision:
+
+- If the blocker repeats, extends, invalidates, or exposes another consequence of the prior revision, or its cause remains unsupported, read [Diagnose Failure](../diagnose-failure/SKILL.md) and diagnose the shared cause before another revision.
+- If it is an independent clear local defect with a supported cause, return directly to the artifact's owner and state why diagnosis is unnecessary.
+
+A reviewer judgment alone does not trigger diagnosis; active-agent adjudication and evidence do. Review 3 is final judgment after the cause and revision boundary are understood, not a third attempt to discover the cause through revisions. Workflow may later establish a new cycle only for a materially new artifact state and intended-use boundary; local edits, a different reviewer, or renamed scope do not reset it.
 
 ## Report
 

@@ -61,7 +61,7 @@ Every meaningful slice is verified and silently self-reviewed during execution; 
 
 At meaningful slice, phase, integration, risk, or continuity boundaries, consider independent review, a local commit, a user decision, or a continuity checkpoint. Record only selected checkpoints and their conditions. A slice ending or a fixed count alone does not justify a commit; prefer one when supported work forms a coherent rollback point or the next work may destabilize it.
 
-User approval of the Plan authorizes its listed work, checks, reviews, Working Record updates, and local commits. It does not authorize push, integration, migration, deprecation, release, or launch. Planned commits remain conditional on live evidence and [Commit Work](../commit-work/SKILL.md) inspection.
+Plan acceptance establishes the agreed strategy; it does not by itself authorize execution. When the user clearly approves execution of the Plan, that authority may cover its listed work, checks, reviews, Working Record updates, and local commits. It does not authorize push, integration, migration, deprecation, release, or launch. Planned commits remain conditional on live evidence and [Commit Work](../commit-work/SKILL.md) inspection.
 
 ## Keep Plan And Working Record Separate
 
@@ -110,7 +110,7 @@ Correct clear local issues directly. Surface only material gaps that prevent the
 
 After writing or materially revising the Plan, route it to [Review Artifact](../review-artifact/SKILL.md) before treating it as ready for approval and execution.
 
-Provide the reviewer with the complete Plan, intended use, source truth, linked artifacts, dependencies, selected checkpoints, and known evidence gaps. Review Artifact owns dependency ordering, review items, judgment, adjudication, and the review cycle. Artifact review establishes fitness; the user approves the Plan and its scoped execution authority.
+Provide the reviewer with the complete Plan, intended use, source truth, linked artifacts, dependencies, selected checkpoints, and known evidence gaps. Review Artifact owns dependency ordering, review items, judgment, adjudication, and the review cycle. Artifact review establishes fitness; the user separately accepts the Plan and grants any scoped execution authority.
 
 ## Report
 
@@ -120,4 +120,4 @@ State:
 - source context and linked artifacts;
 - material assumptions, blockers, or invalidation conditions;
 - selected review, commit, user, or continuity checkpoints;
-- artifact-review and user-approval status.
+- artifact-review, Plan-acceptance, and execution-authorization status.

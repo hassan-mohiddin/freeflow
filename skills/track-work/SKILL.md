@@ -45,6 +45,8 @@ Before creating, resuming, or updating a Working Record, read the complete [Work
 ## Core Contract
 
 - A record preserves current context, one current slice, revisable proposals, durable history, inert Notes, and one next useful action. It is memory; live evidence and user decisions win.
+- `Current understanding` is a present-state summary, not a running task summary or compressed transcript. Replace superseded prose instead of appending completed events.
+- Give detailed facts one schema-owned home. Other sections summarize or point to that owner rather than repeating findings, hashes, commands, or test inventories.
 - Only the user changes task state. Do not infer `Paused`, `Completed`, `Abandoned`, or renewed `Active` state from inactivity, apparent completion, or failure.
 - A **slice** is one bounded piece of learning, delivery, or structural improvement. One slice may span multiple iterations of [Workflow's](../workflow/SKILL.md) Feedback Loop and calls to other owning skills.
 - Record state changes, not every edit or conversation. Apply authorized in-scope steering and reconcile its meaningful final effect when the slice closes.
@@ -60,7 +62,7 @@ After reading the required reference:
 1. **Create or resume:** use the established task directory, restore task state after context loss, and orient from live evidence.
 2. **Select or wait:** select a slice only when its concrete work is requested or approved. If only record creation is approved, keep `Current Slice` as `None` and wait. When selected, move one proposal into `Current Slice`, assign its chronological `S-` ID, save the write-ahead state, then route to Execute Work.
 3. **Maintain the slice:** keep small steering out of the event history; record accepted extensions before execution; preserve blockers, review routes, and evidence without replacing a coherent slice.
-4. **Close the slice:** move the Workflow-established outcome to History, preserve the original boundary and accepted extensions, reconcile current state, and set `Current Slice` to `None`.
+4. **Close the slice:** move the Workflow-established outcome to History, preserve the original boundary and accepted extensions, rewrite Current Context from the resulting present state, remove completed-event detail already owned by History, and set `Current Slice` to `None`.
 5. **Preserve what matters:** keep task-local decisions, selected checkpoints, evidence pointers, and Notes in their schema-owned sections.
 
 ## Context Boundaries
@@ -79,4 +81,4 @@ When the user requests a separate point-in-time transfer artifact, read [Handoff
 
 ## Check The Record
 
-After every update, silently compare the record with live evidence and the required reference. Correct clear local issues. Do not create review history or request review merely because the record changed.
+After every update, silently compare the record with live evidence and the required reference. Correct clear local issues. Remove historical narration from Current Context once its active consequence is captured, and replace duplicated detail with a compact pointer to its owner. Do not create review history or request review merely because the record changed.
