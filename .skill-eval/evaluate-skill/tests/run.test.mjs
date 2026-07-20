@@ -1451,7 +1451,7 @@ test("view renders a direct result grade-first and filters one variant", async (
 
     assert.equal(view.status, 0, view.stderr);
     assert.match(view.stdout, /Group natural-activation \[complete\]/);
-    assert.match(view.stdout, /candidate-read\s+candidate\s+pass/);
+    assert.match(view.stdout, /check\s+candidate-read\s+candidate\s+skill-read\s+pass/);
     assert.match(view.stdout, /Candidate \[complete\]/);
     assert.match(view.stdout, /Candidate response/);
     assert.doesNotMatch(view.stdout, /Baseline \[/);

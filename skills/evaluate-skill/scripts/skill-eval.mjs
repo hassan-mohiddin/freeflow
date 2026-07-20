@@ -17,6 +17,7 @@ Current run support:
   Description and explicit-body groups with prompt or ordered turns\n  Working-tree or Git-backed ordered skills/context; optional fresh fixture copies\n  Description tools: read; body tools: read, write, edit
   Deterministic reads, paths, changed paths, text, JSON, and factual comparisons
   Ordered suites run serially and continue after isolated variant, group, or post-processing failures
+  Grade-first views show compact criterion details, usage, and result-relative artifact paths
 `,
   );
 }

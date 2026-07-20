@@ -619,7 +619,7 @@
       "case_concept": "Compare baseline and candidate while preserving failures and leaving behavioral meaning to agent or user review.",
       "current_result": "Fresh hard-cut contract has not been behaviorally evaluated; no current group or suite evidence exists.",
       "source_path": "skills/evaluate-skill/SKILL.md",
-      "source_sha256": "207aa2ea45f6fee3f7091bffb79fc110806e66af30aa974a8d0d6ee27b91a19e",
+      "source_sha256": "884734b143fb7a1b7286f47206716b4053061ccd88fd74b9d93a39a945c39022",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

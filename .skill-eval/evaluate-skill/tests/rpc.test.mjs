@@ -805,9 +805,9 @@ test("body evaluation preserves declared tool activity and exact workspace effec
     });
     assert.equal(viewed.status, 0, viewed.stderr);
     assert.match(viewed.stdout, /tools-used: write/);
-    assert.match(viewed.stdout, /created: result\.txt/);
-    assert.match(viewed.stdout, /modified: none/);
-    assert.match(viewed.stdout, /deleted: none/);
+    assert.match(viewed.stdout, /changes\tcreated\tresult\.txt/);
+    assert.match(viewed.stdout, /^ {2}changes\tmodified$/m);
+    assert.match(viewed.stdout, /^ {2}changes\tdeleted$/m);
   });
 });
 
@@ -922,7 +922,10 @@ test("public body execution persists runs before broader deterministic grading",
       encoding: "utf8",
     });
     assert.equal(viewed.status, 0, viewed.stderr);
-    assert.match(viewed.stdout, /report-exists\s+path\s+fail-to-pass\s+baseline-report:fail\s+candidate-report:pass/);
+    assert.match(
+      viewed.stdout,
+      /comparison\s+report-exists\s+path\s+fail-to-pass\s+baseline=baseline-report:fail\s+candidate=candidate-report:pass/,
+    );
   });
 });
 
