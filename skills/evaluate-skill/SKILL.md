@@ -24,7 +24,7 @@ Do not treat direct body delivery as activation evidence.
 
 ## Fix Inputs Before Running
 
-Declare the prompt or turns, target snapshots, other ordered skills, fixture, tools, host, model, thinking level, deterministic expectations, and review questions before subject output exists.
+Declare the prompt or turns, target snapshots, other ordered skills, fixture, tools, model, thinking level, deterministic expectations, and review questions before subject output exists. Use the exact [group and suite schema](references/definition-schema.md); definition loading and selection do not execute subjects.
 
 Keep equivalent inputs fixed across variants except for the declared target difference. Use fresh writable fixtures and immutable declared skill/context inputs. Ambient context is not declared composition.
 
@@ -32,9 +32,11 @@ Keep equivalent inputs fixed across variants except for the declared target diff
 
 Use Pi as the subject process. One-shot groups settle once; multi-turn groups keep one isolated RPC process per variant and settle each declared turn in order.
 
-Run groups serially by default. Persist each selected run before grading or continuing. A variant-local invalid or infrastructure failure must not erase evidence or prevent a safe counterpart or later group from running.
+The current executable boundary is one-shot description groups with a natural `input.prompt`, working-tree skills, no fixture or declared context, and only the `read` tool when a tool is needed. `run` rejects other accepted definition shapes before starting a subject rather than misreporting them as failed evaluations.
 
-Normal completion follows subject settlement. Cancellation, cleanup, path isolation, no-progress detection, and very high emergency ceilings are safeguards, not behavioral grades. Do not impose ordinary guessed turn, token, spend, output, or short time caps.
+Run groups serially by default. Persist each selected run before grading or continuing. A variant-local invalid or infrastructure failure must not erase evidence or prevent a safe counterpart or later group from running. Cancellation marks queued selected work `cancelled` without starting more subjects.
+
+Normal completion follows subject settlement. Replace ambient host system, append, and context instructions with evaluator-owned context containing only declared tools and skills. Cancellation, process-tree cleanup, path isolation, no-progress detection, and very high emergency ceilings are safeguards, not behavioral grades. Do not impose ordinary guessed turn, token, spend, output, or short time caps.
 
 ## Grade Facts, Preserve Meaning
 
@@ -46,9 +48,9 @@ Do not launch an automatic semantic grader. For body behavior, preserve criterio
 
 ## Inspect Evidence
 
-Prefer generated grade-first views for routine inspection. Keep canonical artifacts exact and expose their paths so ordinary file tools can read them directly. A view may remove transport noise and repeated structure; it must not hide evidence required by the group question.
+Prefer generated grade-first views for routine inspection. Keep canonical artifacts exact and expose direct paths for the run, events, transcript, final response, stderr, definition, and deterministic grade so ordinary file tools can read them directly. A view may remove transport noise and repeated structure; it must not hide evidence required by the group question.
 
-The canonical [skill-eval entrypoint](scripts/skill-eval.mjs) owns the `run` and `view` command surface. Run it with `--help` before relying on an operation. If an operation reports unavailable, execute the declared comparison directly and preserve the same evidence boundary; never invoke archived evaluators.
+The canonical [skill-eval entrypoint](scripts/skill-eval.mjs) owns the `run` and `view` command surface. `view` renders stored one-shot results by result, group, and variant. Run the entrypoint with `--help` before relying on an operation. If an operation is outside the executable boundary, execute the declared comparison directly and preserve the same evidence boundary; never invoke archived evaluators.
 
 ## Report
 

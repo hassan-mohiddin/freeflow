@@ -51,7 +51,7 @@ Workflow chooses the current owner. A linked skill does not run automatically, a
 | --- | --- | --- | --- |
 | [`setup-freeflow`](../skills/setup-freeflow/SKILL.md) | Layered activation, repair, same-turn context, and delivery reporting | `output-router` when explicitly requested, `decision-gate`, `workflow`, `mode-contract` | [`activation-contract`](../skills/setup-freeflow/references/activation-contract.md), [`host-setup`](../skills/setup-freeflow/references/host-setup.md), [`output-router-setup`](../skills/setup-freeflow/references/output-router-setup.md), [`Interaction Contract`](../runtime/interaction-contract.md) |
 | [`write-skill`](../skills/write-skill/SKILL.md) | Minimal agent-first skill creation and revision | `evaluate-skill` | [`skill-author entrypoint`](../skills/write-skill/scripts/skill-author.mjs) |
-| [`evaluate-skill`](../skills/evaluate-skill/SKILL.md) | Baseline-versus-candidate behavioral evidence | `write-skill` | [`skill-eval entrypoint`](../skills/evaluate-skill/scripts/skill-eval.mjs) |
+| [`evaluate-skill`](../skills/evaluate-skill/SKILL.md) | Baseline-versus-candidate behavioral evidence | `write-skill` | [`definition-schema`](../skills/evaluate-skill/references/definition-schema.md), [`skill-eval entrypoint`](../skills/evaluate-skill/scripts/skill-eval.mjs) |
 
 ## Optional Capability And Retired Archive
 
