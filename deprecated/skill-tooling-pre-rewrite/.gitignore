@@ -1,0 +1,3 @@
+skill-eval/*/runs/
+skill-eval/*/cache/
+skill-eval/config.local.json

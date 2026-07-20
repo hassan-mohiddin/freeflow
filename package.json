@@ -25,6 +25,8 @@
     "build": "npm run build:router && npm run build:pi-extension",
     "test:pi-extension": "npm run build && node --test $(find pi-extension/tests -name '*.test.js' | sort)",
     "test:router": "npm run build:router && node --test $(find router/tests -name '*.test.js' | sort)",
+    "test:skill-author": "node --test $(find .skill-eval/write-skill/tests -name '*.test.mjs' | sort)",
+    "test:skill-eval": "node --test $(find .skill-eval/evaluate-skill/tests -name '*.test.mjs' | sort)",
     "bench:router": "npm run build:router && node router/dist/benchmarks/benchmarks.js",
     "bench:router:commands": "npm run build:router && node router/dist/benchmarks/command-benchmarks.js",
     "bench:router:context-saving-baseline": "npm run build:router && node router/dist/benchmarks/context-saving-baseline.js",

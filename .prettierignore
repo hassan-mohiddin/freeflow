@@ -2,6 +2,4 @@
 **/*.html
 .skill-eval/*/runs/
 router/evals/runs/
-.skill-eval/evaluate-skill/v3-baseline-lock.json
-.skill-eval/evaluate-skill/fixtures/v3-semantic-corpus/
-.skill-eval/evaluate-skill/fixtures/v3-legacy/accepted-bundle/
+deprecated/skill-tooling-pre-rewrite/

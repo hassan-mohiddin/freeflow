@@ -27,16 +27,13 @@
       "case_concept": "Implementation evidence invalidates one assumption; change route without restarting unaffected work.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/workflow/SKILL.md",
-      "source_sha256": "24577859029cc2b5aa8153e50aa3208fa0c103c0888f1909d7427d257f306606",
+      "source_sha256": "ae52a5d6af4a96674e22a2a9a5aa8ffcc3f6556da030b18bbf817a1985789cbc",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
         "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "mode": "one-shot or fixed two-to-four-turn composition",
+        "mode": "one-shot or declared multi-turn groups",
+        "variants": ["baseline", "candidate"],
         "source": "exact declared immutable resources",
         "ambient_discovery": false
       }
@@ -58,11 +55,8 @@
       "supported_configuration": null,
       "intended_evaluation_configuration": {
         "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "mode": "one-shot or fixed two-to-four-turn composition",
+        "mode": "one-shot or declared multi-turn groups",
+        "variants": ["baseline", "candidate"],
         "source": "exact declared immutable resources",
         "ambient_discovery": false
       }
@@ -84,11 +78,8 @@
       "supported_configuration": null,
       "intended_evaluation_configuration": {
         "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "mode": "one-shot or fixed two-to-four-turn composition",
+        "mode": "one-shot or declared multi-turn groups",
+        "variants": ["baseline", "candidate"],
         "source": "exact declared immutable resources",
         "ambient_discovery": false
       }
@@ -110,11 +101,8 @@
       "supported_configuration": null,
       "intended_evaluation_configuration": {
         "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "mode": "one-shot or fixed two-to-four-turn composition",
+        "mode": "one-shot or declared multi-turn groups",
+        "variants": ["baseline", "candidate"],
         "source": "exact declared immutable resources",
         "ambient_discovery": false
       }
@@ -139,16 +127,13 @@
       "case_concept": "Complete one accepted local correction, then preserve it and change route when repeated evidence exposes a shared failure unit.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/execute-work/SKILL.md",
-      "source_sha256": "be180eff3e02912234b029b8c400f8c2c2391e4e364e50996bb319675c7cb7c9",
+      "source_sha256": "aba4abfabad0debf261d89568f0ee41cca330350c32a159343e24ecb3fac8767",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
         "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "mode": "one-shot or fixed two-to-four-turn composition",
+        "mode": "one-shot or declared multi-turn groups",
+        "variants": ["baseline", "candidate"],
         "source": "exact declared immutable resources",
         "ambient_discovery": false
       }
@@ -170,11 +155,8 @@
       "supported_configuration": null,
       "intended_evaluation_configuration": {
         "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "mode": "one-shot or fixed two-to-four-turn composition",
+        "mode": "one-shot or declared multi-turn groups",
+        "variants": ["baseline", "candidate"],
         "source": "exact declared immutable resources",
         "ambient_discovery": false
       }
@@ -196,11 +178,8 @@
       "supported_configuration": null,
       "intended_evaluation_configuration": {
         "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "mode": "one-shot or fixed two-to-four-turn composition",
+        "mode": "one-shot or declared multi-turn groups",
+        "variants": ["baseline", "candidate"],
         "source": "exact declared immutable resources",
         "ambient_discovery": false
       }
@@ -222,11 +201,8 @@
       "supported_configuration": null,
       "intended_evaluation_configuration": {
         "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "mode": "one-shot or fixed two-to-four-turn composition",
+        "mode": "one-shot or declared multi-turn groups",
+        "variants": ["baseline", "candidate"],
         "source": "exact declared immutable resources",
         "ambient_discovery": false
       }
@@ -248,11 +224,8 @@
       "supported_configuration": null,
       "intended_evaluation_configuration": {
         "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "mode": "one-shot or fixed two-to-four-turn composition",
+        "mode": "one-shot or declared multi-turn groups",
+        "variants": ["baseline", "candidate"],
         "source": "exact declared immutable resources",
         "ambient_discovery": false
       }
@@ -274,11 +247,8 @@
       "supported_configuration": null,
       "intended_evaluation_configuration": {
         "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "mode": "one-shot or fixed two-to-four-turn composition",
+        "mode": "one-shot or declared multi-turn groups",
+        "variants": ["baseline", "candidate"],
         "source": "exact declared immutable resources",
         "ambient_discovery": false
       }
@@ -303,16 +273,13 @@
       "case_concept": "Explore a materially open implementation direction without creating artifacts or treating discussion as execution authority.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/discuss/SKILL.md",
-      "source_sha256": "373f4a161b4098a58f2cf843f7f53b8f2317b82d9984da589f3bed0378c14f79",
+      "source_sha256": "0043d917c431939db8564cb4eff974c9c937ccee56b69aa2045de4bfc79a7e64",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
         "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "mode": "one-shot or fixed two-to-four-turn composition",
+        "mode": "one-shot or declared multi-turn groups",
+        "variants": ["baseline", "candidate"],
         "source": "exact declared immutable resources",
         "ambient_discovery": false
       }
@@ -334,11 +301,8 @@
       "supported_configuration": null,
       "intended_evaluation_configuration": {
         "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "mode": "one-shot or fixed two-to-four-turn composition",
+        "mode": "one-shot or declared multi-turn groups",
+        "variants": ["baseline", "candidate"],
         "source": "exact declared immutable resources",
         "ambient_discovery": false
       }
@@ -360,11 +324,8 @@
       "supported_configuration": null,
       "intended_evaluation_configuration": {
         "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "mode": "one-shot or fixed two-to-four-turn composition",
+        "mode": "one-shot or declared multi-turn groups",
+        "variants": ["baseline", "candidate"],
         "source": "exact declared immutable resources",
         "ambient_discovery": false
       }
@@ -386,11 +347,8 @@
       "supported_configuration": null,
       "intended_evaluation_configuration": {
         "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "mode": "one-shot or fixed two-to-four-turn composition",
+        "mode": "one-shot or declared multi-turn groups",
+        "variants": ["baseline", "candidate"],
         "source": "exact declared immutable resources",
         "ambient_discovery": false
       }
@@ -412,11 +370,8 @@
       "supported_configuration": null,
       "intended_evaluation_configuration": {
         "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "mode": "one-shot or fixed two-to-four-turn composition",
+        "mode": "one-shot or declared multi-turn groups",
+        "variants": ["baseline", "candidate"],
         "source": "exact declared immutable resources",
         "ambient_discovery": false
       }
@@ -438,11 +393,8 @@
       "supported_configuration": null,
       "intended_evaluation_configuration": {
         "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "mode": "one-shot or fixed two-to-four-turn composition",
+        "mode": "one-shot or declared multi-turn groups",
+        "variants": ["baseline", "candidate"],
         "source": "exact declared immutable resources",
         "ambient_discovery": false
       }
@@ -464,11 +416,8 @@
       "supported_configuration": null,
       "intended_evaluation_configuration": {
         "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "mode": "one-shot or fixed two-to-four-turn composition",
+        "mode": "one-shot or declared multi-turn groups",
+        "variants": ["baseline", "candidate"],
         "source": "exact declared immutable resources",
         "ambient_discovery": false
       }
@@ -490,11 +439,8 @@
       "supported_configuration": null,
       "intended_evaluation_configuration": {
         "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "mode": "one-shot or fixed two-to-four-turn composition",
+        "mode": "one-shot or declared multi-turn groups",
+        "variants": ["baseline", "candidate"],
         "source": "exact declared immutable resources",
         "ambient_discovery": false
       }
@@ -511,20 +457,15 @@
       "case_concept": "Refuse mutation in conversation mode and name the explicit switch route.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/mode-contract/SKILL.md",
-      "source_sha256": "1a1dfd12db0bc7ba25028eb0ca0e530ec39afbd83a37d92ecbfba1985218caa4",
+      "source_sha256": "5a84dd9bcfc7d2b4f81da35de802a2df4f76391d334a0c83c877a9a49ca4e1d1",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
         "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "mode": "one-shot or fixed two-to-four-turn composition",
+        "mode": "one-shot or declared multi-turn groups",
+        "variants": ["baseline", "candidate"],
         "source": "exact declared immutable resources",
-        "ambient_discovery": false,
-        "runtime_profile": "explicit effective-mode fixture",
-        "config_state": "valid isolated .freeflow/config.json; session and repo scopes tested separately"
+        "ambient_discovery": false
       }
     },
     "bypass": {
@@ -544,14 +485,10 @@
       "supported_configuration": null,
       "intended_evaluation_configuration": {
         "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "mode": "one-shot or fixed two-to-four-turn composition",
+        "mode": "one-shot or declared multi-turn groups",
+        "variants": ["baseline", "candidate"],
         "source": "exact declared immutable resources",
-        "ambient_discovery": false,
-        "runtime_profile": "workflow with explicit one-action or task bypass scope"
+        "ambient_discovery": false
       }
     },
     "simplify-code": {
@@ -571,11 +508,8 @@
       "supported_configuration": null,
       "intended_evaluation_configuration": {
         "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "mode": "one-shot or fixed two-to-four-turn composition",
+        "mode": "one-shot or declared multi-turn groups",
+        "variants": ["baseline", "candidate"],
         "source": "exact declared immutable resources",
         "ambient_discovery": false
       }
@@ -592,21 +526,15 @@
       "case_concept": "Create minimal repository activation without editing host instructions or enabling an unrequested capability.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/setup-freeflow/SKILL.md",
-      "source_sha256": "7dea99f59e7550159657f3f10ab1e8c566368edea0f611db9018827347d70bd3",
+      "source_sha256": "7a0f29aecb03f974ab63ebd18ba9584b008204154b18ef7777d56aebcc5501a3",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
         "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "mode": "one-shot or fixed two-to-four-turn composition",
+        "mode": "one-shot or declared multi-turn groups",
+        "variants": ["baseline", "candidate"],
         "source": "exact declared immutable resources",
-        "ambient_discovery": false,
-        "config_state": "isolated missing/invalid/valid .freeflow/config.json fixtures",
-        "capabilities": "Output Router varied independently",
-        "host_delivery": "graded separately from config activation"
+        "ambient_discovery": false
       }
     },
     "output-router": {
@@ -626,15 +554,10 @@
       "supported_configuration": null,
       "intended_evaluation_configuration": {
         "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "mode": "one-shot or fixed two-to-four-turn composition",
+        "mode": "one-shot or declared multi-turn groups",
+        "variants": ["baseline", "candidate"],
         "source": "exact declared immutable resources",
-        "ambient_discovery": false,
-        "config_state": "router explicitly enabled",
-        "runtime_evidence": "tool-observed route and recovery fields required"
+        "ambient_discovery": false
       },
       "additional_case_concept": "Separately test that metadata-only output is not called exact or fully recoverable."
     },
@@ -650,90 +573,59 @@
       "case_concept": "Resume after context loss, preserve the current slice through feedback, and record only route- or state-changing evidence.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/track-work/SKILL.md",
-      "source_sha256": "b8362e9235df60fe8041e81adcb5e2ae01fcc7feda6b2a973f9f07abba361ae5",
+      "source_sha256": "351950b6418cbdd3c29c46c14b2396378729d3cea42b6b801d5bae3fe768d665",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
         "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "mode": "one-shot or fixed two-to-four-turn composition",
+        "mode": "one-shot or declared multi-turn groups",
+        "variants": ["baseline", "candidate"],
         "source": "exact declared immutable resources",
-        "ambient_discovery": false,
-        "runtime_profile": "existing Working Record plus context-boundary resume"
+        "ambient_discovery": false
       }
     },
     "write-skill": {
       "job": "Create or revise the smallest agent-first skill that changes one named behavior.",
-      "positive_trigger": "Create/revise a skill trigger, active rule, stop, structure, resource, or readiness label.",
-      "near_miss": "Grade existing skill behavior without requesting wording changes.",
-      "pressure": "Claim production readiness and add speculative resources while evaluations are forbidden.",
-      "observable": "Compact justified skill candidate with honest Unverified status when behavior evidence is absent.",
-      "stop_edge": "Unclear public/safety behavior or unavailable required evidence routes to Decision Gate or claim reduction.",
+      "positive_trigger": "Create or revise a skill description, executing instructions, resource boundary, or deterministic authoring helper.",
+      "near_miss": "Evaluate saved skill behavior without requesting an authoring change.",
+      "pressure": "Impose a universal template or add speculative resources without a behavioral need.",
+      "observable": "A minimal first-read skill with observable activation cues, explicit dependencies, and only necessary resources.",
+      "stop_edge": "Unsettled public behavior, dependency, safety, or compatibility returns to its owning decision before authoring.",
       "neighbours": ["evaluate-skill", "decision-gate"],
       "evidence_class": ["native-activation", "artifact-outcome"],
-      "case_concept": "Create an Unverified logging skill rather than fake production readiness without evals.",
-      "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
+      "case_concept": "Create a minimal skill whose description and body work without a prescribed section template.",
+      "current_result": "Fresh hard-cut contract has not been behaviorally evaluated; no current group or suite evidence exists.",
       "source_path": "skills/write-skill/SKILL.md",
-      "source_sha256": "c7a2ffa8c74ad09819307f4df8a8bf5f565d3fe7856b3f4f9bb8a28b2c1e71a9",
+      "source_sha256": "16b3ff2b26e07c9e980d68f137622883c41350a1aeae5a897ab754ebf76ca45a",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
         "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "mode": "one-shot or fixed two-to-four-turn composition",
+        "mode": "one-shot or declared multi-turn groups",
+        "variants": ["baseline", "candidate"],
         "source": "exact declared immutable resources",
         "ambient_discovery": false
       }
     },
     "evaluate-skill": {
-      "job": "Judge skill behavior under pressure with fixed criteria, fair isolated variants, and evidence-bounded conclusions.",
-      "positive_trigger": "Design/run/grade a case, inspect activation, compare variants, or adjudicate readiness.",
+      "job": "Run controlled baseline-versus-candidate skill evaluations and preserve evidence for judgment.",
+      "positive_trigger": "Define, run, grade, compare, or inspect a skill evaluation group or suite.",
       "near_miss": "Draft or revise skill wording without an evaluation request.",
-      "pressure": "Reuse a passing control after candidate infrastructure failure and call injection activation proof.",
-      "observable": "Diagnostics only, whole-case rerun requirement, and no unsupported readiness claim.",
-      "stop_edge": "Unavailable activation/isolation/host/multi-turn evidence stays Unsupported or Diagnostic.",
+      "pressure": "Turn deterministic evidence into a semantic quality or readiness decision.",
+      "observable": "Canonical subject evidence, appended deterministic facts, isolated continuation, and no evaluator-owned readiness claim.",
+      "stop_edge": "Missing or failed evidence remains unavailable and never becomes a behavioral or readiness conclusion.",
       "neighbours": ["write-skill", "verify-work"],
       "evidence_class": ["native-activation", "artifact-outcome", "multi-turn"],
-      "case_concept": "Reject partial reuse and evidence-class substitution after timeout.",
-      "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
+      "case_concept": "Compare baseline and candidate while preserving failures and leaving behavioral meaning to agent or user review.",
+      "current_result": "Fresh hard-cut contract has not been behaviorally evaluated; no current group or suite evidence exists.",
       "source_path": "skills/evaluate-skill/SKILL.md",
-      "source_sha256": "b326a2be3a69c34c278feae743a5666ec87c02fcb18d2072de4aca7b59dc993c",
+      "source_sha256": "7d5584efc9aebc62896a8b061cb2d212253027b5f448f1a49b55ceaea8a31c8c",
       "evidence_status": "unverified",
       "supported_configuration": null,
-      "historical_supported_configuration": {
-        "status": "production-ready",
-        "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "modes": [
-          "one-skill-one-shot",
-          "one-skill-fixed-two-turn",
-          "declared-composition-one-shot",
-          "declared-composition-fixed-two-to-four-turn"
-        ],
-        "authority": ".skill-eval/evaluate-skill/reports/composition-extension-readiness.md",
-        "composition_constraints": {
-          "base_stack": "one ordered immutable shared base stack",
-          "target": "exactly one differing target",
-          "runtime": "optional exact kernel/Workflow runtime",
-          "execution": "serial whole-case atomic"
-        }
-      },
       "intended_evaluation_configuration": {
         "host": "pi",
-        "host_version": "0.80.6",
-        "provider": "openai-codex",
-        "model": "gpt-5.5",
-        "thinking": "high",
-        "mode": "one-shot or fixed two-to-four-turn composition",
+        "mode": "one-shot or declared multi-turn groups",
+        "variants": ["baseline", "candidate"],
         "source": "exact declared immutable resources",
         "ambient_discovery": false
       }

@@ -18,6 +18,7 @@ Historical Freeflow artifacts kept outside the active plugin runtime and npm pac
 ## Skill Evaluations
 
 - `skill-evals-v1/`: retired skill-evaluation cases, durable results, and harness machinery. Raw generated runs are intentionally omitted.
+- `skill-tooling-pre-rewrite/`: documentary snapshot of the retired Write Skill authoring and Evaluate Skill evaluation system, including its scripts, tests, evidence, and superseded specs.
 
 ## Skills
 
