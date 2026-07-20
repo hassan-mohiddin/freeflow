@@ -1,12 +1,14 @@
 # Freeflow Evaluator v3 Implementation Plan
 
-> **Type:** Rolling implementation plan
-> **Status:** Ready
-> **Source:** `docs/specs/skills/2026-07-13-freeflow-evaluator-v3.md`
-> **Baseline:** Current evaluator under `skills/evaluate-skill/scripts/`; 132 deterministic tests passed during spec review
-> **Provider policy:** No provider-backed execution until deterministic v3 acceptance, exact preview, and owner approval
-> **Review:** Passed artifact review after one revision pass; four initial blockers were resolved
-> **Progress:** Phases 0–1 and accepted Phase 1 review corrections are self-verified; the rolling-plan route checkpoint precedes Phase 2
+> **Type:** Historical rolling implementation plan
+> **Status:** Superseded before implementation
+> **Source:** `docs/specs/skills/2026-07-13-freeflow-evaluator-v3.md` (superseded)
+> **Current direction:** [`skills/evaluate-skill/SKILL.md`](../../../skills/evaluate-skill/SKILL.md) and its fresh `run`/`view` implementation
+> **Historical baseline:** Retired evaluator under `deprecated/skill-tooling-pre-rewrite/`
+> **Historical review:** Passed artifact review after one revision pass; four initial blockers were resolved
+> **Historical progress:** Phases 0–1 and accepted Phase 1 review corrections were self-verified before this plan was superseded
+
+The instructions below are documentary history only. They do not authorize or describe the active evaluator; compatibility, semantic grading, readiness, caps, journals, caches, resume, and `evaluate --plan-only` were rejected by the replacement.
 
 ## Goal
 

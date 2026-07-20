@@ -2,11 +2,13 @@
 > **Date:** 2026-07-10
 > **Revised:** 2026-07-11
 > **Owner:** Hassan Mohiddin
-> **Type:** Plan
-> **Status:** Revised during implementation — risk-first re-entry required
-> **Source:** `docs/specs/skills/skill-authoring-and-evaluation-v2.md`
-> **Failure/design context:** `docs/handoffs/workflow-and-skills/2026-07-11-implementation-scope-drift-and-replanning.md`
-> **Execution boundary:** Constrained Pi-first dogfooding; stop before batching or mature evaluator operations
+> **Type:** Historical plan
+> **Status:** Superseded
+> **Historical source:** `docs/specs/skills/skill-authoring-and-evaluation-v2.md` (superseded)
+> **Historical failure/design context:** `docs/handoffs/workflow-and-skills/2026-07-11-implementation-scope-drift-and-replanning.md`
+> **Current direction:** [`Write Skill`](../../../skills/write-skill/SKILL.md) and [`Evaluate Skill`](../../../skills/evaluate-skill/SKILL.md)
+
+The instructions below are documentary history only. Do not re-enter their `doctor|init|evaluate`, preflight, readiness, cap, semantic-grading, or owner-approval workflow against the active tooling.
 
 # Skill Authoring And Evaluation V2 Outcome-Level Bootstrap Plan
 

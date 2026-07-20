@@ -5,53 +5,101 @@ description: Use when evaluating or comparing agent-skill behavior.
 
 # Evaluate Skill
 
-Run controlled baseline-versus-candidate comparisons and preserve evidence for judgment. The evaluator does not decide whether a skill is good, ready, promotable, or suitable for production.
-
-## Name One Question
+Evaluate whether an exact skill changes agent behavior as intended under declared pressure. Evidence outranks confident prose.
 
 A **group** asks one behavioral question through exactly two variants:
 
 - `baseline`: no target skill or a previous snapshot;
 - `candidate`: a new or updated snapshot.
 
-A **suite** is an ordered batch of groups. Keep description and body questions separate by default:
+The **subject** performs the declared task under one variant. A **suite** is an ordered batch of groups. The evaluator runs subjects, preserves canonical evidence, appends deterministic grades, and renders views. It does not decide whether a skill is good, ready, promotable, or suitable for production.
 
-- a description group asks whether a natural prompt caused the exact target `SKILL.md` to be read, and when;
-- a body group deliberately supplies the body and asks what behavior followed;
-- an end-to-end group may combine activation and behavior only when that integrated path is the question.
+Inline examples teach the subject. They are candidate content, not evaluation evidence. Keep criteria and expected outcomes outside natural prompts.
 
-Do not treat direct body delivery as activation evidence.
+## Route First
 
-## Fix Inputs Before Running
+- Inspect adequate saved evidence before proposing a rerun or wording change.
+- Reuse an existing group unchanged when it preserves the question, pressure, and fixed criteria.
+- For a draft-only request, use [Write Skill](../write-skill/SKILL.md); do not fake a run.
+- Preserve partial infrastructure evidence without treating unavailable behavior as pass or fail.
+- Do not mutate canonical evidence or erase an unfavorable result.
 
-Declare the prompt or turns, target snapshots, other ordered skills, fixture, tools, model, thinking level, deterministic expectations, and review questions before subject output exists. Use the exact [group and suite schema](references/definition-schema.md); definition loading and selection do not execute subjects.
+Before a substantial rewrite, snapshot the complete current skill package and record an exact identity before editing; use that immutable state as the baseline. A small local wording correction needs no extra snapshot when its exact prior state is already recoverable and the change remains local.
 
-Keep equivalent inputs fixed across variants except for the declared target difference. Use fresh writable fixtures and immutable declared skill/context inputs. Ambient context is not declared composition.
+## Name One Question
 
-## Run Subjects Directly
+Separate the behavior being examined:
 
-Use Pi as the subject process. One-shot groups settle once; multi-turn groups keep one isolated RPC process per variant and settle each declared turn in order.
+- **Description activation:** did a natural prompt cause an exact target read, and when?
+- **First-read body behavior:** did explicit body delivery guide the subject with only guaranteed context?
+- **Nearby behavior:** did a close case avoid activation or load without hijacking the task?
+- **Dependency composition:** did exact ordered skills, resources, and context work together?
+- **Retained use:** did guidance remain useful on later declared turns?
+- **Artifact outcome:** did files, state, events, and responses match the fixed criterion?
+- **Cross-host behavior:** did the same question hold on every named host?
 
-The current executable boundary supports description and body groups with optional fresh fixture copies, working-tree or Git-backed resources, exact ordered skill lists, and declared UTF-8 context. Description groups use natural prompts, no tools or `read`, fresh JSON-mode subjects for one-shot work, and one fresh RPC session per variant for ordered turns. Body groups use RPC for prompts or turns and allow `read`, `write`, and `edit`. One declared target is explicitly delivered on the first turn while other declared skills remain available; later turns remain unchanged. Declared context is injected through an evaluator-owned system-prompt manifest. `run` rejects `bash` and end-to-end execution before starting a subject rather than misreporting them as failed evaluations.
+One evidence class does not prove another. A successful read does not prove compliance. Direct body delivery cannot prove natural activation. One turn cannot prove retained use. Ambient installation cannot prove declared composition.
 
-Run groups serially by default. Persist each selected run before its counterpart, and persist the deterministic grade and group result before the next group. A variant-local invalid, persistence, or infrastructure failure must not erase available evidence or prevent a safe counterpart or later group from running. Shared fixture setup failure makes the group `invalid`; cancellation marks queued selected work `cancelled` without starting more subjects. Failed deterministic checks remain ordinary complete evidence and do not make the command fail. Thrown grading and path-local grade/group publication failures become explicit `grade-error` fallback evidence; inability to preserve the fallback remains fatal. Invalid runs or groups, infrastructure failures, cancellation, and `grade-error` make the final command exit nonzero after all safe queued work; an unrecoverable output failure stops before claiming a completed batch.
+Read [evaluation design](references/evaluation-design.md) when choosing the question, evidence class, group shape, or variant boundary.
 
-Normal completion follows subject settlement. Replace ambient host system, append, and context instructions with evaluator-owned context containing only declared tools, skills, and exact declared context. Copy fixtures separately per variant; fingerprint skill/context snapshots and context delivery before and after execution; and fail closed on lexical, canonical, symlink, Git-entry, UTF-8, or guard-extension errors. Cancellation, process-tree cleanup, path isolation, no-progress detection, and very high emergency ceilings are safeguards, not behavioral grades. Do not impose ordinary guessed turn, token, spend, output, or short time caps.
+Keep description and body questions separate by default. `end-to-end` is reserved for an integrated activation-plus-behavior question, but the current runner rejects it before subject execution.
 
-## Grade Facts, Preserve Meaning
+Two common boundary examples:
 
-Append deterministic grades after canonical run evidence exists. A grade is derived evidence and never mutates or invalidates the run.
+- If a complete saved result already answers the question, use `view` and raw artifact reads; do not rerun merely to demonstrate process.
+- If explicit body delivery succeeds but a natural prompt never reads the skill, body behavior is supported while description activation still fails.
 
-Use the small deterministic vocabulary in the [definition schema](references/definition-schema.md): exact skill/resource reads, typed path presence, changed paths, file or response text, and explicit JSON availability/parse/field/value states. Body turns preserve immutable workspace snapshots when turn-scoped checks need intermediate state. The evaluator does not execute definition-supplied commands or tests; any future command-outcome mechanism needs a separately accepted trust and isolation contract. Failed checks are behavioral observations, not infrastructure failures. Missing evidence stays unavailable. Optional comparison identities report only factual baseline-to-candidate state transitions such as `fail-to-pass`; they never call a transition better, worse, ready, or good.
+## Use The Smallest Valid Loop
 
-Do not launch an automatic semantic grader. For body behavior, preserve criterion-relevant evidence and review questions so the active agent or user can judge meaning.
+1. Fix the group question, deterministic criteria, and review questions before subject output exists.
+2. Preserve the earliest natural prompt or strongest pressure that should distinguish behavior.
+3. For a new skill, use no target versus candidate. For a revision, use exact previous versus updated snapshots. For a description-only revision, keep body and resources byte-identical.
+4. Keep prompts or turns, fixture, tools, model, thinking, other skills, context, and criteria fixed except for the target difference.
+5. Run one group or an ordered suite serially.
+6. Inspect deterministic facts and canonical evidence before judging meaning.
+7. Let the active agent or user review unresolved behavior; never launch an automatic semantic grader.
+8. Classify the failed boundary before editing and revise one measured pressure point.
+9. Rerun the complete fixed group with both variants after a measured change.
 
-## Inspect Evidence
+If both variants pass, the pressure may be weak or the baseline sufficient. If both fail, distinguish the skill, fixture, environment, host, dependency, or criterion before editing.
 
-Prefer generated grade-first views for routine inspection. Keep canonical artifacts exact. Views name one escaped absolute result path, then use compact escaped rows for criterion details, usage, workspace changes, and result-relative run, workspace, events, transcript, final-response, stderr, definition, and grade paths; ordinary file tools can resolve them without an evaluator reader. Path cells escape literal backslashes before tab, CR, and LF, so unusual valid paths remain reversible. Variant views derive grade state from selected checks and expectation-owned errors while retaining cross-variant comparison, group, and system errors. Shared prompts, turns, responses, and review questions remain readable Markdown and are not repeated per variant. A view may remove transport noise and repeated structure; it must not hide evidence required by the group question.
+## Declare The Definition
 
-The canonical [skill-eval entrypoint](scripts/skill-eval.mjs) owns the `run` and `view` command surface. `view` renders stored description and body results by result, group, and variant. Body views include explicit-delivery state, review questions, responses, tools used, and workspace changes; review questions are never sent to the subject. Use the listed workspace and artifact paths with ordinary file tools when a generated view omits raw source, patch, nested JSON, or transport detail. Run the entrypoint with `--help` before relying on an operation. If an operation is outside the executable boundary, execute the declared comparison directly and preserve the same evidence boundary; never invoke archived evaluators.
+Use the exact [definition schema](references/definition-schema.md) for group, environment, expectation, suite, and selector shapes.
 
-## Report
+Declare the prompt or turns, fixture, exact ordered skills and target, working-tree or Git source, UTF-8 context, tools, model and thinking, deterministic expectations, comparison IDs, and review questions. Snapshot every declared subject resource. Ambient installation is not declared composition.
 
-Report what ran, what evidence exists, deterministic results, infrastructure failures, unavailable evidence, and the exact scope viewed. Use [Write Skill](../write-skill/SKILL.md) when accepted evidence calls for an authoring change. Leave readiness, promotion, release, and production-use decisions to the user and the owning workflow.
+## Run And View
+
+Use the canonical [skill evaluator](scripts/skill-eval.mjs):
+
+```text
+node <evaluate-skill-directory>/scripts/skill-eval.mjs run <suite-or-group-path> [--group <id-or-position>] [--variant baseline|candidate]
+node <evaluate-skill-directory>/scripts/skill-eval.mjs view <result-id-or-directory> [--group <id-or-position>] [--variant baseline|candidate]
+```
+
+Run from the definition root. Definition targets resolve from the current working directory; suite group references resolve from the suite file. Results are stored under `<cwd>/.skill-eval/runs/<result-id>`. `view` accepts a stored result ID or explicit result directory.
+
+With no selectors, every suite group and both variants are selected. `--group` is invalid for a direct group. Run `--help` before relying on an operation.
+
+Pi is the direct subject process. One-shot descriptions use fresh JSON-mode subjects. Ordered description turns and body groups use one isolated RPC process per variant. Body groups explicitly deliver one target on turn one. `bash`, definition-supplied command execution, and end-to-end execution are unsupported.
+
+Read [execution and evidence](references/execution-and-evidence.md) when operating commands, resolving paths, interpreting states, or reasoning about Pi isolation, persistence, views, cancellation, cleanup, and safeguards.
+
+## Grade And Inspect Facts
+
+Append deterministic grades only after canonical run evidence exists. A grade is derived evidence and never mutates or invalidates a run.
+
+Supported checks cover exact skill/resource reads, typed paths, changed paths, file/response text, explicit JSON states, valid turn scope, and factual baseline-to-candidate transitions. A failed check remains ordinary behavioral evidence. Missing evidence stays unavailable. Malformed checks or grading failures produce separate `grade-error` evidence. Transitions carry no quality or readiness meaning.
+
+Prefer generated grade-first views for routine inspection. Use ordinary file tools for raw run, event, transcript, response, stderr, workspace, definition, grade, and group artifacts. A view may remove repeated transport structure; it must not hide evidence required by the question.
+
+Read [review and revision](references/review-and-revision.md) after evidence exists, when surfaces conflict, meaning still needs judgment, or a revision/rerun boundary must be chosen.
+
+## Report And Stop
+
+Report what ran, exact variant identities, deterministic results, infrastructure failures, unavailable evidence, viewed scope, and canonical result paths. State what the evidence proves and does not prove.
+
+Stop rather than overclaim when required activation, first-read, composition, isolation, multi-turn, artifact, or host evidence is unavailable. The active agent or user judges unresolved behavior. The user decides whether to revise, use, publish, or reject a skill.
+
+Never invoke archived evaluators.

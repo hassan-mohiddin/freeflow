@@ -9,12 +9,32 @@ const [command] = argv;
 
 function printUsage() {
   process.stdout.write(
-    `Usage: skill-eval <run|view> <suite-or-result> [options]\n\nCommands:\n  run <suite-or-group>   Run selected evaluation groups\n  view <result-id>       Render selected stored evidence\n\nSelectors:
+    `Usage:
+  skill-eval run <suite-or-group-path> [options]
+  skill-eval view <result-id-or-directory> [options]
+
+Commands:
+  run    Execute selected evaluation groups
+  view   Render selected stored evidence
+
+Selectors:
   --group <id-or-position>
   --variant <baseline|candidate>
 
+Paths:
+  Definition paths resolve from the current working directory.
+  Suite group references resolve relative to the suite file.
+  Results are stored under <cwd>/.skill-eval/runs/<result-id>.
+  view accepts a stored result ID or an explicit result directory.
+
+Selection:
+  No selectors choose every suite group and both variants.
+  --group is invalid for a direct group definition or result.
+
 Current run support:
-  Description and explicit-body groups with prompt or ordered turns\n  Working-tree or Git-backed ordered skills/context; optional fresh fixture copies\n  Description tools: read; body tools: read, write, edit
+  Description and explicit-body groups with prompt or ordered turns
+  Working-tree or Git-backed ordered skills/context; optional fresh fixture copies
+  Description tools: read; body tools: read, write, edit
   Deterministic reads, paths, changed paths, text, JSON, and factual comparisons
   Ordered suites run serially and continue after isolated variant, group, or post-processing failures
   Grade-first views show compact criterion details, usage, and result-relative artifact paths

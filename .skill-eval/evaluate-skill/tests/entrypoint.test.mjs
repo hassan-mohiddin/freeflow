@@ -11,7 +11,10 @@ test("skill-eval exposes only the fresh command surface", () => {
   });
 
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /skill-eval <run\|view>/);
+  assert.match(result.stdout, /skill-eval run <suite-or-group-path>/);
+  assert.match(result.stdout, /skill-eval view <result-id-or-directory>/);
+  assert.match(result.stdout, /Definition paths resolve from the current working directory/);
+  assert.match(result.stdout, /Results are stored under <cwd>\/\.skill-eval\/runs\/<result-id>/);
   assert.match(result.stdout, /--group <id-or-position>/);
   assert.match(result.stdout, /--variant <baseline\|candidate>/);
   assert.doesNotMatch(result.stdout, /--allow-commands|command outcomes/);

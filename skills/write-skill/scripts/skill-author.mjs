@@ -6,7 +6,7 @@ const commands = new Set(["init", "validate", "inspect"]);
 
 function printUsage() {
   process.stdout.write(
-    `Usage: skill-author <init|validate|inspect> [options]\n\nCommands:\n  init <directory> --name <name> --description <text>\n      Create a minimal skill package\n  validate <directory> [--package-root <directory>]\n      Validate skill structure and resources\n  inspect <directory> [--package-root <directory>]\n      Report a factual package inventory\n\nOutput:\n  Commands emit JSON. Invalid structure exits nonzero after emitting its report.\n  Package root defaults to the nearest package.json ancestor, then the skill parent.\n\nFrontmatter:\n  Validation supports flat plain-string or JSON-compatible double-quoted scalars.\n  Quote values that YAML could interpret as punctuation, numbers, booleans, or null.\n`,
+    `Usage: skill-author <init|validate|inspect> [options]\n\nCommands:\n  init <directory> --name <name> --description <text>\n      init creates a minimal SKILL.md and refuses to overwrite one\n  validate <directory> [--package-root <directory>]\n      validate checks structure and recursive resource containment\n  inspect <directory> [--package-root <directory>]\n      inspect reports factual inventory plus validation findings\n\nOutput:\n  Commands emit JSON. Invalid structure still emits JSON and exits nonzero.\n  Command errors emit structured error JSON.\n  Package root defaults to the nearest package.json ancestor, then the skill parent.\n\nFrontmatter:\n  Validation supports flat plain-string or JSON-compatible double-quoted scalars.\n  Double-quote values when punctuation, numbers, booleans, or null-like text could be ambiguous.\n`,
   );
 }
 

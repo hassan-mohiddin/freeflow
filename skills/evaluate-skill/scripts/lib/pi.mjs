@@ -27,7 +27,7 @@ import {
 } from "./sandbox.mjs";
 
 const guardExtension = fileURLToPath(new URL("../pi-guard.mjs", import.meta.url));
-const TURN_WORKSPACE_KINDS = new Set(["path", "changed-paths", "file-text", "json", "command"]);
+const TURN_WORKSPACE_KINDS = new Set(["path", "changed-paths", "file-text", "json"]);
 
 export class VariantSetupError extends Error {
   constructor(message) {

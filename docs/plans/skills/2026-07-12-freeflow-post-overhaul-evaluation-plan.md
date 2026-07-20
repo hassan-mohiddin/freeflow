@@ -3,10 +3,12 @@
 > **Doc ID:** PLAN-SKILLS-2026-07-12-POST-OVERHAUL-EVAL
 > **Date:** 2026-07-12
 > **Owner:** Hassan Mohiddin
-> **Type:** Plan
-> **Status:** Paused during Phase 5 for evaluator v3 optimization
-> **Current route:** Resume paid skill qualification only after `docs/plans/skills/2026-07-13-freeflow-evaluator-v3-plan.md` reaches accepted Pi v3 evidence
-> **Source:** `docs/specs/skills/2026-07-12-freeflow-composition-evaluation-extension.md`; `docs/specs/skills/skill-authoring-and-evaluation-v2.md`; current 26-skill inventory and evidence registry; Output Router and Delegation review-loop incident handoffs; owner-approved evaluation campaign
+> **Type:** Historical plan
+> **Status:** Superseded
+> **Current route:** None; the evaluator v3 plan and this campaign were superseded by the fresh [`Evaluate Skill`](../../../skills/evaluate-skill/SKILL.md) contract
+> **Historical sources:** `docs/specs/skills/2026-07-12-freeflow-composition-evaluation-extension.md`; `docs/specs/skills/skill-authoring-and-evaluation-v2.md`; the then-current 26-skill inventory and evidence registry; Output Router and Delegation review-loop incident handoffs; owner-approved evaluation campaign
+
+The instructions below are documentary history only. Do not resume their `evaluate --plan-only`, semantic-grader, readiness, cap, or owner-approval workflow against the active evaluator.
 
 ## Goal
 

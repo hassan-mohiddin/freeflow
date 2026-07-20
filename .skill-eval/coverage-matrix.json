@@ -27,7 +27,7 @@
       "case_concept": "Implementation evidence invalidates one assumption; change route without restarting unaffected work.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/workflow/SKILL.md",
-      "source_sha256": "ae52a5d6af4a96674e22a2a9a5aa8ffcc3f6556da030b18bbf817a1985789cbc",
+      "source_sha256": "08bfa214ec79ac092dd3b28457db091ed0f5bd390f4aef6cb7867f80c2a4f61b",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -73,7 +73,7 @@
       "case_concept": "Plan one diagnosed persistence fix while leaving unresolved migration work directional.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/write-plan/SKILL.md",
-      "source_sha256": "86ee5f5b1653e631c4c1e66b211ba903ad37c2380ef9e3b32d94a15089dd491d",
+      "source_sha256": "e72abe1863f2e21b0ef7787303edf7eb570485de0bcbb1284b062efcd212c15f",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -96,7 +96,7 @@
       "case_concept": "Block a plan that defers an authority prerequisite while rejecting preference-only comments.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/review-artifact/SKILL.md",
-      "source_sha256": "f3a9852eaef417223af248acd1226e558eec8b88cc079cebd6edca6dcefea77c",
+      "source_sha256": "33ef69384d6aeae197e8e9cc008094cd658a4746cd2e112b7db4d7c41182b895",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -219,7 +219,7 @@
       "case_concept": "Reject an unsupported broad refactor while retaining one real missing failure-path test.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/review-work/SKILL.md",
-      "source_sha256": "6c9249bb6fbb9edcecc06a1f122eeba79b58c898baeaeed220b64fe2caea4edc",
+      "source_sha256": "b68bee8c3dfa79ba4f6a34aa55e195ff7f4af2c386468ec20858d7c5c5b9cad7",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -242,7 +242,7 @@
       "case_concept": "A write followed by read returns stale data despite a documented invalidation event; use a diagnostic loop to discriminate cache-key from invalidation-delivery hypotheses before selecting the correction boundary.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/diagnose-failure/SKILL.md",
-      "source_sha256": "9388a583f16fa7256d045a65d9d21d597d1f8f5b569bca42e8c7c2f169ee1349",
+      "source_sha256": "33127a1a71ab4db75f97cf006b840631ec42818a41f991694e3279cfa3e1fd56",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -273,7 +273,7 @@
       "case_concept": "Explore a materially open implementation direction without creating artifacts or treating discussion as execution authority.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/discuss/SKILL.md",
-      "source_sha256": "0043d917c431939db8564cb4eff974c9c937ccee56b69aa2045de4bfc79a7e64",
+      "source_sha256": "794f00def96e74919610397165d4832e7ef8403f02bb66aa96efa36eb39b2d1f",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -342,7 +342,7 @@
       "case_concept": "Commit only an owned settings fix while preserving unrelated staged and untracked work.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/commit-work/SKILL.md",
-      "source_sha256": "9275f12d59fab356fa622c41cbd310a61f03fab5604f2ece43226951d7f70cc0",
+      "source_sha256": "566964a2c8d3fddeb040c422db08f0511dd9eea2a5c511a5f50013fb8fe1c607",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -573,7 +573,7 @@
       "case_concept": "Resume after context loss, preserve the current slice through feedback, and record only route- or state-changing evidence.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/track-work/SKILL.md",
-      "source_sha256": "351950b6418cbdd3c29c46c14b2396378729d3cea42b6b801d5bae3fe768d665",
+      "source_sha256": "c8679c76b660fa817425c364942b642c9e99a6973bd5cf454d3005c667ee074d",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -596,7 +596,7 @@
       "case_concept": "Create a minimal skill whose description and body work without a prescribed section template.",
       "current_result": "Fresh hard-cut contract has not been behaviorally evaluated; no current group or suite evidence exists.",
       "source_path": "skills/write-skill/SKILL.md",
-      "source_sha256": "cef2cebb506fe0bf7732f2b784031d283186a604131dfc649cf943ace6b504b9",
+      "source_sha256": "256512a5418b56655bc0d2c7c9d49a29fe596dff672dbae88ae905db40a9c45a",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -619,7 +619,7 @@
       "case_concept": "Compare baseline and candidate while preserving failures and leaving behavioral meaning to agent or user review.",
       "current_result": "Fresh hard-cut contract has not been behaviorally evaluated; no current group or suite evidence exists.",
       "source_path": "skills/evaluate-skill/SKILL.md",
-      "source_sha256": "884734b143fb7a1b7286f47206716b4053061ccd88fd74b9d93a39a945c39022",
+      "source_sha256": "ce250db3c3c4502c591d4fd9455353397a6ea44c71e0477444579299e490fa2e",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
