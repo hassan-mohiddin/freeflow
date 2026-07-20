@@ -1,6 +1,6 @@
-import { normalizeFreeflowConfig, routeObservedToolOutput } from "../../router/dist/index.js";
+import { normalizeFreeflowConfig, routeObservedToolOutput } from "../../../router/dist/index.js";
 import { resolvePiObservedRoutingDecision } from "./host-producer-identification.js";
-import { notifyRouterConfigWarnings, readFreeflowConfig } from "./runtime-context.js";
+import { notifyRouterConfigWarnings, readFreeflowConfig } from "../runtime/runtime-context.js";
 import { getRouterSessionId } from "./utils.js";
 
 export async function handleObservedToolRouting(event: any, ctx: any) {

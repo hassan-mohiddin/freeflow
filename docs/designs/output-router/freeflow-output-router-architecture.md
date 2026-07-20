@@ -231,21 +231,27 @@ router/src/
   index.ts                    package barrel exports
 ```
 
-Pi integration is under `pi-extension/src/`:
+Pi integration is grouped by feature under `pi-extension/src/`:
 
 ```text
 pi-extension/src/
-  index.ts                    lifecycle hooks, tool_result routing, commands
-  runtime-context.ts          mode/config reads and context injection
-  router-tools.ts             public Pi tools and parameter normalization
-  schemas.ts                  Pi JSON schemas for public tools
-  renderers.ts                compact/expanded TUI renderers
-  utils.ts                    compact model-visible result text helpers
-  status.ts                   freeflow_status reports and migration hints
-  observed-tool-routing.ts    Pi tool_result observed-routing adapter
-  host-producer-identification.ts MCP/web/fetch/code-search producer detection
-  native-safety-net.ts        optional post-tool routing for native read/bash
-  mcp-config.ts               Pi MCP config helpers
+  index.ts                    stable extension entrypoint and lifecycle wiring
+  runtime/
+    runtime-context.ts        mode/config reads and context injection
+  settings/
+    settings-ui.ts            Freeflow and Output Router settings commands
+    settings-tui.ts           settings-specific TUI components
+  output-router/
+    router-tools.ts           public Pi tools and parameter normalization
+    schemas.ts                Pi JSON schemas for public tools
+    renderers.ts              compact/expanded Output Router renderers
+    utils.ts                  compact model-visible result text helpers
+    status.ts                 freeflow_status reports and migration hints
+    observed-tool-routing.ts  Pi tool_result observed-routing adapter
+    host-producer-identification.ts MCP/web/fetch/code-search producer detection
+    native-safety-net.ts      optional post-tool routing for native read/bash
+  integrations/
+    mcp-config.ts             Pi MCP config helpers
 ```
 
 Generated package output mirrors these under `router/dist/` and `pi-extension/dist/`.
@@ -1363,7 +1369,7 @@ Pi tool results have two layers:
 1. compact model-visible `content[0].text`,
 2. full structured `details.result` for expanded UI/recovery/debugging.
 
-Renderers live in `pi-extension/src/renderers.ts`; compact text helpers live in `pi-extension/src/utils.ts`.
+Renderers live in `pi-extension/src/output-router/renderers.ts`; compact text helpers live in `pi-extension/src/output-router/utils.ts`.
 
 The UI is designed so collapsed tool rows stay readable while expanded rows show:
 
@@ -1720,7 +1726,7 @@ Touchpoints:
 - validation,
 - execution implementation,
 - operation summary/hash,
-- Pi schema in `pi-extension/src/schemas.ts`,
+- Pi schema in `pi-extension/src/output-router/schemas.ts`,
 - renderer/test coverage.
 
 Transform rules:
@@ -1747,10 +1753,10 @@ Adapter must pass every required proof before execution is available. No plain s
 
 Touchpoints:
 
-- `pi-extension/src/host-producer-identification.ts`,
+- `pi-extension/src/output-router/host-producer-identification.ts`,
 - `router/src/config/types.ts` producer kinds if needed,
 - `router/src/routing/observed-routing.ts`,
-- `pi-extension/src/schemas.ts` config/status/schema if public config changes,
+- `pi-extension/src/output-router/schemas.ts` config/status/schema if public config changes,
 - release/setup docs.
 
 Observed producer decisions are routing decisions, not host permission decisions.
@@ -1924,14 +1930,14 @@ Primary source files:
 - `router/src/setup/script-transform-adapters.ts`
 - `router/src/config/config.ts`
 - `router/src/config/types.ts`
-- `pi-extension/src/router-tools.ts`
-- `pi-extension/src/schemas.ts`
-- `pi-extension/src/renderers.ts`
-- `pi-extension/src/status.ts`
-- `pi-extension/src/observed-tool-routing.ts`
-- `pi-extension/src/native-safety-net.ts`
-- `pi-extension/src/host-producer-identification.ts`
-- `pi-extension/src/runtime-context.ts`
+- `pi-extension/src/output-router/router-tools.ts`
+- `pi-extension/src/output-router/schemas.ts`
+- `pi-extension/src/output-router/renderers.ts`
+- `pi-extension/src/output-router/status.ts`
+- `pi-extension/src/output-router/observed-tool-routing.ts`
+- `pi-extension/src/output-router/native-safety-net.ts`
+- `pi-extension/src/output-router/host-producer-identification.ts`
+- `pi-extension/src/runtime/runtime-context.ts`
 - `skills/output-router/SKILL.md`
 - `skills/output-router/references/safety-policy.md`
 - `plugin-docs/output-router.md`

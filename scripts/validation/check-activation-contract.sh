@@ -11,7 +11,7 @@ mode_skill="$repo_root/skills/mode-contract/SKILL.md"
 agents_file="$repo_root/AGENTS.md"
 runtime_doc="$repo_root/docs/freeflow-runtime-and-lifecycle.md"
 architecture_doc="$repo_root/plugin-docs/architecture.md"
-pi_runtime="$repo_root/pi-extension/src/runtime-context.ts"
+pi_runtime="$repo_root/pi-extension/src/runtime/runtime-context.ts"
 shared_hook="$repo_root/hooks/freeflow-runtime-context.mjs"
 
 failures=0

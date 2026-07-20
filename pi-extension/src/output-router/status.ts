@@ -1,6 +1,7 @@
 import { constants as fsConstants } from "node:fs";
 import { access, readFile, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
+
 import {
   DEFAULT_OBSERVED_ROUTING_CONFIG,
   DEFAULT_OUTPUT_ROUTER_ENABLED,
@@ -22,8 +23,9 @@ import {
   normalizeFreeflowConfig,
   normalizeLocalFreeflowConfig,
   probeScriptSandboxAdapters,
-} from "../../router/dist/index.js";
-import { VALID_MODES, readCapabilityState, readModeState } from "./runtime-context.js";
+} from "../../../router/dist/index.js";
+import { VALID_MODES, readCapabilityState, readModeState } from "../runtime/runtime-context.js";
+
 const STATUS_ACTIONS = new Set(["status", "doctor", "migration"]);
 const TOP_LEVEL_CONFIG_KEYS = new Set([
   "enabled",
@@ -62,8 +64,9 @@ const SCRIPT_TRANSFORM_CONFIG_KEYS = new Set([
   "limits",
   "rawScriptPersistence",
 ]);
+
 export async function buildFreeflowStatusReport(params = {}, ctx) {
-  const action = normalizeStatusAction(params.action);
+  const action = normalizeStatusAction((params as any).action);
   const configFile = await readConfigFile(ctx.cwd);
   const localConfigFile = await readLocalConfigFile(ctx.cwd);
   const normalized = normalizeFreeflowConfig(configFile.parsed);
@@ -89,6 +92,7 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
   });
   const configWarnings = [...normalized.warnings];
   const localConfigWarnings = [...localNormalized.warnings];
+
   if (!runtimeState.repositoryConfigured && configFile.exists) {
     configWarnings.unshift(
       `.freeflow/config.json is invalid; Freeflow runtime is inactive. ${runtimeState.parseError ?? configFile.parseError ?? "Unknown config error."}`,
@@ -106,6 +110,7 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
       `.freeflow/local.json is invalid; Freeflow runtime is inactive. ${runtimeState.localConfigParseError ?? localConfigFile.parseError ?? "Unknown local config error."}`,
     );
   }
+
   const scriptSandboxAdapters = [
     ...(await discoverQuickJsWasiSandboxAdaptersFromEnv()),
     ...(await discoverJqWasmSandboxAdaptersFromEnv()),
@@ -120,6 +125,7 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
     }),
   ]);
   const migration = migrationReport(configFile.parsed);
+
   return {
     toolStatus: "ok",
     action,
@@ -214,12 +220,14 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
     migration,
   };
 }
+
 function normalizeStatusAction(value) {
   if (typeof value === "string" && STATUS_ACTIONS.has(value)) {
     return value;
   }
   return "status";
 }
+
 async function readConfigFile(cwd) {
   const path = join(cwd, ".freeflow/config.json");
   try {
@@ -241,6 +249,7 @@ async function readConfigFile(cwd) {
     return { path, exists: false, raw: null, parsed: {}, parseError: null };
   }
 }
+
 async function readLocalConfigFile(cwd) {
   const path = join(cwd, ".freeflow/local.json");
   try {
@@ -262,6 +271,7 @@ async function readLocalConfigFile(cwd) {
     return { path, exists: false, raw: null, parsed: {}, parseError: null };
   }
 }
+
 async function inspectVaultWritability(root) {
   try {
     const rootStats = await stat(root);
@@ -274,7 +284,7 @@ async function inspectVaultWritability(root) {
     await access(root, fsConstants.W_OK | fsConstants.X_OK);
     return { status: "writable", detail: "Vault root exists and is writable." };
   } catch (error) {
-    const code = error && typeof error === "object" ? error.code : undefined;
+    const code = error && typeof error === "object" ? (error as any).code : undefined;
     if (code === "ENOENT") {
       return inspectMissingVaultRoot(root);
     }
@@ -290,6 +300,7 @@ async function inspectVaultWritability(root) {
     };
   }
 }
+
 async function inspectVaultIndex(vault) {
   try {
     return await createLocalVaultIndex(vault).status();
@@ -310,6 +321,7 @@ async function inspectVaultIndex(vault) {
     };
   }
 }
+
 async function inspectMissingVaultRoot(root) {
   const ancestor = await nearestExistingAncestor(dirname(root));
   if (!ancestor) {
@@ -318,12 +330,14 @@ async function inspectMissingVaultRoot(root) {
       detail: "Vault root does not exist and no existing writable ancestor could be found. No directory was created.",
     };
   }
+
   if (!ancestor.stats.isDirectory()) {
     return {
       status: "missing_ancestor_unavailable",
       detail: `Nearest existing ancestor is not a directory: ${ancestor.path}. No directory was created.`,
     };
   }
+
   try {
     await access(ancestor.path, fsConstants.W_OK | fsConstants.X_OK);
     return {
@@ -331,20 +345,21 @@ async function inspectMissingVaultRoot(root) {
       detail: `Vault root does not exist; nearest existing ancestor is writable: ${ancestor.path}. Recursive vault creation should be possible. No directory was created.`,
     };
   } catch (error) {
-    const code = error && typeof error === "object" ? error.code : undefined;
+    const code = error && typeof error === "object" ? (error as any).code : undefined;
     return {
       status: "missing_ancestor_unavailable",
       detail: `Vault root does not exist and nearest existing ancestor is not writable: ${ancestor.path} (${code ?? "unknown"}). No directory was created.`,
     };
   }
 }
+
 async function nearestExistingAncestor(startPath) {
   let current = startPath;
   while (true) {
     try {
       return { path: current, stats: await stat(current) };
     } catch (error) {
-      const code = error && typeof error === "object" ? error.code : undefined;
+      const code = error && typeof error === "object" ? (error as any).code : undefined;
       if (code !== "ENOENT") {
         return null;
       }
@@ -356,6 +371,7 @@ async function nearestExistingAncestor(startPath) {
     }
   }
 }
+
 function scriptTransformStatus(config, sandboxReport) {
   const adapterHome = defaultScriptTransformAdaptersHome();
   return {
@@ -392,6 +408,7 @@ function scriptTransformStatus(config, sandboxReport) {
     ],
   };
 }
+
 function processingStatus(localConfig) {
   const enabled = localConfig.processing.unsafeUnsandboxed.enabled;
   return {
@@ -411,12 +428,14 @@ function processingStatus(localConfig) {
     },
   };
 }
+
 function observedRoutingStatus(config) {
-  const servers = Object.entries(config.mcp?.servers ?? {}).map(([id, server]) => ({
+  const servers = Object.entries((config.mcp?.servers ?? {}) as Record<string, any>).map(([id, server]) => ({
     id,
     enabled: server.enabled,
     persistence: server.persistence,
   }));
+
   return {
     enabled: config.enabled,
     onRoutingFailure: config.onRoutingFailure,
@@ -441,6 +460,7 @@ function observedRoutingStatus(config) {
     ],
   };
 }
+
 function migrationReport(rawConfig) {
   const recommendations = collectMigrationRecommendations(rawConfig);
   return {
@@ -453,11 +473,13 @@ function migrationReport(rawConfig) {
         : "No migration recommendations detected.",
   };
 }
+
 function collectMigrationRecommendations(rawConfig) {
   const recommendations = [];
   if (!isRecord(rawConfig)) {
     return recommendations;
   }
+
   for (const key of Object.keys(rawConfig)) {
     if (!TOP_LEVEL_CONFIG_KEYS.has(key)) {
       recommendations.push(
@@ -465,6 +487,7 @@ function collectMigrationRecommendations(rawConfig) {
       );
     }
   }
+
   collectOutputRouterRecommendations(rawConfig.outputRouter, recommendations);
   if (rawConfig.observedRouting !== undefined) {
     recommendations.push(
@@ -480,6 +503,7 @@ function collectMigrationRecommendations(rawConfig) {
   }
   return recommendations;
 }
+
 function collectOutputRouterRecommendations(value, recommendations) {
   if (value === undefined) {
     return;
@@ -490,6 +514,7 @@ function collectOutputRouterRecommendations(value, recommendations) {
     );
     return;
   }
+
   for (const key of Object.keys(value)) {
     if (!OUTPUT_ROUTER_CONFIG_KEYS.has(key)) {
       recommendations.push(
@@ -497,6 +522,7 @@ function collectOutputRouterRecommendations(value, recommendations) {
       );
     }
   }
+
   addDefaultRecommendation(recommendations, "outputRouter.enabled", value.enabled, DEFAULT_OUTPUT_ROUTER_ENABLED);
   addDefaultRecommendation(recommendations, "outputRouter.profile", value.profile, DEFAULT_OUTPUT_ROUTER_PROFILE);
   addDefaultRecommendation(
@@ -539,12 +565,14 @@ function collectOutputRouterRecommendations(value, recommendations) {
   );
   collectObservedRoutingRecommendations(value.observedRouting, recommendations, "outputRouter.observedRouting");
   collectScriptTransformRecommendations(value.scriptTransform, recommendations, "outputRouter.scriptTransform");
+
   if (Object.keys(value).length === 0) {
     recommendations.push(
       recommendation("outputRouter", "remove", "Empty outputRouter object can be removed; built-in defaults apply."),
     );
   }
 }
+
 function collectThresholdRecommendations(value, recommendations) {
   if (value === undefined) return;
   if (!isRecord(value)) {
@@ -566,6 +594,7 @@ function collectThresholdRecommendations(value, recommendations) {
     DEFAULT_ROUTER_THRESHOLDS.largeOutputLines,
   );
 }
+
 function collectVaultRecommendations(value, recommendations) {
   if (value === undefined) return;
   if (!isRecord(value)) {
@@ -591,6 +620,7 @@ function collectVaultRecommendations(value, recommendations) {
     recommendations.push(recommendation("outputRouter.vault.retention", "fix", "Expected retention object."));
   }
 }
+
 function collectHintsRecommendations(value, recommendations) {
   if (value === undefined) return;
   if (!isRecord(value)) {
@@ -603,6 +633,7 @@ function collectHintsRecommendations(value, recommendations) {
     );
   }
 }
+
 function collectScriptTransformRecommendations(value, recommendations, path) {
   if (value === undefined) {
     return;
@@ -611,6 +642,7 @@ function collectScriptTransformRecommendations(value, recommendations, path) {
     recommendations.push(recommendation(path, "fix", `Expected object; remove or rewrite invalid ${path} config.`));
     return;
   }
+
   for (const key of Object.keys(value)) {
     if (!SCRIPT_TRANSFORM_CONFIG_KEYS.has(key)) {
       recommendations.push(
@@ -618,6 +650,7 @@ function collectScriptTransformRecommendations(value, recommendations, path) {
       );
     }
   }
+
   addDefaultRecommendation(recommendations, `${path}.enabled`, value.enabled, DEFAULT_SCRIPT_TRANSFORM_CONFIG.enabled);
   addDefaultRecommendation(recommendations, `${path}.sandbox`, value.sandbox, DEFAULT_SCRIPT_TRANSFORM_CONFIG.sandbox);
   addDefaultRecommendation(recommendations, `${path}.network`, value.network, DEFAULT_SCRIPT_TRANSFORM_CONFIG.network);
@@ -627,6 +660,7 @@ function collectScriptTransformRecommendations(value, recommendations, path) {
     value.rawScriptPersistence,
     DEFAULT_SCRIPT_TRANSFORM_CONFIG.rawScriptPersistence,
   );
+
   if (Object.keys(value).length === 0) {
     recommendations.push(
       recommendation(
@@ -637,6 +671,7 @@ function collectScriptTransformRecommendations(value, recommendations, path) {
     );
   }
 }
+
 function collectObservedRoutingRecommendations(value, recommendations, path) {
   if (value === undefined) {
     return;
@@ -645,6 +680,7 @@ function collectObservedRoutingRecommendations(value, recommendations, path) {
     recommendations.push(recommendation(path, "fix", `Expected object; remove or rewrite invalid ${path} config.`));
     return;
   }
+
   for (const key of Object.keys(value)) {
     if (!OBSERVED_ROUTING_CONFIG_KEYS.has(key)) {
       recommendations.push(
@@ -652,6 +688,7 @@ function collectObservedRoutingRecommendations(value, recommendations, path) {
       );
     }
   }
+
   addDefaultRecommendation(recommendations, `${path}.enabled`, value.enabled, DEFAULT_OBSERVED_ROUTING_CONFIG.enabled);
   addDefaultRecommendation(
     recommendations,
@@ -663,6 +700,7 @@ function collectObservedRoutingRecommendations(value, recommendations, path) {
   collectObservedProducerRecommendations(value.web, `${path}.web`, recommendations);
   collectObservedProducerRecommendations(value.fetch, `${path}.fetch`, recommendations);
   collectObservedProducerRecommendations(value.codeSearch, `${path}.codeSearch`, recommendations);
+
   if (Object.keys(value).length === 0) {
     recommendations.push(
       recommendation(
@@ -673,6 +711,7 @@ function collectObservedRoutingRecommendations(value, recommendations, path) {
     );
   }
 }
+
 function collectObservedMcpRecommendations(value, recommendations, path) {
   if (value === undefined) {
     return;
@@ -681,6 +720,7 @@ function collectObservedMcpRecommendations(value, recommendations, path) {
     recommendations.push(recommendation(path, "fix", "Expected object with explicit servers."));
     return;
   }
+
   for (const key of Object.keys(value)) {
     if (!OBSERVED_ROUTING_MCP_KEYS.has(key)) {
       recommendations.push(
@@ -688,10 +728,12 @@ function collectObservedMcpRecommendations(value, recommendations, path) {
       );
     }
   }
+
   if (value.servers !== undefined && !isRecord(value.servers)) {
     recommendations.push(recommendation(`${path}.servers`, "fix", "Expected object keyed by MCP server id."));
   }
 }
+
 function collectObservedProducerRecommendations(value, path, recommendations) {
   if (value === undefined) {
     return;
@@ -700,6 +742,7 @@ function collectObservedProducerRecommendations(value, path, recommendations) {
     recommendations.push(recommendation(path, "fix", "Expected object with enabled and persistence."));
     return;
   }
+
   for (const key of Object.keys(value)) {
     if (!OBSERVED_ROUTING_PRODUCER_KEYS.has(key)) {
       recommendations.push(
@@ -712,6 +755,7 @@ function collectObservedProducerRecommendations(value, path, recommendations) {
     }
   }
 }
+
 function addDefaultRecommendation(recommendations, path, value, defaultValue) {
   if (value === undefined) {
     return;
@@ -726,6 +770,7 @@ function addDefaultRecommendation(recommendations, path, value, defaultValue) {
     );
   }
 }
+
 function addLegacyMoveOrDefaultRecommendation(recommendations, path, value, defaultValue, targetPath) {
   if (value === undefined) {
     return;
@@ -736,9 +781,11 @@ function addLegacyMoveOrDefaultRecommendation(recommendations, path, value, defa
   }
   recommendations.push(recommendation(path, "move", `Move legacy ${path} to ${targetPath}.`));
 }
+
 function recommendation(path, action, message) {
   return { path, action, message };
 }
+
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

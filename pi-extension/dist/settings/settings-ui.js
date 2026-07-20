@@ -12,7 +12,7 @@ import {
   DEFAULT_VAULT_RETENTION,
   DEFAULT_VAULT_ROOT,
   normalizeFreeflowConfig,
-} from "../../router/dist/index.js";
+} from "../../../router/dist/index.js";
 import {
   handleModeCommand,
   readCapabilityState,
@@ -23,7 +23,7 @@ import {
   resetSessionOverrides,
   setSessionCoreOverride,
   VALID_MODES,
-} from "./runtime-context.js";
+} from "../runtime/runtime-context.js";
 import { PiSettingsComponent } from "./settings-tui.js";
 const POST_TOOL_ROUTING_VALUES = ["off", "safety-net", "strict"];
 const STORAGE_POLICY_VALUES = ["hybrid-dedupe", "store-everything"];

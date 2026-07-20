@@ -13,7 +13,7 @@ import {
   DEFAULT_VAULT_RETENTION,
   DEFAULT_VAULT_ROOT,
   normalizeFreeflowConfig,
-} from "../../router/dist/index.js";
+} from "../../../router/dist/index.js";
 import {
   handleModeCommand,
   readCapabilityState,
@@ -24,7 +24,7 @@ import {
   resetSessionOverrides,
   setSessionCoreOverride,
   VALID_MODES,
-} from "./runtime-context.js";
+} from "../runtime/runtime-context.js";
 import {
   PiSettingsComponent,
   type SettingsCommitResult,

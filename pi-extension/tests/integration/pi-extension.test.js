@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import test from "node:test";
 import { promisify } from "node:util";
 
-import freeflowExtension from "../dist/index.js";
+import freeflowExtension from "../../dist/index.js";
 import {
   readCapabilityState,
   readFreeflowConfigLayers,
@@ -16,8 +16,8 @@ import {
   restoreModeOverride,
   setSessionCoreOverride,
   setSessionMode,
-} from "../dist/runtime-context.js";
-import { createVault, storeTextOutput } from "../../router/dist/index.js";
+} from "../../dist/runtime/runtime-context.js";
+import { createVault, storeTextOutput } from "../../../router/dist/index.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -1939,7 +1939,7 @@ test("Pi before_agent_start keeps the per-turn system context to the compact int
 test("Pi loads the full Workflow skill as one persistent first-turn message", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-workflow-bootstrap-"));
   try {
-    const workflowSource = await readFile(new URL("../../skills/workflow/SKILL.md", import.meta.url), "utf8");
+    const workflowSource = await readFile(new URL("../../../skills/workflow/SKILL.md", import.meta.url), "utf8");
     const workflowLines = workflowSource.split(/\r?\n/);
     const workflowOwnerLine = workflowLines.find((line) => line.startsWith("The active agent owns "));
     const workflowSelfReviewLine = workflowLines.find((line) => line.startsWith("Self-review is silent "));

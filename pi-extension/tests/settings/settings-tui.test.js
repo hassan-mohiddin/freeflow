@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { CURSOR_MARKER, visibleWidth } from "@earendil-works/pi-tui";
 
-import { PiSettingsComponent } from "../dist/settings-tui.js";
+import { PiSettingsComponent } from "../../dist/settings/settings-tui.js";
 
 const theme = {
   fg(_color, text) {

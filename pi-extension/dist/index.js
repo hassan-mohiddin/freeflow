@@ -1,7 +1,7 @@
-import { handleNativeToolSafetyNet } from "./native-safety-net.js";
-import { handleObservedToolRouting } from "./observed-tool-routing.js";
-import { registerRouterTools } from "./router-tools.js";
-import { handleFreeflowCommand, handleOutputRouterCommand } from "./settings-ui.js";
+import { handleNativeToolSafetyNet } from "./output-router/native-safety-net.js";
+import { handleObservedToolRouting } from "./output-router/observed-tool-routing.js";
+import { registerRouterTools } from "./output-router/router-tools.js";
+import { handleFreeflowCommand, handleOutputRouterCommand } from "./settings/settings-ui.js";
 import {
   CONTRIBUTOR_COMMANDS,
   WORKFLOW_COMMANDS,
@@ -21,7 +21,7 @@ import {
   setModeStatus,
   skillPrompt,
   notifyRouterConfigWarnings,
-} from "./runtime-context.js";
+} from "./runtime/runtime-context.js";
 function isOutputRouterToolName(name) {
   return OUTPUT_ROUTER_TOOL_NAMES.includes(name);
 }

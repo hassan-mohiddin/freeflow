@@ -6,8 +6,8 @@ import {
   isNativeSafetyNetEnabled,
   storeTextOutput,
   textOutputFingerprints,
-} from "../../router/dist/index.js";
-import { readOutputRouterConfig, notifyRouterConfigWarnings } from "./runtime-context.js";
+} from "../../../router/dist/index.js";
+import { readOutputRouterConfig, notifyRouterConfigWarnings } from "../runtime/runtime-context.js";
 import { byteLength, extractTextContent, getRouterSessionId, splitLines, stableHash, truncateText } from "./utils.js";
 
 const SAFETY_NET_NATIVE_TOOLS = new Set(["read", "bash"]);

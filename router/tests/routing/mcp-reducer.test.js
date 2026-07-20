@@ -11,7 +11,7 @@ import {
   readVaultRecord,
   routeObservedToolOutput,
 } from "../../dist/index.js";
-import { resolvePiObservedRoutingDecision } from "../../../pi-extension/dist/host-producer-identification.js";
+import { resolvePiObservedRoutingDecision } from "../../../pi-extension/dist/output-router/host-producer-identification.js";
 
 async function withVault(name, run) {
   const root = await mkdtemp(join(tmpdir(), name));

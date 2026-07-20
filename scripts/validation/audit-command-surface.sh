@@ -8,8 +8,8 @@ manifest="$plugin_root/.codex-plugin/plugin.json"
 command_docs="$plugin_root/README.md"
 skills_dir="$plugin_root/skills"
 mode_skill="$skills_dir/mode-contract/SKILL.md"
-pi_extension="$plugin_root/pi-extension/src/runtime-context.ts"
-pi_extension_dist="$plugin_root/pi-extension/dist/runtime-context.js"
+pi_extension="$plugin_root/pi-extension/src/runtime/runtime-context.ts"
+pi_extension_dist="$plugin_root/pi-extension/dist/runtime/runtime-context.js"
 
 failures=0
 

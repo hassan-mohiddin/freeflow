@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import freeflow from "../dist/index.js";
-import { createVault, readOutputText, storeCommandOutput } from "../../router/dist/index.js";
+import freeflow from "../../dist/index.js";
+import { createVault, readOutputText, storeCommandOutput } from "../../../router/dist/index.js";
 
 function registerMockPi() {
   const tools = new Map();

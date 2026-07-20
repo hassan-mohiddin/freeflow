@@ -512,7 +512,7 @@ async function main() {
         },
         {
           repo: "acme/freeflow",
-          path: "pi-extension/src/observed-tool-routing.ts",
+          path: "pi-extension/src/output-router/observed-tool-routing.ts",
           line: 6,
           symbol: "handleObservedToolRouting",
           snippet: "export async function handleObservedToolRouting(event, ctx) {",

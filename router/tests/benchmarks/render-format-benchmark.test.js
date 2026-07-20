@@ -6,7 +6,7 @@ import {
   compactTransformToolText,
   compactSearchEvidenceToolText,
   compactRunToolText,
-} from "../../../pi-extension/dist/utils.js";
+} from "../../../pi-extension/dist/output-router/utils.js";
 
 const MAX_SELECTED_BYTES = 10_600;
 const MIN_BYTES_SAVED_PERCENT = 15;

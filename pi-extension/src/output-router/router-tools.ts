@@ -7,7 +7,7 @@ import {
   freeflowSearch,
   freeflowRun,
   processSource,
-} from "../../router/dist/index.js";
+} from "../../../router/dist/index.js";
 import { buildFreeflowStatusReport } from "./status.js";
 import {
   renderFreeflowBatchCall,
@@ -19,7 +19,7 @@ import {
   renderFreeflowStatusCall,
   renderFreeflowStatusResult,
 } from "./renderers.js";
-import { readOutputRouterConfig, notifyRouterConfigWarnings } from "./runtime-context.js";
+import { readOutputRouterConfig, notifyRouterConfigWarnings } from "../runtime/runtime-context.js";
 import {
   FREEFLOW_BATCH_PARAMETERS,
   FREEFLOW_RUN_PARAMETERS,
@@ -33,6 +33,7 @@ import {
   getRouterSessionId,
   routedToolText,
 } from "./utils.js";
+
 function normalizeTransformOperation(operation) {
   if (!operation || typeof operation !== "object" || Array.isArray(operation)) {
     return operation;
@@ -45,6 +46,7 @@ function normalizeTransformOperation(operation) {
     group: Number(operation.group),
   };
 }
+
 async function normalizeTransformParams(params, ctx) {
   const operation = normalizeTransformOperation(params.operation);
   if (operation?.kind === "script") {
@@ -68,6 +70,7 @@ async function normalizeTransformParams(params, ctx) {
       ...(params.limits ? { limits: params.limits } : {}),
     };
   }
+
   const source = params.source;
   if (!source || source.kind !== "vault") {
     throw new Error("freeflow_search action=transform operation currently supports source.kind=vault only.");
@@ -85,12 +88,14 @@ async function normalizeTransformParams(params, ctx) {
     },
   };
 }
+
 async function normalizeSearchEvidenceParams(params, ctx, providedRouterConfigResult = undefined) {
   const routerConfigResult = providedRouterConfigResult ?? (await readOutputRouterConfig(ctx.cwd));
   if (!providedRouterConfigResult) {
     notifyRouterConfigWarnings(ctx, routerConfigResult);
   }
   const source = params.source ?? { kind: "repo" };
+
   if (source.kind === "repo") {
     return {
       ...params,
@@ -102,6 +107,7 @@ async function normalizeSearchEvidenceParams(params, ctx, providedRouterConfigRe
       },
     };
   }
+
   if (source.kind === "local") {
     if (!source.root) {
       throw new Error("freeflow_search source.kind=local requires an explicit absolute source.root.");
@@ -116,6 +122,7 @@ async function normalizeSearchEvidenceParams(params, ctx, providedRouterConfigRe
       },
     };
   }
+
   if (source.kind === "vault") {
     if (!source.outputId && params.action !== "query" && params.action !== "locate" && params.action !== "get") {
       throw new Error("freeflow_search source.kind=vault requires source.outputId for retrieve, expand, and explain.");
@@ -137,8 +144,10 @@ async function normalizeSearchEvidenceParams(params, ctx, providedRouterConfigRe
       },
     };
   }
+
   throw new Error(`Unsupported freeflow_search source kind: ${source.kind}`);
 }
+
 async function normalizeSearchTransformProcessingParams(params, ctx, routerConfigResult) {
   const source = params.source ?? { kind: "repo" };
   if (source.kind === "repo") {
@@ -166,6 +175,7 @@ async function normalizeSearchTransformProcessingParams(params, ctx, routerConfi
       },
     };
   }
+
   if (source.kind === "local") {
     if (!source.root) {
       throw new Error("freeflow_search action=transform source.kind=local requires an explicit absolute source.root.");
@@ -196,6 +206,7 @@ async function normalizeSearchTransformProcessingParams(params, ctx, routerConfi
       },
     };
   }
+
   if (source.kind === "vault") {
     if (!source.outputId) {
       throw new Error("freeflow_search action=transform source.kind=vault requires source.outputId.");
@@ -227,8 +238,10 @@ async function normalizeSearchTransformProcessingParams(params, ctx, routerConfi
       },
     };
   }
+
   throw new Error(`Unsupported freeflow_search action=transform source kind: ${source.kind}`);
 }
+
 async function executeSearch(params, ctx, routerConfigResult) {
   if (params.action === "transform") {
     if (params.operation) {
@@ -252,16 +265,19 @@ async function executeSearch(params, ctx, routerConfigResult) {
       });
     }
     const normalized = await normalizeSearchTransformProcessingParams(params, ctx, routerConfigResult);
-    return processSource(normalized.source, normalized.options);
+    return processSource(normalized.source as any, normalized.options);
   }
+
   return freeflowSearch(await normalizeSearchEvidenceParams(params, ctx, routerConfigResult));
 }
+
 async function normalizeSearchParams(params, ctx, routerConfigResult) {
   if (params.action === "transform") {
     return params;
   }
   return normalizeSearchEvidenceParams(params, ctx, routerConfigResult);
 }
+
 async function normalizeBatchParams(params, ctx, routerConfigResult) {
   if (!Array.isArray(params.steps)) {
     throw new Error("freeflow_batch requires steps[].");
@@ -306,6 +322,7 @@ async function normalizeBatchParams(params, ctx, routerConfigResult) {
     ...(params.preserve !== undefined ? { preserve: params.preserve } : {}),
   };
 }
+
 function batchNeedsScriptAdapters(params) {
   if (!Array.isArray(params?.steps)) {
     return false;
@@ -324,6 +341,7 @@ function batchNeedsScriptAdapters(params) {
     return false;
   });
 }
+
 function disabledByConfigToolResult(toolName) {
   return {
     content: [
@@ -342,6 +360,7 @@ function disabledByConfigToolResult(toolName) {
     },
   };
 }
+
 function createPiCommandRunner(pi, signal) {
   return {
     async run(request) {
@@ -355,7 +374,9 @@ function createPiCommandRunner(pi, signal) {
       const durationMs = Date.now() - startedAt;
       const killed = Boolean(result.killed);
       const code = typeof result.code === "number" ? result.code : null;
-      const executionStatus = signal?.aborted ? "cancelled" : killed ? "timed_out" : code === 0 ? "success" : "failed";
+      const executionStatus = (
+        signal?.aborted ? "cancelled" : killed ? "timed_out" : code === 0 ? "success" : "failed"
+      ) as "cancelled" | "timed_out" | "success" | "failed";
       return {
         stdout: result.stdout ?? "",
         stderr: result.stderr ?? "",
@@ -366,6 +387,7 @@ function createPiCommandRunner(pi, signal) {
     },
   };
 }
+
 export function registerRouterTools(pi) {
   pi.registerTool({
     name: "freeflow_status",
@@ -393,6 +415,7 @@ export function registerRouterTools(pi) {
       return renderFreeflowStatusResult(result, options, theme);
     },
   });
+
   pi.registerTool({
     name: "freeflow_search",
     label: "Freeflow Search",
@@ -425,6 +448,7 @@ export function registerRouterTools(pi) {
       return renderFreeflowSearchResult(result, options, theme);
     },
   });
+
   pi.registerTool({
     name: "freeflow_run",
     label: "Freeflow Run",
@@ -491,6 +515,7 @@ export function registerRouterTools(pi) {
       return renderFreeflowRunResult(result, options, theme, context);
     },
   });
+
   pi.registerTool({
     name: "freeflow_batch",
     label: "Freeflow Batch",

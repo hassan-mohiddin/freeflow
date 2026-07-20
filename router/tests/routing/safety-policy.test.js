@@ -30,7 +30,7 @@ test("output-router skill safety policy documents exactness-sensitive routing ca
 
 test("routing implementation references the safety policy where exactness rules are enforced", async () => {
   const runSource = await readRepoFile("router/src/tools/run.ts");
-  const piSafetyNetSource = await readRepoFile("pi-extension/src/native-safety-net.ts");
+  const piSafetyNetSource = await readRepoFile("pi-extension/src/output-router/native-safety-net.ts");
 
   assert.match(runSource, /skills\/output-router\/references\/safety-policy/);
   assert.match(piSafetyNetSource, /skills\/output-router\/references\/safety-policy/);

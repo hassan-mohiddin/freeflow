@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { normalizeFreeflowConfig } from "../../router/dist/index.js";
+import { normalizeFreeflowConfig } from "../../../router/dist/index.js";
 import {
   classifyObservedProducerRisk,
   resolvePiObservedRoutingDecision,
-} from "../dist/host-producer-identification.js";
+} from "../../dist/output-router/host-producer-identification.js";
 
 function observedConfig(overrides = {}) {
   return normalizeFreeflowConfig({
