@@ -3,10 +3,12 @@ import path from "node:path";
 
 import { loadDefinition, selectDefinition } from "./definitions.mjs";
 import { createInvocationId, fileIdentity, writeJson, writeText } from "./evidence.mjs";
-import { gradeActivation } from "./grade.mjs";
-import { runDescription, VariantSetupError } from "./pi.mjs";
+import { gradeDeterministic } from "./grade.mjs";
+import { runBody, runDescription, VariantSetupError } from "./pi.mjs";
 
 const VARIANTS = ["baseline", "candidate"];
+const DESCRIPTION_TOOLS = new Set(["read"]);
+const BODY_TOOLS = new Set(["read", "write", "edit"]);
 
 export async function runEvaluation(definitionFile, selectors = {}, { root = process.cwd(), signal } = {}) {
   const definitionPath = await realpath(path.resolve(root, definitionFile));
@@ -54,17 +56,26 @@ export async function runEvaluation(definitionFile, selectors = {}, { root = pro
 function assertSupportedSelection(selection) {
   for (const selected of selection.groups) {
     const { group } = selected;
-    if (group.type !== "description") {
-      throw new Error("skill-eval run currently supports description groups only");
+    if (group.type !== "description" && group.type !== "body") {
+      throw new Error("skill-eval run currently supports description and body groups only");
     }
-    if (group.fixture !== null || group.tools.some((tool) => tool !== "read")) {
-      throw new Error("description execution currently supports no fixture and the read tool only");
+    const supportedTools = group.type === "body" ? BODY_TOOLS : DESCRIPTION_TOOLS;
+    if (group.fixture !== null || group.tools.some((tool) => !supportedTools.has(tool))) {
+      throw new Error(
+        `${group.type} execution currently supports no fixture and only ${[...supportedTools].join(", ")} tools`,
+      );
     }
     for (const variant of VARIANTS) {
       if (selected.variants[variant] === "not-selected") continue;
       const environment = group.variants[variant];
       if (environment.source.kind !== "working-tree" || environment.context.length > 0) {
-        throw new Error("description execution currently supports working-tree skills without declared context");
+        throw new Error(`${group.type} execution currently supports working-tree skills without declared context`);
+      }
+      if (group.type === "body") {
+        const expectedSkillCount = environment.target === null ? 0 : 1;
+        if (environment.skills.length !== expectedSkillCount) {
+          throw new Error("body execution currently supports only a no-skill variant or one explicit target skill");
+        }
       }
     }
   }
@@ -95,7 +106,7 @@ async function runGroup({ selected, root, resultDirectory, signal }) {
     baseline: await fileIdentity(runFiles.baseline),
     candidate: await fileIdentity(runFiles.candidate),
   };
-  const grade = gradeActivation(group, runs, evidence);
+  const grade = gradeDeterministic(group, runs, evidence);
   await writeJson(path.join(groupDirectory, "deterministic-grade.json"), grade);
   const selectedRuns = VARIANTS.filter((variant) => selected.variants[variant] === "selected").map(
     (variant) => runs[variant],
@@ -126,7 +137,8 @@ function selectedGroupState(runs, grade) {
 
 async function executeVariant({ group, variant, root, variantDirectory, signal }) {
   try {
-    return await runDescription({ group, variant, root, variantDirectory, signal });
+    const run = group.type === "body" ? runBody : runDescription;
+    return await run({ group, variant, root, variantDirectory, signal });
   } catch (error) {
     if (error instanceof VariantSetupError) return invalidRun(group, variant, error.message);
     return infrastructureFailedRun(group, variant, error);

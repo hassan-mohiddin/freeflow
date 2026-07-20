@@ -17,9 +17,9 @@ import {
   waitForForcedKill,
   writeStream,
 } from "./process.mjs";
-import { runRpcDescriptionSession } from "./rpc.mjs";
+import { runRpcBodySession, runRpcDescriptionSession } from "./rpc.mjs";
 
-const VARIANT_TOOLS = new Set(["read"]);
+const VARIANT_TOOLS = new Set(["read", "write", "edit"]);
 const guardExtension = fileURLToPath(new URL("../pi-guard.mjs", import.meta.url));
 
 export class VariantSetupError extends Error {
@@ -36,8 +36,115 @@ export async function runDescription({ group, variant, root, variantDirectory, s
   return runOneShotDescription({ group, variant, root, variantDirectory, signal });
 }
 
+export async function runBody({ group, variant, root, variantDirectory, signal }) {
+  const options = { group, variant, root, variantDirectory, signal };
+  const subject = await prepareSubject(options, "rpc");
+  const before = await hashDirectory(subject.workspace);
+  const declaredPrompts = group.input.prompt === undefined ? [...group.input.turns] : [group.input.prompt];
+  const observation = await runRpcBodySession({
+    args: subject.args,
+    cwd: subject.workspace,
+    eventsFile: subject.eventsFile,
+    stderrFile: subject.stderrFile,
+    signal,
+    prompts: declaredPrompts,
+    targetPath: subject.environment.targetPath,
+    environment: subject.processEnvironment,
+  });
+  const after = await hashDirectory(subject.workspace);
+
+  const turns = [];
+  for (const [index, turn] of observation.turns.entries()) {
+    turns.push({
+      turn: turn.turn,
+      prompt: declaredPrompts[index] ?? turn.prompt,
+      deliveredPrompt: turn.prompt,
+      response: turn.response,
+      transcript: turn.transcript,
+      successfulReadPaths: await canonicalReadPaths(turn.successfulReads, subject.workspace),
+      toolActivity: turn.toolActivity,
+      promptAccepted: turn.promptAccepted,
+      usage: turn.usage,
+      assistantError: turn.assistantError,
+      settled: turn.settled,
+    });
+  }
+
+  const input =
+    group.input.prompt === undefined
+      ? { prompt: null, prompts: declaredPrompts, turns }
+      : {
+          prompt: group.input.prompt,
+          deliveredPrompt: turns[0]?.deliveredPrompt ?? null,
+          successfulReadPaths: turns[0]?.successfulReadPaths ?? [],
+          toolActivity: turns[0]?.toolActivity ?? [],
+        };
+  return bodyRun(options, subject, observation, input, {
+    before,
+    after,
+    changes: workspaceChanges(before, after),
+  });
+}
+
+function bodyRun(options, subject, observation, input, effects) {
+  return {
+    ...subjectRun(options, subject, observation),
+    evaluationType: "body",
+    ...input,
+    delivery: observation.delivery,
+    effects,
+  };
+}
+
+function subjectRun({ group, variant }, subject, observation) {
+  return {
+    schema_version: 1,
+    variant,
+    state: subjectRunState(observation),
+    startedAt: subject.startedAt,
+    completedAt: new Date().toISOString(),
+    workspace: subject.workspace,
+    tools: [...group.tools],
+    model: {
+      declared: group.model ?? null,
+      observed: observation.model,
+    },
+    resources: {
+      skills: subject.environment.skills,
+      targetPath: subject.environment.targetPath,
+    },
+    response: observation.response,
+    transcript: observation.transcript,
+    usage: observation.usage,
+    process: {
+      command: "pi",
+      args: subject.args,
+      exitCode: observation.exitCode,
+      signal: observation.signal,
+      settled: observation.settled,
+      assistantError: observation.assistantError,
+      terminationReason: observation.terminationReason,
+      parseErrors: observation.parseErrors,
+      protocolErrors: observation.protocolErrors ?? [],
+      stderr: subject.stderrFile,
+    },
+  };
+}
+
+function workspaceChanges(before, after) {
+  const beforeByPath = new Map(before.map((file) => [file.path, file.sha256]));
+  const afterByPath = new Map(after.map((file) => [file.path, file.sha256]));
+  return {
+    created: after.filter((file) => !beforeByPath.has(file.path)).map((file) => file.path),
+    modified: after
+      .filter((file) => beforeByPath.has(file.path) && beforeByPath.get(file.path) !== file.sha256)
+      .map((file) => file.path),
+    deleted: before.filter((file) => !afterByPath.has(file.path)).map((file) => file.path),
+  };
+}
+
 async function runOneShotDescription(options) {
-  const subject = await prepareDescriptionSubject(options, "json");
+  const subject = await prepareSubject(options, "json");
   const observation = await runPiProcess({
     args: subject.args,
     cwd: subject.workspace,
@@ -61,7 +168,7 @@ async function runOneShotDescription(options) {
 }
 
 async function runPersistentDescription(options) {
-  const subject = await prepareDescriptionSubject(options, "rpc");
+  const subject = await prepareSubject(options, "rpc");
   const observation = await runRpcDescriptionSession({
     args: subject.args,
     cwd: subject.workspace,
@@ -103,7 +210,7 @@ async function runPersistentDescription(options) {
   });
 }
 
-async function prepareDescriptionSubject({ group, variant, root, variantDirectory }, mode) {
+async function prepareSubject({ group, variant, root, variantDirectory }, mode) {
   const workspace = path.join(variantDirectory, "workspace");
   await mkdir(workspace, { recursive: true });
 
@@ -130,46 +237,18 @@ async function prepareDescriptionSubject({ group, variant, root, variantDirector
       PI_SKIP_VERSION_CHECK: "1",
       PI_TELEMETRY: "0",
       SKILL_EVAL_ALLOWED_ROOTS: JSON.stringify(allowedRoots),
+      SKILL_EVAL_WRITABLE_ROOT: await realpath(workspace),
       SKILL_EVAL_ALLOWED_TOOLS: JSON.stringify(group.tools),
     },
   };
 }
 
-function descriptionRun({ group, variant }, subject, observation, { input, activation }) {
+function descriptionRun(options, subject, observation, { input, activation }) {
   return {
-    schema_version: 1,
-    variant,
-    state: subjectRunState(observation),
+    ...subjectRun(options, subject, observation),
     evaluationType: "description",
-    startedAt: subject.startedAt,
-    completedAt: new Date().toISOString(),
-    workspace: subject.workspace,
     ...input,
-    tools: [...group.tools],
-    model: {
-      declared: group.model ?? null,
-      observed: observation.model,
-    },
-    resources: {
-      skills: subject.environment.skills,
-      targetPath: subject.environment.targetPath,
-    },
     activation,
-    response: observation.response,
-    transcript: observation.transcript,
-    usage: observation.usage,
-    process: {
-      command: "pi",
-      args: subject.args,
-      exitCode: observation.exitCode,
-      signal: observation.signal,
-      settled: observation.settled,
-      assistantError: observation.assistantError,
-      terminationReason: observation.terminationReason,
-      parseErrors: observation.parseErrors,
-      protocolErrors: observation.protocolErrors ?? [],
-      stderr: subject.stderrFile,
-    },
   };
 }
 
@@ -190,20 +269,20 @@ function subjectRunState(observation) {
 async function prepareEnvironment(group, variant, root) {
   const environment = group.variants[variant];
   if (group.fixture !== null) {
-    throw new VariantSetupError("description execution does not materialize fixtures yet");
+    throw new VariantSetupError("evaluation execution does not materialize fixtures yet");
   }
   if (group.input.prompt === undefined && group.input.turns === undefined) {
-    throw new VariantSetupError("description execution requires input.prompt or input.turns");
+    throw new VariantSetupError("evaluation execution requires input.prompt or input.turns");
   }
   if (environment.source.kind !== "working-tree") {
-    throw new VariantSetupError("description execution currently requires working-tree skill sources");
+    throw new VariantSetupError("evaluation execution currently requires working-tree skill sources");
   }
   if (environment.context.length > 0) {
-    throw new VariantSetupError("description execution does not deliver declared context yet");
+    throw new VariantSetupError("evaluation execution does not deliver declared context yet");
   }
   const unsupportedTools = group.tools.filter((tool) => !VARIANT_TOOLS.has(tool));
   if (unsupportedTools.length > 0) {
-    throw new VariantSetupError(`unsupported description tools: ${unsupportedTools.join(", ")}`);
+    throw new VariantSetupError(`unsupported evaluation tools: ${unsupportedTools.join(", ")}`);
   }
 
   const canonicalRoot = await realpath(root);
@@ -294,6 +373,7 @@ async function runPiProcess({ args, cwd, eventsFile, stderrFile, signal, environ
   const calls = new Map();
   const successfulReads = [];
   const parseErrors = [];
+  const protocolErrors = [];
   let settled = false;
   let response = "";
   let usage = null;
@@ -363,6 +443,15 @@ async function runPiProcess({ args, cwd, eventsFile, stderrFile, signal, environ
       parseErrors.push({ line: eventLine, reason: "invalid-json" });
       return;
     }
+    if (event.type === "extension_error") {
+      protocolErrors.push({
+        reason: "extension-error",
+        extensionPath: event.extensionPath ?? null,
+        event: event.event ?? null,
+        error: event.error ?? null,
+      });
+      requestTermination("protocol-error");
+    }
     if (event.type === "agent_settled") settled = true;
     if (event.type === "tool_execution_start") {
       calls.set(event.toolCallId, { toolName: event.toolName, args: event.args });
@@ -417,6 +506,7 @@ async function runPiProcess({ args, cwd, eventsFile, stderrFile, signal, environ
     model: observedModel,
     terminationReason,
     parseErrors,
+    protocolErrors,
     successfulReads,
     transcript,
     response,

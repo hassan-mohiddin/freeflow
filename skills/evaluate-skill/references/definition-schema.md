@@ -115,49 +115,42 @@ fixtures, grade evidence, or render results.
 
 ## Current Execution Boundary
 
-`skill-eval run` currently executes selected `description` groups that use:
+`skill-eval run` currently executes selected `description` and `body` groups with working-tree skill sources and no fixture or declared context.
 
-- a natural `input.prompt` for one-shot execution or ordered natural `input.turns` for persistent multi-turn execution;
-- working-tree skill sources;
-- no fixture or declared context;
-- no tools or only the `read` tool.
+Description groups support:
 
-The command rejects other structurally accepted group shapes before creating a
-result or starting Pi. Each selected variant receives a fresh empty workspace and
-a fresh Pi process with ambient resources disabled. One-shot groups use JSON
-mode. Multi-turn groups use one RPC process per variant, disable automatic retry
-and compaction, send each declared turn only after the previous turn emits
-`agent_settled`, and preserve correlated responses plus per-turn evidence. The
-root guard replaces host system, append, and context instructions with
-evaluator-owned context built only from declared tools and skills. Each
-working-tree skill is
-copied into a variant-owned snapshot and its file hashes are checked before that
-snapshot is registered with repeated `--skill`. The natural prompt is passed
-unchanged and never uses `/skill:name`.
+- a natural `input.prompt` for one-shot JSON-mode execution or ordered natural `input.turns` through one persistent RPC process;
+- no tools or only `read`;
+- exact target-read attribution and `skill-read` expectations.
 
-The supported deterministic activation expectation is:
+Body groups support:
+
+- `input.prompt` or ordered `input.turns` through one persistent RPC process;
+- either no declared skill and a null target, or exactly one declared target skill;
+- no tools or path-guarded `read`, `write`, and `edit`;
+- explicit target delivery on the first declared turn only;
+- exact before/after workspace file identities and created, modified, and deleted paths;
+- fixed review questions that are rendered but never sent to the subject.
+
+For a body variant with a target, the evaluator asks Pi for its registered commands, matches the exact snapshotted target `SKILL.md` path, and sends `/skill:<name> <first prompt>`. This uses Pi's native skill expansion without duplicating frontmatter parsing. A no-target baseline receives the unchanged first prompt. Previous and updated variants each explicitly load their own snapshot. Later declared turns are unchanged, and direct body delivery never counts as activation evidence.
+
+The supported body response expectation is:
 
 ```json
 {
-  "id": "candidate-read",
-  "kind": "skill-read",
+  "id": "candidate-mentions-rollback",
+  "kind": "response-text",
   "variant": "candidate",
-  "expect": "by-turn",
-  "turn": 1
+  "expect": "contains",
+  "value": "rollback",
+  "turn": 2
 }
 ```
 
-`variant` is `baseline` or `candidate`. `expect` is `never`, `on-turn`,
-`by-turn`, or `not-before-turn`; turn-based forms require a positive integer
-`turn`. One-shot reads occur on turn 1. Multi-turn runs record the first and all
-declared turns containing an exact successful target read. Other preserved
-expectation kinds currently produce a separate `grade-error` after subject
-evidence has been saved.
+`turn` is optional. When present, it must identify one declared prompt or turn. Without it, the check inspects the final response and records its observed turn. A failed response check leaves a completed subject run complete. A non-body use, out-of-range turn, or other invalid expectation shape produces a separate `grade-error` after run evidence is saved.
 
-`skill-eval view` renders stored results by complete result, suite group ID or
-original one-based position, and variant. Multi-turn views include the shared
-ordered prompts and each selected variant's settled turn responses and target-read
-markers. It lists direct canonical paths for the
-run, events, transcript, final response, stderr, definition, and deterministic
-grade; use ordinary file tools for raw evidence. Cancellation persists queued
-selected variants as `cancelled` without starting additional Pi subjects.
+Every selected variant receives a fresh empty workspace and Pi process with ambient resources disabled. RPC sessions disable automatic retry and compaction, correlate every request, and wait for `agent_settled` before the next declared turn. The root guard replaces host system, append, and context instructions with evaluator-owned context; any guard extension error fails closed as infrastructure evidence before further prompts. Reads may access the workspace and declared skill snapshots; writes and edits may access only the workspace. Skill snapshots are copied into variant-owned resources and hash-checked before registration.
+
+`skill-eval view` renders stored results by complete result, suite group ID or original one-based position, and variant. Description views include declared-turn responses and activation timing. Body views include delivery state, review questions, responses, tools used, workspace changes, and direct paths for canonical artifacts. Use ordinary file tools for raw evidence.
+
+The command rejects fixtures, declared context, Git sources, multi-skill body environments, `bash`, end-to-end groups, and broader deterministic assertions before starting subjects. Cancellation persists queued selected variants as `cancelled` without starting additional Pi subjects.

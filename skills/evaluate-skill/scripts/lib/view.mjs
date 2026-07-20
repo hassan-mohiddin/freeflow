@@ -49,6 +49,11 @@ async function renderGroup(resultDirectory, group, selectedVariant) {
     lines.push(`Turns: ${prompts.length}`);
     for (const [index, prompt] of prompts.entries()) lines.push(`  Turn ${index + 1} prompt: ${prompt}`);
   }
+  const reviewQuestions = Array.isArray(definition.review_questions) ? definition.review_questions : [];
+  if (reviewQuestions.length > 0) {
+    lines.push("Review questions:");
+    for (const question of reviewQuestions) lines.push(`  - ${question}`);
+  }
   lines.push(`Grade [${grade.state}]`);
   const checks = Array.isArray(grade.checks)
     ? grade.checks.filter((check) => selectedVariant === null || check.variant === selectedVariant)
@@ -114,12 +119,26 @@ function title(value) {
 function appendRunEvidence(lines, run) {
   const turns = Array.isArray(run.turns) ? run.turns : null;
   const hasObservedTurns = turns !== null && turns.length > 0;
-  if (run.state === "complete" || hasObservedTurns) {
+  if (run.evaluationType === "description" && (run.state === "complete" || hasObservedTurns)) {
     const prefix = run.state === "complete" ? "" : "observed ";
     lines.push(
       `  ${prefix}target-read: ${run.activation?.targetRead === true ? "yes" : "no"}`,
       `  ${prefix}read-turns: ${(run.activation?.readTurns ?? []).join(",") || "none"}`,
     );
+  }
+  if (run.evaluationType === "body" && run.delivery) {
+    lines.push(`  delivery: ${run.delivery.kind} on turn ${run.delivery.turn}`);
+    const activity = turns === null ? (run.toolActivity ?? []) : turns.flatMap((turn) => turn.toolActivity ?? []);
+    const toolsUsed = [...new Set(activity.map((entry) => entry.toolName).filter(Boolean))];
+    lines.push(`  tools-used: ${toolsUsed.join(",") || "none"}`);
+    const changes = run.effects?.changes;
+    if (changes) {
+      lines.push(
+        `  created: ${changes.created?.join(",") || "none"}`,
+        `  modified: ${changes.modified?.join(",") || "none"}`,
+        `  deleted: ${changes.deleted?.join(",") || "none"}`,
+      );
+    }
   }
   if (turns !== null) {
     for (const turn of turns) {

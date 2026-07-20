@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { createWriteStream } from "node:fs";
+import { realpath } from "node:fs/promises";
 import { StringDecoder } from "node:string_decoder";
 
 import {
@@ -19,10 +20,14 @@ import {
 const MAX_INCOMPLETE_FRAME_BYTES = 16 * 1024 * 1024;
 
 export async function runRpcDescriptionSession(options) {
-  return new RpcDescriptionSession(options).run(options.prompts);
+  return new RpcSession(options).run(options.prompts);
 }
 
-class RpcDescriptionSession {
+export async function runRpcBodySession(options) {
+  return new RpcSession(options).run(options.prompts, options.targetPath);
+}
+
+class RpcSession {
   constructor({ args, cwd, eventsFile, stderrFile, signal, environment }) {
     this.child = spawn("pi", args, {
       cwd,
@@ -70,10 +75,19 @@ class RpcDescriptionSession {
     this.stdoutTask = this.readStdout();
   }
 
-  async run(prompts) {
+  async run(prompts, targetPath = null) {
+    let deliveredPrompts = prompts;
+    /** @type {any} */
+    let delivery = { kind: "natural-prompt", turn: 1, targetPath: null };
     try {
       await this.configure();
-      for (const [index, prompt] of prompts.entries()) {
+      if (targetPath !== null) {
+        delivery = { kind: "unavailable", turn: 1, targetPath };
+        const command = await this.resolveSkillCommand(targetPath);
+        deliveredPrompts = [`/${command} ${prompts[0]}`, ...prompts.slice(1)];
+        delivery = { kind: "explicit-skill-command", turn: 1, targetPath, command };
+      }
+      for (const [index, prompt] of deliveredPrompts.entries()) {
         if (this.signal?.aborted || this.terminationReason !== null) break;
         const turn = await this.runTurn(index + 1, prompt);
         this.turns.push(turn);
@@ -95,12 +109,25 @@ class RpcDescriptionSession {
     const { exitCode, exitSignal } = await this.finishProcess();
     this.finalizeInterruptedTurn();
     this.recordUnclassifiedProcessError();
-    return this.observation(prompts, exitCode, exitSignal);
+    return { ...this.observation(deliveredPrompts, exitCode, exitSignal), delivery };
   }
 
   async configure() {
     await this.sendCommand({ type: "set_auto_retry", enabled: false });
     await this.sendCommand({ type: "set_auto_compaction", enabled: false });
+  }
+
+  async resolveSkillCommand(targetPath) {
+    /** @type {any} */
+    const response = await this.sendCommand({ type: "get_commands" });
+    const commands = Array.isArray(response.data?.commands) ? response.data.commands : [];
+    for (const command of commands) {
+      const declaredPath = command.path ?? command.sourceInfo?.path;
+      if (command.source !== "skill" || typeof command.name !== "string" || typeof declaredPath !== "string") continue;
+      const commandPath = await realpath(declaredPath).catch(() => null);
+      if (commandPath === targetPath) return command.name;
+    }
+    throw new Error(`Pi did not register the exact target skill command: ${targetPath}`);
   }
 
   async runTurn(turnNumber, prompt) {
@@ -145,7 +172,7 @@ class RpcDescriptionSession {
   }
 
   async readStdout() {
-    stdout: for await (const chunk of this.child.stdout) {
+    for await (const chunk of this.child.stdout) {
       this.resetWatchdog();
       this.incompleteFrameBytes += Buffer.isBuffer(chunk) ? chunk.byteLength : Buffer.byteLength(chunk);
       this.buffer += this.decoder.write(chunk);
@@ -167,7 +194,7 @@ class RpcDescriptionSession {
         });
         this.buffer = "";
         this.incompleteFrameBytes = 0;
-        break stdout;
+        break;
       }
     }
     this.buffer += this.decoder.end();
@@ -194,7 +221,13 @@ class RpcDescriptionSession {
       this.failProtocol("invalid-json", { line: this.eventLine });
       return;
     }
-    if (event.type === "response") this.observeResponse(event);
+    if (event.type === "extension_error") {
+      this.failProtocol("extension-error", {
+        extensionPath: event.extensionPath ?? null,
+        event: event.event ?? null,
+        error: event.error ?? null,
+      });
+    } else if (event.type === "response") this.observeResponse(event);
     else if (event.type === "agent_settled") this.observeSettlement();
     else if (this.activeTurn !== null) this.observeTurnEvent(event);
   }

@@ -3,6 +3,7 @@ import { chmod, mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from "
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -32,6 +33,14 @@ function parseJson(value, label) {
   }
 }
 
+async function readJsonLines(file, label) {
+  const contents = await readFile(file, "utf8");
+  return contents
+    .trim()
+    .split("\n")
+    .map((line, index) => parseJson(line, `${label} line ${index + 1}`));
+}
+
 async function writeSkill(root, relativePath) {
   const directory = path.join(root, relativePath);
   await mkdir(directory, { recursive: true });
@@ -50,12 +59,20 @@ async function installFakeRpcPi(root) {
     executable,
     `#!/usr/bin/env node
 import { spawn } from "node:child_process";
-import { appendFileSync } from "node:fs";
+import { appendFileSync, writeFileSync } from "node:fs";
 const args = process.argv.slice(2);
 const skills = args.flatMap((arg, index) => arg === "--skill" ? [args[index + 1]] : []);
 const log = (value) => appendFileSync(process.env.FAKE_PI_LOG, JSON.stringify(value) + "\\n");
 const emit = (value) => process.stdout.write(JSON.stringify(value) + "\\n");
 log({ kind: "spawn", args, cwd: process.cwd(), allowedRoots: JSON.parse(process.env.SKILL_EVAL_ALLOWED_ROOTS) });
+if (process.env.FAKE_RPC_EXTENSION_ERROR === "1") {
+  emit({
+    type: "extension_error",
+    extensionPath: "pi-guard.mjs",
+    event: "load",
+    error: "fake guard load failure",
+  });
+}
 if (process.env.FAKE_RPC_EXIT_ON_START === "1") process.exit(9);
 if (process.env.FAKE_RPC_DESCENDANT_PID) {
   const descendant = spawn(
@@ -87,7 +104,17 @@ process.stdin.on("data", (chunk) => {
       continue;
     }
     const responseId = command.type === "prompt" && process.env.FAKE_RPC_WRONG_ID === "1" ? "wrong-id" : command.id;
-    emit({ type: "response", id: responseId, command: command.type, success: true });
+    const response = { type: "response", id: responseId, command: command.type, success: true };
+    if (command.type === "get_commands") {
+      response.data = {
+        commands: skills.map((skill) => ({
+          name: "skill:release-route",
+          source: "skill",
+          sourceInfo: { path: process.env.FAKE_RPC_COMMAND_PATH ?? skill + "/SKILL.md" },
+        })),
+      };
+    }
+    emit(response);
     if (command.type !== "prompt" || responseId !== command.id) continue;
     if (active) log({ kind: "overlap", turn: turn + 1 });
     active = true;
@@ -104,13 +131,33 @@ process.stdin.on("data", (chunk) => {
     }
     emit({ type: "agent_start" });
     emit({ type: "turn_start" });
+    if (command.message.startsWith("/skill:release-route ") && process.env.FAKE_RPC_WRITE_EFFECT === "1") {
+      emit({
+        type: "tool_execution_start",
+        toolCallId: "write-effect",
+        toolName: "write",
+        args: { path: "result.txt", content: "candidate effect\\n" },
+      });
+      writeFileSync("result.txt", "candidate effect\\n");
+      emit({
+        type: "tool_execution_end",
+        toolCallId: "write-effect",
+        toolName: "write",
+        result: { content: [{ type: "text", text: "wrote result.txt" }] },
+        isError: false,
+      });
+    }
     if ((turn === 2 || process.env.FAKE_RPC_EXIT_BEFORE_SETTLEMENT === "1") && skills[0]) {
       const target = skills[0] + "/SKILL.md";
       emit({ type: "tool_execution_start", toolCallId: "read-" + turn, toolName: "read", args: { path: target } });
       emit({ type: "tool_execution_end", toolCallId: "read-" + turn, toolName: "read", result: { content: [{ type: "text", text: "skill" }] }, isError: false });
     }
     const providerError = process.env.FAKE_RPC_PROVIDER_ERROR === "1" && turn === 1;
-    const responseText = process.env.FAKE_RPC_SPLIT_UTF8 === "1" ? "Exact 😀 evidence" : "Turn " + turn + " response";
+    const responseText = process.env.FAKE_RPC_SPLIT_UTF8 === "1"
+      ? "Exact 😀 evidence"
+      : command.message.startsWith("/skill:release-route ")
+        ? "Candidate body response"
+        : "Turn " + turn + " response";
     const message = {
       role: "assistant",
       content: [{ type: "text", text: responseText }],
@@ -202,6 +249,440 @@ function multiTurnGroup() {
     model: { model: "fake/model", thinking: "low" },
   };
 }
+
+function bodyGroup() {
+  return {
+    schema_version: 1,
+    kind: "group",
+    id: "body-behavior",
+    type: "body",
+    input: { prompt: "Apply the delivery guidance to this change." },
+    fixture: null,
+    tools: [],
+    variants: {
+      baseline: {
+        source: { kind: "working-tree" },
+        skills: [],
+        target: null,
+        context: [],
+      },
+      candidate: {
+        source: { kind: "working-tree" },
+        skills: ["skills/release-route"],
+        target: 0,
+        context: [],
+      },
+    },
+    expectations: [],
+    review_questions: ["Did the response follow the supplied delivery constraints?"],
+    model: { model: "fake/model", thinking: "low" },
+  };
+}
+
+test("body evaluation explicitly delivers only the selected target body and preserves review evidence", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakeRpcPi(root);
+    await writeSkill(root, "skills/release-route");
+    const definition = await writeJson(root, "groups/body.json", bodyGroup());
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+      },
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+
+    const log = await readJsonLines(fakeLog, "fake Pi log");
+    const prompts = log
+      .filter((entry) => entry.kind === "command" && entry.command.type === "prompt")
+      .map((entry) => entry.command.message);
+    assert.deepEqual(prompts, [
+      "Apply the delivery guidance to this change.",
+      "/skill:release-route Apply the delivery guidance to this change.",
+    ]);
+    assert.ok(prompts.every((prompt) => !prompt.includes("Did the response follow")));
+
+    const baseline = parseJson(
+      await readFile(path.join(resultDirectory, "groups/body-behavior/baseline/run.json"), "utf8"),
+      "baseline body run",
+    );
+    const candidate = parseJson(
+      await readFile(path.join(resultDirectory, "groups/body-behavior/candidate/run.json"), "utf8"),
+      "candidate body run",
+    );
+    assert.equal(baseline.evaluationType, "body");
+    assert.equal(candidate.evaluationType, "body");
+    assert.deepEqual(baseline.delivery, { kind: "natural-prompt", turn: 1, targetPath: null });
+    assert.equal(candidate.delivery.kind, "explicit-skill-command");
+    assert.equal(candidate.delivery.turn, 1);
+    assert.match(candidate.delivery.targetPath, /resources\/skills\/0\/SKILL\.md$/);
+    assert.equal(candidate.response, "Candidate body response");
+    assert.equal(candidate.activation, undefined);
+
+    const viewed = spawnSync(process.execPath, [entrypoint, "view", resultDirectory], {
+      cwd: root,
+      encoding: "utf8",
+    });
+    assert.equal(viewed.status, 0, viewed.stderr);
+    assert.match(viewed.stdout, /Review questions:\n {2}- Did the response follow the supplied delivery constraints\?/);
+    assert.match(viewed.stdout, /delivery: explicit-skill-command on turn 1/);
+    assert.match(viewed.stdout, /Candidate body response/);
+    assert.doesNotMatch(viewed.stdout, /target-read:/);
+  });
+});
+
+test("body evaluation fails closed before prompting when the guard extension errors", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakeRpcPi(root);
+    await writeSkill(root, "skills/release-route");
+    const definitionValue = bodyGroup();
+    definitionValue.tools = ["write"];
+    const definition = await writeJson(root, "groups/body-guard.json", definitionValue);
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+        FAKE_RPC_EXTENSION_ERROR: "1",
+      },
+    });
+
+    assert.equal(result.status, 1);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const candidate = parseJson(
+      await readFile(path.join(resultDirectory, "groups/body-behavior/candidate/run.json"), "utf8"),
+      "candidate body run",
+    );
+    assert.equal(candidate.state, "infrastructure-failed");
+    assert.equal(candidate.process.protocolErrors[0].reason, "extension-error");
+    assert.equal(candidate.process.protocolErrors[0].error, "fake guard load failure");
+    const log = await readJsonLines(fakeLog, "fake Pi log");
+    assert.equal(
+      log.some((entry) => entry.kind === "command" && entry.command.type === "prompt"),
+      false,
+    );
+  });
+});
+
+test("body evaluation fails before prompting when Pi cannot identify the exact target command", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakeRpcPi(root);
+    await writeSkill(root, "skills/release-route");
+    const definition = await writeJson(root, "groups/body-command.json", bodyGroup());
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+        FAKE_RPC_COMMAND_PATH: path.join(root, "missing/SKILL.md"),
+      },
+    });
+
+    assert.equal(result.status, 1);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const candidate = parseJson(
+      await readFile(path.join(resultDirectory, "groups/body-behavior/candidate/run.json"), "utf8"),
+      "candidate body run",
+    );
+    assert.equal(candidate.state, "infrastructure-failed");
+    assert.equal(candidate.delivery.kind, "unavailable");
+    assert.match(candidate.delivery.targetPath, /resources\/skills\/0\/SKILL\.md$/);
+    assert.equal(candidate.process.protocolErrors[0].reason, "operation-failed");
+    assert.match(candidate.process.protocolErrors[0].message, /did not register the exact target skill command/);
+    const log = await readJsonLines(fakeLog, "fake Pi log");
+    assert.equal(
+      log.some((entry) => entry.kind === "command" && entry.command.type === "prompt"),
+      false,
+    );
+  });
+});
+
+test("multi-turn body evaluation explicitly loads each previous and updated snapshot on only the first turn", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakeRpcPi(root);
+    await writeSkill(root, "skills/release-v1");
+    await writeSkill(root, "skills/release-v2");
+    const definitionValue = bodyGroup();
+    definitionValue.input = {
+      turns: ["Apply the delivery guidance to this change.", "Now summarize the final route."],
+    };
+    definitionValue.variants.baseline = {
+      source: { kind: "working-tree" },
+      skills: ["skills/release-v1"],
+      target: 0,
+      context: [],
+    };
+    definitionValue.variants.candidate = {
+      source: { kind: "working-tree" },
+      skills: ["skills/release-v2"],
+      target: 0,
+      context: [],
+    };
+    definitionValue.expectations = [
+      {
+        id: "candidate-second-turn",
+        kind: "response-text",
+        variant: "candidate",
+        expect: "contains",
+        value: "Turn 2",
+        turn: 2,
+      },
+    ];
+    const definition = await writeJson(root, "groups/body-versions.json", definitionValue);
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+      },
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const log = await readJsonLines(fakeLog, "fake Pi log");
+    const prompts = log
+      .filter((entry) => entry.kind === "command" && entry.command.type === "prompt")
+      .map((entry) => entry.command.message);
+    assert.deepEqual(prompts, [
+      "/skill:release-route Apply the delivery guidance to this change.",
+      "Now summarize the final route.",
+      "/skill:release-route Apply the delivery guidance to this change.",
+      "Now summarize the final route.",
+    ]);
+    assert.equal(log.filter((entry) => entry.kind === "command" && entry.command.type === "get_commands").length, 2);
+
+    const grade = parseJson(
+      await readFile(path.join(resultDirectory, "groups/body-behavior/deterministic-grade.json"), "utf8"),
+      "body grade",
+    );
+    assert.deepEqual(
+      grade.checks.map(({ id, state, observed }) => ({ id, state, observed })),
+      [
+        {
+          id: "candidate-second-turn",
+          state: "pass",
+          observed: { response: "Turn 2 response", turn: 2 },
+        },
+      ],
+    );
+
+    for (const variant of ["baseline", "candidate"]) {
+      const run = parseJson(
+        await readFile(path.join(resultDirectory, `groups/body-behavior/${variant}/run.json`), "utf8"),
+        `${variant} body run`,
+      );
+      assert.equal(run.state, "complete");
+      assert.equal(run.delivery.kind, "explicit-skill-command");
+      assert.match(run.delivery.targetPath, new RegExp(`${variant}/resources/skills/0/SKILL\\.md$`));
+      assert.deepEqual(
+        run.turns.map(({ prompt, deliveredPrompt }) => ({ prompt, deliveredPrompt })),
+        [
+          {
+            prompt: "Apply the delivery guidance to this change.",
+            deliveredPrompt: "/skill:release-route Apply the delivery guidance to this change.",
+          },
+          {
+            prompt: "Now summarize the final route.",
+            deliveredPrompt: "Now summarize the final route.",
+          },
+        ],
+      );
+      assert.equal(run.activation, undefined);
+    }
+  });
+});
+
+test("body evaluation preserves declared tool activity and exact workspace effects", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakeRpcPi(root);
+    await writeSkill(root, "skills/release-route");
+    const definitionValue = bodyGroup();
+    definitionValue.tools = ["write"];
+    const definition = await writeJson(root, "groups/body-effect.json", definitionValue);
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+        FAKE_RPC_WRITE_EFFECT: "1",
+      },
+    });
+
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory, `${result.stderr}\n${result.stdout}`);
+    const candidate = parseJson(
+      await readFile(path.join(resultDirectory, "groups/body-behavior/candidate/run.json"), "utf8"),
+      "candidate body run",
+    );
+    assert.equal(candidate.state, "complete", JSON.stringify(candidate, null, 2));
+    assert.equal(result.status, 0, `${result.stderr}\n${result.stdout}`);
+    assert.deepEqual(
+      candidate.toolActivity.map(({ toolName, completed, isError }) => ({ toolName, completed, isError })),
+      [{ toolName: "write", completed: true, isError: false }],
+    );
+    assert.deepEqual(candidate.effects.before, []);
+    assert.equal(candidate.effects.after.length, 1);
+    assert.equal(candidate.effects.after[0].path, "result.txt");
+    assert.match(candidate.effects.after[0].sha256, /^[a-f0-9]{64}$/);
+    assert.deepEqual(candidate.effects.changes, {
+      created: ["result.txt"],
+      modified: [],
+      deleted: [],
+    });
+
+    const viewed = spawnSync(process.execPath, [entrypoint, "view", resultDirectory, "--variant", "candidate"], {
+      cwd: root,
+      encoding: "utf8",
+    });
+    assert.equal(viewed.status, 0, viewed.stderr);
+    assert.match(viewed.stdout, /tools-used: write/);
+    assert.match(viewed.stdout, /created: result\.txt/);
+    assert.match(viewed.stdout, /modified: none/);
+    assert.match(viewed.stdout, /deleted: none/);
+  });
+});
+
+test("a failed body response check remains separate from the completed subject run", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakeRpcPi(root);
+    await writeSkill(root, "skills/release-route");
+    const definitionValue = bodyGroup();
+    definitionValue.expectations = [
+      {
+        id: "candidate-mentions-body",
+        kind: "response-text",
+        variant: "candidate",
+        expect: "contains",
+        value: "body",
+      },
+      {
+        id: "candidate-mentions-rollback",
+        kind: "response-text",
+        variant: "candidate",
+        expect: "contains",
+        value: "rollback",
+      },
+    ];
+    const definition = await writeJson(root, "groups/body-response.json", definitionValue);
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+      },
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const groupDirectory = path.join(resultDirectory, "groups/body-behavior");
+    const candidate = parseJson(
+      await readFile(path.join(groupDirectory, "candidate/run.json"), "utf8"),
+      "candidate body run",
+    );
+    const grade = parseJson(
+      await readFile(path.join(groupDirectory, "deterministic-grade.json"), "utf8"),
+      "body grade",
+    );
+    assert.equal(candidate.state, "complete");
+    assert.equal(grade.state, "complete");
+    assert.deepEqual(grade.checks, [
+      {
+        id: "candidate-mentions-body",
+        kind: "response-text",
+        variant: "candidate",
+        state: "pass",
+        expected: { expect: "contains", value: "body", turn: null },
+        observed: { response: "Candidate body response", turn: 1 },
+      },
+      {
+        id: "candidate-mentions-rollback",
+        kind: "response-text",
+        variant: "candidate",
+        state: "fail",
+        expected: { expect: "contains", value: "rollback", turn: null },
+        observed: { response: "Candidate body response", turn: 1 },
+      },
+    ]);
+  });
+});
+
+test("a body response check outside the declared turn range becomes a grade error after run persistence", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakeRpcPi(root);
+    await writeSkill(root, "skills/release-route");
+    const definitionValue = bodyGroup();
+    definitionValue.expectations = [
+      {
+        id: "undeclared-second-turn",
+        kind: "response-text",
+        variant: "candidate",
+        expect: "contains",
+        value: "response",
+        turn: 2,
+      },
+    ];
+    const definition = await writeJson(root, "groups/body-turn-range.json", definitionValue);
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+      },
+    });
+
+    assert.equal(result.status, 1, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const groupDirectory = path.join(resultDirectory, "groups/body-behavior");
+    const candidateRunText = await readFile(path.join(groupDirectory, "candidate/run.json"), "utf8");
+    const candidate = parseJson(candidateRunText, "candidate body run");
+    const grade = parseJson(
+      await readFile(path.join(groupDirectory, "deterministic-grade.json"), "utf8"),
+      "body grade",
+    );
+    assert.equal(candidate.state, "complete");
+    assert.equal(grade.state, "grade-error");
+    assert.deepEqual(grade.checks, []);
+    assert.deepEqual(grade.errors, [{ id: "undeclared-second-turn", reason: "invalid response-text expectation" }]);
+    assert.equal(grade.evidence.candidate.sha256, createHash("sha256").update(candidateRunText).digest("hex"));
+  });
+});
 
 test("persistent description evaluation sends declared turns through one Pi RPC session", async () => {
   await withTempDirectory(async (root) => {

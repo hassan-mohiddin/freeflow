@@ -69,6 +69,14 @@ if (process.env.FAKE_PI_DESCENDANT_PID) {
 }
 const emit = (value) => process.stdout.write(JSON.stringify(value) + "\\n");
 emit({ type: "session", version: 3, id: "fake-session", cwd: process.cwd() });
+if (process.env.FAKE_PI_EXTENSION_ERROR === "1") {
+  emit({
+    type: "extension_error",
+    extensionPath: "pi-guard.mjs",
+    event: "load",
+    error: "fake guard load failure",
+  });
+}
 emit({ type: "agent_start" });
 emit({ type: "turn_start" });
 if (readSkill) {
@@ -239,8 +247,8 @@ test("run rejects unsupported evaluation types before starting subjects or creat
       description: "Use when choosing how to deliver a completed software change.",
     });
     const definitionValue = descriptionGroup();
-    definitionValue.type = "body";
-    const definition = await writeJson(root, "groups/body-behavior.json", definitionValue);
+    definitionValue.type = "end-to-end";
+    const definition = await writeJson(root, "groups/end-to-end.json", definitionValue);
 
     const result = spawnSync(process.execPath, [entrypoint, "run", definition], {
       cwd: root,
@@ -253,9 +261,43 @@ test("run rejects unsupported evaluation types before starting subjects or creat
     });
 
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /supports description groups only/);
+    assert.match(result.stderr, /supports description and body groups only/);
     await assert.rejects(readFile(fakeLog, "utf8"), { code: "ENOENT" });
     await assert.rejects(readFile(path.join(root, ".skill-eval/runs"), "utf8"), { code: "ENOENT" });
+  });
+});
+
+test("one-shot description evaluation fails closed when the guard extension errors", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakePi(root);
+    await writeSkill(root, "skills/release-route", {
+      name: "release-route",
+      description: "Use when choosing how to deliver a completed software change.",
+    });
+    const definition = await writeJson(root, "groups/natural-activation.json", descriptionGroup());
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+        FAKE_PI_EXTENSION_ERROR: "1",
+      },
+    });
+
+    assert.equal(result.status, 1);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const candidate = parseJson(
+      await readFile(path.join(resultDirectory, "groups/natural-activation/candidate/run.json"), "utf8"),
+      "candidate run",
+    );
+    assert.equal(candidate.state, "infrastructure-failed");
+    assert.equal(candidate.process.protocolErrors[0].reason, "extension-error");
+    assert.equal(candidate.process.protocolErrors[0].error, "fake guard load failure");
   });
 });
 
@@ -407,7 +449,16 @@ test("grade errors remain separate from completed subject evidence", async () =>
       description: "Use when choosing how to deliver a completed software change.",
     });
     const definitionValue = descriptionGroup();
-    definitionValue.expectations = [{ id: "future-check", kind: "path-exists", path: "result.json" }];
+    definitionValue.expectations = [
+      { id: "future-check", kind: "path-exists", path: "result.json" },
+      {
+        id: "description-response",
+        kind: "response-text",
+        variant: "candidate",
+        expect: "contains",
+        value: "Candidate",
+      },
+    ];
     const definition = await writeJson(root, "groups/natural-activation.json", definitionValue);
 
     const result = spawnSync(process.execPath, [entrypoint, "run", definition, "--variant", "candidate"], {
@@ -432,7 +483,10 @@ test("grade errors remain separate from completed subject evidence", async () =>
     );
     assert.equal(candidate.state, "complete");
     assert.equal(grade.state, "grade-error");
-    assert.deepEqual(grade.errors, [{ id: "future-check", reason: "unsupported expectation kind: path-exists" }]);
+    assert.deepEqual(grade.errors, [
+      { id: "future-check", reason: "unsupported expectation kind: path-exists" },
+      { id: "description-response", reason: "invalid response-text expectation" },
+    ]);
     assert.equal(grade.evidence.candidate.sha256, createHash("sha256").update(candidateRunText).digest("hex"));
   });
 });

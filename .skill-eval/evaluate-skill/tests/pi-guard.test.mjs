@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -28,8 +28,10 @@ function installGuard() {
 test("Pi guard replaces hostile ambient system and append prompts with declared subject context", async () => {
   await withTempDirectory(async (root) => {
     const originalRoots = process.env.SKILL_EVAL_ALLOWED_ROOTS;
+    const originalWritableRoot = process.env.SKILL_EVAL_WRITABLE_ROOT;
     const originalTools = process.env.SKILL_EVAL_ALLOWED_TOOLS;
     process.env.SKILL_EVAL_ALLOWED_ROOTS = JSON.stringify([root]);
+    process.env.SKILL_EVAL_WRITABLE_ROOT = root;
     process.env.SKILL_EVAL_ALLOWED_TOOLS = JSON.stringify(["read"]);
     try {
       const beforeAgentStart = installGuard().get("before_agent_start");
@@ -64,6 +66,8 @@ test("Pi guard replaces hostile ambient system and append prompts with declared 
     } finally {
       if (originalRoots === undefined) delete process.env.SKILL_EVAL_ALLOWED_ROOTS;
       else process.env.SKILL_EVAL_ALLOWED_ROOTS = originalRoots;
+      if (originalWritableRoot === undefined) delete process.env.SKILL_EVAL_WRITABLE_ROOT;
+      else process.env.SKILL_EVAL_WRITABLE_ROOT = originalWritableRoot;
       if (originalTools === undefined) delete process.env.SKILL_EVAL_ALLOWED_TOOLS;
       else process.env.SKILL_EVAL_ALLOWED_TOOLS = originalTools;
     }
@@ -74,14 +78,18 @@ test("Pi guard permits only declared tools and reads contained by canonical root
   await withTempDirectory(async (root) => {
     const workspace = path.join(root, "workspace");
     const outside = path.join(root, "outside.md");
+    const outsideCreated = path.join(root, "outside-created.md");
     await mkdir(workspace);
     await writeFile(path.join(workspace, "inside.md"), "inside\n");
     await writeFile(outside, "outside\n");
     await symlink(outside, path.join(workspace, "escaped.md"));
+    await symlink(outsideCreated, path.join(workspace, "dangling.md"));
     const originalRoots = process.env.SKILL_EVAL_ALLOWED_ROOTS;
+    const originalWritableRoot = process.env.SKILL_EVAL_WRITABLE_ROOT;
     const originalTools = process.env.SKILL_EVAL_ALLOWED_TOOLS;
     process.env.SKILL_EVAL_ALLOWED_ROOTS = JSON.stringify([workspace]);
-    process.env.SKILL_EVAL_ALLOWED_TOOLS = JSON.stringify(["read"]);
+    process.env.SKILL_EVAL_WRITABLE_ROOT = workspace;
+    process.env.SKILL_EVAL_ALLOWED_TOOLS = JSON.stringify(["read", "write", "edit"]);
     try {
       const guard = installGuard().get("tool_call");
       assert.ok(guard);
@@ -94,10 +102,27 @@ test("Pi guard permits only declared tools and reads contained by canonical root
         guard({ toolName: "read", input: { path: "escaped.md" } }, { cwd: workspace }).reason,
         /escapes the evaluation environment/,
       );
+      assert.equal(guard({ toolName: "write", input: { path: "created.md" } }, { cwd: workspace }), undefined);
+      assert.equal(guard({ toolName: "write", input: { path: "nested/result.md" } }, { cwd: workspace }), undefined);
+      assert.equal(guard({ toolName: "edit", input: { path: "inside.md" } }, { cwd: workspace }), undefined);
+      assert.match(
+        guard({ toolName: "write", input: { path: outside } }, { cwd: workspace }).reason,
+        /escapes the evaluation environment/,
+      );
+      const danglingWrite = guard({ toolName: "write", input: { path: "dangling.md" } }, { cwd: workspace });
+      if (danglingWrite === undefined) await writeFile(path.join(workspace, "dangling.md"), "escaped\n");
+      assert.match(danglingWrite?.reason, /cannot be resolved inside the evaluation environment/);
+      await assert.rejects(readFile(outsideCreated, "utf8"), { code: "ENOENT" });
+      assert.match(
+        guard({ toolName: "edit", input: { path: "escaped.md" } }, { cwd: workspace }).reason,
+        /escapes the evaluation environment/,
+      );
       assert.match(guard({ toolName: "bash", input: { command: "pwd" } }, { cwd: workspace }).reason, /not declared/);
     } finally {
       if (originalRoots === undefined) delete process.env.SKILL_EVAL_ALLOWED_ROOTS;
       else process.env.SKILL_EVAL_ALLOWED_ROOTS = originalRoots;
+      if (originalWritableRoot === undefined) delete process.env.SKILL_EVAL_WRITABLE_ROOT;
+      else process.env.SKILL_EVAL_WRITABLE_ROOT = originalWritableRoot;
       if (originalTools === undefined) delete process.env.SKILL_EVAL_ALLOWED_TOOLS;
       else process.env.SKILL_EVAL_ALLOWED_TOOLS = originalTools;
     }
