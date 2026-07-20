@@ -110,8 +110,15 @@ A suite contains only an ID and ordered, unique group references. Referenced gro
 - A variant excluded by selection is `not-selected`, never failed.
 - `--group` is invalid with a direct group definition.
 
-Definition loading and selection are structural. They do not start Pi, create
-fixtures, grade evidence, or render results.
+Definition loading and selection are structural. They do not start Pi, create fixtures, grade evidence, or render results.
+
+## Batch Execution And States
+
+Suites run groups in declared order and run each selected variant serially in its own process and writable workspace. A selected run is persisted before its counterpart starts. Its deterministic grade and group result are persisted before the next group starts.
+
+Run states are `complete`, `invalid`, `infrastructure-failed`, `cancelled`, and `not-selected`. Variant-local setup or persistence failure does not prevent a safe counterpart or later group. Shared fixture setup failure marks every selected run `invalid` and the group `invalid`. A group is `partially-complete` when selected run evidence or grading is incomplete, and `cancelled` when cancellation affects selected work. A batch is `complete`, `partially-complete`, or `cancelled`.
+
+A failed deterministic check is ordinary behavioral evidence: the group and batch remain complete and the command exits zero. Variant or group invalidity, infrastructure failure, `grade-error`, or cancellation makes the command exit nonzero only after every safe queued group has been recorded. Thrown grading becomes a persisted `grade-error`. If the normal grade or group artifact path cannot be published but the group directory remains usable, the evaluator writes `deterministic-grade-error.json` or `group-error.json`, records those paths in the batch summary, and continues. If the evaluator cannot preserve a run or required fallback at all, it stops queued work and does not publish `summary.json` or claim a completed batch.
 
 ## Current Execution Boundary
 

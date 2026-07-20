@@ -39,7 +39,8 @@ export async function renderResult(target, selectors = {}, { root = process.cwd(
 async function renderGroup(resultDirectory, group, selectedVariant) {
   const groupDirectory = path.join(resultDirectory, "groups", group.id);
   const definition = await readJson(path.join(groupDirectory, "definition.json"), `definition for ${group.id}`);
-  const grade = await readJson(path.join(groupDirectory, "deterministic-grade.json"), `grade for ${group.id}`);
+  const gradeFile = path.join(groupDirectory, group.artifacts?.grade ?? "deterministic-grade.json");
+  const grade = await readJson(gradeFile, `grade for ${group.id}`);
   const variants = selectedVariant === null ? VARIANTS : [selectedVariant];
   const lines = [`Group ${group.id} [${group.state}]`];
   if (typeof definition.input?.prompt === "string") {
@@ -61,6 +62,14 @@ async function renderGroup(resultDirectory, group, selectedVariant) {
   if (checks.length === 0) lines.push("  (no selected checks)");
   else {
     for (const check of checks) lines.push(`  ${check.id}\t${check.variant}\t${check.state}`);
+  }
+  if (Array.isArray(grade.errors) && grade.errors.length > 0) {
+    lines.push("Grade errors:");
+    for (const error of grade.errors) lines.push(`  ${error.id ?? "system"}: ${error.reason}`);
+  }
+  if (Array.isArray(group.errors) && group.errors.length > 0) {
+    lines.push("Group errors:");
+    for (const error of group.errors) lines.push(`  ${error.artifact ?? error.kind}: ${error.message}`);
   }
   if (selectedVariant === null && Array.isArray(grade.comparisons) && grade.comparisons.length > 0) {
     lines.push("Comparisons:");
@@ -87,7 +96,8 @@ async function renderGroup(resultDirectory, group, selectedVariant) {
   }
   lines.push(
     `Definition artifact: ${path.join(groupDirectory, "definition.json")}`,
-    `Grade artifact: ${path.join(groupDirectory, "deterministic-grade.json")}`,
+    `Grade artifact: ${gradeFile}`,
+    `Group artifact: ${path.join(groupDirectory, group.artifacts?.group ?? "group.json")}`,
   );
   return lines;
 }

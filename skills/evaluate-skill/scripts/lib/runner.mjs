@@ -105,28 +105,32 @@ async function runGroup({ selected, root, resultDirectory, signal }) {
     } else {
       runs[variant] = await executeVariant({ group, variant, root, variantDirectory, fixture, signal });
     }
-    runFiles[variant] = await persistRun(variantDirectory, runs[variant]);
+    const persisted = await persistRunOrFailure(variantDirectory, runs[variant]);
+    runs[variant] = persisted.run;
+    runFiles[variant] = persisted.file;
   }
 
   const evidence = {
     baseline: await fileIdentity(runFiles.baseline),
     candidate: await fileIdentity(runFiles.candidate),
   };
-  const grade = await gradeDeterministic(group, runs, evidence);
-  await writeJson(path.join(groupDirectory, "deterministic-grade.json"), grade);
+  const grade = await createGrade(group, runs, evidence);
+  const persistedGrade = await persistGrade(groupDirectory, grade);
   const selectedRuns = VARIANTS.filter((variant) => selected.variants[variant] === "selected").map(
     (variant) => runs[variant],
   );
-  const groupState = selectedGroupState(selectedRuns, grade);
+  const selectedState = selectedGroupState(selectedRuns, persistedGrade.grade);
+  const groupState = selectedState === "cancelled" ? selectedState : fixtureError === null ? selectedState : "invalid";
   const groupResult = {
     id: group.id,
     position: selected.position,
     state: groupState,
     variants: Object.fromEntries(VARIANTS.map((variant) => [variant, runs[variant].state])),
-    grade: grade.state,
+    grade: persistedGrade.grade.state,
+    artifacts: { grade: persistedGrade.artifact, group: "group.json" },
+    errors: persistedGrade.errors,
   };
-  await writeJson(path.join(groupDirectory, "group.json"), groupResult);
-  return groupResult;
+  return persistGroupResult(groupDirectory, groupResult);
 }
 
 function batchState(groups) {
@@ -141,6 +145,66 @@ function selectedGroupState(runs, grade) {
   return "partially-complete";
 }
 
+async function createGrade(group, runs, evidence) {
+  try {
+    return await gradeDeterministic(group, runs, evidence);
+  } catch (error) {
+    return gradeErrorReport(evidence, `deterministic grading failed: ${errorMessage(error)}`);
+  }
+}
+
+async function persistGrade(groupDirectory, grade) {
+  const artifact = "deterministic-grade.json";
+  try {
+    await writeJson(path.join(groupDirectory, artifact), grade);
+    return { grade, artifact, errors: [] };
+  } catch (error) {
+    const reason = `failed to persist ${artifact}: ${errorMessage(error)}`;
+    const failed = gradeErrorReport(grade.evidence, reason, grade);
+    const fallback = "deterministic-grade-error.json";
+    await writeJson(path.join(groupDirectory, fallback), failed);
+    return {
+      grade: failed,
+      artifact: fallback,
+      errors: [{ kind: "persistence", artifact, message: reason }],
+    };
+  }
+}
+
+async function persistGroupResult(groupDirectory, groupResult) {
+  const artifact = "group.json";
+  try {
+    await writeJson(path.join(groupDirectory, artifact), groupResult);
+    return groupResult;
+  } catch (error) {
+    const message = `failed to persist ${artifact}: ${errorMessage(error)}`;
+    const fallback = "group-error.json";
+    const failed = {
+      ...groupResult,
+      state: groupResult.state === "complete" ? "partially-complete" : groupResult.state,
+      artifacts: { ...groupResult.artifacts, group: fallback },
+      errors: [...groupResult.errors, { kind: "persistence", artifact, message }],
+    };
+    await writeJson(path.join(groupDirectory, fallback), failed);
+    return failed;
+  }
+}
+
+function gradeErrorReport(evidence, reason, grade = null) {
+  return {
+    schema_version: 1,
+    state: "grade-error",
+    evidence,
+    checks: grade?.checks ?? [],
+    comparisons: grade?.comparisons ?? [],
+    errors: [...(grade?.errors ?? []), { id: null, reason }],
+  };
+}
+
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
 async function executeVariant({ group, variant, root, variantDirectory, fixture, signal }) {
   try {
     const run = group.type === "body" ? runBody : runDescription;
@@ -148,6 +212,25 @@ async function executeVariant({ group, variant, root, variantDirectory, fixture,
   } catch (error) {
     if (error instanceof VariantSetupError) return invalidRun(group, variant, error.message);
     return infrastructureFailedRun(group, variant, error);
+  }
+}
+
+async function persistRunOrFailure(variantDirectory, run) {
+  try {
+    return { run, file: await persistRun(variantDirectory, run) };
+  } catch (error) {
+    const failed = persistenceFailedRun(run, error);
+    const runFile = path.join(variantDirectory, "run.json");
+    await writeJson(runFile, {
+      ...failed,
+      transcript: failed.transcript ?? [],
+      artifacts: {
+        events: failed.process === undefined ? null : "events.jsonl",
+        final: null,
+        stderr: failed.process === undefined ? null : "stderr.log",
+      },
+    });
+    return { run: failed, file: runFile };
   }
 }
 
@@ -223,6 +306,18 @@ function invalidRun(group, variant, message) {
     response: "",
     transcript: [],
     error: { kind: "setup", message },
+  };
+}
+
+function persistenceFailedRun(run, error) {
+  return {
+    ...run,
+    state: "infrastructure-failed",
+    error: {
+      kind: "persistence",
+      message: error instanceof Error ? error.message : String(error),
+      cause: run.error ?? null,
+    },
   };
 }
 

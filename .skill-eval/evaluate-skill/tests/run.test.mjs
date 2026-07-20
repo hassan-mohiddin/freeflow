@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { chmod, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -51,13 +51,60 @@ async function installFakePi(root) {
     executable,
     `#!/usr/bin/env node
 import { spawn } from "node:child_process";
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import path from "node:path";
 const args = process.argv.slice(2);
 const skills = args.flatMap((arg, index) => arg === "--skill" ? [args[index + 1]] : []);
 const skill = skills[0] ?? null;
 const readSkill = skills[Number(process.env.FAKE_PI_READ_SKILL_INDEX ?? 0)] ?? null;
-const fail = skill !== null && process.env.FAKE_PI_FAIL_SKILL === "1";
-appendFileSync(process.env.FAKE_PI_LOG, JSON.stringify({ args, cwd: process.cwd(), allowedRoots: JSON.parse(process.env.SKILL_EVAL_ALLOWED_ROOTS) }) + "\\n");
+const fail = skill !== null && process.env.FAKE_PI_FAIL_SKILL === "1" && (!process.env.FAKE_PI_FAIL_FOR || process.cwd().includes(process.env.FAKE_PI_FAIL_FOR));
+appendFileSync(process.env.FAKE_PI_LOG, JSON.stringify({ pid: process.pid, args, cwd: process.cwd(), allowedRoots: JSON.parse(process.env.SKILL_EVAL_ALLOWED_ROOTS) }) + "\\n");
+const variantDirectory = path.dirname(process.cwd());
+const groupDirectory = path.dirname(variantDirectory);
+const currentVariant = path.basename(variantDirectory);
+const currentGroup = path.basename(groupDirectory);
+if (process.env.FAKE_PI_REQUIRE_BASELINE_RUN === "1" && currentVariant === "candidate") {
+  const required = groupDirectory + "/baseline/run.json";
+  if (!existsSync(required)) {
+    appendFileSync(process.env.FAKE_PI_LOG, JSON.stringify({ kind: "missing-evidence", required }) + "\\n");
+    process.exit(20);
+  }
+}
+if (process.env.FAKE_PI_REQUIRE_PRIOR_FOR === currentGroup) {
+  const prior = path.join(path.dirname(groupDirectory), process.env.FAKE_PI_PRIOR_GROUP);
+  for (const required of [path.join(prior, "deterministic-grade.json"), path.join(prior, "group.json")]) {
+    if (!existsSync(required)) {
+      appendFileSync(process.env.FAKE_PI_LOG, JSON.stringify({ kind: "missing-evidence", required }) + "\\n");
+      process.exit(21);
+    }
+  }
+}
+if (process.env.FAKE_PI_SERIAL_LOCK) {
+  let lock;
+  try {
+    lock = openSync(process.env.FAKE_PI_SERIAL_LOCK, "wx");
+  } catch {
+    appendFileSync(process.env.FAKE_PI_LOG, JSON.stringify({ kind: "overlap", cwd: process.cwd() }) + "\\n");
+    process.exit(19);
+  }
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  closeSync(lock);
+  unlinkSync(process.env.FAKE_PI_SERIAL_LOCK);
+}
+if (process.env.FAKE_PI_BREAK_FINAL_FOR && process.cwd().includes(process.env.FAKE_PI_BREAK_FINAL_FOR)) {
+  mkdirSync("../final.md");
+}
+if (process.env.FAKE_PI_BREAK_RUN_FOR && process.cwd().includes(process.env.FAKE_PI_BREAK_RUN_FOR)) {
+  mkdirSync("../run.json");
+}
+if (process.env.FAKE_PI_BREAK_GROUP_ARTIFACTS_FOR && process.cwd().includes(process.env.FAKE_PI_BREAK_GROUP_ARTIFACTS_FOR)) {
+  mkdirSync(path.join(groupDirectory, "deterministic-grade.json"));
+  mkdirSync(path.join(groupDirectory, "group.json"));
+}
+if (process.env.FAKE_PI_BREAK_GRADE_FALLBACK_FOR && process.cwd().includes(process.env.FAKE_PI_BREAK_GRADE_FALLBACK_FOR)) {
+  mkdirSync(path.join(groupDirectory, "deterministic-grade.json"));
+  mkdirSync(path.join(groupDirectory, "deterministic-grade-error.json"));
+}
 if (process.env.FAKE_PI_MUTATE_FIXTURE === "1") {
   const before = readFileSync("state.txt", "utf8");
   const variant = skill === null ? "baseline" : "candidate";
@@ -401,6 +448,604 @@ test(
     });
   },
 );
+
+test("each run and grade is persisted before the next selected work starts", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakePi(root);
+    await writeSkill(root, "skills/release-route", {
+      name: "release-route",
+      description: "Use when choosing how to deliver a completed software change.",
+    });
+    const first = descriptionGroup();
+    first.id = "first-order";
+    const second = descriptionGroup();
+    second.id = "second-order";
+    await writeJson(root, "groups/first.json", first);
+    await writeJson(root, "groups/second.json", second);
+    const suite = await writeJson(root, "suite.json", {
+      schema_version: 1,
+      kind: "suite",
+      id: "persistence-order-suite",
+      groups: ["groups/first.json", "groups/second.json"],
+    });
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", suite], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+        FAKE_PI_REQUIRE_BASELINE_RUN: "1",
+        FAKE_PI_REQUIRE_PRIOR_FOR: "second-order",
+        FAKE_PI_PRIOR_GROUP: "first-order",
+      },
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const summary = parseJson(await readFile(path.join(resultDirectory, "summary.json"), "utf8"), "summary");
+    assert.equal(summary.state, "complete");
+    const log = (await readFile(fakeLog, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => parseJson(line, "fake Pi log"));
+    assert.equal(
+      log.some((entry) => entry.kind === "missing-evidence"),
+      false,
+    );
+    assert.equal(log.length, 4);
+  });
+});
+
+test("ten-group suites run twenty isolated subjects serially in declared order", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const serialLock = path.join(root, "fake-pi.lock");
+    const bin = await installFakePi(root);
+    await writeSkill(root, "skills/release-route", {
+      name: "release-route",
+      description: "Use when choosing how to deliver a completed software change.",
+    });
+    const references = /** @type {string[]} */ ([]);
+    const expectedOrder = /** @type {string[]} */ ([]);
+    for (let index = 1; index <= 10; index += 1) {
+      const id = `batch-${String(index).padStart(2, "0")}`;
+      const group = descriptionGroup();
+      group.id = id;
+      references.push(`groups/${id}.json`);
+      expectedOrder.push(`${id}:baseline`, `${id}:candidate`);
+      await writeJson(root, `groups/${id}.json`, group);
+    }
+    const suite = await writeJson(root, "suite.json", {
+      schema_version: 1,
+      kind: "suite",
+      id: "ten-group-suite",
+      groups: references,
+    });
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", suite], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+        FAKE_PI_SERIAL_LOCK: serialLock,
+      },
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const summary = parseJson(await readFile(path.join(resultDirectory, "summary.json"), "utf8"), "summary");
+    assert.equal(summary.state, "complete");
+    assert.deepEqual(
+      summary.groups.map(({ id, position }) => ({ id, position })),
+      references.map((reference, index) => ({ id: path.basename(reference, ".json"), position: index + 1 })),
+    );
+    const log = (await readFile(fakeLog, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => parseJson(line, "fake Pi log"));
+    assert.equal(
+      log.some((entry) => entry.kind === "overlap"),
+      false,
+    );
+    assert.equal(new Set(log.map((entry) => entry.pid)).size, 20);
+    assert.equal(new Set(log.map((entry) => entry.cwd)).size, 20);
+    assert.deepEqual(
+      log.map((entry) => {
+        const variantDirectory = path.dirname(entry.cwd);
+        return `${path.basename(path.dirname(variantDirectory))}:${path.basename(variantDirectory)}`;
+      }),
+      expectedOrder,
+    );
+  });
+});
+
+test("ordinary failed checks keep the batch complete and do not stop later groups", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakePi(root);
+    await writeSkill(root, "skills/release-route", {
+      name: "release-route",
+      description: "Use when choosing how to deliver a completed software change.",
+    });
+    const failedCheck = descriptionGroup();
+    failedCheck.id = "failed-check";
+    failedCheck.expectations[1] = {
+      id: "candidate-must-not-read",
+      kind: "skill-read",
+      variant: "candidate",
+      expect: "never",
+    };
+    const later = descriptionGroup();
+    later.id = "later-activation";
+    await writeJson(root, "groups/failed-check.json", failedCheck);
+    await writeJson(root, "groups/later.json", later);
+    const suite = await writeJson(root, "suite.json", {
+      schema_version: 1,
+      kind: "suite",
+      id: "behavioral-failure-suite",
+      groups: ["groups/failed-check.json", "groups/later.json"],
+    });
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", suite], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+      },
+    });
+
+    assert.equal(result.status, 0, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const summary = parseJson(await readFile(path.join(resultDirectory, "summary.json"), "utf8"), "summary");
+    assert.equal(summary.state, "complete");
+    assert.deepEqual(
+      summary.groups.map(({ id, state }) => ({ id, state })),
+      [
+        { id: "failed-check", state: "complete" },
+        { id: "later-activation", state: "complete" },
+      ],
+    );
+    const grade = parseJson(
+      await readFile(path.join(resultDirectory, "groups/failed-check/deterministic-grade.json"), "utf8"),
+      "failed deterministic grade",
+    );
+    assert.equal(grade.state, "complete");
+    assert.equal(grade.checks.find((check) => check.id === "candidate-must-not-read")?.state, "fail");
+    const invocations = (await readFile(fakeLog, "utf8")).trim().split("\n");
+    assert.equal(invocations.length, 4);
+  });
+});
+
+test("grade errors preserve completed runs and do not stop later suite groups", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakePi(root);
+    await writeSkill(root, "skills/release-route", {
+      name: "release-route",
+      description: "Use when choosing how to deliver a completed software change.",
+    });
+    const gradeError = /** @type {any} */ (descriptionGroup());
+    gradeError.id = "grade-error";
+    gradeError.expectations = [
+      {
+        id: "description-response",
+        kind: "response-text",
+        variant: "candidate",
+        expect: "contains",
+        value: "Candidate",
+      },
+    ];
+    const later = descriptionGroup();
+    later.id = "later-activation";
+    await writeJson(root, "groups/grade-error.json", gradeError);
+    await writeJson(root, "groups/later.json", later);
+    const suite = await writeJson(root, "suite.json", {
+      schema_version: 1,
+      kind: "suite",
+      id: "grade-error-suite",
+      groups: ["groups/grade-error.json", "groups/later.json"],
+    });
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", suite], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+      },
+    });
+
+    assert.equal(result.status, 1, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const summary = parseJson(await readFile(path.join(resultDirectory, "summary.json"), "utf8"), "summary");
+    assert.deepEqual(
+      summary.groups.map(({ id, state, grade }) => ({ id, state, grade })),
+      [
+        { id: "grade-error", state: "partially-complete", grade: "grade-error" },
+        { id: "later-activation", state: "complete", grade: "complete" },
+      ],
+    );
+    const completed = parseJson(
+      await readFile(path.join(resultDirectory, "groups/grade-error/candidate/run.json"), "utf8"),
+      "completed candidate",
+    );
+    assert.equal(completed.state, "complete");
+    const invocations = (await readFile(fakeLog, "utf8")).trim().split("\n");
+    assert.equal(invocations.length, 4);
+  });
+});
+
+test("variant-local setup failure preserves the safe counterpart and later groups", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakePi(root);
+    await writeSkill(root, "skills/release-route", {
+      name: "release-route",
+      description: "Use when choosing how to deliver a completed software change.",
+    });
+    const invalidCandidate = descriptionGroup();
+    invalidCandidate.id = "invalid-candidate";
+    invalidCandidate.variants.candidate.skills = ["skills/missing"];
+    const later = descriptionGroup();
+    later.id = "later-activation";
+    await writeJson(root, "groups/invalid-candidate.json", invalidCandidate);
+    await writeJson(root, "groups/later.json", later);
+    const suite = await writeJson(root, "suite.json", {
+      schema_version: 1,
+      kind: "suite",
+      id: "variant-setup-suite",
+      groups: ["groups/invalid-candidate.json", "groups/later.json"],
+    });
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", suite], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+      },
+    });
+
+    assert.equal(result.status, 1, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const summary = parseJson(await readFile(path.join(resultDirectory, "summary.json"), "utf8"), "summary");
+    assert.deepEqual(
+      summary.groups.map(({ id, state }) => ({ id, state })),
+      [
+        { id: "invalid-candidate", state: "partially-complete" },
+        { id: "later-activation", state: "complete" },
+      ],
+    );
+    const baseline = parseJson(
+      await readFile(path.join(resultDirectory, "groups/invalid-candidate/baseline/run.json"), "utf8"),
+      "safe baseline",
+    );
+    const candidate = parseJson(
+      await readFile(path.join(resultDirectory, "groups/invalid-candidate/candidate/run.json"), "utf8"),
+      "invalid candidate",
+    );
+    assert.equal(baseline.state, "complete");
+    assert.equal(candidate.state, "invalid");
+    const invocations = (await readFile(fakeLog, "utf8")).trim().split("\n");
+    assert.equal(invocations.length, 3);
+  });
+});
+
+test("shared group setup failure is invalid and later suite groups still run", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakePi(root);
+    await writeSkill(root, "skills/release-route", {
+      name: "release-route",
+      description: "Use when choosing how to deliver a completed software change.",
+    });
+    const invalid = /** @type {any} */ (descriptionGroup());
+    invalid.id = "invalid-fixture";
+    invalid.fixture = "fixtures/missing";
+    const later = descriptionGroup();
+    later.id = "later-activation";
+    await writeJson(root, "groups/invalid.json", invalid);
+    await writeJson(root, "groups/later.json", later);
+    const suite = await writeJson(root, "suite.json", {
+      schema_version: 1,
+      kind: "suite",
+      id: "shared-setup-suite",
+      groups: ["groups/invalid.json", "groups/later.json"],
+    });
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", suite], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+      },
+    });
+
+    assert.equal(result.status, 1, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const summary = parseJson(await readFile(path.join(resultDirectory, "summary.json"), "utf8"), "summary");
+    assert.equal(summary.state, "partially-complete");
+    assert.deepEqual(
+      summary.groups.map(({ id, state }) => ({ id, state })),
+      [
+        { id: "invalid-fixture", state: "invalid" },
+        { id: "later-activation", state: "complete" },
+      ],
+    );
+    const invalidGroup = parseJson(
+      await readFile(path.join(resultDirectory, "groups/invalid-fixture/group.json"), "utf8"),
+      "invalid group",
+    );
+    assert.deepEqual(invalidGroup.variants, { baseline: "invalid", candidate: "invalid" });
+    const invocations = (await readFile(fakeLog, "utf8")).trim().split("\n");
+    assert.equal(invocations.length, 2);
+  });
+});
+
+test("variant persistence failure is recorded without stopping its counterpart or later groups", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakePi(root);
+    await writeSkill(root, "skills/release-route", {
+      name: "release-route",
+      description: "Use when choosing how to deliver a completed software change.",
+    });
+    const first = descriptionGroup();
+    first.id = "persistence-failure";
+    const later = descriptionGroup();
+    later.id = "later-activation";
+    await writeJson(root, "groups/first.json", first);
+    await writeJson(root, "groups/later.json", later);
+    const suite = await writeJson(root, "suite.json", {
+      schema_version: 1,
+      kind: "suite",
+      id: "persistence-suite",
+      groups: ["groups/first.json", "groups/later.json"],
+    });
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", suite], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+        FAKE_PI_BREAK_FINAL_FOR: path.join("groups", "persistence-failure", "candidate", "workspace"),
+        FAKE_PI_FAIL_SKILL: "1",
+        FAKE_PI_FAIL_FOR: path.join("groups", "persistence-failure", "candidate", "workspace"),
+      },
+    });
+
+    assert.equal(result.status, 1, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const summary = parseJson(await readFile(path.join(resultDirectory, "summary.json"), "utf8"), "summary");
+    assert.deepEqual(
+      summary.groups.map(({ id, state }) => ({ id, state })),
+      [
+        { id: "persistence-failure", state: "partially-complete" },
+        { id: "later-activation", state: "complete" },
+      ],
+    );
+    const failedRunText = await readFile(
+      path.join(resultDirectory, "groups/persistence-failure/candidate/run.json"),
+      "utf8",
+    );
+    const failedRun = parseJson(failedRunText, "persistence-failed run");
+    assert.equal(failedRun.state, "infrastructure-failed");
+    assert.equal(failedRun.error.kind, "persistence");
+    assert.match(failedRun.error.message, /final\.md/);
+    assert.equal(failedRun.error.cause, null);
+    assert.equal(failedRun.process.exitCode, 7);
+    const grade = parseJson(
+      await readFile(path.join(resultDirectory, "groups/persistence-failure/deterministic-grade.json"), "utf8"),
+      "persistence-failure grade",
+    );
+    assert.equal(grade.evidence.candidate.sha256, createHash("sha256").update(failedRunText).digest("hex"));
+    assert.equal(grade.checks.find((check) => check.variant === "candidate")?.state, "unavailable");
+    const candidateFiles = await readdir(path.join(resultDirectory, "groups/persistence-failure/candidate"));
+    assert.equal(
+      candidateFiles.some((file) => file.endsWith(".tmp")),
+      false,
+    );
+    const baseline = parseJson(
+      await readFile(path.join(resultDirectory, "groups/persistence-failure/baseline/run.json"), "utf8"),
+      "safe counterpart",
+    );
+    assert.equal(baseline.state, "complete");
+    const invocations = (await readFile(fakeLog, "utf8")).trim().split("\n");
+    assert.equal(invocations.length, 4);
+  });
+});
+
+test("recoverable grade and group persistence failures use fallback evidence and continue later groups", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakePi(root);
+    await writeSkill(root, "skills/release-route", {
+      name: "release-route",
+      description: "Use when choosing how to deliver a completed software change.",
+    });
+    const first = descriptionGroup();
+    first.id = "post-processing-failure";
+    const later = descriptionGroup();
+    later.id = "later-activation";
+    await writeJson(root, "groups/first.json", first);
+    await writeJson(root, "groups/later.json", later);
+    const suite = await writeJson(root, "suite.json", {
+      schema_version: 1,
+      kind: "suite",
+      id: "post-processing-suite",
+      groups: ["groups/first.json", "groups/later.json"],
+    });
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", suite], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+        FAKE_PI_BREAK_GROUP_ARTIFACTS_FOR: path.join("groups", "post-processing-failure", "candidate", "workspace"),
+      },
+    });
+
+    assert.equal(result.status, 1, result.stderr);
+    const resultDirectory = result.stdout.match(/^Path: (.+)$/m)?.[1];
+    assert.ok(resultDirectory);
+    const summary = parseJson(await readFile(path.join(resultDirectory, "summary.json"), "utf8"), "summary");
+    assert.deepEqual(
+      summary.groups.map(({ id, state, grade, artifacts }) => ({ id, state, grade, artifacts })),
+      [
+        {
+          id: "post-processing-failure",
+          state: "partially-complete",
+          grade: "grade-error",
+          artifacts: {
+            grade: "deterministic-grade-error.json",
+            group: "group-error.json",
+          },
+        },
+        {
+          id: "later-activation",
+          state: "complete",
+          grade: "complete",
+          artifacts: {
+            grade: "deterministic-grade.json",
+            group: "group.json",
+          },
+        },
+      ],
+    );
+    const groupDirectory = path.join(resultDirectory, "groups/post-processing-failure");
+    const grade = parseJson(
+      await readFile(path.join(groupDirectory, "deterministic-grade-error.json"), "utf8"),
+      "fallback grade",
+    );
+    assert.equal(grade.state, "grade-error");
+    assert.match(grade.errors.at(-1).reason, /persist deterministic-grade\.json/);
+    const group = parseJson(await readFile(path.join(groupDirectory, "group-error.json"), "utf8"), "fallback group");
+    assert.equal(group.state, "partially-complete");
+    assert.match(group.errors.at(-1).message, /group\.json/);
+    const view = spawnSync(process.execPath, [entrypoint, "view", resultDirectory], {
+      cwd: root,
+      encoding: "utf8",
+    });
+    assert.equal(view.status, 0, view.stderr);
+    assert.match(view.stdout, /Grade \[grade-error\]/);
+    assert.match(view.stdout, /failed to persist deterministic-grade\.json/);
+    assert.match(view.stdout, /failed to persist group\.json/);
+    assert.match(view.stdout, /deterministic-grade-error\.json/);
+    const invocations = (await readFile(fakeLog, "utf8")).trim().split("\n");
+    assert.equal(invocations.length, 4);
+  });
+});
+
+test("unrecoverable grade fallback persistence stops queued work without claiming a batch result", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakePi(root);
+    await writeSkill(root, "skills/release-route", {
+      name: "release-route",
+      description: "Use when choosing how to deliver a completed software change.",
+    });
+    const first = descriptionGroup();
+    first.id = "fatal-grade-persistence";
+    const later = descriptionGroup();
+    later.id = "must-not-start";
+    await writeJson(root, "groups/first.json", first);
+    await writeJson(root, "groups/later.json", later);
+    const suite = await writeJson(root, "suite.json", {
+      schema_version: 1,
+      kind: "suite",
+      id: "fatal-grade-suite",
+      groups: ["groups/first.json", "groups/later.json"],
+    });
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", suite], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+        FAKE_PI_BREAK_GRADE_FALLBACK_FOR: path.join("groups", "fatal-grade-persistence", "candidate", "workspace"),
+      },
+    });
+
+    assert.equal(result.status, 1);
+    assert.doesNotMatch(result.stdout, /^Path:/m);
+    const invocations = (await readFile(fakeLog, "utf8")).trim().split("\n");
+    assert.equal(invocations.length, 2);
+    const resultDirectories = await readdir(path.join(root, ".skill-eval/runs"));
+    assert.equal(resultDirectories.length, 1);
+    await assert.rejects(readFile(path.join(root, ".skill-eval/runs", resultDirectories[0], "summary.json"), "utf8"), {
+      code: "ENOENT",
+    });
+  });
+});
+
+test("unrecoverable run persistence stops queued work without claiming a batch result", async () => {
+  await withTempDirectory(async (root) => {
+    const fakeLog = path.join(root, "fake-pi.jsonl");
+    const bin = await installFakePi(root);
+    await writeSkill(root, "skills/release-route", {
+      name: "release-route",
+      description: "Use when choosing how to deliver a completed software change.",
+    });
+    const first = descriptionGroup();
+    first.id = "fatal-persistence";
+    const later = descriptionGroup();
+    later.id = "must-not-start";
+    await writeJson(root, "groups/first.json", first);
+    await writeJson(root, "groups/later.json", later);
+    const suite = await writeJson(root, "suite.json", {
+      schema_version: 1,
+      kind: "suite",
+      id: "fatal-persistence-suite",
+      groups: ["groups/first.json", "groups/later.json"],
+    });
+
+    const result = spawnSync(process.execPath, [entrypoint, "run", suite], {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}${path.delimiter}${process.env.PATH ?? ""}`,
+        FAKE_PI_LOG: fakeLog,
+        FAKE_PI_BREAK_RUN_FOR: path.join("groups", "fatal-persistence", "baseline", "workspace"),
+      },
+    });
+
+    assert.equal(result.status, 1);
+    assert.doesNotMatch(result.stdout, /^Path:/m);
+    const invocations = (await readFile(fakeLog, "utf8")).trim().split("\n");
+    assert.equal(invocations.length, 1);
+    const runsRoot = path.join(root, ".skill-eval/runs");
+    const resultDirectories = await readdir(runsRoot);
+    assert.equal(resultDirectories.length, 1);
+    const resultDirectory = path.join(runsRoot, resultDirectories[0]);
+    assert.equal(await readFile(path.join(resultDirectory, "invocation.json"), "utf8").then(Boolean), true);
+    await assert.rejects(readFile(path.join(resultDirectory, "summary.json"), "utf8"), { code: "ENOENT" });
+  });
+});
 
 test("cancellation records queued variants and groups without starting more Pi subjects", async () => {
   await withTempDirectory(async (root) => {

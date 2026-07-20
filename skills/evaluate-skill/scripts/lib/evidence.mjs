@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export function createInvocationId(now = new Date()) {
@@ -36,6 +36,11 @@ export function sha256(value) {
 async function writeAtomic(file, contents) {
   await mkdir(path.dirname(file), { recursive: true });
   const temporary = `${file}.${process.pid}.${randomBytes(4).toString("hex")}.tmp`;
-  await writeFile(temporary, contents);
-  await rename(temporary, file);
+  try {
+    await writeFile(temporary, contents);
+    await rename(temporary, file);
+  } catch (error) {
+    await rm(temporary, { force: true }).catch(() => {});
+    throw error;
+  }
 }
