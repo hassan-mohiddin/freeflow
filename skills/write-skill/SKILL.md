@@ -59,7 +59,20 @@ There is no universal body template, section inventory, wording rule, or require
 
 Check structure and resources before evaluating behavior. Inspect facts rather than treating wording, length, or file count as quality.
 
-The canonical [skill-author entrypoint](scripts/skill-author.mjs) owns the deterministic `init`, `validate`, and `inspect` command surface. Run it with `--help` before relying on an operation. If an operation reports unavailable, perform the authoring work directly; never import or invoke deprecated tooling.
+The canonical [skill-author entrypoint](scripts/skill-author.mjs) owns the deterministic command surface:
+
+```text
+node <write-skill-directory>/scripts/skill-author.mjs init <directory> --name <name> --description <text>
+node <write-skill-directory>/scripts/skill-author.mjs validate <directory> [--package-root <directory>]
+node <write-skill-directory>/scripts/skill-author.mjs inspect <directory> [--package-root <directory>]
+```
+
+Commands emit JSON.
+
+- Package boundary: nearest ancestor containing `package.json`, then the skill directory's parent. Use `--package-root` to set it explicitly.
+- Frontmatter: flat plain-string or JSON-compatible double-quoted scalars. Quote punctuation-heavy values and values YAML could interpret as numbers, booleans, or null.
+
+Never import or invoke deprecated tooling.
 
 Structural checks do not prove activation or behavior. Use [Evaluate Skill](../evaluate-skill/SKILL.md) for behavioral evidence.
 
