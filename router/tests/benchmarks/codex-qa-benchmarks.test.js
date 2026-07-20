@@ -32,7 +32,7 @@ test("Codex Q&A macro benchmark catches generated Sandbox Permissions decoy", as
   assert.equal(improved.correctness.citationCorrect, true);
   assert.equal(improved.correctness.evidenceCorrect, true);
   assert.equal(improved.correctness.generatedFalsePositive, false);
-  assert.equal(improved.actualPath, "evals/fixtures/output-router-corpus/sandbox-permissions.md");
+  assert.equal(improved.actualPath, "router/evals/fixtures/output-router-corpus/sandbox-permissions.md");
   assert.match(improved.answer, /UseDefault: run with the turn's normal sandbox/);
   assert.match(improved.answer, /RequireEscalated: request unsandboxed execution/);
   assert.match(improved.answer, /WithAdditionalPermissions: stay sandboxed but widen permissions/);

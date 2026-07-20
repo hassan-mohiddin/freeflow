@@ -549,7 +549,7 @@ async function createMarkdownSectionFixture(): Promise<BenchmarkFixture> {
 
 async function createGeneratedArtifactDecoyFixture(): Promise<BenchmarkFixture> {
   const repo = await createTempRepo({
-    "evals/fixtures/output-router-corpus/sandbox-permissions.md": [
+    "router/evals/fixtures/output-router-corpus/sandbox-permissions.md": [
       "# Pass 3",
       "",
       "### Sandbox Permissions",
@@ -572,7 +572,7 @@ async function createGeneratedArtifactDecoyFixture(): Promise<BenchmarkFixture> 
     title: "Generated-artifact decoy",
     query: "Sandbox Permissions SandboxPermissions Plain-language meaning",
     expected: {
-      path: "evals/fixtures/output-router-corpus/sandbox-permissions.md",
+      path: "router/evals/fixtures/output-router-corpus/sandbox-permissions.md",
       lines: "3-7",
       requiredExcerpt: ["SandboxPermissions", "Plain-language meaning"],
     },

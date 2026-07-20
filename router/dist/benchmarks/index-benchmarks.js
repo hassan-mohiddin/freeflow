@@ -638,7 +638,7 @@ function indexFixtureDefinitions() {
       id: "index-generated-artifact-decoy",
       title: "Generated-artifact decoy",
       files: {
-        "evals/fixtures/output-router-corpus/sandbox-permissions.md": [
+        "router/evals/fixtures/output-router-corpus/sandbox-permissions.md": [
           "# Pass 3",
           "",
           "### Sandbox Permissions",
@@ -657,7 +657,7 @@ function indexFixtureDefinitions() {
       },
       query: "Sandbox Permissions SandboxPermissions Plain-language meaning",
       expected: {
-        path: "evals/fixtures/output-router-corpus/sandbox-permissions.md",
+        path: "router/evals/fixtures/output-router-corpus/sandbox-permissions.md",
         lines: "3-7",
         requiredExcerpt: ["SandboxPermissions", "Plain-language meaning"],
       },

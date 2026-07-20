@@ -56,7 +56,7 @@ function context(cwd) {
 async function withSandboxPermissionsFixtureRepo(fn) {
   const root = await mkdtemp(join(tmpdir(), "freeflow-router-sandbox-fixture-"));
   try {
-    const targetDir = join(root, "evals/fixtures/output-router-corpus");
+    const targetDir = join(root, "router/evals/fixtures/output-router-corpus");
     await mkdir(targetDir, { recursive: true });
     await writeFile(
       join(targetDir, "sandbox-permissions.md"),
@@ -111,7 +111,7 @@ test("regression fixture: Sandbox Permissions broad query ignores generated grap
 
     assert.equal(result.toolStatus, "ok");
     assert.equal(result.evidence?.length, 1);
-    assert.equal(result.evidence[0].path, "evals/fixtures/output-router-corpus/sandbox-permissions.md");
+    assert.equal(result.evidence[0].path, "router/evals/fixtures/output-router-corpus/sandbox-permissions.md");
     assert.match(result.evidence[0].excerpt, /SandboxPermissions/);
     assert.doesNotMatch(result.evidence[0].excerpt, /GENERATED_GRAPH_DECOY_SENTINEL/);
     assert.ok(Buffer.byteLength(result.evidence[0].excerpt, "utf8") <= 8_192);
@@ -129,7 +129,7 @@ test("regression fixture: root-scoped query still ignores generated graph decoy"
 
     assert.equal(result.toolStatus, "ok");
     assert.equal(result.evidence?.length, 1);
-    assert.equal(result.evidence[0].path, "evals/fixtures/output-router-corpus/sandbox-permissions.md");
+    assert.equal(result.evidence[0].path, "router/evals/fixtures/output-router-corpus/sandbox-permissions.md");
     assert.doesNotMatch(result.evidence[0].excerpt, /GENERATED_GRAPH_DECOY_SENTINEL/);
   });
 });

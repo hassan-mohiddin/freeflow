@@ -15,7 +15,7 @@ import {
   writeBenchmarkReportPair,
 } from "./benchmark-harness.js";
 import { freeflowSearch } from "../tools/search.js";
-const SANDBOX_DOC_PATH = "evals/fixtures/output-router-corpus/sandbox-permissions.md";
+const SANDBOX_DOC_PATH = "router/evals/fixtures/output-router-corpus/sandbox-permissions.md";
 const GENERATED_GRAPH_PATH = "graphify-out/graph.html";
 const SANDBOX_QUESTION =
   "Find the Sandbox Permissions section, report file/lines, and explain UseDefault, RequireEscalated, and WithAdditionalPermissions.";

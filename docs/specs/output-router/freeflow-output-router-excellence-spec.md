@@ -34,7 +34,7 @@ However, the first broad-retrieval accuracy test found a serious failure:
 
 ```text
 query: find the Sandbox Permissions reference fixture
-expected: evals/fixtures/output-router-corpus/sandbox-permissions.md:3-17
+expected: router/evals/fixtures/output-router-corpus/sandbox-permissions.md:3-17
 actual:   graphify-out/graph.html:67-71
 ```
 
@@ -928,12 +928,12 @@ Reports should live under `router/evals/reports/` unless a better eval-specific 
 
 ## Output Router Macro Benchmark
 
-The neutral benchmark corpus under `evals/fixtures/output-router-corpus/` provides stable source documents and generated-artifact decoys for measuring whether Freeflow Router reduces retrieval cost without degrading answer quality.
+The neutral benchmark corpus under `router/evals/fixtures/output-router-corpus/` provides stable source documents and generated-artifact decoys for measuring whether Freeflow Router reduces retrieval cost without degrading answer quality.
 
 Current corpus:
 
 ```text
-evals/fixtures/output-router-corpus/sandbox-permissions.md
+router/evals/fixtures/output-router-corpus/sandbox-permissions.md
 ```
 
 ### Stages

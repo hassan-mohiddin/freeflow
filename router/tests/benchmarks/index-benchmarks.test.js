@@ -155,7 +155,7 @@ test("index benchmark reports cold, warm, stale, and scanner comparison without 
   assert.ok(sandbox);
   const indexResult = sandbox.results.find((result) => result.mode === "index-warm");
   assert.equal(indexResult.correctness.passed, true);
-  assert.equal(indexResult.actualPath, "evals/fixtures/output-router-corpus/sandbox-permissions.md");
+  assert.equal(indexResult.actualPath, "router/evals/fixtures/output-router-corpus/sandbox-permissions.md");
   assert.equal(indexResult.correctness.generatedFalsePositive, false);
 
   const stale = report.fixtures.find((fixture) => fixture.id === "index-stale-refresh");
@@ -170,7 +170,7 @@ test("index benchmark reports cold, warm, stale, and scanner comparison without 
   assert.ok(fts);
   if (report.summary.ftsCandidate.available) {
     assert.equal(fts.correctness.passed, true);
-    assert.equal(fts.actualPath, "evals/fixtures/output-router-corpus/sandbox-permissions.md");
+    assert.equal(fts.actualPath, "router/evals/fixtures/output-router-corpus/sandbox-permissions.md");
     assert.equal(fts.correctness.recallAtK, true);
   } else {
     assert.equal(fts.skipped, true);
@@ -181,7 +181,7 @@ test("index benchmark reports cold, warm, stale, and scanner comparison without 
     ?.results.find((result) => result.mode === "hybrid-warm");
   assert.ok(hybrid);
   assert.equal(hybrid.correctness.passed, true);
-  assert.equal(hybrid.actualPath, "evals/fixtures/output-router-corpus/sandbox-permissions.md");
+  assert.equal(hybrid.actualPath, "router/evals/fixtures/output-router-corpus/sandbox-permissions.md");
   assert.equal(hybrid.correctness.recallAtK, true);
 
   const rendered = renderIndexBenchmarkReport(report);
