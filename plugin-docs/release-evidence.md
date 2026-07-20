@@ -1,6 +1,6 @@
 # Release Evidence
 
-Freeflow v0.3.0 is based on the v0.1 local acceptance suite plus targeted runtime, setup, and output-router evidence from the development repository. The current Interaction Lifecycle, layered configuration, Interaction Contract, Workflow bootstrap, and revised candidate skills have not yet received behavioral evaluation; the workflow and prior setup evidence below is historical and does not verify that candidate snapshot.
+Freeflow v0.4.0 is based on fresh deterministic router, Pi-extension, Skill Author, and Skill Eval suites; targeted local baseline/candidate evaluation of the revised authoring and evaluation packages; and the historical acceptance evidence identified below. Runtime and configuration checks cover the current Interaction Lifecycle, layered configuration, Interaction Contract, and Workflow bootstrap. Evidence remains case-, host-, model-, and configuration-specific and does not establish universal skill readiness.
 
 ## Acceptance Summary
 
@@ -14,6 +14,16 @@ High-signal behaviors covered:
 - Commit flow refuses mixed staged sensitive changes.
 - Discovery checkpoints replace separate briefing, grilling, and decision-capture commands for discovery work.
 - Bypass skips ceremony, not judgment.
+
+The 2026-07-21 prepublish source checkpoint passed 329 Router tests, 102 Pi-extension tests, 19 Skill Author tests, 66 Skill Eval tests, and structural validation for all 26 active skill packages. The exact npm tarball also passed a clean installed-package Pi entrypoint import. Remote GitHub installation and live cross-host model behavior remain deferred.
+
+## Skill Authoring And Evaluation Tooling
+
+The fresh Skill Author surface provides minimal scaffold creation, structural validation, recursive contained-resource checks, and factual inspection without wording, quality, or readiness judgments.
+
+The fresh Skill Eval surface provides exactly baseline/candidate groups, description and explicit-body evaluation, one-shot and persistent multi-turn Pi subjects, isolated fixtures and declared context, deterministic append-only grading, ordered serial batch continuation, and grade-first generated views over canonical evidence. Subject evidence remains separate from derived grades, and the evaluator does not own semantic judgment, promotion, or production readiness.
+
+Tracked deterministic tests establish these mechanics. Targeted live Pi runs informed the package rewrite, but generated local run stores remain excluded from the npm artifact and do not create a broad readiness claim.
 
 ## Command Surface
 

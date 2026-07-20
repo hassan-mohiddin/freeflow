@@ -69,7 +69,7 @@ Codex and Claude have no native Freeflow slash handlers. Pi registers direct com
 ## Package And Release Boundary
 
 - Repository root is the single source of truth.
-- Current package version is `0.3.0`.
+- Current package version is `0.4.0`.
 - GitHub repository: `hassan-mohiddin/freeflow`.
 - npm package: `@hassangameryt/freeflow`.
 - Host targets: Codex, Claude Code, and Pi.

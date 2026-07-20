@@ -7,7 +7,7 @@ node_modules/
 .env.*
 .freeflow/local.json
 
-# Local Freeflow runtime state directories.
+# Local Freeflow runtime state and task memory.
 .freeflow/*/
 
 # Generated router evaluation output.
@@ -16,10 +16,11 @@ router/evals/runs/
 # Graphify generated output.
 graphify-out/
 
-# Local scratch and logs.
+# Local scratch, logs, and package archives.
 .tmp/
 tmp/
 *.log
+*.tgz
 
 # Local Serena MCP/project state.
 .serena/
