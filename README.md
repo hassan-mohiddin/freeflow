@@ -33,6 +33,8 @@ Freeflow is not a new agent or workflow engine. It is a portable control layer f
 
 One user interaction is an **Interaction Lifecycle**:
 
+![Freeflow Workflow: Entry, Feedback Loop, and Supported Exit](assets/workflow.png)
+
 ```text
 [Entry] -> [Feedback Loop when needed] -> [Supported Exit]
    ^              ^        |                  |
@@ -42,6 +44,8 @@ One user interaction is an **Interaction Lifecycle**:
 ```
 
 When work is needed, the inner **Feedback Loop** is:
+
+![Freeflow Core Feedback Loop: orient, use the owning skill, verify, self-review once, and route from evidence](assets/feedback-loop.png)
 
 ```text
 orient to accepted intent, task memory, and live evidence
