@@ -10,6 +10,7 @@ import {
   readdir,
   readlink,
   realpath,
+  rm,
   symlink,
   writeFile,
 } from "node:fs/promises";
@@ -153,11 +154,42 @@ export async function verifyEnvironment(environment) {
   }
 }
 
+export async function snapshotWorkspace({ workspace, variantDirectory, turn, before }) {
+  const snapshotPath = path.join(variantDirectory, "turns", String(turn), "workspace");
+  await rm(snapshotPath, { recursive: true, force: true });
+  await mkdir(path.dirname(snapshotPath), { recursive: true });
+
+  const sourceBefore = await fingerprintDirectory(workspace);
+  await cp(workspace, snapshotPath, { recursive: true, force: false, errorOnExist: true, verbatimSymlinks: true });
+  const [sourceAfter, files] = await Promise.all([fingerprintDirectory(workspace), fingerprintDirectory(snapshotPath)]);
+  if (
+    JSON.stringify(sourceBefore) !== JSON.stringify(sourceAfter) ||
+    JSON.stringify(sourceAfter) !== JSON.stringify(files)
+  ) {
+    throw new Error(`workspace changed while capturing turn ${turn}`);
+  }
+  return { path: snapshotPath, files, changes: workspaceChanges(before, files) };
+}
+
 export async function fingerprintDirectory(root) {
   const canonicalRoot = await realpath(root);
   const files = [];
   await walk(canonicalRoot, canonicalRoot, files);
   return files.sort((left, right) => comparePaths(left.path, right.path));
+}
+
+export function workspaceChanges(before, after) {
+  const beforeEntries = before.filter((entry) => entry.type !== "directory");
+  const afterEntries = after.filter((entry) => entry.type !== "directory");
+  const beforeByPath = new Map(beforeEntries.map((file) => [file.path, file.sha256]));
+  const afterByPath = new Map(afterEntries.map((file) => [file.path, file.sha256]));
+  return {
+    created: afterEntries.filter((file) => !beforeByPath.has(file.path)).map((file) => file.path),
+    modified: afterEntries
+      .filter((file) => beforeByPath.has(file.path) && beforeByPath.get(file.path) !== file.sha256)
+      .map((file) => file.path),
+    deleted: beforeEntries.filter((file) => !afterByPath.has(file.path)).map((file) => file.path),
+  };
 }
 
 async function snapshotWorkingTreeResource({ canonicalRoot, declaredPath, destination, requireDirectory, label }) {
@@ -175,7 +207,7 @@ async function snapshotWorkingTreeResource({ canonicalRoot, declaredPath, destin
 
   const sourceFiles = sourceStat.isDirectory()
     ? await fingerprintDirectory(sourcePath)
-    : [{ path: path.basename(sourcePath), sha256: sha256(await readFile(sourcePath)) }];
+    : [{ path: path.basename(sourcePath), type: "file", sha256: sha256(await readFile(sourcePath)) }];
   if (sourceStat.isDirectory()) {
     await mkdir(path.dirname(destination), { recursive: true });
     await cp(sourcePath, destination, { recursive: true, dereference: false, errorOnExist: true, force: false });
@@ -187,7 +219,7 @@ async function snapshotWorkingTreeResource({ canonicalRoot, declaredPath, destin
   const files = await fingerprintDirectory(snapshotPath);
   const sourceFilesAfter = sourceStat.isDirectory()
     ? await fingerprintDirectory(sourcePath)
-    : [{ path: path.basename(sourcePath), sha256: sha256(await readFile(sourcePath)) }];
+    : [{ path: path.basename(sourcePath), type: "file", sha256: sha256(await readFile(sourcePath)) }];
   if (
     JSON.stringify(files) !== JSON.stringify(sourceFiles) ||
     JSON.stringify(sourceFilesAfter) !== JSON.stringify(sourceFiles)
@@ -317,6 +349,7 @@ async function contextFiles(root, fingerprints) {
   const decoder = new TextDecoder("utf-8", { fatal: true });
   const files = [];
   for (const fingerprint of fingerprints) {
+    if (fingerprint.type === "directory") continue;
     const file = path.join(root, fingerprint.path);
     const resolved = await realpath(file).catch(() => null);
     const resolvedStat = resolved === null ? null : await lstat(resolved);
@@ -348,11 +381,12 @@ async function walk(root, directory, files) {
       if (path.isAbsolute(target) || canonicalTarget === null || !isContained(root, canonicalTarget)) {
         throw new Error(`resource symlink escapes its declared root: ${relativePath}`);
       }
-      files.push({ path: relativePath, sha256: sha256(`symlink\0${target}`) });
+      files.push({ path: relativePath, type: "symlink", sha256: sha256(`symlink\0${target}`) });
     } else if (entryStat.isDirectory()) {
+      files.push({ path: relativePath, type: "directory", sha256: sha256("directory") });
       await walk(root, entryPath, files);
     } else if (entryStat.isFile()) {
-      files.push({ path: relativePath, sha256: sha256(await readFile(entryPath)) });
+      files.push({ path: relativePath, type: "file", sha256: sha256(await readFile(entryPath)) });
     } else {
       throw new Error(`unsupported resource entry: ${relativePath}`);
     }

@@ -11,6 +11,11 @@ const VARIANTS = ["baseline", "candidate"];
 const DESCRIPTION_TOOLS = new Set(["read"]);
 const BODY_TOOLS = new Set(["read", "write", "edit"]);
 
+/**
+ * @param {string} definitionFile
+ * @param {any} selectors
+ * @param {{root?: string, signal?: AbortSignal}} options
+ */
 export async function runEvaluation(definitionFile, selectors = {}, { root = process.cwd(), signal } = {}) {
   const definitionPath = await realpath(path.resolve(root, definitionFile));
   const definition = await loadDefinition(definitionPath, { root });
@@ -60,6 +65,9 @@ function assertSupportedSelection(selection) {
     if (group.type !== "description" && group.type !== "body") {
       throw new Error("skill-eval run currently supports description and body groups only");
     }
+    if (group.expectations.some((expectation) => expectation.kind === "command")) {
+      throw new Error("command expectations are not supported");
+    }
     const supportedTools = group.type === "body" ? BODY_TOOLS : DESCRIPTION_TOOLS;
     if (group.tools.some((tool) => !supportedTools.has(tool))) {
       throw new Error(`${group.type} execution currently supports only ${[...supportedTools].join(", ")} tools`);
@@ -104,7 +112,7 @@ async function runGroup({ selected, root, resultDirectory, signal }) {
     baseline: await fileIdentity(runFiles.baseline),
     candidate: await fileIdentity(runFiles.candidate),
   };
-  const grade = gradeDeterministic(group, runs, evidence);
+  const grade = await gradeDeterministic(group, runs, evidence);
   await writeJson(path.join(groupDirectory, "deterministic-grade.json"), grade);
   const selectedRuns = VARIANTS.filter((variant) => selected.variants[variant] === "selected").map(
     (variant) => runs[variant],
@@ -129,7 +137,7 @@ function batchState(groups) {
 
 function selectedGroupState(runs, grade) {
   if (runs.some((run) => run.state === "cancelled")) return "cancelled";
-  if (runs.every((run) => run.state === "complete") && grade.state === "complete") return "complete";
+  if (runs.every((run) => run.state === "complete") && grade.state !== "grade-error") return "complete";
   return "partially-complete";
 }
 

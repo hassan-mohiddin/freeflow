@@ -14,11 +14,22 @@ test("skill-eval exposes only the fresh command surface", () => {
   assert.match(result.stdout, /skill-eval <run\|view>/);
   assert.match(result.stdout, /--group <id-or-position>/);
   assert.match(result.stdout, /--variant <baseline\|candidate>/);
+  assert.doesNotMatch(result.stdout, /--allow-commands|command outcomes/);
   assert.match(result.stdout, /Description and explicit-body groups/);
   assert.match(result.stdout, /Working-tree or Git-backed ordered skills\/context/);
   assert.match(result.stdout, /optional fresh fixture copies/);
   assert.match(result.stdout, /body tools: read, write, edit/);
   assert.doesNotMatch(result.stdout, /doctor|evaluate|grade|plan-only|semantic/);
+});
+
+test("skill-eval rejects the removed command-execution approval flag", () => {
+  const result = spawnSync(process.execPath, [entrypoint, "run", "group.json", "--allow-commands"], {
+    encoding: "utf8",
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Unknown option: --allow-commands/);
+  assert.doesNotMatch(result.stderr, /\n\s+at /);
 });
 
 test("skill-eval rejects unknown commands without a stack trace", () => {

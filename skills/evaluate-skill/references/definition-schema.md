@@ -146,23 +146,36 @@ Body groups support:
 
 For a body variant with a target, the evaluator asks Pi for its registered commands, matches the exact snapshotted target `SKILL.md` path, and sends `/skill:<name> <first prompt>`. This uses Pi's native skill expansion without duplicating frontmatter parsing. A no-target baseline receives the unchanged first prompt. Previous and updated variants each explicitly load their own snapshot. Later declared turns are unchanged, and direct body delivery never counts as activation evidence.
 
-The supported body response expectation is:
+## Deterministic Expectations
 
-```json
-{
-  "id": "candidate-mentions-rollback",
-  "kind": "response-text",
-  "variant": "candidate",
-  "expect": "contains",
-  "value": "rollback",
-  "turn": 2
-}
-```
+Every expectation has `id`, `kind`, and `variant`. Body checks may add `turn`; it is one-based and must identify a declared prompt or turn. Without `turn`, a response check uses the final response and a workspace check uses final state. When a group declares turn-scoped workspace checks, the body run preserves an immutable workspace snapshot after every settled turn so intermediate state remains gradeable even when a later turn changes or reverts it.
 
-`turn` is optional. When present, it must identify one declared prompt or turn. Without it, the check inspects the final response and records its observed turn. A failed response check leaves a completed subject run complete. A non-body use, out-of-range turn, or other invalid expectation shape produces a separate `grade-error` after run evidence is saved.
+The supported kinds are:
+
+| `kind` | Required fields | Supported `expect` values |
+| --- | --- | --- |
+| `skill-read` | description `variant`; a valid declared `turn` for every timing predicate | `never`, `on-turn`, `by-turn`, `not-before-turn` |
+| `resource-read` | `resource`: `workspace`, `skill`, or `context`; zero-based `index` for skill/context; contained `path`; optional `turn` | `read`, `not-read` |
+| `path` | contained workspace `path`; optional `turn` | `exists`, `absent` |
+| `changed-paths` | unique contained `paths`; optional `turn` | `equals`, `excludes` |
+| `file-text` | contained workspace `path`; string `value`; optional `turn` | `contains`, `not-contains`, `equals` |
+| `json` | contained workspace `path`; optional `turn`; JSON Pointer `pointer` for field checks; `value` for `field-equals` | `available`, `missing`, `valid`, `malformed`, `field-present`, `field-absent`, `field-equals` |
+| `response-text` | string `value`; optional `turn` | `contains`, `not-contains`, `equals` |
+
+`never` has no `turn`. `on-turn`, `by-turn`, and `not-before-turn` require a one-based turn inside the declared prompt/turn count; malformed timing scopes produce `grade-error`, never behavioral pass/fail.
+
+A `path` check observes typed files, contained symlinks, and directories, including empty directories. Directory entries are preserved in final and requested turn snapshots without turning directory-only presence into a changed-file result.
+
+A JSON Pointer is `""` for the complete value or begins with `/`; `~0` and `~1` escape `~` and `/`. JSON observations separately record file presence, parse success, field presence, and value. Therefore a missing file, malformed JSON, absent field, present `null`, and another value cannot collapse into the same result.
+
+Definition-supplied commands and tests are not a supported deterministic expectation. `skill-eval` exposes no command-execution approval flag. Any future command-outcome mechanism requires a separate accepted design with an explicit trust anchor, isolation boundary, failure unit, portability contract, and evidence cost.
+
+Two expectations may add the same `comparison` ID when they describe the same predicate once for baseline and once for candidate. The grade records each check ID/state and a factual transition such as `fail-to-pass`, `pass-to-fail`, or `unavailable`. It assigns no quality or readiness meaning.
+
+A failed check leaves a completed subject run complete. When every valid check lacks required run evidence, the report is `unavailable`. A malformed kind-specific shape, invalid turn, mismatched comparison pair, or grading integrity failure produces a separate `grade-error` after run evidence is saved.
 
 Every selected variant receives a fresh fixture-backed or empty workspace and Pi process with ambient resources disabled. RPC sessions disable automatic retry and compaction, correlate every request, and wait for `agent_settled` before the next declared turn. The root guard replaces host system, append, and context instructions with evaluator-owned context containing only declared tools, skills, and exact declared context. Any guard extension error fails closed as infrastructure evidence before further prompts. Reads may access the workspace and declared skill/context snapshots; writes and edits may access only the workspace.
 
 `skill-eval view` renders stored results by complete result, suite group ID or original one-based position, and variant. Description views include declared-turn responses and activation timing. Body views include explicit-delivery state, review questions, responses, tools used, workspace changes, and direct paths for canonical artifacts. Use ordinary file tools for raw evidence.
 
-The command still rejects `bash`, end-to-end execution, and broader deterministic assertions before starting subjects. Cancellation persists queued selected variants as `cancelled` without starting additional Pi subjects.
+Subject execution still rejects `bash` and end-to-end evaluation. Cancellation persists queued selected variants as `cancelled` without starting additional Pi subjects.

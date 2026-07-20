@@ -28,7 +28,7 @@ export async function runRpcBodySession(options) {
 }
 
 class RpcSession {
-  constructor({ args, cwd, eventsFile, stderrFile, signal, environment }) {
+  constructor({ args, cwd, eventsFile, stderrFile, signal, environment, afterTurn = null }) {
     this.child = spawn("pi", args, {
       cwd,
       detached: process.platform !== "win32",
@@ -37,6 +37,7 @@ class RpcSession {
       stdio: ["pipe", "pipe", "pipe"],
     });
     this.signal = signal;
+    this.afterTurn = afterTurn;
     this.processGroupId = this.child.pid;
     this.events = createWriteStream(eventsFile, { encoding: "utf8" });
     this.stderr = createWriteStream(stderrFile, { encoding: "utf8" });
@@ -91,6 +92,7 @@ class RpcSession {
         if (this.signal?.aborted || this.terminationReason !== null) break;
         const turn = await this.runTurn(index + 1, prompt);
         this.turns.push(turn);
+        if (this.afterTurn !== null) turn.workspace = await this.afterTurn(turn.turn);
         if (turn.assistantError !== null) break;
       }
     } catch (error) {

@@ -9,7 +9,14 @@ const [command] = argv;
 
 function printUsage() {
   process.stdout.write(
-    `Usage: skill-eval <run|view> <suite-or-result> [options]\n\nCommands:\n  run <suite-or-group>   Run selected evaluation groups\n  view <result-id>       Render selected stored evidence\n\nSelectors:\n  --group <id-or-position>\n  --variant <baseline|candidate>\n\nCurrent run support:\n  Description and explicit-body groups with prompt or ordered turns\n  Working-tree or Git-backed ordered skills/context; optional fresh fixture copies\n  Description tools: read; body tools: read, write, edit\n`,
+    `Usage: skill-eval <run|view> <suite-or-result> [options]\n\nCommands:\n  run <suite-or-group>   Run selected evaluation groups\n  view <result-id>       Render selected stored evidence\n\nSelectors:
+  --group <id-or-position>
+  --variant <baseline|candidate>
+
+Current run support:
+  Description and explicit-body groups with prompt or ordered turns\n  Working-tree or Git-backed ordered skills/context; optional fresh fixture copies\n  Description tools: read; body tools: read, write, edit
+  Deterministic reads, paths, changed paths, text, JSON, and factual comparisons
+`,
   );
 }
 

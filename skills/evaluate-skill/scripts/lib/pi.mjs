@@ -17,9 +17,17 @@ import {
   writeStream,
 } from "./process.mjs";
 import { runRpcBodySession, runRpcDescriptionSession } from "./rpc.mjs";
-import { fingerprintDirectory, materializeEnvironment, materializeFixture, verifyEnvironment } from "./sandbox.mjs";
+import {
+  fingerprintDirectory,
+  materializeEnvironment,
+  materializeFixture,
+  snapshotWorkspace,
+  verifyEnvironment,
+  workspaceChanges,
+} from "./sandbox.mjs";
 
 const guardExtension = fileURLToPath(new URL("../pi-guard.mjs", import.meta.url));
+const TURN_WORKSPACE_KINDS = new Set(["path", "changed-paths", "file-text", "json", "command"]);
 
 export class VariantSetupError extends Error {
   constructor(message) {
@@ -49,6 +57,9 @@ export async function runBody({ group, variant, root, variantDirectory, fixture,
     prompts: declaredPrompts,
     targetPath: subject.environment.targetPath,
     environment: subject.processEnvironment,
+    afterTurn: needsTurnWorkspaceEvidence(group)
+      ? (turn) => snapshotWorkspace({ workspace: subject.workspace, variantDirectory, turn, before })
+      : null,
   });
   await verifySubjectResources(subject, observation);
   const after = await fingerprintDirectory(subject.workspace);
@@ -67,6 +78,7 @@ export async function runBody({ group, variant, root, variantDirectory, fixture,
       usage: turn.usage,
       assistantError: turn.assistantError,
       settled: turn.settled,
+      workspace: turn.workspace ?? null,
     });
   }
 
@@ -84,6 +96,12 @@ export async function runBody({ group, variant, root, variantDirectory, fixture,
     after,
     changes: workspaceChanges(before, after),
   });
+}
+
+function needsTurnWorkspaceEvidence(group) {
+  return group.expectations.some(
+    (expectation) => Number.isInteger(expectation.turn) && TURN_WORKSPACE_KINDS.has(expectation.kind),
+  );
 }
 
 function bodyRun(options, subject, observation, input, effects) {
@@ -132,18 +150,6 @@ function subjectRun({ group, variant }, subject, observation) {
       protocolErrors: observation.protocolErrors ?? [],
       stderr: subject.stderrFile,
     },
-  };
-}
-
-function workspaceChanges(before, after) {
-  const beforeByPath = new Map(before.map((file) => [file.path, file.sha256]));
-  const afterByPath = new Map(after.map((file) => [file.path, file.sha256]));
-  return {
-    created: after.filter((file) => !beforeByPath.has(file.path)).map((file) => file.path),
-    modified: after
-      .filter((file) => beforeByPath.has(file.path) && beforeByPath.get(file.path) !== file.sha256)
-      .map((file) => file.path),
-    deleted: before.filter((file) => !afterByPath.has(file.path)).map((file) => file.path),
   };
 }
 

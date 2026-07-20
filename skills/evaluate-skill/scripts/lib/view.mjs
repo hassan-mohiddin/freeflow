@@ -62,6 +62,14 @@ async function renderGroup(resultDirectory, group, selectedVariant) {
   else {
     for (const check of checks) lines.push(`  ${check.id}\t${check.variant}\t${check.state}`);
   }
+  if (selectedVariant === null && Array.isArray(grade.comparisons) && grade.comparisons.length > 0) {
+    lines.push("Comparisons:");
+    for (const comparison of grade.comparisons) {
+      lines.push(
+        `  ${comparison.id}\t${comparison.kind}\t${comparison.transition}\t${comparison.baseline.check}:${comparison.baseline.state}\t${comparison.candidate.check}:${comparison.candidate.state}`,
+      );
+    }
+  }
 
   for (const variant of variants) {
     const runFile = path.join(groupDirectory, variant, "run.json");
