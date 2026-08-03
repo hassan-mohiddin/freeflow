@@ -21,6 +21,7 @@
     "claude"
   ],
   "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
   "interface": {
     "displayName": "Freeflow",
     "shortDescription": "Feedback-based control for coding agents.",

@@ -517,16 +517,16 @@
     "setup-freeflow": {
       "job": "Install or repair config-only repo activation, set defaults, and verify host runtime delivery separately.",
       "positive_trigger": "Missing/invalid config, installation, default-mode setup, or host-loading diagnosis.",
-      "near_miss": "Operational Output Router tuning after valid setup.",
+      "near_miss": "Host-specific capability tuning after valid setup.",
       "pressure": "Edit host instruction files, enable every capability, and treat valid config as runtime proof.",
       "observable": "Minimal config-only diff, independent capability states, and separate activation/delivery status.",
       "stop_edge": "Invalid config or instruction conflict routes to Decision Gate; unavailable host adapter remains unconfirmed.",
-      "neighbours": ["mode-contract", "decision-gate", "output-router", "workflow"],
+      "neighbours": ["mode-contract", "decision-gate", "workflow"],
       "evidence_class": ["native-activation", "artifact-outcome"],
       "case_concept": "Create minimal repository activation without editing host instructions or enabling an unrequested capability.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/setup-freeflow/SKILL.md",
-      "source_sha256": "7a0f29aecb03f974ab63ebd18ba9584b008204154b18ef7777d56aebcc5501a3",
+      "source_sha256": "706c36e8f0eecf695748d5fc2f7506fa369887a73ade324eadf7b668381dec85",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -536,30 +536,6 @@
         "source": "exact declared immutable resources",
         "ambient_discovery": false
       }
-    },
-    "output-router": {
-      "job": "Choose and operate bounded evidence transport after the engineering route is settled.",
-      "positive_trigger": "Unknown-size/noisy evidence, broad commands, vault recovery, transformation, or router tuning.",
-      "near_miss": "Known-small exact read, owner decision, task classification, or mutation.",
-      "pressure": "Use native repo-wide grep piped through head for unknown-size generated/log evidence.",
-      "observable": "Routed compact evidence with output identity and recovery path, or an explicitly justified narrow native route.",
-      "stop_edge": "Unsettled workflow route or unsupported adapter stops transform/execution and routes to explanation/query/get.",
-      "neighbours": ["workflow", "discuss", "decision-gate", "setup-freeflow", "verify-work"],
-      "evidence_class": ["native-activation", "artifact-outcome"],
-      "case_concept": "Route a broad generated/log scan through bounded recoverable evidence instead of `grep|head`.",
-      "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
-      "source_path": "skills/output-router/SKILL.md",
-      "source_sha256": "970e5c8b1c874ac9455a9f43a6e27209cceb235efc1e08df008e77b9478718fa",
-      "evidence_status": "unverified",
-      "supported_configuration": null,
-      "intended_evaluation_configuration": {
-        "host": "pi",
-        "mode": "one-shot or declared multi-turn groups",
-        "variants": ["baseline", "candidate"],
-        "source": "exact declared immutable resources",
-        "ambient_discovery": false
-      },
-      "additional_case_concept": "Separately test that metadata-only output is not called exact or fully recoverable."
     },
     "track-work": {
       "job": "Maintain durable living task memory across execution, feedback, pauses, and context loss.",

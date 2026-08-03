@@ -49,24 +49,16 @@ function findWorkspaceRoot(cwd) {
 function loadRuntimeContext(options = {}) {
   const includeInteractionContract = options.interactionContract === true;
   const includeSkills = options.skills === true;
-  const includeOutputRouter = options.outputRouter === true;
   const interactionContract = includeInteractionContract
     ? readText(path.join(PLUGIN_ROOT, "runtime", "interaction-contract.md"))
     : null;
   const workflowSkill = includeSkills ? readText(path.join(PLUGIN_ROOT, "skills", "workflow", "SKILL.md")) : null;
-  const outputRouterSkill = includeOutputRouter
-    ? readText(path.join(PLUGIN_ROOT, "skills", "output-router", "SKILL.md"))
-    : null;
 
-  if (
-    (includeInteractionContract && !interactionContract) ||
-    (includeSkills && !workflowSkill) ||
-    (includeOutputRouter && !outputRouterSkill)
-  ) {
+  if ((includeInteractionContract && !interactionContract) || (includeSkills && !workflowSkill)) {
     throw new Error("Freeflow runtime context files are missing.");
   }
 
-  return { interactionContract, workflowSkill, outputRouterSkill };
+  return { interactionContract, workflowSkill };
 }
 
 function readConfig(root) {
@@ -76,7 +68,6 @@ function readConfig(root) {
   const configured = repository.valid && localValid;
   const core = resolveCoreConfig(repository.valid ? repository.parsed : {}, local.valid ? local.parsed : {});
   const enabled = configured && core.config.enabled;
-  const repositoryConfig = repository.valid ? repository.parsed : {};
 
   return {
     exists: repository.exists,
@@ -91,7 +82,6 @@ function readConfig(root) {
     skillsEnabled: enabled && core.config.skills.enabled,
     defaultMode: core.config.defaultMode,
     sources: core.sources,
-    outputRouterEnabled: enabled && repositoryConfig?.outputRouter?.enabled === true,
   };
 }
 
@@ -321,9 +311,8 @@ function capabilityStatus(config) {
     "",
     `- Interaction Contract: ${config.interactionContractEnabled ? "enabled" : "disabled"}.`,
     `- Skills: ${config.skillsEnabled ? "enabled" : "disabled"}.`,
-    `- Output router: ${config.outputRouterEnabled ? "enabled" : "disabled"}.`,
     "",
-    "Capability-specific instructions are active only while that capability is enabled.",
+    "These instructions are active only while their corresponding capability is enabled.",
   ];
 }
 
@@ -340,22 +329,18 @@ function buildContext(input) {
       "# Freeflow Disabled",
       "",
       `Freeflow is configured for this repo, but effective \`enabled\` is false from ${setup.config.sources.enabled}.`,
-      "Do not inject the Interaction Contract, Freeflow workflow skills, output routing, or setup pressure while disabled.",
+      "Do not inject the Interaction Contract, Freeflow workflow skills, or setup pressure while disabled.",
       "Re-enable only if the user asks; use /freeflow settings for a personal override or /freeflow settings repo for the shared repository default in Pi.",
     ].join("\n");
   }
 
-  const { interactionContract, workflowSkill, outputRouterSkill } = loadRuntimeContext({
+  const { interactionContract, workflowSkill } = loadRuntimeContext({
     interactionContract: setup.config.interactionContractEnabled,
     skills: setup.config.skillsEnabled,
-    outputRouter: setup.config.outputRouterEnabled,
   });
   const interactionSection = setup.config.interactionContractEnabled ? ["", interactionContract.trim()] : [];
   const skillSections = setup.config.skillsEnabled
     ? ["", "# Freeflow Workflow Bootstrap", "", workflowSkill.trim()]
-    : [];
-  const outputRouterSection = setup.config.outputRouterEnabled
-    ? ["", "## Loaded Output Router Skill", "```md", outputRouterSkill.trim(), "```"]
     : [];
   return [
     "# Freeflow Runtime Context",
@@ -369,7 +354,6 @@ function buildContext(input) {
     ...capabilityStatus(setup.config),
     ...interactionSection,
     ...skillSections,
-    ...outputRouterSection,
   ].join("\n");
 }
 

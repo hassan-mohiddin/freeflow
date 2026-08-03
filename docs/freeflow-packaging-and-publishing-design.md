@@ -60,6 +60,7 @@ freeflow/
   .skill-eval/
   deprecated/
   hooks/
+  capabilities/
   pi-extension/
   router/
   skills/
@@ -74,7 +75,8 @@ Use `.codex-plugin/plugin.json` as the Codex manifest:
 - `name`: `freeflow`
 - `version`: `0.1.0`
 - `license`: `MIT`
-- `skills`: `./skills/`
+- `skills`: `./skills/` (the 25 cross-host model/contributor skills only)
+- `hooks`: `./hooks/hooks.json`
 - `interface.displayName`: `Freeflow`
 - `interface.shortDescription`: `Feedback-based control for coding agents.`
 - `interface.longDescription`: describe the Interaction Contract, adaptive Workflow, three modes, routing from evidence, task memory, verification, selected review, and controlled delivery boundaries without overclaiming readiness.
@@ -87,7 +89,7 @@ Keep `nativeSlashHandlers=false` in the internal command-surface evidence for Co
 
 Create a Claude plugin manifest modeled on old Orchestra's `.claude-plugin/plugin.json`, but with Freeflow's lighter scope.
 
-The Claude manifest lives at `.claude-plugin/plugin.json` and exposes the same `skills/` directory through the plugin runtime.
+The Claude manifest lives at `.claude-plugin/plugin.json` and explicitly exposes `./skills/`. Claude loads the standard `hooks/hooks.json` automatically, so the manifest must not repeat that path; doing so creates a duplicate-hook load failure. Its model-facing skill surface matches Codex and excludes Pi-only capabilities.
 
 The root `.claude-plugin/marketplace.json` points at `.` for manual Claude install and future GitHub publishing.
 
@@ -106,7 +108,7 @@ The public README should establish the product before installation:
 
 1. Feedback-based control-system identity and failure pressures.
 2. Interaction Lifecycle, Feedback Loop, and core principles.
-3. Three modes, skill routing, task memory, and optional Output Router.
+3. Three modes, skill routing, task memory, and the separately packaged Pi-only Output Router capability.
 4. Evidence and explicit Unverified boundary for the current candidate.
 5. Install and repository activation for Codex, Claude, and Pi.
 6. Runtime delivery, canonical commands, compatibility aliases, and public-doc links.
@@ -116,12 +118,11 @@ Keep the explanation concise and evidence-backed. Avoid broad competitive claims
 
 ## Release Boundary
 
-The active plugin runtime ships the current skill set:
+The active cross-host plugin runtime ships this 25-skill model/contributor set:
 
 - `workflow`
 - `mode-contract`
 - `decision-gate`
-- `output-router`
 - `discuss`
 - `track-work`
 - `design-for-depth`
@@ -145,7 +146,9 @@ The active plugin runtime ships the current skill set:
 - `write-skill`
 - `evaluate-skill`
 
-The setup skill uses the public `setup-freeflow` name. It creates required shared `.freeflow/config.json`, may create optional personal `.freeflow/local.json` only when requested, preserves repo-owned host instruction files, and reports host runtime delivery separately from activation. Output Router remains explicit optional setup.
+The Pi npm package separately ships `capabilities/output-router/` for explicit Pi-only activation. Codex and Claude do not discover that path and their lifecycle hook does not inspect, report, or inject it.
+
+The setup skill uses the public `setup-freeflow` name. It creates required shared `.freeflow/config.json`, may create optional personal `.freeflow/local.json` only when requested, preserves repo-owned host instruction files, and reports host runtime delivery separately from activation.
 
 The current adaptive-workflow revisions are an Unverified candidate pending behavioral evaluation. `migration-work`, `finish-branch`, `release-work`, `launch-work`, and `simplify-code` are optional lifecycle skills; `tdd` is an optional execution method.
 

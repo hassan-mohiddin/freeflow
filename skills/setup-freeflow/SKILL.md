@@ -13,7 +13,7 @@ Create or repair the smallest valid layered setup. Keep repository activation, p
 
 Answer setup questions and delivery checks read-only. An explicit action request authorizes the smallest selected setup change under the state rules below. When repository config is missing, first activation authorizes minimal shared config; it does not authorize personal overrides, optional capabilities, replacement of invalid config, or edits to repo-owned host instructions.
 
-Read [the activation contract](references/activation-contract.md) before changing setup state. Read [host setup](references/host-setup.md) when runtime delivery, lifecycle, or host trust matters. Read [Output Router setup](references/output-router-setup.md) only when the user explicitly requests it during setup or repair; later tuning belongs to [Output Router](../output-router/SKILL.md).
+Read [the activation contract](references/activation-contract.md) before changing setup state. Read [host setup](references/host-setup.md) when runtime delivery, lifecycle, or host trust matters.
 
 ## Establish Mutation Authority
 
@@ -64,17 +64,12 @@ Before writing local config in a Git checkout, verify it is untracked and ignore
 
 If local config is invalid, report that it blocks effective runtime. Repair or remove it only with authorization; never discard it and fall back silently.
 
-## Keep Optional Setup Explicit
-
-Do not ask an automatic capabilities question. Configure Output Router only when explicitly requested, using [Output Router setup](references/output-router-setup.md). Preserve valid existing capability config during idempotent setup.
-
 ## Establish Same-Turn Context
 
 After successful verification, apply newly effective context directly for the remainder of the setup turn:
 
 - read the [Interaction Contract](../../runtime/interaction-contract.md) when it is effective;
-- read [Workflow](../workflow/SKILL.md) and [Mode Contract](../mode-contract/SKILL.md) when Skills are effective;
-- read an explicitly configured capability skill only when runtime state says it is effective.
+- read [Workflow](../workflow/SKILL.md) and [Mode Contract](../mode-contract/SKILL.md) when Skills are effective.
 
 This direct read establishes same-turn guidance; it does not prove that a lifecycle adapter ran. After first activation, use [host setup](references/host-setup.md) to name the exact host-native lifecycle action for automatic delivery and resource refresh, state what applies before that boundary, and keep delivery confirmed, unavailable, or unconfirmed from evidence.
 
@@ -86,13 +81,12 @@ Verify:
 - local config is missing or valid, personal, untracked, and ignored when applicable;
 - effective `enabled`, Interaction Contract, Skills, and configured default values have the expected sources;
 - Skills-disabled mode remains resolved but dormant;
-- optional capability config changed only when requested;
 - no repo-owned host instructions or unrelated files changed.
 
 Report separately:
 
 1. shared repository activation;
 2. personal override state and effective sources;
-3. effective capability state;
+3. effective Interaction Contract, Skills, and mode state;
 4. same-turn direct context reads;
 5. automatic runtime delivery as **confirmed**, **unavailable**, or **unconfirmed**.

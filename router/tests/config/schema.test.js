@@ -23,7 +23,7 @@ test("default router config uses seven-day TTL and validates", () => {
   assert.equal(config.storagePolicy, "hybrid-dedupe");
   assert.equal(config.vault.root, DEFAULT_VAULT_ROOT);
   assert.deepEqual(config.vault.retention, DEFAULT_VAULT_RETENTION);
-  assert.equal(OUTPUT_ROUTER_SKILL_PATH, "skills/output-router/SKILL.md");
+  assert.equal(OUTPUT_ROUTER_SKILL_PATH, "capabilities/output-router/SKILL.md");
   assert.deepEqual(validateRouterConfig(config), { ok: true, value: config });
 });
 

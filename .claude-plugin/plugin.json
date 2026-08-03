@@ -8,6 +8,7 @@
   "homepage": "https://github.com/hassan-mohiddin/freeflow",
   "repository": "https://github.com/hassan-mohiddin/freeflow",
   "license": "MIT",
+  "skills": "./skills/",
   "keywords": [
     "workflow",
     "skills",

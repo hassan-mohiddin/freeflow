@@ -108,8 +108,8 @@ Relevant Freeflow artifacts:
 - `docs/specs/output-router/freeflow-capability-and-output-routing-spec.md`
 - `docs/plans/output-router/2026-06-16-freeflow-output-router-implementation-plan.md`
 - `docs/handoffs/output-router/2026-06-16-output-router-implementation-and-retrieval-benchmark.md`
-- `skills/output-router/SKILL.md`
-- `skills/output-router/references/safety-policy.md`
+- `capabilities/output-router/SKILL.md`
+- `capabilities/output-router/references/safety-policy.md`
 - `router/src/tools/retrieve.ts`
 - `router/src/tools/run.ts`
 - `router/src/vault/vault.ts`
@@ -1064,7 +1064,7 @@ The macro benchmark uses the Pareto rule:
 Run this after core router behavior, caps, top-k behavior, parser metadata, and benchmark evidence stabilize.
 
 - Update `setup-freeflow` to own optional output-router repo setup and config.
-- Add a setup reference such as `skills/setup-freeflow/references/output-router-setup.md` if setup behavior needs durable guidance.
+- Add a setup reference such as `capabilities/output-router/references/setup.md` if setup behavior needs durable guidance.
 - Keep minimal setup writing only `{ "defaultMode": "workflow" }` unless the user explicitly asks to configure the output router.
 - Allow optional `.freeflow/config.json` `outputRouter` config when explicitly requested.
 - Update the setup activation contract/evals so “minimal config exactly `defaultMode`” remains true while optional `outputRouter` is allowed.

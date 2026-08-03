@@ -49,7 +49,7 @@ Workflow chooses the current owner. A linked skill does not run automatically, a
 
 | Skill | Owner | Routes / composition | References / scripts |
 | --- | --- | --- | --- |
-| [`setup-freeflow`](../skills/setup-freeflow/SKILL.md) | Layered activation, repair, same-turn context, and delivery reporting | `output-router` when explicitly requested, `decision-gate`, `workflow`, `mode-contract` | [`activation-contract`](../skills/setup-freeflow/references/activation-contract.md), [`host-setup`](../skills/setup-freeflow/references/host-setup.md), [`output-router-setup`](../skills/setup-freeflow/references/output-router-setup.md), [`Interaction Contract`](../runtime/interaction-contract.md) |
+| [`setup-freeflow`](../skills/setup-freeflow/SKILL.md) | Layered activation, repair, same-turn context, and delivery reporting | `decision-gate`, `workflow`, `mode-contract` | [`activation-contract`](../skills/setup-freeflow/references/activation-contract.md), [`host-setup`](../skills/setup-freeflow/references/host-setup.md), [`Interaction Contract`](../runtime/interaction-contract.md) |
 | [`write-skill`](../skills/write-skill/SKILL.md) | Minimal agent-first skill creation and revision | `evaluate-skill` | [`activation-boundaries`](../skills/write-skill/references/activation-boundaries.md), [`agent-first-instructions`](../skills/write-skill/references/agent-first-instructions.md), [`progressive-disclosure`](../skills/write-skill/references/progressive-disclosure.md), [`skill-author entrypoint`](../skills/write-skill/scripts/skill-author.mjs) |
 | [`evaluate-skill`](../skills/evaluate-skill/SKILL.md) | Baseline-versus-candidate behavioral evidence | `write-skill` | [`definition-schema`](../skills/evaluate-skill/references/definition-schema.md), [`evaluation-design`](../skills/evaluate-skill/references/evaluation-design.md), [`execution-and-evidence`](../skills/evaluate-skill/references/execution-and-evidence.md), [`review-and-revision`](../skills/evaluate-skill/references/review-and-revision.md), [`skill-eval entrypoint`](../skills/evaluate-skill/scripts/skill-eval.mjs) |
 
@@ -57,7 +57,7 @@ Workflow chooses the current owner. A linked skill does not run automatically, a
 
 | Package or archive | Role | Delivery |
 | --- | --- | --- |
-| [`output-router`](../skills/output-router/SKILL.md) | Optional routed-evidence capability | Disabled by default; loaded only when repository config and top-level Freeflow make it effective. Setup touches it only after an explicit request. |
+| [`output-router`](../capabilities/output-router/SKILL.md) | Optional routed-evidence capability | Pi-only. Disabled by default and loaded only when repository config and top-level Freeflow make it effective; excluded from Codex/Claude skill discovery and lifecycle context. |
 | [`delegation-harness`](../deprecated/delegation-harness/README.md) | Retired implementation and historical evidence | Excluded from the live package, Setup, commands, runtime context, and active model-skill discovery. |
 
 ## Reading The Graph
@@ -70,4 +70,4 @@ The table is an adjacency map, not a call graph. Runtime behavior still depends 
 4. the selected skill deciding whether a linked route or reference applies;
 5. evidence returning to Workflow for the next route or Supported Exit.
 
-Run `node scripts/validation/check-skill-routing-doc.mjs` after changing skill dependencies. It compares all 25 active rows with declared sibling routes and direct resource links and confirms the separately classified Output Router capability. Update this map only when ownership, a declared route, or a reference boundary changes—not after ordinary implementation progress.
+Run `node scripts/validation/check-skill-routing-doc.mjs` after changing skill dependencies. It compares all 25 active rows with declared sibling routes and direct resource links and confirms the separately classified Pi-only Output Router capability. Update this map only when ownership, a declared route, or a reference boundary changes—not after ordinary implementation progress.

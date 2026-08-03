@@ -5,9 +5,9 @@
 Freeflow helps coding agents move through consequential work without a rigid pipeline, silent decisions, or context-heavy ceremony.
 
 > Use feedback to choose the smallest useful next action.
-
+>
 > Re-enter the narrowest owning activity when evidence changes the path.
-
+>
 > Memory preserves context. It does not create authority.
 
 The active agent still does the work. Freeflow supplies the interaction contract, workflow routing, focused methods, task memory, and evidence discipline that help it decide what to do next—and when not to edit.
@@ -25,7 +25,7 @@ Coding agents are strong at mutation and weak at control boundaries:
 | A passing command becomes an unsupported completion claim. | Verify Work matches direct evidence to the exact claim and boundary. |
 | Review findings are treated as commands. | The active agent adjudicates; corrections require existing or explicit authority. |
 | Compaction loses task state or imports stale branch authority. | Track Work restores the complete Working Record and reconciles it with the current conversation and live repo. |
-| Large search, logs, and test output consume the context window. | Output Router returns focused evidence with exact recovery where configured. |
+| Large search, logs, and test output consume the context window. | Pi's optional Output Router returns focused evidence with exact recovery where configured. |
 
 Freeflow is not a new agent or workflow engine. It is a portable control layer for Codex, Claude Code, Pi, and similar coding environments.
 
@@ -83,10 +83,7 @@ Task type and direct skill calls do not silently switch mode.
 
 ## Skills And Routing
 
-Freeflow ships 26 skill packages:
-
-- 25 active model/contributor skills;
-- Output Router as an optional capability loaded only when effective.
+Freeflow ships 25 model/contributor skills to Codex, Claude Code, and Pi. The Pi package also includes Output Router as a separately packaged optional capability; it is not part of Codex or Claude skill discovery or lifecycle context.
 
 See the [typed skill routing map](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/skill-routing.md) for every owner, sibling route, and reference dependency. See [Workflow](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/workflow.md) for the lifecycle and [Architecture](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/architecture.md) for delivery and configuration.
 
@@ -106,7 +103,7 @@ It records state transitions, not every edit or comment. Routine in-slice feedba
 
 ## Context Is For Decisions, Not Dumps
 
-Output Router keeps noisy evidence recoverable without forcing all of it into model context.
+In Pi, the optional Output Router keeps noisy evidence recoverable without forcing all of it into model context.
 
 | Need | Use |
 | --- | --- |
@@ -117,7 +114,7 @@ Output Router keeps noisy evidence recoverable without forcing all of it into mo
 | Inspect configuration, vault, routing, or adapters | `freeflow_status` |
 | Read a known file or run a tiny exact command | Native host tools |
 
-Output Router is disabled by default. Setup enables it only after an explicit request.
+Output Router is disabled by default and available only through the Pi extension. Enable it explicitly through Pi's `/output-router` surface.
 
 ## Evidence, Not Marketing Certainty
 
@@ -144,14 +141,17 @@ codex plugin add freeflow@freeflow
 codex plugin list | rg freeflow
 ```
 
-Trust the Freeflow `SessionStart` hook from `/hooks` when Codex requests review.
+Trust the Freeflow `SessionStart` hook from `/hooks` when Codex requests review, then start a new session so skills and lifecycle context load from the installed plugin.
 
 ### Claude Code
 
 ```bash
 /plugin marketplace add hassan-mohiddin/freeflow
 /plugin install freeflow
+/reload-plugins
 ```
+
+Start a new session after first install when the current session predates the plugin.
 
 ### Pi
 
@@ -196,14 +196,13 @@ Pi session capability or mode override
 
 When effective, host adapters deliver:
 
-- `runtime/interaction-contract.md` for compact turn interpretation;
-- one `skills/workflow/SKILL.md` bootstrap while Skills are effective;
-- compact mode and capability state;
-- effective optional capability context.
+- `runtime/interaction-contract.md` as developer context for compact turn interpretation;
+- one `skills/workflow/SKILL.md` bootstrap per context epoch while Skills are effective;
+- compact active or dormant mode state.
 
 Mode Contract and other skills remain on demand. Hooks load context only; they do not enforce policy, block tools, grant permissions, or replace repo instructions.
 
-Pi appends effective compact context before agent turns and stores Workflow as one hidden persistent session message. Codex and Claude use packaged lifecycle hooks at supported start, resume, clear, and compact boundaries. Setup reports automatic delivery as confirmed, unavailable, or unconfirmed.
+Pi appends effective compact context before agent turns and stores Workflow as one hidden persistent session message. Codex and Claude use packaged lifecycle hooks before the first model request after supported startup, resume, clear, and compact boundaries; ordinary prompts do not duplicate the payload. Their hook never exposes Output Router. Setup reports automatic delivery as confirmed, unavailable, or unconfirmed.
 
 ## Commands
 

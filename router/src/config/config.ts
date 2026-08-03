@@ -20,7 +20,7 @@ import type {
   VaultRetentionPolicy,
 } from "./types.js";
 
-export const OUTPUT_ROUTER_SKILL_PATH = "skills/output-router/SKILL.md";
+export const OUTPUT_ROUTER_SKILL_PATH = "capabilities/output-router/SKILL.md";
 
 export const DEFAULT_VAULT_ROOT = "~/.cache/freeflow-router/vault";
 

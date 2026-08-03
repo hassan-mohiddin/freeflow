@@ -36,7 +36,7 @@ Pi session override -> personal override -> repository value -> built-in default
 
 Pi session overrides can temporarily change Freeflow master enablement, Interaction Contract, Skills, and mode. They live in branch-aware Pi session JSONL, do not mutate config files, and cannot bypass missing or invalid repository activation. An invalid existing local core layer fails closed instead of silently inheriting repository values.
 
-The Interaction Contract, Skills, and top-level Freeflow switch resolve independently. A mode remains resolved but dormant while Skills are ineffective. Repository-owned Output Router configuration remains separate from local core overrides.
+The Interaction Contract, Skills, and top-level Freeflow switch resolve independently. A mode remains resolved but dormant while Skills are ineffective. Pi owns its separately gated Output Router configuration and capability runtime.
 
 Do not store task state, active slices, Plans, current session overrides, file inventories, or generated workflow instructions in config.
 
@@ -59,7 +59,7 @@ Freeflow delivers two guidance layers:
 1. `runtime/interaction-contract.md` owns compact turn interpretation when the Interaction Contract switch is effective.
 2. `skills/workflow/SKILL.md` owns the Interaction Lifecycle, Feedback Loop, routing, review, task continuity, and Supported Exits while Skills are effective.
 
-Hosts also provide compact mode and capability state. Mode Contract and other workflow skills remain on demand. Output Router guidance is loaded only while its capability is effective.
+Hosts also provide compact active or dormant mode state. Mode Contract and other workflow skills remain on demand. Pi alone loads Output Router guidance while that capability is effective.
 
 The Interaction Contract is the only compact interaction-guidance artifact. Runtime adapters load context; they do not enforce policy, block tools, grant permissions, or replace repository instructions.
 
@@ -67,7 +67,7 @@ The Interaction Contract is the only compact interaction-guidance artifact. Runt
 
 ### Codex And Claude
 
-The packaged lifecycle hook reads repository and personal layers at supported startup, resume, clear, and compact boundaries. When effective, it delivers the Interaction Contract, Workflow bootstrap, compact mode/capability state, and enabled capability context.
+The packaged lifecycle hook reads repository and personal layers at supported startup, resume, clear, and compact boundaries. When effective, it delivers the Interaction Contract, Workflow bootstrap, and compact active or dormant mode state before the next model request. Ordinary prompts do not duplicate the payload, and the hook does not inspect, report, or inject Pi-only capabilities.
 
 The hook remains inert without valid repository activation, fails closed on invalid personal core state, and preserves the host's existing context.
 
@@ -169,10 +169,7 @@ Completion requires fresh active-agent verification, one supported self-review, 
 
 ## Current Package Shape
 
-The package contains 26 skill packages:
-
-- 25 active model/contributor skills;
-- Output Router as an optional separately gated capability.
+The cross-host model surface contains 25 active model/contributor skill packages. The Pi package separately includes Output Router under `capabilities/` as an optional gated capability outside host skill discovery.
 
 Retired Delegation Harness implementation and evidence remain under `deprecated/delegation-harness/` and are not part of runtime delivery.
 

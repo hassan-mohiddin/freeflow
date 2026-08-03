@@ -47,7 +47,7 @@ Confirm automatic delivery through current extension status or runtime evidence 
 
 The packaged lifecycle hook reads the same repository and local layers at supported session start, resume, clear, and compact boundaries.
 
-When top-level Freeflow is effective, the hook loads the Interaction Contract if enabled and the full Workflow bootstrap if Skills are enabled. It reports layered value sources and active or dormant mode state. Optional capabilities remain independently gated by valid repository config and top-level Freeflow.
+When top-level Freeflow is effective, the hook loads the Interaction Contract if enabled and the full Workflow bootstrap if Skills are enabled. It reports layered value sources and active or dormant mode state.
 
 After first-time setup, tell the user to trigger the least disruptive supported host-native lifecycle boundary: resume, clear, compact, or a new session/startup as available. Name the exact control supported by the current host; do not prescribe Pi's `/reload`. Until that boundary runs, use same-turn direct reads without claiming automatic delivery.
 
@@ -60,10 +60,6 @@ Classify delivery as:
 Installed and trusted registration can establish availability for the next lifecycle action; it does not prove delivery already occurred.
 
 Do not compensate for unavailable or unconfirmed delivery by copying Freeflow text into repository instructions.
-
-## Optional Capabilities
-
-Do not ask a generic capability question during normal setup. If Output Router is explicitly requested, use `output-router-setup.md` and keep its config in the shared repository layer unless the documented setting is specifically local-only.
 
 Do not install repo-local hooks, CLI commands, lint rules, global standards, documentation inventories, or state files during setup.
 

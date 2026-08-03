@@ -19,8 +19,6 @@ Supported defaults are `conversation`, `workflow`, and `strict-workflow`. Missin
 - `skills.enabled: true`
 - `defaultMode: workflow`
 
-Repository config may also contain documented Output Router settings. Add optional settings only after an explicit request and preserve valid existing settings during idempotent setup.
-
 Do not add current mode, task state, phase, file inventories, plans, version metadata, activation paths, empty optional sections, host instruction copies, or generated workflow text.
 
 Missing or invalid repository config means repository activation is absent. A valid config with effective `enabled: false` remains configured but inactive.
@@ -44,8 +42,6 @@ It may override these core values:
 
 Every field is optional. Omission inherits the repository value, then the built-in default. Local core precedence is property-level, not whole-file replacement.
 
-The local file may also contain documented local-only `processing` config. It must not contain repository-owned Output Router config.
-
 Keep local config untracked and ignored. In a Git checkout, prefer `.git/info/exclude` or an existing ignore rule over an unsolicited shared `.gitignore` edit. Refuse to write personal overrides to a tracked local file.
 
 A missing local file means full inheritance. An invalid existing local file blocks effective Freeflow and must not silently fall back to repository settings. Repair or removal requires authorization.
@@ -68,8 +64,6 @@ Effective Freeflow requires:
 
 The Interaction Contract and Skills are independent resolved switches. When Skills are disabled, the configured mode remains visible as resolved state but no Freeflow mode is effective.
 
-Repository-owned Output Router settings remain independent capability config and take effect only while top-level Freeflow is enabled.
-
 ## Mutation Authority By State
 
 Mode constrains agent-performed setup only when a mode is effective:
@@ -88,8 +82,9 @@ When effective, host adapters may deliver:
 
 - `runtime/interaction-contract.md` when the Interaction Contract switch is enabled;
 - one full `skills/workflow/SKILL.md` bootstrap when Skills are enabled;
-- compact active or dormant mode and capability state;
-- explicitly enabled capability context owned by that capability.
+- compact active or dormant mode state.
+
+Pi may additionally deliver explicitly enabled Pi capability context through its extension. Codex and Claude lifecycle hooks deliver only the core Interaction Contract, Workflow bootstrap, and mode state.
 
 The full Mode Contract and other workflow skills remain on demand. Adapters load context only; they do not enforce policy, block tools, grant permissions, or replace repo instructions.
 

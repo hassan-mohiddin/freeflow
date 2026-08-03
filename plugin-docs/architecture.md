@@ -10,6 +10,7 @@ The repository root is the single source of truth for skills, references, runtim
 freeflow/
   runtime/interaction-contract.md
   skills/
+  capabilities/
   hooks/
   pi-extension/
   router/
@@ -48,7 +49,7 @@ Freeflow has two model-facing guidance layers:
 1. **Interaction Contract:** `runtime/interaction-contract.md` supplies compact turn interpretation when its switch is effective.
 2. **Workflow bootstrap:** `skills/workflow/SKILL.md` supplies the complete Interaction Lifecycle, Feedback Loop, routing, review, continuity, and Supported Exit behavior when Skills are effective.
 
-Hosts also provide compact mode and capability state. Mode Contract and other workflow skills remain on demand. Output Router instructions are loaded only when that capability is effective.
+Hosts also provide compact active or dormant mode state. Mode Contract and other workflow skills remain on demand. Pi alone loads Output Router instructions when that capability is effective.
 
 The Interaction Contract is the only compact interaction-guidance artifact. It owns turn interpretation; Workflow owns routing and recurrence.
 
@@ -58,7 +59,7 @@ Context loading does not enforce policy, block tools, grant permissions, or repl
 
 ### Codex And Claude
 
-The packaged lifecycle hook reads repository and personal configuration at supported start, resume, clear, and compact boundaries. When effective, it delivers the Interaction Contract, Workflow bootstrap, compact mode/capability state, and enabled capability context.
+The packaged lifecycle hook reads repository and personal configuration at supported start, resume, clear, and compact boundaries. When effective, it delivers the Interaction Contract, Workflow bootstrap, and compact active or dormant mode state before the next model request. Ordinary prompts do not duplicate the payload. The hook does not inspect, report, or inject Pi-only capabilities.
 
 The hook stays inert without valid repository activation, fails closed on invalid personal core config, and preserves the existing host system context. Host trust or hook registration may still be required. Setup reports delivery as confirmed, unavailable, or unconfirmed.
 
@@ -86,7 +87,7 @@ A skill body is complete on first read with guaranteed context. Conditional dept
 
 See [Skill routing](skill-routing.md) for the typed owner, route, and reference adjacency map.
 
-The active model/contributor surface has 25 skills. Output Router is an optional runtime capability, so the package contains 26 skill packages without treating all 26 as one model-discovery list.
+The active cross-host model/contributor surface has 25 skills under `skills/`. Output Router is a separately packaged Pi-only runtime capability under `capabilities/`, outside Codex and Claude discovery.
 
 ## Review And Verification Topology
 
@@ -107,7 +108,7 @@ After compaction, summarization, clear, resume, or session navigation, Workflow 
 
 ## Capabilities
 
-Output Router owns routed retrieval, noisy command execution, observed routing, vault recovery, and optional script transformation. Its detailed runtime and evidence contract lives in [Output Router](output-router.md).
+The Pi-only Output Router capability owns routed retrieval, noisy command execution, observed routing, vault recovery, and optional script transformation. Its detailed runtime and evidence contract lives in [Output Router](output-router.md).
 
 Delegation Harness is retired from the live package. Its implementation and historical evidence remain under `deprecated/delegation-harness/`.
 

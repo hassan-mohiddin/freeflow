@@ -10,8 +10,8 @@ async function readRepoFile(path) {
 }
 
 test("output-router skill safety policy documents exactness-sensitive routing cases", async () => {
-  const skill = await readRepoFile("skills/output-router/SKILL.md");
-  const policy = await readRepoFile("skills/output-router/references/safety-policy.md");
+  const skill = await readRepoFile("capabilities/output-router/SKILL.md");
+  const policy = await readRepoFile("capabilities/output-router/references/safety-policy.md");
 
   assert.match(skill, /name: output-router/);
   assert.match(skill, /references\/safety-policy\.md/);
@@ -32,6 +32,6 @@ test("routing implementation references the safety policy where exactness rules 
   const runSource = await readRepoFile("router/src/tools/run.ts");
   const piSafetyNetSource = await readRepoFile("pi-extension/src/output-router/native-safety-net.ts");
 
-  assert.match(runSource, /skills\/output-router\/references\/safety-policy/);
-  assert.match(piSafetyNetSource, /skills\/output-router\/references\/safety-policy/);
+  assert.match(runSource, /capabilities\/output-router\/references\/safety-policy/);
+  assert.match(piSafetyNetSource, /capabilities\/output-router\/references\/safety-policy/);
 });

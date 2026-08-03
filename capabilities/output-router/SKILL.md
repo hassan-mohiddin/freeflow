@@ -193,7 +193,7 @@ When line numbers are unknown, use `query` or `get` first. Use `expand` when a r
 
 Use `freeflow_status` to inspect effective config, vault writability/index state, script adapters, observed routing, and migration recommendations.
 
-Use `../setup-freeflow/SKILL.md` for installation, invalid-config repair, or the initial optional-capabilities branch. After valid setup, Output Router owns explicit operational tuning requested through its capability surface.
+Use Pi's `/output-router enable` or repository settings surface for initial enablement. Read [setup guidance](references/setup.md) before repairing capability config or changing optional routing features. After valid setup, Output Router owns explicit operational tuning requested through its capability surface.
 
 Persist operational config only after an explicit tuning request or a previously accepted setup branch:
 

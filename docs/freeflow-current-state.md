@@ -30,22 +30,18 @@ Invalid existing local core config fails closed, and session enablement cannot b
 When effective, host adapters deliver:
 
 - `runtime/interaction-contract.md` as compact interaction guidance;
-- one `skills/workflow/SKILL.md` session bootstrap while Skills are effective;
-- compact active/dormant mode and capability state;
-- effective optional capability context.
+- one `skills/workflow/SKILL.md` bootstrap per context epoch while Skills are effective;
+- compact active or dormant mode state.
 
 The Interaction Contract is the only compact interaction-guidance artifact. Interaction Contract and Skills are independently resolved switches. Runtime context guides behavior; it does not enforce policy, block tools, grant permissions, or replace repository instructions.
 
-Pi reads config before turns, appends effective compact context, stores Workflow as one hidden persistent message, restores session mode entries, and dynamically exposes model skills. Codex and Claude use packaged lifecycle hooks at supported start, resume, clear, and compact boundaries.
+Pi reads config before turns, appends effective compact context, stores Workflow as one hidden persistent message, restores session mode entries, and dynamically exposes model skills. Codex and Claude use packaged lifecycle hooks before the first model request after supported start, resume, clear, and compact boundaries; ordinary prompts do not duplicate that payload.
 
 Setup reports automatic delivery as confirmed, unavailable, or unconfirmed and distinguishes same-turn direct reads from adapter execution.
 
 ## Skill Surface
 
-The package contains 26 skill packages:
-
-- 25 active model/contributor skills;
-- Output Router as an optional separately gated runtime capability.
+The cross-host model surface contains 25 active model/contributor skill packages. The Pi package separately includes Output Router as an optional gated capability outside `skills/`; Codex and Claude neither discover it nor receive it from lifecycle context.
 
 Delegation Harness is retired from the live package and preserved only under `deprecated/delegation-harness/`.
 

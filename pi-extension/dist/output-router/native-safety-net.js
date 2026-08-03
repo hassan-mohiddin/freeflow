@@ -153,7 +153,7 @@ function appendSafetyNetWarning(event, message) {
   ];
 }
 // Keep post-tool native transformations aligned with
-// skills/output-router/references/safety-policy.md.
+// capabilities/output-router/references/safety-policy.md.
 export async function handleNativeToolSafetyNet(event, ctx) {
   const routerConfigResult = await readOutputRouterConfig(ctx.cwd);
   notifyRouterConfigWarnings(ctx, routerConfigResult);

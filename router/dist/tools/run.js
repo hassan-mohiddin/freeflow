@@ -833,7 +833,7 @@ function commandRoutingFailureResult(options) {
   };
 }
 // Keep exactness-sensitive command routing aligned with
-// skills/output-router/references/safety-policy.md.
+// capabilities/output-router/references/safety-policy.md.
 function routeCommandOutput(options) {
   const outputBytes = byteLength(options.combined);
   const outputLines = countLines(options.combined);

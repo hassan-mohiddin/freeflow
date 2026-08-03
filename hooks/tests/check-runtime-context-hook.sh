@@ -68,10 +68,11 @@ for expected in \
 	"$workflow_self_review_line" \
 	'Current Freeflow default mode: `workflow`.' \
 	'Interaction Contract: enabled' \
-	'Skills: enabled' \
-	'Output router: disabled'; do
+	'Skills: enabled'; do
 	assert_contains "$codex_output" "$expected" "Codex config-only context"
 done
+assert_not_contains "$codex_output" "Output Router" "Codex host context"
+assert_not_contains "$codex_output" "Output router:" "Codex host context"
 for excluded_heading in \
 	"# Freeflow Runtime Kernel" \
 	"## Freeflow Runtime Priority" \
@@ -94,8 +95,22 @@ assert_contains "$claude_output" "# Freeflow Workflow Bootstrap" "Claude first-t
 assert_contains "$claude_output" "Answer questions without inferring action." "Claude config-only context"
 
 for source in startup resume clear compact; do
-	event_output="$(printf '{"hook_event_name":"SessionStart","source":"%s","cwd":"%s","model":"gpt-5"}\n' "$source" "$tmp_dir" | node "$HOOK_PATH" SessionStart)"
-	assert_contains "$event_output" "# Freeflow Interaction Contract" "$source SessionStart context"
+	codex_event_output="$(printf '{"hook_event_name":"SessionStart","source":"%s","cwd":"%s","model":"gpt-5"}\n' "$source" "$tmp_dir" | node "$HOOK_PATH" SessionStart)"
+	claude_event_output="$(printf '{"hook_event_name":"SessionStart","source":"%s","cwd":"%s"}\n' "$source" "$tmp_dir" | node "$HOOK_PATH" SessionStart)"
+	for host in codex claude; do
+		if [[ "$host" == "codex" ]]; then
+			event_output="$codex_event_output"
+		else
+			event_output="$claude_event_output"
+			assert_contains "$event_output" '"hookEventName":"SessionStart"' "Claude $source wrapper"
+		fi
+		assert_contains "$event_output" "# Freeflow Interaction Contract" "$host $source SessionStart context"
+		assert_contains "$event_output" "# Freeflow Workflow Bootstrap" "$host $source SessionStart context"
+		contract_count="$(grep -Fo '# Freeflow Interaction Contract' <<<"$event_output" | wc -l | tr -d ' ')"
+		bootstrap_count="$(grep -Fo '# Freeflow Workflow Bootstrap' <<<"$event_output" | wc -l | tr -d ' ')"
+		[[ "$contract_count" == "1" ]] || fail "$host $source SessionStart should load the Interaction Contract exactly once"
+		[[ "$bootstrap_count" == "1" ]] || fail "$host $source SessionStart should load Workflow exactly once"
+	done
 done
 
 # Repo-owned host instructions are neither required for activation nor modified by the read-only hook.
@@ -134,8 +149,8 @@ rm -rf "$local_dir"
 
 local_interaction_dir="$(mktemp -d)"
 mkdir -p "$local_interaction_dir/.freeflow"
-printf '{"defaultMode":"workflow"}\n' > "$local_interaction_dir/.freeflow/config.json"
-printf '{"interactionContract":false}\n' > "$local_interaction_dir/.freeflow/local.json"
+printf '{"defaultMode":"workflow"}\n' >"$local_interaction_dir/.freeflow/config.json"
+printf '{"interactionContract":false}\n' >"$local_interaction_dir/.freeflow/local.json"
 local_interaction_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$local_interaction_dir" | node "$HOOK_PATH" SessionStart)"
 assert_contains "$local_interaction_output" 'Interaction Contract: disabled' "independent local interaction override"
 assert_contains "$local_interaction_output" 'Skills: enabled' "independent local interaction override"
@@ -185,19 +200,22 @@ router_dir="$(mktemp -d)"
 mkdir -p "$router_dir/.freeflow"
 printf '{"defaultMode":"workflow","skills":{"enabled":false},"outputRouter":{"enabled":true}}\n' >"$router_dir/.freeflow/config.json"
 router_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$router_dir" | node "$HOOK_PATH" SessionStart)"
-assert_contains "$router_output" "Skills: disabled" "router-only context"
-assert_contains "$router_output" "## Loaded Output Router Skill" "router-only context"
-assert_contains "$router_output" "# Freeflow Interaction Contract" "router-only context"
-assert_not_contains "$router_output" "# Freeflow Workflow Bootstrap" "router-only context"
+assert_contains "$router_output" "Skills: disabled" "Codex context with legacy router config"
+assert_contains "$router_output" "# Freeflow Interaction Contract" "Codex context with legacy router config"
+assert_not_contains "$router_output" "# Freeflow Workflow Bootstrap" "Codex context with disabled skills"
+assert_not_contains "$router_output" "Output Router" "Codex context with legacy router config"
+assert_not_contains "$router_output" "Output router:" "Codex context with legacy router config"
 rm -rf "$router_dir"
 
 all_dir="$(mktemp -d)"
 mkdir -p "$all_dir/.freeflow"
 printf '{"defaultMode":"strict-workflow","outputRouter":{"enabled":true}}\n' >"$all_dir/.freeflow/config.json"
 all_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$all_dir" | node "$HOOK_PATH" SessionStart)"
-assert_contains "$all_output" "# Freeflow Interaction Contract" "all-capabilities context"
-assert_contains "$all_output" "## Loaded Output Router Skill" "all-capabilities context"
-assert_contains "$all_output" 'Current Freeflow default mode: `strict-workflow`.' "all-capabilities context"
+assert_contains "$all_output" "# Freeflow Interaction Contract" "Codex strict context"
+assert_contains "$all_output" "# Freeflow Workflow Bootstrap" "Codex strict context"
+assert_not_contains "$all_output" "Output Router" "Codex strict context"
+assert_not_contains "$all_output" "Output router:" "Codex strict context"
+assert_contains "$all_output" 'Current Freeflow default mode: `strict-workflow`.' "Codex strict context"
 assert_contains "$all_output" "## Strict Workflow Overlay" "all-capabilities strict overlay"
 rm -rf "$all_dir"
 
@@ -216,8 +234,10 @@ observed_dir="$(mktemp -d)"
 mkdir -p "$observed_dir/.freeflow"
 printf '{"defaultMode":"workflow","outputRouter":{"enabled":true,"observedRouting":{"enabled":true}},"scriptTransform":{"enabled":false}}\n' >"$observed_dir/.freeflow/config.json"
 observed_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$observed_dir" | node "$HOOK_PATH" SessionStart)"
-assert_contains "$observed_output" "# Freeflow Interaction Contract" "observed-routing config"
-assert_contains "$observed_output" "## Loaded Output Router Skill" "observed-routing config"
+assert_contains "$observed_output" "# Freeflow Interaction Contract" "Codex context with observed-routing config"
+assert_contains "$observed_output" "# Freeflow Workflow Bootstrap" "Codex context with observed-routing config"
+assert_not_contains "$observed_output" "Output Router" "Codex context with observed-routing config"
+assert_not_contains "$observed_output" "Output router:" "Codex context with observed-routing config"
 rm -rf "$observed_dir"
 
 echo "runtime-context hook checks passed"

@@ -6,7 +6,7 @@ import type {
   ScriptTransformConfig,
   VaultRetentionPolicy,
 } from "./types.js";
-export declare const OUTPUT_ROUTER_SKILL_PATH = "skills/output-router/SKILL.md";
+export declare const OUTPUT_ROUTER_SKILL_PATH = "capabilities/output-router/SKILL.md";
 export declare const DEFAULT_VAULT_ROOT = "~/.cache/freeflow-router/vault";
 export declare const DEFAULT_POST_TOOL_ROUTING = "off";
 export declare const DEFAULT_OUTPUT_ROUTER_ENABLED = false;

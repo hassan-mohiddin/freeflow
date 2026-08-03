@@ -56,20 +56,19 @@ Pi session capability or mode override
 
 Pi session overrides for Freeflow master enablement, Interaction Contract, Skills, and mode live in branch-aware session JSONL and do not mutate config files. They cannot bypass missing or invalid repository activation. An invalid existing personal layer blocks effective runtime. Interaction Contract and Skills resolve as independent switches. Mode remains resolved but dormant when Skills are ineffective.
 
-Repository-owned Output Router configuration remains in shared config.
+Pi-owned Output Router configuration remains in shared config but does not enter Codex or Claude discovery or lifecycle context.
 
 ## Runtime Delivery
 
 When effective, host adapters deliver:
 
 - `runtime/interaction-contract.md` for compact turn guidance;
-- `skills/workflow/SKILL.md` as a session Workflow bootstrap while Skills are effective;
-- compact mode and capability state;
-- effective capability instructions.
+- `skills/workflow/SKILL.md` once per context epoch while Skills are effective;
+- compact active or dormant mode state.
 
 Mode Contract and other workflow skills remain on demand. The Interaction Contract is the only compact interaction-guidance artifact.
 
-Pi appends compact state and Interaction Contract guidance before agent turns and stores Workflow as one hidden persistent session message. Codex and Claude use packaged lifecycle hooks at supported start, resume, clear, and compact boundaries.
+Pi appends compact state and Interaction Contract guidance before agent turns and stores Workflow as one hidden persistent session message. Codex and Claude use packaged lifecycle hooks before the first model request after supported start, resume, clear, and compact boundaries; ordinary prompts do not duplicate the payload and the hook excludes Pi-only capabilities.
 
 Activation does not prove delivery. Setup reports confirmed, unavailable, or unconfirmed delivery and distinguishes same-turn direct reads from automatic lifecycle execution.
 
@@ -97,7 +96,7 @@ Workflow owns routing. Leaf skills own focused methods. Method and domain skills
 
 The typed public adjacency map lives in `plugin-docs/skill-routing.md`. It distinguishes owners, sibling routes/composition, references, and optional capability delivery.
 
-The package contains 26 skill packages: 25 active model/contributor skills and Output Router as an optional capability. Retired Delegation Harness material lives under `deprecated/delegation-harness/` outside the package.
+The cross-host model surface contains 25 active model/contributor skill packages. The Pi package separately contains Output Router under `capabilities/`; Codex and Claude do not discover or receive it. Retired Delegation Harness material lives under `deprecated/delegation-harness/` outside the package.
 
 ## Artifact Contract
 

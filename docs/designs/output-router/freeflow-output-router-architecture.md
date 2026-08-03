@@ -5,7 +5,7 @@
 > **Owner:** Hassan Mohiddin
 > **Type:** Architecture Design
 > **Status:** Current
-> **Source:** Live router source under `router/src/`, Pi extension source under `pi-extension/src/`, `skills/output-router/`, public plugin docs, runtime specs, and release evidence current through the `freeflow_run` script-producer implementation.
+> **Source:** Live router source under `router/src/`, Pi extension source under `pi-extension/src/`, `capabilities/output-router/`, public plugin docs, runtime specs, and release evidence current through the `freeflow_run` script-producer implementation.
 
 ## Purpose
 
@@ -1938,8 +1938,8 @@ Primary source files:
 - `pi-extension/src/output-router/native-safety-net.ts`
 - `pi-extension/src/output-router/host-producer-identification.ts`
 - `pi-extension/src/runtime/runtime-context.ts`
-- `skills/output-router/SKILL.md`
-- `skills/output-router/references/safety-policy.md`
+- `capabilities/output-router/SKILL.md`
+- `capabilities/output-router/references/safety-policy.md`
 - `plugin-docs/output-router.md`
 - `plugin-docs/release-evidence.md`
 

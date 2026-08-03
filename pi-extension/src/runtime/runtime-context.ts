@@ -94,7 +94,7 @@ async function loadRuntimeContext(capabilityState = undefined) {
       ? readFile(new URL("../../../skills/workflow/SKILL.md", import.meta.url), "utf8")
       : Promise.resolve(null),
     outputRouterEnabled
-      ? readFile(new URL("../../../skills/output-router/SKILL.md", import.meta.url), "utf8")
+      ? readFile(new URL("../../../capabilities/output-router/SKILL.md", import.meta.url), "utf8")
       : Promise.resolve(null),
   ]);
 

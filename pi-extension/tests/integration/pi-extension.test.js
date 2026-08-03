@@ -209,9 +209,11 @@ test("Pi exposes canonical model skills and maps published command aliases", asy
       assert.ok(match, `unexpected skill path: ${path}`);
       return match[1];
     });
+    assert.equal(skillNames.length, 25);
     for (const skill of ["discuss", "execute-work", "track-work"]) {
       assert.ok(skillNames.includes(skill));
     }
+    assert.ok(!skillNames.includes("output-router"));
     assert.ok(!skillNames.includes("discover"));
     assert.ok(!skillNames.includes("execute-plan"));
     await Promise.all(resources.skillPaths.map((path) => readFile(path, "utf8")));

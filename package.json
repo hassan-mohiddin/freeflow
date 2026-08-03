@@ -66,6 +66,7 @@
     "LICENSE",
     "README.md",
     "assets/**",
+    "capabilities/**",
     "command-surface.json",
     "hooks/**",
     "pi-extension/**",

@@ -6,7 +6,7 @@ import {
   RESERVED_OBSERVED_ROUTING_PERSISTENCE_MODES,
   STORAGE_POLICY_MODES,
 } from "./types.js";
-export const OUTPUT_ROUTER_SKILL_PATH = "skills/output-router/SKILL.md";
+export const OUTPUT_ROUTER_SKILL_PATH = "capabilities/output-router/SKILL.md";
 export const DEFAULT_VAULT_ROOT = "~/.cache/freeflow-router/vault";
 export const DEFAULT_POST_TOOL_ROUTING = "off";
 export const DEFAULT_OUTPUT_ROUTER_ENABLED = false;

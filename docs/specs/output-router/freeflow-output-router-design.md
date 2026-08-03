@@ -544,8 +544,8 @@ Freeflow provides a tiny host-neutral `output-router` skill so agents are aware 
 The skill is not the router runtime. It teaches tool choice, recovery, and safety constraints:
 
 ```text
-skills/output-router/SKILL.md
-skills/output-router/references/safety-policy.md
+capabilities/output-router/SKILL.md
+capabilities/output-router/references/safety-policy.md
 ```
 
 Pi should load the `output-router` skill and its `references/safety-policy.md` reference into runtime context together, just like it loads `workflow` and `decision-gate` context. Other hosts can use the same skill and reference through their normal skill/plugin loading path.
@@ -740,7 +740,7 @@ For huge exactness-sensitive output, use vaulting and exact chunk retrieval rath
 Runtime-facing safety policy reference:
 
 ```text
-skills/output-router/references/safety-policy.md
+capabilities/output-router/references/safety-policy.md
 ```
 
 Keep this as a short skill reference; do not bury the runtime safety policy only in design docs.
@@ -832,7 +832,7 @@ Initial fixture classes:
 ### Resolved By Later Router Work
 
 - Exact full-context cap for `preserve: full`: keep the 64 KiB cap; over cap returns exact chunks/pointers and recovery guidance, not lossy summary.
-- Runtime-facing safety policy location: `skills/output-router/references/safety-policy.md`.
+- Runtime-facing safety policy location: `capabilities/output-router/references/safety-policy.md`.
 
 ### Must Resolve Before Later Storage/Retrieval Slices
 
@@ -853,6 +853,6 @@ Initial fixture classes:
 - Freeflow mode changes guidance strength only; it does not silently enable post-tool routing.
 - The `output-router` skill should be reusable across host adapters.
 - Initial router path is `router/`, with TypeScript source in `src/` and compiled JavaScript in `dist/`.
-- The runtime-facing skill path is `skills/output-router/SKILL.md`.
+- The runtime-facing skill path is `capabilities/output-router/SKILL.md`.
 - Default non-repo vault root is `~/.cache/freeflow-router/vault/`.
 - Default vault retention for normal non-durable outputs is 7 days, represented as TTL metadata before pruning is enabled.
