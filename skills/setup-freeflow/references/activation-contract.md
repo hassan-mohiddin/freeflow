@@ -54,7 +54,7 @@ Resolve core values in this order:
 host session override -> personal override -> repository value -> built-in default
 ```
 
-Host session overrides, where supported, may temporarily change Freeflow master enablement, Interaction Contract, Skills, and mode. They are host session state, not config, and cannot bypass missing or invalid repository activation.
+Host session overrides are host state, not config, and cannot bypass missing or invalid repository activation. Pi may temporarily override Freeflow master enablement, Interaction Contract, Skills, and mode. Claude and Codex support mode-only overrides in plugin-owned session state.
 
 Effective Freeflow requires:
 
@@ -84,7 +84,7 @@ When effective, host adapters may deliver:
 - one full `skills/workflow/SKILL.md` bootstrap when Skills are enabled;
 - compact active or dormant mode state.
 
-Pi may additionally deliver explicitly enabled Pi capability context through its extension. Codex and Claude lifecycle hooks deliver only the core Interaction Contract, Workflow bootstrap, and mode state.
+Pi may additionally deliver explicitly enabled Pi capability context through its extension. Codex and Claude `SessionStart` hooks deliver only the core Interaction Contract, Workflow bootstrap, and mode state; their `UserPromptSubmit` hook delivers only an explicit session-mode change or failure delta.
 
 The full Mode Contract and other workflow skills remain on demand. Adapters load context only; they do not enforce policy, block tools, grant permissions, or replace repo instructions.
 

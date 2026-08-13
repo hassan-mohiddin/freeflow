@@ -9,7 +9,7 @@ Usage:
                                [--format text|json]
 
 Default:
-  validate-release-metadata.sh --mode prepublish --release-version 0.4.0 --format text
+  validate-release-metadata.sh --mode prepublish --release-version 0.5.0 --format text
 EOF
 }
 
@@ -24,7 +24,7 @@ repo_root="$(git -C "$script_dir" rev-parse --show-toplevel)"
 plugin_root="$repo_root"
 
 mode="prepublish"
-release_version="0.4.0"
+release_version="0.5.0"
 format="text"
 product_description="Feedback-based control system for coding agents."
 short_description="Feedback-based control for coding agents."
@@ -318,23 +318,23 @@ check_release_boundary() {
 		ok=0
 	}
 
-	contains_fixed "$architecture_doc" "does not ship a CLI, Codex/Claude native slash handlers, enforcement hooks, or a new agent runtime in this release" || {
-		record_check "$check" "fail" "Architecture doc no longer preserves the deferred enforcement boundary."
+	contains_fixed "$architecture_doc" "does not ship a CLI, duplicate manifest command handlers, enforcement hooks, or a new agent runtime in this release" || {
+		record_check "$check" "fail" "Architecture doc no longer preserves the host-native invocation and deferred enforcement boundary."
 		ok=0
 	}
 
-	contains_fixed "$architecture_doc" "context-loading hooks" || {
-		record_check "$check" "fail" "Architecture doc no longer documents runtime context hooks."
+	contains_fixed "$architecture_doc" "shared context-and-session-mode hook" || {
+		record_check "$check" "fail" "Architecture doc no longer documents the shared runtime hook."
 		ok=0
 	}
 
-	contains_fixed "$release_evidence" "plugin-bundled context hooks" || {
-		record_check "$check" "fail" "Release evidence no longer documents runtime context hooks."
+	contains_fixed "$release_evidence" "one shared runtime hook" || {
+		record_check "$check" "fail" "Release evidence no longer documents the shared runtime hook."
 		ok=0
 	}
 
-	contains_fixed "$release_evidence" "Codex/Claude native slash handlers are not shipped in this release" || {
-		record_check "$check" "fail" "Release evidence no longer states Codex/Claude native slash handlers are not shipped."
+	contains_fixed "$release_evidence" "Freeflow uses host-native skill invocation instead of duplicate manifest command handlers" || {
+		record_check "$check" "fail" "Release evidence no longer states the host-native skill invocation boundary."
 		ok=0
 	}
 
@@ -427,17 +427,28 @@ check_docs_drift() {
 	local ok=1
 
 	if [ "$(json_get "$command_surface" '.nativeSlashHandlers')" != "false" ]; then
-		record_check "$check" "fail" "command-surface.json no longer has nativeSlashHandlers=false."
+		record_check "$check" "fail" "command-surface.json should keep duplicate manifest slash handlers disabled."
+		ok=0
+	fi
+
+	if [ "$(json_get "$command_surface" '.hostNativeSkillInvocation.claude')" != "namespaced-slash-skill" ] ||
+		[ "$(json_get "$command_surface" '.hostNativeSkillInvocation.codex')" != "skill-mention" ]; then
+		record_check "$check" "fail" "command-surface.json does not declare Claude and Codex host-native skill invocation."
+		ok=0
+	fi
+
+	if [ "$(json_get "$command_surface" '.sessionModeControls.naturalLanguage')" != "true" ]; then
+		record_check "$check" "fail" "command-surface.json does not declare natural-language session mode controls."
 		ok=0
 	fi
 
 	if jq -e 'has("commands") or has("slashCommands")' "$codex_manifest" >/dev/null; then
-		record_check "$check" "fail" "Codex manifest declares command handlers while nativeSlashHandlers=false."
+		record_check "$check" "fail" "Codex manifest declares duplicate command handlers instead of using native skill mentions."
 		ok=0
 	fi
 
 	if jq -e 'has("commands") or has("slashCommands")' "$claude_manifest" >/dev/null; then
-		record_check "$check" "fail" "Claude manifest declares command handlers while nativeSlashHandlers=false."
+		record_check "$check" "fail" "Claude manifest declares duplicate command handlers instead of native namespaced skill commands."
 		ok=0
 	fi
 

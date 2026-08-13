@@ -76,6 +76,8 @@ require_text "$pi_runtime" '../../skills/workflow/SKILL.md'
 require_text "$pi_runtime" '../../capabilities/output-router/SKILL.md'
 require_text "$shared_hook" '"runtime", "interaction-contract.md"'
 require_text "$shared_hook" '"workflow", "SKILL.md"'
+require_text "$shared_hook" 'eventName === "SessionStart" || eventName === "UserPromptSubmit"'
+require_text "$shared_hook" 'Session override: none'
 
 for file in \
 	"$agents_file" \

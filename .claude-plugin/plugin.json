@@ -1,7 +1,7 @@
 {
   "name": "freeflow",
   "description": "Freeflow gives coding agents an Interaction Contract, evidence-driven Workflow, focused methods, and durable task memory across conversation, workflow, and strict-workflow modes.",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "author": {
     "name": "Hassan Mohiddin"
   },

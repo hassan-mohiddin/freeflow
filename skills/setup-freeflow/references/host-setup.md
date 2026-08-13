@@ -45,9 +45,9 @@ Confirm automatic delivery through current extension status or runtime evidence 
 
 ## Codex And Claude
 
-The packaged lifecycle hook reads the same repository and local layers at supported session start, resume, clear, and compact boundaries.
+The packaged runtime hook reads the same repository and local layers plus plugin-owned session mode state. At supported session start, resume, clear, and compact boundaries, `SessionStart` restores the complete enabled context. On submitted prompts, `UserPromptSubmit` changes mode only for an explicit native or conservative natural-language session control and otherwise emits nothing.
 
-When top-level Freeflow is effective, the hook loads the Interaction Contract if enabled and the full Workflow bootstrap if Skills are enabled. It reports layered value sources and active or dormant mode state.
+When top-level Freeflow is effective, the hook loads the Interaction Contract if enabled and the full Workflow bootstrap if Skills are enabled. It reports configured, session, resolved, and effective mode state without treating a configured default as the current session mode.
 
 After first-time setup, tell the user to trigger the least disruptive supported host-native lifecycle boundary: resume, clear, compact, or a new session/startup as available. Name the exact control supported by the current host; do not prescribe Pi's `/reload`. Until that boundary runs, use same-turn direct reads without claiming automatic delivery.
 

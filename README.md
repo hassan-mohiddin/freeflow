@@ -184,13 +184,13 @@ Minimal setup creates shared activation:
 Configuration layers are:
 
 ```text
-Pi session capability or mode override
+host session mode override
 -> .freeflow/local.json personal core override
 -> .freeflow/config.json shared repository value
 -> built-in default
 ```
 
-`.freeflow/config.json` is required. `.freeflow/local.json` is optional and cannot activate Freeflow by itself. Session overrides live in branch-aware Pi session JSONL, do not mutate config files, and cannot bypass missing or invalid repository activation. Setup does not write Freeflow instructions into `AGENTS.md`, `CLAUDE.md`, or host rule files.
+`.freeflow/config.json` is required. `.freeflow/local.json` is optional and cannot activate Freeflow by itself. Pi stores session overrides in branch-aware session JSONL; Claude and Codex store mode overrides in plugin-owned data keyed by host session ID. Session controls do not mutate config files and cannot bypass missing or invalid repository activation. Setup does not write Freeflow instructions into `AGENTS.md`, `CLAUDE.md`, or host rule files.
 
 ## Runtime Delivery
 
@@ -202,7 +202,7 @@ When effective, host adapters deliver:
 
 Mode Contract and other skills remain on demand. Hooks load context only; they do not enforce policy, block tools, grant permissions, or replace repo instructions.
 
-Pi appends effective compact context before agent turns and stores Workflow as one hidden persistent session message. Codex and Claude use packaged lifecycle hooks before the first model request after supported startup, resume, clear, and compact boundaries; ordinary prompts do not duplicate the payload. Their hook never exposes Output Router. Setup reports automatic delivery as confirmed, unavailable, or unconfirmed.
+Pi appends effective compact context before agent turns and stores Workflow as one hidden persistent session message. Codex and Claude use one packaged runtime hook: `SessionStart` restores the complete enabled context after startup, resume, clear, and compact; `UserPromptSubmit` emits only for an explicit session-mode control and stays silent on ordinary prompts. Claude uses a bounded host-process-scoped, one-shot lifecycle handoff to retain an override when `/clear` changes the host session identifier. Their hook never exposes Output Router. Setup reports automatic delivery as confirmed, unavailable, or unconfirmed.
 
 ## Commands
 
@@ -259,9 +259,11 @@ Pi-native settings controls:
 /output-router
 ```
 
-`/freeflow settings` edits personal core overrides. `/freeflow settings session` manages temporary, branch-aware Freeflow, Interaction Contract, Skills, and mode overrides without changing config files. `/freeflow settings repo` edits shared settings. `/freeflow mode` remains the direct temporary mode control. Codex and Claude have no native Freeflow slash handlers; canonical names and natural language remain model-routed cues.
+Pi `/freeflow settings` edits personal core overrides, `/freeflow settings session` manages temporary core and mode overrides, and `/freeflow settings repo` edits shared settings. For session mode, Pi uses `/freeflow mode <mode|reset>`, Claude uses `/freeflow:mode-contract <mode|reset>`, and Codex uses `$mode-contract <mode|reset>`. Clear natural-language instructions such as “Switch to conversation mode” use the same host-managed session control; questions and hypotheticals do not.
 
-Direct skill calls select a method. They do not change mode, authorize mutation, or create independent review context.
+Claude exposes plugin skills as namespaced commands such as `/freeflow:discuss`; Codex exposes them through `/skills` and `$discuss`. Freeflow uses these host-native skill surfaces instead of duplicate manifest command handlers. Direct skill calls select a method. They do not change mode unless they invoke the mode control, authorize mutation, or create independent review context.
+
+A request to change the **default** is separate. Explicit local/personal wording targets `.freeflow/local.json`; explicit repository/shared/team wording targets `.freeflow/config.json`. An unqualified “change the default mode” request requires one local-versus-repository clarification before editing.
 
 ## Public Docs
 

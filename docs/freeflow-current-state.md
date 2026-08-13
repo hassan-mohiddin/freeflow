@@ -23,7 +23,7 @@ The adaptive candidate remains **Unverified** pending current baseline-vs-with-s
 
 ## Runtime And Configuration
 
-`.freeflow/config.json` is required shared repository activation. Optional `.freeflow/local.json` supplies per-checkout personal core overrides and cannot activate Freeflow alone. Branch-aware Pi session overrides have highest temporary precedence for Freeflow master enablement, Interaction Contract, Skills, and mode. They live in Pi session JSONL and do not mutate either config file.
+`.freeflow/config.json` is required shared repository activation. Optional `.freeflow/local.json` supplies per-checkout personal core overrides and cannot activate Freeflow alone. Host session mode overrides have highest temporary mode precedence. Pi stores broader core and mode overrides in branch-aware session JSONL; Claude and Codex store mode-only overrides in plugin-owned data keyed by host session ID. Session controls do not mutate either config file.
 
 Invalid existing local core config fails closed, and session enablement cannot bypass missing or invalid repository activation.
 
@@ -35,7 +35,7 @@ When effective, host adapters deliver:
 
 The Interaction Contract is the only compact interaction-guidance artifact. Interaction Contract and Skills are independently resolved switches. Runtime context guides behavior; it does not enforce policy, block tools, grant permissions, or replace repository instructions.
 
-Pi reads config before turns, appends effective compact context, stores Workflow as one hidden persistent message, restores session mode entries, and dynamically exposes model skills. Codex and Claude use packaged lifecycle hooks before the first model request after supported start, resume, clear, and compact boundaries; ordinary prompts do not duplicate that payload.
+Pi reads config before turns, appends effective compact context, stores Workflow as one hidden persistent message, restores session mode entries, and dynamically exposes model skills. Codex and Claude use one shared runtime hook: `SessionStart` restores full enabled context after start, resume, clear, and compact; `UserPromptSubmit` emits only for explicit session-mode controls and stays silent on ordinary prompts.
 
 Setup reports automatic delivery as confirmed, unavailable, or unconfirmed and distinguishes same-turn direct reads from adapter execution.
 
@@ -60,12 +60,12 @@ Current metadata declares:
 - 3 contributor/setup calls;
 - 3 Pi native settings commands.
 
-Codex and Claude have no native Freeflow slash handlers. Pi registers direct commands through its extension.
+Freeflow uses host-native skill invocation instead of duplicate manifest command handlers: Claude namespaced slash skills, Codex `/skills` and `$skill` mentions, and Pi registered commands. Claude and Codex additionally use their prompt hook for deterministic session-mode controls.
 
 ## Package And Release Boundary
 
 - Repository root is the single source of truth.
-- Current package version is `0.4.0`.
+- Current package version is `0.5.0`.
 - GitHub repository: `hassan-mohiddin/freeflow`.
 - npm package: `@hassangameryt/freeflow`.
 - Host targets: Codex, Claude Code, and Pi.

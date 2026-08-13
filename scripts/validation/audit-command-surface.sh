@@ -14,8 +14,8 @@ pi_extension_dist="$plugin_root/pi-extension/dist/runtime/runtime-context.js"
 failures=0
 
 fail() {
-  printf 'FAIL: %s\n' "$1" >&2
-  failures=$((failures + 1))
+	printf 'FAIL: %s\n' "$1" >&2
+	failures=$((failures + 1))
 }
 
 pi_workflow_commands="$(mktemp)"
@@ -24,9 +24,9 @@ pi_native_commands="$(mktemp)"
 trap 'rm -f "$pi_workflow_commands" "$pi_contributor_commands" "$pi_native_commands"' EXIT
 
 extract_pi_native_commands() {
-  local output_file="$1"
+	local output_file="$1"
 
-  node - "$plugin_root/pi-extension/src/index.ts" >"$output_file" <<'NODE'
+	node - "$plugin_root/pi-extension/src/index.ts" >"$output_file" <<'NODE'
 const fs = require('fs');
 const path = process.argv[2];
 const source = fs.readFileSync(path, 'utf8');
@@ -38,10 +38,10 @@ NODE
 }
 
 extract_pi_commands() {
-  local constant_name="$1"
-  local output_file="$2"
+	local constant_name="$1"
+	local output_file="$2"
 
-  node - "$pi_extension" "$constant_name" >"$output_file" <<'NODE'
+	node - "$pi_extension" "$constant_name" >"$output_file" <<'NODE'
 const fs = require('fs');
 const path = process.argv[2];
 const constantName = process.argv[3];
@@ -68,21 +68,21 @@ NODE
 }
 
 pair_exists() {
-  local file="$1"
-  local command="$2"
-  local skill="$3"
-  awk -F '\t' -v command="$command" -v skill="$skill" '$1 == command && $2 == skill { found = 1 } END { exit found ? 0 : 1 }' "$file"
+	local file="$1"
+	local command="$2"
+	local skill="$3"
+	awk -F '\t' -v command="$command" -v skill="$skill" '$1 == command && $2 == skill { found = 1 } END { exit found ? 0 : 1 }' "$file"
 }
 
 command_exists() {
-  local file="$1"
-  local command="$2"
-  awk -F '\t' -v command="$command" '$1 == command { found = 1 } END { exit found ? 0 : 1 }' "$file"
+	local file="$1"
+	local command="$2"
+	awk -F '\t' -v command="$command" '$1 == command { found = 1 } END { exit found ? 0 : 1 }' "$file"
 }
 
 registry_has_direct_command() {
-  local command="$1"
-  jq -e --arg command "$command" '.directSkillCalls[] | select(.command == $command)' "$registry" >/dev/null
+	local command="$1"
+	jq -e --arg command "$command" '.directSkillCalls[] | select(.command == $command)' "$registry" >/dev/null
 }
 
 jq empty "$registry"
@@ -93,169 +93,182 @@ extract_pi_commands CONTRIBUTOR_COMMANDS "$pi_contributor_commands"
 extract_pi_native_commands "$pi_native_commands"
 
 if [ "$(jq -r '.nativeSlashHandlers' "$registry")" != "false" ]; then
-  fail "nativeSlashHandlers should remain false until host-level slash handlers exist"
+	fail "nativeSlashHandlers should remain false because Freeflow uses host-native skill invocation rather than manifest command handlers"
 fi
 
 if jq -e 'has("commands") or has("slashCommands")' "$manifest" >/dev/null; then
-  fail "plugin manifest declares command handlers but registry says nativeSlashHandlers=false"
+	fail "plugin manifest declares duplicate command handlers while Freeflow uses host-native skill invocation"
+fi
+
+if [ "$(jq -r '.hostNativeSkillInvocation.claude' "$registry")" != "namespaced-slash-skill" ] ||
+	[ "$(jq -r '.hostNativeSkillInvocation.codex' "$registry")" != "skill-mention" ] ||
+	[ "$(jq -r '.hostNativeSkillInvocation.pi' "$registry")" != "registered-command" ]; then
+	fail "host-native skill invocation metadata is incomplete"
+fi
+
+if [ "$(jq -r '.sessionModeControls.claude' "$registry")" != '/freeflow:mode-contract <mode|reset>' ] ||
+	[ "$(jq -r '.sessionModeControls.codex' "$registry")" != '$mode-contract <mode|reset>' ] ||
+	[ "$(jq -r '.sessionModeControls.pi' "$registry")" != '/freeflow mode <mode|reset>' ] ||
+	[ "$(jq -r '.sessionModeControls.naturalLanguage' "$registry")" != "true" ]; then
+	fail "session mode control metadata is incomplete"
 fi
 
 while IFS=$'\t' read -r command skill; do
-  if [[ "$command" != /* ]]; then
-    fail "direct skill command does not start with slash: $command"
-  fi
+	if [[ "$command" != /* ]]; then
+		fail "direct skill command does not start with slash: $command"
+	fi
 
-  if [ ! -f "$skills_dir/$skill/SKILL.md" ]; then
-    fail "$command maps to missing skill: $skill"
-  fi
+	if [ ! -f "$skills_dir/$skill/SKILL.md" ]; then
+		fail "$command maps to missing skill: $skill"
+	fi
 
-  if ! rg -Fq "$command" "$command_docs"; then
-    fail "$command is missing from command-surface matrix"
-  fi
+	if ! rg -Fq "$command" "$command_docs"; then
+		fail "$command is missing from command-surface matrix"
+	fi
 
-  if ! pair_exists "$pi_workflow_commands" "$command" "$skill"; then
-    if command_exists "$pi_workflow_commands" "$command"; then
-      fail "$command maps to a different skill in Pi command registration than registry skill: $skill"
-    else
-      fail "$command is missing from Pi command registration"
-    fi
-  fi
+	if ! pair_exists "$pi_workflow_commands" "$command" "$skill"; then
+		if command_exists "$pi_workflow_commands" "$command"; then
+			fail "$command maps to a different skill in Pi command registration than registry skill: $skill"
+		else
+			fail "$command is missing from Pi command registration"
+		fi
+	fi
 done < <(jq -r '.directSkillCalls[] | [.command, .skill] | @tsv' "$registry")
 
 while IFS=$'\t' read -r command skill alias_for pi_only; do
-  target_skill="$(jq -r --arg command "$alias_for" '.directSkillCalls[] | select(.command == $command) | .skill' "$registry")"
-  if [ -z "$target_skill" ] || [ "$target_skill" = "null" ]; then
-    fail "$command aliases missing canonical command: $alias_for"
-  elif [ "$target_skill" != "$skill" ]; then
-    fail "$command alias skill $skill differs from $alias_for skill $target_skill"
-  fi
-  if [ "$pi_only" != "true" ]; then
-    fail "$command compatibility alias must be marked Pi-only while Codex/Claude native slash handlers are absent"
-  fi
+	target_skill="$(jq -r --arg command "$alias_for" '.directSkillCalls[] | select(.command == $command) | .skill' "$registry")"
+	if [ -z "$target_skill" ] || [ "$target_skill" = "null" ]; then
+		fail "$command aliases missing canonical command: $alias_for"
+	elif [ "$target_skill" != "$skill" ]; then
+		fail "$command alias skill $skill differs from $alias_for skill $target_skill"
+	fi
+	if [ "$pi_only" != "true" ]; then
+		fail "$command compatibility alias must remain Pi-only because Claude/Codex use their native skill selectors"
+	fi
 done < <(jq -r '.directSkillCalls[] | select(.aliasFor != null) | [.command, .skill, .aliasFor, (.piOnly // false)] | @tsv' "$registry")
 
 while IFS=$'\t' read -r command skill; do
-  if ! registry_has_direct_command "$command"; then
-    fail "Pi registers direct workflow command not in registry: $command -> $skill"
-  fi
+	if ! registry_has_direct_command "$command"; then
+		fail "Pi registers direct workflow command not in registry: $command -> $skill"
+	fi
 done <"$pi_workflow_commands"
 
 while IFS=$'\t' read -r command skill; do
-  if [[ "$command" != /* ]]; then
-    fail "developer skill command does not start with slash: $command"
-  fi
+	if [[ "$command" != /* ]]; then
+		fail "developer skill command does not start with slash: $command"
+	fi
 
-  if [ ! -f "$skills_dir/$skill/SKILL.md" ]; then
-    fail "$command maps to missing developer skill: $skill"
-  fi
+	if [ ! -f "$skills_dir/$skill/SKILL.md" ]; then
+		fail "$command maps to missing developer skill: $skill"
+	fi
 
-  if ! rg -Fq "$command" "$command_docs"; then
-    fail "$command is missing from command-surface matrix"
-  fi
+	if ! rg -Fq "$command" "$command_docs"; then
+		fail "$command is missing from command-surface matrix"
+	fi
 
-  if ! pair_exists "$pi_contributor_commands" "$command" "$skill"; then
-    if command_exists "$pi_contributor_commands" "$command"; then
-      fail "$command maps to a different skill in Pi contributor command registration than registry skill: $skill"
-    else
-      fail "$command is missing from Pi contributor command registration"
-    fi
-  fi
+	if ! pair_exists "$pi_contributor_commands" "$command" "$skill"; then
+		if command_exists "$pi_contributor_commands" "$command"; then
+			fail "$command maps to a different skill in Pi contributor command registration than registry skill: $skill"
+		else
+			fail "$command is missing from Pi contributor command registration"
+		fi
+	fi
 done < <(jq -r '.developerSkillCalls[]? | [.command, .skill] | @tsv' "$registry")
 
 while IFS=$'\t' read -r command skill; do
-  if [[ "$command" != /freeflow\ mode\ * ]]; then
-    fail "mode command should use /freeflow mode prefix: $command"
-  fi
+	if [[ "$command" != /freeflow\ mode\ * ]]; then
+		fail "mode command should use /freeflow mode prefix: $command"
+	fi
 
-  if [ "$skill" != "mode-contract" ]; then
-    fail "$command should route to mode-contract, got: $skill"
-  fi
+	if [ "$skill" != "mode-contract" ]; then
+		fail "$command should route to mode-contract, got: $skill"
+	fi
 
-  if [ ! -f "$skills_dir/$skill/SKILL.md" ]; then
-    fail "$command maps to missing skill: $skill"
-  fi
+	if [ ! -f "$skills_dir/$skill/SKILL.md" ]; then
+		fail "$command maps to missing skill: $skill"
+	fi
 
-  if ! rg -Fq "$command" "$command_docs"; then
-    fail "$command is missing from command-surface matrix"
-  fi
+	if ! rg -Fq "$command" "$command_docs"; then
+		fail "$command is missing from command-surface matrix"
+	fi
 
-  if ! rg -Fq "$command" "$mode_skill"; then
-    fail "$command is missing from mode-contract"
-  fi
+	if ! rg -Fq "$command" "$mode_skill"; then
+		fail "$command is missing from mode-contract"
+	fi
 done < <(jq -r '.modeCommands[] | [.command, .routesTo] | @tsv' "$registry")
 
 if rg -n '^/workflow (conversation|workflow|strict-workflow|reset)$' "$mode_skill" >/dev/null; then
-  fail "stale /workflow mode alias remains in the active mode skill"
+	fail "stale /workflow mode alias remains in the active mode skill"
 fi
 
 if ! rg -Fq 'Task shape does not change mode.' "$mode_skill"; then
-  fail "mode-contract does not preserve the configured effective mode across task shapes"
+	fail "mode-contract does not preserve the configured effective mode across task shapes"
 fi
 if rg -Fq 'If no current conversation override exists and the user asks to implement' "$mode_skill"; then
-  fail "mode-contract still infers workflow from task type instead of honoring the effective mode"
+	fail "mode-contract still infers workflow from task type instead of honoring the effective mode"
 fi
 
 for legacy_skill in deprecation-and-migration shipping-and-launch; do
-  if [ -e "$skills_dir/$legacy_skill" ]; then
-    fail "legacy skill directory remains: $legacy_skill"
-  fi
+	if [ -e "$skills_dir/$legacy_skill" ]; then
+		fail "legacy skill directory remains: $legacy_skill"
+	fi
 
-  if rg -n "$legacy_skill" \
-    "$registry" \
-    "$pi_extension" \
-    "$pi_extension_dist" \
-    "$plugin_root/README.md" \
-    "$plugin_root/plugin-docs/skill-routing.md" \
-    "$plugin_root/docs/freeflow-current-state.md" \
-    "$plugin_root/docs/freeflow-packaging-and-publishing-design.md" \
-    "$plugin_root/docs/freeflow-runtime-and-lifecycle.md" \
-    "$plugin_root/docs/plugin-contract.md" \
-    "$command_docs" \
-    "$skills_dir" >/dev/null; then
-    fail "legacy skill identity remains in active runtime or docs: $legacy_skill"
-  fi
+	if rg -n "$legacy_skill" \
+		"$registry" \
+		"$pi_extension" \
+		"$pi_extension_dist" \
+		"$plugin_root/README.md" \
+		"$plugin_root/plugin-docs/skill-routing.md" \
+		"$plugin_root/docs/freeflow-current-state.md" \
+		"$plugin_root/docs/freeflow-packaging-and-publishing-design.md" \
+		"$plugin_root/docs/freeflow-runtime-and-lifecycle.md" \
+		"$plugin_root/docs/plugin-contract.md" \
+		"$command_docs" \
+		"$skills_dir" >/dev/null; then
+		fail "legacy skill identity remains in active runtime or docs: $legacy_skill"
+	fi
 done
 
 for stale_active_label in discovery-light "Deprecation and migration" "Shipping and launch"; do
-  if rg -n -F "$stale_active_label" \
-    "$skills_dir" \
-    "$pi_extension" \
-    "$pi_extension_dist" \
-    "$plugin_root/README.md" \
-    "$plugin_root/plugin-docs" \
-    "$plugin_root/docs/freeflow-current-state.md" \
-    "$plugin_root/docs/freeflow-packaging-and-publishing-design.md" \
-    "$plugin_root/docs/freeflow-runtime-and-lifecycle.md" \
-    "$plugin_root/docs/plugin-contract.md" \
-    "$command_docs" >/dev/null; then
-    fail "stale active skill label remains: $stale_active_label"
-  fi
+	if rg -n -F "$stale_active_label" \
+		"$skills_dir" \
+		"$pi_extension" \
+		"$pi_extension_dist" \
+		"$plugin_root/README.md" \
+		"$plugin_root/plugin-docs" \
+		"$plugin_root/docs/freeflow-current-state.md" \
+		"$plugin_root/docs/freeflow-packaging-and-publishing-design.md" \
+		"$plugin_root/docs/freeflow-runtime-and-lifecycle.md" \
+		"$plugin_root/docs/plugin-contract.md" \
+		"$command_docs" >/dev/null; then
+		fail "stale active skill label remains: $stale_active_label"
+	fi
 done
 
 while IFS=$'\t' read -r command handler kind; do
-  if [[ "$command" != /* ]]; then
-    fail "Pi native command does not start with slash: $command"
-  fi
+	if [[ "$command" != /* ]]; then
+		fail "Pi native command does not start with slash: $command"
+	fi
 
-  if ! command_exists "$pi_native_commands" "$command"; then
-    fail "$command is missing from Pi native command registration"
-  fi
+	if ! command_exists "$pi_native_commands" "$command"; then
+		fail "$command is missing from Pi native command registration"
+	fi
 
-  if ! rg -Fq "$command" "$command_docs"; then
-    fail "$command is missing from command-surface matrix"
-  fi
+	if ! rg -Fq "$command" "$command_docs"; then
+		fail "$command is missing from command-surface matrix"
+	fi
 
-  if [ -z "$handler" ] || [ -z "$kind" ]; then
-    fail "$command Pi native command must declare handler and kind"
-  fi
+	if [ -z "$handler" ] || [ -z "$kind" ]; then
+		fail "$command Pi native command must declare handler and kind"
+	fi
 done < <(jq -r '.piNativeCommands[]? | [.command, .handler, .kind] | @tsv' "$registry")
 
 if [ "$failures" -gt 0 ]; then
-  exit 1
+	exit 1
 fi
 
-printf 'Command surface audit passed: %s direct skill calls, %s developer skill calls, %s mode commands, %s Pi native commands, native slash handlers disabled.\n' \
-  "$(jq '.directSkillCalls | length' "$registry")" \
-  "$(jq '.developerSkillCalls | length' "$registry")" \
-  "$(jq '.modeCommands | length' "$registry")" \
-  "$(jq '.piNativeCommands // [] | length' "$registry")"
+printf 'Command surface audit passed: %s direct skill calls, %s developer skill calls, %s mode commands, %s Pi native commands, host-native skill invocation declared.\n' \
+	"$(jq '.directSkillCalls | length' "$registry")" \
+	"$(jq '.developerSkillCalls | length' "$registry")" \
+	"$(jq '.modeCommands | length' "$registry")" \
+	"$(jq '.piNativeCommands // [] | length' "$registry")"

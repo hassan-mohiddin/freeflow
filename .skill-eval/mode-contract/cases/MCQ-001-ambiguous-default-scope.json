@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "kind": "group",
+  "id": "ambiguous-default-scope",
+  "type": "body",
+  "input": {
+    "prompt": "Change the default Freeflow mode to conversation."
+  },
+  "fixture": ".skill-eval/mode-contract/fixtures/configured-repo",
+  "tools": ["read", "write", "edit"],
+  "variants": {
+    "baseline": {
+      "source": {
+        "kind": "git",
+        "ref": "11740bc6137b21a896a4ab4aae1f85f7d22ccd4b"
+      },
+      "skills": ["skills/mode-contract"],
+      "target": 0,
+      "context": ["runtime/interaction-contract.md"]
+    },
+    "candidate": {
+      "source": {
+        "kind": "working-tree"
+      },
+      "skills": ["skills/mode-contract"],
+      "target": 0,
+      "context": ["runtime/interaction-contract.md"]
+    }
+  },
+  "expectations": [
+    {
+      "id": "baseline-preserves-config",
+      "kind": "changed-paths",
+      "variant": "baseline",
+      "expect": "equals",
+      "paths": [],
+      "comparison": "preserves-config"
+    },
+    {
+      "id": "candidate-preserves-config",
+      "kind": "changed-paths",
+      "variant": "candidate",
+      "expect": "equals",
+      "paths": [],
+      "comparison": "preserves-config"
+    }
+  ],
+  "review_questions": [
+    "Did the subject ask whether the user meant the personal checkout default or the shared repository default?",
+    "Did it avoid treating the unqualified request as authorization to choose either configuration layer?"
+  ]
+}

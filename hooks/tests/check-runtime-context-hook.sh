@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
+ROOT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")/../.." && pwd)"
 HOOK_PATH="$ROOT_DIR/hooks/freeflow-runtime-context.mjs"
 HOOKS_JSON="$ROOT_DIR/hooks/hooks.json"
 WORKFLOW_SKILL="$ROOT_DIR/skills/workflow/SKILL.md"
@@ -40,7 +40,11 @@ const fs = require("fs");
 const hooks = JSON.parse(fs.readFileSync(process.argv[1], "utf8")).hooks || {};
 if (!Array.isArray(hooks.SessionStart) || hooks.SessionStart.length === 0) process.exit(1);
 if (hooks.SessionStart[0]?.matcher !== "startup|resume|clear|compact") process.exit(1);
-' "$HOOKS_JSON" || fail "hooks.json does not register the expected SessionStart lifecycle matcher"
+if (!Array.isArray(hooks.UserPromptSubmit) || hooks.UserPromptSubmit.length !== 1) process.exit(1);
+if (hooks.UserPromptSubmit[0]?.matcher != null) process.exit(1);
+if (!Array.isArray(hooks.SessionEnd) || hooks.SessionEnd.length !== 1) process.exit(1);
+if (hooks.SessionEnd[0]?.matcher !== "clear") process.exit(1);
+' "$HOOKS_JSON" || fail "hooks.json does not register the expected non-overlapping runtime events"
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "$tmp_dir"' EXIT
@@ -57,16 +61,17 @@ user_prompt_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$tmp_dir" | node 
 [[ -z "$user_prompt_output" ]] || fail "UserPromptSubmit should not duplicate session-start runtime context"
 
 for expected in \
+	'"hookEventName":"SessionStart"' \
 	"# Freeflow Runtime Context" \
-	'Setup status: configured by `.freeflow/config.json`' \
-	"Runtime delivery: confirmed for this lifecycle-hook invocation." \
+	'Runtime delivery: confirmed for this lifecycle-hook invocation.' \
+	'Configured default: `workflow` (repository)' \
+	'Effective mode: `workflow` (configured default, active)' \
 	"# Freeflow Interaction Contract" \
 	"Answer questions without inferring action." \
 	"# Freeflow Workflow Bootstrap" \
 	"Use feedback to choose the smallest useful next action." \
 	"$workflow_owner_line" \
 	"$workflow_self_review_line" \
-	'Current Freeflow default mode: `workflow`.' \
 	'Interaction Contract: enabled' \
 	'Skills: enabled'; do
 	assert_contains "$codex_output" "$expected" "Codex config-only context"
@@ -93,6 +98,133 @@ assert_contains "$claude_output" '"hookEventName":"SessionStart"' "Claude wrappe
 assert_contains "$claude_output" "# Freeflow Interaction Contract" "Claude config-only context"
 assert_contains "$claude_output" "# Freeflow Workflow Bootstrap" "Claude first-turn context"
 assert_contains "$claude_output" "Answer questions without inferring action." "Claude config-only context"
+
+# Session mode changes are host-managed state: they apply before the same model request,
+# survive lifecycle restoration, remain isolated by session id, and never edit repo config.
+session_data_dir="$(mktemp -d)"
+session_id="session/with unsafe path characters"
+config_before="$(shasum -a 256 "$tmp_dir/.freeflow/config.json" | awk '{print $1}')"
+mode_change_output="$(printf '{"hook_event_name":"UserPromptSubmit","session_id":"%s","cwd":"%s","prompt":"Switch to conversation mode."}\n' "$session_id" "$tmp_dir" | PLUGIN_DATA="$session_data_dir" node "$HOOK_PATH" UserPromptSubmit)"
+assert_contains "$mode_change_output" '"hookEventName":"UserPromptSubmit"' "same-turn mode change wrapper"
+assert_contains "$mode_change_output" 'Session override: `conversation`' "same-turn mode change"
+assert_contains "$mode_change_output" 'Effective mode: `conversation` (session override, active)' "same-turn mode change"
+assert_contains "$mode_change_output" "## Conversation Mode Boundary" "same-turn mode change"
+
+restored_mode_output="$(printf '{"hook_event_name":"SessionStart","source":"compact","session_id":"%s","cwd":"%s","model":"gpt-5"}\n' "$session_id" "$tmp_dir" | PLUGIN_DATA="$session_data_dir" node "$HOOK_PATH" SessionStart)"
+assert_contains "$restored_mode_output" 'Configured default: `workflow` (repository)' "restored session mode"
+assert_contains "$restored_mode_output" 'Session override: `conversation`' "restored session mode"
+assert_contains "$restored_mode_output" 'Effective mode: `conversation` (session override, active)' "restored session mode"
+
+other_session_output="$(printf '{"hook_event_name":"SessionStart","source":"resume","session_id":"other-session","cwd":"%s","model":"gpt-5"}\n' "$tmp_dir" | PLUGIN_DATA="$session_data_dir" node "$HOOK_PATH" SessionStart)"
+assert_contains "$other_session_output" 'Session override: none' "session mode isolation"
+assert_contains "$other_session_output" 'Effective mode: `workflow` (configured default, active)' "session mode isolation"
+
+ordinary_prompt_output="$(printf '{"hook_event_name":"UserPromptSubmit","session_id":"%s","cwd":"%s","prompt":"Please explain this function."}\n' "$session_id" "$tmp_dir" | PLUGIN_DATA="$session_data_dir" node "$HOOK_PATH" UserPromptSubmit)"
+[[ -z "$ordinary_prompt_output" ]] || fail "ordinary prompts should not duplicate runtime context"
+question_prompt_output="$(printf '{"hook_event_name":"UserPromptSubmit","session_id":"%s","cwd":"%s","prompt":"Should we switch to strict-workflow mode?"}\n' "$session_id" "$tmp_dir" | PLUGIN_DATA="$session_data_dir" node "$HOOK_PATH" UserPromptSubmit)"
+[[ -z "$question_prompt_output" ]] || fail "mode questions should not mutate session state"
+hypothetical_prompt_output="$(printf '{"hook_event_name":"UserPromptSubmit","session_id":"%s","cwd":"%s","prompt":"Suppose the mode were workflow."}\n' "$session_id" "$tmp_dir" | PLUGIN_DATA="$session_data_dir" node "$HOOK_PATH" UserPromptSubmit)"
+[[ -z "$hypothetical_prompt_output" ]] || fail "mode hypotheticals should not mutate session state"
+default_prompt_output="$(printf '{"hook_event_name":"UserPromptSubmit","session_id":"%s","cwd":"%s","prompt":"Change the default mode to strict-workflow."}\n' "$session_id" "$tmp_dir" | PLUGIN_DATA="$session_data_dir" node "$HOOK_PATH" UserPromptSubmit)"
+[[ -z "$default_prompt_output" ]] || fail "default-mode requests should remain agent-routed configuration decisions"
+
+native_change_output="$(printf '{"hook_event_name":"UserPromptSubmit","session_id":"%s","cwd":"%s","prompt":"$mode-contract strict-workflow"}\n' "$session_id" "$tmp_dir" | PLUGIN_DATA="$session_data_dir" node "$HOOK_PATH" UserPromptSubmit)"
+assert_contains "$native_change_output" 'Session override: `strict-workflow`' "Codex native skill mode control"
+assert_contains "$native_change_output" "## Strict Workflow Overlay" "Codex native skill mode control"
+
+claude_data_dir="$(mktemp -d)"
+claude_mode_output="$(printf '{"hook_event_name":"UserPromptSubmit","session_id":"claude-session","cwd":"%s","prompt":"/freeflow:mode-contract conversation"}\n' "$tmp_dir" | CLAUDE_PLUGIN_DATA="$claude_data_dir" node "$HOOK_PATH" UserPromptSubmit)"
+assert_contains "$claude_mode_output" '"hookEventName":"UserPromptSubmit"' "Claude native skill mode control"
+assert_contains "$claude_mode_output" 'Session override: `conversation`' "Claude native skill mode control"
+claude_restored_output="$(printf '{"hook_event_name":"SessionStart","source":"resume","session_id":"claude-session","cwd":"%s"}\n' "$tmp_dir" | CLAUDE_PLUGIN_DATA="$claude_data_dir" node "$HOOK_PATH" SessionStart)"
+assert_contains "$claude_restored_output" 'Effective mode: `conversation` (session override, active)' "Claude restored session mode"
+
+# Claude /clear ends one session and starts another. SessionEnd transfers only the
+# active override for this host process/workspace, and SessionStart consumes it exactly once.
+claude_clear_end_output="$(printf '{"hook_event_name":"SessionEnd","reason":"clear","session_id":"claude-session","cwd":"%s"}\n' "$tmp_dir" | CLAUDE_PLUGIN_DATA="$claude_data_dir" CLAUDE_PID="claude-process-a" node "$HOOK_PATH" SessionEnd)"
+[[ -z "$claude_clear_end_output" ]] || fail "SessionEnd clear should not emit model context"
+claude_clear_output="$(printf '{"hook_event_name":"SessionStart","source":"clear","session_id":"claude-session-after-clear","cwd":"%s"}\n' "$tmp_dir" | CLAUDE_PLUGIN_DATA="$claude_data_dir" CLAUDE_PID="claude-process-a" node "$HOOK_PATH" SessionStart)"
+assert_contains "$claude_clear_output" 'Session override: `conversation`' "Claude clear session transfer"
+assert_contains "$claude_clear_output" 'Effective mode: `conversation` (session override, active)' "Claude clear session transfer"
+claude_unrelated_output="$(printf '{"hook_event_name":"SessionStart","source":"startup","session_id":"claude-unrelated-session","cwd":"%s"}\n' "$tmp_dir" | CLAUDE_PLUGIN_DATA="$claude_data_dir" node "$HOOK_PATH" SessionStart)"
+assert_contains "$claude_unrelated_output" 'Session override: none' "Claude clear transfer isolation"
+claude_second_clear_output="$(printf '{"hook_event_name":"SessionStart","source":"clear","session_id":"claude-second-clear","cwd":"%s"}\n' "$tmp_dir" | CLAUDE_PLUGIN_DATA="$claude_data_dir" node "$HOOK_PATH" SessionStart)"
+assert_contains "$claude_second_clear_output" 'Session override: none' "Claude clear transfer one-shot consumption"
+
+# A stale clear handoff is consumed without applying it.
+claude_stale_mode_output="$(printf '{"hook_event_name":"UserPromptSubmit","session_id":"claude-stale-source","cwd":"%s","prompt":"Switch to strict-workflow mode."}\n' "$tmp_dir" | CLAUDE_PLUGIN_DATA="$claude_data_dir" node "$HOOK_PATH" UserPromptSubmit)"
+assert_contains "$claude_stale_mode_output" 'Session override: `strict-workflow`' "Claude stale clear setup"
+printf '{"hook_event_name":"SessionEnd","reason":"clear","session_id":"claude-stale-source","cwd":"%s"}\n' "$tmp_dir" | CLAUDE_PLUGIN_DATA="$claude_data_dir" CLAUDE_PID="claude-process-stale" node "$HOOK_PATH" SessionEnd >/dev/null
+clear_transfer_file="$(find "$claude_data_dir/session-modes/claude-clear" -type f -name '*.json' -print -quit)"
+node - "$clear_transfer_file" <<'NODE'
+const fs = require("fs");
+const path = process.argv[2];
+const state = JSON.parse(fs.readFileSync(path, "utf8"));
+state.createdAt = new Date(Date.now() - 120000).toISOString();
+fs.writeFileSync(path, `${JSON.stringify(state)}\n`);
+NODE
+claude_stale_clear_output="$(printf '{"hook_event_name":"SessionStart","source":"clear","session_id":"claude-stale-target","cwd":"%s"}\n' "$tmp_dir" | CLAUDE_PLUGIN_DATA="$claude_data_dir" CLAUDE_PID="claude-process-stale" node "$HOOK_PATH" SessionStart)"
+assert_contains "$claude_stale_clear_output" 'Session override: none' "Claude stale clear transfer"
+[[ ! -e "$clear_transfer_file" ]] || fail "stale Claude clear transfer should be consumed"
+
+# Malformed plugin-owned transfer content fails closed without suppressing the
+# normal SessionStart context and is consumed rather than retried forever.
+printf '{"hook_event_name":"SessionEnd","reason":"clear","session_id":"claude-stale-source","cwd":"%s"}\n' "$tmp_dir" | CLAUDE_PLUGIN_DATA="$claude_data_dir" CLAUDE_PID="claude-process-malformed" node "$HOOK_PATH" SessionEnd >/dev/null
+malformed_transfer_file="$(find "$claude_data_dir/session-modes/claude-clear" -type f -name '*.json' -print -quit)"
+printf 'null\n' >"$malformed_transfer_file"
+claude_malformed_clear_output="$(printf '{"hook_event_name":"SessionStart","source":"clear","session_id":"claude-malformed-target","cwd":"%s"}\n' "$tmp_dir" | CLAUDE_PLUGIN_DATA="$claude_data_dir" CLAUDE_PID="claude-process-malformed" node "$HOOK_PATH" SessionStart)"
+assert_contains "$claude_malformed_clear_output" '# Freeflow Runtime Context' "Claude malformed clear transfer"
+assert_contains "$claude_malformed_clear_output" 'Session override: none' "Claude malformed clear transfer"
+[[ ! -e "$malformed_transfer_file" ]] || fail "malformed Claude clear transfer should be consumed"
+
+# Overlapping clears in one workspace remain isolated by the host process ID.
+printf '{"hook_event_name":"UserPromptSubmit","session_id":"claude-overlap-a","cwd":"%s","prompt":"Switch to conversation mode."}\n' "$tmp_dir" | CLAUDE_PLUGIN_DATA="$claude_data_dir" node "$HOOK_PATH" UserPromptSubmit >/dev/null
+printf '{"hook_event_name":"UserPromptSubmit","session_id":"claude-overlap-b","cwd":"%s","prompt":"Switch to strict-workflow mode."}\n' "$tmp_dir" | CLAUDE_PLUGIN_DATA="$claude_data_dir" node "$HOOK_PATH" UserPromptSubmit >/dev/null
+printf '{"hook_event_name":"SessionEnd","reason":"clear","session_id":"claude-overlap-a","cwd":"%s"}\n' "$tmp_dir" | CLAUDE_PLUGIN_DATA="$claude_data_dir" CLAUDE_PID="claude-process-overlap-a" node "$HOOK_PATH" SessionEnd >/dev/null
+printf '{"hook_event_name":"SessionEnd","reason":"clear","session_id":"claude-overlap-b","cwd":"%s"}\n' "$tmp_dir" | CLAUDE_PLUGIN_DATA="$claude_data_dir" CLAUDE_PID="claude-process-overlap-b" node "$HOOK_PATH" SessionEnd >/dev/null
+claude_overlap_b_output="$(printf '{"hook_event_name":"SessionStart","source":"clear","session_id":"claude-overlap-b-new","cwd":"%s"}\n' "$tmp_dir" | CLAUDE_PLUGIN_DATA="$claude_data_dir" CLAUDE_PID="claude-process-overlap-b" node "$HOOK_PATH" SessionStart)"
+assert_contains "$claude_overlap_b_output" 'Session override: `strict-workflow`' "Claude overlapping clear B"
+claude_overlap_a_output="$(printf '{"hook_event_name":"SessionStart","source":"clear","session_id":"claude-overlap-a-new","cwd":"%s"}\n' "$tmp_dir" | CLAUDE_PLUGIN_DATA="$claude_data_dir" CLAUDE_PID="claude-process-overlap-a" node "$HOOK_PATH" SessionStart)"
+assert_contains "$claude_overlap_a_output" 'Session override: `conversation`' "Claude overlapping clear A"
+
+# A no-override clear removes any stale transfer for the same process/workspace.
+printf '{"hook_event_name":"SessionEnd","reason":"clear","session_id":"claude-no-override","cwd":"%s"}\n' "$tmp_dir" | CLAUDE_PLUGIN_DATA="$claude_data_dir" CLAUDE_PID="claude-process-overlap-a" node "$HOOK_PATH" SessionEnd >/dev/null
+claude_no_override_clear_output="$(printf '{"hook_event_name":"SessionStart","source":"clear","session_id":"claude-no-override-new","cwd":"%s"}\n' "$tmp_dir" | CLAUDE_PLUGIN_DATA="$claude_data_dir" CLAUDE_PID="claude-process-overlap-a" node "$HOOK_PATH" SessionStart)"
+assert_contains "$claude_no_override_clear_output" 'Session override: none' "Claude no-override clear"
+
+# Transfer consumption claims the handoff atomically: two concurrent starts can
+# never both receive the same override.
+printf '{"hook_event_name":"SessionEnd","reason":"clear","session_id":"claude-overlap-b-new","cwd":"%s"}\n' "$tmp_dir" | CLAUDE_PLUGIN_DATA="$claude_data_dir" CLAUDE_PID="claude-process-race" node "$HOOK_PATH" SessionEnd >/dev/null
+race_output_a="$(mktemp)"
+race_output_b="$(mktemp)"
+printf '{"hook_event_name":"SessionStart","source":"clear","session_id":"claude-race-a","cwd":"%s"}\n' "$tmp_dir" | CLAUDE_PLUGIN_DATA="$claude_data_dir" CLAUDE_PID="claude-process-race" node "$HOOK_PATH" SessionStart >"$race_output_a" &
+race_pid_a=$!
+printf '{"hook_event_name":"SessionStart","source":"clear","session_id":"claude-race-b","cwd":"%s"}\n' "$tmp_dir" | CLAUDE_PLUGIN_DATA="$claude_data_dir" CLAUDE_PID="claude-process-race" node "$HOOK_PATH" SessionStart >"$race_output_b" &
+race_pid_b=$!
+wait "$race_pid_a" "$race_pid_b"
+race_override_count="$(grep -Fh 'Session override: `strict-workflow`' "$race_output_a" "$race_output_b" | wc -l | tr -d ' ')"
+[[ "$race_override_count" == "1" ]] || fail "Claude clear transfer should have exactly one concurrent consumer"
+rm -f "$race_output_a" "$race_output_b"
+
+# Codex currently reports SessionEnd reason=other, so it must never stage a
+# Claude-style clear handoff.
+codex_clear_data_dir="$(mktemp -d)"
+printf '{"hook_event_name":"UserPromptSubmit","session_id":"codex-source","cwd":"%s","prompt":"Switch to conversation mode."}\n' "$tmp_dir" | PLUGIN_DATA="$codex_clear_data_dir" node "$HOOK_PATH" UserPromptSubmit >/dev/null
+printf '{"hook_event_name":"SessionEnd","reason":"other","session_id":"codex-source","cwd":"%s"}\n' "$tmp_dir" | PLUGIN_DATA="$codex_clear_data_dir" node "$HOOK_PATH" SessionEnd >/dev/null
+if [[ -d "$codex_clear_data_dir/session-modes/claude-clear" ]]; then
+	fail "Codex SessionEnd should not stage Claude clear state"
+fi
+rm -rf "$codex_clear_data_dir" "$claude_data_dir"
+
+reset_output="$(printf '{"hook_event_name":"UserPromptSubmit","session_id":"%s","cwd":"%s","prompt":"Reset the session mode."}\n' "$session_id" "$tmp_dir" | PLUGIN_DATA="$session_data_dir" node "$HOOK_PATH" UserPromptSubmit)"
+assert_contains "$reset_output" 'Session override: cleared' "session mode reset"
+assert_contains "$reset_output" 'Effective mode: `workflow` (configured default, active)' "session mode reset"
+config_after="$(shasum -a 256 "$tmp_dir/.freeflow/config.json" | awk '{print $1}')"
+[[ "$config_before" == "$config_after" ]] || fail "session mode controls modified repository config"
+if find "$session_data_dir" -type f -print | grep -Fq "$session_id"; then
+	fail "raw session id leaked into the session-state path"
+fi
+rm -rf "$session_data_dir"
 
 for source in startup resume clear compact; do
 	codex_event_output="$(printf '{"hook_event_name":"SessionStart","source":"%s","cwd":"%s","model":"gpt-5"}\n' "$source" "$tmp_dir" | node "$HOOK_PATH" SessionStart)"
@@ -139,8 +271,8 @@ mkdir -p "$local_dir/.freeflow"
 printf '{"defaultMode":"workflow"}\n' >"$local_dir/.freeflow/config.json"
 printf '{"defaultMode":"strict-workflow"}\n' >"$local_dir/.freeflow/local.json"
 local_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$local_dir" | node "$HOOK_PATH" SessionStart)"
-assert_contains "$local_output" 'Current Freeflow default mode: `strict-workflow`.' "local default override"
-assert_contains "$local_output" 'defaultMode `strict-workflow` from local' "local default source"
+assert_contains "$local_output" 'Configured default: `strict-workflow` (personal)' "local default override"
+assert_contains "$local_output" 'Effective mode: `strict-workflow` (configured default, active)' "local default source"
 assert_contains "$local_output" "## Strict Workflow Overlay" "local strict overlay"
 assert_contains "$local_output" "security, privacy, billing, data loss, migrations, public interfaces" "local strict overlay"
 assert_contains "$local_output" "# Freeflow Interaction Contract" "local default override"
@@ -163,7 +295,7 @@ mkdir -p "$local_skills_dir/.freeflow"
 printf '{"defaultMode":"workflow"}\n' >"$local_skills_dir/.freeflow/config.json"
 printf '{"defaultMode":"conversation","interactionContract":false,"skills":{"enabled":false}}\n' >"$local_skills_dir/.freeflow/local.json"
 local_skills_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$local_skills_dir" | node "$HOOK_PATH" SessionStart)"
-assert_contains "$local_skills_output" 'Resolved default mode: `conversation` (dormant because Skills are disabled).' "local dormant mode"
+assert_contains "$local_skills_output" 'Resolved mode: `conversation` (dormant because Skills are disabled)' "local dormant mode"
 assert_contains "$local_skills_output" 'Interaction Contract: disabled' "local interaction override"
 assert_contains "$local_skills_output" 'Skills: disabled' "local skills override"
 assert_not_contains "$local_skills_output" "# Freeflow Interaction Contract" "local interaction override"
@@ -184,7 +316,7 @@ printf '{"enabled":true,"defaultMode":"workflow"}\n' >"$local_disabled_dir/.free
 printf '{"enabled":false,"processing":{"unsafeUnsandboxed":{"enabled":true}}}\n' >"$local_disabled_dir/.freeflow/local.json"
 local_disabled_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$local_disabled_dir" | node "$HOOK_PATH" SessionStart)"
 assert_contains "$local_disabled_output" "# Freeflow Disabled" "local master override"
-assert_contains "$local_disabled_output" "effective \`enabled\` is false from local" "local master source"
+assert_contains "$local_disabled_output" 'Configured but inactive: `enabled` is false (personal).' "local master source"
 assert_not_contains "$local_disabled_output" "# Freeflow Interaction Contract" "local master override"
 rm -rf "$local_disabled_dir"
 
@@ -215,7 +347,7 @@ assert_contains "$all_output" "# Freeflow Interaction Contract" "Codex strict co
 assert_contains "$all_output" "# Freeflow Workflow Bootstrap" "Codex strict context"
 assert_not_contains "$all_output" "Output Router" "Codex strict context"
 assert_not_contains "$all_output" "Output router:" "Codex strict context"
-assert_contains "$all_output" 'Current Freeflow default mode: `strict-workflow`.' "Codex strict context"
+assert_contains "$all_output" 'Effective mode: `strict-workflow` (configured default, active)' "Codex strict context"
 assert_contains "$all_output" "## Strict Workflow Overlay" "all-capabilities strict overlay"
 rm -rf "$all_dir"
 
@@ -223,8 +355,8 @@ conversation_dir="$(mktemp -d)"
 mkdir -p "$conversation_dir/.freeflow"
 printf '{"defaultMode":"conversation"}\n' >"$conversation_dir/.freeflow/config.json"
 conversation_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$conversation_dir" | node "$HOOK_PATH" SessionStart)"
-assert_contains "$conversation_output" 'Current Freeflow default mode: `conversation`.' "conversation context"
-assert_contains "$conversation_output" '`conversation`: answer, discuss, critique, and inspect read-only' "conversation context"
+assert_contains "$conversation_output" 'Configured default: `conversation` (repository)' "conversation context"
+assert_contains "$conversation_output" 'Effective mode: `conversation` (configured default, active)' "conversation context"
 assert_contains "$conversation_output" "## Conversation Mode Boundary" "conversation overlay"
 assert_contains "$conversation_output" "Do not call write, edit, or mutating tools" "conversation overlay"
 assert_contains "$conversation_output" "an execution skill does not override this boundary" "conversation overlay"

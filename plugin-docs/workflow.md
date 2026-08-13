@@ -12,18 +12,18 @@ Mode changes do not authorize work or resolve decisions. Task type and direct sk
 
 ## Activation And Configuration
 
-Freeflow requires a valid shared `.freeflow/config.json`. Optional `.freeflow/local.json` supplies per-checkout personal core overrides and cannot activate Freeflow by itself. Pi session overrides sit above configured values temporarily.
+Freeflow requires a valid shared `.freeflow/config.json`. Optional `.freeflow/local.json` supplies per-checkout personal core overrides and cannot activate Freeflow by itself.
 
 ```text
-session capability or mode override
+host session mode override
 -> personal override
 -> repository value
 -> built-in default
 ```
 
-A configured mode is dormant while Skills are ineffective. An invalid existing local config fails closed instead of silently inheriting shared settings. Session enablement cannot bypass missing or invalid repository activation.
+A configured mode is dormant while Skills are ineffective. An invalid existing local config fails closed instead of silently inheriting shared settings. Session state cannot bypass missing or invalid repository activation.
 
-Pi `/freeflow settings` edits personal overrides; `/freeflow settings session` edits branch-aware Pi session overrides for Freeflow, Interaction Contract, Skills, and mode; `/freeflow settings repo` edits shared configuration. Session settings do not mutate either config file. `/freeflow mode` remains the direct temporary mode control.
+Pi `/freeflow settings` edits personal overrides; `/freeflow settings session` edits branch-aware Pi session overrides for Freeflow, Interaction Contract, Skills, and mode; `/freeflow settings repo` edits shared configuration. Claude and Codex support mode-only session overrides through their plugin runtime hook. Session settings do not mutate either config file. A configured-default request must explicitly choose local/personal or repository/shared scope; ask once when it does not.
 
 ## Interaction Lifecycle
 

@@ -32,8 +32,8 @@ Old Orchestra is a heavy Claude-first engineering toolkit with typed docs, spec 
 Freeflow is a small portable workflow layer:
 
 - skills first
-- no Codex/Claude native slash handlers in v0.1
-- plugin-bundled context hooks or Pi extension only; no enforcement hooks or CLI enforcement in v0.1
+- host-native skill invocation rather than duplicate manifest command handlers
+- plugin-bundled context and session-mode hooks or Pi extension only; no enforcement hooks or CLI enforcement in v0.1
 - no mandatory global standards
 - no old `/orchestra:*` compatibility surface
 
@@ -81,9 +81,9 @@ Use `.codex-plugin/plugin.json` as the Codex manifest:
 - `interface.shortDescription`: `Feedback-based control for coding agents.`
 - `interface.longDescription`: describe the Interaction Contract, adaptive Workflow, three modes, routing from evidence, task memory, verification, selected review, and controlled delivery boundaries without overclaiming readiness.
 - `interface.category`: `Coding` or `Productivity`; prefer `Coding`.
-- no `commands` or `slashCommands` until native handlers are intentionally added.
+- no `commands` or `slashCommands`; Codex invokes plugin skills through `/skills` and `$skill` mentions.
 
-Keep `nativeSlashHandlers=false` in the internal command-surface evidence for Codex/Claude unless native runtime support is added later. Pi direct commands are documented as Pi-extension behavior.
+Keep `nativeSlashHandlers=false` as evidence that Freeflow does not duplicate host-native skill invocation through manifest handlers. Record Claude namespaced slash skills, Codex skill mentions, and Pi registered commands separately in command-surface metadata.
 
 ## Claude Manifest
 
@@ -171,7 +171,7 @@ The current adaptive-workflow revisions are an Unverified candidate pending beha
 
 ## Non-Goals For v0.1
 
-- No Codex/Claude native slash-command runtime.
+- No duplicate Codex/Claude manifest command runtime; use host-native skill invocation.
 - No enforcement hooks or CLI enforcement.
 - No old Orchestra command compatibility.
 - No migration of old Orchestra docs, templates, spec-review machinery, or CLI.

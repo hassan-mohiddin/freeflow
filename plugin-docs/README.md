@@ -16,7 +16,7 @@ In Codex, open the hooks screen after install:
 /hooks
 ```
 
-Press `t` to trust/enable the Freeflow `SessionStart` hook when Codex marks it as needing review. Once enabled, plugin-bundled hooks stay inert until repository configuration is valid and any personal layer is missing or valid. They then load the Interaction Contract, one Workflow bootstrap, and compact active or dormant mode state before the first model request after session start, resume, clear, and compact. Ordinary prompts do not duplicate the payload, and Codex/Claude hooks do not expose Pi-only capabilities. Setup reports runtime delivery as confirmed, unavailable, or unconfirmed instead of treating config as proof that the hook ran.
+Press `t` to trust/enable the Freeflow plugin hooks when Codex marks them as needing review. Once enabled, the shared runtime hook stays inert until repository configuration is valid and any personal layer is missing or valid. `SessionStart` loads the Interaction Contract, one Workflow bootstrap, and precise mode state after start, resume, clear, and compact. `UserPromptSubmit` runs for every submitted prompt but emits context only for an explicit session-mode control; ordinary prompts remain silent. Neither path exposes Pi-only capabilities. Setup reports runtime delivery as confirmed, unavailable, or unconfirmed instead of treating config as proof that the hook ran.
 
 In Pi, install Freeflow as a Pi package from npm:
 

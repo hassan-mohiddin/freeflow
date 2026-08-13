@@ -25,20 +25,20 @@ The npm tarball contains runtime-required files. GitHub also retains plugin docs
 
 Codex marketplace metadata uses local source `.`, while Claude uses host-valid local source `./`. Pi loads `pi-extension/freeflow/index.js` from the root package manifest.
 
-Freeflow does not ship a CLI, Codex/Claude native slash handlers, enforcement hooks, or a new agent runtime in this release. It does ship context-loading hooks and the Pi extension.
+Freeflow does not ship a CLI, duplicate manifest command handlers, enforcement hooks, or a new agent runtime in this release. It uses each host's native skill invocation and ships a shared context-and-session-mode hook plus the Pi extension.
 
 ## Layered Configuration
 
 `.freeflow/config.json` is required shared repository activation. `.freeflow/local.json` is optional per-checkout personal core configuration and cannot activate Freeflow alone.
 
 ```text
-Pi session capability or mode override
+host session mode override
 -> personal core override
 -> repository value
 -> built-in default
 ```
 
-Pi can temporarily override Freeflow master enablement, Interaction Contract, Skills, and mode. These overrides live in branch-aware Pi session JSONL, never mutate either config file, and cannot bypass missing or invalid repository activation. An invalid existing personal layer fails closed. Repository-owned Output Router configuration is not copied into the personal layer.
+Pi can temporarily override Freeflow master enablement, Interaction Contract, Skills, and mode in branch-aware session JSONL. Claude and Codex support a session-only mode override in plugin-owned data keyed by their host session ID. Session state never mutates either config file and cannot bypass missing or invalid repository activation. An invalid existing personal layer fails closed. Repository-owned Output Router configuration is not copied into the personal layer.
 
 Configuration establishes activation state; it does not prove host runtime delivery.
 
@@ -59,9 +59,9 @@ Context loading does not enforce policy, block tools, grant permissions, or repl
 
 ### Codex And Claude
 
-The packaged lifecycle hook reads repository and personal configuration at supported start, resume, clear, and compact boundaries. When effective, it delivers the Interaction Contract, Workflow bootstrap, and compact active or dormant mode state before the next model request. Ordinary prompts do not duplicate the payload. The hook does not inspect, report, or inject Pi-only capabilities.
+One packaged runtime script serves non-overlapping host events. At `SessionStart`, it reads repository, personal, and session mode state and delivers the complete enabled Interaction Contract, Workflow bootstrap, and precise configured/resolved/effective mode state after start, resume, clear, or compact. At `UserPromptSubmit`, it recognizes only explicit mode controls, updates plugin-owned session state before the same model request, and injects a compact mode delta; ordinary prompts produce no output. Because Claude ends the current session on `/clear`, `SessionEnd(reason="clear")` stages a host-process-and-workspace-scoped, one-shot handoff that only `SessionStart(source="clear")` can atomically claim within one minute. Codex does not expose a clear-specific SessionEnd reason and keeps its session-ID restoration path.
 
-The hook stays inert without valid repository activation, fails closed on invalid personal core config, and preserves the existing host system context. Host trust or hook registration may still be required. Setup reports delivery as confirmed, unavailable, or unconfirmed.
+The hook stays inert without valid repository activation, fails closed on invalid personal core config, and never inspects or exposes Pi-only capabilities. Host trust or hook registration may still be required. Setup reports delivery as confirmed, unavailable, or unconfirmed. Session records use hashed host/session keys, atomic writes, and bounded age cleanup; they survive lifecycle restoration but do not enter repository state.
 
 ### Pi
 

@@ -1,5 +1,5 @@
 {
-  "description": "Load Freeflow runtime context at session start.",
+  "description": "Load Freeflow runtime context and manage session mode.",
   "hooks": {
     "SessionStart": [
       {
@@ -10,6 +10,31 @@
             "command": "node \"${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT}}/hooks/freeflow-runtime-context.mjs\" SessionStart",
             "timeout": 5,
             "statusMessage": "Loading Freeflow context"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT}}/hooks/freeflow-runtime-context.mjs\" UserPromptSubmit",
+            "timeout": 5,
+            "statusMessage": "Checking Freeflow mode"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT:-${PLUGIN_ROOT}}/hooks/freeflow-runtime-context.mjs\" SessionEnd",
+            "timeout": 3,
+            "statusMessage": "Preserving Freeflow mode"
           }
         ]
       }

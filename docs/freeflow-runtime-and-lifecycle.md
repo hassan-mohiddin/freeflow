@@ -28,13 +28,13 @@ Task shape does not silently switch mode. Host permission modes remain separate.
 
 `.freeflow/local.json` is optional per-checkout personal core state. It cannot activate Freeflow without valid repository config.
 
-Core precedence is:
+Core mode precedence is:
 
 ```text
-Pi session override -> personal override -> repository value -> built-in default
+host session mode override -> personal override -> repository value -> built-in default
 ```
 
-Pi session overrides can temporarily change Freeflow master enablement, Interaction Contract, Skills, and mode. They live in branch-aware Pi session JSONL, do not mutate config files, and cannot bypass missing or invalid repository activation. An invalid existing local core layer fails closed instead of silently inheriting repository values.
+Pi session overrides can temporarily change Freeflow master enablement, Interaction Contract, Skills, and mode in branch-aware Pi session JSONL. Claude and Codex support mode-only session overrides in plugin-owned data keyed by the host session ID. No session override mutates config files or bypasses missing or invalid repository activation. An invalid existing local core layer fails closed instead of silently inheriting repository values.
 
 The Interaction Contract, Skills, and top-level Freeflow switch resolve independently. A mode remains resolved but dormant while Skills are ineffective. Pi owns its separately gated Output Router configuration and capability runtime.
 
@@ -67,9 +67,9 @@ The Interaction Contract is the only compact interaction-guidance artifact. Runt
 
 ### Codex And Claude
 
-The packaged lifecycle hook reads repository and personal layers at supported startup, resume, clear, and compact boundaries. When effective, it delivers the Interaction Contract, Workflow bootstrap, and compact active or dormant mode state before the next model request. Ordinary prompts do not duplicate the payload, and the hook does not inspect, report, or inject Pi-only capabilities.
+The packaged runtime hook uses event-specific outputs over one shared state resolver. `SessionStart` reads repository, personal, and host session mode state at startup, resume, clear, and compact boundaries; when effective, it delivers the Interaction Contract, Workflow bootstrap, and precise configured/resolved/effective mode state before the next model request. `UserPromptSubmit` handles only explicit native or conservative natural-language session-mode controls, updates plugin-owned state before that same request, and emits a compact mode delta. On Claude, synchronous `SessionEnd(reason="clear")` stages the active override as a host-process-and-workspace-scoped, one-shot handoff for the immediately following `SessionStart(source="clear")`; the handoff expires after one minute, is atomically claimed, and is discarded when invalid or stale. Codex currently reports only `SessionEnd(reason="other")`, so it continues to restore clear state by the host session identifier. Ordinary prompts emit nothing.
 
-The hook remains inert without valid repository activation, fails closed on invalid personal core state, and preserves the host's existing context.
+The hook remains inert without valid repository activation, fails closed on invalid personal core state, preserves the host's existing context, and never inspects, reports, or injects Pi-only capabilities. Session state survives lifecycle restoration, is isolated by hashed host/session identity, and expires through bounded cleanup rather than repository files.
 
 ### Pi
 

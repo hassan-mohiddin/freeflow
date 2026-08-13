@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "kind": "suite",
+  "id": "mode-contract",
+  "groups": ["cases/MCQ-001-ambiguous-default-scope.json"]
+}

@@ -48,13 +48,13 @@ Review findings, recommendations, Working Records, Specs, Plans, and Handoffs do
 `.freeflow/config.json` is required shared repository activation. `.freeflow/local.json` is optional per-checkout personal core configuration and cannot activate Freeflow alone.
 
 ```text
-Pi session capability or mode override
+host session mode override
 -> personal core override
 -> repository value
 -> built-in default
 ```
 
-Pi session overrides for Freeflow master enablement, Interaction Contract, Skills, and mode live in branch-aware session JSONL and do not mutate config files. They cannot bypass missing or invalid repository activation. An invalid existing personal layer blocks effective runtime. Interaction Contract and Skills resolve as independent switches. Mode remains resolved but dormant when Skills are ineffective.
+Pi session overrides for Freeflow master enablement, Interaction Contract, Skills, and mode live in branch-aware session JSONL. Claude and Codex mode overrides live in plugin-owned state keyed by host session ID. Session state does not mutate config files or bypass missing or invalid repository activation. An invalid existing personal layer blocks effective runtime. Interaction Contract and Skills resolve as independent switches. Mode remains resolved but dormant when Skills are ineffective.
 
 Pi-owned Output Router configuration remains in shared config but does not enter Codex or Claude discovery or lifecycle context.
 
@@ -68,7 +68,7 @@ When effective, host adapters deliver:
 
 Mode Contract and other workflow skills remain on demand. The Interaction Contract is the only compact interaction-guidance artifact.
 
-Pi appends compact state and Interaction Contract guidance before agent turns and stores Workflow as one hidden persistent session message. Codex and Claude use packaged lifecycle hooks before the first model request after supported start, resume, clear, and compact boundaries; ordinary prompts do not duplicate the payload and the hook excludes Pi-only capabilities.
+Pi appends compact state and Interaction Contract guidance before agent turns and stores Workflow as one hidden persistent session message. Codex and Claude use one packaged runtime hook: `SessionStart` restores complete enabled context at supported start, resume, clear, and compact boundaries; `UserPromptSubmit` emits only for explicit session-mode controls. Both paths exclude Pi-only capabilities.
 
 Activation does not prove delivery. Setup reports confirmed, unavailable, or unconfirmed delivery and distinguishes same-turn direct reads from automatic lifecycle execution.
 
@@ -146,18 +146,19 @@ Commit Work does not own review adjudication. Bypass does not change authority, 
 
 Natural language is preferred. Pi registers canonical direct skill calls from `command-surface.json`, plus `/discover` and `/execute-plan` as Pi-only compatibility aliases to `/discuss` and `/execute-work`.
 
-Codex and Claude have no native Freeflow slash handlers. Canonical slash-style phrases remain model-routed cues.
+Freeflow uses host-native skill invocation rather than duplicate manifest command handlers. Claude exposes plugin skills as namespaced slash commands such as `/freeflow:discuss`; Codex exposes them through `/skills` and `$discuss`; Pi exposes registered commands. Direct skill calls select a method. They do not authorize mutation or create independent context.
 
-Direct skill calls select a method. They do not switch mode, authorize mutation, or create independent context.
-
-Mode controls remain:
+Session mode controls are host-managed and take effect before the model acts:
 
 ```text
-/freeflow mode conversation
-/freeflow mode workflow
-/freeflow mode strict-workflow
-/freeflow mode reset
+Pi:     /freeflow mode conversation | workflow | strict-workflow | reset
+Claude: /freeflow:mode-contract conversation | workflow | strict-workflow | reset
+Codex:  $mode-contract conversation | workflow | strict-workflow | reset
 ```
+
+Clear natural-language session-mode instructions use the same control. Questions, examples, hypotheses, tentative language, task shape, and ordinary skill calls do not switch mode. Session controls do not edit configured defaults.
+
+A configured-default request must name its layer: local/personal targets `.freeflow/local.json`; repository/shared/team targets `.freeflow/config.json`. An unqualified default request requires one direct scope question. “Global” is not a Freeflow layer.
 
 Contributor calls remain:
 

@@ -55,27 +55,49 @@ The user owns mode changes. Recommend `strict-workflow` when risk warrants it, b
 
 A task type, risk classification, direct skill call, or workflow route does not switch mode. Invoking an execution skill during Conversation still does not authorize mutation.
 
-Use host-native mode control when available. In Pi:
+Use host-managed session control so the change takes effect before the model acts. A clear natural-language instruction may use the same control. Questions, examples, hypotheses, and tentative language do not change mode.
 
 ```text
-/freeflow mode
+Switch to conversation mode.                 -> session override
+Use strict-workflow for this session.         -> session override
+Should we switch to strict-workflow?          -> answer or discuss; no override
+Suppose the mode were conversation.           -> discussion; no override
+```
+
+Host-native controls are:
+
+```text
+Pi:
 /freeflow mode conversation
 /freeflow mode workflow
 /freeflow mode strict-workflow
 /freeflow mode reset
+
+Claude:
+/freeflow:mode-contract <conversation|workflow|strict-workflow|reset>
+
+Codex:
+$mode-contract <conversation|workflow|strict-workflow|reset>
 ```
 
-Pi handles these commands before the model runs. The three setting commands create a session override; `reset` clears it and returns to the configured default, including a personal override when present. `/freeflow mode` inspects or selects mode according to host UI support.
+Claude and Codex persist their override in plugin-owned session state keyed by the host session identifier. Pi persists it in branch-aware Pi session state. The override survives ordinary turns and supported resume, clear, and compact boundaries for that session; `reset` clears it and returns to the configured default. A new session starts from configured state.
 
-For a natural-language request to change Pi session mode, direct the user to the native command. Do not claim runtime state changed until the host reports the new effective mode.
+Treat only runtime-reported effective state as proof that the control succeeded. If the host reports missing session identity, unavailable writable plugin state, disabled Skills, or another failure, say that mode did not change. Do not compensate by editing a configured default.
 
 Mention mode only when the user asks, configuration is being discussed, or it changes the next action.
 
 ## Change Defaults Separately
 
-A persistent default change is not a session-mode change. An unqualified personal default request targets `.freeflow/local.json`; changing the shared repository default requires explicit repository, team, or shared-default wording.
+A persistent default change is not a session-mode change. Determine which configured layer the user means before editing:
 
-In Pi, use `/freeflow mode` or `/freeflow settings session` for a temporary mode override, `/freeflow settings` for personal overrides, and `/freeflow settings repo` for shared defaults. In another host, use its native settings when available or update only the explicitly selected valid layer while preserving unrelated settings.
+- explicit **personal** or **local** default targets `.freeflow/local.json`;
+- explicit **shared**, **repository**, or **team** default targets `.freeflow/config.json`;
+- an unqualified “change the default mode” request leaves that scope user-owned—ask one direct local-versus-repository question and wait;
+- “global” is not a defined Freeflow layer—ask whether the user means this checkout's personal default or the shared repository default.
+
+Do not infer the target from which file already exists or from the current mode. Preserve unrelated settings in the selected layer.
+
+In Pi, `/freeflow settings` edits personal overrides and `/freeflow settings repo` edits shared defaults. In another host, an agent may update only the explicitly selected valid configuration layer. Session controls never modify either file.
 
 For agent-performed config edits, obey the effective mode when one exists. Conversation remains read-only. When no mode is effective because Freeflow is unconfigured, inactive, blocked by invalid config, or Skills are dormant, an explicit configuration or [Setup Freeflow](../setup-freeflow/SKILL.md) request governs the selected change; any dormant resolved mode is neither authority nor prohibition. User-operated host controls change their own state before the model continues.
 

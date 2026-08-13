@@ -1,5 +1,16 @@
 {
   "nativeSlashHandlers": false,
+  "hostNativeSkillInvocation": {
+    "claude": "namespaced-slash-skill",
+    "codex": "skill-mention",
+    "pi": "registered-command"
+  },
+  "sessionModeControls": {
+    "claude": "/freeflow:mode-contract <mode|reset>",
+    "codex": "$mode-contract <mode|reset>",
+    "pi": "/freeflow mode <mode|reset>",
+    "naturalLanguage": true
+  },
   "modeCommands": [
     {
       "command": "/freeflow mode conversation",
