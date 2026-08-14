@@ -72,6 +72,6 @@ A checkpoint result may support continuation, correction, another route, deferme
 
 ## Resume Or Return
 
-When resuming, reopen the source that established the work and inspect live state. If a Working Record exists, read its complete current context and slice through [Track Work](../../track-work/SKILL.md); do not reconstruct authority or progress from a summary alone.
+When resuming, reopen the source that established the work and inspect live state. If a Working Record exists, request its bounded `resume` view through [Track Work](../../track-work/SKILL.md), then retrieve exact entities only when the next decision needs them; do not reconstruct authority or progress from a summary alone.
 
 Continue only while accepted authority and evidence support the execution basis. Return to [Workflow](../../workflow/SKILL.md) when direction, authority, scope, source truth, strategy, or the intended result changes, or when no worthwhile safe continuation remains.

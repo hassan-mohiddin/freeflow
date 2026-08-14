@@ -136,7 +136,7 @@ A slice is one coherent Learning, Delivery, or Deepening result. One current sli
 
 Before accepted work expands, decide write-ahead whether it extends the current slice or needs a new result, authority source, or evidence boundary. Routine in-slice feedback is not checkpoint history.
 
-When an ongoing task resumes after compaction, summarization, clear, resume, or session navigation, Workflow reads the complete Working Record before continuing. The record is compared with the current conversation and live state; memory from another conversation branch does not create authority.
+When an ongoing task resumes after compaction, summarization, clear, resume, or session navigation, Workflow requests the Working Record's bounded `resume` view before continuing and retrieves exact entities only when needed. The record is compared with the current conversation and live state; memory from another conversation branch does not create authority.
 
 ## Verification And Review
 

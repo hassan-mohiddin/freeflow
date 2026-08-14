@@ -77,8 +77,8 @@ Stop when safe transfer would require inventing intent, authority, evidence, des
 
 When resuming:
 
-1. Reopen the named source truth, Working Record when present, and current worktree state.
-2. Verify important completion, evidence, review, commit, and artifact-identity claims before repeating them.
+1. Reopen the named source truth, the Working Record's bounded `resume` view when present, and current worktree state.
+2. Retrieve exact Working Record entities only when needed, then verify important completion, evidence, review, commit, and artifact-identity claims before repeating them.
 3. Compare the recorded route, decisions, and assumptions with live evidence.
 4. Preserve what still holds and identify only the invalidated layer.
 5. Return the live state and supported next action to [Workflow](../workflow/SKILL.md).

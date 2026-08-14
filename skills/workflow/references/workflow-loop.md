@@ -87,6 +87,6 @@ A useful but unapproved review, correction, commit, or other checkpoint returns 
 
 ## Context And Completion
 
-Before an expected context boundary, reconcile changed Working Record state. After compaction, summarization, resume, clear, or session navigation, read the complete record before continuing and compare it with the conversation and live state. Another conversation branch may contain memory, not authority.
+Before an expected context boundary, reconcile changed Working Record state. After compaction, summarization, resume, clear, or session navigation, request the bounded Track Work `resume` view before continuing; compare it with the conversation and live state and retrieve exact entities only when needed. Another conversation branch may contain memory, not authority.
 
 Completion requires fresh evidence, supported self-review, resolved selected reviews, accurate task memory, synchronized required artifacts, and no hidden user-owned decision or source conflict.

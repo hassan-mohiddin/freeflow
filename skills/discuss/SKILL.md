@@ -56,7 +56,7 @@ Identify only what the next decision needs:
 - tentative assumptions or viable alternatives;
 - evidence and uncertainty that could change the route.
 
-When a Working Record exists, orient from its current context and check important claims against live evidence. Read older history only when the present direction or rationale is unclear. Update only what new evidence affects.
+When a Working Record exists, orient from its current context and check important claims against live evidence. Read older history only when the present direction or rationale is unclear. Update only what new evidence affects. Persist material settled, tentative, open, proposed, or explicitly retained state through Track Work, then return to Discuss; a record update does not start execution or change the owning route.
 
 ## Focus The Discussion
 

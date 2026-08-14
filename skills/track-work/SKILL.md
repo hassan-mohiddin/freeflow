@@ -1,84 +1,157 @@
 ---
 name: track-work
-description: Use when deciding whether proposed or ongoing work needs a durable Working Record, or when creating, resuming, or updating one to preserve task state across execution, pauses, or context loss.
+description: Use when deciding whether proposed or ongoing work needs a durable Working Record, or when creating, resuming, and maintaining one through deterministic views and transitions.
 ---
 
 # Track Work
 
-Decide whether proposed or ongoing work needs a durable Working Record, then maintain selected records without turning them into a transcript, fixed Plan, or authority over live evidence and user decisions. Deciding or reading an existing record is read-only; create or update one only when the effective mode permits mutation.
+Use Track Work when forgetting the task's decisions, evidence, authority, current slice, or next action could cause misalignment. It owns living task memory. It does not own discussion, implementation authority, semantic truth, review adjudication, or task completion.
 
-Use this route to decide whether to wait, return to Workflow, or continue through [Execute Work](../execute-work/SKILL.md):
+A Working Record is memory, not authority. User decisions, live evidence, repository instructions, and accepted source truth win over a stale record.
+
+## Decide Whether To Track
+
+Track work when continuity has material value:
+
+- the task spans turns, context loss, or ownership transfer;
+- decisions, evidence, blockers, or authority need durable recovery;
+- one outcome will contain several implementation, verification, review, or correction iterations;
+- proposed future outcomes need to remain visible without becoming authorized work.
+
+Do not create a record for a short discussion or disposable local action when forgetting it would not risk misalignment. Ask before creating one when continuity value or task ownership is unclear.
+
+Use one local directory per task:
 
 ```text
-[Proposed or ongoing work]
--> existing Working Record owns it
-   -> read the required reference
-   -> maintain it
-   -> select an authorized slice and route to Execute Work, or wait
--> no existing Working Record
-   -> would losing context, decisions, evidence, or the next action risk misalignment?
-      -> no
-         -> authorized work in a mutation-permitting mode -> Execute Work
-         -> otherwise -> Workflow or wait
-      -> yes, but a record is unapproved
-         -> recommend a Working Record
-         -> wait
-      -> yes, and a record is approved
-         -> mode permits durable mutation
-            -> read the required reference
-            -> create the record
-            -> first slice already requested or approved
-               -> select the slice
-               -> Execute Work
-            -> only record creation was approved
-               -> Current Slice: None
-               -> wait
-         -> mode does not permit durable mutation
-            -> recommend the required mode change
-            -> wait
+.freeflow/tasks/task-NNN-<short-name>/record.md
 ```
 
-## Read The Required Reference
+Everything under `.freeflow/tasks/**`, including task-local Specs and Plans, is ignored local memory. Write Spec or Write Plan separately owns promotion to tracked documentation. Track Work never stages, commits, publishes, or synchronizes duplicates.
 
-Before creating, resuming, or updating a Working Record, read the complete [Working Record method and schema](references/working-record-schema.md). This skill and its reference form one method. Do not invent fields, states, or transitions from memory; if the reference is unavailable, do not mutate the record.
+## One Canonical Record
 
-## Core Contract
+Schema-v2 `record.md` remains readable Markdown and is the only canonical task state. It contains, in order:
 
-- A record preserves current context, one current slice, revisable proposals, durable history, inert Notes, and one next useful action. It is memory; live evidence and user decisions win.
-- `Current understanding` is a present-state summary, not a running task summary or compressed transcript. Replace superseded prose instead of appending completed events.
-- Give detailed facts one schema-owned home. Other sections summarize or point to that owner rather than repeating findings, hashes, commands, or test inventories.
-- Only the user changes task state. Do not infer `Paused`, `Completed`, `Abandoned`, or renewed `Active` state from inactivity, apparent completion, or failure.
-- A **slice** is one bounded piece of learning, delivery, or structural improvement. One slice may span multiple iterations of [Workflow's](../workflow/SKILL.md) Feedback Loop and calls to other owning skills.
-- Record state changes, not every edit or conversation. Apply authorized in-scope steering and reconcile its meaningful final effect when the slice closes.
-- Before work changes the recorded result, scope, authority, evidence boundary, or stop conditions, decide and record whether it extends the current slice or requires a new one.
-- Questions, criticism, and review findings do not authorize changes. Ordinary in-slice feedback is not a checkpoint or history event merely because work pauses for the user.
-- Workflow establishes slice outcomes. Implementation, verification, self-review, or a review report does not end a slice by itself, and review need not Pass.
-- The record may preserve authority sources, decisions, checkpoints, and evidence; it never creates authority or proof.
+1. header and user-owned task state;
+2. Current Context;
+3. Current Work and at most one Current Slice;
+4. unselected Proposed Slices;
+5. History of decisions, selected checkpoints, and settled slices;
+6. inert Notes.
 
-## Follow The Lifecycle
+Current Context is present state, not a transcript. Keep Goal, source pointers, Settled understanding, Tentative hypotheses, route-changing Open questions, Current direction, Boundaries, and short active-decision summaries. Replace stale summaries instead of appending events.
 
-After reading the required reference:
+Current Work owns the route, one current slice or `None`, blockers, selected upcoming boundaries, and one next useful action. History owns settled detail. Historical slices never own the current next action. Notes do not authorize, prioritize, block, prove, or require follow-up.
 
-1. **Create or resume:** use the established task directory, restore task state after context loss, and orient from live evidence.
-2. **Select or wait:** select a slice only when its concrete work is requested or approved. If only record creation is approved, keep `Current Slice` as `None` and wait. When selected, move one proposal into `Current Slice`, assign its chronological `S-` ID, save the write-ahead state, then route to Execute Work.
-3. **Maintain the slice:** keep small steering out of the event history; record accepted extensions before execution; preserve blockers, review routes, and evidence without replacing a coherent slice.
-4. **Close the slice:** move the Workflow-established outcome to History, preserve the original boundary and accepted extensions, rewrite Current Context from the resulting present state, remove completed-event detail already owned by History, and set `Current Slice` to `None`.
-5. **Preserve what matters:** keep task-local decisions, selected checkpoints, evidence pointers, and Notes in their schema-owned sections.
+Only the user changes task state: `Active`, `Paused`, `Completed`, or `Abandoned`. A Paused task may retain its reconciled slice but rejects `start` and `resume`. Completed and Abandoned records must have `Current Slice: None`.
 
-## Context Boundaries
+## Discuss And Track Work Compose
 
-Before an expected compaction, summarization, pause, clear, or transfer, reconcile the record only when task state changed. The boundary itself is not a record event.
+Discuss owns exploration, alternatives, assumptions, and direction. Track Work persists material state and returns to Discuss:
 
-After compaction, summarization, resume, clear, or session navigation, read the complete record before the next task action and compare it with the current conversation and live state. Identify the task from current context or inspect and ask rather than guessing. A record written on another conversation branch is memory, not authority.
+```text
+Discuss -> material state change -> Track Work update -> Discuss
+```
 
-## Route Or Stop
+A record update does not end discussion, select a proposal, start work, create a review checkpoint, or change the owning route. Routine maintenance may preserve an accepted decision, changed understanding, proposal, question, evidence pointer, blocker, or explicitly retained Note when the record is already approved. It does not authorize implementation.
 
-Use [Discuss](../discuss/SKILL.md) before selecting a slice when a collaborative question could materially change its result, scope, or route.
+## Slices Are Outcomes
 
-Use `Blocked` only when a required decision, dependency, capability, evidence source, stop condition, or other unavailable condition prevents safe continuation. Keep the blocked slice current, record what is needed, then stop. General execution authority does not override a stop condition.
+A slice is one coherent Learning, Delivery, or Deepening result. Keep implementation milestones, plan steps, tests, verification, reviews, accepted corrections, focused follow-up, required documentation, and local commits inside that slice while the result, authority boundary, and evidence boundary remain the same.
 
-When the user requests a separate point-in-time transfer artifact, read [Handoff](../handoff/SKILL.md). Creating a handoff does not replace living Working Record state.
+A proposal is an unselected, unnumbered candidate. It has no `S-` ID, execution state, or implied authority. Select it only at the last responsible moment when execution is explicitly authorized. Starting a slice records the authority source; the record does not create that authority.
 
-## Check The Record
+Use a new slice only for a distinct intended result, authority boundary, evidence boundary, independently useful outcome, or explicit abandonment of the original result. If feedback changes scope, stop condition, evidence boundary, or intended result, reconcile the accepted extension before executing it.
 
-After every update, silently compare the record with live evidence and the required reference. Correct clear local issues. Remove historical narration from Current Context once its active consequence is captured, and replace duplicated detail with a compact pointer to its owner. Do not create review history or request review merely because the record changed.
+Closure means settlement, not merely finished code or green tests:
+
+- `Completed` requires the intended result, evidence boundary, supported self-review, selected review/checkpoint route, accepted corrections, and required in-scope work to be settled;
+- historical `Blocked` deliberately parks a currently blocked attempt while preserving the unresolved blocker and required resolution;
+- `Abandoned` requires explicit authority, reason, residual effects, and useful evidence without implying success.
+
+Do not invent `Completed pending review`, review slices, correction slices, or automatic next slices.
+
+## Read And Maintain Safely
+
+After compaction, summarization, clear, resume, or session navigation:
+
+1. run `view --view resume`;
+2. compare its confirmed projection with the conversation and live repository;
+3. retrieve an exact entity only when rationale, chronology, supersession, authority, or evidence is material;
+4. return to the owning route.
+
+Do not normally read or paste complete history. Use `discuss`, `execute`, `current`, and `work` views for bounded decisions. Use `recent`, `entity`, or `full` for audit and dispute.
+
+When an existing record is malformed or legacy, inspect it read-only. Do not guess a repair or mutate it. Explicit migration is a separate boundary.
+
+## Deterministic Script Boundary
+
+The executable entrypoint is:
+
+```text
+skills/track-work/scripts/working-record.mjs
+```
+
+The user and model own task meaning, authority, slice judgment, evidence interpretation, review selection, settlement, task-state direction, and promotion. The script owns task numbering, schema parsing/rendering, bounded views, IDs, timestamps, allowed mechanical transitions, hashes, locks, validation, and atomic persistence. It cannot prove semantic truth.
+
+Mutations receive semantic JSON through `--input`; do not encode prose through fragile shell arguments. Existing-record mutations require the exact current SHA-256 from a confirmed view or prior result:
+
+```text
+node skills/track-work/scripts/working-record.mjs view \
+  --record .freeflow/tasks/task-NNN-name/record.md --view resume
+
+node skills/track-work/scripts/working-record.mjs update \
+  --record .freeflow/tasks/task-NNN-name/record.md \
+  --expected-sha <confirmed-sha256> --input update.json
+```
+
+### Commands
+
+- `init`: create the next ignored task directory and minimal schema-v2 record. It checks Git ignore/tracked state and never edits `.gitignore`.
+- `view`: render `resume`, `discuss`, `execute`, `current`, `work`, `recent`, `entity`, or `full`. Views do not mutate or update timestamps.
+- `update`: atomically maintain current context, route, decisions, proposals, Notes, current-slice meaning/evidence, or an explicitly directed task-state change. It does not start or close a slice.
+- `start`: select a proposal or direct authorized result and create exactly one Current Slice.
+- `block`: record why safe continuation is unavailable and what is required.
+- `resume`: return the same blocked slice to progress only after its blocker is resolved.
+- `close`: settle one Current Slice as Completed, historical Blocked, or Abandoned and clear it atomically. It may apply an explicitly authorized terminal task state in the same transaction.
+- `validate`: report deterministic structural validity; it is not a readiness or quality judgment.
+- `inspect`: report sizes, counts, legacy facts, and advisory smells without auto-fixing.
+
+Every command emits one JSON envelope. Confirmed results expose `schemaVersion`, `taskState`, `currentSlice`, `lastUpdated`, and record SHA-256. Confirmation is `confirmed`, `candidate`, or `unavailable`; never treat candidate or unavailable metadata as current confirmed state.
+
+Exit meanings:
+
+- `0`: viewed, updated, no-change, dry-run, valid, or inspected;
+- `1`: failed before commit, including invalid input/state, missing or stale SHA, lock conflict, malformed record, or rejected transition;
+- `2`: `committed-unconfirmed` after atomic rename but failed publication confirmation.
+
+A no-op, read, dry run, or failed operation does not change bytes, IDs, SHA, or `Last updated`. Dry-run output is prospective only and must be rechecked before a real mutation.
+
+## Failure And Recovery
+
+The script fails closed before rename. It preserves the original record, does not consume IDs, does not update timestamps, and does not begin a dependent transition.
+
+After exit `2`, assume the record may have changed:
+
+1. discard every previously held expected SHA;
+2. fresh-read the actual path;
+3. run `validate` and `inspect` when available;
+4. establish a confirmed task projection and SHA;
+5. only then discuss or perform another transition.
+
+Do not bypass the script with manual edits, force-write flags, stale hashes, or guessed repair. A human edit requires a fresh confirmed SHA before the next scripted mutation. No automatic stale-lock breaking or legacy migration exists in v1.
+
+## Route From Results
+
+- unchanged discussion state: return to Discuss or wait;
+- material accepted memory: `update`, then return to its owning route;
+- authorized execution: `start`, then Execute Work;
+- unavailable safe continuation: `block` and stop;
+- resolved blocker: `resume` and return to Execute Work;
+- settled outcome: `close`, reconcile the record, and return to Workflow;
+- validation or transition conflict: preserve evidence and return to Workflow or [Discuss](../discuss/SKILL.md);
+- implementation: use [Execute Work](../execute-work/SKILL.md);
+- lifecycle routing and authority: use [Workflow](../workflow/SKILL.md);
+- point-in-time transfer: use [Handoff](../handoff/SKILL.md).
+
+Track Work ends when the record accurately preserves the supported state and one next useful action. It does not claim that implementation, review, migration, behavioral effectiveness, commit, release, or publication is complete.

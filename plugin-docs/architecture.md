@@ -100,12 +100,12 @@ A review report never edits. The active agent adjudicates and may request correc
 
 ## Task Memory
 
-Track Work owns a composite method:
+Track Work owns one complete model-facing method and one deterministic executable boundary:
 
-- `skills/track-work/SKILL.md` is the compact first-read contract;
-- `skills/track-work/references/working-record-schema.md` is required before creating, resuming, or mutating a Working Record.
+- `skills/track-work/SKILL.md` teaches continuity, slice, authority, and settlement judgment;
+- `skills/track-work/scripts/working-record.mjs` owns schema-v2 parsing, views, transitions, IDs, timestamps, locking, validation, and atomic persistence.
 
-After compaction, summarization, clear, resume, or session navigation, Workflow reads the complete active record before continuing task work and reconciles it against the current conversation and live state. Conversation branches may write memory but cannot create authority for another branch.
+After compaction, summarization, clear, resume, or session navigation, Workflow requests the bounded `resume` view, compares it with the current conversation and live state, and retrieves exact history only when needed. Conversation branches may write memory but cannot create authority for another branch.
 
 ## Capabilities
 

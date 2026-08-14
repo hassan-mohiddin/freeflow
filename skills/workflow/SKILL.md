@@ -60,7 +60,7 @@ Continue only while authority remains clear, evidence supports the route, no che
 
 When authorized work is concrete and direction is settled, use Track Work to decide whether continuity needs a Working Record, then follow its result to Execute Work or wait. Create durable memory only when forgetting would risk misalignment: a Working Record for living task state, a Spec for stable accepted content, a Plan for ordered strategy, an ADR for a surprising hard-to-reverse decision, or a Handoff for point-in-time transfer.
 
-When an ongoing task resumes after compaction, summarization, clear, resume, or session navigation, read the complete owning Working Record before continuing and compare it with the conversation and live state. Another conversation branch may preserve memory, not authority.
+When an ongoing task resumes after compaction, summarization, clear, resume, or session navigation, request Track Work's bounded `resume` view, compare it with the conversation and live state, and retrieve exact entities only when chronology, rationale, supersession, evidence, or authority is material. Another conversation branch may preserve memory, not authority.
 
 Synchronize durable architecture, plugin, setup, or similar documentation when stabilized behavior or dependent work requires it—not after every slice. Never finish with a known required-doc inconsistency.
 

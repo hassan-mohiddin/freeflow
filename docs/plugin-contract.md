@@ -132,7 +132,7 @@ Corrections leave review and return to Execute Work or the artifact owner. They 
 
 ## Continuity Contract
 
-Before an expected context boundary, Track Work reconciles changed task state. After compaction, summarization, clear, resume, or session navigation, Workflow reads the complete active record before continuing task work.
+Before an expected context boundary, Track Work reconciles changed task state. After compaction, summarization, clear, resume, or session navigation, Workflow requests the bounded `resume` view before continuing task work and retrieves exact history only when needed.
 
 A record written by another conversation branch is memory, not authority. Compare it with the current conversation and live repository state before acting.
 

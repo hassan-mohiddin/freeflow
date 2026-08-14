@@ -99,7 +99,7 @@ Track Work maintains one Working Record for an ongoing task:
 - one next useful action;
 - optional inert Notes.
 
-It records state transitions, not every edit or comment. Routine in-slice feedback is not checkpoint history. After compaction, summarization, clear, resume, or session navigation, Workflow reads the complete record before continuing and treats it as memory rather than authority.
+It records state transitions, not every edit or comment. Routine in-slice feedback is not checkpoint history. After compaction, summarization, clear, resume, or session navigation, Workflow uses the bounded `resume` view and retrieves exact history only when needed, treating the record as memory rather than authority.
 
 ## Context Is For Decisions, Not Dumps
 

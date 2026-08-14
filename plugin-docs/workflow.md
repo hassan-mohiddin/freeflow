@@ -79,7 +79,7 @@ Corrections leave review and return to Execute Work or the artifact owner. They 
 
 ## Task Continuity
 
-When an ongoing task resumes after compaction, summarization, clear, resume, or session navigation, read its complete Working Record before continuing task work. Compare it with the current conversation and live state. Another conversation branch may have written memory, not authority.
+When an ongoing task resumes after compaction, summarization, clear, resume, or session navigation, request the Working Record's bounded `resume` view before continuing task work. Compare it with the current conversation and live state, retrieving exact entities only when needed. Another conversation branch may have written memory, not authority.
 
 Routine in-slice feedback is not checkpoint history. Record state changes, accepted boundary extensions, decisions, blockers, evidence, and selected checkpoint results—not every edit or comment.
 
