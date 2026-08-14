@@ -35,17 +35,18 @@ function usage() {
   return `Usage: node skills/track-work/scripts/working-record.mjs <command> [options]
 
 Commands:
-  init     --root <repo> --name <short-name> [--input <json-file>] [--dry-run]
+  init     --root <repo> --name <short-name> [--input <json-file|->] [--dry-run]
   view     --record <record.md> --view <resume|discuss|execute|current|work|recent|entity|section|full> [--entity <id-or-title>] [--section <name>]
-  update   --record <record.md> --expected-sha <sha256> --input <json-file> [--dry-run]
-  start    --record <record.md> --expected-sha <sha256> --input <json-file> [--dry-run]
-  block    --record <record.md> --expected-sha <sha256> --input <json-file> [--dry-run]
-  resume   --record <record.md> --expected-sha <sha256> --input <json-file> [--dry-run]
-  close    --record <record.md> --expected-sha <sha256> --input <json-file> [--dry-run]
+  update   --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
+  start    --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
+  block    --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
+  resume   --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
+  reopen   --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
+  close    --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
   validate --record <record.md>
   inspect  --record <record.md>
 
-All commands emit one JSON result. Existing-record mutations require the current SHA-256.
+All commands emit one JSON result. Existing-record mutations require the current SHA-256. Use --input - to read semantic JSON from stdin.
 `;
 }
 

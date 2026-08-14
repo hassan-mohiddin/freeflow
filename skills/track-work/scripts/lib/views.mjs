@@ -5,6 +5,7 @@ import {
   DECISION_STATES,
   HISTORICAL_SLICE_STATES,
   HISTORY_SLICE_FIELDS,
+  HISTORY_SLICE_OPTIONAL_FIELDS,
   SLICE_STATES,
   SLICE_TYPES,
   TASK_STATES,
@@ -90,7 +91,9 @@ export function renderNamedSection(data, section) {
       "### Checkpoints",
       data.history.checkpoints.map((item) => renderEntity(item, CHECKPOINT_FIELDS)).join(""),
       "### Slices",
-      data.history.slices.map((item) => renderEntity(item, HISTORY_SLICE_FIELDS)).join(""),
+      data.history.slices
+        .map((item) => renderEntity(item, HISTORY_SLICE_FIELDS, "####", HISTORY_SLICE_OPTIONAL_FIELDS))
+        .join(""),
       "",
     ].join("\n");
   if (section === "Notes") return `## Notes\n${data.notes.map(renderNote).join("")}\n`;
@@ -111,7 +114,9 @@ export function renderView(data, view, entity, limit = 5, recordSha) {
   else if (view === "work") content = `${header}${renderWorkView(data)}`;
   else if (view === "recent") {
     const slices = data.history.slices.slice(-limit);
-    content = `${renderRecordHeaderOnly(data)}\n## Recent History\n${slices.map((slice) => renderEntity(slice, HISTORY_SLICE_FIELDS)).join("")}`;
+    content = `${renderRecordHeaderOnly(data)}\n## Recent History\n${slices
+      .map((slice) => renderEntity(slice, HISTORY_SLICE_FIELDS, "####", HISTORY_SLICE_OPTIONAL_FIELDS, false))
+      .join("")}`;
   } else if (view === "entity") {
     if (!entity) fail("invalid-arguments", "entity view requires --entity");
     const found = findEntity(data, entity);
@@ -137,7 +142,10 @@ export function renderRecordHeaderOnly(data) {
 
 function findEntity(data, identifier) {
   const collections = [
-    ...data.history.slices.map((item) => ({ item, content: renderEntity(item, HISTORY_SLICE_FIELDS) })),
+    ...data.history.slices.map((item) => ({
+      item,
+      content: renderEntity(item, HISTORY_SLICE_FIELDS, "####", HISTORY_SLICE_OPTIONAL_FIELDS, false),
+    })),
     ...data.history.decisions.map((item) => ({ item, content: renderEntity(item, DECISION_FIELDS) })),
     ...data.history.checkpoints.map((item) => ({ item, content: renderEntity(item, CHECKPOINT_FIELDS) })),
     ...data.proposals.map((item) => ({ item, content: renderProposal(item) })),

@@ -6,8 +6,10 @@ import {
   CONTEXT_FIELDS,
   DECISION_FIELDS,
   HISTORY_SLICE_FIELDS,
+  HISTORY_SLICE_OPTIONAL_FIELDS,
   PROPOSAL_FIELDS,
   SLICE_FIELDS,
+  SLICE_OPTIONAL_FIELDS,
   compactObject,
   ensureArray,
   ensureString,
@@ -111,8 +113,8 @@ function parseBulletFields(lines, { strict = true } = {}) {
   return fields;
 }
 
-function assertKnownAndRequiredFields(fields, definitions, scope) {
-  const known = new Set(definitions.map(([, key]) => key));
+function assertKnownAndRequiredFields(fields, definitions, scope, optionalDefinitions = []) {
+  const known = new Set([...definitions, ...optionalDefinitions].map(([, key]) => key));
   for (const [key, field] of fields) {
     if (!known.has(key)) fail("unknown-field", `Unknown ${scope} field: ${field.label}`);
   }
@@ -191,7 +193,7 @@ export function renderHeadingField(label, value) {
 function parseCurrentSlice(lines) {
   if (readTextBlock(lines).trim() === "None") return null;
   const fields = parseBulletFields(lines);
-  assertKnownAndRequiredFields(fields, SLICE_FIELDS, "Current Slice");
+  assertKnownAndRequiredFields(fields, SLICE_FIELDS, "Current Slice", SLICE_OPTIONAL_FIELDS);
   const slice = {
     id: parsedField(fields, "id"),
     title: parsedField(fields, "title"),
@@ -211,6 +213,7 @@ function parseCurrentSlice(lines) {
     blockerHistory: parsedField(fields, "blockerHistory", { array: true }),
     pendingBoundaries: parsedField(fields, "pendingBoundaries", { array: true }),
     pendingReviews: parsedField(fields, "pendingReviews", { array: true }),
+    reopenHistory: parsedField(fields, "reopenHistory", { array: true }),
     result: parsedField(fields, "result"),
     evidence: parsedField(fields, "evidence", { array: true }),
     reviewSummary: parsedField(fields, "reviewSummary"),
@@ -240,12 +243,13 @@ export function renderCurrentSlice(slice) {
     blockerHistory: slice.blockerHistory,
     pendingBoundaries: slice.pendingBoundaries,
     pendingReviews: slice.pendingReviews,
+    reopenHistory: slice.reopenHistory,
     result: slice.result,
     evidence: slice.evidence,
     reviewSummary: slice.reviewSummary,
     taskEffect: slice.taskEffect,
   };
-  return `### Current Slice\n${renderBulletFields(values, SLICE_FIELDS)}\n`;
+  return `### Current Slice\n${renderBulletFields(values, [...SLICE_FIELDS, ...SLICE_OPTIONAL_FIELDS])}\n`;
 }
 
 function parseProposal(block) {
@@ -265,25 +269,32 @@ export function renderProposal(proposal) {
   return `### ${proposal.title}\n${renderBulletFields(proposal, PROPOSAL_FIELDS)}\n`;
 }
 
-function parseEntity(block, definitions, idFromTitle = true) {
+function parseEntity(block, definitions, idFromTitle = true, optionalDefinitions = []) {
   const fields = parseBulletFields(block.lines);
-  assertKnownAndRequiredFields(fields, definitions, "history entity");
+  assertKnownAndRequiredFields(fields, definitions, "history entity", optionalDefinitions);
   const match = idFromTitle ? /^(?<id>[A-Z]-\d{3})\s+—\s+(?<title>.+)$/.exec(block.title) : null;
   return compactObject({
     ...(match ? { id: match.groups.id, title: match.groups.title } : { title: block.title }),
     ...Object.fromEntries(
-      definitions.map(([, key]) => [
+      [...definitions, ...optionalDefinitions].map(([, key]) => [
         key,
-        parsedField(fields, key, { array: ARRAY_FIELDS.has(key), json: ["blocker"].includes(key) }),
+        parsedField(fields, key, { array: ARRAY_FIELDS.has(key), json: ["blocker", "reopenSnapshot"].includes(key) }),
       ]),
     ),
   });
 }
 
-export function renderEntity(entity, definitions, headingPrefix = "####") {
+export function renderEntity(
+  entity,
+  definitions,
+  headingPrefix = "####",
+  optionalDefinitions = [],
+  includeOptional = true,
+) {
   const title = entity.id ? `${entity.id} — ${entity.title ?? entity.id}` : entity.title;
-  const values = Object.fromEntries(definitions.map(([, key]) => [key, entity[key]]));
-  return `${headingPrefix} ${title}\n${renderBulletFields(values, definitions)}\n`;
+  const fields = includeOptional ? [...definitions, ...optionalDefinitions] : definitions;
+  const values = Object.fromEntries(fields.map(([, key]) => [key, entity[key]]));
+  return `${headingPrefix} ${title}\n${renderBulletFields(values, fields)}\n`;
 }
 
 function parseActiveDecisionSummaries(lines) {
@@ -398,7 +409,9 @@ function parseV2(text, path) {
   const history = {
     decisions: headingBlocks(decisionsBlock.lines, 4).map((block) => parseEntity(block, DECISION_FIELDS)),
     checkpoints: headingBlocks(checkpointsBlock.lines, 4).map((block) => parseEntity(block, CHECKPOINT_FIELDS)),
-    slices: headingBlocks(slicesBlock.lines, 4).map((block) => parseEntity(block, HISTORY_SLICE_FIELDS)),
+    slices: headingBlocks(slicesBlock.lines, 4).map((block) =>
+      parseEntity(block, HISTORY_SLICE_FIELDS, true, HISTORY_SLICE_OPTIONAL_FIELDS),
+    ),
   };
 
   const notesSection = exactHeadingBlock(topSections, "Notes");
@@ -520,7 +533,9 @@ export function renderRecord(data) {
     "### Checkpoints",
     data.history.checkpoints.map((item) => renderEntity(item, CHECKPOINT_FIELDS)).join(""),
     "### Slices",
-    data.history.slices.map((item) => renderEntity(item, HISTORY_SLICE_FIELDS)).join(""),
+    data.history.slices
+      .map((item) => renderEntity(item, HISTORY_SLICE_FIELDS, "####", HISTORY_SLICE_OPTIONAL_FIELDS))
+      .join(""),
     "## Notes",
     data.notes.map(renderNote).join(""),
   ];

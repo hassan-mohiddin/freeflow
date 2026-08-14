@@ -48,10 +48,16 @@ function normalizeInput(input) {
   return input;
 }
 
+async function readStdin() {
+  const chunks = [];
+  for await (const chunk of process.stdin) chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 export async function readJsonInput(options) {
   const inputPath = options["--input"];
   if (!inputPath) return {};
-  const source = inputPath === "-" ? await readFile(0, "utf8") : await readFile(inputPath, "utf8");
+  const source = inputPath === "-" ? await readStdin() : await readFile(inputPath, "utf8");
   try {
     return normalizeInput(JSON.parse(source));
   } catch (error) {
@@ -441,7 +447,7 @@ export async function executeCommand(command, { root = process.cwd(), options = 
     return executeViewCommand(workspaceRoot, normalizedInput, options, "view");
   if (command === "validate") return executeValidateCommand(workspaceRoot, options);
   if (command === "inspect") return executeInspectCommand(workspaceRoot, options);
-  if (["update", "start", "block", "resume", "close"].includes(command))
+  if (["update", "start", "block", "resume", "reopen", "close"].includes(command))
     return executeMutationCommand(workspaceRoot, command, normalizedInput, options);
   fail("unknown-command", `Unknown command: ${command}`);
 }

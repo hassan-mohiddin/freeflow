@@ -48,6 +48,7 @@ export const SLICE_FIELDS = [
   ["Review summary", "reviewSummary"],
   ["Task effect", "taskEffect"],
 ];
+export const SLICE_OPTIONAL_FIELDS = [["Reopen history", "reopenHistory"]];
 export const PROPOSAL_FIELDS = [
   ["Type", "type"],
   ["Intended result", "intendedResult"],
@@ -87,6 +88,7 @@ export const HISTORY_SLICE_FIELDS = [
   ["Task effect", "taskEffect"],
   ["Blocker and required resolution", "blocker"],
 ];
+export const HISTORY_SLICE_OPTIONAL_FIELDS = [["Reopen snapshot", "reopenSnapshot"]];
 
 export const ARRAY_FIELDS = new Set([
   "blockers",
@@ -96,6 +98,7 @@ export const ARRAY_FIELDS = new Set([
   "blockerHistory",
   "pendingBoundaries",
   "pendingReviews",
+  "reopenHistory",
   "evidence",
   "dependencies",
 ]);
@@ -201,6 +204,7 @@ export function normalizeSlice(input, id) {
     blockerHistory: ensureArray(input.blockerHistory),
     pendingBoundaries: ensureArray(input.pendingBoundaries),
     pendingReviews: ensureArray(input.pendingReviews),
+    reopenHistory: ensureArray(input.reopenHistory),
     result: ensureString(input.currentResult ?? input.resultSummary),
     evidence: ensureArray(input.evidence),
     reviewSummary: ensureString(input.reviewSummary),
@@ -364,8 +368,10 @@ export function validateModel(data) {
   return errors;
 }
 function maxId(entities, prefix) {
+  const marker = `${prefix}-`;
   return entities.reduce((max, entity) => {
-    const value = Number(new RegExp(`^${prefix}-(\\d{3})$`).exec(entity.id ?? "")?.[1] ?? 0);
+    const suffix = typeof entity.id === "string" && entity.id.startsWith(marker) ? entity.id.slice(marker.length) : "";
+    const value = /^\d{3}$/.test(suffix) ? Number(suffix) : 0;
     return Math.max(max, value);
   }, 0);
 }

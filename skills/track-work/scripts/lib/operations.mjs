@@ -258,6 +258,82 @@ function applyResume(data, input) {
   return { affectedIds: [slice.id] };
 }
 
+function applyReopen(data, input) {
+  assertActiveTask(data, "reopen");
+  if (data.currentWork.currentSlice) fail("existing-current-slice", "A Current Slice already exists");
+  const sliceId = input.sliceId ?? input.id ?? input.currentSliceId;
+  if (!sliceId) fail("missing-slice-id", "reopen requires sliceId");
+  const historyIndex = data.history.slices.findIndex((slice) => slice.id === sliceId);
+  if (historyIndex < 0) fail("missing-historical-slice", `No historical slice exists with ID ${sliceId}`);
+  const historical = data.history.slices[historyIndex];
+  if (!HISTORICAL_SLICE_STATES.has(historical.state))
+    fail("invalid-transition", "Only a historical slice can be reopened");
+  const authority = input.authoritySource ?? input.authority ?? input.userDirection;
+  if (!authority) fail("missing-authority", "reopen requires authoritySource");
+  const reason = input.reopenReason ?? input.reason;
+  if (!reason) fail("missing-reopen-reason", "reopen requires reopenReason");
+  const suppliedSnapshot = input.reopenSlice;
+  const storedSnapshot = historical.reopenSnapshot;
+  let snapshot = null;
+  if (storedSnapshot && typeof storedSnapshot === "object" && !Array.isArray(storedSnapshot)) {
+    snapshot = storedSnapshot;
+  } else if (suppliedSnapshot && typeof suppliedSnapshot === "object" && !Array.isArray(suppliedSnapshot)) {
+    snapshot = {
+      ...suppliedSnapshot,
+      id: historical.id,
+      title: historical.title,
+      type: historical.type,
+      intendedResult: historical.intendedResult,
+      authoritySource: historical.authoritySource,
+      acceptedExtensions: historical.acceptedExtensions,
+      dependencies: historical.dependencies,
+    };
+  }
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot))
+    fail(
+      "slice-not-reopenable",
+      "Historical slice has no reopen snapshot; provide the missing Current Slice declarations in reopenSlice",
+    );
+  const reopenHistory = [
+    ...ensureArray(snapshot.reopenHistory),
+    JSON.stringify({
+      priorState: historical.state,
+      priorOutcome: historical.outcome,
+      priorEvidence: historical.evidence,
+      priorBlocker: historical.blocker,
+      priorTaskEffect: historical.taskEffect,
+      authoritySource: historical.authoritySource,
+      reopenReason: reason,
+      reopenedBy: authority,
+    }),
+  ];
+  const reopened = normalizeSlice(
+    {
+      ...snapshot,
+      id: historical.id,
+      state: "In progress",
+      blocker: "",
+      resumeWhen: "",
+      reopenHistory,
+      resultSummary: snapshot.result,
+    },
+    historical.id,
+  );
+  if (input.scopeChange !== undefined) reopened.reasonAndScope = ensureString(input.scopeChange);
+  if (input.expectedEvidence !== undefined) reopened.expectedEvidence = ensureString(input.expectedEvidence);
+  if (input.stopCondition !== undefined) reopened.stopCondition = ensureString(input.stopCondition);
+  if (input.currentResult !== undefined) reopened.result = ensureString(input.currentResult);
+  assertCompleteSlice(reopened, "reopen");
+  data.history.slices.splice(historyIndex, 1);
+  data.currentWork.currentSlice = reopened;
+  data.currentWork.blockers = [];
+  if (input.currentRoute !== undefined || input.route !== undefined)
+    data.currentWork.route = input.currentRoute ?? input.route;
+  if (input.nextAction !== undefined || input.nextUsefulAction !== undefined)
+    data.currentWork.nextAction = input.nextAction ?? input.nextUsefulAction;
+  return { affectedIds: [reopened.id] };
+}
+
 function applyClose(data, input) {
   const slice = assertExpectedCurrentSlice(data, input);
   const finalState = input.finalState ?? input.state;
@@ -300,6 +376,7 @@ function applyClose(data, input) {
     evidence,
     reviewSummary: ensureString(input.reviewSummary ?? slice.reviewSummary),
     taskEffect: ensureString(input.residualEffects ?? input.taskEffect ?? slice.taskEffect),
+    reopenSnapshot: clone(slice),
     blocker:
       finalState === "Blocked"
         ? JSON.stringify({ blocker: slice.blocker, resumeWhen: slice.resumeWhen, required: slice.blocker?.required })
@@ -332,6 +409,7 @@ export function applyOperation(data, command, input) {
   if (command === "start") return applyStart(data, input);
   if (command === "block") return applyBlock(data, input);
   if (command === "resume") return applyResume(data, input);
+  if (command === "reopen") return applyReopen(data, input);
   if (command === "close") return applyClose(data, input);
   fail("unknown-command", `Unsupported mutation command: ${command}`);
 }

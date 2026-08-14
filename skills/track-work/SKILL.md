@@ -63,11 +63,14 @@ A proposal is an unselected, unnumbered candidate. It has no `S-` ID, execution 
 
 Use a new slice only for a distinct intended result, authority boundary, evidence boundary, independently useful outcome, or explicit abandonment of the original result. If feedback changes scope, stop condition, evidence boundary, or intended result, reconcile the accepted extension before executing it.
 
+If a historical slice was settled, parked, or abandoned prematurely and a later request still belongs to its intended result, explicitly reopen that historical slice rather than fragmenting one outcome into a new ID. Reopening requires authority and a reason, preserves the prior outcome, blocker, or abandonment evidence, and returns the same slice to Current Work. A genuinely distinct result still requires a new slice; do not reopen automatically when the relationship is unclear.
+
 Closure means settlement, not merely finished code or green tests:
 
 - `Completed` requires the intended result, evidence boundary, supported self-review, selected review/checkpoint route, accepted corrections, and required in-scope work to be settled;
 - historical `Blocked` deliberately parks a currently blocked attempt while preserving the unresolved blocker and required resolution;
 - `Abandoned` requires explicit authority, reason, residual effects, and useful evidence without implying success.
+- Any historical slice may be explicitly reopened when its original outcome remains active; its prior state and evidence stay visible as reopen history.
 
 Do not invent `Completed pending review`, review slices, correction slices, or automatic next slices.
 
@@ -94,7 +97,7 @@ skills/track-work/scripts/working-record.mjs
 
 The user and model own task meaning, authority, slice judgment, evidence interpretation, review selection, settlement, task-state direction, and promotion. The script owns task numbering, schema parsing/rendering, bounded views, IDs, timestamps, allowed mechanical transitions, hashes, locks, validation, and atomic persistence. It cannot prove semantic truth.
 
-Mutations receive semantic JSON through `--input`; do not encode prose through fragile shell arguments. Existing-record mutations require the exact current SHA-256 from a confirmed view or prior result:
+Mutations receive semantic JSON through `--input <json-file>` or `--input -` for stdin; do not encode prose through fragile shell arguments. The model supplies meaning, authority, scope, evidence, and stop conditions; the script validates structure and owns mechanics. Existing-record mutations require the exact current SHA-256 from a confirmed view or prior result:
 
 ```text
 node skills/track-work/scripts/working-record.mjs view \
@@ -102,7 +105,9 @@ node skills/track-work/scripts/working-record.mjs view \
 
 node skills/track-work/scripts/working-record.mjs update \
   --record .freeflow/tasks/task-NNN-name/record.md \
-  --expected-sha <confirmed-sha256> --input update.json
+  --expected-sha <confirmed-sha256> --input - <<'JSON'
+{"currentContext":{"goal":"Keep the settled goal current"}}
+JSON
 ```
 
 ### Commands
@@ -113,9 +118,12 @@ node skills/track-work/scripts/working-record.mjs update \
 - `start`: select a proposal or direct authorized result and create exactly one Current Slice.
 - `block`: record why safe continuation is unavailable and what is required.
 - `resume`: return the same blocked slice to progress only after its blocker is resolved.
+- `reopen`: return an explicitly authorized historical slice to Current Work with the same ID and preserved prior outcome evidence.
 - `close`: settle one Current Slice as Completed, historical Blocked, or Abandoned and clear it atomically. It may apply an explicitly authorized terminal task state in the same transaction.
 - `validate`: report deterministic structural validity; it is not a readiness or quality judgment.
 - `inspect`: report sizes, counts, legacy facts, and advisory smells without auto-fixing.
+
+Minimum transition inputs are semantic, not Markdown mechanics: `start` needs a title, type, intended result, authority source, reason and scope, expected evidence, and stop condition (a selected proposal may supply the title, type, intended result, and expected evidence); `block` needs a blocker, why it prevents safe continuation, and the required resolution; `resume` needs a resolution source; `reopen` needs a historical `sliceId`, authority source, and reopen reason (plus the missing Current Slice declarations in `reopenSlice` when an older history entry has no reopen snapshot); and `close` needs a final state, settled outcome, and strongest evidence.
 
 Every command emits one JSON envelope. Confirmed results expose `schemaVersion`, `taskState`, `currentSlice`, `lastUpdated`, and record SHA-256. Confirmation is `confirmed`, `candidate`, or `unavailable`; never treat candidate or unavailable metadata as current confirmed state.
 
@@ -149,6 +157,7 @@ Do not bypass the script with manual edits, force-write flags, stale hashes, or 
 - unavailable safe continuation: `block` and stop;
 - resolved blocker: `resume` and return to Execute Work;
 - settled outcome: `close`, reconcile the record, and return to Workflow;
+- prematurely settled, parked, or abandoned outcome: `reopen` with explicit authority and reason, then return to Execute Work;
 - validation or transition conflict: preserve evidence and return to Workflow or [Discuss](../discuss/SKILL.md);
 - implementation: use [Execute Work](../execute-work/SKILL.md);
 - lifecycle routing and authority: use [Workflow](../workflow/SKILL.md);

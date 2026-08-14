@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -42,6 +42,34 @@ async function runScript(root, ...args) {
       json: error.stdout ? JSON.parse(error.stdout) : null,
     };
   }
+}
+
+async function runScriptWithStdin(root, input, ...args) {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, [scriptPath, ...args], {
+      cwd: root,
+      env: process.env,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.on("close", (exitCode) => {
+      let json = null;
+      try {
+        json = stdout ? JSON.parse(stdout) : null;
+      } catch (error) {
+        stderr += `\n${error.message}`;
+      }
+      resolve({ exitCode, stdout, stderr, json });
+    });
+    child.stdin.end(JSON.stringify(input));
+  });
 }
 
 test("init and resume expose a confirmed v2 task projection", async (t) => {
@@ -1110,4 +1138,249 @@ test("enforces complete lifecycle declarations and exact schema headers", async 
   const displaced = await runScript(proseRoot, "view", "--record", displacedPath, "--view", "full");
   assert.equal(displaced.exitCode, 1);
   assert.notEqual(displaced.json.errors[0].code, "legacy-read-only");
+});
+
+test("stdin input is documented and works without a temporary JSON file", async (t) => {
+  const root = await makeWorkspace();
+  t.after(() => rm(root, { recursive: true, force: true }));
+
+  const help = await execFileAsync(process.execPath, [scriptPath, "--help"], { cwd: root });
+  assert.match(help.stdout, /--input <json-file\|->/);
+
+  const initialized = await runScript(
+    root,
+    "init",
+    "--root",
+    root,
+    "--name",
+    "stdin-input",
+    "--input",
+    await writeJson(root, "init.json", { taskName: "Stdin input" }),
+  );
+  const updated = await runScriptWithStdin(
+    root,
+    { currentContext: { goal: "Updated through stdin" } },
+    "update",
+    "--record",
+    initialized.json.record.path,
+    "--expected-sha",
+    initialized.json.record.sha256,
+    "--input",
+    "-",
+  );
+  assert.equal(updated.exitCode, 0, updated.stderr);
+  assert.equal(updated.json.status, "updated");
+  const viewed = await runScript(root, "view", "--record", initialized.json.record.path, "--view", "current");
+  assert.match(viewed.json.view.content, /Updated through stdin/);
+});
+
+test("a completed slice can be explicitly reopened without consuming a new slice ID", async (t) => {
+  const root = await makeWorkspace();
+  t.after(() => rm(root, { recursive: true, force: true }));
+
+  const initialized = await runScript(
+    root,
+    "init",
+    "--root",
+    root,
+    "--name",
+    "reopen-slice",
+    "--input",
+    await writeJson(root, "init.json", { taskName: "Reopen slice" }),
+  );
+  const recordPath = initialized.json.record.path;
+  const started = await runScript(
+    root,
+    "start",
+    "--record",
+    recordPath,
+    "--expected-sha",
+    initialized.json.record.sha256,
+    "--input",
+    await writeJson(root, "start.json", {
+      title: "Finish the bounded result",
+      type: "Delivery",
+      intendedResult: "The bounded result is complete",
+      authoritySource: "User explicitly authorized the result",
+      reasonAndScope: "Implement and verify the bounded result",
+      expectedEvidence: "Focused tests and verification",
+      stopCondition: "Stop before migration",
+    }),
+  );
+  const closed = await runScript(
+    root,
+    "close",
+    "--record",
+    recordPath,
+    "--expected-sha",
+    started.json.record.sha256,
+    "--input",
+    await writeJson(root, "close.json", {
+      sliceId: "S-001",
+      finalState: "Completed",
+      outcome: "The first part of the result is complete",
+      evidence: ["initial verification"],
+    }),
+  );
+  assert.equal(closed.exitCode, 0, closed.stderr);
+  const preAmendmentText = (await readFile(join(root, recordPath), "utf8")).replace(/^- Reopen snapshot:.*\n/m, "");
+  await writeFile(join(root, recordPath), preAmendmentText);
+
+  const reopened = await runScript(
+    root,
+    "reopen",
+    "--record",
+    recordPath,
+    "--expected-sha",
+    sha256(preAmendmentText),
+    "--input",
+    await writeJson(root, "reopen.json", {
+      sliceId: "S-001",
+      authoritySource: "User explicitly authorized continuation of the original result",
+      reopenReason: "The requested follow-up remains inside the original intended result",
+      reopenSlice: {
+        reasonAndScope: "Continue the original bounded result",
+        expectedEvidence: "Continuation verification",
+        stopCondition: "Stop after the original result is fully settled",
+      },
+    }),
+  );
+  assert.equal(reopened.exitCode, 0, `${reopened.stderr}\n${reopened.stdout}`);
+  assert.deepEqual(reopened.json.record.currentSlice, { id: "S-001", state: "In progress", type: "Delivery" });
+  assert.equal(reopened.json.affectedIds[0], "S-001");
+
+  const current = await runScript(root, "view", "--record", recordPath, "--view", "execute");
+  assert.match(current.json.view.content, /Reopen history/);
+  assert.match(current.json.view.content, /original intended result/);
+
+  const closedAgain = await runScript(
+    root,
+    "close",
+    "--record",
+    recordPath,
+    "--expected-sha",
+    reopened.json.record.sha256,
+    "--input",
+    await writeJson(root, "close-again.json", {
+      sliceId: "S-001",
+      finalState: "Completed",
+      outcome: "The original result is now fully settled",
+      evidence: ["initial verification", "continuation verification"],
+    }),
+  );
+  assert.equal(closedAgain.exitCode, 0, closedAgain.stderr);
+  const full = await runScript(root, "view", "--record", recordPath, "--view", "full");
+  assert.equal((full.json.view.content.match(/#### S-001 —/g) ?? []).length, 1);
+  assert.match(full.json.view.content, /The original result is now fully settled/);
+});
+
+test("blocked and abandoned historical slices can be explicitly reopened", async (t) => {
+  for (const finalState of ["Blocked", "Abandoned"]) {
+    const root = await makeWorkspace();
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const type = finalState === "Blocked" ? "Learning" : "Deepening";
+    const initialized = await runScript(
+      root,
+      "init",
+      "--root",
+      root,
+      "--name",
+      `${finalState.toLowerCase()}-reopen`,
+      "--input",
+      await writeJson(root, "init.json", { taskName: `${finalState} reopen` }),
+    );
+    const recordPath = initialized.json.record.path;
+    const started = await runScript(
+      root,
+      "start",
+      "--record",
+      recordPath,
+      "--expected-sha",
+      initialized.json.record.sha256,
+      "--input",
+      await writeJson(root, "start.json", {
+        title: `${finalState} outcome`,
+        type,
+        intendedResult: `Continue the ${finalState.toLowerCase()} outcome`,
+        authoritySource: "User explicitly authorized the outcome",
+        reasonAndScope: "Exercise historical reopening",
+        expectedEvidence: "Reopen transition evidence",
+        stopCondition: "Stop after reopening is verified",
+      }),
+    );
+    let sha = started.json.record.sha256;
+    if (finalState === "Blocked") {
+      const blocked = await runScript(
+        root,
+        "block",
+        "--record",
+        recordPath,
+        "--expected-sha",
+        sha,
+        "--input",
+        await writeJson(root, "block.json", {
+          sliceId: "S-001",
+          blocker: {
+            blocker: "A required decision is missing",
+            why: "Safe continuation is unavailable",
+            required: "User decision",
+          },
+          resumeWhen: "The user decides",
+        }),
+      );
+      sha = blocked.json.record.sha256;
+    }
+    const closeInput =
+      finalState === "Blocked"
+        ? {
+            sliceId: "S-001",
+            finalState,
+            authoritySource: "User explicitly parked the outcome",
+            outcome: "The outcome was parked with its blocker",
+            evidence: ["blocked-state evidence"],
+          }
+        : {
+            sliceId: "S-001",
+            finalState,
+            authoritySource: "User explicitly abandoned the outcome",
+            abandonmentReason: "The original route was no longer pursued",
+            residualEffects: "No implementation was published",
+            outcome: "The outcome was abandoned with residual effects recorded",
+            evidence: ["abandonment evidence"],
+          };
+    const closed = await runScript(
+      root,
+      "close",
+      "--record",
+      recordPath,
+      "--expected-sha",
+      sha,
+      "--input",
+      await writeJson(root, "close.json", closeInput),
+    );
+    assert.equal(closed.exitCode, 0, closed.stderr);
+    const reopened = await runScript(
+      root,
+      "reopen",
+      "--record",
+      recordPath,
+      "--expected-sha",
+      closed.json.record.sha256,
+      "--input",
+      await writeJson(root, "reopen.json", {
+        sliceId: "S-001",
+        authoritySource: `User explicitly authorized reopening the ${finalState.toLowerCase()} outcome`,
+        reopenReason: `The ${finalState.toLowerCase()} outcome remains the intended result`,
+      }),
+    );
+    assert.equal(reopened.exitCode, 0, reopened.stderr);
+    assert.deepEqual(reopened.json.record.currentSlice, { id: "S-001", state: "In progress", type });
+    const view = await runScript(root, "view", "--record", recordPath, "--view", "execute");
+    assert.match(view.json.view.content, /Reopen history/);
+    assert.match(view.json.view.content, new RegExp(`priorState\\":\\"${finalState}`));
+    assert.match(
+      view.json.view.content,
+      new RegExp(finalState === "Blocked" ? "A required decision is missing" : "No implementation was published"),
+    );
+  }
 });
