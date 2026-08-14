@@ -78,6 +78,16 @@ for expected in \
 done
 assert_not_contains "$codex_output" "Output Router" "Codex host context"
 assert_not_contains "$codex_output" "Output router:" "Codex host context"
+
+# The Pi-only capability key is tolerated by shared host validators but is not
+# injected into Codex or Claude runtime context.
+cognitive_dir="$(mktemp -d)"
+mkdir -p "$cognitive_dir/.freeflow"
+printf '{"defaultMode":"workflow","cognitiveRouting":{"enabled":true,"profiles":{"standard":{"provider":"faux","model":"standard","thinkingLevel":"high"},"reasoning":{"provider":"faux","model":"reasoning","thinkingLevel":"max"}}}}\n' >"$cognitive_dir/.freeflow/config.json"
+cognitive_output="$(printf '{"cwd":"%s","model":"gpt-5"}\n' "$cognitive_dir" | node "$HOOK_PATH" SessionStart)"
+assert_contains "$cognitive_output" "# Freeflow Runtime Context" "Pi-only capability tolerance"
+assert_not_contains "$cognitive_output" "Cognitive Routing" "non-Pi capability isolation"
+rm -rf "$cognitive_dir"
 for excluded_heading in \
 	"# Freeflow Runtime Kernel" \
 	"## Freeflow Runtime Priority" \

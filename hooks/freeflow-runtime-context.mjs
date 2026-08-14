@@ -153,6 +153,7 @@ function isValidSetupConfig(value) {
     "outputRouter",
     "observedRouting",
     "scriptTransform",
+    "cognitiveRouting",
   ]);
   if (!Object.keys(value).every((key) => allowedKeys.has(key))) {
     return "repository config contains unsupported top-level keys";
@@ -176,7 +177,14 @@ function isValidLocalConfig(value) {
     return "local config must be a JSON object";
   }
 
-  const allowedKeys = new Set(["enabled", "defaultMode", "interactionContract", "skills", "processing"]);
+  const allowedKeys = new Set([
+    "enabled",
+    "defaultMode",
+    "interactionContract",
+    "skills",
+    "processing",
+    "cognitiveRouting",
+  ]);
   if (!Object.keys(value).every((key) => allowedKeys.has(key))) {
     return "local config contains unsupported top-level keys";
   }

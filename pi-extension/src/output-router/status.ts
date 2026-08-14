@@ -65,13 +65,43 @@ const SCRIPT_TRANSFORM_CONFIG_KEYS = new Set([
   "rawScriptPersistence",
 ]);
 
-export async function buildFreeflowStatusReport(params = {}, ctx) {
+function cognitiveRoutingStatus(state, runtime, ctx) {
+  if (!state) return state;
+  const preflightEffective = state.effective === true;
+  const suppressed =
+    ctx?.modelStateProvenance?.explicitModel === true || ctx?.modelStateProvenance?.explicitThinking === true;
+  const runtimeStatus = !preflightEffective
+    ? "inactive"
+    : runtime?.effective === true
+      ? "active"
+      : runtime
+        ? "pending"
+        : suppressed
+          ? "suppressed"
+          : "inactive";
+  const runtimeReason = suppressed ? "startup_suppressed" : runtime ? "runtime_pending" : "runtime_inactive";
+  return {
+    ...state,
+    preflightEffective,
+    preflightBlockingReason: state.blockingReason,
+    effective: preflightEffective && runtime?.effective === true,
+    blockingReason: preflightEffective
+      ? runtime?.effective === true
+        ? null
+        : { code: "runtime_inactive", message: `Cognitive Routing runtime is ${runtimeStatus}.` }
+      : state.blockingReason,
+    runtimeStatus,
+    runtime: runtime ? { ...runtime, runtimeStatus } : { effective: false, runtimeStatus, reason: runtimeReason },
+  };
+}
+
+export async function buildFreeflowStatusReport(params = {}, ctx, cognitiveRoutingRuntime = undefined) {
   const action = normalizeStatusAction((params as any).action);
   const configFile = await readConfigFile(ctx.cwd);
   const localConfigFile = await readLocalConfigFile(ctx.cwd);
   const normalized = normalizeFreeflowConfig(configFile.parsed);
   const localNormalized = normalizeLocalFreeflowConfig(localConfigFile.parsed);
-  const [modeState, runtimeState] = await Promise.all([readModeState(ctx.cwd), readCapabilityState(ctx.cwd)]);
+  const [modeState, runtimeState] = await Promise.all([readModeState(ctx.cwd), readCapabilityState(ctx.cwd, ctx)]);
   const effectiveFreeflowConfig = runtimeState.enabled
     ? normalized.config
     : {
@@ -176,6 +206,7 @@ export async function buildFreeflowStatusReport(params = {}, ctx) {
         observedRouting: effectiveFreeflowConfig.observedRouting,
         scriptTransform: effectiveFreeflowConfig.scriptTransform,
       },
+      cognitiveRouting: cognitiveRoutingStatus(runtimeState.cognitiveRouting, cognitiveRoutingRuntime, ctx),
     },
     effectiveLocalConfig: localNormalized.config,
     effectiveDefaults: {

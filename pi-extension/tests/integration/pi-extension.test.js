@@ -135,6 +135,7 @@ test("Pi registers capability commands and no public capture tool", () => {
   assert.ok(toolNames.includes("freeflow_search"));
   assert.ok(toolNames.includes("freeflow_run"));
   assert.ok(toolNames.includes("freeflow_batch"));
+  assert.ok(toolNames.includes("freeflow_switch_profile"));
   assert.ok(!toolNames.includes("freeflow_retrieve"));
   assert.ok(!toolNames.includes("freeflow_search action=transform"));
   assert.ok(!toolNames.includes("freeflow_capture"));
@@ -166,8 +167,26 @@ test("Pi describes Freeflow and Output Router argument completions", () => {
     { value: "settings", label: "settings", description: "Open personal override settings" },
     { value: "status", label: "status", description: "Show effective Freeflow state" },
     { value: "mode", label: "mode", description: "Select a temporary session mode" },
+    { value: "profile", label: "profile", description: "Hold or release Cognitive Routing profile control" },
     { value: "enable", label: "enable", description: "Enable Freeflow for this repository" },
     { value: "disable", label: "disable", description: "Disable Freeflow for this repository" },
+  ]);
+  assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("profile "), [
+    {
+      value: "profile standard",
+      label: "standard",
+      description: "Hold standard profile manually",
+    },
+    {
+      value: "profile reasoning",
+      label: "reasoning",
+      description: "Hold reasoning profile manually",
+    },
+    {
+      value: "profile auto",
+      label: "auto",
+      description: "Release the manual hold without changing the model",
+    },
   ]);
   assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("settings "), [
     { value: "settings session", label: "session", description: "Override Freeflow for this Pi session" },
@@ -1602,6 +1621,7 @@ test("Pi session settings override Freeflow without changing config", async () =
       assert.match(rootText, /Interaction Contract\s+enabled \(builtin\)/);
       assert.match(rootText, /Skills\s+enabled \(builtin\)/);
       assert.match(rootText, /Mode\s+default \(workflow · repository\)/);
+      assert.match(rootText, /Cognitive Routing\s+auto unavailable · inactive/);
       assert.match(rootText, /Reset session overrides\s+available/);
 
       component.handleInput("\r");
@@ -1637,7 +1657,7 @@ test("Pi session settings override Freeflow without changing config", async () =
       const rootText = renderText(component);
       assert.match(rootText, /Freeflow\s+disabled \(session\)/);
       assert.match(rootText, /Interaction Contract\s+enabled \(builtin\) · inactive/);
-      for (let index = 0; index < 4; index += 1) component.handleInput("\u001b[B");
+      for (let index = 0; index < 5; index += 1) component.handleInput("\u001b[B");
       component.handleInput("\r");
       assert.match(renderText(component), /Reset all session overrides/);
       component.handleInput("\r");

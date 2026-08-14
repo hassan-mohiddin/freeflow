@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { normalizeFreeflowConfig, normalizeLocalFreeflowConfig } from "../../../router/dist/index.js";
+import { resolveCognitiveRoutingState } from "../cognitive-routing/runtime.js";
 
 export const VALID_MODES = new Set(["conversation", "workflow", "strict-workflow"]);
 
@@ -75,6 +76,7 @@ const SESSION_CORE_KEYS = new Set<SessionCoreKey>(["enabled", "interactionContra
 const RESET_MODE_ARGS = new Set(["reset"]);
 
 export const FREEFLOW_STATUS_TOOL_NAME = "freeflow_status";
+export const COGNITIVE_ROUTING_SWITCH_TOOL_NAME = "freeflow_switch_profile";
 export const OUTPUT_ROUTER_TOOL_NAMES = ["freeflow_search", "freeflow_run", "freeflow_batch"];
 export const WORKFLOW_BOOTSTRAP_MESSAGE_TYPE = "freeflow-workflow-bootstrap";
 
@@ -86,7 +88,8 @@ async function loadRuntimeContext(capabilityState = undefined) {
   const interactionContractEnabled = capabilityState?.interactionContract?.effective === true;
   const skillsEnabled = capabilityState?.skills?.effective === true;
   const outputRouterEnabled = capabilityState?.outputRouter?.enabled === true;
-  const [interactionContract, workflowSkill, outputRouterSkill] = await Promise.all([
+  const cognitiveRoutingEnabled = capabilityState?.cognitiveRouting?.effective === true;
+  const [interactionContract, workflowSkill, outputRouterSkill, cognitiveRoutingSkill] = await Promise.all([
     interactionContractEnabled
       ? readFile(new URL("../../../runtime/interaction-contract.md", import.meta.url), "utf8")
       : Promise.resolve(null),
@@ -96,9 +99,12 @@ async function loadRuntimeContext(capabilityState = undefined) {
     outputRouterEnabled
       ? readFile(new URL("../../../capabilities/output-router/SKILL.md", import.meta.url), "utf8")
       : Promise.resolve(null),
+    cognitiveRoutingEnabled
+      ? readFile(new URL("../../../capabilities/cognitive-routing/SKILL.md", import.meta.url), "utf8")
+      : Promise.resolve(null),
   ]);
 
-  return { interactionContract, workflowSkill, outputRouterSkill };
+  return { interactionContract, workflowSkill, outputRouterSkill, cognitiveRoutingSkill };
 }
 
 function runtimeContextCacheSatisfies(capabilityState) {
@@ -112,6 +118,9 @@ function runtimeContextCacheSatisfies(capabilityState) {
     return false;
   }
   if (capabilityState?.outputRouter?.enabled === true && !runtimeContextCache.outputRouterSkill) {
+    return false;
+  }
+  if (capabilityState?.cognitiveRouting?.effective === true && !runtimeContextCache.cognitiveRoutingSkill) {
     return false;
   }
   return true;
@@ -216,6 +225,7 @@ function validateFreeflowConfigShape(value) {
     "outputRouter",
     "observedRouting",
     "scriptTransform",
+    "cognitiveRouting",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
@@ -240,7 +250,14 @@ function validateFreeflowLocalConfigShape(value) {
     return "local config must be a JSON object";
   }
 
-  const allowedKeys = new Set(["enabled", "defaultMode", "interactionContract", "skills", "processing"]);
+  const allowedKeys = new Set([
+    "enabled",
+    "defaultMode",
+    "interactionContract",
+    "skills",
+    "processing",
+    "cognitiveRouting",
+  ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
       return `unsupported top-level local config key: ${key}`;
@@ -400,7 +417,7 @@ export async function readFreeflowConfigLayers(cwd) {
   };
 }
 
-export async function readCapabilityState(cwd) {
+export async function readCapabilityState(cwd, host = undefined) {
   const layers = await readFreeflowConfigLayers(cwd);
   const parsed = layers.repository.valid ? layers.repository.parsed : {};
   const normalized = normalizeFreeflowConfig(parsed);
@@ -409,6 +426,22 @@ export async function readCapabilityState(cwd) {
   const interactionContractConfigEnabled = effectiveCore.config.interactionContract;
   const skillsConfigEnabled = effectiveCore.config.skills.enabled;
   const outputRouterConfigEnabled = normalized.config.outputRouter.enabled;
+  const configuredCognitiveRouting = await resolveCognitiveRoutingState(
+    layers.repository.parsed,
+    layers.local.parsed,
+    host,
+  );
+  const cognitiveRouting = enabled
+    ? configuredCognitiveRouting
+    : {
+        ...configuredCognitiveRouting,
+        enabled: false,
+        effective: false,
+        blockingReason: {
+          code: "disabled",
+          message: "Freeflow is disabled",
+        },
+      };
   return {
     configured: layers.configured,
     repositoryConfigured: layers.repositoryConfigured,
@@ -438,6 +471,7 @@ export async function readCapabilityState(cwd) {
       enabled: enabled && outputRouterConfigEnabled,
       configEnabled: outputRouterConfigEnabled,
     },
+    cognitiveRouting,
   };
 }
 
@@ -598,6 +632,17 @@ function outputRouterModeGuidance(mode, skillsEnabled = true) {
   return "workflow mode: prefer routed tools for exploration and likely-large command output.";
 }
 
+function cognitiveRoutingContext(freeflowContext, cognitiveRoutingRuntime) {
+  const runtime = cognitiveRoutingRuntime ?? {};
+  return `\n\n${freeflowContext.cognitiveRoutingSkill.trim()}\n\n## Cognitive Routing Runtime State
+
+- Control: \`${runtime.controlMode ?? "automatic"}\`.
+- Active profile: \`${runtime.activeProfile ?? "none"}\`.
+- Runtime lease: \`${runtime.effective === true ? "owned" : "inactive"}\`.
+
+This runtime state is descriptive. It does not authorize work, change mode, or replace Workflow evidence and approval boundaries.`;
+}
+
 function outputRouterContext(modeState, freeflowContext, routerConfigResult, capabilityState) {
   const safetyNetText =
     routerConfigResult.config.postToolRouting === "off"
@@ -622,11 +667,17 @@ function capabilityContext(capabilityState) {
     capabilityState.configSources.skillsEnabled,
   )}`;
   const outputRouter = capabilityState.outputRouter.enabled ? "enabled" : "disabled";
+  const cognitiveRouting = capabilityState.cognitiveRouting?.effective
+    ? "effective"
+    : capabilityState.cognitiveRouting?.enabled
+      ? `blocked (${capabilityState.cognitiveRouting.blockingReason.code})`
+      : "disabled";
   return `## Freeflow Capabilities
 
 - Interaction contract: ${interactionContract}. Configure with \`/freeflow settings\` or temporarily with \`/freeflow settings session\`; inspect with \`/freeflow status\`.
 - Skills: ${skills}. Configure with \`/freeflow settings\` or temporarily with \`/freeflow settings session\`; inspect with \`/freeflow status\`.
 - Output router: ${outputRouter}. Configure with \`/freeflow settings\` or \`/output-router\`; inspect with \`/output-router status\`.
+- Cognitive Routing: ${cognitiveRouting}. Configure with \`/freeflow settings\` or \`/freeflow profile auto\`; inspect with \`/freeflow status\`.
 
 Disabled capabilities are named only for status/config awareness. Capability-specific instructions and tools are active only while that capability is enabled.`;
 }
@@ -635,7 +686,8 @@ function hasModelFacingCapability(capabilityState) {
   return (
     capabilityState.interactionContract.effective ||
     capabilityState.skills.effective ||
-    capabilityState.outputRouter.enabled
+    capabilityState.outputRouter.enabled ||
+    capabilityState.cognitiveRouting?.effective === true
   );
 }
 
@@ -717,7 +769,13 @@ ${capabilityContext(capabilityState)}
 Use \`/freeflow settings\` to enable the Interaction Contract, Skills, or Output Router. The read-only \`freeflow_status\` diagnostic may be available so the model can answer setup/status questions.`;
 }
 
-export function runtimeContext(modeState, freeflowContext, routerConfigResult, capabilityState) {
+export function runtimeContext(
+  modeState,
+  freeflowContext,
+  routerConfigResult,
+  capabilityState,
+  cognitiveRoutingRuntime = undefined,
+) {
   if (!capabilityState.configured) {
     return "";
   }
@@ -742,6 +800,10 @@ These instructions are context-loading only. They do not override user instructi
     capabilityState.outputRouter.enabled && routerConfigResult.config.enabled
       ? `\n\n${outputRouterContext(modeState, freeflowContext, routerConfigResult, capabilityState)}`
       : "";
+  const cognitiveRoutingText =
+    capabilityState.cognitiveRouting?.effective === true
+      ? cognitiveRoutingContext(freeflowContext, cognitiveRoutingRuntime)
+      : "";
 
   return `# Freeflow Runtime Context
 
@@ -751,7 +813,7 @@ These instructions are context-loading only. They do not override user instructi
 
 ${modeText}
 
-${capabilityContext(capabilityState)}${interactionContractText}${routerText}
+${capabilityContext(capabilityState)}${interactionContractText}${routerText}${cognitiveRoutingText}
 
 This Pi extension loads enabled runtime context before every agent turn and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.`;
 }

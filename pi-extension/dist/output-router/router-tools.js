@@ -366,7 +366,7 @@ function createPiCommandRunner(pi, signal) {
     },
   };
 }
-export function registerRouterTools(pi) {
+export function registerRouterTools(pi, getCognitiveRoutingRuntime = () => undefined) {
   pi.registerTool({
     name: "freeflow_status",
     label: "Freeflow Status",
@@ -380,7 +380,7 @@ export function registerRouterTools(pi) {
     ],
     parameters: FREEFLOW_STATUS_PARAMETERS,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const result = await buildFreeflowStatusReport(params, ctx);
+      const result = await buildFreeflowStatusReport(params, ctx, getCognitiveRoutingRuntime());
       return {
         content: [{ type: "text", text: routedToolText(result) }],
         details: { result },

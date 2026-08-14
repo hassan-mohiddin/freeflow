@@ -118,6 +118,12 @@
       "kind": "settings"
     },
     {
+      "command": "/freeflow profile <standard|reasoning|auto>",
+      "handler": "freeflow",
+      "kind": "cognitive-routing-control",
+      "piOnly": true
+    },
+    {
       "command": "/output-router",
       "handler": "output-router",
       "kind": "settings"

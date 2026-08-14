@@ -613,7 +613,7 @@ function createSessionBooleanItem(options) {
   item.displaySuffix = coreDisplaySuffix(item);
   return item;
 }
-function sessionFreeflowItems(state, modeState) {
+function sessionFreeflowItems(state, modeState, cognitiveRoutingController) {
   const sessionOverrides = state.sessionOverrides;
   const configured = state.configuredCoreConfig;
   const configuredSources = state.configuredSources;
@@ -681,11 +681,39 @@ function sessionFreeflowItems(state, modeState) {
     inheritedValue: modeState.defaultMode,
     inheritedSource: modeState.defaultModeSource,
   };
+  const cognitiveRoutingState = cognitiveRoutingController?.state();
+  const cognitiveRoutingProfile =
+    cognitiveRoutingState?.controlMode === "manual-standard"
+      ? "standard"
+      : cognitiveRoutingState?.controlMode === "manual-reasoning"
+        ? "reasoning"
+        : "auto";
+  const cognitiveRoutingItem = {
+    id: "freeflow.cognitiveRouting.profile",
+    label: "Cognitive Routing",
+    description: "Hold a profile manually or release the hold for automatic model control.",
+    kind: "enum",
+    value: cognitiveRoutingProfile,
+    values: ["auto", "standard", "reasoning"],
+    valueLabels: {
+      auto: "automatic",
+      standard: "manual · standard",
+      reasoning: "manual · reasoning",
+    },
+    valueDescriptions: {
+      auto: "Release the manual hold without forcing a model transition.",
+      standard: "Hold the standard profile until /freeflow profile auto.",
+      reasoning: "Hold the reasoning profile until /freeflow profile auto.",
+    },
+    inactive: !state.cognitiveRouting.effective || cognitiveRoutingController === undefined,
+    displaySuffix: cognitiveRoutingState?.effective ? cognitiveRoutingProfile : "unavailable",
+  };
   return [
     freeflowItem,
     interactionItem,
     skillsItem,
     sessionModeItem,
+    cognitiveRoutingItem,
     {
       id: "freeflow.session.reset",
       label: "Reset session overrides",
@@ -1209,18 +1237,27 @@ function outputRouterStatusText(rawConfig) {
     `noisy command hints: ${noisyHints}`,
   ].join("; ");
 }
-function freeflowStatusText(state) {
+function freeflowStatusText(state, cognitiveRoutingController) {
   if (!state.configured) {
     return state.configExists
       ? `Freeflow: inactive (invalid config: ${state.parseError ?? "unknown parse error"}); run /setup-freeflow or fix .freeflow/config.json`
       : "Freeflow: inactive (repo not set up); run /setup-freeflow";
   }
   const sessionSuffix = (source) => (source === "session" ? " (session override)" : "");
+  const routingState = cognitiveRoutingController?.state();
+  const cognitiveRoutingStatus = !state.cognitiveRouting.effective
+    ? state.cognitiveRouting.enabled
+      ? `blocked (${state.cognitiveRouting.blockingReason.code})`
+      : "disabled"
+    : routingState?.effective
+      ? `active (${routingState.activeProfile}, ${routingState.controlMode})`
+      : "effective (inactive)";
   return [
     `Freeflow: ${state.enabled ? "enabled" : "disabled"}${sessionSuffix(state.configSources.enabled)}`,
     `interaction contract: ${state.interactionContract.effective ? "enabled" : "disabled"}${sessionSuffix(state.configSources.interactionContract)}`,
     `skills: ${state.skills.effective ? "enabled" : "disabled (workflow modes inactive)"}${sessionSuffix(state.configSources.skillsEnabled)}`,
     `output router: ${state.outputRouter.enabled ? "enabled" : "disabled"}`,
+    `cognitive routing: ${cognitiveRoutingStatus}`,
   ].join("; ");
 }
 const NON_TUI_SETTINGS_GUIDANCE =
@@ -1271,7 +1308,7 @@ function actionIsMutation(action) {
 }
 async function maybeBlockLayerMutation(action, ctx, layerName) {
   if (!actionIsMutation(action)) return false;
-  const state = await readCapabilityState(ctx.cwd);
+  const state = await readCapabilityState(ctx.cwd, ctx);
   if (!state.configured) {
     ctx.ui.notify(
       `Freeflow is installed but this repo is not set up. Run /setup-freeflow before configuring ${layerName}.`,
@@ -1288,7 +1325,7 @@ async function maybeBlockLayerMutation(action, ctx, layerName) {
   }
   return false;
 }
-export async function handleFreeflowCommand(args, ctx, afterChange, pi) {
+export async function handleFreeflowCommand(args, ctx, afterChange, pi, cognitiveRoutingController) {
   const input = (args ?? "settings").trim().toLowerCase() || "settings";
   const [action, ...rest] = input.split(/\s+/);
   const actionValue = rest.join(" ");
@@ -1304,17 +1341,17 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi) {
   }
   const [layers, state, modeState] = await Promise.all([
     readFreeflowConfigLayers(ctx.cwd),
-    readCapabilityState(ctx.cwd),
+    readCapabilityState(ctx.cwd, ctx),
     readModeState(ctx.cwd),
   ]);
   const configState = layers.repository;
   const raw = configState.valid ? configState.parsed : {};
   if (action === "status") {
-    ctx.ui.notify(freeflowStatusText(state), "info");
+    ctx.ui.notify(freeflowStatusText(state, cognitiveRoutingController), "info");
     return { changed: false, reloaded: false };
   }
   if (!configState.valid) {
-    ctx.ui.notify(freeflowStatusText(state), "warning");
+    ctx.ui.notify(freeflowStatusText(state, cognitiveRoutingController), "warning");
     return { changed: false, reloaded: false, error: "not_configured" };
   }
   if (layers.local.exists && !layers.local.valid) {
@@ -1390,7 +1427,7 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi) {
   }
   const items =
     settingsScope === "session"
-      ? sessionFreeflowItems(state, modeState)
+      ? sessionFreeflowItems(state, modeState, cognitiveRoutingController)
       : freeflowItems(raw, modeState, { scope: settingsScope, layers });
   const session = await openSettings({
     title:
@@ -1405,6 +1442,25 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi) {
       if (item.id === "freeflow.sessionMode") {
         const result = await handleModeCommand(String(value), ctx, pi);
         return { changed: result.changed, reloadRequired: false };
+      }
+      if (item.id === "freeflow.cognitiveRouting.profile") {
+        if (!cognitiveRoutingController) {
+          ctx.ui.notify("Cognitive Routing is unavailable for this session.", "warning");
+          return { changed: false, reloadRequired: false };
+        }
+        const result =
+          value === "auto"
+            ? await cognitiveRoutingController.setAutomaticControl()
+            : await cognitiveRoutingController.setManualProfile(value);
+        if ((result.status !== "automatic" && result.status !== "active") || result.reason) {
+          ctx.ui.notify(
+            `Cognitive Routing settings could not be applied: ${result.reason ?? result.status}.`,
+            "warning",
+          );
+          return { changed: false, reloadRequired: false };
+        }
+        await afterChange(false);
+        return { changed: true, reloadRequired: false };
       }
       if (item.id === "freeflow.session.reset") {
         const result = await resetSessionOverrides(ctx, pi);
@@ -1445,7 +1501,7 @@ export async function handleOutputRouterCommand(args, ctx, afterChange) {
     return { changed: false, reloaded: false, error: "freeflow_inactive" };
   }
   if (action === "status") {
-    const state = await readCapabilityState(ctx.cwd);
+    const state = await readCapabilityState(ctx.cwd, ctx);
     const prefix = !state.configured || !state.enabled ? `${freeflowStatusText(state)}; ` : "";
     ctx.ui.notify(`${prefix}${outputRouterStatusText(raw)}`, !state.configured || !state.enabled ? "warning" : "info");
     return { changed: false, reloaded: false };

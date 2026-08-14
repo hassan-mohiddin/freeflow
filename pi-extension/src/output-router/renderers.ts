@@ -256,7 +256,7 @@ export function renderFreeflowSearchCall(args, theme) {
   const title = themeFg(theme, "toolTitle", themeBold(theme, "freeflow_search"));
   const action = themeFg(theme, "muted", args?.action ?? "query");
   const source = themeFg(theme, "accent", retrieveSourceLabel(args?.source));
-  const query = args?.query ? ` ${themeFg(theme, "dim", `\"${truncateText(args.query, 70)}\"`)}` : "";
+  const query = args?.query ? ` ${themeFg(theme, "dim", `"${truncateText(args.query, 70)}"`)}` : "";
   return textComponent(`${title} ${action} ${source}${query}`);
 }
 
@@ -264,7 +264,7 @@ export function renderFreeflowRetrieveCall(args, theme) {
   const title = themeFg(theme, "toolTitle", themeBold(theme, "freeflow_search"));
   const action = themeFg(theme, "muted", args?.action ?? "query");
   const source = themeFg(theme, "accent", retrieveSourceLabel(args?.source));
-  const query = args?.query ? ` ${themeFg(theme, "dim", `\"${truncateText(args.query, 70)}\"`)}` : "";
+  const query = args?.query ? ` ${themeFg(theme, "dim", `"${truncateText(args.query, 70)}"`)}` : "";
   return textComponent(`${title} ${action} ${source}${query}`);
 }
 
@@ -442,8 +442,10 @@ export function renderFreeflowStatusResult(result, { expanded }: any = {}, theme
   const core = report.effectiveConfig ?? {};
   const sources = report.configuration?.sources ?? core.sources ?? {};
   const router = core.outputRouter ?? {};
+  const cognitiveRouting = core.cognitiveRouting ?? {};
+  const cognitiveRuntime = cognitiveRouting.runtime ?? {};
+  const cognitiveRuntimeStatus = cognitiveRouting.runtimeStatus ?? (cognitiveRouting.effective ? "active" : "inactive");
   const observedRouting = report.observedRouting ?? core.observedRouting ?? {};
-  const unsafeProcessing = report.processing?.unsafeUnsandboxed?.enabled === true;
   const modeActive = report.mode?.active === true;
   const resolvedMode = report.mode?.resolvedMode ?? report.mode?.effectiveMode ?? "workflow";
   const displayedMode = modeActive ? resolvedMode : `dormant (${resolvedMode})`;
@@ -451,7 +453,7 @@ export function renderFreeflowStatusResult(result, { expanded }: any = {}, theme
   const lines = [
     `${themeFg(theme, "success", icon)} ${themeFg(theme, "toolTitle", "freeflow_status")} ${themeFg(theme, "muted", report.action ?? "status")} • freeflow ${formatStatus(theme, core.enabled ? "ok" : "off")} • mode ${themeFg(theme, modeActive ? "accent" : "dim", displayedMode)} • router ${formatStatus(theme, router.enabled === false ? "off" : "ok")}`,
     `${themeFg(theme, "muted", "vault:")} ${themeFg(theme, "accent", shortenMiddle(report.vault?.root ?? "unknown", 80))} ${themeFg(theme, "dim", report.vault?.writability?.status ?? "unknown")}`,
-    `${themeFg(theme, "muted", "routing:")} observed=${observedRouting.enabled ? "on" : "off"} • processing=${unsafeProcessing ? "unsafe/unsandboxed" : "safe-default"} • warnings=${allWarnings.length} • migrations=${recommendations.length}`,
+    `${themeFg(theme, "muted", "routing:")} observed=${observedRouting.enabled ? "on" : "off"} • cognitive=${cognitiveRouting.effective ? (cognitiveRuntime.activeProfile ?? "effective") : cognitiveRuntimeStatus} • warnings=${allWarnings.length} • migrations=${recommendations.length}`,
   ];
 
   if (!expanded) {
@@ -500,6 +502,14 @@ export function renderFreeflowStatusResult(result, { expanded }: any = {}, theme
   lines.push(
     `  ${themeFg(theme, "muted", "session override:")} ${report.mode?.sessionMode ?? report.mode?.currentMode ?? "none"}`,
   );
+
+  lines.push("", themeFg(theme, "toolTitle", "Cognitive Routing"));
+  lines.push(
+    `  ${themeFg(theme, "muted", "configured/preflight/runtime:")} ${String(Boolean(cognitiveRouting.configured))}/${String(Boolean(cognitiveRouting.preflightEffective))}/${String(Boolean(cognitiveRouting.effective))}`,
+  );
+  lines.push(`  ${themeFg(theme, "muted", "blocking reason:")} ${cognitiveRouting.blockingReason?.code ?? "none"}`);
+  lines.push(`  ${themeFg(theme, "muted", "active profile:")} ${cognitiveRuntime.activeProfile ?? "none"}`);
+  lines.push(`  ${themeFg(theme, "muted", "control:")} ${cognitiveRuntime.controlMode ?? "none"}`);
 
   lines.push("", themeFg(theme, "toolTitle", "Router"));
   lines.push(`  ${themeFg(theme, "muted", "enabled:")} ${String(router.enabled !== false)}`);
