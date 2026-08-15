@@ -1479,6 +1479,8 @@ test("schema exposes update input without implementation inspection", async (t) 
   assert.equal(schema.exitCode, 0, schema.stderr);
   assert.match(schema.stdout, /edits/);
   assert.match(schema.stdout, /replaceText/);
+  assert.match(schema.stdout, /old.*exact.*new.*replacement/);
+  assert.match(schema.stdout, /field.*old.*exact.*new.*replacement/);
   assert.match(schema.stdout, /moveBefore|moveAfter/);
   assert.match(schema.stdout, /candidateText/);
   assert.match(schema.stdout, /coverage/);

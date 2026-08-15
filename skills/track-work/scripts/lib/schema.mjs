@@ -12,7 +12,7 @@ const SCHEMAS = {
       "target": "currentContext.currentDirection" | { "kind": "proposal|decision|slice|note", "id|title": "..." },
       "set": { "field": "value" },
       "clear": ["field"],
-      "replaceText": { "field": { "old": "exact", "new": "replacement" } },
+      "replaceText": { "old": "exact", "new": "replacement" } | { "field": { "old": "exact", "new": "replacement" } },
       "add": { "listField": ["member"] },
       "remove": { "listField": ["member"] },
       "rename": "new title",
@@ -28,6 +28,7 @@ const SCHEMAS = {
 }`,
     rules: [
       "Use one edit per affected field or entity; unspecified values are preserved.",
+      "For a direct field target use replaceText {old, new}; for an entity target use {field: {old, new}}.",
       "replaceText requires one exact match; ambiguous or missing matches fail.",
       "Whole-object or whole-collection replacement requires an explicit set operation.",
       "Batch related edits in one command for one atomic write.",
