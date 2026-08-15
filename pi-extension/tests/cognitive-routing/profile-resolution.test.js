@@ -7,6 +7,8 @@ import { resolveCognitiveRoutingConfig } from "../../dist/cognitive-routing/conf
 import { resolveCognitiveRoutingState } from "../../dist/cognitive-routing/runtime.js";
 import { readCapabilityState } from "../../dist/runtime/runtime-context.js";
 
+process.env.FREEFLOW_RUNTIME = "piflow";
+
 const standard = {
   provider: "openai-codex",
   model: "gpt-5.6-luna",

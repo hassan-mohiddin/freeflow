@@ -35,7 +35,8 @@ export type CognitiveRoutingBlockCode =
   | "profile_unavailable"
   | "profile_unauthenticated"
   | "profile_clamped"
-  | "profiles_identical";
+  | "profiles_identical"
+  | "runtime_disabled";
 
 export interface CognitiveRoutingBlockingReason {
   code: CognitiveRoutingBlockCode;

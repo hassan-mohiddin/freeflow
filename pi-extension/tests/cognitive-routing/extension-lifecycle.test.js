@@ -5,10 +5,13 @@ import { join } from "node:path";
 import test from "node:test";
 import freeflowExtension from "../../dist/index.js";
 
+process.env.FREEFLOW_RUNTIME = "piflow";
+
 function createExtensionHost({ rejectReturnRestore = false } = {}) {
   const handlers = new Map();
   const tools = [];
   const commands = [];
+  const shortcuts = [];
   const entries = [];
   const operations = [];
   let activeToolNames;
@@ -22,6 +25,9 @@ function createExtensionHost({ rejectReturnRestore = false } = {}) {
     },
     registerCommand(name, definition) {
       commands.push({ name, definition });
+    },
+    registerShortcut(shortcut, definition) {
+      shortcuts.push({ shortcut, definition });
     },
     on(event, handler) {
       handlers.set(event, handler);
@@ -71,7 +77,17 @@ function createExtensionHost({ rejectReturnRestore = false } = {}) {
     sendUserMessage() {},
   };
   freeflowExtension(pi);
-  return { commands, entries, handlers, operations, pi, state, tools, activeToolNames: () => activeToolNames ?? [] };
+  return {
+    commands,
+    entries,
+    handlers,
+    operations,
+    pi,
+    shortcuts,
+    state,
+    tools,
+    activeToolNames: () => activeToolNames ?? [],
+  };
 }
 
 function createContext(cwd, host) {
@@ -112,6 +128,74 @@ function createContext(cwd, host) {
   };
 }
 
+test("registered shortcuts cycle manual control and release it to automatic mode", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-cognitive-routing-shortcuts-"));
+  await mkdir(join(cwd, ".freeflow"));
+  await writeFile(
+    join(cwd, ".freeflow", "config.json"),
+    JSON.stringify({
+      cognitiveRouting: {
+        enabled: true,
+        profiles: {
+          standard: { provider: "faux", model: "standard", thinkingLevel: "high" },
+          reasoning: { provider: "faux", model: "reasoning", thinkingLevel: "max" },
+        },
+      },
+    }),
+  );
+  const host = createExtensionHost();
+  const ctx = createContext(cwd, host);
+  ctx.isIdle = () => true;
+  try {
+    await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    const cycle = host.shortcuts.find(({ shortcut }) => shortcut === "ctrl+shift+r");
+    const automatic = host.shortcuts.find(({ shortcut }) => shortcut === "ctrl+shift+a");
+    assert.ok(cycle);
+    assert.ok(automatic);
+
+    await cycle.definition.handler(ctx);
+    assert.equal(host.entries.at(-1).modelId, "reasoning");
+    await automatic.definition.handler(ctx);
+    assert.equal(host.entries.at(-1).customType, "freeflow-cognitive-routing-control");
+    assert.deepEqual(host.operations, ["prepare", "acquire", "setState", "prepare", "setState", "prepare"]);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("freeflow_status reports the active manual runtime state", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-cognitive-routing-status-runtime-"));
+  await mkdir(join(cwd, ".freeflow"));
+  await writeFile(
+    join(cwd, ".freeflow", "config.json"),
+    JSON.stringify({
+      cognitiveRouting: {
+        enabled: true,
+        profiles: {
+          standard: { provider: "faux", model: "standard", thinkingLevel: "high" },
+          reasoning: { provider: "faux", model: "reasoning", thinkingLevel: "max" },
+        },
+      },
+    }),
+  );
+  const host = createExtensionHost();
+  const ctx = createContext(cwd, host);
+  ctx.isIdle = () => true;
+  try {
+    await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    await host.commands.find(({ name }) => name === "freeflow").definition.handler("profile reasoning", ctx);
+    const statusTool = host.tools.find(({ name }) => name === "freeflow_status");
+    const result = await statusTool.execute("status", { action: "status" }, undefined, undefined, ctx);
+    const cognitiveRouting = result.details.result.effectiveConfig.cognitiveRouting;
+    assert.equal(cognitiveRouting.effective, true);
+    assert.equal(cognitiveRouting.runtimeStatus, "active");
+    assert.equal(cognitiveRouting.runtime.activeProfile, "reasoning");
+    assert.equal(cognitiveRouting.runtime.controlMode, "manual-reasoning");
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 test("explicit startup model provenance suppresses lifecycle activation", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-cognitive-routing-suppressed-"));
   await mkdir(join(cwd, ".freeflow"));
@@ -136,6 +220,44 @@ test("explicit startup model provenance suppresses lifecycle activation", async 
     assert.deepEqual(host.entries, []);
     assert.deepEqual(host.state, { model: { provider: "faux", id: "return" }, thinkingLevel: "medium" });
   } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("child extension activation does not deactivate the parent routing controller", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-cognitive-routing-child-activation-"));
+  await mkdir(join(cwd, ".freeflow"));
+  await writeFile(
+    join(cwd, ".freeflow", "config.json"),
+    JSON.stringify({
+      cognitiveRouting: {
+        enabled: true,
+        profiles: {
+          standard: { provider: "faux", model: "standard", thinkingLevel: "high" },
+          reasoning: { provider: "faux", model: "reasoning", thinkingLevel: "max" },
+        },
+      },
+    }),
+  );
+  const parent = createExtensionHost();
+  const parentContext = createContext(cwd, parent);
+  const child = createExtensionHost();
+  const childContext = createContext(cwd, child);
+  childContext.modelStateProvenance = { explicitModel: true, explicitThinking: true };
+  try {
+    await parent.handlers.get("session_start")({ type: "session_start", reason: "startup" }, parentContext);
+    assert.deepEqual(parent.state, { model: { provider: "faux", id: "standard" }, thinkingLevel: "high" });
+
+    await child.handlers.get("session_start")({ type: "session_start", reason: "startup" }, childContext);
+
+    assert.deepEqual(parent.state, { model: { provider: "faux", id: "standard" }, thinkingLevel: "high" });
+    assert.equal(
+      parent.entries.some((entry) => entry.kind === "closing"),
+      false,
+    );
+  } finally {
+    await child.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "test-cleanup" }, childContext);
+    await parent.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "test-cleanup" }, parentContext);
     await rm(cwd, { recursive: true, force: true });
   }
 });
@@ -203,7 +325,7 @@ test("registered profile commands create manual holds and release them without a
   }
 });
 
-test("settled runs reset automatic reasoning but preserve a manual hold", async () => {
+test("settled runs preserve automatic reasoning and manual holds", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-cognitive-routing-settled-"));
   await mkdir(join(cwd, ".freeflow"));
   await writeFile(
@@ -232,10 +354,10 @@ test("settled runs reset automatic reasoning but preserve a manual hold", async 
     );
     assert.deepEqual(host.state, { model: { provider: "faux", id: "reasoning" }, thinkingLevel: "max" });
 
+    const callsBeforeSettledAutomatic = host.operations.length;
     await host.handlers.get("agent_settled")({ type: "agent_settled" }, ctx);
-    assert.deepEqual(host.state, { model: { provider: "faux", id: "standard" }, thinkingLevel: "high" });
-    assert.equal(host.entries.at(-1).source, undefined);
-    assert.equal(host.entries.at(-1).modelId, "standard");
+    assert.equal(host.operations.length, callsBeforeSettledAutomatic);
+    assert.deepEqual(host.state, { model: { provider: "faux", id: "reasoning" }, thinkingLevel: "max" });
 
     const command = host.commands.find(({ name }) => name === "freeflow");
     await command.definition.handler("profile reasoning", ctx);
@@ -243,6 +365,51 @@ test("settled runs reset automatic reasoning but preserve a manual hold", async 
     await host.handlers.get("agent_settled")({ type: "agent_settled" }, ctx);
     assert.equal(host.operations.length, callsBeforeSettledManual);
     assert.deepEqual(host.state, { model: { provider: "faux", id: "reasoning" }, thinkingLevel: "max" });
+  } finally {
+    await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "test-cleanup" }, ctx);
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("reload preserves a manual reasoning hold after lease rotation", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-cognitive-routing-reload-manual-"));
+  await mkdir(join(cwd, ".freeflow"));
+  await writeFile(
+    join(cwd, ".freeflow", "config.json"),
+    JSON.stringify({
+      cognitiveRouting: {
+        enabled: true,
+        profiles: {
+          standard: { provider: "faux", model: "standard", thinkingLevel: "high" },
+          reasoning: { provider: "faux", model: "reasoning", thinkingLevel: "max" },
+        },
+      },
+    }),
+  );
+  const host = createExtensionHost();
+  const ctx = createContext(cwd, host);
+  ctx.isIdle = () => true;
+  try {
+    await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    await host.commands.find(({ name }) => name === "freeflow").definition.handler("profile reasoning", ctx);
+    await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "reload" }, ctx);
+
+    assert.deepEqual(host.state, { model: { provider: "faux", id: "return" }, thinkingLevel: "medium" });
+    await host.handlers.get("session_start")({ type: "session_start", reason: "reload" }, ctx);
+
+    assert.deepEqual(host.state, { model: { provider: "faux", id: "reasoning" }, thinkingLevel: "max" });
+    assert.ok(!host.activeToolNames().includes("freeflow_switch_profile"));
+    const statusTool = host.tools.find(({ name }) => name === "freeflow_status");
+    const result = await statusTool.execute("status", { action: "status" }, undefined, undefined, ctx);
+    const runtime = result.details.result.effectiveConfig.cognitiveRouting.runtime;
+    assert.equal(runtime.activeProfile, "reasoning");
+    assert.equal(runtime.controlMode, "manual-reasoning");
+
+    const operationsBeforeCompaction = [...host.operations];
+    await host.handlers.get("session_compact")({ type: "session_compact" }, ctx);
+    assert.deepEqual(host.operations, operationsBeforeCompaction);
+    assert.deepEqual(host.state, { model: { provider: "faux", id: "reasoning" }, thinkingLevel: "max" });
+    assert.ok(!host.activeToolNames().includes("freeflow_switch_profile"));
   } finally {
     await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "test-cleanup" }, ctx);
     await rm(cwd, { recursive: true, force: true });
@@ -454,16 +621,36 @@ test("Pi lifecycle prepares, activates, restores, and releases Cognitive Routing
     assert.match(beforeAgentStart.systemPrompt, /## Cognitive Routing Runtime State/);
     assert.equal((beforeAgentStart.systemPrompt.match(/^# Cognitive Routing$/gm) ?? []).length, 1);
 
+    const switchTool = host.tools.find((tool) => tool.name === "freeflow_switch_profile");
+    await switchTool.execute(
+      "call-1",
+      { target: "reasoning", reason: "Continue the unresolved architecture decision." },
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.deepEqual(host.state, { model: { provider: "faux", id: "reasoning" }, thinkingLevel: "max" });
+
     await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "reload" }, ctx);
 
-    assert.deepEqual(host.operations, ["prepare", "acquire", "setState", "prepare", "setState", "release"]);
+    assert.deepEqual(host.operations, [
+      "prepare",
+      "acquire",
+      "setState",
+      "prepare",
+      "setState",
+      "prepare",
+      "setState",
+      "release",
+    ]);
     assert.deepEqual(host.state, { model: { provider: "faux", id: "return" }, thinkingLevel: "medium" });
     assert.equal(host.entries.at(-1).type, "model_state_change");
     assert.equal(host.entries.at(-1).modelId, "return");
 
     await host.handlers.get("session_start")({ type: "session_start", reason: "reload" }, ctx);
     assert.deepEqual(host.operations.slice(-3), ["prepare", "acquire", "setState"]);
-    assert.deepEqual(host.state, { model: { provider: "faux", id: "standard" }, thinkingLevel: "high" });
+    assert.deepEqual(host.state, { model: { provider: "faux", id: "reasoning" }, thinkingLevel: "max" });
+    assert.ok(host.activeToolNames().includes("freeflow_switch_profile"));
     await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "test-cleanup" }, ctx);
   } finally {
     await rm(cwd, { recursive: true, force: true });

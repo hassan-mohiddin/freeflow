@@ -74,7 +74,7 @@ The Pi extension:
 - dynamically exposes 25 model/contributor skills;
 - registers canonical direct commands and two Pi-only compatibility aliases;
 - activates Output Router tools and context only when effective;
-- owns the Pi-only Cognitive Routing lease, prepared profile intents, manual profile commands, automatic switch tool, settled reset, and session status.
+- owns the Pi-only Cognitive Routing lease, prepared profile intents, manual profile commands, sticky automatic reasoning episodes, reload state restoration, automatic switch tool, and session status.
 
 `/freeflow settings` edits personal core overrides. `/freeflow settings session` manages temporary, branch-aware Freeflow, Interaction Contract, Skills, and mode overrides without changing config files. `/freeflow settings repo` edits shared repository settings. `/freeflow mode` remains the direct temporary mode control.
 

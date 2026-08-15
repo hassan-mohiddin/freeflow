@@ -1,4 +1,5 @@
 import type { CognitiveRoutingController, CognitiveRoutingSwitchResult } from "./controller.js";
+import { textComponent } from "../output-router/utils.js";
 import type { CognitiveRoutingProfileName } from "./types.js";
 
 export const COGNITIVE_ROUTING_SWITCH_TOOL_NAME = "freeflow_switch_profile";
@@ -27,6 +28,16 @@ type SwitchToolParams = {
   reason?: unknown;
 };
 
+type CognitiveRoutingToolRenderState = {
+  transitionOriginCaptured?: boolean;
+  transitionOrigin?: CognitiveRoutingProfileName;
+};
+
+type CognitiveRoutingToolRenderContext = {
+  state?: CognitiveRoutingToolRenderState;
+  argsComplete?: boolean;
+};
+
 function resultText(result: CognitiveRoutingSwitchResult): string {
   if (result.status === "active") return `${COGNITIVE_ROUTING_SWITCH_TOOL_NAME}|active\nprofile|${result.profile}`;
   return `${COGNITIVE_ROUTING_SWITCH_TOOL_NAME}|${result.status}\nreason|${result.reason}`;
@@ -34,6 +45,57 @@ function resultText(result: CognitiveRoutingSwitchResult): string {
 
 function blocked(reason: string): CognitiveRoutingSwitchResult {
   return { status: "blocked", reason };
+}
+
+function transitionLabel(from: string | undefined, to: string | undefined): string {
+  if (from && to && from === to) return `Cognitive Routing: ${to} (already active)`;
+  return `Cognitive Routing: ${from ?? "current"} -> ${to ?? "unknown"}`;
+}
+
+function renderTransition(text: string, theme: any) {
+  return textComponent(theme?.fg ? theme.fg("accent", text) : text);
+}
+
+function transitionOrigin(
+  getController: () => CognitiveRoutingController | undefined,
+  target: CognitiveRoutingProfileName | undefined,
+  context?: CognitiveRoutingToolRenderContext,
+): CognitiveRoutingProfileName | undefined {
+  const liveProfile = getController()?.state().activeProfile;
+  if (!context?.state || !target || context.argsComplete === false) return liveProfile;
+  if (!context.state.transitionOriginCaptured) {
+    context.state.transitionOriginCaptured = true;
+    context.state.transitionOrigin = liveProfile;
+  }
+  return context.state.transitionOrigin;
+}
+
+function resultFromPayload(payload: any): CognitiveRoutingSwitchResult | undefined {
+  const details = payload?.details?.result ?? payload?.result ?? payload?.details;
+  if (details && (details.status === "active" || details.status === "blocked" || details.status === "inactive")) {
+    return details as CognitiveRoutingSwitchResult;
+  }
+
+  const text = Array.isArray(payload?.content)
+    ? payload.content.find((part: any) => part?.type === "text")?.text
+    : undefined;
+  if (typeof text !== "string") return undefined;
+  const fields = new Map<string, string>();
+  for (const line of text.split("\\n")) {
+    const separator = line.indexOf("|");
+    if (separator <= 0) continue;
+    fields.set(line.slice(0, separator), line.slice(separator + 1));
+  }
+  const status = fields.get(COGNITIVE_ROUTING_SWITCH_TOOL_NAME);
+  if (status === "active") {
+    const profile = fields.get("profile");
+    return profile === "standard" || profile === "reasoning" ? { status, profile } : undefined;
+  }
+  if (status === "blocked" || status === "inactive") {
+    const reason = fields.get("reason");
+    return reason ? { status, reason } : undefined;
+  }
+  return undefined;
 }
 
 function validateParams(
@@ -73,20 +135,36 @@ export function registerCognitiveRoutingTool(
     async execute(_toolCallId: string, params: SwitchToolParams, _signal: unknown, _onUpdate: unknown, _ctx: unknown) {
       const controller = getController();
       const input = validateParams(params ?? {});
-      const result =
-        input.status === "invalid"
-          ? blocked(input.reason)
-          : !controller
-            ? blocked("not_available")
-            : !controller.state().effective
-              ? blocked("not_active")
-              : controller.state().controlMode !== "automatic"
-                ? blocked("manual_hold")
-                : await controller.switchAutomaticProfile(input.target, input.reason);
+      let result: CognitiveRoutingSwitchResult;
+      if (input.status === "invalid") {
+        result = blocked(input.reason);
+      } else if (!controller) {
+        result = blocked("not_available");
+      } else if (!controller.state().effective) {
+        result = blocked("not_active");
+      } else if (controller.state().controlMode !== "automatic") {
+        result = blocked("manual_hold");
+      } else {
+        result = await controller.switchAutomaticProfile(input.target, input.reason);
+      }
       return {
         content: [{ type: "text", text: resultText(result) }],
         details: { result },
       };
+    },
+    renderCall(args: SwitchToolParams, theme: any, context?: CognitiveRoutingToolRenderContext) {
+      const target = args?.target === "standard" || args?.target === "reasoning" ? args.target : undefined;
+      return renderTransition(transitionLabel(transitionOrigin(getController, target, context), target), theme);
+    },
+    renderResult(result: any, _options: any, theme: any) {
+      const outcome = resultFromPayload(result);
+      if (outcome?.status === "active") {
+        return renderTransition(`Cognitive Routing: active · ${outcome.profile}`, theme);
+      }
+      if (outcome) {
+        return renderTransition(`Cognitive Routing: ${outcome.status} · ${outcome.reason}`, theme);
+      }
+      return renderTransition(`Cognitive Routing: ${result?.isError ? "error" : "result unavailable"}`, theme);
     },
   });
 }

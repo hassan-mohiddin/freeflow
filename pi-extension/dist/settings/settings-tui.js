@@ -135,6 +135,12 @@ class SettingsPanel {
             this.refresh();
             done();
           });
+      } else if (entry.wizard) {
+        item.submenu = (_currentValue, done) =>
+          new WizardEditor(entry, `${this.title} › ${entry.label}`, this.theme, this.coordinator, () => {
+            this.refresh();
+            done();
+          });
       } else if (entry.choices?.length) {
         item.submenu = (_currentValue, done) =>
           new ChoiceEditor(entry, `${this.title} › ${entry.label}`, this.theme, this.coordinator, () => {
@@ -208,6 +214,78 @@ class ChoiceEditor {
   }
   render(width) {
     return panelLines(this.title, this.list.render(width), width, this.theme, this.coordinator.pending);
+  }
+  handleInput(data) {
+    this.list.handleInput(data);
+  }
+  invalidate() {
+    this.list.invalidate();
+  }
+}
+class WizardEditor {
+  entry;
+  title;
+  theme;
+  coordinator;
+  done;
+  wizard;
+  selectedValues = [];
+  list;
+  stepTitle;
+  constructor(entry, title, theme, coordinator, done) {
+    this.entry = entry;
+    this.title = title;
+    this.theme = theme;
+    this.coordinator = coordinator;
+    this.done = done;
+    this.wizard = entry.wizard();
+    const firstStep = this.wizard.firstStep();
+    this.stepTitle = firstStep.title;
+    this.list = this.createList(firstStep);
+  }
+  createList(step) {
+    const list = new SelectList(
+      step.choices.map((choice) => ({
+        value: choice.key,
+        label: choice.label,
+        description: choice.description,
+      })),
+      Math.min(step.choices.length, 12),
+      selectTheme(this.theme),
+    );
+    const selectedIndex = step.choices.findIndex((choice) => choice.key === step.selectedKey);
+    list.setSelectedIndex(Math.max(0, selectedIndex));
+    list.onSelect = (selected) => {
+      const choice = step.choices.find((candidate) => candidate.key === selected.value);
+      if (!choice) return;
+      if (choice.key === "__cancel__") {
+        this.done();
+        return;
+      }
+      const selectedValues = [...this.selectedValues, choice.value];
+      const nextStep = this.wizard.nextStep(selectedValues);
+      if (nextStep) {
+        this.selectedValues = selectedValues;
+        this.stepTitle = nextStep.title;
+        this.list = this.createList(nextStep);
+        this.coordinator.requestRenderNow();
+        return;
+      }
+      void this.coordinator.commit(this.entry, this.wizard.valueFromSelections(selectedValues)).then((committed) => {
+        if (committed) this.done();
+      });
+    };
+    list.onCancel = this.done;
+    return list;
+  }
+  render(width) {
+    return panelLines(
+      `${this.title} › ${this.stepTitle}`,
+      this.list.render(width),
+      width,
+      this.theme,
+      this.coordinator.pending,
+    );
   }
   handleInput(data) {
     this.list.handleInput(data);

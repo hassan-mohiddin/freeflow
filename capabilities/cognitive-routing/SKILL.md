@@ -8,10 +8,11 @@ description: "Guide the active agent in choosing between configured standard and
 Cognitive Routing changes the compute used by one agent. It does not change task ownership, tools, mode, authority, accepted intent, evidence requirements, or Workflow's route.
 
 - **Cognitive demand** is the capability needed to choose or perform the next action reliably given its uncertainty, branching, causal depth, and consequence—not whether the agent is thinking or acting.
-- **Standard** is the normal profile. It still reasons and may perform any currently authorized work.
-- **Reasoning** is the configured higher-cognition profile: a more capable model, higher reasoning effort on the same model, or both. It is not Conversation Mode, planning mode, review mode, or a read-only role.
+- **Standard** is the default workhorse when no material cognitive boundary is active. It still reasons and may perform any currently authorized work.
+- **Reasoning** is the configured higher-cognition profile: a more capable model, higher reasoning effort on the same model, or both.
+- A **reasoning episode** begins when automatic control switches to reasoning for a declared cognitive boundary. It remains active until that boundary is resolved and the agent explicitly yields to standard.
 
-Both profiles may discuss, inspect, edit, run tools, verify, and complete authorized work.
+Both profiles may discuss, inspect, edit, run tools, verify, and complete authorized work. Reasoning is not Conversation Mode, planning mode, review mode, or a read-only consultant.
 
 ## Obey The Control Owner
 
@@ -19,36 +20,66 @@ The runtime declares profile control as **automatic** or **manual**. Do not infe
 
 Under **automatic control**:
 
-- begin in standard and choose the profile needed at each cognitive boundary;
+- use standard when no unresolved cognitive boundary needs reasoning;
+- switch to reasoning before attempting a material judgment that higher cognition could improve;
+- keep the reasoning episode across response endings, user turns, tool calls, compaction, same-session resume, and reload while its boundary remains unresolved;
+- reassess the active boundary whenever work resumes and yield only when standard is sufficient for what remains;
 - treat natural-language profile suggestions as advisory evidence, not commands or holds;
-- switch when the immediate cognitive demand supports the suggestion; otherwise stay and explain briefly;
-- ask one focused question when the suggestion's meaning or target is unclear;
-- remain automatic after switching, so the agent may switch back; when the run settles, the host returns to standard.
+- ask one focused question when a suggestion's meaning or target is unclear.
+
+Technical idleness is not cognitive resolution. `agent_settled` means Pi has no automatic continuation; it does not end a discussion, diagnosis, decision, or reasoning episode.
 
 Under **manual control**:
 
 - use the profile held through `/freeflow profile standard`, `/freeflow profile reasoning`, or the equivalent settings selector;
 - `freeflow_switch_profile` is inactive and runtime-blocked; do not attempt it or treat conversational agreement as a profile change;
 - recommend `/freeflow profile reasoning`, `/freeflow profile standard`, or `/freeflow profile auto` once when another profile or automatic control would materially help;
-- expose a blocker and the exact control needed when reliable continuation is not possible through the held profile.
+- expose the blocker and exact control needed when reliable continuation is not possible through the held profile.
 
-A blocked stale or accidental model switch leaves the manual hold and active profile unchanged and is not a successful switch. A manual hold persists across turns and resume until the user changes it, restores automatic control, or disables Cognitive Routing. Deterministic selection is the trusted hard-control surface; conversation supplies soft input only.
+A manual hold persists until the user selects another hold, restores automatic control, or disables Cognitive Routing. User turns, compaction, same-session resume, and reload do not clear it. Reload replaces the process-local lease but does not itself change a valid semantic hold. A blocked stale or accidental switch leaves the hold and active profile unchanged.
 
-## Route Cognitive Demand
+`/freeflow profile auto` releases a hold without forcing a profile transition. Once automatic control returns, reassess the active profile. If a released reasoning hold no longer has a material boundary, yield before other work.
 
-Stay in standard under automatic control while evidence supports the route and standard is sufficient for what comes next—for example, a known inspection, accepted pattern, bounded edit, direct check, clear result, or obvious local correction.
+## Place Cognition Deliberately
+
+Prefer standard for known inspections, accepted patterns, bounded edits, direct checks, clear results, and routine high-volume tool loops.
 
 Consider reasoning when greater capability could materially improve the immediate decision or action, especially when:
 
 - materially different valid approaches remain;
-- an architecture or interface judgment remains after user-owned outcomes are settled;
+- architecture, interfaces, ownership, or failure behavior remain unresolved after user-owned outcomes are settled;
 - evidence invalidates an important assumption or strategy;
 - a causal failure is unclear or repeats without convergence;
+- difficult synthesis has consequential downstream effects;
 - the next authorized action requires sustained high-capability judgment.
 
-These are cues, not automatic switches. Do not score demand after every thought or tool call, switch because the whole task is complex, or map profiles to Workflow phases. A user-owned choice remains a Decision Gate.
+These are cues, not automatic switches. Do not score demand after every thought, switch around individual tool calls, escalate because the whole task is complex, or map profiles to Workflow phases. A user-owned choice remains a Decision Gate.
 
-While reasoning, resolve the boundary that justified escalation, gather evidence, and perform authorized actions when they still benefit from higher cognition. Return only when standard is sufficient—not merely because implementation or tool use begins.
+The source of feedback does not determine the profile. Under automatic control, when new evidence leaves its validity, causal meaning, combined effects, or safe remedy materially unresolved, switch before resolving those judgments. Do not escalate merely because feedback arrived; standard is sufficient when the result and next action are clear and bounded.
+
+Reasoning is the cognitive lead for the boundary, not a detached oracle. It may inspect evidence, run diagnostics, write difficult material, or perform authorized actions while observation and judgment must evolve together. Prefer yielding before long mechanical execution once the direction is supported, but do not force standard to gather or interpret evidence whose selection still depends on the unresolved judgment.
+
+## Complete The Reasoning Episode
+
+Yield only when:
+
+- the episode's central uncertainty is resolved;
+- material assumptions and evidence are explicit;
+- the selected direction is supported;
+- remaining work is bounded enough for standard.
+
+Before switching to standard, place a visible handoff in context:
+
+```text
+Conclusion:
+Important evidence and assumptions:
+Bounded next action:
+Reopen reasoning when:
+```
+
+Do not rely on hidden reasoning transferring between profiles. The visible handoff, ordinary session context, and preserved evidence are the continuation boundary.
+
+Do not yield merely because the current response ends, Pi settles, a tool call begins, or the agent is waiting for the user. If the boundary remains unresolved while waiting, stay in reasoning for the next user turn or new evidence. If what arrives is unrelated or routine, reassess and yield before handling it when standard is sufficient.
 
 ## Switch Deliberately
 
@@ -61,19 +92,15 @@ freeflow_switch_profile(
 )
 ```
 
-The switch must be the only tool call in that assistant response. Keep `reason` within 160 characters. It records the model's declared rationale, not chain-of-thought, a context handoff, or proof that the rationale is correct.
+The switch must be the only tool call in that assistant response. Keep `reason` within 160 characters. It records the declared boundary or yield rationale, not chain-of-thought, a context handoff, or proof that the rationale is correct.
 
-Switch to reasoning before attempting the material judgment. Before returning to standard, state the supported conclusion, important assumptions, and bounded next action in visible context. If switching fails, preserve the reported profile and continue only when it remains suitable; otherwise expose the blocker through Workflow.
-
-When reasoning reaches an answer, wait, deferment, stop, or other Supported Exit with no immediate continuation, finish normally. Do not create a redundant standard response solely to reset; the host handles automatic settled reset.
+Switch to reasoning before attempting the material judgment. To yield, write the visible handoff before the switch call so standard can continue from explicit state. Do not call the tool merely to restate the already active profile. If switching fails, preserve the reported profile and continue only when it remains suitable; otherwise expose the blocker through Workflow.
 
 ## Example
 
-Suppose standard uses a general model at medium effort and reasoning uses that model at max effort or a more capable model. A known adapter edit and direct test stay in standard.
+A known adapter edit and direct test stay in standard. Evidence that several adapters may share one failure unit, with credible ownership boundaries unresolved, escalates to reasoning before choosing a remedy. Reasoning may inspect code, ask the user a focused question, and finish that response without yielding; Pi settlement does not reset it. On the next user turn, reasoning continues the same boundary. Once the direction is supported and any required user decision is settled, it writes the conclusion, assumptions, bounded implementation action, and reopen condition, then switches to standard for routine execution.
 
-The user says, “I think reasoning would be better here, right?” Under automatic control, assess rather than comply reflexively. If the failure is a clear formatting mismatch, explain that standard is sufficient and continue. If the result contradicts a migration invariant and several causes remain plausible, switch with an agent-sourced reason naming both the suggestion and the causal uncertainty. Reasoning may inspect code, run diagnostic tests, or make an authorized experimental edit; it is not read-only. Once the cause is supported and correction bounded, expose that state and switch to standard. Automatic control remains active throughout.
-
-If standard is manually held, do not switch. Recommend `/freeflow profile reasoning` or `/freeflow profile auto`; block if standard cannot continue reliably. `/freeflow profile reasoning` creates a user-sourced hold across later turns, while a conversational “yes” does not. `/freeflow profile auto` releases the hold and returns control to the agent. A settled automatic reset is system-sourced.
+If standard is manually held, do not escalate through the tool. Recommend `/freeflow profile reasoning` or `/freeflow profile auto`; block only when standard cannot continue reliably. A conversational “yes, use reasoning” remains advisory, while `/freeflow profile reasoning` creates the persistent hold.
 
 ## Preserve Governing Boundaries
 

@@ -133,6 +133,47 @@ test("applies a durable manual profile hold through the owned transition", async
   );
 });
 
+test("reports the latest persisted host pair when cached controller state is stale", async () => {
+  const host = createHost({ onAcquire: appliedLease });
+  const controller = new CognitiveRoutingController({ capabilityState, pi: host.pi, ctx: host.ctx });
+  await controller.activate();
+  host.sessionEntries.push({
+    type: "model_state_change",
+    provider: "faux",
+    modelId: "reasoning",
+    thinkingLevel: "max",
+  });
+
+  assert.equal(controller.state().activeProfile, "reasoning");
+});
+
+test("does not report a stale active profile after an unmatched host pair", async () => {
+  const host = createHost({ onAcquire: appliedLease });
+  const controller = new CognitiveRoutingController({ capabilityState, pi: host.pi, ctx: host.ctx });
+  await controller.activate();
+  host.sessionEntries.push({
+    type: "model_state_change",
+    provider: "faux",
+    modelId: "outside-routing",
+    thinkingLevel: "medium",
+  });
+
+  assert.equal(controller.state().activeProfile, undefined);
+  assert.equal(controller.state().effective, false);
+});
+
+test("does not persist or reapply an automatic request for the active profile", async () => {
+  const host = createHost({ onAcquire: appliedLease });
+  const controller = new CognitiveRoutingController({ capabilityState, pi: host.pi, ctx: host.ctx });
+  await controller.activate();
+  const callsBefore = host.calls.length;
+
+  const result = await controller.switchAutomaticProfile("standard", "Keep the current profile.");
+
+  assert.deepEqual(result, { status: "active", profile: "standard" });
+  assert.equal(host.calls.length, callsBefore);
+});
+
 test("switches profiles through the automatic owner with bounded agent evidence", async () => {
   const host = createHost({ onAcquire: appliedLease });
   const controller = new CognitiveRoutingController({

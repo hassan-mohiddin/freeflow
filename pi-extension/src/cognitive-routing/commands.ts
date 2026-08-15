@@ -4,6 +4,7 @@ import type { CognitiveRoutingProfileName } from "./types.js";
 const PROFILE_VALUES = ["standard", "reasoning", "auto"] as const;
 
 type ProfileCommandContext = {
+  isIdle?: () => boolean;
   ui?: { notify?: (message: string, level?: "info" | "warning" | "error") => void };
 };
 
@@ -32,6 +33,10 @@ export async function handleCognitiveRoutingProfileCommand(
       "Usage: /freeflow profile standard, /freeflow profile reasoning, or /freeflow profile auto",
       "warning",
     );
+    return true;
+  }
+  if (typeof ctx.isIdle === "function" && !ctx.isIdle()) {
+    ctx.ui?.notify?.("Freeflow settings and profile changes are available only while Pi is idle.", "warning");
     return true;
   }
   if (!controller) {

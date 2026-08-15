@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizeFreeflowConfig, normalizeLocalFreeflowConfig } from "../../../router/dist/index.js";
 import { resolveCognitiveRoutingState } from "../cognitive-routing/runtime.js";
+import { isPiFlowRuntime } from "./runtime-identity.js";
 export const VALID_MODES = new Set(["conversation", "workflow", "strict-workflow"]);
 export const WORKFLOW_COMMANDS = [
   { command: "discuss", skill: "discuss" },
@@ -380,11 +381,10 @@ export async function readCapabilityState(cwd, host = undefined) {
   const configuredCognitiveRouting = await resolveCognitiveRoutingState(
     layers.repository.parsed,
     layers.local.parsed,
-    host,
+    isPiFlowRuntime() ? host : undefined,
   );
-  const cognitiveRouting = enabled
-    ? configuredCognitiveRouting
-    : {
+  const cognitiveRouting = !enabled
+    ? {
         ...configuredCognitiveRouting,
         enabled: false,
         effective: false,
@@ -392,7 +392,17 @@ export async function readCapabilityState(cwd, host = undefined) {
           code: "disabled",
           message: "Freeflow is disabled",
         },
-      };
+      }
+    : !isPiFlowRuntime() && configuredCognitiveRouting.configValid
+      ? {
+          ...configuredCognitiveRouting,
+          effective: false,
+          blockingReason: {
+            code: "runtime_disabled",
+            message: "Cognitive Routing is disabled outside the PiFlow runtime",
+          },
+        }
+      : configuredCognitiveRouting;
   return {
     configured: layers.configured,
     repositoryConfigured: layers.repositoryConfigured,
@@ -513,7 +523,7 @@ export async function readModeState(cwd) {
     effectiveMode: active ? resolvedMode : null,
   };
 }
-export function setModeStatus(ctx, modeState, capabilityState = undefined) {
+export function setModeStatus(ctx, modeState, capabilityState = undefined, cognitiveRoutingRuntime = undefined) {
   if (capabilityState && !capabilityState.configured) {
     ctx.ui.setStatus("freeflow", capabilityState.configExists ? "freeflow: config error" : "freeflow: setup needed");
     return;
@@ -533,6 +543,27 @@ export function setModeStatus(ctx, modeState, capabilityState = undefined) {
     active.push(`${modeState.effectiveMode}${modeState.currentMode ? " (session)" : ""}`);
   } else if (capabilityState?.configSources?.skillsEnabled === "session") {
     active.push("skills off (session)");
+  }
+  const cognitiveRouting = capabilityState?.cognitiveRouting;
+  const cognitiveRoutingActive = cognitiveRouting?.effective === true && cognitiveRoutingRuntime?.effective === true;
+  if (cognitiveRoutingActive) {
+    const profile = cognitiveRoutingRuntime.activeProfile;
+    const control =
+      cognitiveRoutingRuntime.controlMode === "manual-standard" ||
+      cognitiveRoutingRuntime.controlMode === "manual-reasoning"
+        ? "manual hold"
+        : "automatic";
+    active.push(`cognitive ${profile} · ${control}`);
+  } else if (cognitiveRouting?.enabled === true) {
+    if (cognitiveRouting.blockingReason?.code === "runtime_disabled") {
+      active.push("cognitive disabled · PiFlow only");
+    } else {
+      const reason =
+        cognitiveRouting?.effective === true
+          ? (cognitiveRoutingRuntime?.blockingReason?.code ?? "runtime_inactive")
+          : (cognitiveRouting.blockingReason?.code ?? "unavailable");
+      active.push(`cognitive blocked · ${reason}`);
+    }
   }
   if (capabilityState?.outputRouter.enabled) {
     active.push("router");
@@ -595,17 +626,21 @@ function capabilityContext(capabilityState) {
   const interactionContract = `${capabilityState.interactionContract.effective ? "enabled" : "disabled"}${sessionSuffix(capabilityState.configSources.interactionContract)}`;
   const skills = `${capabilityState.skills.effective ? "enabled" : "disabled"}${sessionSuffix(capabilityState.configSources.skillsEnabled)}`;
   const outputRouter = capabilityState.outputRouter.enabled ? "enabled" : "disabled";
-  const cognitiveRouting = capabilityState.cognitiveRouting?.effective
-    ? "effective"
-    : capabilityState.cognitiveRouting?.enabled
-      ? `blocked (${capabilityState.cognitiveRouting.blockingReason.code})`
-      : "disabled";
+  const cognitiveRouting = isPiFlowRuntime() ? capabilityState.cognitiveRouting : undefined;
+  const cognitiveLine = cognitiveRouting
+    ? `\n- Cognitive Routing: ${
+        cognitiveRouting.effective
+          ? "effective"
+          : cognitiveRouting.enabled
+            ? `blocked (${cognitiveRouting.blockingReason.code})`
+            : "disabled"
+      }. Configure with \`/freeflow settings\` or \`/freeflow profile auto\`; inspect with \`/freeflow status\`.`
+    : "";
   return `## Freeflow Capabilities
 
 - Interaction contract: ${interactionContract}. Configure with \`/freeflow settings\` or temporarily with \`/freeflow settings session\`; inspect with \`/freeflow status\`.
 - Skills: ${skills}. Configure with \`/freeflow settings\` or temporarily with \`/freeflow settings session\`; inspect with \`/freeflow status\`.
-- Output router: ${outputRouter}. Configure with \`/freeflow settings\` or \`/output-router\`; inspect with \`/output-router status\`.
-- Cognitive Routing: ${cognitiveRouting}. Configure with \`/freeflow settings\` or \`/freeflow profile auto\`; inspect with \`/freeflow status\`.
+- Output router: ${outputRouter}. Configure with \`/freeflow settings\` or \`/output-router\`; inspect with \`/output-router status\`.${cognitiveLine}
 
 Disabled capabilities are named only for status/config awareness. Capability-specific instructions and tools are active only while that capability is enabled.`;
 }

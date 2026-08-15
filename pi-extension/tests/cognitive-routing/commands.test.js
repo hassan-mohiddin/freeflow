@@ -69,6 +69,26 @@ test("releases manual ownership through auto without a model transition", async 
   assert.match(context.notifications[0].message, /automatic control is active/);
 });
 
+test("rejects manual profile changes while Pi is running", async () => {
+  const context = createContext();
+  context.isIdle = () => false;
+  let calls = 0;
+  const controller = {
+    async setManualProfile() {
+      calls += 1;
+      return { status: "active", profile: "standard" };
+    },
+    async setAutomaticControl() {
+      calls += 1;
+      return { status: "automatic" };
+    },
+  };
+
+  assert.equal(await handleCognitiveRoutingProfileCommand("profile reasoning", context, controller), true);
+  assert.equal(calls, 0);
+  assert.match(context.notifications[0].message, /only while Pi is idle/);
+});
+
 test("does not turn conversational or malformed input into a control", async () => {
   const context = createContext();
   let calls = 0;

@@ -33,6 +33,7 @@ const TOP_LEVEL_CONFIG_KEYS = new Set([
   "outputRouter",
   "observedRouting",
   "scriptTransform",
+  "cognitiveRouting",
 ]);
 const OUTPUT_ROUTER_CONFIG_KEYS = new Set([
   "enabled",
@@ -80,7 +81,7 @@ function cognitiveRoutingStatus(state, runtime, ctx) {
   return {
     ...state,
     preflightEffective,
-    preflightBlockingReason: state.blockingReason,
+    preflightBlockingReason: preflightEffective ? null : state.blockingReason,
     effective: preflightEffective && runtime?.effective === true,
     blockingReason: preflightEffective
       ? runtime?.effective === true

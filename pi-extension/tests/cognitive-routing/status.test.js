@@ -5,6 +5,8 @@ import { join } from "node:path";
 import test from "node:test";
 import { buildFreeflowStatusReport } from "../../dist/output-router/status.js";
 
+process.env.FREEFLOW_RUNTIME = "piflow";
+
 function createContext(cwd, explicitModel = false) {
   return {
     cwd,
@@ -79,6 +81,7 @@ test("status reports an active lease without a stale disabled blocking reason", 
     assert.equal(cognitiveRouting.preflightEffective, true);
     assert.equal(cognitiveRouting.effective, true);
     assert.equal(cognitiveRouting.runtimeStatus, "active");
+    assert.equal(cognitiveRouting.preflightBlockingReason, null);
     assert.equal(cognitiveRouting.blockingReason, null);
   });
 });

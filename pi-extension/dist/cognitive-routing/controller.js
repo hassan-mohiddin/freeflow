@@ -27,6 +27,38 @@ function asPair(value) {
     thinkingLevel: candidate.thinkingLevel,
   };
 }
+function latestHostPair(context) {
+  const entries = branchEntriesFrom(context);
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (!entry || typeof entry !== "object") continue;
+    const candidate = entry;
+    if (candidate.type !== "model_state_change") continue;
+    const pair = asPair({
+      provider: candidate.provider,
+      modelId: candidate.modelId,
+      thinkingLevel: candidate.thinkingLevel,
+    });
+    if (pair) return pair;
+  }
+  return undefined;
+}
+function profileNameForPair(capabilityState, pair) {
+  if (!pair) return undefined;
+  for (const [name, profile] of Object.entries(capabilityState.resolvedProfiles)) {
+    if (!profile) continue;
+    if (
+      pairEquals(pair, {
+        provider: profile.provider,
+        modelId: profile.model,
+        thinkingLevel: profile.effectiveThinkingLevel,
+      })
+    ) {
+      return isProfileName(name) ? name : undefined;
+    }
+  }
+  return undefined;
+}
 function asIntent(value) {
   if (!value || typeof value !== "object") return undefined;
   const candidate = value;
@@ -53,6 +85,11 @@ function asIntent(value) {
     epoch: candidate.epoch,
     correlationId: candidate.correlationId,
     ...(isProfileName(candidate.profile) ? { profile: candidate.profile } : {}),
+    ...(isProfileName(candidate.resumeProfile) ? { resumeProfile: candidate.resumeProfile } : {}),
+    ...(candidate.resumeControl === "automatic" || candidate.resumeControl === "manual"
+      ? { resumeControl: candidate.resumeControl }
+      : {}),
+    ...(typeof candidate.resumeReason === "string" ? { resumeReason: candidate.resumeReason } : {}),
     target,
     returnTarget,
   };
@@ -90,6 +127,10 @@ function latestIntent(entries, predicate = () => true) {
   }
   return undefined;
 }
+function controlModeForIntent(intent) {
+  if (intent.control === "manual" && intent.profile) return `manual-${intent.profile}`;
+  return "automatic";
+}
 function latestControlMode(entries, intent) {
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index];
@@ -111,10 +152,9 @@ function latestControlMode(entries, intent) {
     if (candidate.customType !== COGNITIVE_ROUTING_INTENT_ENTRY) continue;
     const candidateIntent = asIntent(candidate.data);
     if (!candidateIntent || candidateIntent.phase !== "prepared" || candidateIntent.epoch !== intent.epoch) continue;
-    if (candidateIntent.kind === "profile" && candidateIntent.control === "manual" && candidateIntent.profile) {
-      return `manual-${candidateIntent.profile}`;
+    if (candidateIntent.kind === "profile" || candidateIntent.kind === "activation") {
+      return controlModeForIntent(candidateIntent);
     }
-    if (candidateIntent.kind === "activation") return "automatic";
   }
   return "automatic";
 }
@@ -150,10 +190,14 @@ export class CognitiveRoutingController {
     this.idFactory = options.idFactory ?? randomUUID;
   }
   state() {
+    const hostPair = latestHostPair(this.ctx);
+    const observedPair = hostPair ?? this.currentPair();
+    const observedProfile = this.activeProfile ? profileNameForPair(this.capabilityState, observedPair) : undefined;
+    const activeProfile = hostPair ? observedProfile : (observedProfile ?? this.activeProfile);
     return {
-      effective: this.lease !== undefined && this.activeProfile !== undefined && !this.branchPending,
+      effective: this.lease !== undefined && activeProfile !== undefined && !this.branchPending,
       controlMode: this.controlMode,
-      ...(this.activeProfile ? { activeProfile: this.activeProfile } : {}),
+      ...(activeProfile ? { activeProfile } : {}),
       ...(this.epoch ? { epoch: this.epoch } : {}),
       ...(this.returnTarget ? { returnTarget: { ...this.returnTarget } } : {}),
     };
@@ -165,7 +209,9 @@ export class CognitiveRoutingController {
     return this.enqueue(() => this._deactivate());
   }
   async shutdown(reason) {
-    return this.enqueue(() => (reason === "quit" ? this._releaseWithoutRestore() : this._deactivate()));
+    return this.enqueue(() =>
+      reason === "quit" ? this._releaseWithoutRestore() : this._deactivate(reason === "reload"),
+    );
   }
   async recover() {
     return this.enqueue(() => this._recover());
@@ -191,16 +237,26 @@ export class CognitiveRoutingController {
     if (lifecycleIntent?.kind === "activation") {
       return { status: "inactive", reason: "recover_required" };
     }
+    const preservedReload = lifecycleIntent?.kind === "closing" && lifecycleIntent.resumeProfile !== undefined;
+    if (preservedReload && !lifecycleIntent.resumeControl) {
+      return { status: "inactive", reason: "resume_state_invalid" };
+    }
     const returnTarget = this.currentPair();
     if (!returnTarget) {
       return { status: "inactive", reason: "current_state_unavailable" };
     }
     const epoch = this.epoch ?? this.idFactory();
     const branchId = this.currentBranchId();
-    const profile = this.capabilityState.resolvedProfiles.standard;
+    const profileName = preservedReload ? lifecycleIntent.resumeProfile : "standard";
+    const profile = this.capabilityState.resolvedProfiles[profileName];
     if (!profile) {
-      return { status: "inactive", reason: "profile_unavailable" };
+      return { status: "inactive", reason: preservedReload ? "resume_profile_unavailable" : "profile_unavailable" };
     }
+    const controlMode = preservedReload
+      ? lifecycleIntent.resumeControl === "manual"
+        ? `manual-${profileName}`
+        : "automatic"
+      : "automatic";
     const target = {
       provider: profile.provider,
       modelId: profile.model,
@@ -208,13 +264,14 @@ export class CognitiveRoutingController {
     };
     return this.activatePrepared({
       kind: "activation",
-      controlMode: "automatic",
+      controlMode,
       source: "system",
+      ...(preservedReload && lifecycleIntent.resumeReason ? { reason: lifecycleIntent.resumeReason } : {}),
       epoch,
       branchId,
       returnTarget,
       target,
-      profile: "standard",
+      profile: profileName,
     });
   }
   async _releaseWithoutRestore() {
@@ -227,17 +284,34 @@ export class CognitiveRoutingController {
     this.clearActiveState();
     return { status: "inactive", reason: "released_on_quit" };
   }
-  async _deactivate() {
+  async _deactivate(preserveSemanticState = false) {
     const lease = this.lease;
     const returnTarget = this.returnTarget;
     if (!lease || !returnTarget || !this.epoch) {
       this.clearActiveState();
       return { status: "inactive", reason: "not_active" };
     }
+    const currentState = preserveSemanticState ? this.state() : undefined;
+    const resumeProfile = currentState?.effective ? currentState.activeProfile : undefined;
+    let resumeControl;
+    if (resumeProfile && currentState?.controlMode === "automatic") {
+      resumeControl = "automatic";
+    } else if (resumeProfile && currentState?.controlMode === `manual-${resumeProfile}`) {
+      resumeControl = "manual";
+    }
+    const resumeIntent = resumeProfile
+      ? latestIntent(
+          branchEntriesFrom(this.ctx),
+          (candidate) => candidate.kind === "profile" && candidate.epoch === this.epoch,
+        )
+      : undefined;
     const intent = this.prepareIntent({
       kind: "closing",
       control: "automatic",
       source: "system",
+      ...(resumeProfile ? { resumeProfile } : {}),
+      ...(resumeControl ? { resumeControl } : {}),
+      ...(resumeIntent?.reason ? { resumeReason: resumeIntent.reason } : {}),
       epoch: this.epoch,
       correlationId: this.idFactory(),
       branchId: this.currentBranchId(),
@@ -362,6 +436,9 @@ export class CognitiveRoutingController {
       control: "automatic",
       source: "system",
       reason: "Closing recovery",
+      ...(intent.resumeProfile ? { resumeProfile: intent.resumeProfile } : {}),
+      ...(intent.resumeControl ? { resumeControl: intent.resumeControl } : {}),
+      ...(intent.resumeReason ? { resumeReason: intent.resumeReason } : {}),
       branchId: this.currentBranchId(),
       epoch: intent.epoch,
       correlationId: this.idFactory(),
@@ -438,8 +515,16 @@ export class CognitiveRoutingController {
       this.branchPending = true;
       return { status: "pending", reason: "branch_intent_unmatched" };
     }
-    const profile = intent?.profile ?? "standard";
-    const controlMode = intent ? latestControlMode(entries, intent) : "automatic";
+    const currentBranchId = this.currentBranchId();
+    const lifecycleOwnsCurrentBranch =
+      lifecycleIntent?.kind === "activation" && lifecycleIntent.branchId === currentBranchId;
+    const profile =
+      intent?.profile ?? (lifecycleOwnsCurrentBranch ? lifecycleIntent?.profile : undefined) ?? "standard";
+    const controlMode = intent
+      ? latestControlMode(entries, intent)
+      : lifecycleOwnsCurrentBranch
+        ? controlModeForIntent(lifecycleIntent)
+        : "automatic";
     if (this.activeProfile === profile && this.controlMode === controlMode) {
       this.branchPending = false;
       return { status: "active", profile };
@@ -477,6 +562,7 @@ export class CognitiveRoutingController {
     if (!this.capabilityState.effective) return { status: "blocked", reason: "not_effective" };
     if (!this.state().effective) return { status: "blocked", reason: "not_active" };
     if (this.controlMode !== "automatic") return { status: "blocked", reason: "manual_hold" };
+    if (this.state().activeProfile === profile) return { status: "active", profile };
     return this._setProfile(profile, { controlMode: "automatic", source, reason });
   }
   async _setProfile(profile, options) {

@@ -1,3 +1,4 @@
+import { textComponent } from "../output-router/utils.js";
 export const COGNITIVE_ROUTING_SWITCH_TOOL_NAME = "freeflow_switch_profile";
 export const COGNITIVE_ROUTING_SWITCH_PARAMETERS = {
   type: "object",
@@ -23,6 +24,48 @@ function resultText(result) {
 }
 function blocked(reason) {
   return { status: "blocked", reason };
+}
+function transitionLabel(from, to) {
+  if (from && to && from === to) return `Cognitive Routing: ${to} (already active)`;
+  return `Cognitive Routing: ${from ?? "current"} -> ${to ?? "unknown"}`;
+}
+function renderTransition(text, theme) {
+  return textComponent(theme?.fg ? theme.fg("accent", text) : text);
+}
+function transitionOrigin(getController, target, context) {
+  const liveProfile = getController()?.state().activeProfile;
+  if (!context?.state || !target || context.argsComplete === false) return liveProfile;
+  if (!context.state.transitionOriginCaptured) {
+    context.state.transitionOriginCaptured = true;
+    context.state.transitionOrigin = liveProfile;
+  }
+  return context.state.transitionOrigin;
+}
+function resultFromPayload(payload) {
+  const details = payload?.details?.result ?? payload?.result ?? payload?.details;
+  if (details && (details.status === "active" || details.status === "blocked" || details.status === "inactive")) {
+    return details;
+  }
+  const text = Array.isArray(payload?.content)
+    ? payload.content.find((part) => part?.type === "text")?.text
+    : undefined;
+  if (typeof text !== "string") return undefined;
+  const fields = new Map();
+  for (const line of text.split("\\n")) {
+    const separator = line.indexOf("|");
+    if (separator <= 0) continue;
+    fields.set(line.slice(0, separator), line.slice(separator + 1));
+  }
+  const status = fields.get(COGNITIVE_ROUTING_SWITCH_TOOL_NAME);
+  if (status === "active") {
+    const profile = fields.get("profile");
+    return profile === "standard" || profile === "reasoning" ? { status, profile } : undefined;
+  }
+  if (status === "blocked" || status === "inactive") {
+    const reason = fields.get("reason");
+    return reason ? { status, reason } : undefined;
+  }
+  return undefined;
 }
 function validateParams(params) {
   if (params.target !== "standard" && params.target !== "reasoning") {
@@ -53,20 +96,36 @@ export function registerCognitiveRoutingTool(pi, getController) {
     async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
       const controller = getController();
       const input = validateParams(params ?? {});
-      const result =
-        input.status === "invalid"
-          ? blocked(input.reason)
-          : !controller
-            ? blocked("not_available")
-            : !controller.state().effective
-              ? blocked("not_active")
-              : controller.state().controlMode !== "automatic"
-                ? blocked("manual_hold")
-                : await controller.switchAutomaticProfile(input.target, input.reason);
+      let result;
+      if (input.status === "invalid") {
+        result = blocked(input.reason);
+      } else if (!controller) {
+        result = blocked("not_available");
+      } else if (!controller.state().effective) {
+        result = blocked("not_active");
+      } else if (controller.state().controlMode !== "automatic") {
+        result = blocked("manual_hold");
+      } else {
+        result = await controller.switchAutomaticProfile(input.target, input.reason);
+      }
       return {
         content: [{ type: "text", text: resultText(result) }],
         details: { result },
       };
+    },
+    renderCall(args, theme, context) {
+      const target = args?.target === "standard" || args?.target === "reasoning" ? args.target : undefined;
+      return renderTransition(transitionLabel(transitionOrigin(getController, target, context), target), theme);
+    },
+    renderResult(result, _options, theme) {
+      const outcome = resultFromPayload(result);
+      if (outcome?.status === "active") {
+        return renderTransition(`Cognitive Routing: active · ${outcome.profile}`, theme);
+      }
+      if (outcome) {
+        return renderTransition(`Cognitive Routing: ${outcome.status} · ${outcome.reason}`, theme);
+      }
+      return renderTransition(`Cognitive Routing: ${result?.isError ? "error" : "result unavailable"}`, theme);
     },
   });
 }

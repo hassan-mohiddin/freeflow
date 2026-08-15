@@ -30,7 +30,16 @@ import {
   type SettingsCommitResult,
   type SettingsEntry,
   type SettingsSessionResult,
+  type SettingsWizard,
+  type SettingsWizardStep,
 } from "./settings-tui.js";
+import { isPiFlowRuntime } from "../runtime/runtime-identity.js";
+import type {
+  CognitiveRoutingCapabilityState,
+  CognitiveRoutingProfile,
+  CognitiveRoutingProfileName,
+  CognitiveRoutingThinkingLevel,
+} from "../cognitive-routing/types.js";
 
 const POST_TOOL_ROUTING_VALUES = ["off", "safety-net", "strict"] as const;
 const STORAGE_POLICY_VALUES = ["hybrid-dedupe", "store-everything"] as const;
@@ -73,6 +82,7 @@ type SettingsItem = {
   inactive?: boolean;
   displaySuffix?: string;
   children?: SettingsItem[];
+  wizard?: () => SettingsWizard;
   parse?: (text: string) => unknown;
   format?: (value: unknown) => string;
   configScope?: ConfigScope;
@@ -487,7 +497,12 @@ function effectiveItemValue(item: SettingsItem): unknown {
 }
 
 function formatCoreValue(value: unknown): string {
-  return typeof value === "boolean" ? booleanValue(value) : String(value ?? "");
+  if (typeof value === "boolean") return booleanValue(value);
+  if (isRecord(value) && typeof value.provider === "string" && typeof value.model === "string") {
+    const effort = typeof value.thinkingLevel === "string" ? ` · ${value.thinkingLevel}` : "";
+    return `${value.provider}/${value.model}${effort}`;
+  }
+  return String(value ?? "");
 }
 
 function coreDisplaySuffix(item: SettingsItem, inactive = false): string {
@@ -839,33 +854,35 @@ function sessionFreeflowItems(
       : cognitiveRoutingState?.controlMode === "manual-reasoning"
         ? "reasoning"
         : "auto";
-  const cognitiveRoutingItem: SettingsItem = {
-    id: "freeflow.cognitiveRouting.profile",
-    label: "Cognitive Routing",
-    description: "Hold a profile manually or release the hold for automatic model control.",
-    kind: "enum",
-    value: cognitiveRoutingProfile,
-    values: ["auto", "standard", "reasoning"],
-    valueLabels: {
-      auto: "automatic",
-      standard: "manual · standard",
-      reasoning: "manual · reasoning",
-    },
-    valueDescriptions: {
-      auto: "Release the manual hold without forcing a model transition.",
-      standard: "Hold the standard profile until /freeflow profile auto.",
-      reasoning: "Hold the reasoning profile until /freeflow profile auto.",
-    },
-    inactive: !state.cognitiveRouting.effective || cognitiveRoutingController === undefined,
-    displaySuffix: cognitiveRoutingState?.effective ? cognitiveRoutingProfile : "unavailable",
-  };
+  const cognitiveRoutingItem: SettingsItem | undefined = state.cognitiveRouting
+    ? {
+        id: "freeflow.cognitiveRouting.profile",
+        label: "Cognitive Routing",
+        description: "Hold a profile manually or release the hold for automatic model control.",
+        kind: "enum",
+        value: cognitiveRoutingProfile,
+        values: ["auto", "standard", "reasoning"],
+        valueLabels: {
+          auto: "automatic",
+          standard: "manual · standard",
+          reasoning: "manual · reasoning",
+        },
+        valueDescriptions: {
+          auto: "Release the manual hold without forcing a model transition.",
+          standard: "Hold the standard profile until /freeflow profile auto.",
+          reasoning: "Hold the reasoning profile until /freeflow profile auto.",
+        },
+        inactive: !state.cognitiveRouting.effective || cognitiveRoutingController === undefined,
+        displaySuffix: cognitiveRoutingState?.effective ? cognitiveRoutingProfile : "unavailable",
+      }
+    : undefined;
 
   return [
     freeflowItem,
     interactionItem,
     skillsItem,
     sessionModeItem,
-    cognitiveRoutingItem,
+    ...(cognitiveRoutingItem ? [cognitiveRoutingItem] : []),
     {
       id: "freeflow.session.reset",
       label: "Reset session overrides",
@@ -881,12 +898,262 @@ function sessionFreeflowItems(
   ];
 }
 
+const COGNITIVE_ROUTING_THINKING_LEVELS: CognitiveRoutingThinkingLevel[] = [
+  "off",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+];
+
+const COGNITIVE_ROUTING_EFFORT_DESCRIPTIONS: Record<CognitiveRoutingThinkingLevel, string> = {
+  off: "No reasoning",
+  minimal: "Very brief reasoning",
+  low: "Light reasoning",
+  medium: "Moderate reasoning",
+  high: "Deep reasoning",
+  xhigh: "Extra-high reasoning",
+  max: "Maximum reasoning",
+};
+
+type CognitiveRoutingModelOption = {
+  key: string;
+  provider: string;
+  model: string;
+  label: string;
+  description: string;
+  thinkingLevels: CognitiveRoutingThinkingLevel[];
+};
+
+function cognitiveRoutingModelKey(provider: string, model: string): string {
+  return `${provider}/${model}`;
+}
+
+function isCognitiveRoutingProfile(value: unknown): value is CognitiveRoutingProfile {
+  return (
+    isRecord(value) &&
+    typeof value.provider === "string" &&
+    typeof value.model === "string" &&
+    typeof value.thinkingLevel === "string" &&
+    COGNITIVE_ROUTING_THINKING_LEVELS.includes(value.thinkingLevel as CognitiveRoutingThinkingLevel)
+  );
+}
+
+function cognitiveRoutingThinkingLevels(model: any, registry: any): CognitiveRoutingThinkingLevel[] {
+  if (typeof registry?.clampThinkingLevel !== "function") {
+    return model?.reasoning === true ? [...COGNITIVE_ROUTING_THINKING_LEVELS] : ["off"];
+  }
+  return COGNITIVE_ROUTING_THINKING_LEVELS.filter((level) => {
+    try {
+      return registry.clampThinkingLevel(model, level) === level;
+    } catch {
+      return false;
+    }
+  });
+}
+
+function cognitiveRoutingModelOptions(ctx: any): CognitiveRoutingModelOption[] {
+  const registry = ctx?.modelRegistry;
+  if (typeof registry?.getAvailable !== "function") return [];
+  let models: any[];
+  try {
+    models = registry.getAvailable();
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(models)) return [];
+
+  return models
+    .filter((model) => typeof model?.provider === "string" && typeof model?.id === "string")
+    .map((model) => {
+      const thinkingLevels = cognitiveRoutingThinkingLevels(model, registry);
+      const provider = model.provider as string;
+      const modelId = model.id as string;
+      const key = cognitiveRoutingModelKey(provider, modelId);
+      const displayName = typeof model.name === "string" && model.name !== modelId ? model.name : undefined;
+      return {
+        key,
+        provider,
+        model: modelId,
+        label: key,
+        description: displayName ? `${displayName} · ${thinkingLevels.join(", ")}` : thinkingLevels.join(", "),
+        thinkingLevels,
+      };
+    })
+    .filter((model) => model.thinkingLevels.length > 0)
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function cognitiveRoutingProfileDisplay(value: unknown): string {
+  return isCognitiveRoutingProfile(value) ? formatCoreValue(value) : "not configured";
+}
+
+function cognitiveRoutingSettingsSource(source: unknown): ConfigSource {
+  if (source === "repository") return "repository";
+  if (source === "personal" || source === "local") return "local";
+  return "builtin";
+}
+
+function cognitiveRoutingProfileDisplaySuffix(source: unknown, scope: ConfigScope): string | undefined {
+  if (!source) return undefined;
+  if (source === "personal" && scope === "repository") return "(effective personal)";
+  return `(${source})`;
+}
+
+function cognitiveRoutingConfirmStep(summary: string): SettingsWizardStep {
+  return {
+    title: "Confirm preset",
+    choices: [
+      {
+        key: "__save__",
+        value: "save",
+        label: `Save ${summary}`,
+        description: "Write the complete profile atomically.",
+      },
+      { key: "__cancel__", value: "cancel", label: "Cancel", description: "Leave the previous preset unchanged." },
+    ],
+    selectedKey: "__save__",
+  };
+}
+
+function createCognitiveRoutingProfileWizard(
+  currentValue: unknown,
+  models: CognitiveRoutingModelOption[],
+  allowInherit: boolean,
+): SettingsWizard {
+  const currentProfile = isCognitiveRoutingProfile(currentValue) ? currentValue : undefined;
+  const currentModelKey = currentProfile
+    ? cognitiveRoutingModelKey(currentProfile.provider, currentProfile.model)
+    : undefined;
+  const firstChoices = [
+    ...(allowInherit
+      ? [
+          {
+            key: LOCAL_INHERIT,
+            value: LOCAL_INHERIT,
+            label: "Inherit repository preset",
+            description: "Remove the personal override without changing the repository preset.",
+          },
+        ]
+      : []),
+    ...models.map((model) => ({
+      key: model.key,
+      value: model,
+      label: model.label,
+      description: model.description,
+    })),
+  ];
+  if (firstChoices.length === 0) {
+    firstChoices.push({
+      key: "__cancel__",
+      value: "cancel",
+      label: "No authenticated models available",
+      description: "Authenticate a provider before configuring this preset.",
+    });
+  }
+
+  return {
+    firstStep: () => ({
+      title: "Choose model",
+      choices: firstChoices,
+      selectedKey:
+        currentValue === LOCAL_INHERIT
+          ? LOCAL_INHERIT
+          : firstChoices.some((choice) => choice.key === currentModelKey)
+            ? currentModelKey
+            : firstChoices[0]?.key,
+    }),
+    nextStep: (selectedValues) => {
+      if (selectedValues.length === 1) {
+        const selected = selectedValues[0];
+        if (selected === LOCAL_INHERIT) {
+          return cognitiveRoutingConfirmStep("inherit repository preset");
+        }
+        const model = selected as CognitiveRoutingModelOption;
+        if (!model?.key || model.thinkingLevels.length === 0) return undefined;
+        const currentEffort =
+          currentProfile && currentModelKey === model.key ? currentProfile.thinkingLevel : undefined;
+        return {
+          title: `Choose effort · ${model.label}`,
+          choices: model.thinkingLevels.map((level) => ({
+            key: level,
+            value: level,
+            label: level,
+            description: COGNITIVE_ROUTING_EFFORT_DESCRIPTIONS[level],
+          })),
+          selectedKey:
+            currentEffort && model.thinkingLevels.includes(currentEffort) ? currentEffort : model.thinkingLevels[0],
+        };
+      }
+      if (selectedValues.length === 2) {
+        const model = selectedValues[0] as CognitiveRoutingModelOption;
+        const effort = selectedValues[1] as CognitiveRoutingThinkingLevel;
+        return cognitiveRoutingConfirmStep(`${model.label} · ${effort}`);
+      }
+      return undefined;
+    },
+    valueFromSelections: (selectedValues) => {
+      if (selectedValues[0] === LOCAL_INHERIT) return undefined;
+      const model = selectedValues[0] as CognitiveRoutingModelOption;
+      return {
+        provider: model.provider,
+        model: model.model,
+        thinkingLevel: selectedValues[1] as CognitiveRoutingThinkingLevel,
+      } satisfies CognitiveRoutingProfile;
+    },
+  };
+}
+
+function cognitiveRoutingProfileItem(options: {
+  name: CognitiveRoutingProfileName;
+  scope: ConfigScope;
+  rawConfig: Record<string, unknown>;
+  localConfig: Record<string, unknown>;
+  capabilityState: CognitiveRoutingCapabilityState | undefined;
+  ctx: any;
+}): SettingsItem {
+  const path = ["cognitiveRouting", "profiles", options.name];
+  const repositoryProfile = getPath(options.rawConfig, path);
+  const localProfile = getPath(options.localConfig, path);
+  const effectiveProfile = options.capabilityState?.profiles?.[options.name] ?? repositoryProfile;
+  const localValue = isCognitiveRoutingProfile(localProfile) ? localProfile : LOCAL_INHERIT;
+  const value = options.scope === "local" ? localValue : repositoryProfile;
+  const source =
+    options.capabilityState?.profileSources?.[options.name] ??
+    (isCognitiveRoutingProfile(repositoryProfile) ? "repository" : undefined);
+  const models = cognitiveRoutingModelOptions(options.ctx);
+  const inactive = options.scope === "local" && models.length === 0 && localValue !== LOCAL_INHERIT;
+
+  return {
+    id: `freeflow.cognitiveRouting.${options.name}`,
+    label: `${options.name.charAt(0).toUpperCase()}${options.name.slice(1)} preset`,
+    description:
+      "Choose an authenticated available model and one effort supported by that model. Confirming writes the complete preset; cancel leaves it unchanged.",
+    path,
+    kind: "string",
+    value,
+    format: cognitiveRoutingProfileDisplay,
+    configScope: options.scope,
+    effectiveValue: effectiveProfile,
+    effectiveSource: cognitiveRoutingSettingsSource(source),
+    inheritedValue: repositoryProfile,
+    inheritedSource: "repository",
+    inactive,
+    displaySuffix: cognitiveRoutingProfileDisplaySuffix(source, options.scope),
+    wizard: () => createCognitiveRoutingProfileWizard(value, models, options.scope === "local"),
+  };
+}
+
 function freeflowItems(
   rawConfig: Record<string, unknown>,
   modeState?: Awaited<ReturnType<typeof readModeState>>,
   options: {
     scope?: ConfigScope;
     layers?: Awaited<ReturnType<typeof readFreeflowConfigLayers>>;
+    cognitiveRouting?: CognitiveRoutingCapabilityState;
+    ctx?: any;
   } = {},
 ): SettingsItem[] {
   const scope = options.scope ?? "repository";
@@ -975,6 +1242,61 @@ function freeflowItems(
     ),
   };
 
+  const cognitiveRoutingState = options.cognitiveRouting;
+  const cognitiveRoutingRuntimeDisabled = !isPiFlowRuntime();
+  const cognitiveRoutingGroup = (() => {
+    const cognitiveRoutingEnabledItem = createScopedBooleanItem({
+      scope,
+      rawConfig,
+      localConfig,
+      id: "freeflow.cognitiveRouting.enabled",
+      label: "Enabled",
+      description: cognitiveRoutingRuntimeDisabled
+        ? "Configured for PiFlow, but disabled in normal Pi."
+        : "Allow Cognitive Routing to own the session model lease and switch the configured profiles.",
+      path: ["cognitiveRouting", "enabled"],
+      effectiveValue: cognitiveRoutingState?.enabled ?? false,
+      effectiveSource: cognitiveRoutingSettingsSource(cognitiveRoutingState?.enabledSource),
+      defaultValue: false,
+    });
+    cognitiveRoutingEnabledItem.inactive = freeflowInactive || cognitiveRoutingRuntimeDisabled;
+
+    const cognitiveRoutingProfiles = ["standard", "reasoning"].map((name) =>
+      cognitiveRoutingProfileItem({
+        name: name as CognitiveRoutingProfileName,
+        scope,
+        rawConfig,
+        localConfig,
+        capabilityState: cognitiveRoutingState,
+        ctx: options.ctx,
+      }),
+    );
+    for (const item of cognitiveRoutingProfiles) {
+      item.inactive ||= freeflowInactive || cognitiveRoutingRuntimeDisabled;
+    }
+    const cognitiveRoutingStatus = cognitiveRoutingRuntimeDisabled
+      ? "disabled · PiFlow only"
+      : !cognitiveRoutingState
+        ? "unavailable"
+        : cognitiveRoutingState.effective
+          ? "active"
+          : cognitiveRoutingState.blockingReason?.code === "profile_missing"
+            ? "not configured"
+            : (cognitiveRoutingState.blockingReason?.code ?? "inactive");
+    return {
+      id: "freeflow.cognitiveRouting",
+      label: "Cognitive Routing",
+      description: cognitiveRoutingRuntimeDisabled
+        ? "Cognitive Routing configuration is visible for inspection but can only run in PiFlow."
+        : "Configure the automatic standard/reasoning profiles and choose whether Freeflow may manage model state for this repository.",
+      kind: "group" as const,
+      value: cognitiveRoutingRuntimeDisabled ? false : (cognitiveRoutingState?.enabled ?? false),
+      inactive: freeflowInactive,
+      displaySuffix: cognitiveRoutingStatus,
+      children: [cognitiveRoutingEnabledItem, ...cognitiveRoutingProfiles],
+    } satisfies SettingsItem;
+  })();
+
   const routerItems = outputRouterItems(rawConfig, freeflowInactive);
   const routerEnabled = groupEnabled(routerItems, "outputRouter.enabled");
 
@@ -984,12 +1306,13 @@ function freeflowItems(
     skillsItem,
     sessionModeItem,
     defaultModeItem,
+    ...(cognitiveRoutingGroup ? [cognitiveRoutingGroup] : []),
     {
       id: "outputRouter.group",
       label: "Output Router",
       description:
         "Shared repository settings for routed evidence tools, native output safety net, vault storage, script transforms, and observed tool routing.",
-      kind: "group",
+      kind: "group" as const,
       value: routerEnabled,
       inactive: freeflowInactive,
       displaySuffix: "(repository)",
@@ -1232,9 +1555,15 @@ async function updateConfig(
   await writeFile(join(cwd, ".freeflow/config.json"), `${JSON.stringify(next, null, 2)}\n`, "utf8");
 }
 
+function isCognitiveRoutingProfileItem(item: SettingsItem): boolean {
+  return item.id === "freeflow.cognitiveRouting.standard" || item.id === "freeflow.cognitiveRouting.reasoning";
+}
+
 function valueForDisplay(item: SettingsItem): string {
   let value: string;
-  if (item.configScope === "local" || item.configScope === "session") {
+  if (isCognitiveRoutingProfileItem(item) && item.format) {
+    value = item.format(effectiveItemValue(item));
+  } else if (item.configScope === "local" || item.configScope === "session") {
     value = formatCoreValue(effectiveItemValue(item));
   } else if (item.kind === "boolean") {
     value = booleanValue(item.value);
@@ -1275,6 +1604,12 @@ function refreshSettingsDerivedState(items: SettingsItem[]) {
   const sessionModeItem = findSettingsItem(items, "freeflow.sessionMode");
   const defaultModeItem = findSettingsItem(items, "freeflow.defaultMode");
   const routerGroup = findSettingsItem(items, "outputRouter.group");
+  const cognitiveRoutingGroup = findSettingsItem(items, "freeflow.cognitiveRouting");
+  const cognitiveRoutingEnabledItem = findSettingsItem(items, "freeflow.cognitiveRouting.enabled");
+  const cognitiveRoutingProfiles = [
+    findSettingsItem(items, "freeflow.cognitiveRouting.standard"),
+    findSettingsItem(items, "freeflow.cognitiveRouting.reasoning"),
+  ];
 
   if (sessionModeItem) {
     const defaultMode = String(
@@ -1297,6 +1632,22 @@ function refreshSettingsDerivedState(items: SettingsItem[]) {
   if (routerGroup) {
     routerGroup.value = routerEnabled;
     routerGroup.inactive = freeflowInactive;
+  }
+
+  if (cognitiveRoutingGroup && cognitiveRoutingEnabledItem) {
+    const enabled = effectiveItemValue(cognitiveRoutingEnabledItem) === true;
+    const profilesConfigured = cognitiveRoutingProfiles.every((item) =>
+      item ? isCognitiveRoutingProfile(effectiveItemValue(item)) : false,
+    );
+    cognitiveRoutingGroup.value = enabled;
+    cognitiveRoutingGroup.displaySuffix = !enabled
+      ? "disabled"
+      : profilesConfigured
+        ? cognitiveRoutingGroup.displaySuffix === "active"
+          ? "active"
+          : "configured"
+        : "not configured";
+    cognitiveRoutingGroup.inactive = freeflowInactive;
   }
 
   walkSettingsItems(items, (candidate) => {
@@ -1363,6 +1714,7 @@ function settingsEntries(
     currentChoiceKey: () => String(item.value),
     choices: settingsChoices(item),
     children: item.children ? () => settingsEntries(item.children!, rootItems, onChange) : undefined,
+    wizard: item.wizard ? () => item.wizard!() : undefined,
     edit:
       !item.children && !["boolean", "enum", "group"].includes(item.kind)
         ? {
@@ -1451,13 +1803,18 @@ function freeflowStatusText(
   }
   const sessionSuffix = (source: ConfigSource) => (source === "session" ? " (session override)" : "");
   const routingState = cognitiveRoutingController?.state();
-  const cognitiveRoutingStatus = !state.cognitiveRouting.effective
-    ? state.cognitiveRouting.enabled
-      ? `blocked (${state.cognitiveRouting.blockingReason.code})`
-      : "disabled"
-    : routingState?.effective
-      ? `active (${routingState.activeProfile}, ${routingState.controlMode})`
-      : "effective (inactive)";
+  const cognitiveRouting = state.cognitiveRouting;
+  const cognitiveRoutingStatus = cognitiveRouting
+    ? cognitiveRouting.blockingReason?.code === "runtime_disabled"
+      ? "disabled (PiFlow only)"
+      : !cognitiveRouting.effective
+        ? cognitiveRouting.enabled
+          ? `blocked (${cognitiveRouting.blockingReason.code})`
+          : "disabled"
+        : routingState?.effective
+          ? `active (${routingState.activeProfile ?? "unknown"}, ${routingState.controlMode})`
+          : "effective (inactive)"
+    : undefined;
   return [
     `Freeflow: ${state.enabled ? "enabled" : "disabled"}${sessionSuffix(state.configSources.enabled as ConfigSource)}`,
     `interaction contract: ${state.interactionContract.effective ? "enabled" : "disabled"}${sessionSuffix(
@@ -1466,8 +1823,8 @@ function freeflowStatusText(
     `skills: ${state.skills.effective ? "enabled" : "disabled (workflow modes inactive)"}${sessionSuffix(
       state.configSources.skillsEnabled as ConfigSource,
     )}`,
+    ...(cognitiveRoutingStatus ? [`cognitive routing: ${cognitiveRoutingStatus}`] : []),
     `output router: ${state.outputRouter.enabled ? "enabled" : "disabled"}`,
-    `cognitive routing: ${cognitiveRoutingStatus}`,
   ].join("; ");
 }
 
@@ -1475,6 +1832,12 @@ const NON_TUI_SETTINGS_GUIDANCE =
   "Freeflow settings require Pi TUI mode. Use /freeflow status to inspect current state; supported non-TUI changes are /freeflow enable, /freeflow disable, and /freeflow mode <conversation|workflow|strict-workflow|reset>.";
 const NON_TUI_MODE_GUIDANCE =
   "Freeflow mode selector requires Pi TUI mode. Use /freeflow mode conversation, /freeflow mode workflow, /freeflow mode strict-workflow, or /freeflow mode reset.";
+
+function ensureSettingsIdle(ctx: any): boolean {
+  if (typeof ctx?.isIdle !== "function" || ctx.isIdle()) return true;
+  ctx.ui?.notify?.("Freeflow settings and profile changes are available only while Pi is idle.", "warning");
+  return false;
+}
 
 function nonTuiGuidance(ctx: any, message: string) {
   if (ctx?.hasUI === false) throw new Error(message);
@@ -1599,6 +1962,7 @@ export async function handleFreeflowCommand(
   }
 
   if (action === "mode") {
+    if (!ensureSettingsIdle(ctx)) return { changed: false, reloaded: false, error: "busy" };
     if (actionValue) {
       const result = await handleModeCommand(actionValue, ctx, pi);
       return { changed: result.changed, reloaded: false, error: result.error };
@@ -1615,6 +1979,8 @@ export async function handleFreeflowCommand(
     const item = freeflowItems(raw, modeState, {
       scope: "local",
       layers,
+      cognitiveRouting: state.cognitiveRouting as CognitiveRoutingCapabilityState,
+      ctx,
     }).find((candidate) => candidate.id === "freeflow.sessionMode")!;
     const session = await openSettings({
       title: "Freeflow Mode",
@@ -1630,10 +1996,13 @@ export async function handleFreeflowCommand(
   }
 
   if (["enable", "on", "true", "disable", "off", "false"].includes(action)) {
+    if (!ensureSettingsIdle(ctx)) return { changed: false, reloaded: false, error: "busy" };
     const enabled = ["enable", "on", "true"].includes(action);
     const item = freeflowItems(raw, modeState, {
       scope: "repository",
       layers,
+      cognitiveRouting: state.cognitiveRouting as CognitiveRoutingCapabilityState,
+      ctx,
     }).find((candidate) => candidate.id === "freeflow.enabled")!;
     await updateConfig(ctx.cwd, item, enabled, "repository");
     await afterChange(true);
@@ -1667,10 +2036,17 @@ export async function handleFreeflowCommand(
     return { changed: false, reloaded: false, error: "invalid_scope" };
   }
 
+  if (!ensureSettingsIdle(ctx)) return { changed: false, reloaded: false, error: "busy" };
+
   const items =
     settingsScope === "session"
       ? sessionFreeflowItems(state, modeState, cognitiveRoutingController)
-      : freeflowItems(raw, modeState, { scope: settingsScope, layers });
+      : freeflowItems(raw, modeState, {
+          scope: settingsScope,
+          layers,
+          cognitiveRouting: state.cognitiveRouting as CognitiveRoutingCapabilityState,
+          ctx,
+        });
   const session = await openSettings({
     title:
       settingsScope === "session"
@@ -1681,6 +2057,11 @@ export async function handleFreeflowCommand(
     items,
     ctx,
     onChange: async (item, value) => {
+      if (!ensureSettingsIdle(ctx)) return { changed: false, reloadRequired: false };
+      if (!isPiFlowRuntime() && item.id.startsWith("freeflow.cognitiveRouting.")) {
+        ctx.ui.notify("Cognitive Routing is available only in PiFlow.", "warning");
+        return { changed: false, reloadRequired: false };
+      }
       if (item.id === "freeflow.sessionMode") {
         const result = await handleModeCommand(String(value), ctx, pi);
         return { changed: result.changed, reloadRequired: false };
@@ -1759,6 +2140,7 @@ export async function handleOutputRouterCommand(
   }
 
   if (["enable", "on", "true", "disable", "off", "false"].includes(action)) {
+    if (!ensureSettingsIdle(ctx)) return { changed: false, reloaded: false, error: "busy" };
     const enabled = ["enable", "on", "true"].includes(action);
     const item = outputRouterItems(raw).find((candidate) => candidate.id === "outputRouter.enabled")!;
     await updateConfig(ctx.cwd, item, enabled);
@@ -1777,11 +2159,14 @@ export async function handleOutputRouterCommand(
     return { changed: false, reloaded: false, error: "invalid_action" };
   }
 
+  if (!ensureSettingsIdle(ctx)) return { changed: false, reloaded: false, error: "busy" };
+
   const session = await openSettings({
     title: "Output Router Settings",
     items: outputRouterItems(raw),
     ctx,
     onChange: async (item, value) => {
+      if (!ensureSettingsIdle(ctx)) return { changed: false, reloadRequired: false };
       await updateConfig(ctx.cwd, item, value);
       return { changed: true, reloadRequired: true };
     },

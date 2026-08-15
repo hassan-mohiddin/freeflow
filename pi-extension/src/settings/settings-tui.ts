@@ -31,6 +31,18 @@ export type SettingsChoice = {
   description?: string;
 };
 
+export type SettingsWizardStep = {
+  title: string;
+  choices: SettingsChoice[];
+  selectedKey?: string;
+};
+
+export type SettingsWizard = {
+  firstStep: () => SettingsWizardStep;
+  nextStep: (selectedValues: unknown[]) => SettingsWizardStep | undefined;
+  valueFromSelections: (selectedValues: unknown[]) => unknown;
+};
+
 export type SettingsEntry = {
   id: string;
   label: string;
@@ -40,6 +52,7 @@ export type SettingsEntry = {
   currentChoiceKey?: () => string;
   choices?: SettingsChoice[];
   children?: () => SettingsEntry[];
+  wizard?: () => SettingsWizard;
   edit?: {
     initialValue: () => string;
     parse: (text: string) => unknown;
@@ -211,6 +224,12 @@ class SettingsPanel implements Component {
             this.refresh();
             done();
           });
+      } else if (entry.wizard) {
+        item.submenu = (_currentValue, done) =>
+          new WizardEditor(entry, `${this.title} › ${entry.label}`, this.theme, this.coordinator, () => {
+            this.refresh();
+            done();
+          });
       } else if (entry.choices?.length) {
         item.submenu = (_currentValue, done) =>
           new ChoiceEditor(entry, `${this.title} › ${entry.label}`, this.theme, this.coordinator, () => {
@@ -289,6 +308,80 @@ class ChoiceEditor implements Component {
 
   render(width: number): string[] {
     return panelLines(this.title, this.list.render(width), width, this.theme, this.coordinator.pending);
+  }
+
+  handleInput(data: string) {
+    this.list.handleInput(data);
+  }
+
+  invalidate() {
+    this.list.invalidate();
+  }
+}
+
+class WizardEditor implements Component {
+  private readonly wizard: SettingsWizard;
+  private selectedValues: unknown[] = [];
+  private list: SelectList;
+  private stepTitle: string;
+
+  constructor(
+    private readonly entry: SettingsEntry,
+    private readonly title: string,
+    private readonly theme: Theme,
+    private readonly coordinator: SettingsCoordinator,
+    private readonly done: () => void,
+  ) {
+    this.wizard = entry.wizard!();
+    const firstStep = this.wizard.firstStep();
+    this.stepTitle = firstStep.title;
+    this.list = this.createList(firstStep);
+  }
+
+  private createList(step: SettingsWizardStep): SelectList {
+    const list = new SelectList(
+      step.choices.map((choice) => ({
+        value: choice.key,
+        label: choice.label,
+        description: choice.description,
+      })),
+      Math.min(step.choices.length, 12),
+      selectTheme(this.theme),
+    );
+    const selectedIndex = step.choices.findIndex((choice) => choice.key === step.selectedKey);
+    list.setSelectedIndex(Math.max(0, selectedIndex));
+    list.onSelect = (selected) => {
+      const choice = step.choices.find((candidate) => candidate.key === selected.value);
+      if (!choice) return;
+      if (choice.key === "__cancel__") {
+        this.done();
+        return;
+      }
+      const selectedValues = [...this.selectedValues, choice.value];
+      const nextStep = this.wizard.nextStep(selectedValues);
+      if (nextStep) {
+        this.selectedValues = selectedValues;
+        this.stepTitle = nextStep.title;
+        this.list = this.createList(nextStep);
+        this.coordinator.requestRenderNow();
+        return;
+      }
+      void this.coordinator.commit(this.entry, this.wizard.valueFromSelections(selectedValues)).then((committed) => {
+        if (committed) this.done();
+      });
+    };
+    list.onCancel = this.done;
+    return list;
+  }
+
+  render(width: number): string[] {
+    return panelLines(
+      `${this.title} › ${this.stepTitle}`,
+      this.list.render(width),
+      width,
+      this.theme,
+      this.coordinator.pending,
+    );
   }
 
   handleInput(data: string) {

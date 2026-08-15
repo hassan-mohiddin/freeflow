@@ -37,7 +37,7 @@ Current project direction lives at the docs root:
 - `issues/output-router/`: output router issue notes.
 - `issues/artifacts/interface-reviews/`: HTML review artifacts.
 - `guides/evals/`: eval workflow guides.
-- `guides/tooling/`: agent tooling guides.
+- `guides/tooling/`: agent tooling guides, including the local [PiFlow distribution](guides/tooling/piflow-local.md).
 
 ## Public Plugin Docs
 

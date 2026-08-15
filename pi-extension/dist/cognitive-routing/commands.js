@@ -20,6 +20,10 @@ export async function handleCognitiveRoutingProfileCommand(args, ctx, controller
     );
     return true;
   }
+  if (typeof ctx.isIdle === "function" && !ctx.isIdle()) {
+    ctx.ui?.notify?.("Freeflow settings and profile changes are available only while Pi is idle.", "warning");
+    return true;
+  }
   if (!controller) {
     ctx.ui?.notify?.(
       "Cognitive Routing is unavailable for this session. It may be disabled, unsupported by the Pi host, or suppressed by an explicit startup model selection.",
