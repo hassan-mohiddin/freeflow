@@ -13,6 +13,7 @@ import { parseRecord, renderRecord } from "./codec.mjs";
 import { applyOperation } from "./operations.mjs";
 import {
   WorkingRecordError,
+  changedSemanticPaths,
   clone,
   createRecord,
   fail,
@@ -41,11 +42,17 @@ import {
   renderView,
   unavailableRecord,
 } from "./views.mjs";
+import { renderCommandSchema } from "./schema.mjs";
+import { rewriteExisting } from "./rewrites.mjs";
 
 function normalizeInput(input) {
   if (!input || typeof input !== "object" || Array.isArray(input))
     fail("invalid-input", "Structured input must be a JSON object");
   return input;
+}
+
+function readOnlyReason(loaded) {
+  return loaded.kind === "legacy" ? "legacy-record" : "unsupported-schema";
 }
 
 async function readStdin() {
@@ -87,8 +94,10 @@ async function mutateExisting(root, command, recordPath, input, options) {
         expectedSha256: expected,
         actualSha256: loaded.rawSha,
       });
+    const before = clone(loaded.data);
     const candidate = clone(loaded.data);
     const operation = applyOperation(candidate, command, input);
+    const changedPaths = changedSemanticPaths(before, candidate);
     const unchangedText = renderRecord(candidate);
     const currentText = loaded.text.endsWith("\n") ? loaded.text : `${loaded.text}\n`;
     if (unchangedText === currentText) {
@@ -96,6 +105,7 @@ async function mutateExisting(root, command, recordPath, input, options) {
       envelope.beforeSha256 = loaded.rawSha;
       envelope.afterSha256 = loaded.rawSha;
       envelope.affectedIds = operation.affectedIds ?? [];
+      envelope.changedPaths = [];
       if (dryRun) {
         envelope.status = "dry-run";
         envelope.prospective = {
@@ -126,6 +136,7 @@ async function mutateExisting(root, command, recordPath, input, options) {
       envelope.beforeSha256 = loaded.rawSha;
       envelope.afterSha256 = loaded.rawSha;
       envelope.affectedIds = operation.affectedIds ?? [];
+      envelope.changedPaths = changedPaths;
       envelope.prospective = {
         wouldChange: true,
         candidateSha256: candidateSha,
@@ -145,6 +156,7 @@ async function mutateExisting(root, command, recordPath, input, options) {
       envelope.beforeSha256 = loaded.rawSha;
       envelope.afterSha256 = committed.sha256;
       envelope.affectedIds = operation.affectedIds ?? [];
+      envelope.changedPaths = changedPaths;
       return envelope;
     } catch (error) {
       if (error instanceof WorkingRecordError && error.committed) {
@@ -164,6 +176,7 @@ async function mutateExisting(root, command, recordPath, input, options) {
         envelope.beforeSha256 = loaded.rawSha;
         envelope.afterSha256 = null;
         envelope.affectedIds = operation.affectedIds ?? [];
+        envelope.changedPaths = changedPaths;
         envelope.errors = errorItems(error);
         envelope.recovery = {
           required: true,
@@ -315,6 +328,34 @@ async function initRecord(root, input, options) {
     await release();
   }
 }
+async function executeRewriteCommand(root, command, input, options) {
+  const recordPath = resolveRecordPath(root, options);
+  try {
+    return await rewriteExisting(root, command, recordPath, input, options);
+  } catch (error) {
+    if (error instanceof WorkingRecordError && !error.committed && !error.record) {
+      try {
+        const loaded = await loadRecord(root, recordPath);
+        if (loaded.kind === "v2") {
+          const validation = validateModel(loaded.data);
+          error.record = validation.length
+            ? unavailableRecord(root, recordPath, loaded.rawSha, "invalid-record")
+            : recordMetadata(root, recordPath, loaded.data, loaded.rawSha);
+        } else {
+          error.record = unavailableRecord(root, recordPath, loaded.rawSha, readOnlyReason(loaded), loaded.data);
+        }
+      } catch {
+        const rawPath = error.details?.path ?? displayPath(root, recordPath);
+        error.record = recordMetadata(root, recordPath, null, error.details?.sha256 ?? null, "unavailable", [
+          "recordProjectionUnavailable",
+        ]);
+        error.record.path = rawPath;
+      }
+    }
+    throw error;
+  }
+}
+
 async function executeMutationCommand(root, command, input, options) {
   const recordPath = resolveRecordPath(root, options);
   try {
@@ -329,7 +370,7 @@ async function executeMutationCommand(root, command, input, options) {
             ? unavailableRecord(root, recordPath, loaded.rawSha, "invalid-record")
             : recordMetadata(root, recordPath, loaded.data, loaded.rawSha);
         } else {
-          error.record = unavailableRecord(root, recordPath, loaded.rawSha, "legacy-record", loaded.data);
+          error.record = unavailableRecord(root, recordPath, loaded.rawSha, readOnlyReason(loaded), loaded.data);
         }
       } catch {
         const rawPath = error.details?.path ?? displayPath(root, recordPath);
@@ -343,6 +384,18 @@ async function executeMutationCommand(root, command, input, options) {
   }
 }
 
+function executeSchemaCommand(input, options) {
+  const command = options["--command"] ?? input.command ?? "all";
+  return {
+    status: "schema",
+    operation: "schema",
+    command,
+    content: renderCommandSchema(command),
+    errors: [],
+    warnings: [],
+  };
+}
+
 async function executeViewCommand(root, input, options, command) {
   const recordPath = resolveRecordPath(root, options);
   const loaded = await loadRecord(root, recordPath);
@@ -350,15 +403,16 @@ async function executeViewCommand(root, input, options, command) {
   const record =
     loaded.kind === "v2"
       ? recordMetadata(root, recordPath, loaded.data, loaded.rawSha)
-      : unavailableRecord(root, recordPath, loaded.rawSha, "legacy-record", loaded.data);
+      : unavailableRecord(root, recordPath, loaded.rawSha, readOnlyReason(loaded), loaded.data);
   const envelope = baseEnvelope(command, "view", record);
   envelope.status = "viewed";
   const entity = options["--entity"] ?? input.entity;
   const section = options["--section"] ?? input.section;
-  if (loaded.kind === "legacy") {
+  if (view === "section" && loaded.kind === "v2") fail("invalid-view", "Unknown view: section");
+  if (loaded.kind !== "v2") {
     envelope.warnings.push({
-      code: "legacy-read-only",
-      message: "Legacy record was rendered read-only; explicit migration is required for mutation",
+      code: loaded.kind === "legacy" ? "legacy-read-only" : "unsupported-schema-read-only",
+      message: "Legacy or unsupported record was rendered read-only; explicit migration is required for mutation",
     });
     try {
       const content = legacyView(loaded, view, entity, section);
@@ -393,14 +447,14 @@ async function executeValidateCommand(root, options, command = "validate") {
   const record =
     loaded.kind === "v2"
       ? recordMetadata(root, recordPath, loaded.data, loaded.rawSha)
-      : unavailableRecord(root, recordPath, loaded.rawSha, "legacy-record", loaded.data);
+      : unavailableRecord(root, recordPath, loaded.rawSha, readOnlyReason(loaded), loaded.data);
   const envelope = baseEnvelope(command, command, record);
-  if (loaded.kind === "legacy") {
+  if (loaded.kind !== "v2") {
     envelope.status = "failed";
     envelope.errors = [
       {
-        code: "legacy-read-only",
-        message: "Legacy record is parseable for read-only audit but is not schema-v2 valid or mutable",
+        code: loaded.kind === "legacy" ? "legacy-read-only" : "unsupported-schema-read-only",
+        message: "Legacy or unsupported record is parseable for read-only audit but is not schema-v2 valid or mutable",
       },
     ];
     envelope.validation = { valid: false, validForReadOnlyAudit: true, mutable: false, errors: envelope.errors };
@@ -424,7 +478,7 @@ async function executeInspectCommand(root, options) {
   const record =
     loaded.kind === "v2"
       ? recordMetadata(root, recordPath, loaded.data, loaded.rawSha)
-      : unavailableRecord(root, recordPath, loaded.rawSha, "legacy-record", loaded.data);
+      : unavailableRecord(root, recordPath, loaded.rawSha, readOnlyReason(loaded), loaded.data);
   const envelope = baseEnvelope("inspect", "inspect", record);
   const validation = loaded.kind === "v2" ? validateModel(loaded.data) : [];
   envelope.inspection = await inspectData(root, loaded);
@@ -447,7 +501,10 @@ export async function executeCommand(command, { root = process.cwd(), options = 
     return executeViewCommand(workspaceRoot, normalizedInput, options, "view");
   if (command === "validate") return executeValidateCommand(workspaceRoot, options);
   if (command === "inspect") return executeInspectCommand(workspaceRoot, options);
+  if (command === "schema") return executeSchemaCommand(normalizedInput, options);
   if (["update", "start", "block", "resume", "reopen", "close"].includes(command))
     return executeMutationCommand(workspaceRoot, command, normalizedInput, options);
+  if (["migrate", "compress"].includes(command))
+    return executeRewriteCommand(workspaceRoot, command, normalizedInput, options);
   fail("unknown-command", `Unknown command: ${command}`);
 }

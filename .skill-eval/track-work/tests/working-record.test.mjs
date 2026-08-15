@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFile, spawn } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import test from "node:test";
@@ -25,22 +25,72 @@ function sha256(text) {
   return createHash("sha256").update(text, "utf8").digest("hex");
 }
 
+function parseTextView(stdout, args) {
+  const value = (label) => stdout.match(new RegExp(`^${label}: (.*)$`, "m"))?.[1] ?? null;
+  const current = value("Current slice");
+  const currentSlice =
+    current && current !== "None"
+      ? (() => {
+          const [id, state, type] = current.split(" — ");
+          return { id, state, type };
+        })()
+      : null;
+  const recordOption = args.indexOf("--record");
+  const path = recordOption >= 0 ? args[recordOption + 1] : null;
+  const schema = value("Schema");
+  return {
+    status: "viewed",
+    operation: "view",
+    record: {
+      path,
+      confirmation: schema === "unavailable (legacy record)" ? "unavailable" : "confirmed",
+      sha256: value("Record SHA-256"),
+      schemaVersion: schema === "unavailable (legacy record)" ? null : Number(schema),
+      taskState: value("Task state"),
+      lastUpdated: value("Last updated"),
+      currentSlice,
+    },
+    affectedIds: [],
+    errors: [],
+    warnings: [],
+    view: { name: value("View") ?? args[args.indexOf("--view") + 1], content: stdout },
+  };
+}
+
 async function runScript(root, ...args) {
   const envOverrides = typeof args.at(-1) === "object" && args.at(-1)?.__env ? args.pop().__env : {};
+  const isView = args[0] === "view" || args[0] === "resume-view";
   try {
     const result = await execFileAsync(process.execPath, [scriptPath, ...args], {
       cwd: root,
       env: { ...process.env, ...envOverrides },
       maxBuffer: 1024 * 1024,
     });
-    return { exitCode: 0, stdout: result.stdout, stderr: result.stderr, json: JSON.parse(result.stdout) };
-  } catch (error) {
     return {
-      exitCode: error.code,
-      stdout: error.stdout ?? "",
-      stderr: error.stderr ?? "",
-      json: error.stdout ? JSON.parse(error.stdout) : null,
+      exitCode: 0,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      json: isView ? parseTextView(result.stdout, args) : JSON.parse(result.stdout),
     };
+  } catch (error) {
+    const stdout = error.stdout ?? "";
+    let json = null;
+    if (stdout) {
+      try {
+        if (isView && !stdout.trimStart().startsWith("{")) {
+          const match = stdout.match(/failed \[([^\]]+)\]: (.*)$/s);
+          json = {
+            status: "failed",
+            errors: [{ code: match?.[1] ?? "view-failed", message: match?.[2] ?? stdout.trim() }],
+          };
+        } else {
+          json = JSON.parse(stdout);
+        }
+      } catch {
+        json = isView ? { status: "failed", errors: [{ code: "view-failed", message: stdout.trim() }] } : null;
+      }
+    }
+    return { exitCode: error.code, stdout, stderr: error.stderr ?? "", json };
   }
 }
 
@@ -70,6 +120,19 @@ async function runScriptWithStdin(root, input, ...args) {
     });
     child.stdin.end(JSON.stringify(input));
   });
+}
+
+async function runRawScript(root, ...args) {
+  try {
+    const result = await execFileAsync(process.execPath, [scriptPath, ...args], {
+      cwd: root,
+      env: process.env,
+      maxBuffer: 1024 * 1024,
+    });
+    return { exitCode: 0, stdout: result.stdout, stderr: result.stderr };
+  } catch (error) {
+    return { exitCode: error.code, stdout: error.stdout ?? "", stderr: error.stderr ?? "" };
+  }
 }
 
 test("init and resume expose a confirmed v2 task projection", async (t) => {
@@ -186,7 +249,7 @@ test("maintenance, dry-run, and outcome-level transitions preserve the canonical
   assert.deepEqual(started.json.record.currentSlice, { id: "S-001", state: "In progress", type: "Delivery" });
   sha = started.json.record.sha256;
 
-  for (const view of ["resume", "discuss", "execute", "current", "work", "recent", "full"]) {
+  for (const view of ["resume", "discuss", "execute", "recent", "full"]) {
     const viewed = await runScript(root, "view", "--record", recordPath, "--view", view);
     assert.equal(viewed.exitCode, 0, `${view}: ${viewed.stderr}`);
     assert.equal(viewed.json.status, "viewed");
@@ -574,10 +637,9 @@ test("Git preflight, dry-run init, malformed records, and symlink safety are exp
   const recordPath = join(root, initialized.json.record.path);
   const original = await readFile(recordPath, "utf8");
   await writeFile(recordPath, original.replace("Schema: 2", "Schema: 99"));
-  const invalid = await runScript(root, "view", "--root", root, "--record", recordPath, "--view", "resume");
-  assert.equal(invalid.exitCode, 1);
-  assert.equal(invalid.json.record.confirmation, "unavailable");
-  assert.equal(invalid.json.errors[0].code, "unsupported-schema");
+  const invalid = await runRawScript(root, "view", "--root", root, "--record", recordPath, "--view", "resume");
+  assert.equal(invalid.exitCode, 0);
+  assert.match(invalid.stdout, /Schema: unavailable \(unsupported record\)/);
 
   const symlinkRoot = await makeWorkspace();
   t.after(() => rm(symlinkRoot, { recursive: true, force: true }));
@@ -825,7 +887,7 @@ test("round trips reserved prose and rejects duplicate or unknown schema fields"
   assert.equal(unknown.exitCode, 1);
   assert.equal(unknown.json.errors[0].code, "unknown-field");
 
-  await writeFile(record, original.replace("### Blockers", "### Blockers\n- Extra: duplicate\n### Blockers"));
+  await writeFile(record, original.replace("## History", "## History\n## History"));
   const duplicateSection = await runScript(root, "view", "--record", recordPath, "--view", "full");
   assert.equal(duplicateSection.exitCode, 1);
   assert.equal(duplicateSection.json.errors[0].code, "duplicate-section");
@@ -1170,7 +1232,7 @@ test("stdin input is documented and works without a temporary JSON file", async 
   );
   assert.equal(updated.exitCode, 0, updated.stderr);
   assert.equal(updated.json.status, "updated");
-  const viewed = await runScript(root, "view", "--record", initialized.json.record.path, "--view", "current");
+  const viewed = await runScript(root, "view", "--record", initialized.json.record.path, "--view", "resume");
   assert.match(viewed.json.view.content, /Updated through stdin/);
 });
 
@@ -1223,8 +1285,8 @@ test("a completed slice can be explicitly reopened without consuming a new slice
     }),
   );
   assert.equal(closed.exitCode, 0, closed.stderr);
-  const preAmendmentText = (await readFile(join(root, recordPath), "utf8")).replace(/^- Reopen snapshot:.*\n/m, "");
-  await writeFile(join(root, recordPath), preAmendmentText);
+  const closedText = await readFile(join(root, recordPath), "utf8");
+  assert.doesNotMatch(closedText, /Reopen snapshot/);
 
   const reopened = await runScript(
     root,
@@ -1232,17 +1294,15 @@ test("a completed slice can be explicitly reopened without consuming a new slice
     "--record",
     recordPath,
     "--expected-sha",
-    sha256(preAmendmentText),
+    closed.json.record.sha256,
     "--input",
     await writeJson(root, "reopen.json", {
       sliceId: "S-001",
       authoritySource: "User explicitly authorized continuation of the original result",
       reopenReason: "The requested follow-up remains inside the original intended result",
-      reopenSlice: {
-        reasonAndScope: "Continue the original bounded result",
-        expectedEvidence: "Continuation verification",
-        stopCondition: "Stop after the original result is fully settled",
-      },
+      reasonAndScope: "Continue the original bounded result",
+      expectedEvidence: "Continuation verification",
+      stopCondition: "Stop after the original result is fully settled",
     }),
   );
   assert.equal(reopened.exitCode, 0, `${reopened.stderr}\n${reopened.stdout}`);
@@ -1272,6 +1332,828 @@ test("a completed slice can be explicitly reopened without consuming a new slice
   const full = await runScript(root, "view", "--record", recordPath, "--view", "full");
   assert.equal((full.json.view.content.match(/#### S-001 —/g) ?? []).length, 1);
   assert.match(full.json.view.content, /The original result is now fully settled/);
+});
+
+test("public views are direct text and storage-section aliases are rejected", async (t) => {
+  const root = await makeWorkspace();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const initialized = await runScript(
+    root,
+    "init",
+    "--root",
+    root,
+    "--name",
+    "text-views",
+    "--input",
+    await writeJson(root, "init.json", { taskName: "Text views", goal: "Use direct view text" }),
+  );
+  const recordPath = initialized.json.record.path;
+  const viewed = await runRawScript(root, "view", "--record", recordPath, "--view", "resume");
+  assert.equal(viewed.exitCode, 0, viewed.stderr);
+  assert.match(viewed.stdout, /^Task: Text views\nTask state: Active\nSchema: 2/m);
+  assert.doesNotMatch(viewed.stdout, /^\s*\{/);
+  assert.match(viewed.stdout, /Record SHA-256:/);
+
+  for (const removedView of ["current", "work"]) {
+    const rejected = await runRawScript(root, "view", "--record", recordPath, "--view", removedView);
+    assert.equal(rejected.exitCode, 1, `${removedView}: ${rejected.stderr}`);
+    assert.match(rejected.stdout, /Unknown view: (current|work)/);
+    assert.doesNotMatch(rejected.stdout, /^\s*\{/);
+  }
+});
+
+test("precise update edits one proposal without replacing siblings", async (t) => {
+  const root = await makeWorkspace();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const initialized = await runScript(
+    root,
+    "init",
+    "--root",
+    root,
+    "--name",
+    "precise-edit",
+    "--input",
+    await writeJson(root, "init.json", { taskName: "Precise edit" }),
+  );
+  const recordPath = initialized.json.record.path;
+  const added = await runScript(
+    root,
+    "update",
+    "--record",
+    recordPath,
+    "--expected-sha",
+    initialized.json.record.sha256,
+    "--input",
+    await writeJson(root, "proposals.json", {
+      proposal: {
+        operation: "add",
+        title: "First proposal",
+        type: "Delivery",
+        intendedResult: "First",
+        expectedEvidence: "First evidence",
+      },
+      proposals: [
+        { title: "Second proposal", type: "Learning", intendedResult: "Second", expectedEvidence: "Second evidence" },
+      ],
+    }),
+  );
+  assert.equal(added.exitCode, 1, "legacy whole-collection update should not be accepted by the new contract");
+  const first = await runScript(
+    root,
+    "update",
+    "--record",
+    recordPath,
+    "--expected-sha",
+    initialized.json.record.sha256,
+    "--input",
+    await writeJson(root, "first.json", {
+      proposal: {
+        operation: "add",
+        title: "First proposal",
+        type: "Delivery",
+        intendedResult: "First",
+        expectedEvidence: "First evidence",
+      },
+    }),
+  );
+  assert.equal(first.exitCode, 0, first.stderr);
+  const seeded = await runScript(
+    root,
+    "update",
+    "--record",
+    recordPath,
+    "--expected-sha",
+    first.json.record.sha256,
+    "--input",
+    await writeJson(root, "second.json", {
+      proposal: {
+        operation: "add",
+        title: "Second proposal",
+        type: "Learning",
+        intendedResult: "Second",
+        expectedEvidence: "Second evidence",
+      },
+    }),
+  );
+  assert.equal(seeded.exitCode, 0, seeded.stderr);
+  const edited = await runScript(
+    root,
+    "update",
+    "--record",
+    recordPath,
+    "--expected-sha",
+    seeded.json.record.sha256,
+    "--input",
+    await writeJson(root, "edit.json", {
+      edits: [
+        {
+          target: { kind: "proposal", title: "First proposal" },
+          set: { expectedEvidence: "Updated first evidence" },
+          add: { dependencies: ["Second proposal"] },
+        },
+      ],
+    }),
+  );
+  assert.equal(edited.exitCode, 0, edited.stderr);
+  assert.deepEqual(edited.json.affectedIds, []);
+  assert.match(JSON.stringify(edited.json.changedPaths), /First proposal/);
+  const entity = await runRawScript(
+    root,
+    "view",
+    "--record",
+    recordPath,
+    "--view",
+    "entity",
+    "--entity",
+    "Second proposal",
+  );
+  assert.equal(entity.exitCode, 0, entity.stderr);
+  assert.match(entity.stdout, /Second evidence/);
+  assert.doesNotMatch(entity.stdout, /Updated first evidence/);
+});
+
+test("schema exposes update input without implementation inspection", async (t) => {
+  const root = await makeWorkspace();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const schema = await runRawScript(root, "schema", "--command", "all");
+  assert.equal(schema.exitCode, 0, schema.stderr);
+  assert.match(schema.stdout, /edits/);
+  assert.match(schema.stdout, /replaceText/);
+  assert.match(schema.stdout, /moveBefore|moveAfter/);
+  assert.match(schema.stdout, /candidateText/);
+  assert.match(schema.stdout, /coverage/);
+  assert.match(schema.stdout, /sourceUnits/);
+  assert.match(schema.stdout, /kind.*content\|blank/);
+  assert.match(schema.stdout, /preservation/);
+  assert.doesNotMatch(schema.stdout, /^\s*\{/);
+});
+
+test("precise edits support text replacement, rename, reorder, and strict types", async (t) => {
+  const root = await makeWorkspace();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const initialized = await runScript(
+    root,
+    "init",
+    "--root",
+    root,
+    "--name",
+    "edit-operations",
+    "--input",
+    await writeJson(root, "init.json", { taskName: "Edit operations", goal: "old goal" }),
+  );
+  const recordPath = initialized.json.record.path;
+  let sha = initialized.json.record.sha256;
+  for (const [name, type] of [
+    ["Alpha", "Delivery"],
+    ["Beta", "Learning"],
+    ["Gamma", "Deepening"],
+  ]) {
+    const added = await runScript(
+      root,
+      "update",
+      "--record",
+      recordPath,
+      "--expected-sha",
+      sha,
+      "--input",
+      await writeJson(root, `${name}.json`, {
+        proposal: {
+          operation: "add",
+          title: name,
+          type,
+          intendedResult: `${name} result`,
+          expectedEvidence: `${name} evidence`,
+        },
+      }),
+    );
+    assert.equal(added.exitCode, 0, added.stderr);
+    sha = added.json.record.sha256;
+  }
+  const edited = await runScript(
+    root,
+    "update",
+    "--record",
+    recordPath,
+    "--expected-sha",
+    sha,
+    "--input",
+    await writeJson(root, "precise.json", {
+      edits: [
+        { target: "currentContext.goal", replaceText: { old: "old", new: "new" } },
+        { target: { kind: "proposal", title: "Alpha" }, rename: "Renamed Alpha", moveAfter: "Gamma" },
+      ],
+    }),
+  );
+  assert.equal(edited.exitCode, 0, edited.stderr);
+  assert.match(JSON.stringify(edited.json.changedPaths), /currentContext\.goal/);
+  const full = await runRawScript(root, "view", "--record", recordPath, "--view", "full");
+  assert.equal(full.exitCode, 0, full.stderr);
+  assert.match(full.stdout, /new goal/);
+  assert.match(full.stdout, /Gamma[\s\S]*Renamed Alpha/);
+  assert.doesNotMatch(full.stdout, /### Alpha\n/);
+
+  const rejected = await runScript(
+    root,
+    "update",
+    "--record",
+    recordPath,
+    "--expected-sha",
+    edited.json.record.sha256,
+    "--input",
+    await writeJson(root, "wrong-type.json", {
+      edits: [{ target: { kind: "proposal", title: "Beta" }, set: { expectedEvidence: ["wrong"] } }],
+    }),
+  );
+  assert.equal(rejected.exitCode, 1);
+  assert.equal(rejected.json.errors[0].code, "invalid-edit-type");
+  assert.equal(rejected.json.record.sha256, edited.json.record.sha256);
+});
+
+function migrationCoverage(sourceUnits, rules = {}) {
+  return sourceUnits.map((unit) => {
+    const rule = rules[unit.line] ?? { disposition: "formatting-normalized", targetPaths: ["currentContext"] };
+    return { ...unit, ...rule };
+  });
+}
+
+test("migrate records complete source coverage and immutable recovery evidence", async (t) => {
+  const root = await makeWorkspace();
+  const candidateRoot = await makeWorkspace();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  t.after(() => rm(candidateRoot, { recursive: true, force: true }));
+  const recordDirectory = join(root, ".freeflow", "tasks", "task-001-legacy");
+  await mkdir(recordDirectory, { recursive: true });
+  const recordPath = join(recordDirectory, "record.md");
+  const legacyText = [
+    "# Working Record: Legacy task",
+    "",
+    "State: Active",
+    "Last updated: 2026-08-15T00:00:00Z",
+    "",
+    "## Current Context",
+    "Goal: Preserve the legacy source",
+    "",
+    "## Current Work",
+    "### Current Slice",
+    "None",
+    "",
+  ].join("\n");
+  await writeFile(recordPath, legacyText);
+  const candidateInit = await runScript(
+    candidateRoot,
+    "init",
+    "--root",
+    candidateRoot,
+    "--name",
+    "candidate",
+    "--input",
+    await writeJson(candidateRoot, "init.json", { taskName: "Candidate", goal: "Preserve the legacy source" }),
+  );
+  const candidateText = (await readFile(join(candidateRoot, candidateInit.json.record.path), "utf8")).replace(
+    /^# Working Record:.*$/m,
+    "# Working Record: Legacy task",
+  );
+  const inspection = await runScript(root, "inspect", "--root", root, "--record", recordPath);
+  assert.equal(inspection.exitCode, 0, inspection.stderr);
+  assert.equal(inspection.json.inspection.byteCount, Buffer.byteLength(legacyText, "utf8"));
+  const sourceUnits = inspection.json.inspection.sourceUnits;
+  assert.equal(sourceUnits.length, legacyText.split(/(?<=\n)/).length);
+  const migrationInput = {
+    authoritySource: "User authorized legacy conversion",
+    reason: "Preserve representation while moving to schema v2",
+    candidateText,
+    coverage: migrationCoverage(sourceUnits, {
+      1: { disposition: "verbatim", targetPaths: ["taskName"] },
+      3: { disposition: "represented", targetPaths: ["taskState"] },
+      4: { disposition: "represented", targetPaths: ["lastUpdated"] },
+      6: { disposition: "projection-only", targetPaths: ["currentContext"] },
+      7: { disposition: "projection-only", targetPaths: ["currentContext.goal"] },
+      9: { disposition: "projection-only", targetPaths: ["currentWork"] },
+      10: { disposition: "projection-only", targetPaths: ["currentWork.currentSlice"] },
+      11: { disposition: "projection-only", targetPaths: ["currentWork.currentSlice"] },
+    }),
+  };
+  const incomplete = await runScript(
+    root,
+    "migrate",
+    "--root",
+    root,
+    "--record",
+    recordPath,
+    "--expected-sha",
+    sha256(legacyText),
+    "--input",
+    await writeJson(root, "migrate-incomplete.json", { ...migrationInput, coverage: migrationInput.coverage.slice(1) }),
+  );
+  assert.equal(incomplete.exitCode, 1);
+  assert.equal(incomplete.json.errors[0].code, "unmapped-source");
+  const semanticCompression = await runScript(
+    root,
+    "migrate",
+    "--root",
+    root,
+    "--record",
+    recordPath,
+    "--expected-sha",
+    sha256(legacyText),
+    "--input",
+    await writeJson(root, "migrate-compression.json", {
+      ...migrationInput,
+      coverage: migrationInput.coverage.map((entry, index) =>
+        index === 0 ? { ...entry, disposition: "summarized" } : entry,
+      ),
+    }),
+  );
+  assert.equal(semanticCompression.exitCode, 1);
+  assert.equal(semanticCompression.json.errors[0].code, "invalid-migration-disposition");
+  const falseVerbatim = await runScript(
+    root,
+    "migrate",
+    "--root",
+    root,
+    "--record",
+    recordPath,
+    "--expected-sha",
+    sha256(legacyText),
+    "--input",
+    await writeJson(root, "migrate-false-verbatim.json", {
+      ...migrationInput,
+      coverage: migrationInput.coverage.map((entry, index) =>
+        index === 6 ? { ...entry, disposition: "verbatim" } : entry,
+      ),
+    }),
+  );
+  assert.equal(falseVerbatim.exitCode, 1);
+  assert.equal(falseVerbatim.json.errors[0].code, "unrepresented-source");
+  const invalidVerbatimTarget = await runScript(
+    root,
+    "migrate",
+    "--root",
+    root,
+    "--record",
+    recordPath,
+    "--expected-sha",
+    sha256(legacyText),
+    "--input",
+    await writeJson(root, "migrate-invalid-verbatim-target.json", {
+      ...migrationInput,
+      coverage: migrationInput.coverage.map((entry, index) =>
+        index === 0 ? { ...entry, targetPaths: ["missing.path"] } : entry,
+      ),
+    }),
+  );
+  assert.equal(invalidVerbatimTarget.exitCode, 1);
+  assert.equal(invalidVerbatimTarget.json.errors[0].code, "unmapped-source");
+  const missingTarget = await runScript(
+    root,
+    "migrate",
+    "--root",
+    root,
+    "--record",
+    recordPath,
+    "--expected-sha",
+    sha256(legacyText),
+    "--input",
+    await writeJson(root, "migrate-missing-target.json", {
+      ...migrationInput,
+      coverage: migrationInput.coverage.map((entry, index) =>
+        index === 1 ? { ...entry, targetPaths: ["missing.path"] } : entry,
+      ),
+    }),
+  );
+  assert.equal(missingTarget.exitCode, 1);
+  assert.equal(missingTarget.json.errors[0].code, "unmapped-source");
+
+  const migrated = await runScript(
+    root,
+    "migrate",
+    "--root",
+    root,
+    "--record",
+    recordPath,
+    "--expected-sha",
+    sha256(legacyText),
+    "--input",
+    await writeJson(root, "migrate.json", migrationInput),
+  );
+  assert.equal(migrated.exitCode, 0, `${migrated.stderr}\n${migrated.stdout}`);
+  assert.equal(migrated.json.status, "updated");
+  assert.equal(migrated.json.sourceKind, "legacy");
+  assert.equal(migrated.json.coverage.length, sourceUnits.length);
+  const snapshotRoot = join(recordDirectory, "snapshots", sha256(legacyText));
+  assert.equal(await readFile(join(snapshotRoot, "record.md"), "utf8"), legacyText);
+  assert.equal((await readFile(join(snapshotRoot, "source.json"), "utf8")).includes(sha256(legacyText)), true);
+  const operationEntries = await readdir(join(snapshotRoot, "operations"));
+  assert.equal(operationEntries.length, 1);
+  const migratedView = await runRawScript(root, "view", "--root", root, "--record", recordPath, "--view", "full");
+  assert.equal(migratedView.exitCode, 0, `${migratedView.stderr}\n${migratedView.stdout}`);
+  assert.match(migratedView.stdout, /Schema: 2/);
+});
+
+test("migrate consumes duplicate verbatim source units one-for-one", async (t) => {
+  const root = await makeWorkspace();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const recordDirectory = join(root, ".freeflow", "tasks", "task-001-duplicate");
+  await mkdir(recordDirectory, { recursive: true });
+  const recordPath = join(recordDirectory, "record.md");
+  const sourceText = [
+    "# Working Record: Duplicate",
+    "# Working Record: Duplicate",
+    "",
+    "State: Active",
+    "Last updated: 2026-08-15T00:00:00Z",
+    "",
+    "## Current Context",
+    "Goal: Duplicate source",
+    "",
+    "## Current Work",
+    "### Current Slice",
+    "None",
+    "",
+  ].join("\n");
+  await writeFile(recordPath, sourceText);
+  const candidateInit = await runScript(
+    root,
+    "init",
+    "--root",
+    root,
+    "--name",
+    "duplicate-candidate",
+    "--input",
+    await writeJson(root, "duplicate-init.json", { taskName: "Duplicate", goal: "Duplicate source" }),
+  );
+  const candidateText = await readFile(join(root, candidateInit.json.record.path), "utf8");
+  const inspection = await runScript(root, "inspect", "--root", root, "--record", recordPath);
+  assert.equal(inspection.exitCode, 0, inspection.stderr);
+  const coverage = migrationCoverage(inspection.json.inspection.sourceUnits, {
+    1: { disposition: "verbatim", targetPaths: ["taskName"] },
+    2: { disposition: "verbatim", targetPaths: ["taskName"] },
+  });
+  const dryRun = await runScript(
+    root,
+    "migrate",
+    "--root",
+    root,
+    "--record",
+    recordPath,
+    "--expected-sha",
+    sha256(sourceText),
+    "--input",
+    await writeJson(root, "duplicate-migrate.json", {
+      authoritySource: "User authorized migration proof",
+      reason: "Check duplicate source accounting",
+      candidateText,
+      coverage,
+    }),
+    "--dry-run",
+  );
+  assert.equal(dryRun.exitCode, 1);
+  assert.equal(dryRun.json.errors[0].code, "unrepresented-source");
+});
+
+test("legacy inspect reports exact source bytes and unit boundaries", async (t) => {
+  const root = await makeWorkspace();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const recordDirectory = join(root, ".freeflow", "tasks", "task-001-crlf");
+  await mkdir(recordDirectory, { recursive: true });
+  const recordPath = join(recordDirectory, "record.md");
+  const sourceText = [
+    "# Working Record: Café",
+    "",
+    "State: Active",
+    "Last updated: 2026-08-15T00:00:00Z",
+    "",
+    "## Current Context",
+    "Goal: naïve bytes",
+    "",
+    "## Current Work",
+    "### Current Slice",
+    "None",
+    "",
+  ].join("\r\n");
+  await writeFile(recordPath, sourceText);
+  const inspection = await runScript(root, "inspect", "--root", root, "--record", recordPath);
+  assert.equal(inspection.exitCode, 0, inspection.stderr);
+  const sourceUnits = inspection.json.inspection.sourceUnits;
+  assert.equal(inspection.json.inspection.byteCount, Buffer.byteLength(sourceText, "utf8"));
+  assert.equal(sourceUnits[0].sourceSha256, sha256("# Working Record: Café\r\n"));
+  assert.equal(sourceUnits.at(-1).endByte, Buffer.byteLength(sourceText, "utf8"));
+  assert.ok(sourceUnits.some((unit) => unit.kind === "blank"));
+});
+
+test("migrate accepts unsupported schema sources without ordinary mutation", async (t) => {
+  const root = await makeWorkspace();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const recordDirectory = join(root, ".freeflow", "tasks", "task-001-unsupported");
+  await mkdir(recordDirectory, { recursive: true });
+  const recordPath = join(recordDirectory, "record.md");
+  const sourceText = [
+    "# Working Record: Unsupported task",
+    "",
+    "Schema: 1",
+    "State: Active",
+    "Last updated: 2026-08-15T00:00:00Z",
+    "",
+    "## Current Context",
+    "Goal: Preserve unsupported source",
+    "",
+    "## Current Work",
+    "### Current Slice",
+    "None",
+    "## Proposed Slices",
+    "## History",
+    "### Decisions",
+    "### Checkpoints",
+    "### Slices",
+    "## Notes",
+    "",
+  ].join("\n");
+  await writeFile(recordPath, sourceText);
+  const candidateInit = await runScript(
+    root,
+    "init",
+    "--root",
+    root,
+    "--name",
+    "candidate",
+    "--input",
+    await writeJson(root, "unsupported-init.json", {
+      taskName: "Unsupported task",
+      goal: "Preserve unsupported source",
+    }),
+  );
+  const candidateText = (await readFile(join(root, candidateInit.json.record.path), "utf8")).replace(
+    /^# Working Record:.*$/m,
+    "# Working Record: Unsupported task",
+  );
+  const inspection = await runScript(root, "inspect", "--root", root, "--record", recordPath);
+  assert.equal(inspection.exitCode, 0, inspection.stderr);
+  assert.equal(inspection.json.inspection.byteCount, Buffer.byteLength(sourceText, "utf8"));
+  const sourceUnits = inspection.json.inspection.sourceUnits;
+  const migrated = await runScript(
+    root,
+    "migrate",
+    "--root",
+    root,
+    "--record",
+    recordPath,
+    "--expected-sha",
+    sha256(sourceText),
+    "--input",
+    await writeJson(root, "unsupported-migrate.json", {
+      authoritySource: "User authorized unsupported-schema conversion",
+      reason: "Preserve the unsupported source as schema v2",
+      candidateText,
+      coverage: migrationCoverage(sourceUnits, {
+        1: { disposition: "represented", targetPaths: ["taskName"] },
+        3: { disposition: "represented", targetPaths: ["schemaVersion"] },
+        4: { disposition: "represented", targetPaths: ["taskState"] },
+        5: { disposition: "represented", targetPaths: ["lastUpdated"] },
+        7: { disposition: "projection-only", targetPaths: ["currentContext"] },
+        8: { disposition: "projection-only", targetPaths: ["currentContext.goal"] },
+        10: { disposition: "projection-only", targetPaths: ["currentWork"] },
+        11: { disposition: "projection-only", targetPaths: ["currentWork.currentSlice"] },
+        12: { disposition: "projection-only", targetPaths: ["currentWork.currentSlice"] },
+        13: { disposition: "formatting-normalized", targetPaths: ["proposals"] },
+        14: { disposition: "formatting-normalized", targetPaths: ["history"] },
+        15: { disposition: "formatting-normalized", targetPaths: ["history.decisions"] },
+        16: { disposition: "formatting-normalized", targetPaths: ["history.checkpoints"] },
+        17: { disposition: "formatting-normalized", targetPaths: ["history.slices"] },
+        18: { disposition: "formatting-normalized", targetPaths: ["notes"] },
+      }),
+    }),
+  );
+  assert.equal(migrated.exitCode, 0, `${migrated.stderr}\n${migrated.stdout}`);
+  assert.equal(migrated.json.sourceKind, "unsupported");
+  const snapshotRoot = join(recordDirectory, "snapshots", sha256(sourceText));
+  const sourceMetadata = JSON.parse(await readFile(join(snapshotRoot, "source.json"), "utf8"));
+  assert.equal(sourceMetadata.schemaVersion, 1);
+});
+
+test("compress requires explicit scope, protects invariants, and snapshots the source", async (t) => {
+  const root = await makeWorkspace();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const initialized = await runScript(
+    root,
+    "init",
+    "--root",
+    root,
+    "--name",
+    "compress-scope",
+    "--input",
+    await writeJson(root, "init.json", { taskName: "Compress scope", goal: "A long goal that can be shortened" }),
+  );
+  const recordPath = join(root, initialized.json.record.path);
+  const sourceText = await readFile(recordPath, "utf8");
+  const candidateText = sourceText.replace("A long goal that can be shortened", "A shorter goal");
+  const rewriteInput = {
+    authoritySource: "User authorized bounded compaction",
+    reason: "Remove redundant goal wording",
+    preservation: "The goal remains semantically equivalent; no protected lifecycle or evidence facts changed.",
+    scope: ["currentContext.goal"],
+    candidateText,
+  };
+  const dryRun = await runScript(
+    root,
+    "compress",
+    "--root",
+    root,
+    "--record",
+    recordPath,
+    "--expected-sha",
+    initialized.json.record.sha256,
+    "--input",
+    await writeJson(root, "compress-dry-run.json", rewriteInput),
+    "--dry-run",
+  );
+  assert.equal(dryRun.exitCode, 0, `${dryRun.stderr}\n${dryRun.stdout}`);
+  assert.equal(dryRun.json.status, "dry-run");
+  await assert.rejects(readdir(join(dirname(recordPath), "snapshots")));
+  assert.equal(await readFile(recordPath, "utf8"), sourceText);
+
+  const snapshotFailure = await runScript(
+    root,
+    "compress",
+    "--root",
+    root,
+    "--record",
+    recordPath,
+    "--expected-sha",
+    initialized.json.record.sha256,
+    "--input",
+    await writeJson(root, "compress-snapshot-failure.json", rewriteInput),
+    { __env: { FREEFLOW_TEST_FAILURE: "snapshot-write" } },
+  );
+  assert.equal(snapshotFailure.exitCode, 1);
+  assert.equal(snapshotFailure.json.errors[0].code, "snapshot-write-failure");
+  assert.equal(await readFile(recordPath, "utf8"), sourceText);
+  const renameFailure = await runScript(
+    root,
+    "compress",
+    "--root",
+    root,
+    "--record",
+    recordPath,
+    "--expected-sha",
+    initialized.json.record.sha256,
+    "--input",
+    await writeJson(root, "compress-rename-failure.json", rewriteInput),
+    { __env: { FREEFLOW_TEST_FAILURE: "rename" } },
+  );
+  assert.equal(renameFailure.exitCode, 1);
+  assert.equal(renameFailure.json.errors[0].code, "rename-failure");
+  assert.equal(await readFile(recordPath, "utf8"), sourceText);
+
+  const compressed = await runScript(
+    root,
+    "compress",
+    "--root",
+    root,
+    "--record",
+    recordPath,
+    "--expected-sha",
+    initialized.json.record.sha256,
+    "--input",
+    await writeJson(root, "compress.json", rewriteInput),
+  );
+  assert.equal(compressed.exitCode, 0, `${compressed.stderr}\n${compressed.stdout}`);
+  assert.equal(compressed.json.status, "updated");
+  assert.match(JSON.stringify(compressed.json.changedPaths), /currentContext\.goal/);
+  const snapshotRoot = join(dirname(recordPath), "snapshots", initialized.json.record.sha256);
+  assert.equal(await readFile(join(snapshotRoot, "record.md"), "utf8"), sourceText);
+  const manifestName = (await readdir(join(snapshotRoot, "operations")))[0];
+  const manifest = JSON.parse(await readFile(join(snapshotRoot, "operations", manifestName), "utf8"));
+  assert.equal(manifest.operation, "compress");
+  assert.deepEqual(manifest.scope, ["currentContext.goal"]);
+
+  const rejected = await runScript(
+    root,
+    "compress",
+    "--root",
+    root,
+    "--record",
+    recordPath,
+    "--expected-sha",
+    compressed.json.record.sha256,
+    "--input",
+    await writeJson(root, "out-of-scope.json", {
+      authoritySource: "User authorized bounded compaction",
+      reason: "Attempt an unscoped rewrite",
+      preservation: "Protected state is unchanged.",
+      scope: ["currentContext.goal"],
+      candidateText: (await readFile(recordPath, "utf8"))
+        .replace("A shorter goal", "Another goal")
+        .replace("## Current Context", "## Current Context\n### Settled\nUnexpected change"),
+    }),
+  );
+  assert.equal(rejected.exitCode, 1);
+  assert.equal(rejected.json.errors[0].code, "rewrite-out-of-scope", JSON.stringify(rejected.json));
+  const protectedChange = await runScript(
+    root,
+    "compress",
+    "--root",
+    root,
+    "--record",
+    recordPath,
+    "--expected-sha",
+    compressed.json.record.sha256,
+    "--input",
+    await writeJson(root, "protected-change.json", {
+      authoritySource: "User authorized bounded compaction",
+      reason: "Attempt to change protected task state",
+      preservation: "This declaration is intentionally false for the rejection test.",
+      scope: ["taskState"],
+      candidateText: (await readFile(recordPath, "utf8")).replace("State: Active", "State: Paused"),
+    }),
+  );
+  assert.equal(protectedChange.exitCode, 1);
+  assert.equal(protectedChange.json.errors[0].code, "protected-invariant");
+
+  const confirmationCandidate = (await readFile(recordPath, "utf8")).replace("A shorter goal", "Final goal");
+  const confirmationFailure = await runScript(
+    root,
+    "compress",
+    "--root",
+    root,
+    "--record",
+    recordPath,
+    "--expected-sha",
+    compressed.json.record.sha256,
+    "--input",
+    await writeJson(root, "compress-confirmation-failure.json", {
+      ...rewriteInput,
+      candidateText: confirmationCandidate,
+    }),
+    { __env: { FREEFLOW_TEST_FAILURE: "confirmation" } },
+  );
+  assert.equal(confirmationFailure.exitCode, 2);
+  assert.equal(confirmationFailure.json.status, "committed-unconfirmed");
+  assert.equal(confirmationFailure.json.recovery.required, true);
+  assert.notEqual(sha256(await readFile(recordPath, "utf8")), compressed.json.record.sha256);
+});
+
+test("resume stays bounded when settled history grows", async (t) => {
+  const root = await makeWorkspace();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const initialized = await runScript(
+    root,
+    "init",
+    "--root",
+    root,
+    "--name",
+    "scale-history",
+    "--input",
+    await writeJson(root, "init.json", { taskName: "Scale history", goal: "Keep resume bounded" }),
+  );
+  const recordPath = initialized.json.record.path;
+  let sha = initialized.json.record.sha256;
+  for (let index = 1; index <= 100; index += 1) {
+    const started = await runScript(
+      root,
+      "start",
+      "--record",
+      recordPath,
+      "--expected-sha",
+      sha,
+      "--input",
+      await writeJson(root, `start-${index}.json`, {
+        title: `Outcome ${index}`,
+        type: "Delivery",
+        intendedResult: `Settle outcome ${index}`,
+        authoritySource: "User authorized scale fixture",
+        reasonAndScope: "Measure bounded resume output",
+        expectedEvidence: "Scale fixture evidence",
+        stopCondition: "Stop after one outcome",
+      }),
+    );
+    assert.equal(started.exitCode, 0, started.stderr);
+    const closed = await runScript(
+      root,
+      "close",
+      "--record",
+      recordPath,
+      "--expected-sha",
+      started.json.record.sha256,
+      "--input",
+      await writeJson(root, `close-${index}.json`, {
+        sliceId: `S-${String(index).padStart(3, "0")}`,
+        finalState: "Completed",
+        outcome: `Outcome ${index} settled`,
+        evidence: ["scale fixture"],
+      }),
+    );
+    assert.equal(closed.exitCode, 0, closed.stderr);
+    sha = closed.json.record.sha256;
+  }
+  const resumed = await runRawScript(root, "view", "--record", recordPath, "--view", "resume");
+  assert.equal(resumed.exitCode, 0, resumed.stderr);
+  assert.match(resumed.stdout, /Current slice: None/);
+  assert.doesNotMatch(resumed.stdout, /Outcome 1 settled/);
+  assert.ok(Buffer.byteLength(resumed.stdout, "utf8") < 2500, "resume should not scale with settled history");
+  const full = await runRawScript(root, "view", "--record", recordPath, "--view", "full");
+  assert.equal(full.exitCode, 0, full.stderr);
+  assert.equal((full.stdout.match(/#### S-\d{3} —/g) ?? []).length, 100);
+  assert.doesNotMatch(full.stdout, /Reopen snapshot/);
 });
 
 test("blocked and abandoned historical slices can be explicitly reopened", async (t) => {
@@ -1371,6 +2253,9 @@ test("blocked and abandoned historical slices can be explicitly reopened", async
         sliceId: "S-001",
         authoritySource: `User explicitly authorized reopening the ${finalState.toLowerCase()} outcome`,
         reopenReason: `The ${finalState.toLowerCase()} outcome remains the intended result`,
+        reasonAndScope: `Continue the ${finalState.toLowerCase()} outcome within its original boundary`,
+        expectedEvidence: "Fresh continuation verification",
+        stopCondition: "Stop after continuation is settled",
       }),
     );
     assert.equal(reopened.exitCode, 0, reopened.stderr);

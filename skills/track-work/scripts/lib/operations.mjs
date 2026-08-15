@@ -16,13 +16,7 @@ import {
 } from "./model.mjs";
 
 function activeDecisionSync(data) {
-  data.currentContext.activeDecisions = data.history.decisions
-    .filter((decision) => decision.state === "Active")
-    .map((decision) => ({
-      id: decision.id,
-      title: decision.title,
-      summary: decision.decision || decision.consequences || "",
-    }));
+  delete data.currentContext.activeDecisions;
 }
 
 function findById(entities, id) {
@@ -168,7 +162,352 @@ function applyCurrentSlicePatch(data, input) {
   data.currentWork.currentSlice = normalized;
 }
 
+const PRECISE_STRING_FIELDS = new Set([
+  "title",
+  "type",
+  "intendedResult",
+  "expectedEvidence",
+  "authoritySource",
+  "reasonAndScope",
+  "stopCondition",
+  "startingState",
+  "resumeWhen",
+  "result",
+  "reviewSummary",
+  "taskEffect",
+  "goal",
+  "whatDefinesTask",
+  "settled",
+  "tentative",
+  "open",
+  "currentDirection",
+  "boundaries",
+  "route",
+  "nextAction",
+  "decision",
+  "establishedBy",
+  "rationale",
+  "consequences",
+  "revisitWhen",
+  "supersedes",
+  "supersededBy",
+  "source",
+  "body",
+  "selectedBy",
+  "condition",
+  "judgment",
+  "evidence",
+  "effect",
+]);
+const PRECISE_LIST_FIELDS = new Set([
+  "acceptedExtensions",
+  "dependencies",
+  "selectedCheckpoints",
+  "blockerHistory",
+  "pendingBoundaries",
+  "pendingReviews",
+  "reopenHistory",
+  "evidence",
+  "blockers",
+  "upcomingCheckpoints",
+]);
+const PRECISE_FORBIDDEN_FIELDS = new Set(["id", "state", "currentSlice"]);
+
+function preciseFieldType(field) {
+  if (PRECISE_LIST_FIELDS.has(field)) return "array";
+  if (PRECISE_STRING_FIELDS.has(field)) return "string";
+  if (field === "blocker") return "object-or-string";
+  return null;
+}
+
+function assertPreciseValue(field, value, path) {
+  if (PRECISE_FORBIDDEN_FIELDS.has(field))
+    fail("immutable-edit-field", `Field ${field} is controlled by a dedicated transition`, { path });
+  const type = preciseFieldType(field);
+  if (!type) fail("unknown-edit-field", `Unknown editable field: ${field}`, { path });
+  if (type === "string" && typeof value !== "string")
+    fail("invalid-edit-type", `Field ${field} requires a string`, { path, expected: "string" });
+  if (type === "array" && (!Array.isArray(value) || value.some((item) => typeof item !== "string")))
+    fail("invalid-edit-type", `Field ${field} requires an array of strings`, { path, expected: "string[]" });
+  if (field === "type" && !SLICE_TYPES.has(value)) fail("invalid-slice-type", `Invalid slice type: ${value}`, { path });
+  if (
+    field === "blocker" &&
+    value !== null &&
+    typeof value !== "string" &&
+    (typeof value !== "object" || Array.isArray(value))
+  )
+    fail("invalid-edit-type", "Field blocker requires an object, string, or null", { path });
+}
+
+function entityCollections(data, kind) {
+  if (kind === "proposal") return [{ collection: data.proposals, label: "proposals" }];
+  if (kind === "decision") return [{ collection: data.history.decisions, label: "history.decisions" }];
+  if (kind === "checkpoint") return [{ collection: data.history.checkpoints, label: "history.checkpoints" }];
+  if (kind === "note") return [{ collection: data.notes, label: "notes" }];
+  if (kind === "slice")
+    return [{ collection: data.history.slices, label: "history.slices" }].concat(
+      data.currentWork.currentSlice ? [{ collection: [data.currentWork.currentSlice], label: "currentSlice" }] : [],
+    );
+  if (kind === "currentSlice")
+    return data.currentWork.currentSlice
+      ? [{ collection: [data.currentWork.currentSlice], label: "currentSlice" }]
+      : [];
+  return null;
+}
+
+function selectPreciseEntity(data, target, path) {
+  if (!target || typeof target !== "object" || Array.isArray(target))
+    fail("invalid-edit-target", "Entity edits require an object target", { path });
+  const kind = target.kind;
+  const collections = entityCollections(data, kind);
+  if (!collections) fail("invalid-edit-target", `Unknown entity kind: ${kind}`, { path });
+  if (kind === "currentSlice" && !target.id && !target.title)
+    return { entity: collections[0]?.collection[0], label: "currentSlice" };
+  const matches = [];
+  for (const { collection, label } of collections) {
+    for (const entity of collection) {
+      if (
+        (target.id !== undefined && entity.id === target.id) ||
+        (target.title !== undefined && entity.title === target.title)
+      )
+        matches.push({ entity, label });
+    }
+  }
+  if (!matches.length) fail("missing-entity", `No ${kind} matched the requested selector`, { path, target });
+  if (matches.length > 1)
+    fail("ambiguous-entity", `Entity selector matched multiple ${kind} entities`, { path, target });
+  return matches[0];
+}
+
+function fieldPathTarget(data, target, path) {
+  if (typeof target !== "string") return null;
+  const parts = target.split(".");
+  if (parts.length !== 2) fail("invalid-edit-target", `Field target must use section.field: ${target}`, { path });
+  const [section, field] = parts;
+  const owners = {
+    currentContext: data.currentContext,
+    currentWork: data.currentWork,
+    currentSlice: data.currentWork.currentSlice,
+  };
+  const owner = owners[section];
+  if (!owner) fail("invalid-edit-target", `Unknown field target section: ${section}`, { path });
+  if (section === "currentSlice" && !owner) fail("missing-entity", "There is no Current Slice to edit", { path });
+  return { owner, field, path: target };
+}
+
+function setPreciseField(owner, field, value, path) {
+  assertPreciseValue(field, value, path);
+  owner[field] = clone(value);
+}
+
+function clearPreciseField(owner, field, path) {
+  if (PRECISE_FORBIDDEN_FIELDS.has(field))
+    fail("immutable-edit-field", `Field ${field} is controlled by a dedicated transition`, { path });
+  if (!preciseFieldType(field)) fail("unknown-edit-field", `Unknown editable field: ${field}`, { path });
+  delete owner[field];
+}
+
+function replacePreciseText(owner, field, replacement, path) {
+  if (
+    !replacement ||
+    typeof replacement !== "object" ||
+    typeof replacement.old !== "string" ||
+    typeof replacement.new !== "string"
+  )
+    fail("invalid-edit-type", "replaceText requires { old, new } strings", { path });
+  const current = owner[field];
+  if (typeof current !== "string") fail("invalid-edit-type", `replaceText requires a string field: ${field}`, { path });
+  const matches = current.split(replacement.old).length - 1;
+  if (matches !== 1)
+    fail("ambiguous-text-replacement", `Expected exactly one match in ${field}, found ${matches}`, { path });
+  owner[field] = current.replace(replacement.old, replacement.new);
+}
+
+function applyListChange(owner, operation, field, values, path) {
+  if (!PRECISE_LIST_FIELDS.has(field)) fail("invalid-list-field", `Field ${field} is not an editable list`, { path });
+  if (!Array.isArray(values) || values.some((item) => typeof item !== "string"))
+    fail("invalid-edit-type", `List operation ${operation} requires an array of strings`, { path });
+  const current = Array.isArray(owner[field]) ? [...owner[field]] : [];
+  if (operation === "add") {
+    for (const value of values) {
+      if (current.includes(value)) fail("duplicate-list-member", `List ${field} already contains: ${value}`, { path });
+      current.push(value);
+    }
+  } else {
+    for (const value of values) {
+      const index = current.indexOf(value);
+      if (index < 0) fail("missing-list-member", `List ${field} does not contain: ${value}`, { path });
+      current.splice(index, 1);
+    }
+  }
+  owner[field] = current;
+}
+
+function applyFieldMap(owner, fields, operation, path) {
+  if (fields === undefined) return;
+  if (!fields || typeof fields !== "object" || Array.isArray(fields))
+    fail("invalid-edit-type", `${operation} must be an object of fields`, { path });
+  for (const [field, value] of Object.entries(fields)) {
+    const fieldPath = `${path}.${field}`;
+    if (operation === "set") setPreciseField(owner, field, value, fieldPath);
+    else if (operation === "clear") clearPreciseField(owner, field, fieldPath);
+    else if (operation === "replaceText") replacePreciseText(owner, field, value, fieldPath);
+    else applyListChange(owner, operation, field, value, fieldPath);
+  }
+}
+
+function moveProposal(data, title, destination, direction, path) {
+  const from = data.proposals.findIndex((proposal) => proposal.title === title);
+  if (from < 0) fail("missing-proposal", `Proposal does not exist: ${title}`, { path });
+  const to = data.proposals.findIndex((proposal) => proposal.title === destination);
+  if (to < 0) fail("missing-proposal", `Destination proposal does not exist: ${destination}`, { path });
+  const [proposal] = data.proposals.splice(from, 1);
+  const adjusted = from < to ? to - 1 : to;
+  data.proposals.splice(direction === "before" ? adjusted : adjusted + 1, 0, proposal);
+}
+
+function applyPreciseEntityEdit(data, edit, path) {
+  const allowed = new Set([
+    "target",
+    "set",
+    "clear",
+    "replaceText",
+    "add",
+    "remove",
+    "rename",
+    "moveBefore",
+    "moveAfter",
+  ]);
+  for (const key of Object.keys(edit))
+    if (!allowed.has(key)) fail("unknown-edit-operation", `Unknown edit operation: ${key}`, { path });
+  const selected = selectPreciseEntity(data, edit.target, `${path}.target`);
+  const entity = selected.entity;
+  if (!entity) fail("missing-entity", "There is no Current Slice to edit", { path });
+  if (edit.rename !== undefined) {
+    if (typeof edit.rename !== "string" || !edit.rename.trim())
+      fail("invalid-edit-type", "rename requires a non-empty string", { path });
+    entity.title = edit.rename;
+  }
+  applyFieldMap(entity, edit.set, "set", `${path}.set`);
+  if (Array.isArray(edit.clear)) for (const field of edit.clear) clearPreciseField(entity, field, `${path}.clear`);
+  applyFieldMap(entity, edit.replaceText, "replaceText", `${path}.replaceText`);
+  applyFieldMap(entity, edit.add, "add", `${path}.add`);
+  applyFieldMap(entity, edit.remove, "remove", `${path}.remove`);
+  if (edit.moveBefore !== undefined || edit.moveAfter !== undefined) {
+    if (edit.target.kind !== "proposal") fail("invalid-edit-operation", "Only proposals can be reordered", { path });
+    moveProposal(
+      data,
+      entity.title,
+      edit.moveBefore ?? edit.moveAfter,
+      edit.moveBefore === undefined ? "after" : "before",
+      path,
+    );
+  }
+}
+
+function applyPreciseFieldEdit(data, edit, path) {
+  const allowed = new Set(["target", "set", "clear", "replaceText"]);
+  for (const key of Object.keys(edit))
+    if (!allowed.has(key)) fail("unknown-edit-operation", `Unknown edit operation: ${key}`, { path });
+  const target = fieldPathTarget(data, edit.target, `${path}.target`);
+  if (!target) fail("invalid-edit-target", "Unsupported edit target", { path });
+  if (edit.set !== undefined) {
+    if (typeof edit.set === "object" && !Array.isArray(edit.set))
+      fail("invalid-edit-type", "Field target set requires one scalar value", { path });
+    setPreciseField(target.owner, target.field, edit.set, `${path}.set`);
+  }
+  if (edit.clear === true) clearPreciseField(target.owner, target.field, `${path}.clear`);
+  if (edit.replaceText !== undefined)
+    replacePreciseText(target.owner, target.field, edit.replaceText, `${path}.replaceText`);
+}
+
+function applyPreciseCollectionEdit(data, edit, path) {
+  const allowed = new Set(["target", "addEntity", "removeEntity"]);
+  for (const key of Object.keys(edit))
+    if (!allowed.has(key)) fail("unknown-edit-operation", `Unknown edit operation: ${key}`, { path });
+  const collectionName = edit.target?.kind ?? edit.target?.collection;
+  if (collectionName !== "proposals" && collectionName !== "decisions" && collectionName !== "notes")
+    fail("invalid-edit-target", `Unknown editable collection: ${collectionName}`, { path });
+  const collection =
+    collectionName === "proposals"
+      ? data.proposals
+      : collectionName === "decisions"
+        ? data.history.decisions
+        : data.notes;
+  if (edit.addEntity !== undefined) {
+    const value = edit.addEntity;
+    if (!value || typeof value !== "object" || Array.isArray(value))
+      fail("invalid-edit-type", "addEntity requires an object", { path });
+    if (collectionName === "proposals") {
+      if (typeof value.title !== "string" || !value.title.trim())
+        fail("missing-proposal-title", "Proposal title is required", { path });
+      if (collection.some((item) => item.title === value.title))
+        fail("duplicate-proposal", `Proposal already exists: ${value.title}`, { path });
+      if (!SLICE_TYPES.has(value.type)) fail("invalid-proposal-type", `Invalid proposal type: ${value.type}`, { path });
+      assertPreciseValue("intendedResult", value.intendedResult, `${path}.addEntity.intendedResult`);
+      assertPreciseValue("expectedEvidence", value.expectedEvidence, `${path}.addEntity.expectedEvidence`);
+      collection.push(normalizeProposal(value));
+    } else if (collectionName === "decisions") {
+      if (typeof value.title !== "string" || !value.title.trim())
+        fail("missing-decision-title", "Decision title is required", { path });
+      collection.push(normalizeDecision(value, nextId(data, "D")));
+    } else {
+      if (typeof value.title !== "string" || !value.title.trim())
+        fail("missing-note-title", "Note title is required", { path });
+      if (typeof value.body !== "string") fail("invalid-edit-type", "Note body requires a string", { path });
+      collection.push({
+        title: value.title,
+        source: typeof value.source === "string" ? value.source : "",
+        body: value.body,
+      });
+    }
+  }
+  if (edit.removeEntity !== undefined) {
+    const selector = edit.removeEntity;
+    if (!selector || typeof selector !== "object")
+      fail("invalid-edit-target", "removeEntity requires an id or title selector", { path });
+    const matches = collection
+      .map((item, index) => ({ item, index }))
+      .filter(
+        ({ item }) =>
+          (selector.id !== undefined && item.id === selector.id) ||
+          (selector.title !== undefined && item.title === selector.title),
+      );
+    if (!matches.length) fail("missing-entity", `No ${collectionName} matched the remove selector`, { path });
+    if (matches.length > 1) fail("ambiguous-entity", `Remove selector matched multiple ${collectionName}`, { path });
+    collection.splice(matches[0].index, 1);
+  }
+}
+
+function applyPreciseEdits(data, edits) {
+  if (!Array.isArray(edits) || edits.length === 0) fail("missing-edits", "update requires a non-empty edits array");
+  for (const [index, edit] of edits.entries()) {
+    if (!edit || typeof edit !== "object" || Array.isArray(edit))
+      fail("invalid-edit", `Edit ${index} must be an object`);
+    if (edit.addEntity !== undefined || edit.removeEntity !== undefined)
+      applyPreciseCollectionEdit(data, edit, `edits[${index}]`);
+    else if (typeof edit.target === "string") applyPreciseFieldEdit(data, edit, `edits[${index}]`);
+    else applyPreciseEntityEdit(data, edit, `edits[${index}]`);
+  }
+  return { affectedIds: edits.map((edit) => edit.target?.id).filter(Boolean) };
+}
+
 function applyUpdate(data, input) {
+  if (input.edits !== undefined) {
+    const operation = applyPreciseEdits(data, input.edits);
+    applyTaskState(data, input);
+    return operation;
+  }
+  if (Array.isArray(input.proposals))
+    fail(
+      "collection-replacement-requires-edits",
+      "Use explicit edits with a target and operation instead of replacing proposals",
+    );
+  if (Array.isArray(input.notes))
+    fail(
+      "collection-replacement-requires-edits",
+      "Use explicit edits with a target and operation instead of replacing notes",
+    );
   applyContextPatch(data, input);
   applyCurrentSlicePatch(data, input);
   applyDecisionChange(data, input);
@@ -272,57 +611,49 @@ function applyReopen(data, input) {
   if (!authority) fail("missing-authority", "reopen requires authoritySource");
   const reason = input.reopenReason ?? input.reason;
   if (!reason) fail("missing-reopen-reason", "reopen requires reopenReason");
-  const suppliedSnapshot = input.reopenSlice;
-  const storedSnapshot = historical.reopenSnapshot;
-  let snapshot = null;
-  if (storedSnapshot && typeof storedSnapshot === "object" && !Array.isArray(storedSnapshot)) {
-    snapshot = storedSnapshot;
-  } else if (suppliedSnapshot && typeof suppliedSnapshot === "object" && !Array.isArray(suppliedSnapshot)) {
-    snapshot = {
-      ...suppliedSnapshot,
-      id: historical.id,
-      title: historical.title,
-      type: historical.type,
-      intendedResult: historical.intendedResult,
-      authoritySource: historical.authoritySource,
-      acceptedExtensions: historical.acceptedExtensions,
-      dependencies: historical.dependencies,
-    };
-  }
-  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot))
-    fail(
-      "slice-not-reopenable",
-      "Historical slice has no reopen snapshot; provide the missing Current Slice declarations in reopenSlice",
-    );
+  const reasonAndScope = input.reasonAndScope ?? input.scopeChange ?? input.scope;
+  if (!reasonAndScope) fail("missing-reopen-scope", "reopen requires reasonAndScope");
+  const expectedEvidence = input.expectedEvidence;
+  if (!expectedEvidence) fail("missing-reopen-evidence", "reopen requires expectedEvidence");
+  const stopCondition = input.stopCondition;
+  if (!stopCondition) fail("missing-reopen-stop-condition", "reopen requires stopCondition");
   const reopenHistory = [
-    ...ensureArray(snapshot.reopenHistory),
+    ...ensureArray(historical.reopenHistory),
     JSON.stringify({
       priorState: historical.state,
       priorOutcome: historical.outcome,
       priorEvidence: historical.evidence,
       priorBlocker: historical.blocker,
       priorTaskEffect: historical.taskEffect,
-      authoritySource: historical.authoritySource,
+      authoritySource: authority,
       reopenReason: reason,
-      reopenedBy: authority,
     }),
   ];
   const reopened = normalizeSlice(
     {
-      ...snapshot,
       id: historical.id,
+      title: historical.title,
       state: "In progress",
-      blocker: "",
-      resumeWhen: "",
+      type: historical.type,
+      intendedResult: historical.intendedResult,
+      authoritySource: authority,
+      reasonAndScope,
+      expectedEvidence,
+      stopCondition,
+      startingState: input.startingState,
+      acceptedExtensions: historical.acceptedExtensions,
+      dependencies: historical.dependencies,
+      selectedCheckpoints: input.selectedCheckpoints,
       reopenHistory,
-      resultSummary: snapshot.result,
+      currentResult: input.currentResult,
+      evidence: input.evidence,
+      reviewSummary: input.reviewSummary,
+      taskEffect: input.taskEffect,
+      pendingBoundaries: input.pendingBoundaries,
+      pendingReviews: input.pendingReviews,
     },
     historical.id,
   );
-  if (input.scopeChange !== undefined) reopened.reasonAndScope = ensureString(input.scopeChange);
-  if (input.expectedEvidence !== undefined) reopened.expectedEvidence = ensureString(input.expectedEvidence);
-  if (input.stopCondition !== undefined) reopened.stopCondition = ensureString(input.stopCondition);
-  if (input.currentResult !== undefined) reopened.result = ensureString(input.currentResult);
   assertCompleteSlice(reopened, "reopen");
   data.history.slices.splice(historyIndex, 1);
   data.currentWork.currentSlice = reopened;
@@ -363,26 +694,26 @@ function applyClose(data, input) {
     if (slice.state === "Blocked")
       fail("blocked-close", "A Blocked slice must be parked as historical Blocked or explicitly abandoned");
   }
-  const entry = {
+  const entry = compactObject({
     id: slice.id,
     title: slice.title,
     state: finalState,
     type: slice.type,
     intendedResult: slice.intendedResult,
     authoritySource: slice.authoritySource,
-    acceptedExtensions: slice.acceptedExtensions,
-    dependencies: slice.dependencies,
+    acceptedExtensions: slice.acceptedExtensions.length ? slice.acceptedExtensions : undefined,
+    dependencies: slice.dependencies.length ? slice.dependencies : undefined,
     outcome,
     evidence,
-    reviewSummary: ensureString(input.reviewSummary ?? slice.reviewSummary),
-    taskEffect: ensureString(input.residualEffects ?? input.taskEffect ?? slice.taskEffect),
-    reopenSnapshot: clone(slice),
+    reviewSummary: ensureString(input.reviewSummary ?? slice.reviewSummary) || undefined,
+    taskEffect: ensureString(input.residualEffects ?? input.taskEffect ?? slice.taskEffect) || undefined,
+    reopenHistory: slice.reopenHistory.length ? slice.reopenHistory : undefined,
     blocker:
       finalState === "Blocked"
         ? JSON.stringify({ blocker: slice.blocker, resumeWhen: slice.resumeWhen, required: slice.blocker?.required })
-        : "",
-  };
-  data.history.slices.push(compactObject(entry));
+        : undefined,
+  });
+  data.history.slices.push(entry);
   data.currentWork.currentSlice = null;
   data.currentWork.blockers = [];
   if (input.currentContext) patchObject(data.currentContext, input.currentContext);

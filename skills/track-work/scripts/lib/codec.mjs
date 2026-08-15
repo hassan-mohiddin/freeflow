@@ -113,18 +113,18 @@ function parseBulletFields(lines, { strict = true } = {}) {
   return fields;
 }
 
-function assertKnownAndRequiredFields(fields, definitions, scope, optionalDefinitions = []) {
+function assertKnownAndRequiredFields(fields, definitions, scope, optionalDefinitions = [], requiredDefinitions = []) {
   const known = new Set([...definitions, ...optionalDefinitions].map(([, key]) => key));
   for (const [key, field] of fields) {
     if (!known.has(key)) fail("unknown-field", `Unknown ${scope} field: ${field.label}`);
   }
-  for (const [label, key] of definitions) {
+  for (const [label, key] of requiredDefinitions) {
     if (!fields.has(key)) fail("missing-field", `Missing ${scope} field: ${label}`);
   }
 }
 
-function assertKnownHeadings(blocks, definitions, scope) {
-  const known = new Set(definitions.map(([label]) => label));
+function assertKnownHeadings(blocks, definitions, scope, optionalDefinitions = []) {
+  const known = new Set([...definitions, ...optionalDefinitions].map(([label]) => label));
   for (const block of blocks) {
     if (!known.has(block.title)) fail("unknown-field", `Unknown ${scope} field: ${block.title}`);
   }
@@ -167,12 +167,12 @@ function renderFieldValue(value) {
 
 function renderBulletFields(fields, definitions) {
   return definitions
-    .filter(([, key]) => fields[key] !== undefined && fields[key] !== null)
     .map(([label, key]) => {
-      const value = fields[key];
-      const rendered = renderFieldValue(value);
-      return rendered ? `- ${label}: ${rendered}` : `- ${label}:`;
+      if (fields[key] === undefined || fields[key] === null) return null;
+      const rendered = renderFieldValue(fields[key]);
+      return rendered ? `- ${label}: ${rendered}` : null;
     })
+    .filter(Boolean)
     .join("\n");
 }
 
@@ -187,13 +187,24 @@ function parseStructuredField(fields, key) {
 }
 
 export function renderHeadingField(label, value) {
-  return `### ${label}\n${renderTextBlock(value)}\n`;
+  const rendered = renderTextBlock(value);
+  return rendered.trim() ? `### ${label}\n${rendered}\n` : "";
 }
 
 function parseCurrentSlice(lines) {
   if (readTextBlock(lines).trim() === "None") return null;
   const fields = parseBulletFields(lines);
-  assertKnownAndRequiredFields(fields, SLICE_FIELDS, "Current Slice", SLICE_OPTIONAL_FIELDS);
+  assertKnownAndRequiredFields(fields, SLICE_FIELDS, "Current Slice", SLICE_OPTIONAL_FIELDS, [
+    ["ID", "id"],
+    ["Title", "title"],
+    ["State", "state"],
+    ["Type", "type"],
+    ["Intended result", "intendedResult"],
+    ["Authority source", "authoritySource"],
+    ["Reason and scope", "reasonAndScope"],
+    ["Expected evidence", "expectedEvidence"],
+    ["Stop condition", "stopCondition"],
+  ]);
   const slice = {
     id: parsedField(fields, "id"),
     title: parsedField(fields, "title"),
@@ -254,7 +265,17 @@ export function renderCurrentSlice(slice) {
 
 function parseProposal(block) {
   const fields = parseBulletFields(block.lines);
-  assertKnownAndRequiredFields(fields, PROPOSAL_FIELDS, "proposal");
+  assertKnownAndRequiredFields(
+    fields,
+    PROPOSAL_FIELDS,
+    "proposal",
+    [],
+    [
+      ["Type", "type"],
+      ["Intended result", "intendedResult"],
+      ["Expected evidence", "expectedEvidence"],
+    ],
+  );
   return compactObject({
     title: block.title,
     type: parsedField(fields, "type"),
@@ -278,7 +299,7 @@ function parseEntity(block, definitions, idFromTitle = true, optionalDefinitions
     ...Object.fromEntries(
       [...definitions, ...optionalDefinitions].map(([, key]) => [
         key,
-        parsedField(fields, key, { array: ARRAY_FIELDS.has(key), json: ["blocker", "reopenSnapshot"].includes(key) }),
+        parsedField(fields, key, { array: ARRAY_FIELDS.has(key), json: ["blocker"].includes(key) }),
       ]),
     ),
   });
@@ -295,30 +316,6 @@ export function renderEntity(
   const fields = includeOptional ? [...definitions, ...optionalDefinitions] : definitions;
   const values = Object.fromEntries(fields.map(([, key]) => [key, entity[key]]));
   return `${headingPrefix} ${title}\n${renderBulletFields(values, fields)}\n`;
-}
-
-function parseActiveDecisionSummaries(lines) {
-  const decisions = [];
-  let current = null;
-  for (const line of lines) {
-    const match = /^- (D-\d{3})\s+—\s+(.+)$/.exec(line);
-    if (match) {
-      current = { id: match[1], title: match[2], summary: "" };
-      decisions.push(current);
-      continue;
-    }
-    if (line.startsWith("  Summary:")) {
-      if (!current) fail("malformed-decision-summary", "Decision summary continuation has no decision");
-      current.summary = line.slice("  Summary:".length).trimStart();
-      continue;
-    }
-    if (line.startsWith("  ") && current) {
-      current.summary += `\n${line.slice(2)}`;
-      continue;
-    }
-    if (line.trim()) fail("malformed-decision-summary", `Unexpected active-decision content: ${line}`);
-  }
-  return decisions;
 }
 
 export function renderActiveDecisionSummaries(decisions) {
@@ -358,15 +355,16 @@ function parseV2(text, path) {
 
   const contextSection = exactHeadingBlock(topSections, "Current Context");
   const contextFields = headingBlocks(contextSection.lines, 3);
-  assertKnownHeadings(contextFields, [...CONTEXT_FIELDS, ["Active Decisions", "activeDecisions"]], "Current Context");
+  assertKnownHeadings(contextFields, [], "Current Context", [
+    ...CONTEXT_FIELDS,
+    ["Active Decisions", "activeDecisions"],
+  ]);
   const currentContext = Object.fromEntries(
-    CONTEXT_FIELDS.map(([label, key]) => [
-      key,
-      readTextBlock(exactHeadingBlock(contextFields, label, { required: true }).lines),
-    ]),
+    CONTEXT_FIELDS.map(([label, key]) => {
+      const block = exactHeadingBlock(contextFields, label);
+      return [key, readTextBlock(block?.lines ?? [])];
+    }),
   );
-  const activeDecisionsBlock = exactHeadingBlock(contextFields, "Active Decisions", { required: true });
-  currentContext.activeDecisions = parseActiveDecisionSummaries(activeDecisionsBlock.lines);
 
   const workSection = exactHeadingBlock(topSections, "Current Work");
   const workFields = headingBlocks(workSection.lines, 3);
@@ -377,16 +375,18 @@ function parseV2(text, path) {
     ["Upcoming checkpoints", "upcomingCheckpoints"],
     ["Next useful action", "nextAction"],
   ];
-  assertKnownHeadings(workFields, workDefinitions, "Current Work");
+  assertKnownHeadings(workFields, [["Current Slice", "currentSlice"]], "Current Work", workDefinitions);
   const currentSliceBlock = exactHeadingBlock(workFields, "Current Slice", { required: true });
   const currentWork = {
-    route: readTextBlock(exactHeadingBlock(workFields, "Current route", { required: true }).lines),
+    route: readTextBlock(exactHeadingBlock(workFields, "Current route")?.lines ?? []),
     currentSlice: parseCurrentSlice(currentSliceBlock.lines),
-    blockers: parseListHeading(exactHeadingBlock(workFields, "Blockers", { required: true }).lines),
-    upcomingCheckpoints: parseListHeading(
-      exactHeadingBlock(workFields, "Upcoming checkpoints", { required: true }).lines,
-    ),
-    nextAction: readTextBlock(exactHeadingBlock(workFields, "Next useful action", { required: true }).lines),
+    blockers: exactHeadingBlock(workFields, "Blockers")
+      ? parseListHeading(exactHeadingBlock(workFields, "Blockers").lines)
+      : [],
+    upcomingCheckpoints: exactHeadingBlock(workFields, "Upcoming checkpoints")
+      ? parseListHeading(exactHeadingBlock(workFields, "Upcoming checkpoints").lines)
+      : [],
+    nextAction: readTextBlock(exactHeadingBlock(workFields, "Next useful action")?.lines ?? []),
   };
 
   const proposalsSection = exactHeadingBlock(topSections, "Proposed Slices");
@@ -490,24 +490,40 @@ function parseLegacySlice(text) {
   });
 }
 
+function parseUnsupported(text, schemaVersion) {
+  const parsed = parseLegacy(text);
+  return {
+    ...parsed,
+    kind: "unsupported",
+    data: { ...parsed.data, schemaVersion },
+  };
+}
+
 export function parseRecord(text, path) {
   const normalized = normalizeLineEndings(text);
   const lines = normalized.split("\n");
-  if (!lines.some((line) => /^Schema:\s*/.test(line))) return parseLegacy(normalized);
+  const schemaMatch = lines.find((line) => /^Schema:\s*/.test(line))?.match(/^Schema:\s*(\d+)$/);
+  if (!schemaMatch) return parseLegacy(normalized);
+  const schemaVersion = Number(schemaMatch[1]);
+  if (schemaVersion !== SCHEMA_VERSION) return parseUnsupported(normalized, schemaVersion);
   return parseV2(normalized, path);
 }
 
-export function renderRecord(data) {
+export function renderRecord(data, { includeHeader = true } = {}) {
   if (failureInjection("render")) fail("render-failure", "Injected render failure");
   const context = data.currentContext;
   const work = data.currentWork;
-  const parts = [
-    `# Working Record: ${data.taskName}`,
-    "",
-    `Schema: ${SCHEMA_VERSION}`,
-    `State: ${data.taskState}`,
-    `Last updated: ${data.lastUpdated}`,
-    "",
+  const header = includeHeader
+    ? [
+        `# Working Record: ${data.taskName}`,
+        "",
+        `Schema: ${SCHEMA_VERSION}`,
+        `State: ${data.taskState}`,
+        `Last updated: ${data.lastUpdated}`,
+        "",
+      ]
+    : [];
+  const body = [
     "## Current Context",
     renderHeadingField("Goal", context.goal),
     renderHeadingField("What defines this task", context.whatDefinesTask),
@@ -516,8 +532,6 @@ export function renderRecord(data) {
     renderHeadingField("Open", context.open),
     renderHeadingField("Current direction", context.currentDirection),
     renderHeadingField("Boundaries", context.boundaries),
-    "### Active Decisions",
-    renderActiveDecisionSummaries(context.activeDecisions),
     "",
     "## Current Work",
     renderHeadingField("Current route", work.route),
@@ -539,12 +553,12 @@ export function renderRecord(data) {
     "## Notes",
     data.notes.map(renderNote).join(""),
   ];
-  return `${parts.join("\n").trimEnd()}\n`;
+  return `${[...header, ...body.filter(Boolean)].join("\n").trimEnd()}\n`;
 }
 
 export function renderHeadingList(label, values) {
   const list = ensureArray(values);
-  return `### ${label}\n${list.map((value) => `- ${escapeContentLine(value)}`).join("\n")}\n`;
+  return list.length ? `### ${label}\n${list.map((value) => `- ${escapeContentLine(value)}`).join("\n")}\n` : "";
 }
 
 export function renderNote(note) {

@@ -36,17 +36,20 @@ function usage() {
 
 Commands:
   init     --root <repo> --name <short-name> [--input <json-file|->] [--dry-run]
-  view     --record <record.md> --view <resume|discuss|execute|current|work|recent|entity|section|full> [--entity <id-or-title>] [--section <name>]
+  view     --record <record.md> --view <resume|discuss|execute|recent|entity|full> [--entity <id-or-title>]
+  schema   --command <update|start|block|resume|reopen|close|migrate|compress|all>
   update   --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
   start    --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
   block    --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
   resume   --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
   reopen   --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
   close    --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
+  migrate  --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
+  compress --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
   validate --record <record.md>
   inspect  --record <record.md>
 
-All commands emit one JSON result. Existing-record mutations require the current SHA-256. Use --input - to read semantic JSON from stdin.
+Views emit bounded Markdown text. Other commands emit one JSON result. Existing-record mutations require the current SHA-256. Use --input - to read semantic JSON from stdin.
 `;
 }
 
@@ -64,7 +67,13 @@ async function main() {
   if (positionals.length === 1 && !options["--record"] && !options["--task"]) options["--record"] = positionals[0];
   const input = await readJsonInput(options);
   const result = await executeCommand(command, { root, options, input });
-  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  if (command === "view" || command === "resume-view") {
+    process.stdout.write(result.view?.content ?? "");
+  } else if (command === "schema") {
+    process.stdout.write(result.content ?? "");
+  } else {
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  }
   if (result.status === "committed-unconfirmed") process.exitCode = 2;
   else if (result.status === "failed") process.exitCode = 1;
 }
@@ -78,22 +87,31 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       process.exitCode = 2;
     } else {
       const knownError = error instanceof WorkingRecordError;
-      const result = baseEnvelope(process.argv[2] ?? null, process.argv[2] ?? null, knownError ? error.record : null);
-      if (!result.record && knownError && error.details?.path) {
-        result.record = {
-          path: error.details.path,
-          confirmation: "unavailable",
-          sha256: error.details.sha256 ?? null,
-          schemaVersion: null,
-          taskState: null,
-          lastUpdated: null,
-          currentSlice: null,
-          unavailable: ["recordProjectionUnavailable"],
-        };
+      const command = process.argv[2] ?? null;
+      if (command === "view" || command === "resume-view") {
+        process.stdout.write(`Track Work view failed [${error.code ?? "view-failed"}]: ${error.message}\n`);
+        process.exitCode = error instanceof WorkingRecordError ? error.exitCode : 1;
+      } else if (command === "schema") {
+        process.stdout.write(`Track Work schema failed [${error.code ?? "schema-failed"}]: ${error.message}\n`);
+        process.exitCode = error instanceof WorkingRecordError ? error.exitCode : 1;
+      } else {
+        const result = baseEnvelope(command, command, knownError ? error.record : null);
+        if (!result.record && knownError && error.details?.path) {
+          result.record = {
+            path: error.details.path,
+            confirmation: "unavailable",
+            sha256: error.details.sha256 ?? null,
+            schemaVersion: null,
+            taskState: null,
+            lastUpdated: null,
+            currentSlice: null,
+            unavailable: ["recordProjectionUnavailable"],
+          };
+        }
+        result.errors = errorItems(knownError ? error : new WorkingRecordError("unexpected-error", error.message));
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+        process.exitCode = error instanceof WorkingRecordError ? error.exitCode : 1;
       }
-      result.errors = errorItems(knownError ? error : new WorkingRecordError("unexpected-error", error.message));
-      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
-      process.exitCode = error instanceof WorkingRecordError ? error.exitCode : 1;
     }
   }
 }

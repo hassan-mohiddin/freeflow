@@ -25,6 +25,7 @@ import {
   renderRecord,
 } from "./codec.mjs";
 import { versionControlEvidence } from "./workspace.mjs";
+import { publicSourceUnits } from "./source-inventory.mjs";
 
 import { recordMetadata } from "./result.mjs";
 
@@ -42,9 +43,19 @@ function viewHeader(data, recordSha) {
   ].join("\n");
 }
 
-function renderContextView(data) {
+function activeDecisionSummaries(data) {
+  return data.history.decisions
+    .filter((decision) => decision.state === "Active")
+    .map((decision) => ({
+      id: decision.id,
+      title: decision.title,
+      summary: decision.decision || decision.consequences || "",
+    }));
+}
+
+function renderContextView(data, { includeDecisions = true } = {}) {
   const context = data.currentContext;
-  return [
+  const output = [
     "## Current Context",
     renderHeadingField("Goal", context.goal),
     renderHeadingField("What defines this task", context.whatDefinesTask),
@@ -53,35 +64,64 @@ function renderContextView(data) {
     renderHeadingField("Open", context.open),
     renderHeadingField("Current direction", context.currentDirection),
     renderHeadingField("Boundaries", context.boundaries),
-    "### Active Decisions",
-    renderActiveDecisionSummaries(context.activeDecisions),
-    "",
-  ].join("\n");
+  ];
+  if (includeDecisions) {
+    const decisions = activeDecisionSummaries(data);
+    if (decisions.length) output.push("### Active Decisions", renderActiveDecisionSummaries(decisions));
+  }
+  return `${output.filter(Boolean).join("\n")}\n`;
 }
 
-function renderWorkView(data, { execute = false } = {}) {
+function renderWorkView(data) {
   const work = data.currentWork;
-  const slice = work.currentSlice;
-  const output = [
+  return `${[
     "## Current Work",
     renderHeadingField("Current route", work.route),
+    renderCurrentSlice(work.currentSlice),
+    renderHeadingList("Blockers", work.blockers),
+    renderHeadingList("Upcoming checkpoints", work.upcomingCheckpoints),
+    renderHeadingField("Next useful action", work.nextAction),
+  ]
+    .filter(Boolean)
+    .join("\n")}\n`;
+}
+
+function renderExecuteView(data) {
+  const work = data.currentWork;
+  const slice = work.currentSlice;
+  const context = data.currentContext;
+  return `${[
+    "## Execute Current Outcome",
+    renderHeadingField("Current route", work.route),
+    renderHeadingField("Settled", context.settled),
+    renderHeadingField("Open", context.open),
+    renderHeadingField("Boundaries", context.boundaries),
     renderCurrentSlice(slice),
     renderHeadingList("Blockers", work.blockers),
     renderHeadingList("Upcoming checkpoints", work.upcomingCheckpoints),
     renderHeadingField("Next useful action", work.nextAction),
-  ];
-  if (execute && slice)
-    output.push(
-      renderHeadingField("Authority", slice.authoritySource),
-      renderHeadingField("Stop condition", slice.stopCondition),
-      renderHeadingField("Expected evidence", slice.expectedEvidence),
-    );
-  return `${output.join("\n")}\n`;
+  ]
+    .filter(Boolean)
+    .join("\n")}\n`;
+}
+
+function renderSliceSummary(slice) {
+  if (!slice) return "### Current Slice\nNone\n";
+  return `${[
+    "### Current Slice",
+    renderHeadingField("ID", slice.id),
+    renderHeadingField("Title", slice.title),
+    renderHeadingField("State", slice.state),
+    renderHeadingField("Type", slice.type),
+    renderHeadingField("Intended result", slice.intendedResult),
+  ]
+    .filter(Boolean)
+    .join("\n")}\n`;
 }
 
 export function renderNamedSection(data, section) {
   if (section === "Current Context") return renderContextView(data);
-  if (section === "Current Work") return renderWorkView(data, { execute: true });
+  if (section === "Current Work") return renderWorkView(data);
   if (section === "Proposed Slices") return `## Proposed Slices\n${data.proposals.map(renderProposal).join("")}\n`;
   if (section === "History")
     return [
@@ -101,28 +141,24 @@ export function renderNamedSection(data, section) {
 }
 
 export function renderView(data, view, entity, limit = 5, recordSha) {
-  const operational = new Set(["resume", "discuss", "execute", "current", "work"]);
-  const header = operational.has(view) ? viewHeader(data, recordSha) : "";
+  const header = viewHeader(data, recordSha);
   let content;
   if (view === "resume")
-    content = `${header}${renderContextView(data)}${renderWorkView(data, { execute: true })}\n## Proposed Slices\n${data.proposals.map(renderProposal).join("")}`;
+    content = `${header}${renderContextView(data)}${renderWorkView(data)}\n## Proposed Slices\n${data.proposals.map(renderProposal).join("")}`;
   else if (view === "discuss")
-    content = `${header}${renderContextView(data)}\n## Proposed Slices\n${data.proposals.map(renderProposal).join("")}\n${data.currentWork.currentSlice ? renderCurrentSlice(data.currentWork.currentSlice) : "### Current Slice\nNone\n"}\n### Note titles\n${data.notes.map((note) => `- ${note.title}`).join("\n")}\n`;
-  else if (view === "execute")
-    content = `${header}${renderContextView(data)}${renderWorkView(data, { execute: true })}`;
-  else if (view === "current") content = `${header}${renderContextView(data)}`;
-  else if (view === "work") content = `${header}${renderWorkView(data)}`;
+    content = `${header}${renderContextView(data)}\n## Proposed Slices\n${data.proposals.map(renderProposal).join("")}\n${renderSliceSummary(data.currentWork.currentSlice)}\n### Note titles\n${data.notes.map((note) => `- ${note.title}`).join("\n")}\n`;
+  else if (view === "execute") content = `${header}${renderExecuteView(data)}`;
   else if (view === "recent") {
     const slices = data.history.slices.slice(-limit);
-    content = `${renderRecordHeaderOnly(data)}\n## Recent History\n${slices
+    content = `${header}## Recent History\n${slices
       .map((slice) => renderEntity(slice, HISTORY_SLICE_FIELDS, "####", HISTORY_SLICE_OPTIONAL_FIELDS, false))
       .join("")}`;
   } else if (view === "entity") {
     if (!entity) fail("invalid-arguments", "entity view requires --entity");
     const found = findEntity(data, entity);
     if (!found) fail("missing-entity", `No entity matched: ${entity}`);
-    content = `${renderRecordHeaderOnly(data)}\n${found.content}`;
-  } else if (view === "full") content = renderRecord(data);
+    content = `${header}${found.content}`;
+  } else if (view === "full") content = `${header}${renderRecord(data, { includeHeader: false })}`;
   else fail("invalid-view", `Unknown view: ${view}`);
   return content.endsWith("\n") ? content : `${content}\n`;
 }
@@ -203,9 +239,9 @@ export function legacyView(loaded, view, entity, section) {
   const header = [
     `Task: ${loaded.data.taskName}`,
     `Task state: ${state}`,
-    "Schema: unavailable (legacy record)",
+    `Schema: unavailable (${loaded.kind === "legacy" ? "legacy" : "unsupported"} record)`,
     "Last updated: unavailable",
-    "Record SHA-256: unavailable as a confirmed schema identity",
+    `Record SHA-256: ${loaded.rawSha ?? "unavailable"} (unconfirmed raw bytes)`,
     `Current slice: ${slice ? `${slice.id ?? "unavailable"} — ${slice.state ?? "unavailable"} — ${slice.type ?? "unavailable"}` : "None or unavailable"}`,
     "",
   ].join("\n");
@@ -216,9 +252,7 @@ export function legacyView(loaded, view, entity, section) {
   } else if (view === "section") {
     if (!section) fail("legacy-view-unavailable", "Legacy section view requires --section");
     body = legacySectionView(loaded.raw, section);
-  } else if (view === "current") {
-    body = legacySectionView(loaded.raw, "Current Context");
-  } else if (view === "work" || view === "execute") {
+  } else if (view === "execute") {
     body = legacySectionView(loaded.raw, "Current Work");
   } else if (view === "discuss") {
     body = [legacySectionView(loaded.raw, "Current Context"), legacySectionView(loaded.raw, "Proposed Slices")].join(
@@ -238,15 +272,18 @@ export function legacyView(loaded, view, entity, section) {
 export async function inspectData(root, loaded) {
   const data = loaded.data;
   const warnings = [];
-  const legacyReport = loaded.kind === "legacy" ? inspectLegacyRaw(loaded.raw) : null;
-  if (loaded.kind === "legacy") {
-    warnings.push({ code: "legacy-read-only", message: "Record has no schema-v2 marker and is read-only" });
+  const legacyReport = loaded.kind === "v2" ? null : inspectLegacyRaw(loaded.raw);
+  if (loaded.kind !== "v2") {
+    warnings.push({
+      code: loaded.kind === "legacy" ? "legacy-read-only" : "unsupported-schema-read-only",
+      message: "Legacy or unsupported record is read-only",
+    });
     warnings.push(...legacyReport.warnings);
   }
-  const full = loaded.kind === "v2" ? renderRecord(data) : loaded.raw;
+  const full = loaded.text;
   const views = {};
   if (loaded.kind === "v2") {
-    for (const view of ["resume", "discuss", "execute", "current", "work", "recent", "full"])
+    for (const view of ["resume", "discuss", "execute", "recent", "full"])
       views[view] = Buffer.byteLength(renderView(data, view, undefined, 5, loaded.rawSha), "utf8");
   }
   const entries = [
@@ -277,14 +314,15 @@ export async function inspectData(root, loaded) {
     wordCount: full.trim() ? full.trim().split(/\s+/).length : 0,
     byteCount: Buffer.byteLength(full, "utf8"),
     sectionSizes: views,
-    parserConfidence: loaded.kind === "legacy" ? legacyReport.parserConfidence : "schema-v2",
-    orphanedBlocks: loaded.kind === "legacy" ? legacyReport.orphanedBlocks : [],
-    ambiguities: loaded.kind === "legacy" ? legacyReport.ambiguities : [],
+    parserConfidence: loaded.kind === "v2" ? "schema-v2" : legacyReport.parserConfidence,
+    sourceUnits: loaded.kind === "v2" ? [] : publicSourceUnits(loaded.text),
+    orphanedBlocks: loaded.kind === "v2" ? [] : legacyReport.orphanedBlocks,
+    ambiguities: loaded.kind === "v2" ? [] : legacyReport.ambiguities,
     counts: {
       decisions: data.history.decisions?.length ?? 0,
       proposals: data.proposals?.length ?? 0,
       checkpoints: data.history.checkpoints?.length ?? 0,
-      slices: loaded.kind === "legacy" ? legacyReport.slices.length : (data.history.slices?.length ?? 0),
+      slices: loaded.kind === "v2" ? (data.history.slices?.length ?? 0) : legacyReport.slices.length,
       notes: data.notes?.length ?? 0,
     },
     largestHistoricalEntries: entries
@@ -293,7 +331,7 @@ export async function inspectData(root, loaded) {
       .slice(0, 5),
     warnings,
     versionControl: await versionControlEvidence(root, loaded.path),
-    legacy: loaded.kind === "legacy",
+    legacy: loaded.kind !== "v2",
   };
 }
 

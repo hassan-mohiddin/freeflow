@@ -1,51 +1,53 @@
 ---
 name: track-work
-description: Use when deciding whether proposed or ongoing work needs a durable Working Record, or when creating, resuming, and maintaining one through deterministic views and transitions.
+description: Use when deciding whether proposed or ongoing work needs durable task memory, or when creating, resuming, and maintaining a Working Record through precise deterministic views and transitions.
 ---
 
 # Track Work
 
-Use Track Work when forgetting the task's decisions, evidence, authority, current slice, or next action could cause misalignment. It owns living task memory. It does not own discussion, implementation authority, semantic truth, review adjudication, or task completion.
+Use Track Work when forgetting decisions, evidence, authority, proposed outcomes, the current slice, or the next action could misalign later work. It owns living task memory. It does not own discussion, implementation authority, semantic truth, review adjudication, or task completion.
 
-A Working Record is memory, not authority. User decisions, live evidence, repository instructions, and accepted source truth win over a stale record.
+A Working Record is memory, not authority. User decisions, live evidence, repository instructions, and accepted source truth override stale record content.
 
-## Decide Whether To Track
+## Track Only When Continuity Matters
 
-Track work when continuity has material value:
+Use a Working Record when:
 
-- the task spans turns, context loss, or ownership transfer;
+- work spans turns, context loss, pause, or ownership transfer;
 - decisions, evidence, blockers, or authority need durable recovery;
-- one outcome will contain several implementation, verification, review, or correction iterations;
-- proposed future outcomes need to remain visible without becoming authorized work.
+- one outcome may contain several implementation, verification, review, or correction iterations;
+- detailed future outcomes need to remain ordered and visible without becoming authorized work.
 
-Do not create a record for a short discussion or disposable local action when forgetting it would not risk misalignment. Ask before creating one when continuity value or task ownership is unclear.
+Do not create one for a short discussion or disposable local action when forgetting it would not risk misalignment. Ask before initialization when continuity value or task ownership is unclear.
 
-Use one local directory per task:
+Use one ignored local directory per task:
 
 ```text
 .freeflow/tasks/task-NNN-<short-name>/record.md
 ```
 
-Everything under `.freeflow/tasks/**`, including task-local Specs and Plans, is ignored local memory. Write Spec or Write Plan separately owns promotion to tracked documentation. Track Work never stages, commits, publishes, or synchronizes duplicates.
+Everything under `.freeflow/tasks/**`, including task-local Specs and Plans, is local memory. Write Spec or Write Plan separately owns promotion to tracked documentation. Track Work never stages, commits, publishes, or synchronizes duplicates.
 
-## One Canonical Record
+## Store Each Fact Once
 
-Schema-v2 `record.md` remains readable Markdown and is the only canonical task state. It contains, in order:
+Schema-v2 `record.md` is readable Markdown and the only canonical task state:
 
-1. header and user-owned task state;
+1. task header and user-owned task state;
 2. Current Context;
-3. Current Work and at most one Current Slice;
-4. unselected Proposed Slices;
-5. History of decisions, selected checkpoints, and settled slices;
+3. Current Work with at most one Current Slice;
+4. detailed unselected Proposed Slices;
+5. compact History of decisions, selected checkpoints, and settled slices;
 6. inert Notes.
 
-Current Context is present state, not a transcript. Keep Goal, source pointers, Settled understanding, Tentative hypotheses, route-changing Open questions, Current direction, Boundaries, and short active-decision summaries. Replace stale summaries instead of appending events.
+Current Context is present state, not a transcript. Keep the goal, source pointers, settled understanding, tentative hypotheses, route-changing open questions, current direction, and boundaries. Replace stale summaries instead of appending events. Active-decision references in views are derived from their historical owners; do not store a second summary.
 
-Current Work owns the route, one current slice or `None`, blockers, selected upcoming boundaries, and one next useful action. History owns settled detail. Historical slices never own the current next action. Notes do not authorize, prioritize, block, prove, or require follow-up.
+Current Work owns the route, one rich Current Slice or `None`, task blockers, selected upcoming boundaries, and one next useful action. History owns settled outcomes and never owns the current next action. Notes do not authorize, prioritize, block, prove, or require follow-up.
 
-Only the user changes task state: `Active`, `Paused`, `Completed`, or `Abandoned`. A Paused task may retain its reconciled slice but rejects `start` and `resume`. Completed and Abandoned records must have `Current Slice: None`.
+Render only applicable state. Do not preserve empty lifecycle fields, copy accepted Specs or Plans, duplicate detailed evidence, or restate one fact across Context, Current Work, decisions, and History. Point to the canonical owner.
 
-## Discuss And Track Work Compose
+Only the user changes task state: `Active`, `Paused`, `Completed`, or `Abandoned`. A Paused task may retain its reconciled slice but rejects `start` and `resume`. Completed and Abandoned tasks require `Current Slice: None`.
+
+## Persist Discussion Without Changing Its Route
 
 Discuss owns exploration, alternatives, assumptions, and direction. Track Work persists material state and returns to Discuss:
 
@@ -53,41 +55,54 @@ Discuss owns exploration, alternatives, assumptions, and direction. Track Work p
 Discuss -> material state change -> Track Work update -> Discuss
 ```
 
-A record update does not end discussion, select a proposal, start work, create a review checkpoint, or change the owning route. Routine maintenance may preserve an accepted decision, changed understanding, proposal, question, evidence pointer, blocker, or explicitly retained Note when the record is already approved. It does not authorize implementation.
+A record update does not end discussion, select a proposal, start execution, create a checkpoint, or authorize work. Routine maintenance may preserve an accepted decision, changed understanding, detailed proposal, question, evidence pointer, blocker, or explicitly retained Note when the record is already approved.
 
-## Slices Are Outcomes
+## Move One Outcome Through Its Lifecycle
 
-A slice is one coherent Learning, Delivery, or Deepening result. Keep implementation milestones, plan steps, tests, verification, reviews, accepted corrections, focused follow-up, required documentation, and local commits inside that slice while the result, authority boundary, and evidence boundary remain the same.
+A slice is one coherent Learning, Delivery, or Deepening result. Keep plan steps, implementation milestones, tests, verification, selected review, accepted corrections, focused follow-up, required documentation, and local commits inside it while the intended result, authority boundary, and evidence boundary remain the same.
 
-A proposal is an unselected, unnumbered candidate. It has no `S-` ID, execution state, or implied authority. Select it only at the last responsible moment when execution is explicitly authorized. Starting a slice records the authority source; the record does not create that authority.
+A Proposed Slice may contain plan-quality detail when the ordered proposal queue replaces a separate implementation Plan. It remains unnumbered, has no execution state, and carries no authority. Select it only when execution is explicitly authorized.
 
-Use a new slice only for a distinct intended result, authority boundary, evidence boundary, independently useful outcome, or explicit abandonment of the original result. If feedback changes scope, stop condition, evidence boundary, or intended result, reconcile the accepted extension before executing it.
+Selection moves one proposal into Current Work and assigns its `S-` ID. Do not retain a duplicate proposal. Keep the Current Slice rich enough to survive compaction: authority, reason and scope, expected evidence, stop condition, dependencies, live state, material extensions, blockers, and pending boundaries when applicable.
 
-If a historical slice was settled, parked, or abandoned prematurely and a later request still belongs to its intended result, explicitly reopen that historical slice rather than fragmenting one outcome into a new ID. Reopening requires authority and a reason, preserves the prior outcome, blocker, or abandonment evidence, and returns the same slice to Current Work. A genuinely distinct result still requires a new slice; do not reopen automatically when the relationship is unclear.
+Use a new slice only for a distinct intended result, authority boundary, evidence boundary, independently useful outcome, or explicit abandonment of the original result. Reconcile accepted scope, evidence, or stop-condition changes before continuing the same slice.
 
 Closure means settlement, not merely finished code or green tests:
 
-- `Completed` requires the intended result, evidence boundary, supported self-review, selected review/checkpoint route, accepted corrections, and required in-scope work to be settled;
-- historical `Blocked` deliberately parks a currently blocked attempt while preserving the unresolved blocker and required resolution;
+- `Completed` requires the intended result, evidence boundary, supported self-review, selected checkpoints, accepted corrections, and required in-scope work to be settled;
+- historical `Blocked` deliberately parks a blocked attempt while preserving its unresolved blocker and required resolution;
 - `Abandoned` requires explicit authority, reason, residual effects, and useful evidence without implying success.
-- Any historical slice may be explicitly reopened when its original outcome remains active; its prior state and evidence stay visible as reopen history.
+
+Closing compacts the rich Current Slice into an outcome-focused historical entry. Preserve the intended result, outcome, strongest evidence and proof limits, material review conclusion, and task effect. Do not retain temporary active fields or a full reopen snapshot.
+
+Reopen a historical slice only when later authorized work still belongs to its original outcome. Keep the same ID, derive stable identity and outcome facts from compact history, and supply fresh authority, reason and scope, expected evidence, and stop condition. Preserve prior outcomes through compact reopen events rather than nested slice copies. Use `resume` only for a currently Blocked slice.
 
 Do not invent `Completed pending review`, review slices, correction slices, or automatic next slices.
 
-## Read And Maintain Safely
+## Read Through Purpose-Owned Views
 
 After compaction, summarization, clear, resume, or session navigation:
 
 1. run `view --view resume`;
-2. compare its confirmed projection with the conversation and live repository;
+2. compare the confirmed projection with the conversation and live repository;
 3. retrieve an exact entity only when rationale, chronology, supersession, authority, or evidence is material;
 4. return to the owning route.
 
-Do not normally read or paste complete history. Use `discuss`, `execute`, `current`, and `work` views for bounded decisions. Use `recent`, `entity`, or `full` for audit and dispute.
+Operational views are:
 
-When an existing record is malformed or legacy, inspect it read-only. Do not guess a repair or mutate it. Explicit migration is a separate boundary.
+- `resume`: recover complete active state after context loss;
+- `discuss`: decide from current context, detailed proposals, and only a Current Slice summary;
+- `execute`: act from the full Current Slice and only the context required for that outcome.
 
-## Deterministic Script Boundary
+Retrieval views are:
+
+- `recent`: inspect bounded recent outcomes;
+- `entity`: inspect one exact proposal, slice, decision, checkpoint, or Note;
+- `full`: audit the complete record.
+
+There are no public `current` or `work` storage-section views. Successful views emit direct Markdown text with confirmed task identity and SHA metadata, not JSON-wrapped text. Do not normally read complete history.
+
+## Edit Through The Deterministic Boundary
 
 The executable entrypoint is:
 
@@ -95,72 +110,58 @@ The executable entrypoint is:
 skills/track-work/scripts/working-record.mjs
 ```
 
-The user and model own task meaning, authority, slice judgment, evidence interpretation, review selection, settlement, task-state direction, and promotion. The script owns task numbering, schema parsing/rendering, bounded views, IDs, timestamps, allowed mechanical transitions, hashes, locks, validation, and atomic persistence. It cannot prove semantic truth.
+The user and model own task meaning, authority, slice judgment, evidence interpretation, review selection, settlement, and task-state direction. The script owns schema structure, precise edits, views, IDs, timestamps, legal mechanical transitions, hashes, locks, validation, and atomic persistence. It cannot establish semantic truth.
 
-Mutations receive semantic JSON through `--input <json-file>` or `--input -` for stdin; do not encode prose through fragile shell arguments. The model supplies meaning, authority, scope, evidence, and stop conditions; the script validates structure and owns mechanics. Existing-record mutations require the exact current SHA-256 from a confirmed view or prior result:
+Use `schema --command <name>` before an unfamiliar mutation. It is the mechanical source for accepted fields, target selectors, operation shapes, conditional state, and examples. Do not inspect implementation modules or guess an input shape.
 
-```text
-node skills/track-work/scripts/working-record.mjs view \
-  --record .freeflow/tasks/task-NNN-name/record.md --view resume
+Mutations receive semantic JSON through `--input <json-file>` or `--input -`. Existing-record mutations require the exact current SHA-256 from a confirmed text view or prior confirmed result.
 
-node skills/track-work/scripts/working-record.mjs update \
-  --record .freeflow/tasks/task-NNN-name/record.md \
-  --expected-sha <confirmed-sha256> --input - <<'JSON'
-{"currentContext":{"goal":"Keep the settled goal current"}}
-JSON
-```
+Use `update` as a safer semantic editor, not a whole-record form. Target only the affected field, exact text, list member, entity, or ordering relation. Batch related edits atomically. Unspecified state must remain unchanged. Whole-object or whole-collection replacement must be explicit. Wrong types, ambiguous selectors, non-unique text matches, and unsupported operations must fail rather than coerce or partially write.
 
-### Commands
+### Command Jobs
 
-- `init`: create the next ignored task directory and minimal schema-v2 record. It checks Git ignore/tracked state and never edits `.gitignore`.
-- `view`: render `resume`, `discuss`, `execute`, `current`, `work`, `recent`, `entity`, or `full`. Views do not mutate or update timestamps.
-- `update`: atomically maintain current context, route, decisions, proposals, Notes, current-slice meaning/evidence, or an explicitly directed task-state change. It does not start or close a slice.
-- `start`: select a proposal or direct authorized result and create exactly one Current Slice.
-- `block`: record why safe continuation is unavailable and what is required.
-- `resume`: return the same blocked slice to progress only after its blocker is resolved.
-- `reopen`: return an explicitly authorized historical slice to Current Work with the same ID and preserved prior outcome evidence.
-- `close`: settle one Current Slice as Completed, historical Blocked, or Abandoned and clear it atomically. It may apply an explicitly authorized terminal task state in the same transaction.
-- `validate`: report deterministic structural validity; it is not a readiness or quality judgment.
-- `inspect`: report sizes, counts, legacy facts, and advisory smells without auto-fixing.
+- `init`: create the next ignored task directory and minimal record.
+- `view`: render `resume`, `discuss`, `execute`, `recent`, `entity`, or `full` as text without mutation.
+- `schema`: expose the exact structured input contract without mutation.
+- `update`: apply precise current-state, decision, proposal, Note, Current Slice, or explicit task-state edits without starting or settling a slice.
+- `start`: move one authorized proposal or direct result into exactly one Current Slice.
+- `block`: record why continuation is unsafe and what resolution is required.
+- `resume`: continue the same currently Blocked slice after its blocker is resolved.
+- `reopen`: return an authorized historical outcome to Current Work with the same ID and fresh active declarations.
+- `close`: compact and settle one Current Slice as Completed, historical Blocked, or Abandoned.
+- `validate`: report deterministic structural validity, not readiness.
+- `inspect`: report sizes, duplication, legacy facts, advisory smells, and exact legacy/unsupported `sourceUnits` without fixing them.
+- `migrate`: start from `inspect.sourceUnits`, copy each unit's ID, byte boundaries, hash, kind, and line into coverage, then explicitly convert legacy representation without hidden semantic compression.
+- `compress`: explicitly compact a declared v2 scope while preserving protected state and recoverable source evidence.
 
-Minimum transition inputs are semantic, not Markdown mechanics: `start` needs a title, type, intended result, authority source, reason and scope, expected evidence, and stop condition (a selected proposal may supply the title, type, intended result, and expected evidence); `block` needs a blocker, why it prevents safe continuation, and the required resolution; `resume` needs a resolution source; `reopen` needs a historical `sliceId`, authority source, and reopen reason (plus the missing Current Slice declarations in `reopenSlice` when an older history entry has no reopen snapshot); and `close` needs a final state, settled outcome, and strongest evidence.
+Successful views return text. Other commands return compact structured results with confirmation state, before/after identity when applicable, and changed semantic paths rather than unchanged record content. Treat `candidate` and `unavailable` metadata as unconfirmed.
 
-Every command emits one JSON envelope. Confirmed results expose `schemaVersion`, `taskState`, `currentSlice`, `lastUpdated`, and record SHA-256. Confirmation is `confirmed`, `candidate`, or `unavailable`; never treat candidate or unavailable metadata as current confirmed state.
+## Fail Without Guessing
 
-Exit meanings:
+The script fails closed before atomic rename. A failed, dry-run, read-only, or no-op operation does not consume IDs or change record bytes, SHA, or `Last updated`.
 
-- `0`: viewed, updated, no-change, dry-run, valid, or inspected;
-- `1`: failed before commit, including invalid input/state, missing or stale SHA, lock conflict, malformed record, or rejected transition;
-- `2`: `committed-unconfirmed` after atomic rename but failed publication confirmation.
+After a committed-but-unconfirmed result:
 
-A no-op, read, dry run, or failed operation does not change bytes, IDs, SHA, or `Last updated`. Dry-run output is prospective only and must be rechecked before a real mutation.
-
-## Failure And Recovery
-
-The script fails closed before rename. It preserves the original record, does not consume IDs, does not update timestamps, and does not begin a dependent transition.
-
-After exit `2`, assume the record may have changed:
-
-1. discard every previously held expected SHA;
+1. discard every held SHA;
 2. fresh-read the actual path;
 3. run `validate` and `inspect` when available;
-4. establish a confirmed task projection and SHA;
-5. only then discuss or perform another transition.
+4. establish a confirmed task projection;
+5. only then discuss or mutate again.
 
-Do not bypass the script with manual edits, force-write flags, stale hashes, or guessed repair. A human edit requires a fresh confirmed SHA before the next scripted mutation. No automatic stale-lock breaking or legacy migration exists in v1.
+When a record is malformed or legacy, inspect it read-only. Do not guess repair, force-write, use a stale SHA, or bypass the script after failure. Human manual editing remains possible; obtain a fresh confirmed view before the next scripted mutation.
 
-## Route From Results
+## Route From The Result
 
 - unchanged discussion state: return to Discuss or wait;
-- material accepted memory: `update`, then return to its owning route;
-- authorized execution: `start`, then Execute Work;
-- unavailable safe continuation: `block` and stop;
-- resolved blocker: `resume` and return to Execute Work;
-- settled outcome: `close`, reconcile the record, and return to Workflow;
-- prematurely settled, parked, or abandoned outcome: `reopen` with explicit authority and reason, then return to Execute Work;
-- validation or transition conflict: preserve evidence and return to Workflow or [Discuss](../discuss/SKILL.md);
-- implementation: use [Execute Work](../execute-work/SKILL.md);
-- lifecycle routing and authority: use [Workflow](../workflow/SKILL.md);
-- point-in-time transfer: use [Handoff](../handoff/SKILL.md).
+- material accepted memory: update, then return to its owning route;
+- authorized execution: start, then Execute Work;
+- unavailable continuation: block and stop;
+- resolved current blocker: resume, then Execute Work;
+- prematurely settled historical outcome: reopen with authority and fresh declarations;
+- settled outcome: close, reconcile current state, and return to Workflow;
+- malformed, stale, or conflicting state: preserve evidence and return to Workflow or Discuss;
+- implementation: Execute Work;
+- lifecycle or authority: Workflow;
+- point-in-time transfer: Handoff.
 
-Track Work ends when the record accurately preserves the supported state and one next useful action. It does not claim that implementation, review, migration, behavioral effectiveness, commit, release, or publication is complete.
+Track Work ends when the record accurately preserves supported state and one next useful action. It does not claim implementation, review, migration, behavioral effectiveness, commit, release, or publication is complete.

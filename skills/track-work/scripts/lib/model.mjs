@@ -88,7 +88,7 @@ export const HISTORY_SLICE_FIELDS = [
   ["Task effect", "taskEffect"],
   ["Blocker and required resolution", "blocker"],
 ];
-export const HISTORY_SLICE_OPTIONAL_FIELDS = [["Reopen snapshot", "reopenSnapshot"]];
+export const HISTORY_SLICE_OPTIONAL_FIELDS = [["Reopen history", "reopenHistory"]];
 
 export const ARRAY_FIELDS = new Set([
   "blockers",
@@ -130,6 +130,36 @@ export function ensureArray(value) {
 
 export function clone(value) {
   return structuredClone(value);
+}
+
+export function changedSemanticPaths(before, after, path = "") {
+  if (Object.is(before, after)) return [];
+  if (before === null || after === null || typeof before !== "object" || typeof after !== "object")
+    return [path || "$"];
+  if (Array.isArray(before) || Array.isArray(after)) {
+    if (!Array.isArray(before) || !Array.isArray(after)) return [path || "$"];
+    const paths = [];
+    const length = Math.max(before.length, after.length);
+    for (let index = 0; index < length; index += 1) {
+      const beforeItem = before[index];
+      const afterItem = after[index];
+      const identity = afterItem?.id ?? beforeItem?.id ?? afterItem?.title ?? beforeItem?.title;
+      let itemPath = `${path}[${index}]`;
+      if (identity !== undefined) {
+        const identityLabel = typeof identity === "string" ? `title=${JSON.stringify(identity)}` : identity;
+        itemPath = `${path}[${identityLabel}]`;
+      }
+      paths.push(...changedSemanticPaths(beforeItem, afterItem, itemPath));
+    }
+    return paths;
+  }
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+  const paths = [];
+  for (const key of keys) {
+    const childPath = path ? `${path}.${key}` : key;
+    paths.push(...changedSemanticPaths(before[key], after[key], childPath));
+  }
+  return paths;
 }
 
 export function sha256(text) {
@@ -243,7 +273,6 @@ export function createRecord(input, timestamp) {
       open: ensureString(input.open ?? input.openQuestions),
       currentDirection: ensureString(input.currentDirection),
       boundaries: ensureString(input.boundaries),
-      activeDecisions: [],
     },
     currentWork: {
       route: ensureString(input.currentRoute ?? input.route),
@@ -336,25 +365,11 @@ export function validateModel(data) {
     if (!DECISION_STATES.has(decision.state))
       add("invalid-decision-state", `Invalid decision state: ${decision.state}`);
   }
-  const activeIds = new Set((data.currentContext.activeDecisions ?? []).map((decision) => decision.id));
-  const decisionsById = new Map((data.history.decisions ?? []).map((decision) => [decision.id, decision]));
   for (const decision of data.history.decisions ?? []) {
-    if (decision.state === "Active" && !activeIds.has(decision.id))
-      add("decision-summary-mismatch", `Active decision ${decision.id} is missing from Current Context`);
     if (decision.supersedes && !decisionIds.has(decision.supersedes))
       add("supersession-link", `Decision ${decision.id} supersedes unknown decision ${decision.supersedes}`);
     if (decision.supersededBy && !decisionIds.has(decision.supersededBy))
       add("supersession-link", `Decision ${decision.id} is superseded by unknown decision ${decision.supersededBy}`);
-  }
-  for (const summary of data.currentContext.activeDecisions ?? []) {
-    const decision = decisionsById.get(summary.id);
-    if (!decision) {
-      add("decision-summary-mismatch", `Current Context references unknown decision ${summary.id}`);
-      continue;
-    }
-    const expectedSummary = decision.decision || decision.consequences || "";
-    if (summary.title !== decision.title || summary.summary !== expectedSummary)
-      add("decision-summary-mismatch", `Current Context summary does not match decision history for ${summary.id}`);
   }
   const proposalTitles = new Set();
   for (const proposal of data.proposals ?? []) {
