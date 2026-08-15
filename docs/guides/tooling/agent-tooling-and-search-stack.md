@@ -78,7 +78,7 @@ Do not treat Graphify as proof for edits. Before changing files, reopen the live
 After meaningful repo changes, update the graph:
 
 ```bash
-graphify update /Users/mohammedhassanmohiddin/Documents/Antigravity/Freeflow
+graphify update "${FREEFLOW_ROOT:-$PWD}"
 ```
 
 If semantic extraction is needed again, it may use an LLM/API provider and cost tokens. Existing local graph queries do not require Voyage or Milvus.
@@ -201,7 +201,7 @@ docker stop milvus-standalone milvus-minio milvus-etcd
 Claude Context index evidence:
 
 ```text
-Path: /Users/mohammedhassanmohiddin/Documents/Antigravity/Freeflow
+Path: <current-freeflow-repository-root>
 Status: completed
 Files: 343
 Chunks: 1013
@@ -232,7 +232,7 @@ After code/doc changes, update the Claude Context index:
 mcp({
   tool: "claude_context_index_codebase",
   args: JSON.stringify({
-    path: "/Users/mohammedhassanmohiddin/Documents/Antigravity/Freeflow",
+    path: process.env.FREEFLOW_ROOT ?? process.cwd(),
     force: true,
     splitter: "ast",
     ignorePatterns: [
@@ -362,6 +362,6 @@ Useful MCP checks:
 ```js
 mcp({})
 mcp({ connect: "claude-context" })
-mcp({ tool: "claude_context_get_indexing_status", args: JSON.stringify({ path: "/Users/mohammedhassanmohiddin/Documents/Antigravity/Freeflow" }) })
-mcp({ tool: "claude_context_search_code", args: JSON.stringify({ path: "/Users/mohammedhassanmohiddin/Documents/Antigravity/Freeflow", query: "interview gate user owned decisions", limit: 3 }) })
+mcp({ tool: "claude_context_get_indexing_status", args: JSON.stringify({ path: process.env.FREEFLOW_ROOT ?? process.cwd() }) })
+mcp({ tool: "claude_context_search_code", args: JSON.stringify({ path: process.env.FREEFLOW_ROOT ?? process.cwd(), query: "interview gate user owned decisions", limit: 3 }) })
 ```

@@ -2,6 +2,8 @@
 
 Freeflow v0.5.0 is based on fresh deterministic router, Pi-extension, Skill Author, and Skill Eval suites; targeted local baseline/candidate evaluation of the revised authoring and evaluation packages; and the historical acceptance evidence identified below. Runtime and configuration checks cover the current Interaction Lifecycle, layered configuration, Interaction Contract, and Workflow bootstrap. Evidence remains case-, host-, model-, and configuration-specific and does not establish universal skill readiness.
 
+The exact-commit Freeflow development snapshot is an integration input, not release evidence. It must not be treated as a published version, production source, or proof of a clean GitHub installation.
+
 ## Acceptance Summary
 
 The local v0.1 acceptance suite passed after measured fixes and was rerun during prepublish verification on 2026-05-26.

@@ -69,6 +69,8 @@ Freeflow uses host-native skill invocation instead of duplicate manifest command
 - GitHub repository: `hassan-mohiddin/freeflow`.
 - npm package: `@hassangameryt/freeflow`.
 - Host targets: Codex, Claude Code, and Pi.
+- Local Pi/PiFlow development uses a committed exact-revision Freeflow snapshot; it is not a production release or source-precedence mechanism.
+- PiFlow owns its host launcher, import, isolated state, update, and upstream synchronization; Freeflow does not ship those tools.
 - The npm tarball contains runtime-required files and excludes GitHub-only plugin docs, project docs, `.skill-eval/`, router eval evidence, deprecated historical material, and generated eval runs.
 - Enforcement hooks and CLI enforcement are not shipped.
 

@@ -30,6 +30,18 @@ For current continuation state, read the latest relevant file in `docs/handoffs/
 
 For current skill-evaluation evidence, inspect `.skill-eval/` and the accepted bundle for the exact skill, case, host, model, and configuration. Historical v1 cases and reports under `deprecated/skill-evals-v1/` are documentary only and never establish current readiness.
 
+## Development Snapshot Boundary
+
+Pi and PiFlow development consume a committed Freeflow snapshot, not this checkout's working tree:
+
+```bash
+npm run snapshot:refresh
+```
+
+Commit intended Freeflow changes before refreshing. The tool archives the selected Git revision, packs it with `npm pack --ignore-scripts`, records provenance, and replaces the target atomically. It excludes uncommitted and ignored files and does not mutate host state. Snapshots are development-only; production uses ordinary npm/Git sources. Read `docs/guides/tooling/freeflow-development-snapshot.md` for isolated targets, rollback, and clean-install verification.
+
+PiFlow launch, import, and update behavior remains PiFlow-owned; Freeflow supplies policy and the development package snapshot.
+
 ## Reference Skill Stack
 
 Freeflow is the primary workflow layer for this repo. Use this reference stack when Freeflow lacks coverage, evidence is thin, or a behavior gap appears:
@@ -55,39 +67,10 @@ When reference skills conflict:
 
 ## Working Rules
 
-- Keep skill files short, behavior-shaping, and pressure-tested.
 - Use `CONTEXT.md` for project language. Do not turn it into a spec or implementation summary.
 - Use ADRs sparingly for hard-to-reverse, surprising, tradeoff-driven decisions.
 - Do not hardcode volatile repo facts, directory inventories, or stack summaries into durable memory.
-- Treat handoffs as memory, not authority; live repo evidence wins when they conflict.
-- Use evals that compare baseline vs with-skill behavior. A useful eval usually makes baseline fail and with-skill pass.
-- Prefer adversarial fixture evals with saved diffs over clean prompts or subjective self-assessment.
-- Add a new skill only when it has a distinct job, trigger, and failure mode. Update an existing skill when the behavior belongs to an existing job. Use `evaluate-skill` and `write-skill` for meaningful skill changes.
-- Treat implementation, tests, and one sequential self-check—active-agent verification then, only on support, bounded self-review—as the primary feedback loop. Review/verify skills may enhance either method inline; reading them does not create independence.
-- Use independent review only at its standing Spec or Plan boundary, an approved Plan-selected boundary, or another explicitly selected boundary. Review findings do not authorize edits; request unapproved corrections and any warranted focused follow-up together.
-- Diagnose repeated or unexplained failure before redesigning unless direct structural evidence already establishes the cause.
 - Do not add enforcement hooks until skill wording and evals prove the behavior needs mechanical enforcement.
-
-## Current Product Shape
-
-The plugin has exactly three modes:
-
-- `conversation`: discussion without workflow pressure.
-- `workflow`: default for consequential work.
-- `strict-workflow`: high-risk work with stronger gates.
-
-The core workflow principle:
-
-```text
-Begin one Interaction Lifecycle from the user turn or new evidence.
-Enter the Feedback Loop only when work is needed.
-Self-check sequentially after meaningful work: verify first; self-review once only when evidence supports the result.
-Diagnose repeated or unexplained failure before redesigning.
-Use separate independent review for Specs, Plans, approved Plan-selected boundaries, or another explicitly selected boundary.
-End review with Pass, Non-blocking, Inconclusive, or Blocking; then adjudicate and route without treating findings as commands.
-Re-enter the narrowest owning activity when evidence changes the path.
-Reach a Supported Exit without inventing another phase.
-```
 
 ## Implementation Pointers
 

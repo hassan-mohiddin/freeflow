@@ -23,6 +23,8 @@ freeflow/
 
 The npm tarball contains runtime-required files. GitHub also retains plugin docs, project memory, current eval definitions, router evidence, and deprecated historical evidence. There is no generated package mirror.
 
+For local Pi/PiFlow integration, Freeflow can provide an exact-commit development snapshot outside the repository. It is not a production release or source-precedence mechanism; production installs use ordinary npm/Git sources. PiFlow owns host launch, import, update, and upstream synchronization, while Freeflow owns policy and snapshot production.
+
 Codex marketplace metadata uses local source `.`, while Claude uses host-valid local source `./`. Pi loads `pi-extension/freeflow/index.js` from the root package manifest.
 
 Freeflow does not ship a CLI, duplicate manifest command handlers, enforcement hooks, or a new agent runtime in this release. It uses each host's native skill invocation and ships a shared context-and-session-mode hook plus the Pi extension.

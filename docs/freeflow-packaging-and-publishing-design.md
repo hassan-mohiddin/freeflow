@@ -102,6 +102,8 @@ The root `package.json` exposes the repo as a Pi package:
 
 The Pi extension registers direct Freeflow commands, keeps `/freeflow mode` changes session-scoped, separates temporary Session mode from configured defaults, and exposes model skills dynamically after setup. It reads required `.freeflow/config.json` plus optional per-checkout `.freeflow/local.json`, appends effective compact state and the Interaction Contract before agent turns, and loads Workflow once as a hidden persistent message while Skills are effective. Top-level `enabled: false` suppresses Freeflow context and capabilities. The extension does not enforce policy, grant permissions, or create repo-local hooks.
 
+For local Pi/PiFlow development, Freeflow may provide an exact-commit snapshot built with `git archive` and `npm pack --ignore-scripts`. The snapshot is development-only, does not establish version precedence, and does not replace production npm/Git sources. PiFlow owns host launch, import, update, and upstream synchronization; Freeflow owns policy and snapshot production.
+
 ## README Shape
 
 The public README should establish the product before installation:
