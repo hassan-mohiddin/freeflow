@@ -74,31 +74,33 @@ Pass, Non-blocking, Inconclusive, and Blocking are all valid review exits. A rev
 
 ## Adjudicate And Route
 
-After independent review, the receiving active agent adjudicates each item against the artifact, source truth, and evidence:
+After independent review, the receiving active agent adjudicates each material item against the artifact, source truth, and evidence rather than forwarding the report:
 
-- **Accepted:** supported and applicable.
-- **Rejected:** unsupported, stale, resolved, duplicate, preference-only, outside the artifact's job, or based on a source misread.
-- **Open:** a question or evidence gap prevents acceptance or rejection.
+- **Accepted:** supported and applicable. State the actual artifact problem, consequence for its intended use, and whether the revision basis is supported or uncertain.
+- **Rejected:** unsupported, stale, resolved, duplicate, preference-only, outside the artifact's job, or based on a source misread. State why.
+- **Open:** a question or evidence gap prevents acceptance or rejection. State the concern, potential consequence, and missing evidence or decision.
 
-Confirm whether each accepted Issue is Blocking or Non-blocking, then derive the adjudicated judgment. Do not accept the reviewer's overall judgment separately.
-
-Route from the adjudicated result:
+A reviewer's suggested revision may bound an item, but it does not settle source intent or select the revision. Confirm whether each accepted Issue is Blocking or Non-blocking, derive the adjudicated judgment, and do not accept the reviewer's overall judgment separately.
 
 - **Pass:** use the artifact for its intended purpose.
 - **Non-blocking:** use it with explicit deferrals.
 - **Inconclusive:** gather the missing evidence or decision.
 - **Blocking:** do not use the artifact across the blocked boundary; re-enter its narrowest owner, defer, or stop.
 
-Review findings are evidence, not commands. They do not authorize revision. Accepted revisions leave review and return to the artifact's owning skill; they may remain in the same [Track Work](../track-work/SKILL.md) slice while its intended result stays coherent.
+### Decide Whether Revision Is Ready
 
-When revision authority is not already explicit, ask once for either:
+A revision is ready when the artifact's job, the problem and consequence, and enough source or decision basis support a bounded revision. When the issue and source are clear, the revision local, affected dependencies known, and no material alternative or user choice remains, include adjudication and revision in the same assistant response.
 
-- the accepted revisions plus one warranted focused follow-up review; or
-- the accepted revisions alone when direct source evidence can settle the changed boundary.
+Use the current response for a separate problem checkpoint when findings interact, source intent or dependency effects remain uncertain, accepted content or strategy is challenged, materially different revisions remain, the artifact relies on an unsupported failure cause, or user input could change the approach:
 
-Then wait for the user's response. Do not revise or dispatch a follow-up from the request, and do not ask again when existing authority already covers the bounded revision or review.
+1. Report the adjudication, problem and consequence, revision-basis status, settled constraints, and controlling question or evidence.
+2. Name [Discuss](../discuss/SKILL.md), [Diagnose Failure](../diagnose-failure/SKILL.md), [Decision Gate](../decision-gate/SKILL.md), evidence gathering, or the artifact's affected owner as the next route, then stop and wait.
 
-Run a follow-up only when the changed boundary or affected dependencies still need independent judgment and that dispatch is authorized. Do not revise source truth, accepted intent, or owner decisions merely to satisfy a reviewer or obtain Pass.
+Continue revision selection only when a later user turn or new evidence supplies enough support. Do not request revision authority before selecting a direction or wait for the user to elicit the missing analysis. The checkpoint is not another review and creates no revision or dispatch authority.
+
+A revision-ready route states the proposed revision and rationale, dependency impact, verification boundary, whether focused follow-up is needed, and authority status. Findings are evidence, not commands, and do not authorize revision. Accepted revisions return to the artifact's owning skill and may remain in the same [Track Work](../track-work/SKILL.md) slice while its intended result stays coherent.
+
+Use existing revision authority when it covers the result. Otherwise ask once for the revision and any warranted focused follow-up; omit follow-up when direct source evidence can settle the changed boundary. Then wait; do not revise or dispatch a follow-up from the request itself. Run follow-up only when the changed boundary or affected dependencies still need independent judgment and that dispatch is authorized. Do not revise source truth, accepted intent, or owner decisions merely to satisfy a reviewer or obtain Pass.
 
 ## Limit The Review Cycle
 
@@ -106,21 +108,19 @@ For one independently reviewed artifact state and intended-use boundary:
 
 1. Review 1 is the normal broad review.
 2. Review 2, when needed and authorized, focuses on accepted revisions, affected dependencies, and remaining risk.
-3. Review 3 is exceptional, authorized separately, and final for that cycle.
+3. Review 3 is exceptional, separately authorized, and final.
 
-The budget is a cap, not dispatch authority. Do not request Review 4. At the cap, adjudicate and return control to Workflow; the artifact may be used, remain blocked, re-enter its owner, defer, or stop.
+The budget is a cap, not dispatch authority. Do not request Review 4; return control to Workflow at the cap.
 
-After Review 2 is adjudicated Blocking, stop before proposing another revision or Review 3. Classify its relationship to the prior revision:
+After Review 2 is adjudicated Blocking, stop before another revision or Review 3:
 
-- If the blocker repeats, extends, invalidates, or exposes another consequence of the prior revision, or its cause remains unsupported, read [Diagnose Failure](../diagnose-failure/SKILL.md) and diagnose the shared cause before another revision.
-- If it is an independent clear local defect with a supported cause, return directly to the artifact's owner and state why diagnosis is unnecessary.
+- If the blocker repeats, extends, invalidates, or exposes another consequence of the prior revision, or its cause remains unsupported, read [Diagnose Failure](../diagnose-failure/SKILL.md) and diagnose the shared cause first.
+- If it is an independent clear local defect with a supported cause, return to the artifact's owner and state why diagnosis is unnecessary.
 
-A reviewer judgment alone does not trigger diagnosis; active-agent adjudication and evidence do. Review 3 is final judgment after the cause and revision boundary are understood, not a third attempt to discover the cause through revisions. Workflow may later establish a new cycle only for a materially new artifact state and intended-use boundary; local edits, a different reviewer, or renamed scope do not reset it.
+Diagnosis follows adjudicated evidence, not reviewer judgment alone. Review 3 is final judgment after the cause and revision boundary are understood, not another attempt to discover them through revisions. Workflow may establish a new cycle only for a materially new reviewed state and intended-use boundary; local edits, a different reviewer, or renamed scope do not reset it.
 
 ## Report
 
-For self-review, report no formal review result. Correct clear local issues and surface only unresolved material issues that change fitness or route.
+For self-review, report no formal result. Correct clear local issues and surface only unresolved material issues that change fitness or route.
 
-For independent review, use the structured output in [the reviewer prompt](references/reviewer-prompt.md). The receiving agent reports the reviewer and adjudicated judgments, each material item's Accepted, Rejected, or Open outcome and reason, affected dependencies, remaining open items, and authorized or proposed next route.
-
-Omit empty groups. Support material judgments and adjudication with source or evidence rather than confidence.
+For independent review, use [the reviewer prompt](references/reviewer-prompt.md) and stop with its report. The receiving agent then reports the reviewer and adjudicated judgments, each material item's outcome and reason, and either the problem checkpoint or revision-ready route defined above. Omit empty groups and support the result with source or evidence rather than confidence.

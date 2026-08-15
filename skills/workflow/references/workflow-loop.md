@@ -79,11 +79,25 @@ Preserve valid work and revise only the affected layer. Do not continue because 
 
 ## Review And Checkpoint Edges
 
-Specs and Plans receive separate independent artifact review after author self-review. Independent work review is selected for a plan-selected, explicitly requested, sensitive, hard-to-reverse, architecture-bearing, or strongly interacting boundary—not simply because work ended.
+[Workflow](../SKILL.md#control-reviews-and-checkpoints) owns review selection, adjudication, remediation readiness, and authority. This reference only maps their lifecycle edges:
 
-Independent review returns **Pass**, **Non-blocking**, **Inconclusive**, or **Blocking**. The active agent adjudicates every item. Review findings do not authorize edits, and a review budget does not authorize another dispatch. Corrections return to Execute Work or the artifact owner; focused follow-up occurs only when needed and authorized. Review 2 and Review 3 relationship and diagnosis rules live in the review skills.
+```text
+[authorized independent review]
+-> Review Work or Review Artifact
+-> reviewer report
+-> Workflow adjudication
+   -> Pass -> continue
+   -> Non-blocking -> continue with explicit deferrals
+   -> Inconclusive -> gather the missing evidence or decision
+   -> Blocking -> stop before the boundary and return to the narrowest owner
+-> when an accepted item needs correction or revision
+   -> unresolved remedy -> problem checkpoint -> Discuss / Diagnose / Decision Gate / evidence
+   -> supported remedy + authority -> Execute Work or artifact owner -> Verify Work
+   -> missing authority -> recommend the exact action and wait
+-> focused follow-up only when needed and authorized
+```
 
-A useful but unapproved review, correction, commit, or other checkpoint returns to Workflow to recommend and wait. Push, integration, migration, release, and launch remain separately controlled even when earlier work was authorized.
+Review-cycle and post-Review-2 diagnosis rules live in the review skills. Any unapproved review, correction, commit, or other checkpoint returns to Workflow to recommend and wait; push, integration, migration, release, and launch remain separately controlled.
 
 ## Context And Completion
 

@@ -74,31 +74,33 @@ Pass, Non-blocking, Inconclusive, and Blocking are all valid review exits. A rev
 
 ## Adjudicate And Route
 
-After independent review, the receiving active agent adjudicates each item against the work, source truth, and evidence:
+After independent review, the receiving active agent adjudicates each material item against the work, source truth, and evidence rather than forwarding the report:
 
-- **Accepted:** supported and applicable.
-- **Rejected:** unsupported, stale, resolved, duplicate, preference-only, out of scope, or based on a source misread.
-- **Open:** a question or evidence gap prevents acceptance or rejection.
+- **Accepted:** supported and applicable. State the actual implementation problem, boundary consequence, and whether its cause is supported, unnecessary to select a bounded correction, or uncertain.
+- **Rejected:** unsupported, stale, resolved, duplicate, preference-only, out of scope, or based on a source misread. State why.
+- **Open:** a question or evidence gap prevents acceptance or rejection. State the concern, potential consequence, and missing evidence or decision.
 
-Confirm whether each accepted Issue is Blocking or Non-blocking, then derive the adjudicated judgment. Do not accept the reviewer's overall judgment separately.
-
-Route from the adjudicated result:
+A reviewer's suggested correction may bound an item, but it does not establish the cause or select the remedy. Confirm whether each accepted Issue is Blocking or Non-blocking, derive the adjudicated judgment, and do not accept the reviewer's overall judgment separately.
 
 - **Pass:** proceed.
 - **Non-blocking:** proceed with explicit deferrals.
 - **Inconclusive:** gather the missing evidence or decision.
 - **Blocking:** do not cross the boundary; re-enter the narrowest owning activity, defer, or stop.
 
-Review findings are evidence, not commands. They do not authorize edits. Accepted implementation corrections leave review and return to [Execute Work](../execute-work/SKILL.md); they may remain in the same [Track Work](../track-work/SKILL.md) slice while its intended result stays coherent.
+### Decide Whether Remediation Is Ready
 
-When correction authority is not already explicit, ask once for either:
+Remediation is ready when accepted behavior, the problem and consequence, and enough causal or decision basis support a bounded correction. When the finding is clear, the correction local, verification direct, and no material alternative or user choice remains, include adjudication and remediation in the same assistant response.
 
-- the accepted corrections plus one warranted focused follow-up review; or
-- the accepted corrections alone when direct evidence can settle the changed boundary.
+Use the current response for a separate problem checkpoint when findings interact, the cause matters but remains unsupported, accepted assumptions or design are challenged, materially different corrections remain, or user input could change the approach:
 
-Then wait for the user's response. Do not correct or dispatch a follow-up from the request, and do not ask again when existing authority already covers the bounded correction or review.
+1. Report the adjudication, problem and consequence, cause status, settled constraints, and controlling question or evidence.
+2. Name [Discuss](../discuss/SKILL.md), [Diagnose Failure](../diagnose-failure/SKILL.md), [Decision Gate](../decision-gate/SKILL.md), evidence gathering, or another affected owner as the next route, then stop and wait.
 
-Verify authorized corrections. Run a follow-up only when the changed boundary still needs independent judgment and that dispatch is authorized. Do not change tests, Specs, policies, or accepted behavior merely to satisfy a reviewer or obtain Pass.
+Continue remedy selection only when a later user turn or new evidence supplies enough support. Do not request implementation authority before selecting a remedy or wait for the user to elicit the missing analysis. The checkpoint is not another review and creates no correction or dispatch authority.
+
+A remediation-ready route states the proposed correction and rationale, verification boundary, whether focused follow-up is needed, and authority status. Findings are evidence, not commands, and do not authorize edits. Accepted corrections return to [Execute Work](../execute-work/SKILL.md) and may remain in the same [Track Work](../track-work/SKILL.md) slice while its intended result stays coherent.
+
+Use existing correction authority when it covers the result. Otherwise ask once for the correction and any warranted focused follow-up; omit follow-up when direct evidence can settle the changed boundary. Then wait; do not correct or dispatch a follow-up from the request itself. Verify authorized corrections and run follow-up only when the changed boundary still needs independent judgment and that dispatch is authorized. Do not change tests, Specs, policies, or accepted behavior merely to satisfy a reviewer or obtain Pass.
 
 ## Limit The Review Cycle
 
@@ -106,21 +108,19 @@ For one independently reviewed work state and boundary:
 
 1. Review 1 is the normal broad review.
 2. Review 2, when needed and authorized, focuses on accepted corrections, affected interactions, and remaining risk.
-3. Review 3 is exceptional, authorized separately, and final for that cycle.
+3. Review 3 is exceptional, separately authorized, and final.
 
-The budget is a cap, not dispatch authority. Do not request Review 4. At the cap, adjudicate and return control to Workflow; the work may proceed, remain blocked, re-enter another owner, defer, or stop.
+The budget is a cap, not dispatch authority. Do not request Review 4; return control to Workflow at the cap.
 
-After Review 2 is adjudicated Blocking, stop before proposing another correction or Review 3. Classify its relationship to the prior correction:
+After Review 2 is adjudicated Blocking, stop before another correction or Review 3:
 
-- If the blocker repeats, extends, invalidates, or exposes another consequence of the prior correction, or its cause remains unsupported, read [Diagnose Failure](../diagnose-failure/SKILL.md) and diagnose the shared cause before another patch.
-- If it is an independent clear local defect with a supported cause, return directly to its owning activity and state why diagnosis is unnecessary.
+- If the blocker repeats, extends, invalidates, or exposes another consequence of the prior correction, or its cause remains unsupported, read [Diagnose Failure](../diagnose-failure/SKILL.md) and diagnose the shared cause first.
+- If it is an independent clear local defect with a supported cause, return to its owner and state why diagnosis is unnecessary.
 
-A reviewer judgment alone does not trigger diagnosis; active-agent adjudication and evidence do. Review 3 is final judgment after the cause and correction boundary are understood, not a third attempt to discover the cause through patches. Workflow may later establish a new cycle only for a materially new reviewed state and boundary; local fixes, a different reviewer, or renamed scope do not reset it.
+Diagnosis follows adjudicated evidence, not reviewer judgment alone. Review 3 is final judgment after the cause and correction boundary are understood, not another attempt to discover them through patches. Workflow may establish a new cycle only for a materially new reviewed state and boundary; local fixes, a different reviewer, or renamed scope do not reset it.
 
 ## Report
 
-For self-review, report no formal review result. Correct clear local issues and surface only unresolved material issues that change the route.
+For self-review, report no formal result. Correct clear local issues and surface only unresolved material issues that change the route.
 
-For independent review, use the structured output in [the reviewer prompt](references/reviewer-prompt.md). The receiving agent reports the reviewer and adjudicated judgments, each material item's Accepted, Rejected, or Open outcome and reason, remaining open items, and authorized or proposed next route.
-
-Omit empty groups. Support material judgments and adjudication with source or evidence rather than confidence.
+For independent review, use [the reviewer prompt](references/reviewer-prompt.md) and stop with its report. The receiving agent then reports the reviewer and adjudicated judgments, each material item's outcome and reason, and either the problem checkpoint or remediation-ready route defined above. Omit empty groups and support the result with source or evidence rather than confidence.
