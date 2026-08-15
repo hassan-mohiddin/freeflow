@@ -1,5 +1,8 @@
-export const FREEFLOW_RUNTIME_ENV = "FREEFLOW_RUNTIME";
-
-export function isPiFlowRuntime(env: Record<string, string | undefined> = process.env): boolean {
-  return env[FREEFLOW_RUNTIME_ENV] === "piflow";
+export function isPiFlowHost(hostInfo: unknown): boolean {
+  if (!hostInfo || typeof hostInfo !== "object") return false;
+  const host = hostInfo as {
+    distribution?: { id?: unknown };
+    capabilities?: Record<string, unknown>;
+  };
+  return host.distribution?.id === "piflow" && host.capabilities?.sessionModelStateControl === 1;
 }

@@ -8,7 +8,7 @@ import { handleNativeToolSafetyNet } from "./output-router/native-safety-net.js"
 import { handleObservedToolRouting } from "./output-router/observed-tool-routing.js";
 import { registerRouterTools } from "./output-router/router-tools.js";
 import { handleFreeflowCommand, handleOutputRouterCommand } from "./settings/settings-ui.js";
-import { isPiFlowRuntime } from "./runtime/runtime-identity.js";
+import { isPiFlowHost } from "./runtime/runtime-identity.js";
 import {
   CONTRIBUTOR_COMMANDS,
   COGNITIVE_ROUTING_SWITCH_TOOL_NAME,
@@ -38,6 +38,7 @@ function startupSelectionSuppressesCognitiveRouting(ctx) {
 }
 function hasCognitiveRoutingHost(pi, ctx) {
   return (
+    isPiFlowHost(pi?.host) &&
     typeof pi?.appendEntryDurable === "function" &&
     typeof pi?.acquireModelStateControl === "function" &&
     typeof ctx?.modelRegistry?.getApiKeyAndHeaders === "function"
@@ -46,7 +47,7 @@ function hasCognitiveRoutingHost(pi, ctx) {
 async function reconcileCognitiveRoutingController(pi, ctx, capabilityState, previous) {
   const cognitiveRouting = capabilityState?.cognitiveRouting;
   if (
-    !isPiFlowRuntime() ||
+    !isPiFlowHost(pi?.host) ||
     !cognitiveRouting?.effective ||
     startupSelectionSuppressesCognitiveRouting(ctx) ||
     !hasCognitiveRoutingHost(pi, ctx)
@@ -72,7 +73,7 @@ async function applyCapabilityToolVisibility(
   if (typeof pi?.setActiveTools !== "function" || typeof pi?.getAllTools !== "function") {
     return;
   }
-  const state = capabilityState ?? (await readCapabilityState(ctx.cwd, ctx));
+  const state = capabilityState ?? (await readCapabilityState(ctx.cwd, ctx, pi?.host));
   const allToolNames = pi
     .getAllTools()
     .map((tool) => tool?.name)
@@ -104,7 +105,10 @@ async function applyCapabilityToolVisibility(
   pi.setActiveTools([...active]);
 }
 async function applyLiveCapabilityState(pi, ctx, cognitiveRoutingController, options = {}) {
-  const [modeState, capabilityState] = await Promise.all([readModeState(ctx.cwd), readCapabilityState(ctx.cwd, ctx)]);
+  const [modeState, capabilityState] = await Promise.all([
+    readModeState(ctx.cwd),
+    readCapabilityState(ctx.cwd, ctx, pi?.host),
+  ]);
   await refreshRuntimeContext(capabilityState);
   let nextController = cognitiveRoutingController;
   if (
@@ -133,7 +137,7 @@ function capabilityCompletions(prefix) {
     { value: "disable", label: "disable", description: "Disable Output Router for this repository" },
   ].filter((item) => item.value.startsWith(query));
 }
-function freeflowCompletions(prefix) {
+function freeflowCompletions(prefix, hostInfo = undefined) {
   const query = prefix ?? "";
   if (query.startsWith("settings ")) {
     const settingsQuery = query.slice("settings ".length);
@@ -145,7 +149,7 @@ function freeflowCompletions(prefix) {
       .filter((item) => item.value.startsWith(settingsQuery))
       .map((item) => ({ ...item, value: `settings ${item.value}` }));
   }
-  if (isPiFlowRuntime() && query.startsWith("profile ")) {
+  if (isPiFlowHost(hostInfo) && query.startsWith("profile ")) {
     return cognitiveRoutingProfileCompletions(query.slice("profile ".length)).map((item) => ({
       ...item,
       value: `profile ${item.value}`,
@@ -170,7 +174,7 @@ function freeflowCompletions(prefix) {
     { value: "settings", label: "settings", description: "Open personal override settings" },
     { value: "status", label: "status", description: "Show effective Freeflow state" },
     { value: "mode", label: "mode", description: "Select a temporary session mode" },
-    ...(isPiFlowRuntime()
+    ...(isPiFlowHost(hostInfo)
       ? [{ value: "profile", label: "profile", description: "Hold or release Cognitive Routing profile control" }]
       : []),
     { value: "enable", label: "enable", description: "Enable Freeflow for this repository" },
@@ -185,7 +189,7 @@ function bypassCompletions(prefix) {
   ].filter((item) => item.value.startsWith(query));
 }
 async function sendSkillCommand(pi, ctx, skill, args) {
-  const state = await readCapabilityState(ctx.cwd, ctx);
+  const state = await readCapabilityState(ctx.cwd, ctx, pi?.host);
   if (skill === "setup-freeflow" && !state.configured) {
     await pi.sendUserMessage(skillPrompt(skill, args));
     return;
@@ -212,11 +216,11 @@ export default function freeflow(pi) {
   const applyLiveCapabilityStateForSession = async (ctx, options = {}) => {
     cognitiveRoutingController = await applyLiveCapabilityState(pi, ctx, cognitiveRoutingController, options);
   };
-  if (isPiFlowRuntime()) {
+  if (isPiFlowHost(pi?.host)) {
     registerCognitiveRoutingTool(pi, () => cognitiveRoutingController);
   }
-  registerRouterTools(pi, () => cognitiveRoutingController?.state());
-  if (isPiFlowRuntime() && typeof pi.registerShortcut === "function") {
+  registerRouterTools(pi, () => cognitiveRoutingController?.state(), pi?.host);
+  if (isPiFlowHost(pi?.host) && typeof pi.registerShortcut === "function") {
     pi.registerShortcut("ctrl+shift+r", {
       description: "Cycle the Cognitive Routing manual standard/reasoning hold",
       handler: async (ctx) => {
@@ -264,7 +268,7 @@ export default function freeflow(pi) {
   }
   pi.on("resources_discover", async (event, ctx) => {
     const cwd = ctx?.cwd ?? event?.cwd ?? process.cwd();
-    const state = await readCapabilityState(cwd, ctx);
+    const state = await readCapabilityState(cwd, ctx, pi?.host);
     if (!state.configured) {
       return { skillPaths: [freeflowSkillPath("setup-freeflow")] };
     }
@@ -278,7 +282,7 @@ export default function freeflow(pi) {
     const [modeState, routerConfigResult, capabilityState] = await Promise.all([
       readModeState(ctx.cwd),
       readOutputRouterConfig(ctx.cwd),
-      readCapabilityState(ctx.cwd, ctx),
+      readCapabilityState(ctx.cwd, ctx, pi?.host),
     ]);
     await refreshRuntimeContext(capabilityState);
     notifyRouterConfigWarnings(ctx, routerConfigResult);
@@ -313,7 +317,7 @@ export default function freeflow(pi) {
     const [modeState, routerConfigResult, capabilityState] = await Promise.all([
       readModeState(ctx.cwd),
       readOutputRouterConfig(ctx.cwd),
-      readCapabilityState(ctx.cwd, ctx),
+      readCapabilityState(ctx.cwd, ctx, pi?.host),
     ]);
     await refreshRuntimeContext(capabilityState);
     setModeStatus(ctx, modeState, capabilityState, cognitiveRoutingController?.state());
@@ -324,7 +328,7 @@ export default function freeflow(pi) {
     const [modeState, routerConfigResult, capabilityState] = await Promise.all([
       readModeState(ctx.cwd),
       readOutputRouterConfig(ctx.cwd),
-      readCapabilityState(ctx.cwd, ctx),
+      readCapabilityState(ctx.cwd, ctx, pi?.host),
     ]);
     const cognitiveRoutingRuntime = cognitiveRoutingController?.state();
     const promptCapabilityState =
@@ -361,7 +365,7 @@ export default function freeflow(pi) {
     return { message: workflowMessage, systemPrompt };
   });
   pi.on("context", async (event, ctx) => {
-    const capabilityState = await readCapabilityState(ctx.cwd, ctx);
+    const capabilityState = await readCapabilityState(ctx.cwd, ctx, pi?.host);
     if (capabilityState.skills.effective) {
       return undefined;
     }
@@ -371,7 +375,7 @@ export default function freeflow(pi) {
     return messages.length === event.messages.length ? undefined : { messages };
   });
   pi.on("tool_call", async (event, ctx) => {
-    const capabilityState = await readCapabilityState(ctx.cwd, ctx);
+    const capabilityState = await readCapabilityState(ctx.cwd, ctx, pi?.host);
     const toolName = typeof event?.toolName === "string" ? event.toolName : "";
     if ((!capabilityState.configured || !capabilityState.enabled) && toolName === FREEFLOW_STATUS_TOOL_NAME) {
       return disabledToolCall(toolName, "freeflow");
@@ -382,9 +386,9 @@ export default function freeflow(pi) {
     return undefined;
   });
   pi.on("tool_result", async (event, ctx) => {
-    const capabilityState = await readCapabilityState(ctx.cwd, ctx);
+    const capabilityState = await readCapabilityState(ctx.cwd, ctx, pi?.host);
     const toolName = typeof event?.toolName === "string" ? event.toolName : "";
-    if (isPiFlowRuntime() && toolName === COGNITIVE_ROUTING_SWITCH_TOOL_NAME) {
+    if (isPiFlowHost(pi?.host) && toolName === COGNITIVE_ROUTING_SWITCH_TOOL_NAME) {
       await applyLiveCapabilityStateForSession(ctx);
     }
     if (!capabilityState.outputRouter.enabled) {
@@ -415,9 +419,12 @@ export default function freeflow(pi) {
   }
   pi.registerCommand("freeflow", {
     description: "Open unified Freeflow settings or print compact status",
-    getArgumentCompletions: freeflowCompletions,
+    getArgumentCompletions: (prefix) => freeflowCompletions(prefix, pi?.host),
     handler: async (args, ctx) => {
-      if (isPiFlowRuntime() && (await handleCognitiveRoutingProfileCommand(args, ctx, cognitiveRoutingController))) {
+      if (
+        isPiFlowHost(pi?.host) &&
+        (await handleCognitiveRoutingProfileCommand(args, ctx, cognitiveRoutingController))
+      ) {
         await applyLiveCapabilityStateForSession(ctx);
         return;
       }
@@ -436,9 +443,14 @@ export default function freeflow(pi) {
     description: "Open Freeflow Output Router settings or print compact status",
     getArgumentCompletions: capabilityCompletions,
     handler: async (args, ctx) => {
-      await handleOutputRouterCommand(args, ctx, async () => {
-        await applyLiveCapabilityStateForSession(ctx);
-      });
+      await handleOutputRouterCommand(
+        args,
+        ctx,
+        async () => {
+          await applyLiveCapabilityStateForSession(ctx);
+        },
+        pi,
+      );
     },
   });
 }

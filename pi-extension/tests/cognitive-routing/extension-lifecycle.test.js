@@ -4,8 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import freeflowExtension from "../../dist/index.js";
-
-process.env.FREEFLOW_RUNTIME = "piflow";
+import { PIFLOW_HOST } from "./host-fixture.js";
 
 function createExtensionHost({ rejectReturnRestore = false } = {}) {
   const handlers = new Map();
@@ -20,6 +19,7 @@ function createExtensionHost({ rejectReturnRestore = false } = {}) {
     thinkingLevel: "medium",
   };
   const pi = {
+    host: PIFLOW_HOST,
     registerTool(tool) {
       tools.push(tool);
     },

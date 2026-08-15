@@ -68,15 +68,15 @@ function cognitiveRoutingStatus(state, runtime, ctx) {
   const preflightEffective = state.effective === true;
   const suppressed =
     ctx?.modelStateProvenance?.explicitModel === true || ctx?.modelStateProvenance?.explicitThinking === true;
-  const runtimeStatus = !preflightEffective
-    ? "inactive"
-    : runtime?.effective === true
+  const runtimeStatus = preflightEffective
+    ? runtime?.effective === true
       ? "active"
       : runtime
         ? "pending"
         : suppressed
           ? "suppressed"
-          : "inactive";
+          : "inactive"
+    : "inactive";
   const runtimeReason = suppressed ? "startup_suppressed" : runtime ? "runtime_pending" : "runtime_inactive";
   return {
     ...state,
@@ -92,13 +92,21 @@ function cognitiveRoutingStatus(state, runtime, ctx) {
     runtime: runtime ? { ...runtime, runtimeStatus } : { effective: false, runtimeStatus, reason: runtimeReason },
   };
 }
-export async function buildFreeflowStatusReport(params = {}, ctx, cognitiveRoutingRuntime = undefined) {
+export async function buildFreeflowStatusReport(
+  params = {},
+  ctx,
+  cognitiveRoutingRuntime = undefined,
+  hostInfo = undefined,
+) {
   const action = normalizeStatusAction(params.action);
   const configFile = await readConfigFile(ctx.cwd);
   const localConfigFile = await readLocalConfigFile(ctx.cwd);
   const normalized = normalizeFreeflowConfig(configFile.parsed);
   const localNormalized = normalizeLocalFreeflowConfig(localConfigFile.parsed);
-  const [modeState, runtimeState] = await Promise.all([readModeState(ctx.cwd), readCapabilityState(ctx.cwd, ctx)]);
+  const [modeState, runtimeState] = await Promise.all([
+    readModeState(ctx.cwd),
+    readCapabilityState(ctx.cwd, ctx, hostInfo),
+  ]);
   const effectiveFreeflowConfig = runtimeState.enabled
     ? normalized.config
     : {

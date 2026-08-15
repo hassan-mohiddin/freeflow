@@ -4,8 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { buildFreeflowStatusReport } from "../../dist/output-router/status.js";
-
-process.env.FREEFLOW_RUNTIME = "piflow";
+import { PIFLOW_HOST } from "./host-fixture.js";
 
 function createContext(cwd, explicitModel = false) {
   return {
@@ -58,7 +57,7 @@ async function withConfiguredCognitiveRouting(run) {
 
 test("status distinguishes preflight eligibility from an inactive runtime", async () => {
   await withConfiguredCognitiveRouting(async (cwd) => {
-    const report = await buildFreeflowStatusReport({}, createContext(cwd));
+    const report = await buildFreeflowStatusReport({}, createContext(cwd), undefined, PIFLOW_HOST);
     const cognitiveRouting = report.effectiveConfig.cognitiveRouting;
 
     assert.equal(cognitiveRouting.preflightEffective, true);
@@ -70,12 +69,17 @@ test("status distinguishes preflight eligibility from an inactive runtime", asyn
 
 test("status reports an active lease without a stale disabled blocking reason", async () => {
   await withConfiguredCognitiveRouting(async (cwd) => {
-    const report = await buildFreeflowStatusReport({}, createContext(cwd), {
-      effective: true,
-      controlMode: "automatic",
-      activeProfile: "standard",
-      epoch: "epoch-1",
-    });
+    const report = await buildFreeflowStatusReport(
+      {},
+      createContext(cwd),
+      {
+        effective: true,
+        controlMode: "automatic",
+        activeProfile: "standard",
+        epoch: "epoch-1",
+      },
+      PIFLOW_HOST,
+    );
     const cognitiveRouting = report.effectiveConfig.cognitiveRouting;
 
     assert.equal(cognitiveRouting.preflightEffective, true);
@@ -88,7 +92,7 @@ test("status reports an active lease without a stale disabled blocking reason", 
 
 test("status identifies startup suppression as inactive runtime state", async () => {
   await withConfiguredCognitiveRouting(async (cwd) => {
-    const report = await buildFreeflowStatusReport({}, createContext(cwd, true));
+    const report = await buildFreeflowStatusReport({}, createContext(cwd, true), undefined, PIFLOW_HOST);
     const cognitiveRouting = report.effectiveConfig.cognitiveRouting;
 
     assert.equal(cognitiveRouting.effective, false);
@@ -99,11 +103,16 @@ test("status identifies startup suppression as inactive runtime state", async ()
 
 test("status identifies pending recovery separately from inactive preflight", async () => {
   await withConfiguredCognitiveRouting(async (cwd) => {
-    const report = await buildFreeflowStatusReport({}, createContext(cwd), {
-      effective: false,
-      controlMode: "automatic",
-      epoch: "epoch-1",
-    });
+    const report = await buildFreeflowStatusReport(
+      {},
+      createContext(cwd),
+      {
+        effective: false,
+        controlMode: "automatic",
+        epoch: "epoch-1",
+      },
+      PIFLOW_HOST,
+    );
     const cognitiveRouting = report.effectiveConfig.cognitiveRouting;
 
     assert.equal(cognitiveRouting.preflightEffective, true);

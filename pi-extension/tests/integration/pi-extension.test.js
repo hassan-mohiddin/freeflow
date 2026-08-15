@@ -19,13 +19,11 @@ import {
   setSessionMode,
 } from "../../dist/runtime/runtime-context.js";
 import { createVault, storeTextOutput } from "../../../router/dist/index.js";
-
-// Integration fixtures emulate the isolated PiFlow host. Normal-Pi behavior is tested explicitly below.
-process.env.FREEFLOW_RUNTIME = "piflow";
+import { PIFLOW_HOST } from "../cognitive-routing/host-fixture.js";
 
 const execFileAsync = promisify(execFile);
 
-function loadExtension() {
+function loadExtension(host = PIFLOW_HOST) {
   const handlers = new Map();
   const tools = [];
   const commands = [];
@@ -34,6 +32,7 @@ function loadExtension() {
   const sentMessages = [];
   let activeToolNames;
   const pi = {
+    host,
     registerTool(tool) {
       tools.push(tool);
     },
@@ -155,8 +154,6 @@ test("Pi registers capability commands and no public capture tool", () => {
 });
 
 test("normal Pi keeps Cognitive Routing disabled while showing its configuration", async () => {
-  const previousRuntime = process.env.FREEFLOW_RUNTIME;
-  delete process.env.FREEFLOW_RUNTIME;
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-normal-runtime-"));
   try {
     await mkdir(join(cwd, ".freeflow"));
@@ -174,13 +171,17 @@ test("normal Pi keeps Cognitive Routing disabled while showing its configuration
       }),
       "utf8",
     );
-    const { commands, handlers, shortcuts, tools } = loadExtension();
+    const { commands, handlers, shortcuts, tools } = loadExtension(null);
     const freeflowCommand = commands.find((command) => command.name === "freeflow");
     assert.ok(freeflowCommand);
     assert.deepEqual(shortcuts, []);
     assert.ok(!tools.some((tool) => tool.name === "freeflow_switch_profile"));
     assert.ok(!freeflowCommand.definition.getArgumentCompletions("").some((item) => item.value === "profile"));
-    const capabilityState = await readCapabilityState(cwd, { modelRegistry: cognitiveRoutingModelRegistry() });
+    const capabilityState = await readCapabilityState(
+      cwd,
+      { modelRegistry: cognitiveRoutingModelRegistry() },
+      undefined,
+    );
     assert.equal(capabilityState.cognitiveRouting.enabled, true);
     assert.equal(capabilityState.cognitiveRouting.effective, false);
     assert.equal(capabilityState.cognitiveRouting.blockingReason.code, "runtime_disabled");
@@ -216,8 +217,6 @@ test("normal Pi keeps Cognitive Routing disabled while showing its configuration
     };
     await freeflowCommand.definition.handler("settings", ctx);
   } finally {
-    if (previousRuntime === undefined) delete process.env.FREEFLOW_RUNTIME;
-    else process.env.FREEFLOW_RUNTIME = previousRuntime;
     await rm(cwd, { recursive: true, force: true });
   }
 });
@@ -515,7 +514,7 @@ test("Pi layers local core overrides over repository defaults with source eviden
     const routerConfig = await readOutputRouterConfig(cwd);
     assert.equal(routerConfig.localConfig.processing.unsafeUnsandboxed.enabled, true);
 
-    const capabilityState = await readCapabilityState(cwd);
+    const capabilityState = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
     assert.equal(capabilityState.enabled, true);
     assert.equal(capabilityState.interactionContract.effective, false);
     assert.equal(capabilityState.skills.effective, false);
@@ -549,7 +548,7 @@ test("Pi layers branch-aware session core overrides above configured values", as
 
     let result = await setSessionCoreOverride("enabled", false, ctx, pi);
     assert.equal(result.changed, true);
-    let capabilityState = await readCapabilityState(cwd);
+    let capabilityState = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
     assert.equal(capabilityState.enabled, false);
     assert.equal(capabilityState.configSources.enabled, "session");
     assert.deepEqual(capabilityState.sessionOverrides, { enabled: false });
@@ -565,7 +564,7 @@ test("Pi layers branch-aware session core overrides above configured values", as
     await setSessionCoreOverride("enabled", null, ctx, pi);
     await setSessionCoreOverride("interactionContract", false, ctx, pi);
     await setSessionCoreOverride("skillsEnabled", false, ctx, pi);
-    capabilityState = await readCapabilityState(cwd);
+    capabilityState = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
     assert.equal(capabilityState.enabled, true);
     assert.equal(capabilityState.interactionContract.effective, false);
     assert.equal(capabilityState.skills.effective, false);
@@ -575,7 +574,7 @@ test("Pi layers branch-aware session core overrides above configured values", as
     const reset = await resetSessionOverrides(ctx, pi);
     assert.equal(reset.changed, true);
     assert.equal(reset.reloadRequired, true);
-    capabilityState = await readCapabilityState(cwd);
+    capabilityState = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
     assert.deepEqual(capabilityState.sessionOverrides, {});
     assert.equal(capabilityState.interactionContract.effective, true);
     assert.equal(capabilityState.skills.effective, true);
@@ -595,12 +594,12 @@ test("Pi session enablement can override configured off but cannot bypass activa
     const ctx = context(cwd);
     await setSessionCoreOverride("enabled", true, ctx, pi);
 
-    let capabilityState = await readCapabilityState(cwd);
+    let capabilityState = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
     assert.equal(capabilityState.configured, false);
     assert.equal(capabilityState.enabled, false);
 
     await writeFile(join(cwd, ".freeflow/config.json"), "{ invalid", "utf8");
-    capabilityState = await readCapabilityState(cwd);
+    capabilityState = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
     assert.equal(capabilityState.configured, false);
     assert.equal(capabilityState.enabled, false);
 
@@ -609,7 +608,7 @@ test("Pi session enablement can override configured off but cannot bypass activa
       JSON.stringify({ enabled: false, defaultMode: "workflow" }),
       "utf8",
     );
-    capabilityState = await readCapabilityState(cwd);
+    capabilityState = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
     assert.equal(capabilityState.configured, true);
     assert.equal(capabilityState.enabled, true);
     assert.equal(capabilityState.configSources.enabled, "session");
@@ -642,7 +641,7 @@ test("Pi restores session core overrides from the active branch", async () => {
     const { handlers } = loadExtension();
     await handlers.get("session_start")({ reason: "resume" }, context(cwd, allEntries, activeBranchEntries));
 
-    let capabilityState = await readCapabilityState(cwd);
+    let capabilityState = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
     assert.equal(capabilityState.enabled, true);
     assert.equal(capabilityState.interactionContract.effective, false);
     assert.deepEqual(capabilityState.sessionOverrides, { interactionContract: false });
@@ -655,7 +654,7 @@ test("Pi restores session core overrides from the active branch", async () => {
       },
     ];
     await handlers.get("session_tree")({}, context(cwd, allEntries, switchedBranchEntries));
-    capabilityState = await readCapabilityState(cwd);
+    capabilityState = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
     assert.equal(capabilityState.enabled, false);
     assert.deepEqual(capabilityState.sessionOverrides, { enabled: false });
   } finally {
@@ -925,7 +924,7 @@ test("Pi requires repository activation even when local overrides exist", async 
     const layers = await readFreeflowConfigLayers(cwd);
     assert.equal(layers.repositoryConfigured, false);
     assert.equal(layers.configured, false);
-    const capabilityState = await readCapabilityState(cwd);
+    const capabilityState = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
     assert.equal(capabilityState.enabled, false);
     assert.equal(capabilityState.skills.effective, false);
 
@@ -953,7 +952,7 @@ test("Pi fails closed when an existing local override is invalid", async () => {
     assert.equal(layers.blockingConfigPath, layers.local.path);
     assert.match(layers.parseError, /JSON/);
 
-    const capabilityState = await readCapabilityState(cwd);
+    const capabilityState = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
     assert.equal(capabilityState.configured, false);
     assert.equal(capabilityState.enabled, false);
     assert.equal(capabilityState.interactionContract.effective, false);
@@ -984,7 +983,7 @@ test("Pi fails closed when a local core override has an invalid type", async () 
     assert.equal(layers.configured, false);
     assert.equal(layers.local.valid, false);
     assert.equal(layers.parseError, "skills.enabled must be a boolean");
-    const state = await readCapabilityState(cwd);
+    const state = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
     assert.equal(state.enabled, false);
     assert.equal(state.skills.effective, false);
   } finally {
@@ -1011,7 +1010,7 @@ test("Pi local enabled false overrides an enabled repository master switch", asy
     );
     await writeFile(join(cwd, ".freeflow/local.json"), JSON.stringify({ enabled: false }, null, 2), "utf8");
 
-    const state = await readCapabilityState(cwd);
+    const state = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
     assert.equal(state.configured, true);
     assert.equal(state.enabled, false);
     assert.equal(state.configSources.enabled, "local");
@@ -1762,7 +1761,7 @@ test("Pi session settings override Freeflow without changing config", async () =
     };
 
     await freeflowCommand.definition.handler("settings session", settingsCtx);
-    const capabilityState = await readCapabilityState(cwd);
+    const capabilityState = await readCapabilityState(cwd, undefined, PIFLOW_HOST);
     assert.equal(capabilityState.enabled, false);
     assert.equal(capabilityState.configSources.enabled, "session");
     assert.equal(settingsCtx.reloads.length, 1);
@@ -1790,7 +1789,7 @@ test("Pi session settings override Freeflow without changing config", async () =
       return result;
     };
     await freeflowCommand.definition.handler("settings session", resetCtx);
-    assert.equal((await readCapabilityState(cwd)).enabled, true);
+    assert.equal((await readCapabilityState(cwd, undefined, PIFLOW_HOST)).enabled, true);
     assert.equal(resetCtx.reloads.length, 1);
     assert.deepEqual(entries.at(-1), {
       customType: "freeflow-session-overrides",

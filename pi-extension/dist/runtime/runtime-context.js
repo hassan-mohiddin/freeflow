@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizeFreeflowConfig, normalizeLocalFreeflowConfig } from "../../../router/dist/index.js";
 import { resolveCognitiveRoutingState } from "../cognitive-routing/runtime.js";
-import { isPiFlowRuntime } from "./runtime-identity.js";
+import { isPiFlowHost } from "./runtime-identity.js";
 export const VALID_MODES = new Set(["conversation", "workflow", "strict-workflow"]);
 export const WORKFLOW_COMMANDS = [
   { command: "discuss", skill: "discuss" },
@@ -369,7 +369,7 @@ export async function readFreeflowConfigLayers(cwd) {
     parseError: blockingState?.parseError ?? null,
   };
 }
-export async function readCapabilityState(cwd, host = undefined) {
+export async function readCapabilityState(cwd, host = undefined, extensionHost = undefined) {
   const layers = await readFreeflowConfigLayers(cwd);
   const parsed = layers.repository.valid ? layers.repository.parsed : {};
   const normalized = normalizeFreeflowConfig(parsed);
@@ -378,22 +378,14 @@ export async function readCapabilityState(cwd, host = undefined) {
   const interactionContractConfigEnabled = effectiveCore.config.interactionContract;
   const skillsConfigEnabled = effectiveCore.config.skills.enabled;
   const outputRouterConfigEnabled = normalized.config.outputRouter.enabled;
+  const hostSupportsCognitiveRouting = isPiFlowHost(extensionHost);
   const configuredCognitiveRouting = await resolveCognitiveRoutingState(
     layers.repository.parsed,
     layers.local.parsed,
-    isPiFlowRuntime() ? host : undefined,
+    hostSupportsCognitiveRouting ? host : undefined,
   );
-  const cognitiveRouting = !enabled
-    ? {
-        ...configuredCognitiveRouting,
-        enabled: false,
-        effective: false,
-        blockingReason: {
-          code: "disabled",
-          message: "Freeflow is disabled",
-        },
-      }
-    : !isPiFlowRuntime() && configuredCognitiveRouting.configValid
+  const cognitiveRouting = enabled
+    ? !hostSupportsCognitiveRouting && configuredCognitiveRouting.configValid
       ? {
           ...configuredCognitiveRouting,
           effective: false,
@@ -402,7 +394,16 @@ export async function readCapabilityState(cwd, host = undefined) {
             message: "Cognitive Routing is disabled outside the PiFlow runtime",
           },
         }
-      : configuredCognitiveRouting;
+      : configuredCognitiveRouting
+    : {
+        ...configuredCognitiveRouting,
+        enabled: false,
+        effective: false,
+        blockingReason: {
+          code: "disabled",
+          message: "Freeflow is disabled",
+        },
+      };
   return {
     configured: layers.configured,
     repositoryConfigured: layers.repositoryConfigured,
@@ -432,6 +433,7 @@ export async function readCapabilityState(cwd, host = undefined) {
       enabled: enabled && outputRouterConfigEnabled,
       configEnabled: outputRouterConfigEnabled,
     },
+    hostSupportsCognitiveRouting,
     cognitiveRouting,
   };
 }
@@ -626,7 +628,7 @@ function capabilityContext(capabilityState) {
   const interactionContract = `${capabilityState.interactionContract.effective ? "enabled" : "disabled"}${sessionSuffix(capabilityState.configSources.interactionContract)}`;
   const skills = `${capabilityState.skills.effective ? "enabled" : "disabled"}${sessionSuffix(capabilityState.configSources.skillsEnabled)}`;
   const outputRouter = capabilityState.outputRouter.enabled ? "enabled" : "disabled";
-  const cognitiveRouting = isPiFlowRuntime() ? capabilityState.cognitiveRouting : undefined;
+  const cognitiveRouting = capabilityState.hostSupportsCognitiveRouting ? capabilityState.cognitiveRouting : undefined;
   const cognitiveLine = cognitiveRouting
     ? `\n- Cognitive Routing: ${
         cognitiveRouting.effective
@@ -791,7 +793,7 @@ export async function setSessionCoreOverride(key, value, ctx, pi) {
     changed: true,
     reloadRequired: key === "enabled" || key === "skillsEnabled",
     sessionOverrides: { ...currentSessionOverrides },
-    capabilityState: await readCapabilityState(ctx.cwd),
+    capabilityState: await readCapabilityState(ctx.cwd, ctx, pi?.host),
   };
 }
 export async function resetSessionOverrides(ctx, pi) {
@@ -824,7 +826,7 @@ export async function setSessionMode(mode, ctx, pi) {
 }
 export async function handleModeCommand(args, ctx, pi) {
   const arg = args?.trim();
-  const capabilityState = await readCapabilityState(ctx.cwd);
+  const capabilityState = await readCapabilityState(ctx.cwd, ctx, pi?.host);
   const inactiveModeState = await readModeState(ctx.cwd);
   if (!capabilityState.configured) {
     setModeStatus(ctx, inactiveModeState, capabilityState);

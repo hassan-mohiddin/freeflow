@@ -6,8 +6,7 @@ import test from "node:test";
 import { resolveCognitiveRoutingConfig } from "../../dist/cognitive-routing/config.js";
 import { resolveCognitiveRoutingState } from "../../dist/cognitive-routing/runtime.js";
 import { readCapabilityState } from "../../dist/runtime/runtime-context.js";
-
-process.env.FREEFLOW_RUNTIME = "piflow";
+import { PIFLOW_HOST } from "./host-fixture.js";
 
 const standard = {
   provider: "openai-codex",
@@ -144,7 +143,7 @@ test("runtime context isolates invalid Cognitive Routing from core Freeflow stat
       join(cwd, ".freeflow", "config.json"),
       JSON.stringify({ defaultMode: "workflow", cognitiveRouting: configuredRepository().cognitiveRouting }),
     );
-    let state = await readCapabilityState(cwd, host);
+    let state = await readCapabilityState(cwd, host, PIFLOW_HOST);
     assert.equal(state.configured, true);
     assert.equal(state.enabled, true);
     assert.equal(state.cognitiveRouting.effective, true);
@@ -153,7 +152,7 @@ test("runtime context isolates invalid Cognitive Routing from core Freeflow stat
       join(cwd, ".freeflow", "config.json"),
       JSON.stringify({ enabled: false, cognitiveRouting: configuredRepository().cognitiveRouting }),
     );
-    state = await readCapabilityState(cwd, host);
+    state = await readCapabilityState(cwd, host, PIFLOW_HOST);
     assert.equal(state.enabled, false);
     assert.equal(state.cognitiveRouting.enabled, false);
     assert.equal(state.cognitiveRouting.effective, false);
@@ -166,7 +165,7 @@ test("runtime context isolates invalid Cognitive Routing from core Freeflow stat
         cognitiveRouting: { enabled: true, profiles: { standard: { provider: "only-provider" } } },
       }),
     );
-    state = await readCapabilityState(cwd, host);
+    state = await readCapabilityState(cwd, host, PIFLOW_HOST);
     assert.equal(state.configured, true);
     assert.equal(state.enabled, true);
     assert.equal(state.cognitiveRouting.configValid, false);

@@ -318,8 +318,8 @@ async function normalizeBatchParams(params, ctx, routerConfigResult) {
   return {
     steps,
     ...(Array.isArray(params.queries) ? { queries: params.queries } : {}),
-    ...(params.concurrency !== undefined ? { concurrency: params.concurrency } : {}),
-    ...(params.preserve !== undefined ? { preserve: params.preserve } : {}),
+    ...(params.concurrency === undefined ? {} : { concurrency: params.concurrency }),
+    ...(params.preserve === undefined ? {} : { preserve: params.preserve }),
   };
 }
 
@@ -388,7 +388,7 @@ function createPiCommandRunner(pi, signal) {
   };
 }
 
-export function registerRouterTools(pi, getCognitiveRoutingRuntime = () => undefined) {
+export function registerRouterTools(pi, getCognitiveRoutingRuntime = () => undefined, hostInfo: unknown = undefined) {
   pi.registerTool({
     name: "freeflow_status",
     label: "Freeflow Status",
@@ -402,7 +402,7 @@ export function registerRouterTools(pi, getCognitiveRoutingRuntime = () => undef
     ],
     parameters: FREEFLOW_STATUS_PARAMETERS,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const result = await buildFreeflowStatusReport(params, ctx, getCognitiveRoutingRuntime());
+      const result = await buildFreeflowStatusReport(params, ctx, getCognitiveRoutingRuntime(), hostInfo);
       return {
         content: [{ type: "text", text: routedToolText(result) }],
         details: { result },
