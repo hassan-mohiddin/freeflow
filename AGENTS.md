@@ -72,6 +72,22 @@ When reference skills conflict:
 - Do not hardcode volatile repo facts, directory inventories, or stack summaries into durable memory.
 - Do not add enforcement hooks until skill wording and evals prove the behavior needs mechanical enforcement.
 
+## Documentation And Changelog Policy
+
+- Agents may update `CHANGELOG.md` under `## Unreleased` for verified consumer-visible work when the task authorization covers that update. Defer the entry until the final implementation slice unless bounded write-ahead authorization says otherwise.
+- Never edit released changelog sections.
+- Changes to `plugin-docs/`, public contract or install guidance, durable project docs, ADRs, or release evidence require explicit authorization and should be deferred to the final documentation slice.
+- If leaving a document stale would make the repository misleading, stop and ask rather than silently editing it.
+
+## Release And CI
+
+- Use `release-work` for version classification, release preparation, artifact checks, publication, recovery, and consumer-side verification.
+- `npm run check` is the deterministic local/CI gate. It does not run model-based skill evaluations or require publication credentials.
+- Release preparation may update version metadata and move verified `Unreleased` notes into a version section, but it must not commit, tag, push, publish, or create a GitHub Release by itself.
+- A Git tag in the form `vX.Y.Z` is the human-controlled release boundary. The tag workflow verifies the exact source and version, then publishes npm and creates the GitHub Release.
+- Never reuse an npm version or force-move a release tag. If publication partially succeeds, inspect remote state before retrying.
+- Do not run `npm run snapshot:refresh` as part of a production release. Snapshots are development-only.
+
 ## Implementation Pointers
 
 The repo root is the single source of truth for runtime skills, plugin docs, current `.skill-eval/` definitions, router evidence under `router/evals/`, and command-surface metadata. The npm tarball contains only runtime-required files; GitHub retains docs and evidence.

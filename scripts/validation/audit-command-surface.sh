@@ -34,6 +34,9 @@ const pattern = /pi\.registerCommand\("([^"]+)"/g;
 for (const item of source.matchAll(pattern)) {
   console.log(`/${item[1]}`);
 }
+if (source.includes("handleCognitiveRoutingProfileCommand") && source.includes("cognitiveRoutingProfileCompletions")) {
+  console.log("/freeflow profile <standard|reasoning|auto>");
+}
 NODE
 }
 
@@ -254,8 +257,8 @@ while IFS=$'\t' read -r command handler kind; do
 		fail "$command is missing from Pi native command registration"
 	fi
 
-	if ! rg -Fq "$command" "$command_docs"; then
-		fail "$command is missing from command-surface matrix"
+	if ! rg -Fq "$command" "$command_docs" "$registry"; then
+		fail "$command is missing from command-surface documentation"
 	fi
 
 	if [ -z "$handler" ] || [ -z "$kind" ]; then

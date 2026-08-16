@@ -38,9 +38,9 @@ The development registry covers:
 - 4 mode commands.
 - 19 direct skill calls: 17 canonical commands plus 2 published Pi compatibility aliases.
 - 3 developer skill calls.
-- 2 Pi native settings commands.
+- 3 Pi native settings commands.
 
-Freeflow uses host-native skill invocation instead of duplicate manifest command handlers. Claude exposes plugin skills as namespaced slash commands; Codex exposes skills through `/skills` and `$skill` mentions; Pi registers direct Freeflow commands through its extension, including unified `/freeflow` and compatibility `/output-router` settings commands.
+Freeflow uses host-native skill invocation instead of duplicate manifest command handlers. Claude exposes plugin skills as namespaced slash commands; Codex exposes skills through `/skills` and `$skill` mentions; Pi registers direct Freeflow commands through its extension, including unified `/freeflow`, `/freeflow profile <standard|reasoning|auto>`, and compatibility `/output-router` settings commands.
 
 ## Runtime Context
 

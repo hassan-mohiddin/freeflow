@@ -9,7 +9,8 @@ Usage:
                                [--format text|json]
 
 Default:
-  validate-release-metadata.sh --mode prepublish --release-version 0.5.0 --format text
+  validate-release-metadata.sh --mode prepublish --format text
+  (release version is read from package.json)
 EOF
 }
 
@@ -24,7 +25,7 @@ repo_root="$(git -C "$script_dir" rev-parse --show-toplevel)"
 plugin_root="$repo_root"
 
 mode="prepublish"
-release_version="0.5.0"
+release_version=""
 format="text"
 product_description="Feedback-based control system for coding agents."
 short_description="Feedback-based control for coding agents."
@@ -70,6 +71,9 @@ codex_manifest="$plugin_root/.codex-plugin/plugin.json"
 claude_manifest="$plugin_root/.claude-plugin/plugin.json"
 command_surface="$plugin_root/command-surface.json"
 package_json="$plugin_root/package.json"
+if [ -z "$release_version" ]; then
+	release_version="$(node -e 'const fs = require("fs"); console.log(JSON.parse(fs.readFileSync(process.argv[1], "utf8")).version)' "$package_json")"
+fi
 command_audit="$plugin_root/scripts/validation/audit-command-surface.sh"
 skill_routing_check="$plugin_root/scripts/validation/check-skill-routing-doc.mjs"
 runtime_hooks_json="$plugin_root/hooks/hooks.json"
