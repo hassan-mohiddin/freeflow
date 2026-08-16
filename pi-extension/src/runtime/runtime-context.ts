@@ -80,6 +80,8 @@ export const FREEFLOW_STATUS_TOOL_NAME = "freeflow_status";
 export const COGNITIVE_ROUTING_SWITCH_TOOL_NAME = "freeflow_switch_profile";
 export const OUTPUT_ROUTER_TOOL_NAMES = ["freeflow_search", "freeflow_run", "freeflow_batch"];
 export const WORKFLOW_BOOTSTRAP_MESSAGE_TYPE = "freeflow-workflow-bootstrap";
+export const COGNITIVE_ROUTING_BOOTSTRAP_MESSAGE_TYPE = "freeflow-cognitive-routing-bootstrap";
+export const FREEFLOW_BOOTSTRAP_MESSAGE_TYPE = "freeflow-bootstrap";
 
 let runtimeContextCache = null;
 let currentModeOverride = null;
@@ -90,22 +92,29 @@ async function loadRuntimeContext(capabilityState = undefined) {
   const skillsEnabled = capabilityState?.skills?.effective === true;
   const outputRouterEnabled = capabilityState?.outputRouter?.enabled === true;
   const cognitiveRoutingEnabled = capabilityState?.cognitiveRouting?.effective === true;
-  const [interactionContract, workflowSkill, outputRouterSkill, cognitiveRoutingSkill] = await Promise.all([
-    interactionContractEnabled
-      ? readFile(new URL("../../../runtime/interaction-contract.md", import.meta.url), "utf8")
-      : Promise.resolve(null),
-    skillsEnabled
-      ? readFile(new URL("../../../skills/workflow/SKILL.md", import.meta.url), "utf8")
-      : Promise.resolve(null),
-    outputRouterEnabled
-      ? readFile(new URL("../../../capabilities/output-router/SKILL.md", import.meta.url), "utf8")
-      : Promise.resolve(null),
-    cognitiveRoutingEnabled
-      ? readFile(new URL("../../../capabilities/cognitive-routing/SKILL.md", import.meta.url), "utf8")
-      : Promise.resolve(null),
-  ]);
+  const [interactionContract, workflowSkill, outputRouterSkill, cognitiveRoutingSkill, cognitiveRoutingReference] =
+    await Promise.all([
+      interactionContractEnabled
+        ? readFile(new URL("../../../runtime/interaction-contract.md", import.meta.url), "utf8")
+        : Promise.resolve(null),
+      skillsEnabled
+        ? readFile(new URL("../../../skills/workflow/SKILL.md", import.meta.url), "utf8")
+        : Promise.resolve(null),
+      outputRouterEnabled
+        ? readFile(new URL("../../../capabilities/output-router/SKILL.md", import.meta.url), "utf8")
+        : Promise.resolve(null),
+      cognitiveRoutingEnabled
+        ? readFile(new URL("../../../capabilities/cognitive-routing/SKILL.md", import.meta.url), "utf8")
+        : Promise.resolve(null),
+      cognitiveRoutingEnabled
+        ? readFile(
+            new URL("../../../capabilities/cognitive-routing/references/automatic-routing-kernel.md", import.meta.url),
+            "utf8",
+          )
+        : Promise.resolve(null),
+    ]);
 
-  return { interactionContract, workflowSkill, outputRouterSkill, cognitiveRoutingSkill };
+  return { interactionContract, workflowSkill, outputRouterSkill, cognitiveRoutingSkill, cognitiveRoutingReference };
 }
 
 function runtimeContextCacheSatisfies(capabilityState) {
@@ -121,8 +130,10 @@ function runtimeContextCacheSatisfies(capabilityState) {
   if (capabilityState?.outputRouter?.enabled === true && !runtimeContextCache.outputRouterSkill) {
     return false;
   }
-  if (capabilityState?.cognitiveRouting?.effective === true && !runtimeContextCache.cognitiveRoutingSkill) {
-    return false;
+  if (capabilityState?.cognitiveRouting?.effective === true) {
+    if (!runtimeContextCache.cognitiveRoutingSkill || !runtimeContextCache.cognitiveRoutingReference) {
+      return false;
+    }
   }
   return true;
 }
@@ -159,23 +170,149 @@ function activeSessionEntries(sessionManager) {
   return [];
 }
 
+const BOOTSTRAP_COMPONENTS = Object.freeze({
+  workflow: "workflow",
+  cognitiveRouting: "cognitive-routing",
+});
+
+function availableBootstrapComponents(freeflowContext, capabilityState) {
+  const components = [];
+  if (capabilityState?.skills?.effective === true && freeflowContext?.workflowSkill) {
+    components.push(BOOTSTRAP_COMPONENTS.workflow);
+  }
+  if (capabilityState?.cognitiveRouting?.effective === true && freeflowContext?.cognitiveRoutingSkill) {
+    components.push(BOOTSTRAP_COMPONENTS.cognitiveRouting);
+  }
+  return components;
+}
+
+function bootstrapEntryComponents(entry) {
+  const isCustomMessage = entry?.role === "custom" || entry?.type === "custom_message" || entry?.type === "custom";
+  if (!isCustomMessage) return [];
+  if (entry.customType === FREEFLOW_BOOTSTRAP_MESSAGE_TYPE) {
+    if (Array.isArray(entry.details?.components)) return entry.details.components;
+    return [
+      ...(entry.content?.includes("<!-- freeflow-bootstrap:workflow -->") ? [BOOTSTRAP_COMPONENTS.workflow] : []),
+      ...(entry.content?.includes("<!-- freeflow-bootstrap:cognitive-routing -->")
+        ? [BOOTSTRAP_COMPONENTS.cognitiveRouting]
+        : []),
+    ];
+  }
+  if (entry.customType === WORKFLOW_BOOTSTRAP_MESSAGE_TYPE) {
+    return [BOOTSTRAP_COMPONENTS.workflow];
+  }
+  if (entry.customType === COGNITIVE_ROUTING_BOOTSTRAP_MESSAGE_TYPE) {
+    return [BOOTSTRAP_COMPONENTS.cognitiveRouting];
+  }
+  return [];
+}
+
+function bootstrapComponentContent(component, freeflowContext) {
+  if (component === BOOTSTRAP_COMPONENTS.workflow) {
+    return `# Freeflow Workflow Bootstrap\n\n${freeflowContext.workflowSkill.trim()}`;
+  }
+  if (component === BOOTSTRAP_COMPONENTS.cognitiveRouting) {
+    return `# Freeflow Cognitive Routing Bootstrap\n\n${freeflowContext.cognitiveRoutingSkill.trim()}`;
+  }
+  return "";
+}
+
+function combinedBootstrapContent(components, freeflowContext) {
+  const sections = components.map(
+    (component) =>
+      `<!-- freeflow-bootstrap:${component} -->\n${bootstrapComponentContent(component, freeflowContext)}\n<!-- /freeflow-bootstrap:${component} -->`,
+  );
+  return `# Freeflow Bootstrap\n\n${sections.join("\n\n")}`;
+}
+
+export function bootstrapMessage(freeflowContext, capabilityState, sessionManager) {
+  const available = availableBootstrapComponents(freeflowContext, capabilityState);
+  if (available.length === 0) return undefined;
+
+  const loaded = new Set(activeSessionEntries(sessionManager).flatMap(bootstrapEntryComponents));
+  const missing = available.filter((component) => !loaded.has(component));
+  if (missing.length === 0) return undefined;
+
+  if (missing.length === 1 && missing[0] === BOOTSTRAP_COMPONENTS.workflow) {
+    return {
+      customType: WORKFLOW_BOOTSTRAP_MESSAGE_TYPE,
+      content: bootstrapComponentContent(BOOTSTRAP_COMPONENTS.workflow, freeflowContext),
+      display: false,
+      details: { skill: "workflow", source: "context-start-bootstrap" },
+    };
+  }
+
+  if (missing.length === 1 && missing[0] === BOOTSTRAP_COMPONENTS.cognitiveRouting) {
+    return {
+      customType: COGNITIVE_ROUTING_BOOTSTRAP_MESSAGE_TYPE,
+      content: bootstrapComponentContent(BOOTSTRAP_COMPONENTS.cognitiveRouting, freeflowContext),
+      display: false,
+      details: { skill: "cognitive-routing", source: "context-start-bootstrap" },
+    };
+  }
+
+  return {
+    customType: FREEFLOW_BOOTSTRAP_MESSAGE_TYPE,
+    content: combinedBootstrapContent(missing, freeflowContext),
+    display: false,
+    details: { components: missing, source: "context-start-bootstrap" },
+  };
+}
+
 export function workflowBootstrapMessage(freeflowContext, capabilityState, sessionManager) {
   if (capabilityState?.skills?.effective !== true || !freeflowContext?.workflowSkill) {
     return undefined;
   }
 
-  const alreadyLoaded = activeSessionEntries(sessionManager).some(
-    (entry) => entry?.type === "custom_message" && entry?.customType === WORKFLOW_BOOTSTRAP_MESSAGE_TYPE,
+  const alreadyLoaded = activeSessionEntries(sessionManager).some((entry) =>
+    bootstrapEntryComponents(entry).includes(BOOTSTRAP_COMPONENTS.workflow),
   );
-  if (alreadyLoaded) {
-    return undefined;
-  }
+  if (alreadyLoaded) return undefined;
 
   return {
     customType: WORKFLOW_BOOTSTRAP_MESSAGE_TYPE,
-    content: `# Freeflow Workflow Bootstrap\n\n${freeflowContext.workflowSkill.trim()}`,
+    content: bootstrapComponentContent(BOOTSTRAP_COMPONENTS.workflow, freeflowContext),
     display: false,
     details: { skill: "workflow", source: "first-turn-bootstrap" },
+  };
+}
+
+function enabledBootstrapComponents(capabilityState) {
+  const components = [];
+  if (capabilityState?.skills?.effective === true) components.push(BOOTSTRAP_COMPONENTS.workflow);
+  if (capabilityState?.cognitiveRouting?.effective === true) {
+    components.push(BOOTSTRAP_COMPONENTS.cognitiveRouting);
+  }
+  return components;
+}
+
+function bootstrapSection(content, component) {
+  const startMarker = `<!-- freeflow-bootstrap:${component} -->`;
+  const endMarker = `<!-- /freeflow-bootstrap:${component} -->`;
+  const start = typeof content === "string" ? content.indexOf(startMarker) : -1;
+  if (start < 0) return undefined;
+  const end = content.indexOf(endMarker, start + startMarker.length);
+  if (end < 0) return undefined;
+  return content.slice(start, end + endMarker.length);
+}
+
+export function filterBootstrapMessage(message, capabilityState) {
+  const components = bootstrapEntryComponents(message);
+  if (components.length === 0) return message;
+
+  const enabled = new Set(enabledBootstrapComponents(capabilityState));
+  const retained = components.filter((component) => enabled.has(component));
+  if (retained.length === 0) return undefined;
+  if (retained.length === components.length) return message;
+  if (message.customType !== FREEFLOW_BOOTSTRAP_MESSAGE_TYPE) return undefined;
+
+  const sections = retained.map((component) => bootstrapSection(message.content, component)).filter(Boolean);
+  if (sections.length === 0) return undefined;
+
+  return {
+    ...message,
+    content: `# Freeflow Bootstrap\n\n${sections.join("\n\n")}`,
+    details: { ...message.details, components: retained },
   };
 }
 
@@ -666,8 +803,11 @@ function outputRouterModeGuidance(mode, skillsEnabled = true) {
 }
 
 function cognitiveRoutingContext(freeflowContext, cognitiveRoutingRuntime) {
+  const reference = freeflowContext?.cognitiveRoutingReference?.trim();
+  if (!reference) return "";
+
   const runtime = cognitiveRoutingRuntime ?? {};
-  return `\n\n${freeflowContext.cognitiveRoutingSkill.trim()}\n\n## Cognitive Routing Runtime State
+  return `\n\n${reference}\n\n## Cognitive Routing Runtime State
 
 - Control: \`${runtime.controlMode ?? "automatic"}\`.
 - Active profile: \`${runtime.activeProfile ?? "none"}\`.

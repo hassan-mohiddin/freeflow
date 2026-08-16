@@ -13,7 +13,6 @@ import {
   CONTRIBUTOR_COMMANDS,
   COGNITIVE_ROUTING_SWITCH_TOOL_NAME,
   WORKFLOW_COMMANDS,
-  WORKFLOW_BOOTSTRAP_MESSAGE_TYPE,
   FREEFLOW_STATUS_TOOL_NAME,
   freeflowModelSkillPaths,
   freeflowSkillPath,
@@ -25,7 +24,8 @@ import {
   refreshRuntimeContext,
   restoreModeOverride,
   runtimeContext,
-  workflowBootstrapMessage,
+  bootstrapMessage,
+  filterBootstrapMessage,
   setModeStatus,
   skillPrompt,
   notifyRouterConfigWarnings,
@@ -37,6 +37,27 @@ function isOutputRouterToolName(name: string): boolean {
 
 function startupSelectionSuppressesCognitiveRouting(ctx: any): boolean {
   return ctx?.modelStateProvenance?.explicitModel === true || ctx?.modelStateProvenance?.explicitThinking === true;
+}
+
+function promptCapabilityState(capabilityState: any, cognitiveRoutingRuntime: any, ctx: any): any {
+  if (
+    capabilityState?.cognitiveRouting?.effective !== true ||
+    (cognitiveRoutingRuntime?.effective === true && !startupSelectionSuppressesCognitiveRouting(ctx))
+  ) {
+    return capabilityState;
+  }
+
+  return {
+    ...capabilityState,
+    cognitiveRouting: {
+      ...capabilityState.cognitiveRouting,
+      effective: false,
+      blockingReason: {
+        code: "disabled",
+        message: "Cognitive Routing is inactive for this Pi runtime",
+      },
+    },
+  };
 }
 
 function hasCognitiveRoutingHost(pi: any, ctx: any): boolean {
@@ -371,23 +392,8 @@ export default function freeflow(pi) {
       readCapabilityState(ctx.cwd, ctx, pi?.host),
     ]);
     const cognitiveRoutingRuntime = cognitiveRoutingController?.state();
-    const promptCapabilityState =
-      capabilityState.cognitiveRouting?.effective === true && cognitiveRoutingRuntime?.effective === true
-        ? capabilityState
-        : capabilityState.cognitiveRouting?.effective === true
-          ? {
-              ...capabilityState,
-              cognitiveRouting: {
-                ...capabilityState.cognitiveRouting,
-                effective: false,
-                blockingReason: {
-                  code: "disabled",
-                  message: "Cognitive Routing is inactive for this Pi runtime",
-                },
-              },
-            }
-          : capabilityState;
-    const freeflowContext = await getRuntimeContext(promptCapabilityState);
+    const effectivePromptCapabilityState = promptCapabilityState(capabilityState, cognitiveRoutingRuntime, ctx);
+    const freeflowContext = await getRuntimeContext(effectivePromptCapabilityState);
     setModeStatus(ctx, modeState, capabilityState, cognitiveRoutingRuntime);
     notifyRouterConfigWarnings(ctx, routerConfigResult);
     await applyCapabilityToolVisibility(pi, ctx, capabilityState, cognitiveRoutingController);
@@ -395,26 +401,32 @@ export default function freeflow(pi) {
       modeState,
       freeflowContext,
       routerConfigResult,
-      promptCapabilityState,
+      effectivePromptCapabilityState,
       cognitiveRoutingRuntime,
     );
-    const workflowMessage = workflowBootstrapMessage(freeflowContext, capabilityState, ctx.sessionManager);
+    const bootstrap = bootstrapMessage(freeflowContext, effectivePromptCapabilityState, ctx.sessionManager);
     const systemPrompt = freeflowRuntimeContext
       ? `${event.systemPrompt}\n\n${freeflowRuntimeContext}`
       : event.systemPrompt;
-    return { message: workflowMessage, systemPrompt };
+    return { message: bootstrap, systemPrompt };
   });
 
   pi.on("context", async (event, ctx) => {
     const capabilityState = await readCapabilityState(ctx.cwd, ctx, pi?.host);
-    if (capabilityState.skills.effective) {
-      return undefined;
-    }
-
-    const messages = event.messages.filter(
-      (message) => !(message?.role === "custom" && message?.customType === WORKFLOW_BOOTSTRAP_MESSAGE_TYPE),
+    const effectivePromptCapabilityState = promptCapabilityState(
+      capabilityState,
+      cognitiveRoutingController?.state(),
+      ctx,
     );
-    return messages.length === event.messages.length ? undefined : { messages };
+    let changed = false;
+    const messages = event.messages
+      .map((message) => {
+        const filtered = filterBootstrapMessage(message, effectivePromptCapabilityState);
+        if (filtered !== message) changed = true;
+        return filtered;
+      })
+      .filter((message) => message !== undefined);
+    return changed ? { messages } : undefined;
   });
 
   pi.on("tool_call", async (event, ctx) => {

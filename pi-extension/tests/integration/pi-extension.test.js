@@ -2466,6 +2466,35 @@ test("Pi suppresses persisted Workflow context while Skills are disabled", async
   }
 });
 
+test("Pi suppresses persisted Cognitive Routing bootstrap context when routing is disabled", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-cognitive-bootstrap-disabled-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ defaultMode: "workflow" }, null, 2), "utf8");
+
+    const { handlers } = loadExtension();
+    const contextHandler = handlers.get("context");
+    assert.ok(contextHandler);
+
+    const cognitiveMessage = {
+      role: "custom",
+      customType: "freeflow-cognitive-routing-bootstrap",
+      content: "# Freeflow Cognitive Routing Bootstrap",
+      display: false,
+      timestamp: Date.now(),
+    };
+    const userMessage = {
+      role: "user",
+      content: "hello",
+      timestamp: Date.now(),
+    };
+    const disabled = await contextHandler({ messages: [cognitiveMessage, userMessage] }, context(cwd));
+    assert.deepEqual(disabled.messages, [userMessage]);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 test("Pi before_agent_start injects the Freeflow interaction contract on every turn", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-core-context-"));
   try {
