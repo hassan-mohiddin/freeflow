@@ -4,8 +4,30 @@ const COMMON = `All existing-record mutations require --expected-sha from a conf
 Semantic JSON is supplied with --input <json-file|->. Unknown fields and incompatible types fail before persistence.`;
 
 const SCHEMAS = {
+  init: {
+    purpose: "Create a new ignored schema-v2 Working Record.",
+    input: `{
+  "taskName": "...",
+  "goal": "...",
+  "whatDefinesTask": "...",
+  "settled": "...",
+  "tentative": "...",
+  "open": "...",
+  "currentDirection": "...",
+  "boundaries": "...",
+  "route": "...",
+  "nextAction": "...",
+  "blockers": ["..."],
+  "upcomingCheckpoints": ["..."]
+}`,
+    rules: [
+      "The CLI supplies --root and --name; JSON supplies optional task context.",
+      "Context fields are scalar strings; blockers and upcomingCheckpoints are arrays of strings.",
+      "Use the dedicated start path for an explicitly authorized Current Slice.",
+    ],
+  },
   update: {
-    purpose: "Apply precise current-state edits without starting or settling a slice.",
+    purpose: "Apply precise current-state edits and atomic decision changes without starting or settling a slice.",
     input: `{
   "edits": [
     {
@@ -25,11 +47,17 @@ const SCHEMAS = {
       "removeEntity": { "id|title": "..." }
     }
   ]
-}`,
+}
+
+or for a decision lifecycle transition:
+
+{ "decision": { "operation": "supersede", "id": "D-NNN", "supersededBy": "D-NNN" } }`,
     rules: [
       "Use one edit per affected field or entity; unspecified values are preserved.",
-      "For a direct field target use replaceText {old, new}; for an entity target use {field: {old, new}}.",
+      "For a direct context field target use a scalar set value or replaceText {old, new}; context fields are scalar strings.",
+      "For an entity target use {field: {old, new}}; list add/remove operations apply only to editable list fields.",
       "replaceText requires one exact match; ambiguous or missing matches fail.",
+      "Decision state and supersession links are controlled by the atomic decision operation, not precise field edits.",
       "Whole-object or whole-collection replacement requires an explicit set operation.",
       "Batch related edits in one command for one atomic write.",
     ],

@@ -23,6 +23,21 @@ function findById(entities, id) {
   return entities.find((entity) => entity.id === id);
 }
 
+function assertDecisionReference(value, field, path) {
+  if (value === undefined || value === "") return;
+  if (typeof value !== "string" || !/^D-\d{3}$/.test(value))
+    fail("invalid-decision-reference", `Decision ${field} requires a D-NNN string`, { path });
+}
+
+function assertDecisionReferences(change, path) {
+  assertDecisionReference(change.supersedes, "supersedes", `${path}.supersedes`);
+  assertDecisionReference(change.supersededBy, "supersededBy", `${path}.supersededBy`);
+  if (change.replacement) {
+    assertDecisionReference(change.replacement.supersedes, "supersedes", `${path}.replacement.supersedes`);
+    assertDecisionReference(change.replacement.supersededBy, "supersededBy", `${path}.replacement.supersededBy`);
+  }
+}
+
 function patchObject(target, patch) {
   for (const [key, value] of Object.entries(patch ?? {})) {
     if (value !== undefined && key !== "currentSlice" && key !== "taskState") target[key] = clone(value);
@@ -84,6 +99,7 @@ function applyDecisionChange(data, input) {
   const change = input.decision ?? (input.decisions && !Array.isArray(input.decisions) ? input.decisions : null);
   if (!change) return;
   const operation = change.operation ?? change.op ?? "add";
+  assertDecisionReferences(change, "decision");
   if (operation === "add") {
     if (change.id !== undefined) fail("caller-supplied-id", "The script assigns decision IDs");
     const decision = normalizeDecision(change, nextId(data, "D"));
@@ -96,12 +112,20 @@ function applyDecisionChange(data, input) {
     if (operation === "remove" || operation === "retire") {
       existing.state = "Retired";
     } else if (operation === "supersede") {
-      existing.state = "Superseded";
-      existing.supersededBy = change.supersededBy ?? change.replacement?.id ?? "";
+      let replacementId = change.supersededBy;
+      let replacement = replacementId ? findById(data.history.decisions, replacementId) : null;
       if (change.replacement) {
         if (change.replacement.id !== undefined) fail("caller-supplied-id", "The script assigns decision IDs");
-        data.history.decisions.push(normalizeDecision(change.replacement, nextId(data, "D")));
+        replacement = normalizeDecision(change.replacement, nextId(data, "D"));
+        replacementId = replacement.id;
+        data.history.decisions.push(replacement);
       }
+      if (!replacementId) fail("missing-superseded-by", "Supersede requires supersededBy or replacement");
+      if (replacementId === existing.id) fail("invalid-supersession", "A decision cannot supersede itself");
+      if (!replacement) fail("missing-entity", `Replacement decision does not exist: ${replacementId}`);
+      existing.state = "Superseded";
+      existing.supersededBy = replacementId;
+      replacement.supersedes = existing.id;
     } else {
       Object.assign(existing, normalizeDecision({ ...existing, ...change }, existing.id));
     }
@@ -211,7 +235,7 @@ const PRECISE_LIST_FIELDS = new Set([
   "blockers",
   "upcomingCheckpoints",
 ]);
-const PRECISE_FORBIDDEN_FIELDS = new Set(["id", "state", "currentSlice"]);
+const PRECISE_FORBIDDEN_FIELDS = new Set(["id", "state", "supersedes", "supersededBy", "currentSlice"]);
 
 function preciseFieldType(field) {
   if (PRECISE_LIST_FIELDS.has(field)) return "array";
@@ -450,6 +474,7 @@ function applyPreciseCollectionEdit(data, edit, path) {
     } else if (collectionName === "decisions") {
       if (typeof value.title !== "string" || !value.title.trim())
         fail("missing-decision-title", "Decision title is required", { path });
+      assertDecisionReferences(value, `${path}.addEntity`);
       collection.push(normalizeDecision(value, nextId(data, "D")));
     } else {
       if (typeof value.title !== "string" || !value.title.trim())

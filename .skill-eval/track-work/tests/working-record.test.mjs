@@ -1474,6 +1474,146 @@ test("precise update edits one proposal without replacing siblings", async (t) =
   assert.doesNotMatch(entity.stdout, /Updated first evidence/);
 });
 
+test("decision supersession is atomic and rejects malformed references", async (t) => {
+  const root = await makeWorkspace();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const initialized = await runScript(
+    root,
+    "init",
+    "--root",
+    root,
+    "--name",
+    "decision-supersession",
+    "--input",
+    await writeJson(root, "init.json", { taskName: "Decision supersession" }),
+  );
+  const recordPath = initialized.json.record.path;
+  let sha = initialized.json.record.sha256;
+
+  for (const title of ["Original decision", "Replacement decision"]) {
+    const added = await runScript(
+      root,
+      "update",
+      "--record",
+      recordPath,
+      "--expected-sha",
+      sha,
+      "--input",
+      await writeJson(root, `${title}.json`, {
+        decision: { operation: "add", title, decision: title },
+      }),
+    );
+    assert.equal(added.exitCode, 0, added.stderr);
+    sha = added.json.record.sha256;
+  }
+
+  const malformed = await runScript(
+    root,
+    "update",
+    "--record",
+    recordPath,
+    "--expected-sha",
+    sha,
+    "--input",
+    await writeJson(root, "malformed.json", {
+      decision: { operation: "add", title: "Malformed", supersedes: ["D-001"] },
+    }),
+  );
+  assert.equal(malformed.exitCode, 1);
+  assert.equal(malformed.json.errors[0].code, "invalid-decision-reference");
+  assert.equal(malformed.json.record.sha256, sha);
+
+  const directLink = await runScript(
+    root,
+    "update",
+    "--record",
+    recordPath,
+    "--expected-sha",
+    sha,
+    "--input",
+    await writeJson(root, "direct-link.json", {
+      edits: [{ target: { kind: "decision", id: "D-001" }, set: { supersededBy: "D-002" } }],
+    }),
+  );
+  assert.equal(directLink.exitCode, 1);
+  assert.equal(directLink.json.errors[0].code, "immutable-edit-field");
+  assert.equal(directLink.json.record.sha256, sha);
+
+  const superseded = await runScript(
+    root,
+    "update",
+    "--record",
+    recordPath,
+    "--expected-sha",
+    sha,
+    "--input",
+    await writeJson(root, "supersede.json", {
+      decision: { operation: "supersede", id: "D-001", supersededBy: "D-002" },
+    }),
+  );
+  assert.equal(superseded.exitCode, 0, superseded.stderr);
+
+  const original = await runRawScript(root, "view", "--record", recordPath, "--view", "entity", "--entity", "D-001");
+  assert.equal(original.exitCode, 0, original.stderr);
+  assert.match(original.stdout, /State: Superseded/);
+  assert.match(original.stdout, /Superseded by: D-002/);
+
+  const replacement = await runRawScript(root, "view", "--record", recordPath, "--view", "entity", "--entity", "D-002");
+  assert.equal(replacement.exitCode, 0, replacement.stderr);
+  assert.match(replacement.stdout, /Supersedes: D-001/);
+});
+
+test("schema and help expose initialization, supersession, and scalar context edits", async (t) => {
+  const root = await makeWorkspace();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const initSchema = await runRawScript(root, "schema", "--command", "init");
+  assert.equal(initSchema.exitCode, 0, initSchema.stderr);
+  assert.match(initSchema.stdout, /taskName/);
+  assert.match(initSchema.stdout, /whatDefinesTask/);
+  assert.match(initSchema.stdout, /settled/);
+
+  const updateSchema = await runRawScript(root, "schema", "--command", "update");
+  assert.equal(updateSchema.exitCode, 0, updateSchema.stderr);
+  assert.match(updateSchema.stdout, /supersede/);
+  assert.match(updateSchema.stdout, /supersededBy/);
+  assert.match(updateSchema.stdout, /scalar string/);
+
+  const help = await runRawScript(root, "schema", "--help");
+  assert.equal(help.exitCode, 0, help.stderr);
+  assert.match(help.stdout, /Usage:/);
+});
+
+test("scalar context fields support direct replacement", async (t) => {
+  const root = await makeWorkspace();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const initialized = await runScript(
+    root,
+    "init",
+    "--root",
+    root,
+    "--name",
+    "scalar-context",
+    "--input",
+    await writeJson(root, "init.json", { taskName: "Scalar context", settled: "old settled" }),
+  );
+  const edited = await runScript(
+    root,
+    "update",
+    "--record",
+    initialized.json.record.path,
+    "--expected-sha",
+    initialized.json.record.sha256,
+    "--input",
+    await writeJson(root, "edit.json", {
+      edits: [{ target: "currentContext.settled", set: "new settled" }],
+    }),
+  );
+  assert.equal(edited.exitCode, 0, edited.stderr);
+  const full = await runRawScript(root, "view", "--record", initialized.json.record.path, "--view", "full");
+  assert.equal(full.exitCode, 0, full.stderr);
+  assert.match(full.stdout, /### Settled\nnew settled/);
+});
+
 test("schema exposes update input without implementation inspection", async (t) => {
   const root = await makeWorkspace();
   t.after(() => rm(root, { recursive: true, force: true }));

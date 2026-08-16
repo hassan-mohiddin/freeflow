@@ -10,7 +10,7 @@ import { executeCommand, readJsonInput } from "./lib/commands.mjs";
 function parseCliArgs(args) {
   const positionals = [];
   const options = {};
-  const flags = new Set(["--dry-run"]);
+  const flags = new Set(["--dry-run", "--help"]);
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
     if (!argument.startsWith("--")) {
@@ -37,7 +37,7 @@ function usage() {
 Commands:
   init     --root <repo> --name <short-name> [--input <json-file|->] [--dry-run]
   view     --record <record.md> --view <resume|discuss|execute|recent|entity|full> [--entity <id-or-title>]
-  schema   --command <update|start|block|resume|reopen|close|migrate|compress|all>
+  schema   --command <init|update|start|block|resume|reopen|close|migrate|compress|all> [--help]
   update   --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
   start    --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
   block    --record <record.md> --expected-sha <sha256> --input <json-file|-> [--dry-run]
@@ -62,6 +62,10 @@ async function main() {
     return;
   }
   const { positionals, options } = parseCliArgs(args);
+  if (options["--help"]) {
+    process.stdout.write(usage());
+    return;
+  }
   const root = options["--root"] ? resolve(options["--root"]) : process.cwd();
   if (positionals.length > 1) fail("invalid-arguments", "Only one positional record or task path is supported");
   if (positionals.length === 1 && !options["--record"] && !options["--task"]) options["--record"] = positionals[0];
