@@ -1190,7 +1190,9 @@ test("enforces complete lifecycle declarations and exact schema headers", async 
   const unknownHistory = await runScript(proseRoot, "view", "--record", proseInit.json.record.path, "--view", "full");
   assert.equal(unknownHistory.exitCode, 1);
 
-  const displacedTask = join(proseRoot, ".freeflow", "tasks", "task-002-displaced");
+  const displacedRoot = await makeWorkspace();
+  t.after(() => rm(displacedRoot, { recursive: true, force: true }));
+  const displacedTask = join(displacedRoot, ".freeflow", "tasks", "task-002-displaced");
   await mkdir(displacedTask, { recursive: true });
   const displacedPath = join(displacedTask, "record.md");
   await writeFile(
