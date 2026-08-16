@@ -18,9 +18,15 @@ mirrors or copy runtime files into a second maintained tree.
 
 ## Local checks
 
-Use the same deterministic checks used by CI:
+Use the same deterministic checks used by CI. The command-surface audit also requires the system tools `ripgrep` (`rg`) and `jq`; npm does not install them.
 
 ```bash
+# macOS
+brew install ripgrep jq
+
+# Debian/Ubuntu
+sudo apt-get update && sudo apt-get install --no-install-recommends -y ripgrep jq
+
 npm ci --ignore-scripts
 npm run check
 ```
