@@ -58,7 +58,7 @@ Setup does not generate Freeflow blocks in `AGENTS.md`, `CLAUDE.md`, `.claude/ru
 
 Freeflow delivers two guidance layers:
 
-1. `runtime/interaction-contract.md` owns compact turn interpretation when the Interaction Contract switch is effective.
+1. `capabilities/interaction-contract/interaction-contract.md` owns compact turn interpretation when the Interaction Contract switch is effective.
 2. `skills/workflow/SKILL.md` owns the Interaction Lifecycle, Feedback Loop, routing, review, task continuity, and Supported Exits while Skills are effective.
 
 Hosts also provide compact active or dormant mode state. Mode Contract and other workflow skills remain on demand. Pi alone loads Output Router guidance while that capability is effective.
@@ -173,6 +173,6 @@ Completion requires fresh active-agent verification, one supported self-review, 
 
 The cross-host model surface contains 25 active model/contributor skill packages. The Pi package separately includes Output Router under `capabilities/` as an optional gated capability outside host skill discovery.
 
-Retired Delegation Harness implementation and evidence remain under `deprecated/delegation-harness/` and are not part of runtime delivery.
+Retired Delegation Harness implementation and evidence remain under `.deprecated/delegation-harness/` and are not part of runtime delivery.
 
 The current adaptive candidate remains Unverified pending behavioral evaluation. Context-loading and deterministic runtime tests establish structure and delivery boundaries, not natural activation or retained behavior.

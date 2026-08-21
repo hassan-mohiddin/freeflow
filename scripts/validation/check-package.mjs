@@ -7,10 +7,10 @@ const requiredFiles = [
   "capabilities/output-router/SKILL.md",
   "pi-extension/freeflow/index.js",
   "router/dist/index.js",
-  "runtime/interaction-contract.md",
+  "capabilities/interaction-contract/interaction-contract.md",
   "skills/workflow/SKILL.md",
 ];
-const excludedPrefixes = ["plugin-docs/", ".skill-eval/", "router/evals/", "deprecated/"];
+const excludedPrefixes = ["plugin-docs/", ".skill-eval/", "router/evals/", ".deprecated/"];
 
 try {
   const packageJson = JSON.parse(readFileSync("package.json", "utf8"));

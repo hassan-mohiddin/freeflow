@@ -216,7 +216,7 @@ Each environment has exactly:
   "source": { "kind": "git", "ref": "v1.2.3" },
   "skills": ["skills/target", "skills/support"],
   "target": 0,
-  "context": ["runtime/interaction-contract.md"]
+  "context": ["capabilities/interaction-contract/interaction-contract.md"]
 }
 ```
 

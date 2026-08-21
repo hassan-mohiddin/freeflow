@@ -82,7 +82,7 @@ Adoption decisions:
 
 ## Release Metadata
 
-Run `scripts/validation/validate-release-metadata.sh` for local prepublish checks across marketplace metadata, host manifests, command-surface routing, release-boundary docs, package cleanliness, and deferred install-smoke status. The npm runtime tarball excludes GitHub-only `plugin-docs/`, `.skill-eval/`, `router/evals/`, and `deprecated/` content.
+Run `scripts/validation/validate-release-metadata.sh` for local prepublish checks across marketplace metadata, host manifests, command-surface routing, release-boundary docs, package cleanliness, and deferred install-smoke status. The npm runtime tarball excludes GitHub-only `plugin-docs/`, `.skill-eval/`, `router/evals/`, and `.deprecated/` content.
 
 Run `hooks/tests/check-runtime-context-hook.sh` after changing lifecycle context hooks.
 

@@ -31,7 +31,7 @@ Invalid existing local core config fails closed, and session enablement cannot b
 
 When effective, host adapters deliver:
 
-- `runtime/interaction-contract.md` as compact interaction guidance;
+- `capabilities/interaction-contract/interaction-contract.md` as compact interaction guidance;
 - one `skills/workflow/SKILL.md` bootstrap per context epoch while Skills are effective;
 - compact active or dormant mode state.
 
@@ -45,7 +45,7 @@ Setup reports automatic delivery as confirmed, unavailable, or unconfirmed and d
 
 The cross-host model surface contains 25 active model/contributor skill packages. The Pi package separately includes Output Router as an optional gated capability outside `skills/`; Codex and Claude neither discover it nor receive it from lifecycle context.
 
-Delegation Harness is retired from the live package and preserved only under `deprecated/delegation-harness/`.
+Delegation Harness is retired from the live package and preserved only under `.deprecated/delegation-harness/`.
 
 Canonical collaboration and execution skills are `discuss`, `track-work`, and `execute-work`. Pi retains `/discover` and `/execute-plan` as Pi-only compatibility aliases without restoring deleted skill identities.
 
@@ -92,7 +92,7 @@ Current deterministic evidence includes:
 - Evaluate Skill case-schema tests;
 - router retrieval, command-output, observed-routing, storage, transform, and sandbox reports under `router/evals/reports/`.
 
-Use `.skill-eval/` for current skill-evaluation definitions and accepted bundles. Use `deprecated/skill-evals-v1/` only for historical evidence.
+Use `.skill-eval/` for current skill-evaluation definitions and accepted bundles. Use `.deprecated/skill-evals-v1/` only for historical evidence.
 
 ## Known Deferred Work
 

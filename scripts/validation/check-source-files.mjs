@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
 import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 
 const sourceFiles = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], {
   encoding: "utf8",
 })
   .split("\0")
-  .filter(Boolean);
+  .filter((path) => path && existsSync(path));
 
 function run(command, args, path) {
   try {

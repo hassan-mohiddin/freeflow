@@ -492,7 +492,7 @@ No prototype, runtime benchmark, privacy audit, behavioral evaluation, or sessio
 Before continuing, inspect:
 
 - `skills/workflow/SKILL.md`
-- `runtime/interaction-contract.md`
+- `capabilities/interaction-contract/interaction-contract.md`
 - `skills/discuss/SKILL.md`
 - `skills/track-work/SKILL.md`
 - `skills/track-work/references/working-record-schema.md`

@@ -54,7 +54,7 @@ function loadRuntimeContext(options = {}) {
   const includeInteractionContract = options.interactionContract === true;
   const includeSkills = options.skills === true;
   const interactionContract = includeInteractionContract
-    ? readText(path.join(PLUGIN_ROOT, "runtime", "interaction-contract.md"))
+    ? readText(path.join(PLUGIN_ROOT, "capabilities", "interaction-contract", "interaction-contract.md"))
     : null;
   const workflowSkill = includeSkills ? readText(path.join(PLUGIN_ROOT, "skills", "workflow", "SKILL.md")) : null;
 

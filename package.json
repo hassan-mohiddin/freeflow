@@ -86,7 +86,6 @@
     "hooks/**",
     "pi-extension/**",
     "router/dist/**",
-    "runtime/**",
     "skills/**"
   ],
   "peerDependencies": {

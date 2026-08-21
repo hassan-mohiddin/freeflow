@@ -16,7 +16,7 @@ Use the project material relevant to the change:
 - Read `plugin-docs/README.md`, `plugin-docs/workflow.md`, `plugin-docs/architecture.md`, and `plugin-docs/release-evidence.md` when changing public plugin behavior, docs, or release guidance.
 - Read `docs/adr/` or `plugin-docs/adr/` when the change touches a durable decision.
 - Read the latest relevant file in `docs/handoffs/` when resuming an existing project task or transfer.
-- Inspect `.skill-eval/` and the accepted bundle when changing or evaluating a skill's evidence. Historical v1 cases and reports under `deprecated/skill-evals-v1/` are documentary only and never establish current readiness.
+- Inspect `.skill-eval/` and the accepted bundle when changing or evaluating a skill's evidence. Historical v1 cases and reports under `.deprecated/skill-evals-v1/` are documentary only and never establish current readiness.
 
 Historical research under `docs/` is background only; live repository evidence and current plugin docs override it.
 

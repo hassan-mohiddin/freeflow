@@ -14,7 +14,7 @@ Workflow chooses the current owner. A linked skill does not run automatically, a
 | --- | --- | --- | --- |
 | [`workflow`](../skills/workflow/SKILL.md) | Interaction Lifecycle, authority envelope, Feedback Loop, routing, selected review, Supported Exit | `discuss`, `decision-gate`, `bypass`, `track-work`, `write-spec`, `write-plan`, `review-artifact`, `execute-work`, `migration-work`, `diagnose-failure`, `verify-work`, `review-work`, `commit-work`, `handoff`, `finish-branch`, `release-work`, `launch-work`, `design-for-depth` | [`workflow-edges`](../skills/workflow/references/workflow-edges.md), [`domain-skill-composition`](../skills/workflow/references/domain-skill-composition.md) |
 | [`mode-contract`](../skills/mode-contract/SKILL.md) | Active/dormant mode and session/personal/repository mode changes | `setup-freeflow`, `workflow`, `decision-gate` | None |
-| [`decision-gate`](../skills/decision-gate/SKILL.md) | One blocking user-owned decision, source conflict, or material path change | `discuss` | [`Interaction Contract`](../runtime/interaction-contract.md) |
+| [`decision-gate`](../skills/decision-gate/SKILL.md) | One blocking user-owned decision, source conflict, or material path change | `discuss` | [`Interaction Contract`](../capabilities/interaction-contract/interaction-contract.md) |
 | [`discuss`](../skills/discuss/SKILL.md) | Collaborative exploration and direction revision | `workflow`, `decision-gate`, `diagnose-failure`, `design-for-depth`, `track-work`, `execute-work`, `write-spec`, `write-plan` | [`discussion-checkpoints`](../skills/discuss/references/discussion-checkpoints.md) |
 | [`track-work`](../skills/track-work/SKILL.md) | Working Record selection, living state, and deterministic transitions | — | None — command mechanics live in `skills/track-work/scripts/working-record.mjs` |
 | [`bypass`](../skills/bypass/SKILL.md) | Scoped reduction of optional pressure inside accepted work | `workflow`, `mode-contract`, `decision-gate`, `track-work` | None |
@@ -49,7 +49,7 @@ Workflow chooses the current owner. A linked skill does not run automatically, a
 
 | Skill | Owner | Routes / composition | References / scripts |
 | --- | --- | --- | --- |
-| [`setup-freeflow`](../skills/setup-freeflow/SKILL.md) | Layered activation, repair, same-turn context, and delivery reporting | `decision-gate`, `workflow`, `mode-contract` | [`activation-contract`](../skills/setup-freeflow/references/activation-contract.md), [`host-setup`](../skills/setup-freeflow/references/host-setup.md), [`Interaction Contract`](../runtime/interaction-contract.md) |
+| [`setup-freeflow`](../skills/setup-freeflow/SKILL.md) | Layered activation, repair, same-turn context, and delivery reporting | `decision-gate`, `workflow`, `mode-contract` | [`activation-contract`](../skills/setup-freeflow/references/activation-contract.md), [`host-setup`](../skills/setup-freeflow/references/host-setup.md), [`Interaction Contract`](../capabilities/interaction-contract/interaction-contract.md) |
 | [`write-skill`](../skills/write-skill/SKILL.md) | Minimal agent-first skill creation and revision | `evaluate-skill` | [`activation-boundaries`](../skills/write-skill/references/activation-boundaries.md), [`agent-first-instructions`](../skills/write-skill/references/agent-first-instructions.md), [`progressive-disclosure`](../skills/write-skill/references/progressive-disclosure.md), [`skill-author entrypoint`](../skills/write-skill/scripts/skill-author.mjs) |
 | [`evaluate-skill`](../skills/evaluate-skill/SKILL.md) | Baseline-versus-candidate behavioral evidence | `write-skill` | [`evaluation-definition-schema`](../skills/evaluate-skill/references/evaluation-definition-schema.md), [`evaluation-design`](../skills/evaluate-skill/references/evaluation-design.md), [`execution-and-evidence`](../skills/evaluate-skill/references/execution-and-evidence.md), [`review-and-revision`](../skills/evaluate-skill/references/review-and-revision.md), [`skill-eval entrypoint`](../skills/evaluate-skill/scripts/skill-eval.mjs) |
 
@@ -58,7 +58,7 @@ Workflow chooses the current owner. A linked skill does not run automatically, a
 | Package or archive | Role | Delivery |
 | --- | --- | --- |
 | [`output-router`](../capabilities/output-router/SKILL.md) | Optional routed-evidence capability | Pi-only. Disabled by default and loaded only when repository config and top-level Freeflow make it effective; excluded from Codex/Claude skill discovery and lifecycle context. |
-| [`delegation-harness`](../deprecated/delegation-harness/README.md) | Retired implementation and historical evidence | Excluded from the live package, Setup, commands, runtime context, and active model-skill discovery. |
+| [`delegation-harness`](../.deprecated/delegation-harness/README.md) | Retired implementation and historical evidence | Excluded from the live package, Setup, commands, runtime context, and active model-skill discovery. |
 
 ## Reading The Graph
 

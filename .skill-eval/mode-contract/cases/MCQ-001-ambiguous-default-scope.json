@@ -24,7 +24,7 @@
       },
       "skills": ["skills/mode-contract"],
       "target": 0,
-      "context": ["runtime/interaction-contract.md"]
+      "context": ["capabilities/interaction-contract/interaction-contract.md"]
     }
   },
   "expectations": [

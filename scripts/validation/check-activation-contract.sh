@@ -5,7 +5,7 @@ repo_root="$(git rev-parse --show-toplevel)"
 setup_skill="$repo_root/skills/setup-freeflow/SKILL.md"
 contract="$repo_root/skills/setup-freeflow/references/activation-contract.md"
 host_setup="$repo_root/skills/setup-freeflow/references/host-setup.md"
-interaction_contract="$repo_root/runtime/interaction-contract.md"
+interaction_contract="$repo_root/capabilities/interaction-contract/interaction-contract.md"
 workflow_skill="$repo_root/skills/workflow/SKILL.md"
 mode_skill="$repo_root/skills/mode-contract/SKILL.md"
 agents_file="$repo_root/AGENTS.md"
@@ -56,7 +56,7 @@ require_text "$contract" '.freeflow/local.json` is optional per-checkout state'
 require_text "$contract" 'An invalid existing local file blocks effective Freeflow'
 require_text "$host_setup" 'Do not generate host-specific Freeflow instructions'
 require_text "$setup_skill" 'automatic runtime delivery as **confirmed**, **unavailable**, or **unconfirmed**'
-require_text "$setup_skill" '../../runtime/interaction-contract.md'
+require_text "$setup_skill" '../../capabilities/interaction-contract/interaction-contract.md'
 require_text "$setup_skill" '../workflow/SKILL.md'
 require_text "$setup_skill" '../mode-contract/SKILL.md'
 
@@ -67,14 +67,14 @@ require_text "$workflow_skill" 'The active agent owns understanding, routing, au
 require_text "$workflow_skill" 'When an ongoing task resumes after compaction, summarization, clear, resume, or session navigation'
 require_text "$mode_skill" 'Effective mode:'
 
-require_text "$runtime_doc" 'runtime/interaction-contract.md'
+require_text "$runtime_doc" 'capabilities/interaction-contract/interaction-contract.md'
 require_text "$runtime_doc" 'skills/workflow/SKILL.md'
 require_text "$architecture_doc" 'The Interaction Contract is the only compact interaction-guidance artifact.'
 
-require_text "$pi_runtime" '../../runtime/interaction-contract.md'
+require_text "$pi_runtime" '../../capabilities/interaction-contract/interaction-contract.md'
 require_text "$pi_runtime" '../../skills/workflow/SKILL.md'
 require_text "$pi_runtime" '../../capabilities/output-router/SKILL.md'
-require_text "$shared_hook" '"runtime", "interaction-contract.md"'
+require_text "$shared_hook" '"capabilities", "interaction-contract", "interaction-contract.md"'
 require_text "$shared_hook" '"workflow", "SKILL.md"'
 require_text "$shared_hook" 'eventName === "SessionStart" || eventName === "UserPromptSubmit"'
 require_text "$shared_hook" 'Session override: none'

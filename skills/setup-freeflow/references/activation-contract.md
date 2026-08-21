@@ -80,7 +80,7 @@ Configuration does not prove runtime delivery.
 
 When effective, host adapters may deliver:
 
-- `runtime/interaction-contract.md` when the Interaction Contract switch is enabled;
+- `capabilities/interaction-contract/interaction-contract.md` when the Interaction Contract switch is enabled;
 - one full `skills/workflow/SKILL.md` bootstrap when Skills are enabled;
 - compact active or dormant mode state.
 

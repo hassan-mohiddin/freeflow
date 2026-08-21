@@ -89,7 +89,7 @@ async function loadRuntimeContext(capabilityState = undefined) {
     cognitiveRoutingReference,
   ] = await Promise.all([
     interactionContractEnabled
-      ? readFile(new URL("../../../runtime/interaction-contract.md", import.meta.url), "utf8")
+      ? readFile(new URL("../../../capabilities/interaction-contract/interaction-contract.md", import.meta.url), "utf8")
       : Promise.resolve(null),
     skillsEnabled
       ? readFile(new URL("../../../skills/workflow/SKILL.md", import.meta.url), "utf8")

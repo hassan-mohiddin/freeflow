@@ -317,7 +317,7 @@ check_release_boundary() {
 		ok=0
 	}
 
-	contains_fixed "$release_boundary_adr" 'It excludes GitHub-only `plugin-docs/`, `.skill-eval/`, `router/evals/`, `deprecated/`' || {
+	contains_fixed "$release_boundary_adr" 'It excludes GitHub-only `plugin-docs/`, `.skill-eval/`, `router/evals/`, `.deprecated/`' || {
 		record_check "$check" "fail" "ADR 0003 no longer excludes GitHub-only docs, evaluation evidence, and deprecated artifacts from npm."
 		ok=0
 	}
@@ -395,7 +395,7 @@ check_package_cleanliness() {
 		ok=0
 	fi
 
-	if jq -e '.files[] | select(startswith("plugin-docs/") or startswith(".skill-eval/") or startswith("router/evals/") or startswith("deprecated/"))' "$package_json" >/dev/null; then
+	if jq -e '.files[] | select(startswith("plugin-docs/") or startswith(".skill-eval/") or startswith("router/evals/") or startswith(".deprecated/"))' "$package_json" >/dev/null; then
 		record_check "$check" "fail" "The npm runtime package includes GitHub-only docs, evaluation evidence, or deprecated artifacts."
 		ok=0
 	fi
@@ -410,9 +410,9 @@ check_package_cleanliness() {
 		ok=0
 	elif ! jq -e '
     .[0] as $pack
-    | ([$pack.files[].path | select(startswith("plugin-docs/") or startswith(".skill-eval/") or startswith("router/evals/") or startswith("deprecated/"))] | length) == 0
+    | ([$pack.files[].path | select(startswith("plugin-docs/") or startswith(".skill-eval/") or startswith("router/evals/") or startswith(".deprecated/"))] | length) == 0
       and ([$pack.files[].path | select(. == "skills/workflow/SKILL.md")] | length) == 1
-      and ([$pack.files[].path | select(. == "runtime/interaction-contract.md")] | length) == 1
+      and ([$pack.files[].path | select(. == "capabilities/interaction-contract/interaction-contract.md")] | length) == 1
       and ([$pack.files[].path | select(. == "capabilities/output-router/SKILL.md")] | length) == 1
       and ([$pack.files[].path | select(. == "skills/output-router/SKILL.md")] | length) == 0
       and ([$pack.files[].path | select(. == "pi-extension/freeflow/index.js")] | length) == 1

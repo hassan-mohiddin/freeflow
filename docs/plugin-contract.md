@@ -31,7 +31,7 @@ Mode changes do not authorize work. Task type and direct skill calls do not swit
 
 ## Interaction And Authority
 
-`runtime/interaction-contract.md` owns compact interpretation of the whole user turn:
+`capabilities/interaction-contract/interaction-contract.md` owns compact interpretation of the whole user turn:
 
 - answer questions without inferring action;
 - treat tentative ideas as discussion;
@@ -62,7 +62,7 @@ Pi-owned Output Router configuration remains in shared config but does not enter
 
 When effective, host adapters deliver:
 
-- `runtime/interaction-contract.md` for compact turn guidance;
+- `capabilities/interaction-contract/interaction-contract.md` for compact turn guidance;
 - `skills/workflow/SKILL.md` once per context epoch while Skills are effective;
 - compact active or dormant mode state.
 
@@ -96,7 +96,7 @@ Workflow owns routing. Leaf skills own focused methods. Method and domain skills
 
 The typed public adjacency map lives in `plugin-docs/skill-routing.md`. It distinguishes owners, sibling routes/composition, references, and optional capability delivery.
 
-The cross-host model surface contains 25 active model/contributor skill packages. The Pi package separately contains Output Router under `capabilities/`; Codex and Claude do not discover or receive it. Retired Delegation Harness material lives under `deprecated/delegation-harness/` outside the package.
+The cross-host model surface contains 25 active model/contributor skill packages. The Pi package separately contains Output Router under `capabilities/`; Codex and Claude do not discover or receive it. Retired Delegation Harness material lives under `.deprecated/delegation-harness/` outside the package.
 
 ## Artifact Contract
 

@@ -4,6 +4,7 @@
 
 - Scopes workflow authority by requested outcome, permitted effects, evidence boundary, and stop condition; distinguishes passive observation, active evidence generation, and mutation or delivery; and consolidates detailed policy in Workflow so mode, skill selection, usefulness, or new evidence cannot silently authorize the next action.
 - Aligns discussion, diagnosis, execution, mode, TDD, and verification guidance with the shared authority model and renames conditional references so filenames match their visible titles.
+- Relocates the Interaction Contract under `capabilities/interaction-contract/` and hides retained historical material under `.deprecated/`, updating live loaders, package checks, documentation, and links.
 
 ## 0.5.0 - 2026-08-13
 

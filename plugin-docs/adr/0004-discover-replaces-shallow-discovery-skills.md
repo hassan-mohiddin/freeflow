@@ -10,7 +10,7 @@ This ADR preserves the historical decision that consolidated three shallow disco
 
 Freeflow uses one active `discover` skill for discovery work before spec, plan, build, or durable memory.
 
-The previous active skills `research-brief`, `grill-context`, and `capture-decisions` are deprecated and moved to root `deprecated/skills/`. They are no longer part of the runtime skill surface or direct command surface.
+The previous active skills `research-brief`, `grill-context`, and `capture-decisions` are deprecated and moved to root `.deprecated/skills/`. They are no longer part of the runtime skill surface or direct command surface.
 
 The active direct command is `/discover`.
 
@@ -24,5 +24,5 @@ The `discover` skill uses the `design-for-depth` lens when module/interface/seam
 
 - `/research-brief`, `/grill-context`, and `/capture-decisions` are removed from the current command surface.
 - Historical evals and reports for the deprecated skills remain as development evidence.
-- Legacy discovery evidence lives in `deprecated/skill-evals-v1/reports/by-skill/discover-1-report.md` and is documentary only. Current readiness requires accepted evidence under `.skill-eval/`.
+- Legacy discovery evidence lives in `.deprecated/skill-evals-v1/reports/by-skill/discover-1-report.md` and is documentary only. Current readiness requires accepted evidence under `.skill-eval/`.
 - Durable decisions now belong to the checkpoint destination chosen by `discover`: spec, plan, handoff, decision note, ADR, domain memory, or chat.

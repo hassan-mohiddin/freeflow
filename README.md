@@ -198,7 +198,7 @@ host session mode override
 
 When effective, host adapters deliver:
 
-- `runtime/interaction-contract.md` as developer context for compact turn interpretation;
+- `capabilities/interaction-contract/interaction-contract.md` as developer context for compact turn interpretation;
 - one `skills/workflow/SKILL.md` bootstrap per context epoch while Skills are effective;
 - compact active or dormant mode state.
 

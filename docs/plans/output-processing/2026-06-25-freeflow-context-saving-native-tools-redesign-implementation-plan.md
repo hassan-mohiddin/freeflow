@@ -535,7 +535,7 @@ Stop if:
 
 Status: done. Decision: do not expose `freeflow_search` or deprecate `freeflow_retrieve` / `freeflow_derive` yet. Keep the public Pi tool surface as `freeflow_run`, `freeflow_retrieve`, `freeflow_derive`, and `freeflow_batch`; organize internals toward search/transform/processing while the file-processing and Context Mode parity work proves the next public shape. No public superiority or external observed-routing claims are allowed from Slice 10 evidence.
 
-Follow-up implementation note: `router/src/` is organized by module responsibility (`tools/`, `transform/`, `evidence/`, `vault/`, `repo/`, `routing/`, `sandbox/`, `config/`, `benchmarks/`, and `experiments/`). Historical router artifacts that should not stay in active runtime code belong under `deprecated/router/`.
+Follow-up implementation note: `router/src/` is organized by module responsibility (`tools/`, `transform/`, `evidence/`, `vault/`, `repo/`, `routing/`, `sandbox/`, `config/`, `benchmarks/`, and `experiments/`). Historical router artifacts that should not stay in active runtime code belong under `.deprecated/router/`.
 
 ## Review Checkpoints
 
