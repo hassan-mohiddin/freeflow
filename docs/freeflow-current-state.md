@@ -13,6 +13,8 @@ Freeflow is a portable feedback-based control system for coding agents.
 - Exactly three modes: `conversation`, `workflow`, and `strict-workflow`.
 - One Interaction Lifecycle runs from Entry through a Feedback Loop when needed to a Supported Exit.
 - The active agent owns understanding, routing, authorized work, factual verification, correction, adjudication, and completion.
+- Every interaction carries an outcome-and-effect-scoped authority envelope established by a direct request or still-valid approval; mode, skill selection, usefulness, and new evidence do not widen it.
+- Passive observation may support an inquiry. Active evidence generation and mutation or delivery require coverage by the current authority envelope; cumulative effects use the strongest relevant boundary.
 - Verification remains active-agent factual work. Independent review is separately selected judgment.
 - Specs and Plans receive separate Review Artifact boundaries.
 - Working Records preserve living task state across compaction and session navigation without becoming authority.

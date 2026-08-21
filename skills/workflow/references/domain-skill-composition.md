@@ -8,14 +8,14 @@ Freeflow chooses **what owns the current action**. Domain guidance supplies **ho
 
 Freeflow owns:
 
-- effective mode, authority, and route;
+- effective mode, the current authority envelope, and route;
 - user decisions and source conflicts;
 - discussion, durable artifacts, slices, and route changes;
 - verification honesty, review calibration, checkpoints, and exits.
 
 Domain guidance may own techniques for frontend, accessibility, browser tools, security, performance, databases, APIs, CI/CD, observability, cloud platforms, migration, release, or deployment.
 
-Domain guidance never overrides accepted behavior, repository policy, owner decisions, failure contracts, or evidence requirements. When it conflicts with live source truth, inspect the conflict and use [Decision Gate](../../decision-gate/SKILL.md) if resolution changes behavior or material risk.
+Domain guidance never widens the authority envelope or overrides accepted behavior, repository policy, owner decisions, failure contracts, or evidence requirements. When it conflicts with live source truth, inspect the conflict and use [Decision Gate](../../decision-gate/SKILL.md) if resolution changes behavior or material risk.
 
 ## Compose One Route
 

@@ -32,5 +32,3 @@ An observer must sit on the real path and cover the complete operation. A manual
 - A registered callback allegedly never runs → invoke or observe the registered entrypoint; calling its helper directly proves only helper behavior.
 - A failure appears only in CI → compare the same input across local and CI configuration before changing timing or adding retries.
 - Two causes fit one symptom → choose an observation whose outcomes differ between them; another generic failure is not distinguishing evidence.
-
-If no safe useful loop is possible, identify the smallest missing artifact or access: command, logs, trace, failing input, timestamped screenshot, environment boundary, or permission for isolated temporary instrumentation. Leave the cause unresolved rather than substituting a weaker claim.

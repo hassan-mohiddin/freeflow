@@ -19,7 +19,7 @@ A handoff is memory, not authority. It may record where approval or authority ca
 
 Do not silently promote ephemeral context into repository memory. Ask one direct question when the destination changes durability, privacy, repository state, intended audience, or authority and the user has not chosen.
 
-Read [handoff templates](references/templates.md) after the transfer shape and recipient are clear.
+Read [Handoff Templates](references/handoff-templates.md) after the transfer shape and recipient are clear.
 
 ## Prepare From Live State
 

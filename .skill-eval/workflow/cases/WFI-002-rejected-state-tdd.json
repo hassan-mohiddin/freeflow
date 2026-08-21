@@ -43,7 +43,7 @@
         "name": "execute-work",
         "kind": "working-tree",
         "path": "skills/execute-work",
-        "resources": ["SKILL.md", "references/code-practices.md", "references/execution-loop.md"]
+        "resources": ["SKILL.md", "references/code-practices.md", "references/execute-work-edges.md"]
       }
     ],
     "target_name": "tdd",

@@ -2,7 +2,7 @@
 
 Read this when the right test level is unclear, a dependency needs a double, legacy behavior lacks a seam, or test setup starts driving production design.
 
-The goal is confidence in accepted behavior, not maximal isolation or a fixed unit/integration/end-to-end ratio. One TDD behavior loop is a bounded action and may remain inside a larger coherent Track Work slice.
+The goal is confidence in accepted behavior, not maximal isolation or a fixed unit/integration/end-to-end ratio.
 
 ## Choose The Confidence Boundary
 

@@ -7,7 +7,7 @@ description: Use when discussing, exploring, shaping, challenging, or revisiting
 
 Build enough shared understanding to choose the next sound action.
 
-Discussion may shape understanding, recommendations, proposed work, and checkpoints. It does not authorize mutation, settle a user-owned choice implicitly, or turn exploratory output into production behavior.
+Discussion may shape understanding, recommendations, proposed work, and checkpoints. It inherits the current authority envelope: selecting Discuss does not authorize active evidence generation, mutation or delivery, settle a user-owned choice implicitly, or turn exploratory output into production behavior.
 
 ## Follow The Discussion Route
 
@@ -88,7 +88,7 @@ Useful checkpoint, if any:
 Stop, discard, revise, or promote when:
 ```
 
-A proposal is not authorization. Before execution, confirm that the action is requested or approved. When the action is authorized, use [Track Work](../track-work/SKILL.md) to decide whether durable task memory is needed, then follow its result to [Execute Work](../execute-work/SKILL.md) or wait.
+Classifying an action as Learning, Delivery, or Deepening does not authorize it. Return an uncovered proposal to Workflow and wait. When the authority envelope covers it, use [Track Work](../track-work/SKILL.md) to decide whether durable task memory is needed, then follow its result to [Execute Work](../execute-work/SKILL.md) or wait.
 
 Return with the observed result. Treat prototypes, tests, benchmarks, sketches, and working behavior as evidence, not automatic approval of their design or promotion. Preserve what still holds and re-enter only the affected question.
 
@@ -104,7 +104,7 @@ Keep this state in conversation while context is sufficient. Use Track Work when
 
 Recommend independent review, local commit, user decision, or continuity checkpoints only when they protect dependent work or reduce material risk. Discussion may shape and preserve an approved checkpoint, but does not execute it. Normal verification and silent self-review provide the ordinary self-check; Workflow establishes the slice outcome.
 
-Read [discussion checkpoints](references/checkpoints.md) when selecting or preserving a compact discussion checkpoint or re-entry state.
+Read [Discussion Checkpoints](references/discussion-checkpoints.md) when selecting or preserving a compact discussion checkpoint or re-entry state.
 
 ## Return Supported Direction
 

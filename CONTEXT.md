@@ -13,11 +13,11 @@ The explicit coordination and evidence a task needs. Increase it only when conse
 _Avoid_: bureaucracy, artifact count, lifecycle completeness
 
 **Conversation Mode**:
-Read-only discussion, explanation, critique, and exploration without workflow artifacts.
-_Avoid_: casual mode, no-rules mode
+Discussion, explanation, critique, exploration, and passive inspection of existing evidence without exercising target behavior or intentionally changing task state.
+_Avoid_: casual mode, no-rules mode, active evidence generation
 
 **Workflow Mode**:
-The default mode for consequential or mutating work. It uses the Interaction Lifecycle and scales pressure to the task.
+The default mode for active evidence generation and consequential or mutating work. It uses the Interaction Lifecycle and scales pressure to the task.
 _Avoid_: auto mode, mandatory pipeline
 
 **Strict Workflow Mode**:
@@ -44,6 +44,22 @@ _Avoid_: forced completion, automatic next phase
 The active agent owns understanding, routing, locally authorized work, verification, correction, adjudication, and completion while preserving user authority over intent and consequential decisions.
 _Avoid_: supervised typist, infallible agent
 
+**Authority Envelope**:
+The bounded requested outcome, permitted effects, evidence boundary, and stop condition established by a direct request or still-valid approval.
+_Avoid_: permission inferred from mode, skill selection, usefulness, or new evidence
+
+**Passive Observation**:
+Inspection of existing evidence or sources without exercising target behavior or intentionally changing task state.
+_Avoid_: classifying a new test, reproduction, runtime interaction, benchmark, or instrumentation as passive observation
+
+**Active Evidence Generation**:
+Exercising target behavior to produce new evidence.
+_Avoid_: automatic permission to run because the result would be informative
+
+**Mutation Or Delivery**:
+Changing repository, durable task or session, or external state. Effects are cumulative; apply the strongest relevant authority and mode boundary.
+_Avoid_: treating a non-file side effect or delivery step as passive because no source file changed
+
 **Route From Evidence**:
 Choose the smallest useful next action from what direct evidence and accepted intent now support.
 _Avoid_: continue because work started, redesign from one ordinary mistake
@@ -65,7 +81,7 @@ Living task memory for current context, one current slice, proposed work, decisi
 _Avoid_: progress-log Plan, transcript, second task system
 
 **Slice**:
-One coherent learning, delivery, or deepening result that can be executed and checked as a unit. Its recorded scope may be extended write-ahead when the intended result remains coherent.
+One coherent learning, delivery, or deepening result that can be executed and checked as a unit. Its boundary may extend write-ahead only when the intended result remains coherent and Workflow confirms that the authority envelope covers the extension.
 _Avoid_: file batch, automatic phase
 
 **Learning Slice**:
@@ -188,4 +204,4 @@ State `self-review` or `independent review`. Reading a review skill does not cre
 Use `Working Record` for living task memory and `Handoff` for point-in-time transfer. Neither overrides live evidence or user decisions.
 
 **Authority**:
-Explicit user decisions, accepted source truth, and applicable policy may establish authority. Specs, Plans, Working Records, reviews, and handoffs preserve or judge state; they do not silently create mutation authority.
+Direct requests and still-valid explicit approvals establish the current envelope. Accepted source truth, policy, mode, task memory, and artifacts may constrain action but do not create or widen authority. Specs, Plans, Working Records, reviews, and handoffs preserve or judge state; they do not silently authorize active evidence generation, mutation, or delivery.

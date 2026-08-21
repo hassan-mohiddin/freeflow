@@ -61,6 +61,8 @@ A Supported Exit may answer, wait, pause, hand off, defer, stop, preserve a cont
 ## Core Principles
 
 - **The active agent owns the current route.** Independent review may add judgment; it does not take over routing or verification.
+- **Authority is outcome-and-effect scoped.** Each interaction carries a requested outcome, permitted effects, evidence boundary, and stop condition established by a direct request or still-valid approval. Mode, skill selection, usefulness, and new evidence do not widen it.
+- **Passive observation differs from active evidence generation.** Inspecting existing evidence may support an inquiry; exercising target behavior or changing repository, durable task or session, or external state requires coverage by the current authority envelope. Effects are cumulative, so the strongest relevant boundary applies.
 - **Verification is factual. Review is judgment.** The active agent verifies; self-review is silent; selected independent review uses a separate context.
 - **Pass is not the only review exit.** Pass, Non-blocking, Inconclusive, and Blocking all end review and return evidence to Workflow.
 - **Review findings do not authorize edits.** Ask for unapproved corrections and any warranted focused follow-up together.
@@ -75,8 +77,8 @@ Freeflow has exactly three modes:
 
 | Mode | Use for | Guardrail |
 | --- | --- | --- |
-| `conversation` | Discussion, critique, explanation, and read-only exploration | Agent-performed mutation requires switching mode. |
-| `workflow` | Normal consequential or mutating work | Use the adaptive lifecycle and proportionate evidence. |
+| `conversation` | Discussion, critique, explanation, and passive inspection of existing evidence | Active evidence generation and mutation or delivery require switching mode plus authority. |
+| `workflow` | Active evidence generation and normal consequential or mutating work | Use the adaptive lifecycle and proportionate evidence. |
 | `strict-workflow` | High-risk or hard-to-reverse work | Stronger decision, evidence, and checkpoint pressure without review after every slice. |
 
 Task type and direct skill calls do not silently switch mode.
@@ -261,7 +263,7 @@ Pi-native settings controls:
 
 Pi `/freeflow settings` edits personal core overrides, `/freeflow settings session` manages temporary core and mode overrides, and `/freeflow settings repo` edits shared settings. For session mode, Pi uses `/freeflow mode <mode|reset>`, Claude uses `/freeflow:mode-contract <mode|reset>`, and Codex uses `$mode-contract <mode|reset>`. Clear natural-language instructions such as “Switch to conversation mode” use the same host-managed session control; questions and hypotheticals do not.
 
-Claude exposes plugin skills as namespaced commands such as `/freeflow:discuss`; Codex exposes them through `/skills` and `$discuss`. Freeflow uses these host-native skill surfaces instead of duplicate manifest command handlers. Direct skill calls select a method. They do not change mode unless they invoke the mode control, authorize mutation, or create independent review context.
+Claude exposes plugin skills as namespaced commands such as `/freeflow:discuss`; Codex exposes them through `/skills` and `$discuss`. Freeflow uses these host-native skill surfaces instead of duplicate manifest command handlers. Direct skill calls select a method. They do not change mode, widen the authority envelope, or create independent review context.
 
 A request to change the **default** is separate. Explicit local/personal wording targets `.freeflow/local.json`; explicit repository/shared/team wording targets `.freeflow/config.json`. An unqualified “change the default mode” request requires one local-versus-repository clarification before editing.
 

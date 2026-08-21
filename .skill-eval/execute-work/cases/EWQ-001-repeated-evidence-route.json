@@ -36,7 +36,7 @@
       "role": "candidate",
       "kind": "working-tree",
       "path": "skills/execute-work",
-      "resources": ["SKILL.md", "references/code-practices.md", "references/execution-loop.md"]
+      "resources": ["SKILL.md", "references/code-practices.md", "references/execute-work-edges.md"]
     }
   ],
   "composition": {

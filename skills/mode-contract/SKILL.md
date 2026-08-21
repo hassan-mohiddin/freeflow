@@ -7,7 +7,7 @@ description: Use when choosing, changing, or explaining how Freeflow mode applie
 
 Apply the effective Freeflow mode without inferring a different mode from the task. Freeflow has exactly three mode values: `conversation`, `workflow`, and `strict-workflow`.
 
-A mode changes how work proceeds; it does not authorize work, resolve a user-owned decision, or override live evidence.
+A mode changes how work proceeds; it does not authorize work, widen the current authority envelope, resolve a user-owned decision, or override live evidence.
 
 ## Establish The Active Mode
 
@@ -27,15 +27,15 @@ Task shape does not change mode. A question during Workflow stays in Workflow; a
 
 ### Conversation
 
-Answer, discuss, critique, explore, and perform requested read-only inspection.
+Answer, discuss, critique, explore, and inspect existing evidence or sources without exercising target behavior or intentionally changing task state.
 
-Do not mutate files, repository state, external systems, or durable artifacts. If the user requests mutation, explain the boundary and ask them to switch to `workflow` or `strict-workflow` through the host's mode control before proceeding.
+Conversation permits passive observation only for task work. Active evidence generation and mutation or delivery require `workflow` or `strict-workflow` plus authority. If the user requests one, explain the mode boundary and ask them to switch through the host's mode control before proceeding.
 
 Ask only what the answer needs. Conversation mode does not require workflow artifacts, checkpoints, plans, specs, or independent review.
 
 ### Workflow
 
-Use the adaptive [Workflow](../workflow/SKILL.md) for consequential or mutating work. Inspect or ask when ambiguity changes the next action, create durable artifacts only when they preserve needed state or decisions, and verify claims against fresh evidence.
+Use the adaptive [Workflow](../workflow/SKILL.md) for active evidence generation and consequential or mutating work. Inspect or ask when ambiguity changes the next action, create durable artifacts only when they preserve needed state or decisions, and verify claims against fresh evidence.
 
 Workflow mode does not itself authorize a slice or require every lifecycle phase.
 

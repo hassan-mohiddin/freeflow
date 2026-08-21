@@ -65,7 +65,7 @@ If both variants pass, the pressure may be weak or the baseline sufficient. If b
 
 ## Declare The Definition
 
-Use the exact [definition schema](references/definition-schema.md) for group, environment, expectation, suite, and selector shapes.
+Use the exact [Evaluation Definition Schema](references/evaluation-definition-schema.md) for group, environment, expectation, suite, and selector shapes.
 
 Declare the prompt or turns, fixture, exact ordered skills and target, working-tree or Git source, UTF-8 context, tools, model and thinking, deterministic expectations, comparison IDs, and review questions. Snapshot every declared subject resource. Ambient installation is not declared composition.
 

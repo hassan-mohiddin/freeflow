@@ -34,7 +34,7 @@ When Workflow selects a security-focused review, read the [security risk lens](.
 - Critical latency, throughput, saturation, queue, storage, and dependency limits have evidence.
 - Advance and abort criteria are relative to accepted SLOs, historical baseline, or owner-approved thresholds.
 
-Read [performance evidence](../../verify-work/references/performance-evidence.md) for readiness and improvement claims. Read [flaky and performance diagnosis](../../diagnose-failure/references/flaky-and-performance.md) only when a regression lacks a supported cause.
+Read [performance evidence](../../verify-work/references/performance-evidence.md) for readiness and improvement claims. Read [Flaky and Performance Diagnosis](../../diagnose-failure/references/flaky-and-performance-diagnosis.md) only when a regression lacks a supported cause.
 
 ## Accessibility And User Experience
 

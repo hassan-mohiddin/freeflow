@@ -5,18 +5,18 @@ description: Use when executing or resuming implementation, fixes, prototypes, d
 
 # Execute Work
 
-Carry out concrete work through bounded actions and fresh evidence only when it was requested or approved and the effective mode permits mutation.
+Carry out concrete work through bounded actions and fresh evidence only when it was requested or approved and the effective mode permits its effects.
 
 A **slice** is one coherent result tracked and reviewed as a unit. A **bounded action** is one implementation, experiment, correction, or observation inside that slice. One slice may span multiple Feedback Loop iterations and owning skills while its intended result remains coherent.
 
-Read [the execution loop](references/execution-loop.md) when work spans multiple actions or slices, resumes from prior state, needs a specialized method, reaches a checkpoint, or reveals follow-on work.
+Read [Execute Work edges](references/execute-work-edges.md) when work spans multiple actions or slices, resumes from prior state, needs a specialized method, reaches a checkpoint, or reveals follow-on work.
 
 ## Follow The Execution Route
 
 Use this as a directed map, not a fixed phase sequence:
 
 ```text
-[Requested or approved concrete work; effective mode permits mutation]
+[Requested or approved concrete work; effective mode permits its effects]
 -> [Orient and establish the current slice]
 -> [Take one bounded action]
 -> [Test or observe]
@@ -26,7 +26,7 @@ Use this as a directed map, not a fixed phase sequence:
    -> supported -> silent self-review -> freeze
 -> [Route]
    -> more accepted work in this slice -> next bounded action
-   -> coherent boundary extension -> approve and record when needed -> next action
+   -> coherent boundary extension -> Workflow -> covered and recorded when needed -> next action
    -> distinct result, authority, or evidence boundary -> Workflow
    -> approved checkpoint due -> owning skill -> route again
    -> supported exit -> report
@@ -40,10 +40,10 @@ Establish:
 
 - intended result and the source that supports it;
 - current slice, accepted scope, and relevant live state;
+- the current authority envelope, due checkpoints, and separately controlled boundaries;
 - direct check or observation that can disagree with the result;
-- stop conditions, due checkpoints, and authority boundaries.
 
-A clear user request can be enough. A small self-contained change needs no Spec, Plan, or Working Record merely because execution was selected.
+Execute Work inherits the authority envelope established by Workflow; selecting this method does not create execution authority. A small self-contained change needs no Spec, Plan, or Working Record merely because execution was selected.
 
 Inspect relevant code, tests, docs, policies, artifacts, repository state, and current external constraints before relying on memory. When sources materially conflict or the intended result is unsafe to infer, return the evidence to [Workflow](../workflow/SKILL.md) rather than choosing silently.
 
@@ -56,11 +56,12 @@ Choose the smallest coherent action that can produce the intended result or usef
 - keep unrelated and later work outside it;
 - choose reversible local details from repository conventions;
 - let an experiment fail safely and preserve its discard, revise, or promote condition;
+- keep every experiment and observation inside the authority envelope;
 - use only specialized methods and domain guidance that the concrete boundary needs.
 
 When an accepted behavior change, bug correction with a supported cause, consequential rule, or behavior-preserving refactor benefits from a failing check first, use [TDD](../tdd/SKILL.md) for that bounded action before changing production behavior.
 
-Before work changes the intended result, scope, authority, evidence boundary, or stop conditions, decide through Workflow whether it is an accepted extension or a new slice. When a Working Record exists, use Track Work to record an accepted extension before executing it. Do not let a series of “small” additions silently replace the original result.
+Before work changes the intended result, scope, permitted effects, evidence boundary, stop condition, or authority source, decide through Workflow whether it is an accepted extension or a new slice. When a Working Record exists, use Track Work to record an accepted extension before executing it. Do not let a series of “small” additions silently replace the original result.
 
 ## Execute For The Required Boundary
 

@@ -10,11 +10,13 @@ Freeflow is a portable feedback-based control system for coding agents. Host run
 
 It has exactly three modes:
 
-- `conversation`: read-only discussion and exploration;
-- `workflow`: normal consequential or mutating work;
+- `conversation`: discussion, exploration, and passive inspection of existing evidence without exercising target behavior or intentionally changing task state;
+- `workflow`: active evidence generation and normal consequential or mutating work;
 - `strict-workflow`: stronger decision, evidence, and checkpoint pressure at high-risk boundaries.
 
 Task shape does not silently switch mode. Host permission modes remain separate.
+
+Each interaction carries an authority envelope: requested outcome, permitted effects, evidence boundary, and stop condition. Passive observation inspects existing evidence or sources without exercising target behavior or intentionally changing task state. Active evidence generation exercises target behavior to produce new evidence; mutation or delivery changes repository, durable task or session, or external state. Effects are cumulative, so the strongest relevant authority and mode boundary applies. Mode, skill selection, useful follow-on work, and new evidence do not widen the envelope.
 
 ## Layered Configuration
 
@@ -102,7 +104,7 @@ One user turn or new evidence begins an Interaction Lifecycle:
             later user turn or evidence
 ```
 
-Entry may route directly to an answer, wait, deferment, or stop. When work is needed, Workflow selects the narrowest owning skill.
+At Entry, Workflow establishes the current authority envelope from the whole user turn and any still-valid prior approval. Entry may route directly to an answer, wait, deferment, or stop. When work is needed, Workflow selects the narrowest owning skill without widening that envelope.
 
 The Feedback Loop is:
 
@@ -134,19 +136,19 @@ A Plan does not carry execution progress. Evolving state and supported deviation
 
 A slice is one coherent Learning, Delivery, or Deepening result. One current slice may span several Feedback Loop iterations, discussions, reviews, corrections, and checkpoints while its intended result remains coherent.
 
-Before accepted work expands, decide write-ahead whether it extends the current slice or needs a new result, authority source, or evidence boundary. Routine in-slice feedback is not checkpoint history.
+Before accepted work expands, return the extension to Workflow. Continue write-ahead only when the intended result remains coherent and the current authority envelope covers its effects and evidence boundary; otherwise establish a new bounded result and authority source. Routine in-slice feedback is not checkpoint history.
 
 When an ongoing task resumes after compaction, summarization, clear, resume, or session navigation, Workflow requests the Working Record's bounded `resume` view before continuing and retrieves exact entities only when needed. The record is compared with the current conversation and live state; memory from another conversation branch does not create authority.
 
 ## Verification And Review
 
-Verification is factual work owned by the active agent. Verify Work deepens claim and evidence-boundary analysis without creating another role.
+Verification is factual work owned by the active agent. Verify Work deepens claim and evidence-boundary analysis without creating another role or authority to generate evidence. Run an active check only when the current authority envelope covers it directly or as contained verification; otherwise Workflow proposes the check and waits.
 
 Self-review is silent and follows only supported verification. Review Work and Review Artifact can deepen self-review or guide a separately selected independent reviewer.
 
 Independent review ends with Pass, Non-blocking, Inconclusive, or Blocking. The active agent adjudicates each item. Findings do not authorize edits.
 
-When correction authority is not already explicit, request accepted corrections plus any warranted focused follow-up together, or corrections alone. A review budget caps dispatches but does not authorize another review. Corrections leave review and return to Execute Work or the artifact owner; they may remain in the same coherent Working Record slice.
+Use the current authority envelope when it covers an accepted correction. Otherwise request the correction plus any warranted focused follow-up together, or the correction alone. A review budget caps dispatches but does not authorize another review. Corrections leave review and return to Execute Work or the artifact owner; they may remain in the same coherent Working Record slice.
 
 ## Controlled Boundaries
 

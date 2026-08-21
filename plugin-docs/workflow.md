@@ -4,8 +4,8 @@ Freeflow is a workflow layer, not a new agent. The active agent owns understandi
 
 ## Modes
 
-- `conversation`: read-only discussion, critique, explanation, and exploration. Agent-performed mutation requires switching mode first.
-- `workflow`: the default for consequential or mutating work. Use the adaptive lifecycle and scale pressure to risk.
+- `conversation`: discussion, critique, explanation, exploration, and passive inspection of existing evidence. Active evidence generation and mutation or delivery require switching mode plus authority.
+- `workflow`: the default for active evidence generation and consequential or mutating work. Use the adaptive lifecycle and scale pressure to risk.
 - `strict-workflow`: the same lifecycle with stronger decision, evidence, and checkpoint pressure at high-risk or hard-to-reverse boundaries.
 
 Mode changes do not authorize work or resolve decisions. Task type and direct skill calls do not switch mode.
@@ -49,6 +49,18 @@ orient to accepted intent, task memory, and live evidence
 
 A later turn or new evidence begins another Interaction Lifecycle. Re-enter only the owning activity whose responsibility changed; preserve valid work and decisions.
 
+## Authority And Effects
+
+Each interaction carries an **authority envelope**: requested outcome, permitted effects, evidence boundary, and stop condition. Workflow establishes it from the whole user turn and any still-valid prior approval. Mode, skill selection, useful follow-on work, and new evidence do not widen it.
+
+Actions have different effects:
+
+- **Passive observation:** inspect existing evidence or sources without exercising target behavior or intentionally changing task state.
+- **Active evidence generation:** exercise target behavior to produce new evidence.
+- **Mutation or delivery:** change repository, durable task or session, or external state.
+
+Effects are cumulative; apply the strongest relevant authority and mode boundary. Passive observation may support an inquiry when safe and relevant. Active evidence generation, mutation or delivery, and separately controlled actions require coverage by the current authority envelope. When uncovered, the agent states the proposed action's purpose, expected evidence or result, and stop condition, asks once, and waits. Evidence supports reporting and routing; it does not by itself authorize a correction or next lifecycle stage.
+
 ## Conditional Artifacts
 
 Artifacts have distinct jobs:
@@ -62,7 +74,7 @@ They are conditional memory, not proof or authority over contradictory live evid
 
 ## Review And Verification
 
-Verification is factual work owned by the active agent. Verify Work may deepen the method; reading it does not dispatch or create another role.
+Verification is factual work owned by the active agent. Verify Work may deepen the method; reading it does not dispatch, create another role, or authorize an active check. Run an active check only when the current authority envelope covers it directly or as contained verification; otherwise propose it before running it.
 
 Self-review is silent and follows only supported verification. Review Work and Review Artifact may deepen self-review or guide a separately selected independent reviewer. Reading either skill does not create independence.
 
@@ -73,9 +85,9 @@ Independent review ends with one valid exit:
 - **Inconclusive:** gather the missing evidence or decision.
 - **Blocking:** do not cross the boundary; re-enter the narrowest owner, defer, or stop.
 
-Review findings are evidence, not commands. If correction authority is not already explicit, ask once for accepted corrections plus any warranted focused follow-up review, or corrections alone. Review budgets cap dispatches; they do not authorize another review.
+Review findings are evidence, not commands. Use the current authority envelope when it covers an accepted correction; otherwise ask once for the correction plus any warranted focused follow-up review, or the correction alone. Review budgets cap dispatches; they do not authorize another review.
 
-Corrections leave review and return to Execute Work or the artifact owner. They may remain in the same coherent Working Record slice. Before expanded work starts, decide and record whether it extends that slice or needs a distinct result, authority, or evidence boundary.
+Corrections leave review and return to Execute Work or the artifact owner. They may remain in the same coherent Working Record slice. Before expanded work starts, return it to Workflow and continue only when the current envelope covers a coherent extension; otherwise establish a distinct result, authority, or evidence boundary.
 
 ## Task Continuity
 

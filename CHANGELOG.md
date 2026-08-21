@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Scopes workflow authority by requested outcome, permitted effects, evidence boundary, and stop condition; distinguishes passive observation, active evidence generation, and mutation or delivery; and consolidates detailed policy in Workflow so mode, skill selection, usefulness, or new evidence cannot silently authorize the next action.
+- Aligns discussion, diagnosis, execution, mode, TDD, and verification guidance with the shared authority model and renames conditional references so filenames match their visible titles.
+
 ## 0.5.0 - 2026-08-13
 
 - Adds deterministic session-only Freeflow mode switching for Codex and Claude Code without restarting the conversation.

@@ -84,7 +84,7 @@ Pi source lives under `pi-extension/src/`; the package executes built output und
 
 ## Skill Architecture
 
-Workflow owns routing. Leaf skills own focused methods and return evidence, decisions, or route changes rather than redefining the lifecycle.
+Workflow owns routing and the current authority envelope. Leaf skills own focused methods and return evidence, decisions, or route changes rather than redefining the lifecycle or widening authority. Selecting a leaf method never authorizes active evidence generation, mutation, or delivery.
 
 A skill body is complete on first read with guaranteed context. Conditional depth lives in linked references; deterministic repeated work may live in scripts. Cross-skill links are project dependencies, not bundled local resources.
 

@@ -7,7 +7,7 @@ description: Use when verifying work or a claim after implementation, tests, bui
 
 Determine whether fresh evidence supports a specific claim at the required observing boundary.
 
-Verification is factual: what ran, what happened, and what that result proves. The active agent owns verification and routes from its result. Reading or invoking this skill changes neither role nor authority; it creates no review judgment or permission to continue.
+Verification is factual: what ran, what happened, and what that result proves. The active agent owns verification and routes from its result. Reading or invoking this skill changes neither role nor authority and creates no review judgment or permission to continue.
 
 ## Name The Claim
 
@@ -28,6 +28,8 @@ Do not let an available check silently narrow a broader claim.
 
 Use the smallest direct evidence that can falsify the claim. Evidence must be fresh for the code, configuration, environment, and artifact being assessed.
 
+Verification inherits the current authority envelope. Existing evidence may be inspected without a new run. Run a new active check only when that envelope covers it directly or as contained verification; otherwise return its purpose, expected evidence, and stop condition to Workflow and wait.
+
 Passing tests do not prove behavior they do not exercise. A happy path does not prove failure handling. Source inspection does not prove runtime execution. A helper call does not prove registration, host dispatch, or installed-package behavior.
 
 Read [integration evidence](references/integration-evidence.md) for callback, host-lifecycle, installed-artifact, absence, or mutation-footprint claims. Read [browser runtime evidence](references/browser-runtime-evidence.md) for rendered, interactive, network, accessibility, console, or visual claims. Read [performance evidence](references/performance-evidence.md) for latency, throughput, memory, CPU, bundle, query, or resource claims.
@@ -35,6 +37,8 @@ Read [integration evidence](references/integration-evidence.md) for callback, ho
 Review may judge whether evidence is sufficient, but review does not prove that behavior occurred.
 
 ## Run And Interpret
+
+Once the selected check is authorized:
 
 1. Run the complete selected check.
 2. Read the relevant output, exit status, and lower-level evidence that can contradict a summary.

@@ -16,7 +16,7 @@ Choose the role before reviewing:
 - **Self-review:** you produced the work. Inspect it silently using the relevant boundary and lenses below. Correct clear local issues within existing authority and re-verify. Create no formal review items, judgment, number, or cycle. Return unresolved material issues to [Workflow](../workflow/SKILL.md).
 - **Independent review:** you did not produce the reviewed state. Inspect and report without editing. Use the formal item, judgment, and report method below. The receiving active agent adjudicates and routes the result.
 
-Reading this skill does not create independence. If you produced the work, do not present your own judgment as independent review. Read [the reviewer prompt](references/reviewer-prompt.md) when preparing or performing a separately selected independent review.
+Reading this skill does not create independence. If you produced the work, do not present your own judgment as independent review. Read the [Independent Work Reviewer Contract](references/independent-work-reviewer-contract.md) when preparing or performing a separately selected independent review.
 
 ## Establish The Boundary
 
@@ -123,4 +123,4 @@ Diagnosis follows adjudicated evidence, not reviewer judgment alone. Review 3 is
 
 For self-review, report no formal result. Correct clear local issues and surface only unresolved material issues that change the route.
 
-For independent review, use [the reviewer prompt](references/reviewer-prompt.md) and stop with its report. The receiving agent then reports the reviewer and adjudicated judgments, each material item's outcome and reason, and either the problem checkpoint or remediation-ready route defined above. Omit empty groups and support the result with source or evidence rather than confidence.
+For independent review, use the [Independent Work Reviewer Contract](references/independent-work-reviewer-contract.md) and stop with its report. The receiving agent then reports the reviewer and adjudicated judgments, each material item's outcome and reason, and either the problem checkpoint or remediation-ready route defined above. Omit empty groups and support the result with source or evidence rather than confidence.

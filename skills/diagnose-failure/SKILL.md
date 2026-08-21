@@ -11,17 +11,21 @@ A **diagnostic loop** is a repeatable check or observation that can reproduce, s
 
 A requested patch, plausible code path, reviewer theory, or one favorable rerun is not a supported cause.
 
+Diagnosis inherits the current authority envelope. Selecting this method authorizes neither active evidence generation nor correction.
+
 ## Follow The Diagnostic Route
 
 ```text
 [Failure without a supported cause]
--> [Establish expected and observed behavior]
--> [Choose the smallest diagnostic loop]
--> [Reproduce or capture the failure]
+-> [Inspect existing evidence; establish expected and observed behavior]
 -> [State a falsifiable hypothesis]
--> [Run one distinguishing observation]
+-> [Choose the smallest distinguishing observation]
+-> [Authority envelope covers its effects?]
+   -> no -> [Propose purpose, expected evidence, and stop condition]
+         -> [Ask once and wait]
+   -> yes -> [Run the observation]
 -> [Route from evidence]
-   -> hypothesis contradicted -> refine or replace it -> observe again
+   -> hypothesis contradicted -> refine or replace it -> choose again
    -> evidence unavailable -> stop with the smallest missing evidence
    -> cause supported -> return cause and correction boundary to Workflow
    -> user-owned behavior or source conflict -> Decision Gate
@@ -41,18 +45,18 @@ If fresh direct evidence already establishes one clear local defect and intended
 
 ## Establish The Failure And Loop
 
-Before changing behavior:
+Start by inspecting the report, existing code, tests, logs, configuration, and artifacts. Before generating new evidence:
 
-1. establish expected behavior from accepted intent and source truth;
-2. reproduce or capture the reported failure at its required boundary;
-3. state a falsifiable hypothesis;
-4. change or observe one distinguishing variable at a time;
+1. establish expected and observed behavior from accepted intent, source truth, and existing evidence;
+2. state a falsifiable hypothesis and the alternatives the next observation must distinguish;
+3. choose the smallest diagnostic loop that can disagree with the hypothesis at the required boundary;
+4. run one covered observation and change one distinguishing variable at a time;
 5. trace the causal chain from trigger and state to the observed result;
 6. preserve evidence that contradicts the leading hypothesis.
 
 Prefer the reported path, input, environment, and observer. A nearby failure may suggest a hypothesis but does not prove the reported failure. Reduced-fidelity reproduction is diagnostic evidence only; name what it cannot establish.
 
-Read [the diagnostic-loop catalog](references/diagnostic-loop-catalog.md) when the best loop is unclear. Read [flaky and performance diagnosis](references/flaky-and-performance.md) when timing, randomness, environment variance, or resources shape the failure.
+Read [the diagnostic-loop catalog](references/diagnostic-loop-catalog.md) when the best loop is unclear. Read [Flaky and Performance Diagnosis](references/flaky-and-performance-diagnosis.md) when timing, randomness, environment variance, or resources shape the failure.
 
 Allowed behavior is not a reproduction. A cache hit does not prove a stale-read bug when caching is permitted. A possible race in source does not explain a report until timing, traces, steps, logs, or an existing expectation connect it.
 
@@ -96,7 +100,7 @@ A requested patch may instead be an authorized learning action. Its result can s
 
 ## Return The Supported Result
 
-When evidence supports a cause, return the failure boundary, diagnostic loop, causal explanation, regression signal, and smallest coherent correction to Workflow. Return an authorized implementation correction to [Execute Work](../execute-work/SKILL.md); use [TDD](../tdd/SKILL.md) when the diagnostic loop provides a failing behavior check that should guide it. Use [Simplify Code](../simplify-code/SKILL.md) when the supported cause shows that obsolete, duplicated, or workaround machinery can be removed while preserving accepted behavior. Mess left by unsuccessful attempts is not enough: settle any behavior or contract change through Workflow first, and do not use cleanup in place of correcting the supported failure or while its evidence remains unresolved. The correction may remain in the current Track Work slice while that slice still has one coherent result.
+When evidence supports a cause, return the failure boundary, diagnostic loop, causal explanation, regression signal, and smallest coherent correction to Workflow. The evidence supports the conclusion and route; it does not by itself authorize the correction. Return an authorized implementation correction to [Execute Work](../execute-work/SKILL.md); use [TDD](../tdd/SKILL.md) when the diagnostic loop provides a failing behavior check that should guide it. Use [Simplify Code](../simplify-code/SKILL.md) when the supported cause shows that obsolete, duplicated, or workaround machinery can be removed while preserving accepted behavior. Mess left by unsuccessful attempts is not enough: settle any behavior or contract change through Workflow first, and do not use cleanup in place of correcting the supported failure or while its evidence remains unresolved. The correction may remain in the current Track Work slice while that slice still has one coherent result.
 
 After correction, use [Verify Work](../verify-work/SKILL.md) to rerun both the minimized regression signal and the original reported path or strongest available observer. If correction fails or exposes related shared-state consequences, re-enter diagnosis before another patch.
 

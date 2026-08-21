@@ -5,6 +5,8 @@ description: Use when implementing or changing behavior test-first, fixing a bug
 
 # Test-Driven Development
 
+Selecting TDD creates no authority. Enter RED only when accepted behavior is settled and the current authority envelope covers the test and production effects.
+
 Use one observed failing behavior check to guide the smallest complete implementation for one accepted behavior.
 
 TDD is an execution method inside [Execute Work](../execute-work/SKILL.md). One vertical RED/GREEN/REFACTOR loop is a bounded action, not automatically a Track Work slice. Several accepted behavior loops may remain inside one coherent current slice.
@@ -26,7 +28,7 @@ TDD does not define intended behavior. The accepted request, source truth, and u
 -> [Verify original path and affected boundary]
 -> [Route]
    -> another accepted behavior in this slice -> next TDD loop
-   -> coherent extension -> approve and record when needed
+   -> coherent extension -> Workflow -> when covered, record if needed -> next TDD loop
    -> unclear cause or structural pressure -> Workflow
    -> supported bounded action -> return to Execute Work
 ```
@@ -43,19 +45,9 @@ Stop before RED when expected behavior, failure semantics, or a public contract 
 
 ## Choose The Seam And Oracle
 
-Test observable behavior through the highest stable interface that exercises the real requirement.
+Test observable behavior through the highest stable caller interface that exercises the real requirement and can disagree with the implementation. Derive expected results from source truth, a worked example, protocol contract, or independent calculation—not the implementation algorithm.
 
-A useful seam:
-
-- is used by callers rather than created only for tests;
-- survives internal refactoring;
-- reaches the real behavior or failure path;
-- keeps setup proportionate;
-- can disagree with the implementation.
-
-Derive expected results from source truth, a worked example, protocol contract, or independent calculation—not the implementation algorithm.
-
-Read [Test Design](references/test-design.md) when the test level, oracle, double, rejected state, composed failure, time or concurrency boundary, or legacy seam is unclear.
+Read [Test Design](references/test-design.md) when the test level, seam, oracle, double, rejected state, composed failure, time or concurrency boundary, or legacy behavior is unclear.
 
 If testing requires owned internals, duplicated caller choreography, or production hooks used only by tests, return the evidence to Workflow. Use [Design for Depth](../design-for-depth/SKILL.md) only when it establishes design-bearing interface or ownership pressure; do not redesign merely because one test is inconvenient.
 
