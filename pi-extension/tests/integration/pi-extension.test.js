@@ -2372,7 +2372,7 @@ test("Pi before_agent_start keeps the per-turn system context to the compact int
     assert.doesNotMatch(result.systemPrompt, /## Conversation Mode Boundary/);
     assert.doesNotMatch(result.systemPrompt, /## Strict Workflow Overlay/);
     assert.match(result.systemPrompt, /Answer questions without inferring action/);
-    assert.match(result.systemPrompt, /enough shared\s+understanding for\s+the next sound action/);
+    assert.match(result.systemPrompt, /outcome, effects, evidence boundary, and stop condition/);
     assert.doesNotMatch(result.systemPrompt, /self-review|final assurance|standing authorization/i);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Mode Contract Skill/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);

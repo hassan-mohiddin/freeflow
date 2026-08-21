@@ -1,4 +1,8 @@
-import { CognitiveRoutingController } from "./cognitive-routing/controller.js";
+import {
+  COGNITIVE_ROUTING_CONTROL_ENTRY,
+  COGNITIVE_ROUTING_INTENT_ENTRY,
+  CognitiveRoutingController,
+} from "./cognitive-routing/controller.js";
 import {
   cognitiveRoutingProfileCompletions,
   handleCognitiveRoutingProfileCommand,
@@ -38,6 +42,28 @@ function isOutputRouterToolName(name) {
 }
 function startupSelectionSuppressesCognitiveRouting(ctx) {
   return ctx?.modelStateProvenance?.explicitModel === true || ctx?.modelStateProvenance?.explicitThinking === true;
+}
+function sessionHasConversationOrRoutingState(ctx) {
+  try {
+    const entries = ctx?.sessionManager?.getBranch?.() ?? ctx?.sessionManager?.getEntries?.() ?? [];
+    if (!Array.isArray(entries)) return false;
+    return entries.some((entry) => {
+      if (!entry || typeof entry !== "object") return false;
+      const record = entry;
+      if (
+        typeof record.type === "string" &&
+        ["message", "custom_message", "compaction", "branch_summary"].includes(record.type)
+      ) {
+        return true;
+      }
+      return (
+        record.type === "custom" &&
+        (record.customType === COGNITIVE_ROUTING_INTENT_ENTRY || record.customType === COGNITIVE_ROUTING_CONTROL_ENTRY)
+      );
+    });
+  } catch {
+    return false;
+  }
 }
 function promptCapabilityState(capabilityState, cognitiveRoutingRuntime, ctx) {
   if (
@@ -268,6 +294,9 @@ export default function freeflow(pi) {
           ctx.ui?.notify?.("Freeflow settings and profile changes are available only while Pi is idle.", "warning");
           return;
         }
+        if (!cognitiveRoutingController) {
+          await applyLiveCapabilityStateForSession(ctx, { reconcileCognitiveRouting: true });
+        }
         const controller = cognitiveRoutingController;
         if (!controller) {
           ctx.ui?.notify?.("Cognitive Routing is unavailable for this session.", "warning");
@@ -290,6 +319,9 @@ export default function freeflow(pi) {
         if (typeof ctx?.isIdle === "function" && !ctx.isIdle()) {
           ctx.ui?.notify?.("Freeflow settings and profile changes are available only while Pi is idle.", "warning");
           return;
+        }
+        if (!cognitiveRoutingController) {
+          await applyLiveCapabilityStateForSession(ctx, { reconcileCognitiveRouting: true });
         }
         const controller = cognitiveRoutingController;
         if (!controller) {
@@ -328,12 +360,9 @@ export default function freeflow(pi) {
     ]);
     await refreshRuntimeContext(capabilityState);
     notifyRouterConfigWarnings(ctx, routerConfigResult);
-    cognitiveRoutingController = await reconcileCognitiveRoutingController(
-      pi,
-      ctx,
-      capabilityState,
-      cognitiveRoutingController,
-    );
+    cognitiveRoutingController = sessionHasConversationOrRoutingState(ctx)
+      ? await reconcileCognitiveRoutingController(pi, ctx, capabilityState, cognitiveRoutingController)
+      : undefined;
     setModeStatus(ctx, modeState, capabilityState, cognitiveRoutingController?.state());
     await applyCapabilityToolVisibility(pi, ctx, capabilityState, cognitiveRoutingController);
   });
@@ -381,6 +410,14 @@ export default function freeflow(pi) {
       readOutputRouterConfig(ctx.cwd),
       readCapabilityState(ctx.cwd, ctx, pi?.host),
     ]);
+    if (!cognitiveRoutingController) {
+      cognitiveRoutingController = await reconcileCognitiveRoutingController(
+        pi,
+        ctx,
+        capabilityState,
+        cognitiveRoutingController,
+      );
+    }
     const cognitiveRoutingRuntime = cognitiveRoutingController?.state();
     const effectivePromptCapabilityState = promptCapabilityState(capabilityState, cognitiveRoutingRuntime, ctx);
     const freeflowContext = await getRuntimeContext(effectivePromptCapabilityState);
@@ -489,12 +526,14 @@ export default function freeflow(pi) {
         );
         return;
       }
-      if (
-        isPiFlowHost(pi?.host) &&
-        (await handleCognitiveRoutingProfileCommand(args, ctx, cognitiveRoutingController))
-      ) {
-        await applyLiveCapabilityStateForSession(ctx);
-        return;
+      if (isPiFlowHost(pi?.host) && /^profile(?:\s|$)/i.test((args ?? "").trim())) {
+        if (!cognitiveRoutingController) {
+          await applyLiveCapabilityStateForSession(ctx, { reconcileCognitiveRouting: true });
+        }
+        if (await handleCognitiveRoutingProfileCommand(args, ctx, cognitiveRoutingController)) {
+          await applyLiveCapabilityStateForSession(ctx);
+          return;
+        }
       }
       await handleFreeflowCommand(
         args,

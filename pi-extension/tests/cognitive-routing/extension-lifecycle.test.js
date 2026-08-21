@@ -224,6 +224,42 @@ test("explicit startup model provenance suppresses lifecycle activation", async 
   }
 });
 
+test("new empty sessions do not persist Cognitive Routing state until the first prompt", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-cognitive-routing-lazy-start-"));
+  await mkdir(join(cwd, ".freeflow"));
+  await writeFile(
+    join(cwd, ".freeflow", "config.json"),
+    JSON.stringify({
+      cognitiveRouting: {
+        enabled: true,
+        profiles: {
+          standard: { provider: "faux", model: "standard", thinkingLevel: "high" },
+          reasoning: { provider: "faux", model: "reasoning", thinkingLevel: "max" },
+        },
+      },
+    }),
+  );
+  const host = createExtensionHost();
+  const ctx = createContext(cwd, host);
+  try {
+    await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+
+    assert.deepEqual(host.operations, []);
+    assert.deepEqual(host.entries, []);
+
+    const beforeAgentStart = await host.handlers.get("before_agent_start")(
+      { prompt: "hello", systemPrompt: "base prompt" },
+      ctx,
+    );
+    assert.deepEqual(host.operations.slice(0, 3), ["prepare", "acquire", "setState"]);
+    assert.equal(host.entries[0].customType, "freeflow-cognitive-routing-intent");
+    assert.match(beforeAgentStart.systemPrompt, /^# Automatic Routing Kernel$/m);
+  } finally {
+    await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "test-cleanup" }, ctx);
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
 test("child extension activation does not deactivate the parent routing controller", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-cognitive-routing-child-activation-"));
   await mkdir(join(cwd, ".freeflow"));
@@ -246,6 +282,7 @@ test("child extension activation does not deactivate the parent routing controll
   childContext.modelStateProvenance = { explicitModel: true, explicitThinking: true };
   try {
     await parent.handlers.get("session_start")({ type: "session_start", reason: "startup" }, parentContext);
+    await parent.handlers.get("before_agent_start")({ prompt: "hello", systemPrompt: "base prompt" }, parentContext);
     assert.deepEqual(parent.state, { model: { provider: "faux", id: "standard" }, thinkingLevel: "high" });
 
     await child.handlers.get("session_start")({ type: "session_start", reason: "startup" }, childContext);
@@ -344,6 +381,7 @@ test("settled runs preserve automatic reasoning and manual holds", async () => {
   const ctx = createContext(cwd, host);
   try {
     await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    await host.handlers.get("before_agent_start")({ prompt: "hello", systemPrompt: "base prompt" }, ctx);
     const switchTool = host.tools.find((tool) => tool.name === "freeflow_switch_profile");
     await switchTool.execute(
       "call-1",
@@ -473,6 +511,7 @@ test("compaction reconciles without changing an active routing pair", async () =
   const ctx = createContext(cwd, host);
   try {
     await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    await host.handlers.get("before_agent_start")({ prompt: "hello", systemPrompt: "base prompt" }, ctx);
     const operationsBeforeCompaction = [...host.operations];
     await host.handlers.get("session_compact")({ type: "session_compact" }, ctx);
 
@@ -538,6 +577,7 @@ test("session replacement restores the pair before releasing routing ownership",
   const ctx = createContext(cwd, host);
   try {
     await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    await host.handlers.get("before_agent_start")({ prompt: "hello", systemPrompt: "base prompt" }, ctx);
     await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "new" }, ctx);
 
     assert.deepEqual(host.operations, ["prepare", "acquire", "setState", "prepare", "setState", "release"]);
@@ -566,6 +606,7 @@ test("reload recovery stays inactive after an unmatched closing intent", async (
   const ctx = createContext(cwd, host);
   try {
     await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    await host.handlers.get("before_agent_start")({ prompt: "hello", systemPrompt: "base prompt" }, ctx);
     await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "reload" }, ctx);
     assert.deepEqual(host.operations, ["prepare", "acquire", "setState", "prepare", "setState", "release"]);
     assert.equal(host.entries.at(-1).customType, "freeflow-cognitive-routing-intent");
@@ -712,12 +753,16 @@ test("Pi lifecycle prepares, activates, restores, and releases Cognitive Routing
   const ctx = createContext(cwd, host);
   try {
     await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    assert.deepEqual(host.operations, []);
 
+    const beforeAgentStart = await host.handlers.get("before_agent_start")(
+      { prompt: "hello", systemPrompt: "base prompt" },
+      ctx,
+    );
     assert.deepEqual(host.operations.slice(0, 3), ["prepare", "acquire", "setState"]);
     assert.deepEqual(host.state, { model: { provider: "faux", id: "standard" }, thinkingLevel: "high" });
     assert.equal(host.entries[0].customType, "freeflow-cognitive-routing-intent");
     assert.ok(host.activeToolNames().includes("freeflow_switch_profile"));
-    const beforeAgentStart = await host.handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
     assert.doesNotMatch(beforeAgentStart.systemPrompt, /^# Cognitive Routing$/m);
     assert.match(beforeAgentStart.systemPrompt, /^# Automatic Routing Kernel$/m);
     assert.match(beforeAgentStart.systemPrompt, /## Cognitive Routing Runtime State/);
