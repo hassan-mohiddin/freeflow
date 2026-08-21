@@ -1,8 +1,3 @@
----
-name: "cognitive-routing"
-description: "Guide one active agent in choosing between configured standard and reasoning profiles while preserving workflow, authority, and evidence."
----
-
 # Cognitive Routing
 
 Use one active agent, one shared visible context, and two compute profiles. Cognitive Routing changes compute—not task ownership, Workflow route, mode, accepted intent, evidence requirements, or authority.
