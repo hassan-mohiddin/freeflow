@@ -94,6 +94,21 @@ function toolResultEntry() {
   };
 }
 
+function untouchedToolResultEntry() {
+  return {
+    type: "message",
+    id: "tool-2",
+    parentId: "tool-1",
+    message: {
+      role: "toolResult",
+      toolCallId: "call-2",
+      toolName: "bash",
+      content: [{ type: "text", text: "untouched result" }],
+      isError: false,
+    },
+  };
+}
+
 async function writeConfig(cwd, contextVirtualization) {
   await mkdir(join(cwd, ".freeflow"));
   await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ contextVirtualization }, null, 2), "utf8");
@@ -103,7 +118,7 @@ test("enabled Context Virtualization registers, projects, archives, restores, an
   const cwd = await mkdtemp(join(tmpdir(), "freeflow-context-extension-"));
   try {
     await writeConfig(cwd, true);
-    const harness = createHarness(cwd, [toolResultEntry()]);
+    const harness = createHarness(cwd, [toolResultEntry(), untouchedToolResultEntry()]);
     await harness.handlers.get("session_start")({ reason: "startup" }, harness.ctx);
 
     assert.ok(harness.activeToolNames().includes("freeflow_context"));
@@ -129,6 +144,20 @@ test("enabled Context Virtualization registers, projects, archives, restores, an
       harness.ctx,
     );
     assert.equal(archived.details.result.status, "ok");
+    assert.deepEqual(archived.details.result.retained, {
+      "ctx:tool-1": "The result is needed only as a failure summary.",
+    });
+    assert.equal(
+      archived.content[0].text,
+      [
+        "Context Virtualization: archive",
+        "Status: ok",
+        "Changed: ctx:tool-1",
+        "Message: Archived 1 tool result from future context projections.",
+        "Retained meaning:",
+        "  ctx:tool-1: The result is needed only as a failure summary.",
+      ].join("\n"),
+    );
 
     const archivedContext = await harness.handlers.get("context")(
       { messages: [harness.entries[0].message] },
@@ -140,21 +169,31 @@ test("enabled Context Virtualization registers, projects, archives, restores, an
     await harness.commands
       .find((command) => command.name === "freeflow")
       .definition.handler("context list", harness.ctx);
-    assert.match(harness.notifications.at(-1).message, /ctx:tool-1/);
+    const listMessage = harness.notifications.at(-1).message;
+    assert.match(listMessage, /^Context Virtualization: archived projections/);
+    assert.match(listMessage, /Ref: ctx:tool-1/);
+    assert.match(listMessage, /Tool: read/);
+    assert.match(listMessage, /State: retained/);
+    assert.doesNotMatch(listMessage, /ctx:tool-2/);
+    assert.doesNotMatch(listMessage, /\|/);
 
-    const restored = await contextTool.execute(
-      "context-restore",
-      { operation: "restore", refs: ["ctx:tool-1"] },
-      undefined,
-      undefined,
-      harness.ctx,
-    );
-    assert.equal(restored.details.result.status, "ok");
+    await harness.commands
+      .find((command) => command.name === "freeflow")
+      .definition.handler("context restore ctx:tool-1", harness.ctx);
+    assert.equal(harness.notifications.at(-1).message, "Restored 1 projection to full content.");
     const restoredContext = await harness.handlers.get("context")(
       { messages: [harness.entries[0].message] },
       harness.ctx,
     );
     assert.match(restoredContext.messages[0].content.at(-1).text, /ctx:tool-1/);
+
+    await harness.commands
+      .find((command) => command.name === "freeflow")
+      .definition.handler("context list", harness.ctx);
+    assert.equal(
+      harness.notifications.at(-1).message,
+      "Context Virtualization: no archived projections in the active session branch.",
+    );
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

@@ -3,29 +3,32 @@ function formatStatus(status) {
     return `Context Virtualization: unavailable${status.unavailableReason ? ` (${status.unavailableReason})` : ""}`;
   }
   return [
-    `Context Virtualization: available`,
-    `session: ${status.sessionId}`,
-    `branch: ${status.branchLeafId ?? "root"}`,
-    `projections: full=${status.counts.full}, archived=${status.counts.archived}, retained=${status.counts.retained}`,
-    `characters: original=${status.originalCharacters}, projected=${status.projectedCharacters}`,
-    `availability: history-only=${status.historyOnly}, unresolved=${status.unresolved}`,
-  ].join("; ");
+    "Context Virtualization: available",
+    `Session: ${status.sessionId}`,
+    `Branch: ${status.branchLeafId ?? "root"}`,
+    `Projections: full=${status.counts.full}, archived=${status.counts.archived}, retained=${status.counts.retained}`,
+    `Characters: original=${status.originalCharacters.toLocaleString("en-US")}, projected=${status.projectedCharacters.toLocaleString("en-US")}`,
+    `Availability: history-only=${status.historyOnly}, unresolved=${status.unresolved}`,
+  ].join("\n");
 }
 function formatList(status) {
   if (!status.available) return formatStatus(status);
-  if (status.items.length === 0) return "Context Virtualization: no tool-result sources in the active session branch.";
-  const header = "Ref | Tool | State | Original | Projected | Availability";
-  const rows = status.items.map((item) =>
-    [
-      item.ref,
-      item.toolName ?? "tool",
-      item.mode === "archived" ? (item.retained === undefined ? "archived" : "retained") : "full",
-      item.originalCharacters,
-      item.projectedCharacters,
-      item.availability,
-    ].join(" | "),
-  );
-  return [header, ...rows].join("\n");
+  const items = status.items.filter((item) => item.mode === "archived");
+  if (items.length === 0) return "Context Virtualization: no archived projections in the active session branch.";
+  const lines = ["Context Virtualization: archived projections"];
+  for (const item of items) {
+    lines.push(
+      "",
+      `Ref: ${item.ref}`,
+      `Tool: ${item.toolName ?? "tool"}`,
+      `State: ${item.retained === undefined ? "archived" : "retained"}`,
+      `Original: ${item.originalCharacters.toLocaleString("en-US")} characters`,
+      `Projected: ${item.projectedCharacters.toLocaleString("en-US")} characters`,
+      `Availability: ${item.availability}`,
+    );
+    if (item.retained !== undefined) lines.push(`Retained: ${item.retained}`);
+  }
+  return lines.join("\n");
 }
 function refsFromArgs(args) {
   return args

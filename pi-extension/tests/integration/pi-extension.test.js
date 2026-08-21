@@ -332,6 +332,12 @@ test("Pi describes Freeflow and Output Router argument completions", () => {
       description: "Clear the session override and use the configured default",
     },
   ]);
+  assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("context "), [
+    { value: "context status", label: "status", description: "Show Context Virtualization state" },
+    { value: "context list", label: "list", description: "List archived context projections" },
+    { value: "context restore", label: "restore", description: "Restore one or more context references" },
+    { value: "context reset all", label: "reset all", description: "Reset projection decisions on the active branch" },
+  ]);
   assert.deepEqual(outputRouterCommand.definition.getArgumentCompletions(""), [
     { value: "settings", label: "settings", description: "Open repository Output Router settings" },
     { value: "status", label: "status", description: "Show effective Output Router state" },
@@ -1994,10 +2000,11 @@ test("Pi /freeflow settings groups capability settings", async () => {
       });
       const rootText = renderText(component);
       assert.match(rootText, /^─+/);
+      assert.ok(rootText.indexOf("Context Virtualization") < rootText.indexOf("Output Router"));
       assert.match(rootText, /Output Router\s+enabled \(22\) \(repository\)/);
       assert.doesNotMatch(rootText, /Native safety net/);
 
-      for (let index = 0; index < 6; index++) {
+      for (let index = 0; index < 7; index++) {
         component.handleInput("\u001b[B");
       }
       component.handleInput("\r");
@@ -4478,7 +4485,7 @@ test("Pi keeps enabled capability context alongside the interaction contract", a
     assert.doesNotMatch(result.systemPrompt, /## Loaded Workflow Skill/);
     assert.doesNotMatch(result.systemPrompt, /## Discovery-light/);
     assert.match(result.systemPrompt, /## Loaded Output Router Skill/);
-    assert.match(result.systemPrompt, /name: output-router/);
+    assert.match(result.systemPrompt, /Choose how evidence moves into context\./);
     assert.doesNotMatch(result.systemPrompt, /## Freeflow Output Router Reminder/);
     assert.doesNotMatch(result.systemPrompt, /## Loaded Output Router Safety Policy/);
     assert.doesNotMatch(result.systemPrompt, /Capture raw evidence before transformation/);

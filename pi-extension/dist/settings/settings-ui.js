@@ -1117,6 +1117,7 @@ function freeflowItems(rawConfig, modeState, options = {}) {
     sessionModeItem,
     defaultModeItem,
     ...(cognitiveRoutingGroup ? [cognitiveRoutingGroup] : []),
+    contextVirtualizationItem,
     {
       id: "outputRouter.group",
       label: "Output Router",
@@ -1128,7 +1129,6 @@ function freeflowItems(rawConfig, modeState, options = {}) {
       displaySuffix: "(repository)",
       children: routerItems,
     },
-    contextVirtualizationItem,
   ];
 }
 function migrateLegacyRouterConfig(config) {

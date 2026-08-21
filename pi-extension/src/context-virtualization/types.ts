@@ -93,6 +93,7 @@ export type ContextOperationResult = {
   operation: "archive" | "restore" | "reset";
   changed: string[];
   message?: string;
+  retained?: Record<string, string>;
   availability?: Record<string, ContextAvailability>;
 };
 

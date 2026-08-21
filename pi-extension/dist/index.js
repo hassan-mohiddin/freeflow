@@ -200,7 +200,7 @@ function freeflowCompletions(prefix, hostInfo = undefined) {
     const contextQuery = query.slice("context ".length);
     return [
       { value: "status", label: "status", description: "Show Context Virtualization state" },
-      { value: "list", label: "list", description: "List context projection sources" },
+      { value: "list", label: "list", description: "List archived context projections" },
       { value: "restore", label: "restore", description: "Restore one or more context references" },
       { value: "reset all", label: "reset all", description: "Reset projection decisions on the active branch" },
     ]

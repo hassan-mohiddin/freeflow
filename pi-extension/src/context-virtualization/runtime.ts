@@ -263,6 +263,7 @@ export class ContextVirtualizationRuntime {
     if (!this.latestRequest) return this.rejected("archive", "no_consumed_context_request");
 
     const changes: ContextProjectionChange[] = [];
+    const retainedMeaning: Record<string, string> = {};
     for (let index = 0; index < targets.length; index += 1) {
       const target = targets[index];
       if (!target || typeof target !== "object") return this.rejected("archive", `target_${index}_must_be_object`);
@@ -280,6 +281,7 @@ export class ContextVirtualizationRuntime {
         source: cloneSource(source.source),
         projection: retained === undefined ? { mode: "archived" } : { mode: "archived", retained },
       });
+      if (retained !== undefined) retainedMeaning[normalizedRef] = retained;
     }
 
     await this.persist({ version: CONTEXT_PROJECTION_VERSION, actor: "model", changes });
@@ -294,6 +296,7 @@ export class ContextVirtualizationRuntime {
       operation: "archive",
       changed: changes.map((change) => contextRefForEntry(change.source.entryId)),
       message: `Archived ${changes.length} tool result${changes.length === 1 ? "" : "s"} from future context projections.`,
+      ...(Object.keys(retainedMeaning).length > 0 ? { retained: retainedMeaning } : {}),
     };
   }
 

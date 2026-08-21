@@ -51,12 +51,19 @@ type ContextToolParams = {
 };
 
 function resultText(result: ContextOperationResult): string {
-  const lines = [`${CONTEXT_VIRTUALIZATION_TOOL_NAME}|${result.operation}`, `status|${result.status}`];
-  if (result.changed.length > 0) lines.push(`changed|${result.changed.join(",")}`);
-  if (result.message) lines.push(`message|${result.message}`);
+  const lines = [`Context Virtualization: ${result.operation}`, `Status: ${result.status}`];
+  if (result.changed.length > 0) lines.push(`Changed: ${result.changed.join(", ")}`);
+  if (result.message) lines.push(`Message: ${result.message}`);
+  if (result.retained) {
+    lines.push("Retained meaning:");
+    for (const [ref, meaning] of Object.entries(result.retained)) {
+      lines.push(`  ${ref}: ${meaning}`);
+    }
+  }
   if (result.availability) {
+    lines.push("Availability:");
     for (const [ref, availability] of Object.entries(result.availability)) {
-      lines.push(`availability|${ref}|${availability}`);
+      lines.push(`  ${ref}: ${availability}`);
     }
   }
   return lines.join("\n");

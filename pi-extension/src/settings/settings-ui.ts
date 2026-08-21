@@ -1342,6 +1342,7 @@ function freeflowItems(
     sessionModeItem,
     defaultModeItem,
     ...(cognitiveRoutingGroup ? [cognitiveRoutingGroup] : []),
+    contextVirtualizationItem,
     {
       id: "outputRouter.group",
       label: "Output Router",
@@ -1353,7 +1354,6 @@ function freeflowItems(
       displaySuffix: "(repository)",
       children: routerItems,
     },
-    contextVirtualizationItem,
   ];
 }
 
