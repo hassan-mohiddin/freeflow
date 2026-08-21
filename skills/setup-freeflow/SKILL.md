@@ -83,6 +83,8 @@ Verify:
 - Skills-disabled mode remains resolved but dormant;
 - no repo-owned host instructions or unrelated files changed.
 
+After verification supports a setup result, silently self-review the final observed or changed state before accepting, reusing, or reporting it. Correct clear local issues within the existing setup authority and re-verify the affected boundary; stop on ambiguity, route change, or an out-of-envelope correction.
+
 Report separately:
 
 1. shared repository activation;

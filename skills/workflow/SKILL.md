@@ -52,15 +52,16 @@ Before authorized work begins, recommend Discuss only when user input could mate
 
 ## Run One Feedback Loop
 
-For one bounded activity:
+For every bounded activity—whether the whole task, a slice, a subtask, an artifact revision, or a small local change:
 
 1. Orient to accepted intent, the authority envelope, relevant task memory, and live evidence.
 2. Use the owning skill to discuss, preserve, implement, test, observe, verify, or review.
 3. Determine what the result proves at the required boundary.
-4. When supported, self-review once for alignment, suitability, and unnecessary complexity.
-5. Continue, correct, diagnose, revise, ask, defer, or stop from the result.
+4. Once initial evidence supports the result, self-review the resulting state once for alignment, suitability, and unnecessary complexity.
+5. Only then treat the activity as supported, use its result as the basis for later work, or claim it complete.
+6. Continue, correct, diagnose, revise, ask, defer, or stop from the result.
 
-Self-review is silent and creates no formal judgment or cycle. Correct one clear local issue within the authority envelope, re-verify, then freeze the supported state. Further polish, advisory warnings, and unrelated issues require another selected action.
+Self-review is required at each such boundary. It is silent, remains inside the authorized activity rather than creating another activity or review cycle, creates no formal judgment, and does not widen authority. Correct clear local issues required by the accepted outcome within the authority envelope, re-verify the affected boundary, confirm the final state has no unresolved material issue, then freeze it. Return ambiguous, non-local, route-changing, or out-of-envelope issues to Workflow. Further polish, advisory warnings, and unrelated issues require another selected action.
 
 If evidence fails or contradicts the claim, correct a clear local defect or use Diagnose Failure when the cause is unsupported or repeats. Do not review unsupported work as ready. Handle only edge cases required by accepted behavior, observed evidence, or material safety. A stream of related patches routes to the shared requirement, cause, ownership, or interface.
 
@@ -104,4 +105,4 @@ Findings authorize neither correction nor follow-up review. Do not ask for corre
 
 Preserve valid work and revise only the affected layer. A Supported Exit may answer, wait, pause, hand off, defer, stop, preserve a controlled boundary, or complete.
 
-Claim completion only when fresh evidence supports the accepted outcome, self-review has no unresolved material issue, selected reviews are resolved, task memory is accurate, required artifacts are synchronized, and no user-owned decision or source conflict remains hidden. Report the outcome, evidence, gaps, and route. Use `Next:` only when one useful recommendation remains; it does not authorize action.
+Claim completion only when fresh evidence supports the accepted outcome, every completed bounded activity has crossed its required self-review boundary with no unresolved material issue, selected reviews are resolved, task memory is accurate, required artifacts are synchronized, and no user-owned decision or source conflict remains hidden. Report the outcome, evidence, gaps, and route. Use `Next:` only when one useful recommendation remains; it does not authorize action.

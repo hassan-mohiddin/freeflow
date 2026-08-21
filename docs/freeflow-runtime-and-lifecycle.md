@@ -106,14 +106,15 @@ One user turn or new evidence begins an Interaction Lifecycle:
 
 At Entry, Workflow establishes the current authority envelope from the whole user turn and any still-valid prior approval. Entry may route directly to an answer, wait, deferment, or stop. When work is needed, Workflow selects the narrowest owning skill without widening that envelope.
 
-The Feedback Loop is:
+The Feedback Loop applies to every bounded activity, including a whole task, slice, subtask, artifact revision, or small local change:
 
 ```text
 orient to accepted intent, task memory, and live evidence
 -> use the owning skill
 -> implement, discuss, test, or observe
 -> verify what the evidence proves
--> when supported, self-review once
+-> once initially supported, self-review the resulting state
+-> only then accept, reuse, or claim that activity complete
 -> continue, correct, diagnose, revise, ask, defer, or stop
 ```
 
@@ -144,7 +145,7 @@ When an ongoing task resumes after compaction, summarization, clear, resume, or 
 
 Verification is factual work owned by the active agent. Verify Work deepens claim and evidence-boundary analysis without creating another role or authority to generate evidence. Run an active check only when the current authority envelope covers it directly or as contained verification; otherwise Workflow proposes the check and waits.
 
-Self-review is silent and follows only supported verification. Review Work and Review Artifact can deepen self-review or guide a separately selected independent reviewer.
+Self-review is required for every completed bounded activity, remains silent, and follows initially supported verification. It belongs to the authorized activity without widening authority: clear local issues required by the accepted outcome may be corrected and re-verified before the final state is frozen. Review Work and Review Artifact can deepen self-review or guide a separately selected independent reviewer.
 
 Independent review ends with Pass, Non-blocking, Inconclusive, or Blocking. The active agent adjudicates each item. Findings do not authorize edits.
 
@@ -167,7 +168,7 @@ Bypass changes optional method pressure inside an accepted action. It does not c
 
 A Supported Exit may answer, wait, pause, hand off, defer, stop, preserve a controlled boundary, or complete.
 
-Completion requires fresh active-agent verification, one supported self-review, resolved selected reviews, accurate Working Record state when present, synchronized required durable artifacts, and no hidden user-owned decision or source conflict.
+Completion requires fresh active-agent verification, the required self-review for every completed bounded activity, resolved selected reviews, accurate Working Record state when present, synchronized required durable artifacts, and no hidden user-owned decision or source conflict.
 
 ## Current Package Shape
 

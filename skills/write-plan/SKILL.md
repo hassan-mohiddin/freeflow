@@ -57,7 +57,7 @@ Each slice should produce a coherent result that can be checked. A validation st
 
 ## Select Useful Checkpoints
 
-Every meaningful slice is verified and silently self-reviewed during execution; do not restate that default unless its evidence boundary is unusual.
+During execution, every bounded activity is verified and silently self-reviewed before its result is accepted, reused, or claimed complete; do not restate that default unless its evidence boundary is unusual.
 
 At meaningful slice, phase, integration, risk, or continuity boundaries, consider independent review, a local commit, a user decision, or a continuity checkpoint. Record only selected checkpoints and their conditions. A slice ending or a fixed count alone does not justify a commit; prefer one when supported work forms a coherent rollback point or the next work may destabilize it.
 

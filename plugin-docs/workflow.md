@@ -37,13 +37,14 @@ Pi `/freeflow settings` edits personal overrides; `/freeflow settings session` e
 
 Entry is a user turn or new evidence interpreted through the Interaction Contract and effective mode. It may lead directly to an answer, wait, deferment, or stop. When work is needed, Workflow chooses the narrowest owning skill.
 
-The Feedback Loop is:
+The Feedback Loop applies to every bounded activity, including a whole task, slice, subtask, artifact revision, or small local change:
 
 ```text
 orient to accepted intent, task memory, and live evidence
 -> act, discuss, test, or observe through the owning skill
 -> verify what direct evidence proves
--> when supported, self-review once
+-> once initially supported, self-review the resulting state
+-> only then accept, reuse, or claim that activity complete
 -> continue, correct, diagnose, revise, ask, defer, or stop
 ```
 
@@ -76,7 +77,7 @@ They are conditional memory, not proof or authority over contradictory live evid
 
 Verification is factual work owned by the active agent. Verify Work may deepen the method; reading it does not dispatch, create another role, or authorize an active check. Run an active check only when the current authority envelope covers it directly or as contained verification; otherwise propose it before running it.
 
-Self-review is silent and follows only supported verification. Review Work and Review Artifact may deepen self-review or guide a separately selected independent reviewer. Reading either skill does not create independence.
+Self-review is required for every completed bounded activity, remains silent, and follows initially supported verification. It belongs to the authorized activity without widening authority: clear local issues required by the accepted outcome may be corrected and re-verified before the final state is frozen. Review Work and Review Artifact may deepen self-review or guide a separately selected independent reviewer. Reading either skill does not create independence.
 
 Independent review ends with one valid exit:
 
@@ -101,6 +102,6 @@ Independent review, a local commit, a user decision, and continuity transfer are
 
 Commit, branch integration, migration, release, launch, and destructive cleanup remain separately controlled. Bypass may reduce optional pressure inside an accepted action, but it cannot change mode, create authority, erase evidence, remove selected review, or weaken a completion claim.
 
-A Supported Exit may answer, wait, pause, hand off, defer, stop, preserve a controlled boundary, or complete. Completion requires fresh verification, one supported self-review, resolved selected reviews, accurate task memory, synchronized required docs, and no hidden owner decision or source conflict.
+A Supported Exit may answer, wait, pause, hand off, defer, stop, preserve a controlled boundary, or complete. Completion requires fresh verification, the required self-review for every completed bounded activity, resolved selected reviews, accurate task memory, synchronized required docs, and no hidden owner decision or source conflict.
 
 See [Skill routing](skill-routing.md) for the shipped methods, ownership, routes, and references.

@@ -69,7 +69,7 @@ Use a new slice only for a distinct intended result, authority boundary, evidenc
 
 Closure means settlement, not merely finished code or green tests:
 
-- `Completed` requires the intended result, evidence boundary, supported self-review, selected checkpoints, accepted corrections, and required in-scope work to be settled;
+- `Completed` requires the intended result and evidence boundary, all completed bounded activities self-reviewed with no unresolved material issue, selected checkpoints resolved, accepted corrections verified, and required in-scope work settled;
 - historical `Blocked` deliberately parks a blocked attempt while preserving its unresolved blocker and required resolution;
 - `Abandoned` requires explicit authority, reason, residual effects, and useful evidence without implying success.
 

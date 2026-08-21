@@ -22,7 +22,7 @@ _Avoid_: auto mode, mandatory pipeline
 
 **Strict Workflow Mode**:
 The same adaptive Workflow with stronger decision, evidence, and checkpoint pressure at high-risk or hard-to-reverse boundaries.
-_Avoid_: locked mode, review after every slice
+_Avoid_: locked mode, mandatory independent review after every slice
 
 **Interaction Contract**:
 The compact runtime guidance for interpreting the whole user turn, distinguishing questions and tentative ideas from authorization, and recommending discussion when collaboration has material value.
@@ -33,7 +33,7 @@ One directed interaction from Entry through a Feedback Loop when needed to a Sup
 _Avoid_: fixed forward pipeline, phase machine
 
 **Feedback Loop**:
-The recurrent inner loop: orient, act or observe through the owning skill, verify, self-review when supported, then route from evidence.
+The recurrent inner loop applied to every bounded activity: orient, act or observe through the owning skill, verify, self-review the supported result before accepting or reusing it, then route from evidence.
 _Avoid_: review-driven development, mandatory artifact sequence
 
 **Supported Exit**:
@@ -101,7 +101,7 @@ The active agent runs and interprets direct evidence for a factual claim at the 
 _Avoid_: separate factual role, passing command without interpretation
 
 **Self-Review**:
-After verification supports the result, the active agent silently judges its own work once for alignment, suitability, and unnecessary complexity.
+After initial verification supports a bounded result, the active agent silently judges the resulting state once for alignment, suitability, and unnecessary complexity before accepting, reusing, or claiming the activity complete.
 _Avoid_: independent review, formal review cycle, performative pass
 
 **Independent Review**:

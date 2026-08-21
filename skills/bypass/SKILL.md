@@ -40,7 +40,7 @@ A generic or scoped bypass does not remove:
 - the user's authority over product behavior, scope, public interfaces, compatibility, permissions, security, privacy, billing, data loss, migrations, deployment, or another hard-to-reverse outcome;
 - a conflict with code, tests, docs, policies, requirements, accepted behavior, or another source of truth;
 - host safety, sandbox, permission, or approval controls;
-- proportionate verification and supported self-review before a factual or completion claim;
+- proportionate verification and required self-review for every bounded activity before its result is accepted, reused, or claimed complete;
 - an accepted Spec, Plan, selected checkpoint, required artifact review, selected independent review, or other accepted completion boundary;
 - a stop condition or evidence that invalidates the current route.
 
@@ -73,7 +73,8 @@ When the bypass is valid:
 1. skip only the selected optional pressure;
 2. perform only the separately authorized bounded action;
 3. gather the same proportionate evidence the outcome requires;
-4. report what was skipped, the result, and whether the bypass is spent or still task-scoped.
+4. silently self-review the supported result before accepting, reusing, or reporting it;
+5. report what was skipped, the result, and whether the bypass is spent or still task-scoped.
 
 When a boundary remains:
 

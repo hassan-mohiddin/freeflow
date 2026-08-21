@@ -31,7 +31,7 @@ assert_not_contains() {
 [[ -f "$HOOKS_JSON" ]] || fail "missing hooks manifest"
 [[ -f "$WORKFLOW_SKILL" ]] || fail "missing canonical Workflow skill"
 workflow_owner_line="$(grep -m1 '^The active agent owns ' "$WORKFLOW_SKILL" || true)"
-workflow_self_review_line="$(grep -m1 '^Self-review is silent ' "$WORKFLOW_SKILL" || true)"
+workflow_self_review_line="$(grep -m1 '^Self-review is required ' "$WORKFLOW_SKILL" || true)"
 [[ -n "$workflow_owner_line" ]] || fail "canonical Workflow owner sentinel missing"
 [[ -n "$workflow_self_review_line" ]] || fail "canonical Workflow self-review sentinel missing"
 node --check "$HOOK_PATH"

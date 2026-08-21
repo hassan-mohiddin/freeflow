@@ -27,7 +27,7 @@
       "case_concept": "Implementation evidence invalidates one assumption; change route without restarting unaffected work.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/workflow/SKILL.md",
-      "source_sha256": "08bfa214ec79ac092dd3b28457db091ed0f5bd390f4aef6cb7867f80c2a4f61b",
+      "source_sha256": "c046a0762e333160d39c07b2b015ffe605b8d479421627061b754bc5642d6798",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -73,7 +73,7 @@
       "case_concept": "Plan one diagnosed persistence fix while leaving unresolved migration work directional.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/write-plan/SKILL.md",
-      "source_sha256": "e72abe1863f2e21b0ef7787303edf7eb570485de0bcbb1284b062efcd212c15f",
+      "source_sha256": "e3ed4ba7535287b2013cbdc71b476de337d5e4849fa5cae2e0db32f6146bc7ee",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -127,7 +127,7 @@
       "case_concept": "Complete one accepted local correction, then preserve it and change route when repeated evidence exposes a shared failure unit.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/execute-work/SKILL.md",
-      "source_sha256": "aba4abfabad0debf261d89568f0ee41cca330350c32a159343e24ecb3fac8767",
+      "source_sha256": "c2cd22565b723de4018a7a7ff83b4e21d7ae2b836076487604e73154558284c4",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -480,7 +480,7 @@
       "case_concept": "Spend bypass only after a safe bounded action; refuse a source-conflicted deletion.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/bypass/SKILL.md",
-      "source_sha256": "ba185b431a33d7a0c09f2ec9fc1367bc9d5ab4c6385043f89610d90f7ec9e037",
+      "source_sha256": "fb70deb3b3001fd4c80f58f849dd9a9339d8ab20f315586ed9bfc34a6a77c8f1",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -526,7 +526,7 @@
       "case_concept": "Create minimal repository activation without editing host instructions or enabling an unrequested capability.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/setup-freeflow/SKILL.md",
-      "source_sha256": "706c36e8f0eecf695748d5fc2f7506fa369887a73ade324eadf7b668381dec85",
+      "source_sha256": "099eaaf8f5cdfdfd8d5d9b1b37f54af7535889a98ff0e283b93bc77c1d92321e",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {
@@ -549,7 +549,7 @@
       "case_concept": "Resume after context loss, preserve the current slice through feedback, and record only route- or state-changing evidence.",
       "current_result": "Current adaptive candidate has not been behaviorally evaluated at this snapshot; Unverified.",
       "source_path": "skills/track-work/SKILL.md",
-      "source_sha256": "c8679c76b660fa817425c364942b642c9e99a6973bd5cf454d3005c667ee074d",
+      "source_sha256": "f024d268b47cd41e5ff3b629547d922eef6aa72081d0031d3b39e775eb8aa72f",
       "evidence_status": "unverified",
       "supported_configuration": null,
       "intended_evaluation_configuration": {

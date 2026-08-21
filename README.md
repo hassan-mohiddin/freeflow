@@ -43,16 +43,17 @@ One user interaction is an **Interaction Lifecycle**:
             later user turn or evidence
 ```
 
-When work is needed, the inner **Feedback Loop** is:
+When work is needed, the inner **Feedback Loop** applies to every bounded activity:
 
-![Freeflow Core Feedback Loop: orient, use the owning skill, verify, self-review once, and route from evidence](assets/feedback-loop.png)
+![Freeflow Core Feedback Loop: orient, use the owning skill, verify, self-review the supported result, and route from evidence](assets/feedback-loop.png)
 
 ```text
 orient to accepted intent, task memory, and live evidence
 -> use the narrowest owning skill
 -> implement, discuss, test, or observe
 -> verify what the evidence proves
--> when supported, self-review once
+-> once initially supported, self-review the resulting state
+-> only then accept, reuse, or claim that activity complete
 -> continue, correct, diagnose, revise, ask, defer, or stop
 ```
 
@@ -79,7 +80,7 @@ Freeflow has exactly three modes:
 | --- | --- | --- |
 | `conversation` | Discussion, critique, explanation, and passive inspection of existing evidence | Active evidence generation and mutation or delivery require switching mode plus authority. |
 | `workflow` | Active evidence generation and normal consequential or mutating work | Use the adaptive lifecycle and proportionate evidence. |
-| `strict-workflow` | High-risk or hard-to-reverse work | Stronger decision, evidence, and checkpoint pressure without review after every slice. |
+| `strict-workflow` | High-risk or hard-to-reverse work | Stronger decision, evidence, and checkpoint pressure without mandatory independent review after every slice. |
 
 Task type and direct skill calls do not silently switch mode.
 

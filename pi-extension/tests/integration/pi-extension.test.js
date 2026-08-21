@@ -2463,7 +2463,7 @@ test("Pi loads the full Workflow skill as one persistent first-turn message", as
     const workflowSource = await readFile(new URL("../../../skills/workflow/SKILL.md", import.meta.url), "utf8");
     const workflowLines = workflowSource.split(/\r?\n/);
     const workflowOwnerLine = workflowLines.find((line) => line.startsWith("The active agent owns "));
-    const workflowSelfReviewLine = workflowLines.find((line) => line.startsWith("Self-review is silent "));
+    const workflowSelfReviewLine = workflowLines.find((line) => line.startsWith("Self-review is required "));
     assert.ok(workflowOwnerLine, "canonical Workflow owner sentinel missing");
     assert.ok(workflowSelfReviewLine, "canonical Workflow self-review sentinel missing");
 

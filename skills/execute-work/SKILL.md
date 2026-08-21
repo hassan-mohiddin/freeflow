@@ -7,7 +7,7 @@ description: Use when executing or resuming implementation, fixes, prototypes, d
 
 Carry out concrete work through bounded actions and fresh evidence only when it was requested or approved and the effective mode permits its effects.
 
-A **slice** is one coherent result tracked and reviewed as a unit. A **bounded action** is one implementation, experiment, correction, or observation inside that slice. One slice may span multiple Feedback Loop iterations and owning skills while its intended result remains coherent.
+A **slice** is one coherent result tracked as a unit. A **bounded action** is one implementation, experiment, correction, or observation inside that slice. One slice may span multiple Feedback Loop iterations and owning skills while its intended result remains coherent.
 
 Read [Execute Work edges](references/execute-work-edges.md) when work spans multiple actions or slices, resumes from prior state, needs a specialized method, reaches a checkpoint, or reveals follow-on work.
 
@@ -23,7 +23,7 @@ Use this as a directed map, not a fixed phase sequence:
 -> [Verify what the evidence proves]
    -> clear local defect -> correct -> test or observe again
    -> unclear, repeated, or route-changing result -> Workflow
-   -> supported -> silent self-review -> freeze
+   -> supported -> silent self-review -> freeze before acceptance or reuse
 -> [Route]
    -> more accepted work in this slice -> next bounded action
    -> coherent boundary extension -> Workflow -> covered and recorded when needed -> next action
@@ -75,15 +75,15 @@ Handle an edge case only when accepted behavior, observed evidence, or material 
 
 ## Close Each Evidence Iteration
 
-After each meaningful bounded action:
+After every bounded action:
 
 1. run the focused tests or observations appropriate to its claim;
 2. use [Verify Work](../verify-work/SKILL.md) when the claim or observing boundary needs its fuller method;
-3. when supported, use [Review Work](../review-work/SKILL.md) for silent self-review;
-4. correct clear local issues within existing authority and re-verify;
-5. freeze the supported state and return route-changing evidence to Workflow.
+3. once initial evidence supports the result, use [Review Work](../review-work/SKILL.md) for silent self-review;
+4. correct clear local issues within existing authority and re-verify the affected boundary;
+5. confirm the final state has no unresolved material issue, freeze it, and only then accept, reuse, or report the result.
 
-A failed or inconclusive check does not prove the design or source is wrong. Correct a clear local defect; use [Diagnose Failure](../diagnose-failure/SKILL.md) when the cause is unclear or failure repeats.
+Self-review remains inside the bounded action rather than creating another action or review cycle. A failed or inconclusive check does not prove the design or source is wrong. Correct a clear local defect; use [Diagnose Failure](../diagnose-failure/SKILL.md) when the cause is unclear or failure repeats.
 
 Further polish, advisory warnings, unrelated issues, and review findings without mutation authority are feedback to classify, not permission to keep editing.
 

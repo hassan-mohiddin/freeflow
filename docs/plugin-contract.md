@@ -86,7 +86,7 @@ Workflow uses a directed Interaction Lifecycle with an internal Feedback Loop:
             later user turn or evidence
 ```
 
-The Feedback Loop orients to accepted intent and live evidence, uses the narrowest owner, verifies the result, self-reviews once when supported, and routes from evidence. Re-enter only the owner whose responsibility changed.
+The Feedback Loop applies to every bounded activity: it orients to accepted intent and live evidence, uses the narrowest owner, verifies the result, self-reviews the initially supported state before accepting or reusing it, and routes from evidence. Re-enter only the owner whose responsibility changed.
 
 Supported Exits include answer, wait, pause, handoff, deferment, stop, controlled preservation, and completion.
 
