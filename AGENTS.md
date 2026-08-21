@@ -4,31 +4,21 @@ This repo develops `freeflow`, a plugin/skill pack for guiding coding agents thr
 
 The plugin is not a new agent. It is a portable workflow layer for agents such as Codex, Claude Code, Pi, and similar coding environments.
 
+This file governs contributing to the Freeflow repository. It does not define the model-facing workflow or task-memory method; those belong to the runtime context and active skills. Repository-specific constraints here still apply to changes made in this repo.
+
 ## Read First
 
-For the project docs map, read `docs/README.md`.
+Use the project material relevant to the change:
 
-For project direction, read:
+- Read `docs/README.md` for the project docs map.
+- Read `CONTEXT.md` for project language and direction.
+- Read `docs/freeflow-current-state.md`, `docs/freeflow-packaging-and-publishing-design.md`, and `docs/freeflow-runtime-and-lifecycle.md` when changing product behavior, runtime, packaging, or architecture.
+- Read `plugin-docs/README.md`, `plugin-docs/workflow.md`, `plugin-docs/architecture.md`, and `plugin-docs/release-evidence.md` when changing public plugin behavior, docs, or release guidance.
+- Read `docs/adr/` or `plugin-docs/adr/` when the change touches a durable decision.
+- Read the latest relevant file in `docs/handoffs/` when resuming an existing project task or transfer.
+- Inspect `.skill-eval/` and the accepted bundle when changing or evaluating a skill's evidence. Historical v1 cases and reports under `deprecated/skill-evals-v1/` are documentary only and never establish current readiness.
 
-- `CONTEXT.md`
-- `docs/freeflow-current-state.md`
-- `docs/freeflow-packaging-and-publishing-design.md`
-- `docs/freeflow-runtime-and-lifecycle.md`
-
-For refined user-facing plugin docs, read:
-
-- `plugin-docs/README.md`
-- `plugin-docs/workflow.md`
-- `plugin-docs/architecture.md`
-- `plugin-docs/release-evidence.md`
-
-For durable project decisions, read `docs/adr/`. For refined release ADRs, read `plugin-docs/adr/`.
-
-For historical research, read `docs/` only when background matters. Live repo evidence and current plugin docs override older research and handoffs.
-
-For current continuation state, read the latest relevant file in `docs/handoffs/`.
-
-For current skill-evaluation evidence, inspect `.skill-eval/` and the accepted bundle for the exact skill, case, host, model, and configuration. Historical v1 cases and reports under `deprecated/skill-evals-v1/` are documentary only and never establish current readiness.
+Historical research under `docs/` is background only; live repository evidence and current plugin docs override it.
 
 ## Development Snapshot Boundary
 
@@ -42,13 +32,15 @@ Commit intended Freeflow changes before refreshing. The tool archives the select
 
 PiFlow launch, import, and update behavior remains PiFlow-owned; Freeflow supplies policy and the development package snapshot.
 
-## Reference Skill Stack
+## Reference Stack For Skill Development
 
-Freeflow is the primary workflow layer for this repo. Use this reference stack when Freeflow lacks coverage, evidence is thin, or a behavior gap appears:
+When authoring or revising a Freeflow skill and current coverage, evidence, or behavior needs an outside reference, consult this stack:
 
 - Matt Pocock skills are the primary style and behavior reference.
 - Obra/Superpowers skills are the workflow lifecycle reference.
 - Anthropic `skill-creator` is the skill authoring and eval methodology reference.
+
+These references guide skill development and evaluation; they are not runtime dependencies and do not replace the active Freeflow skills during ordinary work.
 
 Use Matt for concise skill wording, sharp failure-prevention rules, low-ceremony loops, and practical engineering judgment.
 
@@ -56,7 +48,7 @@ Use Obra/Superpowers for workflow phases, planning, execution, review, verificat
 
 Use Anthropic `skill-creator` for skill structure, trigger descriptions, progressive disclosure, baseline versus with-skill evals, and iteration from measured failures.
 
-When reference skills conflict:
+When reference skills conflict during skill development:
 
 1. User instruction wins.
 2. Repo memory wins: `AGENTS.md`, `CONTEXT.md`, ADRs.
@@ -92,7 +84,7 @@ When reference skills conflict:
 
 The repo root is the single source of truth for runtime skills, plugin docs, current `.skill-eval/` definitions, router evidence under `router/evals/`, and command-surface metadata. The npm tarball contains only runtime-required files; GitHub retains docs and evidence.
 
-For the current skill set, inspect `skills/`. When an ongoing task resumes after compaction, summarization, clear, resume, or session navigation, read its complete Working Record and compare it with the current conversation and live state before continuing task work.
+For the current skill set, inspect `skills/` when changing or evaluating a skill. Runtime behavior and task-memory mechanics belong to their corresponding skill and runtime sources; this contributor file does not restate them.
 
 ## Style
 

@@ -39,7 +39,7 @@ Schema-v2 `record.md` is readable Markdown and the only canonical task state:
 5. compact History of decisions, selected checkpoints, and settled slices;
 6. inert Notes.
 
-Current Context is present state, not a transcript. Keep the goal, source pointers, settled understanding, tentative hypotheses, route-changing open questions, current direction, and boundaries. Replace stale summaries instead of appending events. Active-decision references in views are derived from their historical owners; do not store a second summary.
+Current Context is present state, not a transcript. Keep the goal, source pointers, settled understanding, tentative hypotheses, route-changing open questions, current direction, and boundaries. Replace stale summaries instead of appending events. For `Settled`, `Tentative`, `Open`, `Current direction`, and `Boundaries`, replace the current summary when its meaning changes; do not append discussion turns, update paragraphs, evidence inventories, or chronology. Active-decision references in views are derived from their historical owners; do not store a second summary.
 
 Current Work owns the route, one rich Current Slice or `None`, task blockers, selected upcoming boundaries, and one next useful action. History owns settled outcomes and never owns the current next action. Notes do not authorize, prioritize, block, prove, or require follow-up.
 
@@ -55,7 +55,7 @@ Discuss owns exploration, alternatives, assumptions, and direction. Track Work p
 Discuss -> material state change -> Track Work update -> Discuss
 ```
 
-A record update does not end discussion, select a proposal, start execution, create a checkpoint, or authorize work. Routine maintenance may preserve an accepted decision, changed understanding, detailed proposal, question, evidence pointer, blocker, or explicitly retained Note when the record is already approved.
+A record update does not end discussion, select a proposal, start execution, create a checkpoint, or authorize work. During discussion, update only material state changes; one atomic update may reconcile related changes. Routine maintenance may preserve an accepted decision, changed understanding, detailed proposal, question, evidence pointer, blocker, or explicitly retained Note when the record is already approved. Return to Discuss without appending a running discussion log to Current Context.
 
 ## Move One Outcome Through Its Lifecycle
 

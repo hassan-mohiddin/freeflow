@@ -101,6 +101,6 @@ Review-cycle and post-Review-2 diagnosis rules live in the review skills. Any un
 
 ## Context And Completion
 
-Before an expected context boundary, reconcile changed Working Record state. After compaction, summarization, resume, clear, or session navigation, request the bounded Track Work `resume` view before continuing; compare it with the conversation and live state and retrieve exact entities only when needed. Another conversation branch may contain memory, not authority.
+Before an expected context boundary, reconcile changed Working Record state. After compaction, summarization, resume, clear, or session navigation, follow [Workflow's Preserve Necessary State rule](../SKILL.md#preserve-necessary-state) before continuing. Another conversation branch may contain memory, not authority.
 
 Completion requires fresh evidence, supported self-review, resolved selected reviews, accurate task memory, synchronized required artifacts, and no hidden user-owned decision or source conflict.
