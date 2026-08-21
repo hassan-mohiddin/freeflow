@@ -764,7 +764,13 @@ export async function readModeState(cwd) {
   };
 }
 
-export function setModeStatus(ctx, modeState, capabilityState = undefined, cognitiveRoutingRuntime = undefined) {
+export function setModeStatus(
+  ctx,
+  modeState,
+  capabilityState = undefined,
+  cognitiveRoutingRuntime = undefined,
+  options: { cognitiveRoutingStartupPending?: boolean } = {},
+) {
   if (capabilityState && !capabilityState.configured) {
     ctx.ui.setStatus("freeflow", capabilityState.configExists ? "freeflow: config error" : "freeflow: setup needed");
     return;
@@ -788,6 +794,8 @@ export function setModeStatus(ctx, modeState, capabilityState = undefined, cogni
   }
   const cognitiveRouting = capabilityState?.cognitiveRouting;
   const cognitiveRoutingActive = cognitiveRouting?.effective === true && cognitiveRoutingRuntime?.effective === true;
+  const startupSelectionSuppressesCognitiveRouting =
+    ctx?.modelStateProvenance?.explicitModel === true || ctx?.modelStateProvenance?.explicitThinking === true;
   if (cognitiveRoutingActive) {
     const profile = cognitiveRoutingRuntime.activeProfile;
     const control =
@@ -799,6 +807,13 @@ export function setModeStatus(ctx, modeState, capabilityState = undefined, cogni
   } else if (cognitiveRouting?.enabled === true) {
     if (cognitiveRouting.blockingReason?.code === "runtime_disabled") {
       active.push("cognitive disabled · PiFlow only");
+    } else if (
+      cognitiveRouting.effective === true &&
+      cognitiveRoutingRuntime === undefined &&
+      options.cognitiveRoutingStartupPending === true &&
+      !startupSelectionSuppressesCognitiveRouting
+    ) {
+      active.push("cognitive standard · pending");
     } else {
       const reason =
         cognitiveRouting?.effective === true

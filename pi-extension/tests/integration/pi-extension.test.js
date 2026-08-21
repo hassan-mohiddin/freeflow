@@ -243,7 +243,27 @@ test("PiFlow statusline reports the current cognitive profile and control mode",
   );
 });
 
-test("PiFlow statusline does not claim an inactive Cognitive Routing runtime is active", () => {
+test("PiFlow statusline shows the configured standard profile pending first prompt activation", () => {
+  const ctx = context();
+  setModeStatus(
+    ctx,
+    { effectiveMode: "workflow", currentMode: null },
+    {
+      configured: true,
+      enabled: true,
+      configSources: { interactionContract: "builtin", skillsEnabled: "builtin", enabled: "builtin" },
+      interactionContract: { effective: true },
+      skills: { effective: true },
+      outputRouter: { enabled: true },
+      cognitiveRouting: { enabled: true, effective: true, blockingReason: null },
+    },
+    undefined,
+    { cognitiveRoutingStartupPending: true },
+  );
+  assert.equal(ctx.statuses.at(-1).value, "freeflow: interaction · workflow · cognitive standard · pending · router");
+});
+
+test("PiFlow statusline keeps an inactive runtime blocked instead of showing startup pending", () => {
   const ctx = context();
   setModeStatus(
     ctx,
@@ -258,11 +278,65 @@ test("PiFlow statusline does not claim an inactive Cognitive Routing runtime is 
       cognitiveRouting: { enabled: true, effective: true, blockingReason: null },
     },
     { effective: false, activeProfile: "standard", controlMode: "automatic" },
+    { cognitiveRoutingStartupPending: true },
   );
   assert.equal(
     ctx.statuses.at(-1).value,
     "freeflow: interaction · workflow · cognitive blocked · runtime_inactive · router",
   );
+});
+
+test("PiFlow statusline preserves startup suppression when the host selected a model", () => {
+  const ctx = context();
+  ctx.modelStateProvenance = { explicitModel: true };
+  setModeStatus(
+    ctx,
+    { effectiveMode: "workflow", currentMode: null },
+    {
+      configured: true,
+      enabled: true,
+      configSources: { interactionContract: "builtin", skillsEnabled: "builtin", enabled: "builtin" },
+      interactionContract: { effective: true },
+      skills: { effective: true },
+      outputRouter: { enabled: true },
+      cognitiveRouting: { enabled: true, effective: true, blockingReason: null },
+    },
+    undefined,
+    { cognitiveRoutingStartupPending: true },
+  );
+  assert.equal(
+    ctx.statuses.at(-1).value,
+    "freeflow: interaction · workflow · cognitive blocked · runtime_inactive · router",
+  );
+});
+
+test("PiFlow empty configured sessions show standard pending before first prompt", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-pending-cognitive-status-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({
+        defaultMode: "workflow",
+        cognitiveRouting: {
+          enabled: true,
+          profiles: {
+            standard: { provider: "test", model: "model-a", thinkingLevel: "low" },
+            reasoning: { provider: "test", model: "model-b", thinkingLevel: "high" },
+          },
+        },
+      }),
+      "utf8",
+    );
+    const { handlers } = loadExtension();
+    const ctx = context(cwd);
+    ctx.modelRegistry = cognitiveRoutingModelRegistry();
+
+    await handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    assert.equal(ctx.statuses.at(-1).value, "freeflow: interaction · workflow · cognitive standard · pending");
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
 });
 
 test("Pi exposes bypass scope argument completions", () => {

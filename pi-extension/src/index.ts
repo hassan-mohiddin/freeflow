@@ -406,10 +406,17 @@ export default function freeflow(pi) {
     ]);
     await refreshRuntimeContext(capabilityState);
     notifyRouterConfigWarnings(ctx, routerConfigResult);
-    cognitiveRoutingController = sessionHasConversationOrRoutingState(ctx)
+    const hasSessionState = sessionHasConversationOrRoutingState(ctx);
+    const cognitiveRoutingStartupPending =
+      capabilityState?.cognitiveRouting?.effective === true &&
+      !hasSessionState &&
+      !startupSelectionSuppressesCognitiveRouting(ctx);
+    cognitiveRoutingController = hasSessionState
       ? await reconcileCognitiveRoutingController(pi, ctx, capabilityState, cognitiveRoutingController)
       : undefined;
-    setModeStatus(ctx, modeState, capabilityState, cognitiveRoutingController?.state());
+    setModeStatus(ctx, modeState, capabilityState, cognitiveRoutingController?.state(), {
+      cognitiveRoutingStartupPending,
+    });
     await applyCapabilityToolVisibility(pi, ctx, capabilityState, cognitiveRoutingController);
   });
 
