@@ -48,6 +48,7 @@ const SCRIPT_LANGUAGES = ["javascript", "python", "jq"] as const;
 const DEFAULT_FREEFLOW_ENABLED = true;
 const DEFAULT_INTERACTION_CONTRACT_ENABLED = true;
 const DEFAULT_SKILLS_ENABLED = true;
+const DEFAULT_CONTEXT_VIRTUALIZATION_ENABLED = false;
 const MODE_VALUES = ["conversation", "workflow", "strict-workflow"];
 const MODE_LABELS = {
   default: "Use configured default",
@@ -690,12 +691,15 @@ function resolveSettingsCoreView(
   const fallbackCore = {
     enabled: getPath(rawConfig, ["enabled"]) !== false,
     interactionContract: getPath(rawConfig, ["interactionContract"]) !== false,
+    contextVirtualization: getPath(rawConfig, ["contextVirtualization"]) === true,
     skills: { enabled: getPath(repositorySkills, ["enabled"]) !== false },
     defaultMode: validModeOrUndefined(rawConfig.defaultMode) ?? "workflow",
   };
   const fallbackSources = {
     enabled: typeof getPath(rawConfig, ["enabled"]) === "boolean" ? "repository" : "builtin",
     interactionContract: typeof getPath(rawConfig, ["interactionContract"]) === "boolean" ? "repository" : "builtin",
+    contextVirtualization:
+      typeof getPath(rawConfig, ["contextVirtualization"]) === "boolean" ? "repository" : "builtin",
     skillsEnabled: typeof getPath(repositorySkills, ["enabled"]) === "boolean" ? "repository" : "builtin",
     defaultMode: validModeOrUndefined(rawConfig.defaultMode) === undefined ? "builtin" : "repository",
   } as const;
@@ -705,6 +709,7 @@ function resolveSettingsCoreView(
     sources: (layers?.sources ?? fallbackSources) as {
       enabled: ConfigSource;
       interactionContract: ConfigSource;
+      contextVirtualization: ConfigSource;
       skillsEnabled: ConfigSource;
       defaultMode: ConfigSource;
     },
@@ -719,7 +724,7 @@ function createSessionBooleanItem(options: {
   id: string;
   label: string;
   description: string;
-  key: "enabled" | "interactionContract" | "skillsEnabled";
+  key: "enabled" | "interactionContract" | "skillsEnabled" | "contextVirtualization";
   inheritedValue: boolean;
   inheritedSource: ConfigSource;
   effectiveValue: boolean;
@@ -773,11 +778,13 @@ function sessionFreeflowItems(
   const configuredSources = state.configuredSources as {
     enabled: ConfigSource;
     interactionContract: ConfigSource;
+    contextVirtualization: ConfigSource;
     skillsEnabled: ConfigSource;
   };
   const effectiveSources = state.configSources as {
     enabled: ConfigSource;
     interactionContract: ConfigSource;
+    contextVirtualization: ConfigSource;
     skillsEnabled: ConfigSource;
   };
 
@@ -814,11 +821,23 @@ function sessionFreeflowItems(
     effectiveSource: effectiveSources.skillsEnabled,
     sessionOverrides,
   });
+  const contextVirtualizationItem = createSessionBooleanItem({
+    id: "freeflow.contextVirtualization",
+    label: "Context Virtualization",
+    description: "Temporary Context Virtualization override for this Pi session.",
+    key: "contextVirtualization",
+    inheritedValue: configured.contextVirtualization,
+    inheritedSource: configuredSources.contextVirtualization,
+    effectiveValue: state.contextVirtualization.enabled,
+    effectiveSource: effectiveSources.contextVirtualization,
+    sessionOverrides,
+  });
 
   const freeflowInactive = !state.enabled;
   const skillsEnabled = state.skills.enabled;
   interactionItem.inactive = freeflowInactive;
   skillsItem.inactive = freeflowInactive;
+  contextVirtualizationItem.inactive = freeflowInactive;
 
   const sessionMode = modeState.currentMode ?? "default";
   const sessionModeItem: SettingsItem = {
@@ -886,7 +905,8 @@ function sessionFreeflowItems(
     {
       id: "freeflow.session.reset",
       label: "Reset session overrides",
-      description: "Clear Freeflow, Interaction Contract, Skills, and mode overrides for this Pi session.",
+      description:
+        "Clear Freeflow, Interaction Contract, Skills, Context Virtualization, and mode overrides for this Pi session.",
       kind: "enum",
       value: "available",
       values: ["reset"],
@@ -895,6 +915,7 @@ function sessionFreeflowItems(
       format: () => "available",
       transient: true,
     },
+    contextVirtualizationItem,
   ];
 }
 
@@ -1197,6 +1218,18 @@ function freeflowItems(
     effectiveSource: sources.skillsEnabled,
     defaultValue: DEFAULT_SKILLS_ENABLED,
   });
+  const contextVirtualizationItem = createScopedBooleanItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.contextVirtualization",
+    label: "Context Virtualization",
+    description: "Let the model archive consumed tool results from future context while preserving session history.",
+    path: ["contextVirtualization"],
+    effectiveValue: core.contextVirtualization,
+    effectiveSource: sources.contextVirtualization,
+    defaultValue: DEFAULT_CONTEXT_VIRTUALIZATION_ENABLED,
+  });
 
   const repositoryModeValue = validModeOrUndefined(rawConfig.defaultMode);
   const repositoryDefaultMode = repositoryModeValue ?? "workflow";
@@ -1215,6 +1248,7 @@ function freeflowItems(
   const skillsEnabled = core.skills.enabled;
   interactionItem.inactive = freeflowInactive;
   skillsItem.inactive = freeflowInactive;
+  contextVirtualizationItem.inactive = freeflowInactive;
   defaultModeItem.inactive = freeflowInactive;
   defaultModeItem.displaySuffix = coreDisplaySuffix(defaultModeItem, freeflowInactive || !skillsEnabled);
   const sessionMode = modeState?.currentMode ?? "default";
@@ -1319,6 +1353,7 @@ function freeflowItems(
       displaySuffix: "(repository)",
       children: routerItems,
     },
+    contextVirtualizationItem,
   ];
 }
 
@@ -1824,6 +1859,9 @@ function freeflowStatusText(
     `skills: ${state.skills.effective ? "enabled" : "disabled (workflow modes inactive)"}${sessionSuffix(
       state.configSources.skillsEnabled as ConfigSource,
     )}`,
+    `context virtualization: ${state.contextVirtualization?.effective ? "enabled" : "disabled"}${sessionSuffix(
+      state.configSources.contextVirtualization as ConfigSource,
+    )}`,
     ...(cognitiveRoutingStatus ? [`cognitive routing: ${cognitiveRoutingStatus}`] : []),
     `output router: ${state.outputRouter.enabled ? "enabled" : "disabled"}`,
   ].join("; ");
@@ -2098,6 +2136,7 @@ export async function handleFreeflowCommand(
           "freeflow.enabled": "enabled",
           "freeflow.interactionContract": "interactionContract",
           "freeflow.skills.enabled": "skillsEnabled",
+          "freeflow.contextVirtualization": "contextVirtualization",
         } as const;
         const key = keyById[item.id as keyof typeof keyById];
         const override = value === LOCAL_INHERIT ? null : value === "true";

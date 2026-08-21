@@ -68,12 +68,17 @@ export function freeflowModelSkillPaths() {
   return FREEFLOW_MODEL_SKILL_NAMES.map((skillName) => freeflowSkillPath(skillName));
 }
 
-type SessionCoreKey = "enabled" | "interactionContract" | "skillsEnabled";
+type SessionCoreKey = "enabled" | "interactionContract" | "skillsEnabled" | "contextVirtualization";
 type SessionCoreOverrides = Partial<Record<SessionCoreKey, boolean>>;
 
 const MODE_STATE_ENTRY = "freeflow-mode";
 const SESSION_OVERRIDES_ENTRY = "freeflow-session-overrides";
-const SESSION_CORE_KEYS = new Set<SessionCoreKey>(["enabled", "interactionContract", "skillsEnabled"]);
+const SESSION_CORE_KEYS = new Set<SessionCoreKey>([
+  "enabled",
+  "interactionContract",
+  "skillsEnabled",
+  "contextVirtualization",
+]);
 const RESET_MODE_ARGS = new Set(["reset"]);
 
 export const FREEFLOW_STATUS_TOOL_NAME = "freeflow_status";
@@ -91,30 +96,47 @@ async function loadRuntimeContext(capabilityState = undefined) {
   const interactionContractEnabled = capabilityState?.interactionContract?.effective === true;
   const skillsEnabled = capabilityState?.skills?.effective === true;
   const outputRouterEnabled = capabilityState?.outputRouter?.enabled === true;
+  const contextVirtualizationEnabled = capabilityState?.contextVirtualization?.effective === true;
   const cognitiveRoutingEnabled = capabilityState?.cognitiveRouting?.effective === true;
-  const [interactionContract, workflowSkill, outputRouterSkill, cognitiveRoutingSkill, cognitiveRoutingReference] =
-    await Promise.all([
-      interactionContractEnabled
-        ? readFile(new URL("../../../runtime/interaction-contract.md", import.meta.url), "utf8")
-        : Promise.resolve(null),
-      skillsEnabled
-        ? readFile(new URL("../../../skills/workflow/SKILL.md", import.meta.url), "utf8")
-        : Promise.resolve(null),
-      outputRouterEnabled
-        ? readFile(new URL("../../../capabilities/output-router/SKILL.md", import.meta.url), "utf8")
-        : Promise.resolve(null),
-      cognitiveRoutingEnabled
-        ? readFile(new URL("../../../capabilities/cognitive-routing/SKILL.md", import.meta.url), "utf8")
-        : Promise.resolve(null),
-      cognitiveRoutingEnabled
-        ? readFile(
-            new URL("../../../capabilities/cognitive-routing/references/automatic-routing-kernel.md", import.meta.url),
-            "utf8",
-          )
-        : Promise.resolve(null),
-    ]);
+  const [
+    interactionContract,
+    workflowSkill,
+    outputRouterSkill,
+    contextVirtualizationSkill,
+    cognitiveRoutingSkill,
+    cognitiveRoutingReference,
+  ] = await Promise.all([
+    interactionContractEnabled
+      ? readFile(new URL("../../../runtime/interaction-contract.md", import.meta.url), "utf8")
+      : Promise.resolve(null),
+    skillsEnabled
+      ? readFile(new URL("../../../skills/workflow/SKILL.md", import.meta.url), "utf8")
+      : Promise.resolve(null),
+    outputRouterEnabled
+      ? readFile(new URL("../../../capabilities/output-router/SKILL.md", import.meta.url), "utf8")
+      : Promise.resolve(null),
+    contextVirtualizationEnabled
+      ? readFile(new URL("../../../capabilities/context-virtualization/SKILL.md", import.meta.url), "utf8")
+      : Promise.resolve(null),
+    cognitiveRoutingEnabled
+      ? readFile(new URL("../../../capabilities/cognitive-routing/SKILL.md", import.meta.url), "utf8")
+      : Promise.resolve(null),
+    cognitiveRoutingEnabled
+      ? readFile(
+          new URL("../../../capabilities/cognitive-routing/references/automatic-routing-kernel.md", import.meta.url),
+          "utf8",
+        )
+      : Promise.resolve(null),
+  ]);
 
-  return { interactionContract, workflowSkill, outputRouterSkill, cognitiveRoutingSkill, cognitiveRoutingReference };
+  return {
+    interactionContract,
+    workflowSkill,
+    outputRouterSkill,
+    contextVirtualizationSkill,
+    cognitiveRoutingSkill,
+    cognitiveRoutingReference,
+  };
 }
 
 function runtimeContextCacheSatisfies(capabilityState) {
@@ -128,6 +150,9 @@ function runtimeContextCacheSatisfies(capabilityState) {
     return false;
   }
   if (capabilityState?.outputRouter?.enabled === true && !runtimeContextCache.outputRouterSkill) {
+    return false;
+  }
+  if (capabilityState?.contextVirtualization?.effective === true && !runtimeContextCache.contextVirtualizationSkill) {
     return false;
   }
   if (capabilityState?.cognitiveRouting?.effective === true) {
@@ -329,6 +354,10 @@ function validateCoreConfigFields(value) {
     return "enabled must be a boolean";
   }
 
+  if (value.contextVirtualization !== undefined && typeof value.contextVirtualization !== "boolean") {
+    return "contextVirtualization must be a boolean";
+  }
+
   if (value.interactionContract !== undefined && typeof value.interactionContract !== "boolean") {
     return "interactionContract must be a boolean";
   }
@@ -364,6 +393,7 @@ function validateFreeflowConfigShape(value) {
     "observedRouting",
     "scriptTransform",
     "cognitiveRouting",
+    "contextVirtualization",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
@@ -395,6 +425,7 @@ function validateFreeflowLocalConfigShape(value) {
     "skills",
     "processing",
     "cognitiveRouting",
+    "contextVirtualization",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
@@ -473,6 +504,7 @@ function resolveLayeredValue(repository, local, key, fallback) {
 function resolveCoreConfig(repository, local) {
   const enabled = resolveLayeredValue(repository, local, "enabled", true);
   const interactionContract = resolveLayeredValue(repository, local, "interactionContract", true);
+  const contextVirtualization = resolveLayeredValue(repository, local, "contextVirtualization", false);
   const defaultMode = resolveLayeredValue(repository, local, "defaultMode", "workflow");
   const repositorySkills = isRecord(repository.skills) ? repository.skills : {};
   const localSkills = isRecord(local.skills) ? local.skills : {};
@@ -482,12 +514,14 @@ function resolveCoreConfig(repository, local) {
     config: {
       enabled: enabled.value,
       interactionContract: interactionContract.value,
+      contextVirtualization: contextVirtualization.value,
       skills: { enabled: skillsEnabled.value },
       defaultMode: defaultMode.value,
     },
     sources: {
       enabled: enabled.source,
       interactionContract: interactionContract.source,
+      contextVirtualization: contextVirtualization.source,
       skillsEnabled: skillsEnabled.source,
       defaultMode: defaultMode.source,
     },
@@ -510,6 +544,7 @@ function resolveSessionCoreConfig(layers) {
   const sources = layers.sources;
   const enabled = currentSessionOverrides.enabled;
   const interactionContract = currentSessionOverrides.interactionContract;
+  const contextVirtualization = currentSessionOverrides.contextVirtualization;
   const skillsEnabled = currentSessionOverrides.skillsEnabled;
 
   return {
@@ -517,12 +552,15 @@ function resolveSessionCoreConfig(layers) {
       enabled: typeof enabled === "boolean" ? enabled : configured.enabled,
       interactionContract:
         typeof interactionContract === "boolean" ? interactionContract : configured.interactionContract,
+      contextVirtualization:
+        typeof contextVirtualization === "boolean" ? contextVirtualization : configured.contextVirtualization,
       skills: { enabled: typeof skillsEnabled === "boolean" ? skillsEnabled : configured.skills.enabled },
       defaultMode: configured.defaultMode,
     },
     sources: {
       enabled: typeof enabled === "boolean" ? "session" : sources.enabled,
       interactionContract: typeof interactionContract === "boolean" ? "session" : sources.interactionContract,
+      contextVirtualization: typeof contextVirtualization === "boolean" ? "session" : sources.contextVirtualization,
       skillsEnabled: typeof skillsEnabled === "boolean" ? "session" : sources.skillsEnabled,
       defaultMode: sources.defaultMode,
     },
@@ -563,6 +601,7 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
   const enabled = layers.configured && effectiveCore.config.enabled;
   const interactionContractConfigEnabled = effectiveCore.config.interactionContract;
   const skillsConfigEnabled = effectiveCore.config.skills.enabled;
+  const contextVirtualizationConfigEnabled = effectiveCore.config.contextVirtualization;
   const outputRouterConfigEnabled = normalized.config.outputRouter.enabled;
   const hostSupportsCognitiveRouting = isPiFlowHost(extensionHost);
   const configuredCognitiveRouting = await resolveCognitiveRoutingState(
@@ -614,6 +653,10 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
     skills: {
       enabled: skillsConfigEnabled,
       effective: enabled && skillsConfigEnabled,
+    },
+    contextVirtualization: {
+      enabled: contextVirtualizationConfigEnabled,
+      effective: enabled && contextVirtualizationConfigEnabled,
     },
     outputRouter: {
       enabled: enabled && outputRouterConfigEnabled,
@@ -767,6 +810,9 @@ export function setModeStatus(ctx, modeState, capabilityState = undefined, cogni
   if (capabilityState?.outputRouter.enabled) {
     active.push("router");
   }
+  if (capabilityState?.contextVirtualization?.effective) {
+    active.push("context virtualization");
+  }
   ctx.ui.setStatus("freeflow", `freeflow: ${active.length > 0 ? active.join(" · ") : "idle"}`);
 }
 
@@ -840,6 +886,7 @@ function capabilityContext(capabilityState) {
     capabilityState.configSources.skillsEnabled,
   )}`;
   const outputRouter = capabilityState.outputRouter.enabled ? "enabled" : "disabled";
+  const contextVirtualization = capabilityState.contextVirtualization?.effective ? "enabled" : "disabled";
   const cognitiveRouting = capabilityState.hostSupportsCognitiveRouting ? capabilityState.cognitiveRouting : undefined;
   const cognitiveLine = cognitiveRouting
     ? `\n- Cognitive Routing: ${
@@ -854,7 +901,8 @@ function capabilityContext(capabilityState) {
 
 - Interaction contract: ${interactionContract}. Configure with \`/freeflow settings\` or temporarily with \`/freeflow settings session\`; inspect with \`/freeflow status\`.
 - Skills: ${skills}. Configure with \`/freeflow settings\` or temporarily with \`/freeflow settings session\`; inspect with \`/freeflow status\`.
-- Output router: ${outputRouter}. Configure with \`/freeflow settings\` or \`/output-router\`; inspect with \`/output-router status\`.${cognitiveLine}
+- Output router: ${outputRouter}. Configure with \`/freeflow settings\` or \`/output-router\`; inspect with \`/output-router status\`.
+- Context Virtualization: ${contextVirtualization}. Configure with \`/freeflow settings\`; inspect with \`/freeflow context status\`.${cognitiveLine}
 
 Disabled capabilities are named only for status/config awareness. Capability-specific instructions and tools are active only while that capability is enabled.`;
 }
@@ -864,6 +912,7 @@ function hasModelFacingCapability(capabilityState) {
     capabilityState.interactionContract.effective ||
     capabilityState.skills.effective ||
     capabilityState.outputRouter.enabled ||
+    capabilityState.contextVirtualization?.effective === true ||
     capabilityState.cognitiveRouting?.effective === true
   );
 }
@@ -977,6 +1026,9 @@ These instructions are context-loading only. They do not override user instructi
     capabilityState.outputRouter.enabled && routerConfigResult.config.enabled
       ? `\n\n${outputRouterContext(modeState, freeflowContext, routerConfigResult, capabilityState)}`
       : "";
+  const contextVirtualizationText = capabilityState.contextVirtualization?.effective
+    ? `\n\n## Loaded Context Virtualization Skill\n\n${freeflowContext.contextVirtualizationSkill.trim()}`
+    : "";
   const cognitiveRoutingText =
     capabilityState.cognitiveRouting?.effective === true
       ? cognitiveRoutingContext(freeflowContext, cognitiveRoutingRuntime)
@@ -990,7 +1042,7 @@ These instructions are context-loading only. They do not override user instructi
 
 ${modeText}
 
-${capabilityContext(capabilityState)}${interactionContractText}${routerText}${cognitiveRoutingText}
+${capabilityContext(capabilityState)}${interactionContractText}${routerText}${contextVirtualizationText}${cognitiveRoutingText}
 
 This Pi extension loads enabled runtime context before every agent turn and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.`;
 }

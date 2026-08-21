@@ -290,6 +290,7 @@ test("Pi describes Freeflow and Output Router argument completions", () => {
   assert.deepEqual(freeflowCommand.definition.getArgumentCompletions(""), [
     { value: "settings", label: "settings", description: "Open personal override settings" },
     { value: "status", label: "status", description: "Show effective Freeflow state" },
+    { value: "context", label: "context", description: "Inspect Context Virtualization" },
     { value: "mode", label: "mode", description: "Select a temporary session mode" },
     { value: "profile", label: "profile", description: "Hold or release Cognitive Routing profile control" },
     { value: "enable", label: "enable", description: "Enable Freeflow for this repository" },
@@ -501,12 +502,14 @@ test("Pi layers local core overrides over repository defaults with source eviden
     assert.deepEqual(layers.coreConfig, {
       enabled: true,
       interactionContract: false,
+      contextVirtualization: false,
       skills: { enabled: false },
       defaultMode: "strict-workflow",
     });
     assert.deepEqual(layers.sources, {
       enabled: "local",
       interactionContract: "repository",
+      contextVirtualization: "builtin",
       skillsEnabled: "local",
       defaultMode: "local",
     });
@@ -897,12 +900,14 @@ test("Pi layered core config inherits omitted values and built-in defaults", asy
     assert.deepEqual(layers.coreConfig, {
       enabled: true,
       interactionContract: false,
+      contextVirtualization: false,
       skills: { enabled: true },
       defaultMode: "workflow",
     });
     assert.deepEqual(layers.sources, {
       enabled: "builtin",
       interactionContract: "local",
+      contextVirtualization: "builtin",
       skillsEnabled: "builtin",
       defaultMode: "builtin",
     });
@@ -2848,6 +2853,7 @@ test("Pi freeflow_status reports layered core sources and dormant mode", async (
     assert.deepEqual(report.configuration.sources, {
       enabled: "repository",
       interactionContract: "local",
+      contextVirtualization: "builtin",
       skillsEnabled: "local",
       defaultMode: "local",
     });
