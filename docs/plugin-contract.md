@@ -56,7 +56,7 @@ host session mode override
 
 Pi session overrides for Freeflow master enablement, Interaction Contract, Skills, and mode live in branch-aware session JSONL. Claude and Codex mode overrides live in plugin-owned state keyed by host session ID. Session state does not mutate config files or bypass missing or invalid repository activation. An invalid existing personal layer blocks effective runtime. Interaction Contract and Skills resolve as independent switches. Mode remains resolved but dormant when Skills are ineffective.
 
-Pi-owned Output Router configuration remains in shared config but does not enter Codex or Claude discovery or lifecycle context.
+Retired Output Router-shaped configuration remains tolerated in shared config for activation compatibility but is ignored by the runtime and does not enter any host discovery or lifecycle context.
 
 ## Runtime Delivery
 
@@ -96,7 +96,7 @@ Workflow owns routing. Leaf skills own focused methods. Method and domain skills
 
 The typed public adjacency map lives in `plugin-docs/skill-routing.md`. It distinguishes owners, sibling routes/composition, references, and optional capability delivery.
 
-The cross-host model surface contains 25 active model/contributor skill packages. The Pi package separately contains Output Router under `capabilities/`; Codex and Claude do not discover or receive it. Retired Delegation Harness material lives under `.deprecated/delegation-harness/` outside the package.
+The cross-host model surface contains 25 active model/contributor skill packages. Pi separately provides Context Virtualization and Cognitive Routing under `capabilities/`; Codex and Claude do not discover or receive those Pi-only capabilities. Retired Output Router material lives under `.deprecated/output-router/`, and retired Delegation Harness material lives under `.deprecated/delegation-harness/`, outside the package.
 
 ## Artifact Contract
 

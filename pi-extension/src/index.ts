@@ -11,23 +11,17 @@ import { registerCognitiveRoutingTool } from "./cognitive-routing/tool.js";
 import { handleContextCommand } from "./context-virtualization/commands.js";
 import { ContextVirtualizationRuntime } from "./context-virtualization/runtime.js";
 import { CONTEXT_VIRTUALIZATION_TOOL_NAME, registerContextVirtualizationTool } from "./context-virtualization/tool.js";
-import { handleNativeToolSafetyNet } from "./output-router/native-safety-net.js";
-import { handleObservedToolRouting } from "./output-router/observed-tool-routing.js";
-import { registerRouterTools } from "./output-router/router-tools.js";
-import { handleFreeflowCommand, handleOutputRouterCommand } from "./settings/settings-ui.js";
+import { handleFreeflowCommand } from "./settings/settings-ui.js";
 import { isPiFlowHost } from "./runtime/runtime-identity.js";
 import {
   CONTRIBUTOR_COMMANDS,
   COGNITIVE_ROUTING_SWITCH_TOOL_NAME,
   WORKFLOW_COMMANDS,
-  FREEFLOW_STATUS_TOOL_NAME,
   freeflowModelSkillPaths,
   freeflowSkillPath,
   getRuntimeContext,
-  OUTPUT_ROUTER_TOOL_NAMES,
   readCapabilityState,
   readModeState,
-  readOutputRouterConfig,
   refreshRuntimeContext,
   restoreModeOverride,
   runtimeContext,
@@ -35,12 +29,7 @@ import {
   filterBootstrapMessage,
   setModeStatus,
   skillPrompt,
-  notifyRouterConfigWarnings,
 } from "./runtime/runtime-context.js";
-
-function isOutputRouterToolName(name: string): boolean {
-  return OUTPUT_ROUTER_TOOL_NAMES.includes(name);
-}
 
 function startupSelectionSuppressesCognitiveRouting(ctx: any): boolean {
   return ctx?.modelStateProvenance?.explicitModel === true || ctx?.modelStateProvenance?.explicitThinking === true;
@@ -154,11 +143,6 @@ async function applyCapabilityToolVisibility(
     (Array.isArray(currentActive) ? currentActive : allToolNames).filter((name: string) => allToolNameSet.has(name)),
   );
 
-  if (allToolNameSet.has(FREEFLOW_STATUS_TOOL_NAME)) {
-    if (state.configured && state.enabled) active.add(FREEFLOW_STATUS_TOOL_NAME);
-    else active.delete(FREEFLOW_STATUS_TOOL_NAME);
-  }
-
   if (allToolNameSet.has(COGNITIVE_ROUTING_SWITCH_TOOL_NAME)) {
     const controllerState = cognitiveRoutingController?.state();
     const routingToolActive =
@@ -168,12 +152,6 @@ async function applyCapabilityToolVisibility(
       !startupSelectionSuppressesCognitiveRouting(ctx);
     if (routingToolActive) active.add(COGNITIVE_ROUTING_SWITCH_TOOL_NAME);
     else active.delete(COGNITIVE_ROUTING_SWITCH_TOOL_NAME);
-  }
-
-  for (const toolName of OUTPUT_ROUTER_TOOL_NAMES) {
-    if (!allToolNameSet.has(toolName)) continue;
-    if (state.outputRouter.enabled) active.add(toolName);
-    else active.delete(toolName);
   }
 
   if (allToolNameSet.has(CONTEXT_VIRTUALIZATION_TOOL_NAME)) {
@@ -213,16 +191,6 @@ function disabledToolCall(toolName: string, capability: string) {
     block: true,
     reason: `${toolName} is disabled by Freeflow config. Configure ${capability} with ${command}.`,
   };
-}
-
-function capabilityCompletions(prefix: string | undefined) {
-  const query = prefix ?? "";
-  return [
-    { value: "settings", label: "settings", description: "Open repository Output Router settings" },
-    { value: "status", label: "status", description: "Show effective Output Router state" },
-    { value: "enable", label: "enable", description: "Enable Output Router for this repository" },
-    { value: "disable", label: "disable", description: "Disable Output Router for this repository" },
-  ].filter((item) => item.value.startsWith(query));
 }
 
 function freeflowCompletions(prefix: string | undefined, hostInfo = undefined) {
@@ -328,7 +296,6 @@ export default function freeflow(pi) {
     registerCognitiveRoutingTool(pi, () => cognitiveRoutingController);
   }
   registerContextVirtualizationTool(pi, () => contextVirtualizationRuntime);
-  registerRouterTools(pi, () => cognitiveRoutingController?.state(), pi?.host);
 
   if (isPiFlowHost(pi?.host) && typeof pi.registerShortcut === "function") {
     pi.registerShortcut("ctrl+shift+r", {
@@ -399,13 +366,11 @@ export default function freeflow(pi) {
     restoreModeOverride(ctx);
     contextVirtualizationRuntime = new ContextVirtualizationRuntime(pi, ctx);
     await contextVirtualizationRuntime.recover(ctx);
-    const [modeState, routerConfigResult, capabilityState] = await Promise.all([
+    const [modeState, capabilityState] = await Promise.all([
       readModeState(ctx.cwd),
-      readOutputRouterConfig(ctx.cwd),
       readCapabilityState(ctx.cwd, ctx, pi?.host),
     ]);
     await refreshRuntimeContext(capabilityState);
-    notifyRouterConfigWarnings(ctx, routerConfigResult);
     const hasSessionState = sessionHasConversationOrRoutingState(ctx);
     const cognitiveRoutingStartupPending =
       capabilityState?.cognitiveRouting?.effective === true &&
@@ -451,21 +416,18 @@ export default function freeflow(pi) {
       contextVirtualizationRuntime.setContext(ctx);
       await contextVirtualizationRuntime.recover(ctx);
     }
-    const [modeState, routerConfigResult, capabilityState] = await Promise.all([
+    const [modeState, capabilityState] = await Promise.all([
       readModeState(ctx.cwd),
-      readOutputRouterConfig(ctx.cwd),
       readCapabilityState(ctx.cwd, ctx, pi?.host),
     ]);
     await refreshRuntimeContext(capabilityState);
     setModeStatus(ctx, modeState, capabilityState, cognitiveRoutingController?.state());
-    notifyRouterConfigWarnings(ctx, routerConfigResult);
     await applyCapabilityToolVisibility(pi, ctx, capabilityState, cognitiveRoutingController);
   });
 
   pi.on("before_agent_start", async (event, ctx) => {
-    const [modeState, routerConfigResult, capabilityState] = await Promise.all([
+    const [modeState, capabilityState] = await Promise.all([
       readModeState(ctx.cwd),
-      readOutputRouterConfig(ctx.cwd),
       readCapabilityState(ctx.cwd, ctx, pi?.host),
     ]);
     if (!cognitiveRoutingController) {
@@ -480,12 +442,10 @@ export default function freeflow(pi) {
     const effectivePromptCapabilityState = promptCapabilityState(capabilityState, cognitiveRoutingRuntime, ctx);
     const freeflowContext = await getRuntimeContext(effectivePromptCapabilityState);
     setModeStatus(ctx, modeState, capabilityState, cognitiveRoutingRuntime);
-    notifyRouterConfigWarnings(ctx, routerConfigResult);
     await applyCapabilityToolVisibility(pi, ctx, capabilityState, cognitiveRoutingController);
     const freeflowRuntimeContext = runtimeContext(
       modeState,
       freeflowContext,
-      routerConfigResult,
       effectivePromptCapabilityState,
       cognitiveRoutingRuntime,
     );
@@ -528,32 +488,18 @@ export default function freeflow(pi) {
   pi.on("tool_call", async (event, ctx) => {
     const capabilityState = await readCapabilityState(ctx.cwd, ctx, pi?.host);
     const toolName = typeof event?.toolName === "string" ? event.toolName : "";
-    if ((!capabilityState.configured || !capabilityState.enabled) && toolName === FREEFLOW_STATUS_TOOL_NAME) {
-      return disabledToolCall(toolName, "freeflow");
-    }
     if (capabilityState.contextVirtualization?.effective !== true && toolName === CONTEXT_VIRTUALIZATION_TOOL_NAME) {
       return disabledToolCall(toolName, "context-virtualization");
-    }
-    if (!capabilityState.outputRouter.enabled && isOutputRouterToolName(toolName)) {
-      return disabledToolCall(toolName, "output-router");
     }
     return undefined;
   });
 
   pi.on("tool_result", async (event, ctx) => {
-    const capabilityState = await readCapabilityState(ctx.cwd, ctx, pi?.host);
     const toolName = typeof event?.toolName === "string" ? event.toolName : "";
     if (isPiFlowHost(pi?.host) && toolName === COGNITIVE_ROUTING_SWITCH_TOOL_NAME) {
       await applyLiveCapabilityStateForSession(ctx);
     }
-    if (!capabilityState.outputRouter.enabled) {
-      return undefined;
-    }
-    const observed = await handleObservedToolRouting(event, ctx);
-    if (observed) {
-      return observed;
-    }
-    return handleNativeToolSafetyNet(event, ctx);
+    return undefined;
   });
 
   for (const { command, skill } of WORKFLOW_COMMANDS) {
@@ -607,21 +553,6 @@ export default function freeflow(pi) {
         },
         pi,
         cognitiveRoutingController,
-      );
-    },
-  });
-
-  pi.registerCommand("output-router", {
-    description: "Open Freeflow Output Router settings or print compact status",
-    getArgumentCompletions: capabilityCompletions,
-    handler: async (args, ctx) => {
-      await handleOutputRouterCommand(
-        args,
-        ctx,
-        async () => {
-          await applyLiveCapabilityStateForSession(ctx);
-        },
-        pi,
       );
     },
   });

@@ -11,9 +11,6 @@ node_modules/
 # Local Freeflow runtime state and task memory.
 .freeflow/*/
 
-# Generated router evaluation output.
-router/evals/runs/
-
 # Graphify generated output.
 graphify-out/
 

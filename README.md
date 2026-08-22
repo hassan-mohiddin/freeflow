@@ -25,7 +25,7 @@ Coding agents are strong at mutation and weak at control boundaries:
 | A passing command becomes an unsupported completion claim. | Verify Work matches direct evidence to the exact claim and boundary. |
 | Review findings are treated as commands. | The active agent adjudicates; corrections require existing or explicit authority. |
 | Compaction loses task state or imports stale branch authority. | Track Work restores the complete Working Record and reconciles it with the current conversation and live repo. |
-| Large search, logs, and test output consume the context window. | Pi's optional Output Router returns focused evidence with exact recovery where configured. |
+| Consumed tool results keep occupying future context. | Pi's optional Context Virtualization archives consumed results while preserving canonical session history. |
 
 Freeflow is not a new agent or workflow engine. It is a portable control layer for Codex, Claude Code, Pi, and similar coding environments.
 
@@ -86,7 +86,7 @@ Task type and direct skill calls do not silently switch mode.
 
 ## Skills And Routing
 
-Freeflow ships 25 model/contributor skills to Codex, Claude Code, and Pi. The Pi package also includes Output Router as a separately packaged optional capability; it is not part of Codex or Claude skill discovery or lifecycle context.
+Freeflow ships 25 model/contributor skills to Codex, Claude Code, and Pi. Pi also provides optional Context Virtualization and Cognitive Routing capabilities outside the shared skill surface.
 
 See the [typed skill routing map](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/skill-routing.md) for every owner, sibling route, and reference dependency. See [Workflow](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/workflow.md) for the lifecycle and [Architecture](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/architecture.md) for delivery and configuration.
 
@@ -106,22 +106,11 @@ It records state transitions, not every edit or comment. Routine in-slice feedba
 
 ## Context Is For Decisions, Not Dumps
 
-In Pi, the optional Output Router keeps noisy evidence recoverable without forcing all of it into model context.
-
-| Need | Use |
-| --- | --- |
-| Search repo, explicit local sources, or routed evidence | `freeflow_search` |
-| Run noisy tests, builds, typechecks, logs, or diagnostics | `freeflow_run` |
-| Run independent searches/checks and aggregate facts | `freeflow_batch` |
-| Compute bounded subsets or statistics | `freeflow_search action=transform` |
-| Inspect configuration, vault, routing, or adapters | `freeflow_status` |
-| Read a known file or run a tiny exact command | Native host tools |
-
-Output Router is disabled by default and available only through the Pi extension. Enable it explicitly through Pi's `/output-router` surface.
+In Pi, optional Context Virtualization lets the model archive consumed tool-result content from future context while preserving canonical session history. Use native host tools for direct file reads, commands, and mutations.
 
 ## Evidence, Not Marketing Certainty
 
-Historical v0.1 workflow fixtures and current router benchmarks remain reproducible evidence, not universal guarantees. The current adaptive skill candidate is **Unverified** pending baseline-vs-with-skill behavioral evaluation.
+Historical workflow and router benchmarks remain documentary evidence, not universal guarantees. Retired Output Router material is preserved under `.deprecated/output-router/`. The current adaptive skill candidate is **Unverified** pending baseline-vs-with-skill behavioral evaluation.
 
 | Evidence | Result |
 | --- | --- |
@@ -205,7 +194,7 @@ When effective, host adapters deliver:
 
 Mode Contract and other skills remain on demand. Hooks load context only; they do not enforce policy, block tools, grant permissions, or replace repo instructions.
 
-Pi appends effective compact context before agent turns and stores Workflow as one hidden persistent session message. Codex and Claude use one packaged runtime hook: `SessionStart` restores the complete enabled context after startup, resume, clear, and compact; `UserPromptSubmit` emits only for an explicit session-mode control and stays silent on ordinary prompts. Claude uses a bounded host-process-scoped, one-shot lifecycle handoff to retain an override when `/clear` changes the host session identifier. Their hook never exposes Output Router. Setup reports automatic delivery as confirmed, unavailable, or unconfirmed.
+Pi appends effective compact context before agent turns and stores Workflow as one hidden persistent session message. Codex and Claude use one packaged runtime hook: `SessionStart` restores the complete enabled context after startup, resume, clear, and compact; `UserPromptSubmit` emits only for an explicit session-mode control and stays silent on ordinary prompts. Claude uses a bounded host-process-scoped, one-shot lifecycle handoff to retain an override when `/clear` changes the host session identifier. Setup reports automatic delivery as confirmed, unavailable, or unconfirmed.
 
 ## Commands
 
@@ -259,7 +248,6 @@ Pi-native settings controls:
 
 ```text
 /freeflow
-/output-router
 ```
 
 Pi `/freeflow settings` edits personal core overrides, `/freeflow settings session` manages temporary core and mode overrides, and `/freeflow settings repo` edits shared settings. For session mode, Pi uses `/freeflow mode <mode|reset>`, Claude uses `/freeflow:mode-contract <mode|reset>`, and Codex uses `$mode-contract <mode|reset>`. Clear natural-language instructions such as “Switch to conversation mode” use the same host-managed session control; questions and hypotheticals do not.
@@ -274,7 +262,6 @@ A request to change the **default** is separate. Explicit local/personal wording
 - [Workflow](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/workflow.md)
 - [Skill routing](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/skill-routing.md)
 - [Architecture](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/architecture.md)
-- [Output Router](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/output-router.md)
 - [Release evidence](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/release-evidence.md)
 - [Release ADRs](https://github.com/hassan-mohiddin/freeflow/blob/main/plugin-docs/adr/README.md)
 

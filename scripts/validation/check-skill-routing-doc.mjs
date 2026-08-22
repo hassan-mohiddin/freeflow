@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const skillsRoot = resolve(repoRoot, "skills");
 const mapPath = resolve(repoRoot, "plugin-docs/skill-routing.md");
-const optionalCapabilityPaths = new Map([["output-router", "capabilities/output-router/SKILL.md"]]);
+const optionalCapabilityPaths = new Map();
 
 const markdownLinks = (text) => [...text.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)].map((match) => match[1].split("#", 1)[0]);
 
@@ -108,5 +108,5 @@ if (failures.length) {
 }
 
 process.stdout.write(
-  `Skill routing doc check passed: ${activeSkills.length} active rows match declared sibling routes and direct resource dependencies; ${optionalCapabilityPaths.size} Pi-only capability package is classified separately.\n`,
+  `Skill routing doc check passed: ${activeSkills.length} active rows match declared sibling routes and direct resource dependencies; no retired optional capability packages are classified as active.\n`,
 );

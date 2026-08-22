@@ -73,7 +73,6 @@ require_text "$architecture_doc" 'The Interaction Contract is the only compact i
 
 require_text "$pi_runtime" '../../capabilities/interaction-contract/interaction-contract.md'
 require_text "$pi_runtime" '../../skills/workflow/SKILL.md'
-require_text "$pi_runtime" '../../capabilities/output-router/SKILL.md'
 require_text "$shared_hook" '"capabilities", "interaction-contract", "interaction-contract.md"'
 require_text "$shared_hook" '"workflow", "SKILL.md"'
 require_text "$shared_hook" 'eventName === "SessionStart" || eventName === "UserPromptSubmit"'

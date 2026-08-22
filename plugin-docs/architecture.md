@@ -13,7 +13,6 @@ freeflow/
   capabilities/
   hooks/
   pi-extension/
-  router/
   .deprecated/
   command-surface.json
   plugin-docs/
@@ -21,7 +20,7 @@ freeflow/
   .skill-eval/
 ```
 
-The npm tarball contains runtime-required files. GitHub also retains plugin docs, project memory, current eval definitions, router evidence, and deprecated historical evidence. There is no generated package mirror.
+The npm tarball contains runtime-required files. GitHub also retains plugin docs, project memory, current eval definitions, and deprecated historical evidence. Retired Output Router evidence is preserved under `.deprecated/output-router/`. There is no generated package mirror.
 
 For local Pi/PiFlow integration, Freeflow can provide an exact-commit development snapshot outside the repository. It is not a production release or source-precedence mechanism; production installs use ordinary npm/Git sources. PiFlow owns host launch, import, update, and upstream synchronization, while Freeflow owns policy and snapshot production.
 
@@ -40,7 +39,7 @@ host session mode override
 -> built-in default
 ```
 
-Pi can temporarily override Freeflow master enablement, Interaction Contract, Skills, and mode in branch-aware session JSONL. Claude and Codex support a session-only mode override in plugin-owned data keyed by their host session ID. Session state never mutates either config file and cannot bypass missing or invalid repository activation. An invalid existing personal layer fails closed. Repository-owned Output Router configuration is not copied into the personal layer.
+Pi can temporarily override Freeflow master enablement, Interaction Contract, Skills, and mode in branch-aware session JSONL. Claude and Codex support a session-only mode override in plugin-owned data keyed by their host session ID. Session state never mutates either config file and cannot bypass missing or invalid repository activation. An invalid existing personal layer fails closed. Retired Output Router-shaped configuration is tolerated for activation compatibility but is ignored and not copied into the personal layer.
 
 Configuration establishes activation state; it does not prove host runtime delivery.
 
@@ -51,7 +50,7 @@ Freeflow has two model-facing guidance layers:
 1. **Interaction Contract:** `capabilities/interaction-contract/interaction-contract.md` supplies compact turn interpretation when its switch is effective.
 2. **Workflow bootstrap:** `skills/workflow/SKILL.md` supplies the complete Interaction Lifecycle, Feedback Loop, routing, review, continuity, and Supported Exit behavior when Skills are effective.
 
-Hosts also provide compact active or dormant mode state. Mode Contract and other workflow skills remain on demand. Pi alone loads Output Router instructions when that capability is effective. Pi also loads the non-discoverable `capabilities/cognitive-routing/SKILL.md` contract only for an effective, leased routing session and appends its current profile/control state per agent run.
+Hosts also provide compact active or dormant mode state. Mode Contract and other workflow skills remain on demand. Pi loads optional Context Virtualization and Cognitive Routing guidance only while those capabilities are effective.
 
 The Interaction Contract is the only compact interaction-guidance artifact. It owns turn interpretation; Workflow owns routing and recurrence.
 
@@ -75,7 +74,7 @@ The Pi extension:
 - restores temporary session mode from Pi session entries;
 - dynamically exposes 25 model/contributor skills;
 - registers canonical direct commands and two Pi-only compatibility aliases;
-- activates Output Router tools and context only when effective;
+- activates optional Context Virtualization tools and context only when effective;
 - owns the Pi-only Cognitive Routing lease, prepared profile intents, manual profile commands, sticky automatic reasoning episodes, reload state restoration, automatic switch tool, and session status.
 
 `/freeflow settings` edits personal core overrides. `/freeflow settings session` manages temporary, branch-aware Freeflow, Interaction Contract, Skills, and mode overrides without changing config files. `/freeflow settings repo` edits shared repository settings. `/freeflow mode` remains the direct temporary mode control.
@@ -90,7 +89,7 @@ A skill body is complete on first read with guaranteed context. Conditional dept
 
 See [Skill routing](skill-routing.md) for the typed owner, route, and reference adjacency map.
 
-The active cross-host model/contributor surface has 25 skills under `skills/`. Output Router is a separately packaged Pi-only runtime capability under `capabilities/`, outside Codex and Claude discovery.
+The active cross-host model/contributor surface has 25 skills under `skills/`. Context Virtualization and Cognitive Routing are separately packaged Pi-only capabilities under `capabilities/`, outside Codex and Claude discovery. Retired Output Router material is preserved under `.deprecated/output-router/`.
 
 ## Review And Verification Topology
 
@@ -111,7 +110,7 @@ After compaction, summarization, clear, resume, or session navigation, Workflow 
 
 ## Capabilities
 
-The Pi-only Output Router capability owns routed retrieval, noisy command execution, observed routing, vault recovery, and optional script transformation. Its detailed runtime and evidence contract lives in [Output Router](output-router.md).
+The Pi-only Context Virtualization capability owns projection-only archive and restore of consumed tool-result content while preserving canonical session history.
 
 The Pi-only Cognitive Routing capability owns exactly two configured compute profiles, complete model-and-thinking transitions through Pi's lease, deterministic `/freeflow profile standard|reasoning|auto` controls, and the guarded `freeflow_switch_profile(target, reason)` request. It shares authority, tools, workflow, context, and evidence requirements with the active agent; it does not create a new skill-discovery surface or authorize work. The current implementation remains an experimental local-Pi MVP until the Phase 2 mechanism checkpoint and behavioral acceptance evidence are complete.
 

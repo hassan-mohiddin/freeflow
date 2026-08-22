@@ -57,7 +57,6 @@ Workflow chooses the current owner. A linked skill does not run automatically, a
 
 | Package or archive | Role | Delivery |
 | --- | --- | --- |
-| [`output-router`](../capabilities/output-router/SKILL.md) | Optional routed-evidence capability | Pi-only. Disabled by default and loaded only when repository config and top-level Freeflow make it effective; excluded from Codex/Claude skill discovery and lifecycle context. |
 | [`delegation-harness`](../.deprecated/delegation-harness/README.md) | Retired implementation and historical evidence | Excluded from the live package, Setup, commands, runtime context, and active model-skill discovery. |
 
 ## Reading The Graph
@@ -70,4 +69,4 @@ The table is an adjacency map, not a call graph. Runtime behavior still depends 
 4. the selected skill deciding whether a linked route or reference applies;
 5. evidence returning to Workflow for the next route or Supported Exit.
 
-Run `node scripts/validation/check-skill-routing-doc.mjs` after changing skill dependencies. It compares all 25 active rows with declared sibling routes and direct resource links and confirms the separately classified Pi-only Output Router capability. Update this map only when ownership, a declared route, or a reference boundary changes—not after ordinary implementation progress.
+Run `node scripts/validation/check-skill-routing-doc.mjs` after changing skill dependencies. It compares all 25 active rows with declared sibling routes and direct resource links; retired capabilities are not part of this map. Update this map only when ownership, a declared route, or a reference boundary changes—not after ordinary implementation progress.

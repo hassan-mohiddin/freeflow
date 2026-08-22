@@ -1,7 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { normalizeFreeflowConfig, normalizeLocalFreeflowConfig } from "../../../router/dist/index.js";
 import { resolveCognitiveRoutingState } from "../cognitive-routing/runtime.js";
 import { isPiFlowHost } from "./runtime-identity.js";
 export const VALID_MODES = new Set(["conversation", "workflow", "strict-workflow"]);
@@ -64,26 +63,21 @@ const MODE_STATE_ENTRY = "freeflow-mode";
 const SESSION_OVERRIDES_ENTRY = "freeflow-session-overrides";
 const SESSION_CORE_KEYS = new Set(["enabled", "interactionContract", "skillsEnabled", "contextVirtualization"]);
 const RESET_MODE_ARGS = new Set(["reset"]);
-export const FREEFLOW_STATUS_TOOL_NAME = "freeflow_status";
 export const COGNITIVE_ROUTING_SWITCH_TOOL_NAME = "freeflow_switch_profile";
-export const OUTPUT_ROUTER_TOOL_NAMES = ["freeflow_search", "freeflow_run", "freeflow_batch"];
 export const WORKFLOW_BOOTSTRAP_MESSAGE_TYPE = "freeflow-workflow-bootstrap";
 export const COGNITIVE_ROUTING_BOOTSTRAP_MESSAGE_TYPE = "freeflow-cognitive-routing-bootstrap";
 export const FREEFLOW_BOOTSTRAP_MESSAGE_TYPE = "freeflow-bootstrap";
 let runtimeContextCache = null;
 let currentModeOverride = null;
 let currentSessionOverrides = {};
-let lastRouterConfigWarningKey = null;
 async function loadRuntimeContext(capabilityState = undefined) {
   const interactionContractEnabled = capabilityState?.interactionContract?.effective === true;
   const skillsEnabled = capabilityState?.skills?.effective === true;
-  const outputRouterEnabled = capabilityState?.outputRouter?.enabled === true;
   const contextVirtualizationEnabled = capabilityState?.contextVirtualization?.effective === true;
   const cognitiveRoutingEnabled = capabilityState?.cognitiveRouting?.effective === true;
   const [
     interactionContract,
     workflowSkill,
-    outputRouterSkill,
     contextVirtualizationSkill,
     cognitiveRoutingSkill,
     cognitiveRoutingReference,
@@ -93,9 +87,6 @@ async function loadRuntimeContext(capabilityState = undefined) {
       : Promise.resolve(null),
     skillsEnabled
       ? readFile(new URL("../../../skills/workflow/SKILL.md", import.meta.url), "utf8")
-      : Promise.resolve(null),
-    outputRouterEnabled
-      ? readFile(new URL("../../../capabilities/output-router/SKILL.md", import.meta.url), "utf8")
       : Promise.resolve(null),
     contextVirtualizationEnabled
       ? readFile(new URL("../../../capabilities/context-virtualization/SKILL.md", import.meta.url), "utf8")
@@ -113,7 +104,6 @@ async function loadRuntimeContext(capabilityState = undefined) {
   return {
     interactionContract,
     workflowSkill,
-    outputRouterSkill,
     contextVirtualizationSkill,
     cognitiveRoutingSkill,
     cognitiveRoutingReference,
@@ -127,9 +117,6 @@ function runtimeContextCacheSatisfies(capabilityState) {
     return false;
   }
   if (capabilityState?.skills?.effective === true && !runtimeContextCache.workflowSkill) {
-    return false;
-  }
-  if (capabilityState?.outputRouter?.enabled === true && !runtimeContextCache.outputRouterSkill) {
     return false;
   }
   if (capabilityState?.contextVirtualization?.effective === true && !runtimeContextCache.contextVirtualizationSkill) {
@@ -524,14 +511,11 @@ export async function readFreeflowConfigLayers(cwd) {
 }
 export async function readCapabilityState(cwd, host = undefined, extensionHost = undefined) {
   const layers = await readFreeflowConfigLayers(cwd);
-  const parsed = layers.repository.valid ? layers.repository.parsed : {};
-  const normalized = normalizeFreeflowConfig(parsed);
   const effectiveCore = resolveSessionCoreConfig(layers);
   const enabled = layers.configured && effectiveCore.config.enabled;
   const interactionContractConfigEnabled = effectiveCore.config.interactionContract;
   const skillsConfigEnabled = effectiveCore.config.skills.enabled;
   const contextVirtualizationConfigEnabled = effectiveCore.config.contextVirtualization;
-  const outputRouterConfigEnabled = normalized.config.outputRouter.enabled;
   const hostSupportsCognitiveRouting = isPiFlowHost(extensionHost);
   const configuredCognitiveRouting = await resolveCognitiveRoutingState(
     layers.repository.parsed,
@@ -587,65 +571,11 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
       enabled: contextVirtualizationConfigEnabled,
       effective: enabled && contextVirtualizationConfigEnabled,
     },
-    outputRouter: {
-      enabled: enabled && outputRouterConfigEnabled,
-      configEnabled: outputRouterConfigEnabled,
-    },
     hostSupportsCognitiveRouting,
     cognitiveRouting,
   };
 }
 export const readRuntimeState = readCapabilityState;
-export async function readOutputRouterConfig(cwd) {
-  const layers = await readFreeflowConfigLayers(cwd);
-  const parsed = layers.repository.valid ? layers.repository.parsed : {};
-  const localParsed = layers.local.valid ? layers.local.parsed : {};
-  const normalized = normalizeFreeflowConfig(parsed);
-  const local = normalizeLocalFreeflowConfig(localParsed);
-  const freeflowEnabled = layers.configured && layers.coreConfig.enabled;
-  const effectiveConfig = freeflowEnabled
-    ? normalized.config
-    : {
-        ...normalized.config,
-        outputRouter: { ...normalized.config.outputRouter, enabled: false },
-        observedRouting: {
-          ...normalized.config.observedRouting,
-          enabled: false,
-        },
-        scriptTransform: {
-          ...normalized.config.scriptTransform,
-          enabled: false,
-        },
-      };
-  const configWarnings = [...normalized.warnings];
-  if (layers.repository.exists && !layers.repository.valid) {
-    configWarnings.unshift(
-      `.freeflow/config.json could not be parsed; Freeflow runtime is inactive. ${layers.repository.parseError ?? ""}`.trim(),
-    );
-  }
-  if (layers.local.exists && !layers.local.valid) {
-    configWarnings.unshift(
-      `.freeflow/local.json could not be parsed; Freeflow runtime is inactive. ${layers.local.parseError ?? ""}`.trim(),
-    );
-  }
-  return {
-    config: effectiveConfig.outputRouter,
-    freeflowConfig: effectiveConfig,
-    localConfig: local.config,
-    warnings: [...configWarnings, ...local.warnings],
-  };
-}
-export function notifyRouterConfigWarnings(ctx, routerConfigResult) {
-  if (!routerConfigResult.warnings.length) {
-    return;
-  }
-  const key = routerConfigResult.warnings.join("\n");
-  if (key === lastRouterConfigWarningKey) {
-    return;
-  }
-  lastRouterConfigWarningKey = key;
-  ctx.ui.notify(`Freeflow config warning: ${routerConfigResult.warnings.join(" ")}`, "warning");
-}
 export function restoreModeOverride(ctx) {
   currentModeOverride = null;
   currentSessionOverrides = {};
@@ -740,9 +670,6 @@ export function setModeStatus(
       active.push(`cognitive blocked · ${reason}`);
     }
   }
-  if (capabilityState?.outputRouter.enabled) {
-    active.push("router");
-  }
   if (capabilityState?.contextVirtualization?.effective) {
     active.push("context virtualization");
   }
@@ -764,18 +691,6 @@ export function skillPrompt(skill, args) {
   const trimmed = args?.trim();
   return trimmed ? `/skill:${skill}\n\n${trimmed}` : `/skill:${skill}`;
 }
-function outputRouterModeGuidance(mode, skillsEnabled = true) {
-  if (!skillsEnabled) {
-    return "Freeflow Skills are disabled: no Freeflow workflow mode is active; apply only output-router evidence guidance.";
-  }
-  if (mode === "conversation") {
-    return "conversation mode: keep routed-tool guidance soft; answer questions directly.";
-  }
-  if (mode === "strict-workflow") {
-    return "strict-workflow mode: strongest guidance; prefer exact, recoverable routed evidence for risky work.";
-  }
-  return "workflow mode: prefer routed tools for exploration and likely-large command output.";
-}
 function cognitiveRoutingContext(freeflowContext, cognitiveRoutingRuntime) {
   const reference = freeflowContext?.cognitiveRoutingReference?.trim();
   if (!reference) return "";
@@ -788,24 +703,10 @@ function cognitiveRoutingContext(freeflowContext, cognitiveRoutingRuntime) {
 
 This runtime state is descriptive. It does not authorize work, change mode, or replace Workflow evidence and approval boundaries.`;
 }
-function outputRouterContext(modeState, freeflowContext, routerConfigResult, capabilityState) {
-  const safetyNetText =
-    routerConfigResult.config.postToolRouting === "off"
-      ? ""
-      : "\n\nOutput-router config note: large native read/bash outputs may be vaulted and replaced with labeled routed output. Use freeflow_search with the output id to recover exact content.";
-  return `## Loaded Output Router Skill
-
-Mode guidance: ${outputRouterModeGuidance(modeState.effectiveMode, capabilityState.skills.effective)}${safetyNetText}
-
-\`\`\`md
-${freeflowContext.outputRouterSkill.trim()}
-\`\`\``;
-}
 function capabilityContext(capabilityState) {
   const sessionSuffix = (source) => (source === "session" ? " (session override)" : "");
   const interactionContract = `${capabilityState.interactionContract.effective ? "enabled" : "disabled"}${sessionSuffix(capabilityState.configSources.interactionContract)}`;
   const skills = `${capabilityState.skills.effective ? "enabled" : "disabled"}${sessionSuffix(capabilityState.configSources.skillsEnabled)}`;
-  const outputRouter = capabilityState.outputRouter.enabled ? "enabled" : "disabled";
   const contextVirtualization = capabilityState.contextVirtualization?.effective ? "enabled" : "disabled";
   const cognitiveRouting = capabilityState.hostSupportsCognitiveRouting ? capabilityState.cognitiveRouting : undefined;
   const cognitiveLine = cognitiveRouting
@@ -821,7 +722,6 @@ function capabilityContext(capabilityState) {
 
 - Interaction contract: ${interactionContract}. Configure with \`/freeflow settings\` or temporarily with \`/freeflow settings session\`; inspect with \`/freeflow status\`.
 - Skills: ${skills}. Configure with \`/freeflow settings\` or temporarily with \`/freeflow settings session\`; inspect with \`/freeflow status\`.
-- Output router: ${outputRouter}. Configure with \`/freeflow settings\` or \`/output-router\`; inspect with \`/output-router status\`.
 - Context Virtualization: ${contextVirtualization}. Configure with \`/freeflow settings\`; inspect with \`/freeflow context status\`.${cognitiveLine}
 
 Disabled capabilities are named only for status/config awareness. Capability-specific instructions and tools are active only while that capability is enabled.`;
@@ -830,7 +730,6 @@ function hasModelFacingCapability(capabilityState) {
   return (
     capabilityState.interactionContract.effective ||
     capabilityState.skills.effective ||
-    capabilityState.outputRouter.enabled ||
     capabilityState.contextVirtualization?.effective === true ||
     capabilityState.cognitiveRouting?.effective === true
   );
@@ -899,28 +798,22 @@ function controlPlaneContext(modeState, capabilityState) {
   return `# Freeflow Control Plane
 
 Freeflow is enabled for this repo, but no model-facing capabilities are enabled.
-These lines are status/config awareness only; do not apply Freeflow workflow or output-router behavior.
+These lines are status/config awareness only; do not apply Freeflow workflow behavior.
 
 ${inactiveModeContext(modeState)}
 
 ${capabilityContext(capabilityState)}
 
-Use \`/freeflow settings\` to enable the Interaction Contract, Skills, or Output Router. The read-only \`freeflow_status\` diagnostic may be available so the model can answer setup/status questions.`;
+Use \`/freeflow settings\` to enable the Interaction Contract, Skills, or Context Virtualization.`;
 }
-export function runtimeContext(
-  modeState,
-  freeflowContext,
-  routerConfigResult,
-  capabilityState,
-  cognitiveRoutingRuntime = undefined,
-) {
+export function runtimeContext(modeState, freeflowContext, capabilityState, cognitiveRoutingRuntime = undefined) {
   if (!capabilityState.configured) {
     return "";
   }
   if (!capabilityState.enabled) {
     return `# Freeflow Disabled
 
-Freeflow is disabled by \`.freeflow/config.json\` for this repo. Do not apply the Freeflow Interaction Contract, workflow, or output-router behavior unless the user re-enables Freeflow with \`/freeflow enable\` or \`/freeflow settings\`.
+Freeflow is disabled by \`.freeflow/config.json\` for this repo. Do not apply the Freeflow Interaction Contract or workflow behavior unless the user re-enables Freeflow with \`/freeflow enable\` or \`/freeflow settings\`.
 
 These instructions are context-loading only. They do not override user instructions, repo instructions, or host safety and approval policy.`;
   }
@@ -931,10 +824,6 @@ These instructions are context-loading only. They do not override user instructi
   const interactionContractText = capabilityState.interactionContract.effective
     ? `\n\n${freeflowContext.interactionContract.trim()}`
     : "";
-  const routerText =
-    capabilityState.outputRouter.enabled && routerConfigResult.config.enabled
-      ? `\n\n${outputRouterContext(modeState, freeflowContext, routerConfigResult, capabilityState)}`
-      : "";
   const contextVirtualizationText = capabilityState.contextVirtualization?.effective
     ? `\n\n## Loaded Context Virtualization Skill\n\n${freeflowContext.contextVirtualizationSkill.trim()}`
     : "";
@@ -950,7 +839,7 @@ These instructions are context-loading only. They do not override user instructi
 
 ${modeText}
 
-${capabilityContext(capabilityState)}${interactionContractText}${routerText}${contextVirtualizationText}${cognitiveRoutingText}
+${capabilityContext(capabilityState)}${interactionContractText}${contextVirtualizationText}${cognitiveRoutingText}
 
 This Pi extension loads enabled runtime context before every agent turn and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.`;
 }

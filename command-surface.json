@@ -122,11 +122,6 @@
       "handler": "freeflow",
       "kind": "cognitive-routing-control",
       "piOnly": true
-    },
-    {
-      "command": "/output-router",
-      "handler": "output-router",
-      "kind": "settings"
     }
   ],
   "developerSkillCalls": [

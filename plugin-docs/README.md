@@ -30,11 +30,10 @@ Or install directly from GitHub:
 pi install git:github.com/hassan-mohiddin/freeflow
 ```
 
-The package exposes the built Pi extension at `pi-extension/dist/index.js`. Pi extension source lives in `pi-extension/src/`. The Pi extension dynamically exposes Freeflow model skills only after repo setup, keeps `/freeflow mode` changes scoped to the Pi session, refreshes enabled runtime context on session start and compact, appends compact context to the existing system prompt before every agent turn, and loads full Workflow once as a hidden persistent first-turn message. Use `/freeflow` for the unified settings/status UI, including separate Session mode and Default mode controls; when Freeflow is off, nested skill, mode, and output-router settings are inactive until re-enabled. Output Router guidance lives under `capabilities/` and is loaded only by Pi when effective; it is not a Codex or Claude skill. The safety-policy reference remains available to that capability but is not injected wholesale by default. The extension does not enforce policy, grant permissions, or create repo-local hooks.
+The package exposes the built Pi extension at `pi-extension/dist/index.js`. Pi extension source lives in `pi-extension/src/`. The Pi extension dynamically exposes Freeflow model skills only after repo setup, keeps `/freeflow mode` changes scoped to the Pi session, refreshes enabled runtime context on session start and compact, appends compact context to the existing system prompt before every agent turn, and loads full Workflow once as a hidden persistent first-turn message. Use `/freeflow` for the unified settings/status UI, including separate Session mode and Default mode controls; when Freeflow is off, nested skill, mode, and Context Virtualization settings are inactive until re-enabled. The extension does not enforce policy, grant permissions, or create repo-local hooks.
 
 - [Workflow](workflow.md): modes, entry points, loops, and the compact workflow map.
 - [Skill routing](skill-routing.md): shipped skills, ownership, sibling routes, and reference dependencies.
 - [Architecture](architecture.md): package layout, layered configuration, runtime delivery, review topology, and task memory.
-- [Output Router](output-router.md): compact guide to routed retrieval, command output routing, vault recovery, and config.
 - [Release evidence](release-evidence.md): current release evidence and deferred checks.
 - [ADRs](adr/README.md): durable release decisions.

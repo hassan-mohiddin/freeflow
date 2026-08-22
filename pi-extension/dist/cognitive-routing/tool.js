@@ -1,4 +1,4 @@
-import { textComponent } from "../output-router/utils.js";
+import { textComponent } from "../ui/text-component.js";
 export const COGNITIVE_ROUTING_SWITCH_TOOL_NAME = "freeflow_switch_profile";
 export const COGNITIVE_ROUTING_SWITCH_PARAMETERS = {
   type: "object",

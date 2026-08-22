@@ -38,7 +38,7 @@ host session mode override -> personal override -> repository value -> built-in 
 
 Pi session overrides can temporarily change Freeflow master enablement, Interaction Contract, Skills, and mode in branch-aware Pi session JSONL. Claude and Codex support mode-only session overrides in plugin-owned data keyed by the host session ID. No session override mutates config files or bypasses missing or invalid repository activation. An invalid existing local core layer fails closed instead of silently inheriting repository values.
 
-The Interaction Contract, Skills, and top-level Freeflow switch resolve independently. A mode remains resolved but dormant while Skills are ineffective. Pi owns its separately gated Output Router configuration and capability runtime.
+The Interaction Contract, Skills, and top-level Freeflow switch resolve independently. A mode remains resolved but dormant while Skills are ineffective. Pi owns separately gated Context Virtualization and Cognitive Routing capability state.
 
 Do not store task state, active slices, Plans, current session overrides, file inventories, or generated workflow instructions in config.
 
@@ -61,7 +61,7 @@ Freeflow delivers two guidance layers:
 1. `capabilities/interaction-contract/interaction-contract.md` owns compact turn interpretation when the Interaction Contract switch is effective.
 2. `skills/workflow/SKILL.md` owns the Interaction Lifecycle, Feedback Loop, routing, review, task continuity, and Supported Exits while Skills are effective.
 
-Hosts also provide compact active or dormant mode state. Mode Contract and other workflow skills remain on demand. Pi alone loads Output Router guidance while that capability is effective.
+Hosts also provide compact active or dormant mode state. Mode Contract and other workflow skills remain on demand. Pi loads optional capability guidance only while the corresponding capability is effective.
 
 The Interaction Contract is the only compact interaction-guidance artifact. Runtime adapters load context; they do not enforce policy, block tools, grant permissions, or replace repository instructions.
 
@@ -82,7 +82,7 @@ The Pi extension reads both config layers before agent turns. It:
 - restores temporary mode from Pi session entries;
 - refreshes state at session start and compaction;
 - dynamically exposes 25 model/contributor skills;
-- loads Output Router context and tools only when effective.
+- loads optional Context Virtualization and Cognitive Routing context and tools only when effective.
 
 `/freeflow settings` edits personal core overrides. `/freeflow settings session` manages branch-aware Pi session overrides for Freeflow, Interaction Contract, Skills, and mode without changing config files. `/freeflow settings repo` edits shared repository settings. `/freeflow mode` remains the direct temporary mode control.
 
@@ -172,7 +172,7 @@ Completion requires fresh active-agent verification, the required self-review fo
 
 ## Current Package Shape
 
-The cross-host model surface contains 25 active model/contributor skill packages. The Pi package separately includes Output Router under `capabilities/` as an optional gated capability outside host skill discovery.
+The cross-host model surface contains 25 active model/contributor skill packages. Pi separately provides Context Virtualization and Cognitive Routing under `capabilities/` as optional gated capabilities outside host skill discovery. Retired Output Router material is preserved under `.deprecated/output-router/`.
 
 Retired Delegation Harness implementation and evidence remain under `.deprecated/delegation-harness/` and are not part of runtime delivery.
 

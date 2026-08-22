@@ -79,7 +79,6 @@ skill_routing_check="$plugin_root/scripts/validation/check-skill-routing-doc.mjs
 runtime_hooks_json="$plugin_root/hooks/hooks.json"
 runtime_hook_script="$plugin_root/hooks/freeflow-runtime-context.mjs"
 runtime_hook_check="$plugin_root/hooks/tests/check-runtime-context-hook.sh"
-output_router_capability="$plugin_root/capabilities/output-router/SKILL.md"
 command_audit_stdout="$(mktemp "${TMPDIR:-/tmp}/freeflow-command-surface-audit.out.XXXXXX")"
 command_audit_stderr="$(mktemp "${TMPDIR:-/tmp}/freeflow-command-surface-audit.err.XXXXXX")"
 skill_routing_stdout="$(mktemp "${TMPDIR:-/tmp}/freeflow-skill-routing.out.XXXXXX")"
@@ -91,7 +90,6 @@ packaging_design="$plugin_root/docs/freeflow-packaging-and-publishing-design.md"
 architecture_doc="$plugin_root/plugin-docs/architecture.md"
 release_evidence="$plugin_root/plugin-docs/release-evidence.md"
 release_boundary_adr="$plugin_root/plugin-docs/adr/0003-release-boundary.md"
-gitignore="$repo_root/.gitignore"
 
 checks_file="$(mktemp "${TMPDIR:-/tmp}/freeflow-release-checks.XXXXXX")"
 findings_file="$(mktemp "${TMPDIR:-/tmp}/freeflow-release-findings.XXXXXX")"
@@ -250,20 +248,24 @@ check_host_skill_surface() {
 		ok=0
 	fi
 
-	if [ -e "$plugin_root/skills/output-router" ]; then
-		record_check "$check" "fail" "Output Router remains discoverable under the Codex/Claude skills directory."
-		ok=0
-	fi
-
-	require_file "$check" "$output_router_capability" || ok=0
+	for retired_path in \
+		"$plugin_root/router" \
+		"$plugin_root/capabilities/output-router" \
+		"$plugin_root/pi-extension/src/output-router" \
+		"$plugin_root/pi-extension/dist/output-router"; do
+		if [ -e "$retired_path" ]; then
+			record_check "$check" "fail" "Retired Output Router runtime path remains active: $(rel_path "$retired_path")."
+			ok=0
+		fi
+	done
 
 	if rg -n 'Output Router|output-router|outputRouter' "$plugin_root/skills" >/dev/null; then
-		record_check "$check" "fail" "Codex/Claude model-facing skills still expose Output Router guidance or setup."
+		record_check "$check" "fail" "Codex/Claude model-facing skills still expose retired Output Router guidance or setup."
 		ok=0
 	fi
 
 	if [ "$ok" = "1" ]; then
-		record_check "$check" "pass" "Codex and Claude expose 25 functional skills with no Output Router discovery or setup surface; Pi capability guidance remains packaged separately."
+		record_check "$check" "pass" "Codex and Claude expose 25 functional skills with no retired Output Router runtime or discovery surface."
 	fi
 }
 
@@ -317,7 +319,7 @@ check_release_boundary() {
 		ok=0
 	}
 
-	contains_fixed "$release_boundary_adr" 'It excludes GitHub-only `plugin-docs/`, `.skill-eval/`, `router/evals/`, `.deprecated/`' || {
+	contains_fixed "$release_boundary_adr" 'It excludes GitHub-only `plugin-docs/`, `.skill-eval/`, `.deprecated/`' || {
 		record_check "$check" "fail" "ADR 0003 no longer excludes GitHub-only docs, evaluation evidence, and deprecated artifacts from npm."
 		ok=0
 	}
@@ -357,16 +359,6 @@ check_package_cleanliness() {
 	local ok=1
 	local pack_manifest=""
 
-	contains_fixed "$gitignore" "router/evals/runs/" || {
-		record_check "$check" "fail" ".gitignore does not ignore generated router evaluation runs."
-		ok=0
-	}
-
-	if git -C "$repo_root" ls-files router/evals/runs | rg -q .; then
-		record_check "$check" "fail" "Generated router evaluation run output is tracked."
-		ok=0
-	fi
-
 	duplicate_codex_manifests="$(
 		find "$repo_root" -path "$repo_root/.git" -prune -o -path '*/.codex-plugin/plugin.json' -print |
 			grep -Fvx "$codex_manifest" || true
@@ -395,12 +387,12 @@ check_package_cleanliness() {
 		ok=0
 	fi
 
-	if jq -e '.files[] | select(startswith("plugin-docs/") or startswith(".skill-eval/") or startswith("router/evals/") or startswith(".deprecated/"))' "$package_json" >/dev/null; then
+	if jq -e '.files[] | select(startswith("plugin-docs/") or startswith(".skill-eval/") or startswith(".deprecated/"))' "$package_json" >/dev/null; then
 		record_check "$check" "fail" "The npm runtime package includes GitHub-only docs, evaluation evidence, or deprecated artifacts."
 		ok=0
 	fi
 
-	if rg -n '\]\((plugin-docs|\.skill-eval|router/evals|deprecated)/' "$plugin_root/README.md" >/dev/null; then
+	if rg -n '\]\((plugin-docs|\.skill-eval|deprecated)/' "$plugin_root/README.md" >/dev/null; then
 		record_check "$check" "fail" "README contains relative links to files excluded from the npm tarball."
 		ok=0
 	fi
@@ -410,19 +402,18 @@ check_package_cleanliness() {
 		ok=0
 	elif ! jq -e '
     .[0] as $pack
-    | ([$pack.files[].path | select(startswith("plugin-docs/") or startswith(".skill-eval/") or startswith("router/evals/") or startswith(".deprecated/"))] | length) == 0
+    | ([$pack.files[].path | select(startswith("plugin-docs/") or startswith(".skill-eval/") or startswith(".deprecated/"))] | length) == 0
       and ([$pack.files[].path | select(. == "skills/workflow/SKILL.md")] | length) == 1
       and ([$pack.files[].path | select(. == "capabilities/interaction-contract/interaction-contract.md")] | length) == 1
-      and ([$pack.files[].path | select(. == "capabilities/output-router/SKILL.md")] | length) == 1
-      and ([$pack.files[].path | select(. == "skills/output-router/SKILL.md")] | length) == 0
+      and ([$pack.files[].path | select(. == "capabilities/output-router/SKILL.md" or startswith("router/") or startswith("pi-extension/src/output-router/") or startswith("pi-extension/dist/output-router/"))] | length) == 0
       and ([$pack.files[].path | select(. == "pi-extension/freeflow/index.js")] | length) == 1
   ' <<<"$pack_manifest" >/dev/null; then
-		record_check "$check" "fail" "npm pack contents do not match the runtime boundary."
+		record_check "$check" "fail" "npm pack contents do not match the post-Output-Router runtime boundary."
 		ok=0
 	fi
 
 	if [ "$ok" = "1" ]; then
-		record_check "$check" "pass" "Generated router runs are ignored, GitHub-only docs/evidence and deprecated artifacts are excluded from npm, no duplicate manifests were found, and old command compatibility is absent."
+		record_check "$check" "pass" "GitHub-only/deprecated material is excluded from npm, no duplicate manifests were found, and the retired Output Router is absent from the package."
 	fi
 }
 

@@ -1,5 +1,5 @@
 import type { CognitiveRoutingController, CognitiveRoutingSwitchResult } from "./controller.js";
-import { textComponent } from "../output-router/utils.js";
+import { textComponent } from "../ui/text-component.js";
 import type { CognitiveRoutingProfileName } from "./types.js";
 
 export const COGNITIVE_ROUTING_SWITCH_TOOL_NAME = "freeflow_switch_profile";

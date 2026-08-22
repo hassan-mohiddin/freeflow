@@ -4,17 +4,6 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
 
 import {
-  DEFAULT_OBSERVED_ROUTING_CONFIG,
-  DEFAULT_OUTPUT_ROUTER_ENABLED,
-  DEFAULT_POST_TOOL_ROUTING,
-  DEFAULT_ROUTER_THRESHOLDS,
-  DEFAULT_SCRIPT_TRANSFORM_CONFIG,
-  DEFAULT_STORAGE_POLICY,
-  DEFAULT_VAULT_RETENTION,
-  DEFAULT_VAULT_ROOT,
-  normalizeFreeflowConfig,
-} from "../../../router/dist/index.js";
-import {
   handleModeCommand,
   readCapabilityState,
   readFreeflowConfig,
@@ -41,10 +30,6 @@ import type {
   CognitiveRoutingThinkingLevel,
 } from "../cognitive-routing/types.js";
 
-const POST_TOOL_ROUTING_VALUES = ["off", "safety-net", "strict"] as const;
-const STORAGE_POLICY_VALUES = ["hybrid-dedupe", "store-everything"] as const;
-const OBSERVED_PERSISTENCE_VALUES = ["none", "metadata-only", "exact"] as const;
-const SCRIPT_LANGUAGES = ["javascript", "python", "jq"] as const;
 const DEFAULT_FREEFLOW_ENABLED = true;
 const DEFAULT_INTERACTION_CONTRACT_ENABLED = true;
 const DEFAULT_SKILLS_ENABLED = true;
@@ -187,302 +172,8 @@ function setConfigValue(config: Record<string, unknown>, item: SettingsItem, val
   setPath(config, item.path, value);
 }
 
-function parseStringList(text: string): string[] {
-  return text
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function parsePositiveInteger(text: string): number {
-  const value = Number(text.trim());
-  if (!Number.isInteger(value) || value <= 0) {
-    throw new Error("Expected a positive integer.");
-  }
-  return value;
-}
-
-function parseJsonObject(text: string): unknown {
-  const trimmed = text.trim();
-  if (!trimmed) return {};
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(trimmed);
-  } catch (error) {
-    throw new Error(`Expected valid JSON: ${error instanceof Error ? error.message : String(error)}`);
-  }
-  if (!isRecord(parsed)) {
-    throw new Error("Expected a JSON object.");
-  }
-  return parsed;
-}
-
-function formatList(value: unknown): string {
-  return Array.isArray(value) ? value.join(", ") : "";
-}
-
-function formatJson(value: unknown): string {
-  return JSON.stringify(isRecord(value) ? value : {});
-}
-
 function booleanValue(value: unknown): string {
   return value === true ? "enabled" : "disabled";
-}
-
-function normalizedSettingsConfig(rawConfig: Record<string, unknown>) {
-  const rawRouter = isRecord(rawConfig.outputRouter) ? rawConfig.outputRouter : {};
-  const normalized = normalizeFreeflowConfig({
-    ...rawConfig,
-    outputRouter: { ...rawRouter, enabled: true },
-  });
-  return normalized.config;
-}
-
-function rawValue(rawConfig: Record<string, unknown>, path: string[], fallback: unknown): unknown {
-  const value = getPath(rawConfig, path);
-  return value === undefined ? fallback : value;
-}
-
-function outputRouterItems(rawConfig: Record<string, unknown>, freeflowInactive = false): SettingsItem[] {
-  const effective = normalizedSettingsConfig(rawConfig);
-  const routerEnabled = normalizeFreeflowConfig(rawConfig).config.outputRouter.enabled;
-  const router = effective.outputRouter;
-  const scriptTransform = effective.scriptTransform;
-  const observedRouting = effective.observedRouting;
-  const inactive = freeflowInactive || !routerEnabled;
-
-  return [
-    {
-      id: "outputRouter.enabled",
-      label: "Output Router",
-      description: "Master switch for Freeflow routed evidence tools and router runtime guidance.",
-      path: ["outputRouter", "enabled"],
-      kind: "boolean",
-      value: routerEnabled,
-      defaultValue: DEFAULT_OUTPUT_ROUTER_ENABLED,
-      inactive: freeflowInactive,
-    },
-    {
-      id: "outputRouter.postToolRouting",
-      label: "Native safety net",
-      description:
-        "Post-process large/noisy native read/bash output. safety-net can replace oversized native output with vaulted routed evidence; strict is stronger.",
-      path: ["outputRouter", "postToolRouting"],
-      kind: "enum",
-      value: router.postToolRouting,
-      values: [...POST_TOOL_ROUTING_VALUES],
-      valueDescriptions: {
-        off: "Leave native tool output unchanged",
-        "safety-net": "Route oversized or noisy native output",
-        strict: "Apply stronger native output routing",
-      },
-      defaultValue: DEFAULT_POST_TOOL_ROUTING,
-      inactive,
-    },
-    {
-      id: "outputRouter.storagePolicy",
-      label: "Storage policy",
-      description: "Vault storage behavior for exactness-sensitive and noisy output.",
-      path: ["outputRouter", "storagePolicy"],
-      kind: "enum",
-      value: router.storagePolicy,
-      values: [...STORAGE_POLICY_VALUES],
-      defaultValue: DEFAULT_STORAGE_POLICY,
-      inactive,
-    },
-    {
-      id: "outputRouter.thresholds.largeOutputBytes",
-      label: "Large output bytes",
-      description: "Byte threshold for treating command/tool output as large.",
-      path: ["outputRouter", "thresholds", "largeOutputBytes"],
-      kind: "integer",
-      value: router.thresholds.largeOutputBytes,
-      defaultValue: DEFAULT_ROUTER_THRESHOLDS.largeOutputBytes,
-      parse: parsePositiveInteger,
-      inactive,
-    },
-    {
-      id: "outputRouter.thresholds.largeOutputLines",
-      label: "Large output lines",
-      description: "Line threshold for treating command/tool output as large.",
-      path: ["outputRouter", "thresholds", "largeOutputLines"],
-      kind: "integer",
-      value: router.thresholds.largeOutputLines,
-      defaultValue: DEFAULT_ROUTER_THRESHOLDS.largeOutputLines,
-      parse: parsePositiveInteger,
-      inactive,
-    },
-    {
-      id: "outputRouter.vault.root",
-      label: "Vault root",
-      description: "Root directory for recoverable routed output.",
-      path: ["outputRouter", "vault", "root"],
-      kind: "string",
-      value: router.vault.root,
-      defaultValue: DEFAULT_VAULT_ROOT,
-      inactive,
-    },
-    {
-      id: "outputRouter.vault.retention.ttlDays",
-      label: "Vault retention days",
-      description: "TTL retention for vaulted output. Set a positive integer; default is 7 days.",
-      path: ["outputRouter", "vault", "retention", "ttlDays"],
-      kind: "integer",
-      value:
-        router.vault.retention?.strategy === "ttl" ? router.vault.retention.ttlDays : DEFAULT_VAULT_RETENTION.ttlDays,
-      defaultValue: DEFAULT_VAULT_RETENTION.ttlDays,
-      parse: parsePositiveInteger,
-      inactive,
-    },
-    {
-      id: "outputRouter.generatedPaths",
-      label: "Generated paths",
-      description:
-        "Comma-separated globs for generated repo paths that should be treated as noisy or lower-priority evidence.",
-      path: ["outputRouter", "hints", "generatedPathGlobs"],
-      kind: "list",
-      value: rawValue(
-        rawConfig,
-        ["outputRouter", "hints", "generatedPathGlobs"],
-        rawValue(rawConfig, ["outputRouter", "generatedPaths"], router.hints?.generatedPathGlobs ?? []),
-      ),
-      format: formatList,
-      parse: parseStringList,
-      inactive,
-    },
-    {
-      id: "outputRouter.noisyCommandHints",
-      label: "Noisy command hints",
-      description: "Comma-separated command patterns that are likely to produce noisy output.",
-      path: ["outputRouter", "hints", "noisyCommandPatterns"],
-      kind: "list",
-      value: rawValue(
-        rawConfig,
-        ["outputRouter", "hints", "noisyCommandPatterns"],
-        rawValue(rawConfig, ["outputRouter", "noisyCommandHints"], router.hints?.noisyCommandPatterns ?? []),
-      ),
-      format: formatList,
-      parse: parseStringList,
-      inactive,
-    },
-    {
-      id: "outputRouter.scriptTransform.enabled",
-      label: "Script transform",
-      description:
-        "Enable sandboxed script transforms/producers. Requires proof-backed adapters; no unsandboxed fallback.",
-      path: ["outputRouter", "scriptTransform", "enabled"],
-      kind: "boolean",
-      value: scriptTransform.enabled,
-      defaultValue: DEFAULT_SCRIPT_TRANSFORM_CONFIG.enabled,
-      inactive,
-    },
-    {
-      id: "outputRouter.scriptTransform.languages",
-      label: "Script languages",
-      description: "Comma-separated sandbox languages to allow: javascript, python, jq.",
-      path: ["outputRouter", "scriptTransform", "languages"],
-      kind: "list",
-      value: scriptTransform.languages,
-      defaultValue: DEFAULT_SCRIPT_TRANSFORM_CONFIG.languages,
-      format: formatList,
-      parse: (text) => parseStringList(text).filter((value) => (SCRIPT_LANGUAGES as readonly string[]).includes(value)),
-      inactive,
-    },
-    {
-      id: "outputRouter.scriptTransform.limits.timeoutMs",
-      label: "Script timeout ms",
-      description: "Maximum sandboxed script execution time.",
-      path: ["outputRouter", "scriptTransform", "limits", "timeoutMs"],
-      kind: "integer",
-      value: scriptTransform.limits.timeoutMs,
-      defaultValue: DEFAULT_SCRIPT_TRANSFORM_CONFIG.limits.timeoutMs,
-      parse: parsePositiveInteger,
-      inactive,
-    },
-    {
-      id: "outputRouter.scriptTransform.limits.maxInputBytes",
-      label: "Script max input bytes",
-      description: "Maximum input size for sandboxed scripts.",
-      path: ["outputRouter", "scriptTransform", "limits", "maxInputBytes"],
-      kind: "integer",
-      value: scriptTransform.limits.maxInputBytes,
-      defaultValue: DEFAULT_SCRIPT_TRANSFORM_CONFIG.limits.maxInputBytes,
-      parse: parsePositiveInteger,
-      inactive,
-    },
-    {
-      id: "outputRouter.scriptTransform.limits.maxOutputBytes",
-      label: "Script max output bytes",
-      description: "Maximum output size for sandboxed scripts.",
-      path: ["outputRouter", "scriptTransform", "limits", "maxOutputBytes"],
-      kind: "integer",
-      value: scriptTransform.limits.maxOutputBytes,
-      defaultValue: DEFAULT_SCRIPT_TRANSFORM_CONFIG.limits.maxOutputBytes,
-      parse: parsePositiveInteger,
-      inactive,
-    },
-    {
-      id: "outputRouter.observedRouting.enabled",
-      label: "Observed routing",
-      description: "Route configured host tool results after they run, e.g. MCP/web/fetch/code-search output.",
-      path: ["outputRouter", "observedRouting", "enabled"],
-      kind: "boolean",
-      value: observedRouting.enabled,
-      defaultValue: DEFAULT_OBSERVED_ROUTING_CONFIG.enabled,
-      inactive,
-    },
-    ...observedProducerItems("web", "Web search", observedRouting.web, inactive),
-    ...observedProducerItems("fetch", "Fetch content", observedRouting.fetch, inactive),
-    ...observedProducerItems("codeSearch", "Code search", observedRouting.codeSearch, inactive),
-    {
-      id: "outputRouter.observedRouting.mcp.servers",
-      label: "MCP servers JSON",
-      description: 'JSON object keyed by MCP server id. Example: {"github":{"enabled":true,"persistence":"exact"}}',
-      path: ["outputRouter", "observedRouting", "mcp", "servers"],
-      kind: "json",
-      value: observedRouting.mcp?.servers ?? {},
-      defaultValue: DEFAULT_OBSERVED_ROUTING_CONFIG.mcp.servers,
-      format: formatJson,
-      parse: parseJsonObject,
-      inactive,
-    },
-  ];
-}
-
-function observedProducerItems(
-  id: "web" | "fetch" | "codeSearch",
-  label: string,
-  value: any,
-  inactive: boolean,
-): SettingsItem[] {
-  return [
-    {
-      id: `outputRouter.observedRouting.${id}.enabled`,
-      label: `${label} observed`,
-      description: `Enable observed routing for ${label.toLowerCase()} output.`,
-      path: ["outputRouter", "observedRouting", id, "enabled"],
-      kind: "boolean",
-      value: value?.enabled === true,
-      defaultValue: false,
-      inactive,
-    },
-    {
-      id: `outputRouter.observedRouting.${id}.persistence`,
-      label: `${label} persistence`,
-      description: "Persistence mode for this observed producer: none, metadata-only, or exact.",
-      path: ["outputRouter", "observedRouting", id, "persistence"],
-      kind: "enum",
-      value: value?.persistence ?? "none",
-      values: [...OBSERVED_PERSISTENCE_VALUES],
-      valueDescriptions: {
-        none: "Do not persist observed output",
-        "metadata-only": "Persist metadata without raw output",
-        exact: "Persist exact recoverable output",
-      },
-      defaultValue: value?.enabled === true ? undefined : "none",
-      inactive,
-    },
-  ];
 }
 
 function configValueForChoice(item: SettingsItem, value: unknown): unknown {
@@ -714,10 +405,6 @@ function resolveSettingsCoreView(
       defaultMode: ConfigSource;
     },
   };
-}
-
-function groupEnabled(items: SettingsItem[], id: string): boolean {
-  return items.find((item) => item.id === id)?.value === true;
 }
 
 function createSessionBooleanItem(options: {
@@ -1332,9 +1019,6 @@ function freeflowItems(
     } satisfies SettingsItem;
   })();
 
-  const routerItems = outputRouterItems(rawConfig, freeflowInactive);
-  const routerEnabled = groupEnabled(routerItems, "outputRouter.enabled");
-
   return [
     freeflowItem,
     interactionItem,
@@ -1343,174 +1027,20 @@ function freeflowItems(
     defaultModeItem,
     ...(cognitiveRoutingGroup ? [cognitiveRoutingGroup] : []),
     contextVirtualizationItem,
-    {
-      id: "outputRouter.group",
-      label: "Output Router",
-      description:
-        "Shared repository settings for routed evidence tools, native output safety net, vault storage, script transforms, and observed tool routing.",
-      kind: "group" as const,
-      value: routerEnabled,
-      inactive: freeflowInactive,
-      displaySuffix: "(repository)",
-      children: routerItems,
-    },
   ];
-}
-
-function migrateLegacyRouterConfig(config: Record<string, unknown>) {
-  const outputRouter = isRecord(config.outputRouter) ? config.outputRouter : undefined;
-  if (!outputRouter) return;
-  if (config.scriptTransform !== undefined && outputRouter.scriptTransform === undefined) {
-    outputRouter.scriptTransform = config.scriptTransform;
-    delete config.scriptTransform;
-  }
-  if (config.observedRouting !== undefined && outputRouter.observedRouting === undefined) {
-    outputRouter.observedRouting = config.observedRouting;
-    delete config.observedRouting;
-  }
-
-  const thresholds = isRecord(outputRouter.thresholds) ? outputRouter.thresholds : {};
-  if (outputRouter.largeOutputBytes !== undefined && thresholds.largeOutputBytes === undefined) {
-    thresholds.largeOutputBytes = outputRouter.largeOutputBytes;
-    outputRouter.thresholds = thresholds;
-    delete outputRouter.largeOutputBytes;
-  }
-  if (outputRouter.largeOutputLines !== undefined && thresholds.largeOutputLines === undefined) {
-    thresholds.largeOutputLines = outputRouter.largeOutputLines;
-    outputRouter.thresholds = thresholds;
-    delete outputRouter.largeOutputLines;
-  }
-
-  const vault = isRecord(outputRouter.vault) ? outputRouter.vault : {};
-  if (outputRouter.vaultRoot !== undefined && vault.root === undefined) {
-    vault.root = outputRouter.vaultRoot;
-    outputRouter.vault = vault;
-    delete outputRouter.vaultRoot;
-  }
-  if (outputRouter.vaultRetentionDays !== undefined && !isRecord(vault.retention)) {
-    vault.retention = {
-      strategy: "ttl",
-      ttlDays: outputRouter.vaultRetentionDays,
-    };
-    outputRouter.vault = vault;
-    delete outputRouter.vaultRetentionDays;
-  }
-
-  const hints = isRecord(outputRouter.hints) ? outputRouter.hints : {};
-  if (outputRouter.generatedPaths !== undefined && hints.generatedPathGlobs === undefined) {
-    hints.generatedPathGlobs = outputRouter.generatedPaths;
-    outputRouter.hints = hints;
-    delete outputRouter.generatedPaths;
-  }
-  if (outputRouter.noisyCommandHints !== undefined && hints.noisyCommandPatterns === undefined) {
-    hints.noisyCommandPatterns = outputRouter.noisyCommandHints;
-    outputRouter.hints = hints;
-    delete outputRouter.noisyCommandHints;
-  }
 }
 
 function pruneKnownDefaults(config: Record<string, unknown>) {
   const defaultPaths: Array<{ path: string[]; value: unknown }> = [
     { path: ["enabled"], value: DEFAULT_FREEFLOW_ENABLED },
-    {
-      path: ["interactionContract"],
-      value: DEFAULT_INTERACTION_CONTRACT_ENABLED,
-    },
+    { path: ["interactionContract"], value: DEFAULT_INTERACTION_CONTRACT_ENABLED },
     { path: ["skills", "enabled"], value: DEFAULT_SKILLS_ENABLED },
-    { path: ["outputRouter", "enabled"], value: DEFAULT_OUTPUT_ROUTER_ENABLED },
-    {
-      path: ["outputRouter", "postToolRouting"],
-      value: DEFAULT_POST_TOOL_ROUTING,
-    },
-    { path: ["outputRouter", "storagePolicy"], value: DEFAULT_STORAGE_POLICY },
-    {
-      path: ["outputRouter", "thresholds", "largeOutputBytes"],
-      value: DEFAULT_ROUTER_THRESHOLDS.largeOutputBytes,
-    },
-    {
-      path: ["outputRouter", "thresholds", "largeOutputLines"],
-      value: DEFAULT_ROUTER_THRESHOLDS.largeOutputLines,
-    },
-    { path: ["outputRouter", "vault", "root"], value: DEFAULT_VAULT_ROOT },
-    {
-      path: ["outputRouter", "vault", "retention", "ttlDays"],
-      value: DEFAULT_VAULT_RETENTION.ttlDays,
-    },
-    {
-      path: ["outputRouter", "scriptTransform", "enabled"],
-      value: DEFAULT_SCRIPT_TRANSFORM_CONFIG.enabled,
-    },
-    {
-      path: ["outputRouter", "scriptTransform", "sandbox"],
-      value: DEFAULT_SCRIPT_TRANSFORM_CONFIG.sandbox,
-    },
-    {
-      path: ["outputRouter", "scriptTransform", "languages"],
-      value: DEFAULT_SCRIPT_TRANSFORM_CONFIG.languages,
-    },
-    {
-      path: ["outputRouter", "scriptTransform", "network"],
-      value: DEFAULT_SCRIPT_TRANSFORM_CONFIG.network,
-    },
-    {
-      path: ["outputRouter", "scriptTransform", "rawScriptPersistence"],
-      value: DEFAULT_SCRIPT_TRANSFORM_CONFIG.rawScriptPersistence,
-    },
-    {
-      path: ["outputRouter", "scriptTransform", "limits", "timeoutMs"],
-      value: DEFAULT_SCRIPT_TRANSFORM_CONFIG.limits.timeoutMs,
-    },
-    {
-      path: ["outputRouter", "scriptTransform", "limits", "maxInputBytes"],
-      value: DEFAULT_SCRIPT_TRANSFORM_CONFIG.limits.maxInputBytes,
-    },
-    {
-      path: ["outputRouter", "scriptTransform", "limits", "maxOutputBytes"],
-      value: DEFAULT_SCRIPT_TRANSFORM_CONFIG.limits.maxOutputBytes,
-    },
-    {
-      path: ["outputRouter", "observedRouting", "enabled"],
-      value: DEFAULT_OBSERVED_ROUTING_CONFIG.enabled,
-    },
-    {
-      path: ["outputRouter", "observedRouting", "onRoutingFailure"],
-      value: DEFAULT_OBSERVED_ROUTING_CONFIG.onRoutingFailure,
-    },
-    {
-      path: ["outputRouter", "observedRouting", "mcp", "servers"],
-      value: DEFAULT_OBSERVED_ROUTING_CONFIG.mcp.servers,
-    },
-    {
-      path: ["outputRouter", "observedRouting", "web", "enabled"],
-      value: DEFAULT_OBSERVED_ROUTING_CONFIG.web.enabled,
-    },
-    {
-      path: ["outputRouter", "observedRouting", "fetch", "enabled"],
-      value: DEFAULT_OBSERVED_ROUTING_CONFIG.fetch.enabled,
-    },
-    {
-      path: ["outputRouter", "observedRouting", "codeSearch", "enabled"],
-      value: DEFAULT_OBSERVED_ROUTING_CONFIG.codeSearch.enabled,
-    },
   ];
 
   for (const item of defaultPaths) {
     if (valuesEqual(getPath(config, item.path), item.value)) {
       deletePath(config, item.path);
     }
-  }
-
-  for (const producer of ["web", "fetch", "codeSearch"]) {
-    const enabledPath = ["outputRouter", "observedRouting", producer, "enabled"];
-    const persistencePath = ["outputRouter", "observedRouting", producer, "persistence"];
-    if (getPath(config, enabledPath) !== true && getPath(config, persistencePath) === "none") {
-      deletePath(config, persistencePath);
-    }
-  }
-
-  const servers = getPath(config, ["outputRouter", "observedRouting", "mcp", "servers"]);
-  if (isRecord(servers) && Object.keys(servers).length === 0) {
-    deletePath(config, ["outputRouter", "observedRouting", "mcp", "servers"]);
   }
 }
 
@@ -1585,7 +1115,6 @@ async function updateConfig(
   const current = await readFreeflowConfig(cwd);
   const next = cloneJson(current) as Record<string, unknown>;
   setConfigValue(next, item, value);
-  migrateLegacyRouterConfig(next);
   pruneKnownDefaults(next);
   await mkdir(join(cwd, ".freeflow"), { recursive: true });
   await writeFile(join(cwd, ".freeflow/config.json"), `${JSON.stringify(next, null, 2)}\n`, "utf8");
@@ -1636,10 +1165,8 @@ function refreshSettingsDerivedState(items: SettingsItem[]) {
   const freeflowInactive = freeflowItem ? effectiveItemValue(freeflowItem) !== true : false;
   const skillsItem = findSettingsItem(items, "freeflow.skills.enabled");
   const skillsEnabled = skillsItem ? effectiveItemValue(skillsItem) === true : true;
-  const routerEnabled = findSettingsItem(items, "outputRouter.enabled")?.value === true;
   const sessionModeItem = findSettingsItem(items, "freeflow.sessionMode");
   const defaultModeItem = findSettingsItem(items, "freeflow.defaultMode");
-  const routerGroup = findSettingsItem(items, "outputRouter.group");
   const cognitiveRoutingGroup = findSettingsItem(items, "freeflow.cognitiveRouting");
   const cognitiveRoutingEnabledItem = findSettingsItem(items, "freeflow.cognitiveRouting.enabled");
   const cognitiveRoutingProfiles = [
@@ -1663,11 +1190,6 @@ function refreshSettingsDerivedState(items: SettingsItem[]) {
       default: `${defaultMode} from ${defaultSource}`,
       ...MODE_DESCRIPTIONS,
     };
-  }
-
-  if (routerGroup) {
-    routerGroup.value = routerEnabled;
-    routerGroup.inactive = freeflowInactive;
   }
 
   if (cognitiveRoutingGroup && cognitiveRoutingEnabledItem) {
@@ -1696,12 +1218,6 @@ function refreshSettingsDerivedState(items: SettingsItem[]) {
       candidate.displaySuffix = coreDisplaySuffix(candidate, displayInactive);
     } else if (candidate.id === "freeflow.sessionMode") {
       candidate.inactive = freeflowInactive || !skillsEnabled;
-    } else if (candidate.id === "outputRouter.group") {
-      candidate.inactive = freeflowInactive;
-    } else if (candidate.id === "outputRouter.enabled") {
-      candidate.inactive = freeflowInactive;
-    } else if (candidate.id.startsWith("outputRouter.")) {
-      candidate.inactive = freeflowInactive || !routerEnabled;
     } else {
       candidate.inactive = freeflowInactive;
     }
@@ -1809,25 +1325,6 @@ async function openSettings(options: OpenSettingsOptions): Promise<SettingsSessi
   return component?.sessionResult() ?? { changed: false, configChanged: false, failed: false };
 }
 
-function outputRouterStatusText(rawConfig: Record<string, unknown>): string {
-  const settingsConfig = normalizedSettingsConfig(rawConfig);
-  const actual = normalizeFreeflowConfig(rawConfig).config;
-  const freeflowEnabled = rawConfig.enabled !== false;
-  const router = actual.outputRouter;
-  const configured = settingsConfig;
-  const generatedPaths = router.hints?.generatedPathGlobs?.length ?? 0;
-  const noisyHints = router.hints?.noisyCommandPatterns?.length ?? 0;
-  return [
-    `Output Router: ${freeflowEnabled && router.enabled ? "enabled" : "disabled"}${freeflowEnabled ? "" : " (inactive: Freeflow off)"}`,
-    `script transform: ${freeflowEnabled && configured.scriptTransform.enabled ? "enabled" : "disabled"}${freeflowEnabled && router.enabled ? "" : " (inactive)"}`,
-    `observed routing: ${freeflowEnabled && configured.observedRouting.enabled ? "enabled" : "disabled"}${freeflowEnabled && router.enabled ? "" : " (inactive)"}`,
-    `native safety net: ${freeflowEnabled ? router.postToolRouting : "off"}`,
-    `storage: ${router.storagePolicy}`,
-    `generated paths: ${generatedPaths}`,
-    `noisy command hints: ${noisyHints}`,
-  ].join("; ");
-}
-
 function freeflowStatusText(
   state: Awaited<ReturnType<typeof readCapabilityState>>,
   cognitiveRoutingController?: CognitiveRoutingSettingsController,
@@ -1863,7 +1360,6 @@ function freeflowStatusText(
       state.configSources.contextVirtualization as ConfigSource,
     )}`,
     ...(cognitiveRoutingStatus ? [`cognitive routing: ${cognitiveRoutingStatus}`] : []),
-    `output router: ${state.outputRouter.enabled ? "enabled" : "disabled"}`,
   ].join("; ");
 }
 
@@ -1928,30 +1424,6 @@ async function finalizeSessionSettings(
 
   await ctx.reload();
   return true;
-}
-
-function actionIsMutation(action: string): boolean {
-  return action === "" || action === "settings" || ["enable", "on", "true", "disable", "off", "false"].includes(action);
-}
-
-async function maybeBlockLayerMutation(action: string, ctx: any, layerName: string, hostInfo = undefined) {
-  if (!actionIsMutation(action)) return false;
-  const state = await readCapabilityState(ctx.cwd, ctx, hostInfo);
-  if (!state.configured) {
-    ctx.ui.notify(
-      `Freeflow is installed but this repo is not set up. Run /setup-freeflow before configuring ${layerName}.`,
-      "warning",
-    );
-    return true;
-  }
-  if (!state.enabled) {
-    ctx.ui.notify(
-      `Freeflow is disabled for this repo. Use /freeflow enable before configuring ${layerName}.`,
-      "warning",
-    );
-    return true;
-  }
-  return false;
 }
 
 export async function handleFreeflowCommand(
@@ -2159,69 +1631,6 @@ export async function handleFreeflowCommand(
     ctx,
     afterChange,
     `Freeflow ${savedTarget} saved. Reloading Freeflow runtime...`,
-  );
-  return { changed: session.changed, reloaded, error: session.failed ? "write_failed" : undefined };
-}
-
-export async function handleOutputRouterCommand(
-  args: string | undefined,
-  ctx: any,
-  afterChange: (changed: boolean) => Promise<void> | void,
-  pi: any,
-) {
-  const action = (args ?? "").trim().toLowerCase();
-  const raw = await readFreeflowConfig(ctx.cwd);
-
-  if (await maybeBlockLayerMutation(action, ctx, "Output Router", pi?.host)) {
-    return { changed: false, reloaded: false, error: "freeflow_inactive" };
-  }
-
-  if (action === "status") {
-    const state = await readCapabilityState(ctx.cwd, ctx, pi?.host);
-    const prefix = !state.configured || !state.enabled ? `${freeflowStatusText(state)}; ` : "";
-    ctx.ui.notify(`${prefix}${outputRouterStatusText(raw)}`, !state.configured || !state.enabled ? "warning" : "info");
-    return { changed: false, reloaded: false };
-  }
-
-  if (["enable", "on", "true", "disable", "off", "false"].includes(action)) {
-    if (!ensureSettingsIdle(ctx)) return { changed: false, reloaded: false, error: "busy" };
-    const enabled = ["enable", "on", "true"].includes(action);
-    const item = outputRouterItems(raw).find((candidate) => candidate.id === "outputRouter.enabled")!;
-    await updateConfig(ctx.cwd, item, enabled);
-    await afterChange(true);
-    ctx.ui.notify(`Output Router ${enabled ? "enabled" : "disabled"}. Reloading Freeflow runtime...`, "info");
-    if (typeof ctx.reload === "function") {
-      await ctx.reload();
-      return { changed: true, reloaded: true };
-    }
-    ctx.ui.notify("Run /reload for Output Router changes to fully apply.", "warning");
-    return { changed: true, reloaded: false };
-  }
-
-  if (action && action !== "settings") {
-    ctx.ui.notify("Usage: /output-router, /output-router settings, or /output-router status", "warning");
-    return { changed: false, reloaded: false, error: "invalid_action" };
-  }
-
-  if (!ensureSettingsIdle(ctx)) return { changed: false, reloaded: false, error: "busy" };
-
-  const session = await openSettings({
-    title: "Output Router Settings",
-    items: outputRouterItems(raw),
-    ctx,
-    onChange: async (item, value) => {
-      if (!ensureSettingsIdle(ctx)) return { changed: false, reloadRequired: false };
-      await updateConfig(ctx.cwd, item, value);
-      return { changed: true, reloadRequired: true };
-    },
-  });
-
-  const reloaded = await finalizeSettingsSession(
-    session,
-    ctx,
-    afterChange,
-    "Output Router settings saved. Reloading Freeflow runtime...",
-    "Run /reload for Output Router changes to fully apply.",
   );
   return { changed: session.changed, reloaded, error: session.failed ? "write_failed" : undefined };
 }

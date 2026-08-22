@@ -1,17 +1,15 @@
 import { createHash } from "node:crypto";
-
+import { textComponent } from "../ui/text-component.js";
+export { textComponent };
 export function stableHash(value) {
   return createHash("sha256").update(value).digest("hex");
 }
-
 export function getRouterSessionId(ctx) {
   return ctx.sessionManager?.getSessionId?.() ?? `pi_${stableHash(ctx.cwd).slice(0, 16)}`;
 }
-
 export function routedToolText(result) {
   return JSON.stringify(result, null, 2);
 }
-
 export function compactBatchToolText(result) {
   const lines = [
     row(
@@ -28,7 +26,6 @@ export function compactBatchToolText(result) {
   } else if (result?.routing?.reason) {
     lines.push(row("why", truncateRawLine(result.routing.reason, 220)));
   }
-
   const queries = Array.isArray(result?.queries) ? result.queries : [];
   queries.slice(0, 5).forEach((answer) => {
     lines.push(
@@ -41,14 +38,12 @@ export function compactBatchToolText(result) {
     );
   });
   appendOmittedRow(lines, "q", queries.length, 5, "details.result.queries");
-
   const steps = Array.isArray(result?.steps) ? result.steps : [];
   steps.slice(0, 8).forEach((step) => lines.push(compactBatchStepLine(step)));
   appendOmittedRow(lines, "step", steps.length, 8, "details.result.steps");
   lines.push(row("details", queries.length > 0 ? "details.result steps+queries" : "details.result.steps"));
   return lines.join("\n");
 }
-
 export function compactRunToolText(result) {
   const executionStatus = result?.execution?.status ?? result?.toolStatus ?? "unknown";
   const outputId = result?.outputId ?? result?.recovery?.outputId;
@@ -65,7 +60,6 @@ export function compactRunToolText(result) {
   if (result?.scriptProducer?.language)
     header.push(`script=${result.scriptProducer.language}:${result.scriptProducer.status ?? "unknown"}`);
   if (result?.scriptFilter?.outputId) header.push(`transformed=${result.scriptFilter.outputId}`);
-
   const lines = [row(...header)];
   if (result?.summary) lines.push(row("s", truncateRawLine(result.summary, 220)));
   const filterText = compactRunFilterText(result?.filters);
@@ -74,7 +68,6 @@ export function compactRunToolText(result) {
   if (scriptProducerText) lines.push(row("producer", scriptProducerText));
   const scriptFilterText = compactRunScriptFilterText(result?.scriptFilter);
   if (scriptFilterText) lines.push(row("script", scriptFilterText));
-
   const importantLines = Array.isArray(result?.importantLines) ? result.importantLines : [];
   importantLines
     .slice(0, 3)
@@ -86,7 +79,6 @@ export function compactRunToolText(result) {
   lines.push(row("details", "details.result"));
   return lines.join("\n");
 }
-
 export function compactSearchToolText(result) {
   if (result?.implementation === "processing-engine-skeleton-v1") {
     return compactProcessingToolText(result);
@@ -96,7 +88,6 @@ export function compactSearchToolText(result) {
   }
   return compactSearchEvidenceToolText(result, "freeflow_search");
 }
-
 export function compactSearchEvidenceToolText(result, toolName = "freeflow_search") {
   const routeStatus = result?.routing?.status ?? result?.toolStatus ?? "unknown";
   const evidence = Array.isArray(result?.evidence) ? result.evidence : [];
@@ -120,7 +111,6 @@ export function compactSearchEvidenceToolText(result, toolName = "freeflow_searc
   lines.push(row("details", "details.result"));
   return lines.join("\n");
 }
-
 export function compactTransformToolText(result, toolName = "freeflow_search") {
   const failed = result?.failure || result?.routing?.status === "failed" || result?.toolStatus === "error";
   const routeStatus = failed ? "failed" : (result?.routing?.status ?? result?.toolStatus ?? "unknown");
@@ -141,7 +131,6 @@ export function compactTransformToolText(result, toolName = "freeflow_search") {
   lines.push(row("details", "details.result"));
   return lines.join("\n");
 }
-
 function compactProcessingToolText(result) {
   const lines = [
     row("freeflow_search", result?.status ?? "unknown", "transform", compactProcessingSourceLabel(result?.source)),
@@ -156,39 +145,33 @@ function compactProcessingToolText(result) {
   lines.push(row("details", "details.result"));
   return lines.join("\n");
 }
-
 function compactProcessingSourceLabel(source) {
   if (!source || typeof source !== "object") return "source";
   return `${source.kind ?? "source"}:${source.displayPath ?? source.ref?.path ?? source.ref?.outputId ?? ""}`;
 }
-
 function row(...fields) {
   return fields
     .filter((field) => field !== undefined && field !== null && String(field).length > 0)
     .map(escapeRowField)
     .join("|");
 }
-
 function escapeRowField(value) {
   return String(value ?? "")
     .replace(/\r?\n/g, " ")
     .replace(/\|/g, "¦");
 }
-
 function appendOmittedRow(lines, tag, total, shown, target) {
   const omitted = total - Math.min(total, shown);
   if (omitted > 0) {
     lines.push(row("more", tag, omitted, target));
   }
 }
-
 function appendExcerptRows(lines, tag, label, excerpt, maxLines) {
   lines.push(row(tag, label));
   const excerptLines = splitLines(String(excerpt ?? ""));
   excerptLines.slice(0, maxLines).forEach((excerptLine) => lines.push(row(">", truncateRawLine(excerptLine, 220))));
   appendOmittedRow(lines, ">", excerptLines.length, maxLines, "details.result");
 }
-
 function appendEvidenceRows(lines, evidence, maxPackets, maxLines) {
   evidence.slice(0, maxPackets).forEach((packet, index) => {
     const match = packet?.match ? `${packet.match.type}:${Number(packet.match.confidence ?? 0).toFixed(2)}` : "";
@@ -200,7 +183,6 @@ function appendEvidenceRows(lines, evidence, maxPackets, maxLines) {
   });
   appendOmittedRow(lines, "e", evidence.length, maxPackets, "details.result");
 }
-
 function appendRunRecoveryRow(lines, result, outputId, firstImportantLine) {
   const exactRecoveryOutputId =
     result?.scriptFilter?.outputId ??
@@ -221,7 +203,6 @@ function appendRunRecoveryRow(lines, result, outputId, firstImportantLine) {
     lines.push(row("rec", truncateRawLine(result.recovery.how, 160)));
   }
 }
-
 function appendRecoveryRow(lines, recovery, evidence, fallbackOutputId) {
   const first = Array.isArray(evidence) ? evidence.find((packet) => packet?.lines) : undefined;
   if (first?.source?.kind === "vault" && first.source.outputId && first.lines) {
@@ -245,7 +226,6 @@ function appendRecoveryRow(lines, recovery, evidence, fallbackOutputId) {
     lines.push(row("rec", truncateRawLine(recovery.how, 160)));
   }
 }
-
 function compactBatchStepLine(step) {
   const result = step?.result;
   const outputId = result?.outputId ?? result?.recovery?.outputId;
@@ -266,7 +246,6 @@ function compactBatchStepLine(step) {
   if (message) parts.push(truncateRawLine(message, 160));
   return row(...parts);
 }
-
 function compactRunFilterText(filters) {
   if (!filters || typeof filters !== "object") {
     return "";
@@ -298,7 +277,6 @@ function compactRunFilterText(filters) {
   }
   return parts.join(" ");
 }
-
 function compactRunScriptProducerText(scriptProducer) {
   if (!scriptProducer || typeof scriptProducer !== "object") {
     return "";
@@ -318,7 +296,6 @@ function compactRunScriptProducerText(scriptProducer) {
   }
   return parts.join(" ");
 }
-
 function compactRunScriptFilterText(scriptFilter) {
   if (!scriptFilter || typeof scriptFilter !== "object") {
     return "";
@@ -335,7 +312,6 @@ function compactRunScriptFilterText(scriptFilter) {
   }
   return parts.join(" ");
 }
-
 function compactEvidenceLabel(packet) {
   if (!packet || typeof packet !== "object") {
     return "evidence";
@@ -345,7 +321,6 @@ function compactEvidenceLabel(packet) {
   const lines = packet.lines ? `:${packet.lines}` : "";
   return `${shortenMiddle(path || "evidence", 90)}${lines}`;
 }
-
 function compactSourceLabel(source) {
   if (!source || typeof source !== "object") {
     return "";
@@ -363,14 +338,12 @@ function compactSourceLabel(source) {
   }
   return String(source.kind ?? "source");
 }
-
 function compactOperationLabel(operation) {
   if (!operation || typeof operation !== "object") {
     return "operation";
   }
   return String(operation.kind ?? operation.name ?? "operation");
 }
-
 function compactParserCounts(counts) {
   if (!counts || typeof counts !== "object") {
     return "";
@@ -399,7 +372,6 @@ function compactParserCounts(counts) {
   }
   return parts.join("/");
 }
-
 function truncateRawLine(value, maxLength = 220) {
   const text = String(value ?? "");
   if (text.length <= maxLength) {
@@ -407,80 +379,12 @@ function truncateRawLine(value, maxLength = 220) {
   }
   return `${text.slice(0, Math.max(0, maxLength - 1))}…`;
 }
-
-export function textComponent(text) {
-  return {
-    render(width = 120) {
-      const maxWidth = Number.isFinite(width) ? Math.max(1, width) : 120;
-      return String(text)
-        .split("\n")
-        .map((line) => truncateAnsiToWidth(line, maxWidth));
-    },
-    invalidate() {},
-  };
-}
-
-function truncateAnsiToWidth(input, width) {
-  const text = String(input);
-  let output = "";
-  let visible = 0;
-
-  for (let index = 0; index < text.length;) {
-    const ansi = readAnsiSequence(text, index);
-    if (ansi) {
-      output += ansi.sequence;
-      index = ansi.end;
-      continue;
-    }
-
-    if (visible >= width - 1) {
-      output += "…";
-      return output;
-    }
-
-    const codePoint = text.codePointAt(index);
-    const character = String.fromCodePoint(codePoint);
-    output += character;
-    visible += 1;
-    index += character.length;
-  }
-
-  return output;
-}
-
-function readAnsiSequence(text, index) {
-  if (text.charCodeAt(index) !== 0x1b) {
-    return null;
-  }
-
-  const next = text[index + 1];
-  if (next === "[") {
-    let end = index + 2;
-    while (end < text.length && !/[\x40-\x7e]/.test(text[end])) {
-      end += 1;
-    }
-    return { sequence: text.slice(index, Math.min(end + 1, text.length)), end: Math.min(end + 1, text.length) };
-  }
-
-  if (next === "]") {
-    const bellEnd = text.indexOf("\x07", index + 2);
-    const stEnd = text.indexOf("\x1b\\", index + 2);
-    const candidates = [bellEnd, stEnd === -1 ? -1 : stEnd + 1].filter((value) => value !== -1);
-    const end = candidates.length > 0 ? Math.min(...candidates) + 1 : text.length;
-    return { sequence: text.slice(index, end), end };
-  }
-
-  return { sequence: text.slice(index, Math.min(index + 2, text.length)), end: Math.min(index + 2, text.length) };
-}
-
 export function themeFg(theme, color, text) {
   return typeof theme?.fg === "function" ? theme.fg(color, text) : text;
 }
-
 export function themeBold(theme, text) {
   return typeof theme?.bold === "function" ? theme.bold(text) : text;
 }
-
 export function formatStatus(theme, status) {
   const text = String(status ?? "unknown");
   if (text === "ok" || text === "success" || text === "routed" || text === "passed_through") {
@@ -491,7 +395,6 @@ export function formatStatus(theme, status) {
   }
   return themeFg(theme, "warning", text);
 }
-
 export function statusIcon(status) {
   if (status === "success" || status === "ok") {
     return "✓";
@@ -501,13 +404,11 @@ export function statusIcon(status) {
   }
   return "!";
 }
-
 export function oneLine(value) {
   return String(value ?? "")
     .replace(/\s+/g, " ")
     .trim();
 }
-
 export function truncateText(value, maxLength = 120) {
   const text = oneLine(value);
   if (text.length <= maxLength) {
@@ -515,7 +416,6 @@ export function truncateText(value, maxLength = 120) {
   }
   return `${text.slice(0, Math.max(0, maxLength - 1))}…`;
 }
-
 export function shortenMiddle(value, maxLength = 80) {
   const text = oneLine(value);
   if (text.length <= maxLength) {
@@ -529,26 +429,21 @@ export function shortenMiddle(value, maxLength = 80) {
   const tail = Math.floor(keep * 0.55);
   return `${text.slice(0, head)}…${text.slice(-tail)}`;
 }
-
 export function byteLength(text) {
   return Buffer.byteLength(text, "utf8");
 }
-
 export function splitLines(text) {
   if (text.length === 0) {
     return [];
   }
   return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
 }
-
 export function extractTextContent(content) {
   if (!Array.isArray(content) || content.length === 0) {
     return null;
   }
-
   if (!content.every((part) => part?.type === "text" && typeof part.text === "string")) {
     return null;
   }
-
   return content.map((part) => part.text).join("\n");
 }

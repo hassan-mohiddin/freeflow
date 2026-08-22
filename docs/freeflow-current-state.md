@@ -4,7 +4,7 @@
 > **Owner:** Hassan Mohiddin
 > **Type:** Current State
 > **Status:** Current candidate
-> **Source:** Live repository, current runtime/tests, package metadata, historical v0.1 acceptance evidence, and current router evidence.
+> **Source:** Live repository, current runtime/tests, package metadata, historical v0.1 acceptance evidence, and archived Output Router evidence.
 
 Freeflow is a portable feedback-based control system for coding agents.
 
@@ -43,9 +43,7 @@ Setup reports automatic delivery as confirmed, unavailable, or unconfirmed and d
 
 ## Skill Surface
 
-The cross-host model surface contains 25 active model/contributor skill packages. The Pi package separately includes Output Router as an optional gated capability outside `skills/`; Codex and Claude neither discover it nor receive it from lifecycle context.
-
-Delegation Harness is retired from the live package and preserved only under `.deprecated/delegation-harness/`.
+The cross-host model surface contains 25 active model/contributor skill packages. Pi separately provides Context Virtualization and Cognitive Routing as optional gated capabilities outside `skills/`. Output Router is retired from the live package and preserved under `.deprecated/output-router/`; it is no longer discovered, loaded, or registered.
 
 Canonical collaboration and execution skills are `discuss`, `track-work`, and `execute-work`. Pi retains `/discover` and `/execute-plan` as Pi-only compatibility aliases without restoring deleted skill identities.
 
@@ -60,7 +58,7 @@ Current metadata declares:
 - 4 mode commands;
 - 19 direct command names: 17 canonical plus 2 Pi-only aliases;
 - 3 contributor/setup calls;
-- 3 Pi native settings commands.
+- 2 Pi native settings commands.
 
 Freeflow uses host-native skill invocation instead of duplicate manifest command handlers: Claude namespaced slash skills, Codex `/skills` and `$skill` mentions, and Pi registered commands. Claude and Codex additionally use their prompt hook for deterministic session-mode controls.
 
@@ -73,7 +71,7 @@ Freeflow uses host-native skill invocation instead of duplicate manifest command
 - Host targets: Codex, Claude Code, and Pi.
 - Local Pi/PiFlow development uses a committed exact-revision Freeflow snapshot; it is not a production release or source-precedence mechanism.
 - PiFlow owns its host launcher, import, isolated state, update, and upstream synchronization; Freeflow does not ship those tools.
-- The npm tarball contains runtime-required files and excludes GitHub-only plugin docs, project docs, `.skill-eval/`, router eval evidence, deprecated historical material, and generated eval runs.
+- The npm tarball contains runtime-required files and excludes GitHub-only plugin docs, project docs, `.skill-eval/`, deprecated historical material, and generated eval runs.
 - Enforcement hooks and CLI enforcement are not shipped.
 
 The Pi formatter/generated-output contract remains deferred until this worktree is merged into a clean `main`-based worktree. Current bounded runtime changes preserve checked-in generated formatting deliberately.
@@ -90,7 +88,7 @@ Current deterministic evidence includes:
 - command-surface and model-discovery checks;
 - Skill Author structure/dependency tests;
 - Evaluate Skill case-schema tests;
-- router retrieval, command-output, observed-routing, storage, transform, and sandbox reports under `router/evals/reports/`.
+- Context Virtualization and Cognitive Routing deterministic extension tests and focused runtime checks.
 
 Use `.skill-eval/` for current skill-evaluation definitions and accepted bundles. Use `.deprecated/skill-evals-v1/` only for historical evidence.
 

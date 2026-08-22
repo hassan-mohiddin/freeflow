@@ -15,30 +15,24 @@ Current project direction lives at the docs root:
 
 - `adr/`: durable project decisions.
 - `specs/automation/`: CI/CD and release automation specs.
-- `specs/output-router/`: output router contract and architecture specs.
-- `specs/output-processing/`: output capture, file processing, derive, and context-saving specs.
-- `plans/output-router/`: output router implementation and architecture plans.
-- `plans/output-processing/`: output capture, derive, file processing, and context-saving plans.
-- `plans/script-transforms/`: script sandbox / transform spike plans.
+- Retired Output Router designs, specs, plans, research, handoffs, issues, and evaluation evidence live under `.deprecated/output-router/`.
 - `plans/workflow/`: workflow model implementation plans.
 - `plans/release/`: release and prepublish plans.
 - `plans/skills/`: skill inventory and skill-pack planning.
-- `designs/output-router/`: output router architecture designs.
 - `designs/workflow/`: workflow model designs.
 - `research/memory-and-artifacts/`: memory and artifact-skill research.
 - `research/prior-art/orchestra/`: old Orchestra audits and prior art.
-- `research/script-transforms/`: script sandbox research.
 - `research/workflow/`: workflow, reference-stack, and behavior-eval research.
 - `handoffs/bootstrap/`: bootstrap and current-state continuation memory.
-- `handoffs/output-router/`: output router and context tooling handoffs.
 - `handoffs/workflow-and-skills/`: workflow and skill-pack handoffs.
 - `issues/workflow-and-skills/`: workflow and skill behavior deepening notes.
 - `issues/release/`: release and metadata issue notes.
-- `issues/output-router/`: output router issue notes.
 - `issues/artifacts/interface-reviews/`: HTML review artifacts.
 - `guides/evals/`: eval workflow guides.
 - `guides/tooling/`: agent tooling guides, including the [PiFlow tooling migration notice](guides/tooling/piflow-local.md) and [Freeflow development snapshot](guides/tooling/freeflow-development-snapshot.md).
 
 ## Public Plugin Docs
 
-Public plugin docs live at [plugin-docs/README.md](../plugin-docs/README.md), plus [workflow](../plugin-docs/workflow.md), [skill routing](../plugin-docs/skill-routing.md), [architecture](../plugin-docs/architecture.md), [output router](../plugin-docs/output-router.md), [release evidence](../plugin-docs/release-evidence.md), and [release ADRs](../plugin-docs/adr/README.md).
+Public plugin docs live at [plugin-docs/README.md](../plugin-docs/README.md), plus [workflow](../plugin-docs/workflow.md), [skill routing](../plugin-docs/skill-routing.md), [architecture](../plugin-docs/architecture.md), [release evidence](../plugin-docs/release-evidence.md), and [release ADRs](../plugin-docs/adr/README.md).
+
+Retired Output Router source, evidence, and dedicated documentation live under `.deprecated/output-router/`.

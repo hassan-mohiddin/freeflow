@@ -62,11 +62,10 @@ freeflow/
   hooks/
   capabilities/
   pi-extension/
-  router/
   skills/
 ```
 
-`plugin-docs/` contains public plugin docs. `.skill-eval/` contains current skill-evaluation definitions, `router/evals/` contains router-owned evaluation evidence, and `.deprecated/skill-evals-v1/` contains documentary-only legacy skill evaluations. `docs/` contains project-development memory. These remain in the GitHub repository and are excluded from the npm runtime tarball. Generated router evaluation output stays ignored under `router/evals/runs/`.
+`plugin-docs/` contains public plugin docs. `.skill-eval/` contains current skill-evaluation definitions, and `.deprecated/skill-evals-v1/` contains documentary-only legacy skill evaluations. Retired Output Router implementation and evidence live under `.deprecated/output-router/`. `docs/` contains project-development memory. These remain in the GitHub repository and are excluded from the npm runtime tarball.
 
 ## Codex Manifest
 
@@ -110,7 +109,7 @@ The public README should establish the product before installation:
 
 1. Feedback-based control-system identity and failure pressures.
 2. Interaction Lifecycle, Feedback Loop, and core principles.
-3. Three modes, skill routing, task memory, and the separately packaged Pi-only Output Router capability.
+3. Three modes, skill routing, task memory, and optional Pi capabilities.
 4. Evidence and explicit Unverified boundary for the current candidate.
 5. Install and repository activation for Codex, Claude, and Pi.
 6. Runtime delivery, canonical commands, compatibility aliases, and public-doc links.
@@ -148,7 +147,7 @@ The active cross-host plugin runtime ships this 25-skill model/contributor set:
 - `write-skill`
 - `evaluate-skill`
 
-The Pi npm package separately ships `capabilities/output-router/` for explicit Pi-only activation. Codex and Claude do not discover that path and their lifecycle hook does not inspect, report, or inject it.
+The Pi npm package ships the active Pi extension and optional Context Virtualization and Cognitive Routing capabilities. Retired Output Router material is preserved outside the runtime under `.deprecated/output-router/`.
 
 The setup skill uses the public `setup-freeflow` name. It creates required shared `.freeflow/config.json`, may create optional personal `.freeflow/local.json` only when requested, preserves repo-owned host instruction files, and reports host runtime delivery separately from activation.
 

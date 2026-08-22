@@ -82,7 +82,7 @@ When reference skills conflict during skill development:
 
 ## Implementation Pointers
 
-The repo root is the single source of truth for runtime skills, plugin docs, current `.skill-eval/` definitions, router evidence under `router/evals/`, and command-surface metadata. The npm tarball contains only runtime-required files; GitHub retains docs and evidence.
+The repo root is the single source of truth for runtime skills, plugin docs, current `.skill-eval/` definitions, and command-surface metadata. Retired Output Router source and evidence live under `.deprecated/output-router/`. The npm tarball contains only runtime-required files; GitHub retains docs and evidence.
 
 For the current skill set, inspect `skills/` when changing or evaluating a skill. Runtime behavior and task-memory mechanics belong to their corresponding skill and runtime sources; this contributor file does not restate them.
 

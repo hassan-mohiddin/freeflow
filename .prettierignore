@@ -2,5 +2,4 @@
 **/*.html
 .skill-eval/runs/
 .skill-eval/*/runs/
-router/evals/runs/
 .deprecated/skill-tooling-pre-rewrite/

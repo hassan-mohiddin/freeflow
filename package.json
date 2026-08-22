@@ -18,12 +18,10 @@
   "scripts": {
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "format:router-dist": "prettier --write router/dist",
     "format:pi-extension-dist": "prettier --write pi-extension/dist",
-    "build:router": "tsc -p router/tsconfig.json && npm run format:router-dist",
     "build:pi-extension": "tsc -p pi-extension/tsconfig.json && npm run format:pi-extension-dist",
-    "build": "npm run build:router && npm run build:pi-extension",
-    "typecheck": "tsc -p router/tsconfig.json --noEmit && tsc -p pi-extension/tsconfig.json --noEmit",
+    "build": "npm run build:pi-extension",
+    "typecheck": "tsc -p pi-extension/tsconfig.json --noEmit",
     "check": "npm run typecheck && npm run check:source && npm run format:check && npm run check:release-version && npm run check:commands && npm run check:activation && npm run check:runtime && npm run check:package",
     "check:source": "node scripts/validation/check-source-files.mjs",
     "check:release-version": "node scripts/validation/check-release-version.mjs",
@@ -33,7 +31,6 @@
     "check:package": "node scripts/validation/check-package.mjs",
     "check:release-metadata": "scripts/validation/validate-release-metadata.sh --mode prepublish",
     "test:pi-extension": "npm run build && node --test $(find pi-extension/tests -name '*.test.js' | sort)",
-    "test:router": "npm run build:router && node --test $(find router/tests -name '*.test.js' | sort)",
     "test:skill-author": "node --test $(find .skill-eval/write-skill/tests -name '*.test.mjs' | sort)",
     "test:skill-eval": "node --test $(find .skill-eval/evaluate-skill/tests -name '*.test.mjs' | sort)",
     "test:track-work": "node --test .skill-eval/track-work/tests/*.test.mjs",
@@ -41,16 +38,7 @@
     "test:release-utils": "node --test scripts/release-utils.test.mjs",
     "release:prepare": "node scripts/release.mjs",
     "release:notes": "node scripts/release-notes.mjs",
-    "snapshot:refresh": "node scripts/freeflow-snapshot.mjs",
-    "bench:router": "npm run build:router && node router/dist/benchmarks/benchmarks.js",
-    "bench:router:commands": "npm run build:router && node router/dist/benchmarks/command-benchmarks.js",
-    "bench:router:context-saving-baseline": "npm run build:router && node router/dist/benchmarks/context-saving-baseline.js",
-    "bench:router:context-mode-normalized": "npm run build:router && node router/dist/benchmarks/context-mode-normalized-benchmarks.js",
-    "bench:router:context-mode-real-deep": "npm run build:router && node router/dist/benchmarks/context-mode-real-deep-benchmark.js",
-    "bench:router:storage-policy": "npm run build:router && node router/dist/benchmarks/storage-policy-benchmarks.js",
-    "bench:router:index": "npm run build:router && node router/dist/benchmarks/index-benchmarks.js",
-    "bench:router:vault-index": "npm run build:router && node router/dist/benchmarks/vault-index-benchmarks.js",
-    "bench:router:codex-qa": "npm run build:router && node router/dist/benchmarks/codex-qa-benchmarks.js"
+    "snapshot:refresh": "node scripts/freeflow-snapshot.mjs"
   },
   "keywords": [
     "pi-package",
@@ -85,7 +73,6 @@
     "command-surface.json",
     "hooks/**",
     "pi-extension/**",
-    "router/dist/**",
     "skills/**"
   ],
   "peerDependencies": {

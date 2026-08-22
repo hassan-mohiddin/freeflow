@@ -6,14 +6,18 @@ Historical Freeflow artifacts kept outside the active plugin runtime and npm pac
 
 - `delegation-harness/`: final implementation and development evidence, isolated from active Freeflow behavior.
 
-## Router
+## Output Router
+
+- `output-router/`: retired Output Router implementation, Pi integration, capability guidance, tests, evaluations, and design history.
+
+## Router Experiments
 
 - `router/experimental-local-index.ts`: historical local-index experiment.
 
 ## Documentation
 
 - `codex-cli-agent-harness/`: historical Codex CLI and agent-runtime research.
-- `docs/output-router-pi-v04/`: abandoned Pi output-router v0.4 plans, specs, issues, and handoffs.
+- Legacy Output Router v0.4 plans, specs, issues, and handoffs now live under `output-router/docs/legacy-pi-v04/`.
 
 ## Skill Evaluations
 
