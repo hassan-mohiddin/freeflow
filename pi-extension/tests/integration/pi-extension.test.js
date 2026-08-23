@@ -233,7 +233,7 @@ test("PiFlow statusline reports the current cognitive profile and control mode",
     },
     { effective: true, activeProfile: "reasoning", controlMode: "automatic" },
   );
-  assert.equal(ctx.statuses.at(-1).value, "freeflow: interaction · workflow · cognitive reasoning · automatic");
+  assert.equal(ctx.statuses.at(-1).value, "freeflow: interaction · workflow · reasoning · automatic");
 });
 
 test("PiFlow statusline shows the configured standard profile pending first prompt activation", () => {
@@ -252,7 +252,7 @@ test("PiFlow statusline shows the configured standard profile pending first prom
     undefined,
     { cognitiveRoutingStartupPending: true },
   );
-  assert.equal(ctx.statuses.at(-1).value, "freeflow: interaction · workflow · cognitive standard · pending");
+  assert.equal(ctx.statuses.at(-1).value, "freeflow: interaction · workflow · standard · pending");
 });
 
 test("PiFlow statusline keeps an inactive runtime blocked instead of showing startup pending", () => {
@@ -317,7 +317,7 @@ test("PiFlow empty configured sessions show standard pending before first prompt
     ctx.modelRegistry = cognitiveRoutingModelRegistry();
 
     await handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
-    assert.equal(ctx.statuses.at(-1).value, "freeflow: interaction · workflow · cognitive standard · pending");
+    assert.equal(ctx.statuses.at(-1).value, "freeflow: interaction · workflow · standard · pending");
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

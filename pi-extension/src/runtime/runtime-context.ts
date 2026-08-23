@@ -731,7 +731,7 @@ export function setModeStatus(
       cognitiveRoutingRuntime.controlMode === "manual-reasoning"
         ? "manual hold"
         : "automatic";
-    active.push(`cognitive ${profile} · ${control}`);
+    active.push(`${profile} · ${control}`);
   } else if (cognitiveRouting?.enabled === true) {
     if (cognitiveRouting.blockingReason?.code === "runtime_disabled") {
       active.push("cognitive disabled · PiFlow only");
@@ -741,7 +741,7 @@ export function setModeStatus(
       options.cognitiveRoutingStartupPending === true &&
       !startupSelectionSuppressesCognitiveRouting
     ) {
-      active.push("cognitive standard · pending");
+      active.push("standard · pending");
     } else {
       const reason =
         cognitiveRouting?.effective === true
