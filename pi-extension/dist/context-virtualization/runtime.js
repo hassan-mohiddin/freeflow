@@ -4,8 +4,8 @@ import {
   contextRefForEntry,
   entryIdFromContextRef,
 } from "./types.js";
+import { FreeflowContextRuntime } from "../freeflow-context/runtime.js";
 import { contentCharacters, projectToolResultMessage, projectedCharacters } from "./projector.js";
-import { ContextSourceResolver } from "./resolver.js";
 import { replayProjectionEntries } from "./state.js";
 function cloneSource(source) {
   return { ...source };
@@ -31,55 +31,58 @@ function isDuplicate(values) {
 }
 export class ContextVirtualizationRuntime {
   pi;
-  resolver;
+  freeflowContext;
   ctx;
   sessionId = "current";
   branchLeafId;
   projectionState = new Map();
-  latestRequest;
-  generation = 0;
   available = true;
   unavailableReason;
   mutationQueue = Promise.resolve();
-  constructor(pi, ctx) {
+  constructor(pi, ctx, freeflowContext = new FreeflowContextRuntime(ctx)) {
     this.pi = pi;
     this.ctx = ctx;
-    this.resolver = new ContextSourceResolver(ctx);
+    this.freeflowContext = freeflowContext;
   }
   setContext(ctx) {
     this.ctx = ctx;
-    this.resolver.setContext(ctx);
+    this.freeflowContext.setContext(ctx);
   }
   async recover(ctx = this.ctx, options = {}) {
     this.ctx = ctx;
-    this.resolver.setContext(ctx);
+    this.freeflowContext.setContext(ctx);
     try {
-      this.sessionId = this.resolver.sessionId();
-      this.branchLeafId = this.resolver.branchLeafId();
-      this.projectionState = replayProjectionEntries(this.resolver.branchEntries(), this.sessionId);
-      if (!options.preserveRequest) this.latestRequest = undefined;
+      this.sessionId = this.freeflowContext.sessionId();
+      this.branchLeafId = this.freeflowContext.branchLeafId();
+      this.projectionState = replayProjectionEntries(this.freeflowContext.branchEntries(), this.sessionId);
+      if (!options.preserveRequest) this.freeflowContext.clearRequest();
       this.available = true;
       this.unavailableReason = undefined;
       return true;
     } catch (error) {
       this.available = false;
       this.unavailableReason = error instanceof Error ? error.message : String(error);
-      this.latestRequest = undefined;
+      this.freeflowContext.clearRequest();
       return false;
     }
   }
   isAvailable() {
     return this.available;
   }
+  isSourceFullyProjected(entryId) {
+    if (!this.available) return true;
+    const projection = this.projectionState.get(entryId);
+    return !projection || projection.mode === "full";
+  }
   async project(messages, enabled) {
     if (!enabled) {
-      this.latestRequest = undefined;
+      this.freeflowContext.clearRequest();
       return { messages, changed: false, available: true };
     }
     if (!(await this.recover(this.ctx))) {
       return { messages, changed: false, available: false };
     }
-    const sourcesByToolCallId = this.resolver.toolResultSources();
+    const sourcesByToolCallId = this.freeflowContext.resolver.toolResultSources();
     const refs = new Map();
     let changed = false;
     const projected = messages.map((message) => {
@@ -94,18 +97,12 @@ export class ContextVirtualizationRuntime {
       if (!safeJsonEqual(nextMessage.content, message.content)) changed = true;
       return nextMessage;
     });
-    this.generation += 1;
-    this.latestRequest = {
-      generation: this.generation,
-      sessionId: this.sessionId,
-      branchLeafId: this.branchLeafId,
-      refs,
-    };
+    const request = this.freeflowContext.recordRequest(refs);
     return {
       messages: changed ? projected : messages,
       changed,
       available: true,
-      generation: this.generation,
+      generation: request.generation,
     };
   }
   async archive(targets) {
@@ -162,8 +159,8 @@ export class ContextVirtualizationRuntime {
     if (!(await this.recover(this.ctx, { preserveRequest: true }))) {
       return this.status(limit);
     }
-    const branchSources = this.resolver.sourcesByEntryId();
-    const activeIds = this.resolver.activeToolResultIds();
+    const branchSources = this.freeflowContext.resolver.sourcesByEntryId();
+    const activeIds = this.freeflowContext.resolver.activeToolResultIds();
     const items = [];
     for (const source of branchSources.values()) {
       const state = this.projectionState.get(source.source.entryId);
@@ -223,7 +220,8 @@ export class ContextVirtualizationRuntime {
     const refs = targets.map((target) => (target && typeof target === "object" ? target.ref : undefined));
     const duplicate = isDuplicate(refs.filter((ref) => typeof ref === "string"));
     if (duplicate) return this.rejected("archive", `duplicate_reference:${duplicate}`);
-    if (!this.latestRequest) return this.rejected("archive", "no_consumed_context_request");
+    const latestRequest = this.freeflowContext.latestRequest();
+    if (!latestRequest) return this.rejected("archive", "no_consumed_context_request");
     const changes = [];
     const retainedMeaning = {};
     for (let index = 0; index < targets.length; index += 1) {
@@ -232,7 +230,7 @@ export class ContextVirtualizationRuntime {
       const ref = entryIdFromContextRef(target.ref);
       if (!ref) return this.rejected("archive", `target_${index}_invalid_reference`);
       const normalizedRef = contextRefForEntry(ref);
-      const source = this.latestRequest.refs.get(normalizedRef);
+      const source = latestRequest.refs.get(normalizedRef);
       if (!source) return this.rejected("archive", `target_not_in_consumed_context:${normalizedRef}`);
       const retainedValue = target.retained;
       if (retainedValue !== undefined && (typeof retainedValue !== "string" || retainedValue.trim() === "")) {
@@ -267,19 +265,20 @@ export class ContextVirtualizationRuntime {
     if (duplicate) return this.rejected("restore", `duplicate_reference:${duplicate}`);
     const changes = [];
     const availability = {};
-    const activeIds = this.resolver.activeToolResultIds();
+    const activeIds = this.freeflowContext.resolver.activeToolResultIds();
+    const latestRequest = this.freeflowContext.latestRequest();
     for (let index = 0; index < refs.length; index += 1) {
       const ref = entryIdFromContextRef(refs[index]);
       if (!ref) return this.rejected("restore", `ref_${index}_invalid_reference`);
       const normalizedRef = contextRefForEntry(ref);
       const current = this.projectionState.get(ref);
       if (!current) return this.rejected("restore", `reference_not_archived:${normalizedRef}`);
-      if (actor === "model" && !this.latestRequest?.refs.has(normalizedRef)) {
+      if (actor === "model" && !latestRequest?.refs.has(normalizedRef)) {
         return this.rejected("restore", `target_not_in_consumed_context:${normalizedRef}`);
       }
       changes.push({ source: cloneSource(current.source), projection: { mode: "full" } });
       let availabilityValue;
-      if (this.latestRequest?.refs.has(normalizedRef) || activeIds.has(current.source.entryId)) {
+      if (latestRequest?.refs.has(normalizedRef) || activeIds.has(current.source.entryId)) {
         availabilityValue = "active";
       } else {
         availabilityValue = "history-only";

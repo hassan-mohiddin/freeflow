@@ -67,7 +67,8 @@ export function freeflowModelSkillPaths() {
   return FREEFLOW_MODEL_SKILL_NAMES.map((skillName) => freeflowSkillPath(skillName));
 }
 
-type SessionCoreKey = "enabled" | "interactionContract" | "skillsEnabled" | "contextVirtualization";
+type SessionCoreKey =
+  "enabled" | "interactionContract" | "skillsEnabled" | "contextVirtualization" | "conversationHistory";
 type SessionCoreOverrides = Partial<Record<SessionCoreKey, boolean>>;
 
 const MODE_STATE_ENTRY = "freeflow-mode";
@@ -77,6 +78,7 @@ const SESSION_CORE_KEYS = new Set<SessionCoreKey>([
   "interactionContract",
   "skillsEnabled",
   "contextVirtualization",
+  "conversationHistory",
 ]);
 const RESET_MODE_ARGS = new Set(["reset"]);
 
@@ -93,11 +95,13 @@ async function loadRuntimeContext(capabilityState = undefined) {
   const interactionContractEnabled = capabilityState?.interactionContract?.effective === true;
   const skillsEnabled = capabilityState?.skills?.effective === true;
   const contextVirtualizationEnabled = capabilityState?.contextVirtualization?.effective === true;
+  const conversationHistoryEnabled = capabilityState?.conversationHistory?.effective === true;
   const cognitiveRoutingEnabled = capabilityState?.cognitiveRouting?.effective === true;
   const [
     interactionContract,
     workflowSkill,
     contextVirtualizationSkill,
+    conversationHistorySkill,
     cognitiveRoutingSkill,
     cognitiveRoutingReference,
   ] = await Promise.all([
@@ -109,6 +113,9 @@ async function loadRuntimeContext(capabilityState = undefined) {
       : Promise.resolve(null),
     contextVirtualizationEnabled
       ? readFile(new URL("../../../capabilities/context-virtualization/SKILL.md", import.meta.url), "utf8")
+      : Promise.resolve(null),
+    conversationHistoryEnabled
+      ? readFile(new URL("../../../capabilities/conversation-history/SKILL.md", import.meta.url), "utf8")
       : Promise.resolve(null),
     cognitiveRoutingEnabled
       ? readFile(new URL("../../../capabilities/cognitive-routing/SKILL.md", import.meta.url), "utf8")
@@ -125,6 +132,7 @@ async function loadRuntimeContext(capabilityState = undefined) {
     interactionContract,
     workflowSkill,
     contextVirtualizationSkill,
+    conversationHistorySkill,
     cognitiveRoutingSkill,
     cognitiveRoutingReference,
   };
@@ -141,6 +149,9 @@ function runtimeContextCacheSatisfies(capabilityState) {
     return false;
   }
   if (capabilityState?.contextVirtualization?.effective === true && !runtimeContextCache.contextVirtualizationSkill) {
+    return false;
+  }
+  if (capabilityState?.conversationHistory?.effective === true && !runtimeContextCache.conversationHistorySkill) {
     return false;
   }
   if (capabilityState?.cognitiveRouting?.effective === true) {
@@ -346,6 +357,10 @@ function validateCoreConfigFields(value) {
     return "contextVirtualization must be a boolean";
   }
 
+  if (value.conversationHistory !== undefined && typeof value.conversationHistory !== "boolean") {
+    return "conversationHistory must be a boolean";
+  }
+
   if (value.interactionContract !== undefined && typeof value.interactionContract !== "boolean") {
     return "interactionContract must be a boolean";
   }
@@ -383,6 +398,7 @@ function validateFreeflowConfigShape(value) {
     "scriptTransform",
     "cognitiveRouting",
     "contextVirtualization",
+    "conversationHistory",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
@@ -415,6 +431,7 @@ function validateFreeflowLocalConfigShape(value) {
     "processing",
     "cognitiveRouting",
     "contextVirtualization",
+    "conversationHistory",
   ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
@@ -494,6 +511,7 @@ function resolveCoreConfig(repository, local) {
   const enabled = resolveLayeredValue(repository, local, "enabled", true);
   const interactionContract = resolveLayeredValue(repository, local, "interactionContract", true);
   const contextVirtualization = resolveLayeredValue(repository, local, "contextVirtualization", false);
+  const conversationHistory = resolveLayeredValue(repository, local, "conversationHistory", false);
   const defaultMode = resolveLayeredValue(repository, local, "defaultMode", "workflow");
   const repositorySkills = isRecord(repository.skills) ? repository.skills : {};
   const localSkills = isRecord(local.skills) ? local.skills : {};
@@ -504,6 +522,7 @@ function resolveCoreConfig(repository, local) {
       enabled: enabled.value,
       interactionContract: interactionContract.value,
       contextVirtualization: contextVirtualization.value,
+      conversationHistory: conversationHistory.value,
       skills: { enabled: skillsEnabled.value },
       defaultMode: defaultMode.value,
     },
@@ -511,6 +530,7 @@ function resolveCoreConfig(repository, local) {
       enabled: enabled.source,
       interactionContract: interactionContract.source,
       contextVirtualization: contextVirtualization.source,
+      conversationHistory: conversationHistory.source,
       skillsEnabled: skillsEnabled.source,
       defaultMode: defaultMode.source,
     },
@@ -534,6 +554,7 @@ function resolveSessionCoreConfig(layers) {
   const enabled = currentSessionOverrides.enabled;
   const interactionContract = currentSessionOverrides.interactionContract;
   const contextVirtualization = currentSessionOverrides.contextVirtualization;
+  const conversationHistory = currentSessionOverrides.conversationHistory;
   const skillsEnabled = currentSessionOverrides.skillsEnabled;
 
   return {
@@ -543,6 +564,8 @@ function resolveSessionCoreConfig(layers) {
         typeof interactionContract === "boolean" ? interactionContract : configured.interactionContract,
       contextVirtualization:
         typeof contextVirtualization === "boolean" ? contextVirtualization : configured.contextVirtualization,
+      conversationHistory:
+        typeof conversationHistory === "boolean" ? conversationHistory : configured.conversationHistory,
       skills: { enabled: typeof skillsEnabled === "boolean" ? skillsEnabled : configured.skills.enabled },
       defaultMode: configured.defaultMode,
     },
@@ -550,6 +573,7 @@ function resolveSessionCoreConfig(layers) {
       enabled: typeof enabled === "boolean" ? "session" : sources.enabled,
       interactionContract: typeof interactionContract === "boolean" ? "session" : sources.interactionContract,
       contextVirtualization: typeof contextVirtualization === "boolean" ? "session" : sources.contextVirtualization,
+      conversationHistory: typeof conversationHistory === "boolean" ? "session" : sources.conversationHistory,
       skillsEnabled: typeof skillsEnabled === "boolean" ? "session" : sources.skillsEnabled,
       defaultMode: sources.defaultMode,
     },
@@ -589,6 +613,7 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
   const interactionContractConfigEnabled = effectiveCore.config.interactionContract;
   const skillsConfigEnabled = effectiveCore.config.skills.enabled;
   const contextVirtualizationConfigEnabled = effectiveCore.config.contextVirtualization;
+  const conversationHistoryConfigEnabled = effectiveCore.config.conversationHistory;
   const hostSupportsCognitiveRouting = isPiFlowHost(extensionHost);
   const configuredCognitiveRouting = await resolveCognitiveRoutingState(
     layers.repository.parsed,
@@ -643,6 +668,10 @@ export async function readCapabilityState(cwd, host = undefined, extensionHost =
     contextVirtualization: {
       enabled: contextVirtualizationConfigEnabled,
       effective: enabled && contextVirtualizationConfigEnabled,
+    },
+    conversationHistory: {
+      enabled: conversationHistoryConfigEnabled,
+      effective: enabled && conversationHistoryConfigEnabled,
     },
     hostSupportsCognitiveRouting,
     cognitiveRouting,
@@ -750,8 +779,8 @@ export function setModeStatus(
       active.push(`cognitive blocked · ${reason}`);
     }
   }
-  if (capabilityState?.contextVirtualization?.effective) {
-    active.push("context virtualization");
+  if (capabilityState?.contextVirtualization?.effective || capabilityState?.conversationHistory?.effective) {
+    active.push("context");
   }
   ctx.ui.setStatus("freeflow", `freeflow: ${active.length > 0 ? active.join(" · ") : "idle"}`);
 }
@@ -845,6 +874,7 @@ function capabilityContext(capabilityState) {
     capabilityState.configSources.skillsEnabled,
   )}`;
   const contextVirtualization = capabilityState.contextVirtualization?.effective ? "enabled" : "disabled";
+  const conversationHistory = capabilityState.conversationHistory?.effective ? "enabled" : "disabled";
   const cognitiveRouting = capabilityState.hostSupportsCognitiveRouting ? capabilityState.cognitiveRouting : undefined;
   const cognitiveLine = cognitiveRouting
     ? `\n- Cognitive Routing: ${
@@ -859,7 +889,8 @@ function capabilityContext(capabilityState) {
 
 - Interaction contract: ${interactionContract}. Configure with \`/freeflow settings\` or temporarily with \`/freeflow settings session\`; inspect with \`/freeflow status\`.
 - Skills: ${skills}. Configure with \`/freeflow settings\` or temporarily with \`/freeflow settings session\`; inspect with \`/freeflow status\`.
-- Context Virtualization: ${contextVirtualization}. Configure with \`/freeflow settings\`; inspect with \`/freeflow context status\`.${cognitiveLine}
+- Context Virtualization: ${contextVirtualization}. Configure with \`/freeflow settings\`; inspect with \`/freeflow context status\`.
+- Conversation History: ${conversationHistory}. Configure with \`/freeflow settings\`; inspect with \`/freeflow context status\`.${cognitiveLine}
 
 Disabled capabilities are named only for status/config awareness. Capability-specific instructions and tools are active only while that capability is enabled.`;
 }
@@ -869,6 +900,7 @@ function hasModelFacingCapability(capabilityState) {
     capabilityState.interactionContract.effective ||
     capabilityState.skills.effective ||
     capabilityState.contextVirtualization?.effective === true ||
+    capabilityState.conversationHistory?.effective === true ||
     capabilityState.cognitiveRouting?.effective === true
   );
 }
@@ -948,7 +980,7 @@ ${inactiveModeContext(modeState)}
 
 ${capabilityContext(capabilityState)}
 
-Use \`/freeflow settings\` to enable the Interaction Contract, Skills, or Context Virtualization.`;
+Use \`/freeflow settings\` to enable the Interaction Contract, Skills, Context Virtualization, or Conversation History.`;
 }
 
 export function runtimeContext(modeState, freeflowContext, capabilityState) {
@@ -975,6 +1007,9 @@ These instructions are context-loading only. They do not override user instructi
   const contextVirtualizationText = capabilityState.contextVirtualization?.effective
     ? `\n\n## Loaded Context Virtualization Skill\n\n${freeflowContext.contextVirtualizationSkill.trim()}`
     : "";
+  const conversationHistoryText = capabilityState.conversationHistory?.effective
+    ? `\n\n## Loaded Conversation History Skill\n\n${freeflowContext.conversationHistorySkill.trim()}`
+    : "";
   const cognitiveRoutingText =
     capabilityState.cognitiveRouting?.effective === true ? cognitiveRoutingContext(freeflowContext) : "";
 
@@ -986,7 +1021,7 @@ These instructions are context-loading only. They do not override user instructi
 
 ${modeText}
 
-${capabilityContext(capabilityState)}${interactionContractText}${contextVirtualizationText}${cognitiveRoutingText}
+${capabilityContext(capabilityState)}${interactionContractText}${contextVirtualizationText}${conversationHistoryText}${cognitiveRoutingText}
 
 This Pi extension loads enabled runtime context before every agent turn and routes commands only; it does not enforce policy, block tools, grant permissions, or create repo-local hooks.`;
 }

@@ -1,9 +1,11 @@
-function formatStatus(status) {
+function formatStatus(status, features) {
   if (!status.available) {
-    return `Context Virtualization: unavailable${status.unavailableReason ? ` (${status.unavailableReason})` : ""}`;
+    return `Freeflow Context: unavailable${status.unavailableReason ? ` (${status.unavailableReason})` : ""}`;
   }
   return [
-    "Context Virtualization: available",
+    "Freeflow Context: available",
+    `Context Virtualization: ${features.contextVirtualization ? "enabled" : "disabled"}`,
+    `Conversation History: ${features.conversationHistory ? "enabled" : "disabled"}`,
     `Session: ${status.sessionId}`,
     `Branch: ${status.branchLeafId ?? "root"}`,
     `Projections: full=${status.counts.full}, archived=${status.counts.archived}, retained=${status.counts.retained}`,
@@ -12,7 +14,7 @@ function formatStatus(status) {
   ].join("\n");
 }
 function formatList(status) {
-  if (!status.available) return formatStatus(status);
+  if (!status.available) return formatStatus(status, { contextVirtualization: true, conversationHistory: false });
   const items = status.items.filter((item) => item.mode === "archived");
   if (items.length === 0) return "Context Virtualization: no archived projections in the active session branch.";
   const lines = ["Context Virtualization: archived projections"];
@@ -36,7 +38,7 @@ function refsFromArgs(args) {
     .map((value) => value.trim())
     .filter(Boolean);
 }
-export async function handleContextCommand(args, ctx, runtime, enabled) {
+export async function handleContextCommand(args, ctx, runtime, enabled, conversationHistoryEnabled = false) {
   const input = (args ?? "status").trim();
   const [action = "status", ...rest] = input.split(/\s+/);
   const normalized = action.toLowerCase();
@@ -47,8 +49,8 @@ export async function handleContextCommand(args, ctx, runtime, enabled) {
   if (normalized === "status") {
     const status = await runtime.status();
     ctx.ui.notify(
-      `${formatStatus(status)}${enabled ? "" : " (disabled by configuration)"}`,
-      enabled ? "info" : "warning",
+      formatStatus(status, { contextVirtualization: enabled, conversationHistory: conversationHistoryEnabled }),
+      enabled || conversationHistoryEnabled ? "info" : "warning",
     );
     return { changed: false, status };
   }

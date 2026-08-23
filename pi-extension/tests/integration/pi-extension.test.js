@@ -32,7 +32,9 @@ function loadExtension(host = PIFLOW_HOST) {
   const pi = {
     host,
     registerTool(tool) {
-      tools.push(tool);
+      const index = tools.findIndex((existing) => existing.name === tool.name);
+      if (index >= 0) tools[index] = tool;
+      else tools.push(tool);
     },
     registerCommand(name, definition) {
       commands.push({ name, definition });
@@ -142,6 +144,7 @@ test("Pi registers Freeflow commands without retired router tools", () => {
     ["ctrl+shift+r", "ctrl+shift+a"],
   );
   assert.ok(toolNames.includes("freeflow_context"));
+  assert.deepEqual(tools.find((tool) => tool.name === "freeflow_context").parameters.oneOf, []);
   assert.ok(toolNames.includes("freeflow_switch_profile"));
   assert.ok(
     !toolNames.some((name) => ["freeflow_status", "freeflow_search", "freeflow_run", "freeflow_batch"].includes(name)),
@@ -346,7 +349,7 @@ test("Pi describes Freeflow argument completions", () => {
   assert.deepEqual(freeflowCommand.definition.getArgumentCompletions(""), [
     { value: "settings", label: "settings", description: "Open personal override settings" },
     { value: "status", label: "status", description: "Show effective Freeflow state" },
-    { value: "context", label: "context", description: "Inspect Context Virtualization" },
+    { value: "context", label: "context", description: "Inspect Freeflow Context" },
     { value: "mode", label: "mode", description: "Select a temporary session mode" },
     { value: "profile", label: "profile", description: "Hold or release Cognitive Routing profile control" },
     { value: "enable", label: "enable", description: "Enable Freeflow for this repository" },
@@ -404,7 +407,7 @@ test("Pi describes Freeflow argument completions", () => {
     },
   ]);
   assert.deepEqual(freeflowCommand.definition.getArgumentCompletions("context "), [
-    { value: "context status", label: "status", description: "Show Context Virtualization state" },
+    { value: "context status", label: "status", description: "Show Freeflow Context state" },
     { value: "context list", label: "list", description: "List archived context projections" },
     { value: "context restore", label: "restore", description: "Restore one or more context references" },
     { value: "context reset all", label: "reset all", description: "Reset projection decisions on the active branch" },
@@ -567,6 +570,7 @@ test("Pi layers local core overrides over repository defaults with source eviden
       enabled: true,
       interactionContract: false,
       contextVirtualization: false,
+      conversationHistory: false,
       skills: { enabled: false },
       defaultMode: "strict-workflow",
     });
@@ -574,6 +578,7 @@ test("Pi layers local core overrides over repository defaults with source eviden
       enabled: "local",
       interactionContract: "repository",
       contextVirtualization: "builtin",
+      conversationHistory: "builtin",
       skillsEnabled: "local",
       defaultMode: "local",
     });
@@ -963,6 +968,7 @@ test("Pi layered core config inherits omitted values and built-in defaults", asy
       enabled: true,
       interactionContract: false,
       contextVirtualization: false,
+      conversationHistory: false,
       skills: { enabled: true },
       defaultMode: "workflow",
     });
@@ -970,6 +976,7 @@ test("Pi layered core config inherits omitted values and built-in defaults", asy
       enabled: "builtin",
       interactionContract: "local",
       contextVirtualization: "builtin",
+      conversationHistory: "builtin",
       skillsEnabled: "builtin",
       defaultMode: "builtin",
     });
@@ -1589,7 +1596,7 @@ test("Pi /freeflow command toggles master switch and blocks inactive settings ro
       assert.doesNotMatch(rootText, /Output Router|Native safety net/);
       assert.match(rootText, /\[dim\]Interaction Contract/);
       assert.match(rootText, /\[dim\]Skills/);
-      assert.match(rootText, /Context Virtualization/);
+      assert.match(rootText, /Freeflow Context/);
       component.handleInput("\u001b[B"); // Interaction Contract row is inactive while Freeflow is off.
       component.handleInput("\r");
       component.handleInput("\u001b");
@@ -1611,6 +1618,26 @@ test("Pi /freeflow command toggles master switch and blocks inactive settings ro
     assert.equal(afterEnable.defaultMode, "workflow");
     assert.equal(afterEnable.outputRouter, undefined);
     assert.equal(enableCtx.reloads.length, 1);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi statusline uses one umbrella context label for either enabled context feature", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-pi-context-status-"));
+  try {
+    await mkdir(join(cwd, ".freeflow"));
+    await writeFile(
+      join(cwd, ".freeflow/config.json"),
+      JSON.stringify({ contextVirtualization: true, conversationHistory: true }, null, 2),
+      "utf8",
+    );
+    const { handlers } = loadExtension();
+    const ctx = context(cwd);
+    await handlers.get("session_start")({ reason: "startup" }, ctx);
+    const status = ctx.statuses.at(-1).value;
+    assert.match(status, /context/);
+    assert.doesNotMatch(status, /context virtualization|conversation history/);
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

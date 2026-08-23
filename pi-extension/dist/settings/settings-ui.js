@@ -19,6 +19,7 @@ const DEFAULT_FREEFLOW_ENABLED = true;
 const DEFAULT_INTERACTION_CONTRACT_ENABLED = true;
 const DEFAULT_SKILLS_ENABLED = true;
 const DEFAULT_CONTEXT_VIRTUALIZATION_ENABLED = false;
+const DEFAULT_CONVERSATION_HISTORY_ENABLED = false;
 const MODE_VALUES = ["conversation", "workflow", "strict-workflow"];
 const MODE_LABELS = {
   default: "Use configured default",
@@ -272,6 +273,7 @@ function resolveSettingsCoreView(rawConfig, layers) {
     enabled: getPath(rawConfig, ["enabled"]) !== false,
     interactionContract: getPath(rawConfig, ["interactionContract"]) !== false,
     contextVirtualization: getPath(rawConfig, ["contextVirtualization"]) === true,
+    conversationHistory: getPath(rawConfig, ["conversationHistory"]) === true,
     skills: { enabled: getPath(repositorySkills, ["enabled"]) !== false },
     defaultMode: validModeOrUndefined(rawConfig.defaultMode) ?? "workflow",
   };
@@ -280,6 +282,7 @@ function resolveSettingsCoreView(rawConfig, layers) {
     interactionContract: typeof getPath(rawConfig, ["interactionContract"]) === "boolean" ? "repository" : "builtin",
     contextVirtualization:
       typeof getPath(rawConfig, ["contextVirtualization"]) === "boolean" ? "repository" : "builtin",
+    conversationHistory: typeof getPath(rawConfig, ["conversationHistory"]) === "boolean" ? "repository" : "builtin",
     skillsEnabled: typeof getPath(repositorySkills, ["enabled"]) === "boolean" ? "repository" : "builtin",
     defaultMode: validModeOrUndefined(rawConfig.defaultMode) === undefined ? "builtin" : "repository",
   };
@@ -375,11 +378,23 @@ function sessionFreeflowItems(state, modeState, cognitiveRoutingController) {
     effectiveSource: effectiveSources.contextVirtualization,
     sessionOverrides,
   });
+  const conversationHistoryItem = createSessionBooleanItem({
+    id: "freeflow.conversationHistory",
+    label: "Conversation History",
+    description: "Temporary Conversation History override for this Pi session.",
+    key: "conversationHistory",
+    inheritedValue: configured.conversationHistory,
+    inheritedSource: configuredSources.conversationHistory,
+    effectiveValue: state.conversationHistory.enabled,
+    effectiveSource: effectiveSources.conversationHistory,
+    sessionOverrides,
+  });
   const freeflowInactive = !state.enabled;
   const skillsEnabled = state.skills.enabled;
   interactionItem.inactive = freeflowInactive;
   skillsItem.inactive = freeflowInactive;
   contextVirtualizationItem.inactive = freeflowInactive;
+  conversationHistoryItem.inactive = freeflowInactive;
   const sessionMode = modeState.currentMode ?? "default";
   const sessionModeItem = {
     id: "freeflow.sessionMode",
@@ -445,7 +460,7 @@ function sessionFreeflowItems(state, modeState, cognitiveRoutingController) {
       id: "freeflow.session.reset",
       label: "Reset session overrides",
       description:
-        "Clear Freeflow, Interaction Contract, Skills, Context Virtualization, and mode overrides for this Pi session.",
+        "Clear Freeflow, Interaction Contract, Skills, Context Virtualization, Conversation History, and mode overrides for this Pi session.",
       kind: "enum",
       value: "available",
       values: ["reset"],
@@ -454,7 +469,15 @@ function sessionFreeflowItems(state, modeState, cognitiveRoutingController) {
       format: () => "available",
       transient: true,
     },
-    contextVirtualizationItem,
+    {
+      id: "freeflow.context",
+      label: "Freeflow Context",
+      description: "Choose which context projection and conversation-history operations are available to the model.",
+      kind: "group",
+      value: contextVirtualizationItem.effectiveValue === true || conversationHistoryItem.effectiveValue === true,
+      displaySuffix: `${[contextVirtualizationItem, conversationHistoryItem].filter((item) => item.effectiveValue === true).length}/2 enabled`,
+      children: [contextVirtualizationItem, conversationHistoryItem],
+    },
   ];
 }
 const COGNITIVE_ROUTING_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
@@ -714,6 +737,18 @@ function freeflowItems(rawConfig, modeState, options = {}) {
     effectiveSource: sources.contextVirtualization,
     defaultValue: DEFAULT_CONTEXT_VIRTUALIZATION_ENABLED,
   });
+  const conversationHistoryItem = createScopedBooleanItem({
+    scope,
+    rawConfig,
+    localConfig,
+    id: "freeflow.conversationHistory",
+    label: "Conversation History",
+    description: "Let the model search and retrieve hidden conversation history on the active branch.",
+    path: ["conversationHistory"],
+    effectiveValue: core.conversationHistory,
+    effectiveSource: sources.conversationHistory,
+    defaultValue: DEFAULT_CONVERSATION_HISTORY_ENABLED,
+  });
   const repositoryModeValue = validModeOrUndefined(rawConfig.defaultMode);
   const repositoryDefaultMode = repositoryModeValue ?? "workflow";
   const repositoryDefaultSource = repositoryModeValue ? "repository" : "builtin";
@@ -731,6 +766,7 @@ function freeflowItems(rawConfig, modeState, options = {}) {
   interactionItem.inactive = freeflowInactive;
   skillsItem.inactive = freeflowInactive;
   contextVirtualizationItem.inactive = freeflowInactive;
+  conversationHistoryItem.inactive = freeflowInactive;
   defaultModeItem.inactive = freeflowInactive;
   defaultModeItem.displaySuffix = coreDisplaySuffix(defaultModeItem, freeflowInactive || !skillsEnabled);
   const sessionMode = modeState?.currentMode ?? "default";
@@ -818,7 +854,15 @@ function freeflowItems(rawConfig, modeState, options = {}) {
     sessionModeItem,
     defaultModeItem,
     ...(cognitiveRoutingGroup ? [cognitiveRoutingGroup] : []),
-    contextVirtualizationItem,
+    {
+      id: "freeflow.context",
+      label: "Freeflow Context",
+      description: "Choose which context projection and conversation-history operations are available to the model.",
+      kind: "group",
+      value: contextVirtualizationItem.effectiveValue === true || conversationHistoryItem.effectiveValue === true,
+      displaySuffix: `${[contextVirtualizationItem, conversationHistoryItem].filter((item) => item.effectiveValue === true).length}/2 enabled`,
+      children: [contextVirtualizationItem, conversationHistoryItem],
+    },
   ];
 }
 function pruneKnownDefaults(config) {
@@ -826,6 +870,7 @@ function pruneKnownDefaults(config) {
     { path: ["enabled"], value: DEFAULT_FREEFLOW_ENABLED },
     { path: ["interactionContract"], value: DEFAULT_INTERACTION_CONTRACT_ENABLED },
     { path: ["skills", "enabled"], value: DEFAULT_SKILLS_ENABLED },
+    { path: ["conversationHistory"], value: DEFAULT_CONVERSATION_HISTORY_ENABLED },
   ];
   for (const item of defaultPaths) {
     if (valuesEqual(getPath(config, item.path), item.value)) {
@@ -1105,11 +1150,12 @@ function freeflowStatusText(state, cognitiveRoutingController) {
           ? `blocked (${cognitiveRouting.blockingReason.code})`
           : "disabled"
     : undefined;
+  const contextEnabled = state.contextVirtualization?.effective || state.conversationHistory?.effective;
   return [
     `Freeflow: ${state.enabled ? "enabled" : "disabled"}${sessionSuffix(state.configSources.enabled)}`,
     `interaction contract: ${state.interactionContract.effective ? "enabled" : "disabled"}${sessionSuffix(state.configSources.interactionContract)}`,
     `skills: ${state.skills.effective ? "enabled" : "disabled (workflow modes inactive)"}${sessionSuffix(state.configSources.skillsEnabled)}`,
-    `context virtualization: ${state.contextVirtualization?.effective ? "enabled" : "disabled"}${sessionSuffix(state.configSources.contextVirtualization)}`,
+    `context: ${contextEnabled ? "enabled" : "disabled"} (virtualization ${state.contextVirtualization?.effective ? "enabled" : "disabled"}, history ${state.conversationHistory?.effective ? "enabled" : "disabled"})`,
     ...(cognitiveRoutingStatus ? [`cognitive routing: ${cognitiveRoutingStatus}`] : []),
   ].join("; ");
 }
@@ -1328,6 +1374,7 @@ export async function handleFreeflowCommand(args, ctx, afterChange, pi, cognitiv
           "freeflow.interactionContract": "interactionContract",
           "freeflow.skills.enabled": "skillsEnabled",
           "freeflow.contextVirtualization": "contextVirtualization",
+          "freeflow.conversationHistory": "conversationHistory",
         };
         const key = keyById[item.id];
         const override = value === LOCAL_INHERIT ? null : value === "true";

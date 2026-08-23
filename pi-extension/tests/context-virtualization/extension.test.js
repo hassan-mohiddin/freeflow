@@ -6,7 +6,7 @@ import test from "node:test";
 
 import freeflowExtension from "../../dist/index.js";
 
-function createHarness(cwd, contextEntries) {
+function createHarness(cwd, contextEntries, activeContextEntries = contextEntries) {
   const handlers = new Map();
   const tools = [];
   const commands = [];
@@ -17,7 +17,9 @@ function createHarness(cwd, contextEntries) {
   const statuses = [];
   const pi = {
     registerTool(tool) {
-      tools.push(tool);
+      const index = tools.findIndex((existing) => existing.name === tool.name);
+      if (index >= 0) tools[index] = tool;
+      else tools.push(tool);
     },
     registerCommand(name, definition) {
       commands.push({ name, definition });
@@ -53,7 +55,7 @@ function createHarness(cwd, contextEntries) {
       getSessionId: () => "session-1",
       getLeafId: () => entries.at(-1)?.id ?? null,
       getBranch: () => entries,
-      buildContextEntries: () => entries.filter((entry) => entry.type === "message"),
+      buildContextEntries: () => activeContextEntries,
     },
     ui: {
       notify(message, level) {
@@ -109,9 +111,43 @@ function untouchedToolResultEntry() {
   };
 }
 
-async function writeConfig(cwd, contextVirtualization) {
-  await mkdir(join(cwd, ".freeflow"));
-  await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify({ contextVirtualization }, null, 2), "utf8");
+function userEntry(id, text, parentId = null) {
+  return {
+    type: "message",
+    id,
+    parentId,
+    message: { role: "user", content: [{ type: "text", text }] },
+  };
+}
+
+function historyToolResultEntry(id, text, toolName = "bash", parentId = null) {
+  return {
+    type: "message",
+    id,
+    parentId,
+    message: {
+      role: "toolResult",
+      toolCallId: `call-${id}`,
+      toolName,
+      content: [{ type: "text", text }],
+      isError: true,
+    },
+  };
+}
+
+function assistantEntry(id, content, parentId = null) {
+  return {
+    type: "message",
+    id,
+    parentId,
+    message: { role: "assistant", content },
+  };
+}
+
+async function writeConfig(cwd, config) {
+  await mkdir(join(cwd, ".freeflow"), { recursive: true });
+  const value = typeof config === "boolean" ? { contextVirtualization: config } : config;
+  await writeFile(join(cwd, ".freeflow/config.json"), JSON.stringify(value, null, 2), "utf8");
 }
 
 test("enabled Context Virtualization registers, projects, archives, restores, and reports through commands", async () => {
@@ -133,6 +169,17 @@ test("enabled Context Virtualization registers, projects, archives, restores, an
 
     const contextTool = harness.tools.find((tool) => tool.name === "freeflow_context");
     assert.ok(contextTool);
+    assert.doesNotMatch(contextTool.description, /conversation history/i);
+    const staleSearch = await contextTool.execute(
+      "context-stale-search",
+      { operation: "search", query: "not enabled" },
+      undefined,
+      undefined,
+      harness.ctx,
+    );
+    assert.equal(staleSearch.details.result.status, "rejected");
+    assert.equal(staleSearch.details.result.reason, "operation_disabled");
+    assert.equal(staleSearch.details.result.message, undefined);
     const archived = await contextTool.execute(
       "context-archive",
       {
@@ -194,6 +241,388 @@ test("enabled Context Virtualization registers, projects, archives, restores, an
       harness.notifications.at(-1).message,
       "Context Virtualization: no archived projections in the active session branch.",
     );
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("enabled Conversation History exposes only search and retrieve operations", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-conversation-history-extension-"));
+  try {
+    await writeConfig(cwd, { conversationHistory: true });
+    const harness = createHarness(cwd, [toolResultEntry()]);
+    await harness.handlers.get("session_start")({ reason: "startup" }, harness.ctx);
+
+    assert.ok(harness.activeToolNames().includes("freeflow_context"));
+    const contextTool = harness.tools.find((tool) => tool.name === "freeflow_context");
+    assert.ok(contextTool);
+    assert.deepEqual(
+      contextTool.parameters.oneOf.map((variant) => variant.properties.operation.const),
+      ["search", "retrieve"],
+    );
+    assert.match(contextTool.description, /hidden conversation history/i);
+    assert.doesNotMatch(contextTool.description, /future context projections/i);
+    const before = await harness.handlers.get("before_agent_start")({ systemPrompt: "base" }, harness.ctx);
+    assert.match(before.systemPrompt, /Loaded Conversation History Skill/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Freeflow Context exposes both operation families when both features are enabled", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-context-both-features-"));
+  try {
+    await writeConfig(cwd, { contextVirtualization: true, conversationHistory: true });
+    const harness = createHarness(cwd, [toolResultEntry()]);
+    await harness.handlers.get("session_start")({ reason: "startup" }, harness.ctx);
+    const contextTool = harness.tools.find((tool) => tool.name === "freeflow_context");
+    assert.deepEqual(
+      contextTool.parameters.oneOf.map((variant) => variant.properties.operation.const),
+      ["archive", "restore", "search", "retrieve"],
+    );
+    assert.ok(harness.activeToolNames().includes("freeflow_context"));
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Conversation History searches hidden active-branch entries and retrieves selected content", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-conversation-history-runtime-"));
+  try {
+    await writeConfig(cwd, { conversationHistory: true });
+    const visible = userEntry("visible", "Current visible question");
+    const hidden = historyToolResultEntry(
+      "hidden",
+      "Authentication failed because the database timeout expired.",
+      "bash",
+      "visible",
+    );
+    const excluded = historyToolResultEntry(
+      "freeflow-result",
+      "Authentication failed because the database timeout expired.",
+      " freeflow_context ",
+      "hidden",
+    );
+    const harness = createHarness(cwd, [visible, hidden, excluded], [visible]);
+    await harness.handlers.get("session_start")({ reason: "startup" }, harness.ctx);
+    await harness.handlers.get("context")({ messages: [visible.message] }, harness.ctx);
+    await harness.commands
+      .find((command) => command.name === "freeflow")
+      .definition.handler("context status", harness.ctx);
+    assert.match(harness.notifications.at(-1).message, /^Freeflow Context: available/);
+    assert.match(harness.notifications.at(-1).message, /Conversation History: enabled/);
+
+    const contextTool = harness.tools.find((tool) => tool.name === "freeflow_context");
+    const search = await contextTool.execute(
+      "context-search",
+      { operation: "search", query: "database timeout", limit: 8 },
+      undefined,
+      undefined,
+      harness.ctx,
+    );
+    assert.equal(search.details.result.status, "ok");
+    assert.deepEqual(
+      search.details.result.hits.map((hit) => hit.ref),
+      ["ctx:hidden"],
+    );
+    assert.match(search.content[0].text, /^Conversation History: search/);
+    assert.doesNotMatch(search.content[0].text, /ctx:visible|ctx:freeflow-result/);
+
+    const filteredSearch = await contextTool.execute(
+      "context-search-trimmed-tool-filter",
+      { operation: "search", query: "database timeout", toolNames: [" BASH "] },
+      undefined,
+      undefined,
+      harness.ctx,
+    );
+    assert.equal(filteredSearch.details.result.status, "ok");
+    assert.deepEqual(
+      filteredSearch.details.result.hits.map((hit) => hit.ref),
+      ["ctx:hidden"],
+    );
+
+    const retrieve = await contextTool.execute(
+      "context-retrieve",
+      { operation: "retrieve", refs: ["ctx:hidden"] },
+      undefined,
+      undefined,
+      harness.ctx,
+    );
+    assert.equal(retrieve.details.result.status, "ok");
+    assert.equal(retrieve.details.result.items[0].ref, "ctx:hidden");
+    assert.match(retrieve.details.result.items[0].content, /database timeout/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("mixed assistant sources retain ordinary content and exclude Freeflow tool calls", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-conversation-history-mixed-assistant-"));
+  try {
+    await writeConfig(cwd, { conversationHistory: true });
+    const assistant = assistantEntry("mixed-assistant", [
+      { type: "text", text: "The ordinary answer explains the database timeout." },
+      { type: "toolCall", name: "freeflow_context", arguments: { secret: "administrative detail" } },
+      { type: "toolCall", name: "bash", arguments: { command: "printf database" } },
+    ]);
+    assistant.timestamp = "not-a-timestamp";
+    const harness = createHarness(cwd, [assistant], []);
+    await harness.handlers.get("session_start")({ reason: "startup" }, harness.ctx);
+    await harness.handlers.get("context")({ messages: [] }, harness.ctx);
+    const contextTool = harness.tools.find((tool) => tool.name === "freeflow_context");
+
+    const search = await contextTool.execute(
+      "context-search-mixed-assistant",
+      { operation: "search", query: "ordinary answer" },
+      undefined,
+      undefined,
+      harness.ctx,
+    );
+    assert.equal(search.details.result.status, "ok");
+    assert.deepEqual(
+      search.details.result.hits.map((hit) => hit.ref),
+      ["ctx:mixed-assistant"],
+    );
+    assert.deepEqual(search.details.result.hits[0].toolNames, ["bash"]);
+
+    const retrieve = await contextTool.execute(
+      "context-retrieve-mixed-assistant",
+      { operation: "retrieve", refs: ["ctx:mixed-assistant"] },
+      undefined,
+      undefined,
+      harness.ctx,
+    );
+    assert.equal(retrieve.details.result.status, "ok");
+    assert.equal(retrieve.details.result.items[0].timestamp, "1970-01-01T00:00:00.000Z");
+    assert.match(retrieve.details.result.items[0].content, /ordinary answer/);
+    assert.match(retrieve.details.result.items[0].content, /printf database/);
+    assert.doesNotMatch(retrieve.details.result.items[0].content, /administrative detail/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("archived Context Virtualization sources return to hidden Conversation History", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-conversation-history-archived-source-"));
+  try {
+    await writeConfig(cwd, { contextVirtualization: true, conversationHistory: true });
+    const source = historyToolResultEntry("archived-source", "The archived database timeout is recoverable.");
+    const harness = createHarness(cwd, [source], [source]);
+    await harness.handlers.get("session_start")({ reason: "startup" }, harness.ctx);
+    await harness.handlers.get("context")({ messages: [source.message] }, harness.ctx);
+
+    const contextTool = harness.tools.find((tool) => tool.name === "freeflow_context");
+    const archived = await contextTool.execute(
+      "context-archive-source",
+      { operation: "archive", targets: [{ ref: "ctx:archived-source" }] },
+      undefined,
+      undefined,
+      harness.ctx,
+    );
+    assert.equal(archived.details.result.status, "ok");
+
+    await harness.handlers.get("context")({ messages: [source.message] }, harness.ctx);
+    const search = await contextTool.execute(
+      "context-search-archived-source",
+      { operation: "search", query: "database timeout" },
+      undefined,
+      undefined,
+      harness.ctx,
+    );
+    assert.equal(search.details.result.status, "ok");
+    assert.deepEqual(
+      search.details.result.hits.map((hit) => hit.ref),
+      ["ctx:archived-source"],
+    );
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("visible retrieved sources are excluded until the retrieval result is archived", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-conversation-history-materialization-"));
+  try {
+    await writeConfig(cwd, { conversationHistory: true, contextVirtualization: true });
+    const source = historyToolResultEntry("materialized-source", "The original database timeout evidence.");
+    const retrievalResult = historyToolResultEntry(
+      "retrieval-result",
+      "Ref ctx:materialized-source\nThe original database timeout evidence.",
+      "freeflow_context",
+    );
+    retrievalResult.message.details = {
+      result: {
+        status: "ok",
+        operation: "retrieve",
+        items: [{ ref: "ctx:materialized-source", kind: "toolResult", content: source.message.content[0].text }],
+      },
+    };
+    const harness = createHarness(cwd, [source, retrievalResult], [retrievalResult]);
+    await harness.handlers.get("session_start")({ reason: "startup" }, harness.ctx);
+    await harness.handlers.get("context")({ messages: [retrievalResult.message] }, harness.ctx);
+    const contextTool = harness.tools.find((tool) => tool.name === "freeflow_context");
+
+    const hiddenSearch = await contextTool.execute(
+      "context-search-materialized-source",
+      { operation: "search", query: "database timeout" },
+      undefined,
+      undefined,
+      harness.ctx,
+    );
+    assert.equal(hiddenSearch.details.result.status, "rejected");
+    assert.equal(hiddenSearch.details.result.reason, "no_hidden_conversation_history");
+
+    const archive = await contextTool.execute(
+      "context-archive-retrieval-result",
+      { operation: "archive", targets: [{ ref: "ctx:retrieval-result" }] },
+      undefined,
+      undefined,
+      harness.ctx,
+    );
+    assert.equal(archive.details.result.status, "ok");
+
+    await writeConfig(cwd, { conversationHistory: true });
+    await harness.handlers.get("session_tree")({}, harness.ctx);
+    await harness.handlers.get("context")({ messages: [retrievalResult.message] }, harness.ctx);
+    const stillMaterialized = await contextTool.execute(
+      "context-search-while-virtualization-disabled",
+      { operation: "search", query: "database timeout" },
+      undefined,
+      undefined,
+      harness.ctx,
+    );
+    assert.equal(stillMaterialized.details.result.status, "rejected");
+    assert.equal(stillMaterialized.details.result.reason, "no_hidden_conversation_history");
+
+    await writeConfig(cwd, { conversationHistory: true, contextVirtualization: true });
+    await harness.handlers.get("session_tree")({}, harness.ctx);
+    await harness.handlers.get("context")({ messages: [retrievalResult.message] }, harness.ctx);
+
+    const searchableAgain = await contextTool.execute(
+      "context-search-after-archive",
+      { operation: "search", query: "database timeout" },
+      undefined,
+      undefined,
+      harness.ctx,
+    );
+    assert.equal(searchableAgain.details.result.status, "ok");
+    assert.deepEqual(
+      searchableAgain.details.result.hits.map((hit) => hit.ref),
+      ["ctx:materialized-source"],
+    );
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Conversation History rejects visible-only searches and bounds oversized retrieval", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-conversation-history-bounds-"));
+  try {
+    await writeConfig(cwd, { conversationHistory: true });
+    const visible = userEntry("visible", "Everything needed is visible now");
+    const visibleHarness = createHarness(cwd, [visible], [visible]);
+    await visibleHarness.handlers.get("session_start")({ reason: "startup" }, visibleHarness.ctx);
+    await visibleHarness.handlers.get("context")({ messages: [visible.message] }, visibleHarness.ctx);
+    const visibleTool = visibleHarness.tools.find((tool) => tool.name === "freeflow_context");
+    const emptySearch = await visibleTool.execute(
+      "context-empty-search",
+      { operation: "search", query: "anything hidden" },
+      undefined,
+      undefined,
+      visibleHarness.ctx,
+    );
+    assert.equal(emptySearch.details.result.status, "rejected");
+    assert.equal(emptySearch.details.result.reason, "no_hidden_conversation_history");
+    assert.match(emptySearch.content[0].text, /Reason: no_hidden_conversation_history/);
+
+    const oversizedText = `${"database context\n".repeat(700)}${"unrelated output\n".repeat(100)}${"database timeout\n".repeat(10)}${"more output\n".repeat(700)}`;
+    const oversized = historyToolResultEntry("oversized", oversizedText);
+    const hiddenHarness = createHarness(cwd, [oversized], []);
+    await hiddenHarness.handlers.get("session_start")({ reason: "startup" }, hiddenHarness.ctx);
+    await hiddenHarness.handlers.get("context")({ messages: [] }, hiddenHarness.ctx);
+    const hiddenTool = hiddenHarness.tools.find((tool) => tool.name === "freeflow_context");
+    const zeroSearch = await hiddenTool.execute(
+      "context-zero-search",
+      { operation: "search", query: "term that is absent" },
+      undefined,
+      undefined,
+      hiddenHarness.ctx,
+    );
+    assert.equal(zeroSearch.details.result.status, "ok");
+    assert.equal(zeroSearch.details.result.returned, 0);
+    assert.match(zeroSearch.content[0].text, /No lexical matches were found in hidden active-branch history/);
+
+    const duplicateRef = await hiddenTool.execute(
+      "context-duplicate-normalized-ref",
+      { operation: "retrieve", refs: ["ctx:oversized", "ctx:oversized "], focus: "database timeout" },
+      undefined,
+      undefined,
+      hiddenHarness.ctx,
+    );
+    assert.equal(duplicateRef.details.result.status, "rejected");
+    assert.equal(duplicateRef.details.result.reason, "duplicate_ref");
+
+    const retrieve = await hiddenTool.execute(
+      "context-oversized-retrieve",
+      { operation: "retrieve", refs: ["ctx:oversized"], focus: "database timeout" },
+      undefined,
+      undefined,
+      hiddenHarness.ctx,
+    );
+    assert.equal(retrieve.details.result.status, "ok");
+    assert.equal(retrieve.details.result.items[0].completeness, "partial");
+    assert.ok(retrieve.details.result.items[0].returnedCharacters <= 8000);
+    assert.match(retrieve.details.result.items[0].content, /database timeout/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Conversation History reports partial coverage for invalid eligible sources", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-conversation-history-partial-coverage-"));
+  try {
+    await writeConfig(cwd, { conversationHistory: true });
+    const invalid = historyToolResultEntry("invalid-source", "An invalid tool name should not become searchable.");
+    invalid.message.toolName = "x".repeat(129);
+    const harness = createHarness(cwd, [invalid], []);
+    await harness.handlers.get("session_start")({ reason: "startup" }, harness.ctx);
+    await harness.handlers.get("context")({ messages: [] }, harness.ctx);
+    const contextTool = harness.tools.find((tool) => tool.name === "freeflow_context");
+    const search = await contextTool.execute(
+      "context-partial-coverage",
+      { operation: "search", query: "invalid tool" },
+      undefined,
+      undefined,
+      harness.ctx,
+    );
+    assert.equal(search.details.result.status, "ok");
+    assert.equal(search.details.result.coverage, "partial");
+    assert.equal(search.details.result.skippedEntries, 1);
+    assert.equal(search.details.result.returned, 0);
+    assert.match(search.content[0].text, /Skipped entries: 1/);
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("visible invalid sources do not make an empty hidden corpus partial", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-conversation-history-visible-invalid-"));
+  try {
+    await writeConfig(cwd, { conversationHistory: true });
+    const invalid = historyToolResultEntry("visible-invalid", "This visible source has an invalid tool name.");
+    invalid.message.toolName = "x".repeat(129);
+    const harness = createHarness(cwd, [invalid], [invalid]);
+    await harness.handlers.get("session_start")({ reason: "startup" }, harness.ctx);
+    await harness.handlers.get("context")({ messages: [invalid.message] }, harness.ctx);
+    const contextTool = harness.tools.find((tool) => tool.name === "freeflow_context");
+    const search = await contextTool.execute(
+      "context-visible-invalid",
+      { operation: "search", query: "invalid source" },
+      undefined,
+      undefined,
+      harness.ctx,
+    );
+    assert.equal(search.details.result.status, "rejected");
+    assert.equal(search.details.result.reason, "no_hidden_conversation_history");
   } finally {
     await rm(cwd, { recursive: true, force: true });
   }

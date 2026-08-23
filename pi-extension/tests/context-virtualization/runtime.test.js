@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { ContextSourceResolver } from "../../dist/context-virtualization/resolver.js";
+import { ContextSourceResolver } from "../../dist/freeflow-context/resolver.js";
 import { ContextVirtualizationRuntime } from "../../dist/context-virtualization/runtime.js";
-import { CONTEXT_PROJECTION_ENTRY, contextRefForEntry } from "../../dist/context-virtualization/types.js";
+import { CONTEXT_PROJECTION_ENTRY } from "../../dist/context-virtualization/types.js";
+import { contextRefForEntry } from "../../dist/freeflow-context/types.js";
 
 function createFixture() {
   const entries = [
@@ -89,6 +90,18 @@ test("runtime refreshes its resolver when lifecycle recovery switches contexts",
     true,
   );
   assert.match(projected.messages[0].content.at(-1).text, /ctx:tool-2/);
+});
+
+test("projection recovery failure fails open for Conversation History visibility", async () => {
+  const { runtime, ctx } = createFixture();
+  await runtime.project([toolMessage()], true);
+  await runtime.archive([{ ref: contextRefForEntry("tool-1") }]);
+
+  ctx.sessionManager.getBranch = () => {
+    throw new Error("projection recovery failed");
+  };
+  assert.equal(await runtime.recover(ctx), false);
+  assert.equal(runtime.isSourceFullyProjected("tool-1"), true);
 });
 
 test("runtime projects full results, archives them, and restores them without mutating source content", async () => {

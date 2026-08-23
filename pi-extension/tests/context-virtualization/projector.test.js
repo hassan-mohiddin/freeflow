@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { archiveContent, fullContent, projectToolResultMessage } from "../../dist/context-virtualization/projector.js";
-import { CONTEXT_REF_PREFIX, contextRefForEntry } from "../../dist/context-virtualization/types.js";
+import { CONTEXT_REF_PREFIX, contextRefForEntry } from "../../dist/freeflow-context/types.js";
 import { replayProjectionEntries } from "../../dist/context-virtualization/state.js";
 
 const source = {

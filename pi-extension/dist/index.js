@@ -9,9 +9,11 @@ import {
 } from "./cognitive-routing/commands.js";
 import { registerCognitiveRoutingHistoryTool, registerCognitiveRoutingTool } from "./cognitive-routing/tool.js";
 import { readCognitiveRoutingHistory } from "./cognitive-routing/history.js";
+import { ConversationHistoryRuntime } from "./conversation-history/runtime.js";
+import { FreeflowContextRuntime } from "./freeflow-context/runtime.js";
+import { CONTEXT_VIRTUALIZATION_TOOL_NAME, registerFreeflowContextTool } from "./freeflow-context/tool.js";
 import { handleContextCommand } from "./context-virtualization/commands.js";
 import { ContextVirtualizationRuntime } from "./context-virtualization/runtime.js";
-import { CONTEXT_VIRTUALIZATION_TOOL_NAME, registerContextVirtualizationTool } from "./context-virtualization/tool.js";
 import { handleFreeflowCommand } from "./settings/settings-ui.js";
 import { isPiFlowHost } from "./runtime/runtime-identity.js";
 import {
@@ -135,8 +137,11 @@ async function applyCapabilityToolVisibility(
     else active.delete(COGNITIVE_ROUTING_SWITCH_TOOL_NAME);
   }
   if (allToolNameSet.has(CONTEXT_VIRTUALIZATION_TOOL_NAME)) {
-    if (state.contextVirtualization?.effective === true) active.add(CONTEXT_VIRTUALIZATION_TOOL_NAME);
-    else active.delete(CONTEXT_VIRTUALIZATION_TOOL_NAME);
+    if (state.contextVirtualization?.effective === true || state.conversationHistory?.effective === true) {
+      active.add(CONTEXT_VIRTUALIZATION_TOOL_NAME);
+    } else {
+      active.delete(CONTEXT_VIRTUALIZATION_TOOL_NAME);
+    }
   }
   pi.setActiveTools([...active]);
 }
@@ -200,7 +205,7 @@ function freeflowCompletions(prefix, hostInfo = undefined) {
   if (query.startsWith("context ")) {
     const contextQuery = query.slice("context ".length);
     return [
-      { value: "status", label: "status", description: "Show Context Virtualization state" },
+      { value: "status", label: "status", description: "Show Freeflow Context state" },
       { value: "list", label: "list", description: "List archived context projections" },
       { value: "restore", label: "restore", description: "Restore one or more context references" },
       { value: "reset all", label: "reset all", description: "Reset projection decisions on the active branch" },
@@ -211,7 +216,7 @@ function freeflowCompletions(prefix, hostInfo = undefined) {
   return [
     { value: "settings", label: "settings", description: "Open personal override settings" },
     { value: "status", label: "status", description: "Show effective Freeflow state" },
-    { value: "context", label: "context", description: "Inspect Context Virtualization" },
+    { value: "context", label: "context", description: "Inspect Freeflow Context" },
     { value: "mode", label: "mode", description: "Select a temporary session mode" },
     ...(isPiFlowHost(hostInfo)
       ? [{ value: "profile", label: "profile", description: "Hold or release Cognitive Routing profile control" }]
@@ -253,9 +258,23 @@ async function sendSkillCommand(pi, ctx, skill, args) {
 export default function freeflow(pi) {
   let cognitiveRoutingController;
   let latestCognitiveRoutingContext;
+  let freeflowContextRuntime;
   let contextVirtualizationRuntime;
+  let conversationHistoryRuntime;
+  const registerContextToolForState = (capabilityState) => {
+    registerFreeflowContextTool(
+      pi,
+      () => contextVirtualizationRuntime,
+      () => conversationHistoryRuntime,
+      {
+        contextVirtualization: capabilityState?.contextVirtualization?.effective === true,
+        conversationHistory: capabilityState?.conversationHistory?.effective === true,
+      },
+    );
+  };
   const applyLiveCapabilityStateForSession = async (ctx, options = {}) => {
     cognitiveRoutingController = await applyLiveCapabilityState(pi, ctx, cognitiveRoutingController, options);
+    registerContextToolForState(await readCapabilityState(ctx.cwd, ctx, pi?.host));
   };
   if (isPiFlowHost(pi?.host)) {
     registerCognitiveRoutingTool(pi, () => cognitiveRoutingController);
@@ -264,7 +283,12 @@ export default function freeflow(pi) {
       return readCognitiveRoutingHistory(context ?? latestCognitiveRoutingContext, options);
     });
   }
-  registerContextVirtualizationTool(pi, () => contextVirtualizationRuntime);
+  registerFreeflowContextTool(
+    pi,
+    () => contextVirtualizationRuntime,
+    () => conversationHistoryRuntime,
+    { contextVirtualization: false, conversationHistory: false },
+  );
   if (isPiFlowHost(pi?.host) && typeof pi.registerShortcut === "function") {
     pi.registerShortcut("ctrl+shift+r", {
       description: "Cycle the Cognitive Routing manual standard/reasoning hold",
@@ -331,13 +355,20 @@ export default function freeflow(pi) {
   pi.on("session_start", async (_event, ctx) => {
     latestCognitiveRoutingContext = ctx;
     restoreModeOverride(ctx);
-    contextVirtualizationRuntime = new ContextVirtualizationRuntime(pi, ctx);
+    freeflowContextRuntime = new FreeflowContextRuntime(ctx);
+    contextVirtualizationRuntime = new ContextVirtualizationRuntime(pi, ctx, freeflowContextRuntime);
+    conversationHistoryRuntime = new ConversationHistoryRuntime(
+      ctx,
+      (entryId) => contextVirtualizationRuntime?.isSourceFullyProjected(entryId) ?? true,
+      freeflowContextRuntime,
+    );
     await contextVirtualizationRuntime.recover(ctx);
     const [modeState, capabilityState] = await Promise.all([
       readModeState(ctx.cwd),
       readCapabilityState(ctx.cwd, ctx, pi?.host),
     ]);
     await refreshRuntimeContext(capabilityState);
+    registerContextToolForState(capabilityState);
     const hasSessionState = sessionHasConversationOrRoutingState(ctx);
     const cognitiveRoutingStartupPending =
       capabilityState?.cognitiveRouting?.effective === true &&
@@ -359,7 +390,9 @@ export default function freeflow(pi) {
   pi.on("session_shutdown", async (event) => {
     const controller = cognitiveRoutingController;
     cognitiveRoutingController = undefined;
+    freeflowContextRuntime = undefined;
     contextVirtualizationRuntime = undefined;
+    conversationHistoryRuntime = undefined;
     if (controller) await controller.shutdown(event?.reason);
   });
   pi.on("session_tree", async (_event, ctx) => {
@@ -371,6 +404,7 @@ export default function freeflow(pi) {
       contextVirtualizationRuntime.setContext(ctx);
       await contextVirtualizationRuntime.recover(ctx);
     }
+    conversationHistoryRuntime?.setContext(ctx);
     await applyLiveCapabilityStateForSession(ctx);
   });
   pi.on("session_compact", async (_event, ctx) => {
@@ -381,11 +415,13 @@ export default function freeflow(pi) {
       contextVirtualizationRuntime.setContext(ctx);
       await contextVirtualizationRuntime.recover(ctx);
     }
+    conversationHistoryRuntime?.setContext(ctx);
     const [modeState, capabilityState] = await Promise.all([
       readModeState(ctx.cwd),
       readCapabilityState(ctx.cwd, ctx, pi?.host),
     ]);
     await refreshRuntimeContext(capabilityState);
+    registerContextToolForState(capabilityState);
     setModeStatus(ctx, modeState, capabilityState, cognitiveRoutingController?.state());
     await applyCapabilityToolVisibility(pi, ctx, capabilityState, cognitiveRoutingController);
   });
@@ -395,6 +431,7 @@ export default function freeflow(pi) {
       readModeState(ctx.cwd),
       readCapabilityState(ctx.cwd, ctx, pi?.host),
     ]);
+    registerContextToolForState(capabilityState);
     if (!cognitiveRoutingController) {
       cognitiveRoutingController = await reconcileCognitiveRoutingController(
         pi,
@@ -438,6 +475,10 @@ export default function freeflow(pi) {
         messages = projected.messages;
       }
     }
+    if (conversationHistoryRuntime && effectivePromptCapabilityState.conversationHistory?.effective === true) {
+      conversationHistoryRuntime.setContext(ctx);
+      conversationHistoryRuntime.capture(effectivePromptCapabilityState.contextVirtualization?.effective === true);
+    }
     const cognitiveRoutingContextEnabled =
       capabilityState.cognitiveRouting?.effective === true && !startupSelectionSuppressesCognitiveRouting(ctx);
     const nextMessages = cognitiveRoutingContextEnabled
@@ -452,8 +493,12 @@ export default function freeflow(pi) {
   pi.on("tool_call", async (event, ctx) => {
     const capabilityState = await readCapabilityState(ctx.cwd, ctx, pi?.host);
     const toolName = typeof event?.toolName === "string" ? event.toolName : "";
-    if (capabilityState.contextVirtualization?.effective !== true && toolName === CONTEXT_VIRTUALIZATION_TOOL_NAME) {
-      return disabledToolCall(toolName, "context-virtualization");
+    if (
+      capabilityState.contextVirtualization?.effective !== true &&
+      capabilityState.conversationHistory?.effective !== true &&
+      toolName === CONTEXT_VIRTUALIZATION_TOOL_NAME
+    ) {
+      return disabledToolCall(toolName, "context");
     }
     return undefined;
   });
@@ -493,6 +538,7 @@ export default function freeflow(pi) {
           ctx,
           contextVirtualizationRuntime,
           capabilityState.contextVirtualization?.effective === true,
+          capabilityState.conversationHistory?.effective === true,
         );
         return;
       }
