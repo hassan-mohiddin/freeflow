@@ -19,32 +19,39 @@ export const COGNITIVE_ROUTING_SWITCH_PARAMETERS = {
   required: ["target", "reason"],
 };
 function resultText(result) {
-  if (result.status === "active") return `${COGNITIVE_ROUTING_SWITCH_TOOL_NAME}|active\nprofile|${result.profile}`;
+  if (result.status === "active") {
+    const fields = [COGNITIVE_ROUTING_SWITCH_TOOL_NAME + "|active", `profile|${result.profile}`];
+    if (result.changed !== undefined) fields.push(`changed|${result.changed}`);
+    if (result.from) fields.push(`from|${result.from}`);
+    if (result.to) fields.push(`to|${result.to}`);
+    return fields.join("\n");
+  }
   return `${COGNITIVE_ROUTING_SWITCH_TOOL_NAME}|${result.status}\nreason|${result.reason}`;
 }
 function blocked(reason) {
   return { status: "blocked", reason };
 }
-function transitionLabel(from, to) {
-  if (from && to && from === to) return `Cognitive Routing: ${to} (already active)`;
-  return `Cognitive Routing: ${from ?? "current"} -> ${to ?? "unknown"}`;
+function pendingLabel(to) {
+  return `Cognitive Routing → ${to ?? "unknown"}`;
 }
 function renderTransition(text, theme) {
   return textComponent(theme?.fg ? theme.fg("accent", text) : text);
 }
-function transitionOrigin(getController, target, context) {
-  const liveProfile = getController()?.state().activeProfile;
-  if (!context?.state || !target || context.argsComplete === false) return liveProfile;
-  if (!context.state.transitionOriginCaptured) {
-    context.state.transitionOriginCaptured = true;
-    context.state.transitionOrigin = liveProfile;
-  }
-  return context.state.transitionOrigin;
+function isProfileName(value) {
+  return value === "standard" || value === "reasoning";
 }
 function resultFromPayload(payload) {
   const details = payload?.details?.result ?? payload?.result ?? payload?.details;
   if (details && (details.status === "active" || details.status === "blocked" || details.status === "inactive")) {
-    return details;
+    if (details.status !== "active") return details;
+    if (!isProfileName(details.profile)) return undefined;
+    return {
+      status: "active",
+      profile: details.profile,
+      ...(typeof details.changed === "boolean" ? { changed: details.changed } : {}),
+      ...(isProfileName(details.from) ? { from: details.from } : {}),
+      ...(isProfileName(details.to) ? { to: details.to } : {}),
+    };
   }
   const text = Array.isArray(payload?.content)
     ? payload.content.find((part) => part?.type === "text")?.text
@@ -59,7 +66,17 @@ function resultFromPayload(payload) {
   const status = fields.get(COGNITIVE_ROUTING_SWITCH_TOOL_NAME);
   if (status === "active") {
     const profile = fields.get("profile");
-    return profile === "standard" || profile === "reasoning" ? { status, profile } : undefined;
+    if (!isProfileName(profile)) return undefined;
+    const changed = fields.get("changed");
+    const from = fields.get("from");
+    const to = fields.get("to");
+    return {
+      status,
+      profile,
+      ...(changed === "true" || changed === "false" ? { changed: changed === "true" } : {}),
+      ...(isProfileName(from) ? { from } : {}),
+      ...(isProfileName(to) ? { to } : {}),
+    };
   }
   if (status === "blocked" || status === "inactive") {
     const reason = fields.get("reason");
@@ -103,23 +120,29 @@ export function registerCognitiveRoutingTool(pi, getController) {
         result = blocked("not_available");
       } else if (!controller.state().effective) {
         result = blocked("not_active");
-      } else if (controller.state().controlMode !== "automatic") {
-        result = blocked("manual_hold");
-      } else {
+      } else if (controller.state().controlMode === "automatic") {
         result = await controller.switchAutomaticProfile(input.target, input.reason);
+      } else {
+        result = blocked("manual_hold");
       }
       return {
         content: [{ type: "text", text: resultText(result) }],
         details: { result },
       };
     },
-    renderCall(args, theme, context) {
+    renderCall(args, theme) {
       const target = args?.target === "standard" || args?.target === "reasoning" ? args.target : undefined;
-      return renderTransition(transitionLabel(transitionOrigin(getController, target, context), target), theme);
+      return renderTransition(pendingLabel(target), theme);
     },
     renderResult(result, _options, theme) {
       const outcome = resultFromPayload(result);
       if (outcome?.status === "active") {
+        if (outcome.changed === true && outcome.from && outcome.to) {
+          return renderTransition(`Cognitive Routing: ${outcome.from} → ${outcome.to}`, theme);
+        }
+        if (outcome.changed === false && outcome.to) {
+          return renderTransition(`Cognitive Routing: ${outcome.to} (already active)`, theme);
+        }
         return renderTransition(`Cognitive Routing: active · ${outcome.profile}`, theme);
       }
       if (outcome) {

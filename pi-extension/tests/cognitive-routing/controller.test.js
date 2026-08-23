@@ -170,7 +170,13 @@ test("does not persist or reapply an automatic request for the active profile", 
 
   const result = await controller.switchAutomaticProfile("standard", "Keep the current profile.");
 
-  assert.deepEqual(result, { status: "active", profile: "standard" });
+  assert.deepEqual(result, {
+    status: "active",
+    changed: false,
+    from: "standard",
+    to: "standard",
+    profile: "standard",
+  });
   assert.equal(host.calls.length, callsBefore);
 });
 
@@ -189,7 +195,13 @@ test("switches profiles through the automatic owner with bounded agent evidence"
 
   const result = await controller.switchAutomaticProfile("reasoning", "Need a deeper analysis.");
 
-  assert.deepEqual(result, { status: "active", profile: "reasoning" });
+  assert.deepEqual(result, {
+    status: "active",
+    changed: true,
+    from: "standard",
+    to: "reasoning",
+    profile: "reasoning",
+  });
   assert.equal(controller.state().controlMode, "automatic");
   assert.equal(host.calls.at(-1)[0], "setState");
   assert.equal(host.calls[3][2].source, "agent");

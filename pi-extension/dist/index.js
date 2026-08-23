@@ -29,6 +29,8 @@ import {
   filterBootstrapMessage,
   setModeStatus,
   skillPrompt,
+  withoutCognitiveRoutingRuntimeState,
+  withCognitiveRoutingRuntimeState,
 } from "./runtime/runtime-context.js";
 function startupSelectionSuppressesCognitiveRouting(ctx) {
   return ctx?.modelStateProvenance?.explicitModel === true || ctx?.modelStateProvenance?.explicitThinking === true;
@@ -396,12 +398,7 @@ export default function freeflow(pi) {
     const freeflowContext = await getRuntimeContext(effectivePromptCapabilityState);
     setModeStatus(ctx, modeState, capabilityState, cognitiveRoutingRuntime);
     await applyCapabilityToolVisibility(pi, ctx, capabilityState, cognitiveRoutingController);
-    const freeflowRuntimeContext = runtimeContext(
-      modeState,
-      freeflowContext,
-      effectivePromptCapabilityState,
-      cognitiveRoutingRuntime,
-    );
+    const freeflowRuntimeContext = runtimeContext(modeState, freeflowContext, effectivePromptCapabilityState);
     const bootstrap = bootstrapMessage(freeflowContext, effectivePromptCapabilityState, ctx.sessionManager);
     const systemPrompt = freeflowRuntimeContext
       ? `${event.systemPrompt}\n\n${freeflowRuntimeContext}`
@@ -410,13 +407,10 @@ export default function freeflow(pi) {
   });
   pi.on("context", async (event, ctx) => {
     const capabilityState = await readCapabilityState(ctx.cwd, ctx, pi?.host);
-    const effectivePromptCapabilityState = promptCapabilityState(
-      capabilityState,
-      cognitiveRoutingController?.state(),
-      ctx,
-    );
+    const cognitiveRoutingRuntime = cognitiveRoutingController?.state();
+    const effectivePromptCapabilityState = promptCapabilityState(capabilityState, cognitiveRoutingRuntime, ctx);
     let changed = false;
-    const messages = event.messages
+    let messages = event.messages
       .map((message) => {
         const filtered = filterBootstrapMessage(message, effectivePromptCapabilityState);
         if (filtered !== message) changed = true;
@@ -431,9 +425,18 @@ export default function freeflow(pi) {
       );
       if (projected.changed) {
         changed = true;
-        return { messages: projected.messages };
+        messages = projected.messages;
       }
     }
+    const cognitiveRoutingContextEnabled =
+      capabilityState.cognitiveRouting?.effective === true && !startupSelectionSuppressesCognitiveRouting(ctx);
+    const nextMessages = cognitiveRoutingContextEnabled
+      ? withCognitiveRoutingRuntimeState(messages, cognitiveRoutingRuntime)
+      : withoutCognitiveRoutingRuntimeState(messages);
+    if (nextMessages.length !== messages.length || cognitiveRoutingContextEnabled) {
+      changed = true;
+    }
+    messages = nextMessages;
     return changed ? { messages } : undefined;
   });
   pi.on("tool_call", async (event, ctx) => {

@@ -63,12 +63,8 @@ test("blocks stale or manually held execution without host mutation", async () =
   assert.equal(calls, 0);
 });
 
-test("renders same-profile requests as already active", () => {
-  const tool = register(() => ({
-    state() {
-      return { activeProfile: "reasoning", effective: true, controlMode: "automatic" };
-    },
-  }));
+test("renders no-op results as already active", () => {
+  const tool = register(() => undefined);
   const theme = {
     fg(_color, text) {
       return text;
@@ -76,7 +72,24 @@ test("renders same-profile requests as already active", () => {
   };
 
   assert.equal(
-    tool.renderCall({ target: "reasoning" }, theme).render(120).join("\n"),
+    tool
+      .renderResult(
+        {
+          details: {
+            result: {
+              status: "active",
+              changed: false,
+              from: "reasoning",
+              to: "reasoning",
+              profile: "reasoning",
+            },
+          },
+        },
+        {},
+        theme,
+      )
+      .render(120)
+      .join("\n"),
     "Cognitive Routing: reasoning (already active)",
   );
 });
@@ -102,51 +115,38 @@ test("recovers a structured result from model-visible tool text", () => {
   );
 });
 
-test("renders automatic transitions as compact Cognitive Routing output", () => {
-  const tool = register(() => ({
-    state() {
-      return { activeProfile: "standard", effective: true, controlMode: "automatic" };
-    },
-  }));
+test("renders pending targets without reading mutable controller state", () => {
+  const tool = register(() => {
+    throw new Error("renderCall must not read live profile state");
+  });
   const theme = {
     fg(_color, text) {
       return text;
     },
   };
 
-  assert.equal(
-    tool.renderCall({ target: "reasoning" }, theme).render(120).join("\n"),
-    "Cognitive Routing: standard -> reasoning",
-  );
+  assert.equal(tool.renderCall({ target: "reasoning" }, theme).render(120).join("\n"), "Cognitive Routing → reasoning");
   assert.equal(
     tool
-      .renderResult({ details: { result: { status: "active", profile: "reasoning" } } }, {}, theme)
+      .renderResult(
+        {
+          details: {
+            result: {
+              status: "active",
+              changed: true,
+              from: "standard",
+              to: "reasoning",
+              profile: "reasoning",
+            },
+          },
+        },
+        {},
+        theme,
+      )
       .render(120)
       .join("\n"),
-    "Cognitive Routing: active · reasoning",
+    "Cognitive Routing: standard → reasoning",
   );
-});
-
-test("keeps the transition origin stable when the live controller state changes", () => {
-  let activeProfile = "standard";
-  const tool = register(() => ({
-    state() {
-      return { activeProfile, effective: true, controlMode: "automatic" };
-    },
-  }));
-  const theme = {
-    fg(_color, text) {
-      return text;
-    },
-  };
-  const context = { state: {} };
-
-  const firstRender = tool.renderCall({ target: "reasoning" }, theme, context).render(120).join("\\n");
-  activeProfile = "reasoning";
-  const refreshedRender = tool.renderCall({ target: "reasoning" }, theme, context).render(120).join("\\n");
-
-  assert.equal(firstRender, "Cognitive Routing: standard -> reasoning");
-  assert.equal(refreshedRender, "Cognitive Routing: standard -> reasoning");
 });
 
 test("routes a valid automatic request through the controller", async () => {
@@ -157,7 +157,7 @@ test("routes a valid automatic request through the controller", async () => {
     },
     async switchAutomaticProfile(target, reason) {
       calls.push([target, reason]);
-      return { status: "active", profile: target };
+      return { status: "active", changed: true, from: "standard", to: target, profile: target };
     },
   };
   const tool = register(() => controller);
@@ -171,6 +171,12 @@ test("routes a valid automatic request through the controller", async () => {
   );
 
   assert.deepEqual(calls, [["reasoning", "Need a deeper analysis."]]);
-  assert.deepEqual(result.details.result, { status: "active", profile: "reasoning" });
+  assert.deepEqual(result.details.result, {
+    status: "active",
+    changed: true,
+    from: "standard",
+    to: "reasoning",
+    profile: "reasoning",
+  });
   assert.match(result.content[0].text, /profile\|reasoning/);
 });

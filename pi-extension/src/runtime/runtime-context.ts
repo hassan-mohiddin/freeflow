@@ -81,6 +81,7 @@ const SESSION_CORE_KEYS = new Set<SessionCoreKey>([
 const RESET_MODE_ARGS = new Set(["reset"]);
 
 export const COGNITIVE_ROUTING_SWITCH_TOOL_NAME = "freeflow_switch_profile";
+export const COGNITIVE_ROUTING_RUNTIME_STATE_MESSAGE_TYPE = "freeflow-cognitive-routing-runtime-state";
 export const WORKFLOW_BOOTSTRAP_MESSAGE_TYPE = "freeflow-workflow-bootstrap";
 export const COGNITIVE_ROUTING_BOOTSTRAP_MESSAGE_TYPE = "freeflow-cognitive-routing-bootstrap";
 export const FREEFLOW_BOOTSTRAP_MESSAGE_TYPE = "freeflow-bootstrap";
@@ -774,18 +775,65 @@ export function skillPrompt(skill, args) {
   return trimmed ? `/skill:${skill}\n\n${trimmed}` : `/skill:${skill}`;
 }
 
-function cognitiveRoutingContext(freeflowContext, cognitiveRoutingRuntime) {
+type CognitiveRoutingRuntimeSnapshot = {
+  effective?: boolean;
+  activeProfile?: unknown;
+  controlMode?: unknown;
+};
+
+type CognitiveRoutingContextMessage = {
+  customType?: unknown;
+  [key: string]: unknown;
+};
+
+function cognitiveRoutingContext(freeflowContext: { cognitiveRoutingReference?: string } | undefined) {
   const reference = freeflowContext?.cognitiveRoutingReference?.trim();
-  if (!reference) return "";
+  return reference ? `\n\n${reference}` : "";
+}
 
-  const runtime = cognitiveRoutingRuntime ?? {};
-  return `\n\n${reference}\n\n## Cognitive Routing Runtime State
+function publicCognitiveRoutingControl(controlMode) {
+  if (controlMode === "automatic") return "automatic";
+  if (controlMode === "manual-standard" || controlMode === "manual-reasoning") return "manual";
+  return "unavailable";
+}
 
-- Control: \`${runtime.controlMode ?? "automatic"}\`.
-- Active profile: \`${runtime.activeProfile ?? "none"}\`.
-- Runtime lease: \`${runtime.effective === true ? "owned" : "inactive"}\`.
+function publicCognitiveRoutingProfile(activeProfile, effective) {
+  if (effective !== true) return "unavailable";
+  return activeProfile === "standard" || activeProfile === "reasoning" ? activeProfile : "unavailable";
+}
 
-This runtime state is descriptive. It does not authorize work, change mode, or replace Workflow evidence and approval boundaries.`;
+export function cognitiveRoutingRuntimeStateMessage(
+  cognitiveRoutingRuntime: CognitiveRoutingRuntimeSnapshot | undefined = undefined,
+) {
+  const profile = publicCognitiveRoutingProfile(
+    cognitiveRoutingRuntime?.activeProfile,
+    cognitiveRoutingRuntime?.effective,
+  );
+  const control =
+    profile === "unavailable" ? "unavailable" : publicCognitiveRoutingControl(cognitiveRoutingRuntime?.controlMode);
+  return {
+    role: "custom",
+    customType: COGNITIVE_ROUTING_RUNTIME_STATE_MESSAGE_TYPE,
+    content: `# Cognitive Routing Current State\n\nControl: \`${control}\`\nProfile: \`${profile}\``,
+    display: false,
+    details: { source: "provider-request-runtime-state" },
+  };
+}
+
+export function withoutCognitiveRoutingRuntimeState(messages: readonly CognitiveRoutingContextMessage[] | undefined) {
+  return (Array.isArray(messages) ? messages : []).filter(
+    (message) => message?.customType !== COGNITIVE_ROUTING_RUNTIME_STATE_MESSAGE_TYPE,
+  );
+}
+
+export function withCognitiveRoutingRuntimeState(
+  messages: readonly CognitiveRoutingContextMessage[] | undefined,
+  cognitiveRoutingRuntime: CognitiveRoutingRuntimeSnapshot | undefined = undefined,
+) {
+  return [
+    ...withoutCognitiveRoutingRuntimeState(messages),
+    cognitiveRoutingRuntimeStateMessage(cognitiveRoutingRuntime),
+  ];
 }
 
 function capabilityContext(capabilityState) {
@@ -903,7 +951,7 @@ ${capabilityContext(capabilityState)}
 Use \`/freeflow settings\` to enable the Interaction Contract, Skills, or Context Virtualization.`;
 }
 
-export function runtimeContext(modeState, freeflowContext, capabilityState, cognitiveRoutingRuntime = undefined) {
+export function runtimeContext(modeState, freeflowContext, capabilityState) {
   if (!capabilityState.configured) {
     return "";
   }
@@ -928,9 +976,7 @@ These instructions are context-loading only. They do not override user instructi
     ? `\n\n## Loaded Context Virtualization Skill\n\n${freeflowContext.contextVirtualizationSkill.trim()}`
     : "";
   const cognitiveRoutingText =
-    capabilityState.cognitiveRouting?.effective === true
-      ? cognitiveRoutingContext(freeflowContext, cognitiveRoutingRuntime)
-      : "";
+    capabilityState.cognitiveRouting?.effective === true ? cognitiveRoutingContext(freeflowContext) : "";
 
   return `# Freeflow Runtime Context
 

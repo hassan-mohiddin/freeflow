@@ -560,10 +560,15 @@ export class CognitiveRoutingController {
   }
   async _switchAutomaticProfile(profile, reason, source) {
     if (!this.capabilityState.effective) return { status: "blocked", reason: "not_effective" };
-    if (!this.state().effective) return { status: "blocked", reason: "not_active" };
+    const current = this.state();
+    if (!current.effective) return { status: "blocked", reason: "not_active" };
     if (this.controlMode !== "automatic") return { status: "blocked", reason: "manual_hold" };
-    if (this.state().activeProfile === profile) return { status: "active", profile };
-    return this._setProfile(profile, { controlMode: "automatic", source, reason });
+    const from = current.activeProfile;
+    if (!from) return { status: "blocked", reason: "profile_unknown" };
+    if (from === profile) return { status: "active", changed: false, from, to: profile, profile };
+    const transition = await this._setProfile(profile, { controlMode: "automatic", source, reason });
+    if (transition.status !== "active") return transition;
+    return { status: "active", changed: true, from, to: transition.profile, profile: transition.profile };
   }
   async _setProfile(profile, options) {
     const resolvedProfile = this.capabilityState.resolvedProfiles[profile];

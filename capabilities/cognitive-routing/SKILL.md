@@ -4,14 +4,14 @@ Use one active agent, one shared visible context, and two compute profiles. Cogn
 
 ## Read Runtime State
 
-The runtime declares two independent dimensions. Read both before routing; do not infer control from the active model.
+Read the runtime’s current `Control` and `Profile` before routing. They are authoritative; never infer either from the active model or earlier transitions, and do not guess when unavailable.
 
 - **Control:** `automatic` or `manual`.
 - **Profile:** `standard` or `reasoning`.
 
 **Standard** is the default workhorse. **Reasoning** is higher-cognition premium compute.
 
-**Think** means analyze visible context, decide, diagnose, review, ask, or write a compact control note. **Act** means invoke task tools or produce a substantive artifact such as code or a specification. Profile switching and its compact control notes are not task Act.
+**Think** means analyze visible context, decide, diagnose, review, ask, or write a compact control note. **Act** means invoke task tools or produce a substantive artifact such as code or a specification. Profile switching and compact control notes are not task Act.
 
 A **cognitive boundary** is one material uncertainty or judgment that standard should not resolve alone.
 
@@ -19,7 +19,7 @@ Keep three ownership boundaries separate:
 
 1. **Control ownership:** the user selects a manual hold or delegates profile selection through automatic control.
 2. **Profile capability:** Cognitive Routing determines which profile may Think and Act.
-3. **Workflow authority:** the user or another valid authority source determines which real actions are permitted; Workflow establishes and preserves that authority.
+3. **Workflow authority:** the user or another valid authority source determines which real actions may happen; Workflow establishes and preserves that authority.
 
 A profile switch or hold changes capability—not authority.
 
@@ -38,13 +38,13 @@ Under automatic control, apply the [Automatic Routing Kernel](references/automat
 
 If control is manual, use the held profile for authorized work and do not attempt model-requested switching. Manual reasoning may Think and Act without passing the automatic Reasoning Act Gate.
 
-A manual hold survives turns, Pi settlement, compaction, same-session resume, and reload until the user changes it, restores automatic control, or disables Cognitive Routing.
+A manual hold survives turns, compaction, same-session resume, and reload until the user changes it, restores automatic control, or disables Cognitive Routing.
 
-Recommend another profile or `/freeflow profile auto` once when it would materially improve reliability or efficiency. Releasing a hold returns profile choice to automatic control without forcing an immediate profile transition. If reliable continuation is impossible through the held profile, state the blocker and exact control needed.
+Recommend another profile or `/freeflow profile auto` once when it would materially improve reliability or efficiency. Releasing a hold returns profile choice to automatic control without forcing an immediate transition. If reliable continuation is impossible through the held profile, state the blocker and exact control needed.
 
 ## Switch Safely
 
-Every profile transition uses one switch mechanism. Policy labels such as **NEW**, **REOPEN**, **RETURN**, delegated execution, and closed-boundary handoff describe why it occurs; they do not create different switch types.
+Every profile transition uses one switch mechanism. Policy labels such as **NEW**, **REOPEN**, **RETURN**, **DELEGATE**, and **CLOSE + HANDOFF** explain the transition; they do not create different switch types.
 
 Only automatic control permits model-requested switching:
 
@@ -55,7 +55,9 @@ freeflow_switch_profile(
 )
 ```
 
-The switch must be the only tool call in that assistant response. Keep `reason` within 160 characters. It records the transition reason; it does not replace visible boundary or execution state and never stores chain-of-thought.
+The switch must be the only tool call in that assistant response. Keep `reason` within 160 characters. It records an audit label; it does not replace visible transition state or store chain-of-thought.
+
+Before requesting a switch, make the transition state explicit in visible context: the supported result or open boundary, decisive evidence or pointer, and next bounded action or judgment. Reuse shared context instead of repeating it; never rely on hidden reasoning.
 
 If switching to reasoning fails, standard must not make the material judgment it identified. If switching to standard fails, reasoning must not silently absorb delegated high-volume work or post-closure continuation. Preserve supported state and expose the blocker through Workflow.
 

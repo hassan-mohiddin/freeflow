@@ -311,7 +311,13 @@ test("registered profile commands create manual holds and release them without a
       undefined,
       ctx,
     );
-    assert.deepEqual(switchResult.details.result, { status: "active", profile: "standard" });
+    assert.deepEqual(switchResult.details.result, {
+      status: "active",
+      changed: true,
+      from: "reasoning",
+      to: "standard",
+      profile: "standard",
+    });
     assert.deepEqual(host.state, { model: { provider: "faux", id: "standard" }, thinkingLevel: "high" });
     assert.deepEqual(host.operations, [
       "prepare",
@@ -624,7 +630,20 @@ test("Pi delivers layered bootstrap once and the routing kernel on every turn", 
     assert.match(first.message.content, /# Freeflow Cognitive Routing Bootstrap/);
     assert.doesNotMatch(first.systemPrompt, /^# Cognitive Routing$/m);
     assert.match(first.systemPrompt, /^# Automatic Routing Kernel$/m);
-    assert.match(first.systemPrompt, /## Cognitive Routing Runtime State/);
+    assert.doesNotMatch(first.systemPrompt, /## Cognitive Routing Runtime State/);
+
+    const contextHandler = host.handlers.get("context");
+    const firstContext = await contextHandler({ messages: [] }, ctx);
+    assert.equal(firstContext.messages.length, 1);
+    assert.equal(firstContext.messages[0].customType, "freeflow-cognitive-routing-runtime-state");
+    assert.equal(
+      firstContext.messages[0].content,
+      "# Cognitive Routing Current State\n\nControl: `automatic`\nProfile: `standard`",
+    );
+
+    const repeatedContext = await contextHandler({ messages: firstContext.messages }, ctx);
+    assert.equal(repeatedContext.messages.length, 1);
+    assert.match(repeatedContext.messages[0].content, /Profile: `standard`/);
 
     host.entries.push({
       type: "custom_message",
@@ -637,6 +656,7 @@ test("Pi delivers layered bootstrap once and the routing kernel on every turn", 
     assert.equal(second.message, undefined);
     assert.match(second.systemPrompt, /^# Automatic Routing Kernel$/m);
     assert.equal((second.systemPrompt.match(/^# Automatic Routing Kernel$/gm) ?? []).length, 1);
+    assert.doesNotMatch(second.systemPrompt, /## Cognitive Routing Runtime State/);
 
     await writeFile(join(cwd, ".freeflow", "config.json"), JSON.stringify({ defaultMode: "workflow" }));
     const filtered = await host.handlers.get("context")(
@@ -659,6 +679,52 @@ test("Pi delivers layered bootstrap once and the routing kernel on every turn", 
     const disabled = await beforeAgentStart({ systemPrompt: "base prompt" }, ctx);
     assert.equal(disabled.message, undefined);
     assert.doesNotMatch(disabled.systemPrompt, /^# Automatic Routing Kernel$/m);
+  } finally {
+    await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "test-cleanup" }, ctx);
+    await rm(cwd, { recursive: true, force: true });
+  }
+});
+
+test("Pi refreshes volatile Cognitive Routing state after a profile switch", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "freeflow-cognitive-routing-volatile-state-"));
+  await mkdir(join(cwd, ".freeflow"));
+  await writeFile(
+    join(cwd, ".freeflow", "config.json"),
+    JSON.stringify({
+      cognitiveRouting: {
+        enabled: true,
+        profiles: {
+          standard: { provider: "faux", model: "standard", thinkingLevel: "high" },
+          reasoning: { provider: "faux", model: "reasoning", thinkingLevel: "max" },
+        },
+      },
+    }),
+  );
+  const host = createExtensionHost();
+  const ctx = createContext(cwd, host);
+  try {
+    await host.handlers.get("session_start")({ type: "session_start", reason: "startup" }, ctx);
+    await host.handlers.get("before_agent_start")({ systemPrompt: "base prompt" }, ctx);
+
+    const contextHandler = host.handlers.get("context");
+    const standardContext = await contextHandler({ messages: [] }, ctx);
+    assert.match(standardContext.messages[0].content, /Profile: `standard`/);
+
+    const switchTool = host.tools.find((tool) => tool.name === "freeflow_switch_profile");
+    const result = await switchTool.execute(
+      "call-volatile-state",
+      { target: "reasoning", reason: "Need a deeper analysis." },
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(result.details.result.to, "reasoning");
+
+    const reasoningContext = await contextHandler({ messages: standardContext.messages }, ctx);
+    assert.equal(reasoningContext.messages.length, 1);
+    assert.match(reasoningContext.messages[0].content, /Control: `automatic`/);
+    assert.match(reasoningContext.messages[0].content, /Profile: `reasoning`/);
+    assert.doesNotMatch(reasoningContext.messages[0].content, /Profile: `standard`/);
   } finally {
     await host.handlers.get("session_shutdown")({ type: "session_shutdown", reason: "test-cleanup" }, ctx);
     await rm(cwd, { recursive: true, force: true });
@@ -728,7 +794,7 @@ test("Pi lifecycle prepares, activates, restores, and releases Cognitive Routing
     assert.ok(host.activeToolNames().includes("freeflow_switch_profile"));
     assert.doesNotMatch(beforeAgentStart.systemPrompt, /^# Cognitive Routing$/m);
     assert.match(beforeAgentStart.systemPrompt, /^# Automatic Routing Kernel$/m);
-    assert.match(beforeAgentStart.systemPrompt, /## Cognitive Routing Runtime State/);
+    assert.doesNotMatch(beforeAgentStart.systemPrompt, /## Cognitive Routing Runtime State/);
     assert.equal((beforeAgentStart.systemPrompt.match(/^# Automatic Routing Kernel$/gm) ?? []).length, 1);
     assert.match(beforeAgentStart.message.content, /# Freeflow Cognitive Routing Bootstrap/);
 

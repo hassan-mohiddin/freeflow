@@ -64,6 +64,7 @@ const SESSION_OVERRIDES_ENTRY = "freeflow-session-overrides";
 const SESSION_CORE_KEYS = new Set(["enabled", "interactionContract", "skillsEnabled", "contextVirtualization"]);
 const RESET_MODE_ARGS = new Set(["reset"]);
 export const COGNITIVE_ROUTING_SWITCH_TOOL_NAME = "freeflow_switch_profile";
+export const COGNITIVE_ROUTING_RUNTIME_STATE_MESSAGE_TYPE = "freeflow-cognitive-routing-runtime-state";
 export const WORKFLOW_BOOTSTRAP_MESSAGE_TYPE = "freeflow-workflow-bootstrap";
 export const COGNITIVE_ROUTING_BOOTSTRAP_MESSAGE_TYPE = "freeflow-cognitive-routing-bootstrap";
 export const FREEFLOW_BOOTSTRAP_MESSAGE_TYPE = "freeflow-bootstrap";
@@ -320,6 +321,7 @@ function validateFreeflowConfigShape(value) {
   if (!isRecord(value)) {
     return "config must be a JSON object";
   }
+  // Keep retired capability keys shape-tolerated so existing repositories remain activated; runtime behavior ignores them.
   const allowedKeys = new Set([
     "enabled",
     "defaultMode",
@@ -691,17 +693,44 @@ export function skillPrompt(skill, args) {
   const trimmed = args?.trim();
   return trimmed ? `/skill:${skill}\n\n${trimmed}` : `/skill:${skill}`;
 }
-function cognitiveRoutingContext(freeflowContext, cognitiveRoutingRuntime) {
+function cognitiveRoutingContext(freeflowContext) {
   const reference = freeflowContext?.cognitiveRoutingReference?.trim();
-  if (!reference) return "";
-  const runtime = cognitiveRoutingRuntime ?? {};
-  return `\n\n${reference}\n\n## Cognitive Routing Runtime State
-
-- Control: \`${runtime.controlMode ?? "automatic"}\`.
-- Active profile: \`${runtime.activeProfile ?? "none"}\`.
-- Runtime lease: \`${runtime.effective === true ? "owned" : "inactive"}\`.
-
-This runtime state is descriptive. It does not authorize work, change mode, or replace Workflow evidence and approval boundaries.`;
+  return reference ? `\n\n${reference}` : "";
+}
+function publicCognitiveRoutingControl(controlMode) {
+  if (controlMode === "automatic") return "automatic";
+  if (controlMode === "manual-standard" || controlMode === "manual-reasoning") return "manual";
+  return "unavailable";
+}
+function publicCognitiveRoutingProfile(activeProfile, effective) {
+  if (effective !== true) return "unavailable";
+  return activeProfile === "standard" || activeProfile === "reasoning" ? activeProfile : "unavailable";
+}
+export function cognitiveRoutingRuntimeStateMessage(cognitiveRoutingRuntime = undefined) {
+  const profile = publicCognitiveRoutingProfile(
+    cognitiveRoutingRuntime?.activeProfile,
+    cognitiveRoutingRuntime?.effective,
+  );
+  const control =
+    profile === "unavailable" ? "unavailable" : publicCognitiveRoutingControl(cognitiveRoutingRuntime?.controlMode);
+  return {
+    role: "custom",
+    customType: COGNITIVE_ROUTING_RUNTIME_STATE_MESSAGE_TYPE,
+    content: `# Cognitive Routing Current State\n\nControl: \`${control}\`\nProfile: \`${profile}\``,
+    display: false,
+    details: { source: "provider-request-runtime-state" },
+  };
+}
+export function withoutCognitiveRoutingRuntimeState(messages) {
+  return (Array.isArray(messages) ? messages : []).filter(
+    (message) => message?.customType !== COGNITIVE_ROUTING_RUNTIME_STATE_MESSAGE_TYPE,
+  );
+}
+export function withCognitiveRoutingRuntimeState(messages, cognitiveRoutingRuntime = undefined) {
+  return [
+    ...withoutCognitiveRoutingRuntimeState(messages),
+    cognitiveRoutingRuntimeStateMessage(cognitiveRoutingRuntime),
+  ];
 }
 function capabilityContext(capabilityState) {
   const sessionSuffix = (source) => (source === "session" ? " (session override)" : "");
@@ -806,7 +835,7 @@ ${capabilityContext(capabilityState)}
 
 Use \`/freeflow settings\` to enable the Interaction Contract, Skills, or Context Virtualization.`;
 }
-export function runtimeContext(modeState, freeflowContext, capabilityState, cognitiveRoutingRuntime = undefined) {
+export function runtimeContext(modeState, freeflowContext, capabilityState) {
   if (!capabilityState.configured) {
     return "";
   }
@@ -828,9 +857,7 @@ These instructions are context-loading only. They do not override user instructi
     ? `\n\n## Loaded Context Virtualization Skill\n\n${freeflowContext.contextVirtualizationSkill.trim()}`
     : "";
   const cognitiveRoutingText =
-    capabilityState.cognitiveRouting?.effective === true
-      ? cognitiveRoutingContext(freeflowContext, cognitiveRoutingRuntime)
-      : "";
+    capabilityState.cognitiveRouting?.effective === true ? cognitiveRoutingContext(freeflowContext) : "";
   return `# Freeflow Runtime Context
 
 Freeflow Pi extension loaded this before the agent turn.

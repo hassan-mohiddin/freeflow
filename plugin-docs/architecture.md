@@ -69,7 +69,7 @@ The hook stays inert without valid repository activation, fails closed on invali
 The Pi extension:
 
 - reads both config layers before agent turns;
-- appends effective compact context and the Interaction Contract in `before_agent_start`;
+- appends static effective context and the Interaction Contract in `before_agent_start`, then supplies one volatile Control/Profile state record before each provider request;
 - stores Workflow as one hidden persistent custom message while Skills are effective;
 - restores temporary session mode from Pi session entries;
 - dynamically exposes 25 model/contributor skills;
@@ -112,7 +112,7 @@ After compaction, summarization, clear, resume, or session navigation, Workflow 
 
 The Pi-only Context Virtualization capability owns projection-only archive and restore of consumed tool-result content while preserving canonical session history.
 
-The Pi-only Cognitive Routing capability owns exactly two configured compute profiles, complete model-and-thinking transitions through Pi's lease, deterministic `/freeflow profile standard|reasoning|auto` controls, and the guarded `freeflow_switch_profile(target, reason)` request. It shares authority, tools, workflow, context, and evidence requirements with the active agent; it does not create a new skill-discovery surface or authorize work. The current implementation remains an experimental local-Pi MVP until the Phase 2 mechanism checkpoint and behavioral acceptance evidence are complete.
+The Pi-only Cognitive Routing capability owns exactly two configured compute profiles, complete model-and-thinking transitions through Pi's lease, deterministic `/freeflow profile standard|reasoning|auto` controls, the guarded `freeflow_switch_profile(target, reason)` request, and one volatile model-facing Control/Profile state record per provider request. Transition results are historical evidence; the volatile record is the current-state authority. It shares authority, tools, workflow, context, and evidence requirements with the active agent; it does not create a new skill-discovery surface or authorize work. The current implementation remains an experimental local-Pi MVP until the Phase 2 mechanism checkpoint and behavioral acceptance evidence are complete.
 
 Delegation Harness is retired from the live package. Its implementation and historical evidence remain under `.deprecated/delegation-harness/`.
 
