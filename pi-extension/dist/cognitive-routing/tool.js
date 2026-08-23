@@ -31,8 +31,13 @@ function resultText(result) {
 function blocked(reason) {
   return { status: "blocked", reason };
 }
-function pendingLabel(to) {
-  return `Cognitive Routing → ${to ?? "unknown"}`;
+function renderNothing() {
+  return {
+    render() {
+      return [];
+    },
+    invalidate() {},
+  };
 }
 function renderTransition(text, theme) {
   return textComponent(theme?.fg ? theme.fg("accent", text) : text);
@@ -130,9 +135,8 @@ export function registerCognitiveRoutingTool(pi, getController) {
         details: { result },
       };
     },
-    renderCall(args, theme) {
-      const target = args?.target === "standard" || args?.target === "reasoning" ? args.target : undefined;
-      return renderTransition(pendingLabel(target), theme);
+    renderCall(_args, _theme) {
+      return renderNothing();
     },
     renderResult(result, _options, theme) {
       const outcome = resultFromPayload(result);

@@ -115,7 +115,7 @@ test("recovers a structured result from model-visible tool text", () => {
   );
 });
 
-test("renders pending targets without reading mutable controller state", () => {
+test("hides the duplicate pending line without reading mutable controller state", () => {
   const tool = register(() => {
     throw new Error("renderCall must not read live profile state");
   });
@@ -125,7 +125,7 @@ test("renders pending targets without reading mutable controller state", () => {
     },
   };
 
-  assert.equal(tool.renderCall({ target: "reasoning" }, theme).render(120).join("\n"), "Cognitive Routing → reasoning");
+  assert.deepEqual(tool.renderCall({ target: "reasoning" }, theme).render(120), []);
   assert.equal(
     tool
       .renderResult(

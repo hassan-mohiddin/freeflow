@@ -53,8 +53,13 @@ function blocked(reason: string): CognitiveRoutingSwitchResult {
   return { status: "blocked", reason };
 }
 
-function pendingLabel(to: CognitiveRoutingProfileName | undefined): string {
-  return `Cognitive Routing → ${to ?? "unknown"}`;
+function renderNothing() {
+  return {
+    render() {
+      return [];
+    },
+    invalidate() {},
+  };
 }
 
 function renderTransition(text: string, theme: any) {
@@ -165,9 +170,8 @@ export function registerCognitiveRoutingTool(
         details: { result },
       };
     },
-    renderCall(args: SwitchToolParams, theme: any) {
-      const target = args?.target === "standard" || args?.target === "reasoning" ? args.target : undefined;
-      return renderTransition(pendingLabel(target), theme);
+    renderCall(_args: SwitchToolParams, _theme: any) {
+      return renderNothing();
     },
     renderResult(result: any, _options: any, theme: any) {
       const outcome = resultFromPayload(result);
