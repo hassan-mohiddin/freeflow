@@ -12,6 +12,8 @@ After consuming a result, classify it silently:
 - **Retained:** archive the raw result with transformed working memory when conclusions, identifiers, constraints, provenance, or unresolved failures still matter.
 - **Reference-only:** archive without retained meaning when nothing from the result needs to remain active.
 
+When the classification is Retained or Reference-only, perform the archive transition before moving on. Do not merely classify it internally.
+
 Treat the tool call and result as one semantic decision unit, but target the result's `ctx:` reference when archiving. Keeping a result Full requires no tool call or management commentary.
 
 ## Revisit The Working Set
